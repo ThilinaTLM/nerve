@@ -6,7 +6,7 @@ Scope: Docker/container runtime contract for a configurable, reproducible Nerve 
 
 Nerve Sandbox v1 defines how to package and run the Nerve agent harness as an isolated sandbox daemon. The sandbox is configured by a YAML spec, connects to a sandbox controller over WebSocket, emits durable events, accepts steering commands, and persists enough local state to resume multiple conversations, agents, subagents, and runs after restarts, errors, completion, or human-input waits.
 
-Baseline implementation is split into `packages/sandbox-runtime` for the containerized daemon/runtime, `packages/sandbox-manager` for container lifecycle, built-in key-value secrets, protocol APIs, web-asset serving, and garbage collection, `packages/sandbox-manager-app` for the dedicated manager UI, and `packages/workbench-ui` for shared Svelte UI primitives/styles. Docker and Podman are the initial manager backends; AWS ECS is a planned backend extension.
+Baseline implementation is split into `packages/sandbox-agent` for the containerized daemon/runtime, `packages/sandbox-manager` for container lifecycle, built-in key-value secrets, protocol APIs, web-asset serving, and garbage collection, `packages/sandbox-manager-app` for the dedicated manager UI, and `packages/workbench-ui` for shared Svelte UI primitives/styles. Docker and Podman are the initial manager backends; AWS ECS is a planned backend extension.
 
 The sandbox does **not** require the current Nerve orchestrator or current local Web UI. Those components may later act as one possible controller/UI, but the v1 sandbox is intended as a standalone platform building block.
 
@@ -38,7 +38,7 @@ Sandbox v1 adds a **profile** on top of that protocol:
 - a **sandbox controller** peer, normally `packages/sandbox-manager`, that receives sandbox events and sends commands;
 - sandbox-specific capabilities such as `sandbox.runtime.v1`, `sandbox.commands.v1`, `sandbox.secret_stores.v1`, `sandbox.git_config.v1`, `sandbox.github_config.v1`, and `sandbox.skills.v1`;
 - sandbox command methods such as `sandbox.run.start` and `sandbox.input.submit`, defined in [Commands](./commands.md);
-- sandbox event families such as `sandbox.ready`, `sandbox.config.loaded`, `sandbox.credentials.refreshed`, `sandbox.skills.loaded`, `run.checkpointed`, and `tool.call.completed`, defined in [Event Schemas](./event-schemas.md);
+- sandbox event families such as `sandbox.ready`, `sandbox.config.loaded`, `sandbox.credentials.refreshed`, `sandbox.skills.loaded`, `run.checkpointed`, and `toolCall.updated`, defined in [Event Schemas](./event-schemas.md);
 - container runtime, filesystem, durability, credential refresh, key-value secret resolution, Git/GitHub startup setup, tool-group, and security requirements.
 
 When mapped onto the existing `PeerDescriptor` type, the controller SHOULD use role `orchestrator`, because it owns command intake, policy decisions, durable event ingestion, and replay for the sandbox session. This does not imply the controller is the current local Nerve orchestrator implementation.
@@ -84,7 +84,7 @@ A conforming v1 sandbox:
 
 This specification is ready to guide an initial implementation with:
 
-- one sandbox daemon per sandbox container in `packages/sandbox-runtime`;
+- one sandbox daemon per sandbox container in `packages/sandbox-agent`;
 - a sandbox manager in `packages/sandbox-manager` with Docker/Podman container drivers, built-in KV secrets, protocol API/WS, and container GC;
 - a separate sandbox-manager web UI app in `packages/sandbox-manager-app` using shared primitives from `packages/workbench-ui`;
 - durable state semantics for multiple conversations, agents, subagents, and runs;

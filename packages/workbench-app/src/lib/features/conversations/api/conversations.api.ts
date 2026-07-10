@@ -6,7 +6,7 @@ import type {
   ConversationTree,
   SnapshotCursor,
 } from "@nervekit/contracts";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export type ConversationSnapshotWithCursor = {
   snapshot: ConversationSnapshot;

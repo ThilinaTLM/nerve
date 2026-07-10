@@ -1,4 +1,4 @@
-import type { BadgeTone } from "@nervekit/workbench-ui/components/ui/badge";
+import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 import type { GithubChecksSummary } from "$lib/api";
 import type { PrViewState } from "$lib/core/types/state-types";
 

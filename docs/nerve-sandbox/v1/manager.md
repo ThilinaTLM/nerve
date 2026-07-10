@@ -48,7 +48,7 @@ The manager may serve the dedicated sandbox-manager web UI when `NERVE_SANDBOX_M
                 v
 +---------------+---------------+
 | Sandbox container              |
-| packages/sandbox-runtime         |
+| packages/sandbox-agent         |
 | - sandbox daemon               |
 | - agent runtime + tools        |
 | - /workspace + /state          |

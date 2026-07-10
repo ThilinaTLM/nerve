@@ -9,8 +9,8 @@ import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
 import { isGithubChecksPending } from "./github-pr-checks";
-import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
-import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
+import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import type { PrViewState } from "./github-pr-types";
 import {
   checksTone,
@@ -20,9 +20,9 @@ import {
   stateLabel,
   stateTone,
 } from "./pr-pane-helpers";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 
 type Props = {
   view?: PrViewState;

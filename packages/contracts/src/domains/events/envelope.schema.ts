@@ -3,7 +3,7 @@ import { z } from "zod";
 export type EventDurability = "durable" | "transient";
 
 export const eventEnvelopeSchema = z.object({
-  seq: z.number().int().nonnegative(),
+  seq: z.number().int().positive().safe(),
   id: z.string().startsWith("evt_"),
   ts: z.string().datetime(),
   type: z.string().min(1),

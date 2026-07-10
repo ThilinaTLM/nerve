@@ -9,9 +9,9 @@ import type {
   ModelInfo,
 } from "$lib/api";
 import { deleteModelDefinition } from "$lib/api";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import ConfirmDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
 import ModelDefinitionDialog from "./ModelDefinitionDialog.svelte";

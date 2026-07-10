@@ -1,7 +1,7 @@
 import type {
   VirtualScrollBehavior,
   VirtualScrollerController,
-} from "@nervekit/workbench-ui/components/ui/virtual-list";
+} from "@nervekit/ui-kit/components/ui/virtual-list";
 import { tick } from "svelte";
 import { shouldDisableFollowForScroll } from "./conversation-scroll-intent";
 

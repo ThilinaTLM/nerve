@@ -19,7 +19,7 @@ import type {
   PlanReviewResolveOptions,
 } from "../../state/tool-types.js";
 import type { TranscriptItem } from "../../state/transcript-types.js";
-import type { ContextMenuItem } from "../ui/context-menu-list/index.js";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 
 export type ConversationComposerCapabilities = {
   voice?: boolean;

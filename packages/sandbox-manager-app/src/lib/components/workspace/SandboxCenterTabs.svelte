@@ -13,7 +13,7 @@ import Settings from "@lucide/svelte/icons/settings";
 import Terminal from "@lucide/svelte/icons/terminal";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
-import type { ContextMenuItem } from "@nervekit/workbench-ui/components/ui/context-menu-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import {
   WorkbenchCenter,
   WorkbenchTabStrip,
@@ -22,7 +22,7 @@ import type {
   WorkbenchTabIdentity,
   WorkbenchTabModel,
 } from "@nervekit/workbench-ui/components/workbench";
-import { isMarkdownPath } from "@nervekit/workbench-ui/core/utils/file-display";
+import { isMarkdownPath } from "@nervekit/ui-kit/core/utils/file-display";
 import SandboxDashboard from "../dashboard/SandboxDashboard.svelte";
 import SandboxSettingsPanel from "../settings/SandboxSettingsPanel.svelte";
 import SandboxChatPane from "./SandboxChatPane.svelte";

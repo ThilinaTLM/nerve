@@ -1,9 +1,9 @@
 <script lang="ts">
 import Search from "@lucide/svelte/icons/search";
 import type { Snippet } from "svelte";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 
 let {
   searchValue = $bindable(""),

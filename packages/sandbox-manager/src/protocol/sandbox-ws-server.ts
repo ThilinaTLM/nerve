@@ -10,15 +10,6 @@ import {
   nerveMessageSchema,
   readyMessageSchema,
   replayRequestMessageSchema,
-  type SandboxProtocolMessage,
-  sandboxProtocolErrorSchema,
-  sandboxProtocolEventBatchSchema,
-  sandboxProtocolGoodbyeSchema,
-  sandboxProtocolHeartbeatSchema,
-  sandboxProtocolHelloSchema,
-  sandboxProtocolReadySchema,
-  sandboxProtocolReplayRequestSchema,
-  sandboxProtocolResponseSchema,
 } from "@nervekit/contracts";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../app/manager-state.js";
@@ -41,8 +32,7 @@ import {
   handleUiReplayRequest,
   uiWelcomeStreams,
 } from "./manager-ui-replay.js";
-import { encodeProtocolMessage, parseProtocolMessage } from "./messages.js";
-import { replayEvents } from "./replay.js";
+import { parseProtocolMessage } from "./messages.js";
 import {
   type ConnectedSandboxSession,
   SandboxSessionRegistry,
@@ -179,11 +169,7 @@ export class SandboxWsServer {
       cleanupHelloTimer();
       try {
         const hello = helloMessageSchema.parse(JSON.parse(String(data)));
-        const targetPeer = hello.source ?? {
-          role: "ui" as const,
-          id: "sandbox-manager-ui",
-          name: "Nerve Sandbox Manager UI",
-        };
+        const targetPeer = hello.source;
         session = createUiProtocolSession({
           source: targetPeer,
           resume: hello.data.resume,
@@ -201,7 +187,8 @@ export class SandboxWsServer {
             "welcome",
             {
               sessionId: session.sessionId,
-              orchestrator: {
+              acceptingPeer: {
+                role: "sandbox_manager",
                 id: "sandbox-manager",
                 instanceId: "sandbox-manager",
               },
@@ -297,7 +284,7 @@ export class SandboxWsServer {
       );
       return;
     }
-    if (message.kind === "ack") {
+    if (message.kind === "event.ack") {
       const ack = ackMessageSchema.parse(message);
       if (ack.data.sessionId !== session.sessionId) {
         send(
@@ -352,20 +339,24 @@ export class SandboxWsServer {
     ws: WebSocket,
   ): Promise<void> {
     let session: ConnectedSandboxSession | undefined;
+    const send = (message: NerveMessage): void => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+    };
     const fail = (code: string, message: string): void => {
       this.state.logger.warn("controller handshake rejected", {
         sandboxId,
         code,
         reason: message,
       });
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          encodeProtocolMessage({ type: "error", error: { code, message } }),
-        );
-        ws.close(1008, code);
-      }
+      send(
+        makeManagerMessage(
+          "error",
+          { code: "SESSION_REJECTED", message, retryable: false, close: true },
+          { target: { role: "sandbox_agent", id: sandboxId } },
+        ),
+      );
+      ws.close(1008, code);
     };
-
     const helloTimer = setTimeout(
       () => fail("HELLO_TIMEOUT", "Sandbox hello was not received in time"),
       10_000,
@@ -375,11 +366,16 @@ export class SandboxWsServer {
     ws.once("message", async (data) => {
       cleanupHelloTimer();
       try {
-        const hello = sandboxProtocolHelloSchema.parse(
-          parseProtocolMessage(data as Buffer),
-        );
-        if (hello.sandboxId !== sandboxId) {
-          fail("SANDBOX_MISMATCH", "Hello sandboxId does not match URL");
+        const hello = parseProtocolMessage(data as Buffer);
+        if (
+          hello.kind !== "hello" ||
+          hello.source.role !== "sandbox_agent" ||
+          hello.source.id !== sandboxId
+        ) {
+          fail(
+            "INVALID_HELLO",
+            "Expected a sandbox-agent hello matching the URL",
+          );
           return;
         }
         const record = await this.state.sandboxes.get(sandboxId);
@@ -387,26 +383,29 @@ export class SandboxWsServer {
           fail("UNKNOWN_SANDBOX", "Sandbox record is missing");
           return;
         }
-        const controllerMetadata = record.controller;
-        if (record.instanceId && record.instanceId !== hello.instanceId) {
-          // Restarts are allowed while the manager wants the sandbox running.
-          if (
-            record.desiredState !== "running" &&
-            record.desiredState !== "created"
-          ) {
-            fail("INSTANCE_MISMATCH", "Sandbox instance is not current");
-            return;
-          }
+        const instanceId = hello.source.instanceId;
+        if (!instanceId) {
+          fail("INVALID_HELLO", "Sandbox instance identity is required");
+          return;
+        }
+        if (
+          record.instanceId &&
+          record.instanceId !== instanceId &&
+          record.desiredState !== "running" &&
+          record.desiredState !== "created"
+        ) {
+          fail("INSTANCE_MISMATCH", "Sandbox instance is not current");
+          return;
         }
         const sessionId = `sess_${randomUUID()}`;
         const now = new Date().toISOString();
-        const capabilities = acceptedCapabilities(hello.capabilities);
-        const forwarder = new CommandForwarder({
+        const capabilities = acceptedCapabilities(hello.data.capabilities);
+        const forwarder = new CommandForwarder(sandboxId, {
           logger: this.state.logger.child({ sandboxId, sessionId }),
         });
         session = {
           sandboxId,
-          instanceId: hello.instanceId,
+          instanceId,
           sessionId,
           connectedAt: now,
           lastHeartbeatAt: now,
@@ -421,7 +420,7 @@ export class SandboxWsServer {
           updatedAt: now,
           connectedAt: now,
           agentStatus: "booting",
-          cursors: hello.resume?.cursors,
+          cursors: hello.data.resume?.streams,
           capabilities,
         });
         const connectedRecord = await transitionSandboxLifecycle(
@@ -434,58 +433,54 @@ export class SandboxWsServer {
           "daemon_connected",
           {
             observedState: "running",
-            instanceId: hello.instanceId,
+            instanceId,
             daemon: { sessionId, connectedAt: now, lastHeartbeatAt: now },
             force: true,
           },
         );
         await this.state.sandboxes.put({
           ...connectedRecord,
-          controller: {
-            token: controllerMetadata.token,
-            url: controllerMetadata.url,
-            sessionId,
-          },
+          controller: { ...record.controller, sessionId },
         });
-        await recordManagerLifecycleEvent(this.state, {
-          type: "manager.sandbox.daemon_connected",
-          sandboxId,
-          payload: {
-            sandboxId,
-            instanceId: hello.instanceId,
-            sessionId,
-            lifecycleState: "daemon_connected",
-          },
-        });
-        ws.send(
-          encodeProtocolMessage({
-            type: "welcome",
-            version: 1,
-            accepted: true,
-            sessionId,
-            acceptedCapabilities: capabilities,
-            heartbeatIntervalMs: 15_000,
-            replay: {
-              required: true,
-              fromSeq: hello.resume?.lastAckedSeq ?? 0,
-            },
-          }),
-        );
-        this.state.logger.info("controller session connected", {
-          sandboxId,
-          sessionId,
-          instanceId: hello.instanceId,
-          capabilities: capabilities.length,
-        });
-        session.heartbeat = setInterval(() => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          ws.send(
-            encodeProtocolMessage({
-              type: "heartbeat",
-              ts: new Date().toISOString(),
-              status: "ok",
+        send(
+          makeManagerMessage(
+            "welcome",
+            {
               sessionId,
-            }),
+              acceptingPeer: { role: "sandbox_manager", id: "sandbox-manager" },
+              acceptedVersion: 1,
+              capabilities,
+              encoding: "json",
+              streams: [
+                {
+                  stream: `sandbox:${sandboxId}`,
+                  latestSeq: 0,
+                  durableSeq: 0,
+                },
+              ],
+              limits: {
+                maxMessageBytes: 1_000_000,
+                maxBatchEvents: 1_000,
+                maxBatchBytes: 1_000_000,
+                maxInflightBatches: 16,
+                maxUnackedDurableEvents: 10_000,
+              },
+              heartbeat: { intervalMs: 15_000, timeoutMs: 45_000 },
+              resume: {
+                accepted: true,
+                mode: hello.data.resume ? "replay" : "fresh",
+              },
+            },
+            { target: hello.source, correlationId: hello.id },
+          ),
+        );
+        session.heartbeat = setInterval(() => {
+          send(
+            makeManagerMessage(
+              "heartbeat",
+              { sessionId, sentAt: new Date().toISOString() },
+              { target: hello.source },
+            ),
           );
         }, 15_000);
         session.heartbeat.unref();
@@ -519,26 +514,37 @@ export class SandboxWsServer {
     session: ConnectedSandboxSession,
     data: Buffer,
   ): Promise<void> {
-    let message: SandboxProtocolMessage;
+    let message;
     try {
       message = parseProtocolMessage(data);
     } catch (error) {
       session.socket.send(
-        encodeProtocolMessage({
-          type: "error",
-          error: {
-            code: "INVALID_MESSAGE",
-            message: error instanceof Error ? error.message : "Invalid message",
-          },
-        }),
+        JSON.stringify(
+          makeManagerMessage(
+            "error",
+            {
+              code: "INVALID_MESSAGE",
+              message:
+                error instanceof Error ? error.message : "Invalid message",
+              retryable: false,
+            },
+            { target: { role: "sandbox_agent", id: session.sandboxId } },
+          ),
+        ),
       );
       return;
     }
-    if (message.type === "ready") {
-      const ready = sandboxProtocolReadySchema.parse(message);
+    if (
+      message.source.role !== "sandbox_agent" ||
+      message.source.id !== session.sandboxId
+    ) {
+      session.socket.close(1008, "source_mismatch");
+      return;
+    }
+    if (message.kind === "ready") {
       const now = new Date().toISOString();
       session.readyAt = now;
-      session.agentStatus = ready.status;
+      session.agentStatus = "ready";
       await this.state.sessions.put({
         sandboxId: session.sandboxId,
         sessionId: session.sessionId,
@@ -546,8 +552,8 @@ export class SandboxWsServer {
         updatedAt: now,
         connectedAt: session.connectedAt,
         readyAt: now,
-        agentStatus: ready.status,
-        cursors: ready.cursors,
+        agentStatus: "ready",
+        cursors: message.data.streams,
       });
       await transitionSandboxLifecycle(
         {
@@ -556,7 +562,7 @@ export class SandboxWsServer {
             recordManagerLifecycleEvent(this.state, event),
         },
         session.sandboxId,
-        ready.status,
+        "ready",
         {
           daemon: {
             sessionId: session.sessionId,
@@ -567,21 +573,9 @@ export class SandboxWsServer {
           force: true,
         },
       );
-      await recordManagerLifecycleEvent(this.state, {
-        type: "manager.sandbox.ready",
-        sandboxId: session.sandboxId,
-        payload: {
-          sandboxId: session.sandboxId,
-          instanceId: session.instanceId,
-          sessionId: session.sessionId,
-          status: ready.status,
-          readyAt: now,
-        },
-      });
       return;
     }
-    if (message.type === "heartbeat") {
-      sandboxProtocolHeartbeatSchema.parse(message);
+    if (message.kind === "heartbeat") {
       session.lastHeartbeatAt = new Date().toISOString();
       await this.state.sessions.put({
         sandboxId: session.sandboxId,
@@ -591,97 +585,47 @@ export class SandboxWsServer {
         connectedAt: session.connectedAt,
         readyAt: session.readyAt,
         agentStatus: session.agentStatus ?? "booting",
-        cursors: message.cursors,
+        cursors: message.data.processed,
       });
-      const record = await this.state.sandboxes.get(session.sandboxId);
-      if (record?.daemon?.sessionId === session.sessionId) {
-        await this.state.sandboxes.put({
-          ...record,
-          daemon: {
-            ...record.daemon,
-            lastHeartbeatAt: session.lastHeartbeatAt,
-          },
-          updatedAt: session.lastHeartbeatAt,
-        });
-      }
       return;
     }
-    if (message.type === "event.batch") {
-      const batch = sandboxProtocolEventBatchSchema.parse(message);
+    if (message.kind === "event.batch") {
+      const expectedStream = `sandbox:${session.sandboxId}`;
+      if (message.data.stream !== expectedStream) {
+        session.socket.close(1008, "stream_mismatch");
+        return;
+      }
       const result = await this.ingestor.ingestBatch(
         session.sandboxId,
-        batch.events,
+        message.data.events,
       );
-      if (
-        result.accepted > 0 &&
-        batch.events.some((event) => isBootProgressEvent(event.type))
-      ) {
-        const record = await this.state.sandboxes.get(session.sandboxId);
-        if (record?.lifecycleState === "daemon_connected") {
-          await transitionSandboxLifecycle(
+      session.socket.send(
+        JSON.stringify(
+          makeManagerMessage(
+            "event.ack",
             {
-              store: this.state.sandboxes,
-              recordEvent: (event) =>
-                recordManagerLifecycleEvent(this.state, event),
+              sessionId: session.sessionId,
+              ackId: message.data.batchId,
+              streams: [
+                { stream: expectedStream, processedSeq: result.processedSeq },
+              ],
+              stats: { appliedEvents: result.accepted },
             },
-            session.sandboxId,
-            "booting",
-            { daemon: { sessionId: session.sessionId } },
-          );
-        }
-      }
-      session.socket.send(
-        encodeProtocolMessage({
-          type: "ack",
-          batchId: batch.batchId,
-          stream: batch.stream,
-          processedSeq: result.processedSeq,
-          accepted: result.accepted,
-        }),
+            { target: message.source, correlationId: message.id },
+          ),
+        ),
       );
       return;
     }
-    if (message.type === "response") {
-      session.forwarder.resolve(sandboxProtocolResponseSchema.parse(message));
+    if (message.kind === "response") {
+      session.forwarder.resolve(message);
       return;
     }
-    if (message.type === "error") {
-      session.forwarder.reject(sandboxProtocolErrorSchema.parse(message));
+    if (message.kind === "error") {
+      session.forwarder.reject(message);
       return;
     }
-    if (message.type === "goodbye") {
-      sandboxProtocolGoodbyeSchema.parse(message);
-      session.socket.close(1000, "goodbye");
-      return;
-    }
-    if (message.type === "replay.request") {
-      const request = sandboxProtocolReplayRequestSchema.parse(message);
-      const events = (
-        await replayEvents(
-          this.state.events,
-          session.sandboxId,
-          request.afterSeq,
-        )
-      )
-        .slice(0, request.limit ?? 1000)
-        .map((event) => ({
-          id: event.id,
-          seq: event.seq ?? 0,
-          ts: event.ts ?? new Date().toISOString(),
-          type: event.type,
-          data: event.payload,
-          durability: "durable" as const,
-        }));
-      session.socket.send(
-        encodeProtocolMessage({
-          type: "replay.response",
-          stream: request.stream,
-          afterSeq: request.afterSeq,
-          events,
-          complete: events.length < (request.limit ?? 1000),
-        }),
-      );
-    }
+    if (message.kind === "goodbye") session.socket.close(1000, "goodbye");
   }
 
   private safeHandleClose(
@@ -754,21 +698,6 @@ export class SandboxWsServer {
       );
     }
   }
-}
-
-function isBootProgressEvent(type: string): boolean {
-  return (
-    type.startsWith("sandbox.startup.stage.") ||
-    type.startsWith("sandbox.preflight.") ||
-    type.startsWith("sandbox.models.") ||
-    type.startsWith("sandbox.context.") ||
-    type === "sandbox.config.loaded" ||
-    type === "sandbox.secret_store.checked" ||
-    type.startsWith("sandbox.setup.") ||
-    type.startsWith("sandbox.boot.") ||
-    type === "sandbox.skills.loaded" ||
-    type === "sandbox.ready"
-  );
 }
 
 function matchSandboxId(url: string): string | undefined {

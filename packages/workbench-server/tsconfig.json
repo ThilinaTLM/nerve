@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../protocol"
+    },
+    {
+      "path": "../host-runtime"
+    }
+  ],
+  "include": ["src/**/*.ts"]
+}

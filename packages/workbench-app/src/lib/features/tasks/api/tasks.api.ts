@@ -3,8 +3,8 @@ import type {
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/contracts";
-import { apiGet, apiPathSegment } from "@nervekit/workbench-ui/core/api/client";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { apiGet, apiPathSegment } from "@nervekit/ui-kit/core/api/client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export async function getTaskLogs(
   taskId: string,

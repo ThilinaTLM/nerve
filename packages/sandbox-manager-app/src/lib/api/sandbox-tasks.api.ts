@@ -9,7 +9,7 @@ export async function listSandboxTasks(
   sandboxId: string,
 ): Promise<TaskRecord[]> {
   return (
-    await protocolRequest<{ tasks: TaskRecord[] }>("sandbox.task.list", {
+    await protocolRequest<{ tasks: TaskRecord[] }>("task.list", {
       sandboxId,
     })
   ).result.tasks;
@@ -21,7 +21,7 @@ export async function startSandboxTask(
 ): Promise<TaskRecord> {
   return (
     await protocolRequest<{ task: TaskRecord }>(
-      "sandbox.task.start",
+      "task.start",
       { sandboxId, ...request },
       { idempotencyKey: `sandbox-task-start-${sandboxId}-${Date.now()}` },
     )
@@ -33,7 +33,7 @@ export async function getSandboxTask(
   taskId: string,
 ): Promise<TaskRecord> {
   return (
-    await protocolRequest<{ task: TaskRecord }>("sandbox.task.get", {
+    await protocolRequest<{ task: TaskRecord }>("task.get", {
       sandboxId,
       taskId,
     })
@@ -46,7 +46,7 @@ export async function cancelSandboxTask(
 ): Promise<TaskRecord> {
   return (
     await protocolRequest<{ task: TaskRecord }>(
-      "sandbox.task.cancel",
+      "task.cancel",
       { sandboxId, taskId },
       {
         idempotencyKey: `sandbox-task-cancel-${sandboxId}-${taskId}-${Date.now()}`,
@@ -61,7 +61,7 @@ export async function restartSandboxTask(
 ): Promise<TaskRecord> {
   return (
     await protocolRequest<{ task: TaskRecord }>(
-      "sandbox.task.restart",
+      "task.restart",
       { sandboxId, taskId },
       {
         idempotencyKey: `sandbox-task-restart-${sandboxId}-${taskId}-${Date.now()}`,
@@ -75,7 +75,7 @@ export async function deleteSandboxTask(
   taskId: string,
 ): Promise<void> {
   await protocolRequest<{ removed: true }>(
-    "sandbox.task.delete",
+    "task.delete",
     { sandboxId, taskId },
     {
       idempotencyKey: `sandbox-task-delete-${sandboxId}-${taskId}-${Date.now()}`,
@@ -88,7 +88,7 @@ export async function pruneSandboxTasks(
 ): Promise<{ removed: string[] }> {
   return (
     await protocolRequest<{ removed: string[] }>(
-      "sandbox.task.prune",
+      "task.prune",
       { sandboxId },
       { idempotencyKey: `sandbox-task-prune-${sandboxId}-${Date.now()}` },
     )
@@ -101,7 +101,7 @@ export async function getSandboxTaskLogs(
   mode = "recent",
 ): Promise<TaskLogQueryResponse> {
   return (
-    await protocolRequest<TaskLogQueryResponse>("sandbox.task.logs", {
+    await protocolRequest<TaskLogQueryResponse>("task.logs", {
       sandboxId,
       taskId,
       mode,

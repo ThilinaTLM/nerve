@@ -1,7 +1,7 @@
 import {
   agentRunningTone,
   type StatusTone,
-} from "@nervekit/workbench-ui/core/utils/status";
+} from "@nervekit/ui-kit/core/utils/status";
 import type {
   AgentRecord,
   ApprovalWithToolCall,

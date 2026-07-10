@@ -1,7 +1,7 @@
 <script lang="ts">
-import { highlightCodeCached } from "@nervekit/workbench-ui/core/highlight/highlight";
-import { ansiToHtml } from "@nervekit/workbench-ui/core/terminal/ansi";
-import { trimTextPreview } from "@nervekit/workbench-ui/core/utils/text-preview";
+import { highlightCodeCached } from "@nervekit/ui-kit/core/highlight/highlight";
+import { ansiToHtml } from "@nervekit/ui-kit/core/terminal/ansi";
+import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import {
   computedLineHeightPixels,
   contentWidthFromBorderBox,

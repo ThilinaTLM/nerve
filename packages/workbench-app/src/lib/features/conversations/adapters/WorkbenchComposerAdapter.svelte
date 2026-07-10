@@ -9,7 +9,7 @@ import {
   type VoiceInputTarget,
 } from "$lib/core/audio/voice-input-session.svelte";
 import { AgentComposer } from "@nervekit/workbench-ui/components/conversation";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,

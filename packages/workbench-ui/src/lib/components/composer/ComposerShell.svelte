@@ -2,7 +2,7 @@
 import Send from "@lucide/svelte/icons/send";
 import Square from "@lucide/svelte/icons/square";
 import type { Snippet } from "svelte";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 
 type Props = {
   /** Opaque mode string; only `"planning"` receives special surface styling. */

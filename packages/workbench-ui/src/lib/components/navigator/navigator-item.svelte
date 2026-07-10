@@ -2,12 +2,12 @@
 import type { Snippet } from "svelte";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/workbench-ui/components/ui/context-menu-list";
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
 import {
   StatusDot,
   type StatusTone,
-} from "@nervekit/workbench-ui/components/ui/status-dot";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
+} from "@nervekit/ui-kit/components/ui/status-dot";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 
 let {
   title,

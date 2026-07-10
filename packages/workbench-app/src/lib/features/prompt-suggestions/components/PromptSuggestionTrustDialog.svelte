@@ -1,7 +1,7 @@
 <script lang="ts">
 import AlertTriangle from "@lucide/svelte/icons/alert-triangle";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
 import {
   dismissPromptSuggestionTrustRequest,

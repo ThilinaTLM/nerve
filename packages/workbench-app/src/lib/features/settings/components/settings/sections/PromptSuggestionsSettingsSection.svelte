@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onMount } from "svelte";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";

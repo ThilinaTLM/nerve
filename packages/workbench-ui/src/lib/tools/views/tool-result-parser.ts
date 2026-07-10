@@ -18,7 +18,7 @@ import type {
 } from "../../state/tool-types";
 export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
 
-import { LruCache } from "@nervekit/workbench-ui/core/utils/lru-cache";
+import { LruCache } from "@nervekit/ui-kit/core/utils/lru-cache";
 import type { LiveToolOutput } from "../../state/transcript-types";
 import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";

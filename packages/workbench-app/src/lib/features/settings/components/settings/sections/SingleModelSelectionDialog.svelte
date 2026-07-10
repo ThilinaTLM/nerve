@@ -7,9 +7,9 @@ import type {
   ModelSelection,
   ThinkingLevel,
 } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
 import {
   modelDisplayName,
   modelKey,

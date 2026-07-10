@@ -5,10 +5,10 @@ import Loader from "@lucide/svelte/icons/loader-circle";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { AuthProviderMetadata } from "$lib/api";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { AddProviderFlow } from "./add-provider-flow.svelte";
 
 type Props = {

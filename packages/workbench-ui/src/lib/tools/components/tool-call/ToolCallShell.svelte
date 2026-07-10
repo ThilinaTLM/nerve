@@ -2,7 +2,7 @@
 import type { Snippet } from "svelte";
 import type { ToolCallDisplayRecord } from "../../views/tool-result-view";
 import type { ToolPresentation } from "../../views/tool-presentation";
-import { trimTextPreview } from "@nervekit/workbench-ui/core/utils/text-preview";
+import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import CardShell from "./CardShell.svelte";
 
 type Props = {

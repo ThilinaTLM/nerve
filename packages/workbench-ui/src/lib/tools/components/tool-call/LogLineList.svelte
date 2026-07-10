@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { TaskLogEvent } from "../../../state/tool-types";
-import { VirtualScroller } from "@nervekit/workbench-ui/components/ui/virtual-list";
+import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
 import TerminalText from "./TerminalText.svelte";
 
 type LineItem = {

@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Settings, UpdateSettingsRequest } from "$lib/api";
 import type { ThemePreference } from "$lib/app/layout/layout-state.svelte";
-import RadioGroup from "@nervekit/workbench-ui/components/ui/radio-group-field";
+import RadioGroup from "@nervekit/ui-kit/components/ui/radio-group-field";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
 import { themeItems } from "../options";
 

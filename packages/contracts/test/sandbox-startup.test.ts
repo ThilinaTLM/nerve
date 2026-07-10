@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  sandboxProtocolEventSchema,
+  sandboxEventEnvelopeSchema,
   summarizeSandboxStartupEvents,
 } from "../src/index.js";
 
@@ -14,7 +14,7 @@ function event(seq: number, type: string, data: unknown) {
 describe("sandbox startup telemetry", () => {
   it("validates typed stage events and disconnects without an exit deadline", () => {
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
         id: "evt_1",
         seq: 1,
         ts,
@@ -34,7 +34,7 @@ describe("sandbox startup telemetry", () => {
       true,
     );
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
         id: "evt_2",
         seq: 2,
         ts,

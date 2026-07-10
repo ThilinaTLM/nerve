@@ -16,9 +16,9 @@ import {
   type TaskRecord,
   type ProjectRecord,
 } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import ConfirmDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";

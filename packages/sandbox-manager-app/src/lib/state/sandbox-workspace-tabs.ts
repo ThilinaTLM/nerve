@@ -1,4 +1,4 @@
-import { defaultFileDisplayMode } from "@nervekit/workbench-ui/core/utils/file-display";
+import { defaultFileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 import * as api from "../api/manager-client";
 import {
   chatTabFor,
@@ -185,7 +185,7 @@ export async function refreshWorkspaceFile(
   } catch (error) {
     const message = errorMessage(error);
     view.error = message;
-    const { notify } = await import("@nervekit/workbench-ui/core/notify");
+    const { notify } = await import("@nervekit/ui-kit/core/notify");
     notify.error("Could not open file", { description: message });
   } finally {
     view.loading = false;

@@ -15,11 +15,11 @@ import {
   getCredentialKey,
   setProviderApiKey,
 } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import ConfirmDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
-import * as Dialog from "@nervekit/workbench-ui/components/ui/dialog";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { Switch as ToggleSwitch } from "@nervekit/workbench-ui/components/ui/switch";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { Switch as ToggleSwitch } from "@nervekit/ui-kit/components/ui/switch";
 import { encryptApiKey } from "$lib/core/utils/credential-crypto";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";

@@ -2,7 +2,7 @@
 import Check from "@lucide/svelte/icons/check";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import type { ModelInfo, ThinkingLevel } from "@nervekit/contracts";
-import Popover from "@nervekit/workbench-ui/components/ui/popover-panel";
+import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
 import {
   contextualModelLabel,
   modelKey,

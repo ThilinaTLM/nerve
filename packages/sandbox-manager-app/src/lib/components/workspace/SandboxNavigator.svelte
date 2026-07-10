@@ -2,7 +2,7 @@
 import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
 import Plus from "@lucide/svelte/icons/plus";
 import Server from "@lucide/svelte/icons/server";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   ConversationGroupNavigator,
   type ConversationNavigatorGroup,

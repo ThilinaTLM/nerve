@@ -1,7 +1,7 @@
 <script lang="ts">
 import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
 import Plus from "@lucide/svelte/icons/plus";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SandboxSummaryCards from "../SandboxSummaryCards.svelte";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 import { filteredSandboxes } from "../../state/sandbox-manager-selectors.svelte";

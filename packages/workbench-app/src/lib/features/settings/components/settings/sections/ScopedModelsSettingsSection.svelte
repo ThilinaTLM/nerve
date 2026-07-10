@@ -9,7 +9,7 @@ import type {
   Settings,
   UpdateSettingsRequest,
 } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
 import {
   authenticatedRealModelOptions,

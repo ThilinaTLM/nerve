@@ -4,7 +4,6 @@ import type {
 } from "@nervekit/contracts";
 import {
   eventBatchMessageSchema,
-  nerveMessageSchema,
   replayStartedMessageSchema,
   replayUnavailableMessageSchema,
   welcomeMessageSchema,
@@ -14,11 +13,9 @@ import {
   type ClientEventStreamState,
   createClientEventStreamState,
   markProcessed,
-} from "@nervekit/workbench-ui/core/protocol/event-stream";
-import {
-  protocolClientId,
-  protocolInstanceId,
-} from "@nervekit/workbench-ui/core/protocol/ids";
+  ProtocolCodec,
+} from "@nervekit/protocol";
+import { protocolClientId, protocolInstanceId } from "@nervekit/protocol";
 
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
@@ -69,6 +66,7 @@ export class ManagerWsClient {
   private closedByCaller = false;
   private hadWelcome = false;
   private sessionId: string | undefined;
+  private readonly codec = new ProtocolCodec();
 
   constructor(private readonly handlers: ManagerWsHandlers) {}
 
@@ -132,12 +130,6 @@ export class ManagerWsClient {
 
   private sendHello(): void {
     this.sendMessage("hello", {
-      role: "ui",
-      client: {
-        id: protocolClientId(),
-        instanceId: protocolInstanceId(),
-        name: "Nerve Sandbox Manager UI",
-      },
       requestedVersion: 1,
       capabilities: UI_CAPABILITIES,
       encodings: ["json"],
@@ -168,15 +160,12 @@ export class ManagerWsClient {
   }
 
   private handleMessage(raw: unknown): void {
-    let decoded: unknown;
+    let message;
     try {
-      decoded = JSON.parse(String(raw));
+      message = this.codec.decode(String(raw));
     } catch {
       return;
     }
-    const parsed = nerveMessageSchema.safeParse(decoded);
-    if (!parsed.success) return;
-    const message = parsed.data;
     switch (message.kind) {
       case "welcome":
         this.onWelcome(message);
@@ -321,7 +310,7 @@ export class ManagerWsClient {
   private flushAcks(): void {
     this.ackTimer = undefined;
     if (!this.sessionId || this.pendingAcks.size === 0) return;
-    this.sendMessage("ack", {
+    this.sendMessage("event.ack", {
       sessionId: this.sessionId,
       ackId: `ack_${Date.now()}`,
       streams: [...this.pendingAcks].map((stream) => ({
@@ -346,7 +335,7 @@ export class ManagerWsClient {
         instanceId: protocolInstanceId(),
         name: "Nerve Sandbox Manager UI",
       },
-      target: { role: "orchestrator", id: "sandbox-manager" },
+      target: { role: "sandbox_manager", id: "sandbox-manager" },
       data,
     });
   }

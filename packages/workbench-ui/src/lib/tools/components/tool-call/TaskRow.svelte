@@ -1,11 +1,11 @@
 <script lang="ts">
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import type { TaskRecord } from "../../../state/tool-types";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
-import { taskPulse, taskTone } from "@nervekit/workbench-ui/core/utils/status";
-import { dateTimeLabel } from "@nervekit/workbench-ui/core/utils/time";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
+import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
+import { dateTimeLabel } from "@nervekit/ui-kit/core/utils/time";
 import { taskUrl } from "../../views/task";
 
 type Props = { task: TaskRecord; dense?: boolean };

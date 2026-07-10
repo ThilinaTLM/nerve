@@ -1,7 +1,7 @@
 <script lang="ts">
 import Paperclip from "@lucide/svelte/icons/paperclip";
 import type { ConfluenceAttachmentSummaryPayload } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { confluenceBytesLabel } from "../../views/confluence-display";
 import { basename } from "../../views/tool-presentation-helpers";
 

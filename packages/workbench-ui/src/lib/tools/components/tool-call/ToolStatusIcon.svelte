@@ -5,8 +5,8 @@ import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleX from "@lucide/svelte/icons/circle-x";
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
-import type { StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
-import { cn } from "@nervekit/workbench-ui/core/utils";
+import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
+import { cn } from "@nervekit/ui-kit/core/utils";
 
 let {
   tone,

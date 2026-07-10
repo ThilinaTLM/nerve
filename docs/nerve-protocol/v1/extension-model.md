@@ -89,7 +89,7 @@ When replacing a stable capability:
 
 Do not silently change semantics under the old name.
 
-## Method registry governance
+## Operation catalog governance
 
 Protocol `request` methods are optional and incremental. Existing REST/resource endpoints can remain canonical. When a method is added, it SHOULD be registered in shared code with request and response schemas.
 
@@ -162,7 +162,7 @@ New event types SHOULD use lowercase dot-separated names:
 <domain>.<entity_or_action>[.<detail>]
 ```
 
-Current Nerve event names that contain underscores, such as `user_question.*`, `plan_review.*`, and `prompt_suggestions.*`, remain valid domain event names. They do not need to be renamed to implement protocol v1.
+Current Nerve event names that contain underscores, such as `userQuestion.*`, `planReview.*`, and `prompt_suggestions.*`, remain valid domain event names. They do not need to be renamed to implement protocol v1.
 
 ### Event addition checklist
 

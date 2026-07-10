@@ -110,7 +110,7 @@ auth.provider.setKey
 snapshot.workspace.get
 ```
 
-## Method registry
+## Operation catalog
 
 Protocol RPC method names SHOULD be registered in shared code with their request and response schemas before they are used by multiple clients. The registry is the authoritative place to map `data.method` to domain schemas and orchestrator handlers.
 
@@ -368,7 +368,7 @@ Baseline v1 snapshot methods:
 | `snapshot.workspace.get`    | Returns the materialized workspace state needed by the main UI, including projects/conversations/tasks/agents/tool-interaction summaries as defined by shared domain schemas. |
 | `snapshot.conversation.get` | Returns one conversation's materialized state, entries/tree/runtime state, and cursor metadata.                                                                               |
 
-Additional domain snapshots MAY be added through the method registry when a narrower recovery boundary is useful.
+Additional domain snapshots MAY be added through the operation catalog when a narrower recovery boundary is useful.
 
 Example response body as a protocol `response`:
 

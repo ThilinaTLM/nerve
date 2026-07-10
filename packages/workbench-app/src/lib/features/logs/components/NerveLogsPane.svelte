@@ -16,12 +16,12 @@ import type {
   ApplicationLogSource,
 } from "$lib/api";
 import { getApplicationLogs, pruneApplicationLogs } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import ConfirmDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-import { logLevelTone } from "@nervekit/workbench-ui/core/utils/status";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import { logLevelTone } from "@nervekit/ui-kit/core/utils/status";
 import { timeLabel } from "$lib/core/utils/time";
 
 const levels: Array<ApplicationLogLevel | "all"> = [

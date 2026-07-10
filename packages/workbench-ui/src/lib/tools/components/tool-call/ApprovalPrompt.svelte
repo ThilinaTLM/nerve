@@ -2,7 +2,7 @@
 import Check from "@lucide/svelte/icons/check";
 import X from "@lucide/svelte/icons/x";
 import type { ApprovalWithToolCall } from "../../../state/tool-types";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { MetaItem, MetaTone } from "../../views/tool-presentation";
 import ToolFooter from "./ToolFooter.svelte";
 

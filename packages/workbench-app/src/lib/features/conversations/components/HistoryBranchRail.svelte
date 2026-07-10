@@ -14,7 +14,7 @@ import type {
 } from "$lib/api";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/workbench-ui/components/ui/context-menu-list";
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { relativeTimeLabel } from "$lib/core/utils/time";
 import { notify } from "$lib/features/notifications/notify.svelte";

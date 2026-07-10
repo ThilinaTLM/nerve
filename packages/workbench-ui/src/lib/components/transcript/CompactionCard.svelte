@@ -1,7 +1,7 @@
 <script lang="ts">
-import { type StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
+import { type StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import type { CompactionNotice } from "../../state/transcript-types";
-import { formatTokens } from "@nervekit/workbench-ui/core/utils/usage";
+import { formatTokens } from "@nervekit/ui-kit/core/utils/usage";
 import CardShell from "../../tools/components/tool-call/CardShell.svelte";
 import type { MetaItem } from "../../tools/views/tool-presentation";
 

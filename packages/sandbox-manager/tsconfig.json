@@ -6,6 +6,13 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "references": [{ "path": "../contracts" }],
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../protocol"
+    }
+  ],
   "include": ["src/**/*.ts"]
 }

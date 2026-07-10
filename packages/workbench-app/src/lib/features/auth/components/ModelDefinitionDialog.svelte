@@ -3,15 +3,15 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { ModelDefinition, ThinkingLevel } from "$lib/api";
 import { thinkingLevels } from "@nervekit/contracts";
 import { upsertModelDefinition } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { Label } from "@nervekit/workbench-ui/components/ui/label";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField, {
   type SelectItem,
-} from "@nervekit/workbench-ui/components/ui/select-field";
-import Switch from "@nervekit/workbench-ui/components/ui/switch-field";
-import { Textarea } from "@nervekit/workbench-ui/components/ui/textarea";
+} from "@nervekit/ui-kit/components/ui/select-field";
+import Switch from "@nervekit/ui-kit/components/ui/switch-field";
+import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
 

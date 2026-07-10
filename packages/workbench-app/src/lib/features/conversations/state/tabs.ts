@@ -1,6 +1,6 @@
 import type { ConversationRecord } from "$lib/api";
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
-import { protocolRequest } from "$lib/core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 import {
   conversationViewKey,
   pendingConversationKey,

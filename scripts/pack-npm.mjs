@@ -8,9 +8,9 @@ const packDir = join(repoRoot, "release", "npm");
 const legalFiles = ["LICENSE", "NOTICE"];
 const publishPackages = [
   ["@nervekit/contracts", join("packages", "contracts")],
-  ["@nervekit/agent-tools", join("packages", "agent-tools")],
-  ["@nervekit/agent-runtime", join("packages", "agent-runtime")],
-  ["@nervekit/orchestrator", join("packages", "orchestrator")],
+  ["@nervekit/tools", join("packages", "agent-tools")],
+  ["@nervekit/harness", join("packages", "agent-runtime")],
+  ["@nervekit/workbench-server", join("packages", "orchestrator")],
   ["@nervekit/desktop-shell", join("packages", "desktop-shell")],
 ];
 
@@ -21,7 +21,7 @@ try {
     join(repoRoot, "packages", "orchestrator", "dist", "web", "index.html"),
   ).catch(() => {
     throw new Error(
-      "Missing packages/orchestrator/dist/web/index.html. Run pnpm release:build before packing npm packages.",
+      "Missing packages/workbench-server/dist/web/index.html. Run pnpm release:build before packing npm packages.",
     );
   });
 

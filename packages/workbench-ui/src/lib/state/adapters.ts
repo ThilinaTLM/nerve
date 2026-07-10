@@ -110,7 +110,7 @@ export function applyConversationEvent(
 
   const type = event.type as ConversationEventType;
   switch (type) {
-    case "conversation.run.started":
+    case "run.started":
       applyRunStarted(next, event.data as ConversationRunStartedData);
       break;
     case "conversation.entry.appended":
@@ -130,23 +130,23 @@ export function applyConversationEvent(
     case "conversation.prompt.cancelled":
       applyPromptRemoved(next, event.data as ConversationPromptCancelledData);
       break;
-    case "conversation.tool_call.updated":
+    case "toolCall.updated":
       applyToolCallUpdated(next, event.data as ConversationToolCallUpdatedData);
       break;
-    case "conversation.run.retrying":
+    case "run.retrying":
       applyRunRetrying(
         next,
         event.data as ConversationRunRetryingData,
         event.ts,
       );
       break;
-    case "conversation.run.suspended":
+    case "run.suspended":
       applyRunSuspended(next, event.data as ConversationRunSuspendedData);
       break;
-    case "conversation.run.completed":
+    case "run.completed":
       applyRunCompleted(next, event.data as ConversationRunCompletedData);
       break;
-    case "conversation.run.failed":
+    case "run.failed":
       applyRunFailed(next, event.data as ConversationRunFailedData);
       break;
     case "conversation.compaction.started":

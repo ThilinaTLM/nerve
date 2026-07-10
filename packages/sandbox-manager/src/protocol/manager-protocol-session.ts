@@ -6,7 +6,7 @@ import type {
 } from "@nervekit/contracts";
 
 const MANAGER_PEER: PeerDescriptor = {
-  role: "orchestrator",
+  role: "sandbox_manager",
   id: "sandbox-manager",
   name: "Nerve Sandbox Manager",
 };
@@ -78,7 +78,7 @@ export function makeManagerMessage<TData>(
     kind,
     ts: new Date().toISOString(),
     source: MANAGER_PEER,
-    target: options.target,
+    target: options.target ?? { role: "ui" },
     correlationId: options.correlationId,
     data,
   };

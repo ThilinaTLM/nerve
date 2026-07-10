@@ -36,7 +36,12 @@ export type {
   WithoutChild,
   WithoutChildren,
   WithoutChildrenOrChild,
-} from "./core/utils";
-export { cn } from "./core/utils";
+} from "@nervekit/ui-kit/core/utils";
+export { cn } from "@nervekit/ui-kit/core/utils";
+export type { GitPanelActions, GitPanelModel } from "./git/git-panel-types.js";
+export type {
+  TaskPanelActions,
+  TaskPanelModel,
+} from "./tasks/task-panel-types.js";
 export * from "./state/index.js";
 export { default as ToolCallCard } from "./tools/components/ToolCallCard.svelte";

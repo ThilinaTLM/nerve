@@ -61,16 +61,16 @@ function agentRecordFromEvent(value: unknown): AgentRecord | undefined {
 function patchRuntimeAgentStatus(event: WorkbenchEvent): void {
   const agentId = stringValue(event.data?.agentId);
   switch (event.type) {
-    case "conversation.run.started":
+    case "run.started":
       patchKnownAgentStatus(agentId, "running", event.ts);
       break;
-    case "conversation.run.suspended":
+    case "run.suspended":
       patchKnownAgentStatus(agentId, "awaiting_user", event.ts);
       break;
-    case "conversation.run.completed":
+    case "run.completed":
       patchKnownAgentStatus(agentId, "idle", event.ts);
       break;
-    case "conversation.run.failed":
+    case "run.failed":
       patchKnownAgentStatus(
         agentId,
         event.data?.aborted ? "aborted" : "error",
@@ -96,15 +96,15 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type.startsWith("agent.explore_") ||
     type === "project.created" ||
     type.startsWith("approval.") ||
-    type.startsWith("user_question.") ||
-    type.startsWith("plan_review.") ||
+    type.startsWith("userQuestion.") ||
+    type.startsWith("planReview.") ||
     type === "plan.written" ||
     type === "agent.mode_changed" ||
-    type === "conversation.tool_call.updated" ||
-    type === "conversation.run.started" ||
-    type === "conversation.run.completed" ||
-    type === "conversation.run.failed" ||
-    type === "conversation.run.suspended" ||
+    type === "toolCall.updated" ||
+    type === "run.started" ||
+    type === "run.completed" ||
+    type === "run.failed" ||
+    type === "run.suspended" ||
     type.startsWith("task.") ||
     shouldRefreshSettings(type)
   );

@@ -3,7 +3,7 @@ import { tick } from "svelte";
 import FileText from "@lucide/svelte/icons/file-text";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
+import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "$lib/features/notifications/notify.svelte";
 import type { FileViewState } from "$lib/core/types/state-types";
 import { extname } from "@nervekit/workbench-ui/tools/views/lang";
@@ -12,7 +12,7 @@ import {
   isMarkdownPath,
 } from "$lib/core/utils/file-display";
 import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 
 type Props = {
   view?: FileViewState;

@@ -16,7 +16,7 @@ import type { StoredSandboxEvent } from "../state/event-store.js";
  * sandbox controller session is disconnected (or unresponsive) and the daemon
  * cannot serve `sandbox.conversation.snapshot.get` directly. The durable log
  * carries enough state (`run.transcript.appended` / `conversation.entry.appended`
- * for entries, `conversation.tool_call.updated` for tool calls) to render the
+ * for entries, `toolCall.updated` for tool calls) to render the
  * transcript without contacting the container.
  */
 export function projectConversationSnapshotFromEvents(input: {
@@ -184,7 +184,7 @@ function collectToolCalls(
 ): ToolCallTranscriptRecord[] {
   const latest = new Map<string, ToolCallTranscriptRecord>();
   for (const event of events) {
-    if (event.type !== "conversation.tool_call.updated") continue;
+    if (event.type !== "toolCall.updated") continue;
     const payload = asRecord(event.payload);
     const parsed = toolCallTranscriptRecordSchema.safeParse(payload?.toolCall);
     if (!parsed.success) continue;

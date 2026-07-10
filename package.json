@@ -12,17 +12,18 @@
   "scripts": {
     "build": "pnpm -r build",
     "fix": "oxfmt && eslint . --fix && oxfmt",
-    "check": "oxfmt --check && eslint . && pnpm -r check",
+    "check": "oxfmt --check && eslint . && pnpm check:boundaries && pnpm -r check",
     "test": "pnpm -r --if-present test",
-    "dev": "pnpm --filter @nervekit/contracts --filter @nervekit/agent-runtime --filter @nervekit/agent-tools build && pnpm --parallel --stream --filter @nervekit/orchestrator --filter @nervekit/workbench-app dev",
-    "dev:ui": "pnpm --filter @nervekit/contracts --filter @nervekit/agent-runtime --filter @nervekit/agent-tools build && pnpm --filter @nervekit/workbench-app dev",
+    "dev": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools --filter @nervekit/host-runtime build && pnpm --parallel --stream --filter @nervekit/workbench-server --filter @nervekit/workbench-app dev",
+    "dev:ui": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools --filter @nervekit/host-runtime build && pnpm --filter @nervekit/workbench-app dev",
     "dev:sandbox": "pnpm --filter @nervekit/contracts build && pnpm --parallel --stream --filter @nervekit/sandbox-manager --filter @nervekit/sandbox-manager-app dev",
     "build-image:sandbox-agent": "node scripts/build-sandbox-agent-image.mjs",
     "build-image:sandbox-manager": "node scripts/build-sandbox-manager-image.mjs",
     "desktop": "pnpm --filter @nervekit/desktop-shell dev --",
     "desktop:remote-enabled": "pnpm desktop -- --host 0.0.0.0 --allow-remote --mobile-https",
-    "release:build": "pnpm --filter @nervekit/contracts build && pnpm --filter @nervekit/agent-runtime build && pnpm --filter @nervekit/agent-tools build && pnpm --filter @nervekit/workbench-ui build && pnpm --filter @nervekit/sandbox-manager-app build && pnpm --filter @nervekit/sandbox-manager build && node scripts/copy-sandbox-manager-app-dist-to-manager.mjs && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/orchestrator build && node scripts/copy-workbench-app-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop-shell build",
-    "release:verify-tag": "node scripts/verify-release-tag.mjs"
+    "release:build": "pnpm --filter @nervekit/contracts build && pnpm --filter @nervekit/protocol build && pnpm --filter @nervekit/harness build && pnpm --filter @nervekit/tools build && pnpm --filter @nervekit/host-runtime build && pnpm --filter @nervekit/ui-kit build && pnpm --filter @nervekit/workbench-ui build && pnpm --filter @nervekit/sandbox-manager-app build && pnpm --filter @nervekit/sandbox-manager build && node scripts/copy-sandbox-manager-app-dist-to-manager.mjs && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/workbench-server build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs && pnpm --filter @nervekit/desktop-shell build",
+    "release:verify-tag": "node scripts/verify-release-tag.mjs",
+    "check:boundaries": "node scripts/check-package-boundaries.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.80.6"

@@ -166,7 +166,7 @@ All examples use the baseline JSON envelope:
         "seq": 12011,
         "id": "evt_01JZ901KQSF42XB2GK5F1Y1S5N",
         "ts": "2026-06-26T12:00:59.990Z",
-        "type": "conversation.run.started",
+        "type": "run.started",
         "durability": "durable",
         "data": {
           "conversationId": "conv_123",
@@ -320,7 +320,7 @@ During the initial WebSocket resume handshake, `resume.mode: "replay"` causes th
         "seq": 12014,
         "id": "evt_01JZ905W2VWM1ZEJ1VAWM7F6H3",
         "ts": "2026-06-26T12:01:05.100Z",
-        "type": "conversation.run.completed",
+        "type": "run.completed",
         "durability": "durable",
         "data": {
           "conversationId": "conv_123",
@@ -731,7 +731,7 @@ If transcription becomes asynchronous later, the HTTP response can return an ope
 
 ## 14. Current underscore-named event family
 
-Current domain event names such as `user_question.*`, `plan_review.*`, and `prompt_suggestions.*` remain valid. They are carried like any other domain event.
+Current domain event names such as `userQuestion.*`, `planReview.*`, and `prompt_suggestions.*` remain valid. They are carried like any other domain event.
 
 ```json
 {
@@ -749,7 +749,7 @@ Current domain event names such as `user_question.*`, `plan_review.*`, and `prom
         "seq": 12602,
         "id": "evt_01JZ90R4YQAH0HYK2RJ5ZFWXSS",
         "ts": "2026-06-26T12:14:00.000Z",
-        "type": "user_question.requested",
+        "type": "userQuestion.requested",
         "durability": "durable",
         "data": {
           "question": {
@@ -829,4 +829,4 @@ Approval decisions are good protocol RPC candidates because they are small, user
 }
 ```
 
-A later WebSocket `event.batch` should carry `approval.granted` and any related `conversation.tool_call.updated` event. The client deduplicates against any optimistic local update by entity ID and event sequence.
+A later WebSocket `event.batch` should carry `approval.granted` and any related `toolCall.updated` event. The client deduplicates against any optimistic local update by entity ID and event sequence.

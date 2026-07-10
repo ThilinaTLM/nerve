@@ -320,11 +320,11 @@ Sandbox events are carried in Nerve Protocol v1 `event.batch` messages. [Event S
 | `run.completed`                   | durable    | Run completed.                                                                                                                |
 | `run.failed`                      | durable    | Run failed.                                                                                                                   |
 | `run.cancelled`                   | durable    | Run cancelled.                                                                                                                |
-| `tool.call.requested`             | durable    | Tool call requested or approval needed.                                                                                       |
-| `tool.call.started`               | durable    | Tool call execution began.                                                                                                    |
-| `tool.call.completed`             | durable    | Tool call completed with bounded result.                                                                                      |
-| `tool.call.failed`                | durable    | Tool call failed with redacted error.                                                                                         |
-| `tool.call.cancelled`             | durable    | Tool call was cancelled after state was updated.                                                                              |
+| `toolCall.updated`                | durable    | Tool call requested or approval needed.                                                                                       |
+| `toolCall.updated`                | durable    | Tool call execution began.                                                                                                    |
+| `toolCall.updated`                | durable    | Tool call completed with bounded result.                                                                                      |
+| `toolCall.updated`                | durable    | Tool call failed with redacted error.                                                                                         |
+| `toolCall.updated`                | durable    | Tool call was cancelled after state was updated.                                                                              |
 | `sandbox.security.denied`         | durable    | Policy denied an action.                                                                                                      |
 
 Events associated with a run SHOULD include `conversationId`, `agentId`, and `runId`. Event producers MUST use the payload shapes in [Event Schemas](./event-schemas.md) for baseline event types.

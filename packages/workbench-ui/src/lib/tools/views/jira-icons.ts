@@ -9,7 +9,7 @@ import Equal from "@lucide/svelte/icons/equal";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import SquareCheckBig from "@lucide/svelte/icons/square-check-big";
 import Zap from "@lucide/svelte/icons/zap";
-import type { BadgeTone } from "@nervekit/workbench-ui/components/ui/badge";
+import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 import type { Component } from "svelte";
 import { jiraPriorityTone } from "./jira-display";
 

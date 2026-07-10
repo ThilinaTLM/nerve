@@ -1,7 +1,7 @@
 <script lang="ts">
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import type { Snippet } from "svelte";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 
 type Props = {
   /** When true, render transcript + composer; otherwise render the empty state. */

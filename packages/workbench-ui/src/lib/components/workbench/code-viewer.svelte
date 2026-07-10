@@ -1,5 +1,5 @@
 <script lang="ts">
-import { highlightCodeCached } from "../../core/highlight/highlight";
+import { highlightCodeCached } from "@nervekit/ui-kit/core/highlight/highlight";
 
 type Props = {
   /** Raw text to render. */

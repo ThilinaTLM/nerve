@@ -5,12 +5,12 @@ import {
   formatResetAfterSeconds,
   formatResetAt,
   usageTone,
-} from "@nervekit/workbench-ui/core/utils/usage";
-import { cn } from "@nervekit/workbench-ui/core/utils";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import Popover from "@nervekit/workbench-ui/components/ui/popover-panel";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-import type { StatusTone } from "@nervekit/workbench-ui/core/utils/status";
+} from "@nervekit/ui-kit/core/utils/usage";
+import { cn } from "@nervekit/ui-kit/core/utils";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/core/utils/status";
 
 type Props = {
   usages?: SubscriptionUsageEntry[];

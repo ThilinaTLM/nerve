@@ -258,7 +258,7 @@ export function applyEntityEvent(
   if (isUserQuestionRecord(question)) upsertUserQuestion(question);
   if (isPlanReviewRecord(planReview)) upsertPlanReview(planReview);
 
-  if (event.type === "plan_review.force_exited") {
+  if (event.type === "planReview.force_exited") {
     const agentId = stringValue(data.agentId);
     if (agentId) removePlanReviewsForAgent(agentId);
   }

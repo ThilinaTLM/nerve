@@ -1,5 +1,5 @@
 import type { Settings, UpdateSettingsRequest } from "@nervekit/contracts";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export type SettingsResponse = Settings;
 export type { UpdateSettingsRequest };

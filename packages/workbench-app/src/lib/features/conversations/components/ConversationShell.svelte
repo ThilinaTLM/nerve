@@ -1,6 +1,6 @@
 <script lang="ts">
 import { type QueuedPromptRecord } from "$lib/api";
-import { protocolRequest } from "$lib/core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
 import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";

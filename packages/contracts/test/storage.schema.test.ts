@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  protocolMethodDefinition,
+  operationDefinition,
   storageCleanupOperationSchema,
   storageCleanupRequestSchema,
   storageCleanupStatusResponseSchema,
@@ -45,13 +45,10 @@ describe("storage cleanup contracts", () => {
   });
 
   it("registers cleanup as an accepted operation with status and cancel methods", () => {
+    assert.equal(operationDefinition("storage.cleanup").kind, "accepted_async");
+    assert.equal(operationDefinition("storage.cleanup.get").kind, "read");
     assert.equal(
-      protocolMethodDefinition("storage.cleanup").kind,
-      "accepted_async",
-    );
-    assert.equal(protocolMethodDefinition("storage.cleanup.get").kind, "read");
-    assert.equal(
-      protocolMethodDefinition("storage.cleanup.cancel").kind,
+      operationDefinition("storage.cleanup.cancel").kind,
       "mutation",
     );
   });

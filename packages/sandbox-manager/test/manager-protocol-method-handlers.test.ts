@@ -315,7 +315,7 @@ function toolCallUpdateEvent(
     sandboxId: "sbx_1",
     id: `evt_tool_${seq}`,
     seq,
-    type: "conversation.tool_call.updated",
+    type: "toolCall.updated",
     ts: `2026-07-05T21:23:1${seq}.000Z`,
     durability: "durable",
     payload: {

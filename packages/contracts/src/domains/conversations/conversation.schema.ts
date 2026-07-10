@@ -794,11 +794,11 @@ const conversationLiveToolOutputDeltaDataSchema = z.object({
 });
 
 export const conversationEventPayloadSchemas = {
-  "conversation.run.started": conversationRunStartedDataSchema,
-  "conversation.run.completed": conversationRunCompletedDataSchema,
-  "conversation.run.failed": conversationRunFailedDataSchema,
-  "conversation.run.suspended": conversationRunSuspendedDataSchema,
-  "conversation.run.retrying": conversationRunRetryingDataSchema,
+  "run.started": conversationRunStartedDataSchema,
+  "run.completed": conversationRunCompletedDataSchema,
+  "run.failed": conversationRunFailedDataSchema,
+  "run.suspended": conversationRunSuspendedDataSchema,
+  "run.retrying": conversationRunRetryingDataSchema,
   "conversation.prompt.queued": conversationPromptQueuedDataSchema,
   "conversation.prompt.dequeued": conversationPromptDequeuedDataSchema,
   "conversation.prompt.cancelled": conversationPromptQueuedDataSchema,
@@ -807,7 +807,7 @@ export const conversationEventPayloadSchemas = {
   "conversation.compaction.failed": conversationCompactionFailedDataSchema,
   "conversation.compacted": conversationCompactedDataSchema,
   "conversation.context.updated": conversationContextUpdatedDataSchema,
-  "conversation.tool_call.updated": conversationToolCallUpdatedDataSchema,
+  "toolCall.updated": conversationToolCallUpdatedDataSchema,
   "conversation.live.message.started": conversationLiveMessageStartedDataSchema,
   "conversation.live.content.delta": conversationLiveContentDeltaDataSchema,
   "conversation.live.content.done": conversationLiveContentDoneDataSchema,
@@ -832,11 +832,11 @@ export const conversationEventTypeSchema = z.enum(
 );
 
 export const conversationEventTypes = [
-  "conversation.run.started",
-  "conversation.run.completed",
-  "conversation.run.failed",
-  "conversation.run.suspended",
-  "conversation.run.retrying",
+  "run.started",
+  "run.completed",
+  "run.failed",
+  "run.suspended",
+  "run.retrying",
   "conversation.prompt.queued",
   "conversation.prompt.dequeued",
   "conversation.prompt.cancelled",
@@ -845,7 +845,7 @@ export const conversationEventTypes = [
   "conversation.compaction.failed",
   "conversation.compacted",
   "conversation.context.updated",
-  "conversation.tool_call.updated",
+  "toolCall.updated",
   "conversation.live.message.started",
   "conversation.live.content.delta",
   "conversation.live.content.done",

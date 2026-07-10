@@ -1,11 +1,11 @@
 <script lang="ts">
 import { tick } from "svelte";
 import { FileText, RefreshCw, TriangleAlert } from "@lucide/svelte";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
-import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
-import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
-import { isMarkdownPath } from "@nervekit/workbench-ui/core/utils/file-display";
+import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
+import { isMarkdownPath } from "@nervekit/ui-kit/core/utils/file-display";
 import { extname } from "@nervekit/workbench-ui/tools/views/lang";
 import type { SandboxWorkspaceFileViewState } from "../../state/sandbox-ui-types";
 

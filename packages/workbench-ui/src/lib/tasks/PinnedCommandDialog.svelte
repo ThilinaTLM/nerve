@@ -5,11 +5,11 @@ import type {
   SandboxPinnedCommand,
   UpdatePinnedCommandRequest,
 } from "@nervekit/contracts";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { Label } from "@nervekit/workbench-ui/components/ui/label";
-import { Textarea } from "@nervekit/workbench-ui/components/ui/textarea";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { Label } from "@nervekit/ui-kit/components/ui/label";
+import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 
 type Props = {
   open?: boolean;

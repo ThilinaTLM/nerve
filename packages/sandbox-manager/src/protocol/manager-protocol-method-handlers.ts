@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import {
   type NerveErrorCode,
-  type ProtocolMethodName,
-  protocolMethodDefinition,
-  protocolMethodNameSchema,
-  protocolMethodParamsSchema,
-  protocolMethodResultSchema,
+  type OperationName,
+  operationDefinition,
+  operationNameSchema,
+  operationParamsSchema,
+  operationResultSchema,
   sandboxAgentConfigureParamsSchema,
   sandboxConversationSnapshotGetParamsSchema,
   sandboxConversationViewSnapshotSchema,
@@ -36,37 +36,37 @@ type ProtocolHandlerContext = {
   idempotencyKey?: string;
 };
 
-const FORWARDED_METHODS: Partial<Record<ProtocolMethodName, string>> = {
+const FORWARDED_METHODS: Partial<Record<OperationName, string>> = {
   "sandbox.agent.prompt": "sandbox.run.start",
   "sandbox.agent.abort": "sandbox.run.cancel",
   "sandbox.agent.continue": "sandbox.run.continue",
   "sandbox.agent.configure": "sandbox.agent.configure",
   "sandbox.toolCall.get": "sandbox.toolCall.get",
-  "sandbox.git.repos.discover": "sandbox.git.repos.discover",
-  "sandbox.git.overview.get": "sandbox.git.overview.get",
-  "sandbox.git.branches.list": "sandbox.git.branches.list",
-  "sandbox.git.branch.create": "sandbox.git.branch.create",
-  "sandbox.git.branch.switch": "sandbox.git.branch.switch",
-  "sandbox.git.file.stage": "sandbox.git.file.stage",
-  "sandbox.git.file.unstage": "sandbox.git.file.unstage",
-  "sandbox.git.file.discard": "sandbox.git.file.discard",
-  "sandbox.git.sync": "sandbox.git.sync",
-  "sandbox.git.push": "sandbox.git.push",
-  "sandbox.git.pull": "sandbox.git.pull",
-  "sandbox.git.fetch": "sandbox.git.fetch",
-  "sandbox.git.switchBaseAndPull": "sandbox.git.switchBaseAndPull",
-  "sandbox.github.status.get": "sandbox.github.status.get",
-  "sandbox.github.pr.list": "sandbox.github.pr.list",
-  "sandbox.github.pr.get": "sandbox.github.pr.get",
-  "sandbox.github.pr.checkout": "sandbox.github.pr.checkout",
-  "sandbox.task.list": "sandbox.task.list",
-  "sandbox.task.start": "sandbox.task.start",
-  "sandbox.task.get": "sandbox.task.get",
-  "sandbox.task.cancel": "sandbox.task.cancel",
-  "sandbox.task.restart": "sandbox.task.restart",
-  "sandbox.task.prune": "sandbox.task.prune",
-  "sandbox.task.delete": "sandbox.task.delete",
-  "sandbox.task.logs": "sandbox.task.logs",
+  "git.repos.discover": "git.repos.discover",
+  "git.overview.get": "git.overview.get",
+  "git.branches.list": "git.branches.list",
+  "git.branch.create": "git.branch.create",
+  "git.branch.switch": "git.branch.switch",
+  "git.file.stage": "git.file.stage",
+  "git.file.unstage": "git.file.unstage",
+  "git.file.discard": "git.file.discard",
+  "git.sync": "git.sync",
+  "git.push": "git.push",
+  "git.pull": "git.pull",
+  "git.fetch": "git.fetch",
+  "git.switchBaseAndPull": "git.switchBaseAndPull",
+  "github.status.get": "github.status.get",
+  "github.pr.list": "github.pr.list",
+  "github.pr.get": "github.pr.get",
+  "github.pr.checkout": "github.pr.checkout",
+  "task.list": "task.list",
+  "task.start": "task.start",
+  "task.get": "task.get",
+  "task.cancel": "task.cancel",
+  "task.restart": "task.restart",
+  "task.prune": "task.prune",
+  "task.delete": "task.delete",
+  "task.logs": "task.logs",
 };
 
 export async function handleManagerProtocolMethod(
@@ -77,8 +77,8 @@ export async function handleManagerProtocolMethod(
   const method = parseProtocolMethod(methodInput);
   if (!method.startsWith("sandbox."))
     throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");
-  const definition = protocolMethodDefinition(method);
-  const params = protocolMethodParamsSchema(method).parse(paramsInput ?? {});
+  const definition = operationDefinition(method);
+  const params = operationParamsSchema(method).parse(paramsInput ?? {});
   const idempotencyKey =
     context.idempotencyKey ??
     (isRecord(params) && typeof params.commandId === "string"
@@ -93,7 +93,7 @@ export async function handleManagerProtocolMethod(
   }
   const run = async () => {
     const result = await dispatchSandboxMethod(context, method, params);
-    return protocolMethodResultSchema(method).parse(result);
+    return operationResultSchema(method).parse(result);
   };
   if (!idempotencyKey || definition.idempotency === "none") return run();
   const hash = createHash("sha256")
@@ -116,7 +116,7 @@ export async function handleManagerProtocolMethod(
 
 async function dispatchSandboxMethod(
   context: ProtocolHandlerContext,
-  method: ProtocolMethodName,
+  method: OperationName,
   params: unknown,
 ): Promise<unknown> {
   switch (method) {
@@ -322,7 +322,7 @@ function sandboxIdOnlyParams(paramsInput: unknown): { sandboxId: string } {
 
 async function forwardSandboxCommand(
   { state, controller }: ProtocolHandlerContext,
-  method: ProtocolMethodName,
+  method: OperationName,
   paramsInput: unknown,
 ): Promise<unknown> {
   const sandboxId = sandboxIdFromParams(paramsInput);
@@ -354,7 +354,7 @@ async function forwardSandboxCommand(
 }
 
 function normalizeForwardedParams(
-  method: ProtocolMethodName,
+  method: OperationName,
   params: unknown,
 ): Record<string, unknown> {
   switch (method) {
@@ -410,8 +410,8 @@ async function connectedLifecycle(
   return record ? lifecycleSummary(record) : undefined;
 }
 
-function parseProtocolMethod(method: string): ProtocolMethodName {
-  const result = protocolMethodNameSchema.safeParse(method);
+function parseProtocolMethod(method: string): OperationName {
+  const result = operationNameSchema.safeParse(method);
   if (!result.success)
     throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");
   return result.data;

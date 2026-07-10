@@ -2,7 +2,7 @@ import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Copy from "@lucide/svelte/icons/copy";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import type { ContextMenuItem } from "@nervekit/workbench-ui/components/ui/context-menu-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import type {
   ConversationRecord,
   ProjectEditor,

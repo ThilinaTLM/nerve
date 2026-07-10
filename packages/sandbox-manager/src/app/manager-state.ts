@@ -107,7 +107,7 @@ export class ManagerState {
     // update without the O(n) append/list cost of durable lifecycle events.
     this.activity = new SandboxActivityTracker((summary) => {
       this.eventBus.publish({
-        type: "manager.sandbox.activity",
+        type: "sandbox.activity.changed",
         stream: MANAGER_EVENT_STREAM,
         sandboxId: summary.sandboxId,
         durability: "transient",

@@ -9,7 +9,7 @@ import {
   deleteConversation,
   updateAgentConfig,
 } from "$lib/api";
-import { protocolRequest } from "$lib/core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { pendingConversationKey } from "$lib/core/state/state-keys";
 import type {

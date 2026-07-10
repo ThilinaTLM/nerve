@@ -12,8 +12,8 @@ import type {
   ThinkingLevel,
   TodoItem,
 } from "@nervekit/contracts";
-import Popover from "@nervekit/workbench-ui/components/ui/popover-panel";
-import Switch from "@nervekit/workbench-ui/components/ui/switch-field";
+import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import type { Component } from "svelte";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";

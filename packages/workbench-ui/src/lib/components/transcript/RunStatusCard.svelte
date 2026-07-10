@@ -1,6 +1,6 @@
 <script lang="ts">
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import type { RunStatusNotice } from "../../state/transcript-types";
 
 type Props = {

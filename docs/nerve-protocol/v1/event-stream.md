@@ -66,8 +66,8 @@ Requirements:
 Examples:
 
 - `conversation.entry.appended`
-- `conversation.run.started`
-- `conversation.run.completed`
+- `run.started`
+- `run.completed`
 - `task.created`
 - `approval.requested`
 - `settings.updated`
@@ -282,9 +282,9 @@ Examples:
 
 ```text
 conversation.entry.appended
-conversation.run.started
+run.started
 conversation.live.content.delta
-task.log
+task.output
 approval.requested
 auth.providers_changed
 settings.updated
@@ -298,7 +298,7 @@ Guidelines:
 - Avoid transport names in event types.
 - Avoid UI component names in event types.
 
-Current Nerve event names that contain underscores, such as `user_question.*`, `plan_review.*`, and `prompt_suggestions.*`, are valid existing domain event names. They do not need to be renamed for Protocol v1. New event families SHOULD prefer the dot-separated style above.
+Current Nerve event names that contain underscores, such as `userQuestion.*`, `planReview.*`, and `prompt_suggestions.*`, are valid existing domain event names. They do not need to be renamed for Protocol v1. New event families SHOULD prefer the dot-separated style above.
 
 ## Current Nerve event families
 
@@ -312,7 +312,7 @@ The following current event families are in scope for Protocol v1. This table is
 | `conversation.entry.appended`                                                                                                                     | durable                                                         | Transcript entry state; reducers should be idempotent by entry ID.                                                                                                 |
 | `conversation.run.*`                                                                                                                              | durable for lifecycle; transient only for non-required progress | Run start/completion/failure/suspension must be recoverable. Retry/progress details may be transient if final durable state reconstructs the view.                 |
 | `conversation.prompt.*`                                                                                                                           | durable                                                         | Queued prompt state.                                                                                                                                               |
-| `conversation.tool_call.updated`                                                                                                                  | durable                                                         | Tool call transcript and approval-related updates.                                                                                                                 |
+| `toolCall.updated`                                                                                                                                | durable                                                         | Tool call transcript and approval-related updates.                                                                                                                 |
 | `conversation.compaction.*`, `conversation.compacted`, `conversation.context.updated`, `conversation.navigated`, `conversation.branch_summarized` | durable or transient by domain semantics                        | Conversation refresh/context/compaction state. Final materialized changes must be durable or snapshot-backed.                                                      |
 | `conversation.live.*`                                                                                                                             | transient                                                       | Streaming assistant content, thinking, tool drafts, tool output, and live progress. May be coalesced/dropped when durable final entries or snapshots repair state. |
 | `agent.*`                                                                                                                                         | durable, except explicit progress-style events may be transient | Agent lifecycle, configuration, mode/status, subagent/explore progress.                                                                                            |
@@ -320,8 +320,8 @@ The following current event families are in scope for Protocol v1. This table is
 | `worker.*`                                                                                                                                        | durable                                                         | Worker inventory/lifecycle.                                                                                                                                        |
 | `task.*`                                                                                                                                          | durable for lifecycle; transient only for non-required progress | Task list, foreground state, logs, readiness, cancellation, orphan cleanup.                                                                                        |
 | `approval.*`                                                                                                                                      | durable                                                         | Pending and resolved approval state.                                                                                                                               |
-| `user_question.*`                                                                                                                                 | durable                                                         | Human question request/answer/dismiss state.                                                                                                                       |
-| `plan_review.*`                                                                                                                                   | durable                                                         | Plan review lifecycle and decisions.                                                                                                                               |
+| `userQuestion.*`                                                                                                                                  | durable                                                         | Human question request/answer/dismiss state.                                                                                                                       |
+| `planReview.*`                                                                                                                                    | durable                                                         | Plan review lifecycle and decisions.                                                                                                                               |
 | `settings.*`                                                                                                                                      | durable                                                         | Settings refresh; payloads must not include secrets.                                                                                                               |
 | `auth.*`                                                                                                                                          | durable metadata only                                           | Auth/provider metadata refresh and OAuth flow status; no provider tokens.                                                                                          |
 | `secrets.*`                                                                                                                                       | durable metadata only                                           | Secret state changed; payloads must identify provider/key metadata only, never secret values.                                                                      |

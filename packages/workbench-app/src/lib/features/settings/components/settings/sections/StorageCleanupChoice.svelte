@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Checkbox } from "@nervekit/workbench-ui/components/ui/checkbox";
+import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 
 let {
   id,

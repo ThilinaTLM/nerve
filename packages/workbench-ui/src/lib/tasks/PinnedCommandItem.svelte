@@ -3,8 +3,8 @@ import Pencil from "@lucide/svelte/icons/pencil";
 import Play from "@lucide/svelte/icons/play";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { PinnedCommand, SandboxPinnedCommand } from "@nervekit/contracts";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 
 type AnyPinnedCommand = PinnedCommand | SandboxPinnedCommand;
 

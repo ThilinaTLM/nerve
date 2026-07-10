@@ -84,7 +84,7 @@ describe("notificationForRuntimeEvent", () => {
 
   it("builds rich user-question notifications", () => {
     const notification = notificationForRuntimeEvent(
-      event("user_question.requested", {
+      event("userQuestion.requested", {
         question: {
           id: "question_01H00000000000000000000000",
           conversationId: "conv_01H00000000000000000000000",
@@ -107,7 +107,7 @@ describe("notificationForRuntimeEvent", () => {
 
   it("builds rich plan-review notifications", () => {
     const notification = notificationForRuntimeEvent(
-      event("plan_review.requested", {
+      event("planReview.requested", {
         planReview: {
           id: "plan_review_01H00000000000000000000000",
           conversationId: "conv_01H00000000000000000000000",
@@ -130,7 +130,7 @@ describe("notificationForRuntimeEvent", () => {
 
   it("makes completed runs background-only", () => {
     const notification = notificationForRuntimeEvent(
-      event("conversation.run.completed", runData()),
+      event("run.completed", runData()),
       context,
     );
 
@@ -143,10 +143,7 @@ describe("notificationForRuntimeEvent", () => {
   it("ignores aborted run failures", () => {
     assert.equal(
       notificationForRuntimeEvent(
-        event(
-          "conversation.run.failed",
-          runData({ message: "Aborted", aborted: true }),
-        ),
+        event("run.failed", runData({ message: "Aborted", aborted: true })),
         context,
       ),
       undefined,
@@ -156,7 +153,7 @@ describe("notificationForRuntimeEvent", () => {
   it("makes ordinary run failures background-only attention notifications", () => {
     const notification = notificationForRuntimeEvent(
       event(
-        "conversation.run.failed",
+        "run.failed",
         runData({ message: "Provider returned error", aborted: false }),
       ),
       context,
@@ -171,7 +168,7 @@ describe("notificationForRuntimeEvent", () => {
   it("makes retry-exhausted failures action-required notifications", () => {
     const notification = notificationForRuntimeEvent(
       event(
-        "conversation.run.failed",
+        "run.failed",
         runData({
           message: "fetch failed",
           aborted: false,
@@ -199,7 +196,7 @@ describe("notificationForRuntimeEvent", () => {
   it("suppresses run-suspended notifications to avoid duplicates", () => {
     assert.equal(
       notificationForRuntimeEvent(
-        event("conversation.run.suspended", runData({ reason: "ask_user" })),
+        event("run.suspended", runData({ reason: "ask_user" })),
         context,
       ),
       undefined,

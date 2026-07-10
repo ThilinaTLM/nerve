@@ -75,7 +75,7 @@ function textOf(value: unknown): string {
 /**
  * Derives a compact, best-effort per-sandbox activity summary from the
  * controller events the manager already ingests, and emits a throttled
- * `manager.sandbox.activity` event whenever the summary meaningfully changes.
+ * `sandbox.activity.changed` event whenever the summary meaningfully changes.
  *
  * State is in-memory and rebuildable; it is never a source of truth.
  */
@@ -141,8 +141,7 @@ export class SandboxActivityTracker {
         applyContextUsage(summary, payload);
         return true;
       }
-      case "tool.call.requested":
-      case "tool.call.started": {
+      case "toolCall.updated": {
         summary.runStatus = "running";
         const title = describeTool(payload);
         if (title) summary.title = title;

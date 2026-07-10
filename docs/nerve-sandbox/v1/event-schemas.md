@@ -89,11 +89,11 @@ type SandboxEventPayloadMap = {
   "run.completed": RunTerminalEvent;
   "run.failed": RunFailedEvent;
   "run.cancelled": RunTerminalEvent;
-  "tool.call.requested": ToolCallRequestedEvent;
-  "tool.call.started": ToolCallStartedEvent;
-  "tool.call.completed": ToolCallCompletedEvent;
-  "tool.call.failed": ToolCallFailedEvent;
-  "tool.call.cancelled": ToolCallCancelledEvent;
+  "toolCall.updated": ToolCallRequestedEvent;
+  "toolCall.updated": ToolCallStartedEvent;
+  "toolCall.updated": ToolCallCompletedEvent;
+  "toolCall.updated": ToolCallFailedEvent;
+  "toolCall.updated": ToolCallCancelledEvent;
 };
 ```
 

@@ -8,7 +8,7 @@ import type {
   GitMutationResponse,
   GitOverviewResponse,
 } from "@nervekit/contracts";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export async function discoverGitRepos(
   projectId: string,

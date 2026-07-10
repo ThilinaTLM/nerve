@@ -32,7 +32,7 @@ function evt(
 function startRun(seq = 1): EventEnvelope {
   return evt(
     seq,
-    "conversation.run.started",
+    "run.started",
     {
       conversationId: "conv_test",
       agentId: "agent_test",
@@ -203,7 +203,7 @@ describe("conversation event reducer", () => {
       state,
       evt(
         2,
-        "conversation.tool_call.updated",
+        "toolCall.updated",
         {
           conversationId: "conv_test",
           agentId: "agent_test",
@@ -285,7 +285,7 @@ describe("conversation event reducer", () => {
       state,
       evt(
         1,
-        "conversation.run.retrying",
+        "run.retrying",
         {
           conversationId: "conv_test",
           agentId: "agent_test",

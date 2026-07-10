@@ -6,8 +6,8 @@ import type {
   TaskRecord,
   UpdatePinnedCommandRequest,
 } from "@nervekit/contracts";
-import { writeClipboardText } from "@nervekit/workbench-ui/core/clipboard";
-import { notify } from "@nervekit/workbench-ui/core/notify";
+import { writeClipboardText } from "@nervekit/ui-kit/core/clipboard";
+import { notify } from "@nervekit/ui-kit/core/notify";
 import TaskUtilityPanelView from "@nervekit/workbench-ui/tasks/TaskUtilityPanelView.svelte";
 import { sandboxCanForwardCommand } from "../../state/sandbox-lifecycle";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";

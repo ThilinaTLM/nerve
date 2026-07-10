@@ -13,13 +13,13 @@ import {
   SettingsShell,
   type SettingsShellGroup,
 } from "@nervekit/workbench-ui/components/settings";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { Label } from "@nervekit/workbench-ui/components/ui/label";
-import SelectField from "@nervekit/workbench-ui/components/ui/select-field";
-import { Textarea } from "@nervekit/workbench-ui/components/ui/textarea";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { Label } from "@nervekit/ui-kit/components/ui/label";
+import SelectField from "@nervekit/ui-kit/components/ui/select-field";
+import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import type {
   ModelInfo,
   SandboxManagerCredentialProfile,

@@ -3,7 +3,7 @@ import type {
   PromptSuggestionStatus,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts";
-import { protocolRequest } from "$lib/core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export async function getPromptSuggestions(
   projectId: string,

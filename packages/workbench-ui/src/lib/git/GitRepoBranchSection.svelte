@@ -10,15 +10,15 @@ import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Search from "@lucide/svelte/icons/search";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import * as Popover from "@nervekit/workbench-ui/components/ui/popover";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import * as Popover from "@nervekit/ui-kit/components/ui/popover";
 import {
   ToggleGroup,
   ToggleGroupItem,
-} from "@nervekit/workbench-ui/components/ui/toggle-group";
-import { cn } from "@nervekit/workbench-ui/core/utils";
+} from "@nervekit/ui-kit/components/ui/toggle-group";
+import { cn } from "@nervekit/ui-kit/core/utils";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import { repoButtonLabel, repoPathLabel } from "./git-change-format";
 import {

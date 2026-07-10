@@ -18,8 +18,8 @@ export type SettingsShellGroup = {
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { tick } from "svelte";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
-import { cn } from "@nervekit/workbench-ui/core/utils";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import { cn } from "@nervekit/ui-kit/core/utils";
 
 type Props = {
   groups: SettingsShellGroup[];

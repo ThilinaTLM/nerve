@@ -46,16 +46,12 @@ export const sandboxEventTypeSchema = z.enum([
   "run.waiting_for_input",
   "run.waiting_for_approval",
   "run.waiting_for_plan_review",
-  "plan_review.resolved",
+  "planReview.resolved",
   "run.checkpointed",
   "run.completed",
   "run.failed",
   "run.cancelled",
-  "tool.call.requested",
-  "tool.call.started",
-  "tool.call.completed",
-  "tool.call.failed",
-  "tool.call.cancelled",
+  "toolCall.updated",
 ]);
 export type SandboxEventType = z.infer<typeof sandboxEventTypeSchema>;
 
@@ -408,29 +404,56 @@ export const sandboxOperationalEventPayloadSchemas = {
   "run.waiting_for_input": runWaitingForInputEventSchema,
   "run.waiting_for_approval": runWaitingForApprovalEventSchema,
   "run.waiting_for_plan_review": runWaitingForPlanReviewEventSchema,
-  "plan_review.resolved": planReviewResolvedEventSchema,
+  "planReview.resolved": planReviewResolvedEventSchema,
   "run.checkpointed": runCheckpointedEventSchema,
   "run.completed": runTerminalEventSchema,
   "run.failed": runFailedEventSchema,
   "run.cancelled": runTerminalEventSchema,
-  "tool.call.requested": toolCallEventSchema,
-  "tool.call.started": toolCallEventSchema,
-  "tool.call.completed": toolCallEventSchema,
-  "tool.call.failed": toolCallEventSchema,
-  "tool.call.cancelled": toolCallEventSchema,
+  "toolCall.updated": toolCallEventSchema,
 } as const;
 
 export const sandboxEventPayloadSchemas = {
   ...sandboxOperationalEventPayloadSchemas,
   ...conversationEventPayloadSchemas,
+  "run.started": z.union([
+    runStartedEventSchema,
+    conversationEventPayloadSchemas["run.started"],
+  ]),
+  "run.completed": z.union([
+    runTerminalEventSchema,
+    conversationEventPayloadSchemas["run.completed"],
+  ]),
+  "run.failed": z.union([
+    runFailedEventSchema,
+    conversationEventPayloadSchemas["run.failed"],
+  ]),
+  "toolCall.updated": z.union([
+    toolCallEventSchema,
+    conversationEventPayloadSchemas["toolCall.updated"],
+  ]),
 } as const;
 
-export const sandboxEventEnvelopeSchema = z.object({
-  id: z.string().min(1),
-  seq: z.number().int().nonnegative().safe(),
-  type: sandboxEventTypeSchema,
-  ts: isoDateTimeSchema,
-  durability: z.enum(["durable", "transient"]),
-  data: z.unknown(),
-});
+export const sandboxEventEnvelopeSchema = z
+  .object({
+    id: z.string().min(1),
+    seq: z.number().int().positive().safe(),
+    type: z.string().min(1),
+    ts: isoDateTimeSchema,
+    durability: z.enum(["durable", "transient"]).default("durable"),
+    data: z.unknown(),
+  })
+  .superRefine((event, context) => {
+    const schema =
+      sandboxEventPayloadSchemas[
+        event.type as keyof typeof sandboxEventPayloadSchemas
+      ];
+    const parsed = schema?.safeParse(event.data);
+    if (!parsed?.success) {
+      context.addIssue({
+        code: "custom",
+        path: ["data"],
+        message: `invalid payload for ${event.type}`,
+      });
+    }
+  });
 export type SandboxEventEnvelope = z.infer<typeof sandboxEventEnvelopeSchema>;

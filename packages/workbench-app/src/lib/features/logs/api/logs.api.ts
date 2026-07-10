@@ -5,8 +5,8 @@ import type {
   ApplicationLogQueryResponse,
   ApplicationLogSource,
 } from "@nervekit/contracts";
-import { apiGet } from "@nervekit/workbench-ui/core/api/client";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { apiGet } from "@nervekit/ui-kit/core/api/client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export type {
   ApplicationLogLevel,

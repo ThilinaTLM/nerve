@@ -33,13 +33,13 @@
     "check": "tsc -b --pretty false",
     "test": "tsx --test \"test/**/*.test.ts\"",
     "start": "node scripts/start-electron.mjs",
-    "build:deps": "pnpm --filter @nervekit/contracts --filter @nervekit/agent-runtime --filter @nervekit/agent-tools build",
-    "dev": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-workbench-app-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop-shell build && node scripts/start-electron.mjs",
-    "build:package": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-workbench-app-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop-shell build && electron-builder --publish never",
-    "package:linux": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-workbench-app-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop-shell build && electron-builder --linux AppImage deb rpm --publish never"
+    "build:deps": "pnpm --filter @nervekit/contracts --filter @nervekit/harness --filter @nervekit/tools build",
+    "dev": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/workbench-server build && node ../../scripts/copy-workbench-app-dist-to-workbench-server.mjs && pnpm --filter @nervekit/desktop-shell build && node scripts/start-electron.mjs",
+    "build:package": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/workbench-server build && node ../../scripts/copy-workbench-app-dist-to-workbench-server.mjs && pnpm --filter @nervekit/desktop-shell build && electron-builder --publish never",
+    "package:linux": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/workbench-server build && node ../../scripts/copy-workbench-app-dist-to-workbench-server.mjs && pnpm --filter @nervekit/desktop-shell build && electron-builder --linux AppImage deb rpm --publish never"
   },
   "dependencies": {
-    "@nervekit/orchestrator": "workspace:*",
+    "@nervekit/workbench-server": "workspace:*",
     "@nervekit/contracts": "workspace:*",
     "electron": "^42.0.0"
   },

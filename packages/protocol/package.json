@@ -1,0 +1,46 @@
+{
+  "name": "@nervekit/protocol",
+  "version": "0.7.0",
+  "description": "Transport-neutral Nerve Protocol v1 session, RPC, replay, and flow engine.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/protocol"
+  },
+  "files": [
+    "dist/**",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check": "tsc -b --pretty false",
+    "test": "tsx --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@nervekit/contracts": "workspace:*",
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/ws": "8.18.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

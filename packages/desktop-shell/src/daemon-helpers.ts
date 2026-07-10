@@ -96,7 +96,7 @@ export function resolveReadinessTimeoutMs(): number {
 }
 
 export function resolveOrchestratorMainPath(): string {
-  const resolvedUrl = import.meta.resolve("@nervekit/orchestrator/main");
+  const resolvedUrl = import.meta.resolve("@nervekit/workbench-server/main");
   return fileURLToPath(resolvedUrl);
 }
 

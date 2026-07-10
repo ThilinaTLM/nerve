@@ -1,9 +1,7 @@
 <script lang="ts" generics="T extends string = string">
 import type { Snippet } from "svelte";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
-import Tabs, {
-  type TabItem,
-} from "@nervekit/workbench-ui/components/ui/tabs-bar";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import Tabs, { type TabItem } from "@nervekit/ui-kit/components/ui/tabs-bar";
 
 let {
   tabs = [],

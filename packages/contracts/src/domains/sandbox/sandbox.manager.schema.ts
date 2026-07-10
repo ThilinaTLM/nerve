@@ -248,7 +248,7 @@ export type SandboxActivityRunStatus = z.infer<
  * Compact, best-effort per-sandbox agent activity the manager derives from
  * ingested controller events. Rebuildable and non-authoritative; used to make
  * the fleet view feel live without opening a sandbox. Emitted as the payload of
- * a `manager.sandbox.activity` event and embedded on fleet list items.
+ * a `sandbox.activity.changed` event and embedded on fleet list items.
  */
 export const sandboxActivitySummarySchema = z.object({
   sandboxId: z.string().min(1),
@@ -604,10 +604,10 @@ export const sandboxManagerLifecycleEventTypeSchema = z.enum([
   "manager.sandbox.stop_requested",
   "manager.sandbox.stopped",
   "manager.sandbox.removed",
-  "manager.sandbox.lifecycle_changed",
+  "sandbox.lifecycle.changed",
   "manager.sandbox.container_created",
   "manager.sandbox.container_started",
-  "manager.sandbox.daemon_connected",
+  "sandbox.daemon.connection_changed",
   "manager.sandbox.ready",
   "manager.sandbox.boot_timeout",
 ]);

@@ -6,9 +6,9 @@ import type {
   PlanReviewRecord,
   PlanReviewResolveOptions,
 } from "../../../state/tool-types";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import * as DropdownMenu from "@nervekit/workbench-ui/components/ui/dropdown-menu";
-import { SplitButton } from "@nervekit/workbench-ui/components/ui/split-button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
+import { SplitButton } from "@nervekit/ui-kit/components/ui/split-button";
 import type { MetaItem } from "../../views/tool-presentation";
 import type {
   ToolCallDisplayRecord,

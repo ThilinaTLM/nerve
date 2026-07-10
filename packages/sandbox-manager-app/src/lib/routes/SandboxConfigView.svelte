@@ -1,7 +1,7 @@
 <script lang="ts">
 import { FileCog, RefreshCw } from "@lucide/svelte";
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
 import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 

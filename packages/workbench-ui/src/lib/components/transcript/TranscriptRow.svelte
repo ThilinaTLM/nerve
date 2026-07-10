@@ -11,13 +11,13 @@ import type {
 } from "../../state/tool-types";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/workbench-ui/components/ui/context-menu-list";
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
 import ToolCallCard from "../../tools/components/ToolCallCard.svelte";
 import ToolDraftCard from "../../tools/components/tool-call/ToolDraftCard.svelte";
 import ToolResultErrorCard from "../../tools/components/tool-call/ToolResultErrorCard.svelte";
-import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
-import PlainText from "@nervekit/workbench-ui/core/components/PlainText.svelte";
-import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
+import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import PlainText from "@nervekit/ui-kit/core/components/PlainText.svelte";
+import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import type { TranscriptItem } from "../../state/transcript-types";
 import type { TimelineItem } from "../../state/timeline";
 import CompactionCard from "./CompactionCard.svelte";

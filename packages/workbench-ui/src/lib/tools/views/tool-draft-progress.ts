@@ -1,4 +1,4 @@
-import { relativePathForDisplay } from "@nervekit/workbench-ui/core/utils/path-links";
+import { relativePathForDisplay } from "@nervekit/ui-kit/core/utils/path-links";
 import type { LiveToolCallDraft } from "../../state/transcript-types";
 import {
   confluenceDraftMeta,

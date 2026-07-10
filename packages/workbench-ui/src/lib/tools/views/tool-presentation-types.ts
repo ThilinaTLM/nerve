@@ -1,4 +1,4 @@
-import type { StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 
 export type MetaTone = "default" | "success" | "warning" | "error" | "info";
 

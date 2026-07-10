@@ -11,11 +11,11 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "../../state/tool-types";
-import type { ContextMenuItem } from "@nervekit/workbench-ui/components/ui/context-menu-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import {
   VirtualScroller,
   type VirtualScrollerController,
-} from "@nervekit/workbench-ui/components/ui/virtual-list";
+} from "@nervekit/ui-kit/components/ui/virtual-list";
 import type { TranscriptItem } from "../../state/transcript-types";
 import type { TimelineItem } from "../../state/timeline";
 import ConversationSignal from "../conversation/conversation-signal.svelte";

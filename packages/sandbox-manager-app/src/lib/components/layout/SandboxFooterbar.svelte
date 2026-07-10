@@ -2,8 +2,8 @@
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-import type { StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import { WorkbenchFooterbar } from "@nervekit/workbench-ui/components/workbench";
 import {
   pendingApprovalRecords,

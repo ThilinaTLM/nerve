@@ -3,8 +3,8 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import FolderSearch from "@lucide/svelte/icons/folder-search";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import {
   listDirectories,
   type FilesystemDirectoryResponse,

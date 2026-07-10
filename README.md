@@ -161,7 +161,7 @@ For lower-level source development, use workspace filters directly.
 Run only the daemon:
 
 ```sh
-pnpm --filter @nervekit/orchestrator dev
+pnpm --filter @nervekit/workbench-server dev
 ```
 
 Crash diagnostics are written under `~/.nerve/crashes`. The daemon records
@@ -202,10 +202,10 @@ Legacy `.pi` directories are not loaded. Move old resources to `.nerve/` for Ner
 ## Packages
 
 - `packages/desktop-shell` — Electron desktop shell.
-- `packages/orchestrator` — local HTTP/WebSocket daemon, auth, conversations, tools, and agent lifecycle.
+- `packages/workbench-server` — local HTTP/WebSocket daemon, auth, conversations, tools, and agent lifecycle.
 - `packages/workbench-app` — Svelte Web UI.
-- `packages/agent-runtime` — agent harness and conversation runtime.
-- `packages/agent-tools` and `packages/contracts` — coding tools and shared schemas.
+- `packages/harness` — agent harness and conversation runtime.
+- `packages/tools` and `packages/contracts` — coding tools and shared schemas.
 
 ## License
 

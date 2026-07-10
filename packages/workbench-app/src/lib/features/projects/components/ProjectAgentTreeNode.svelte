@@ -1,5 +1,5 @@
 <script lang="ts">
-import { type ContextMenuItem } from "@nervekit/workbench-ui/components/ui/context-menu-list";
+import { type ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { NavigatorItem } from "@nervekit/workbench-ui/components/navigator";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";

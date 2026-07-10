@@ -4,8 +4,8 @@ import {
   Handle as PaneResizer,
   Pane,
   PaneGroup,
-} from "@nervekit/workbench-ui/components/ui/resizable";
-import * as Sheet from "@nervekit/workbench-ui/components/ui/sheet";
+} from "@nervekit/ui-kit/components/ui/resizable";
+import * as Sheet from "@nervekit/ui-kit/components/ui/sheet";
 
 type PaneSize = {
   defaultSize?: number;

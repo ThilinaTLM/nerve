@@ -26,15 +26,15 @@ export function notificationForRuntimeEvent(
   switch (event.type) {
     case "approval.requested":
       return approvalNotification(event, context);
-    case "user_question.requested":
+    case "userQuestion.requested":
       return userQuestionNotification(event, context);
-    case "plan_review.requested":
+    case "planReview.requested":
       return planReviewNotification(event, context);
-    case "conversation.run.completed":
+    case "run.completed":
       return runCompletedNotification(event, context);
-    case "conversation.run.failed":
+    case "run.failed":
       return runFailedNotification(event, context);
-    case "conversation.run.suspended":
+    case "run.suspended":
       return undefined;
     default:
       return undefined;

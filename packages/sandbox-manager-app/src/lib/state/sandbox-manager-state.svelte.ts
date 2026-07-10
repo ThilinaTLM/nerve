@@ -27,7 +27,7 @@ import {
   sandboxRunStartResultSchema,
 } from "@nervekit/contracts";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import { notify } from "@nervekit/workbench-ui/core/notify";
+import { notify } from "@nervekit/ui-kit/core/notify";
 import {
   applyConversationEvent,
   fromSandboxConversationViewSnapshot,
@@ -1341,7 +1341,7 @@ export class SandboxManagerStore {
 
   private handleEvent(envelope: SandboxManagerEventEnvelope): void {
     if (envelope.stream === "manager") {
-      if (envelope.type === "manager.sandbox.activity") {
+      if (envelope.type === "sandbox.activity.changed") {
         const parsed = sandboxActivitySummarySchema.safeParse(envelope.data);
         if (parsed.success)
           this.activityById = {
@@ -1401,7 +1401,7 @@ export class SandboxManagerStore {
     // A live run event is a hint to (re)start polling; the poll self-terminates
     // when the snapshot shows no active run. We do not stop on terminal events
     // because those can be dropped too — idle detection handles it.
-    if (type !== "run.started" && type !== "conversation.run.started") return;
+    if (type !== "run.started" && type !== "run.started") return;
     const detail = this.details[sandboxId];
     const event = detail?.events.at(-1);
     const data = isRecord(event?.data) ? event.data : {};

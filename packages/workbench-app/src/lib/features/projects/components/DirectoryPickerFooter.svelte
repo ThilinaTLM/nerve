@@ -1,7 +1,7 @@
 <script lang="ts">
 import FolderOpen from "@lucide/svelte/icons/folder-open";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { shortenPath } from "$lib/core/utils/path";
 import type { FilesystemSignal } from "$lib/api";
 import type { SignalMetaByKind } from "./directory-picker-types";

@@ -1,5 +1,5 @@
 import type { AgentRecord, ModelSelection } from "@nervekit/contracts";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export async function updateAgentConfig(
   agentId: string,

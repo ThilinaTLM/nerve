@@ -1,9 +1,6 @@
 <script lang="ts">
 import type { ContextUsage } from "@nervekit/contracts";
-import {
-  formatTokens,
-  usageTone,
-} from "@nervekit/workbench-ui/core/utils/usage";
+import { formatTokens, usageTone } from "@nervekit/ui-kit/core/utils/usage";
 
 type Props = {
   contextUsage?: ContextUsage;

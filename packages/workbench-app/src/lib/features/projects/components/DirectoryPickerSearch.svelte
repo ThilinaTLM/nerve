@@ -4,9 +4,9 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import MoveUp from "@lucide/svelte/icons/move-up";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Search from "@lucide/svelte/icons/search";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import Switch from "@nervekit/workbench-ui/components/ui/switch-field";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import type { PathCrumb } from "$lib/core/utils/path";
 
 type Props = {

@@ -2,9 +2,9 @@
 import Folder from "@lucide/svelte/icons/folder";
 import Plus from "@lucide/svelte/icons/plus";
 import type { ProjectRecord, PruneProjectConversationsRequest } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import AlertDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
-import ContextMenu from "@nervekit/workbench-ui/components/ui/context-menu-list";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import AlertDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import ContextMenu from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { NavigatorPanel } from "@nervekit/workbench-ui/components/navigator";
 import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
 import PruneConversationsDialog from "./PruneConversationsDialog.svelte";

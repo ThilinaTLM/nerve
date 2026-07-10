@@ -1,7 +1,7 @@
 <script lang="ts">
 import ListChecks from "@lucide/svelte/icons/list-checks";
 import type { TodoItem } from "@nervekit/contracts";
-import Popover from "@nervekit/workbench-ui/components/ui/popover-panel";
+import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
 import TodoChecklist from "../../tools/components/tool-call/TodoChecklist.svelte";
 
 type Props = { todos: TodoItem[] };

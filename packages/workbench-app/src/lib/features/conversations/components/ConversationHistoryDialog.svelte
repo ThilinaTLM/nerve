@@ -7,10 +7,10 @@ import type {
   ConversationTreeNode,
   ToolCallTranscriptRecord,
 } from "$lib/api";
-import { buttonVariants } from "@nervekit/workbench-ui/components/ui/button";
-import ConfirmDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
-import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import * as DropdownMenu from "@nervekit/workbench-ui/components/ui/dropdown-menu";
+import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import HistoryTab from "./HistoryTab.svelte";
 
 type Props = {

@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { JiraUserSummaryPayload } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { jiraInitials } from "../../views/jira-display";
 
 type Props = { user: JiraUserSummaryPayload };

@@ -2,7 +2,7 @@
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import FileText from "@lucide/svelte/icons/file-text";
 import type { ConfluencePageSummaryPayload } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import {
   confluencePageUrl,
   confluenceStatusBadgeTone,

@@ -8,8 +8,8 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "../../../state/tool-types";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { toolPresentationCached } from "../../views/tool-presentation";
 import { parseToolViewCached } from "../../views/tool-result-view";
 import { toolViewComponent } from "../../views/registry";

@@ -1,5 +1,5 @@
-import type { StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
-import { taskPulse, taskTone } from "@nervekit/workbench-ui/core/utils/status";
+import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
+import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
 import type { DetailsActionInfo, MetaTone } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {

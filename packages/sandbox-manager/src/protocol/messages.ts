@@ -1,16 +1,14 @@
-import {
-  type SandboxProtocolMessage,
-  sandboxProtocolMessageSchema,
-} from "@nervekit/contracts";
+import type { NerveMessage, ProtocolV1Message } from "@nervekit/contracts";
+import { ProtocolCodec } from "@nervekit/protocol";
 
-export type ManagerProtocolMessage = SandboxProtocolMessage;
+const codec = new ProtocolCodec();
 
-export function parseProtocolMessage(
-  data: string | Buffer,
-): ManagerProtocolMessage {
-  return sandboxProtocolMessageSchema.parse(JSON.parse(String(data)));
+export type ManagerProtocolMessage = ProtocolV1Message;
+
+export function parseProtocolMessage(data: string | Buffer): ProtocolV1Message {
+  return codec.decode(String(data));
 }
 
-export function encodeProtocolMessage(message: SandboxProtocolMessage): string {
-  return JSON.stringify(sandboxProtocolMessageSchema.parse(message));
+export function encodeProtocolMessage(message: NerveMessage): string {
+  return codec.encode(message as ProtocolV1Message);
 }

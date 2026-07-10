@@ -197,7 +197,7 @@ export function applySandboxEvent(
     case "run.waiting_for_plan_review":
       applyWaitingForPlanReview(detail, event, data);
       return;
-    case "plan_review.resolved":
+    case "planReview.resolved":
       applyPlanReviewResolved(detail, data);
       return;
     case "run.completed":
@@ -209,11 +209,7 @@ export function applySandboxEvent(
     case "run.cancelled":
       applyRunTerminal(detail, data, "cancelled");
       return;
-    case "tool.call.requested":
-    case "tool.call.started":
-    case "tool.call.completed":
-    case "tool.call.failed":
-    case "tool.call.cancelled":
+    case "toolCall.updated":
       applyToolCall(detail, data);
       return;
     default:

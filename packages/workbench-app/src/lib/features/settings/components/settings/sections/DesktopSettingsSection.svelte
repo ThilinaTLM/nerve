@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { Settings, UpdateSettingsRequest } from "$lib/api";
-import Switch from "@nervekit/workbench-ui/components/ui/switch-field";
+import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
 
 type SettingsChange = (

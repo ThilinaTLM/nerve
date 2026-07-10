@@ -11,8 +11,8 @@ import {
 } from "@lucide/svelte";
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
 import { onMount } from "svelte";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-import type { StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import {
   computeSandboxBootProgress,
   sandboxSetupTimeline,

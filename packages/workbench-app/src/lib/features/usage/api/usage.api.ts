@@ -1,5 +1,5 @@
 import type { SubscriptionUsage } from "@nervekit/contracts";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export async function getSubscriptionUsage(): Promise<SubscriptionUsage[]> {
   return (

@@ -41,7 +41,8 @@
     "node-pg-migrate": "8.0.4",
     "pg": "8.13.1",
     "ws": "8.18.3",
-    "yaml": "2.9.0"
+    "yaml": "2.9.0",
+    "@nervekit/protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

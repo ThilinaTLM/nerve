@@ -11,7 +11,7 @@ import X from "@lucide/svelte/icons/x";
 import { Toolbar } from "bits-ui";
 import { WorkbenchTitlebar } from "@nervekit/workbench-ui/components/workbench";
 import type { ProjectRecord } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import nerveMark from "$lib/assets/nerve-mark.svg?raw";
 
 type Props = {

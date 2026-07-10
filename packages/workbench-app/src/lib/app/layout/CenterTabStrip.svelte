@@ -15,7 +15,7 @@ import type {
   WorkbenchTabIdentity,
   WorkbenchTabModel,
 } from "@nervekit/workbench-ui/components/workbench";
-import type { ContextMenuItem } from "@nervekit/workbench-ui/components/ui/context-menu-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { writeClipboardText } from "$lib/core/clipboard";
 import type {
   CenterTabIdentity,

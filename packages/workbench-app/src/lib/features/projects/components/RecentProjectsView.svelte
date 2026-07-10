@@ -9,8 +9,8 @@ import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ProjectRecord } from "$lib/api";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/workbench-ui/components/ui/context-menu-list";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { dateTimeLabel, relativeTimeLabel } from "$lib/core/utils/time";
 import { tildePath } from "$lib/core/utils/path";
 

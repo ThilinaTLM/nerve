@@ -1,6 +1,6 @@
-import type { ContextMenuItem } from "@nervekit/workbench-ui/components/ui/context-menu-list";
-import type { StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
-import type { TabItem } from "@nervekit/workbench-ui/components/ui/tabs-bar";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
+import type { TabItem } from "@nervekit/ui-kit/components/ui/tabs-bar";
 import type { Component } from "svelte";
 
 export type WorkbenchTabIdentity = { kind: string; id: string };

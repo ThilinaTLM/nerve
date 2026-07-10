@@ -8,10 +8,10 @@ import type {
   UpdateSettingsRequest,
 } from "$lib/api";
 import Info from "@lucide/svelte/icons/info";
-import RadioGroup from "@nervekit/workbench-ui/components/ui/radio-group-field";
-import Switch from "@nervekit/workbench-ui/components/ui/switch-field";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import RadioGroup from "@nervekit/ui-kit/components/ui/radio-group-field";
+import Switch from "@nervekit/ui-kit/components/ui/switch-field";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { clampThinkingLevelForModel } from "$lib/features/conversations/state/agent-selection-defaults";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
 import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";

@@ -1,9 +1,9 @@
 <script lang="ts">
 import { TriangleAlert } from "@lucide/svelte";
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import SwitchField from "@nervekit/workbench-ui/components/ui/switch-field";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
+import SwitchField from "@nervekit/ui-kit/components/ui/switch-field";
 import { useSandboxCenter } from "../state/sandbox-center.svelte";
 import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 

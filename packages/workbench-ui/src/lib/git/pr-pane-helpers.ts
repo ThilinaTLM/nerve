@@ -1,5 +1,5 @@
 import type { GithubChecksSummary } from "@nervekit/contracts";
-import type { BadgeTone } from "@nervekit/workbench-ui/components/ui/badge";
+import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 import type { PrViewState } from "./github-pr-types";
 
 type PrDetail = NonNullable<PrViewState["detail"]>;

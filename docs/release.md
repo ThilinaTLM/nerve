@@ -22,16 +22,16 @@ pnpm release:verify-tag -- v0.1.0
 Published publicly to npmjs.com under the `@nervekit` scope:
 
 - `@nervekit/contracts`
-- `@nervekit/agent-tools`
-- `@nervekit/agent-runtime`
-- `@nervekit/orchestrator` — embeds the static Web UI for the desktop and daemon.
+- `@nervekit/tools`
+- `@nervekit/harness`
+- `@nervekit/workbench-server` — embeds the static Web UI for the desktop and daemon.
 - `@nervekit/desktop-shell` — runnable via `npx` or `pnpm dlx`.
 
 Private (never published):
 
 - the root `nerve` monorepo package;
 - `@nervekit/workbench-app` and `@nervekit/workbench-ui`;
-- `@nervekit/sandbox-runtime`, `@nervekit/sandbox-manager`, and
+- `@nervekit/sandbox-agent`, `@nervekit/sandbox-manager`, and
   `@nervekit/sandbox-manager-app`.
 
 ## Local validation

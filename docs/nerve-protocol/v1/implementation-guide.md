@@ -7,9 +7,9 @@ This guide describes how to implement Nerve Protocol v1 incrementally in the cur
 Relevant current files:
 
 - `packages/contracts/src/domains/events/envelope.schema.ts` — current `EventEnvelope` schema.
-- `packages/orchestrator/src/infrastructure/events/event-bus.ts` — event sequencing, persistence, replay, and subscription.
-- `packages/orchestrator/src/main.ts` — current `/ws` WebSocket upgrade and raw event streaming.
-- `packages/orchestrator/src/routes/status-routes.ts` — current `/api/events?since=...` replay route.
+- `packages/workbench-server/src/infrastructure/events/event-bus.ts` — event sequencing, persistence, replay, and subscription.
+- `packages/workbench-server/src/main.ts` — current `/ws` WebSocket upgrade and raw event streaming.
+- `packages/workbench-server/src/routes/status-routes.ts` — current `/api/events?since=...` replay route.
 - `packages/workbench-app/src/lib/core/events/websocket-client.svelte.ts` — current UI WebSocket client.
 - `packages/workbench-app/src/lib/core/events/event-bus.ts` — frontend coalesced event dispatch.
 
@@ -109,7 +109,7 @@ The orchestrator protocol adapter should own:
 Suggested modules:
 
 ```text
-packages/orchestrator/src/protocol/
+packages/workbench-server/src/protocol/
   protocol-session.ts
   protocol-websocket.ts
   event-batcher.ts

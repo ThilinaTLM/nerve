@@ -8,8 +8,8 @@ import {
   managedContainerRefSchema,
   managedSandboxRecordSchema,
   managerOutboundCommandRecordSchema,
-  protocolMethodDefinition,
-  protocolMethodParamsSchema,
+  operationDefinition,
+  operationParamsSchema,
   runtimeDriverResourceOptionsSchema,
   sandboxAckStateSchema,
   sandboxAgentConfigureParamsSchema,
@@ -26,12 +26,8 @@ import {
   sandboxManagerLifecycleEventTypeSchema,
   sandboxPlanReviewResolveParamsSchema,
   sandboxPlanReviewWaitRecordSchema,
-  sandboxProtocolCursorSchema,
-  sandboxProtocolEventBatchSchema,
-  sandboxProtocolEventSchema,
-  sandboxProtocolFlowUpdateSchema,
-  sandboxProtocolHelloSchema,
-  sandboxProtocolUiHelloSchema,
+  streamCursorSchema,
+  sandboxEventEnvelopeSchema,
   sandboxRunExecutionRecordSchema,
   sandboxRunStartParamsSchema,
   sandboxRuntimeContainerStatusSchema,
@@ -378,71 +374,6 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
-  it("validates sandbox controller protocol messages", () => {
-    assert.equal(
-      sandboxProtocolHelloSchema.safeParse({
-        type: "hello",
-        version: 1,
-        role: "agent",
-        sandboxId: "sbx_1",
-        instanceId: "inst_1",
-        capabilities: ["status"],
-      }).success,
-      true,
-    );
-    assert.equal(
-      sandboxProtocolHelloSchema.safeParse({
-        type: "hello",
-        version: 1,
-        role: "controller",
-        sandboxId: "sbx_1",
-        instanceId: "inst_1",
-        capabilities: ["status"],
-      }).success,
-      false,
-    );
-    assert.equal(
-      sandboxProtocolEventBatchSchema.safeParse({
-        type: "event.batch",
-        batchId: "batch_1",
-        stream: "sandbox",
-        firstSeq: 2,
-        lastSeq: 2,
-        events: [{ seq: 1, ts, type: "sandbox.ready" }],
-      }).success,
-      false,
-    );
-    assert.equal(
-      sandboxProtocolFlowUpdateSchema.safeParse({
-        type: "flow.update",
-        stream: "sandbox",
-        queue: { pendingEvents: 5, maxEvents: 100 },
-        reason: "backpressure",
-      }).success,
-      true,
-    );
-  });
-
-  it("validates the manager UI hello and rejects non-ui roles", () => {
-    assert.equal(
-      sandboxProtocolUiHelloSchema.safeParse({
-        type: "hello",
-        role: "ui",
-        capabilities: ["encoding.json", "event.batch"],
-        resume: { cursors: [{ stream: "manager", processedSeq: 3 }] },
-      }).success,
-      true,
-    );
-    assert.equal(
-      sandboxProtocolUiHelloSchema.safeParse({
-        type: "hello",
-        role: "agent",
-        capabilities: ["encoding.json"],
-      }).success,
-      false,
-    );
-  });
-
   it("accepts create input with omitted, partial, and full controllers", () => {
     const withoutController = minimalConfig();
     Reflect.deleteProperty(withoutController, "controller");
@@ -527,7 +458,7 @@ describe("Sandbox shared schemas", () => {
   it("validates manager lifecycle event types and UI event envelopes", () => {
     assert.equal(
       sandboxManagerLifecycleEventTypeSchema.safeParse(
-        "manager.sandbox.daemon_connected",
+        "sandbox.daemon.connection_changed",
       ).success,
       true,
     );
@@ -580,7 +511,7 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      protocolMethodParamsSchema("sandbox.agent.configure").safeParse({
+      operationParamsSchema("sandbox.agent.configure").safeParse({
         sandboxId: "sbx_1",
         model: { provider: "openai", model: "gpt-5.4-mini" },
         permissionLevel: "autonomous",
@@ -588,73 +519,73 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      protocolMethodParamsSchema("sandbox.agent.configure").safeParse({
+      operationParamsSchema("sandbox.agent.configure").safeParse({
         model: { provider: "openai", model: "gpt-5.4-mini" },
       }).success,
       false,
     );
     assert.equal(
-      protocolMethodDefinition("sandbox.agent.prompt").idempotency,
+      operationDefinition("sandbox.agent.prompt").idempotency,
       "required",
     );
     assert.equal(
-      protocolMethodDefinition("sandbox.conversation.snapshot.get").kind,
+      operationDefinition("sandbox.conversation.snapshot.get").kind,
       "read",
     );
   });
 
   it("validates sandbox utility protocol method definitions", () => {
     const readMethods = [
-      "sandbox.git.repos.discover",
-      "sandbox.git.overview.get",
-      "sandbox.git.branches.list",
-      "sandbox.github.status.get",
-      "sandbox.github.pr.list",
-      "sandbox.github.pr.get",
-      "sandbox.task.list",
-      "sandbox.task.get",
-      "sandbox.task.logs",
+      "git.repos.discover",
+      "git.overview.get",
+      "git.branches.list",
+      "github.status.get",
+      "github.pr.list",
+      "github.pr.get",
+      "task.list",
+      "task.get",
+      "task.logs",
       "sandbox.pinnedCommand.list",
     ] as const;
     for (const method of readMethods) {
-      assert.equal(protocolMethodDefinition(method).kind, "read");
-      assert.equal(protocolMethodDefinition(method).idempotency, "none");
+      assert.equal(operationDefinition(method).kind, "read");
+      assert.equal(operationDefinition(method).idempotency, "none");
     }
 
     const mutationMethods = [
-      "sandbox.git.branch.create",
-      "sandbox.git.branch.switch",
-      "sandbox.git.file.stage",
-      "sandbox.git.file.unstage",
-      "sandbox.git.file.discard",
-      "sandbox.git.sync",
-      "sandbox.git.push",
-      "sandbox.git.pull",
-      "sandbox.git.fetch",
-      "sandbox.git.switchBaseAndPull",
-      "sandbox.github.pr.checkout",
-      "sandbox.task.start",
-      "sandbox.task.cancel",
-      "sandbox.task.restart",
-      "sandbox.task.prune",
-      "sandbox.task.delete",
+      "git.branch.create",
+      "git.branch.switch",
+      "git.file.stage",
+      "git.file.unstage",
+      "git.file.discard",
+      "git.sync",
+      "git.push",
+      "git.pull",
+      "git.fetch",
+      "git.switchBaseAndPull",
+      "github.pr.checkout",
+      "task.start",
+      "task.cancel",
+      "task.restart",
+      "task.prune",
+      "task.delete",
       "sandbox.pinnedCommand.create",
       "sandbox.pinnedCommand.update",
       "sandbox.pinnedCommand.delete",
     ] as const;
     for (const method of mutationMethods) {
-      assert.equal(protocolMethodDefinition(method).idempotency, "recommended");
+      assert.equal(operationDefinition(method).idempotency, "recommended");
     }
 
     assert.equal(
-      protocolMethodParamsSchema("sandbox.task.start").safeParse({
-        sandboxId: "sbx_1",
+      operationParamsSchema("task.start").safeParse({
+        cwd: "/workspace",
         command: "pnpm test",
       }).success,
       true,
     );
     assert.equal(
-      protocolMethodParamsSchema("sandbox.pinnedCommand.create").safeParse({
+      operationParamsSchema("sandbox.pinnedCommand.create").safeParse({
         sandboxId: "sbx_1",
         command: "pnpm dev",
         cwd: "/workspace",
@@ -662,8 +593,8 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      protocolMethodParamsSchema("sandbox.github.pr.get").safeParse({
-        sandboxId: "sbx_1",
+      operationParamsSchema("github.pr.get").safeParse({
+        projectId: "proj_1",
         repo: ".",
         number: 123,
       }).success,
@@ -978,7 +909,7 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxProtocolCursorSchema.safeParse({
+      streamCursorSchema.safeParse({
         stream: "sandbox",
         processedSeq: 1,
       }).success,
@@ -993,22 +924,26 @@ describe("Sandbox shared schemas", () => {
 
   it("validates known protocol event payloads and allows unknown event types", () => {
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
+        id: "evt_ready",
         seq: 1,
         ts,
         type: "sandbox.ready",
+        durability: "durable",
         data: { invalid: true },
       }).success,
       false,
     );
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
+        id: "evt_future",
         seq: 1,
         ts,
         type: "future.event",
+        durability: "durable",
         data: { anything: true },
       }).success,
-      true,
+      false,
     );
   });
 
@@ -1040,11 +975,11 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     for (const [type, status] of [
-      ["tool.call.requested", "requested"],
-      ["tool.call.started", "started"],
-      ["tool.call.completed", "completed"],
-      ["tool.call.failed", "failed"],
-      ["tool.call.cancelled", "cancelled"],
+      ["toolCall.updated", "requested"],
+      ["toolCall.updated", "started"],
+      ["toolCall.updated", "completed"],
+      ["toolCall.updated", "failed"],
+      ["toolCall.updated", "cancelled"],
     ] as const) {
       assert.equal(
         sandboxEventPayloadSchemas[type].safeParse({
@@ -1113,7 +1048,8 @@ describe("Sandbox shared schemas", () => {
       contentIndex: 0,
     };
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
+        id: "evt_test",
         seq: 2,
         ts,
         type: "conversation.live.content.delta",
@@ -1128,7 +1064,8 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
+        id: "evt_test",
         seq: 3,
         ts,
         type: "conversation.live.tool_draft.started",
@@ -1142,7 +1079,8 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
+        id: "evt_test",
         seq: 4,
         ts,
         type: "conversation.live.tool_draft.delta",
@@ -1157,7 +1095,8 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
+        id: "evt_test",
         seq: 5,
         ts,
         type: "conversation.live.tool_draft.done",
@@ -1171,7 +1110,8 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxProtocolEventSchema.safeParse({
+      sandboxEventEnvelopeSchema.safeParse({
+        id: "evt_test",
         seq: 6,
         ts,
         type: "conversation.live.content.delta",

@@ -7,15 +7,15 @@ import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { TaskRecord } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/workbench-ui/components/ui/context-menu-list";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
-import { taskPulse, taskTone } from "@nervekit/workbench-ui/core/utils/status";
-import { dateTimeLabel } from "@nervekit/workbench-ui/core/utils/time";
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
+import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
+import { dateTimeLabel } from "@nervekit/ui-kit/core/utils/time";
 
 type Props = {
   task: TaskRecord;

@@ -1,12 +1,32 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/contracts" },
-    { "path": "./packages/sandbox-runtime" },
-    { "path": "./packages/sandbox-manager" },
-    { "path": "./packages/orchestrator" },
-    { "path": "./packages/agent-runtime" },
-    { "path": "./packages/agent-tools" },
-    { "path": "./packages/desktop-shell" }
+    {
+      "path": "./packages/contracts"
+    },
+    {
+      "path": "./packages/protocol"
+    },
+    {
+      "path": "./packages/harness"
+    },
+    {
+      "path": "./packages/tools"
+    },
+    {
+      "path": "./packages/host-runtime"
+    },
+    {
+      "path": "./packages/workbench-server"
+    },
+    {
+      "path": "./packages/sandbox-agent"
+    },
+    {
+      "path": "./packages/sandbox-manager"
+    },
+    {
+      "path": "./packages/desktop-shell"
+    }
   ]
 }

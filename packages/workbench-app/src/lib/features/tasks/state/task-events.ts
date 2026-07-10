@@ -7,13 +7,13 @@ import { taskState } from "./task-state.svelte";
 
 export function registerTaskEventHandlers(): () => void {
   const disposers = [
-    onEvent("task.log", handleTaskLogEvent),
+    onEvent("task.output", handleTaskLogEvent),
     onEvent("task.removed", handleTaskRemovedEvent),
     onEvent("task.created", handleTaskRecordEvent),
     onEvent("task.started", handleTaskRecordEvent),
     onEvent("task.runtime_updated", handleTaskRecordEvent),
     onEvent("task.ready", handleTaskRecordEvent),
-    onEvent("task.ready_timeout", handleTaskRecordEvent),
+    onEvent("task.timed_out", handleTaskRecordEvent),
     onEvent("task.promoted", handleTaskRecordEvent),
     onEvent("task.completed", handleTaskRecordEvent),
     onEvent("task.failed", handleTaskRecordEvent),

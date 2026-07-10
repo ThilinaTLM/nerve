@@ -4,7 +4,7 @@ import type {
   ManagedSandboxRecord,
   SandboxActivitySummary,
 } from "@nervekit/contracts";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { sandboxLifecycleView } from "../state/sandbox-lifecycle-view";
 import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 import SandboxActionMenu from "./SandboxActionMenu.svelte";

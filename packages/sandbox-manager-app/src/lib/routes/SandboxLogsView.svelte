@@ -4,8 +4,8 @@ import type {
   ManagedSandboxRecord,
   StructuredLogLevel,
 } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
 import { sandboxLifecycleView } from "../state/sandbox-lifecycle-view";
 import { parseSandboxLogChunks } from "../state/sandbox-log-lines";

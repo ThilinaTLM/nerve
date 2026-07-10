@@ -1,0 +1,58 @@
+{
+  "name": "@nervekit/host-runtime",
+  "version": "0.7.0",
+  "description": "Shared Nerve host use cases and environment ports.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/host-runtime"
+  },
+  "files": [
+    "dist/**",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./harness": {
+      "types": "./dist/harness.d.ts",
+      "import": "./dist/harness.js"
+    },
+    "./harness/worker": {
+      "types": "./dist/harness-worker.d.ts",
+      "import": "./dist/harness-worker.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check": "tsc -b --pretty false",
+    "test": "tsx --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@nervekit/contracts": "workspace:*",
+    "@nervekit/harness": "workspace:*",
+    "@nervekit/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

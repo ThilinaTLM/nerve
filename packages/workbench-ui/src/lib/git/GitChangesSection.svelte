@@ -5,8 +5,8 @@ import FilePen from "@lucide/svelte/icons/file-pen";
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import X from "@lucide/svelte/icons/x";
 import type { GitFileChange } from "@nervekit/contracts";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import { cn } from "@nervekit/workbench-ui/core/utils";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { cn } from "@nervekit/ui-kit/core/utils";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import type { FileMutation } from "./git-panel-types";
 import {

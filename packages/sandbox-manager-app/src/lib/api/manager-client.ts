@@ -27,10 +27,7 @@ import {
   sandboxStatusGetResultSchema,
   sandboxWorkspaceFileResponseSchema,
 } from "@nervekit/contracts";
-import {
-  apiPathSegment,
-  fetchJson,
-} from "@nervekit/workbench-ui/core/api/client";
+import { apiPathSegment, fetchJson } from "@nervekit/ui-kit/core/api/client";
 import type {
   ManagerEnvelope,
   RemoveOptions,

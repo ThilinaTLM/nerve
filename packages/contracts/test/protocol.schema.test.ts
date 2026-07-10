@@ -10,9 +10,9 @@ import {
   helloMessageSchema,
   nerveMessageSchema,
   protocolErrorMessageSchema,
-  protocolMethodNameSchema,
-  protocolMethodParamsSchema,
-  protocolMethodResultSchema,
+  operationNameSchema,
+  operationParamsSchema,
+  operationResultSchema,
   replayCompleteMessageSchema,
   replayRequestMessageSchema,
   snapshotCursorSchema,
@@ -29,6 +29,8 @@ function message(kind: string, data: unknown) {
     id: `msg_${kind.replaceAll(".", "_")}`,
     kind,
     ts,
+    source: { role: "ui", id: "ui_test" },
+    target: { role: "workbench_server", id: "server_test" },
     data,
   };
 }
@@ -50,7 +52,7 @@ function event(
 
 function batch(overrides: Partial<EventBatchData> = {}): EventBatchData {
   return {
-    stream: "global",
+    stream: "local",
     batchId: "bat_test",
     reason: "live",
     events: [event(1), event(2, "transient")],
@@ -90,8 +92,6 @@ describe("Protocol v1 shared schemas", () => {
 
   it("validates session hello and welcome messages", () => {
     const hello = message("hello", {
-      role: "ui",
-      client: { id: "cli_test", instanceId: "tab_test", name: "Nerve Web UI" },
       requestedVersion: 1,
       capabilities: [
         "encoding.json",
@@ -100,13 +100,13 @@ describe("Protocol v1 shared schemas", () => {
         "event.ack.processed",
       ],
       encodings: ["json"],
-      resume: { streams: [{ stream: "global", processedSeq: 10 }] },
+      resume: { streams: [{ stream: "local", processedSeq: 10 }] },
     });
     assert.equal(helloMessageSchema.safeParse(hello).success, true);
 
     const welcome = message("welcome", {
       sessionId: "ses_test",
-      orchestrator: { id: "orc_test", version: "0.5.0", startedAt: ts },
+      acceptingPeer: { role: "workbench_server", id: "server_test" },
       acceptedVersion: 1,
       capabilities: [
         "encoding.json",
@@ -116,7 +116,7 @@ describe("Protocol v1 shared schemas", () => {
       ],
       encoding: "json",
       streams: [
-        { stream: "global", latestSeq: 12, durableSeq: 11, replayFromSeq: 10 },
+        { stream: "local", latestSeq: 12, durableSeq: 11, replayFromSeq: 10 },
       ],
       limits: {
         maxMessageBytes: 4_194_304,
@@ -160,32 +160,32 @@ describe("Protocol v1 shared schemas", () => {
     );
   });
 
-  it("validates snapshot cursors and method registry params", () => {
+  it("validates snapshot cursors and operation catalog params", () => {
     assert.equal(
       snapshotCursorSchema.safeParse({
-        streams: [{ stream: "global", processedSeq: 12 }],
+        streams: [{ stream: "local", processedSeq: 12 }],
       }).success,
       true,
     );
     assert.equal(
       snapshotCursorSchema.safeParse({
-        streams: [{ stream: "global", processedSeq: -1 }],
+        streams: [{ stream: "local", processedSeq: -1 }],
       }).success,
       false,
     );
     assert.equal(
-      protocolMethodNameSchema.safeParse("snapshot.workspace.get").success,
+      operationNameSchema.safeParse("snapshot.workspace.get").success,
       true,
     );
     assert.equal(
-      protocolMethodParamsSchema("approval.grant").safeParse({
+      operationParamsSchema("approval.grant").safeParse({
         approvalId: "approval_test",
         note: "ok",
       }).success,
       true,
     );
     assert.equal(
-      protocolMethodParamsSchema("git.file.stage").safeParse({
+      operationParamsSchema("git.file.stage").safeParse({
         projectId: "proj_test",
         repo: ".",
         path: "src/index.ts",
@@ -193,7 +193,7 @@ describe("Protocol v1 shared schemas", () => {
       true,
     );
     assert.equal(
-      protocolMethodParamsSchema("project.conversations.prune").safeParse({
+      operationParamsSchema("project.conversations.prune").safeParse({
         projectId: "proj_test",
         strategy: "keepLatest",
         keepLatest: 10,
@@ -201,7 +201,7 @@ describe("Protocol v1 shared schemas", () => {
       true,
     );
     assert.equal(
-      protocolMethodResultSchema("approval.grant").safeParse({
+      operationResultSchema("approval.grant").safeParse({
         toolCall: { not: "a tool call" },
       }).success,
       false,
@@ -217,7 +217,8 @@ describe("Protocol v1 shared schemas", () => {
           userQuestions: [],
           planReviews: [],
         },
-        cursor: { streams: [{ stream: "global", processedSeq: 0 }] },
+        cursor: { streams: [{ stream: "local", processedSeq: 0 }] },
+        generatedAt: ts,
       }).success,
       true,
     );
@@ -226,11 +227,11 @@ describe("Protocol v1 shared schemas", () => {
   it("validates replay, ack, flow, and error messages", () => {
     assert.equal(
       ackMessageSchema.safeParse(
-        message("ack", {
+        message("event.ack", {
           sessionId: "ses_test",
           ackId: "ack_test",
-          streams: [{ stream: "global", processedSeq: 1 }],
-          received: [{ stream: "global", highestSeq: 2 }],
+          streams: [{ stream: "local", processedSeq: 1 }],
+          received: [{ stream: "local", highestSeq: 2 }],
         }),
       ).success,
       true,
@@ -241,7 +242,7 @@ describe("Protocol v1 shared schemas", () => {
         message("replay.request", {
           sessionId: "ses_test",
           replayId: "rpl_test",
-          streams: [{ stream: "global", fromSeq: 1 }],
+          streams: [{ stream: "local", fromSeq: 1 }],
           reason: "gap_detected",
         }),
       ).success,
@@ -255,7 +256,7 @@ describe("Protocol v1 shared schemas", () => {
           replayId: "rpl_test",
           streams: [
             {
-              stream: "global",
+              stream: "local",
               fromSeq: 1,
               toSeq: 2,
               latestSeq: 2,
@@ -275,7 +276,7 @@ describe("Protocol v1 shared schemas", () => {
       flowUpdateMessageSchema.safeParse(
         message("flow.update", {
           sessionId: "ses_test",
-          scope: { stream: "global" },
+          scope: { stream: "local" },
           mode: "degraded",
           reason: "client_backpressure",
         }),

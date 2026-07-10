@@ -40,7 +40,45 @@ importers:
         specifier: 8.63.0
         version: 8.63.0(eslint@10.6.0(jiti@2.7.0))(typescript@5.9.3)
 
-  packages/agent-runtime:
+  packages/contracts:
+    dependencies:
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/desktop-shell:
+    dependencies:
+      '@nervekit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nervekit/workbench-server':
+        specifier: workspace:*
+        version: link:../workbench-server
+      electron:
+        specifier: ^42.0.0
+        version: 42.3.0
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      electron-builder:
+        specifier: ^26.15.0
+        version: 26.15.0(electron-builder-squirrel-windows@26.15.0)
+      sharp:
+        specifier: ^0.34.5
+        version: 0.34.5
+      tsx:
+        specifier: 4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/harness:
     dependencies:
       '@earendil-works/pi-ai':
         specifier: 0.80.6
@@ -65,65 +103,21 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/agent-tools:
+  packages/host-runtime:
     dependencies:
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
-      diff:
-        specifier: ^8.0.4
-        version: 8.0.4
-      node-html-markdown:
-        specifier: ^2.0.0
-        version: 2.0.0
-      shell-quote:
-        specifier: ^1.8.4
-        version: 1.8.4
-      typebox:
-        specifier: 1.1.38
-        version: 1.1.38
+      '@nervekit/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@nervekit/tools':
+        specifier: workspace:*
+        version: link:../tools
     devDependencies:
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
-      '@types/shell-quote':
-        specifier: ^1.7.5
-        version: 1.7.5
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
-  packages/contracts:
-    dependencies:
-      zod:
-        specifier: 4.1.12
-        version: 4.1.12
-    devDependencies:
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
-  packages/desktop-shell:
-    dependencies:
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@nervekit/orchestrator':
-        specifier: workspace:*
-        version: link:../orchestrator
-      electron:
-        specifier: ^42.0.0
-        version: 42.3.0
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      electron-builder:
-        specifier: ^26.15.0
-        version: 26.15.0(electron-builder-squirrel-windows@26.15.0)
-      sharp:
-        specifier: ^0.34.5
-        version: 0.34.5
       tsx:
         specifier: 4.22.4
         version: 4.22.4
@@ -131,41 +125,45 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/orchestrator:
+  packages/protocol:
     dependencies:
-      '@earendil-works/pi-ai':
-        specifier: 0.80.6
-        version: 0.80.6(ws@8.21.0)(zod@4.1.12)
-      '@hono/node-server':
-        specifier: 1.19.14
-        version: 1.19.14(hono@4.12.25)
-      '@nervekit/agent-runtime':
-        specifier: workspace:*
-        version: link:../agent-runtime
-      '@nervekit/agent-tools':
-        specifier: workspace:*
-        version: link:../agent-tools
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@peculiar/x509':
-        specifier: ^2.0.0
-        version: 2.0.0
-      hono:
-        specifier: 4.12.25
-        version: 4.12.25
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
       ws:
         specifier: 8.21.0
         version: 8.21.0
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: 4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/sandbox-agent:
+    dependencies:
+      '@nervekit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nervekit/host-runtime':
+        specifier: workspace:*
+        version: link:../host-runtime
+      '@nervekit/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      ws:
+        specifier: 8.18.3
+        version: 8.18.3
       yaml:
         specifier: 2.9.0
         version: 2.9.0
-      zod:
-        specifier: 4.1.12
-        version: 4.1.12
     devDependencies:
       '@types/node':
         specifier: 24.10.1
@@ -194,6 +192,9 @@ importers:
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@nervekit/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       node-pg-migrate:
         specifier: 8.0.4
         version: 8.0.4(@types/pg@8.11.11)(pg@8.13.1)
@@ -231,6 +232,12 @@ importers:
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@nervekit/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@nervekit/ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
       '@nervekit/workbench-ui':
         specifier: workspace:*
         version: link:../workbench-ui
@@ -266,36 +273,145 @@ importers:
         specifier: 8.0.16
         version: 8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
-  packages/sandbox-runtime:
+  packages/tools:
     dependencies:
-      '@nervekit/agent-runtime':
-        specifier: workspace:*
-        version: link:../agent-runtime
-      '@nervekit/agent-tools':
-        specifier: workspace:*
-        version: link:../agent-tools
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
-      ws:
-        specifier: 8.18.3
-        version: 8.18.3
-      yaml:
-        specifier: 2.9.0
-        version: 2.9.0
+      diff:
+        specifier: ^8.0.4
+        version: 8.0.4
+      node-html-markdown:
+        specifier: ^2.0.0
+        version: 2.0.0
+      shell-quote:
+        specifier: ^1.8.4
+        version: 1.8.4
+      typebox:
+        specifier: 1.1.38
+        version: 1.1.38
     devDependencies:
       '@types/node':
         specifier: 24.10.1
         version: 24.10.1
-      '@types/ws':
-        specifier: 8.18.1
-        version: 8.18.1
+      '@types/shell-quote':
+        specifier: ^1.7.5
+        version: 1.7.5
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/ui-kit:
+    dependencies:
+      '@codemirror/autocomplete':
+        specifier: ^6.20.2
+        version: 6.20.2
+      '@codemirror/commands':
+        specifier: ^6.10.3
+        version: 6.10.3
+      '@codemirror/lang-markdown':
+        specifier: ^6.5.0
+        version: 6.5.0
+      '@codemirror/state':
+        specifier: ^6.6.0
+        version: 6.6.0
+      '@codemirror/view':
+        specifier: ^6.43.0
+        version: 6.43.0
+      '@fontsource/iosevka':
+        specifier: ^5.2.5
+        version: 5.2.5
+      '@fontsource/outfit':
+        specifier: ^5.2.6
+        version: 5.2.8
+      '@lucide/svelte':
+        specifier: ^1.17.0
+        version: 1.17.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
+      '@shikijs/core':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@shikijs/engine-javascript':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@shikijs/langs':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@shikijs/themes':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@tanstack/svelte-virtual':
+        specifier: ^3.13.29
+        version: 3.13.29(svelte@5.56.3(@typescript-eslint/types@8.63.0))
+      bits-ui:
+        specifier: ^2.18.1
+        version: 2.18.1(@internationalized/date@3.12.2)(svelte@5.56.3(@typescript-eslint/types@8.63.0))
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      mode-watcher:
+        specifier: ^1.1.0
+        version: 1.1.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
+      paneforge:
+        specifier: ^1.0.2
+        version: 1.0.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))
+      rehype-sanitize:
+        specifier: ^6.0.0
+        version: 6.0.0
+      rehype-stringify:
+        specifier: ^10.0.1
+        version: 10.0.1
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      remark-parse:
+        specifier: ^11.0.0
+        version: 11.0.0
+      remark-rehype:
+        specifier: ^11.1.2
+        version: 11.1.2
+      shadcn-svelte:
+        specifier: ^1.3.0
+        version: 1.3.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
+      shiki:
+        specifier: ^4.1.0
+        version: 4.1.0
+      svelte:
+        specifier: 5.56.3
+        version: 5.56.3(@typescript-eslint/types@8.63.0)
+      svelte-sonner:
+        specifier: ^1.1.1
+        version: 1.1.1(svelte@5.56.3(@typescript-eslint/types@8.63.0))
+      tailwind-merge:
+        specifier: ^3.6.0
+        version: 3.6.0
+      tailwind-variants:
+        specifier: ^3.2.2
+        version: 3.2.2(tailwind-merge@3.6.0)(tailwindcss@4.3.1)
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
+      unified:
+        specifier: ^11.0.5
+        version: 11.0.5
+    devDependencies:
+      '@sveltejs/vite-plugin-svelte':
+        specifier: 7.1.2
+        version: 7.1.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+      svelte-check:
+        specifier: 4.3.3
+        version: 4.3.3(picomatch@4.0.4)(svelte@5.56.3(@typescript-eslint/types@8.63.0))(typescript@5.9.3)
+      tailwindcss:
+        specifier: 4.3.1
+        version: 4.3.1
       tsx:
         specifier: 4.22.4
         version: 4.22.4
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      vite:
+        specifier: 8.0.16
+        version: 8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
   packages/workbench-app:
     dependencies:
@@ -308,6 +424,12 @@ importers:
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@nervekit/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@nervekit/ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
       '@nervekit/workbench-ui':
         specifier: workspace:*
         version: link:../workbench-ui
@@ -409,6 +531,55 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(workbox-build@7.4.1)(workbox-window@7.4.1)
 
+  packages/workbench-server:
+    dependencies:
+      '@earendil-works/pi-ai':
+        specifier: 0.80.6
+        version: 0.80.6(ws@8.21.0)(zod@4.1.12)
+      '@hono/node-server':
+        specifier: 1.19.14
+        version: 1.19.14(hono@4.12.25)
+      '@nervekit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nervekit/host-runtime':
+        specifier: workspace:*
+        version: link:../host-runtime
+      '@nervekit/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@peculiar/x509':
+        specifier: ^2.0.0
+        version: 2.0.0
+      hono:
+        specifier: 4.12.25
+        version: 4.12.25
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      ws:
+        specifier: 8.21.0
+        version: 8.21.0
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: 4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/workbench-ui:
     dependencies:
       '@codemirror/autocomplete':
@@ -438,6 +609,9 @@ importers:
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@nervekit/ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
       '@shikijs/core':
         specifier: ^4.1.0
         version: 4.1.0

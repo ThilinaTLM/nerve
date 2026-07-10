@@ -1,10 +1,10 @@
 <script lang="ts">
 import type { StatusResponse } from "$lib/api";
-import { formatDurationMinutes } from "@nervekit/workbench-ui/core/utils/usage";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import Popover from "@nervekit/workbench-ui/components/ui/popover-panel";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-import { type StatusTone } from "@nervekit/workbench-ui/core/utils/status";
+import { formatDurationMinutes } from "@nervekit/ui-kit/core/utils/usage";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import { type StatusTone } from "@nervekit/ui-kit/core/utils/status";
 
 type Props = {
   connection?: string;

@@ -8,8 +8,8 @@ import type {
   Settings,
   UpdateSettingsRequest,
 } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
 import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
 import {

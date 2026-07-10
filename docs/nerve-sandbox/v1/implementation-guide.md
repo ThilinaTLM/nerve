@@ -19,7 +19,7 @@ packages/contracts/src/domains/sandbox/
   skills.schema.ts
   setup.schema.ts
 
-packages/sandbox-runtime/
+packages/sandbox-agent/
   src/entrypoint.ts
   src/config/load-config.ts
   src/config/digest.ts
@@ -77,24 +77,24 @@ This layout is illustrative. Protocol, config, command, event, state, credential
 
 Current Nerve components that may be reused or adapted:
 
-| Area                                              | Current anchor                                                          |
-| ------------------------------------------------- | ----------------------------------------------------------------------- |
-| Agent harness                                     | `packages/agent-runtime`                                                |
-| pi-ai provider/model resolution                   | `packages/agent-runtime/src/runtime.ts`                                 |
-| Skill loading/formatting                          | `packages/agent-runtime/src/harness/skills/*`                           |
-| Conversation JSONL/storage patterns               | `packages/agent-runtime/src/harness/conversation/*`                     |
-| `AGENTS.md` and `.agents/skills` resource loading | `packages/orchestrator/src/domains/agents/prompting/resource-loader.ts` |
-| Tool definitions and execution                    | `packages/agent-tools`                                                  |
-| Tool names, risks, call records                   | `packages/contracts/src/domains/tools/*`                                |
-| Agent settings and workspace scope                | `packages/contracts/src/domains/agents/agent.schema.ts`                 |
-| Provider/catalog schemas                          | `packages/contracts/src/domains/providers/providers.schema.ts`          |
-| Model selection/thinking levels                   | `packages/contracts/src/domains/models/models.schema.ts`                |
-| Auth metadata and OAuth flow schemas              | `packages/contracts/src/domains/auth/auth.schema.ts`                    |
-| Git/GitHub request/response schemas               | `packages/contracts/src/domains/git/git.schema.ts`                      |
-| Event envelope                                    | `packages/contracts/src/domains/events/envelope.schema.ts`              |
-| Tool policy ideas                                 | `packages/orchestrator/src/domains/tools/policy.ts`                     |
-| Git/GitHub service ideas                          | `packages/orchestrator/src/domains/git/*`                               |
-| Agent/tool orchestration glue                     | `packages/orchestrator/src/domains/agents/run/*` and `domains/tools/*`  |
+| Area                                              | Current anchor                                                              |
+| ------------------------------------------------- | --------------------------------------------------------------------------- |
+| Agent harness                                     | `packages/harness`                                                          |
+| pi-ai provider/model resolution                   | `packages/harness/src/runtime.ts`                                           |
+| Skill loading/formatting                          | `packages/harness/src/harness/skills/*`                                     |
+| Conversation JSONL/storage patterns               | `packages/harness/src/harness/conversation/*`                               |
+| `AGENTS.md` and `.agents/skills` resource loading | `packages/workbench-server/src/domains/agents/prompting/resource-loader.ts` |
+| Tool definitions and execution                    | `packages/tools`                                                            |
+| Tool names, risks, call records                   | `packages/contracts/src/domains/tools/*`                                    |
+| Agent settings and workspace scope                | `packages/contracts/src/domains/agents/agent.schema.ts`                     |
+| Provider/catalog schemas                          | `packages/contracts/src/domains/providers/providers.schema.ts`              |
+| Model selection/thinking levels                   | `packages/contracts/src/domains/models/models.schema.ts`                    |
+| Auth metadata and OAuth flow schemas              | `packages/contracts/src/domains/auth/auth.schema.ts`                        |
+| Git/GitHub request/response schemas               | `packages/contracts/src/domains/git/git.schema.ts`                          |
+| Event envelope                                    | `packages/contracts/src/domains/events/envelope.schema.ts`                  |
+| Tool policy ideas                                 | `packages/workbench-server/src/domains/tools/policy.ts`                     |
+| Git/GitHub service ideas                          | `packages/workbench-server/src/domains/git/*`                               |
+| Agent/tool orchestration glue                     | `packages/workbench-server/src/domains/agents/run/*` and `domains/tools/*`  |
 
 The sandbox agent image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/sandbox-manager-app` app using shared primitives from `packages/workbench-ui`, not the current local workbench reused unchanged.
 

@@ -4,13 +4,13 @@ import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import Mic from "@lucide/svelte/icons/mic";
 import Send from "@lucide/svelte/icons/send";
 import X from "@lucide/svelte/icons/x";
-import { notify } from "@nervekit/workbench-ui/core/notify";
+import { notify } from "@nervekit/ui-kit/core/notify";
 import type { UserQuestionRecord } from "../../../state/tool-types";
 import type {
   ToolCallDisplayRecord,
   ToolView,
 } from "../../views/tool-result-view";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   getConversationUiCapabilities,
   type VoiceInputTargetRef as VoiceInputTarget,

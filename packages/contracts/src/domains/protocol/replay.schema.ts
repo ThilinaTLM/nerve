@@ -28,7 +28,7 @@ export const ackDataSchema = z.object({
     .optional(),
 });
 export type AckData = z.infer<typeof ackDataSchema>;
-export const ackMessageSchema = typedMessageSchema("ack", ackDataSchema);
+export const ackMessageSchema = typedMessageSchema("event.ack", ackDataSchema);
 
 export const replayRequestDataSchema = z.object({
   sessionId: z.string().min(1),

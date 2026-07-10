@@ -15,21 +15,21 @@ import {
   type SandboxManagerCredentialProfile,
   type ThinkingLevel,
 } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { Label } from "@nervekit/workbench-ui/components/ui/label";
-import SelectField from "@nervekit/workbench-ui/components/ui/select-field";
-import { Separator } from "@nervekit/workbench-ui/components/ui/separator";
-import SwitchField from "@nervekit/workbench-ui/components/ui/switch-field";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { Label } from "@nervekit/ui-kit/components/ui/label";
+import SelectField from "@nervekit/ui-kit/components/ui/select-field";
+import { Separator } from "@nervekit/ui-kit/components/ui/separator";
+import SwitchField from "@nervekit/ui-kit/components/ui/switch-field";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@nervekit/workbench-ui/components/ui/tabs";
-import { Textarea } from "@nervekit/workbench-ui/components/ui/textarea";
+} from "@nervekit/ui-kit/components/ui/tabs";
+import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 import {
   buildCreateRequest,

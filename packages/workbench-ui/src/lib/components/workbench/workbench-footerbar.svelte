@@ -4,7 +4,7 @@ import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
 import PanelRight from "@lucide/svelte/icons/panel-right";
 import PanelRightClose from "@lucide/svelte/icons/panel-right-close";
 import type { Snippet } from "svelte";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 
 let {
   sidebarCollapsed = false,

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ansiToHtml } from "@nervekit/workbench-ui/core/terminal/ansi";
+import { ansiToHtml } from "@nervekit/ui-kit/core/terminal/ansi";
 import type { TaskLogEvent } from "../../../state/tool-types";
 
 type Props = {

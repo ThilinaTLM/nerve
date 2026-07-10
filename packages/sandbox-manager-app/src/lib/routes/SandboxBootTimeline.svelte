@@ -9,8 +9,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "@nervekit/workbench-ui/components/ui/card";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
+} from "@nervekit/ui-kit/components/ui/card";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 
 let { record }: { record: ManagedSandboxRecord } = $props();

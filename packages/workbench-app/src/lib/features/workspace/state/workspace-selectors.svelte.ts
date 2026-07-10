@@ -1,5 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
-import { agentRunningTone } from "@nervekit/workbench-ui/core/utils/status";
+import { agentRunningTone } from "@nervekit/ui-kit/core/utils/status";
 import {
   conversationViewKey,
   fileViewKey,

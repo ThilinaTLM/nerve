@@ -1,15 +1,13 @@
 import { z } from "zod";
 import { typedMessageSchema } from "./envelope.schema.js";
+import { operationNameSchema } from "./operation-catalog.schema.js";
 import {
   eventBatchDataSchema,
   streamCursorSchema,
 } from "./event-stream.schema.js";
 
 export const protocolRequestDataSchema = z.object({
-  method: z
-    .string()
-    .min(1)
-    .regex(/^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/),
+  method: operationNameSchema,
   params: z.unknown().optional(),
   idempotencyKey: z.string().min(1).optional(),
   timeoutMs: z.number().int().positive().safe().optional(),
@@ -28,7 +26,7 @@ export const protocolRequestMessageSchema = typedMessageSchema(
 
 export const protocolResponseDataSchema = z.object({
   ok: z.literal(true),
-  method: z.string().min(1),
+  method: operationNameSchema,
   result: z.unknown(),
   cursor: z
     .object({

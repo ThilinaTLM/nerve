@@ -1,6 +1,6 @@
 import type { Component } from "svelte";
-import type { ContextMenuItem } from "../ui/context-menu-list/index.js";
-import type { StatusTone } from "../ui/status-dot/index.js";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 
 export type ConversationNavigatorItem = {
   id: string;

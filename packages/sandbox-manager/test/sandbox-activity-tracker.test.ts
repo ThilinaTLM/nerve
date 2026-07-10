@@ -16,7 +16,7 @@ describe("SandboxActivityTracker", () => {
     const { tracker } = collector();
     tracker.observe("sbx1", { type: "run.started", payload: { runId: "r1" } });
     tracker.observe("sbx1", {
-      type: "tool.call.started",
+      type: "toolCall.updated",
       payload: { toolName: "Edit", displayArgs: { path: "src/auth.ts" } },
     });
 

@@ -1,6 +1,6 @@
 import { Copy } from "@lucide/svelte";
-import type { ContextMenuItem } from "@nervekit/workbench-ui/components/ui/context-menu-list";
-import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import type {
   ToolCallTranscriptRecord,
   TranscriptItem,

@@ -25,6 +25,7 @@ export function snapshotResponseSchema<TSchema extends z.ZodType>(
   return z.object({
     snapshot: snapshotSchema,
     cursor: snapshotCursorSchema,
+    generatedAt: z.string().datetime(),
   });
 }
 
@@ -53,4 +54,5 @@ export const conversationSnapshotResponseSchema = snapshotResponseSchema(
 export type ConversationSnapshotResponse<TSnapshot = unknown> = {
   snapshot: TSnapshot;
   cursor: SnapshotCursor;
+  generatedAt: string;
 };

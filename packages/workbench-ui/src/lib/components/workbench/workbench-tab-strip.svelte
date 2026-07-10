@@ -2,11 +2,11 @@
 import Plus from "@lucide/svelte/icons/plus";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import X from "@lucide/svelte/icons/x";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/workbench-ui/components/ui/context-menu-list";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import type {
   WorkbenchTabIdentity,
   WorkbenchTabMenuBuilder,

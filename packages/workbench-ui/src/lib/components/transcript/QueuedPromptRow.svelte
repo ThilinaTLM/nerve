@@ -5,8 +5,8 @@ import Undo2 from "@lucide/svelte/icons/undo-2";
 import type { QueuedPromptRecord } from "../../state/tool-types";
 import ContextMenu, {
   type ContextMenuItem,
-} from "@nervekit/workbench-ui/components/ui/context-menu-list";
-import PlainText from "@nervekit/workbench-ui/core/components/PlainText.svelte";
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
+import PlainText from "@nervekit/ui-kit/core/components/PlainText.svelte";
 
 type Props = {
   prompt: QueuedPromptRecord;

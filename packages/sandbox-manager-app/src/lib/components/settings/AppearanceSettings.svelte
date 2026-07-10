@@ -1,6 +1,6 @@
 <script lang="ts">
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
-import RadioGroup from "@nervekit/workbench-ui/components/ui/radio-group-field";
+import RadioGroup from "@nervekit/ui-kit/components/ui/radio-group-field";
 import {
   useAppearance,
   type ThemePreference,

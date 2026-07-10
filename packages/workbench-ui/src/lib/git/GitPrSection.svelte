@@ -10,9 +10,9 @@ import type {
   GithubStatusResponse,
   GitRepoSummary,
 } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import { cn } from "@nervekit/workbench-ui/core/utils";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { cn } from "@nervekit/ui-kit/core/utils";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import { checksTone } from "./git-change-format";
 

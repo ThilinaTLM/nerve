@@ -18,7 +18,7 @@ export async function discoverSandboxGitRepos(
   sandboxId: string,
 ): Promise<GitDiscoveryResponse> {
   return (
-    await protocolRequest<GitDiscoveryResponse>("sandbox.git.repos.discover", {
+    await protocolRequest<GitDiscoveryResponse>("git.repos.discover", {
       sandboxId,
     })
   ).result;
@@ -29,7 +29,7 @@ export async function getSandboxGitOverview(
   repo = ".",
 ): Promise<GitOverviewResponse> {
   return (
-    await protocolRequest<GitOverviewResponse>("sandbox.git.overview.get", {
+    await protocolRequest<GitOverviewResponse>("git.overview.get", {
       sandboxId,
       repo,
     })
@@ -41,7 +41,7 @@ export async function listSandboxGitBranches(
   repo = ".",
 ): Promise<GitBranchListResponse> {
   return (
-    await protocolRequest<GitBranchListResponse>("sandbox.git.branches.list", {
+    await protocolRequest<GitBranchListResponse>("git.branches.list", {
       sandboxId,
       repo,
     })
@@ -54,7 +54,7 @@ export async function createSandboxGitBranch(
 ): Promise<GitMutationResponse> {
   return (
     await protocolRequest<GitMutationResponse>(
-      "sandbox.git.branch.create",
+      "git.branch.create",
       { sandboxId, ...request },
       {
         idempotencyKey: `sandbox-git-create-${sandboxId}-${request.repo ?? "."}-${request.name}`,
@@ -69,7 +69,7 @@ export async function switchSandboxGitBranch(
 ): Promise<GitMutationResponse> {
   return (
     await protocolRequest<GitMutationResponse>(
-      "sandbox.git.branch.switch",
+      "git.branch.switch",
       { sandboxId, ...request },
       {
         idempotencyKey: `sandbox-git-switch-${sandboxId}-${request.repo ?? "."}-${request.name}-${Date.now()}`,
@@ -83,7 +83,7 @@ export async function sandboxGitFileAction(
   action: "stage" | "unstage" | "discard",
   request: GitFileActionRequest,
 ): Promise<GitMutationResponse> {
-  const method = `sandbox.git.file.${action}` as const;
+  const method = `git.file.${action}` as const;
   return (
     await protocolRequest<GitMutationResponse>(
       method,
@@ -100,7 +100,7 @@ export async function sandboxGitRemoteAction(
   action: "sync" | "push" | "pull" | "fetch" | "switchBaseAndPull",
   request: GitRemoteOpRequest,
 ): Promise<GitMutationResponse> {
-  const method = `sandbox.git.${action}` as const;
+  const method = `git.${action}` as const;
   return (
     await protocolRequest<GitMutationResponse>(
       method,
@@ -117,7 +117,7 @@ export async function getSandboxGithubStatus(
   repo = ".",
 ): Promise<GithubStatusResponse> {
   return (
-    await protocolRequest<GithubStatusResponse>("sandbox.github.status.get", {
+    await protocolRequest<GithubStatusResponse>("github.status.get", {
       sandboxId,
       repo,
     })
@@ -129,7 +129,7 @@ export async function listSandboxGithubPrs(
   repo = ".",
 ): Promise<GithubPrListResponse> {
   return (
-    await protocolRequest<GithubPrListResponse>("sandbox.github.pr.list", {
+    await protocolRequest<GithubPrListResponse>("github.pr.list", {
       sandboxId,
       repo,
     })
@@ -142,7 +142,7 @@ export async function getSandboxGithubPr(
   number: number,
 ): Promise<GithubPrDetail> {
   return (
-    await protocolRequest<GithubPrDetail>("sandbox.github.pr.get", {
+    await protocolRequest<GithubPrDetail>("github.pr.get", {
       sandboxId,
       repo,
       number,
@@ -157,7 +157,7 @@ export async function checkoutSandboxGithubPr(
 ): Promise<GithubPrCheckoutResponse> {
   return (
     await protocolRequest<GithubPrCheckoutResponse>(
-      "sandbox.github.pr.checkout",
+      "github.pr.checkout",
       { sandboxId, repo, number },
       {
         idempotencyKey: `sandbox-pr-checkout-${sandboxId}-${repo}-${number}-${Date.now()}`,

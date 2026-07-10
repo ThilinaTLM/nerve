@@ -1,6 +1,6 @@
 <script lang="ts">
-import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
-import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
+import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 
 type ThinkingBlockItem = {
   text: string;

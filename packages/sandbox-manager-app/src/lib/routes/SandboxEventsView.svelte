@@ -1,9 +1,9 @@
 <script lang="ts">
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
-import TabsBar from "@nervekit/workbench-ui/components/ui/tabs-bar";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import TabsBar from "@nervekit/ui-kit/components/ui/tabs-bar";
 import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 import type { SandboxUiEvent } from "../state/sandbox-ui-types";
 

@@ -6,8 +6,8 @@
   },
   "aliases": {
     "components": "$lib/components",
-    "utils": "@nervekit/workbench-ui/core/utils",
-    "ui": "@nervekit/workbench-ui/components/ui",
+    "utils": "@nervekit/ui-kit/core/utils",
+    "ui": "@nervekit/ui-kit/components/ui",
     "hooks": "$lib/hooks",
     "lib": "$lib"
   },

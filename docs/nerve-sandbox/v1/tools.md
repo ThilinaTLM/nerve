@@ -107,8 +107,8 @@ type ToolPolicyDecision = {
 
 Requirements:
 
-- `deny` MUST emit a durable `sandbox.security.denied` or `tool.call.failed` event.
-- `approval` MUST emit `run.waiting_for_approval` or `tool.call.requested` with approval metadata, then checkpoint before waiting.
+- `deny` MUST emit a durable `sandbox.security.denied` or `toolCall.updated` event.
+- `approval` MUST emit `run.waiting_for_approval` or `toolCall.updated` with approval metadata, then checkpoint before waiting.
 - `allow` MAY execute immediately but still must journal the tool call lifecycle.
 - Decisions MUST be based on normalized paths/arguments, not raw user strings alone.
 - Group-level `requireApproval` may strengthen but MUST NOT weaken global permission and security policy.
@@ -246,11 +246,11 @@ Requirements:
 
 Tool calls SHOULD produce durable lifecycle events:
 
-1. `tool.call.requested` for approval or audit, with redacted normalized args.
-2. `tool.call.started` when execution begins.
-3. `tool.call.completed` with bounded/redacted result and artifact references.
-4. `tool.call.failed` with redacted error details.
-5. `tool.call.cancelled` when a pending or running tool is cancelled.
+1. `toolCall.updated` for approval or audit, with redacted normalized args.
+2. `toolCall.updated` when execution begins.
+3. `toolCall.updated` with bounded/redacted result and artifact references.
+4. `toolCall.updated` with redacted error details.
+5. `toolCall.updated` when a pending or running tool is cancelled.
 
 Approval-required tools MUST persist `waiting_for_approval` before side effects. Granting an approval resumes the exact provider tool-call ID and normalized args; denying returns a redacted `POLICY_DENIED` tool error to the model without executing the side effect.
 

@@ -27,7 +27,7 @@ describe("shared conversation adapters", () => {
       id: "evt_tool_1",
       seq: 1,
       ts: "2026-01-01T00:00:00.000Z",
-      type: "conversation.tool_call.updated",
+      type: "toolCall.updated",
       durability: "durable",
       data: {
         conversationId: "conv_test",
@@ -50,7 +50,7 @@ describe("shared conversation adapters", () => {
       id: "evt_tool_2",
       seq: 2,
       ts: "2026-01-01T00:00:01.000Z",
-      type: "conversation.tool_call.updated",
+      type: "toolCall.updated",
       durability: "durable",
       data: {
         conversationId: "conv_test",
@@ -86,7 +86,7 @@ describe("shared conversation adapters", () => {
       id: "evt_1",
       seq: 1,
       ts: "2026-01-01T00:00:00.000Z",
-      type: "conversation.run.started",
+      type: "run.started",
       durability: "durable",
       data: {
         conversationId: "conv_test",

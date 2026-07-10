@@ -4,7 +4,7 @@ import Info from "@lucide/svelte/icons/info";
 import Terminal from "@lucide/svelte/icons/terminal";
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
 import { WorkbenchUtilityPanel } from "@nervekit/workbench-ui/components/workbench";
-import type { TabItem } from "@nervekit/workbench-ui/components/ui/tabs-bar";
+import type { TabItem } from "@nervekit/ui-kit/components/ui/tabs-bar";
 import { sandboxWorkbenchLayout } from "../../state/sandbox-workbench-layout.svelte";
 import type {
   SandboxDiagnosticTabId,

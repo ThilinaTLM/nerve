@@ -14,9 +14,9 @@ import type {
 import {
   agentActivityPulse,
   agentActivityTone,
-} from "@nervekit/workbench-ui/core/utils/status";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
+} from "@nervekit/ui-kit/core/utils/status";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 
 type Props = {

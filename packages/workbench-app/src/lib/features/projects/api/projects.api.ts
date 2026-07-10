@@ -8,7 +8,7 @@ import type {
   PruneProjectConversationsResponse,
   UpdatePinnedCommandRequest,
 } from "@nervekit/contracts";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export async function createProject(dir: string): Promise<ProjectRecord> {
   return (

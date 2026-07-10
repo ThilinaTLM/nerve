@@ -6,8 +6,8 @@ import type {
   GitFileChange,
   ProjectRecord,
 } from "$lib/api";
-import { Card } from "@nervekit/workbench-ui/components/ui/card";
-import ConfirmDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
+import { Card } from "@nervekit/ui-kit/components/ui/card";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
 import {

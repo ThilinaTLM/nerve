@@ -12,13 +12,13 @@ import type {
   StorageCleanupTarget,
   StorageUsageResponse,
 } from "$lib/api";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import { Checkbox } from "@nervekit/workbench-ui/components/ui/checkbox";
-import ConfirmDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
-import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { Progress } from "@nervekit/workbench-ui/components/ui/progress";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
 import { onEvent } from "$lib/core/events/event-bus";
 import { notify } from "$lib/features/notifications/notify.svelte";

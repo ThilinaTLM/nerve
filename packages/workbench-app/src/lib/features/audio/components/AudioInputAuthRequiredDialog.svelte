@@ -2,8 +2,8 @@
 import KeyRound from "@lucide/svelte/icons/key-round";
 import Mic from "@lucide/svelte/icons/mic";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { openAuthPane } from "$lib/features/auth";
 
 type Props = {

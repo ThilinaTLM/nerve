@@ -62,7 +62,7 @@ export async function handleManagerProtocolHttpRequest(
       id: createId("msg"),
       kind: "response",
       ts: new Date().toISOString(),
-      source: { role: "orchestrator", name: "Nerve Sandbox Manager" },
+      source: { role: "sandbox_manager", name: "Nerve Sandbox Manager" },
       target: request.source,
       correlationId: request.correlationId,
       replyTo: request.id,
@@ -97,7 +97,8 @@ function errorMessage(
     id: createId("msg"),
     kind: "error",
     ts: new Date().toISOString(),
-    source: { role: "orchestrator", name: "Nerve Sandbox Manager" },
+    source: { role: "sandbox_manager", name: "Nerve Sandbox Manager" },
+    target: { role: "ui" },
     replyTo,
     data: {
       code,

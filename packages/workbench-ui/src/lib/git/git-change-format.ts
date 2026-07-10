@@ -3,7 +3,7 @@ import type {
   GithubChecksSummary,
   GitRepoSummary,
 } from "@nervekit/contracts";
-import type { BadgeTone } from "@nervekit/workbench-ui/components/ui/badge";
+import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 
 const MAX_CHANGE_PATH_LENGTH = 48;
 const REPO_LABEL_SHORTENING = [

@@ -1,5 +1,5 @@
 import { compactConversation } from "$lib/api";
-import { protocolRequest } from "$lib/core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/core/query";
 import type { CompactionNotice } from "$lib/core/types/state-types";
 import { notify } from "$lib/features/notifications/notify.svelte";

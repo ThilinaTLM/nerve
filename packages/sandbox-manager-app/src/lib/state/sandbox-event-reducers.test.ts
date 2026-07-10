@@ -113,7 +113,7 @@ describe("applySandboxEvent", () => {
     const detail = createSandboxDetailState("sbx_1");
     applySandboxEvent(
       detail,
-      event(1, "tool.call.requested", {
+      event(1, "toolCall.updated", {
         ...scope,
         toolCallId: "tool_1",
         toolName: "read",
@@ -124,7 +124,7 @@ describe("applySandboxEvent", () => {
     );
     applySandboxEvent(
       detail,
-      event(2, "tool.call.completed", {
+      event(2, "toolCall.updated", {
         ...scope,
         toolCallId: "tool_1",
         toolName: "read",
@@ -154,7 +154,7 @@ describe("applySandboxEvent", () => {
     ].forEach(([toolCallId, toolName], index) => {
       applySandboxEvent(
         detail,
-        event(2 + index, "tool.call.started", {
+        event(2 + index, "toolCall.updated", {
           ...scope,
           toolCallId,
           toolName,
@@ -197,7 +197,7 @@ describe("applySandboxEvent", () => {
     const detail = createSandboxDetailState("sbx_1");
     applySandboxEvent(
       detail,
-      event(1, "tool.call.started", {
+      event(1, "toolCall.updated", {
         ...scope,
         toolCallId: "plan_raw_1",
         toolName: "plan_mode_present",
@@ -232,7 +232,7 @@ describe("applySandboxEvent", () => {
     assert.equal(detail.toolCallsById.plan_raw_1.status, "waiting_for_input");
     applySandboxEvent(
       detail,
-      event(3, "plan_review.resolved", {
+      event(3, "planReview.resolved", {
         ...scope,
         reviewId: planReview.id,
         decision: "accept",

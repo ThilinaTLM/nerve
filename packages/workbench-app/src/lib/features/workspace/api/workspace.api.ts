@@ -9,7 +9,7 @@ import type {
   UserQuestionRecord,
   WorkerRecord,
 } from "@nervekit/contracts";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export type WorkspaceSnapshot = {
   projects: ProjectRecord[];

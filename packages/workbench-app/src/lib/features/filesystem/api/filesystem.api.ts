@@ -7,8 +7,8 @@ import {
   apiGet,
   apiPost,
   fileToBase64,
-} from "@nervekit/workbench-ui/core/api/client";
-import { protocolRequest } from "../../../core/protocol/http-client";
+} from "@nervekit/ui-kit/core/api/client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export async function uploadClipboardImage(file: File): Promise<string> {
   const response = await apiPost<ClipboardImageUploadResponse>(

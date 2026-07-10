@@ -1,8 +1,8 @@
 <script lang="ts">
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import type { TaskEventNotice } from "../../state/transcript-types";
-import { taskPulse, taskTone } from "@nervekit/workbench-ui/core/utils/status";
+import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
 
 type Props = { notice: TaskEventNotice };
 let { notice }: Props = $props();

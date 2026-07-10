@@ -96,7 +96,7 @@ export async function transitionSandboxLifecycle(
   };
   await context.store.put(next);
   await context.recordEvent?.({
-    type: "manager.sandbox.lifecycle_changed",
+    type: "sandbox.lifecycle.changed",
     sandboxId,
     payload: {
       sandboxId,

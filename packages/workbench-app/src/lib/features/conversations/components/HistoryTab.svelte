@@ -8,7 +8,7 @@ import type {
   ConversationTreeNode,
   ToolCallTranscriptRecord,
 } from "$lib/api";
-import { buttonVariants } from "@nervekit/workbench-ui/components/ui/button";
+import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
 import { buildHistoryGraph } from "./history-graph";
 import HistoryBranchRail from "./HistoryBranchRail.svelte";
 import HistoryDetailPane from "./HistoryDetailPane.svelte";

@@ -10,7 +10,7 @@ import type {
   ProjectRecord,
   StatusResponse,
 } from "$lib/api";
-import type { TabItem } from "@nervekit/workbench-ui/components/ui/tabs-bar";
+import type { TabItem } from "@nervekit/ui-kit/components/ui/tabs-bar";
 import ContextTab from "$lib/features/conversations/components/ContextUtilityPanel.svelte";
 import GitTab from "$lib/features/git/components/GitUtilityPanel.svelte";
 import TasksTab from "$lib/features/tasks/components/TaskUtilityPanel.svelte";

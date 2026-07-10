@@ -5,7 +5,6 @@ import {
   flowUpdateMessageSchema,
   heartbeatMessageSchema,
   type NerveMessage,
-  nerveMessageSchema,
   type PeerDescriptor,
   protocolErrorMessageSchema,
   replayCompleteMessageSchema,
@@ -14,6 +13,17 @@ import {
   replayUnavailableMessageSchema,
   welcomeMessageSchema,
 } from "@nervekit/contracts";
+import {
+  applyEventBatch,
+  createClientEventStreamState,
+  createClientMessage,
+  globalProcessedSeqFromCursor,
+  markProcessed,
+  ProtocolCodec,
+  protocolClientId,
+  protocolInstanceId,
+  resetClientEventStreamState,
+} from "@nervekit/protocol";
 import { getClientConfig } from "$lib/api";
 import {
   applyTheme,
@@ -29,15 +39,6 @@ import {
   clientLog,
   installClientLogging,
 } from "$lib/core/logger/client-logger";
-import {
-  applyEventBatch,
-  createClientEventStreamState,
-  globalProcessedSeqFromCursor,
-  markProcessed,
-  resetClientEventStreamState,
-} from "$lib/core/protocol/event-stream";
-import { protocolClientId, protocolInstanceId } from "$lib/core/protocol/ids";
-import { createClientMessage } from "$lib/core/protocol/messages";
 import { restoreConversationTabs } from "$lib/features/conversations/state/conversation-flow.svelte";
 import {
   loadSettingsPanel,
@@ -65,6 +66,8 @@ let replayPending = false;
 let appliedSinceAck = 0;
 let duplicateSinceAck = 0;
 const eventStream = createClientEventStreamState();
+const protocolCodec = new ProtocolCodec();
+const protocolTarget: PeerDescriptor = { role: "workbench_server" };
 const SUBSCRIPTION_USAGE_POLL_MS = 10_000;
 const LIVENESS_CHECK_MS = 15_000;
 const LIVENESS_TIMEOUT_MS = 70_000;
@@ -294,8 +297,7 @@ async function handleProtocolFrame(
   data: unknown,
   wsUrl: string,
 ): Promise<void> {
-  const raw = JSON.parse(String(data));
-  const message = nerveMessageSchema.parse(raw) as NerveMessage;
+  const message = protocolCodec.decode(String(data)) as NerveMessage;
   switch (message.kind) {
     case "welcome":
       await handleWelcome(message, wsUrl);
@@ -408,7 +410,7 @@ function sendHello(): void {
       ? {
           streams: [
             {
-              stream: "global",
+              stream: "local",
               processedSeq: workspaceState.processedEventSeq,
             },
           ],
@@ -418,14 +420,6 @@ function sendHello(): void {
     createClientMessage(
       "hello",
       {
-        role: "ui",
-        client: {
-          id: protocolClientId(),
-          instanceId: protocolInstanceId(),
-          name: "Nerve Web UI",
-          platform: "browser",
-          userAgent: globalThis.navigator?.userAgent,
-        },
         requestedVersion: 1,
         capabilities: PROTOCOL_CAPABILITIES,
         encodings: ["json"],
@@ -437,6 +431,7 @@ function sendHello(): void {
         },
       },
       protocolSource(),
+      protocolTarget,
     ),
   );
 }
@@ -449,10 +444,11 @@ function sendReady(): void {
       {
         sessionId,
         streams: [
-          { stream: "global", processedSeq: workspaceState.processedEventSeq },
+          { stream: "local", processedSeq: workspaceState.processedEventSeq },
         ],
       },
       protocolSource(),
+      protocolTarget,
     ),
   );
 }
@@ -464,7 +460,7 @@ function sendReplayRequest(fromSeq: number): void {
     {
       sessionId,
       replayId: createId("rpl"),
-      streams: [{ stream: "global", fromSeq }],
+      streams: [{ stream: "local", fromSeq }],
       reason: "gap_detected",
       preferences: {
         maxEvents: 10_000,
@@ -474,6 +470,7 @@ function sendReplayRequest(fromSeq: number): void {
       },
     },
     protocolSource(),
+    protocolTarget,
   );
   sendMessage(replayRequestMessageSchema.parse(message));
 }
@@ -493,15 +490,15 @@ function sendAckNow(): void {
   }
   if (!sessionId || !socket || socket.readyState !== WebSocket.OPEN) return;
   const message = createClientMessage(
-    "ack",
+    "event.ack",
     {
       sessionId,
       ackId: createId("ack"),
       streams: [
-        { stream: "global", processedSeq: workspaceState.processedEventSeq },
+        { stream: "local", processedSeq: workspaceState.processedEventSeq },
       ],
       received: [
-        { stream: "global", highestSeq: workspaceState.receivedEventSeq },
+        { stream: "local", highestSeq: workspaceState.receivedEventSeq },
       ],
       stats: {
         appliedEvents: appliedSinceAck,
@@ -510,6 +507,7 @@ function sendAckNow(): void {
       },
     },
     protocolSource(),
+    protocolTarget,
   );
   appliedSinceAck = 0;
   duplicateSinceAck = 0;
@@ -538,12 +536,13 @@ export function disconnectWorkbench() {
           reason: "client_closing",
           finalCursors: [
             {
-              stream: "global",
+              stream: "local",
               processedSeq: workspaceState.processedEventSeq,
             },
           ],
         },
         protocolSource(),
+        protocolTarget,
       ),
     );
   }

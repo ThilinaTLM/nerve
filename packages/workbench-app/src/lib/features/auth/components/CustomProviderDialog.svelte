@@ -1,5 +1,5 @@
 <script lang="ts" module>
-import type { SelectItem } from "@nervekit/workbench-ui/components/ui/select-field";
+import type { SelectItem } from "@nervekit/ui-kit/components/ui/select-field";
 
 export const PI_API_ITEMS: SelectItem[] = [
   {
@@ -30,12 +30,12 @@ import {
   setProviderApiKey,
   upsertCustomProvider,
 } from "$lib/api";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
-import { Input } from "@nervekit/workbench-ui/components/ui/input";
-import { Label } from "@nervekit/workbench-ui/components/ui/label";
-import SelectField from "@nervekit/workbench-ui/components/ui/select-field";
-import { Textarea } from "@nervekit/workbench-ui/components/ui/textarea";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { Label } from "@nervekit/ui-kit/components/ui/label";
+import SelectField from "@nervekit/ui-kit/components/ui/select-field";
+import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { encryptApiKey } from "$lib/core/utils/credential-crypto";
 import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
 

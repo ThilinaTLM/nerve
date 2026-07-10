@@ -167,7 +167,7 @@ async function ensureLocalDaemon(
   const orchestratorMain = resolveOrchestratorMainPath();
   await access(orchestratorMain).catch(() => {
     throw new Error(
-      `Nerve orchestrator build was not found at ${orchestratorMain}. Run pnpm --filter @nervekit/orchestrator build first.`,
+      `Nerve orchestrator build was not found at ${orchestratorMain}. Run pnpm --filter @nervekit/workbench-server build first.`,
     );
   });
 

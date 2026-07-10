@@ -10,13 +10,13 @@ import type {
   ManagedSandboxRecord,
   StartupSetupStatus,
 } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import GitChangesSection from "@nervekit/workbench-ui/git/GitChangesSection.svelte";
 import GitPrSection from "@nervekit/workbench-ui/git/GitPrSection.svelte";
 import GitRepoBranchSection from "@nervekit/workbench-ui/git/GitRepoBranchSection.svelte";
-import { notify } from "@nervekit/workbench-ui/core/notify";
+import { notify } from "@nervekit/ui-kit/core/notify";
 import {
   createSandboxGitBranch,
   discoverSandboxGitRepos,

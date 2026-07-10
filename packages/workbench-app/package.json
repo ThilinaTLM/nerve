@@ -1,7 +1,7 @@
 {
   "name": "@nervekit/workbench-app",
   "version": "0.7.0",
-  "description": "Browser workbench entrypoint served by the orchestrator and desktop shell.",
+  "description": "Browser workbench entrypoint served by the workbench server and desktop shell.",
   "private": true,
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "vite build",
-    "check": "node ../../scripts/check-workbench-app-import-boundaries.mjs && svelte-check --tsconfig ./tsconfig.json",
+    "check": "node ../../scripts/check-package-boundaries.mjs && svelte-check --tsconfig ./tsconfig.json",
     "dev": "vite --host 127.0.0.1",
     "test": "tsx --test \"src/**/*.test.ts\""
   },
@@ -47,7 +47,9 @@
     "svelte-sonner": "^1.1.1",
     "tailwindcss": "4.3.1",
     "unified": "^11.0.5",
-    "workbox-window": "7.4.1"
+    "workbox-window": "7.4.1",
+    "@nervekit/protocol": "workspace:*",
+    "@nervekit/ui-kit": "workspace:*"
   },
   "devDependencies": {
     "@lucide/svelte": "^1.17.0",

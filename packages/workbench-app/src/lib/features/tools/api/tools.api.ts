@@ -8,7 +8,7 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "@nervekit/contracts";
-import { protocolRequest } from "../../../core/protocol/http-client";
+import { protocolRequest } from "@nervekit/protocol";
 
 export type ApprovalWithToolCall = ApprovalRecord & {
   toolCall?: ToolCallTranscriptRecord;

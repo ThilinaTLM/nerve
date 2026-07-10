@@ -3,12 +3,12 @@ import Clock from "@lucide/svelte/icons/clock";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import User from "@lucide/svelte/icons/user";
 import type { JiraIssueSummaryPayload } from "@nervekit/contracts";
-import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-import type { BadgeTone } from "@nervekit/workbench-ui/components/ui/badge";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 import {
   dateTimeLabel,
   relativeTimeLabel,
-} from "@nervekit/workbench-ui/core/utils/time";
+} from "@nervekit/ui-kit/core/utils/time";
 import { jiraIssueUrl, jiraStatusTone } from "../../views/jira-display";
 import { jiraIssueTypeIcon, jiraPriorityMeta } from "../../views/jira-icons";
 

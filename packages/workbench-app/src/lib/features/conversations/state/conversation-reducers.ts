@@ -53,7 +53,7 @@ export function isConversationRuntimeEvent(type: string): boolean {
     type === "conversation.compaction.started" ||
     type === "conversation.compaction.failed" ||
     type === "conversation.context.updated" ||
-    type === "conversation.tool_call.updated" ||
+    type === "toolCall.updated" ||
     type.startsWith("conversation.prompt.") ||
     type.startsWith("conversation.run.") ||
     type.startsWith("conversation.live.")
@@ -85,7 +85,7 @@ export function handleConversationEvent(
   view.cursorSeq = event.seq;
 
   switch (event.type) {
-    case "conversation.run.started":
+    case "run.started":
       view.sending = true;
       view.queuedPrompts = [];
       view.error = undefined;
@@ -120,13 +120,13 @@ export function handleConversationEvent(
         event.data?.queuedPrompt as QueuedPromptRecord | undefined,
       );
       break;
-    case "conversation.tool_call.updated":
+    case "toolCall.updated":
       handleToolCallUpdated(
         view,
         event.data?.toolCall as ToolCallTranscriptRecord | undefined,
       );
       break;
-    case "conversation.run.retrying":
+    case "run.retrying":
       handleRunRetrying(view, event);
       break;
     case "conversation.compaction.started":
@@ -165,7 +165,7 @@ export function handleConversationEvent(
     case "conversation.live.tool_output.delta":
       handleToolOutputDelta(view, event);
       break;
-    case "conversation.run.completed":
+    case "run.completed":
       removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = false;
       view.streamingText = "";
@@ -181,7 +181,7 @@ export function handleConversationEvent(
         void invalidateGit(stringValue(event.data?.projectId));
       }
       break;
-    case "conversation.run.failed": {
+    case "run.failed": {
       removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       const failedCompaction =
         view.live.compaction?.state === "failed"
@@ -197,7 +197,7 @@ export function handleConversationEvent(
         : String(event.data?.message ?? "Agent error");
       break;
     }
-    case "conversation.run.suspended":
+    case "run.suspended":
       removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = false;
       view.streamingText = "";

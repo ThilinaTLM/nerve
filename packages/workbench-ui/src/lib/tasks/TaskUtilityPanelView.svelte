@@ -12,9 +12,9 @@ import type {
   TaskRecord,
   UpdatePinnedCommandRequest,
 } from "@nervekit/contracts";
-import { Button } from "@nervekit/workbench-ui/components/ui/button";
-import ConfirmDialog from "@nervekit/workbench-ui/components/ui/confirm-dialog";
-import * as Tooltip from "@nervekit/workbench-ui/components/ui/tooltip";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import PinnedCommandDialog from "./PinnedCommandDialog.svelte";
 import PinnedCommandItem from "./PinnedCommandItem.svelte";
