@@ -13,6 +13,7 @@ import {
 import { parse as parseYaml } from "yaml";
 import { ManagerState } from "../src/app/manager-state.js";
 import { createManagerServer } from "../src/app/server.js";
+import type { ContainerRuntimeDriver } from "../src/drivers/container-runtime-driver.js";
 
 const config = {
   version: 1,
@@ -58,7 +59,7 @@ describeWithPostgres("sandbox manager web ui serving and auth cookie", () => {
       "<!doctype html><title>nerve sandbox manager</title>",
       "utf8",
     );
-    const state = new ManagerState({
+    const state = testManagerState({
       host: "127.0.0.1",
       port: 0,
       allowRemoteBind: false,
@@ -122,7 +123,7 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-nocontroller-"),
     );
-    const state = new ManagerState({
+    const state = testManagerState({
       host: "127.0.0.1",
       port: 0,
       allowRemoteBind: false,
@@ -149,10 +150,77 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
       const record = (await create.json()).data as {
         sandboxId: string;
         controller: { token: string };
+        desiredState: string;
+        observedState: string;
+        lifecycleState: string;
       };
       assert.equal(record.controller.token, "[REDACTED]");
+      assert.equal(record.desiredState, "running");
+      assert.equal(record.observedState, "running");
+      assert.equal(record.lifecycleState, "container_started");
       const stored = await state.sandboxes.get(record.sandboxId);
       assert.ok(stored?.controller?.token?.startsWith("ntok_"));
+    } finally {
+      await closeServer(server);
+      await rm(storageDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns the persisted failed record when automatic startup fails", async () => {
+    const storageDir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-manager-start-failure-"),
+    );
+    const state = testManagerState(
+      {
+        host: "127.0.0.1",
+        port: 0,
+        allowRemoteBind: false,
+        storageDir,
+        backend: "docker",
+        databaseUrl: postgresUrl,
+        databaseSsl: false,
+        volumeBackend: "local",
+      },
+      { failStart: true },
+    );
+    await state.init();
+    const server = createManagerServer(state);
+    await listen(server);
+    const address = server.address();
+    assert.equal(typeof address, "object");
+    try {
+      const create = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes`,
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": "create-start-failure" },
+          body: JSON.stringify({ config: configWithoutController }),
+        },
+      );
+      assert.equal(create.status, 201);
+      const record = (await create.json()).data as {
+        sandboxId: string;
+        desiredState: string;
+        observedState: string;
+        lifecycleState: string;
+        lastError?: { code?: string; message?: string };
+      };
+      assert.equal(record.desiredState, "running");
+      assert.equal(record.observedState, "failed");
+      assert.equal(record.lifecycleState, "failed");
+      assert.equal(record.lastError?.code, "START_FAILED");
+      assert.match(record.lastError?.message ?? "", /failed to start/);
+
+      const replay = await fetch(
+        `http://127.0.0.1:${address.port}/api/sandboxes`,
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": "create-start-failure" },
+          body: JSON.stringify({ config: configWithoutController }),
+        },
+      );
+      assert.equal(replay.status, 200);
+      assert.equal((await replay.json()).data.sandboxId, record.sandboxId);
     } finally {
       await closeServer(server);
       await rm(storageDir, { recursive: true, force: true });
@@ -163,7 +231,7 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-config-yaml-"),
     );
-    const state = new ManagerState({
+    const state = testManagerState({
       host: "127.0.0.1",
       port: 0,
       allowRemoteBind: false,
@@ -245,7 +313,7 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-runtime-status-"),
     );
-    const state = new ManagerState({
+    const state = testManagerState({
       host: "127.0.0.1",
       port: 0,
       allowRemoteBind: false,
@@ -299,7 +367,7 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-body-"),
     );
-    const state = new ManagerState({
+    const state = testManagerState({
       host: "127.0.0.1",
       port: 0,
       allowRemoteBind: false,
@@ -336,7 +404,7 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-idem-"),
     );
-    const state = new ManagerState({
+    const state = testManagerState({
       host: "127.0.0.1",
       port: 0,
       allowRemoteBind: false,
@@ -353,6 +421,7 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     assert.equal(typeof address, "object");
     const url = `http://127.0.0.1:${address && typeof address === "object" ? address.port : 0}/api/sandboxes`;
     try {
+      const initialSandboxCount = (await state.sandboxes.list()).length;
       const body = JSON.stringify({ config });
       const first = await fetch(url, {
         method: "POST",
@@ -366,7 +435,10 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
         body,
       });
       assert.equal(second.status, 200);
-      assert.equal((await state.sandboxes.list()).length, 1);
+      assert.equal(
+        (await state.sandboxes.list()).length,
+        initialSandboxCount + 1,
+      );
       const conflict = await fetch(url, {
         method: "POST",
         headers: { "Idempotency-Key": "create-1" },
@@ -386,7 +458,7 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-status-"),
     );
-    const state = new ManagerState({
+    const state = testManagerState({
       host: "127.0.0.1",
       port: 0,
       allowRemoteBind: false,
@@ -439,7 +511,7 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     const storageDir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-manager-secret-"),
     );
-    const state = new ManagerState({
+    const state = testManagerState({
       host: "127.0.0.1",
       port: 0,
       allowRemoteBind: false,
@@ -497,6 +569,57 @@ describeWithPostgres("sandbox manager lifecycle api hardening", () => {
     }
   });
 });
+
+function testManagerState(
+  config: ConstructorParameters<typeof ManagerState>[0],
+  options: { failStart?: boolean } = {},
+): ManagerState {
+  return new ManagerState(
+    {
+      ...config,
+      defaultSandboxImage:
+        config.defaultSandboxImage ?? "nerve-sandbox-agent:dev",
+    },
+    { driver: testDriver(options) },
+  );
+}
+
+function testDriver(
+  options: { failStart?: boolean } = {},
+): ContainerRuntimeDriver {
+  return {
+    kind: "docker",
+    capabilities: async () => ({
+      kind: "docker",
+      available: true,
+      version: "test",
+      supportsReadOnlyRootFilesystem: true,
+      supportsNoNewPrivileges: true,
+      supportsPidsLimit: true,
+      supportsCpuLimit: true,
+      supportsMemoryLimit: true,
+      supportsTmpfs: true,
+      limitations: [],
+    }),
+    create: async (spec) => ({
+      kind: "docker",
+      id: `container-${spec.sandboxId}`,
+      name: `nerve-${spec.sandboxId}`,
+    }),
+    start: async () => {
+      if (options.failStart) throw new Error("test runtime failed to start");
+    },
+    inspect: async (ref) => ({ ref, state: "running" }),
+    logs: () => ({
+      async *[Symbol.asyncIterator]() {
+        // The lifecycle API tests do not need runtime log output.
+      },
+    }),
+    stop: async () => {},
+    kill: async () => {},
+    remove: async () => {},
+  };
+}
 
 function listen(server: ReturnType<typeof createServer>): Promise<void> {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

@@ -260,7 +260,7 @@ org.nerve.sandbox.manager=<manager-id>
 
 Docker and Podman are baseline v1 manager backends.
 
-Local deployments may use `NERVE_SANDBOX_MANAGER_BACKEND=auto` to select a reachable backend at runtime. Auto mode tries Docker first and falls back to Podman when Docker is unavailable; explicit `docker` or `podman` values remain deterministic overrides.
+Local deployments may use `NERVE_SANDBOX_MANAGER_BACKEND=auto` (the default) to select a reachable backend at runtime. Auto mode tries Docker first, then native Podman, then Podman through Windows Subsystem for Linux (`wsl.exe -- podman`). Explicit `docker`, `podman`, or `podman-wsl` values remain deterministic overrides; ECS remains explicit because it requires provisioned AWS configuration.
 
 Requirements:
 
@@ -359,7 +359,7 @@ Frontend clients MUST NOT connect directly to sandbox containers for control, se
 
 ## Lifecycle and garbage collection
 
-The manager owns desired lifecycle and a user-facing `lifecycleState`. `observedState` remains the low-level container/runtime inspection state. Normal startup progresses:
+The manager owns desired lifecycle and a user-facing `lifecycleState`. `observedState` remains the low-level container/runtime inspection state. `POST /api/sandboxes` is a create-and-run operation across all backends; it persists the manager record and immediately enters the shared runtime startup flow. `POST /api/sandboxes/{sandboxId}/start` remains available for an existing stopped or failed sandbox. Normal startup progresses:
 
 `record_created → container_creating → container_created → container_starting → container_started → daemon_connected → booting → ready/degraded`.
 

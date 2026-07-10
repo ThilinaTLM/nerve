@@ -112,7 +112,6 @@ type PersistedCreateSandboxPreferences = {
   memoryMb?: string;
   vcpu?: string;
   cpuUnits?: string;
-  startAfterCreate?: boolean;
   defaultProvider?: string;
   defaultModel?: string;
   defaultThinking?: ThinkingLevel;
@@ -229,7 +228,6 @@ export type CreateSandboxDraft = {
   memoryMb: string;
   vcpu: string;
   cpuUnits: string;
-  startAfterCreate: boolean;
   defaultProvider: string;
   defaultModel: string;
   defaultThinking: ThinkingLevel;
@@ -335,7 +333,6 @@ export function createDefaultDraft(): CreateSandboxDraft {
     memoryMb: "4096",
     vcpu: "",
     cpuUnits: "",
-    startAfterCreate: true,
     defaultProvider: "anthropic",
     defaultModel: "claude-sonnet-4-5",
     defaultThinking: "off",
@@ -580,8 +577,6 @@ export function createDraftFromStoredPreferences(
   draft.memoryMb = stringValue(stored.memoryMb) ?? draft.memoryMb;
   draft.vcpu = stringValue(stored.vcpu) ?? draft.vcpu;
   draft.cpuUnits = stringValue(stored.cpuUnits) ?? draft.cpuUnits;
-  draft.startAfterCreate =
-    booleanValue(stored.startAfterCreate) ?? draft.startAfterCreate;
   draft.defaultProvider =
     stringValue(stored.defaultProvider) ?? draft.defaultProvider;
   draft.defaultModel = stringValue(stored.defaultModel) ?? draft.defaultModel;
@@ -679,7 +674,6 @@ function preferencesFromDraft(
     memoryMb: draft.memoryMb,
     vcpu: draft.vcpu,
     cpuUnits: draft.cpuUnits,
-    startAfterCreate: draft.startAfterCreate,
     defaultProvider: draft.defaultProvider,
     defaultModel: draft.defaultModel,
     defaultThinking: draft.defaultThinking,
@@ -1173,7 +1167,6 @@ export function buildCreateRequestFromForm(
     const request = sandboxCreateRequestSchema.parse({
       config: buildConfigFromDraft(draft),
       launch: buildLaunchConfigFromDraft(draft),
-      start: draft.startAfterCreate,
       auth: Object.values(auth).some(Boolean) ? auth : undefined,
     });
     return { ok: true, request };
@@ -1189,7 +1182,6 @@ export function buildCreateRequestFromYaml(
     const request = sandboxCreateRequestSchema.parse({
       config: parseSandboxConfigYaml(draft.yamlSource),
       launch: buildLaunchConfigFromDraft(draft),
-      start: draft.startAfterCreate,
     });
     return { ok: true, request };
   } catch (error) {

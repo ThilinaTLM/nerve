@@ -724,7 +724,6 @@ export type SandboxCreateAuthRefs = z.infer<typeof sandboxCreateAuthRefsSchema>;
 export const sandboxCreateRequestSchema = z.strictObject({
   config: sandboxCreateConfigInputSchema,
   launch: sandboxLaunchConfigSchema.optional(),
-  start: z.boolean().optional(),
   auth: sandboxCreateAuthRefsSchema.optional(),
 });
 export type SandboxCreateRequest = z.infer<typeof sandboxCreateRequestSchema>;

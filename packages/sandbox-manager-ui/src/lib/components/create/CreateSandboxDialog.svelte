@@ -743,14 +743,6 @@
             onValueChange={(value) => (draft.backend = value)}
           />
         </div>
-        <div class="rounded-md border bg-background px-3 py-2.5">
-          <SwitchField
-            checked={draft.startAfterCreate}
-            label="Start after create"
-            description="Start the sandbox as soon as the manager saves it."
-            onCheckedChange={(value) => (draft.startAfterCreate = value)}
-          />
-        </div>
         <div class="flex flex-col gap-1 sm:col-span-2">
           <Label>Labels</Label>
           <Input bind:value={draft.labels} placeholder="team=core, env=dev" />
@@ -1478,8 +1470,8 @@
           />
           <p class="text-xs text-muted-foreground">
             YAML contains only the sandbox-agent config. Identity, labels, image,
-            backend, resources, start behavior, and manager profile selectors live
-            outside this YAML. The created sandbox page shows the exact mounted YAML.
+            backend, resources, and manager profile selectors live outside this YAML.
+            The created sandbox page shows the exact mounted YAML.
           </p>
         </TabsContent>
       </Tabs>

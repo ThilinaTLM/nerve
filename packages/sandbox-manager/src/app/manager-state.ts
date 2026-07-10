@@ -31,6 +31,11 @@ import { LocalVolumeProvider } from "../storage/local-volume-provider.js";
 import { PostgresRuntimeVolumeStore } from "../storage/runtime-volume-store.js";
 import { S3FilesVolumeProvider } from "../storage/s3-files-volume-provider.js";
 import type { RuntimeVolumeProvider } from "../storage/volume-provider.js";
+
+export type ManagerStateOptions = {
+  driver?: ContainerRuntimeDriver;
+};
+
 export class ManagerState {
   readonly pool: PostgresPool;
   readonly sandboxes: PostgresManagerStore;
@@ -53,7 +58,10 @@ export class ManagerState {
   readonly supervisor: SandboxSupervisor;
   readonly logger: StructuredLogger;
   readonly logBuffer: LogRingBuffer;
-  constructor(readonly config: ManagerConfig) {
+  constructor(
+    readonly config: ManagerConfig,
+    options: ManagerStateOptions = {},
+  ) {
     this.logBuffer = new LogRingBuffer(config.logBufferSize);
     this.logger = createLogger({
       level: config.logLevel,
@@ -92,7 +100,7 @@ export class ManagerState {
     this.volumeStore = new PostgresRuntimeVolumeStore(this.pool);
     this.pinnedCommands = new SandboxPinnedCommandStore(this.pool);
     this.volumeProvider = createVolumeProvider(config);
-    this.driver = createContainerDriver(config);
+    this.driver = options.driver ?? createContainerDriver(config);
     this.eventBus = new ManagerEventBus();
     // Activity summaries are best-effort and rebuildable: publish them live on
     // the manager stream as transient events (never journaled) so fleet tiles

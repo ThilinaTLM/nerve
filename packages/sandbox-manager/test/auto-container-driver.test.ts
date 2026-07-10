@@ -53,6 +53,22 @@ describe("auto container driver", () => {
     assert.equal(podman.calls.create, 1);
   });
 
+  it("falls back to Podman through WSL when Docker and native Podman are unavailable", async () => {
+    const docker = fakeDriver("docker", false);
+    const podman = fakeDriver("podman", false);
+    const podmanWsl = fakeDriver("podman-wsl", true);
+    const driver = new AutoContainerDriver([docker, podman, podmanWsl]);
+
+    const capabilities = await driver.capabilities();
+    const ref = await driver.create(createSpec);
+
+    assert.equal(capabilities.kind, "podman-wsl");
+    assert.equal(ref.kind, "podman-wsl");
+    assert.equal(docker.calls.create, 0);
+    assert.equal(podman.calls.create, 0);
+    assert.equal(podmanWsl.calls.create, 1);
+  });
+
   it("routes existing refs to their concrete runtime", async () => {
     const docker = fakeDriver("docker", true);
     const podman = fakeDriver("podman", true);
@@ -88,7 +104,7 @@ describe("auto container driver", () => {
 });
 
 function fakeDriver(
-  kind: "docker" | "podman",
+  kind: "docker" | "podman" | "podman-wsl",
   available: boolean,
 ): ContainerRuntimeDriver & { calls: Record<string, number> } {
   const calls: Record<string, number> = {
@@ -105,7 +121,7 @@ function fakeDriver(
     kind,
     available,
     version: available ? `${kind}-version` : undefined,
-    rootless: kind === "podman" ? true : undefined,
+    rootless: kind === "podman" || kind === "podman-wsl" ? true : undefined,
     supportsReadOnlyRootFilesystem: available,
     supportsNoNewPrivileges: available,
     supportsPidsLimit: available,

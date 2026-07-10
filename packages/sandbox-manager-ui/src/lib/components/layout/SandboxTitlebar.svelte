@@ -6,6 +6,7 @@
   import { WorkbenchTitlebar } from "@nervekit/shared-ui/components/workbench";
   import { useSandboxCenter } from "../../state/sandbox-center.svelte";
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
+  import RuntimeBackendBadge from "../RuntimeBackendBadge.svelte";
 
   const store = useSandboxManagerStore();
   const center = useSandboxCenter();
@@ -35,6 +36,12 @@
 
   {#snippet actions()}
     <div class="title-actions" aria-label="Sandbox actions">
+      {#if store.managerStatus}
+        <RuntimeBackendBadge
+          backend={store.managerStatus.backend}
+          runtime={store.managerStatus.runtime}
+        />
+      {/if}
       <Button
         variant="ghost"
         size="icon-sm"

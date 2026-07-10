@@ -70,7 +70,7 @@ describe("create sandbox draft", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(result.request.launch?.name, "demo");
-    assert.equal(result.request.start, true);
+    assert.equal("start" in result.request, false);
     assert.equal(
       result.request.config.agent.defaultModel.provider,
       "anthropic",
@@ -406,7 +406,6 @@ describe("create sandbox draft", () => {
   it("accepts valid sandbox-agent YAML config with launch fields outside YAML", () => {
     const draft = createDefaultDraft();
     draft.image = "custom-agent:latest";
-    draft.startAfterCreate = false;
     draft.mainModelProfileId = "profile_1";
     draft.yamlDirty = true;
     draft.yamlSource = validSandboxConfigYaml("sbx_yaml");
@@ -414,7 +413,7 @@ describe("create sandbox draft", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(result.request.launch?.image, "custom-agent:latest");
-    assert.equal(result.request.start, false);
+    assert.equal("start" in result.request, false);
     assert.equal(result.request.auth, undefined);
     assert.equal(result.request.launch?.sandboxId, draft.sandboxId);
     assert.equal(
@@ -467,7 +466,6 @@ describe("create sandbox draft", () => {
     draft.backend = "podman";
     draft.memoryMb = "6144";
     draft.vcpu = "1.5";
-    draft.startAfterCreate = false;
     draft.defaultProvider = "openai";
     draft.defaultModel = "gpt-5.1-codex-max";
     draft.defaultThinking = "medium";
@@ -523,7 +521,7 @@ describe("create sandbox draft", () => {
     assert.equal(restored.labels, "team=ops");
     assert.equal(restored.memoryMb, "6144");
     assert.equal(restored.vcpu, "1.5");
-    assert.equal(restored.startAfterCreate, false);
+    assert.equal("startAfterCreate" in restored, false);
     assert.equal(restored.defaultProvider, "openai");
     assert.equal(restored.defaultModel, "gpt-5.1-codex-max");
     assert.equal(restored.defaultThinking, "medium");

@@ -161,22 +161,21 @@ Shows only safe metadata:
 
 The UI MUST never display raw secret values.
 
-### Settings/backend configuration
+### Runtime backend status
 
-Shows manager-level runtime backend configuration:
+The application titlebar shows the manager's effective runtime backend immediately before the Settings control, including its version or unavailable state. Detailed runtime information remains available in sandbox status views, including:
 
 - Docker/Podman/Podman-on-WSL/ECS availability;
-- default image references;
-- backend-specific resource/security profiles;
-- retention defaults;
-- ECS cluster/network/EFS profile summaries and backend limitations.
+- backend-specific resource/security capabilities and limitations;
+- container/task identity and lifecycle state;
+- ECS cluster/network/EFS profile summaries where available.
 
 ## Frontend command model
 
 The UI can issue commands only through the manager. Examples:
 
-- create sandbox from template/config with separate manager launch options for identity, image, labels, backend, memory, vCPU/CPU units, and start behavior;
-- start sandbox;
+- create and run a sandbox from template/config with separate manager launch options for identity, image, labels, backend, memory, and vCPU/CPU units;
+- start an existing stopped or failed sandbox;
 - stop sandbox;
 - remove sandbox/container;
 - request sandbox status/snapshot;

@@ -23,7 +23,6 @@
   } from "@nervekit/shared";
   import { SandboxManagerOAuthFlow } from "../credentials/sandbox-manager-oauth-flow.svelte";
   import AppearanceSettings from "./AppearanceSettings.svelte";
-  import RuntimeBackendBadge from "../RuntimeBackendBadge.svelte";
   import { buildCredentialProfileWrite } from "../../settings/profile-form";
   import {
     domains,
@@ -499,14 +498,8 @@
   {/snippet}
 
   {#snippet panelActions(_group)}
-    {#if store.managerStatus}
-      <RuntimeBackendBadge
-        backend={store.managerStatus.backend}
-        runtime={store.managerStatus.runtime}
-      />
-      {#if store.managerStatus.hardening.apiAuth === "disabled"}
-        <Badge tone="warn" size="xs">auth disabled</Badge>
-      {/if}
+    {#if store.managerStatus?.hardening.apiAuth === "disabled"}
+      <Badge tone="warn" size="xs">auth disabled</Badge>
     {/if}
     <Badge tone="accent" size="sm">{configuredCount} profiles</Badge>
     <Button variant="outline" size="sm" onclick={() => void store.refreshCredentials()}>

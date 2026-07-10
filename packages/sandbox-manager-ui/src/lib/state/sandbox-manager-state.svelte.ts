@@ -843,13 +843,6 @@ export class SandboxManagerStore {
       (key) => api.createSandbox(request, key),
     );
     this.patchRecord(record);
-    if (request.start) {
-      void this.startSandbox(record.sandboxId).catch((error) => {
-        notify.error("Could not start sandbox", {
-          description: errorMessage(error),
-        });
-      });
-    }
     await this.refreshFleet();
     return record.sandboxId;
   }

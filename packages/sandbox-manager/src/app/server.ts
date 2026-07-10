@@ -319,7 +319,13 @@ async function handle(
             lifecycleState: record.lifecycleState,
           },
         });
-        return publicSandboxRecord(record);
+        try {
+          return await startSandbox(state, record.sandboxId);
+        } catch (error) {
+          const failed = await state.sandboxes.get(record.sandboxId);
+          if (failed?.lifecycleState !== "failed") throw error;
+          return publicSandboxRecord(failed);
+        }
       },
     );
     return json(res, result.replayed ? 200 : 201, ok(result.value));

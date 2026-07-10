@@ -14,7 +14,7 @@
   const tone = $derived(runtime && !runtime.available ? "warn" : "neutral");
 </script>
 
-<Badge {tone} size="xs" class="gap-1 font-mono">
+<Badge {tone} size="xs" class="gap-1">
   <Container class="size-3" />
   {backend}{runtime?.version ? ` ${runtime.version}` : ""}
   {#if runtime && !runtime.available}(unavailable){/if}

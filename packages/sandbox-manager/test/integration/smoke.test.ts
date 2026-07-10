@@ -24,21 +24,27 @@ const smokeConfig = {
   },
 } as const;
 
-describe("guarded docker/podman sandbox smoke", () => {
+type SmokeBackend = {
+  kind: "docker" | "podman" | "podman-wsl";
+  command: [string, ...string[]];
+};
+
+describe("guarded local container sandbox smoke", () => {
   it("skips clearly when no container backend is available", async (t) => {
     const backend = await availableBackend();
     if (!backend) {
       t.skip(
-        "Docker/Podman backend unavailable; guarded sandbox smoke skipped",
+        "Docker/Podman/Podman WSL backend unavailable; guarded sandbox smoke skipped",
       );
       return;
     }
     // Full container smoke is intentionally guarded and configured by operators;
     // this assertion proves backend detection happens at runtime, not import time.
-    await execFileAsync(backend, ["version"], { timeout: 10_000 });
+    const [bin, ...prefix] = backend.command;
+    await execFileAsync(bin, [...prefix, "version"], { timeout: 10_000 });
   });
 
-  it("runs an opt-in create/start/connect/status/cleanup smoke", async (t) => {
+  it("runs an opt-in create/connect/status/cleanup smoke", async (t) => {
     const image = process.env.NERVE_SANDBOX_AGENT_SMOKE_IMAGE?.trim();
     if (!image) {
       t.skip("NERVE_SANDBOX_AGENT_SMOKE_IMAGE is not configured");
@@ -46,11 +52,12 @@ describe("guarded docker/podman sandbox smoke", () => {
     }
     const backend = await availableBackend();
     if (!backend) {
-      t.skip("Docker/Podman backend unavailable");
+      t.skip("Docker/Podman/Podman WSL backend unavailable");
       return;
     }
     try {
-      await execFileAsync(backend, ["image", "inspect", image], {
+      const [bin, ...prefix] = backend.command;
+      await execFileAsync(bin, [...prefix, "image", "inspect", image], {
         timeout: 10_000,
       });
     } catch {
@@ -69,7 +76,7 @@ describe("guarded docker/podman sandbox smoke", () => {
       port,
       allowRemoteBind: true,
       storageDir,
-      backend,
+      backend: backend.kind,
       mode: "development",
       allowCleartextSecretsInDevelopment: true,
     });
@@ -81,7 +88,10 @@ describe("guarded docker/podman sandbox smoke", () => {
       const base = `http://127.0.0.1:${port}`;
       const create = await fetch(`${base}/api/sandboxes`, {
         method: "POST",
-        body: JSON.stringify({ config: smokeConfig, image }),
+        body: JSON.stringify({
+          config: smokeConfig,
+          launch: { image },
+        }),
       });
       assert.equal(create.status, 201);
       const record = (await create.json()).data as {
@@ -90,12 +100,6 @@ describe("guarded docker/podman sandbox smoke", () => {
       };
       sandboxId = record.sandboxId;
       assert.equal(record.controller?.token, "[REDACTED]");
-      const start = await fetch(`${base}/api/sandboxes/${sandboxId}/start`, {
-        method: "POST",
-        headers: { "Idempotency-Key": `start-${sandboxId}` },
-        body: "{}",
-      });
-      assert.equal(start.status, 200);
       await waitForConnectedStatus(base, sandboxId, 60_000);
       const command = await fetch(
         `${base}/api/sandboxes/${sandboxId}/commands`,
@@ -130,11 +134,17 @@ describe("guarded docker/podman sandbox smoke", () => {
   });
 });
 
-async function availableBackend(): Promise<"docker" | "podman" | undefined> {
-  for (const bin of ["docker", "podman"] as const) {
+async function availableBackend(): Promise<SmokeBackend | undefined> {
+  const candidates: SmokeBackend[] = [
+    { kind: "docker", command: ["docker"] },
+    { kind: "podman", command: ["podman"] },
+    { kind: "podman-wsl", command: ["wsl.exe", "--", "podman"] },
+  ];
+  for (const candidate of candidates) {
+    const [bin, ...prefix] = candidate.command;
     try {
-      await execFileAsync(bin, ["version"], { timeout: 5_000 });
-      return bin;
+      await execFileAsync(bin, [...prefix, "version"], { timeout: 5_000 });
+      return candidate;
     } catch {}
   }
   return undefined;

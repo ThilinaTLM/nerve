@@ -478,18 +478,25 @@ describe("Sandbox shared schemas", () => {
       }).success,
       false,
     );
+    const createRequest = {
+      config: withoutController,
+      launch: {
+        image: "nerve-sandbox-agent:dev",
+        name: "demo",
+        backend: "docker",
+        resources: { memoryMb: 4096, vcpu: 0.25 },
+      },
+    };
+    assert.equal(
+      sandboxCreateRequestSchema.safeParse(createRequest).success,
+      true,
+    );
     assert.equal(
       sandboxCreateRequestSchema.safeParse({
-        config: withoutController,
-        launch: {
-          image: "nerve-sandbox-agent:dev",
-          name: "demo",
-          backend: "docker",
-          resources: { memoryMb: 4096, vcpu: 0.25 },
-        },
+        ...createRequest,
         start: true,
       }).success,
-      true,
+      false,
     );
   });
 
