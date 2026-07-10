@@ -7,6 +7,7 @@ import type {
 import {
   ConversationRuntime,
   createNoopLogger,
+  type PlanReviewRecord,
   type StructuredLogger,
   type ToolCallTranscriptRecord,
   toolNameSchema,
@@ -16,6 +17,7 @@ import type { EventOutbox } from "../state/event-outbox.js";
 import { sandboxSha256Digest } from "../state/hash.js";
 import type { ApprovalWaiter } from "../tools/approval-waiter.js";
 import type { InputWaiter } from "../tools/input-waiter.js";
+import type { PlanReviewWaiter } from "../tools/plan-review-waiter.js";
 import type { RunManager, RunScope } from "./run-manager.js";
 import type { RunState } from "./run-state-store.js";
 import { toolResultPreview } from "./tool-result-preview.js";
@@ -45,6 +47,7 @@ export class HarnessEventBridge {
     private readonly waiters: {
       input?: InputWaiter;
       approval?: ApprovalWaiter;
+      planReview?: PlanReviewWaiter;
     } = {},
     private readonly commonData: Record<string, unknown> = {},
     private readonly artifacts?: ArtifactStore,
@@ -204,6 +207,42 @@ export class HarnessEventBridge {
       );
       return;
     }
+    const planReview = this.waiters.planReview?.byProviderToolCallId(
+      suspension.data.toolCallId,
+    );
+    if (planReview) {
+      const checkpoint = await this.runs?.writeCheckpoint(
+        context,
+        "tool_wait",
+        {
+          status: "waiting_for_input",
+          executionId: context.executionId,
+          toolCallId: suspension.data.toolCallId,
+          waitId: planReview.review.id,
+          summary: { text: "waiting for plan review" },
+          data: { toolName: suspension.data.toolName },
+        },
+      );
+      await this.waiters.planReview?.attachCheckpoint(
+        planReview.review.id,
+        checkpoint?.checkpointId,
+      );
+      await this.runs?.markWaiting(context, "plan_review", {
+        reviewId: planReview.review.id,
+        toolCallId: suspension.data.toolCallId,
+        planReview: planReview.review,
+        createdAt: planReview.createdAt,
+        checkpointId: checkpoint?.checkpointId,
+      });
+      await this.publishSuspension(
+        context,
+        suspension.data,
+        "waiting_for_user",
+        planReview.createdAt,
+        planReviewResult(planReview.review),
+      );
+      return;
+    }
     const approval = this.waiters.approval
       ?.list()
       .find((entry) => entry.toolCallId === suspension.data.toolCallId);
@@ -244,6 +283,7 @@ export class HarnessEventBridge {
     suspension: { toolCallId: string; toolName: string; reason: string },
     status: "waiting_for_user" | "pending_approval",
     createdAt: string,
+    resultPreview?: unknown,
   ): Promise<void> {
     const suspendedAt = new Date().toISOString();
     await this.publishToolCallUpdated(context, {
@@ -252,6 +292,7 @@ export class HarnessEventBridge {
       status,
       createdAt,
       updatedAt: suspendedAt,
+      resultPreview,
     });
     await this.events?.append({
       type: "conversation.run.suspended",
@@ -272,6 +313,60 @@ export class HarnessEventBridge {
     });
     this.conversationRuntime.completeRun(context.runId);
     this.liveRuns.delete(context.runId);
+  }
+
+  async completeSuspendedTool(
+    context: RunScope,
+    toolCallId: string,
+    toolName: string,
+    result: unknown,
+  ): Promise<void> {
+    const completedAt = new Date().toISOString();
+    const existing = (
+      await this.runs?.toolCallStore().latestByToolCallId(context)
+    )?.get(toolCallId);
+    const placement = this.toolPlacement(context, toolCallId);
+    await this.runs?.toolCallStore().append(context, {
+      toolCallId,
+      toolName,
+      status: "completed",
+      displayArgs: existing?.displayArgs,
+      args: existing?.args,
+      ...placement,
+      lifecycleSeq: 3,
+      redactionVersion: 1,
+      requestedAt: existing?.requestedAt ?? completedAt,
+      startedAt: existing?.startedAt,
+      completedAt,
+      result,
+    });
+    await this.events?.append({
+      type: "tool.call.completed",
+      durability: "durable",
+      conversationId: context.conversationId,
+      agentId: context.agentId,
+      runId: context.runId,
+      data: {
+        ...this.commonData,
+        ...scopeData(context),
+        toolCallId,
+        toolName,
+        status: "completed",
+        lifecycleSeq: 3,
+        result,
+        requestedAt: existing?.requestedAt ?? completedAt,
+        completedAt,
+      },
+    });
+    await this.publishToolCallUpdated(context, {
+      toolCallId,
+      toolName,
+      status: "completed",
+      argsPreview: existing?.displayArgs,
+      resultPreview: toolResultPreview(result),
+      createdAt: existing?.requestedAt ?? completedAt,
+      updatedAt: completedAt,
+    });
   }
 
   async delta(run: RunState, text: string): Promise<void> {
@@ -799,7 +894,7 @@ export class HarnessEventBridge {
   }
 
   private async publishToolCallUpdated(
-    context: HarnessRunContext,
+    context: RunScope,
     input: {
       toolCallId: string;
       toolName: string;
@@ -908,6 +1003,14 @@ export class HarnessEventBridge {
   }
 }
 
+function planReviewResult(review: PlanReviewRecord): Record<string, unknown> {
+  return {
+    review,
+    outcome: review.status,
+    feedback: review.feedback,
+  };
+}
+
 function scopeData(scope: {
   conversationId: string;
   agentId: string;
@@ -964,7 +1067,8 @@ function defaultToolRisk(toolName: string): ToolCallTranscriptRecord["risk"] {
     toolName.includes("confluence")
   )
     return "network";
-  if (toolName === "ask_user") return "interaction";
+  if (toolName === "ask_user" || toolName === "plan_mode_present")
+    return "interaction";
   if (toolName === "explore") return "agent_spawn";
   if (toolName.startsWith("task_")) return "command";
   return "read";

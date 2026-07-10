@@ -15,7 +15,8 @@ import {
   gitRemoteOpRequestSchema,
   switchBranchRequestSchema,
 } from "../git/index.js";
-import { thinkingLevelSchema } from "../models/index.js";
+import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
+import { planReviewRecordSchema } from "../plans/index.js";
 import {
   approvalPolicySchema,
   modeSchema,
@@ -60,6 +61,7 @@ export const sandboxCommandMethodSchema = z.enum([
   "sandbox.run.cancel",
   "sandbox.input.submit",
   "sandbox.approval.resolve",
+  "sandbox.planReview.resolve",
   "sandbox.status.get",
   "sandbox.snapshot.get",
   "sandbox.conversation.snapshot.get",
@@ -105,6 +107,7 @@ export const sandboxCommandErrorCodeSchema = z.enum([
   "INVALID_RUN_STATE",
   "UNKNOWN_INPUT_REQUEST",
   "UNKNOWN_APPROVAL",
+  "UNKNOWN_PLAN_REVIEW",
   "ALREADY_RESOLVED",
   "POLICY_DENIED",
   "SANDBOX_DEGRADED",
@@ -200,6 +203,19 @@ export type SandboxApprovalResolveParams = z.infer<
   typeof sandboxApprovalResolveParamsSchema
 >;
 
+export const sandboxPlanReviewResolveParamsSchema =
+  sandboxMutatingCommandBaseSchema.extend({
+    runId: sandboxRunIdSchema,
+    reviewId: z.string().startsWith("plan_review_"),
+    decision: z.enum(["accept", "request_changes", "discard"]),
+    feedback: z.string().optional(),
+    implementationModel: modelSelectionSchema.optional(),
+    implementationThinkingLevel: thinkingLevelSchema.optional(),
+  });
+export type SandboxPlanReviewResolveParams = z.infer<
+  typeof sandboxPlanReviewResolveParamsSchema
+>;
+
 export const sandboxStatusGetParamsSchema = z.object({
   includeConversations: z.boolean().optional(),
   includeRuns: z.boolean().optional(),
@@ -293,6 +309,7 @@ export const sandboxCommandParamsByMethod = {
   "sandbox.run.cancel": sandboxRunCancelParamsSchema,
   "sandbox.input.submit": sandboxInputSubmitParamsSchema,
   "sandbox.approval.resolve": sandboxApprovalResolveParamsSchema,
+  "sandbox.planReview.resolve": sandboxPlanReviewResolveParamsSchema,
   "sandbox.status.get": sandboxStatusGetParamsSchema,
   "sandbox.snapshot.get": sandboxSnapshotGetParamsSchema,
   "sandbox.conversation.snapshot.get":
@@ -373,6 +390,13 @@ export const sandboxApprovalResolveResultSchema =
   sandboxRunStartResultSchema.extend({
     approvalId: z.string().min(1),
     decision: z.enum(["grant", "deny"]),
+  });
+
+export const sandboxPlanReviewResolveResultSchema =
+  sandboxRunStartResultSchema.extend({
+    reviewId: z.string().startsWith("plan_review_"),
+    decision: z.enum(["accept", "request_changes", "discard"]),
+    review: planReviewRecordSchema,
   });
 
 export const sandboxModelStatusSummarySchema = z.object({
@@ -532,7 +556,7 @@ export type SandboxToolCallSummary = z.infer<
 
 export const sandboxWaitSummarySchema = z.object({
   waitId: z.string().min(1),
-  kind: z.enum(["input", "approval"]),
+  kind: z.enum(["input", "approval", "plan_review"]),
   status: z.enum([
     "waiting",
     "submitted",
@@ -548,6 +572,7 @@ export const sandboxWaitSummarySchema = z.object({
     .optional(),
   risks: z.array(z.string().min(1)).optional(),
   reason: z.string().min(1).optional(),
+  planReview: planReviewRecordSchema.optional(),
   createdAt: isoDateTimeSchema,
   resolvedAt: isoDateTimeSchema.optional(),
 });
@@ -879,6 +904,7 @@ export const sandboxCommandResultByMethod = {
   "sandbox.run.cancel": sandboxRunCancelResultSchema,
   "sandbox.input.submit": sandboxInputSubmitResultSchema,
   "sandbox.approval.resolve": sandboxApprovalResolveResultSchema,
+  "sandbox.planReview.resolve": sandboxPlanReviewResolveResultSchema,
   "sandbox.status.get": sandboxStatusGetResultSchema,
   "sandbox.snapshot.get": sandboxSnapshotResultSchema,
   "sandbox.conversation.snapshot.get": sandboxConversationViewSnapshotSchema,

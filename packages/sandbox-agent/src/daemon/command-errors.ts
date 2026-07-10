@@ -14,7 +14,10 @@ export function mapRuntimeError(error: unknown): SandboxCommandError {
 
 export function mapWaitError(
   error: unknown,
-  unknownCode: "UNKNOWN_INPUT_REQUEST" | "UNKNOWN_APPROVAL",
+  unknownCode:
+    | "UNKNOWN_INPUT_REQUEST"
+    | "UNKNOWN_APPROVAL"
+    | "UNKNOWN_PLAN_REVIEW",
 ): SandboxCommandError {
   const message = error instanceof Error ? error.message : String(error);
   if (/Conflicting/.test(message))

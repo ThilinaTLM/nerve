@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
+import { planReviewRecordSchema } from "../plans/index.js";
 import {
   artifactRefSchema,
   boundedTextSchema,
@@ -239,12 +241,51 @@ export type SandboxWaitResolutionRecord = z.infer<
   typeof sandboxWaitResolutionRecordSchema
 >;
 
+export const sandboxPlanReviewDecisionSchema = z.enum([
+  "accept",
+  "request_changes",
+  "discard",
+]);
+export type SandboxPlanReviewDecision = z.infer<
+  typeof sandboxPlanReviewDecisionSchema
+>;
+
+export const sandboxPlanReviewWaitRecordSchema = z.object({
+  review: planReviewRecordSchema,
+  providerToolCallId: z.string().min(1),
+  conversationId: sandboxConversationIdSchema,
+  agentId: sandboxAgentIdSchema,
+  runId: sandboxRunIdSchema,
+  status: z.enum([
+    "pending",
+    "accepted",
+    "changes_requested",
+    "discarded",
+    "force_exited",
+  ]),
+  decision: sandboxPlanReviewDecisionSchema.optional(),
+  feedback: z.string().optional(),
+  implementationModel: modelSelectionSchema.optional(),
+  implementationThinkingLevel: thinkingLevelSchema.optional(),
+  commandId: sandboxCommandIdSchema.optional(),
+  checkpointId: z.string().min(1).optional(),
+  toolResultEntryId: z.string().min(1).optional(),
+  createdAt: isoDateTimeSchema,
+  resolvedAt: isoDateTimeSchema.optional(),
+  cancelledAt: isoDateTimeSchema.optional(),
+});
+export type SandboxPlanReviewWaitRecord = z.infer<
+  typeof sandboxPlanReviewWaitRecordSchema
+>;
+
 export const sandboxInputWaitRecordSchema = z.object({
   requestId: z.string().min(1),
   conversationId: sandboxConversationIdSchema,
   agentId: sandboxAgentIdSchema,
   runId: sandboxRunIdSchema,
   question: boundedTextSchema,
+  context: z.string().optional(),
+  recommendation: z.string().optional(),
   placeholder: z.string().optional(),
   status: z.enum(["waiting", "submitted", "cancelled", "expired"]),
   createdAt: isoDateTimeSchema,
@@ -252,7 +293,7 @@ export const sandboxInputWaitRecordSchema = z.object({
   resolvedAt: isoDateTimeSchema.optional(),
   cancelledAt: isoDateTimeSchema.optional(),
   resumeCommandId: sandboxCommandIdSchema.optional(),
-  answerTranscriptEntryId: z.string().min(1).optional(),
+  toolResultEntryId: z.string().min(1).optional(),
   checkpointId: z.string().min(1).optional(),
   redactedDisplay: boundedTextSchema.optional(),
   response: boundedTextSchema.optional(),

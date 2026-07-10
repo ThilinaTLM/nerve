@@ -1,5 +1,8 @@
+// biome-ignore lint/style/noExcessiveLinesPerFile: The daemon centralizes command registration and runtime wiring.
+import type { AgentMessage } from "@nervekit/agent";
 import type {
   ContextFileStatus,
+  PlanReviewRecord,
   SandboxConfigV1,
   SkillStatus,
   StartupSetupStatus,
@@ -29,9 +32,14 @@ import type { SecretResolver } from "../credentials/secret-resolver.js";
 import type { ResolvedModelRuntime } from "../models/model-runtime.js";
 import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
 import { ArtifactStore } from "../state/artifacts.js";
+import { sandboxSha256Digest } from "../state/hash.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
 import { ApprovalWaiter } from "../tools/approval-waiter.js";
 import { InputWaiter } from "../tools/input-waiter.js";
+import {
+  PlanReviewWaiter,
+  sandboxProjectId,
+} from "../tools/plan-review-waiter.js";
 import { TaskSupervisor } from "../tools/task-supervisor.js";
 
 import { SandboxToolRuntime } from "../tools/tool-runtime.js";
@@ -66,11 +74,13 @@ export class SandboxDaemon {
   readonly startedAt = new Date().toISOString();
   private runs?: RunManager;
   private inputWaiter?: InputWaiter;
+  private planReviewWaiter?: PlanReviewWaiter;
   private approvalWaiter?: ApprovalWaiter;
   private agentRuntime?: SandboxAgentRuntime;
   private taskSupervisor?: TaskSupervisor;
   private toolRuntime?: SandboxToolRuntime;
   private bridge?: HarnessEventBridge;
+  private harnessFactory?: HarnessFactory;
   private exploreRuntime?: ExploreRuntime;
   private agentConfigStore?: AgentConfigStore;
   private workspaceDir: string;
@@ -152,9 +162,14 @@ export class SandboxDaemon {
       logger.child({ component: "run-manager" }),
     );
     this.inputWaiter = new InputWaiter(state.stateDir);
+    this.planReviewWaiter = new PlanReviewWaiter(
+      state.stateDir,
+      sandboxProjectId(this.identity.sandboxId),
+    );
     this.approvalWaiter = new ApprovalWaiter(state.stateDir);
     const loadPromises: Array<Promise<unknown>> = [
       this.inputWaiter.load(),
+      this.planReviewWaiter.load(),
       this.approvalWaiter.load(),
     ];
     this.agentConfigStore = new AgentConfigStore(state.stateDir);
@@ -184,6 +199,8 @@ export class SandboxDaemon {
       stateDir: state.stateDir,
       approvalWaiter: this.approvalWaiter,
       inputWaiter: this.inputWaiter,
+      planReviewWaiter: this.planReviewWaiter,
+      configStore: this.agentConfigStore,
       taskSupervisor: this.taskSupervisor,
       toolCallStore: this.runs.toolCallStore(),
       events: state.events,
@@ -198,6 +215,7 @@ export class SandboxDaemon {
       contextFiles: recovered.contextFiles,
       configStore: this.agentConfigStore,
     });
+    this.harnessFactory = factory;
     this.exploreRuntime = new ExploreRuntime({
       config: this.config,
       stateDir: state.stateDir,
@@ -212,6 +230,7 @@ export class SandboxDaemon {
       {
         input: this.inputWaiter,
         approval: this.approvalWaiter,
+        planReview: this.planReviewWaiter,
       },
       eventCommonData,
       new ArtifactStore(state.stateDir),
@@ -222,6 +241,7 @@ export class SandboxDaemon {
       harnessFactory: factory,
       bridge: this.bridge,
       inputWaiter: this.inputWaiter,
+      planReviewWaiter: this.planReviewWaiter,
       approvalWaiter: this.approvalWaiter,
       toolRuntime: this.toolRuntime,
       exploreRuntime: this.exploreRuntime,
@@ -251,6 +271,7 @@ export class SandboxDaemon {
       const modelSummaries = this.modelSummaries();
       const waits = [
         ...(this.inputWaiter?.list() ?? []),
+        ...(this.planReviewWaiter?.list() ?? []),
         ...(this.approvalWaiter?.list() ?? []),
       ];
       const startup = summarizeSandboxStartupEvents(
@@ -304,6 +325,7 @@ export class SandboxDaemon {
           (await this.runs?.list()) ?? [],
           [
             ...(this.inputWaiter?.list() ?? []),
+            ...(this.planReviewWaiter?.list() ?? []),
             ...(this.approvalWaiter?.list() ?? []),
           ],
           this.runs,
@@ -568,6 +590,7 @@ export class SandboxDaemon {
           ? await this.agentRuntime.cancelRun(input)
           : await this.runs?.cancel(input);
         await this.inputWaiter?.cancelRun(input);
+        await this.planReviewWaiter?.cancelRun(input);
         await this.approvalWaiter?.cancelRun(input);
       } catch (error) {
         const mapped = mapRuntimeError(error);
@@ -601,39 +624,63 @@ export class SandboxDaemon {
       const accepted = await this.acceptCommand("sandbox.input.submit", params);
       if (accepted.result) return accepted.result.result;
       try {
-        const entryId = `entry_${Date.now()}_input`;
-        const scope =
-          input.conversationId && input.agentId
-            ? {
-                conversationId: input.conversationId,
-                agentId: input.agentId,
-                runId: input.runId,
-              }
-            : undefined;
-        const checkpoint = scope
-          ? await this.runs?.writeCheckpoint(scope, "input_resolution", {
-              status: "waiting_for_input",
-              waitId: input.requestId,
-              resolutionId: accepted.commandId,
-              transcriptEntryId: entryId,
-              summary: { text: "user input submitted" },
-            })
-          : undefined;
-        if (scope)
-          await this.runs?.appendTranscriptEntry(scope, {
-            entryId,
-            index: Date.now(),
-            role: "user",
-            content: { text: input.text.slice(0, 16_000) },
-            createdAt: new Date().toISOString(),
-          });
+        const wait = this.inputWaiter?.get(input.requestId);
+        if (!wait) throw new Error(`Unknown input request: ${input.requestId}`);
+        if (wait.status === "submitted" && wait.response?.text !== input.text)
+          throw new Error(`Conflicting input submission: ${input.requestId}`);
+        const scope = {
+          conversationId: input.conversationId ?? wait.conversationId,
+          agentId: input.agentId ?? wait.agentId,
+          runId: input.runId,
+        };
+        const entryId = toolResultEntryId(input.runId, input.requestId);
+        const result = {
+          question: wait.question.text,
+          context: wait.context,
+          recommendation: wait.recommendation,
+          response: input.text,
+        };
+        const message: AgentMessage = {
+          role: "toolResult",
+          toolCallId: input.requestId,
+          toolName: "ask_user",
+          content: [{ type: "text", text: input.text.slice(0, 16_000) }],
+          details: result,
+          isError: false,
+          timestamp: Date.now(),
+        };
+        await this.harnessFactory?.appendConversationMessage(
+          scope.conversationId,
+          scope.agentId,
+          entryId,
+          message,
+        );
+        const checkpoint = await this.runs?.writeCheckpoint(
+          scope,
+          "input_resolution",
+          {
+            status: "waiting_for_input",
+            waitId: input.requestId,
+            resolutionId: accepted.commandId,
+            transcriptEntryId: entryId,
+            summary: { text: "user input submitted" },
+          },
+        );
         await this.inputWaiter?.submit({
           ...input,
+          ...scope,
           commandId: accepted.commandId,
-          answerTranscriptEntryId: entryId,
+          toolResultEntryId: entryId,
           checkpointId: checkpoint?.checkpointId,
         });
-        if (scope)
+        await this.bridge?.completeSuspendedTool(
+          scope,
+          input.requestId,
+          "ask_user",
+          result,
+        );
+        const run = await this.runs?.read(scope);
+        if (run?.status === "waiting_for_input")
           await this.agentRuntime?.continueRun({
             ...scope,
             reason: "input_submitted",
@@ -656,6 +703,141 @@ export class SandboxDaemon {
         .complete(accepted.commandId, result)
         .catch(() => undefined);
       return result;
+    });
+    this.router.register("sandbox.planReview.resolve", async (params) => {
+      await this.requireReady();
+      const input = params as {
+        commandId?: string;
+        conversationId?: string;
+        agentId?: string;
+        runId: string;
+        reviewId: string;
+        decision: "accept" | "request_changes" | "discard";
+        feedback?: string;
+        implementationModel?: { provider: string; modelId: string };
+        implementationThinkingLevel?:
+          | "off"
+          | "minimal"
+          | "low"
+          | "medium"
+          | "high"
+          | "xhigh"
+          | "max";
+      };
+      const accepted = await this.acceptCommand(
+        "sandbox.planReview.resolve",
+        params,
+      );
+      if (accepted.result) return accepted.result.result;
+      try {
+        const pending = this.planReviewWaiter?.get(input.reviewId);
+        if (!pending) throw new Error(`Unknown plan review: ${input.reviewId}`);
+        const scope = {
+          conversationId: input.conversationId ?? pending.conversationId,
+          agentId: input.agentId ?? pending.agentId,
+          runId: input.runId,
+        };
+        if (input.decision === "accept") {
+          await this.agentConfigStore?.update({
+            mode: "coding",
+            model: input.implementationModel
+              ? {
+                  provider: input.implementationModel.provider,
+                  model: input.implementationModel.modelId,
+                  thinkingLevel: input.implementationThinkingLevel,
+                }
+              : input.implementationThinkingLevel
+                ? { thinkingLevel: input.implementationThinkingLevel }
+                : undefined,
+          });
+        } else if (input.decision === "request_changes") {
+          await this.agentConfigStore?.update({ mode: "planning" });
+        } else {
+          await this.agentConfigStore?.update({ mode: "coding" });
+        }
+        const entryId = toolResultEntryId(
+          input.runId,
+          pending.providerToolCallId,
+        );
+        const resolved = await this.planReviewWaiter?.resolve({
+          ...input,
+          ...scope,
+          commandId: accepted.commandId,
+          toolResultEntryId: entryId,
+        });
+        if (!resolved)
+          throw new Error(`Unknown plan review: ${input.reviewId}`);
+        const result = planReviewToolResult(resolved.review);
+        const message: AgentMessage = {
+          role: "toolResult",
+          toolCallId: resolved.providerToolCallId,
+          toolName: "plan_mode_present",
+          content: [{ type: "text", text: String(result.content) }],
+          details: result,
+          isError: false,
+          timestamp: Date.now(),
+        };
+        await this.harnessFactory?.appendConversationMessage(
+          scope.conversationId,
+          scope.agentId,
+          entryId,
+          message,
+        );
+        await this.bridge?.completeSuspendedTool(
+          scope,
+          resolved.providerToolCallId,
+          "plan_mode_present",
+          result,
+        );
+        await this.state?.events.append({
+          type: "plan_review.resolved",
+          durability: "durable",
+          conversationId: scope.conversationId,
+          agentId: scope.agentId,
+          runId: scope.runId,
+          data: {
+            sandboxId: this.identity.sandboxId,
+            instanceId: this.identity.instanceId,
+            configDigest: this.configDigest,
+            ...scope,
+            reviewId: resolved.review.id,
+            decision: input.decision,
+            planReview: resolved.review,
+            resolvedAt: resolved.resolvedAt,
+          },
+        });
+        const run = await this.runs?.read(scope);
+        if (input.decision === "discard") {
+          if (run?.status === "waiting_for_input") {
+            await this.runs?.markCompleted(scope);
+            await this.bridge?.completeRun(scope);
+          }
+        } else if (run?.status === "waiting_for_input") {
+          await this.agentRuntime?.continueRun({
+            ...scope,
+            reason: "plan_review_resolved",
+          });
+        }
+        const resultEnvelope = {
+          accepted: true,
+          commandId: accepted.commandId,
+          ...scope,
+          reviewId: input.reviewId,
+          decision: input.decision,
+          review: resolved.review,
+          status: "queued",
+        };
+        await this.state?.commands
+          .complete(accepted.commandId, resultEnvelope)
+          .catch(() => undefined);
+        return resultEnvelope;
+      } catch (error) {
+        const mapped = mapWaitError(error, "UNKNOWN_PLAN_REVIEW");
+        await this.state?.commands
+          .fail(accepted.commandId, mapped)
+          .catch(() => undefined);
+        throw mapped;
+      }
     });
     this.router.register("sandbox.approval.resolve", async (params) => {
       await this.requireReady();
@@ -795,4 +977,27 @@ export class SandboxDaemon {
       throw error;
     }
   }
+}
+
+function planReviewToolResult(
+  review: PlanReviewRecord,
+): Record<string, unknown> {
+  const content =
+    review.status === "accepted"
+      ? "Plan accepted. Implement the accepted plan now."
+      : review.status === "changes_requested"
+        ? "Plan changes requested. Revise the plan using the feedback and present it again."
+        : "Plan discarded.";
+  return {
+    review,
+    outcome: review.status,
+    feedback: review.feedback,
+    mode: review.status === "accepted" ? "coding" : "planning",
+    content,
+    contentBlocks: [{ type: "text", text: content }],
+  };
+}
+
+function toolResultEntryId(runId: string, toolCallId: string): string {
+  return `msg_tool_result_${sandboxSha256Digest(`${runId}:${toolCallId}`).slice(7, 23)}`;
 }

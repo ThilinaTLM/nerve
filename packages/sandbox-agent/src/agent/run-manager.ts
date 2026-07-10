@@ -173,13 +173,13 @@ export class RunManager {
 
   async markWaiting(
     scope: RunScope & { executionId?: string },
-    kind: "input" | "approval",
+    kind: "input" | "approval" | "plan_review",
     data: Record<string, unknown>,
   ): Promise<RunState> {
     const now = new Date().toISOString();
     const current = await this.require(scope);
     const status =
-      kind === "input" ? "waiting_for_input" : "waiting_for_approval";
+      kind === "approval" ? "waiting_for_approval" : "waiting_for_input";
     const next = {
       ...current,
       status,
@@ -211,7 +211,11 @@ export class RunManager {
     }
     await this.events?.append({
       type:
-        kind === "input" ? "run.waiting_for_input" : "run.waiting_for_approval",
+        kind === "input"
+          ? "run.waiting_for_input"
+          : kind === "plan_review"
+            ? "run.waiting_for_plan_review"
+            : "run.waiting_for_approval",
       durability: "durable",
       conversationId: scope.conversationId,
       agentId: scope.agentId,

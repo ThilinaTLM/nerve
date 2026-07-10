@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   type AgentCustomModel,
   AgentHarness,
+  type AgentMessage,
   type AgentTool,
   type AgentToolResult,
   Conversation,
@@ -92,6 +93,25 @@ export class HarnessFactory {
           conversationId,
         });
     return new Conversation(storage);
+  }
+
+  async appendConversationMessage(
+    conversationId: string,
+    agentId: string,
+    entryId: string,
+    message: AgentMessage,
+  ): Promise<string> {
+    const conversation = await this.openOrCreateConversation(
+      conversationId,
+      agentId,
+    );
+    return conversation.appendMessageWithId(
+      entryId,
+      message,
+      message.timestamp
+        ? new Date(message.timestamp).toISOString()
+        : new Date().toISOString(),
+    );
   }
 
   async create(
@@ -346,16 +366,28 @@ export class HarnessFactory {
       .map((tool) => `- ${tool.name}: ${tool.description}`)
       .join("\n");
     const skillsPrompt = formatSkillsForSystemPrompt(this.skills());
+    const effective = this.options.configStore?.effective(this.config);
+    const mode =
+      effective?.mode ??
+      (this.config.agent.defaultMode === "planning" ? "planning" : "coding");
+    const permissionLevel =
+      effective?.permissionLevel ??
+      this.config.agent.defaultPermissionLevel ??
+      "supervised";
+    const planDir = path.join(this.options.stateDir, "plans");
     return [
       "You are Nerve running inside a sandboxed workspace.",
-      `Mode: ${this.config.agent.defaultMode ?? "normal"}.`,
-      `Permission level: ${this.config.agent.defaultPermissionLevel ?? "supervised"}.`,
+      `Mode: ${mode}.`,
+      `Permission level: ${permissionLevel}.`,
       `Workspace root: ${this.options.workspaceDir}.`,
       toolSummary
         ? `Available sandbox tools:\n${toolSummary}`
         : "No sandbox tools are active.",
       contextFiles ? `Loaded context summaries:\n${contextFiles}` : undefined,
       skillsPrompt || undefined,
+      mode === "planning"
+        ? `Plan mode is active. Inspect the workspace without modifying it. Write or edit plans only under ${planDir}, resolve open decisions with ask_user, then call plan_mode_present with the completed plan file.`
+        : undefined,
       amendment,
       this.config.agent.systemPromptAmendment,
     ]

@@ -17,6 +17,7 @@ import {
 import { SecretStoreRegistry } from "../src/secret-stores/secret-store-registry.js";
 import { ApprovalWaiter } from "../src/tools/approval-waiter.js";
 import { TaskSupervisor } from "../src/tools/task-supervisor.js";
+import { enforceToolPolicy } from "../src/tools/tool-policy.js";
 import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 
 const config = {
@@ -97,6 +98,43 @@ describe("sandbox tool policy", () => {
       await assert.rejects(
         () => runtime.execute("bash", { command: "sleep 2", timeout: 5 }),
         /timeout exceeds/,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("restricts planning writes to sandbox plan storage", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-plan-policy-"));
+    try {
+      const workspace = path.join(dir, "workspace");
+      const planDir = path.join(dir, "state", "plans");
+      await mkdir(workspace, { recursive: true });
+      await mkdir(planDir, { recursive: true });
+      await enforceToolPolicy(
+        "write",
+        { path: path.join(planDir, "plan.md") },
+        config,
+        { workspaceDir: workspace, mode: "planning", planDir },
+      );
+      await assert.rejects(
+        () =>
+          enforceToolPolicy(
+            "write",
+            { path: path.join(workspace, "source.ts") },
+            config,
+            { workspaceDir: workspace, mode: "planning", planDir },
+          ),
+        /outside workspace|denied/,
+      );
+      await assert.rejects(
+        () =>
+          enforceToolPolicy("bash", { command: "echo x" }, config, {
+            workspaceDir: workspace,
+            mode: "planning",
+            planDir,
+          }),
+        /denied while planning/,
       );
     } finally {
       await rm(dir, { recursive: true, force: true });

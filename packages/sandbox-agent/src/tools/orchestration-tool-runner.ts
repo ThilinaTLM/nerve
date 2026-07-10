@@ -1,11 +1,14 @@
 import { AgentToolSuspension } from "@nervekit/agent";
+import type { PlanReviewRecord } from "@nervekit/shared";
 import type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from "@nervekit/tools";
+import type { AgentConfigStore } from "../agent/agent-config-store.js";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
 import { Redactor } from "../security/redaction.js";
 import type { InputWaiter } from "./input-waiter.js";
+import type { PlanReviewWaiter } from "./plan-review-waiter.js";
 import type { TaskSupervisor } from "./task-supervisor.js";
 import type { TodoStore } from "./todo-store.js";
 import { type ToolRuntimeScope, toolScope } from "./tool-scope.js";
@@ -14,6 +17,8 @@ export type OrchestrationToolRunnerOptions = {
   workspaceDir: string;
   redactor?: Redactor;
   inputWaiter?: InputWaiter;
+  planReviewWaiter?: PlanReviewWaiter;
+  configStore?: AgentConfigStore;
   taskSupervisor?: TaskSupervisor;
   todoStore: TodoStore;
   exploreRuntime?: ExploreRuntime;
@@ -54,6 +59,10 @@ export class OrchestrationToolRunner {
         execution.toolCallId,
         scope,
       );
+    if (tool === "plan_mode_enter") return this.enterPlanMode(args);
+    if (tool === "plan_mode_present")
+      return this.presentPlan(args, context, execution.toolCallId, scope);
+    if (tool === "plan_mode_force_exit") return this.forceExitPlanMode(args);
     if (tool === "todos_set") return this.executeTodosSet(args, scope);
     if (tool === "todos_get") return this.executeTodosGet(scope);
     if (tool.startsWith("task_"))
@@ -83,6 +92,11 @@ export class OrchestrationToolRunner {
       requestId: toolCallId,
       ...scope,
       question: { text: String(args.question ?? "") },
+      context: typeof args.context === "string" ? args.context : undefined,
+      recommendation:
+        typeof args.recommendation === "string"
+          ? args.recommendation
+          : undefined,
       placeholder:
         typeof args.placeholder === "string" ? args.placeholder : undefined,
       redactedDisplay: {
@@ -103,6 +117,83 @@ export class OrchestrationToolRunner {
       toolName: tool,
       reason: `WAITING_FOR_INPUT: ${wait.requestId}`,
     });
+  }
+
+  private async enterPlanMode(
+    args: Record<string, unknown>,
+  ): Promise<ToolExecutionResult> {
+    if (!this.options.planReviewWaiter || !this.options.configStore)
+      throw new Error("UNAVAILABLE: plan mode is not configured");
+    const planDir = await this.options.planReviewWaiter.ensurePlanDir();
+    const alreadyPlanning = this.options.configStore.read().mode === "planning";
+    await this.options.configStore.update({ mode: "planning" });
+    const reason =
+      typeof args.reason === "string"
+        ? args.reason
+        : "Agent entered planning mode.";
+    return {
+      content: `Plan mode active. Write plans under ${planDir}, then call plan_mode_present with the plan file path.`,
+      details: { mode: "planning", planDir, alreadyPlanning, reason },
+    };
+  }
+
+  private async presentPlan(
+    args: Record<string, unknown>,
+    context: Partial<ToolExecutionContext>,
+    toolCallId: string,
+    scope: ToolRuntimeScope,
+  ): Promise<ToolExecutionResult> {
+    const waiter = this.options.planReviewWaiter;
+    if (!waiter)
+      throw new Error("UNAVAILABLE: plan review waiter is not configured");
+    const existing = waiter.byProviderToolCallId(toolCallId);
+    if (existing && existing.status !== "pending")
+      return planReviewResult(existing.review);
+    if (existing)
+      throw new AgentToolSuspension({
+        toolCallId,
+        toolName: "plan_mode_present",
+        reason: `WAITING_FOR_PLAN_REVIEW: ${existing.review.id}`,
+      });
+    const review = await waiter.request({
+      providerToolCallId: toolCallId,
+      ...scope,
+      cwd: this.options.workspaceDir,
+      filePath: String(args.file_path ?? ""),
+      title: typeof args.title === "string" ? args.title : undefined,
+      summary: typeof args.summary === "string" ? args.summary : undefined,
+    });
+    await this.options.record(
+      {
+        toolCallId,
+        toolName: "plan_mode_present",
+        status: "waiting_for_input",
+        lifecycleSeq: 2,
+        result: planReviewPayload(review.review),
+      },
+      context,
+    );
+    throw new AgentToolSuspension({
+      toolCallId,
+      toolName: "plan_mode_present",
+      reason: `WAITING_FOR_PLAN_REVIEW: ${review.review.id}`,
+    });
+  }
+
+  private async forceExitPlanMode(
+    args: Record<string, unknown>,
+  ): Promise<ToolExecutionResult> {
+    if (!this.options.configStore)
+      throw new Error("UNAVAILABLE: plan mode is not configured");
+    await this.options.configStore.update({ mode: "coding" });
+    const reason =
+      typeof args.reason === "string"
+        ? args.reason
+        : "Agent exited planning mode.";
+    return {
+      content: `Plan mode exited: ${reason}`,
+      details: { mode: "coding", reason },
+    };
   }
 
   private async executeTodosSet(
@@ -226,4 +317,28 @@ export class OrchestrationToolRunner {
       signal,
     });
   }
+}
+
+function planReviewPayload(review: PlanReviewRecord): Record<string, unknown> {
+  return {
+    review,
+    outcome: review.status,
+    feedback: review.feedback,
+  };
+}
+
+function planReviewResult(review: PlanReviewRecord): ToolExecutionResult {
+  const outcome = review.status;
+  const text =
+    outcome === "accepted"
+      ? "Plan accepted. Exit planning mode and implement the accepted plan."
+      : outcome === "changes_requested"
+        ? "Plan changes requested. Revise the plan using the feedback and present it again."
+        : outcome === "discarded"
+          ? "Plan discarded."
+          : "Plan is awaiting user review.";
+  return {
+    content: text,
+    details: planReviewPayload(review),
+  };
 }

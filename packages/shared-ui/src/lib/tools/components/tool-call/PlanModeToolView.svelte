@@ -192,16 +192,20 @@
           <DropdownMenu.Item disabled={actionsDisabled} onSelect={() => void acceptSame()}>
             Accept & implement
           </DropdownMenu.Item>
-          <DropdownMenu.Item disabled={actionsDisabled} onSelect={() => void acceptNewChat()}>
-            Accept in new chat
-          </DropdownMenu.Item>
+          {#if onAcceptPlanReviewInNewChat}
+            <DropdownMenu.Item disabled={actionsDisabled} onSelect={() => void acceptNewChat()}>
+              Accept in new chat
+            </DropdownMenu.Item>
+          {/if}
           <DropdownMenu.Separator />
           <DropdownMenu.Item disabled={actionsDisabled} onSelect={openSameModelDialog}>
             Choose model & implement
           </DropdownMenu.Item>
-          <DropdownMenu.Item disabled={actionsDisabled} onSelect={openNewChatModelDialog}>
-            Choose model & start new chat
-          </DropdownMenu.Item>
+          {#if onAcceptPlanReviewInNewChat}
+            <DropdownMenu.Item disabled={actionsDisabled} onSelect={openNewChatModelDialog}>
+              Choose model & start new chat
+            </DropdownMenu.Item>
+          {/if}
         {/snippet}
       </SplitButton>
 
@@ -230,19 +234,21 @@
       }}
       onConfirm={acceptSame}
     />
-    <PlanImplementationModelDialog
-      open={implementationDialog === "new-chat"}
-      title="Choose implementation model"
-      description="The selected model will be used by the new implementation chat."
-      confirmLabel="Accept in new chat"
-      models={planReviewModels}
-      initialModelKey={planReviewModelKey}
-      initialThinkingLevel={planReviewThinkingLevel}
-      onOpenChange={(open) => {
-        implementationDialog = open ? "new-chat" : undefined;
-      }}
-      onConfirm={acceptNewChat}
-    />
+    {#if onAcceptPlanReviewInNewChat}
+      <PlanImplementationModelDialog
+        open={implementationDialog === "new-chat"}
+        title="Choose implementation model"
+        description="The selected model will be used by the new implementation chat."
+        confirmLabel="Accept in new chat"
+        models={planReviewModels}
+        initialModelKey={planReviewModelKey}
+        initialThinkingLevel={planReviewThinkingLevel}
+        onOpenChange={(open) => {
+          implementationDialog = open ? "new-chat" : undefined;
+        }}
+        onConfirm={acceptNewChat}
+      />
+    {/if}
   </div>
 {:else if view.summary}
   <p class="m-0 text-sm text-muted-foreground">{view.summary}</p>

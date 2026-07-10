@@ -269,7 +269,8 @@ function defaultToolRisk(toolName: string): ToolCallTranscriptRecord["risk"] {
     toolName.includes("confluence")
   )
     return "network";
-  if (toolName === "ask_user") return "interaction";
+  if (toolName === "ask_user" || toolName === "plan_mode_present")
+    return "interaction";
   if (toolName === "explore") return "agent_spawn";
   if (toolName.startsWith("task_")) return "command";
   return "read";

@@ -8,6 +8,8 @@ export type InputWaitRequest = {
   agentId: string;
   runId: string;
   question: { text: string; truncated?: boolean; bytes?: number };
+  context?: string;
+  recommendation?: string;
   placeholder?: string;
   expiresAt?: string;
   redactedDisplay?: { text: string; truncated?: boolean; bytes?: number };
@@ -47,7 +49,7 @@ export class InputWaiter {
     runId?: string;
     text: string;
     commandId?: string;
-    answerTranscriptEntryId?: string;
+    toolResultEntryId?: string;
     checkpointId?: string;
   }): Promise<SandboxInputWaitRecord> {
     const current = this.waits.get(input.requestId);
@@ -75,7 +77,7 @@ export class InputWaiter {
       status: "submitted",
       resolvedAt: new Date().toISOString(),
       resumeCommandId: input.commandId,
-      answerTranscriptEntryId: input.answerTranscriptEntryId,
+      toolResultEntryId: input.toolResultEntryId,
       checkpointId: input.checkpointId,
       response: { text: input.text },
     };

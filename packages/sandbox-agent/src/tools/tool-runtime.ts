@@ -11,6 +11,7 @@ import type {
   ToolExecutionResult,
 } from "@nervekit/tools";
 import { executeTool } from "@nervekit/tools";
+import type { AgentConfigStore } from "../agent/agent-config-store.js";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
 import type { ToolCallScope, ToolCallStore } from "../agent/tool-call-store.js";
 import { Redactor } from "../security/redaction.js";
@@ -20,6 +21,7 @@ import { JsonlStore } from "../state/jsonl-store.js";
 import type { ApprovalWaiter } from "./approval-waiter.js";
 import type { InputWaiter } from "./input-waiter.js";
 import { OrchestrationToolRunner } from "./orchestration-tool-runner.js";
+import type { PlanReviewWaiter } from "./plan-review-waiter.js";
 import type { TaskSupervisor } from "./task-supervisor.js";
 import { TodoStore } from "./todo-store.js";
 import { computeToolGroupStatus } from "./tool-groups.js";
@@ -39,6 +41,8 @@ export type SandboxToolRuntimeOptions = {
   redactor?: Redactor;
   approvalWaiter?: ApprovalWaiter;
   inputWaiter?: InputWaiter;
+  planReviewWaiter?: PlanReviewWaiter;
+  configStore?: AgentConfigStore;
   taskSupervisor?: TaskSupervisor;
   todoStore?: TodoStore;
   exploreRuntime?: ExploreRuntime;
@@ -79,6 +83,8 @@ const toolToGroup: Record<string, string> = {
   task_list: "taskManagement",
   explore: "explore",
   plan_mode_enter: "planMode",
+  plan_mode_present: "planMode",
+  plan_mode_force_exit: "planMode",
 };
 
 export class SandboxToolRuntime {
@@ -116,6 +122,8 @@ export class SandboxToolRuntime {
       workspaceDir: this.options.workspaceDir,
       redactor: this.redactor,
       inputWaiter: this.options.inputWaiter,
+      planReviewWaiter: this.options.planReviewWaiter,
+      configStore: this.options.configStore,
       taskSupervisor: this.options.taskSupervisor,
       todoStore: this.todoStore,
       exploreRuntime: this.options.exploreRuntime,
@@ -211,21 +219,32 @@ export class SandboxToolRuntime {
       },
       context,
     );
-    if (isPlanModeTool(tool)) {
+    const effectiveMode = this.options.configStore?.effective(this.config).mode;
+    if (tool === "plan_mode_present" && effectiveMode !== "planning") {
       await this.record(
         {
           toolCallId,
           toolName: tool,
           status: "failed",
-          error: "plan mode is unavailable in sandbox runtime v1",
+          lifecycleSeq: 3,
+          error: "plan_mode_present requires planning mode",
         },
         context,
       );
-      throw new Error(
-        "UNAVAILABLE: plan mode is unavailable in sandbox runtime v1",
-      );
+      throw new Error("plan_mode_present requires planning mode");
     }
-    const decision = this.decide(tool, args);
+    if (effectiveMode === "planning" && !isOrchestrationTool(tool))
+      await enforceToolPolicy(tool, args, this.effectiveConfig(), {
+        ...this.options,
+        mode: effectiveMode,
+        planDir: this.options.planReviewWaiter?.planDir,
+      });
+    const decision =
+      effectiveMode === "planning" &&
+      ["write", "edit"].includes(tool) &&
+      this.effectiveConfig().agent.defaultPermissionLevel !== "read_only"
+        ? { allowed: true }
+        : this.decide(tool, args);
     if (!decision.allowed && !decision.approvalRequired) {
       await this.record(
         {
@@ -392,7 +411,11 @@ export class SandboxToolRuntime {
         if (active) this.active.delete(active.key);
       }
     }
-    await enforceToolPolicy(tool, args, this.effectiveConfig(), this.options);
+    await enforceToolPolicy(tool, args, this.effectiveConfig(), {
+      ...this.options,
+      mode: this.options.configStore?.effective(this.config).mode,
+      planDir: this.options.planReviewWaiter?.planDir,
+    });
     const active = this.registerActive(tool, toolCallId, context, 1);
     await this.record(
       {
@@ -625,14 +648,6 @@ function normalizeError(error: unknown) {
       return { code: value.code, message: value.message };
   }
   return { code: "TOOL_FAILED", message: String(error).slice(0, 500) };
-}
-
-function isPlanModeTool(tool: string): boolean {
-  return [
-    "plan_mode_enter",
-    "plan_mode_present",
-    "plan_mode_force_exit",
-  ].includes(tool);
 }
 
 function isOrchestrationTool(tool: string): boolean {

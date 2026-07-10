@@ -24,6 +24,8 @@ import {
   sandboxEventPayloadSchemas,
   sandboxManagerEventEnvelopeSchema,
   sandboxManagerLifecycleEventTypeSchema,
+  sandboxPlanReviewResolveParamsSchema,
+  sandboxPlanReviewWaitRecordSchema,
   sandboxProtocolCursorSchema,
   sandboxProtocolEventBatchSchema,
   sandboxProtocolEventSchema,
@@ -70,6 +72,63 @@ function minimalConfig() {
 }
 
 describe("Sandbox shared schemas", () => {
+  it("validates sandbox plan-review HIL contracts", () => {
+    const review = {
+      id: "plan_review_1",
+      toolCallId: "tool_1",
+      agentId: "agent_1",
+      conversationId: "conv_1",
+      projectId: "proj_1",
+      slug: "feature",
+      title: "Feature",
+      planPath: "/state/plans/feature.md",
+      content: "# Feature",
+      status: "pending",
+      requestedAt: ts,
+      updatedAt: ts,
+    };
+    assert.equal(
+      sandboxPlanReviewWaitRecordSchema.safeParse({
+        review,
+        providerToolCallId: "provider_plan_1",
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        runId: "run_1",
+        status: "pending",
+        createdAt: ts,
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxPlanReviewResolveParamsSchema.safeParse({
+        commandId: "cmd_plan_1",
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        runId: "run_1",
+        reviewId: "plan_review_1",
+        decision: "accept",
+        implementationModel: { provider: "anthropic", modelId: "claude" },
+        implementationThinkingLevel: "high",
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxEventPayloadSchemas["run.waiting_for_plan_review"].safeParse({
+        sandboxId: "sbx_1",
+        instanceId: "inst_1",
+        configDigest: "sha256:test",
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        runId: "run_1",
+        reviewId: "plan_review_1",
+        toolCallId: "provider_plan_1",
+        planReview: review,
+        createdAt: ts,
+      }).success,
+      true,
+    );
+  });
+
   it("validates a minimal v1 config and rejects unknown top-level fields", () => {
     assert.equal(
       sandboxConfigV1Schema.safeParse(minimalConfig()).success,

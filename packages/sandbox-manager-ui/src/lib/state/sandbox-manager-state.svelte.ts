@@ -5,6 +5,7 @@ import type {
   ManagedSandboxLifecycleState,
   ManagedSandboxRecord,
   ModelInfo,
+  ModelSelection,
   RemoveOptions,
   SandboxActivitySummary,
   SandboxConfigYamlResult,
@@ -1079,6 +1080,55 @@ export class SandboxManagerStore {
     }));
     const wait = detail.waitsById[waitId];
     if (wait) wait.status = "submitted";
+  }
+
+  async resolvePlanReview(
+    sandboxId: string,
+    reviewId: string,
+    decision: "accept" | "request_changes" | "discard",
+    options: {
+      feedback?: string;
+      implementationModel?: ModelSelection;
+      implementationThinkingLevel?: ThinkingLevel;
+    } = {},
+  ): Promise<void> {
+    const detail = this.detail(sandboxId);
+    if (!this.canForwardSandboxCommand(sandboxId)) return;
+    await this.sendCommand(sandboxId, "sandbox.planReview.resolve", (key) => ({
+      commandId: key,
+      conversationId: outboundConversationId(detail.selectedConversationId),
+      agentId: detail.selectedAgentId,
+      runId: detail.selectedRunId,
+      reviewId,
+      decision,
+      ...options,
+    }));
+    const wait = detail.waitsById[reviewId];
+    if (wait) {
+      wait.status = "submitted";
+      if (wait.planReview) {
+        wait.planReview.status =
+          decision === "accept"
+            ? "accepted"
+            : decision === "request_changes"
+              ? "changes_requested"
+              : "discarded";
+      }
+    }
+    if (decision === "accept" && detail.agentControls) {
+      detail.agentControls.mode = "normal";
+      if (options.implementationModel) {
+        detail.agentControls.provider = options.implementationModel.provider;
+        detail.agentControls.model = options.implementationModel.modelId;
+      }
+      if (options.implementationThinkingLevel)
+        detail.agentControls.thinkingLevel =
+          options.implementationThinkingLevel;
+    }
+    await this.recoverConversationSnapshot(
+      sandboxId,
+      detail.selectedConversationId,
+    );
   }
 
   async resolveApproval(

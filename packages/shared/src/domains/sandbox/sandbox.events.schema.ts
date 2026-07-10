@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { conversationEventPayloadSchemas } from "../conversations/index.js";
+import { planReviewRecordSchema } from "../plans/index.js";
 import {
   artifactRefSchema,
   boundedTextSchema,
@@ -44,6 +45,8 @@ export const sandboxEventTypeSchema = z.enum([
   "run.transcript.appended",
   "run.waiting_for_input",
   "run.waiting_for_approval",
+  "run.waiting_for_plan_review",
+  "plan_review.resolved",
   "run.checkpointed",
   "run.completed",
   "run.failed",
@@ -311,6 +314,24 @@ export const runWaitingForApprovalEventSchema = sandboxEventCommonSchema
     createdAt: isoDateTimeSchema.optional(),
   });
 
+export const runWaitingForPlanReviewEventSchema = sandboxEventCommonSchema
+  .merge(sandboxRunScopeSchema)
+  .extend({
+    reviewId: z.string().startsWith("plan_review_"),
+    toolCallId: z.string().min(1),
+    planReview: planReviewRecordSchema,
+    createdAt: isoDateTimeSchema,
+  });
+
+export const planReviewResolvedEventSchema = sandboxEventCommonSchema
+  .merge(sandboxRunScopeSchema)
+  .extend({
+    reviewId: z.string().startsWith("plan_review_"),
+    decision: z.enum(["accept", "request_changes", "discard"]),
+    planReview: planReviewRecordSchema,
+    resolvedAt: isoDateTimeSchema,
+  });
+
 export const runCheckpointedEventSchema = sandboxEventCommonSchema
   .merge(sandboxRunScopeSchema)
   .extend({
@@ -386,6 +407,8 @@ export const sandboxOperationalEventPayloadSchemas = {
   "run.transcript.appended": runTranscriptAppendedEventSchema,
   "run.waiting_for_input": runWaitingForInputEventSchema,
   "run.waiting_for_approval": runWaitingForApprovalEventSchema,
+  "run.waiting_for_plan_review": runWaitingForPlanReviewEventSchema,
+  "plan_review.resolved": planReviewResolvedEventSchema,
   "run.checkpointed": runCheckpointedEventSchema,
   "run.completed": runTerminalEventSchema,
   "run.failed": runFailedEventSchema,

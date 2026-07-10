@@ -194,6 +194,12 @@ export function applySandboxEvent(
     case "run.waiting_for_approval":
       applyWaitingForApproval(detail, event, data);
       return;
+    case "run.waiting_for_plan_review":
+      applyWaitingForPlanReview(detail, event, data);
+      return;
+    case "plan_review.resolved":
+      applyPlanReviewResolved(detail, data);
+      return;
     case "run.completed":
       applyRunTerminal(detail, data, "completed");
       return;
@@ -461,6 +467,41 @@ function applyWaitingForInput(
   if (run) run.status = "waiting_for_input";
 }
 
+function applyWaitingForPlanReview(
+  detail: SandboxDetailState,
+  event: SandboxUiEvent,
+  data: Record<string, unknown>,
+): void {
+  const waitId = String(data.reviewId ?? "");
+  const toolCallId = String(data.toolCallId ?? "");
+  if (!waitId || !toolCallId) return;
+  detail.waitsById[waitId] = {
+    waitId,
+    kind: "plan_review",
+    status: "waiting",
+    toolCallId,
+    planReview: data.planReview as SandboxWaitSummary["planReview"],
+    createdAt: typeof data.createdAt === "string" ? data.createdAt : event.ts,
+  };
+  const toolCall = detail.toolCallsById[toolCallId];
+  if (toolCall) toolCall.status = "waiting_for_input";
+  const run = detail.liveRuns[String(data.runId ?? "")];
+  if (run) run.status = "waiting_for_input";
+}
+
+function applyPlanReviewResolved(
+  detail: SandboxDetailState,
+  data: Record<string, unknown>,
+): void {
+  const wait = detail.waitsById[String(data.reviewId ?? "")];
+  if (!wait) return;
+  wait.status = "submitted";
+  wait.resolvedAt =
+    typeof data.resolvedAt === "string" ? data.resolvedAt : wait.resolvedAt;
+  if (data.planReview && typeof data.planReview === "object")
+    wait.planReview = data.planReview as SandboxWaitSummary["planReview"];
+}
+
 function applyWaitingForApproval(
   detail: SandboxDetailState,
   event: SandboxUiEvent,
@@ -543,13 +584,12 @@ function applyToolCall(
         : existing?.completedAt,
   };
   detail.toolCallsById[toolCallId] = summary;
-  // Clear a resolved approval wait for this tool call.
-  if (summary.status !== "waiting_for_approval")
+  // Clear a resolved interaction/approval wait for this tool call.
+  if (
+    summary.status !== "waiting_for_approval" &&
+    summary.status !== "waiting_for_input"
+  )
     for (const wait of Object.values(detail.waitsById))
-      if (
-        wait.kind === "approval" &&
-        wait.toolCallId === toolCallId &&
-        wait.status === "waiting"
-      )
-        wait.status = "granted";
+      if (wait.toolCallId === toolCallId && wait.status === "waiting")
+        wait.status = wait.kind === "approval" ? "granted" : "submitted";
 }

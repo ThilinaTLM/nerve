@@ -1,4 +1,4 @@
-import type { ToolRisk } from "@nervekit/shared";
+import type { PlanReviewRecord, ToolRisk } from "@nervekit/shared";
 import type {
   ApprovalWithToolCall,
   ConversationRenderState,
@@ -79,6 +79,28 @@ export function pendingApprovalRecords(
  * with approvals, this is reconstructed from `waitsById`; the wait id equals the
  * daemon's `requestId` (and the ask-user tool-call id).
  */
+export function pendingPlanReviewRecord(
+  detail: SandboxDetailState | undefined,
+  richState?: ConversationRenderState,
+): PlanReviewRecord | undefined {
+  if (!detail) return undefined;
+  const wait = Object.values(detail.waitsById).find(
+    (candidate) =>
+      candidate.kind === "plan_review" &&
+      candidate.status === "waiting" &&
+      candidate.planReview?.status === "pending" &&
+      (!richState ||
+        candidate.planReview.conversationId === richState.conversationId),
+  );
+  if (!wait?.planReview) return undefined;
+  const toolCallId = wait.toolCallId ?? wait.waitId;
+  const toolCall = toolCallForWait(richState, toolCallId);
+  return {
+    ...wait.planReview,
+    toolCallId: toolCall?.id ?? wait.planReview.toolCallId,
+  };
+}
+
 export function pendingUserQuestionRecord(
   detail: SandboxDetailState | undefined,
   richState?: ConversationRenderState,

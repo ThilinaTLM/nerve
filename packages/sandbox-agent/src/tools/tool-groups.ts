@@ -8,6 +8,7 @@ const defaults: Record<string, string[]> = {
   todos: ["todos_set", "todos_get"],
   web: ["web_search", "web_fetch"],
   input: ["ask_user"],
+  planMode: ["plan_mode_enter", "plan_mode_present", "plan_mode_force_exit"],
   explore: ["explore"],
   taskManagement: [
     "task_start",

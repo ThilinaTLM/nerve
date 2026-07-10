@@ -193,6 +193,57 @@ describe("applySandboxEvent", () => {
     assert.equal(detail.liveRuns.run_1.status, "waiting_for_approval");
   });
 
+  it("tracks and resolves plan-review waits", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    applySandboxEvent(
+      detail,
+      event(1, "tool.call.started", {
+        ...scope,
+        toolCallId: "plan_raw_1",
+        toolName: "plan_mode_present",
+        status: "started",
+        startedAt: ts,
+      }),
+    );
+    const planReview = {
+      id: "plan_review_1",
+      toolCallId: "tool_plan_1",
+      agentId: "agent_1",
+      conversationId: "conv_1",
+      projectId: "proj_1",
+      slug: "feature",
+      planPath: "/state/plans/feature.md",
+      content: "# Feature",
+      status: "pending" as const,
+      requestedAt: ts,
+      updatedAt: ts,
+    };
+    applySandboxEvent(
+      detail,
+      event(2, "run.waiting_for_plan_review", {
+        ...scope,
+        reviewId: planReview.id,
+        toolCallId: "plan_raw_1",
+        planReview,
+        createdAt: ts,
+      }),
+    );
+    assert.equal(detail.waitsById.plan_review_1.kind, "plan_review");
+    assert.equal(detail.toolCallsById.plan_raw_1.status, "waiting_for_input");
+    applySandboxEvent(
+      detail,
+      event(3, "plan_review.resolved", {
+        ...scope,
+        reviewId: planReview.id,
+        decision: "accept",
+        planReview: { ...planReview, status: "accepted" },
+        resolvedAt: ts,
+      }),
+    );
+    assert.equal(detail.waitsById.plan_review_1.status, "submitted");
+    assert.equal(detail.waitsById.plan_review_1.planReview?.status, "accepted");
+  });
+
   it("merges typed startup stage progress and failures", () => {
     const detail = createSandboxDetailState("sbx_1");
     applySandboxEvent(

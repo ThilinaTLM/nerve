@@ -370,6 +370,26 @@ function summarizeWaitsForRun(waits: unknown[], runId: string) {
           kind: "input" as const,
           status: normalizeWaitStatus(value.status),
           question: value.question,
+          toolCallId: value.requestId,
+          createdAt: String(value.createdAt ?? new Date().toISOString()),
+          resolvedAt:
+            typeof value.resolvedAt === "string" ? value.resolvedAt : undefined,
+        };
+      }
+      const review = value.review as Record<string, unknown> | undefined;
+      if (review && typeof review.id === "string") {
+        return {
+          waitId: review.id,
+          kind: "plan_review" as const,
+          status:
+            value.status === "pending"
+              ? ("waiting" as const)
+              : ("submitted" as const),
+          toolCallId:
+            typeof value.providerToolCallId === "string"
+              ? value.providerToolCallId
+              : undefined,
+          planReview: review,
           createdAt: String(value.createdAt ?? new Date().toISOString()),
           resolvedAt:
             typeof value.resolvedAt === "string" ? value.resolvedAt : undefined,

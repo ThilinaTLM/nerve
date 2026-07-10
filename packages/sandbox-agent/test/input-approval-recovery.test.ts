@@ -157,6 +157,37 @@ describe("sandbox input wait/recovery with scripted provider", () => {
       const run = status.runs.find((entry) => entry.runId === start.runId);
       assert.ok(run?.executions?.length);
       assert.ok(run?.checkpoints?.length);
+
+      const harnessConversation = await readFile(
+        path.join(
+          dir,
+          "conversations",
+          start.conversationId,
+          "agents",
+          start.agentId,
+          "conversation.jsonl",
+        ),
+        "utf8",
+      );
+      assert.match(harnessConversation, /"role":"toolResult"/);
+      assert.match(harnessConversation, /"toolCallId":"ask_1"/);
+      assert.match(harnessConversation, /"response":"42"/);
+      const transcript = await readFile(
+        path.join(
+          dir,
+          "conversations",
+          start.conversationId,
+          "agents",
+          start.agentId,
+          "runs",
+          start.runId,
+          "transcript.jsonl",
+        ),
+        "utf8",
+      );
+      assert.doesNotMatch(transcript, /"role":"user"[^\n]*"42"/);
+      const completedTools = await readFile(toolFile, "utf8");
+      assert.match(completedTools, /"response":"42"/);
     } finally {
       registration.unregister();
       await rm(dir, { recursive: true, force: true });

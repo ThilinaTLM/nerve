@@ -29,20 +29,38 @@ export async function enforceToolPolicy(
   tool: string,
   args: Record<string, unknown>,
   config: SandboxConfigV1,
-  runtime: { workspaceDir: string; readOnly?: boolean },
+  runtime: {
+    workspaceDir: string;
+    readOnly?: boolean;
+    mode?: "coding" | "planning";
+    planDir?: string;
+  },
 ): Promise<void> {
   const workspaceDir = runtime.workspaceDir;
   if (runtime.readOnly && writeCapableTool(tool))
     throw new Error("write-capable tool denied in degraded read-only mode");
   const pathValue = typeof args.path === "string" ? args.path : undefined;
+  if (runtime.mode === "planning" && writeCapableTool(tool)) {
+    if (!runtime.planDir || !["write", "edit"].includes(tool) || !pathValue)
+      throw new Error("write-capable tool denied while planning");
+    const candidate = path.isAbsolute(pathValue)
+      ? pathValue
+      : path.join(workspaceDir, pathValue);
+    await assertToolPathAllowed(path.dirname(candidate), runtime.planDir);
+  }
   if (pathValue) {
     const candidate = path.isAbsolute(pathValue)
       ? pathValue
       : path.join(workspaceDir, pathValue);
-    await assertToolPathAllowed(
-      ["write", "edit"].includes(tool) ? path.dirname(candidate) : candidate,
-      workspaceDir,
-    );
+    const checked = ["write", "edit"].includes(tool)
+      ? path.dirname(candidate)
+      : candidate;
+    try {
+      await assertToolPathAllowed(checked, workspaceDir);
+    } catch (error) {
+      if (!runtime.planDir) throw error;
+      await assertToolPathAllowed(checked, runtime.planDir);
+    }
   }
   if (tool === "python") {
     const cwd = typeof args.cwd === "string" ? args.cwd : workspaceDir;

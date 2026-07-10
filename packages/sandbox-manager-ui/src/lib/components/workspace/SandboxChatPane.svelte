@@ -29,6 +29,7 @@
   import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
   import {
     pendingApprovalRecords,
+    pendingPlanReviewRecord,
     pendingUserQuestionRecord,
   } from "../../state/sandbox-review-records";
   import { resolveToolCallDetails } from "../../state/sandbox-tool-call-details";
@@ -93,8 +94,11 @@
   );
   const approvals = $derived(pendingApprovalRecords(detail, richState));
   const pendingUserQuestion = $derived(pendingUserQuestionRecord(detail, richState));
+  const pendingPlanReview = $derived(pendingPlanReviewRecord(detail, richState));
   const blockedForReview = $derived(
-    approvals.length > 0 || Boolean(pendingUserQuestion),
+    approvals.length > 0 ||
+      Boolean(pendingUserQuestion) ||
+      Boolean(pendingPlanReview),
   );
   const composerDisabled = $derived(
     !sandboxCanQueuePrompt(record, detail) ||
@@ -212,10 +216,16 @@
             heightCacheKey={transcriptHeightCacheKey}
             {approvals}
             {pendingUserQuestion}
+            {pendingPlanReview}
+            planReviewModels={composerModels}
+            planReviewModelKey={selectedModelKey}
+            planReviewThinkingLevel={controls?.thinkingLevel ?? "off"}
             {lastTimelineKey}
             onGrantApproval={canForward ? (id) => void store.resolveApproval(sandboxId, id, "grant") : undefined}
             onDenyApproval={canForward ? (id) => void store.resolveApproval(sandboxId, id, "deny") : undefined}
             onAnswerUserQuestion={canForward ? (questionId, answer) => void store.submitInput(sandboxId, questionId, answer) : undefined}
+            onAcceptPlanReview={canForward ? (reviewId, options) => store.resolvePlanReview(sandboxId, reviewId, "accept", options) : undefined}
+            onRejectPlanReview={canForward ? (reviewId) => void store.resolvePlanReview(sandboxId, reviewId, "request_changes", { feedback: "Rejected from sandbox UI." }) : undefined}
             onOpenFile={(path, line) => void store.openWorkspaceFile(sandboxId, path, line)}
             messageMenu={sandboxMessageMenu}
             toolMenu={sandboxToolMenu}

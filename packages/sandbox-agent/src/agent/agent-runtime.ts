@@ -11,6 +11,7 @@ import type { ToolExecutionResult } from "@nervekit/tools";
 import { resolveModelSelection } from "../models/model-catalog.js";
 import type { ApprovalWaiter } from "../tools/approval-waiter.js";
 import type { InputWaiter } from "../tools/input-waiter.js";
+import type { PlanReviewWaiter } from "../tools/plan-review-waiter.js";
 import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
 import type { AgentConfigStore } from "./agent-config-store.js";
 import type { ExploreRuntime } from "./explore-runtime.js";
@@ -25,6 +26,7 @@ export type SandboxAgentRuntimeOptions = {
   harnessFactory?: HarnessFactory;
   bridge?: HarnessEventBridge;
   inputWaiter?: InputWaiter;
+  planReviewWaiter?: PlanReviewWaiter;
   approvalWaiter?: ApprovalWaiter;
   toolRuntime?: SandboxToolRuntime;
   exploreRuntime?: ExploreRuntime;
@@ -152,9 +154,11 @@ export class SandboxAgentRuntime {
       throw new Error(`INVALID_RUN_STATE: cannot continue ${run.status}`);
     }
     if (run.status === "waiting_for_input") {
-      const pending = this.options.inputWaiter?.pendingForRun(scope) ?? [];
-      if (pending.length)
-        throw new Error("INVALID_RUN_STATE: input wait is not resolved");
+      const pendingInput = this.options.inputWaiter?.pendingForRun(scope) ?? [];
+      const pendingPlan =
+        this.options.planReviewWaiter?.pendingForRun(scope) ?? [];
+      if (pendingInput.length || pendingPlan.length)
+        throw new Error("INVALID_RUN_STATE: user interaction is not resolved");
     }
     if (run.status === "waiting_for_approval") {
       const pending = this.options.approvalWaiter?.pendingForRun(scope) ?? [];
@@ -215,6 +219,7 @@ export class SandboxAgentRuntime {
     await active?.promise.catch(() => undefined);
     this.active.delete(key(scope));
     await this.options.inputWaiter?.cancelRun(scope);
+    await this.options.planReviewWaiter?.cancelRun(scope);
     await this.options.approvalWaiter?.cancelRun(scope);
     const run = await this.options.runs.cancel({
       ...scope,
@@ -533,13 +538,23 @@ export class SandboxAgentRuntime {
     | { data: { toolCallId: string; toolName: string; reason: string } }
     | undefined {
     const message = error instanceof Error ? error.message : String(error);
-    if (!/WAITING_FOR_(INPUT|APPROVAL)/.test(message)) return undefined;
+    if (!/WAITING_FOR_(INPUT|APPROVAL|PLAN_REVIEW)/.test(message))
+      return undefined;
     const input = this.options.inputWaiter?.pendingForRun(scope)[0];
     if (input)
       return {
         data: {
           toolCallId: input.requestId,
           toolName: "ask_user",
+          reason: message,
+        },
+      };
+    const planReview = this.options.planReviewWaiter?.pendingForRun(scope)[0];
+    if (planReview)
+      return {
+        data: {
+          toolCallId: planReview.providerToolCallId,
+          toolName: "plan_mode_present",
           reason: message,
         },
       };
