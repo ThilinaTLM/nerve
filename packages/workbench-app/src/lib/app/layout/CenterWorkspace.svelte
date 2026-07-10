@@ -111,7 +111,7 @@
     />
   {/snippet}
   {#snippet content()}
-    <div class="center-workspace-content">
+    <div class="center-workspace-content h-full">
       {#if activeCenterTab?.kind === "task"}
         <TaskShell />
       {:else if activeCenterTab?.kind === "file"}

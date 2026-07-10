@@ -54,7 +54,7 @@
       {onNew}
     />
   {/if}
-  <div class="min-h-0">
+  <div class="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)]">
     {#if contentVisible ?? (tabs.length > 0)}
       {@render content()}
     {:else if empty}

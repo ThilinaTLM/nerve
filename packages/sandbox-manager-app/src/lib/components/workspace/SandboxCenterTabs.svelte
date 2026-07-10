@@ -372,13 +372,9 @@
 </WorkbenchCenter>
 
 <style>
-  /* Mirror web CenterWorkspace: the content region occupies the flexible
-     `minmax(0,1fr)` row of `.center-shell` (the tab strip takes the `auto`
-     row) and stretches its single active child to full height so panes like
-     the chat composer pin to the bottom. `grid-row: 2` keeps content in the
-     flexible track even when the tab strip is hidden. */
+  /* WorkbenchCenter owns the tab/content rows; this host wrapper stretches
+     the single active view through the full content row. */
   .sandbox-center-content {
-    grid-row: 2;
     display: grid;
     grid-template-rows: minmax(0, 1fr);
     min-height: 0;

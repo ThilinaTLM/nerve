@@ -22,9 +22,11 @@
   background: var(--sidebar);
 }
 
+/* WorkbenchCenter owns the tab/content rows. The pane shell only needs to
+ * stretch that single center root across the available workspace height. */
 .center-shell {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   background: var(--background);
 }
 
