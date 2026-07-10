@@ -44,9 +44,9 @@ export interface VoiceInputCapability {
   chatGptConfigured(): boolean;
   micShortcutLabel?: string;
   micShortcutAria?: string;
-  // biome-ignore lint/suspicious/noExplicitAny: host-provided Svelte components.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Host-provided Svelte component.
   TranscriptionActivity: Component<any>;
-  // biome-ignore lint/suspicious/noExplicitAny: host-provided Svelte components.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Host-provided Svelte component.
   AudioAuthDialog: Component<any>;
 }
 

@@ -66,8 +66,8 @@ function hasOutputArtifactPath(
 ): boolean {
   return Boolean(
     path &&
-      "outputArtifacts" in view &&
-      view.outputArtifacts?.some((artifact) => artifact.path === path),
+    "outputArtifacts" in view &&
+    view.outputArtifacts?.some((artifact) => artifact.path === path),
   );
 }
 

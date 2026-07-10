@@ -25,7 +25,9 @@ export async function readRuntimeHealth(
         await readFile(path.join(paths.stateDir, "status.json"), "utf8"),
       ).status ?? "unknown",
     );
-  } catch {}
+  } catch {
+    // Leave status unknown when the status file cannot be read.
+  }
   const healthy =
     checks.state &&
     checks.configDigest &&

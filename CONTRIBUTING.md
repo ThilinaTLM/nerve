@@ -6,9 +6,9 @@ Thanks for your interest in Nerve. The project is currently alpha, so small, foc
 
 ```sh
 pnpm install
+pnpm fix
 pnpm check
 pnpm test
-pnpm lint
 ```
 
 ## Guidelines

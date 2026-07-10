@@ -51,4 +51,3 @@ Those files are implementation references, not wire-protocol constraints. The no
 This specification is ready to guide implementation of the v1 WebSocket event-stream profile once shared schemas and adapter modules are added. That first implementation target includes handshake, `event.batch`, processed acknowledgements, replay, snapshot recovery hooks, heartbeat/liveness, and backpressure observability.
 
 The specification does **not** require an all-at-once HTTP rewrite. Existing REST/resource endpoints remain valid v1 participants when they use shared schemas, publish/consume domain events as needed, include cursor metadata for protocol-compatible snapshots, and keep large/binary/secret-sensitive payloads out of protocol metadata. See [Feature Coverage](./feature-coverage.md) and [Extension Model](./extension-model.md) for the coverage and future-evolution rules.
-

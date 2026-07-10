@@ -12,8 +12,6 @@ import type {
 } from "./task-manager.js";
 import { foregroundPromotionDelayMs } from "./task-manager-utils.js";
 
-const _FOREGROUND_TIMEOUT_RESULT_GRACE_MS = 500;
-
 export async function buildForegroundBashResult(
   this: TaskManager,
   taskId: string,

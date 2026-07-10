@@ -1,28 +1,28 @@
 <script lang="ts">
-  import { ChevronRight } from "@lucide/svelte";
-  import type {
-    ManagedSandboxRecord,
-    SandboxActivitySummary,
-  } from "@nervekit/contracts";
-  import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-  import { sandboxLifecycleView } from "../state/sandbox-lifecycle-view";
-  import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
-  import SandboxActionMenu from "./SandboxActionMenu.svelte";
-  import SandboxStatusBadge from "./SandboxStatusBadge.svelte";
+import { ChevronRight } from "@lucide/svelte";
+import type {
+  ManagedSandboxRecord,
+  SandboxActivitySummary,
+} from "@nervekit/contracts";
+import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
+import { sandboxLifecycleView } from "../state/sandbox-lifecycle-view";
+import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
+import SandboxActionMenu from "./SandboxActionMenu.svelte";
+import SandboxStatusBadge from "./SandboxStatusBadge.svelte";
 
-  let {
-    record,
-    activity,
-    onOpen,
-  }: {
-    record: ManagedSandboxRecord;
-    activity?: SandboxActivitySummary;
-    onOpen: () => void;
-  } = $props();
+let {
+  record,
+  activity,
+  onOpen,
+}: {
+  record: ManagedSandboxRecord;
+  activity?: SandboxActivitySummary;
+  onOpen: () => void;
+} = $props();
 
-  const store = useSandboxManagerStore();
-  const detail = $derived(store.details[record.sandboxId]);
-  const lifecycle = $derived(sandboxLifecycleView(record, detail));
+const store = useSandboxManagerStore();
+const detail = $derived(store.details[record.sandboxId]);
+const lifecycle = $derived(sandboxLifecycleView(record, detail));
 </script>
 
 <li
@@ -38,7 +38,9 @@
         {record.name ?? record.sandboxId}
       </span>
       {#if activity?.title}
-        <span class="truncate text-xs text-muted-foreground">{activity.title}</span>
+        <span class="truncate text-xs text-muted-foreground"
+          >{activity.title}</span
+        >
       {:else if lifecycle.state === "stopped" || lifecycle.state === "removed"}
         <span class="truncate text-xs text-muted-foreground">
           {lifecycle.description}

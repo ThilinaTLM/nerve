@@ -6,6 +6,7 @@ import type {
   SandboxRunSnapshot,
 } from "@nervekit/contracts";
 import type { StatusTone } from "@nervekit/workbench-ui/core/utils/status";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { SandboxManagerStore } from "./sandbox-manager-state.svelte";
 import { matchesFleetFilter, matchesSearch } from "./sandbox-status";
 import type {
@@ -99,7 +100,7 @@ function isString(value: unknown): value is string {
 function mergedDurableConversations(
   detail: SandboxDetailState | undefined,
 ): SandboxConversationSnapshot[] {
-  const byId = new Map<string, SandboxConversationSnapshot>();
+  const byId = new SvelteMap<string, SandboxConversationSnapshot>();
   for (const conversation of Object.values(
     detail?.localConversationsById ?? {},
   ))
@@ -157,7 +158,7 @@ export function sandboxConversationActivity(
   if (runs.some((run) => isFailedRunStatus(run.status))) {
     return { tone: "danger", pulse: false, label: "Run failed" };
   }
-  const activeRunIds = new Set(conversation.activeRunIds ?? []);
+  const activeRunIds = new SvelteSet(conversation.activeRunIds ?? []);
   const hasKnownActiveRunId = runs.some(
     (run) => activeRunIds.has(run.runId) && isActiveRunStatus(run.status),
   );

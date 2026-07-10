@@ -1,30 +1,33 @@
 <script lang="ts">
-  import {
-    MoreHorizontal,
-    Play,
-    RefreshCw,
-    Square,
-    Trash2,
-  } from "@lucide/svelte";
-  import type { ManagedSandboxRecord } from "@nervekit/contracts";
-  import { Button, buttonVariants } from "@nervekit/workbench-ui/components/ui/button";
-  import * as DropdownMenu from "@nervekit/workbench-ui/components/ui/dropdown-menu";
-  import { cn } from "@nervekit/workbench-ui/core/utils";
-  import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
-  import { canRestart, canStart, canStop } from "../state/sandbox-status";
-  import SandboxRemoveDialog from "./SandboxRemoveDialog.svelte";
+import {
+  MoreHorizontal,
+  Play,
+  RefreshCw,
+  Square,
+  Trash2,
+} from "@lucide/svelte";
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
+import {
+  Button,
+  buttonVariants,
+} from "@nervekit/workbench-ui/components/ui/button";
+import * as DropdownMenu from "@nervekit/workbench-ui/components/ui/dropdown-menu";
+import { cn } from "@nervekit/workbench-ui/core/utils";
+import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
+import { canRestart, canStart, canStop } from "../state/sandbox-status";
+import SandboxRemoveDialog from "./SandboxRemoveDialog.svelte";
 
-  let {
-    record,
-    compact = false,
-  }: { record: ManagedSandboxRecord; compact?: boolean } = $props();
+let {
+  record,
+  compact = false,
+}: { record: ManagedSandboxRecord; compact?: boolean } = $props();
 
-  const store = useSandboxManagerStore();
-  let removeOpen = $state(false);
+const store = useSandboxManagerStore();
+let removeOpen = $state(false);
 
-  function guard(action: Promise<void>) {
-    action.catch(() => undefined);
-  }
+function guard(action: Promise<void>) {
+  action.catch(() => undefined);
+}
 </script>
 
 <div class="inline-flex items-center gap-1">

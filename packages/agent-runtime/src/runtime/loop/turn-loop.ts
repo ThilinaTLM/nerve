@@ -40,7 +40,6 @@ export async function runLoop(
         currentContext.messages.push(message);
         newMessages.push(message);
       }
-      pendingMessages = [];
     }
 
     const message = await streamAssistantResponse(

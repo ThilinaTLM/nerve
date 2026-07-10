@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Conversation schema centralizes snapshot and live event payload contracts.
+/* eslint-disable max-lines -- Conversation schema centralizes snapshot and live event payload contracts. */
 import { z } from "zod";
 import {
   type QueuedPromptRecord,

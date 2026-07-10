@@ -55,8 +55,8 @@ export function conversationReviewBlocked(input: {
 }): boolean {
   return Boolean(
     input.approvals?.length ||
-      input.pendingUserQuestion ||
-      input.pendingPlanReview,
+    input.pendingUserQuestion ||
+    input.pendingPlanReview,
   );
 }
 

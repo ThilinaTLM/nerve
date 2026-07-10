@@ -282,6 +282,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       let timedOut = false;
       let callbackError: ExecutionError | undefined;
       let child: ReturnType<typeof spawn> | undefined;
+      // eslint-disable-next-line prefer-const -- Set after spawn so early spawn failures can settle before a timer exists.
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
       const onAbort = () => {

@@ -21,7 +21,7 @@ import WebSearchToolView from "../components/tool-call/WebSearchToolView.svelte"
 import WriteToolView from "../components/tool-call/WriteToolView.svelte";
 import type { ToolView } from "./tool-result-view";
 
-// biome-ignore lint/suspicious/noExplicitAny: per-tool view components accept their narrowed ToolView variant.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Per-tool view components accept their narrowed ToolView variant.
 type ToolViewComponent = Component<any>;
 
 const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {

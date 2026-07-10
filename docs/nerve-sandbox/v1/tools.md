@@ -10,19 +10,19 @@ Git and GitHub are configured as top-level startup services, not tool groups. Th
 
 Sandbox v1 SHOULD organize model-callable tools using the same conceptual groups exposed by Nerve Settings → Tools. A sandbox implementation MAY support a subset, but it MUST accurately advertise configured/active groups and tools in config-loaded/status events and prompts.
 
-| Group key | Tool names | Purpose | Credential/config level |
-| --- | --- | --- | --- |
-| `fileInspection` | `read`, `ls`, `find`, `grep` | Inspect files under allowed roots. | Filesystem policy. |
-| `fileEditing` | `write`, `edit` | Mutate files under allowed writable roots. | Filesystem/write policy. |
-| `planMode` | `plan_mode_enter`, `plan_mode_present`, `plan_mode_force_exit` | Planning workflow and plan review. | Controller/run state. |
-| `todos` | `todos_set`, `todos_get` | Maintain task checklist. | Run state. |
-| `web` | `web_search`, `web_fetch` | Search/fetch web resources. | Web group credential/policy. |
-| `jira` | Jira issue/user/project tools | Jira Cloud operations. | Jira group URL, identity, credential. |
-| `confluence` | Confluence page/space/attachment tools | Confluence Cloud operations. | Confluence group URL, identity, credential. |
-| `taskManagement` | `task_start`, `task_status`, `task_logs`, `task_cancel`, `task_restart`, `task_list` | Supervise long-lived commands. | Managed task runtime. |
-| `shell` | `bash` | Run finite shell commands in `/workspace`. | Shell group policy; may use top-level Git/GitHub setup. |
-| `python` | `python` | Run bounded Python snippets/scripts. | Python group policy. |
-| `explore` | `explore` | Spawn bounded read-oriented subagents. | Explore model/tool policy. |
+| Group key        | Tool names                                                                           | Purpose                                    | Credential/config level                                 |
+| ---------------- | ------------------------------------------------------------------------------------ | ------------------------------------------ | ------------------------------------------------------- |
+| `fileInspection` | `read`, `ls`, `find`, `grep`                                                         | Inspect files under allowed roots.         | Filesystem policy.                                      |
+| `fileEditing`    | `write`, `edit`                                                                      | Mutate files under allowed writable roots. | Filesystem/write policy.                                |
+| `planMode`       | `plan_mode_enter`, `plan_mode_present`, `plan_mode_force_exit`                       | Planning workflow and plan review.         | Controller/run state.                                   |
+| `todos`          | `todos_set`, `todos_get`                                                             | Maintain task checklist.                   | Run state.                                              |
+| `web`            | `web_search`, `web_fetch`                                                            | Search/fetch web resources.                | Web group credential/policy.                            |
+| `jira`           | Jira issue/user/project tools                                                        | Jira Cloud operations.                     | Jira group URL, identity, credential.                   |
+| `confluence`     | Confluence page/space/attachment tools                                               | Confluence Cloud operations.               | Confluence group URL, identity, credential.             |
+| `taskManagement` | `task_start`, `task_status`, `task_logs`, `task_cancel`, `task_restart`, `task_list` | Supervise long-lived commands.             | Managed task runtime.                                   |
+| `shell`          | `bash`                                                                               | Run finite shell commands in `/workspace`. | Shell group policy; may use top-level Git/GitHub setup. |
+| `python`         | `python`                                                                             | Run bounded Python snippets/scripts.       | Python group policy.                                    |
+| `explore`        | `explore`                                                                            | Spawn bounded read-oriented subagents.     | Explore model/tool policy.                              |
 
 ## Enablement model
 
@@ -47,7 +47,8 @@ type ToolGroupStatus = {
   active: boolean;
   tools: string[];
   unavailableTools?: string[];
-  credentialType?: "none" | "api_key" | "bearer" | "oauth" | "ssh" | "gpg" | "basic";
+  credentialType?:
+    "none" | "api_key" | "bearer" | "oauth" | "ssh" | "gpg" | "basic";
   limitations?: string[];
 };
 ```
@@ -56,11 +57,11 @@ Credential material MUST NOT be included.
 
 ## Permission levels
 
-| Level | Behavior |
-| --- | --- |
-| `read_only` | Read, search, status, and interaction tools only. No workspace writes, shell mutations, network mutations, commits, pushes, package installs, or deployments. |
-| `supervised` | Risky tools require controller approval. |
-| `autonomous` | Risky tools may run without per-call approval if allowed by config/security policy. |
+| Level        | Behavior                                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read_only`  | Read, search, status, and interaction tools only. No workspace writes, shell mutations, network mutations, commits, pushes, package installs, or deployments. |
+| `supervised` | Risky tools require controller approval.                                                                                                                      |
+| `autonomous` | Risky tools may run without per-call approval if allowed by config/security policy.                                                                           |
 
 Implementations MAY define stricter policy. They MUST NOT grant broader authority than requested by config.
 
@@ -68,17 +69,17 @@ Implementations MAY define stricter policy. They MUST NOT grant broader authorit
 
 Tool calls SHOULD be classified into stable risk categories:
 
-| Risk | Meaning |
-| --- | --- |
-| `read` | Reads local or remote data without mutation. |
-| `workspace_write` | Writes under `/workspace` or another configured writable root. |
-| `command` | Runs shell/process code. |
-| `network` | Calls external network services. |
-| `secret` | Uses or may expose configured credentials. |
-| `destructive` | Deletes, overwrites, force-pushes, drops data, changes permissions broadly, or discards uncommitted work. |
-| `agent_spawn` | Starts explore/subagent work. |
-| `deployment` | Deploys or publishes changes outside the sandbox. |
-| `interaction` | Asks the controller/user for input or approval. |
+| Risk              | Meaning                                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `read`            | Reads local or remote data without mutation.                                                              |
+| `workspace_write` | Writes under `/workspace` or another configured writable root.                                            |
+| `command`         | Runs shell/process code.                                                                                  |
+| `network`         | Calls external network services.                                                                          |
+| `secret`          | Uses or may expose configured credentials.                                                                |
+| `destructive`     | Deletes, overwrites, force-pushes, drops data, changes permissions broadly, or discards uncommitted work. |
+| `agent_spawn`     | Starts explore/subagent work.                                                                             |
+| `deployment`      | Deploys or publishes changes outside the sandbox.                                                         |
+| `interaction`     | Asks the controller/user for input or approval.                                                           |
 
 Specific operations map onto these categories:
 

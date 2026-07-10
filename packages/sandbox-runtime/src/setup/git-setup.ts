@@ -178,7 +178,7 @@ async function configureSigning(
       env,
     );
   if (identity.sshSigningKey) {
-    const resolver = getResolver(config);
+    const resolver = getResolver();
     const key = await resolver.resolve(identity.sshSigningKey);
     const keyFile = path.join(credentialsDir, "ssh-signing-key");
     await writeFile(keyFile, key, { mode: 0o600 });
@@ -484,10 +484,10 @@ async function resolveSecret(
   resolver: SecretResolver | undefined,
   ref: SandboxSecretRef,
 ): Promise<string> {
-  return (resolver ?? getResolver(config)).resolve(ref);
+  return (resolver ?? getResolver()).resolve(ref);
 }
 
-function getResolver(_config: SandboxConfigV1): SecretResolver {
+function getResolver(): SecretResolver {
   // Lazy import would be overkill; callers should pass the entrypoint resolver
   // whenever KV stores are needed. This fallback still supports env/file refs.
   return new (class extends Object {

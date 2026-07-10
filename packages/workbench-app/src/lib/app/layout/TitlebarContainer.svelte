@@ -1,45 +1,45 @@
 <script lang="ts">
-  import Titlebar from "$lib/app/layout/Titlebar.svelte";
-  import {
-    closeDesktopWindow,
-    desktopRuntime,
-    desktopShutdownState,
-    minimizeDesktopWindow,
-    toggleMaximizeDesktopWindow,
-  } from "$lib/features/desktop";
-  import { openAuthPane } from "$lib/features/auth";
-  import { openLogsPane } from "$lib/features/logs";
-  import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
-  import { workspaceSelectors, workspaceState } from "$lib/features/workspace";
+import Titlebar from "$lib/app/layout/Titlebar.svelte";
+import {
+  closeDesktopWindow,
+  desktopRuntime,
+  desktopShutdownState,
+  minimizeDesktopWindow,
+  toggleMaximizeDesktopWindow,
+} from "$lib/features/desktop";
+import { openAuthPane } from "$lib/features/auth";
+import { openLogsPane } from "$lib/features/logs";
+import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
+import { workspaceSelectors, workspaceState } from "$lib/features/workspace";
 
-  const activeProject = $derived(workspaceSelectors.activeProject);
-  const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
-  const settingsDraft = $derived(settingsSelectors.settingsDraft);
-  const desktopQuitting = $derived(
-    desktopRuntime.quitting || desktopShutdownState.quitRequested,
-  );
+const activeProject = $derived(workspaceSelectors.activeProject);
+const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
+const settingsDraft = $derived(settingsSelectors.settingsDraft);
+const desktopQuitting = $derived(
+  desktopRuntime.quitting || desktopShutdownState.quitRequested,
+);
 
-  function openProjectPicker() {
-    workspaceState.projectPickerOpen = true;
+function openProjectPicker() {
+  workspaceState.projectPickerOpen = true;
+}
+
+async function handleDesktopClose() {
+  const closeToTray = settingsDraft?.desktop.closeToTray ?? true;
+  if (!closeToTray) {
+    desktopShutdownState.quitRequested = true;
+    desktopRuntime.quitting = true;
   }
-
-  async function handleDesktopClose() {
-    const closeToTray = settingsDraft?.desktop.closeToTray ?? true;
+  try {
+    await closeDesktopWindow({ closeToTray });
+  } catch (caught) {
     if (!closeToTray) {
-      desktopShutdownState.quitRequested = true;
-      desktopRuntime.quitting = true;
+      desktopShutdownState.quitRequested = false;
+      desktopRuntime.quitting = false;
     }
-    try {
-      await closeDesktopWindow({ closeToTray });
-    } catch (caught) {
-      if (!closeToTray) {
-        desktopShutdownState.quitRequested = false;
-        desktopRuntime.quitting = false;
-      }
-      workspaceState.error =
-        caught instanceof Error ? caught.message : String(caught);
-    }
+    workspaceState.error =
+      caught instanceof Error ? caught.message : String(caught);
   }
+}
 </script>
 
 <Titlebar

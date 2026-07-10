@@ -1,236 +1,260 @@
 <script lang="ts">
-  import {
-    ChevronDown,
-    Circle,
-    CircleCheck,
-    CircleX,
-    Loader2,
-    MinusCircle,
-    TriangleAlert,
-    WifiOff,
-  } from "@lucide/svelte";
-  import type { ManagedSandboxRecord } from "@nervekit/contracts";
-  import { onMount } from "svelte";
-  import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
-  import type { StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
-  import {
-    computeSandboxBootProgress,
-    sandboxSetupTimeline,
-    type BootPhase,
-    type BootPhaseStatus,
-    type BootState,
-  } from "../state/sandbox-boot-progress";
-  import { sandboxLifecycleView } from "../state/sandbox-lifecycle-view";
-  import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
-  import type { SandboxSetupTimelineItem } from "../state/sandbox-ui-types";
+import {
+  ChevronDown,
+  Circle,
+  CircleCheck,
+  CircleX,
+  Loader2,
+  MinusCircle,
+  TriangleAlert,
+  WifiOff,
+} from "@lucide/svelte";
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
+import { onMount } from "svelte";
+import { StatusDot } from "@nervekit/workbench-ui/components/ui/status-dot";
+import type { StatusTone } from "@nervekit/workbench-ui/components/ui/status-dot";
+import {
+  computeSandboxBootProgress,
+  sandboxSetupTimeline,
+  type BootPhase,
+  type BootPhaseStatus,
+  type BootState,
+} from "../state/sandbox-boot-progress";
+import { sandboxLifecycleView } from "../state/sandbox-lifecycle-view";
+import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
+import type { SandboxSetupTimelineItem } from "../state/sandbox-ui-types";
 
-  let {
-    record,
-    variant = "rail",
-    expanded = true,
-    onToggle,
-  }: {
-    record: ManagedSandboxRecord;
-    variant?: "rail" | "banner";
-    expanded?: boolean;
-    onToggle?: () => void;
-  } = $props();
+let {
+  record,
+  variant = "rail",
+  expanded = true,
+  onToggle,
+}: {
+  record: ManagedSandboxRecord;
+  variant?: "rail" | "banner";
+  expanded?: boolean;
+  onToggle?: () => void;
+} = $props();
 
-  const store = useSandboxManagerStore();
-  const detail = $derived(store.details[record.sandboxId]);
-  const progress = $derived(computeSandboxBootProgress(record, detail));
-  const showPhaseStepper = $derived(expanded);
-  const container = $derived(detail?.status?.container ?? detail?.snapshot?.container);
-  const session = $derived(detail?.latestSession ?? detail?.status?.lastSession ?? detail?.snapshot?.lastSession);
-  const staleness = $derived(detail?.status?.staleness ?? detail?.snapshot?.staleness);
-  const lifecycleView = $derived(sandboxLifecycleView(record, detail));
-  const readOnly = $derived(lifecycleView.readOnly);
-  let openPhases = $state<Record<string, boolean>>({});
-  let now = $state(Date.now());
+const store = useSandboxManagerStore();
+const detail = $derived(store.details[record.sandboxId]);
+const progress = $derived(computeSandboxBootProgress(record, detail));
+const showPhaseStepper = $derived(expanded);
+const container = $derived(
+  detail?.status?.container ?? detail?.snapshot?.container,
+);
+const session = $derived(
+  detail?.latestSession ??
+    detail?.status?.lastSession ??
+    detail?.snapshot?.lastSession,
+);
+const staleness = $derived(
+  detail?.status?.staleness ?? detail?.snapshot?.staleness,
+);
+const lifecycleView = $derived(sandboxLifecycleView(record, detail));
+const readOnly = $derived(lifecycleView.readOnly);
+let openPhases = $state<Record<string, boolean>>({});
+let now = $state(Date.now());
 
-  $effect(() => {
-    for (const phase of progress.phases) {
-      if (
-        (phase.status === "active" || phase.status === "failed") &&
-        openPhases[phase.id] === undefined
-      )
-        openPhases[phase.id] = true;
-    }
-  });
-
-  onMount(() => {
-    const timer = window.setInterval(() => {
-      now = Date.now();
-    }, 1000);
-    return () => window.clearInterval(timer);
-  });
-
-  const stateTone: Record<BootState, StatusTone> = {
-    provisioning: "running",
-    booting: "running",
-    reconnecting: "running",
-    ready: "good",
-    failed: "danger",
-    offline: "neutral",
-  };
-
-  function phaseIcon(status: BootPhaseStatus) {
-    switch (status) {
-      case "active":
-        return Loader2;
-      case "done":
-        return CircleCheck;
-      case "skipped":
-      case "stopped":
-        return MinusCircle;
-      case "failed":
-        return CircleX;
-      case "degraded":
-        return TriangleAlert;
-      default:
-        return Circle;
-    }
+$effect(() => {
+  for (const phase of progress.phases) {
+    if (
+      (phase.status === "active" || phase.status === "failed") &&
+      openPhases[phase.id] === undefined
+    )
+      openPhases[phase.id] = true;
   }
+});
 
-  function phaseTone(status: BootPhaseStatus): string {
-    switch (status) {
-      case "active":
-        return "text-info";
-      case "done":
-        return "text-success";
-      case "failed":
-        return "text-destructive";
-      case "degraded":
-        return "text-warning";
-      case "skipped":
-      case "stopped":
-        return "text-muted-foreground";
-      default:
-        return "text-muted-foreground/50";
-    }
-  }
+onMount(() => {
+  const timer = window.setInterval(() => {
+    now = Date.now();
+  }, 1000);
+  return () => window.clearInterval(timer);
+});
 
-  function formatDate(value: string | undefined): string {
-    if (!value) return "—";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-  }
+const stateTone: Record<BootState, StatusTone> = {
+  provisioning: "running",
+  booting: "running",
+  reconnecting: "running",
+  ready: "good",
+  failed: "danger",
+  offline: "neutral",
+};
 
-  function formatClock(value: string | undefined): string {
-    if (!value) return "";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime())
-      ? value
-      : date.toLocaleTimeString(undefined, { hour12: false });
+function phaseIcon(status: BootPhaseStatus) {
+  switch (status) {
+    case "active":
+      return Loader2;
+    case "done":
+      return CircleCheck;
+    case "skipped":
+    case "stopped":
+      return MinusCircle;
+    case "failed":
+      return CircleX;
+    case "degraded":
+      return TriangleAlert;
+    default:
+      return Circle;
   }
+}
 
-  function formatMs(value: number | undefined): string {
-    if (value === undefined) return "—";
-    if (value < 1000) return `${value} ms`;
-    return `${(value / 1000).toFixed(1)} s`;
+function phaseTone(status: BootPhaseStatus): string {
+  switch (status) {
+    case "active":
+      return "text-info";
+    case "done":
+      return "text-success";
+    case "failed":
+      return "text-destructive";
+    case "degraded":
+      return "text-warning";
+    case "skipped":
+    case "stopped":
+      return "text-muted-foreground";
+    default:
+      return "text-muted-foreground/50";
   }
+}
 
-  function formatCompactMs(value: number | undefined): string | undefined {
-    if (value === undefined) return undefined;
-    if (value < 1000) return `${value} ms`;
-    if (value < 60_000) return `${Math.round(value / 1000)}s`;
-    return `${Math.round(value / 60_000)}m`;
-  }
+function formatDate(value: string | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
 
-  function elapsedMs(item: SandboxSetupTimelineItem): number | undefined {
-    const started = Date.parse(item.startedAt ?? item.ts);
-    if (!Number.isFinite(started)) return undefined;
-    return Math.max(0, now - started);
-  }
+function formatClock(value: string | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleTimeString(undefined, { hour12: false });
+}
 
-  function bootTimeline(): SandboxSetupTimelineItem[] {
-    return sandboxSetupTimeline(detail)
-      .map((item, order) => ({ item, order }))
-      .filter(({ item }) => item.phase === "boot")
-      .sort((a, b) => {
-        if (a.item.index !== undefined && b.item.index !== undefined) {
-          const byIndex = a.item.index - b.item.index;
-          if (byIndex !== 0) return byIndex;
-        }
-        return a.order - b.order;
-      })
-      .map(({ item }) => item);
-  }
+function formatMs(value: number | undefined): string {
+  if (value === undefined) return "—";
+  if (value < 1000) return `${value} ms`;
+  return `${(value / 1000).toFixed(1)} s`;
+}
 
-  function activeBootItem(): SandboxSetupTimelineItem | undefined {
-    return bootTimeline()
-      .filter((item) => item.status === "started")
-      .at(-1);
-  }
+function formatCompactMs(value: number | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (value < 1000) return `${value} ms`;
+  if (value < 60_000) return `${Math.round(value / 1000)}s`;
+  return `${Math.round(value / 60_000)}m`;
+}
 
-  function bootActiveSummary(item: SandboxSetupTimelineItem): string {
-    const timeout = formatCompactMs(item.timeoutMs);
-    return [
-      `Running ${itemTitle(item)}`,
-      item.runAs,
-      item.network,
-      timeout ? `timeout ${timeout}` : undefined,
-      `elapsed ${formatMs(elapsedMs(item))}`,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-  }
+function elapsedMs(item: SandboxSetupTimelineItem): number | undefined {
+  const started = Date.parse(item.startedAt ?? item.ts);
+  if (!Number.isFinite(started)) return undefined;
+  return Math.max(0, now - started);
+}
 
-  function phaseTimeline(phaseId: string): SandboxSetupTimelineItem | undefined {
-    return sandboxSetupTimeline(detail)
-      .filter((item) => item.phase === phaseId)
-      .at(-1);
-  }
+function bootTimeline(): SandboxSetupTimelineItem[] {
+  return sandboxSetupTimeline(detail)
+    .map((item, order) => ({ item, order }))
+    .filter(({ item }) => item.phase === "boot")
+    .sort((a, b) => {
+      if (a.item.index !== undefined && b.item.index !== undefined) {
+        const byIndex = a.item.index - b.item.index;
+        if (byIndex !== 0) return byIndex;
+      }
+      return a.order - b.order;
+    })
+    .map(({ item }) => item);
+}
 
-  function phaseHasDetails(phase: BootPhase): boolean {
-    if (phase.id === "container") return Boolean(container);
-    if (phase.id === "boot") return bootTimeline().length > 0;
-    if (phase.id === "ready") return Boolean(session || staleness || readOnly);
-    return Boolean(phaseTimeline(phase.id));
-  }
+function activeBootItem(): SandboxSetupTimelineItem | undefined {
+  return bootTimeline()
+    .filter((item) => item.status === "started")
+    .at(-1);
+}
 
-  function togglePhase(phaseId: string): void {
-    openPhases[phaseId] = !openPhases[phaseId];
-  }
+function bootActiveSummary(item: SandboxSetupTimelineItem): string {
+  const timeout = formatCompactMs(item.timeoutMs);
+  return [
+    `Running ${itemTitle(item)}`,
+    item.runAs,
+    item.network,
+    timeout ? `timeout ${timeout}` : undefined,
+    `elapsed ${formatMs(elapsedMs(item))}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
 
-  function itemTitle(item: SandboxSetupTimelineItem): string {
-    if (item.phase === "boot") {
-      const prefix = item.index !== undefined ? `#${item.index + 1}` : "Boot";
-      return `${prefix} ${item.name ?? "phase"}`;
-    }
-    return item.phase;
-  }
+function phaseTimeline(phaseId: string): SandboxSetupTimelineItem | undefined {
+  return sandboxSetupTimeline(detail)
+    .filter((item) => item.phase === phaseId)
+    .at(-1);
+}
 
-  function rowsForItem(item: SandboxSetupTimelineItem) {
-    return [
-      { label: "Status", value: item.status },
-      { label: "Started", value: formatDate(item.startedAt ?? item.ts) },
-      { label: "Completed", value: formatDate(item.completedAt) },
-      {
-        label: item.status === "started" ? "Elapsed" : "Duration",
-        value:
-          item.status === "started"
-            ? formatMs(elapsedMs(item))
-            : formatMs(item.durationMs),
-      },
-      { label: "Run as", value: item.runAs ?? "—" },
-      { label: "Network", value: item.network ?? "—" },
-      { label: "Timeout", value: item.timeoutMs ? formatMs(item.timeoutMs) : "—" },
-      { label: "Exit", value: item.exitCode === undefined ? "—" : String(item.exitCode) },
-    ];
-  }
+function phaseHasDetails(phase: BootPhase): boolean {
+  if (phase.id === "container") return Boolean(container);
+  if (phase.id === "boot") return bootTimeline().length > 0;
+  if (phase.id === "ready") return Boolean(session || staleness || readOnly);
+  return Boolean(phaseTimeline(phase.id));
+}
 
-  function containerRows() {
-    return [
-      { label: "Runtime", value: container?.runtime ?? record.backend },
-      { label: "State", value: container?.state ?? record.observedState },
-      { label: "Health", value: container?.health ?? "—" },
-      { label: "Exit", value: container?.exitCode === undefined ? "—" : String(container.exitCode) },
-      { label: "Started", value: formatDate(container?.startedAt ?? record.startedAt) },
-      { label: "Finished", value: formatDate(container?.finishedAt ?? record.stoppedAt) },
-      { label: "Observed", value: formatDate(container?.observedAt) },
-    ];
+function togglePhase(phaseId: string): void {
+  openPhases[phaseId] = !openPhases[phaseId];
+}
+
+function itemTitle(item: SandboxSetupTimelineItem): string {
+  if (item.phase === "boot") {
+    const prefix = item.index !== undefined ? `#${item.index + 1}` : "Boot";
+    return `${prefix} ${item.name ?? "phase"}`;
   }
+  return item.phase;
+}
+
+function rowsForItem(item: SandboxSetupTimelineItem) {
+  return [
+    { label: "Status", value: item.status },
+    { label: "Started", value: formatDate(item.startedAt ?? item.ts) },
+    { label: "Completed", value: formatDate(item.completedAt) },
+    {
+      label: item.status === "started" ? "Elapsed" : "Duration",
+      value:
+        item.status === "started"
+          ? formatMs(elapsedMs(item))
+          : formatMs(item.durationMs),
+    },
+    { label: "Run as", value: item.runAs ?? "—" },
+    { label: "Network", value: item.network ?? "—" },
+    {
+      label: "Timeout",
+      value: item.timeoutMs ? formatMs(item.timeoutMs) : "—",
+    },
+    {
+      label: "Exit",
+      value: item.exitCode === undefined ? "—" : String(item.exitCode),
+    },
+  ];
+}
+
+function containerRows() {
+  return [
+    { label: "Runtime", value: container?.runtime ?? record.backend },
+    { label: "State", value: container?.state ?? record.observedState },
+    { label: "Health", value: container?.health ?? "—" },
+    {
+      label: "Exit",
+      value:
+        container?.exitCode === undefined ? "—" : String(container.exitCode),
+    },
+    {
+      label: "Started",
+      value: formatDate(container?.startedAt ?? record.startedAt),
+    },
+    {
+      label: "Finished",
+      value: formatDate(container?.finishedAt ?? record.stoppedAt),
+    },
+    { label: "Observed", value: formatDate(container?.observedAt) },
+  ];
+}
 </script>
 
 <section
@@ -241,21 +265,25 @@
   {#snippet headerContent()}
     <StatusDot
       tone={stateTone[progress.state]}
-      pulse={
-        progress.state === "provisioning" ||
+      pulse={progress.state === "provisioning" ||
         progress.state === "booting" ||
-        progress.state === "reconnecting"
-      }
+        progress.state === "reconnecting"}
     />
     <div class="min-w-0 flex-1">
       <p class="truncate text-sm font-semibold">
-        {progress.state === "reconnecting" ? "Connection recovery" : "Startup progress"}
+        {progress.state === "reconnecting"
+          ? "Connection recovery"
+          : "Startup progress"}
       </p>
-      <p class="truncate text-xs text-muted-foreground">{lifecycleView.description}</p>
+      <p class="truncate text-xs text-muted-foreground">
+        {lifecycleView.description}
+      </p>
     </div>
     {#if progress.state === "reconnecting"}
       <span class="text-xs text-muted-foreground tabular-nums">
-        {lifecycleView.reconnectAttempts ? `Retry ${lifecycleView.reconnectAttempts}` : "Retrying"}
+        {lifecycleView.reconnectAttempts
+          ? `Retry ${lifecycleView.reconnectAttempts}`
+          : "Retrying"}
       </span>
     {:else}
       <span class="font-mono text-xs text-muted-foreground tabular-nums">
@@ -269,7 +297,9 @@
       type="button"
       class="flex w-full items-center gap-2 text-left"
       aria-expanded={showPhaseStepper}
-      aria-label={showPhaseStepper ? "Collapse boot details" : "Expand boot details"}
+      aria-label={showPhaseStepper
+        ? "Collapse boot details"
+        : "Expand boot details"}
       onclick={onToggle}
     >
       {@render headerContent()}
@@ -325,15 +355,19 @@
                 {#if phase.ts}
                   <span
                     class="font-mono text-xs text-muted-foreground tabular-nums"
-                    title={formatDate(phase.ts)}
-                  >{formatClock(phase.ts)}</span>
+                    title={formatDate(phase.ts)}>{formatClock(phase.ts)}</span
+                  >
                 {/if}
                 <span class="truncate text-sm">{phase.label}</span>
               </div>
               {#if activeBoot}
-                <span class="truncate text-xs text-muted-foreground">{bootActiveSummary(activeBoot)}</span>
+                <span class="truncate text-xs text-muted-foreground"
+                  >{bootActiveSummary(activeBoot)}</span
+                >
               {:else}
-                <span class="text-xs text-muted-foreground">{phase.description}</span>
+                <span class="text-xs text-muted-foreground"
+                  >{phase.description}</span
+                >
               {/if}
               {#if phase.error}
                 <span class="text-xs text-destructive">{phase.error}</span>
@@ -358,11 +392,13 @@
                   {/each}
                 </dl>
                 {#if container?.lastError}
-                  <p class="mt-2 text-destructive">{container.lastError.code}: {container.lastError.message}</p>
+                  <p class="mt-2 text-destructive">
+                    {container.lastError.code}: {container.lastError.message}
+                  </p>
                 {/if}
                 {#if container?.limitations?.length}
                   <ul class="mt-2 list-disc pl-4 text-muted-foreground">
-                    {#each container.limitations as limitation}
+                    {#each container.limitations as limitation (limitation)}
                       <li>{limitation}</li>
                     {/each}
                   </ul>
@@ -372,12 +408,18 @@
                   {#each bootTimeline() as item (item.key)}
                     <article class="rounded-md border bg-card p-2">
                       <div class="flex items-center justify-between gap-2">
-                        <p class="truncate text-xs font-medium">{itemTitle(item)}</p>
-                        <span class="font-mono text-xs text-muted-foreground">{item.status}</span>
+                        <p class="truncate text-xs font-medium">
+                          {itemTitle(item)}
+                        </p>
+                        <span class="font-mono text-xs text-muted-foreground"
+                          >{item.status}</span
+                        >
                       </div>
                       <dl class="mt-2 grid gap-1 sm:grid-cols-2">
                         {#each rowsForItem(item) as row (row.label)}
-                          <div class="grid grid-cols-[5rem_minmax(0,1fr)] gap-2">
+                          <div
+                            class="grid grid-cols-[5rem_minmax(0,1fr)] gap-2"
+                          >
                             <dt class="text-muted-foreground">{row.label}</dt>
                             <dd class="truncate font-mono">{row.value}</dd>
                           </div>
@@ -388,14 +430,22 @@
                       {/if}
                       {#if item.stdout?.text}
                         <div class="mt-2">
-                          <p class="mb-1 text-muted-foreground">stdout{item.stdout.truncated ? " (truncated)" : ""}</p>
-                          <pre class="max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap">{item.stdout.text}</pre>
+                          <p class="mb-1 text-muted-foreground">
+                            stdout{item.stdout.truncated ? " (truncated)" : ""}
+                          </p>
+                          <pre
+                            class="max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap">{item
+                              .stdout.text}</pre>
                         </div>
                       {/if}
                       {#if item.stderr?.text}
                         <div class="mt-2">
-                          <p class="mb-1 text-muted-foreground">stderr{item.stderr.truncated ? " (truncated)" : ""}</p>
-                          <pre class="max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap">{item.stderr.text}</pre>
+                          <p class="mb-1 text-muted-foreground">
+                            stderr{item.stderr.truncated ? " (truncated)" : ""}
+                          </p>
+                          <pre
+                            class="max-h-40 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap">{item
+                              .stderr.text}</pre>
                         </div>
                       {/if}
                     </article>
@@ -405,11 +455,17 @@
                 <dl class="grid gap-1 sm:grid-cols-2">
                   <div class="grid grid-cols-[6rem_minmax(0,1fr)] gap-2">
                     <dt class="text-muted-foreground">Controller</dt>
-                    <dd>{detail?.status?.connected || detail?.controllerConnected ? "connected" : "disconnected"}</dd>
+                    <dd>
+                      {detail?.status?.connected || detail?.controllerConnected
+                        ? "connected"
+                        : "disconnected"}
+                    </dd>
                   </div>
                   <div class="grid grid-cols-[6rem_minmax(0,1fr)] gap-2">
                     <dt class="text-muted-foreground">Session</dt>
-                    <dd class="truncate font-mono">{session?.sessionId ?? "—"}</dd>
+                    <dd class="truncate font-mono">
+                      {session?.sessionId ?? "—"}
+                    </dd>
                   </div>
                   <div class="grid grid-cols-[6rem_minmax(0,1fr)] gap-2">
                     <dt class="text-muted-foreground">Stale</dt>
@@ -421,7 +477,9 @@
                   </div>
                 </dl>
                 {#if readOnly}
-                  <p class="mt-2 text-muted-foreground">{lifecycleView.description}</p>
+                  <p class="mt-2 text-muted-foreground">
+                    {lifecycleView.description}
+                  </p>
                 {/if}
               {:else if phaseTimeline(phase.id)}
                 {@const item = phaseTimeline(phase.id)}
@@ -439,7 +497,7 @@
                   {/if}
                   {#if item.limitations?.length}
                     <ul class="mt-2 list-disc pl-4 text-muted-foreground">
-                      {#each item.limitations as limitation}
+                      {#each item.limitations as limitation (limitation)}
                         <li>{limitation}</li>
                       {/each}
                     </ul>

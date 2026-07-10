@@ -1,3 +1,4 @@
+import { SvelteSet } from "svelte/reactivity";
 import { agentRunningTone } from "@nervekit/workbench-ui/core/utils/status";
 import {
   conversationViewKey,
@@ -298,7 +299,7 @@ export const workspaceSelectors = {
       : [];
   },
   get openConversationTabIds(): Set<string> {
-    const ids = new Set<string>();
+    const ids = new SvelteSet<string>();
     for (const tab of workspaceState.openCenterTabs) {
       if (tab.kind === "conversation") ids.add(tab.id);
     }

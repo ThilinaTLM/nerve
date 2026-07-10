@@ -274,6 +274,7 @@ class DaemonSupervisor {
   }
 
   private toManagedDaemon(): ManagedDaemon {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- Returned getters need the supervisor instance rather than the managed-daemon receiver.
     const supervisor = this;
     return {
       get url() {

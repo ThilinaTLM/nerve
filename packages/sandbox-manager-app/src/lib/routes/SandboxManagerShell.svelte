@@ -1,11 +1,11 @@
 <script lang="ts">
-  import SandboxCenter from "../app/SandboxCenter.svelte";
-  import CreateSandboxDialog from "../components/create/CreateSandboxDialog.svelte";
-  import { useSandboxCenter } from "../state/sandbox-center.svelte";
-  import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
+import SandboxCenter from "../app/SandboxCenter.svelte";
+import CreateSandboxDialog from "../components/create/CreateSandboxDialog.svelte";
+import { useSandboxCenter } from "../state/sandbox-center.svelte";
+import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 
-  const store = useSandboxManagerStore();
-  const center = useSandboxCenter();
+const store = useSandboxManagerStore();
+const center = useSandboxCenter();
 </script>
 
 <SandboxCenter />

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- AgentRunSession coordinates the complete agent run lifecycle and suspension flow. */
 import {
   AgentHarness,
   buildConversationContext,
@@ -728,7 +729,9 @@ export async function runAgentPromptSession(
         },
       });
       if (lastAssistantEntry) return lastAssistantEntry;
-      throw new Error("Agent run suspended without an assistant entry.");
+      throw new Error("Agent run suspended without an assistant entry.", {
+        cause: error,
+      });
     }
     this.deps.state.runs.delete(agent.id);
     const aborted = abortRequested;

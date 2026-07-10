@@ -1,11 +1,11 @@
 packages:
   - "packages/*"
 allowBuilds:
-  '@google/genai': true
+  "@google/genai": true
   electron: true
   electron-winstaller: true
   esbuild: true
   protobufjs: true
   sharp: true
 minimumReleaseAgeExclude:
-  - '@earendil-works/pi-ai@0.80.6'
+  - "@earendil-works/pi-ai@0.80.6"

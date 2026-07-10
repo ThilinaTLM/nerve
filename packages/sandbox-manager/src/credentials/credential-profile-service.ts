@@ -76,8 +76,8 @@ export class CredentialProfileService {
     }
     const configured = Boolean(
       request.providerKind === "git_identity" ||
-        secretInputs.length > 0 ||
-        existing,
+      secretInputs.length > 0 ||
+      existing,
     );
     const profile = sandboxManagerCredentialProfileSchema.parse({
       ...(existing ?? {}),

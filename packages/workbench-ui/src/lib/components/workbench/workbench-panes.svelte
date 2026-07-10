@@ -1,55 +1,55 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-  import {
-    Handle as PaneResizer,
-    Pane,
-    PaneGroup,
-  } from "@nervekit/workbench-ui/components/ui/resizable";
-  import * as Sheet from "@nervekit/workbench-ui/components/ui/sheet";
+import type { Snippet } from "svelte";
+import {
+  Handle as PaneResizer,
+  Pane,
+  PaneGroup,
+} from "@nervekit/workbench-ui/components/ui/resizable";
+import * as Sheet from "@nervekit/workbench-ui/components/ui/sheet";
 
-  type PaneSize = {
-    defaultSize?: number;
-    minSize?: number;
-    maxSize?: number;
-  };
+type PaneSize = {
+  defaultSize?: number;
+  minSize?: number;
+  maxSize?: number;
+};
 
-  let {
-    compact = false,
-    sidebarCollapsed = false,
-    utilityCollapsed = false,
-    navDrawerOpen = false,
-    utilityDrawerOpen = false,
-    autoSaveId = "nerve.workbench.workspace",
-    keyboardResizeBy = 8,
-    leftLabel = "Navigator",
-    rightLabel = "Utility panel",
-    leftSize = { defaultSize: 19, minSize: 14, maxSize: 32 },
-    centerSize = { defaultSize: 57, minSize: 38 },
-    rightSize = { defaultSize: 24, minSize: 19, maxSize: 40 },
-    onNavDrawerOpenChange,
-    onUtilityDrawerOpenChange,
-    left,
-    center,
-    right,
-  }: {
-    compact?: boolean;
-    sidebarCollapsed?: boolean;
-    utilityCollapsed?: boolean;
-    navDrawerOpen?: boolean;
-    utilityDrawerOpen?: boolean;
-    autoSaveId?: string;
-    keyboardResizeBy?: number;
-    leftLabel?: string;
-    rightLabel?: string;
-    leftSize?: PaneSize;
-    centerSize?: PaneSize;
-    rightSize?: PaneSize;
-    onNavDrawerOpenChange?: (open: boolean) => void;
-    onUtilityDrawerOpenChange?: (open: boolean) => void;
-    left: Snippet;
-    center: Snippet;
-    right: Snippet;
-  } = $props();
+let {
+  compact = false,
+  sidebarCollapsed = false,
+  utilityCollapsed = false,
+  navDrawerOpen = false,
+  utilityDrawerOpen = false,
+  autoSaveId = "nerve.workbench.workspace",
+  keyboardResizeBy = 8,
+  leftLabel = "Navigator",
+  rightLabel = "Utility panel",
+  leftSize = { defaultSize: 19, minSize: 14, maxSize: 32 },
+  centerSize = { defaultSize: 57, minSize: 38 },
+  rightSize = { defaultSize: 24, minSize: 19, maxSize: 40 },
+  onNavDrawerOpenChange,
+  onUtilityDrawerOpenChange,
+  left,
+  center,
+  right,
+}: {
+  compact?: boolean;
+  sidebarCollapsed?: boolean;
+  utilityCollapsed?: boolean;
+  navDrawerOpen?: boolean;
+  utilityDrawerOpen?: boolean;
+  autoSaveId?: string;
+  keyboardResizeBy?: number;
+  leftLabel?: string;
+  rightLabel?: string;
+  leftSize?: PaneSize;
+  centerSize?: PaneSize;
+  rightSize?: PaneSize;
+  onNavDrawerOpenChange?: (open: boolean) => void;
+  onUtilityDrawerOpenChange?: (open: boolean) => void;
+  left: Snippet;
+  center: Snippet;
+  right: Snippet;
+} = $props();
 </script>
 
 {#if compact}
@@ -93,7 +93,11 @@
         <PaneResizer aria-label={`Resize ${leftLabel.toLowerCase()}`} />
       {/if}
 
-      <Pane defaultSize={centerSize.defaultSize} minSize={centerSize.minSize} order={2}>
+      <Pane
+        defaultSize={centerSize.defaultSize}
+        minSize={centerSize.minSize}
+        order={2}
+      >
         <div class="pane-shell center-shell">
           {@render center()}
         </div>

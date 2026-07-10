@@ -41,10 +41,7 @@ import type {
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 
-export {
-  exploreRunPlanArg,
-  exploreSystemPrompt,
-} from "./explore-helpers.js";
+export { exploreRunPlanArg, exploreSystemPrompt } from "./explore-helpers.js";
 
 import {
   abortError,

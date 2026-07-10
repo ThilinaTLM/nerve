@@ -533,14 +533,14 @@ function jiraActionFromToolName(
 function hasJiraOutcome(view: JiraView): boolean {
   return Boolean(
     view.messageLines.length > 0 ||
-      view.issues.length > 0 ||
-      view.users.length > 0 ||
-      view.issue ||
-      view.project ||
-      view.transitions.length > 0 ||
-      view.fields.length > 0 ||
-      view.commentId ||
-      view.updatedFieldCount !== undefined ||
-      view.dryRun,
+    view.issues.length > 0 ||
+    view.users.length > 0 ||
+    view.issue ||
+    view.project ||
+    view.transitions.length > 0 ||
+    view.fields.length > 0 ||
+    view.commentId ||
+    view.updatedFieldCount !== undefined ||
+    view.dryRun,
   );
 }

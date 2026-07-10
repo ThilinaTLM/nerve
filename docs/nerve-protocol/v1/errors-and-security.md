@@ -44,66 +44,66 @@ Requirements:
 
 ### Protocol and parsing
 
-| Code | Retryable | Meaning |
-| --- | --- | --- |
-| `INVALID_JSON` | false | Frame/body could not be parsed as JSON. |
-| `INVALID_MESSAGE` | false | Envelope or payload failed protocol validation. |
-| `UNKNOWN_MESSAGE_KIND` | false | Receiver does not recognize `kind`. |
-| `PROTOCOL_VERSION_UNSUPPORTED` | false | Unsupported `version`. |
-| `CAPABILITY_REQUIRED` | false | Required capability is missing. |
-| `CAPABILITY_NOT_NEGOTIATED` | false | Peer used an unaccepted capability. |
-| `MESSAGE_TOO_LARGE` | false | Message exceeds configured size limits. |
-| `RATE_LIMITED` | true | Peer is sending too many messages. |
+| Code                           | Retryable | Meaning                                         |
+| ------------------------------ | --------- | ----------------------------------------------- |
+| `INVALID_JSON`                 | false     | Frame/body could not be parsed as JSON.         |
+| `INVALID_MESSAGE`              | false     | Envelope or payload failed protocol validation. |
+| `UNKNOWN_MESSAGE_KIND`         | false     | Receiver does not recognize `kind`.             |
+| `PROTOCOL_VERSION_UNSUPPORTED` | false     | Unsupported `version`.                          |
+| `CAPABILITY_REQUIRED`          | false     | Required capability is missing.                 |
+| `CAPABILITY_NOT_NEGOTIATED`    | false     | Peer used an unaccepted capability.             |
+| `MESSAGE_TOO_LARGE`            | false     | Message exceeds configured size limits.         |
+| `RATE_LIMITED`                 | true      | Peer is sending too many messages.              |
 
 ### Session and transport
 
-| Code | Retryable | Meaning |
-| --- | --- | --- |
-| `SESSION_REJECTED` | maybe | Server refused the protocol session. |
-| `SESSION_EXPIRED` | true | Session is no longer valid; reconnect. |
-| `SESSION_NOT_FOUND` | true | Referenced session is unknown or already closed. |
-| `TRANSPORT_UNAVAILABLE` | true | Transport cannot currently carry the message. |
-| `HEARTBEAT_TIMEOUT` | true | Liveness timeout occurred. |
-| `SERVER_SHUTTING_DOWN` | true | Orchestrator is shutting down. |
-| `SERVER_BUSY` | true | Orchestrator is overloaded. |
+| Code                    | Retryable | Meaning                                          |
+| ----------------------- | --------- | ------------------------------------------------ |
+| `SESSION_REJECTED`      | maybe     | Server refused the protocol session.             |
+| `SESSION_EXPIRED`       | true      | Session is no longer valid; reconnect.           |
+| `SESSION_NOT_FOUND`     | true      | Referenced session is unknown or already closed. |
+| `TRANSPORT_UNAVAILABLE` | true      | Transport cannot currently carry the message.    |
+| `HEARTBEAT_TIMEOUT`     | true      | Liveness timeout occurred.                       |
+| `SERVER_SHUTTING_DOWN`  | true      | Orchestrator is shutting down.                   |
+| `SERVER_BUSY`           | true      | Orchestrator is overloaded.                      |
 
 ### Authentication and authorization
 
-| Code | Retryable | Meaning |
-| --- | --- | --- |
-| `AUTH_REQUIRED` | maybe | Missing authentication. |
-| `AUTH_INVALID` | maybe | Authentication material is invalid. |
-| `AUTH_EXPIRED` | true | Authentication expired and can be refreshed. |
-| `AUTH_FORBIDDEN` | false | Authenticated peer lacks permission. |
-| `ORIGIN_FORBIDDEN` | false | Origin is not allowed. |
-| `POLICY_DENIED` | false | Operation denied by Nerve policy. |
+| Code               | Retryable | Meaning                                      |
+| ------------------ | --------- | -------------------------------------------- |
+| `AUTH_REQUIRED`    | maybe     | Missing authentication.                      |
+| `AUTH_INVALID`     | maybe     | Authentication material is invalid.          |
+| `AUTH_EXPIRED`     | true      | Authentication expired and can be refreshed. |
+| `AUTH_FORBIDDEN`   | false     | Authenticated peer lacks permission.         |
+| `ORIGIN_FORBIDDEN` | false     | Origin is not allowed.                       |
+| `POLICY_DENIED`    | false     | Operation denied by Nerve policy.            |
 
 ### Replay and event stream
 
-| Code | Retryable | Meaning |
-| --- | --- | --- |
-| `REPLAY_UNAVAILABLE` | maybe | Requested replay cannot be served. |
-| `CURSOR_TOO_OLD` | false | Cursor is older than retention; snapshot needed. |
-| `CURSOR_AHEAD_OF_SERVER` | false | Client cursor is incompatible with server state. |
-| `STREAM_NOT_FOUND` | false | Requested stream does not exist. |
-| `EVENT_GAP_DETECTED` | true | Receiver detected a sequence gap. |
-| `ACK_INVALID` | false | Ack cursor is invalid or malformed. |
-| `RESYNC_REQUIRED` | true | Client must reload snapshot or reconnect. |
+| Code                     | Retryable | Meaning                                          |
+| ------------------------ | --------- | ------------------------------------------------ |
+| `REPLAY_UNAVAILABLE`     | maybe     | Requested replay cannot be served.               |
+| `CURSOR_TOO_OLD`         | false     | Cursor is older than retention; snapshot needed. |
+| `CURSOR_AHEAD_OF_SERVER` | false     | Client cursor is incompatible with server state. |
+| `STREAM_NOT_FOUND`       | false     | Requested stream does not exist.                 |
+| `EVENT_GAP_DETECTED`     | true      | Receiver detected a sequence gap.                |
+| `ACK_INVALID`            | false     | Ack cursor is invalid or malformed.              |
+| `RESYNC_REQUIRED`        | true      | Client must reload snapshot or reconnect.        |
 
 ### Request/response and domain
 
-| Code | Retryable | Meaning |
-| --- | --- | --- |
-| `METHOD_NOT_FOUND` | false | Protocol request method is unknown. |
-| `VALIDATION_FAILED` | false | Request params failed validation. |
-| `DOMAIN_VALIDATION_FAILED` | false | Domain-specific validation failed. |
-| `RESOURCE_NOT_FOUND` | false | Requested resource does not exist. |
-| `CONFLICT` | maybe | Operation conflicts with current state. |
-| `IDEMPOTENCY_CONFLICT` | false | Idempotency key reused with different params. |
-| `OPERATION_CANCELLED` | maybe | Operation was cancelled. |
-| `OPERATION_TIMEOUT` | true | Operation timed out. |
-| `INTERNAL_ERROR` | true | Unexpected server error. |
-| `SERVICE_UNAVAILABLE` | true | Required service is unavailable. |
+| Code                       | Retryable | Meaning                                       |
+| -------------------------- | --------- | --------------------------------------------- |
+| `METHOD_NOT_FOUND`         | false     | Protocol request method is unknown.           |
+| `VALIDATION_FAILED`        | false     | Request params failed validation.             |
+| `DOMAIN_VALIDATION_FAILED` | false     | Domain-specific validation failed.            |
+| `RESOURCE_NOT_FOUND`       | false     | Requested resource does not exist.            |
+| `CONFLICT`                 | maybe     | Operation conflicts with current state.       |
+| `IDEMPOTENCY_CONFLICT`     | false     | Idempotency key reused with different params. |
+| `OPERATION_CANCELLED`      | maybe     | Operation was cancelled.                      |
+| `OPERATION_TIMEOUT`        | true      | Operation timed out.                          |
+| `INTERNAL_ERROR`           | true      | Unexpected server error.                      |
+| `SERVICE_UNAVAILABLE`      | true      | Required service is unavailable.              |
 
 Implementations MAY add domain-specific codes, but common client behavior SHOULD be based on this registry where possible.
 

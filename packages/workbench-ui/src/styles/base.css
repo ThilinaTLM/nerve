@@ -73,11 +73,9 @@
     *::before,
     *::after {
       scroll-behavior: auto;
-      /* biome-ignore lint/complexity/noImportantStyles: reduced-motion must win */
+      /* Reduced-motion overrides must win. */
       transition-duration: 0.01ms !important;
-      /* biome-ignore lint/complexity/noImportantStyles: reduced-motion must win */
       animation-duration: 0.01ms !important;
-      /* biome-ignore lint/complexity/noImportantStyles: reduced-motion must win */
       animation-iteration-count: 1 !important;
     }
   }

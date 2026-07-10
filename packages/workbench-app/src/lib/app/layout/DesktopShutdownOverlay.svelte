@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { desktopRuntime, desktopShutdownState } from "$lib/features/desktop";
+import { desktopRuntime, desktopShutdownState } from "$lib/features/desktop";
 
-  const desktopQuitting = $derived(
-    desktopRuntime.quitting || desktopShutdownState.quitRequested,
-  );
+const desktopQuitting = $derived(
+  desktopRuntime.quitting || desktopShutdownState.quitRequested,
+);
 </script>
 
 {#if desktopRuntime.isDesktop && desktopQuitting}

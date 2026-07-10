@@ -1,17 +1,15 @@
 <script lang="ts">
-  import type { Component } from "svelte";
+import type { Component } from "svelte";
 
-  export type StatItem = {
-    label: string;
-    value: string | number;
-    icon: Component;
-    tone?: string;
-  };
+export type StatItem = {
+  label: string;
+  value: string | number;
+  icon: Component;
+  tone?: string;
+};
 
-  let {
-    items,
-    class: className = "",
-  }: { items: StatItem[]; class?: string } = $props();
+let { items, class: className = "" }: { items: StatItem[]; class?: string } =
+  $props();
 </script>
 
 <div
@@ -24,7 +22,9 @@
         index > 0 ? "border-l" : ""
       }`}
     >
-      <Icon class={`size-4 flex-none ${item.tone ?? "text-muted-foreground"}`} />
+      <Icon
+        class={`size-4 flex-none ${item.tone ?? "text-muted-foreground"}`}
+      />
       <span class="text-sm font-semibold tabular-nums">{item.value}</span>
       <span class="truncate text-xs text-muted-foreground">{item.label}</span>
     </div>

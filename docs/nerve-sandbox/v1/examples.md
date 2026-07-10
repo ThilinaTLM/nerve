@@ -645,8 +645,18 @@ A config-loaded event reports effective status without secrets:
       "github": { "configured": true, "status": "completed" }
     },
     "toolGroups": [
-      { "group": "fileInspection", "configured": true, "active": true, "tools": ["read", "ls", "find", "grep"] },
-      { "group": "shell", "configured": true, "active": true, "tools": ["bash"] }
+      {
+        "group": "fileInspection",
+        "configured": true,
+        "active": true,
+        "tools": ["read", "ls", "find", "grep"]
+      },
+      {
+        "group": "shell",
+        "configured": true,
+        "active": true,
+        "tools": ["bash"]
+      }
     ]
   }
 }
@@ -703,14 +713,33 @@ The response includes resolved identifiers:
     { "path": "/workspace/AGENTS.md", "digest": "sha256:def456" }
   ],
   "skills": [
-    { "name": "agent-browser", "source": "builtin", "path": "/agent/skills/agent-browser/SKILL.md", "modelVisible": true },
-    { "name": "review", "source": "workspace", "path": "/workspace/.agents/skills/review/SKILL.md", "modelVisible": true }
+    {
+      "name": "agent-browser",
+      "source": "builtin",
+      "path": "/agent/skills/agent-browser/SKILL.md",
+      "modelVisible": true
+    },
+    {
+      "name": "review",
+      "source": "workspace",
+      "path": "/workspace/.agents/skills/review/SKILL.md",
+      "modelVisible": true
+    }
   ],
   "conversations": [
-    { "conversationId": "conv_001", "status": "active", "agentIds": ["agent_main"] }
+    {
+      "conversationId": "conv_001",
+      "status": "active",
+      "agentIds": ["agent_main"]
+    }
   ],
   "runs": [
-    { "conversationId": "conv_001", "agentId": "agent_main", "runId": "run_001", "status": "completed" }
+    {
+      "conversationId": "conv_001",
+      "agentId": "agent_main",
+      "runId": "run_001",
+      "status": "completed"
+    }
   ],
   "cursor": {
     "streams": [{ "stream": "global", "processedSeq": 42 }]

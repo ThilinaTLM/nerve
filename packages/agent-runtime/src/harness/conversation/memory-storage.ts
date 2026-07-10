@@ -15,8 +15,7 @@ import { uuidv7 } from "./uuid.js";
 
 export class InMemoryConversationStorage<
   TMetadata extends ConversationMetadata = ConversationMetadata,
-> implements ConversationStorage<TMetadata>
-{
+> implements ConversationStorage<TMetadata> {
   private readonly metadata: TMetadata;
   private entries: ConversationTreeEntry[];
   private byId: Map<string, ConversationTreeEntry>;

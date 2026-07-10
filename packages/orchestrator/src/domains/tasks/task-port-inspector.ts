@@ -288,7 +288,7 @@ function parseIpv6ProcAddress(hex: string): string | undefined {
 function compressIpv6(groups: string[]): string {
   let bestStart = -1;
   let bestLength = 0;
-  for (let i = 0; i < groups.length; ) {
+  for (let i = 0; i < groups.length;) {
     if (groups[i] !== "0") {
       i += 1;
       continue;

@@ -94,13 +94,9 @@ export class GitService {
   async repoRemoteState(
     repoDir: string,
   ): Promise<{ hasRemote: boolean; hasGithubRemote: boolean }> {
-    let hasRemote = false;
-    try {
-      hasRemote =
-        (await this.runGit(repoDir, ["remote"])).stdout.trim().length > 0;
-    } catch {
-      hasRemote = false;
-    }
+    const hasRemote = await this.runGit(repoDir, ["remote"])
+      .then(({ stdout }) => stdout.trim().length > 0)
+      .catch(() => false);
     if (!hasRemote) return { hasRemote: false, hasGithubRemote: false };
 
     try {
@@ -532,34 +528,28 @@ export class GitService {
     }
 
     const baseBranch = await this.detectBaseBranch(repoDir);
-    let localBaseExists = false;
-    try {
-      await this.runGit(repoDir, [
-        "rev-parse",
-        "--verify",
-        "--quiet",
-        `refs/heads/${baseBranch}`,
-      ]);
-      localBaseExists = true;
-    } catch {
-      localBaseExists = false;
-    }
+    const localBaseExists = await this.runGit(repoDir, [
+      "rev-parse",
+      "--verify",
+      "--quiet",
+      `refs/heads/${baseBranch}`,
+    ]).then(
+      () => true,
+      () => false,
+    );
 
     if (localBaseExists) {
       await this.mapGit(() => this.runGit(repoDir, ["switch", baseBranch]));
     } else {
-      let remoteBaseExists = false;
-      try {
-        await this.runGit(repoDir, [
-          "rev-parse",
-          "--verify",
-          "--quiet",
-          `refs/remotes/origin/${baseBranch}`,
-        ]);
-        remoteBaseExists = true;
-      } catch {
-        remoteBaseExists = false;
-      }
+      const remoteBaseExists = await this.runGit(repoDir, [
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        `refs/remotes/origin/${baseBranch}`,
+      ]).then(
+        () => true,
+        () => false,
+      );
       if (!remoteBaseExists) {
         throw new HttpError(
           404,

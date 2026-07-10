@@ -50,20 +50,16 @@ export async function taskCancelFromTool(
     }),
     reason: optionalStringArg(args.reason),
   };
-  let targets: TaskRecord[] = [];
-  let ambiguity = false;
-  if (taskRef) {
-    targets = [this.resolveTaskReference(taskRef, toolCall)];
-  } else if (groupId) {
-    targets = this.tasksInScope(toolCall).filter(
-      (task) => task.groupId === groupId && isActiveTaskStatus(task.status),
-    );
-  } else {
-    targets = this.tasksInScope(toolCall).filter((task) =>
-      isActiveTaskStatus(task.status),
-    );
-    ambiguity = targets.length > 1;
-  }
+  const targets = taskRef
+    ? [this.resolveTaskReference(taskRef, toolCall)]
+    : groupId
+      ? this.tasksInScope(toolCall).filter(
+          (task) => task.groupId === groupId && isActiveTaskStatus(task.status),
+        )
+      : this.tasksInScope(toolCall).filter((task) =>
+          isActiveTaskStatus(task.status),
+        );
+  const ambiguity = !taskRef && !groupId && targets.length > 1;
   if (ambiguity) {
     const text = [
       `Multiple active tasks found (${targets.length}); no tasks cancelled.`,

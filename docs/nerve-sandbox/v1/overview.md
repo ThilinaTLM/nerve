@@ -156,32 +156,32 @@ Sandbox v1 does not define:
 
 ## Terminology
 
-| Term | Meaning |
-| --- | --- |
-| Sandbox | One configured agent runtime instance, usually one container. |
-| Sandbox daemon | The process inside the container that loads config, applies Git/GitHub setup, runs boot, manages the agent harness and tools, journals state, refreshes configured credentials, and connects to the controller. |
-| Manager/controller | The external API/service peer that authenticates users/services, starts sandboxes, provides config/credentials, sends commands, receives events, exposes frontend APIs, and owns product-specific persistence/UI integration. Baseline package: `packages/sandbox-manager`. |
-| Sandbox agent image | The container image/runtime package that contains `/agent`, the sandbox daemon, agent runtime, tools, and built-in skills. Baseline package: `packages/sandbox-runtime`. |
-| Sandbox-manager UI | A dedicated `packages/sandbox-manager-app` app that connects to the manager to observe and operate sandboxes. |
-| Workspace | The writable project directory mounted at `/workspace`. Agent file tools operate here by default. |
-| State store | Durable directory mounted at `/state`; contains journals, checkpoints, refreshed credentials, run/conversation/agent state, skills metadata, and transcripts. |
-| Conversation | A durable thread of agent/user/tool interaction. A sandbox commonly starts with one conversation but the state model allows more. |
-| Agent instance | A configured main agent or subagent participating in a conversation. |
-| Run | A durable agent activity started by a controller command. A run may contain multiple turns, tool calls, waits, and continuations. |
-| Turn | One model/tool loop segment inside a run. |
-| Steering | Additional user/controller input delivered while a run is active. |
-| Checkpoint | A durable snapshot of run state sufficient to resume or report a stable waiting/terminal/error state. |
-| Tool group | A named set of model-callable tools plus group-level policy, such as `web`, `jira`, `confluence`, `shell`, `python`, or `explore`. |
-| Secret store | A configured service, usually manager-owned, that accepts a key and returns a secret value. |
-| Credential bundle | A secret provider credential, such as an API key, bearer token, OAuth access/refresh token pair, SSH key, GPG key, or JSON OAuth bundle. |
-| Refreshable credential | A credential bundle with enough refresh material for the sandbox to obtain a new access token without interactive login. |
-| Git/GitHub setup | First-class startup configuration for repository checkout, identity, signing, remotes, and GitHub CLI/API auth. |
-| Boot phase | Ordered startup script defined in YAML and run after secret resolver initialization plus Git/GitHub setup, before the daemon accepts work. |
-| Package registry access | Network/firewall and credential policy that permits npm, PyPI, Maven, Cargo, Go, RubyGems, NuGet, or other dependency downloads during boot/tool execution. |
-| Context file | A project instruction file such as `AGENTS.md` loaded into the prompt context. |
-| Skill | A `SKILL.md` prompt-resource file loaded from configured search paths and listed in `<available_skills>`. |
-| Build-time customization | Creating a derived image with pinned packages, tools, and built-in skills before runtime. |
-| Runtime customization | YAML configuration, environment variables, mounted secrets, mounted skills, credential refs, secret stores, and optional boot phases. |
+| Term                     | Meaning                                                                                                                                                                                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sandbox                  | One configured agent runtime instance, usually one container.                                                                                                                                                                                                               |
+| Sandbox daemon           | The process inside the container that loads config, applies Git/GitHub setup, runs boot, manages the agent harness and tools, journals state, refreshes configured credentials, and connects to the controller.                                                             |
+| Manager/controller       | The external API/service peer that authenticates users/services, starts sandboxes, provides config/credentials, sends commands, receives events, exposes frontend APIs, and owns product-specific persistence/UI integration. Baseline package: `packages/sandbox-manager`. |
+| Sandbox agent image      | The container image/runtime package that contains `/agent`, the sandbox daemon, agent runtime, tools, and built-in skills. Baseline package: `packages/sandbox-runtime`.                                                                                                    |
+| Sandbox-manager UI       | A dedicated `packages/sandbox-manager-app` app that connects to the manager to observe and operate sandboxes.                                                                                                                                                               |
+| Workspace                | The writable project directory mounted at `/workspace`. Agent file tools operate here by default.                                                                                                                                                                           |
+| State store              | Durable directory mounted at `/state`; contains journals, checkpoints, refreshed credentials, run/conversation/agent state, skills metadata, and transcripts.                                                                                                               |
+| Conversation             | A durable thread of agent/user/tool interaction. A sandbox commonly starts with one conversation but the state model allows more.                                                                                                                                           |
+| Agent instance           | A configured main agent or subagent participating in a conversation.                                                                                                                                                                                                        |
+| Run                      | A durable agent activity started by a controller command. A run may contain multiple turns, tool calls, waits, and continuations.                                                                                                                                           |
+| Turn                     | One model/tool loop segment inside a run.                                                                                                                                                                                                                                   |
+| Steering                 | Additional user/controller input delivered while a run is active.                                                                                                                                                                                                           |
+| Checkpoint               | A durable snapshot of run state sufficient to resume or report a stable waiting/terminal/error state.                                                                                                                                                                       |
+| Tool group               | A named set of model-callable tools plus group-level policy, such as `web`, `jira`, `confluence`, `shell`, `python`, or `explore`.                                                                                                                                          |
+| Secret store             | A configured service, usually manager-owned, that accepts a key and returns a secret value.                                                                                                                                                                                 |
+| Credential bundle        | A secret provider credential, such as an API key, bearer token, OAuth access/refresh token pair, SSH key, GPG key, or JSON OAuth bundle.                                                                                                                                    |
+| Refreshable credential   | A credential bundle with enough refresh material for the sandbox to obtain a new access token without interactive login.                                                                                                                                                    |
+| Git/GitHub setup         | First-class startup configuration for repository checkout, identity, signing, remotes, and GitHub CLI/API auth.                                                                                                                                                             |
+| Boot phase               | Ordered startup script defined in YAML and run after secret resolver initialization plus Git/GitHub setup, before the daemon accepts work.                                                                                                                                  |
+| Package registry access  | Network/firewall and credential policy that permits npm, PyPI, Maven, Cargo, Go, RubyGems, NuGet, or other dependency downloads during boot/tool execution.                                                                                                                 |
+| Context file             | A project instruction file such as `AGENTS.md` loaded into the prompt context.                                                                                                                                                                                              |
+| Skill                    | A `SKILL.md` prompt-resource file loaded from configured search paths and listed in `<available_skills>`.                                                                                                                                                                   |
+| Build-time customization | Creating a derived image with pinned packages, tools, and built-in skills before runtime.                                                                                                                                                                                   |
+| Runtime customization    | YAML configuration, environment variables, mounted secrets, mounted skills, credential refs, secret stores, and optional boot phases.                                                                                                                                       |
 
 ## Layering model
 
@@ -252,4 +252,3 @@ A conforming Sandbox v1 implementation MUST preserve these invariants:
 
 14. **Frontend control is manager-mediated**
     - Web UIs, CLIs, and external clients SHOULD control sandboxes through the sandbox manager. They MUST NOT receive raw secrets or directly bypass sandbox daemon policy.
-

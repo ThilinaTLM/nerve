@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Shared reducer covers the full live conversation event surface.
+/* eslint-disable max-lines -- Shared reducer covers the full live conversation event surface. */
 import type {
   ConversationActiveRunSnapshot,
   ConversationCompactionFailedData,

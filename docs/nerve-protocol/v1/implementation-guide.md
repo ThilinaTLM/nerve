@@ -17,7 +17,6 @@ The implementation should preserve these strengths while replacing ad-hoc WebSoc
 
 Current implementation status is tracked in `implementation-status.md`. The active implementation uses a clean Protocol v1 `/ws`, cursor-bearing snapshot endpoints, and selected `/api/protocol/v1` HTTP methods while leaving binary, secret, OAuth, upload, export, and large file flows out-of-band.
 
-
 ## Proposed shared package layout
 
 Protocol schemas should live in `packages/contracts` so orchestrator, UI, desktop, CLI, and tests use the same types.
@@ -414,8 +413,8 @@ Recommended first transient policy:
 For documentation-only changes, no build is required. For future schema/runtime implementation, use the project checks:
 
 ```bash
+pnpm fix
 pnpm check
-pnpm lint
 pnpm test
 ```
 

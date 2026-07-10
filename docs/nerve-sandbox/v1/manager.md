@@ -6,22 +6,21 @@ The intended package is `packages/sandbox-manager`.
 
 ## Responsibilities
 
-| Area | Manager responsibility | Sandbox responsibility |
-| --- | --- | --- |
-| User/API auth | Authenticate users, services, and frontend clients. | Trust only configured controller transport auth. |
-| Authorization | Decide which images, repositories, providers, tools, secrets, and container backends may be used. | Enforce the validated sandbox YAML and runtime policy locally. |
-| Container lifecycle | Create, start, inspect, stop, remove, restart, and garbage-collect containers/tasks. | Self-terminate on prolonged manager/controller disconnect. |
-| Config materialization | Generate or validate YAML, mount it read-only, set safe env vars. | Load, validate, digest, and apply YAML. |
-| Secrets | Store manager-owned secret values and serve them through a built-in KV API or mounted secret files. | Resolve `SecretRef`s lazily, inject narrowly, redact aggressively. |
-| Workspace/state volumes | Create and attach workspace, state, secret, and credential mounts. | Use `/workspace`, `/state`, `/secrets`, `/credentials` according to policy. |
-| Protocol API/WS | Expose Nerve Protocol-compatible HTTP/WebSocket endpoints to frontend clients and sandbox daemons. | Connect to the configured controller WebSocket and exchange protocol messages. |
-| Durable product state | Persist sandbox records, desired lifecycle, user-facing metadata, processed event cursors. | Persist local command/event journals, checkpoints, transcripts, and protected credential state. |
-| Tool execution | Never execute model tools directly. | Execute tools through sandbox daemon policy and container boundaries. |
+| Area                    | Manager responsibility                                                                              | Sandbox responsibility                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| User/API auth           | Authenticate users, services, and frontend clients.                                                 | Trust only configured controller transport auth.                                                |
+| Authorization           | Decide which images, repositories, providers, tools, secrets, and container backends may be used.   | Enforce the validated sandbox YAML and runtime policy locally.                                  |
+| Container lifecycle     | Create, start, inspect, stop, remove, restart, and garbage-collect containers/tasks.                | Self-terminate on prolonged manager/controller disconnect.                                      |
+| Config materialization  | Generate or validate YAML, mount it read-only, set safe env vars.                                   | Load, validate, digest, and apply YAML.                                                         |
+| Secrets                 | Store manager-owned secret values and serve them through a built-in KV API or mounted secret files. | Resolve `SecretRef`s lazily, inject narrowly, redact aggressively.                              |
+| Workspace/state volumes | Create and attach workspace, state, secret, and credential mounts.                                  | Use `/workspace`, `/state`, `/secrets`, `/credentials` according to policy.                     |
+| Protocol API/WS         | Expose Nerve Protocol-compatible HTTP/WebSocket endpoints to frontend clients and sandbox daemons.  | Connect to the configured controller WebSocket and exchange protocol messages.                  |
+| Durable product state   | Persist sandbox records, desired lifecycle, user-facing metadata, processed event cursors.          | Persist local command/event journals, checkpoints, transcripts, and protected credential state. |
+| Tool execution          | Never execute model tools directly.                                                                 | Execute tools through sandbox daemon policy and container boundaries.                           |
 
 The manager MUST NOT rely on prompt instructions, `AGENTS.md`, or skills for authorization. The manager MAY impose stricter policy than the sandbox YAML requests.
 
 The manager may serve the dedicated sandbox-manager web UI when `NERVE_SANDBOX_MANAGER_SERVE_WEB_UI` is enabled. Static assets are resolved from an explicit `NERVE_SANDBOX_MANAGER_WEB_DIST`, bundled `dist/web`, or workspace `packages/sandbox-manager-app/dist`. Remote deployments should place an authenticated reverse proxy in front of the manager; the built-in browser cookie flow is loopback-oriented.
-
 
 ## Topology
 
@@ -92,7 +91,12 @@ type ManagedSandboxRecord = {
     | "failed"
     | "removed";
   lifecycleUpdatedAt?: string;
-  daemon?: { connectedAt?: string; readyAt?: string; sessionId?: string; lastHeartbeatAt?: string };
+  daemon?: {
+    connectedAt?: string;
+    readyAt?: string;
+    sessionId?: string;
+    lastHeartbeatAt?: string;
+  };
   configDigest?: string;
   workspaceRef: VolumeRef;
   stateRef: VolumeRef;
@@ -172,13 +176,11 @@ PostgreSQL stores sandbox records, materialized config JSON, event intake, sessi
 
 Manager-owned tables are split by use case: `sandbox` contains sandbox records, event/session state, and runtime volume refs; `identity` contains encrypted secret envelopes, secret policies, credential profiles, profile-owned secret mappings, OAuth flows, and credential refresh records; `manager` contains cross-cutting idempotency and audit records. Secret values are encrypted by the manager before being written to PostgreSQL and are never returned by public APIs. Credential profiles are manager-owned records for model providers, GitHub, Jira, Confluence, and web providers. Profile-owned secrets are exposed to sandboxes only as manager KV refs; when a profile is OAuth-backed, the manager refreshes the underlying credential before returning current access material to the sandbox and includes `expiresAt`/`refreshAfter` cache metadata in the resolve response.
 
-
 Runtime filesystems remain container-backend specific:
 
 - Docker/Podman use local bind directories or named volumes for `/workspace`, `/state`, config, and protected controller-token materialization.
 - ECS/Fargate uses EFS mounts for live writable `/workspace`, `/state`, and `/tmp` filesystem semantics; the manager must mount the same EFS filesystem to materialize config/token files and serve workspace previews.
 - S3-backed file storage may be used only through an explicit mount/sync adapter or for seed/snapshot file flows; plain object storage is not a direct POSIX replacement for live agent state.
-
 
 ## Container runtime driver contract
 
@@ -191,7 +193,10 @@ type ContainerRuntimeDriver = {
   create(spec: ManagedContainerCreateSpec): Promise<ManagedContainerRef>;
   start(ref: ManagedContainerRef): Promise<void>;
   inspect(ref: ManagedContainerRef): Promise<ManagedContainerStatus>;
-  logs(ref: ManagedContainerRef, options: LogReadOptions): AsyncIterable<LogChunk>;
+  logs(
+    ref: ManagedContainerRef,
+    options: LogReadOptions,
+  ): AsyncIterable<LogChunk>;
   stop(ref: ManagedContainerRef, options: StopOptions): Promise<void>;
   kill(ref: ManagedContainerRef, signal?: string): Promise<void>;
   remove(ref: ManagedContainerRef, options: RemoveOptions): Promise<void>;
@@ -221,9 +226,14 @@ type ManagedContainerCreateSpec = {
 };
 
 type RuntimeNetworkSpec = {
-  mode: "bridge" | "none" | "host" | "container" | "pod" | "ecs-awsvpc" | string;
+  mode:
+    "bridge" | "none" | "host" | "container" | "pod" | "ecs-awsvpc" | string;
   aliases?: string[];
-  ports?: Array<{ containerPort: number; hostPort?: number; protocol?: "tcp" | "udp" }>;
+  ports?: Array<{
+    containerPort: number;
+    hostPort?: number;
+    protocol?: "tcp" | "udp";
+  }>;
   egressPolicyRef?: string;
 };
 

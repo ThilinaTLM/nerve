@@ -30,12 +30,12 @@ Nerve Protocol v1 treats backpressure as an application-level concern. Transport
 
 A session's flow mode describes delivery quality for a stream or the whole session.
 
-| Mode | Meaning | Client behavior |
-| --- | --- | --- |
-| `normal` | Live delivery is healthy. | Apply batches and ack normally. |
-| `catching_up` | Client is behind, but durable replay/live catchup is in progress. | Prioritize ordered durable processing; UI may show syncing state. |
-| `degraded` | Transient events may be dropped/coalesced, but durable state remains valid. | Continue applying durable events; reduce expensive rendering if possible. |
-| `resync_required` | Server cannot guarantee continuity for this session. | Stop applying affected durable stream; load snapshot or reconnect as instructed. |
+| Mode              | Meaning                                                                     | Client behavior                                                                  |
+| ----------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `normal`          | Live delivery is healthy.                                                   | Apply batches and ack normally.                                                  |
+| `catching_up`     | Client is behind, but durable replay/live catchup is in progress.           | Prioritize ordered durable processing; UI may show syncing state.                |
+| `degraded`        | Transient events may be dropped/coalesced, but durable state remains valid. | Continue applying durable events; reduce expensive rendering if possible.        |
+| `resync_required` | Server cannot guarantee continuity for this session.                        | Stop applying affected durable stream; load snapshot or reconnect as instructed. |
 
 ## `flow.update`
 
@@ -121,16 +121,16 @@ Recommended queue categories:
 
 Recommended initial limits per session:
 
-| Limit | Default |
-| --- | ---: |
-| Max queued durable events before catchup mode | 1,000 |
-| Max queued durable events before resync consideration | 10,000 |
-| Max queued transient events | 2,000 |
-| Max queued encoded bytes | 16 MiB |
-| Max unacked durable events | 5,000 |
-| Max unacked encoded bytes | 32 MiB |
-| Max replay batch size target | 1 MiB |
-| Max replay events per batch | 1,000 |
+| Limit                                                 | Default |
+| ----------------------------------------------------- | ------: |
+| Max queued durable events before catchup mode         |   1,000 |
+| Max queued durable events before resync consideration |  10,000 |
+| Max queued transient events                           |   2,000 |
+| Max queued encoded bytes                              |  16 MiB |
+| Max unacked durable events                            |   5,000 |
+| Max unacked encoded bytes                             |  32 MiB |
+| Max replay batch size target                          |   1 MiB |
+| Max replay events per batch                           |   1,000 |
 
 These are recommended starting points. Implementations SHOULD tune using real event volumes and UI rendering measurements.
 
@@ -140,11 +140,11 @@ For transports that expose buffered bytes, such as WebSocket implementations wit
 
 Recommended WebSocket thresholds:
 
-| State | Threshold |
-| --- | ---: |
-| Normal | `< 1 MiB` buffered |
-| Warning | `>= 1 MiB` buffered |
-| High | `>= 8 MiB` buffered |
+| State    |            Threshold |
+| -------- | -------------------: |
+| Normal   |   `< 1 MiB` buffered |
+| Warning  |  `>= 1 MiB` buffered |
+| High     |  `>= 8 MiB` buffered |
 | Critical | `>= 32 MiB` buffered |
 
 Suggested behavior:
@@ -167,11 +167,11 @@ Ack lag indicates how far the client is behind in durable application processing
 
 Recommended thresholds:
 
-| State | Ack lag |
-| --- | ---: |
-| Normal | `< 500` durable events |
-| Catching up | `>= 500` durable events |
-| Degraded | `>= 2,000` durable events or slow growth over time |
+| State                |                                                  Ack lag |
+| -------------------- | -------------------------------------------------------: |
+| Normal               |                                   `< 500` durable events |
+| Catching up          |                                  `>= 500` durable events |
+| Degraded             |       `>= 2,000` durable events or slow growth over time |
 | Resync consideration | `>= 10,000` durable events or queue byte limits exceeded |
 
 Ack lag thresholds SHOULD be adjusted by event size and domain. A few huge events may be more expensive than thousands of small status events.

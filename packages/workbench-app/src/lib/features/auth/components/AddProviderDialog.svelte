@@ -1,56 +1,55 @@
 <script lang="ts">
-  import ExternalLink from "@lucide/svelte/icons/external-link";
-  import KeyRound from "@lucide/svelte/icons/key-round";
-  import Loader from "@lucide/svelte/icons/loader-circle";
-  import Sparkles from "@lucide/svelte/icons/sparkles";
-  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import type { AuthProviderMetadata } from "$lib/api";
-  import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
-  import { Input } from "@nervekit/workbench-ui/components/ui/input";
-  import { AddProviderFlow } from "./add-provider-flow.svelte";
+import ExternalLink from "@lucide/svelte/icons/external-link";
+import KeyRound from "@lucide/svelte/icons/key-round";
+import Loader from "@lucide/svelte/icons/loader-circle";
+import Sparkles from "@lucide/svelte/icons/sparkles";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import type { AuthProviderMetadata } from "$lib/api";
+import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import Dialog from "@nervekit/workbench-ui/components/ui/dialog-shell";
+import { Input } from "@nervekit/workbench-ui/components/ui/input";
+import { AddProviderFlow } from "./add-provider-flow.svelte";
 
-  type Props = {
-    open?: boolean;
-    authProviders?: AuthProviderMetadata[];
-    kind?: "oauth" | "api_key" | "all";
-    excludeProviders?: string[];
-    onClose?: () => void;
-  };
+type Props = {
+  open?: boolean;
+  authProviders?: AuthProviderMetadata[];
+  kind?: "oauth" | "api_key" | "all";
+  excludeProviders?: string[];
+  onClose?: () => void;
+};
 
-  let {
-    open = $bindable(false),
-    authProviders = [],
-    kind = "all",
-    excludeProviders = [],
-    onClose,
-  }: Props = $props();
+let {
+  open = $bindable(false),
+  authProviders = [],
+  kind = "all",
+  excludeProviders = [],
+  onClose,
+}: Props = $props();
 
-  const flowController = new AddProviderFlow(() => {
-    open = false;
-    onClose?.();
-  });
+const flowController = new AddProviderFlow(() => {
+  open = false;
+  onClose?.();
+});
 
-  const excluded = $derived(new Set(excludeProviders));
-  const available = $derived(
-    [...authProviders]
-      .filter((provider) => {
-        if (provider.configured || excluded.has(provider.provider))
-          return false;
-        if (kind === "oauth") return provider.supportsOAuth;
-        if (kind === "api_key")
-          return provider.supportsApiKey && !provider.supportsOAuth;
-        return provider.supportsOAuth || provider.supportsApiKey;
-      })
-      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
-  );
+const excluded = $derived(new Set(excludeProviders));
+const available = $derived(
+  [...authProviders]
+    .filter((provider) => {
+      if (provider.configured || excluded.has(provider.provider)) return false;
+      if (kind === "oauth") return provider.supportsOAuth;
+      if (kind === "api_key")
+        return provider.supportsApiKey && !provider.supportsOAuth;
+      return provider.supportsOAuth || provider.supportsApiKey;
+    })
+    .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+);
 
-  function handleOpenChange(next: boolean) {
-    if (!next) {
-      void flowController.close();
-    }
+function handleOpenChange(next: boolean) {
+  if (!next) {
+    void flowController.close();
   }
+}
 </script>
 
 <Dialog
@@ -63,12 +62,18 @@
   <div class="add-provider-body">
     {#if flowController.step === "choose"}
       {#if available.length === 0}
-        <p class="add-provider-empty">All known providers are already connected.</p>
+        <p class="add-provider-empty">
+          All known providers are already connected.
+        </p>
       {:else}
         <ul class="provider-choices">
           {#each available as provider (provider.provider)}
             <li>
-              <button type="button" class="provider-choice" onclick={() => flowController.chooseProvider(provider)}>
+              <button
+                type="button"
+                class="provider-choice"
+                onclick={() => flowController.chooseProvider(provider)}
+              >
                 <span class="provider-choice-icon" aria-hidden="true">
                   {#if provider.supportsOAuth}
                     <Sparkles size={16} strokeWidth={2} />
@@ -124,7 +129,12 @@
           {/if}
 
           {#if flowController.flow.status === "auth_url" && flowController.flow.authUrl}
-            <Button variant="outline" onclick={() => flowController.flow?.authUrl && flowController.openExternal(flowController.flow.authUrl)}>
+            <Button
+              variant="outline"
+              onclick={() =>
+                flowController.flow?.authUrl &&
+                flowController.openExternal(flowController.flow.authUrl)}
+            >
               <ExternalLink size={15} strokeWidth={2} />
               Open login page
             </Button>
@@ -133,17 +143,30 @@
             {/if}
           {:else if flowController.flow.status === "device_code" && flowController.flow.deviceCode}
             <div class="device-code">
-              <Button variant="outline" onclick={() => flowController.flow?.deviceCode && flowController.openExternal(flowController.flow.deviceCode.verificationUri)}>
+              <Button
+                variant="outline"
+                onclick={() =>
+                  flowController.flow?.deviceCode &&
+                  flowController.openExternal(
+                    flowController.flow.deviceCode.verificationUri,
+                  )}
+              >
                 <ExternalLink size={15} strokeWidth={2} />
                 Open verification page
               </Button>
               <p class="oauth-hint">Enter this code:</p>
-              <code class="device-user-code">{flowController.flow.deviceCode.userCode}</code>
+              <code class="device-user-code"
+                >{flowController.flow.deviceCode.userCode}</code
+              >
             </div>
           {:else if flowController.flow.status === "select" && flowController.flow.options}
             <div class="oauth-options">
               {#each flowController.flow.options as option (option.id)}
-                <Button variant="outline" disabled={flowController.busy} onclick={() => void flowController.selectOption(option.id)}>
+                <Button
+                  variant="outline"
+                  disabled={flowController.busy}
+                  onclick={() => void flowController.selectOption(option.id)}
+                >
                   {option.label}
                 </Button>
               {/each}
@@ -157,7 +180,12 @@
               }}
             >
               {#if flowController.flow.authUrl}
-                <Button variant="outline" onclick={() => flowController.flow?.authUrl && flowController.openExternal(flowController.flow.authUrl)}>
+                <Button
+                  variant="outline"
+                  onclick={() =>
+                    flowController.flow?.authUrl &&
+                    flowController.openExternal(flowController.flow.authUrl)}
+                >
                   <ExternalLink size={15} strokeWidth={2} />
                   Open login page
                 </Button>
@@ -168,26 +196,38 @@
               <Input
                 type="text"
                 autocomplete="off"
-                placeholder={flowController.flow.placeholder ?? "Paste the code or redirect URL"}
+                placeholder={flowController.flow.placeholder ??
+                  "Paste the code or redirect URL"}
                 bind:value={flowController.promptValue}
                 disabled={flowController.busy}
               />
             </form>
           {:else if flowController.flow.status === "failed"}
             <div class="oauth-failed">
-              <p class="oauth-error-text">The login attempt ended before credentials were saved.</p>
+              <p class="oauth-error-text">
+                The login attempt ended before credentials were saved.
+              </p>
               <p class="oauth-hint">
-                Fix any proxy or certificate settings, then start a fresh login. Authorization codes are one-time and may be tied to the ended login attempt.
+                Fix any proxy or certificate settings, then start a fresh login.
+                Authorization codes are one-time and may be tied to the ended
+                login attempt.
                 {#if flowController.flow.provider === "openai-codex"}
-                  If local redirects are blocked, choose device-code login when prompted.
+                  If local redirects are blocked, choose device-code login when
+                  prompted.
                 {/if}
               </p>
-              <Button variant="outline" disabled={flowController.busy} onclick={() => void flowController.restartOAuth()}>
+              <Button
+                variant="outline"
+                disabled={flowController.busy}
+                onclick={() => void flowController.restartOAuth()}
+              >
                 Start a fresh login
               </Button>
             </div>
           {:else if flowController.flow.status === "succeeded"}
-            <p class="oauth-success">Connected to {flowController.flow.providerName}.</p>
+            <p class="oauth-success">
+              Connected to {flowController.flow.providerName}.
+            </p>
           {:else}
             <p class="oauth-progress">
               <Loader class="spin" size={16} strokeWidth={2} />
@@ -212,15 +252,23 @@
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => void flowController.close()}>Cancel</Button>
+    <Button variant="ghost" onclick={() => void flowController.close()}
+      >Cancel</Button
+    >
     {#if flowController.step === "api-key"}
-      <Button onclick={() => void flowController.submitApiKey()} disabled={flowController.busy || flowController.apiKey.trim().length === 0}>
+      <Button
+        onclick={() => void flowController.submitApiKey()}
+        disabled={flowController.busy ||
+          flowController.apiKey.trim().length === 0}
+      >
         {flowController.busy ? "Saving…" : "Save API key"}
       </Button>
     {:else if flowController.step === "oauth" && flowController.flow?.status === "prompt"}
       <Button
         onclick={() => void flowController.submitPrompt()}
-        disabled={flowController.busy || (!flowController.flow.allowEmpty && flowController.promptValue.trim().length === 0)}
+        disabled={flowController.busy ||
+          (!flowController.flow.allowEmpty &&
+            flowController.promptValue.trim().length === 0)}
       >
         Submit
       </Button>
@@ -229,167 +277,166 @@
 </Dialog>
 
 <style>
-  .add-provider-body {
-    display: grid;
-    gap: 1rem;
-    padding: 1rem 1.1rem;
-  }
+.add-provider-body {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+}
 
-  .add-provider-empty {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-sm);
-  }
+.add-provider-empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
 
-  .provider-choices {
-    display: grid;
-    gap: 0.4rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
+.provider-choices {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
-  .provider-choice {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--foreground);
-    padding: 0.65rem 0.75rem;
-    text-align: left;
-    cursor: pointer;
-  }
+.provider-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
 
-  .provider-choice:hover {
-    background: color-mix(in oklab, var(--accent) 45%, transparent);
-  }
+.provider-choice:hover {
+  background: color-mix(in oklab, var(--accent) 45%, transparent);
+}
 
-  .provider-choice-icon {
-    display: grid;
-    place-items: center;
-    color: var(--muted-foreground);
-  }
+.provider-choice-icon {
+  display: grid;
+  place-items: center;
+  color: var(--muted-foreground);
+}
 
-  .provider-choice-text {
-    display: grid;
-    min-width: 0;
-    flex: 1;
-    gap: 0.1rem;
-  }
+.provider-choice-text {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 0.1rem;
+}
 
-  .provider-choice-text strong {
-    font-size: var(--text-sm);
-    font-weight: 500;
-  }
+.provider-choice-text strong {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
 
-  .provider-choice-text span {
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-  }
+.provider-choice-text span {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
 
-  .provider-choice-tags {
-    display: flex;
-    flex: none;
-    gap: 0.3rem;
-  }
+.provider-choice-tags {
+  display: flex;
+  flex: none;
+  gap: 0.3rem;
+}
 
-  .api-key-form,
-  .oauth-prompt {
-    display: grid;
-    gap: 0.5rem;
-  }
+.api-key-form,
+.oauth-prompt {
+  display: grid;
+  gap: 0.5rem;
+}
 
-  .api-key-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    color: var(--foreground);
-    font-size: var(--text-sm);
-    font-weight: 500;
-  }
+.api-key-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
 
-  .api-key-env {
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-  }
+.api-key-env {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
 
-  .oauth-flow {
-    display: grid;
-    gap: 0.7rem;
-    justify-items: start;
-  }
+.oauth-flow {
+  display: grid;
+  gap: 0.7rem;
+  justify-items: start;
+}
 
-  .oauth-message {
-    margin: 0;
-    color: var(--foreground);
-    font-size: var(--text-sm);
-  }
+.oauth-message {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+}
 
-  .oauth-hint {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
+.oauth-hint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
 
-  .device-code,
-  .oauth-options {
-    display: grid;
-    gap: 0.5rem;
-    justify-items: start;
-  }
+.device-code,
+.oauth-options {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
 
-  .device-user-code {
-    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--foreground);
-    padding: 0.3rem 0.55rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-base);
-    letter-spacing: 0.12em;
-  }
+.device-user-code {
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--sidebar);
+  color: var(--foreground);
+  padding: 0.3rem 0.55rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  letter-spacing: 0.12em;
+}
 
-  .oauth-failed {
-    display: grid;
-    gap: 0.55rem;
-    justify-items: start;
-  }
+.oauth-failed {
+  display: grid;
+  gap: 0.55rem;
+  justify-items: start;
+}
 
-  .oauth-error-text {
-    margin: 0;
-    color: var(--destructive);
-    font-size: var(--text-sm);
-  }
+.oauth-error-text {
+  margin: 0;
+  color: var(--destructive);
+  font-size: var(--text-sm);
+}
 
-  .oauth-success {
-    margin: 0;
-    color: var(--success);
-    font-size: var(--text-sm);
-    font-weight: 500;
-  }
+.oauth-success {
+  margin: 0;
+  color: var(--success);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
 
-  .oauth-progress {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-sm);
-  }
+.oauth-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
 
-  .add-provider-error {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0;
-    color: var(--destructive);
-    font-size: var(--text-xs);
-  }
-
+.add-provider-error {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--destructive);
+  font-size: var(--text-xs);
+}
 </style>

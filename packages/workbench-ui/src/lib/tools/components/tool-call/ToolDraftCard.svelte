@@ -1,63 +1,66 @@
 <script lang="ts">
-  import type { LiveToolCallDraft } from "../../../state/transcript-types";
-  import {
-    DRAFT_PREVIEW_LINES,
-    summarizeToolDraft,
-  } from "../../views/tool-draft-progress";
-  import { extname } from "../../views/lang";
-  import {
-    confluenceDraftSummaryBody,
-    isConfluenceToolName,
-    isJiraToolName,
-    jiraDraftSummaryBody,
-  } from "../../views/atlassian-tool-summary";
-  import ResultCodeBlock from "./ResultCodeBlock.svelte";
-  import ToolStatusIcon from "./ToolStatusIcon.svelte";
+import type { LiveToolCallDraft } from "../../../state/transcript-types";
+import {
+  DRAFT_PREVIEW_LINES,
+  summarizeToolDraft,
+} from "../../views/tool-draft-progress";
+import { extname } from "../../views/lang";
+import {
+  confluenceDraftSummaryBody,
+  isConfluenceToolName,
+  isJiraToolName,
+  jiraDraftSummaryBody,
+} from "../../views/atlassian-tool-summary";
+import ResultCodeBlock from "./ResultCodeBlock.svelte";
+import ToolStatusIcon from "./ToolStatusIcon.svelte";
 
-  type Props = {
-    draft: LiveToolCallDraft;
-    cwd?: string;
-  };
+type Props = {
+  draft: LiveToolCallDraft;
+  cwd?: string;
+};
 
-  let { draft, cwd }: Props = $props();
+let { draft, cwd }: Props = $props();
 
-  const summary = $derived(summarizeToolDraft(draft, cwd));
-  const draftPreviewLanguage = $derived(
-    summary.previewLanguage ?? extname(summary.path),
-  );
-  const draftArgsPreview = $derived(summary.argsPreview);
-  const draftArgsLanguage = $derived(summary.argsPreviewLanguage);
-  const isExecutionDraft = $derived(
-    summary.kind === "bash" || summary.kind === "python",
-  );
-  const atlassianDraftSummary = $derived.by(() => {
-    if (isJiraToolName(draft.toolName)) return jiraDraftSummaryBody(draft);
-    if (isConfluenceToolName(draft.toolName)) return confluenceDraftSummaryBody(draft);
-    return undefined;
-  });
-  const headerArg = $derived.by(() => {
-    if (summary.path) return summary.path;
-    if (isExecutionDraft) {
-      return summary.inlineInput ??
-        (summary.inputMode === "inline" ? "inline" : undefined);
-    }
-    if (summary.kind === "generic") return summary.path;
-    return undefined;
-  });
-  // Transient settle only on a real drafting -> done change. Initialize the
-  // tracker to the current value so a draft that mounts already done does not
-  // fire a spurious settle.
-  let settling = $state(false);
-  let previousDone: boolean | undefined;
-  $effect(() => {
-    const done = summary.done;
-    if (previousDone === undefined) {
-      previousDone = done;
-      return;
-    }
-    if (!previousDone && done) settling = true;
+const summary = $derived(summarizeToolDraft(draft, cwd));
+const draftPreviewLanguage = $derived(
+  summary.previewLanguage ?? extname(summary.path),
+);
+const draftArgsPreview = $derived(summary.argsPreview);
+const draftArgsLanguage = $derived(summary.argsPreviewLanguage);
+const isExecutionDraft = $derived(
+  summary.kind === "bash" || summary.kind === "python",
+);
+const atlassianDraftSummary = $derived.by(() => {
+  if (isJiraToolName(draft.toolName)) return jiraDraftSummaryBody(draft);
+  if (isConfluenceToolName(draft.toolName))
+    return confluenceDraftSummaryBody(draft);
+  return undefined;
+});
+const headerArg = $derived.by(() => {
+  if (summary.path) return summary.path;
+  if (isExecutionDraft) {
+    return (
+      summary.inlineInput ??
+      (summary.inputMode === "inline" ? "inline" : undefined)
+    );
+  }
+  if (summary.kind === "generic") return summary.path;
+  return undefined;
+});
+// Transient settle only on a real drafting -> done change. Initialize the
+// tracker to the current value so a draft that mounts already done does not
+// fire a spurious settle.
+let settling = $state(false);
+let previousDone: boolean | undefined;
+$effect(() => {
+  const done = summary.done;
+  if (previousDone === undefined) {
     previousDone = done;
-  });
+    return;
+  }
+  if (!previousDone && done) settling = true;
+  previousDone = done;
+});
 </script>
 
 <article
@@ -69,7 +72,12 @@
   }}
 >
   <div class="tool-header">
-    <ToolStatusIcon tone={summary.done ? "good" : "running"} pulse={!summary.done} size={14} class="mr-1.5 align-middle" />
+    <ToolStatusIcon
+      tone={summary.done ? "good" : "running"}
+      pulse={!summary.done}
+      size={14}
+      class="mr-1.5 align-middle"
+    />
     <span class="badge">{summary.toolName}</span>
     {#if headerArg}
       <span class="arg" title={headerArg}>{headerArg}</span>
@@ -121,7 +129,8 @@
     {:else if !summary.inlineInput}
       <div class="draft-progress" aria-live="polite">
         <span>{summary.statusText}</span>
-        {#if !summary.done}<span class="progress-caret" aria-hidden="true"></span>{/if}
+        {#if !summary.done}<span class="progress-caret" aria-hidden="true"
+          ></span>{/if}
       </div>
       {#if draftArgsPreview}
         <ResultCodeBlock
@@ -159,7 +168,8 @@
   {:else}
     <div class="draft-progress" aria-live="polite">
       <span>Waiting for arguments…</span>
-      {#if !summary.done}<span class="progress-caret" aria-hidden="true"></span>{/if}
+      {#if !summary.done}<span class="progress-caret" aria-hidden="true"
+        ></span>{/if}
     </div>
   {/if}
 
@@ -173,117 +183,116 @@
 </article>
 
 <style>
-  .tool-draft-card {
-    display: grid;
-    gap: 0.4rem;
-    width: 100%;
-    padding: 0.6rem 0.75rem;
-    background: color-mix(in oklab, var(--background) 94%, var(--sidebar));
-  }
+.tool-draft-card {
+  display: grid;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: color-mix(in oklab, var(--background) 94%, var(--sidebar));
+}
 
-  /* Brief opacity/transform settle when the draft completes.
+/* Brief opacity/transform settle when the draft completes.
    * Neutralized by the global prefers-reduced-motion rule in base.css. */
-  .tool-draft-card.state-settling {
-    animation: transcript-state-settle 180ms ease-out;
-  }
+.tool-draft-card.state-settling {
+  animation: transcript-state-settle 180ms ease-out;
+}
 
-  .tool-header {
-    min-width: 0;
-    line-height: 1.5;
-  }
+.tool-header {
+  min-width: 0;
+  line-height: 1.5;
+}
 
-  .badge {
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    font-weight: 650;
-    color: var(--foreground);
-  }
+.badge {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--foreground);
+}
 
-  .arg {
-    margin-left: 0.5rem;
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
+.arg {
+  margin-left: 0.5rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
-  .draft-progress {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-    border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--sidebar-foreground);
-    padding: 0.5rem 0.58rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: 1.4;
-  }
+.draft-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+  padding: 0.5rem 0.58rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
 
-  .progress-spinner {
-    flex: none;
-    width: 0.72rem;
-    height: 0.72rem;
-    border: 1px solid color-mix(in oklab, var(--muted-foreground) 32%, transparent);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
+.progress-spinner {
+  flex: none;
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 1px solid
+    color-mix(in oklab, var(--muted-foreground) 32%, transparent);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
 
-  .progress-caret {
-    width: 0.38rem;
-    height: 0.9rem;
-    background: var(--primary);
-    animation: pulse 1s steps(2, start) infinite;
-  }
+.progress-caret {
+  width: 0.38rem;
+  height: 0.9rem;
+  background: var(--primary);
+  animation: pulse 1s steps(2, start) infinite;
+}
 
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.3rem;
-    min-width: 0;
-  }
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
 
-  .chip {
-    display: inline-flex;
-    min-height: 1.25rem;
-    align-items: center;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--sidebar);
-    color: var(--muted-foreground);
-    padding: 0.075rem 0.45rem;
-    font-family: var(--font-sans);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    white-space: nowrap;
-  }
+.chip {
+  display: inline-flex;
+  min-height: 1.25rem;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--sidebar);
+  color: var(--muted-foreground);
+  padding: 0.075rem 0.45rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
 
+.chip.tone-success {
+  color: var(--success);
+  border-color: color-mix(in oklab, var(--success) 35%, var(--border));
+}
 
-  .chip.tone-success {
-    color: var(--success);
-    border-color: color-mix(in oklab, var(--success) 35%, var(--border));
-  }
+.chip.tone-warning {
+  color: var(--warning);
+  border-color: color-mix(in oklab, var(--warning) 35%, var(--border));
+}
 
-  .chip.tone-warning {
-    color: var(--warning);
-    border-color: color-mix(in oklab, var(--warning) 35%, var(--border));
-  }
+.chip.tone-error {
+  color: var(--destructive);
+  border-color: color-mix(in oklab, var(--destructive) 35%, var(--border));
+}
 
-  .chip.tone-error {
-    color: var(--destructive);
-    border-color: color-mix(in oklab, var(--destructive) 35%, var(--border));
-  }
-
-  .chip.tone-info {
-    color: var(--info);
-    border-color: color-mix(in oklab, var(--info) 35%, var(--border));
-  }
-
+.chip.tone-info {
+  color: var(--info);
+  border-color: color-mix(in oklab, var(--info) 35%, var(--border));
+}
 </style>

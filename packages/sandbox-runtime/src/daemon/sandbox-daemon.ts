@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: The daemon centralizes command registration and runtime wiring.
+/* eslint-disable max-lines -- The daemon centralizes command registration and runtime wiring. */
 import type { AgentMessage } from "@nervekit/agent-runtime";
 import type {
   ContextFileStatus,

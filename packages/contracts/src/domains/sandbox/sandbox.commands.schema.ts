@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Sandbox command schemas intentionally centralize command names and payload contracts.
+/* eslint-disable max-lines -- Sandbox command schemas intentionally centralize command names and payload contracts. */
 import { z } from "zod";
 import { conversationSnapshotSchema } from "../conversations/index.js";
 import {

@@ -1,3 +1,4 @@
+import { SvelteSet } from "svelte/reactivity";
 import { modelKey } from "@nervekit/workbench-ui/core/utils/model";
 import {
   type AgentRecord,
@@ -44,7 +45,7 @@ export async function loadWorkspaceState() {
   workspaceState.userQuestions = snapshot.snapshot.userQuestions;
   workspaceState.planReviews = snapshot.snapshot.planReviews;
   syncSelectedAgentConfig(agents, snapshot.snapshot.conversations);
-  const conversationIds = new Set(
+  const conversationIds = new SvelteSet(
     snapshot.snapshot.conversations.map((conversation) => conversation.id),
   );
   const staleOpenTabIds = conversationState.openConversationTabIds.filter(

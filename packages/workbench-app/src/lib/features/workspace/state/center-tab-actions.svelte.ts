@@ -124,17 +124,17 @@ export async function closeCenterTabs(
   );
   const activeWasClosed = Boolean(
     workspaceState.activeCenterTab &&
-      targets.has(centerTabKey(workspaceState.activeCenterTab)),
+    targets.has(centerTabKey(workspaceState.activeCenterTab)),
   );
   const selectedConversationWasClosed = Boolean(
     selection.conversationId &&
-      targets.has(
-        centerTabKey({ kind: "conversation", id: selection.conversationId }),
-      ),
+    targets.has(
+      centerTabKey({ kind: "conversation", id: selection.conversationId }),
+    ),
   );
   const activePendingWasClosed = Boolean(
     workspaceState.activeCenterTab?.kind === "pending-conversation" &&
-      targets.has(centerTabKey(workspaceState.activeCenterTab)),
+    targets.has(centerTabKey(workspaceState.activeCenterTab)),
   );
   const fallback = tabIsInList(fallbackPreferred, remainingTabs)
     ? fallbackPreferred

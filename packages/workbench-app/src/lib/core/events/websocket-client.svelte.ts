@@ -1,3 +1,4 @@
+import { SvelteURL } from "svelte/reactivity";
 import {
   ackMessageSchema,
   createId,
@@ -151,7 +152,7 @@ function resolveWebsocketUrl(wsUrl: string): URL {
     globalThis.location?.protocol === "http:" ||
     globalThis.location?.protocol === "https:"
   ) {
-    const sameOrigin = new URL("/ws", globalThis.location.href);
+    const sameOrigin = new SvelteURL("/ws", globalThis.location.href);
     sameOrigin.protocol =
       globalThis.location.protocol === "https:" ? "wss:" : "ws:";
     return sameOrigin;

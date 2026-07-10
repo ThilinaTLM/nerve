@@ -222,7 +222,7 @@ async function readChildAgents(
     safe(scope.agentId),
     "relationships",
   );
-  let entries: string[] = [];
+  let entries: string[];
   try {
     entries = await readdir(dir);
   } catch {
@@ -268,7 +268,7 @@ async function readTasks(
 ) {
   if (!stateDir) return [];
   const root = path.join(stateDir, "tasks");
-  let entries: string[] = [];
+  let entries: string[];
   try {
     entries = await readdir(root);
   } catch {

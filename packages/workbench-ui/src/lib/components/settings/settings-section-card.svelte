@@ -1,35 +1,39 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-  import { cn } from "@nervekit/workbench-ui/core/utils";
+import type { Snippet } from "svelte";
+import { cn } from "@nervekit/workbench-ui/core/utils";
 
-  type Props = {
-    section: string;
-    title: string;
-    description?: string;
-    muted?: boolean;
-    idPrefix?: string;
-    class?: string;
-    bodyClass?: string;
-    actions?: Snippet;
-    children: Snippet;
-  };
+type Props = {
+  section: string;
+  title: string;
+  description?: string;
+  muted?: boolean;
+  idPrefix?: string;
+  class?: string;
+  bodyClass?: string;
+  actions?: Snippet;
+  children: Snippet;
+};
 
-  let {
-    section,
-    title,
-    description,
-    muted = false,
-    idPrefix = "settings",
-    class: className,
-    bodyClass,
-    actions,
-    children,
-  }: Props = $props();
+let {
+  section,
+  title,
+  description,
+  muted = false,
+  idPrefix = "settings",
+  class: className,
+  bodyClass,
+  actions,
+  children,
+}: Props = $props();
 </script>
 
 <section
   id={`${idPrefix}-${section}`}
-  class={cn("settings-section-card", muted && "settings-section-card-muted", className)}
+  class={cn(
+    "settings-section-card",
+    muted && "settings-section-card-muted",
+    className,
+  )}
   data-section={section}
 >
   <header class="settings-section-header">

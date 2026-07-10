@@ -6,18 +6,18 @@ The sandbox agent image packages the Nerve agent runtime and sandbox daemon. It 
 
 A conforming image/container MUST support these paths:
 
-| Path | Required | Writable by agent tools | Purpose |
-| --- | --- | --- | --- |
-| `/agent` | yes | no | Sandbox daemon and Nerve agent runtime code. |
-| `/agent/skills` | optional but recommended | no | Built-in image-packaged `SKILL.md` files. |
-| `/workspace` | yes | yes | Working directory for repository/user files. May contain `AGENTS.md` and `.agents/skills`. |
-| `/state` | yes | yes, except protected subtrees | Durable journals, checkpoints, transcripts, refreshed credentials, secret-store cache/status, Git/GitHub setup status, skills metadata, run/conversation/agent state. |
-| `/state/credentials` | yes when credential refresh or protected auth material is enabled | no ordinary file-tool access | Protected refreshed credential store and scoped auth homes. |
-| `/state/cache/dependencies` | optional | controlled | Package-manager caches for boot/tool dependency installs. |
-| `/state/cache/secrets` | optional | no ordinary file-tool access | Protected key-value secret cache metadata/values when caching is enabled. |
-| `/tmp` | yes | yes | Non-durable scratch space. |
-| `/secrets` | optional | no | Mounted read-only secret files. |
-| `/credentials` | optional | no ordinary file-tool access | Manager-owned writable credential-sync mount when `refresh.persist: file` is used. |
+| Path                        | Required                                                          | Writable by agent tools        | Purpose                                                                                                                                                               |
+| --------------------------- | ----------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/agent`                    | yes                                                               | no                             | Sandbox daemon and Nerve agent runtime code.                                                                                                                          |
+| `/agent/skills`             | optional but recommended                                          | no                             | Built-in image-packaged `SKILL.md` files.                                                                                                                             |
+| `/workspace`                | yes                                                               | yes                            | Working directory for repository/user files. May contain `AGENTS.md` and `.agents/skills`.                                                                            |
+| `/state`                    | yes                                                               | yes, except protected subtrees | Durable journals, checkpoints, transcripts, refreshed credentials, secret-store cache/status, Git/GitHub setup status, skills metadata, run/conversation/agent state. |
+| `/state/credentials`        | yes when credential refresh or protected auth material is enabled | no ordinary file-tool access   | Protected refreshed credential store and scoped auth homes.                                                                                                           |
+| `/state/cache/dependencies` | optional                                                          | controlled                     | Package-manager caches for boot/tool dependency installs.                                                                                                             |
+| `/state/cache/secrets`      | optional                                                          | no ordinary file-tool access   | Protected key-value secret cache metadata/values when caching is enabled.                                                                                             |
+| `/tmp`                      | yes                                                               | yes                            | Non-durable scratch space.                                                                                                                                            |
+| `/secrets`                  | optional                                                          | no                             | Mounted read-only secret files.                                                                                                                                       |
+| `/credentials`              | optional                                                          | no ordinary file-tool access   | Manager-owned writable credential-sync mount when `refresh.persist: file` is used.                                                                                    |
 
 Requirements:
 
@@ -70,14 +70,14 @@ If multiple locations are provided, `NERVE_SANDBOX_AGENT_CONFIG` SHOULD take pre
 
 Reserved environment variables:
 
-| Variable | Purpose |
-| --- | --- |
-| `NERVE_SANDBOX_AGENT_CONFIG` | Path to YAML config. |
-| `NERVE_SANDBOX_AGENT_ID` | Optional controller-assigned sandbox ID. |
-| `NERVE_SANDBOX_AGENT_INSTANCE_ID` | Optional unique process/container instance ID. |
-| `NERVE_SANDBOX_AGENT_STATE_DIR` | Optional override for `/state`. |
-| `NERVE_SANDBOX_AGENT_WORKSPACE_DIR` | Optional override for `/workspace`. |
-| `NERVE_SANDBOX_AGENT_LOG_LEVEL` | Optional log-level override. |
+| Variable                                       | Purpose                                                                                             |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `NERVE_SANDBOX_AGENT_CONFIG`                   | Path to YAML config.                                                                                |
+| `NERVE_SANDBOX_AGENT_ID`                       | Optional controller-assigned sandbox ID.                                                            |
+| `NERVE_SANDBOX_AGENT_INSTANCE_ID`              | Optional unique process/container instance ID.                                                      |
+| `NERVE_SANDBOX_AGENT_STATE_DIR`                | Optional override for `/state`.                                                                     |
+| `NERVE_SANDBOX_AGENT_WORKSPACE_DIR`            | Optional override for `/workspace`.                                                                 |
+| `NERVE_SANDBOX_AGENT_LOG_LEVEL`                | Optional log-level override.                                                                        |
 | `NERVE_SANDBOX_AGENT_CONTROLLER_EXIT_AFTER_MS` | Optional manager-provided override for controller disconnect self-exit, subject to YAML validation. |
 
 Provider/tool/controller/secret-store secrets MAY also be supplied through environment variables named by the config's `SecretRef` values. The sandbox MUST NOT enumerate and forward all environment variables to model providers or tool processes; secrets must be injected only where explicitly configured.
@@ -260,21 +260,21 @@ A healthcheck MUST NOT require raw secrets to be printed or sent.
 
 Recommended exit codes:
 
-| Code | Meaning |
-| --- | --- |
-| `0` | Graceful shutdown after `goodbye` or completed one-shot mode. |
-| `10` | Config validation failed. |
-| `11` | Required mount missing or not writable/readable as required. |
-| `12` | State lock conflict. |
-| `13` | Boot phase failed. |
-| `14` | Security setup failed. |
+| Code | Meaning                                                                              |
+| ---- | ------------------------------------------------------------------------------------ |
+| `0`  | Graceful shutdown after `goodbye` or completed one-shot mode.                        |
+| `10` | Config validation failed.                                                            |
+| `11` | Required mount missing or not writable/readable as required.                         |
+| `12` | State lock conflict.                                                                 |
+| `13` | Boot phase failed.                                                                   |
+| `14` | Security setup failed.                                                               |
 | `15` | Required credential or secret-store value unavailable or unrefreshable before ready. |
-| `16` | Skill/context loading failed in fail-closed mode. |
-| `17` | Git/GitHub startup setup failed. |
-| `20` | Controller authentication failed. |
-| `21` | Controller protocol/session rejected. |
-| `22` | Controller disconnect grace period expired; sandbox self-exited. |
-| `30` | Unrecoverable state corruption. |
+| `16` | Skill/context loading failed in fail-closed mode.                                    |
+| `17` | Git/GitHub startup setup failed.                                                     |
+| `20` | Controller authentication failed.                                                    |
+| `21` | Controller protocol/session rejected.                                                |
+| `22` | Controller disconnect grace period expired; sandbox self-exited.                     |
+| `30` | Unrecoverable state corruption.                                                      |
 
 ## Image labels
 

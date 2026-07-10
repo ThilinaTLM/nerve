@@ -1,15 +1,15 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-  let {
-    desktop = false,
-    left,
-    actions,
-  }: {
-    desktop?: boolean;
-    left: Snippet;
-    actions?: Snippet;
-  } = $props();
+let {
+  desktop = false,
+  left,
+  actions,
+}: {
+  desktop?: boolean;
+  left: Snippet;
+  actions?: Snippet;
+} = $props();
 </script>
 
 <header class="titlebar" class:desktop>

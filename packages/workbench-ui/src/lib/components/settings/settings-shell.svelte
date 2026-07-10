@@ -1,162 +1,162 @@
 <script lang="ts" module>
-  import type { Component } from "svelte";
+import type { Component } from "svelte";
 
-  export type SettingsShellSection = {
-    id: string;
-    label: string;
-  };
+export type SettingsShellSection = {
+  id: string;
+  label: string;
+};
 
-  export type SettingsShellGroup = {
-    id: string;
-    label: string;
-    description?: string;
-    icon?: Component;
-    sections?: SettingsShellSection[];
-  };
+export type SettingsShellGroup = {
+  id: string;
+  label: string;
+  description?: string;
+  icon?: Component;
+  sections?: SettingsShellSection[];
+};
 </script>
 
 <script lang="ts">
-  import type { Snippet } from "svelte";
-  import { tick } from "svelte";
-  import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
-  import { cn } from "@nervekit/workbench-ui/core/utils";
+import type { Snippet } from "svelte";
+import { tick } from "svelte";
+import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
+import { cn } from "@nervekit/workbench-ui/core/utils";
 
-  type Props = {
-    groups: SettingsShellGroup[];
-    activeGroupId?: string;
-    activeSectionId?: string;
-    title?: string;
-    ariaLabel?: string;
-    sectionIdPrefix?: string;
-    showPanelHeader?: boolean;
-    scrollSpy?: boolean;
-    class?: string;
-    mainClass?: string;
-    sidebarFooter?: Snippet;
-    panelActions?: Snippet<[SettingsShellGroup]>;
-    navMeta?: Snippet<[SettingsShellGroup]>;
-    children: Snippet<[SettingsShellGroup]>;
-    onGroupChange?: (id: string) => void;
-    onSectionChange?: (id: string) => void;
-  };
+type Props = {
+  groups: SettingsShellGroup[];
+  activeGroupId?: string;
+  activeSectionId?: string;
+  title?: string;
+  ariaLabel?: string;
+  sectionIdPrefix?: string;
+  showPanelHeader?: boolean;
+  scrollSpy?: boolean;
+  class?: string;
+  mainClass?: string;
+  sidebarFooter?: Snippet;
+  panelActions?: Snippet<[SettingsShellGroup]>;
+  navMeta?: Snippet<[SettingsShellGroup]>;
+  children: Snippet<[SettingsShellGroup]>;
+  onGroupChange?: (id: string) => void;
+  onSectionChange?: (id: string) => void;
+};
 
-  let {
-    groups,
-    activeGroupId = $bindable(groups[0]?.id ?? ""),
-    activeSectionId = $bindable(groups[0]?.sections?.[0]?.id ?? ""),
-    title = "Settings",
-    ariaLabel = "Settings sections",
-    sectionIdPrefix = "settings",
-    showPanelHeader = true,
-    scrollSpy = true,
-    class: className,
-    mainClass,
-    sidebarFooter,
-    panelActions,
-    navMeta,
-    children,
-    onGroupChange,
-    onSectionChange,
-  }: Props = $props();
+let {
+  groups,
+  activeGroupId = $bindable(groups[0]?.id ?? ""),
+  activeSectionId = $bindable(groups[0]?.sections?.[0]?.id ?? ""),
+  title = "Settings",
+  ariaLabel = "Settings sections",
+  sectionIdPrefix = "settings",
+  showPanelHeader = true,
+  scrollSpy = true,
+  class: className,
+  mainClass,
+  sidebarFooter,
+  panelActions,
+  navMeta,
+  children,
+  onGroupChange,
+  onSectionChange,
+}: Props = $props();
 
-  let viewportElement = $state<HTMLElement | null>(null);
+let viewportElement = $state<HTMLElement | null>(null);
 
-  const activeGroup = $derived(
-    groups.find((group) => group.id === activeGroupId) ?? groups[0],
-  );
-  const activeSections = $derived(activeGroup?.sections ?? []);
+const activeGroup = $derived(
+  groups.find((group) => group.id === activeGroupId) ?? groups[0],
+);
+const activeSections = $derived(activeGroup?.sections ?? []);
 
-  $effect(() => {
-    if (groups.length === 0) return;
-    if (groups.some((group) => group.id === activeGroupId)) return;
+$effect(() => {
+  if (groups.length === 0) return;
+  if (groups.some((group) => group.id === activeGroupId)) return;
 
-    const next = groups[0];
-    activeGroupId = next.id;
-    activeSectionId = next.sections?.[0]?.id ?? activeSectionId;
-  });
+  const next = groups[0];
+  activeGroupId = next.id;
+  activeSectionId = next.sections?.[0]?.id ?? activeSectionId;
+});
 
-  $effect(() => {
-    if (activeSections.length === 0) return;
-    if (activeSections.some((section) => section.id === activeSectionId)) return;
-    activeSectionId = activeSections[0].id;
-  });
+$effect(() => {
+  if (activeSections.length === 0) return;
+  if (activeSections.some((section) => section.id === activeSectionId)) return;
+  activeSectionId = activeSections[0].id;
+});
 
-  function sectionElementId(id: string): string {
-    return `${sectionIdPrefix}-${id}`;
-  }
+function sectionElementId(id: string): string {
+  return `${sectionIdPrefix}-${id}`;
+}
 
-  function sectionSelector(id: string): string {
-    return `[data-section="${id.replace(/"/g, '\\"')}"]`;
-  }
+function sectionSelector(id: string): string {
+  return `[data-section="${id.replace(/"/g, '\\"')}"]`;
+}
 
-  async function scrollPanelToTop(): Promise<void> {
+async function scrollPanelToTop(): Promise<void> {
+  await tick();
+  viewportElement?.scrollTo({ top: 0 });
+}
+
+function selectGroup(id: string): void {
+  if (id === activeGroupId) return;
+
+  const next = groups.find((group) => group.id === id) ?? groups[0];
+  activeGroupId = next.id;
+  activeSectionId = next.sections?.[0]?.id ?? activeSectionId;
+  onGroupChange?.(next.id);
+  void scrollPanelToTop();
+}
+
+function selectSection(id: string): void {
+  activeSectionId = id;
+  onSectionChange?.(id);
+  const target =
+    viewportElement?.querySelector<HTMLElement>(sectionSelector(id)) ??
+    document.getElementById(sectionElementId(id));
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$effect(() => {
+  const root = viewportElement;
+  const sections = activeSections;
+  if (!scrollSpy || !root || sections.length === 0) return;
+
+  let observer: IntersectionObserver | undefined;
+  let cancelled = false;
+
+  void (async () => {
     await tick();
-    viewportElement?.scrollTo({ top: 0 });
-  }
+    if (cancelled) return;
 
-  function selectGroup(id: string): void {
-    if (id === activeGroupId) return;
+    const elements = sections
+      .map(
+        (section) =>
+          root.querySelector<HTMLElement>(sectionSelector(section.id)) ??
+          document.getElementById(sectionElementId(section.id)),
+      )
+      .filter((element): element is HTMLElement => element !== null);
+    if (elements.length === 0) return;
 
-    const next = groups.find((group) => group.id === id) ?? groups[0];
-    activeGroupId = next.id;
-    activeSectionId = next.sections?.[0]?.id ?? activeSectionId;
-    onGroupChange?.(next.id);
-    void scrollPanelToTop();
-  }
+    observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort(
+            (left, right) =>
+              left.boundingClientRect.top - right.boundingClientRect.top,
+          );
+        const id = visible[0]?.target.getAttribute("data-section");
+        if (!id || id === activeSectionId) return;
+        activeSectionId = id;
+        onSectionChange?.(id);
+      },
+      { root, rootMargin: "0px 0px -65% 0px", threshold: 0 },
+    );
+    for (const element of elements) observer.observe(element);
+  })();
 
-  function selectSection(id: string): void {
-    activeSectionId = id;
-    onSectionChange?.(id);
-    const target =
-      viewportElement?.querySelector<HTMLElement>(sectionSelector(id)) ??
-      document.getElementById(sectionElementId(id));
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  $effect(() => {
-    const root = viewportElement;
-    const sections = activeSections;
-    if (!scrollSpy || !root || sections.length === 0) return;
-
-    let observer: IntersectionObserver | undefined;
-    let cancelled = false;
-
-    void (async () => {
-      await tick();
-      if (cancelled) return;
-
-      const elements = sections
-        .map(
-          (section) =>
-            root.querySelector<HTMLElement>(sectionSelector(section.id)) ??
-            document.getElementById(sectionElementId(section.id)),
-        )
-        .filter((element): element is HTMLElement => element !== null);
-      if (elements.length === 0) return;
-
-      observer = new IntersectionObserver(
-        (entries) => {
-          const visible = entries
-            .filter((entry) => entry.isIntersecting)
-            .sort(
-              (left, right) =>
-                left.boundingClientRect.top - right.boundingClientRect.top,
-            );
-          const id = visible[0]?.target.getAttribute("data-section");
-          if (!id || id === activeSectionId) return;
-          activeSectionId = id;
-          onSectionChange?.(id);
-        },
-        { root, rootMargin: "0px 0px -65% 0px", threshold: 0 },
-      );
-      for (const element of elements) observer.observe(element);
-    })();
-
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-    };
-  });
+  return () => {
+    cancelled = true;
+    observer?.disconnect();
+  };
+});
 </script>
 
 <section class={cn("settings-page", className)}>

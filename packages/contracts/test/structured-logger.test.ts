@@ -8,7 +8,7 @@ import {
   type StructuredLogRecord,
 } from "../src/domains/logs/structured-logger.js";
 
-type Captured = { level: StructuredLogLevel; record: Record<string, any> };
+type Captured = { level: StructuredLogLevel; record: Record<string, unknown> };
 
 function capture(level: StructuredLogLevel = "debug") {
   const lines: Captured[] = [];
@@ -20,7 +20,7 @@ function capture(level: StructuredLogLevel = "debug") {
   return { logger, lines };
 }
 
-function recordAt(lines: Captured[], index: number): Record<string, any> {
+function recordAt(lines: Captured[], index: number): Record<string, unknown> {
   const entry = lines[index];
   assert.ok(entry, `expected a log record at index ${index}`);
   return entry.record;
@@ -29,7 +29,7 @@ function recordAt(lines: Captured[], index: number): Record<string, any> {
 function recordWithMessage(
   lines: Captured[],
   message: string,
-): Record<string, any> {
+): Record<string, unknown> {
   const entry = lines.find((line) => line.record.message === message);
   assert.ok(entry, `expected a log record with message "${message}"`);
   return entry.record;

@@ -1,36 +1,41 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-  import PanelSection from "../workbench/panel-section.svelte";
-  import NavigatorItem from "./navigator-item.svelte";
-  import NavigatorPanel from "./navigator-panel.svelte";
-  import {
-    filterConversationGroups,
-    type ConversationNavigatorGroup,
-    type ConversationNavigatorItem,
-  } from "./conversation-group-model.js";
+import type { Snippet } from "svelte";
+import PanelSection from "../workbench/panel-section.svelte";
+import NavigatorItem from "./navigator-item.svelte";
+import NavigatorPanel from "./navigator-panel.svelte";
+import {
+  filterConversationGroups,
+  type ConversationNavigatorGroup,
+  type ConversationNavigatorItem,
+} from "./conversation-group-model.js";
 
-  let {
-    groups,
-    searchValue = $bindable(""),
-    placeholder = "Search conversations",
-    onGroupOpenChange,
-    onSelect,
-    groupActions,
-    itemTooltip,
-  }: {
-    groups: ConversationNavigatorGroup[];
-    searchValue?: string;
-    placeholder?: string;
-    onGroupOpenChange?: (group: ConversationNavigatorGroup, open: boolean) => void;
-    onSelect?: (
-      item: ConversationNavigatorItem,
-      group: ConversationNavigatorGroup,
-    ) => void;
-    groupActions?: Snippet<[ConversationNavigatorGroup]>;
-    itemTooltip?: Snippet<[ConversationNavigatorItem, ConversationNavigatorGroup]>;
-  } = $props();
+let {
+  groups,
+  searchValue = $bindable(""),
+  placeholder = "Search conversations",
+  onGroupOpenChange,
+  onSelect,
+  groupActions,
+  itemTooltip,
+}: {
+  groups: ConversationNavigatorGroup[];
+  searchValue?: string;
+  placeholder?: string;
+  onGroupOpenChange?: (
+    group: ConversationNavigatorGroup,
+    open: boolean,
+  ) => void;
+  onSelect?: (
+    item: ConversationNavigatorItem,
+    group: ConversationNavigatorGroup,
+  ) => void;
+  groupActions?: Snippet<[ConversationNavigatorGroup]>;
+  itemTooltip?: Snippet<
+    [ConversationNavigatorItem, ConversationNavigatorGroup]
+  >;
+} = $props();
 
-  const visibleGroups = $derived(filterConversationGroups(groups, searchValue));
+const visibleGroups = $derived(filterConversationGroups(groups, searchValue));
 </script>
 
 <NavigatorPanel bind:searchValue {placeholder}>
@@ -44,9 +49,11 @@
         contentClass="grid gap-0.5"
       >
         {#if group.meta}
+          <!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -- Named snippet is consumed by PanelSection. -->
           {#snippet meta()}<span>{group.meta}</span>{/snippet}
         {/if}
         {#if groupActions}
+          <!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -- Named snippet is consumed by PanelSection. -->
           {#snippet actions()}{@render groupActions(group)}{/snippet}
         {/if}
         {#each group.items as item (item.id)}

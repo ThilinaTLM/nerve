@@ -43,16 +43,16 @@ experimental.event.scoped_streams
 
 Use these top-level areas unless there is a good reason to add another:
 
-| Area | Purpose |
-| --- | --- |
-| `encoding.*` | Message encodings such as JSON or future binary formats. |
-| `event.*` | Event-stream delivery, replay, ordering, scoped streams. |
-| `flow.*` | Backpressure and delivery quality extensions. |
-| `snapshot.*` | Snapshot recovery profiles. |
-| `http.*` | HTTP envelope, streaming, replay, or request profiles. |
-| `transport.*` | Transport-binding-specific behavior. |
-| `attachment.*` | Future large/binary resource transfer profiles. |
-| `experimental.*` | Temporary capabilities that may change or be removed. |
+| Area             | Purpose                                                  |
+| ---------------- | -------------------------------------------------------- |
+| `encoding.*`     | Message encodings such as JSON or future binary formats. |
+| `event.*`        | Event-stream delivery, replay, ordering, scoped streams. |
+| `flow.*`         | Backpressure and delivery quality extensions.            |
+| `snapshot.*`     | Snapshot recovery profiles.                              |
+| `http.*`         | HTTP envelope, streaming, replay, or request profiles.   |
+| `transport.*`    | Transport-binding-specific behavior.                     |
+| `attachment.*`   | Future large/binary resource transfer profiles.          |
+| `experimental.*` | Temporary capabilities that may change or be removed.    |
 
 ### Stable capabilities
 

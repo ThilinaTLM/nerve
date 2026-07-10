@@ -1,129 +1,150 @@
 <script lang="ts">
-  import Check from "@lucide/svelte/icons/check";
-  import type { AgentRecord, ModelInfo, PlanReviewResolveOptions } from "../../../state/tool-types";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
-  import {
-    contextualModelLabel,
-    modelKey,
-    parseModelKey,
-  } from "@nervekit/workbench-ui/core/utils/model";
-  import {
-    clampThinkingLevelForModel,
-    supportedThinkingLevelsForModel,
-  } from "../../../state/thinking-levels";
+import Check from "@lucide/svelte/icons/check";
+import type {
+  AgentRecord,
+  ModelInfo,
+  PlanReviewResolveOptions,
+} from "../../../state/tool-types";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import DialogShell from "@nervekit/workbench-ui/components/ui/dialog-shell";
+import {
+  contextualModelLabel,
+  modelKey,
+  parseModelKey,
+} from "@nervekit/workbench-ui/core/utils/model";
+import {
+  clampThinkingLevelForModel,
+  supportedThinkingLevelsForModel,
+} from "../../../state/thinking-levels";
 
-  type ThinkingLevel = AgentRecord["thinkingLevel"];
+type ThinkingLevel = AgentRecord["thinkingLevel"];
 
-  type Props = {
-    open?: boolean;
-    title: string;
-    description: string;
-    confirmLabel: string;
-    models: ModelInfo[];
-    initialModelKey: string;
-    initialThinkingLevel: ThinkingLevel;
-    onOpenChange?: (open: boolean) => void;
-    onConfirm?: (options: PlanReviewResolveOptions) => void | Promise<void>;
-  };
+type Props = {
+  open?: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  models: ModelInfo[];
+  initialModelKey: string;
+  initialThinkingLevel: ThinkingLevel;
+  onOpenChange?: (open: boolean) => void;
+  onConfirm?: (options: PlanReviewResolveOptions) => void | Promise<void>;
+};
 
-  let {
-    open = $bindable(false),
-    title,
-    description,
-    confirmLabel,
-    models,
-    initialModelKey,
-    initialThinkingLevel,
-    onOpenChange,
-    onConfirm,
-  }: Props = $props();
+let {
+  open = $bindable(false),
+  title,
+  description,
+  confirmLabel,
+  models,
+  initialModelKey,
+  initialThinkingLevel,
+  onOpenChange,
+  onConfirm,
+}: Props = $props();
 
-  let selectedModelKey = $state("");
-  let selectedThinkingLevel = $state<ThinkingLevel>("off");
-  let confirming = $state(false);
+let selectedModelKey = $state("");
+let selectedThinkingLevel = $state<ThinkingLevel>("off");
+let confirming = $state(false);
 
-  const selectedModel = $derived(
-    models.find((model) => modelKey(model) === selectedModelKey),
+const selectedModel = $derived(
+  models.find((model) => modelKey(model) === selectedModelKey),
+);
+const thinkingLevels = $derived(supportedThinkingLevelsForModel(selectedModel));
+const confirmDisabled = $derived(!selectedModel || confirming);
+
+const thinkingLevelDetails: Record<ThinkingLevel, string> = {
+  off: "No reasoning",
+  minimal: "Very brief reasoning",
+  low: "Light reasoning",
+  medium: "Moderate reasoning",
+  high: "Deep reasoning",
+  xhigh: "Extra-high reasoning",
+  max: "Maximum reasoning",
+};
+
+function thinkingLevelLabel(level: ThinkingLevel): string {
+  return level === "off" ? "Off" : level[0].toUpperCase() + level.slice(1);
+}
+
+function resetSelection() {
+  const initialModel = models.find(
+    (model) => modelKey(model) === initialModelKey,
   );
-  const thinkingLevels = $derived(supportedThinkingLevelsForModel(selectedModel));
-  const confirmDisabled = $derived(!selectedModel || confirming);
+  const fallbackModel = initialModel ?? models[0];
+  selectedModelKey = fallbackModel ? modelKey(fallbackModel) : "";
+  selectedThinkingLevel = clampThinkingLevelForModel(
+    initialThinkingLevel,
+    fallbackModel,
+  );
+}
 
-  const thinkingLevelDetails: Record<ThinkingLevel, string> = {
-    off: "No reasoning",
-    minimal: "Very brief reasoning",
-    low: "Light reasoning",
-    medium: "Moderate reasoning",
-    high: "Deep reasoning",
-    xhigh: "Extra-high reasoning",
-    max: "Maximum reasoning",
-  };
+function handleOpenChange(next: boolean) {
+  open = next;
+  onOpenChange?.(next);
+}
 
-  function thinkingLevelLabel(level: ThinkingLevel): string {
-    return level === "off" ? "Off" : level[0].toUpperCase() + level.slice(1);
+function selectModel(model: ModelInfo) {
+  selectedModelKey = modelKey(model);
+  selectedThinkingLevel = clampThinkingLevelForModel(
+    selectedThinkingLevel,
+    model,
+  );
+}
+
+function selectThinking(level: ThinkingLevel) {
+  selectedThinkingLevel = clampThinkingLevelForModel(level, selectedModel);
+}
+
+async function confirmSelection() {
+  if (!selectedModel || confirming) return;
+  const implementationModel = parseModelKey(selectedModelKey);
+  if (!implementationModel) return;
+  confirming = true;
+  try {
+    await onConfirm?.({
+      implementationModel,
+      implementationThinkingLevel: selectedThinkingLevel,
+    });
+    handleOpenChange(false);
+  } finally {
+    confirming = false;
   }
+}
 
-  function resetSelection() {
-    const initialModel = models.find(
-      (model) => modelKey(model) === initialModelKey,
-    );
-    const fallbackModel = initialModel ?? models[0];
-    selectedModelKey = fallbackModel ? modelKey(fallbackModel) : "";
-    selectedThinkingLevel = clampThinkingLevelForModel(
-      initialThinkingLevel,
-      fallbackModel,
-    );
-  }
-
-  function handleOpenChange(next: boolean) {
-    open = next;
-    onOpenChange?.(next);
-  }
-
-  function selectModel(model: ModelInfo) {
-    selectedModelKey = modelKey(model);
-    selectedThinkingLevel = clampThinkingLevelForModel(
-      selectedThinkingLevel,
-      model,
-    );
-  }
-
-  function selectThinking(level: ThinkingLevel) {
-    selectedThinkingLevel = clampThinkingLevelForModel(level, selectedModel);
-  }
-
-  async function confirmSelection() {
-    if (!selectedModel || confirming) return;
-    const implementationModel = parseModelKey(selectedModelKey);
-    if (!implementationModel) return;
-    confirming = true;
-    try {
-      await onConfirm?.({
-        implementationModel,
-        implementationThinkingLevel: selectedThinkingLevel,
-      });
-      handleOpenChange(false);
-    } finally {
-      confirming = false;
-    }
-  }
-
-  $effect(() => {
-    if (!open) return;
-    resetSelection();
-  });
+$effect(() => {
+  if (!open) return;
+  resetSelection();
+});
 </script>
 
-<DialogShell {open} {title} {description} onOpenChange={handleOpenChange} class="max-w-xl">
+<DialogShell
+  {open}
+  {title}
+  {description}
+  onOpenChange={handleOpenChange}
+  class="max-w-xl"
+>
   <div class="grid gap-4 px-3.5 py-4">
     <section class="grid gap-2">
-      <p class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Model</p>
+      <p
+        class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+      >
+        Model
+      </p>
       {#if models.length === 0}
-        <p class="m-0 rounded-md border border-dashed border-border bg-muted p-3 text-sm text-muted-foreground">
-          No models available. Configure a provider or adjust Scoped Models in Settings.
+        <p
+          class="m-0 rounded-md border border-dashed border-border bg-muted p-3 text-sm text-muted-foreground"
+        >
+          No models available. Configure a provider or adjust Scoped Models in
+          Settings.
         </p>
       {:else}
-        <div class="grid gap-1" role="listbox" aria-label="Implementation model">
+        <div
+          class="grid gap-1"
+          role="listbox"
+          aria-label="Implementation model"
+        >
           {#each models as model (modelKey(model))}
             {@const key = modelKey(model)}
             {@const active = key === selectedModelKey}
@@ -138,7 +159,9 @@
               role="option"
               onclick={() => selectModel(model)}
             >
-              <span class="min-w-0 truncate font-medium">{contextualModelLabel(model, models)}</span>
+              <span class="min-w-0 truncate font-medium"
+                >{contextualModelLabel(model, models)}</span
+              >
               {#if active}<Check class="size-4" strokeWidth={2.4} />{/if}
             </button>
           {/each}
@@ -148,8 +171,16 @@
 
     {#if selectedModel}
       <section class="grid gap-2 border-t border-border pt-4">
-        <p class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Thinking level</p>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Implementation thinking level">
+        <p
+          class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+        >
+          Thinking level
+        </p>
+        <div
+          class="flex flex-wrap gap-2"
+          role="group"
+          aria-label="Implementation thinking level"
+        >
           {#each thinkingLevels as level (level)}
             {@const active = level === selectedThinkingLevel}
             <button
@@ -172,7 +203,13 @@
   </div>
 
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => handleOpenChange(false)} disabled={confirming}>Cancel</Button>
-    <Button onclick={confirmSelection} disabled={confirmDisabled}>{confirmLabel}</Button>
+    <Button
+      variant="secondary"
+      onclick={() => handleOpenChange(false)}
+      disabled={confirming}>Cancel</Button
+    >
+    <Button onclick={confirmSelection} disabled={confirmDisabled}
+      >{confirmLabel}</Button
+    >
   {/snippet}
 </DialogShell>

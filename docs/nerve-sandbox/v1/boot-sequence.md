@@ -131,11 +131,11 @@ Boot phase network mode MUST NOT expand global network policy. Effective boot eg
 
 Semantics:
 
-| Phase network mode | Effective behavior |
-| --- | --- |
-| `deny` | No external network egress except loopback/private manager endpoints explicitly required for controller/secret resolution and allowed by global policy. |
-| `package_registries_only` | Egress only to `security.network.packageRegistryHosts` that also appear in the global allowlist when default deny is used. |
-| `inherit` | Egress allowed only by the global network/firewall policy; it does not bypass denies. |
+| Phase network mode        | Effective behavior                                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deny`                    | No external network egress except loopback/private manager endpoints explicitly required for controller/secret resolution and allowed by global policy. |
+| `package_registries_only` | Egress only to `security.network.packageRegistryHosts` that also appear in the global allowlist when default deny is used.                              |
+| `inherit`                 | Egress allowed only by the global network/firewall policy; it does not bypass denies.                                                                   |
 
 If a phase requests network access that cannot be enforced, the sandbox MUST either fail closed or emit a degraded-security event according to production/dev profile. A production profile SHOULD fail closed when strict network enforcement is required but unavailable.
 

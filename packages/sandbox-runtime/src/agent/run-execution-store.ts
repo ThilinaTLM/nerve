@@ -61,7 +61,9 @@ export class RunExecutionStore {
           }
         }
       }
-    } catch {}
+    } catch {
+      // Missing or unreadable persisted state is ignored during discovery.
+    }
     return out.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   }
 

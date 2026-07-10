@@ -20,6 +20,8 @@ import {
   protocolInstanceId,
 } from "@nervekit/workbench-ui/core/protocol/ids";
 
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
+
 export type ManagerWsConnectionState =
   | "idle"
   | "connecting"
@@ -54,13 +56,16 @@ export type ManagerWsHandlers = {
 
 export class ManagerWsClient {
   private ws: WebSocket | undefined;
-  private readonly streams = new Set<string>([MANAGER_STREAM]);
-  private readonly streamStates = new Map<string, ClientEventStreamState>();
+  private readonly streams = new SvelteSet<string>([MANAGER_STREAM]);
+  private readonly streamStates = new SvelteMap<
+    string,
+    ClientEventStreamState
+  >();
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private ackTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly pendingAcks = new Set<string>();
-  private readonly recoveredReplayStreams = new Set<string>();
+  private readonly pendingAcks = new SvelteSet<string>();
+  private readonly recoveredReplayStreams = new SvelteSet<string>();
   private closedByCaller = false;
   private hadWelcome = false;
   private sessionId: string | undefined;
@@ -298,6 +303,7 @@ export class ManagerWsClient {
     if (!this.sessionId) return;
     this.sendMessage("heartbeat", {
       sessionId: this.sessionId,
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Timestamp is read immediately and is not reactive state.
       sentAt: new Date().toISOString(),
       processed: [...this.streamStates.entries()].map(([stream, state]) => ({
         stream,
@@ -332,6 +338,7 @@ export class ManagerWsClient {
       version: 1,
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       kind,
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Timestamp is read immediately and is not reactive state.
       ts: new Date().toISOString(),
       source: {
         role: "ui",

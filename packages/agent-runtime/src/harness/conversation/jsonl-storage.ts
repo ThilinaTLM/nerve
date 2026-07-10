@@ -216,9 +216,7 @@ async function loadJsonlStorage(
   return { header, entries, leafId };
 }
 
-export class JsonlConversationStorage
-  implements ConversationStorage<JsonlConversationMetadata>
-{
+export class JsonlConversationStorage implements ConversationStorage<JsonlConversationMetadata> {
   private readonly fs: JsonlConversationStorageFileSystem;
   private readonly filePath: string;
   private readonly metadata: JsonlConversationMetadata;

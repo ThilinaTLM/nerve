@@ -135,7 +135,8 @@ export function boundText(
 export function textBoundaryDetails(
   bounded: BoundedTextResult,
 ): TextBoundaryDetails {
-  const { text: _text, ...details } = bounded;
+  const details = { ...bounded };
+  Reflect.deleteProperty(details, "text");
   return details;
 }
 

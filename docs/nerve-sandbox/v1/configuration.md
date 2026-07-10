@@ -49,10 +49,7 @@ Requirements:
 Secrets are referenced, not embedded.
 
 ```ts
-type SecretRef =
-  | { env: string }
-  | { file: string }
-  | { kv: KvSecretRef };
+type SecretRef = { env: string } | { file: string } | { kv: KvSecretRef };
 
 type KvSecretRef = {
   /** Optional store id. Defaults to secretStores.defaultStore. */
@@ -436,19 +433,19 @@ type ToolGroupConfig = {
 
 Recommended group/tool names:
 
-| Group key | Tool names |
-| --- | --- |
-| `fileInspection` | `read`, `ls`, `find`, `grep` |
-| `fileEditing` | `write`, `edit` |
-| `planMode` | `plan_mode_enter`, `plan_mode_present`, `plan_mode_force_exit` |
-| `todos` | `todos_set`, `todos_get` |
-| `web` | `web_search`, `web_fetch` |
-| `jira` | Jira issue/user/project tools |
-| `confluence` | Confluence page/space/attachment tools |
+| Group key        | Tool names                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| `fileInspection` | `read`, `ls`, `find`, `grep`                                                         |
+| `fileEditing`    | `write`, `edit`                                                                      |
+| `planMode`       | `plan_mode_enter`, `plan_mode_present`, `plan_mode_force_exit`                       |
+| `todos`          | `todos_set`, `todos_get`                                                             |
+| `web`            | `web_search`, `web_fetch`                                                            |
+| `jira`           | Jira issue/user/project tools                                                        |
+| `confluence`     | Confluence page/space/attachment tools                                               |
 | `taskManagement` | `task_start`, `task_status`, `task_logs`, `task_cancel`, `task_restart`, `task_list` |
-| `shell` | `bash` |
-| `python` | `python` |
-| `explore` | `explore` |
+| `shell`          | `bash`                                                                               |
+| `python`         | `python`                                                                             |
+| `explore`        | `explore`                                                                            |
 
 Activation requirements:
 
@@ -609,7 +606,12 @@ type GithubConfig = {
 type GithubAuthConfig =
   | { type: "pat"; token: SecretRef }
   | { type: "app_token"; token: SecretRef }
-  | { type: "ssh"; privateKey: SecretRef; passphrase?: SecretRef; knownHosts?: SecretRef }
+  | {
+      type: "ssh";
+      privateKey: SecretRef;
+      passphrase?: SecretRef;
+      knownHosts?: SecretRef;
+    }
   | OAuthCredentialConfig;
 ```
 
@@ -787,56 +789,56 @@ type ObservabilityConfig = {
 
 If omitted, implementations SHOULD use these defaults:
 
-| Field | Default |
-| --- | --- |
-| `agent.defaultMode` | `normal` |
-| `agent.defaultPermissionLevel` | `supervised` |
-| `agent.workspaceRoot` | `/workspace` |
-| `agent.maxRuns` | `8` |
-| `agent.maxExploreDepth` | `3` |
-| `controller.auth.header` | `Authorization` |
-| `controller.auth.scheme` | `Bearer` |
-| `controller.websocket.heartbeatIntervalMs` | `30000` |
-| `controller.disconnectPolicy.mode` | `exit_self` |
-| `controller.disconnectPolicy.exitAfterMs` | `300000` |
-| `git.enabled` | `false` unless configured |
-| `github.enabled` | `false` unless configured |
-| `tools.groups.fileInspection.enabled` | `true` |
-| `tools.groups.fileEditing.enabled` | based on permission level, default available in `supervised`/`autonomous` |
-| `tools.groups.planMode.enabled` | `true` |
-| `tools.groups.todos.enabled` | `true` |
-| `tools.groups.web.enabled` | `false` unless configured |
-| `tools.groups.jira.enabled` | `false` |
-| `tools.groups.confluence.enabled` | `false` |
-| `tools.groups.taskManagement.enabled` | implementation-specific, false if unmanaged tasks unsupported |
-| `tools.groups.shell.enabled` | `true` when shell support is installed |
-| `tools.groups.python.enabled` | `true` when Python support is installed |
-| `tools.groups.explore.enabled` | `true` when subagent support is installed |
-| `skills.enabled` | `true` when implementation supports skills |
-| `skills.contextFiles.names` | [`AGENTS.md`, `AGENTS.MD`] |
-| `skills.builtin.path` | `/agent/skills` |
-| `skills.project.path` | `/workspace/.agents/skills` |
-| `skills.allowWorkspaceSkills` | `true` |
-| `skills.legacyNervePaths` | `false` |
-| `boot.timeoutMs` | `300000` |
-| `boot.runAs` | `sandbox` |
-| `boot.onFailure` | `fail_sandbox` |
-| `boot.network` | `deny` unless Git/GitHub setup or boot phase policy requires egress |
-| `security.filesystem.writable` | [`/workspace`, `/tmp`, `/state`] |
-| `security.filesystem.denySymlinkEscape` | `true` |
-| `security.network.default` | `deny` |
-| `security.apt.allowed` | `false` |
-| `security.apt.mode` | `build_time_only` |
-| `security.process.runAsUser` | `sandbox` |
-| `security.process.noNewPrivileges` | `true` |
-| `security.capabilities.dropAll` | `true` |
-| `security.capabilities.privileged` | `false` |
-| `storage.stateDir` | `/state` |
-| `storage.credentials.dir` | `/state/credentials` |
-| `storage.credentials.persistRefreshes` | `true` |
-| `storage.cache.dependencyDir` | `/state/cache/dependencies` |
-| `storage.cache.secretStoreDir` | `/state/cache/secrets` |
-| `observability.logLevel` | `info` |
+| Field                                      | Default                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `agent.defaultMode`                        | `normal`                                                                  |
+| `agent.defaultPermissionLevel`             | `supervised`                                                              |
+| `agent.workspaceRoot`                      | `/workspace`                                                              |
+| `agent.maxRuns`                            | `8`                                                                       |
+| `agent.maxExploreDepth`                    | `3`                                                                       |
+| `controller.auth.header`                   | `Authorization`                                                           |
+| `controller.auth.scheme`                   | `Bearer`                                                                  |
+| `controller.websocket.heartbeatIntervalMs` | `30000`                                                                   |
+| `controller.disconnectPolicy.mode`         | `exit_self`                                                               |
+| `controller.disconnectPolicy.exitAfterMs`  | `300000`                                                                  |
+| `git.enabled`                              | `false` unless configured                                                 |
+| `github.enabled`                           | `false` unless configured                                                 |
+| `tools.groups.fileInspection.enabled`      | `true`                                                                    |
+| `tools.groups.fileEditing.enabled`         | based on permission level, default available in `supervised`/`autonomous` |
+| `tools.groups.planMode.enabled`            | `true`                                                                    |
+| `tools.groups.todos.enabled`               | `true`                                                                    |
+| `tools.groups.web.enabled`                 | `false` unless configured                                                 |
+| `tools.groups.jira.enabled`                | `false`                                                                   |
+| `tools.groups.confluence.enabled`          | `false`                                                                   |
+| `tools.groups.taskManagement.enabled`      | implementation-specific, false if unmanaged tasks unsupported             |
+| `tools.groups.shell.enabled`               | `true` when shell support is installed                                    |
+| `tools.groups.python.enabled`              | `true` when Python support is installed                                   |
+| `tools.groups.explore.enabled`             | `true` when subagent support is installed                                 |
+| `skills.enabled`                           | `true` when implementation supports skills                                |
+| `skills.contextFiles.names`                | [`AGENTS.md`, `AGENTS.MD`]                                                |
+| `skills.builtin.path`                      | `/agent/skills`                                                           |
+| `skills.project.path`                      | `/workspace/.agents/skills`                                               |
+| `skills.allowWorkspaceSkills`              | `true`                                                                    |
+| `skills.legacyNervePaths`                  | `false`                                                                   |
+| `boot.timeoutMs`                           | `300000`                                                                  |
+| `boot.runAs`                               | `sandbox`                                                                 |
+| `boot.onFailure`                           | `fail_sandbox`                                                            |
+| `boot.network`                             | `deny` unless Git/GitHub setup or boot phase policy requires egress       |
+| `security.filesystem.writable`             | [`/workspace`, `/tmp`, `/state`]                                          |
+| `security.filesystem.denySymlinkEscape`    | `true`                                                                    |
+| `security.network.default`                 | `deny`                                                                    |
+| `security.apt.allowed`                     | `false`                                                                   |
+| `security.apt.mode`                        | `build_time_only`                                                         |
+| `security.process.runAsUser`               | `sandbox`                                                                 |
+| `security.process.noNewPrivileges`         | `true`                                                                    |
+| `security.capabilities.dropAll`            | `true`                                                                    |
+| `security.capabilities.privileged`         | `false`                                                                   |
+| `storage.stateDir`                         | `/state`                                                                  |
+| `storage.credentials.dir`                  | `/state/credentials`                                                      |
+| `storage.credentials.persistRefreshes`     | `true`                                                                    |
+| `storage.cache.dependencyDir`              | `/state/cache/dependencies`                                               |
+| `storage.cache.secretStoreDir`             | `/state/cache/secrets`                                                    |
+| `observability.logLevel`                   | `info`                                                                    |
 
 An implementation MAY choose a stricter default. It MUST NOT silently choose a weaker default than the table without documenting the change and emitting it in `sandbox.config.loaded`.
 

@@ -1,19 +1,23 @@
 <script lang="ts">
-  import Lightbulb from "@lucide/svelte/icons/lightbulb";
-  import type { ComposerSuggestion } from "./composer-suggestion";
+import Lightbulb from "@lucide/svelte/icons/lightbulb";
+import type { ComposerSuggestion } from "./composer-suggestion";
 
-  type Props = {
-    suggestions?: ComposerSuggestion[];
-    disabled?: boolean;
-    onSend?: (suggestion: ComposerSuggestion) => void;
-    onDraft?: (suggestion: ComposerSuggestion) => void;
-  };
+type Props = {
+  suggestions?: ComposerSuggestion[];
+  disabled?: boolean;
+  onSend?: (suggestion: ComposerSuggestion) => void;
+  onDraft?: (suggestion: ComposerSuggestion) => void;
+};
 
-  let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
+let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
 </script>
 
 {#if suggestions.length > 0}
-  <div class="flex flex-wrap gap-1 px-0.5" role="group" aria-label="Suggested prompt actions">
+  <div
+    class="flex flex-wrap gap-1 px-0.5"
+    role="group"
+    aria-label="Suggested prompt actions"
+  >
     {#each suggestions as suggestion (suggestion.id)}
       {@const Icon = suggestion.icon ?? Lightbulb}
       <button
@@ -28,7 +32,11 @@
           onDraft?.(suggestion);
         }}
       >
-        <Icon class="size-3.5 text-primary" strokeWidth={2.2} aria-hidden="true" />
+        <Icon
+          class="size-3.5 text-primary"
+          strokeWidth={2.2}
+          aria-hidden="true"
+        />
         <span>{suggestion.label}</span>
       </button>
     {/each}

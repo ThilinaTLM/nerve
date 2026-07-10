@@ -268,6 +268,7 @@ async function terminateWindowsTaskTree(
 
   return new Promise<TerminateTaskResult>((resolve) => {
     let settled = false;
+    // eslint-disable-next-line prefer-const -- finish() closes over the timer before it is scheduled.
     let timeout: NodeJS.Timeout | undefined;
 
     const finish = (result: TerminateTaskResult) => {

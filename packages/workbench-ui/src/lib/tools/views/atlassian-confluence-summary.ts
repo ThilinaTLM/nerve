@@ -478,14 +478,14 @@ function confluenceActionFromToolName(
 function hasConfluenceOutcome(view: ConfluenceView): boolean {
   return Boolean(
     view.messageLines.length > 0 ||
-      view.pages.length > 0 ||
-      view.page ||
-      view.spaces.length > 0 ||
-      view.space ||
-      view.attachments.length > 0 ||
-      view.attachment ||
-      view.outcomes.length > 0 ||
-      view.downloadDir ||
-      view.dryRun,
+    view.pages.length > 0 ||
+    view.page ||
+    view.spaces.length > 0 ||
+    view.space ||
+    view.attachments.length > 0 ||
+    view.attachment ||
+    view.outcomes.length > 0 ||
+    view.downloadDir ||
+    view.dryRun,
   );
 }

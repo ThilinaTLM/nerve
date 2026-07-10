@@ -26,8 +26,8 @@ function isAgentRecord(value: unknown): value is AgentRecord {
   const candidate = recordValue(value);
   return Boolean(
     candidate &&
-      typeof candidate.id === "string" &&
-      typeof candidate.updatedAt === "string",
+    typeof candidate.id === "string" &&
+    typeof candidate.updatedAt === "string",
   );
 }
 
@@ -35,9 +35,9 @@ function isConversationRecord(value: unknown): value is ConversationRecord {
   const candidate = recordValue(value);
   return Boolean(
     candidate &&
-      typeof candidate.id === "string" &&
-      typeof candidate.projectId === "string" &&
-      typeof candidate.updatedAt === "string",
+    typeof candidate.id === "string" &&
+    typeof candidate.projectId === "string" &&
+    typeof candidate.updatedAt === "string",
   );
 }
 
@@ -45,9 +45,9 @@ function isApprovalRecord(value: unknown): value is ApprovalRecord {
   const candidate = recordValue(value);
   return Boolean(
     candidate &&
-      typeof candidate.id === "string" &&
-      typeof candidate.conversationId === "string" &&
-      typeof candidate.status === "string",
+    typeof candidate.id === "string" &&
+    typeof candidate.conversationId === "string" &&
+    typeof candidate.status === "string",
   );
 }
 
@@ -55,10 +55,10 @@ function isConversationEntry(value: unknown): value is ConversationEntry {
   const candidate = recordValue(value);
   return Boolean(
     candidate &&
-      typeof candidate.id === "string" &&
-      typeof candidate.conversationId === "string" &&
-      typeof candidate.role === "string" &&
-      typeof candidate.createdAt === "string",
+    typeof candidate.id === "string" &&
+    typeof candidate.conversationId === "string" &&
+    typeof candidate.role === "string" &&
+    typeof candidate.createdAt === "string",
   );
 }
 
@@ -66,10 +66,10 @@ function isUserQuestionRecord(value: unknown): value is UserQuestionRecord {
   const candidate = recordValue(value);
   return Boolean(
     candidate &&
-      typeof candidate.id === "string" &&
-      typeof candidate.conversationId === "string" &&
-      typeof candidate.status === "string" &&
-      typeof candidate.updatedAt === "string",
+    typeof candidate.id === "string" &&
+    typeof candidate.conversationId === "string" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.updatedAt === "string",
   );
 }
 
@@ -77,10 +77,10 @@ function isPlanReviewRecord(value: unknown): value is PlanReviewRecord {
   const candidate = recordValue(value);
   return Boolean(
     candidate &&
-      typeof candidate.id === "string" &&
-      typeof candidate.conversationId === "string" &&
-      typeof candidate.status === "string" &&
-      typeof candidate.updatedAt === "string",
+    typeof candidate.id === "string" &&
+    typeof candidate.conversationId === "string" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.updatedAt === "string",
   );
 }
 
@@ -121,16 +121,15 @@ export function patchConversationForEntry(entry: ConversationEntry): void {
     (!current.lastUserMessageAt || entry.createdAt > current.lastUserMessageAt)
       ? entry.createdAt
       : current.lastUserMessageAt;
-  workspaceState.conversations = workspaceState.conversations.map(
-    (candidate) =>
-      candidate.id === entry.conversationId
-        ? {
-            ...candidate,
-            activeEntryId: entry.id,
-            updatedAt: entry.createdAt,
-            lastUserMessageAt,
-          }
-        : candidate,
+  workspaceState.conversations = workspaceState.conversations.map((candidate) =>
+    candidate.id === entry.conversationId
+      ? {
+          ...candidate,
+          activeEntryId: entry.id,
+          updatedAt: entry.createdAt,
+          lastUserMessageAt,
+        }
+      : candidate,
   );
 }
 

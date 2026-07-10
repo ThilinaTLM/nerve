@@ -427,7 +427,8 @@ function sandboxIdFromParams(params: unknown): string {
 function stripSandboxId(
   params: Record<string, unknown>,
 ): Record<string, unknown> {
-  const { sandboxId: _sandboxId, ...rest } = params;
+  const rest = { ...params };
+  Reflect.deleteProperty(rest, "sandboxId");
   return rest;
 }
 

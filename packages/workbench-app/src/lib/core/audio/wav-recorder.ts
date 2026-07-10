@@ -172,8 +172,8 @@ export class PcmWavRecorder {
   static isSupported(): boolean {
     return Boolean(
       typeof navigator !== "undefined" &&
-        Boolean(navigator.mediaDevices?.getUserMedia) &&
-        getAudioContextConstructor(),
+      Boolean(navigator.mediaDevices?.getUserMedia) &&
+      getAudioContextConstructor(),
     );
   }
 

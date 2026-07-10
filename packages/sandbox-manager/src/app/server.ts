@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: HTTP route table intentionally centralizes the sandbox-manager API surface.
+/* eslint-disable max-lines -- HTTP route table intentionally centralizes the sandbox-manager API surface. */
 import { readFile } from "node:fs/promises";
 import {
   createServer,

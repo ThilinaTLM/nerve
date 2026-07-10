@@ -49,7 +49,8 @@ Equivalent YAML/JSON object key order MUST produce the same hash. Different omit
 type CommandAcceptedResult = {
   accepted: true;
   commandId: string;
-  status: "accepted" | "queued" | "running" | "completed" | "failed" | "cancelled";
+  status:
+    "accepted" | "queued" | "running" | "completed" | "failed" | "cancelled";
   conversationId?: string;
   agentId?: string;
   runId?: string;

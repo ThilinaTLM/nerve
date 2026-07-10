@@ -1,49 +1,49 @@
 <script lang="ts">
-  import { tick } from "svelte";
-  import { FileText, RefreshCw, TriangleAlert } from "@lucide/svelte";
-  import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
-  import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
-  import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
-  import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
-  import { isMarkdownPath } from "@nervekit/workbench-ui/core/utils/file-display";
-  import { extname } from "@nervekit/workbench-ui/tools/views/lang";
-  import type { SandboxWorkspaceFileViewState } from "../../state/sandbox-ui-types";
+import { tick } from "svelte";
+import { FileText, RefreshCw, TriangleAlert } from "@lucide/svelte";
+import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
+import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
+import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
+import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
+import { isMarkdownPath } from "@nervekit/workbench-ui/core/utils/file-display";
+import { extname } from "@nervekit/workbench-ui/tools/views/lang";
+import type { SandboxWorkspaceFileViewState } from "../../state/sandbox-ui-types";
 
-  let { view }: { view?: SandboxWorkspaceFileViewState } = $props();
+let { view }: { view?: SandboxWorkspaceFileViewState } = $props();
 
-  let viewportRef = $state<HTMLElement | null>(null);
-  let scrolledSignature = $state<string | undefined>(undefined);
+let viewportRef = $state<HTMLElement | null>(null);
+let scrolledSignature = $state<string | undefined>(undefined);
 
-  const file = $derived(view?.content);
-  const filePath = $derived(file?.relativePath || view?.path);
-  const markdown = $derived(isMarkdownPath(filePath));
-  const lineStart = $derived(file?.lineStart ?? 1);
-  const targetLine = $derived(view?.line ?? file?.targetLine);
-  const displayMode = $derived(view?.displayMode ?? "raw");
-  const language = $derived(extname(filePath));
-  const imageSrc = $derived(
-    file?.type === "image" && file.dataBase64 && file.mimeType
-      ? `data:${file.mimeType};base64,${file.dataBase64}`
-      : undefined,
-  );
-  const textLength = $derived(
-    file?.type === "text" && file.text !== undefined ? file.text.length : 0,
-  );
+const file = $derived(view?.content);
+const filePath = $derived(file?.relativePath || view?.path);
+const markdown = $derived(isMarkdownPath(filePath));
+const lineStart = $derived(file?.lineStart ?? 1);
+const targetLine = $derived(view?.line ?? file?.targetLine);
+const displayMode = $derived(view?.displayMode ?? "raw");
+const language = $derived(extname(filePath));
+const imageSrc = $derived(
+  file?.type === "image" && file.dataBase64 && file.mimeType
+    ? `data:${file.mimeType};base64,${file.dataBase64}`
+    : undefined,
+);
+const textLength = $derived(
+  file?.type === "text" && file.text !== undefined ? file.text.length : 0,
+);
 
-  $effect(() => {
-    if (!viewportRef || file?.type !== "text" || !targetLine) return;
-    const signature = `${file.path}:${lineStart}:${targetLine}:${displayMode}:${textLength}`;
-    if (scrolledSignature === signature) return;
+$effect(() => {
+  if (!viewportRef || file?.type !== "text" || !targetLine) return;
+  const signature = `${file.path}:${lineStart}:${targetLine}:${displayMode}:${textLength}`;
+  if (scrolledSignature === signature) return;
 
-    void tick().then(() => {
-      const target = viewportRef?.querySelector<HTMLElement>(
-        `[data-file-line="${targetLine}"]`,
-      );
-      if (!target) return;
-      target.scrollIntoView({ block: "center", inline: "nearest" });
-      scrolledSignature = signature;
-    });
+  void tick().then(() => {
+    const target = viewportRef?.querySelector<HTMLElement>(
+      `[data-file-line="${targetLine}"]`,
+    );
+    if (!target) return;
+    target.scrollIntoView({ block: "center", inline: "nearest" });
+    scrolledSignature = signature;
   });
+});
 </script>
 
 <section class="file-pane">
@@ -114,76 +114,77 @@
 </section>
 
 <style>
-  .file-pane {
-    display: grid;
-    height: 100%;
-    min-width: 0;
-    min-height: 0;
-    background: var(--background);
-  }
+.file-pane {
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--background);
+}
 
-  :global(.file-scroll) {
-    min-width: 0;
-    min-height: 0;
-  }
+:global(.file-scroll) {
+  min-width: 0;
+  min-height: 0;
+}
 
-  :global(.file-viewport) {
-    padding: calc(var(--spacing) * 4);
-  }
+:global(.file-viewport) {
+  padding: calc(var(--spacing) * 4);
+}
 
-  .file-empty {
-    display: grid;
-    min-height: calc(var(--spacing) * 72);
-    place-items: center;
-    align-content: center;
-    gap: calc(var(--spacing) * 1.5);
-    color: var(--muted-foreground);
-    text-align: center;
-  }
+.file-empty {
+  display: grid;
+  min-height: calc(var(--spacing) * 72);
+  place-items: center;
+  align-content: center;
+  gap: calc(var(--spacing) * 1.5);
+  color: var(--muted-foreground);
+  text-align: center;
+}
 
-  .file-empty :global(svg) {
-    color: var(--primary);
-  }
+.file-empty :global(svg) {
+  color: var(--primary);
+}
 
-  .file-empty.danger :global(svg) {
-    color: var(--destructive);
-  }
+.file-empty.danger :global(svg) {
+  color: var(--destructive);
+}
 
-  .file-empty strong {
-    color: var(--foreground);
-  }
+.file-empty strong {
+  color: var(--foreground);
+}
 
-  .file-empty p {
-    max-width: calc(var(--spacing) * 136);
-    margin: 0;
-    font-size: var(--text-sm);
-  }
+.file-empty p {
+  max-width: calc(var(--spacing) * 136);
+  margin: 0;
+  font-size: var(--text-sm);
+}
 
-  .image-wrap {
-    display: grid;
-    min-height: 100%;
-    place-items: center;
-  }
+.image-wrap {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+}
 
-  .image-wrap img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-  }
+.image-wrap img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
 
-  .markdown-view {
-    max-width: min(100%, calc(var(--spacing) * 288));
-    padding: calc(var(--spacing) * 0.5) calc(var(--spacing) * 1) calc(var(--spacing) * 16);
-  }
+.markdown-view {
+  max-width: min(100%, calc(var(--spacing) * 288));
+  padding: calc(var(--spacing) * 0.5) calc(var(--spacing) * 1)
+    calc(var(--spacing) * 16);
+}
 
-  .markdown-view :global(.markdown) {
-    font-size: var(--text-base);
-    line-height: 1.62;
-  }
+.markdown-view :global(.markdown) {
+  font-size: var(--text-base);
+  line-height: 1.62;
+}
 
-  .file-note {
-    margin: calc(var(--spacing) * 4) 0 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
+.file-note {
+  margin: calc(var(--spacing) * 4) 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
 </style>

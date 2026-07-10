@@ -395,6 +395,7 @@ async function runPythonProcess({
     let settled = false;
     let timedOut = false;
     let timeoutKilled = false;
+    // eslint-disable-next-line prefer-const -- Cleanup closes over the timer before it is scheduled.
     let timeout: NodeJS.Timeout | undefined;
     let forceKillTimeout: NodeJS.Timeout | undefined;
     const cleanup = () => {

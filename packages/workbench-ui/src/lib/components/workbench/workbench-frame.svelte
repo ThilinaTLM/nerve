@@ -1,15 +1,15 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-  let {
-    titlebar,
-    workspace,
-    footer,
-  }: {
-    titlebar: Snippet;
-    workspace: Snippet;
-    footer: Snippet;
-  } = $props();
+let {
+  titlebar,
+  workspace,
+  footer,
+}: {
+  titlebar: Snippet;
+  workspace: Snippet;
+  footer: Snippet;
+} = $props();
 </script>
 
 <main class="app-frame">

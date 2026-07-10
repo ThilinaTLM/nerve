@@ -1,38 +1,46 @@
 <script lang="ts">
-  import Paperclip from "@lucide/svelte/icons/paperclip";
-  import type { ConfluenceAttachmentSummaryPayload } from "@nervekit/contracts";
-  import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-  import { confluenceBytesLabel } from "../../views/confluence-display";
-  import { basename } from "../../views/tool-presentation-helpers";
+import Paperclip from "@lucide/svelte/icons/paperclip";
+import type { ConfluenceAttachmentSummaryPayload } from "@nervekit/contracts";
+import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import { confluenceBytesLabel } from "../../views/confluence-display";
+import { basename } from "../../views/tool-presentation-helpers";
 
-  type Props = {
-    attachment: ConfluenceAttachmentSummaryPayload;
-    expanded?: boolean;
-    onOpenFile?: (path: string, line?: number) => void;
-  };
-  let { attachment, expanded = false, onOpenFile }: Props = $props();
+type Props = {
+  attachment: ConfluenceAttachmentSummaryPayload;
+  expanded?: boolean;
+  onOpenFile?: (path: string, line?: number) => void;
+};
+let { attachment, expanded = false, onOpenFile }: Props = $props();
 
-  const name = $derived(
-    attachment.filename ?? attachment.title ?? attachment.id ?? "attachment",
-  );
-  const sizeLabel = $derived(confluenceBytesLabel(attachment.fileSize));
-  const hasChips = $derived(
-    Boolean(
-      attachment.mediaType || sizeLabel || attachment.versionNumber !== undefined,
-    ),
-  );
+const name = $derived(
+  attachment.filename ?? attachment.title ?? attachment.id ?? "attachment",
+);
+const sizeLabel = $derived(confluenceBytesLabel(attachment.fileSize));
+const hasChips = $derived(
+  Boolean(
+    attachment.mediaType || sizeLabel || attachment.versionNumber !== undefined,
+  ),
+);
 </script>
 
 <div class="grid gap-1.5 rounded-sm border bg-sidebar px-2.5 py-2">
   <div class="flex min-w-0 items-center gap-2">
-    <Paperclip size={13} strokeWidth={2} class="shrink-0 text-muted-foreground" />
-    <span class="min-w-0 flex-1 truncate text-xs font-medium text-sidebar-foreground">{name}</span>
+    <Paperclip
+      size={13}
+      strokeWidth={2}
+      class="shrink-0 text-muted-foreground"
+    />
+    <span
+      class="min-w-0 flex-1 truncate text-xs font-medium text-sidebar-foreground"
+      >{name}</span
+    >
   </div>
 
   {#if hasChips}
     <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       {#if attachment.mediaType}
-        <span class="text-xs text-muted-foreground">{attachment.mediaType}</span>
+        <span class="text-xs text-muted-foreground">{attachment.mediaType}</span
+        >
       {/if}
       {#if sizeLabel}
         <span class="text-xs text-muted-foreground">{sizeLabel}</span>
@@ -56,6 +64,8 @@
   {/if}
 
   {#if expanded && attachment.snippet}
-    <code class="block break-all text-xs text-muted-foreground">{attachment.snippet}</code>
+    <code class="block break-all text-xs text-muted-foreground"
+      >{attachment.snippet}</code
+    >
   {/if}
 </div>

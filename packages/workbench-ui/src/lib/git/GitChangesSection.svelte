@@ -1,60 +1,60 @@
 <script lang="ts">
-  import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
-  import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
-  import FilePen from "@lucide/svelte/icons/file-pen";
-  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
-  import X from "@lucide/svelte/icons/x";
-  import type { GitFileChange } from "@nervekit/contracts";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import { cn } from "@nervekit/workbench-ui/core/utils";
-  import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
-  import type { FileMutation } from "./git-panel-types";
-  import {
-    fileStatusLabel,
-    fileTone,
-    shortenPath,
-    splitPath,
-    statusLetter,
-  } from "./git-change-format";
+import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
+import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
+import FilePen from "@lucide/svelte/icons/file-pen";
+import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import X from "@lucide/svelte/icons/x";
+import type { GitFileChange } from "@nervekit/contracts";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { cn } from "@nervekit/workbench-ui/core/utils";
+import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
+import type { FileMutation } from "./git-panel-types";
+import {
+  fileStatusLabel,
+  fileTone,
+  shortenPath,
+  splitPath,
+  statusLetter,
+} from "./git-change-format";
 
-  type ChangesState = {
-    files: GitFileChange[];
-    stagedCount: number;
-    unstagedCount: number;
-    untrackedCount: number;
-  };
+type ChangesState = {
+  files: GitFileChange[];
+  stagedCount: number;
+  unstagedCount: number;
+  untrackedCount: number;
+};
 
-  type Props = {
-    changes?: ChangesState;
-    stagedFiles: GitFileChange[];
-    unstagedFiles: GitFileChange[];
-    fileMutation?: FileMutation;
-    bulkMutation?: string;
-    selectedRepo: string;
-    loadingOverview: boolean;
-    open?: boolean;
-    onMutateFile: (
-      repo: string,
-      file: GitFileChange,
-      action: "stage" | "unstage" | "discard",
-    ) => void;
-    onBulkStage: (repo: string, action: "stage-all" | "unstage-all") => void;
-    onRequestDiscard: (file: GitFileChange) => void;
-  };
+type Props = {
+  changes?: ChangesState;
+  stagedFiles: GitFileChange[];
+  unstagedFiles: GitFileChange[];
+  fileMutation?: FileMutation;
+  bulkMutation?: string;
+  selectedRepo: string;
+  loadingOverview: boolean;
+  open?: boolean;
+  onMutateFile: (
+    repo: string,
+    file: GitFileChange,
+    action: "stage" | "unstage" | "discard",
+  ) => void;
+  onBulkStage: (repo: string, action: "stage-all" | "unstage-all") => void;
+  onRequestDiscard: (file: GitFileChange) => void;
+};
 
-  let {
-    changes,
-    stagedFiles,
-    unstagedFiles,
-    fileMutation,
-    bulkMutation,
-    selectedRepo,
-    loadingOverview,
-    open = $bindable(true),
-    onMutateFile,
-    onBulkStage,
-    onRequestDiscard,
-  }: Props = $props();
+let {
+  changes,
+  stagedFiles,
+  unstagedFiles,
+  fileMutation,
+  bulkMutation,
+  selectedRepo,
+  loadingOverview,
+  open = $bindable(true),
+  onMutateFile,
+  onBulkStage,
+  onRequestDiscard,
+}: Props = $props();
 </script>
 
 {#snippet changeRow(file: GitFileChange, group: "staged" | "unstaged")}
@@ -71,7 +71,8 @@
       {statusLetter(file, group)}
     </span>
     <div class="min-w-0 flex-1 truncate font-mono" title={file.path}>
-      {#if parts.dir}<span class="text-muted-foreground">{parts.dir}</span>{/if}<span class="text-foreground">{parts.base}</span>
+      {#if parts.dir}<span class="text-muted-foreground">{parts.dir}</span
+        >{/if}<span class="text-foreground">{parts.base}</span>
     </div>
     <div
       class="flex w-9 shrink-0 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
@@ -128,7 +129,12 @@
   </div>
 {/snippet}
 
-<PanelSection title="Changes" icon={FilePen} contentClass="px-2 py-1.5" bind:open>
+<PanelSection
+  title="Changes"
+  icon={FilePen}
+  contentClass="px-2 py-1.5"
+  bind:open
+>
   {#snippet meta()}
     {#if changes}
       <span>{changes.stagedCount} staged</span>
@@ -146,7 +152,9 @@
       <div class="flex flex-col gap-1">
         {#if stagedFiles.length > 0}
           <div class="flex flex-col gap-0.5">
-            <div class="flex h-5 items-center gap-1 px-1 text-xs font-medium text-muted-foreground">
+            <div
+              class="flex h-5 items-center gap-1 px-1 text-xs font-medium text-muted-foreground"
+            >
               <span>Staged</span>
               <Button
                 size="icon-xs"
@@ -172,7 +180,9 @@
         {/if}
         {#if unstagedFiles.length > 0}
           <div class="flex flex-col gap-0.5">
-            <div class="flex h-5 items-center gap-1 px-1 text-xs font-medium text-muted-foreground">
+            <div
+              class="flex h-5 items-center gap-1 px-1 text-xs font-medium text-muted-foreground"
+            >
               <span>Unstaged</span>
               <Button
                 size="icon-xs"

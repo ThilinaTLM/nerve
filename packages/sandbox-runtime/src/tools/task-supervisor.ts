@@ -115,7 +115,7 @@ export class TaskSupervisor {
 
   async load(): Promise<void> {
     if (!this.stateDir) return;
-    let entries: string[] = [];
+    let entries: string[];
     try {
       entries = await readdir(path.join(this.stateDir, "tasks"));
     } catch (error) {
@@ -478,8 +478,7 @@ export class TaskSupervisor {
     const handled = write.catch((error) => {
       if (!this.persistenceError) this.persistenceError = error;
     });
-    let tracked: Promise<void>;
-    tracked = handled.finally(() => {
+    const tracked = handled.finally(() => {
       if (this.pendingPersistence.get(task.id) === tracked) {
         this.pendingPersistence.delete(task.id);
       }
@@ -531,7 +530,8 @@ export class TaskSupervisor {
   private async persist(task: SupervisedTask): Promise<void> {
     if (!this.stateDir) return;
     const dir = path.join(this.stateDir, "tasks", task.id);
-    const { logs: _logs, ...summary } = task;
+    const summary = { ...task };
+    Reflect.deleteProperty(summary, "logs");
     await atomicWriteFile(
       path.join(dir, "state.json"),
       `${JSON.stringify({ ...summary, logRef: `task://${task.id}/logs` }, null, 2)}\n`,

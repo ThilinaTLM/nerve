@@ -1,20 +1,23 @@
 <script lang="ts">
-	import type { HTMLAttributes } from "svelte/elements";
-	import { cn, type WithElementRef } from "@nervekit/workbench-ui/core/utils";
+import type { HTMLAttributes } from "svelte/elements";
+import { cn, type WithElementRef } from "@nervekit/workbench-ui/core/utils";
 
-	let {
-		ref = $bindable(null),
-		class: className,
-		children,
-		...restProps
-	}: WithElementRef<HTMLAttributes<HTMLDivElement>> = $props();
+let {
+  ref = $bindable(null),
+  class: className,
+  children,
+  ...restProps
+}: WithElementRef<HTMLAttributes<HTMLDivElement>> = $props();
 </script>
 
 <div
-	bind:this={ref}
-	data-slot="card-title"
-	class={cn("text-base leading-normal font-medium group-data-[size=sm]/card:text-sm", className)}
-	{...restProps}
+  bind:this={ref}
+  data-slot="card-title"
+  class={cn(
+    "text-base leading-normal font-medium group-data-[size=sm]/card:text-sm",
+    className,
+  )}
+  {...restProps}
 >
-	{@render children?.()}
+  {@render children?.()}
 </div>

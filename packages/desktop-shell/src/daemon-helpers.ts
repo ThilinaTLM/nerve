@@ -72,8 +72,8 @@ export function wantsLanAccess(options: EnsureDaemonOptions): boolean {
   const host = options.host ?? process.env.NERVE_HOST;
   return Boolean(
     options.allowRemote ||
-      process.env.NERVE_ALLOW_REMOTE === "1" ||
-      (host && !isLoopbackHost(host)),
+    process.env.NERVE_ALLOW_REMOTE === "1" ||
+    (host && !isLoopbackHost(host)),
   );
 }
 

@@ -93,9 +93,9 @@ export function sandboxLifecycleView(
     .find((item) => item.status === "failed" || item.status === "timeout");
   const hasPriorReady = Boolean(
     record?.daemon?.readyAt ||
-      detail?.latestSession?.readyAt ||
-      detail?.status?.lastSession?.readyAt ||
-      detail?.snapshot?.lastSession?.readyAt,
+    detail?.latestSession?.readyAt ||
+    detail?.status?.lastSession?.readyAt ||
+    detail?.snapshot?.lastSession?.readyAt,
   );
 
   let state: SandboxLifecycleViewState;

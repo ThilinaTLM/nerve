@@ -38,8 +38,8 @@ Private (never published):
 
 ```sh
 pnpm install
+pnpm fix
 pnpm check
-pnpm lint
 pnpm test
 pnpm release:verify-tag -- v0.1.0
 pnpm release:build

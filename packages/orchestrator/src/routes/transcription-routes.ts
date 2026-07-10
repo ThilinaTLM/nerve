@@ -7,9 +7,9 @@ import { routeHandler } from "../http/responses.js";
 function isUploadedFile(value: FormDataEntryValue | null): value is File {
   return Boolean(
     value &&
-      typeof value === "object" &&
-      "arrayBuffer" in value &&
-      typeof value.arrayBuffer === "function",
+    typeof value === "object" &&
+    "arrayBuffer" in value &&
+    typeof value.arrayBuffer === "function",
   );
 }
 

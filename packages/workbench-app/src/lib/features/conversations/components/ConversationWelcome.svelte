@@ -1,13 +1,13 @@
 <script lang="ts">
-  import Plus from "@lucide/svelte/icons/plus";
-  import { ConversationSignal } from "@nervekit/workbench-ui";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import { Kbd } from "@nervekit/workbench-ui/components/ui/kbd";
-  import { getShortcutLabel } from "$lib/core/shortcuts/registry";
+import Plus from "@lucide/svelte/icons/plus";
+import { ConversationSignal } from "@nervekit/workbench-ui";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { Kbd } from "@nervekit/workbench-ui/components/ui/kbd";
+import { getShortcutLabel } from "$lib/core/shortcuts/registry";
 
-  let { onNewChat }: { onNewChat: () => void } = $props();
+let { onNewChat }: { onNewChat: () => void } = $props();
 
-  const newChatShortcut = getShortcutLabel("conversation.new");
+const newChatShortcut = getShortcutLabel("conversation.new");
 </script>
 
 <ConversationSignal

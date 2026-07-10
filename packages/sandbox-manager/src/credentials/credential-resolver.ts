@@ -104,11 +104,9 @@ export class CredentialResolver {
       (await this.secrets.resolve({ key: secretKey })).value,
     );
     let current = bundle;
-    let status = "skipped";
     let error: unknown;
     try {
       if (needsRefresh(bundle, options.minTtlMs ?? DEFAULT_MIN_TTL_MS)) {
-        status = "refreshing";
         const refreshed = await refreshOAuth(
           profile.provider ?? profile.providerKind,
           bundle,
@@ -153,13 +151,12 @@ export class CredentialResolver {
           };
         }
       }
-      status = "unchanged";
       const value = oauthAccessValue(current);
       const expiresAt = expiresAtForBundle(current);
       await this.recordRefresh(
         profileId,
         profile.providerKind,
-        status,
+        "unchanged",
         startedAt,
         expiresAt,
       );

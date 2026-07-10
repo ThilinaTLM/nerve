@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Protocol method registry intentionally centralizes v1 method names and schemas.
+/* eslint-disable max-lines -- Protocol method registry intentionally centralizes v1 method names and schemas. */
 import { z } from "zod";
 import {
   agentRecordSchema,

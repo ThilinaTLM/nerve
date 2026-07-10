@@ -12,9 +12,11 @@ import {
   toConversation,
 } from "./repo-utils.js";
 
-export class InMemoryConversationRepo
-  implements ConversationRepo<ConversationMetadata, { id?: string }, void>
-{
+export class InMemoryConversationRepo implements ConversationRepo<
+  ConversationMetadata,
+  { id?: string },
+  void
+> {
   private conversations = new Map<string, Conversation<ConversationMetadata>>();
 
   async create(

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import WorkbenchApp from "$lib/app/App.svelte";
+import WorkbenchApp from "$lib/app/App.svelte";
 </script>
 
 <WorkbenchApp />

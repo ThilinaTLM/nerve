@@ -35,6 +35,7 @@ export class SecretTaskLaunchConfigStore implements TaskLaunchConfigStore {
     } catch (error) {
       throw new Error(
         `Invalid persisted launch config for task ${taskId}: ${errorMessage(error)}`,
+        { cause: error },
       );
     }
 
@@ -52,9 +53,7 @@ export class SecretTaskLaunchConfigStore implements TaskLaunchConfigStore {
   }
 }
 
-export class UnconfiguredTaskLaunchConfigStore
-  implements TaskLaunchConfigStore
-{
+export class UnconfiguredTaskLaunchConfigStore implements TaskLaunchConfigStore {
   async write(): Promise<void> {
     throw new Error(
       "Task launch config store is not configured; refusing to persist env overrides.",

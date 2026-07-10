@@ -145,7 +145,9 @@ async function availableBackend(): Promise<SmokeBackend | undefined> {
     try {
       await execFileAsync(bin, [...prefix, "version"], { timeout: 5_000 });
       return candidate;
-    } catch {}
+    } catch {
+      // Try the next available container backend.
+    }
   }
   return undefined;
 }

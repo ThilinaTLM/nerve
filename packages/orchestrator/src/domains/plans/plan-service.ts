@@ -97,7 +97,8 @@ export class PlanService {
     );
   }
 
-  planDir(_agent: AgentRecord): string {
+  planDir(agent: AgentRecord): string {
+    void agent;
     return planDirForStorageHome(this.storage.paths.home);
   }
 

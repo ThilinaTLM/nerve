@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: central harness implementation; provider env forwarding is a small extension pending broader split.
+/* eslint-disable max-lines -- Central harness implementation; provider env forwarding is a small extension pending broader split. */
 import type { AssistantMessage, ImageContent } from "@earendil-works/pi-ai";
 import { runAgentLoop } from "../agent-loop.js";
 import { streamSimpleWithModel } from "../pi-ai-models.js";

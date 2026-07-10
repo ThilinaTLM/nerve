@@ -10,6 +10,7 @@ export class S3FilesVolumeProvider implements RuntimeVolumeProvider {
     sandboxId: string,
     _config: SandboxConfigV1,
   ): Promise<PreparedRuntimeVolumes> {
+    void _config;
     return {
       workspace: {
         kind: "s3-files",

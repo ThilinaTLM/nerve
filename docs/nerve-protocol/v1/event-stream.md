@@ -210,7 +210,6 @@ If the adapter cannot prove `previousDurableSeq` for a durable batch, it MUST NO
 
 For transient-only batches, the adapter MAY omit durable continuity fields or set `durableCompleteThroughSeq` only when it can prove no durable event was skipped in the advertised range. A client MUST NOT advance its processed durable cursor solely because it received a transient-only batch.
 
-
 ## Client dispatch rules
 
 A client receiving `event.batch` MUST follow these rules for each stream.
@@ -305,31 +304,31 @@ Current Nerve event names that contain underscores, such as `user_question.*`, `
 
 The following current event families are in scope for Protocol v1. This table is a coverage guide; exact payload schemas remain owned by their domains.
 
-| Event family | Typical durability | Purpose and recovery notes |
-| --- | --- | --- |
-| `daemon.*` | durable | Daemon lifecycle/status diagnostics. |
-| `project.*` | durable | Project creation, deletion, and project-level maintenance such as conversation pruning. |
-| `conversation.created`, `conversation.updated`, `conversation.deleted`, `conversation.imported` | durable | Workspace conversation list updates. |
-| `conversation.entry.appended` | durable | Transcript entry state; reducers should be idempotent by entry ID. |
-| `conversation.run.*` | durable for lifecycle; transient only for non-required progress | Run start/completion/failure/suspension must be recoverable. Retry/progress details may be transient if final durable state reconstructs the view. |
-| `conversation.prompt.*` | durable | Queued prompt state. |
-| `conversation.tool_call.updated` | durable | Tool call transcript and approval-related updates. |
-| `conversation.compaction.*`, `conversation.compacted`, `conversation.context.updated`, `conversation.navigated`, `conversation.branch_summarized` | durable or transient by domain semantics | Conversation refresh/context/compaction state. Final materialized changes must be durable or snapshot-backed. |
-| `conversation.live.*` | transient | Streaming assistant content, thinking, tool drafts, tool output, and live progress. May be coalesced/dropped when durable final entries or snapshots repair state. |
-| `agent.*` | durable, except explicit progress-style events may be transient | Agent lifecycle, configuration, mode/status, subagent/explore progress. |
-| `agent.suspension.*` | durable | Suspended/awaiting-user state. |
-| `worker.*` | durable | Worker inventory/lifecycle. |
-| `task.*` | durable for lifecycle; transient only for non-required progress | Task list, foreground state, logs, readiness, cancellation, orphan cleanup. |
-| `approval.*` | durable | Pending and resolved approval state. |
-| `user_question.*` | durable | Human question request/answer/dismiss state. |
-| `plan_review.*` | durable | Plan review lifecycle and decisions. |
-| `settings.*` | durable | Settings refresh; payloads must not include secrets. |
-| `auth.*` | durable metadata only | Auth/provider metadata refresh and OAuth flow status; no provider tokens. |
-| `secrets.*` | durable metadata only | Secret state changed; payloads must identify provider/key metadata only, never secret values. |
-| `providers.*` | durable | Provider/model catalog refresh. |
-| `prompt_suggestions.*` | durable | Prompt suggestion trust/status refresh. |
-| `usage.subscription.updated` | transient | Subscription usage display; polling can repair missed updates. |
-| `policy.*` | durable or diagnostic by domain | Policy/approval diagnostics; payloads must be redacted and bounded. |
+| Event family                                                                                                                                      | Typical durability                                              | Purpose and recovery notes                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `daemon.*`                                                                                                                                        | durable                                                         | Daemon lifecycle/status diagnostics.                                                                                                                               |
+| `project.*`                                                                                                                                       | durable                                                         | Project creation, deletion, and project-level maintenance such as conversation pruning.                                                                            |
+| `conversation.created`, `conversation.updated`, `conversation.deleted`, `conversation.imported`                                                   | durable                                                         | Workspace conversation list updates.                                                                                                                               |
+| `conversation.entry.appended`                                                                                                                     | durable                                                         | Transcript entry state; reducers should be idempotent by entry ID.                                                                                                 |
+| `conversation.run.*`                                                                                                                              | durable for lifecycle; transient only for non-required progress | Run start/completion/failure/suspension must be recoverable. Retry/progress details may be transient if final durable state reconstructs the view.                 |
+| `conversation.prompt.*`                                                                                                                           | durable                                                         | Queued prompt state.                                                                                                                                               |
+| `conversation.tool_call.updated`                                                                                                                  | durable                                                         | Tool call transcript and approval-related updates.                                                                                                                 |
+| `conversation.compaction.*`, `conversation.compacted`, `conversation.context.updated`, `conversation.navigated`, `conversation.branch_summarized` | durable or transient by domain semantics                        | Conversation refresh/context/compaction state. Final materialized changes must be durable or snapshot-backed.                                                      |
+| `conversation.live.*`                                                                                                                             | transient                                                       | Streaming assistant content, thinking, tool drafts, tool output, and live progress. May be coalesced/dropped when durable final entries or snapshots repair state. |
+| `agent.*`                                                                                                                                         | durable, except explicit progress-style events may be transient | Agent lifecycle, configuration, mode/status, subagent/explore progress.                                                                                            |
+| `agent.suspension.*`                                                                                                                              | durable                                                         | Suspended/awaiting-user state.                                                                                                                                     |
+| `worker.*`                                                                                                                                        | durable                                                         | Worker inventory/lifecycle.                                                                                                                                        |
+| `task.*`                                                                                                                                          | durable for lifecycle; transient only for non-required progress | Task list, foreground state, logs, readiness, cancellation, orphan cleanup.                                                                                        |
+| `approval.*`                                                                                                                                      | durable                                                         | Pending and resolved approval state.                                                                                                                               |
+| `user_question.*`                                                                                                                                 | durable                                                         | Human question request/answer/dismiss state.                                                                                                                       |
+| `plan_review.*`                                                                                                                                   | durable                                                         | Plan review lifecycle and decisions.                                                                                                                               |
+| `settings.*`                                                                                                                                      | durable                                                         | Settings refresh; payloads must not include secrets.                                                                                                               |
+| `auth.*`                                                                                                                                          | durable metadata only                                           | Auth/provider metadata refresh and OAuth flow status; no provider tokens.                                                                                          |
+| `secrets.*`                                                                                                                                       | durable metadata only                                           | Secret state changed; payloads must identify provider/key metadata only, never secret values.                                                                      |
+| `providers.*`                                                                                                                                     | durable                                                         | Provider/model catalog refresh.                                                                                                                                    |
+| `prompt_suggestions.*`                                                                                                                            | durable                                                         | Prompt suggestion trust/status refresh.                                                                                                                            |
+| `usage.subscription.updated`                                                                                                                      | transient                                                       | Subscription usage display; polling can repair missed updates.                                                                                                     |
+| `policy.*`                                                                                                                                        | durable or diagnostic by domain                                 | Policy/approval diagnostics; payloads must be redacted and bounded.                                                                                                |
 
 ### Event registration checklist
 
@@ -372,14 +371,14 @@ The orchestrator SHOULD batch events to balance latency and throughput.
 
 Recommended default live batching targets:
 
-| Parameter | Default |
-| --- | ---: |
-| Maximum batch delay under light load | 16 ms |
-| Maximum batch delay under heavy load | 50 ms |
-| Target max encoded batch size | 1 MiB |
-| Hard max encoded batch size | 4 MiB |
-| Target max durable events per batch | 500 |
-| Target max transient events per batch | 2,000 |
+| Parameter                             | Default |
+| ------------------------------------- | ------: |
+| Maximum batch delay under light load  |   16 ms |
+| Maximum batch delay under heavy load  |   50 ms |
+| Target max encoded batch size         |   1 MiB |
+| Hard max encoded batch size           |   4 MiB |
+| Target max durable events per batch   |     500 |
+| Target max transient events per batch |   2,000 |
 
 The orchestrator SHOULD flush a batch immediately when:
 

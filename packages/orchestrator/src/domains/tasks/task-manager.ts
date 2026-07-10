@@ -84,9 +84,6 @@ export interface TaskManagerOptions {
   launchConfigs?: TaskLaunchConfigStore;
 }
 
-const _RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS = 5000;
-const _FOREGROUND_TIMEOUT_RESULT_GRACE_MS = 500;
-
 export type ForegroundBashPromotionInput = {
   command: string;
   cwd: string;

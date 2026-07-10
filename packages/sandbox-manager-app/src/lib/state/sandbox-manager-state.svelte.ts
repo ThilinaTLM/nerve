@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Store coordinates manager websocket, lifecycle, chat, and workspace tab state while this app is still being factored.
+/* eslint-disable max-lines -- Store coordinates manager websocket, lifecycle, chat, and workspace tab state while this app is still being factored. */
 import type {
   CreatePinnedCommandRequest,
   EventEnvelope,
@@ -26,6 +26,7 @@ import {
   sandboxActivitySummarySchema,
   sandboxRunStartResultSchema,
 } from "@nervekit/contracts";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { notify } from "@nervekit/workbench-ui/core/notify";
 import {
   applyConversationEvent,
@@ -166,17 +167,17 @@ export class SandboxManagerStore {
   fleetError = $state<string | undefined>(undefined);
 
   private ws: ManagerWsClient;
-  private readonly conversationsLoading = new Set<string>();
+  private readonly conversationsLoading = new SvelteSet<string>();
   private fleetRefreshTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly statusPollTimers = new Map<
+  private readonly statusPollTimers = new SvelteMap<
     string,
     ReturnType<typeof setTimeout>
   >();
-  private readonly runSnapshotTimers = new Map<
+  private readonly runSnapshotTimers = new SvelteMap<
     string,
     ReturnType<typeof setInterval>
   >();
-  private readonly operationCleanupTimers = new Set<
+  private readonly operationCleanupTimers = new SvelteSet<
     ReturnType<typeof setTimeout>
   >();
   private disposed = false;
@@ -258,9 +259,11 @@ export class SandboxManagerStore {
     this.loadingFleet = true;
     try {
       const items = await api.listSandboxes();
-      this.sandboxes = items.map(
-        ({ activity: _activity, ...record }) => record,
-      );
+      this.sandboxes = items.map((record) => {
+        const result = { ...record };
+        Reflect.deleteProperty(result, "activity");
+        return result;
+      });
       const activity: Record<string, SandboxActivitySummary> = {};
       for (const item of items)
         if (item.activity) activity[item.sandboxId] = item.activity;
@@ -719,7 +722,7 @@ export class SandboxManagerStore {
 
   async pruneSandboxTasks(sandboxId: string): Promise<void> {
     const result = await pruneSandboxTasks(sandboxId);
-    const removed = new Set(result.removed);
+    const removed = new SvelteSet(result.removed);
     const detail = this.detail(sandboxId);
     detail.tasks = detail.tasks.filter((task) => !removed.has(task.id));
     for (const taskId of removed) delete detail.taskLogsById[taskId];
@@ -998,6 +1001,7 @@ export class SandboxManagerStore {
         }),
       );
       const result = sandboxRunStartResultSchema.parse(raw);
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Timestamp is read immediately and is not reactive state.
       const now = new Date().toISOString();
       const pendingCreatedAt = pendingId
         ? detail.pendingConversationsById[pendingId]?.createdAt

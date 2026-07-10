@@ -6,21 +6,21 @@ A YAML policy is declarative. It is not sufficient unless the runtime enforces i
 
 ## Trust model
 
-| Actor/data | Trust level | Notes |
-| --- | --- | --- |
-| Model output | Untrusted | May request dangerous tools or leak secrets. |
-| User/controller commands | Authenticated but validated | Auth proves source, not safety. |
-| Workspace files | Untrusted | May contain malicious scripts, symlinks, prompt injection, or malicious skills. |
-| Workspace `AGENTS.md` and `.agents/skills` | Untrusted prompt resources | Must not grant permissions or credentials. |
-| Built-in `/agent/skills` | Trusted only as image content | Immutable from tools; still cannot bypass policy. |
-| Downloaded web content | Untrusted | Must be bounded and treated as data. |
-| Package dependencies | Untrusted | Install scripts can execute code; use lockfiles and policy. |
-| Tool outputs | Untrusted | May contain secrets or hostile text. |
-| YAML config | Trusted only after validation | Must not contain raw secrets. |
-| Secret-store key names | Sensitive metadata in some deployments | May reveal provider/account/service intent. |
-| Secret values | Highly sensitive | Inject only at narrow boundaries; never log. |
-| Refreshed credentials | Highly sensitive | Store only in protected state/credential files. |
-| `/agent` runtime | Trusted base | Must be immutable from agent tools. |
+| Actor/data                                 | Trust level                            | Notes                                                                           |
+| ------------------------------------------ | -------------------------------------- | ------------------------------------------------------------------------------- |
+| Model output                               | Untrusted                              | May request dangerous tools or leak secrets.                                    |
+| User/controller commands                   | Authenticated but validated            | Auth proves source, not safety.                                                 |
+| Workspace files                            | Untrusted                              | May contain malicious scripts, symlinks, prompt injection, or malicious skills. |
+| Workspace `AGENTS.md` and `.agents/skills` | Untrusted prompt resources             | Must not grant permissions or credentials.                                      |
+| Built-in `/agent/skills`                   | Trusted only as image content          | Immutable from tools; still cannot bypass policy.                               |
+| Downloaded web content                     | Untrusted                              | Must be bounded and treated as data.                                            |
+| Package dependencies                       | Untrusted                              | Install scripts can execute code; use lockfiles and policy.                     |
+| Tool outputs                               | Untrusted                              | May contain secrets or hostile text.                                            |
+| YAML config                                | Trusted only after validation          | Must not contain raw secrets.                                                   |
+| Secret-store key names                     | Sensitive metadata in some deployments | May reveal provider/account/service intent.                                     |
+| Secret values                              | Highly sensitive                       | Inject only at narrow boundaries; never log.                                    |
+| Refreshed credentials                      | Highly sensitive                       | Store only in protected state/credential files.                                 |
+| `/agent` runtime                           | Trusted base                           | Must be immutable from agent tools.                                             |
 
 ## Filesystem policy
 

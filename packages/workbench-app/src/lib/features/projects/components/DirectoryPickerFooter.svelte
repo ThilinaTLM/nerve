@@ -1,28 +1,36 @@
 <script lang="ts">
-  import FolderOpen from "@lucide/svelte/icons/folder-open";
-  import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import { shortenPath } from "$lib/core/utils/path";
-  import type { FilesystemSignal } from "$lib/api";
-  import type { SignalMetaByKind } from "./directory-picker-types";
+import FolderOpen from "@lucide/svelte/icons/folder-open";
+import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { shortenPath } from "$lib/core/utils/path";
+import type { FilesystemSignal } from "$lib/api";
+import type { SignalMetaByKind } from "./directory-picker-types";
 
-  type Props = {
-    path: string;
-    homeDir?: string;
-    signals?: FilesystemSignal[];
-    signalMeta: SignalMetaByKind;
-    loading?: boolean;
-    onOpen?: () => void;
-  };
+type Props = {
+  path: string;
+  homeDir?: string;
+  signals?: FilesystemSignal[];
+  signalMeta: SignalMetaByKind;
+  loading?: boolean;
+  onOpen?: () => void;
+};
 
-  let { path, homeDir, signals = [], signalMeta, loading = false, onOpen }: Props = $props();
+let {
+  path,
+  homeDir,
+  signals = [],
+  signalMeta,
+  loading = false,
+  onOpen,
+}: Props = $props();
 </script>
 
 <div class="footer-path" title={path}>
   <FolderOpen size={14} strokeWidth={2.1} aria-hidden="true" />
-  <span class="footer-path-text">{path ? shortenPath(path, homeDir) : "—"}</span>
+  <span class="footer-path-text">{path ? shortenPath(path, homeDir) : "—"}</span
+  >
   <span class="footer-signals">
-    {#each signals as signal}
+    {#each signals as signal (signal)}
       {@const meta = signalMeta[signal]}
       {@const Icon = meta.icon}
       <Badge tone={meta.tone ?? "neutral"} size="xs" title={meta.title}>

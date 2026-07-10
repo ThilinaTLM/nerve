@@ -400,7 +400,7 @@ describe("tool policy", () => {
     const supervisedSafe = evaluateToolPolicy(
       agent("supervised", "planning"),
       "bash",
-      { command: "biome check . && tsc --noEmit" },
+      { command: "oxfmt --check . && eslint . && tsc --noEmit" },
       { dataDir: "/tmp/nerve" },
     );
     assert.equal(supervisedSafe.decision, "approval");

@@ -32,14 +32,16 @@ interface ToolDefinitionBase<TParams extends TSchema = TSchema> {
   classifyRisk?: ToolArgumentRiskClassifier;
 }
 
-export interface LocalToolDefinition<TParams extends TSchema = TSchema>
-  extends ToolDefinitionBase<TParams> {
+export interface LocalToolDefinition<
+  TParams extends TSchema = TSchema,
+> extends ToolDefinitionBase<TParams> {
   executionKind: "local";
   executor: ToolExecutor;
 }
 
-export interface HostToolDefinition<TParams extends TSchema = TSchema>
-  extends ToolDefinitionBase<TParams> {
+export interface HostToolDefinition<
+  TParams extends TSchema = TSchema,
+> extends ToolDefinitionBase<TParams> {
   executionKind: "host";
   executor?: never;
 }

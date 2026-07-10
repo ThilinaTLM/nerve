@@ -35,7 +35,7 @@ function generateSandboxConfigJsonSchema(): string {
 function formatJson(content: string): string {
   return execFileSync(
     "pnpm",
-    ["exec", "biome", "format", "--stdin-file-path", schemaPath],
+    ["exec", "oxfmt", "--stdin-filepath", schemaPath],
     {
       cwd: packageDir,
       encoding: "utf8",

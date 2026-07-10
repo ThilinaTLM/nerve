@@ -243,12 +243,12 @@ Requirements:
 
 Recommended defaults:
 
-| Setting | Default |
-| --- | ---: |
-| Server heartbeat interval | 30,000 ms |
+| Setting                        |   Default |
+| ------------------------------ | --------: |
+| Server heartbeat interval      | 30,000 ms |
 | Client liveness check interval | 15,000 ms |
-| Client liveness timeout | 70,000 ms |
-| Handshake timeout | 10,000 ms |
+| Client liveness timeout        | 70,000 ms |
+| Handshake timeout              | 10,000 ms |
 
 ## `goodbye`
 
@@ -291,7 +291,6 @@ A session is a logical protocol conversation over a transport connection.
 
 Client IDs and locally stored cursors SHOULD be scoped to the orchestrator identity or data directory identity when possible. If a browser profile connects to a different Nerve daemon or a reset data directory, stale cursors can be ahead of the server or refer to unrelated state; the orchestrator must reject incompatible cursors and the client should load a fresh snapshot.
 
-
 The protocol does not require server-side session resurrection. Resume correctness is based on event cursors, not on preserving a previous session object.
 
 ## Capability negotiation
@@ -300,15 +299,15 @@ Capabilities are string identifiers. Both peers advertise supported capabilities
 
 Baseline WebSocket event-streaming capabilities:
 
-| Capability | Required for v1 WebSocket event streaming | Description |
-| --- | --- | --- |
-| `encoding.json` | yes | UTF-8 JSON protocol messages. |
-| `event.batch` | yes | Event batch delivery. |
-| `event.replay` | yes | Replay request and replay markers. |
-| `event.ack.processed` | yes | Client processed-cursor acknowledgements. |
-| `flow.backpressure` | recommended | Flow update/degradation messages. |
-| `snapshot.workspace` | optional | Snapshot-assisted recovery. |
-| `http.envelope` | optional | Protocol envelope over HTTP. |
+| Capability            | Required for v1 WebSocket event streaming | Description                               |
+| --------------------- | ----------------------------------------- | ----------------------------------------- |
+| `encoding.json`       | yes                                       | UTF-8 JSON protocol messages.             |
+| `event.batch`         | yes                                       | Event batch delivery.                     |
+| `event.replay`        | yes                                       | Replay request and replay markers.        |
+| `event.ack.processed` | yes                                       | Client processed-cursor acknowledgements. |
+| `flow.backpressure`   | recommended                               | Flow update/degradation messages.         |
+| `snapshot.workspace`  | optional                                  | Snapshot-assisted recovery.               |
+| `http.envelope`       | optional                                  | Protocol envelope over HTTP.              |
 
 Rules:
 
@@ -346,14 +345,14 @@ Outcomes:
 
 Clients SHOULD use exponential backoff with jitter for reconnects. Recommended values:
 
-| Attempt | Base delay |
-| ---: | ---: |
-| 1 | 250 ms |
-| 2 | 500 ms |
-| 3 | 1,000 ms |
-| 4 | 1,500 ms |
-| 5 | 2,500 ms |
-| 6+ | capped at 5,000 ms |
+| Attempt |         Base delay |
+| ------: | -----------------: |
+|       1 |             250 ms |
+|       2 |             500 ms |
+|       3 |           1,000 ms |
+|       4 |           1,500 ms |
+|       5 |           2,500 ms |
+|      6+ | capped at 5,000 ms |
 
 A client SHOULD reconnect immediately after local page reload if the orchestrator is expected to be running, but SHOULD still avoid tight loops when auth, DNS, TLS, or startup errors persist.
 
@@ -373,14 +372,14 @@ See [Errors and Security](./errors-and-security.md).
 
 During handshake, an error is normally terminal. Examples:
 
-| Code | Typical cause |
-| --- | --- |
-| `PROTOCOL_VERSION_UNSUPPORTED` | Unsupported `version`. |
-| `INVALID_MESSAGE` | Malformed envelope or payload. |
-| `CAPABILITY_REQUIRED` | Client lacks required capability. |
-| `AUTH_REQUIRED` | Missing or invalid transport auth. |
-| `AUTH_FORBIDDEN` | Authenticated peer is not allowed to open this session. |
-| `SESSION_REJECTED` | Server policy rejects the session. |
+| Code                           | Typical cause                                           |
+| ------------------------------ | ------------------------------------------------------- |
+| `PROTOCOL_VERSION_UNSUPPORTED` | Unsupported `version`.                                  |
+| `INVALID_MESSAGE`              | Malformed envelope or payload.                          |
+| `CAPABILITY_REQUIRED`          | Client lacks required capability.                       |
+| `AUTH_REQUIRED`                | Missing or invalid transport auth.                      |
+| `AUTH_FORBIDDEN`               | Authenticated peer is not allowed to open this session. |
+| `SESSION_REJECTED`             | Server policy rejects the session.                      |
 
 After a session is established, errors may be terminal or recoverable depending on `data.retryable` and `data.close` in the `error` message.
 

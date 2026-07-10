@@ -37,7 +37,7 @@ jobs:
       - name: Verify release tag
         run: pnpm release:verify-tag -- "${{ github.ref_name }}"
 
-      - name: Type-check packages
+      - name: Check formatting, lint, and packages
         run: pnpm check
 
       - name: Run tests

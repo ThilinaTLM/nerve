@@ -1,10 +1,10 @@
 <script lang="ts">
-  type Props = {
-    status?: string;
-    text: string;
-  };
+type Props = {
+  status?: string;
+  text: string;
+};
 
-  let { status = "idle", text }: Props = $props();
+let { status = "idle", text }: Props = $props();
 </script>
 
 <div class="settings-save-state" data-status={status}>

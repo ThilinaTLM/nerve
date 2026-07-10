@@ -203,6 +203,7 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
   }
 
   async start(_ref: ManagedContainerRef): Promise<void> {
+    void _ref;
     // ECS has no Docker-style created-but-not-started task state. create()
     // registers the task definition and immediately calls RunTask.
   }
@@ -240,6 +241,7 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
     ref: ManagedContainerRef,
     options: LogReadOptions = {},
   ): AsyncIterable<LogChunk> {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- The async iterator needs lexical access to the driver instance.
     const driver = this;
     return {
       async *[Symbol.asyncIterator]() {
@@ -291,8 +293,9 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
 
   async stop(
     ref: ManagedContainerRef,
-    _options: StopOptions = {},
+    options: StopOptions = {},
   ): Promise<void> {
+    void options;
     await this.stopTask(ref, "Nerve sandbox manager stop requested");
   }
 
@@ -305,8 +308,9 @@ export class EcsContainerDriver implements ContainerRuntimeDriver {
 
   async remove(
     ref: ManagedContainerRef,
-    _options: RemoveOptions = {},
+    options: RemoveOptions = {},
   ): Promise<void> {
+    void options;
     await this.stopTask(ref, "Nerve sandbox manager remove requested").catch(
       () => undefined,
     );

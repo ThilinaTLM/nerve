@@ -1,179 +1,190 @@
 <script lang="ts">
-  import {
-    AgentConversationPane,
-    buildConversationRenderProjection,
-  } from "@nervekit/workbench-ui";
-  import { setConversationUiCapabilities } from "@nervekit/workbench-ui/context";
-  import type { ThinkingLevel } from "@nervekit/contracts";
-  import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
-  import {
-    sandboxCanForwardCommand,
-    sandboxCanQueuePrompt,
-    sandboxIsConnected,
-    sandboxIsReadOnly,
-    sandboxLifecycleMessage,
-  } from "../../state/sandbox-lifecycle";
-  import {
-    activeComposerText,
-    activeQueuedPrompt,
-  } from "../../state/sandbox-conversation-state";
-  import { sandboxAvailableModels } from "../../state/sandbox-manager-selectors.svelte";
-  import {
-    sandboxMessageMenu,
-    sandboxToolMenu,
-  } from "../../state/sandbox-conversation-menus";
-  import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
-  import {
-    pendingApprovalRecords,
-    pendingPlanReviewRecord,
-    pendingUserQuestionRecord,
-  } from "../../state/sandbox-review-records";
-  import { resolveToolCallDetails } from "../../state/sandbox-tool-call-details";
-  import { modelKey } from "../../utils/model-display";
+import {
+  AgentConversationPane,
+  buildConversationRenderProjection,
+} from "@nervekit/workbench-ui";
+import { setConversationUiCapabilities } from "@nervekit/workbench-ui/context";
+import type { ThinkingLevel } from "@nervekit/contracts";
+import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
+import {
+  sandboxCanForwardCommand,
+  sandboxCanQueuePrompt,
+  sandboxIsConnected,
+  sandboxIsReadOnly,
+  sandboxLifecycleMessage,
+} from "../../state/sandbox-lifecycle";
+import {
+  activeComposerText,
+  activeQueuedPrompt,
+} from "../../state/sandbox-conversation-state";
+import { sandboxAvailableModels } from "../../state/sandbox-manager-selectors.svelte";
+import {
+  sandboxMessageMenu,
+  sandboxToolMenu,
+} from "../../state/sandbox-conversation-menus";
+import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
+import {
+  pendingApprovalRecords,
+  pendingPlanReviewRecord,
+  pendingUserQuestionRecord,
+} from "../../state/sandbox-review-records";
+import { resolveToolCallDetails } from "../../state/sandbox-tool-call-details";
+import { modelKey } from "../../utils/model-display";
 
-  let { sandboxId }: { sandboxId: string } = $props();
+let { sandboxId }: { sandboxId: string } = $props();
 
-  const store = useSandboxManagerStore();
+const store = useSandboxManagerStore();
 
-  const record = $derived(
-    store.sandboxes.find((item) => item.sandboxId === sandboxId),
-  );
-  const detail = $derived(store.details[sandboxId]);
-  const richState = $derived(
-    detail?.selectedConversationId
-      ? detail.conversationViewsById[detail.selectedConversationId]
-      : undefined,
-  );
-  const connected = $derived(sandboxIsConnected(detail));
-  const render = $derived(buildConversationRenderProjection(richState));
-  const progress = $derived(computeSandboxBootProgress(record, detail));
-  const booting = $derived(
-    !connected && sandboxCanQueuePrompt(record, detail) && progress.state !== "failed",
-  );
-  const hasContent = $derived(
-    render.timeline.length > 0 || Boolean(render.streamingText),
-  );
-  const transcriptHeightCacheKey = $derived(
-    `${sandboxId}:${detail?.selectedPendingConversationId ?? detail?.selectedConversationId ?? "default"}`,
-  );
-  const scrollConversationId = $derived(
-    detail?.selectedPendingConversationId ??
-      detail?.selectedConversationId ??
-      richState?.conversationId ??
-      "default",
-  );
+const record = $derived(
+  store.sandboxes.find((item) => item.sandboxId === sandboxId),
+);
+const detail = $derived(store.details[sandboxId]);
+const richState = $derived(
+  detail?.selectedConversationId
+    ? detail.conversationViewsById[detail.selectedConversationId]
+    : undefined,
+);
+const connected = $derived(sandboxIsConnected(detail));
+const render = $derived(buildConversationRenderProjection(richState));
+const progress = $derived(computeSandboxBootProgress(record, detail));
+const booting = $derived(
+  !connected &&
+    sandboxCanQueuePrompt(record, detail) &&
+    progress.state !== "failed",
+);
+const hasContent = $derived(
+  render.timeline.length > 0 || Boolean(render.streamingText),
+);
+const transcriptHeightCacheKey = $derived(
+  `${sandboxId}:${detail?.selectedPendingConversationId ?? detail?.selectedConversationId ?? "default"}`,
+);
+const scrollConversationId = $derived(
+  detail?.selectedPendingConversationId ??
+    detail?.selectedConversationId ??
+    richState?.conversationId ??
+    "default",
+);
 
-  const activeRun = $derived(
-    richState?.activeRun ??
-      (detail?.selectedRunId ? detail.liveRuns[detail.selectedRunId] : undefined),
-  );
-  const canForward = $derived(sandboxCanForwardCommand(record, detail));
-  const canCancel = $derived(
-    canForward &&
-      (activeRun?.status === "running" ||
-        activeRun?.status === "queued" ||
-        activeRun?.status === "streaming"),
-  );
-  const readOnly = $derived(sandboxIsReadOnly(record, detail));
-  const snapshotReadOnly = $derived(Boolean(richState?.readOnly) && hasContent);
-  const lifecycleMessage = $derived(sandboxLifecycleMessage(record, detail));
-  const snapshotMessage = $derived(
-    richState?.fallbackReason ??
-      detail?.lastRichSnapshot?.reason ??
-      "Transcript reconstructed from durable manager events.",
-  );
-  const approvals = $derived(pendingApprovalRecords(detail, richState));
-  const pendingUserQuestion = $derived(pendingUserQuestionRecord(detail, richState));
-  const pendingPlanReview = $derived(pendingPlanReviewRecord(detail, richState));
-  const blockedForReview = $derived(
-    approvals.length > 0 ||
-      Boolean(pendingUserQuestion) ||
-      Boolean(pendingPlanReview),
-  );
-  const composerDisabled = $derived(
-    !sandboxCanQueuePrompt(record, detail) ||
-      (detail?.sending ?? false) ||
-      readOnly ||
-      blockedForReview,
-  );
-  const controls = $derived(detail?.agentControls);
-  const selectedModelKey = $derived(
-    controls
-      ? modelKey({ provider: controls.provider, modelId: controls.model })
-      : "",
-  );
-  const composerModels = $derived(sandboxAvailableModels(store.models, detail));
-  const selectedModel = $derived(
-    composerModels.find((model) => modelKey(model) === selectedModelKey),
-  );
-  const composerText = $derived(activeComposerText(detail));
-  const queuedPrompt = $derived(activeQueuedPrompt(detail));
-  const composerHint = $derived(
-    queuedPrompt
-      ? "Message queued — sends when the sandbox is ready."
-      : readOnly || !sandboxCanQueuePrompt(record, detail)
-        ? lifecycleMessage
-        : booting
-          ? "Sandbox is booting — your message will send when ready."
-          : undefined,
-  );
+const activeRun = $derived(
+  richState?.activeRun ??
+    (detail?.selectedRunId ? detail.liveRuns[detail.selectedRunId] : undefined),
+);
+const canForward = $derived(sandboxCanForwardCommand(record, detail));
+const canCancel = $derived(
+  canForward &&
+    (activeRun?.status === "running" ||
+      activeRun?.status === "queued" ||
+      activeRun?.status === "streaming"),
+);
+const readOnly = $derived(sandboxIsReadOnly(record, detail));
+const snapshotReadOnly = $derived(Boolean(richState?.readOnly) && hasContent);
+const lifecycleMessage = $derived(sandboxLifecycleMessage(record, detail));
+const snapshotMessage = $derived(
+  richState?.fallbackReason ??
+    detail?.lastRichSnapshot?.reason ??
+    "Transcript reconstructed from durable manager events.",
+);
+const approvals = $derived(pendingApprovalRecords(detail, richState));
+const pendingUserQuestion = $derived(
+  pendingUserQuestionRecord(detail, richState),
+);
+const pendingPlanReview = $derived(pendingPlanReviewRecord(detail, richState));
+const blockedForReview = $derived(
+  approvals.length > 0 ||
+    Boolean(pendingUserQuestion) ||
+    Boolean(pendingPlanReview),
+);
+const composerDisabled = $derived(
+  !sandboxCanQueuePrompt(record, detail) ||
+    (detail?.sending ?? false) ||
+    readOnly ||
+    blockedForReview,
+);
+const controls = $derived(detail?.agentControls);
+const selectedModelKey = $derived(
+  controls
+    ? modelKey({ provider: controls.provider, modelId: controls.model })
+    : "",
+);
+const composerModels = $derived(sandboxAvailableModels(store.models, detail));
+const selectedModel = $derived(
+  composerModels.find((model) => modelKey(model) === selectedModelKey),
+);
+const composerText = $derived(activeComposerText(detail));
+const queuedPrompt = $derived(activeQueuedPrompt(detail));
+const composerHint = $derived(
+  queuedPrompt
+    ? "Message queued — sends when the sandbox is ready."
+    : readOnly || !sandboxCanQueuePrompt(record, detail)
+      ? lifecycleMessage
+      : booting
+        ? "Sandbox is booting — your message will send when ready."
+        : undefined,
+);
 
-  function handleModelChange(key: string): void {
-    if (!detail || !controls) return;
-    const model = composerModels.find((item) => modelKey(item) === key);
-    if (!model) return;
-    controls.provider = model.provider;
-    controls.model = model.modelId;
-    const supported = model.supportedThinkingLevels?.length
-      ? model.supportedThinkingLevels
-      : (["off"] as ThinkingLevel[]);
-    if (!supported.includes(controls.thinkingLevel)) controls.thinkingLevel = supported[0];
-    void store.configureAgent(sandboxId, {
-      model: {
-        provider: controls.provider,
-        model: controls.model,
-        thinkingLevel: controls.thinkingLevel,
-      },
-    });
-  }
-
-  function handleThinkingLevelChange(level: ThinkingLevel): void {
-    if (!detail || !controls) return;
-    controls.thinkingLevel = level;
-    void store.configureAgent(sandboxId, {
-      model: { provider: controls.provider, model: controls.model, thinkingLevel: level },
-    });
-  }
-
-  function handleModeChange(mode: "coding" | "planning"): void {
-    if (!controls) return;
-    const sandboxMode = mode === "coding" ? "normal" : "planning";
-    controls.mode = sandboxMode;
-    void store.configureAgent(sandboxId, { mode: sandboxMode });
-  }
-
-  function handlePermissionChange(
-    level: "read_only" | "supervised" | "autonomous",
-  ): void {
-    if (!controls) return;
-    controls.permissionLevel = level;
-    void store.configureAgent(sandboxId, { permissionLevel: level });
-  }
-
-  function handleApprovalPolicyChange(policy: { autoApproveReadOnly: boolean }): void {
-    if (!controls) return;
-    controls.approvalPolicy = policy;
-    void store.configureAgent(sandboxId, { approvalPolicy: policy });
-  }
-
-  setConversationUiCapabilities({
-    fetchToolCall: (toolCallId) =>
-      resolveToolCallDetails(richState, sandboxId, toolCallId, { connected }),
+function handleModelChange(key: string): void {
+  if (!detail || !controls) return;
+  const model = composerModels.find((item) => modelKey(item) === key);
+  if (!model) return;
+  controls.provider = model.provider;
+  controls.model = model.modelId;
+  const supported = model.supportedThinkingLevels?.length
+    ? model.supportedThinkingLevels
+    : (["off"] as ThinkingLevel[]);
+  if (!supported.includes(controls.thinkingLevel))
+    controls.thinkingLevel = supported[0];
+  void store.configureAgent(sandboxId, {
+    model: {
+      provider: controls.provider,
+      model: controls.model,
+      thinkingLevel: controls.thinkingLevel,
+    },
   });
+}
 
-  $effect(() => {
-    if (connected && queuedPrompt) void store.flushQueuedPrompt(sandboxId);
+function handleThinkingLevelChange(level: ThinkingLevel): void {
+  if (!detail || !controls) return;
+  controls.thinkingLevel = level;
+  void store.configureAgent(sandboxId, {
+    model: {
+      provider: controls.provider,
+      model: controls.model,
+      thinkingLevel: level,
+    },
   });
+}
+
+function handleModeChange(mode: "coding" | "planning"): void {
+  if (!controls) return;
+  const sandboxMode = mode === "coding" ? "normal" : "planning";
+  controls.mode = sandboxMode;
+  void store.configureAgent(sandboxId, { mode: sandboxMode });
+}
+
+function handlePermissionChange(
+  level: "read_only" | "supervised" | "autonomous",
+): void {
+  if (!controls) return;
+  controls.permissionLevel = level;
+  void store.configureAgent(sandboxId, { permissionLevel: level });
+}
+
+function handleApprovalPolicyChange(policy: {
+  autoApproveReadOnly: boolean;
+}): void {
+  if (!controls) return;
+  controls.approvalPolicy = policy;
+  void store.configureAgent(sandboxId, { approvalPolicy: policy });
+}
+
+setConversationUiCapabilities({
+  fetchToolCall: (toolCallId) =>
+    resolveToolCallDetails(richState, sandboxId, toolCallId, { connected }),
+});
+
+$effect(() => {
+  if (connected && queuedPrompt) void store.flushQueuedPrompt(sandboxId);
+});
 </script>
 
 <AgentConversationPane

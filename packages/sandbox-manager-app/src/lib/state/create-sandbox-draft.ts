@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Create sandbox form state intentionally keeps config mapping, validation, and persistence together.
+/* eslint-disable max-lines -- Create sandbox form state intentionally keeps config mapping, validation, and persistence together. */
 import {
   type SandboxConfigV1,
   type SandboxCreateConfigInput,
@@ -843,8 +843,8 @@ export function buildSecretRefFromEnvDraft(
 function secretEnvRowHasInput(row: CreateSandboxBootSecretEnvDraft): boolean {
   return Boolean(
     row.name.trim() ||
-      row.value.trim() ||
-      (row.refType === "kv" && (row.store.trim() || row.version.trim())),
+    row.value.trim() ||
+    (row.refType === "kv" && (row.store.trim() || row.version.trim())),
   );
 }
 
@@ -1043,9 +1043,9 @@ export function buildConfigFromDraft(
 ): SandboxCreateConfigInput {
   const includeExploreDefaultModel = Boolean(
     draft.tools.explore &&
-      draft.exploreModelProfileId &&
-      draft.defaultExploreProvider &&
-      draft.defaultExploreModel,
+    draft.exploreModelProfileId &&
+    draft.defaultExploreProvider &&
+    draft.defaultExploreModel,
   );
   const config: Record<string, unknown> = {
     version: 1,

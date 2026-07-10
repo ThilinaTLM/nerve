@@ -24,6 +24,7 @@ enable-js: |
     return context.git.repos.some((repo) => repo.dirty);
   }
 ---
+
 Review the current git diff. Call out correctness risks, missing tests, and cleanup needed before committing.
 ```
 

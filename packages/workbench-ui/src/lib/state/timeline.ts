@@ -101,8 +101,8 @@ function isActiveRunPlacedToolCall(
 ): boolean {
   return Boolean(
     live?.runId &&
-      toolCall.runId === live.runId &&
-      typeof toolCall.contentIndex === "number",
+    toolCall.runId === live.runId &&
+    typeof toolCall.contentIndex === "number",
   );
 }
 
@@ -245,9 +245,9 @@ function isHiddenByEntryIds(
 ): boolean {
   return Boolean(
     item.id &&
-      [...hiddenEntryIds].some((entryId) =>
-        entryIdMatches(item.id as string, entryId),
-      ),
+    [...hiddenEntryIds].some((entryId) =>
+      entryIdMatches(item.id as string, entryId),
+    ),
   );
 }
 

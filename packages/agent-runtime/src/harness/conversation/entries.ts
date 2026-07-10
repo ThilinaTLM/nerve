@@ -30,8 +30,9 @@ export interface ActiveToolsChangeEntry extends ConversationTreeEntryBase {
   activeToolNames: string[];
 }
 
-export interface CompactionEntry<T = unknown>
-  extends ConversationTreeEntryBase {
+export interface CompactionEntry<
+  T = unknown,
+> extends ConversationTreeEntryBase {
   type: "compaction";
   summary: string;
   firstKeptEntryId: string;
@@ -40,8 +41,9 @@ export interface CompactionEntry<T = unknown>
   fromHook?: boolean;
 }
 
-export interface BranchSummaryEntry<T = unknown>
-  extends ConversationTreeEntryBase {
+export interface BranchSummaryEntry<
+  T = unknown,
+> extends ConversationTreeEntryBase {
   type: "branch_summary";
   fromId: string;
   summary: string;
@@ -55,8 +57,9 @@ export interface CustomEntry<T = unknown> extends ConversationTreeEntryBase {
   data?: T;
 }
 
-export interface CustomMessageEntry<T = unknown>
-  extends ConversationTreeEntryBase {
+export interface CustomMessageEntry<
+  T = unknown,
+> extends ConversationTreeEntryBase {
   type: "custom_message";
   customType: string;
   content: string | (TextContent | ImageContent)[];
@@ -149,8 +152,7 @@ export interface ConversationRepo<
   ): Promise<Conversation<TMetadata>>;
 }
 
-export interface JsonlConversationCreateOptions
-  extends ConversationCreateOptions {
+export interface JsonlConversationCreateOptions extends ConversationCreateOptions {
   cwd: string;
   parentConversationPath?: string;
 }
@@ -159,9 +161,8 @@ export interface JsonlConversationListOptions {
   cwd?: string;
 }
 
-export interface JsonlConversationRepoApi
-  extends ConversationRepo<
-    JsonlConversationMetadata,
-    JsonlConversationCreateOptions,
-    JsonlConversationListOptions
-  > {}
+export type JsonlConversationRepoApi = ConversationRepo<
+  JsonlConversationMetadata,
+  JsonlConversationCreateOptions,
+  JsonlConversationListOptions
+>;

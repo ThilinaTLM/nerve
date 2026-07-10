@@ -187,20 +187,22 @@ export class ExploreRuntime {
         abortController.signal.aborted ||
         error instanceof ExploreCancelledError
       ) {
-        relationship = await this.transition(relationship, "cancelled", {
+        await this.transition(relationship, "cancelled", {
           text: "Explore cancelled.",
         });
         active.status = "cancelled";
-        throw new Error("CANCELLED: explore cancelled");
+        throw new Error("CANCELLED: explore cancelled", { cause: error });
       }
       const message = this.redactor.redactText(
         error instanceof Error ? error.message : String(error),
       );
-      relationship = await this.transition(relationship, "failed", {
+      await this.transition(relationship, "failed", {
         text: bound(message, 1_000),
       });
       active.status = "failed";
-      throw new Error(`EXPLORE_FAILED: ${bound(message, 500)}`);
+      throw new Error(`EXPLORE_FAILED: ${bound(message, 500)}`, {
+        cause: error,
+      });
     } finally {
       input.signal?.removeEventListener("abort", abortFromParent);
       this.active.delete(active.key);
@@ -247,7 +249,7 @@ export class ExploreRuntime {
       conversationId,
       parentAgentId,
     );
-    let entries: string[] = [];
+    let entries: string[];
     try {
       entries = await readdir(dir);
     } catch {

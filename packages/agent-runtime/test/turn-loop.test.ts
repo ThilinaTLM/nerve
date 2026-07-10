@@ -88,7 +88,7 @@ function textOf(message: Message): string {
 describe("agent loop steering queue", () => {
   it("drains harness messages before stop and before the next LLM request", async () => {
     const providerContexts: Context[] = [];
-    const streamFn: StreamFn = (_model, context, _options) => {
+    const streamFn: StreamFn = (_model, context) => {
       providerContexts.push(context);
       return streamMessage(assistant([{ type: "text", text: "ok" }]));
     };
@@ -128,7 +128,7 @@ describe("agent loop steering queue", () => {
   it("inserts harness messages after assistant tool results, not before", async () => {
     const providerContexts: Context[] = [];
     let requestCount = 0;
-    const streamFn: StreamFn = (_model, context, _options) => {
+    const streamFn: StreamFn = (_model, context) => {
       providerContexts.push(context);
       requestCount += 1;
       if (requestCount === 1) {

@@ -27,6 +27,7 @@ export async function readDaemonFile(): Promise<DaemonFile> {
     if (isErrnoException(error) && error.code === "ENOENT") {
       throw new Error(
         `Nerve daemon is not running (missing ${path}). Start it with \`nerve daemon\` or \`nerve serve\`, then retry this command.`,
+        { cause: error },
       );
     }
     throw error;

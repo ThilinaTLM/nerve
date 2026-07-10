@@ -3,8 +3,10 @@ import { ExecutionError } from "../errors.js";
 import { err, ok, type Result, toError } from "../result.js";
 import { DEFAULT_MAX_BYTES, truncateTail } from "./truncate.js";
 
-export interface ShellCaptureOptions
-  extends Omit<ExecutionEnvExecOptions, "onStdout" | "onStderr"> {
+export interface ShellCaptureOptions extends Omit<
+  ExecutionEnvExecOptions,
+  "onStdout" | "onStderr"
+> {
   onChunk?: (chunk: string) => void;
 }
 

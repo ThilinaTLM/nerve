@@ -72,40 +72,40 @@ Implementations MAY use a different physical layout if they preserve the same se
 
 ## Files and semantics
 
-| File/directory | Semantics |
-| --- | --- |
-| `VERSION` | State format version and migration marker. |
-| `lock` | Single-writer lock for the state directory. |
-| `config/sanitized.yaml` | Loaded config with secret values absent. |
-| `config/digest.txt` | Stable digest of sanitized canonical config. |
-| `config/effective.json` | Effective defaults, model/provider status, setup status, tool groups, and security limitations without secrets. |
-| `controller/session.json` | Last accepted controller session metadata. |
-| `controller/cursors.json` | Latest local/remote processed cursors. |
-| `controller/connectivity.json` | Current/last controller connection state, disconnect start time, reconnect attempts, and self-exit deadline. |
-| `credentials/oauth/<provider>.json` | Protected refreshed OAuth bundle, never included in ordinary snapshots/events. |
-| `credentials/status.json` | Redacted credential status such as provider, expiry, and refresh outcome. |
-| `secrets/stores.json` | Sanitized configured secret-store metadata and cache settings. |
-| `secrets/status.json` | Redacted key-value store health/cache status, never secret values. |
-| `setup/git.json` | Redacted Git startup setup result: identity presence, clone/ref, remotes, signing status, errors. |
-| `setup/github.json` | Redacted GitHub startup setup result: host, auth type, CLI setup, errors. |
-| `commands/inbox.jsonl` | Append-only journal of accepted controller commands. |
-| `commands/decisions.jsonl` | Command validation/idempotency decisions. |
-| `events/outbox.jsonl` | Append-only durable events pending or already delivered. |
-| `events/ack.json` | Latest controller ack cursor known to the sandbox. |
-| `conversations/<conversation-id>/state.json` | Latest materialized conversation status. |
-| `conversations/<conversation-id>/agents/<agent-id>/state.json` | Latest materialized agent/subagent status. |
-| `runs/<run-id>/state.json` equivalent | Latest materialized run status inside the agent scope. |
-| `transcript.jsonl` | Durable run transcript entries. |
-| `tool-calls/*.json` | Tool call args/result/error records with redaction metadata. |
-| `checkpoints/*.json` | Point-in-time recovery snapshots. |
-| `artifacts` | Bounded artifacts or references created by tools. |
-| `skills/context-files.json` | Loaded `AGENTS.md` paths, digests, and bounded metadata. |
-| `skills/loaded.json` | Loaded skill names, source classes, paths, and model-visible flags. |
-| `skills/diagnostics.jsonl` | Durable skill-loading warnings/errors without full unbounded contents. |
-| `boot/attempts.jsonl` | Durable boot attempt records. |
-| `boot/latest.log` | Bounded/redacted latest boot transcript. |
-| `cache/dependencies` | Rebuildable package-manager caches. |
-| `cache/secrets` | Protected key-value secret cache, if enabled. |
+| File/directory                                                 | Semantics                                                                                                       |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `VERSION`                                                      | State format version and migration marker.                                                                      |
+| `lock`                                                         | Single-writer lock for the state directory.                                                                     |
+| `config/sanitized.yaml`                                        | Loaded config with secret values absent.                                                                        |
+| `config/digest.txt`                                            | Stable digest of sanitized canonical config.                                                                    |
+| `config/effective.json`                                        | Effective defaults, model/provider status, setup status, tool groups, and security limitations without secrets. |
+| `controller/session.json`                                      | Last accepted controller session metadata.                                                                      |
+| `controller/cursors.json`                                      | Latest local/remote processed cursors.                                                                          |
+| `controller/connectivity.json`                                 | Current/last controller connection state, disconnect start time, reconnect attempts, and self-exit deadline.    |
+| `credentials/oauth/<provider>.json`                            | Protected refreshed OAuth bundle, never included in ordinary snapshots/events.                                  |
+| `credentials/status.json`                                      | Redacted credential status such as provider, expiry, and refresh outcome.                                       |
+| `secrets/stores.json`                                          | Sanitized configured secret-store metadata and cache settings.                                                  |
+| `secrets/status.json`                                          | Redacted key-value store health/cache status, never secret values.                                              |
+| `setup/git.json`                                               | Redacted Git startup setup result: identity presence, clone/ref, remotes, signing status, errors.               |
+| `setup/github.json`                                            | Redacted GitHub startup setup result: host, auth type, CLI setup, errors.                                       |
+| `commands/inbox.jsonl`                                         | Append-only journal of accepted controller commands.                                                            |
+| `commands/decisions.jsonl`                                     | Command validation/idempotency decisions.                                                                       |
+| `events/outbox.jsonl`                                          | Append-only durable events pending or already delivered.                                                        |
+| `events/ack.json`                                              | Latest controller ack cursor known to the sandbox.                                                              |
+| `conversations/<conversation-id>/state.json`                   | Latest materialized conversation status.                                                                        |
+| `conversations/<conversation-id>/agents/<agent-id>/state.json` | Latest materialized agent/subagent status.                                                                      |
+| `runs/<run-id>/state.json` equivalent                          | Latest materialized run status inside the agent scope.                                                          |
+| `transcript.jsonl`                                             | Durable run transcript entries.                                                                                 |
+| `tool-calls/*.json`                                            | Tool call args/result/error records with redaction metadata.                                                    |
+| `checkpoints/*.json`                                           | Point-in-time recovery snapshots.                                                                               |
+| `artifacts`                                                    | Bounded artifacts or references created by tools.                                                               |
+| `skills/context-files.json`                                    | Loaded `AGENTS.md` paths, digests, and bounded metadata.                                                        |
+| `skills/loaded.json`                                           | Loaded skill names, source classes, paths, and model-visible flags.                                             |
+| `skills/diagnostics.jsonl`                                     | Durable skill-loading warnings/errors without full unbounded contents.                                          |
+| `boot/attempts.jsonl`                                          | Durable boot attempt records.                                                                                   |
+| `boot/latest.log`                                              | Bounded/redacted latest boot transcript.                                                                        |
+| `cache/dependencies`                                           | Rebuildable package-manager caches.                                                                             |
+| `cache/secrets`                                                | Protected key-value secret cache, if enabled.                                                                   |
 
 ## Write-ahead rules
 
@@ -203,8 +203,10 @@ type CommandRecord = {
   paramsHash: string;
   params: unknown;
   acceptedAt: string;
-  status: "accepted" | "queued" | "running" | "completed" | "failed" | "cancelled";
-  recoveryStatus?: "not_needed" | "requeued" | "marked_failed" | "marked_cancelled";
+  status:
+    "accepted" | "queued" | "running" | "completed" | "failed" | "cancelled";
+  recoveryStatus?:
+    "not_needed" | "requeued" | "marked_failed" | "marked_cancelled";
   conversationId?: string;
   agentId?: string;
   runId?: string;
@@ -283,7 +285,7 @@ On restart, the sandbox SHOULD:
 11. Reload context/skills if config/image/workspace inputs changed.
 12. Reconcile outbox replay using the lower/safe cursor of local `events/ack.json` and any trusted controller-provided processed cursor; never discard events that might not have been processed.
 13. Replay unacknowledged durable events after controller reconnect.
-13. Announce recovered daemon status.
+14. Announce recovered daemon status.
 
 ## Controller connectivity state
 

@@ -1,223 +1,250 @@
 <script lang="ts">
-  import Check from "@lucide/svelte/icons/check";
-  import type {
-    AgentRecord,
-    ModelInfo,
-    PlanReviewRecord,
-    PlanReviewResolveOptions,
-  } from "../../../state/tool-types";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import * as DropdownMenu from "@nervekit/workbench-ui/components/ui/dropdown-menu";
-  import { SplitButton } from "@nervekit/workbench-ui/components/ui/split-button";
-  import type { MetaItem } from "../../views/tool-presentation";
-  import type { ToolCallDisplayRecord, ToolView } from "../../views/tool-result-view";
-  import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
-  import ToolFooter from "./ToolFooter.svelte";
+import Check from "@lucide/svelte/icons/check";
+import type {
+  AgentRecord,
+  ModelInfo,
+  PlanReviewRecord,
+  PlanReviewResolveOptions,
+} from "../../../state/tool-types";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import * as DropdownMenu from "@nervekit/workbench-ui/components/ui/dropdown-menu";
+import { SplitButton } from "@nervekit/workbench-ui/components/ui/split-button";
+import type { MetaItem } from "../../views/tool-presentation";
+import type {
+  ToolCallDisplayRecord,
+  ToolView,
+} from "../../views/tool-result-view";
+import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
+import ToolFooter from "./ToolFooter.svelte";
 
-  type PlanAcceptTarget = "same" | "new-chat";
+type PlanAcceptTarget = "same" | "new-chat";
 
-  type Props = {
-    toolCall: ToolCallDisplayRecord;
-    view: Extract<ToolView, { kind: "plan_mode" }>;
-    expanded?: boolean;
-    planReview?: PlanReviewRecord;
-    planReviewModels?: ModelInfo[];
-    planReviewModelKey?: string;
-    planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
-    detailsAction?: { label: string; onClick: () => void };
-    onOpenFile?: (path: string, line?: number) => void;
-    onAcceptPlanReview?: (
-      id: string,
-      options?: PlanReviewResolveOptions,
-    ) => void | Promise<void>;
-    onAcceptPlanReviewInNewChat?: (
-      id: string,
-      options?: PlanReviewResolveOptions,
-    ) => void | Promise<void>;
-    onRejectPlanReview?: (id: string) => void;
+type Props = {
+  toolCall: ToolCallDisplayRecord;
+  view: Extract<ToolView, { kind: "plan_mode" }>;
+  expanded?: boolean;
+  planReview?: PlanReviewRecord;
+  planReviewModels?: ModelInfo[];
+  planReviewModelKey?: string;
+  planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
+  detailsAction?: { label: string; onClick: () => void };
+  onOpenFile?: (path: string, line?: number) => void;
+  onAcceptPlanReview?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onAcceptPlanReviewInNewChat?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onRejectPlanReview?: (id: string) => void;
+};
+let {
+  toolCall,
+  view,
+  expanded = false,
+  planReview,
+  planReviewModels = [],
+  planReviewModelKey = "",
+  planReviewThinkingLevel = "off",
+  detailsAction,
+  onAcceptPlanReview,
+  onAcceptPlanReviewInNewChat,
+  onRejectPlanReview,
+}: Props = $props();
+
+let implementationDialog = $state<PlanAcceptTarget | undefined>();
+let accepting = $state<PlanAcceptTarget | undefined>();
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function reviewFromResult(
+  value: unknown,
+): Partial<PlanReviewRecord> | undefined {
+  const review = asRecord(asRecord(value).review);
+  return typeof review.id === "string" || typeof review.content === "string"
+    ? (review as Partial<PlanReviewRecord>)
+    : undefined;
+}
+
+function resultPayload(toolCall: ToolCallDisplayRecord): unknown {
+  const payloads = toolCall as ToolCallDisplayRecord & {
+    result?: unknown;
+    resultPreview?: unknown;
   };
-  let {
-    toolCall,
-    view,
-    expanded = false,
-    planReview,
-    planReviewModels = [],
-    planReviewModelKey = "",
-    planReviewThinkingLevel = "off",
-    detailsAction,
-    onAcceptPlanReview,
-    onAcceptPlanReviewInNewChat,
-    onRejectPlanReview,
-  }: Props = $props();
+  return payloads.resultPreview ?? payloads.result;
+}
 
-  let implementationDialog = $state<PlanAcceptTarget | undefined>();
-  let accepting = $state<PlanAcceptTarget | undefined>();
+function firstLines(text: string, count: number): string {
+  const lines = text.split("\n");
+  return lines.length > count ? lines.slice(0, count).join("\n") : text;
+}
 
-  function asRecord(value: unknown): Record<string, unknown> {
-    return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+const rawResult = $derived(resultPayload(toolCall));
+const resultReview = $derived(reviewFromResult(rawResult));
+const displayedReview = $derived(
+  planReview
+    ? {
+        ...resultReview,
+        ...planReview,
+        content: resultReview?.content ?? planReview.content,
+      }
+    : resultReview,
+);
+const pendingReview = $derived(
+  toolCall.toolName === "plan_mode_present" &&
+    toolCall.status === "waiting_for_user" &&
+    planReview?.status === "pending",
+);
+const reviewStatus = $derived(
+  displayedReview?.status ?? stringField(asRecord(rawResult).outcome),
+);
+const accepted = $derived(reviewStatus === "accepted");
+const acceptedInNewChat = $derived(reviewStatus === "accepted_in_new_chat");
+const rejected = $derived(
+  reviewStatus === "changes_requested" || reviewStatus === "discarded",
+);
+const collapsedContent = $derived(
+  resultReview?.content ?? displayedReview?.content ?? "",
+);
+const preview = $derived(
+  expanded
+    ? (displayedReview?.content ?? "")
+    : firstLines(collapsedContent, 10),
+);
+const showPlanCard = $derived(
+  toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),
+);
+const actionsDisabled = $derived(!pendingReview || Boolean(accepting));
+const acceptVariant = $derived<"success" | "default">(
+  accepted || acceptedInNewChat ? "success" : "default",
+);
+const statusMeta = $derived<MetaItem[]>(
+  accepted || acceptedInNewChat
+    ? [{ text: "Accepted", tone: "success" }]
+    : rejected
+      ? [{ text: "Changes requested", tone: "error" }]
+      : pendingReview
+        ? [{ text: "Awaiting review", tone: "warning" }]
+        : [],
+);
+
+async function acceptSame(options?: PlanReviewResolveOptions) {
+  if (!planReview || !pendingReview || accepting || !onAcceptPlanReview) return;
+  accepting = "same";
+  try {
+    await onAcceptPlanReview(planReview.id, options);
+  } finally {
+    accepting = undefined;
   }
+}
 
-  function stringField(value: unknown): string | undefined {
-    return typeof value === "string" ? value : undefined;
+async function acceptNewChat(options?: PlanReviewResolveOptions) {
+  if (
+    !planReview ||
+    !pendingReview ||
+    accepting ||
+    !onAcceptPlanReviewInNewChat
+  ) {
+    return;
   }
-
-  function reviewFromResult(value: unknown): Partial<PlanReviewRecord> | undefined {
-    const review = asRecord(asRecord(value).review);
-    return typeof review.id === "string" || typeof review.content === "string"
-      ? (review as Partial<PlanReviewRecord>)
-      : undefined;
+  accepting = "new-chat";
+  try {
+    await onAcceptPlanReviewInNewChat(planReview.id, options);
+  } finally {
+    accepting = undefined;
   }
+}
 
-  function resultPayload(toolCall: ToolCallDisplayRecord): unknown {
-    const payloads = toolCall as ToolCallDisplayRecord & {
-      result?: unknown;
-      resultPreview?: unknown;
-    };
-    return payloads.resultPreview ?? payloads.result;
-  }
+function openSameModelDialog() {
+  if (!pendingReview || accepting) return;
+  implementationDialog = "same";
+}
 
-  function firstLines(text: string, count: number): string {
-    const lines = text.split("\n");
-    return lines.length > count ? lines.slice(0, count).join("\n") : text;
-  }
+function openNewChatModelDialog() {
+  if (!pendingReview || accepting) return;
+  implementationDialog = "new-chat";
+}
 
-  const rawResult = $derived(resultPayload(toolCall));
-  const resultReview = $derived(reviewFromResult(rawResult));
-  const displayedReview = $derived(
-    planReview
-      ? { ...resultReview, ...planReview, content: resultReview?.content ?? planReview.content }
-      : resultReview,
-  );
-  const pendingReview = $derived(
-    toolCall.toolName === "plan_mode_present" &&
-      toolCall.status === "waiting_for_user" &&
-      planReview?.status === "pending",
-  );
-  const reviewStatus = $derived(
-    displayedReview?.status ?? stringField(asRecord(rawResult).outcome),
-  );
-  const accepted = $derived(reviewStatus === "accepted");
-  const acceptedInNewChat = $derived(reviewStatus === "accepted_in_new_chat");
-  const rejected = $derived(
-    reviewStatus === "changes_requested" || reviewStatus === "discarded",
-  );
-  const collapsedContent = $derived(
-    resultReview?.content ?? displayedReview?.content ?? "",
-  );
-  const preview = $derived(
-    expanded
-      ? (displayedReview?.content ?? "")
-      : firstLines(collapsedContent, 10),
-  );
-  const showPlanCard = $derived(
-    toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),
-  );
-  const actionsDisabled = $derived(!pendingReview || Boolean(accepting));
-  const acceptVariant = $derived<"success" | "default">(
-    accepted || acceptedInNewChat ? "success" : "default",
-  );
-  const statusMeta = $derived<MetaItem[]>(
-    accepted || acceptedInNewChat
-      ? [{ text: "Accepted", tone: "success" }]
-      : rejected
-        ? [{ text: "Changes requested", tone: "error" }]
-        : pendingReview
-          ? [{ text: "Awaiting review", tone: "warning" }]
-          : [],
-  );
-
-  async function acceptSame(options?: PlanReviewResolveOptions) {
-    if (!planReview || !pendingReview || accepting || !onAcceptPlanReview) return;
-    accepting = "same";
-    try {
-      await onAcceptPlanReview(planReview.id, options);
-    } finally {
-      accepting = undefined;
-    }
-  }
-
-  async function acceptNewChat(options?: PlanReviewResolveOptions) {
-    if (
-      !planReview ||
-      !pendingReview ||
-      accepting ||
-      !onAcceptPlanReviewInNewChat
-    ) {
-      return;
-    }
-    accepting = "new-chat";
-    try {
-      await onAcceptPlanReviewInNewChat(planReview.id, options);
-    } finally {
-      accepting = undefined;
-    }
-  }
-
-  function openSameModelDialog() {
-    if (!pendingReview || accepting) return;
-    implementationDialog = "same";
-  }
-
-  function openNewChatModelDialog() {
-    if (!pendingReview || accepting) return;
-    implementationDialog = "new-chat";
-  }
-
-  function rejectPlan() {
-    if (!planReview || !pendingReview || accepting) return;
-    onRejectPlanReview?.(planReview.id);
-  }
+function rejectPlan() {
+  if (!planReview || !pendingReview || accepting) return;
+  onRejectPlanReview?.(planReview.id);
+}
 </script>
 
 {#if showPlanCard && displayedReview}
   <div class="grid gap-2" aria-label="Plan review">
     {#if preview.trim()}
-      <pre class="m-0 whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-normal text-foreground">{preview}</pre>
+      <pre
+        class="m-0 whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-normal text-foreground">{preview}</pre>
     {/if}
 
     <ToolFooter meta={statusMeta} {detailsAction}>
       {#snippet actions()}
-      <SplitButton
-        variant={acceptVariant}
-        size="sm"
-        disabled={actionsDisabled}
-        menuAlign="end"
-        menuClass="w-60"
-        triggerLabel="Accept options"
-        onclick={() => void acceptSame()}
-      >
-        {#if accepted || acceptedInNewChat}<Check class="size-3.5" strokeWidth={2.4} />{/if}
-        Accept & Implement
-        {#snippet menu()}
-          <DropdownMenu.Item disabled={actionsDisabled} onSelect={() => void acceptSame()}>
-            Accept & implement
-          </DropdownMenu.Item>
-          {#if onAcceptPlanReviewInNewChat}
-            <DropdownMenu.Item disabled={actionsDisabled} onSelect={() => void acceptNewChat()}>
-              Accept in new chat
+        <SplitButton
+          variant={acceptVariant}
+          size="sm"
+          disabled={actionsDisabled}
+          menuAlign="end"
+          menuClass="w-60"
+          triggerLabel="Accept options"
+          onclick={() => void acceptSame()}
+        >
+          {#if accepted || acceptedInNewChat}<Check
+              class="size-3.5"
+              strokeWidth={2.4}
+            />{/if}
+          Accept & Implement
+          {#snippet menu()}
+            <DropdownMenu.Item
+              disabled={actionsDisabled}
+              onSelect={() => void acceptSame()}
+            >
+              Accept & implement
             </DropdownMenu.Item>
-          {/if}
-          <DropdownMenu.Separator />
-          <DropdownMenu.Item disabled={actionsDisabled} onSelect={openSameModelDialog}>
-            Choose model & implement
-          </DropdownMenu.Item>
-          {#if onAcceptPlanReviewInNewChat}
-            <DropdownMenu.Item disabled={actionsDisabled} onSelect={openNewChatModelDialog}>
-              Choose model & start new chat
+            {#if onAcceptPlanReviewInNewChat}
+              <DropdownMenu.Item
+                disabled={actionsDisabled}
+                onSelect={() => void acceptNewChat()}
+              >
+                Accept in new chat
+              </DropdownMenu.Item>
+            {/if}
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item
+              disabled={actionsDisabled}
+              onSelect={openSameModelDialog}
+            >
+              Choose model & implement
             </DropdownMenu.Item>
-          {/if}
-        {/snippet}
-      </SplitButton>
+            {#if onAcceptPlanReviewInNewChat}
+              <DropdownMenu.Item
+                disabled={actionsDisabled}
+                onSelect={openNewChatModelDialog}
+              >
+                Choose model & start new chat
+              </DropdownMenu.Item>
+            {/if}
+          {/snippet}
+        </SplitButton>
 
-      <Button
-        size="sm"
-        variant="secondary"
-        disabled={actionsDisabled}
-        onclick={rejectPlan}
-      >
-        {#if rejected}<Check class="size-3.5" strokeWidth={2.4} />{/if}
-        Reject Plan
-      </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={actionsDisabled}
+          onclick={rejectPlan}
+        >
+          {#if rejected}<Check class="size-3.5" strokeWidth={2.4} />{/if}
+          Reject Plan
+        </Button>
       {/snippet}
     </ToolFooter>
 
@@ -253,5 +280,3 @@
 {:else if view.summary}
   <p class="m-0 text-sm text-muted-foreground">{view.summary}</p>
 {/if}
-
-

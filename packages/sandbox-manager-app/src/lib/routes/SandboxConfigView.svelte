@@ -1,21 +1,21 @@
 <script lang="ts">
-  import { FileCog, RefreshCw } from "@lucide/svelte";
-  import type { ManagedSandboxRecord } from "@nervekit/contracts";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
-  import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
+import { FileCog, RefreshCw } from "@lucide/svelte";
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
+import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 
-  let { record }: { record: ManagedSandboxRecord } = $props();
+let { record }: { record: ManagedSandboxRecord } = $props();
 
-  const store = useSandboxManagerStore();
-  const detail = $derived(store.details[record.sandboxId]);
+const store = useSandboxManagerStore();
+const detail = $derived(store.details[record.sandboxId]);
 
-  $effect(() => {
-    if (!detail) return;
-    if (detail.configYaml || detail.configYamlLoading || detail.configYamlError)
-      return;
-    void store.loadSandboxConfigYaml(record.sandboxId);
-  });
+$effect(() => {
+  if (!detail) return;
+  if (detail.configYaml || detail.configYamlLoading || detail.configYamlError)
+    return;
+  void store.loadSandboxConfigYaml(record.sandboxId);
+});
 </script>
 
 <div class="relative flex h-full min-h-0 flex-col bg-background">
@@ -31,8 +31,13 @@
   </Button>
 
   {#if detail?.configYamlLoading}
-    <div class="grid flex-1 place-content-center gap-1 text-center text-muted-foreground">
-      <RefreshCw class="mx-auto size-7 animate-spin text-primary" strokeWidth={1.7} />
+    <div
+      class="grid flex-1 place-content-center gap-1 text-center text-muted-foreground"
+    >
+      <RefreshCw
+        class="mx-auto size-7 animate-spin text-primary"
+        strokeWidth={1.7}
+      />
       <p class="text-sm">Loading config YAML…</p>
     </div>
   {:else if detail?.configYamlError}
@@ -42,7 +47,9 @@
       </p>
     </div>
   {:else if !detail?.configYaml}
-    <div class="grid flex-1 place-content-center gap-1 text-center text-muted-foreground">
+    <div
+      class="grid flex-1 place-content-center gap-1 text-center text-muted-foreground"
+    >
       <FileCog class="mx-auto size-7 text-primary" strokeWidth={1.7} />
       <p class="text-sm text-foreground">No config YAML available.</p>
     </div>

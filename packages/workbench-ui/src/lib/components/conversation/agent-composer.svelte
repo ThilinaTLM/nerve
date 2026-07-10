@@ -1,66 +1,66 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-  import {
-    hasExecutableCommandBlocks,
-    isInlineCommandPrompt,
-  } from "@nervekit/contracts";
-  import ComposerEditor from "../composer/ComposerEditor.svelte";
-  import ComposerShell from "../composer/ComposerShell.svelte";
-  import ComposerToolbar from "../composer/ComposerToolbar.svelte";
-  import type {
-    ConversationComposerModel,
-    ConversationPaneActions,
-  } from "./types.js";
+import type { Snippet } from "svelte";
+import {
+  hasExecutableCommandBlocks,
+  isInlineCommandPrompt,
+} from "@nervekit/contracts";
+import ComposerEditor from "../composer/ComposerEditor.svelte";
+import ComposerShell from "../composer/ComposerShell.svelte";
+import ComposerToolbar from "../composer/ComposerToolbar.svelte";
+import type {
+  ConversationComposerModel,
+  ConversationPaneActions,
+} from "./types.js";
 
-  let {
-    model,
-    actions,
-    header: headerContent,
-    sendLeading: sendLeadingContent,
-  }: {
-    model: ConversationComposerModel;
-    actions: ConversationPaneActions;
-    header?: Snippet;
-    sendLeading?: Snippet;
-  } = $props();
+let {
+  model,
+  actions,
+  header: headerContent,
+  sendLeading: sendLeadingContent,
+}: {
+  model: ConversationComposerModel;
+  actions: ConversationPaneActions;
+  header?: Snippet;
+  sendLeading?: Snippet;
+} = $props();
 
-  const commandMode = $derived(isInlineCommandPrompt(model.text));
-  const executableBlocks = $derived(hasExecutableCommandBlocks(model.text));
-  const blocked = $derived(Boolean(model.disabled || model.compacting));
-  const editorDisabled = $derived(model.editorDisabled ?? blocked);
-  const submitDisabled = $derived(
-    model.submitDisabled ?? Boolean(blocked || (commandMode && model.sending)),
-  );
-  const controlsDisabled = $derived(
-    model.controlsDisabled ?? (blocked || Boolean(model.sending)),
-  );
-  const modePlanning = $derived(model.mode === "planning");
-  const runtimeChangeHint = $derived(
-    model.runtimeChangeHint ??
-      (model.sending ? "Changes apply to the next model request" : undefined),
-  );
-  const placeholder = $derived(
-    model.placeholder ??
-      (blocked
-        ? "Composer is unavailable right now"
-        : model.sending
-          ? "Queue a prompt for the next agent turn"
-          : "Ask the agent"),
-  );
-  const sendTitle = $derived(
-    model.sendTitle ??
-      (commandMode
-        ? model.sending
-          ? "Wait for the current agent turn before running a command"
-          : "Run command"
-        : model.sending
-          ? "Queue prompt for the next agent turn"
-          : "Send prompt"),
-  );
+const commandMode = $derived(isInlineCommandPrompt(model.text));
+const executableBlocks = $derived(hasExecutableCommandBlocks(model.text));
+const blocked = $derived(Boolean(model.disabled || model.compacting));
+const editorDisabled = $derived(model.editorDisabled ?? blocked);
+const submitDisabled = $derived(
+  model.submitDisabled ?? Boolean(blocked || (commandMode && model.sending)),
+);
+const controlsDisabled = $derived(
+  model.controlsDisabled ?? (blocked || Boolean(model.sending)),
+);
+const modePlanning = $derived(model.mode === "planning");
+const runtimeChangeHint = $derived(
+  model.runtimeChangeHint ??
+    (model.sending ? "Changes apply to the next model request" : undefined),
+);
+const placeholder = $derived(
+  model.placeholder ??
+    (blocked
+      ? "Composer is unavailable right now"
+      : model.sending
+        ? "Queue a prompt for the next agent turn"
+        : "Ask the agent"),
+);
+const sendTitle = $derived(
+  model.sendTitle ??
+    (commandMode
+      ? model.sending
+        ? "Wait for the current agent turn before running a command"
+        : "Run command"
+      : model.sending
+        ? "Queue prompt for the next agent turn"
+        : "Send prompt"),
+);
 
-  function submit(): void {
-    if (!submitDisabled) actions.onSubmit?.();
-  }
+function submit(): void {
+  if (!submitDisabled) actions.onSubmit?.();
+}
 </script>
 
 <ComposerShell
@@ -75,7 +75,8 @@
   stopShortcutAria={model.stopShortcutAria}
   stopTitle={model.stopTitle}
   {submitDisabled}
-  sendAriaLabel={model.sendAriaLabel ?? (commandMode ? "Run command" : "Send prompt")}
+  sendAriaLabel={model.sendAriaLabel ??
+    (commandMode ? "Run command" : "Send prompt")}
   {sendTitle}
   onAbort={actions.onAbort}
   onSubmit={submit}
@@ -94,7 +95,8 @@
     <ComposerToolbar
       {controlsDisabled}
       modeDisabled={model.modeDisabled ?? blocked}
-      modelDisabled={model.modelDisabled ?? (blocked || model.models.length === 0)}
+      modelDisabled={model.modelDisabled ??
+        (blocked || model.models.length === 0)}
       modeLabel={modePlanning ? "Planning" : "Coding"}
       {modePlanning}
       onToggleMode={() =>
@@ -113,7 +115,8 @@
       selectedModelKey={model.selectedModelKey}
       thinkingLevel={model.thinkingLevel}
       {runtimeChangeHint}
-      modelEmptyMessage={model.modelEmptyMessage ?? "No models available. Configure a provider in this host."}
+      modelEmptyMessage={model.modelEmptyMessage ??
+        "No models available. Configure a provider in this host."}
       onModelChange={actions.onModelChange}
       onThinkingLevelChange={actions.onThinkingLevelChange}
       onPermissionChange={actions.onPermissionChange}

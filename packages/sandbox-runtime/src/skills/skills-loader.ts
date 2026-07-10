@@ -68,7 +68,9 @@ async function readSkillDirs(
           bytes: raw.byteLength,
           modelVisible: true,
         });
-      } catch {}
+      } catch {
+        // Ignore unreadable or invalid individual skill files.
+      }
     }
     return statuses;
   } catch {

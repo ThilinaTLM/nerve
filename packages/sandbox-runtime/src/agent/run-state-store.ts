@@ -44,7 +44,9 @@ export class RunStateStore {
           }
         }
       }
-    } catch {}
+    } catch {
+      // Missing or unreadable persisted state is ignored during discovery.
+    }
     return out.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
   }
   pathFor(

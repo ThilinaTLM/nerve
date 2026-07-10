@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type {
-  LogReadOptions,
   ManagedContainerCreateSpec,
   ManagedContainerRef,
   ManagedContainerStatus,
-  RemoveOptions,
   RuntimeDriverCapabilities,
-  StopOptions,
 } from "@nervekit/contracts";
 import { AutoContainerDriver } from "../src/drivers/auto-container-driver.js";
 import type {
@@ -150,19 +147,19 @@ function fakeDriver(
       calls.inspect += 1;
       return { ref, state: "running" };
     },
-    logs: (_ref: ManagedContainerRef, _options?: LogReadOptions) => ({
+    logs: () => ({
       async *[Symbol.asyncIterator](): AsyncIterator<LogChunk> {
         calls.logs += 1;
         yield { stream: "stdout", chunk: "log" };
       },
     }),
-    stop: async (_ref: ManagedContainerRef, _options?: StopOptions) => {
+    stop: async () => {
       calls.stop += 1;
     },
     kill: async () => {
       calls.kill += 1;
     },
-    remove: async (_ref: ManagedContainerRef, _options?: RemoveOptions) => {
+    remove: async () => {
       calls.remove += 1;
     },
   };

@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Manager schemas intentionally centralize sandbox manager API and storage contracts.
+/* eslint-disable max-lines -- Manager schemas intentionally centralize sandbox manager API and storage contracts. */
 import { z } from "zod";
 import {
   createPinnedCommandRequestSchema,

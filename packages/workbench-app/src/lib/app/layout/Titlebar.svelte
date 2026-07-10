@@ -1,60 +1,60 @@
 <script lang="ts">
-  import Copy from "@lucide/svelte/icons/copy";
-  import Folder from "@lucide/svelte/icons/folder";
-  import KeyRound from "@lucide/svelte/icons/key-round";
-  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
-  import Logs from "@lucide/svelte/icons/logs";
-  import Minus from "@lucide/svelte/icons/minus";
-  import Settings from "@lucide/svelte/icons/settings";
-  import Square from "@lucide/svelte/icons/square";
-  import X from "@lucide/svelte/icons/x";
-  import { Toolbar } from "bits-ui";
-  import { WorkbenchTitlebar } from "@nervekit/workbench-ui/components/workbench";
-  import type { ProjectRecord } from "$lib/api";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import nerveMark from "$lib/assets/nerve-mark.svg?raw";
+import Copy from "@lucide/svelte/icons/copy";
+import Folder from "@lucide/svelte/icons/folder";
+import KeyRound from "@lucide/svelte/icons/key-round";
+import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import Logs from "@lucide/svelte/icons/logs";
+import Minus from "@lucide/svelte/icons/minus";
+import Settings from "@lucide/svelte/icons/settings";
+import Square from "@lucide/svelte/icons/square";
+import X from "@lucide/svelte/icons/x";
+import { Toolbar } from "bits-ui";
+import { WorkbenchTitlebar } from "@nervekit/workbench-ui/components/workbench";
+import type { ProjectRecord } from "$lib/api";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import nerveMark from "$lib/assets/nerve-mark.svg?raw";
 
-  type Props = {
-    activeProject?: ProjectRecord;
-    desktop?: boolean;
-    maximized?: boolean;
-    closeToTray?: boolean;
-    quitting?: boolean;
-    settingsActive?: boolean;
-    authActive?: boolean;
-    logsActive?: boolean;
-    onOpenProject?: () => void;
-    onOpenLogs?: () => void;
-    onOpenAuth?: () => void;
-    onOpenSettings?: () => void;
-    onMinimize?: () => void;
-    onToggleMaximize?: () => void;
-    onClose?: () => void;
-  };
+type Props = {
+  activeProject?: ProjectRecord;
+  desktop?: boolean;
+  maximized?: boolean;
+  closeToTray?: boolean;
+  quitting?: boolean;
+  settingsActive?: boolean;
+  authActive?: boolean;
+  logsActive?: boolean;
+  onOpenProject?: () => void;
+  onOpenLogs?: () => void;
+  onOpenAuth?: () => void;
+  onOpenSettings?: () => void;
+  onMinimize?: () => void;
+  onToggleMaximize?: () => void;
+  onClose?: () => void;
+};
 
-  let {
-    activeProject,
-    desktop = false,
-    maximized = false,
-    closeToTray = true,
-    quitting = false,
-    settingsActive = false,
-    authActive = false,
-    logsActive = false,
-    onOpenProject,
-    onOpenLogs,
-    onOpenAuth,
-    onOpenSettings,
-    onMinimize,
-    onToggleMaximize,
-    onClose,
-  }: Props = $props();
+let {
+  activeProject,
+  desktop = false,
+  maximized = false,
+  closeToTray = true,
+  quitting = false,
+  settingsActive = false,
+  authActive = false,
+  logsActive = false,
+  onOpenProject,
+  onOpenLogs,
+  onOpenAuth,
+  onOpenSettings,
+  onMinimize,
+  onToggleMaximize,
+  onClose,
+}: Props = $props();
 </script>
 
 <WorkbenchTitlebar {desktop}>
   {#snippet left()}
     <span class="brand">
-      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+      <!-- eslint-disable-next-line svelte/no-at-html-tags -- Bundled local SVG asset; no user or API content is rendered. -->
       <span class="brand-mark" aria-hidden="true">{@html nerveMark}</span>
     </span>
     <span class="divider" aria-hidden="true"></span>
@@ -138,8 +138,16 @@
           variant="ghost"
           size="icon-sm"
           class="window-control close-control"
-          ariaLabel={quitting ? "Closing Nerve" : closeToTray ? "Close window to tray" : "Close Nerve"}
-          title={quitting ? "Closing Nerve…" : closeToTray ? "Close to tray" : "Close Nerve"}
+          ariaLabel={quitting
+            ? "Closing Nerve"
+            : closeToTray
+              ? "Close window to tray"
+              : "Close Nerve"}
+          title={quitting
+            ? "Closing Nerve…"
+            : closeToTray
+              ? "Close to tray"
+              : "Close Nerve"}
           disabled={quitting}
           onclick={() => onClose?.()}
         >

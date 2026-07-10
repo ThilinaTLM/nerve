@@ -161,15 +161,15 @@ function hasProgress(
 ): boolean {
   return Boolean(
     snapshot.path ||
-      (snapshot.lineCount !== undefined && snapshot.lineCount > 0) ||
-      (snapshot.operationCount !== undefined && snapshot.operationCount > 0) ||
-      (snapshot.generatedLineCount !== undefined &&
-        snapshot.generatedLineCount > 0) ||
-      (snapshot.estimatedAdditions !== undefined &&
-        snapshot.estimatedAdditions > 0) ||
-      (snapshot.estimatedDeletions !== undefined &&
-        snapshot.estimatedDeletions > 0) ||
-      Boolean(snapshot.generatedPreview),
+    (snapshot.lineCount !== undefined && snapshot.lineCount > 0) ||
+    (snapshot.operationCount !== undefined && snapshot.operationCount > 0) ||
+    (snapshot.generatedLineCount !== undefined &&
+      snapshot.generatedLineCount > 0) ||
+    (snapshot.estimatedAdditions !== undefined &&
+      snapshot.estimatedAdditions > 0) ||
+    (snapshot.estimatedDeletions !== undefined &&
+      snapshot.estimatedDeletions > 0) ||
+    Boolean(snapshot.generatedPreview),
   );
 }
 

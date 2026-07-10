@@ -1,3 +1,4 @@
+import { SvelteSet } from "svelte/reactivity";
 import type { GitContext } from "$lib/core/types/state-types";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
@@ -29,7 +30,7 @@ type GitContextRefreshOptions = {
   reason?: GitContextRefreshReason;
 };
 
-const inFlight = new Set<string>();
+const inFlight = new SvelteSet<string>();
 let autoRefreshInterval: number | undefined;
 let pendingRefreshTimer: number | undefined;
 let lastRefreshStartedAt = 0;

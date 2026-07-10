@@ -227,15 +227,15 @@ export function repoMutationInProgress(
   const operations = state?.operations;
   return Boolean(
     operations &&
-      (operations.fetching ||
-        operations.pulling ||
-        operations.pushing ||
-        operations.syncing ||
-        operations.switchingBaseAndPulling ||
-        operations.creatingBranch ||
-        operations.switchingBranch ||
-        operations.fileMutation ||
-        operations.bulkMutation),
+    (operations.fetching ||
+      operations.pulling ||
+      operations.pushing ||
+      operations.syncing ||
+      operations.switchingBaseAndPulling ||
+      operations.creatingBranch ||
+      operations.switchingBranch ||
+      operations.fileMutation ||
+      operations.bulkMutation),
   );
 }
 

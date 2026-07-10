@@ -9,9 +9,9 @@ The WebSocket carries two logical flows:
 
 ## Peer roles
 
-| Peer | Protocol role | Responsibility |
-| --- | --- | --- |
-| Sandbox daemon | `agent` | Runs the agent, tools, startup setup, local journals, checkpoints, and event outbox. |
+| Peer               | Protocol role  | Responsibility                                                                                                     |
+| ------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Sandbox daemon     | `agent`        | Runs the agent, tools, startup setup, local journals, checkpoints, and event outbox.                               |
 | Sandbox controller | `orchestrator` | Authenticates sandbox sessions, sends commands, receives events, persists product-side state, and serves UIs/APIs. |
 
 The controller role name does not require the current Nerve local orchestrator. It means the peer owns command authority and durable event intake for this sandbox session.
@@ -64,23 +64,23 @@ The controller `welcome` MUST include the accepted intersection. A peer MUST NOT
 
 Optional capabilities MAY include:
 
-| Capability | Purpose |
-| --- | --- |
-| `sandbox.models.pi_ai.v1` | Sandbox accepts pi-ai-compatible model catalog and selectors. |
-| `sandbox.credentials.oauth_refresh.v1` | Sandbox can refresh manager-provided OAuth credential bundles. |
-| `sandbox.secret_stores.v1` | Sandbox can resolve key-value secret references. |
-| `sandbox.git_config.v1` | Sandbox applies top-level Git startup setup. |
-| `sandbox.github_config.v1` | Sandbox applies top-level GitHub startup setup. |
-| `sandbox.tool_groups.v1` | Sandbox reports and enforces group-based model-callable tool configuration. |
-| `sandbox.tools.web_search.v1` | Web search/fetch group is configured and available. |
-| `sandbox.tools.jira.v1` | Jira group is configured and available. |
-| `sandbox.tools.confluence.v1` | Confluence group is configured and available. |
-| `sandbox.skills.v1` | Sandbox loads and reports `AGENTS.md` and `SKILL.md` resources. |
-| `sandbox.disconnect_exit.v1` | Sandbox self-exits after configured controller disconnect grace period. |
-| `sandbox.multi_agent_state.v1` | Sandbox snapshots/events include conversation and agent identifiers. |
-| `sandbox.network.egress_policy.v1` | Sandbox can report/enforce structured network policy. |
-| `sandbox.security.firewall.v1` | Sandbox can apply host/runtime-backed egress firewall rules. |
-| `sandbox.controller_oauth.experimental` | Experimental controller WebSocket OAuth; not part of baseline v1. |
+| Capability                              | Purpose                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| `sandbox.models.pi_ai.v1`               | Sandbox accepts pi-ai-compatible model catalog and selectors.               |
+| `sandbox.credentials.oauth_refresh.v1`  | Sandbox can refresh manager-provided OAuth credential bundles.              |
+| `sandbox.secret_stores.v1`              | Sandbox can resolve key-value secret references.                            |
+| `sandbox.git_config.v1`                 | Sandbox applies top-level Git startup setup.                                |
+| `sandbox.github_config.v1`              | Sandbox applies top-level GitHub startup setup.                             |
+| `sandbox.tool_groups.v1`                | Sandbox reports and enforces group-based model-callable tool configuration. |
+| `sandbox.tools.web_search.v1`           | Web search/fetch group is configured and available.                         |
+| `sandbox.tools.jira.v1`                 | Jira group is configured and available.                                     |
+| `sandbox.tools.confluence.v1`           | Confluence group is configured and available.                               |
+| `sandbox.skills.v1`                     | Sandbox loads and reports `AGENTS.md` and `SKILL.md` resources.             |
+| `sandbox.disconnect_exit.v1`            | Sandbox self-exits after configured controller disconnect grace period.     |
+| `sandbox.multi_agent_state.v1`          | Sandbox snapshots/events include conversation and agent identifiers.        |
+| `sandbox.network.egress_policy.v1`      | Sandbox can report/enforce structured network policy.                       |
+| `sandbox.security.firewall.v1`          | Sandbox can apply host/runtime-backed egress firewall rules.                |
+| `sandbox.controller_oauth.experimental` | Experimental controller WebSocket OAuth; not part of baseline v1.           |
 
 ## Streams
 
@@ -240,10 +240,26 @@ type SandboxSnapshotResult = {
     git?: StartupSetupStatus;
     github?: StartupSetupStatus;
   };
-  secretStores?: Array<{ id: string; status: string; cacheEnabled?: boolean; limitations?: string[] }>;
-  skills?: Array<{ name: string; source: string; path: string; modelVisible: boolean }>;
+  secretStores?: Array<{
+    id: string;
+    status: string;
+    cacheEnabled?: boolean;
+    limitations?: string[];
+  }>;
+  skills?: Array<{
+    name: string;
+    source: string;
+    path: string;
+    modelVisible: boolean;
+  }>;
   contextFiles?: Array<{ path: string; digest?: string }>;
-  credentialStatus?: Array<{ provider: string; group?: string; credentialType: string; expiresAt?: string; status: string }>;
+  credentialStatus?: Array<{
+    provider: string;
+    group?: string;
+    credentialType: string;
+    expiresAt?: string;
+    status: string;
+  }>;
   cursor: {
     streams: Array<{ stream: string; processedSeq: number }>;
   };
@@ -278,38 +294,38 @@ type SandboxDaemonStatus =
 
 Sandbox events are carried in Nerve Protocol v1 `event.batch` messages. [Event Schemas](./event-schemas.md) is authoritative for baseline payload schemas. Event payloads MUST be safe to persist and log after redaction.
 
-| Event type | Durability | Purpose |
-| --- | --- | --- |
-| `sandbox.config.loaded` | durable | Sanitized config digest, effective defaults, model/provider status, setup status, secret-store status, and tool-group status. |
-| `sandbox.secret_store.checked` | durable | Redacted secret-store reachability/cache status. |
-| `sandbox.credentials.refreshed` | durable | Redacted credential refresh status. |
-| `sandbox.setup.git.started` | durable | Top-level Git startup setup began. |
-| `sandbox.setup.git.completed` | durable | Top-level Git startup setup completed or failed with redacted details. |
-| `sandbox.setup.github.started` | durable | Top-level GitHub startup setup began. |
-| `sandbox.setup.github.completed` | durable | Top-level GitHub startup setup completed or failed with redacted details. |
-| `sandbox.boot.started` | durable | Boot phase began. |
-| `sandbox.boot.completed` | durable | Boot phase completed successfully or failed. |
-| `sandbox.skills.loaded` | durable | `AGENTS.md` context and `SKILL.md` resources loaded with bounded metadata. |
-| `sandbox.ready` | durable | Sandbox can accept commands. |
-| `sandbox.controller.disconnected` | durable | Controller session was lost and reconnect/self-exit timer started. |
-| `sandbox.controller.reconnected` | durable | Controller session was re-established. |
-| `sandbox.shutdown.scheduled` | durable | Shutdown was scheduled, including disconnect self-exit. |
-| `sandbox.shutdown.started` | durable | Shutdown began. |
-| `run.started` | durable | Run started for a conversation/agent. |
-| `run.delta` | transient | Bounded streaming assistant/tool/system progress; not required for replay recovery. |
-| `run.transcript.appended` | durable | Durable transcript entry appended. |
-| `run.waiting_for_input` | durable | Agent waits for user/controller input. |
-| `run.waiting_for_approval` | durable | Tool call waits for approval. |
-| `run.checkpointed` | durable | Recovery checkpoint written. |
-| `run.completed` | durable | Run completed. |
-| `run.failed` | durable | Run failed. |
-| `run.cancelled` | durable | Run cancelled. |
-| `tool.call.requested` | durable | Tool call requested or approval needed. |
-| `tool.call.started` | durable | Tool call execution began. |
-| `tool.call.completed` | durable | Tool call completed with bounded result. |
-| `tool.call.failed` | durable | Tool call failed with redacted error. |
-| `tool.call.cancelled` | durable | Tool call was cancelled after state was updated. |
-| `sandbox.security.denied` | durable | Policy denied an action. |
+| Event type                        | Durability | Purpose                                                                                                                       |
+| --------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `sandbox.config.loaded`           | durable    | Sanitized config digest, effective defaults, model/provider status, setup status, secret-store status, and tool-group status. |
+| `sandbox.secret_store.checked`    | durable    | Redacted secret-store reachability/cache status.                                                                              |
+| `sandbox.credentials.refreshed`   | durable    | Redacted credential refresh status.                                                                                           |
+| `sandbox.setup.git.started`       | durable    | Top-level Git startup setup began.                                                                                            |
+| `sandbox.setup.git.completed`     | durable    | Top-level Git startup setup completed or failed with redacted details.                                                        |
+| `sandbox.setup.github.started`    | durable    | Top-level GitHub startup setup began.                                                                                         |
+| `sandbox.setup.github.completed`  | durable    | Top-level GitHub startup setup completed or failed with redacted details.                                                     |
+| `sandbox.boot.started`            | durable    | Boot phase began.                                                                                                             |
+| `sandbox.boot.completed`          | durable    | Boot phase completed successfully or failed.                                                                                  |
+| `sandbox.skills.loaded`           | durable    | `AGENTS.md` context and `SKILL.md` resources loaded with bounded metadata.                                                    |
+| `sandbox.ready`                   | durable    | Sandbox can accept commands.                                                                                                  |
+| `sandbox.controller.disconnected` | durable    | Controller session was lost and reconnect/self-exit timer started.                                                            |
+| `sandbox.controller.reconnected`  | durable    | Controller session was re-established.                                                                                        |
+| `sandbox.shutdown.scheduled`      | durable    | Shutdown was scheduled, including disconnect self-exit.                                                                       |
+| `sandbox.shutdown.started`        | durable    | Shutdown began.                                                                                                               |
+| `run.started`                     | durable    | Run started for a conversation/agent.                                                                                         |
+| `run.delta`                       | transient  | Bounded streaming assistant/tool/system progress; not required for replay recovery.                                           |
+| `run.transcript.appended`         | durable    | Durable transcript entry appended.                                                                                            |
+| `run.waiting_for_input`           | durable    | Agent waits for user/controller input.                                                                                        |
+| `run.waiting_for_approval`        | durable    | Tool call waits for approval.                                                                                                 |
+| `run.checkpointed`                | durable    | Recovery checkpoint written.                                                                                                  |
+| `run.completed`                   | durable    | Run completed.                                                                                                                |
+| `run.failed`                      | durable    | Run failed.                                                                                                                   |
+| `run.cancelled`                   | durable    | Run cancelled.                                                                                                                |
+| `tool.call.requested`             | durable    | Tool call requested or approval needed.                                                                                       |
+| `tool.call.started`               | durable    | Tool call execution began.                                                                                                    |
+| `tool.call.completed`             | durable    | Tool call completed with bounded result.                                                                                      |
+| `tool.call.failed`                | durable    | Tool call failed with redacted error.                                                                                         |
+| `tool.call.cancelled`             | durable    | Tool call was cancelled after state was updated.                                                                              |
+| `sandbox.security.denied`         | durable    | Policy denied an action.                                                                                                      |
 
 Events associated with a run SHOULD include `conversationId`, `agentId`, and `runId`. Event producers MUST use the payload shapes in [Event Schemas](./event-schemas.md) for baseline event types.
 

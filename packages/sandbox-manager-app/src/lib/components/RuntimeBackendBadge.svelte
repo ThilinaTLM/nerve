@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { Container } from "@lucide/svelte";
-  import type { RuntimeDriverCapabilities } from "@nervekit/contracts";
-  import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import { Container } from "@lucide/svelte";
+import type { RuntimeDriverCapabilities } from "@nervekit/contracts";
+import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
 
-  let {
-    backend,
-    runtime,
-  }: {
-    backend: string;
-    runtime?: RuntimeDriverCapabilities;
-  } = $props();
+let {
+  backend,
+  runtime,
+}: {
+  backend: string;
+  runtime?: RuntimeDriverCapabilities;
+} = $props();
 
-  const tone = $derived(runtime && !runtime.available ? "warn" : "neutral");
+const tone = $derived(runtime && !runtime.available ? "warn" : "neutral");
 </script>
 
 <Badge {tone} size="xs" class="gap-1">

@@ -58,8 +58,9 @@ export interface ToolConfiguration<TTool extends AgentTool> {
   activeToolNames: string[];
 }
 
-export interface PreparedToolConfiguration<TTool extends AgentTool>
-  extends ToolConfiguration<TTool> {
+export interface PreparedToolConfiguration<
+  TTool extends AgentTool,
+> extends ToolConfiguration<TTool> {
   event: ToolsUpdateEvent;
 }
 

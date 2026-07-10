@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Sandbox schema coverage intentionally keeps related fixtures and protocol cases together.
+/* eslint-disable max-lines -- Sandbox schema coverage intentionally keeps related fixtures and protocol cases together. */
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -444,7 +444,8 @@ describe("Sandbox shared schemas", () => {
   });
 
   it("accepts create input with omitted, partial, and full controllers", () => {
-    const { controller: _controller, ...withoutController } = minimalConfig();
+    const withoutController = minimalConfig();
+    Reflect.deleteProperty(withoutController, "controller");
     assert.equal(
       sandboxCreateConfigInputSchema.safeParse(withoutController).success,
       true,
@@ -838,7 +839,8 @@ describe("Sandbox shared schemas", () => {
       updatedAt: ts,
     };
     assert.equal(managedSandboxRecordSchema.safeParse(record).success, true);
-    const { lifecycleState: _lifecycleState, ...withoutLifecycle } = record;
+    const withoutLifecycle = { ...record };
+    Reflect.deleteProperty(withoutLifecycle, "lifecycleState");
     assert.equal(
       managedSandboxRecordSchema.safeParse(withoutLifecycle).success,
       false,

@@ -1,31 +1,31 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-  import WorkbenchFrame from "./workbench-frame.svelte";
-  import WorkbenchPanes from "./workbench-panes.svelte";
-  import type {
-    WorkbenchLayoutActions,
-    WorkbenchShellModel,
-  } from "./workbench-layout.js";
+import type { Snippet } from "svelte";
+import WorkbenchFrame from "./workbench-frame.svelte";
+import WorkbenchPanes from "./workbench-panes.svelte";
+import type {
+  WorkbenchLayoutActions,
+  WorkbenchShellModel,
+} from "./workbench-layout.js";
 
-  let {
-    model,
-    actions = {},
-    titlebar: titlebarContent,
-    navigator: navigatorContent,
-    center: centerContent,
-    utility: utilityContent,
-    footer: footerContent,
-    overlays,
-  }: {
-    model: WorkbenchShellModel;
-    actions?: WorkbenchLayoutActions;
-    titlebar: Snippet;
-    navigator: Snippet;
-    center: Snippet;
-    utility: Snippet;
-    footer: Snippet;
-    overlays?: Snippet;
-  } = $props();
+let {
+  model,
+  actions = {},
+  titlebar: titlebarContent,
+  navigator: navigatorContent,
+  center: centerContent,
+  utility: utilityContent,
+  footer: footerContent,
+  overlays,
+}: {
+  model: WorkbenchShellModel;
+  actions?: WorkbenchLayoutActions;
+  titlebar: Snippet;
+  navigator: Snippet;
+  center: Snippet;
+  utility: Snippet;
+  footer: Snippet;
+  overlays?: Snippet;
+} = $props();
 </script>
 
 <WorkbenchFrame>

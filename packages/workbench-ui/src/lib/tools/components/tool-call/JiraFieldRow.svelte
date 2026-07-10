@@ -1,18 +1,21 @@
 <script lang="ts">
-  import Tag from "@lucide/svelte/icons/tag";
-  import type { JiraFieldSummaryPayload } from "@nervekit/contracts";
-  import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import Tag from "@lucide/svelte/icons/tag";
+import type { JiraFieldSummaryPayload } from "@nervekit/contracts";
+import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
 
-  type Props = { field: JiraFieldSummaryPayload };
-  let { field }: Props = $props();
+type Props = { field: JiraFieldSummaryPayload };
+let { field }: Props = $props();
 
-  const allowed = $derived(field.allowedValues ?? []);
+const allowed = $derived(field.allowedValues ?? []);
 </script>
 
 <div class="grid gap-1 rounded-sm border bg-sidebar px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
     {#if field.name}
-      <span class="min-w-0 break-words text-xs font-medium text-sidebar-foreground">{field.name}</span>
+      <span
+        class="min-w-0 break-words text-xs font-medium text-sidebar-foreground"
+        >{field.name}</span
+      >
     {/if}
     <span class="font-mono text-xs text-muted-foreground">{field.id}</span>
   </div>

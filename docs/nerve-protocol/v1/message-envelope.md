@@ -179,7 +179,8 @@ Suggested common metadata keys:
 type CommonMeta = {
   clientVersion?: string;
   serverVersion?: string;
-  transport?: "websocket" | "http" | "webtransport" | "electron-ipc" | "pipe" | "sse";
+  transport?:
+    "websocket" | "http" | "webtransport" | "electron-ipc" | "pipe" | "sse";
   encoding?: "json" | "messagepack" | "cbor";
   compression?: "none" | "gzip" | "br";
   attempt?: number;
@@ -191,23 +192,23 @@ type CommonMeta = {
 
 Version 1 defines these message kinds.
 
-| Kind | Direction | Purpose |
-| --- | --- | --- |
-| `hello` | client → orchestrator | Start a session, advertise capabilities, request resume. |
-| `welcome` | orchestrator → client | Accept session, select capabilities, report cursors and limits. |
-| `ready` | client → orchestrator | Signal that the client is ready to receive live traffic. |
-| `heartbeat` | either | Liveness and lightweight cursor/status exchange. |
-| `goodbye` | either | Graceful session shutdown. |
-| `error` | either | Protocol, validation, auth, replay, or flow-control error. |
-| `event.batch` | orchestrator → client | Deliver one or more ordered domain events. |
-| `ack` | client → orchestrator | Acknowledge processed durable event cursors. |
-| `replay.request` | client → orchestrator | Request replay from a cursor. |
-| `replay.started` | orchestrator → client | Mark the start of a replay range. |
-| `replay.complete` | orchestrator → client | Mark replay completion and final cursor. |
-| `replay.unavailable` | orchestrator → client | Report that requested replay cannot be satisfied. |
-| `flow.update` | either | Communicate backpressure/degradation/resync state. |
-| `request` | either | Optional protocol-enveloped RPC-style request. |
-| `response` | either | Optional protocol-enveloped RPC-style response. |
+| Kind                 | Direction             | Purpose                                                         |
+| -------------------- | --------------------- | --------------------------------------------------------------- |
+| `hello`              | client → orchestrator | Start a session, advertise capabilities, request resume.        |
+| `welcome`            | orchestrator → client | Accept session, select capabilities, report cursors and limits. |
+| `ready`              | client → orchestrator | Signal that the client is ready to receive live traffic.        |
+| `heartbeat`          | either                | Liveness and lightweight cursor/status exchange.                |
+| `goodbye`            | either                | Graceful session shutdown.                                      |
+| `error`              | either                | Protocol, validation, auth, replay, or flow-control error.      |
+| `event.batch`        | orchestrator → client | Deliver one or more ordered domain events.                      |
+| `ack`                | client → orchestrator | Acknowledge processed durable event cursors.                    |
+| `replay.request`     | client → orchestrator | Request replay from a cursor.                                   |
+| `replay.started`     | orchestrator → client | Mark the start of a replay range.                               |
+| `replay.complete`    | orchestrator → client | Mark replay completion and final cursor.                        |
+| `replay.unavailable` | orchestrator → client | Report that requested replay cannot be satisfied.               |
+| `flow.update`        | either                | Communicate backpressure/degradation/resync state.              |
+| `request`            | either                | Optional protocol-enveloped RPC-style request.                  |
+| `response`           | either                | Optional protocol-enveloped RPC-style response.                 |
 
 Transport bindings or capabilities MAY define additional kinds. Unknown message kinds are handled as described in [Unknown messages and fields](#unknown-messages-and-fields).
 
@@ -258,13 +259,13 @@ Until such a capability is specified and negotiated, senders MUST use JSON.
 
 A transport binding MUST define maximum message size. The WebSocket v1 binding SHOULD use these defaults unless implementation measurements justify different values:
 
-| Limit | Recommended default |
-| --- | ---: |
-| Maximum encoded message size | 4 MiB |
-| Maximum `event.batch` encoded size | 1 MiB target, 4 MiB hard cap |
-| Maximum events per batch | 500 durable events or 2,000 transient/coalesced events |
-| Maximum metadata size | 16 KiB |
-| Maximum error message text | 8 KiB |
+| Limit                              |                                    Recommended default |
+| ---------------------------------- | -----------------------------------------------------: |
+| Maximum encoded message size       |                                                  4 MiB |
+| Maximum `event.batch` encoded size |                           1 MiB target, 4 MiB hard cap |
+| Maximum events per batch           | 500 durable events or 2,000 transient/coalesced events |
+| Maximum metadata size              |                                                 16 KiB |
+| Maximum error message text         |                                                  8 KiB |
 
 Senders SHOULD split large event streams into multiple `event.batch` messages. Receivers MUST reject messages that exceed configured hard caps with `MESSAGE_TOO_LARGE` when possible.
 
@@ -272,15 +273,15 @@ Senders SHOULD split large event streams into multiple `event.batch` messages. R
 
 Recommended prefixes:
 
-| Entity | Prefix |
-| --- | --- |
-| Message | `msg_` |
-| Session | `ses_` |
-| Event | `evt_` |
-| Request operation | `req_` |
-| Replay operation | `rpl_` |
-| Trace | `trc_` |
-| Client instance | `cli_` |
+| Entity                | Prefix |
+| --------------------- | ------ |
+| Message               | `msg_` |
+| Session               | `ses_` |
+| Event                 | `evt_` |
+| Request operation     | `req_` |
+| Replay operation      | `rpl_` |
+| Trace                 | `trc_` |
+| Client instance       | `cli_` |
 | Orchestrator instance | `orc_` |
 
 Prefixes are conventions for readability. Receivers MUST NOT rely on prefixes as the only validation mechanism.

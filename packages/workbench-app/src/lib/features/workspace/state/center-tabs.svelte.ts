@@ -1,3 +1,4 @@
+import { SvelteSet } from "svelte/reactivity";
 import type { CenterTabIdentity } from "$lib/core/types/state-types";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
@@ -87,7 +88,7 @@ function syncLegacyTabFields() {
 }
 
 export function replaceOpenCenterTabs(tabs: CenterTabIdentity[]) {
-  const seen = new Set<string>();
+  const seen = new SvelteSet<string>();
   workspaceState.openCenterTabs = tabs.filter((tab) => {
     const key = centerTabKey(tab);
     if (seen.has(key)) return false;

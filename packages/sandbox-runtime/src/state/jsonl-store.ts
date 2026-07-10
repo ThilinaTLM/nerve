@@ -42,6 +42,7 @@ export class JsonlStore<T> {
       } catch (error) {
         throw new Error(
           `Invalid JSONL record ${index + 1} in ${this.filePath}: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
         );
       }
     }

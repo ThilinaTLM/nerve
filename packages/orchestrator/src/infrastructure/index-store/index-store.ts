@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- IndexStore centralizes the rebuildable SQLite index schema and queries. */
 import { existsSync, renameSync, rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type {

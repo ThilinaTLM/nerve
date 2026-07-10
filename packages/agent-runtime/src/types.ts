@@ -140,7 +140,7 @@ export interface AgentLoopTurnUpdate {
   thinkingLevel?: ThinkingLevel;
 }
 
-export interface PrepareNextTurnContext extends ShouldStopAfterTurnContext {}
+export type PrepareNextTurnContext = ShouldStopAfterTurnContext;
 
 export interface AgentLoopConfig extends SimpleStreamOptions {
   model: AnyModel;
@@ -330,7 +330,7 @@ export type ThinkingLevel =
  * }
  * ```
  */
-// biome-ignore lint/suspicious/noEmptyInterface: intentional declaration-merging extension point for app-specific messages.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Intentional declaration-merging extension point for app-specific messages.
 export interface CustomAgentMessages {
   // Empty by default - apps extend via declaration merging
 }

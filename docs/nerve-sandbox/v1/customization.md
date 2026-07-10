@@ -8,14 +8,14 @@ Manager launch policy -> Base image -> Derived image -> Built-in skills -> Runti
 
 ## Customization layers
 
-| Layer | When applied | Reproducibility | Purpose |
-| --- | --- | --- | --- |
-| Base image | Build time | High if pinned by digest | OS, Node, sandbox daemon, core runtime. |
-| Derived image | Build time | High if pinned and locked | Project/tool dependencies, system packages, certificates, git/gh/gpg/ssh tooling. |
-| Built-in skills | Build time | High if versioned with image | Immutable `SKILL.md` task guidance under `/agent/skills`. |
-| Runtime YAML config | Start time | High if digested | Model catalog, agent selectors, secret stores, top-level Git/GitHub setup, tool groups, controller URL, skills/context paths, policy, resources. |
-| Boot phases | Start time | Medium/low | Final workspace setup, dependency install, generated files, and convenience commands. |
-| Manager launch policy | Before start | High if stored | Container backend, image digest, volume refs, config mount, secret mounts, network/security profile, retention, and GC. |
+| Layer                 | When applied | Reproducibility              | Purpose                                                                                                                                          |
+| --------------------- | ------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Base image            | Build time   | High if pinned by digest     | OS, Node, sandbox daemon, core runtime.                                                                                                          |
+| Derived image         | Build time   | High if pinned and locked    | Project/tool dependencies, system packages, certificates, git/gh/gpg/ssh tooling.                                                                |
+| Built-in skills       | Build time   | High if versioned with image | Immutable `SKILL.md` task guidance under `/agent/skills`.                                                                                        |
+| Runtime YAML config   | Start time   | High if digested             | Model catalog, agent selectors, secret stores, top-level Git/GitHub setup, tool groups, controller URL, skills/context paths, policy, resources. |
+| Boot phases           | Start time   | Medium/low                   | Final workspace setup, dependency install, generated files, and convenience commands.                                                            |
+| Manager launch policy | Before start | High if stored               | Container backend, image digest, volume refs, config mount, secret mounts, network/security profile, retention, and GC.                          |
 
 Build-time customization is preferred for stable dependencies. Runtime boot phases are useful for per-workspace setup but should be treated as mutable and recorded. Manager launch policy should be stored with sandbox records so a container can be explained or recreated.
 
@@ -188,15 +188,15 @@ Recommended policy:
 
 Common registry hosts include:
 
-| Ecosystem | Public hosts commonly needed |
-| --- | --- |
-| npm/pnpm/yarn | `registry.npmjs.org` |
-| Python/pip/uv/poetry | `pypi.org`, `files.pythonhosted.org` |
-| Maven/Gradle | `repo.maven.apache.org` or configured mirror |
-| Cargo | `crates.io`, `static.crates.io`, configured git indexes |
-| Go | `proxy.golang.org`, `sum.golang.org`, module VCS hosts |
-| Ruby | `rubygems.org` |
-| NuGet | `api.nuget.org` |
+| Ecosystem            | Public hosts commonly needed                            |
+| -------------------- | ------------------------------------------------------- |
+| npm/pnpm/yarn        | `registry.npmjs.org`                                    |
+| Python/pip/uv/poetry | `pypi.org`, `files.pythonhosted.org`                    |
+| Maven/Gradle         | `repo.maven.apache.org` or configured mirror            |
+| Cargo                | `crates.io`, `static.crates.io`, configured git indexes |
+| Go                   | `proxy.golang.org`, `sum.golang.org`, module VCS hosts  |
+| Ruby                 | `rubygems.org`                                          |
+| NuGet                | `api.nuget.org`                                         |
 
 Private registry credentials MUST be supplied by `SecretRef`, injected narrowly, and redacted from logs/transcripts.
 

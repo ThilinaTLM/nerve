@@ -1,68 +1,72 @@
 <script lang="ts">
-  import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
-  import Check from "@lucide/svelte/icons/check";
-  import ExternalLink from "@lucide/svelte/icons/external-link";
-  import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
-  import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
-  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-  import X from "@lucide/svelte/icons/x";
-  import { isGithubChecksPending } from "./github-pr-checks";
-  import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
-  import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
-  import type { PrViewState } from "./github-pr-types";
-  import {
-    checksTone,
-    formatPrDate,
-    reviewTone,
-    runTone,
-    stateLabel,
-    stateTone,
-  } from "./pr-pane-helpers";
-  import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
+import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
+import Check from "@lucide/svelte/icons/check";
+import ExternalLink from "@lucide/svelte/icons/external-link";
+import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
+import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import X from "@lucide/svelte/icons/x";
+import { isGithubChecksPending } from "./github-pr-checks";
+import Markdown from "@nervekit/workbench-ui/core/components/Markdown.svelte";
+import { notifyCopyResult } from "@nervekit/workbench-ui/core/notify";
+import type { PrViewState } from "./github-pr-types";
+import {
+  checksTone,
+  formatPrDate,
+  reviewTone,
+  runTone,
+  stateLabel,
+  stateTone,
+} from "./pr-pane-helpers";
+import { Badge } from "@nervekit/workbench-ui/components/ui/badge";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { ScrollArea } from "@nervekit/workbench-ui/components/ui/scroll-area";
 
-  type Props = {
-    view?: PrViewState;
-    onRefresh?: () => void;
-    onCheckout?: () => void;
-    onOpenExternal?: () => void;
+type Props = {
+  view?: PrViewState;
+  onRefresh?: () => void;
+  onCheckout?: () => void;
+  onOpenExternal?: () => void;
+};
+
+const PR_CHECKS_POLL_MS = 10_000;
+
+let { view, onRefresh, onCheckout, onOpenExternal }: Props = $props();
+
+const detail = $derived(view?.detail);
+const checksPending = $derived(isGithubChecksPending(detail?.checks));
+
+function confirmCheckout() {
+  if (!detail) return;
+  if (
+    window.confirm(
+      `Check out PR #${detail.number} (${detail.headRefName}) in this repo?`,
+    )
+  ) {
+    onCheckout?.();
+  }
+}
+
+$effect(() => {
+  const viewId = view?.id;
+  const pending = checksPending;
+  if (!viewId || !pending || !onRefresh) return;
+
+  const refreshPendingPr = () => {
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState !== "visible"
+    )
+      return;
+    onRefresh();
   };
 
-  const PR_CHECKS_POLL_MS = 10_000;
-
-  let { view, onRefresh, onCheckout, onOpenExternal }: Props = $props();
-
-  const detail = $derived(view?.detail);
-  const checksPending = $derived(isGithubChecksPending(detail?.checks));
-
-  function confirmCheckout() {
-    if (!detail) return;
-    if (
-      window.confirm(
-        `Check out PR #${detail.number} (${detail.headRefName}) in this repo?`,
-      )
-    ) {
-      onCheckout?.();
-    }
-  }
-
-  $effect(() => {
-    const viewId = view?.id;
-    const pending = checksPending;
-    if (!viewId || !pending || !onRefresh) return;
-
-    const refreshPendingPr = () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      onRefresh();
-    };
-
-    refreshPendingPr();
-    const intervalId = window.setInterval(refreshPendingPr, PR_CHECKS_POLL_MS);
-    return () => window.clearInterval(intervalId);
-  });
+  refreshPendingPr();
+  const intervalId = window.setInterval(refreshPendingPr, PR_CHECKS_POLL_MS);
+  return () => window.clearInterval(intervalId);
+});
 </script>
 
 <section class="pr-pane">
@@ -119,8 +123,12 @@
         </div>
 
         <div class="pr-subline">
-          {#if detail.author}<span>by <span class="mono">{detail.author}</span></span>{/if}
-          {#if detail.createdAt}<span>opened {formatPrDate(detail.createdAt)}</span>{/if}
+          {#if detail.author}<span
+              >by <span class="mono">{detail.author}</span></span
+            >{/if}
+          {#if detail.createdAt}<span
+              >opened {formatPrDate(detail.createdAt)}</span
+            >{/if}
           <span class="mono diffstat">
             <span class="add">+{detail.additions}</span>
             <span class="del">−{detail.deletions}</span>
@@ -138,7 +146,11 @@
             <RefreshCw class={view.loading ? "spin" : ""} size={14} />
             Refresh
           </Button>
-          <Button size="sm" variant="outline" onclick={() => onOpenExternal?.()}>
+          <Button
+            size="sm"
+            variant="outline"
+            onclick={() => onOpenExternal?.()}
+          >
             <ExternalLink size={14} />
             Open in browser
           </Button>
@@ -168,7 +180,9 @@
       <section class="pr-section">
         <h2>Description</h2>
         {#if detail.body.trim()}
-          <div class="pr-body"><Markdown text={detail.body} onCopy={notifyCopyResult} /></div>
+          <div class="pr-body">
+            <Markdown text={detail.body} onCopy={notifyCopyResult} />
+          </div>
         {:else}
           <p class="pr-muted">No description provided.</p>
         {/if}
@@ -214,174 +228,173 @@
 </section>
 
 <style>
-  .pr-pane {
-    display: grid;
-    height: 100%;
-    min-height: 0;
-    background: var(--background);
-  }
+.pr-pane {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  background: var(--background);
+}
 
-  :global(.pr-scroll) {
-    min-height: 0;
-  }
+:global(.pr-scroll) {
+  min-height: 0;
+}
 
-  :global(.pr-viewport) {
-    padding: 1.1rem 1.25rem 4rem;
-  }
+:global(.pr-viewport) {
+  padding: 1.1rem 1.25rem 4rem;
+}
 
-  .pr-empty {
-    display: grid;
-    min-height: 18rem;
-    place-items: center;
-    align-content: center;
-    gap: 0.35rem;
-    color: var(--muted-foreground);
-    text-align: center;
-  }
+.pr-empty {
+  display: grid;
+  min-height: 18rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.35rem;
+  color: var(--muted-foreground);
+  text-align: center;
+}
 
-  .pr-empty :global(svg) {
-    color: var(--primary);
-  }
+.pr-empty :global(svg) {
+  color: var(--primary);
+}
 
-  .pr-empty.danger :global(svg) {
-    color: var(--destructive);
-  }
+.pr-empty.danger :global(svg) {
+  color: var(--destructive);
+}
 
-  .pr-empty strong {
-    color: var(--foreground);
-  }
+.pr-empty strong {
+  color: var(--foreground);
+}
 
-  .pr-header {
-    display: grid;
-    gap: 0.6rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border);
-  }
+.pr-header {
+  display: grid;
+  gap: 0.6rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
 
-  .pr-title-row {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-  }
+.pr-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
 
-  .pr-number {
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-  }
+.pr-number {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
 
-  .pr-title {
-    margin: 0;
-    font-size: var(--text-xl);
-    font-weight: 600;
-    line-height: 1.25;
-    color: var(--foreground);
-  }
+.pr-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--foreground);
+}
 
-  .pr-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: var(--text-sm);
-  }
+.pr-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--text-sm);
+}
 
-  .pr-branches {
-    color: var(--muted-foreground);
-  }
+.pr-branches {
+  color: var(--muted-foreground);
+}
 
-  .pr-subline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.85rem;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
+.pr-subline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
 
-  .pr-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-top: 0.25rem;
-  }
+.pr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
 
-  .pr-section {
-    margin-top: 1.4rem;
-  }
+.pr-section {
+  margin-top: 1.4rem;
+}
 
-  .pr-section h2 {
-    margin: 0 0 0.5rem;
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--foreground);
-  }
+.pr-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--foreground);
+}
 
-  .pr-list {
-    display: grid;
-    gap: 0.2rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
+.pr-list {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
-  .pr-run,
-  .pr-file,
-  .pr-commit {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-    font-size: var(--text-xs);
-    color: var(--foreground);
-  }
+.pr-run,
+.pr-file,
+.pr-commit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--foreground);
+}
 
-  .pr-file {
-    justify-content: space-between;
-  }
+.pr-file {
+  justify-content: space-between;
+}
 
-  .pr-commit :global(svg) {
-    flex: none;
-    color: var(--muted-foreground);
-  }
+.pr-commit :global(svg) {
+  flex: none;
+  color: var(--muted-foreground);
+}
 
-  .pr-hash {
-    color: var(--muted-foreground);
-  }
+.pr-hash {
+  color: var(--muted-foreground);
+}
 
-  .pr-body {
-    font-size: var(--text-sm);
-    line-height: 1.6;
-  }
+.pr-body {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
 
-  .pr-muted {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-sm);
-  }
+.pr-muted {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
 
-  .mono {
-    font-family: var(--font-mono);
-  }
+.mono {
+  font-family: var(--font-mono);
+}
 
-  .truncate {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .diffstat {
-    flex: none;
-    white-space: nowrap;
-    color: var(--muted-foreground);
-  }
+.diffstat {
+  flex: none;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
 
-  .diffstat .add {
-    color: var(--success);
-  }
+.diffstat .add {
+  color: var(--success);
+}
 
-  .diffstat .del {
-    color: var(--destructive);
-  }
-
+.diffstat .del {
+  color: var(--destructive);
+}
 </style>

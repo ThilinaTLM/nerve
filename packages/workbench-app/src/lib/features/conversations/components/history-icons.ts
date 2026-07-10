@@ -25,7 +25,7 @@ import Wrench from "@lucide/svelte/icons/wrench";
 import type { Component } from "svelte";
 import type { HistoryIconName, HistoryTone } from "./history-graph";
 
-// biome-ignore lint/suspicious/noExplicitAny: lucide icon component interop
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Lucide icon component interop.
 type Icon = Component<any>;
 
 export const HISTORY_ICONS: Record<HistoryIconName, Icon> = {

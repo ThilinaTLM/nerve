@@ -7,7 +7,9 @@ Sandbox events are domain events carried inside Nerve Protocol v1 `event.batch` 
 Each event in an `event.batch` SHOULD have an event envelope equivalent to:
 
 ```ts
-type SandboxEvent<TType extends keyof SandboxEventPayloadMap = keyof SandboxEventPayloadMap> = {
+type SandboxEvent<
+  TType extends keyof SandboxEventPayloadMap = keyof SandboxEventPayloadMap,
+> = {
   id: string;
   seq: number;
   type: TType;
@@ -102,7 +104,12 @@ type SandboxConfigLoadedEvent = SandboxEventCommon & {
   status: "loaded" | "degraded";
   configDigest: string;
   effectiveDefaults?: Record<string, unknown>;
-  models: Array<{ provider: string; model: string; active: boolean; limitations?: string[] }>;
+  models: Array<{
+    provider: string;
+    model: string;
+    active: boolean;
+    limitations?: string[];
+  }>;
   toolGroups: ToolGroupStatus[];
   secretStores?: SecretStoreStatus[];
   setup?: { git?: StartupSetupStatus; github?: StartupSetupStatus };
@@ -170,7 +177,11 @@ type SandboxSkillsLoadedEvent = SandboxEventCommon & {
   status: "loaded" | "degraded" | "failed";
   contextFiles: ContextFileStatus[];
   skills: SkillStatus[];
-  diagnostics?: Array<{ level: "info" | "warn" | "error"; message: string; path?: string }>;
+  diagnostics?: Array<{
+    level: "info" | "warn" | "error";
+    message: string;
+    path?: string;
+  }>;
 };
 
 type SandboxReadyEvent = SandboxEventCommon & {
@@ -188,7 +199,13 @@ type SandboxReadyEvent = SandboxEventCommon & {
 ```ts
 type SandboxControllerDisconnectedEvent = SandboxEventCommon & {
   disconnectedAt: string;
-  reason: "transport_closed" | "heartbeat_timeout" | "auth_failed" | "protocol_error" | "network_error" | "unknown";
+  reason:
+    | "transport_closed"
+    | "heartbeat_timeout"
+    | "auth_failed"
+    | "protocol_error"
+    | "network_error"
+    | "unknown";
   retryable: boolean;
   exitAfterMs: number;
   exitAt: string;
@@ -203,14 +220,22 @@ type SandboxControllerReconnectedEvent = SandboxEventCommon & {
 };
 
 type SandboxShutdownScheduledEvent = SandboxEventCommon & {
-  reason: "controller_disconnect_timeout" | "manager_request" | "resource_limit" | "fatal_error";
+  reason:
+    | "controller_disconnect_timeout"
+    | "manager_request"
+    | "resource_limit"
+    | "fatal_error";
   scheduledAt: string;
   exitAt?: string;
   graceMs?: number;
 };
 
 type SandboxShutdownStartedEvent = SandboxEventCommon & {
-  reason: "controller_disconnect_timeout" | "manager_request" | "resource_limit" | "fatal_error";
+  reason:
+    | "controller_disconnect_timeout"
+    | "manager_request"
+    | "resource_limit"
+    | "fatal_error";
   startedAt: string;
   exitCode?: number;
 };
@@ -221,68 +246,76 @@ type SandboxShutdownStartedEvent = SandboxEventCommon & {
 ## Run events
 
 ```ts
-type RunStartedEvent = SandboxEventCommon & RunScope & {
-  commandId: string;
-  status: "queued" | "running";
-  promptSummary?: string;
-  model: { provider: string; model: string; thinkingLevel?: string };
-  startedAt: string;
-};
+type RunStartedEvent = SandboxEventCommon &
+  RunScope & {
+    commandId: string;
+    status: "queued" | "running";
+    promptSummary?: string;
+    model: { provider: string; model: string; thinkingLevel?: string };
+    startedAt: string;
+  };
 
-type RunDeltaEvent = SandboxEventCommon & RunScope & {
-  deltaId: string;
-  role: "assistant" | "tool" | "system";
-  text?: string;
-  artifactRefs?: ArtifactRef[];
-  finishReason?: string;
-};
+type RunDeltaEvent = SandboxEventCommon &
+  RunScope & {
+    deltaId: string;
+    role: "assistant" | "tool" | "system";
+    text?: string;
+    artifactRefs?: ArtifactRef[];
+    finishReason?: string;
+  };
 
-type RunTranscriptAppendedEvent = SandboxEventCommon & RunScope & {
-  entryId: string;
-  index: number;
-  role: "user" | "assistant" | "tool" | "system";
-  content: BoundedText | ArtifactRef;
-  createdAt: string;
-};
+type RunTranscriptAppendedEvent = SandboxEventCommon &
+  RunScope & {
+    entryId: string;
+    index: number;
+    role: "user" | "assistant" | "tool" | "system";
+    content: BoundedText | ArtifactRef;
+    createdAt: string;
+  };
 
-type RunWaitingForInputEvent = SandboxEventCommon & RunScope & {
-  requestId: string;
-  question: BoundedText;
-  placeholder?: string;
-  required: boolean;
-  createdAt: string;
-};
+type RunWaitingForInputEvent = SandboxEventCommon &
+  RunScope & {
+    requestId: string;
+    question: BoundedText;
+    placeholder?: string;
+    required: boolean;
+    createdAt: string;
+  };
 
-type RunWaitingForApprovalEvent = SandboxEventCommon & RunScope & {
-  approvalId: string;
-  toolCallId: string;
-  risk: string[];
-  reason: string;
-  normalizedArgs: unknown;
-  offeredScopes?: Array<"single_call" | "same_tool_same_args" | "run">;
-  createdAt: string;
-};
+type RunWaitingForApprovalEvent = SandboxEventCommon &
+  RunScope & {
+    approvalId: string;
+    toolCallId: string;
+    risk: string[];
+    reason: string;
+    normalizedArgs: unknown;
+    offeredScopes?: Array<"single_call" | "same_tool_same_args" | "run">;
+    createdAt: string;
+  };
 
-type RunCheckpointedEvent = SandboxEventCommon & RunScope & {
-  checkpointId: string;
-  status: SandboxRunStatus;
-  transcriptCursor: number;
-  toolCallIds?: string[];
-  createdAt: string;
-};
+type RunCheckpointedEvent = SandboxEventCommon &
+  RunScope & {
+    checkpointId: string;
+    status: SandboxRunStatus;
+    transcriptCursor: number;
+    toolCallIds?: string[];
+    createdAt: string;
+  };
 
-type RunTerminalEvent = SandboxEventCommon & RunScope & {
-  status: "completed" | "cancelled";
-  completedAt: string;
-  summary?: BoundedText;
-};
+type RunTerminalEvent = SandboxEventCommon &
+  RunScope & {
+    status: "completed" | "cancelled";
+    completedAt: string;
+    summary?: BoundedText;
+  };
 
-type RunFailedEvent = SandboxEventCommon & RunScope & {
-  status: "failed";
-  failedAt: string;
-  retryable: boolean;
-  error: RedactedError;
-};
+type RunFailedEvent = SandboxEventCommon &
+  RunScope & {
+    status: "failed";
+    failedAt: string;
+    retryable: boolean;
+    error: RedactedError;
+  };
 ```
 
 `run.delta` is transient by default and is not required for replay recovery. `run.transcript.appended`, wait events, checkpoints, and terminal run events are durable and are written only after the referenced state/transcript/checkpoint data is durable. Retryable provider failures use `run.failed` with `error.retryable = true`; the run snapshot/status may be `recoverable_failed` to show continue eligibility.
@@ -290,20 +323,27 @@ type RunFailedEvent = SandboxEventCommon & RunScope & {
 ## Tool events
 
 ```ts
-type ToolCallRequestedEvent = SandboxEventCommon & RunScope & {
-  toolCallId: string;
-  toolName: string;
-  status: "requested" | "waiting_for_approval" | "started" | "completed" | "failed" | "cancelled";
-  group?: string;
-  risk?: string[];
-  decision?: "allow" | "approval" | "deny";
-  approvalId?: string;
-  displayArgs?: unknown;
-  normalizedArgs?: unknown;
-  artifactRefs?: ArtifactRef[];
-  lifecycleSeq?: number;
-  requestedAt?: string;
-};
+type ToolCallRequestedEvent = SandboxEventCommon &
+  RunScope & {
+    toolCallId: string;
+    toolName: string;
+    status:
+      | "requested"
+      | "waiting_for_approval"
+      | "started"
+      | "completed"
+      | "failed"
+      | "cancelled";
+    group?: string;
+    risk?: string[];
+    decision?: "allow" | "approval" | "deny";
+    approvalId?: string;
+    displayArgs?: unknown;
+    normalizedArgs?: unknown;
+    artifactRefs?: ArtifactRef[];
+    lifecycleSeq?: number;
+    requestedAt?: string;
+  };
 
 type ToolCallStartedEvent = ToolCallRequestedEvent & {
   status: "started";
@@ -335,16 +375,17 @@ type ToolCallCancelledEvent = ToolCallRequestedEvent & {
   error?: RedactedError;
 };
 
-type SandboxSecurityDeniedEvent = SandboxEventCommon & Partial<RunScope> & {
-  denialId: string;
-  action: string;
-  group?: string;
-  toolName?: string;
-  risk?: string[];
-  reason: string;
-  normalizedArgs?: unknown;
-  deniedAt: string;
-};
+type SandboxSecurityDeniedEvent = SandboxEventCommon &
+  Partial<RunScope> & {
+    denialId: string;
+    action: string;
+    group?: string;
+    toolName?: string;
+    risk?: string[];
+    reason: string;
+    normalizedArgs?: unknown;
+    deniedAt: string;
+  };
 ```
 
 Tool lifecycle events are durable. Tool results MUST be bounded and redacted. Large outputs SHOULD be represented as artifact references. Approval waits update the tool-call status to `waiting_for_approval` before emitting `run.waiting_for_approval`.
@@ -358,7 +399,8 @@ type ToolGroupStatus = {
   active: boolean;
   tools: string[];
   unavailableTools?: string[];
-  credentialType?: "none" | "api_key" | "bearer" | "oauth" | "ssh" | "gpg" | "basic";
+  credentialType?:
+    "none" | "api_key" | "bearer" | "oauth" | "ssh" | "gpg" | "basic";
   limitations?: string[];
 };
 
@@ -399,7 +441,13 @@ type CredentialStatus = {
   group?: string;
   credentialType: string;
   expiresAt?: string;
-  status: "available" | "expired" | "refreshing" | "refreshed" | "failed" | "unavailable";
+  status:
+    | "available"
+    | "expired"
+    | "refreshing"
+    | "refreshed"
+    | "failed"
+    | "unavailable";
   error?: RedactedError;
 };
 

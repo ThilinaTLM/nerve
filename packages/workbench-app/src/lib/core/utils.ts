@@ -5,9 +5,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: shadcn-svelte component prop helper
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- shadcn-svelte component prop helper
 export type WithoutChild<T> = T extends { child?: any } ? Omit<T, "child"> : T;
-// biome-ignore lint/suspicious/noExplicitAny: shadcn-svelte component prop helper
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- shadcn-svelte component prop helper
 export type WithoutChildren<T> = T extends { children?: any }
   ? Omit<T, "children">
   : T;

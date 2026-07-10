@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: ProtocolSession coordinates the websocket protocol state machine.
+/* eslint-disable max-lines -- ProtocolSession coordinates the websocket protocol state machine. */
 import {
   type AckData,
   ackMessageSchema,
@@ -53,7 +53,6 @@ export class ProtocolSession {
   readonly sessionId = createId("ses");
   #phase: SessionPhase = "awaiting_hello";
   #clientMessageCount = 0;
-  #client?: HelloData["client"];
   #capabilities: string[] = [];
   #processedSeq = 0;
   #highestReceivedSeq = 0;
@@ -282,7 +281,6 @@ export class ProtocolSession {
     }
 
     clearTimeout(this.#handshakeTimer);
-    this.#client = hello.client;
     this.#capabilities = PROTOCOL_CAPABILITIES.filter((capability) =>
       hello.capabilities.includes(capability),
     );
@@ -295,7 +293,7 @@ export class ProtocolSession {
     const latestDurableSeq = this.state.events.latestDurableSeq;
     const bufferedFloor = this.state.events.bufferedFloorSeq();
     const cursorProvided = hello.resume !== undefined;
-    let mode: WelcomeData["resume"]["mode"] = "fresh";
+    let mode: WelcomeData["resume"]["mode"];
     let reason: string | undefined;
 
     if (cursorProvided && this.#processedSeq > latestDurableSeq) {

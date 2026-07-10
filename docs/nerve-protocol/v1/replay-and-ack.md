@@ -36,15 +36,15 @@ A client MUST NOT advance a processed cursor past a durable event that failed va
 
 Implementations SHOULD distinguish these concepts:
 
-| State | Meaning | Suitable for ack? |
-| --- | --- | --- |
-| Received | Transport frame arrived and parsed. | No. |
-| Validated | Envelope and payload schema passed. | No. |
-| Queued | Event is waiting in client-side dispatch queue. | No. |
-| Applied | Event reducer updated local application state. | Usually yes. |
-| Rendered | Browser painted the resulting UI. | Not required. |
-| Persisted locally | Client stored cursor in durable local state. | Optional. |
-| Processed | Client considers the durable event effects safely applied. | Yes. |
+| State             | Meaning                                                    | Suitable for ack? |
+| ----------------- | ---------------------------------------------------------- | ----------------- |
+| Received          | Transport frame arrived and parsed.                        | No.               |
+| Validated         | Envelope and payload schema passed.                        | No.               |
+| Queued            | Event is waiting in client-side dispatch queue.            | No.               |
+| Applied           | Event reducer updated local application state.             | Usually yes.      |
+| Rendered          | Browser painted the resulting UI.                          | Not required.     |
+| Persisted locally | Client stored cursor in durable local state.               | Optional.         |
+| Processed         | Client considers the durable event effects safely applied. | Yes.              |
 
 For the UI, `processed` usually means event reducers have completed and the in-memory state used by the UI is updated. It does not require waiting for a browser paint.
 
@@ -297,13 +297,13 @@ When only one conversation view needs recovery, the client SHOULD:
 
 The orchestrator can satisfy replay from multiple sources:
 
-| Source | Typical use | Notes |
-| --- | --- | --- |
-| `memory` | short disconnects | Fastest; may include recent transient events. |
-| `index` | normal durable replay | Bounded and queryable; preferred for durable history. |
-| `log` | fallback/recovery | Slower; may require streaming file reads. |
-| `snapshot` | large/old recovery | Sends materialized state then deltas. |
-| `mixed` | combined sources | Must preserve final ordering. |
+| Source     | Typical use           | Notes                                                 |
+| ---------- | --------------------- | ----------------------------------------------------- |
+| `memory`   | short disconnects     | Fastest; may include recent transient events.         |
+| `index`    | normal durable replay | Bounded and queryable; preferred for durable history. |
+| `log`      | fallback/recovery     | Slower; may require streaming file reads.             |
+| `snapshot` | large/old recovery    | Sends materialized state then deltas.                 |
+| `mixed`    | combined sources      | Must preserve final ordering.                         |
 
 The source does not change client semantics. It is diagnostic and can inform progress UI.
 
@@ -380,7 +380,6 @@ Example plain JSON shape:
 ```
 
 Replay can be unavailable because durable history is outside retention, a rotated event log no longer contains the requested range, the index is unavailable, or the cursor belongs to a different orchestrator data directory. In all of these cases the recovery path is snapshot or full reload, not skipping durable events.
-
 
 ## Server use of acknowledgements
 

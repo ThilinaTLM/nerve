@@ -7,10 +7,7 @@ export {
   centerTabsToRightOf,
   closeCenterTabs,
 } from "./state/center-tab-actions.svelte";
-export {
-  closeCenterTab,
-  selectCenterTab,
-} from "./state/center-tabs.svelte";
+export { closeCenterTab, selectCenterTab } from "./state/center-tabs.svelte";
 export {
   composerDraft,
   eventBuffer,

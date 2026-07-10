@@ -1,30 +1,30 @@
 <script lang="ts">
-  import PanelLeft from "@lucide/svelte/icons/panel-left";
-  import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
-  import PanelRight from "@lucide/svelte/icons/panel-right";
-  import PanelRightClose from "@lucide/svelte/icons/panel-right-close";
-  import type { Snippet } from "svelte";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import PanelLeft from "@lucide/svelte/icons/panel-left";
+import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
+import PanelRight from "@lucide/svelte/icons/panel-right";
+import PanelRightClose from "@lucide/svelte/icons/panel-right-close";
+import type { Snippet } from "svelte";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
 
-  let {
-    sidebarCollapsed = false,
-    utilityCollapsed = false,
-    sidebarLabel = "agents panel",
-    utilityLabel = "utility panel",
-    onToggleSidebar,
-    onToggleUtility,
-    left,
-    right,
-  }: {
-    sidebarCollapsed?: boolean;
-    utilityCollapsed?: boolean;
-    sidebarLabel?: string;
-    utilityLabel?: string;
-    onToggleSidebar?: () => void;
-    onToggleUtility?: () => void;
-    left?: Snippet;
-    right?: Snippet;
-  } = $props();
+let {
+  sidebarCollapsed = false,
+  utilityCollapsed = false,
+  sidebarLabel = "agents panel",
+  utilityLabel = "utility panel",
+  onToggleSidebar,
+  onToggleUtility,
+  left,
+  right,
+}: {
+  sidebarCollapsed?: boolean;
+  utilityCollapsed?: boolean;
+  sidebarLabel?: string;
+  utilityLabel?: string;
+  onToggleSidebar?: () => void;
+  onToggleUtility?: () => void;
+  left?: Snippet;
+  right?: Snippet;
+} = $props();
 </script>
 
 <footer class="footerbar">
@@ -35,7 +35,9 @@
         size="icon-sm"
         class="footer-toggle"
         ariaLabel={`Toggle ${sidebarLabel}`}
-        title={sidebarCollapsed ? `Show ${sidebarLabel}` : `Hide ${sidebarLabel}`}
+        title={sidebarCollapsed
+          ? `Show ${sidebarLabel}`
+          : `Hide ${sidebarLabel}`}
         pressed={!sidebarCollapsed}
         onclick={onToggleSidebar}
       >
@@ -61,7 +63,9 @@
         size="icon-sm"
         class="footer-toggle"
         ariaLabel={`Toggle ${utilityLabel}`}
-        title={utilityCollapsed ? `Show ${utilityLabel}` : `Hide ${utilityLabel}`}
+        title={utilityCollapsed
+          ? `Show ${utilityLabel}`
+          : `Hide ${utilityLabel}`}
         pressed={!utilityCollapsed}
         onclick={onToggleUtility}
       >

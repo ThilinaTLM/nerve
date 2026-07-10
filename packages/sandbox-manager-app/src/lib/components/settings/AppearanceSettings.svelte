@@ -1,22 +1,22 @@
 <script lang="ts">
-  import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
-  import RadioGroup from "@nervekit/workbench-ui/components/ui/radio-group-field";
-  import {
-    useAppearance,
-    type ThemePreference,
-  } from "../../state/appearance.svelte";
+import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import RadioGroup from "@nervekit/workbench-ui/components/ui/radio-group-field";
+import {
+  useAppearance,
+  type ThemePreference,
+} from "../../state/appearance.svelte";
 
-  const appearance = useAppearance();
+const appearance = useAppearance();
 
-  const options: { value: ThemePreference; label: string; detail: string }[] = [
-    { value: "system", label: "System", detail: "Follow the operating system" },
-    { value: "dark", label: "Dark", detail: "Dark sandbox surfaces" },
-    { value: "light", label: "Light", detail: "Light sandbox surfaces" },
-  ];
+const options: { value: ThemePreference; label: string; detail: string }[] = [
+  { value: "system", label: "System", detail: "Follow the operating system" },
+  { value: "dark", label: "Dark", detail: "Dark sandbox surfaces" },
+  { value: "light", label: "Light", detail: "Light sandbox surfaces" },
+];
 
-  function setThemePreference(value: string): void {
-    appearance.setPreference(value as ThemePreference);
-  }
+function setThemePreference(value: string): void {
+  appearance.setPreference(value as ThemePreference);
+}
 </script>
 
 <SettingsSectionCard

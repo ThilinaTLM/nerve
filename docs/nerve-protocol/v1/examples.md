@@ -830,4 +830,3 @@ Approval decisions are good protocol RPC candidates because they are small, user
 ```
 
 A later WebSocket `event.batch` should carry `approval.granted` and any related `conversation.tool_call.updated` event. The client deduplicates against any optimistic local update by entity ID and event sequence.
-

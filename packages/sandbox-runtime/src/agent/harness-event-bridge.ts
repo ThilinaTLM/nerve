@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Bridge centralizes legacy and rich sandbox harness event fanout during migration.
+/* eslint-disable max-lines -- Bridge centralizes legacy and rich sandbox harness event fanout during migration. */
 import type {
   AgentHarness,
   AgentHarnessEvent,

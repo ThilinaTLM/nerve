@@ -39,8 +39,8 @@ export function isAgentToolSuspension(
     value instanceof AgentToolSuspension ||
     Boolean(
       value &&
-        typeof value === "object" &&
-        (value as { kind?: unknown }).kind === "agent_tool_suspension",
+      typeof value === "object" &&
+      (value as { kind?: unknown }).kind === "agent_tool_suspension",
     )
   );
 }

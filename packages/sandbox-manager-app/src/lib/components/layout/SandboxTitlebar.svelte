@@ -1,17 +1,17 @@
 <script lang="ts">
-  import Boxes from "@lucide/svelte/icons/boxes";
-  import Plus from "@lucide/svelte/icons/plus";
-  import Settings from "@lucide/svelte/icons/settings";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import { WorkbenchTitlebar } from "@nervekit/workbench-ui/components/workbench";
-  import { useSandboxCenter } from "../../state/sandbox-center.svelte";
-  import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
-  import RuntimeBackendBadge from "../RuntimeBackendBadge.svelte";
+import Boxes from "@lucide/svelte/icons/boxes";
+import Plus from "@lucide/svelte/icons/plus";
+import Settings from "@lucide/svelte/icons/settings";
+import { Button } from "@nervekit/workbench-ui/components/ui/button";
+import { WorkbenchTitlebar } from "@nervekit/workbench-ui/components/workbench";
+import { useSandboxCenter } from "../../state/sandbox-center.svelte";
+import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
+import RuntimeBackendBadge from "../RuntimeBackendBadge.svelte";
 
-  const store = useSandboxManagerStore();
-  const center = useSandboxCenter();
+const store = useSandboxManagerStore();
+const center = useSandboxCenter();
 
-  const settingsActive = $derived(center.mode === "settings");
+const settingsActive = $derived(center.mode === "settings");
 </script>
 
 <WorkbenchTitlebar>

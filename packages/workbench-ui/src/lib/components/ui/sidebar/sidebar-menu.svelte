@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { cn, type WithElementRef } from "@nervekit/workbench-ui/core/utils";
-  import type { HTMLAttributes } from "svelte/elements";
+import { cn, type WithElementRef } from "@nervekit/workbench-ui/core/utils";
+import type { HTMLAttributes } from "svelte/elements";
 
-  let {
-    ref = $bindable(null),
-    class: className,
-    children,
-    ...restProps
-  }: WithElementRef<HTMLAttributes<HTMLUListElement>, HTMLUListElement> = $props();
+let {
+  ref = $bindable(null),
+  class: className,
+  children,
+  ...restProps
+}: WithElementRef<
+  HTMLAttributes<HTMLUListElement>,
+  HTMLUListElement
+> = $props();
 </script>
 
 <ul

@@ -16,6 +16,7 @@ export class LocalVolumeProvider implements RuntimeVolumeProvider {
     sandboxId: string,
     _config: SandboxConfigV1,
   ): Promise<PreparedRuntimeVolumes> {
+    void _config;
     const paths = this.paths(sandboxId);
     await Promise.all([
       ensureDir(paths.workspace, 0o777),

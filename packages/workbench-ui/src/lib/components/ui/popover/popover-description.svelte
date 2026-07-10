@@ -1,20 +1,20 @@
 <script lang="ts">
-	import type { HTMLAttributes } from "svelte/elements";
-	import { cn, type WithElementRef } from "@nervekit/workbench-ui/core/utils";
+import type { HTMLAttributes } from "svelte/elements";
+import { cn, type WithElementRef } from "@nervekit/workbench-ui/core/utils";
 
-	let {
-		ref = $bindable(null),
-		class: className,
-		children,
-		...restProps
-	}: WithElementRef<HTMLAttributes<HTMLDivElement>> = $props();
+let {
+  ref = $bindable(null),
+  class: className,
+  children,
+  ...restProps
+}: WithElementRef<HTMLAttributes<HTMLDivElement>> = $props();
 </script>
 
 <div
-	bind:this={ref}
-	data-slot="popover-description"
-	class={cn("text-muted-foreground", className)}
-	{...restProps}
+  bind:this={ref}
+  data-slot="popover-description"
+  class={cn("text-muted-foreground", className)}
+  {...restProps}
 >
-	{@render children?.()}
+  {@render children?.()}
 </div>

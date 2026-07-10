@@ -1,4 +1,4 @@
-// biome-ignore lint/style/noExcessiveLinesPerFile: Sandbox v1 config schema intentionally centralizes cross-field validation.
+/* eslint-disable max-lines -- Sandbox v1 config schema intentionally centralizes cross-field validation. */
 import { z } from "zod";
 import { thinkingLevelSchema } from "../models/index.js";
 

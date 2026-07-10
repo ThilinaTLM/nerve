@@ -1,127 +1,127 @@
 <script lang="ts">
-  import ClipboardList from "@lucide/svelte/icons/clipboard-list";
-  import Code2 from "@lucide/svelte/icons/code-2";
-  import Lock from "@lucide/svelte/icons/lock";
-  import Shield from "@lucide/svelte/icons/shield";
-  import Zap from "@lucide/svelte/icons/zap";
-  import type {
-    ApprovalPolicy,
-    ContextUsage,
-    ModelInfo,
-    PermissionLevel,
-    ThinkingLevel,
-    TodoItem,
-  } from "@nervekit/contracts";
-  import Popover from "@nervekit/workbench-ui/components/ui/popover-panel";
-  import Switch from "@nervekit/workbench-ui/components/ui/switch-field";
-  import type { Component } from "svelte";
-  import ComposerModelPicker from "./ComposerModelPicker.svelte";
-  import ContextProgressBadge from "./ContextProgressBadge.svelte";
-  import TodoProgressChip from "./TodoProgressChip.svelte";
+import ClipboardList from "@lucide/svelte/icons/clipboard-list";
+import Code2 from "@lucide/svelte/icons/code-2";
+import Lock from "@lucide/svelte/icons/lock";
+import Shield from "@lucide/svelte/icons/shield";
+import Zap from "@lucide/svelte/icons/zap";
+import type {
+  ApprovalPolicy,
+  ContextUsage,
+  ModelInfo,
+  PermissionLevel,
+  ThinkingLevel,
+  TodoItem,
+} from "@nervekit/contracts";
+import Popover from "@nervekit/workbench-ui/components/ui/popover-panel";
+import Switch from "@nervekit/workbench-ui/components/ui/switch-field";
+import type { Component } from "svelte";
+import ComposerModelPicker from "./ComposerModelPicker.svelte";
+import ContextProgressBadge from "./ContextProgressBadge.svelte";
+import TodoProgressChip from "./TodoProgressChip.svelte";
 
-  type PermissionOption = {
-    value: PermissionLevel;
-    label: string;
-    detail: string;
-    icon: Component;
-  };
+type PermissionOption = {
+  value: PermissionLevel;
+  label: string;
+  detail: string;
+  icon: Component;
+};
 
-  type Props = {
-    controlsDisabled: boolean;
-    modeDisabled: boolean;
-    modelDisabled: boolean;
-    /** Display label for the mode tab, e.g. "Coding" / "Planning". */
-    modeLabel: string;
-    /** Selects the planning vs coding icon; mode semantics stay with the caller. */
-    modePlanning: boolean;
-    onToggleMode?: () => void;
-    permissionLevel: PermissionLevel;
-    approvalPolicy: ApprovalPolicy;
-    permissionShortcut?: string;
-    permissionShortcutAria?: string;
-    modeShortcut?: string;
-    modeShortcutAria?: string;
-    thinkingShortcut?: string;
-    contextUsage?: ContextUsage;
-    contextWindow: number;
-    todos?: TodoItem[];
-    models: ModelInfo[];
-    selectedModelKey: string;
-    thinkingLevel: ThinkingLevel;
-    runtimeChangeHint?: string;
-    modelEmptyMessage?: string;
-    onModelChange?: (value: string) => void;
-    onThinkingLevelChange?: (value: ThinkingLevel) => void;
-    onPermissionChange?: (value: PermissionLevel) => void;
-    onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
-  };
+type Props = {
+  controlsDisabled: boolean;
+  modeDisabled: boolean;
+  modelDisabled: boolean;
+  /** Display label for the mode tab, e.g. "Coding" / "Planning". */
+  modeLabel: string;
+  /** Selects the planning vs coding icon; mode semantics stay with the caller. */
+  modePlanning: boolean;
+  onToggleMode?: () => void;
+  permissionLevel: PermissionLevel;
+  approvalPolicy: ApprovalPolicy;
+  permissionShortcut?: string;
+  permissionShortcutAria?: string;
+  modeShortcut?: string;
+  modeShortcutAria?: string;
+  thinkingShortcut?: string;
+  contextUsage?: ContextUsage;
+  contextWindow: number;
+  todos?: TodoItem[];
+  models: ModelInfo[];
+  selectedModelKey: string;
+  thinkingLevel: ThinkingLevel;
+  runtimeChangeHint?: string;
+  modelEmptyMessage?: string;
+  onModelChange?: (value: string) => void;
+  onThinkingLevelChange?: (value: ThinkingLevel) => void;
+  onPermissionChange?: (value: PermissionLevel) => void;
+  onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
+};
 
-  let {
-    controlsDisabled,
-    modeDisabled,
-    modelDisabled,
-    modeLabel,
-    modePlanning,
-    onToggleMode,
-    permissionLevel,
-    approvalPolicy,
-    permissionShortcut,
-    permissionShortcutAria,
-    modeShortcut,
-    modeShortcutAria,
-    thinkingShortcut,
-    contextUsage,
-    contextWindow,
-    todos = [],
-    models,
-    selectedModelKey,
-    thinkingLevel,
-    runtimeChangeHint,
-    modelEmptyMessage,
-    onModelChange,
-    onThinkingLevelChange,
-    onPermissionChange,
-    onApprovalPolicyChange,
-  }: Props = $props();
+let {
+  controlsDisabled,
+  modeDisabled,
+  modelDisabled,
+  modeLabel,
+  modePlanning,
+  onToggleMode,
+  permissionLevel,
+  approvalPolicy,
+  permissionShortcut,
+  permissionShortcutAria,
+  modeShortcut,
+  modeShortcutAria,
+  thinkingShortcut,
+  contextUsage,
+  contextWindow,
+  todos = [],
+  models,
+  selectedModelKey,
+  thinkingLevel,
+  runtimeChangeHint,
+  modelEmptyMessage,
+  onModelChange,
+  onThinkingLevelChange,
+  onPermissionChange,
+  onApprovalPolicyChange,
+}: Props = $props();
 
-  const permissionOptions = $derived<PermissionOption[]>([
-    {
-      value: "read_only",
-      label: "Read only",
-      detail: "No writes or mutating commands",
-      icon: Lock,
-    },
-    {
-      value: "supervised",
-      label: "Supervised",
-      detail: approvalPolicy.autoApproveReadOnly
-        ? "Ask before non-read tool calls"
-        : "Ask before read and non-read tool calls",
-      icon: Shield,
-    },
-    {
-      value: "autonomous",
-      label: "Autonomous",
-      detail: "Allow tool calls without approval",
-      icon: Zap,
-    },
-  ]);
+const permissionOptions = $derived<PermissionOption[]>([
+  {
+    value: "read_only",
+    label: "Read only",
+    detail: "No writes or mutating commands",
+    icon: Lock,
+  },
+  {
+    value: "supervised",
+    label: "Supervised",
+    detail: approvalPolicy.autoApproveReadOnly
+      ? "Ask before non-read tool calls"
+      : "Ask before read and non-read tool calls",
+    icon: Shield,
+  },
+  {
+    value: "autonomous",
+    label: "Autonomous",
+    detail: "Allow tool calls without approval",
+    icon: Zap,
+  },
+]);
 
-  const activePermission = $derived(
-    permissionOptions.find((option) => option.value === permissionLevel) ??
-      permissionOptions[2],
-  );
+const activePermission = $derived(
+  permissionOptions.find((option) => option.value === permissionLevel) ??
+    permissionOptions[2],
+);
 
-  let permissionOpen = $state(false);
+let permissionOpen = $state(false);
 
-  function selectPermission(value: PermissionLevel) {
-    if (value !== permissionLevel) onPermissionChange?.(value);
-    permissionOpen = false;
-  }
+function selectPermission(value: PermissionLevel) {
+  if (value !== permissionLevel) onPermissionChange?.(value);
+  permissionOpen = false;
+}
 
-  function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
-    onApprovalPolicyChange?.({ ...approvalPolicy, autoApproveReadOnly });
-  }
+function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
+  onApprovalPolicyChange?.({ ...approvalPolicy, autoApproveReadOnly });
+}
 </script>
 
 <div class="composer-tabs">
@@ -218,133 +218,133 @@
 </div>
 
 <style>
-  .composer-tabs {
-    position: absolute;
-    z-index: 4;
-    top: 0;
-    left: 0.65rem;
-    right: 0.65rem;
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    transform: translateY(-50%);
-    pointer-events: none;
-  }
+.composer-tabs {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: 0.65rem;
+  right: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
 
-  .composer-tabs > :global(*) {
-    pointer-events: auto;
-  }
+.composer-tabs > :global(*) {
+  pointer-events: auto;
+}
 
-  .composer-tabs :global(.context-usage-tab) {
-    margin-left: auto;
-  }
+.composer-tabs :global(.context-usage-tab) {
+  margin-left: auto;
+}
 
-  /* When the todo chip is present it owns the auto margin so the two chips
+/* When the todo chip is present it owns the auto margin so the two chips
      group together at the left edge of the right-aligned cluster. */
-  .composer-tabs :global(.todo-progress-tab) {
-    margin-left: auto;
-  }
+.composer-tabs :global(.todo-progress-tab) {
+  margin-left: auto;
+}
 
-  .composer-tabs :global(.todo-progress-tab) + :global(.context-usage-tab) {
-    margin-left: 0;
-  }
+.composer-tabs :global(.todo-progress-tab) + :global(.context-usage-tab) {
+  margin-left: 0;
+}
 
-  .permission-tab-inner {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
+.permission-tab-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
-  .permission-tab-inner.disabled {
-    opacity: 0.6;
+.permission-tab-inner.disabled {
+  opacity: 0.6;
+}
+
+.mode-tab-icon {
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 639px) {
+  .mode-tab {
+    width: 1.9rem;
+    padding: 0;
   }
 
   .mode-tab-icon {
+    display: inline-flex;
+  }
+
+  .mode-tab-label {
     display: none;
-    align-items: center;
-    justify-content: center;
   }
+}
 
-  @media (max-width: 639px) {
-    .mode-tab {
-      width: 1.9rem;
-      padding: 0;
-    }
+.permission-menu {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.6rem;
+}
 
-    .mode-tab-icon {
-      display: inline-flex;
-    }
+.permission-heading {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 
-    .mode-tab-label {
-      display: none;
-    }
-  }
+.permission-list {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
-  .permission-menu {
-    display: grid;
-    gap: 0.45rem;
-    padding: 0.6rem;
-  }
+.permission-policy {
+  border-top: 1px solid var(--border);
+  padding-top: 0.45rem;
+}
 
-  .permission-heading {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
+.permission-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  cursor: pointer;
+}
 
-  .permission-list {
-    display: grid;
-    gap: 0.15rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
+.permission-row:hover {
+  background: var(--accent);
+}
 
-  .permission-policy {
-    border-top: 1px solid var(--border);
-    padding-top: 0.45rem;
-  }
+.permission-row.active {
+  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
 
-  .permission-row {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    width: 100%;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--foreground);
-    padding: 0.4rem 0.5rem;
-    text-align: left;
-    cursor: pointer;
-  }
+.permission-row-text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
 
-  .permission-row:hover {
-    background: var(--accent);
-  }
+.permission-row-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
 
-  .permission-row.active {
-    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-    background: color-mix(in oklab, var(--primary) 12%, transparent);
-    color: var(--primary);
-  }
-
-  .permission-row-text {
-    display: grid;
-    gap: 0.1rem;
-    min-width: 0;
-  }
-
-  .permission-row-label {
-    font-size: var(--text-sm);
-    font-weight: 600;
-  }
-
-  .permission-row-detail {
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
+.permission-row-detail {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
 </style>

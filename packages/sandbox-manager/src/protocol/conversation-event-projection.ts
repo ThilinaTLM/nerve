@@ -27,12 +27,12 @@ export function projectConversationSnapshotFromEvents(input: {
   runId?: string;
 }): ConversationSnapshot | undefined {
   const projectId = sandboxProjectId(input.sandboxId);
-  const selection = collectEntries(input.events, projectId, input);
+  const selection = collectEntries(input.events, input);
   const conversationId =
     input.conversationId ?? selection.at(-1)?.entry.conversationId;
   if (!conversationId) return undefined;
 
-  const collected = collectEntries(input.events, projectId, {
+  const collected = collectEntries(input.events, {
     agentId: input.agentId,
   });
   const entries = orderEntries(
@@ -81,7 +81,6 @@ type CollectedEntry = { seq: number; entry: ConversationEntry };
 
 function collectEntries(
   events: StoredSandboxEvent[],
-  projectId: string,
   filter: { agentId?: string; runId?: string },
 ): CollectedEntry[] {
   const out: CollectedEntry[] = [];
@@ -93,7 +92,7 @@ function collectEntries(
       event.type === "conversation.entry.appended"
         ? entryFromConversationEvent(payload)
         : event.type === "run.transcript.appended"
-          ? entryFromTranscriptEvent(payload, projectId)
+          ? entryFromTranscriptEvent(payload)
           : undefined;
     if (!entry) continue;
     if (filter.agentId && entry.agentId && entry.agentId !== filter.agentId)
@@ -113,7 +112,6 @@ function entryFromConversationEvent(
 
 function entryFromTranscriptEvent(
   payload: Record<string, unknown>,
-  _projectId: string,
 ): ConversationEntry | undefined {
   const role = payload.role;
   if (role !== "user" && role !== "assistant" && role !== "system")
