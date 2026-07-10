@@ -47,4 +47,11 @@ const visible = $derived.by(() => {
   </p>
 {/if}
 
-<ResultCodeBlock code={visible} {language} trim={false} {terminal} />
+<ResultCodeBlock
+  code={visible}
+  {language}
+  trim={false}
+  {terminal}
+  fixedRows={expanded ? undefined : collapsedLines}
+  tail={!expanded && direction === "tail"}
+/>
