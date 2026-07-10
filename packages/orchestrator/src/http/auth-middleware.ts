@@ -30,25 +30,6 @@ export function unauthorized() {
   );
 }
 
-export function requireBearerAuth(
-  request: Request,
-  token: string,
-): Response | undefined {
-  const mode = clientAuthMode(request, token);
-  if (mode === "bearer") return undefined;
-  if (mode === "none") return unauthorized();
-  return Response.json(
-    {
-      error: {
-        code: "CLI_AUTH_REQUIRED",
-        message:
-          "Provider credential management requires CLI bearer-token auth.",
-      },
-    },
-    { status: 403 },
-  );
-}
-
 export function createApiAuthMiddleware(token: string): MiddlewareHandler {
   return async (c, next) => {
     if (!isAuthorized(c.req.raw, token)) {

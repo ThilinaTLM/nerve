@@ -5,13 +5,16 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packagePaths = [
   "package.json",
-  join("packages", "shared", "package.json"),
-  join("packages", "tools", "package.json"),
-  join("packages", "agent", "package.json"),
+  join("packages", "contracts", "package.json"),
+  join("packages", "agent-tools", "package.json"),
+  join("packages", "agent-runtime", "package.json"),
   join("packages", "orchestrator", "package.json"),
-  join("packages", "cli", "package.json"),
-  join("packages", "web", "package.json"),
-  join("packages", "desktop", "package.json"),
+  join("packages", "workbench-ui", "package.json"),
+  join("packages", "workbench-app", "package.json"),
+  join("packages", "desktop-shell", "package.json"),
+  join("packages", "sandbox-runtime", "package.json"),
+  join("packages", "sandbox-manager", "package.json"),
+  join("packages", "sandbox-manager-app", "package.json"),
 ];
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");

@@ -5,7 +5,6 @@
     { "path": "./packages/sandbox-runtime" },
     { "path": "./packages/sandbox-manager" },
     { "path": "./packages/orchestrator" },
-    { "path": "./packages/cli" },
     { "path": "./packages/agent-runtime" },
     { "path": "./packages/agent-tools" },
     { "path": "./packages/desktop-shell" }

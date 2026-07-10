@@ -2,7 +2,7 @@
 
 ![Nerve preview screenshot](docs/assets/preview-screenshot.webp)
 
-Nerve is a UI-first local AI coding harness with an Electron desktop app, local daemon, Web UI, and CLI.
+Nerve is a UI-first local AI coding harness with an Electron desktop app, local daemon, and Web UI.
 
 ## Use Nerve
 
@@ -136,7 +136,7 @@ For opt-in LAN remote access plus self-signed HTTPS for mobile browsers
 pnpm desktop:remote-enabled
 ```
 
-### Browser, daemon, and CLI usage from source
+### Browser and daemon usage from source
 
 Run the daemon and Web UI dev servers together:
 
@@ -164,31 +164,11 @@ Run only the daemon:
 pnpm --filter @nervekit/orchestrator dev
 ```
 
-Serve the bundled Web UI and open it in your browser:
-
-```sh
-pnpm --filter @nervekit/cli dev -- serve --open
-```
-
-Run CLI commands from source:
-
-```sh
-pnpm --filter @nervekit/cli dev -- help
-pnpm --filter @nervekit/cli dev -- status
-pnpm --filter @nervekit/cli dev -- run . "Summarize this project"
-```
-
 Crash diagnostics are written under `~/.nerve/crashes`. The daemon records
 structured reports for handled fatal errors, enables Node diagnostic reports for
 native/runtime fatal errors, and writes a fallback report on next start if the
-previous daemon exited without a graceful shutdown. Inspect recent reports
-without requiring a running daemon:
-
-```sh
-pnpm --filter @nervekit/cli dev -- crashes --limit 5
-pnpm --filter @nervekit/cli dev -- crashes --follow
-pnpm --filter @nervekit/cli dev -- logs --level error --follow
-```
+previous daemon exited without a graceful shutdown. Daemon logs are written
+under `~/.nerve/logs`.
 
 ## Root scripts
 
@@ -224,7 +204,6 @@ Legacy `.pi` directories are not loaded. Move old resources to `.nerve/` for Ner
 - `packages/desktop-shell` — Electron desktop shell.
 - `packages/orchestrator` — local HTTP/WebSocket daemon, auth, conversations, tools, and agent lifecycle.
 - `packages/workbench-app` — Svelte Web UI.
-- `packages/cli` — terminal client and daemon entrypoint.
 - `packages/agent-runtime` — agent harness and conversation runtime.
 - `packages/agent-tools` and `packages/contracts` — coding tools and shared schemas.
 

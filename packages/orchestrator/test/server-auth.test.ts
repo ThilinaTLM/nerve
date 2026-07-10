@@ -140,7 +140,7 @@ describe("server credential route auth", () => {
         "CREDENTIAL_KEY_STALE",
       );
 
-      // Bearer auth (the CLI) still works.
+      // Direct bearer auth still works.
       const bearerMutation = await app.request("/api/provider-keys", {
         method: "PUT",
         headers: {

@@ -1,6 +1,6 @@
 # Release checklist
 
-Nerve's public release path publishes all `@nervekit/*` packages to npmjs.com. The desktop app is distributed as the runnable `@nervekit/desktop-shell` npm package.
+Nerve's public release path publishes selected `@nervekit/*` packages to npmjs.com. The desktop app is distributed as the runnable `@nervekit/desktop-shell` npm package.
 
 ## Requirements
 
@@ -24,15 +24,15 @@ Published publicly to npmjs.com under the `@nervekit` scope:
 - `@nervekit/contracts`
 - `@nervekit/agent-tools`
 - `@nervekit/agent-runtime`
-- `@nervekit/workbench-app` — static web UI assets (no CLI/bin); the desktop and daemon
-  serve the web UI through `@nervekit/orchestrator`, which embeds its own copy.
-- `@nervekit/orchestrator`
-- `@nervekit/cli`
+- `@nervekit/orchestrator` — embeds the static Web UI for the desktop and daemon.
 - `@nervekit/desktop-shell` — runnable via `npx` or `pnpm dlx`.
 
 Private (never published):
 
-- the root `nerve` monorepo package.
+- the root `nerve` monorepo package;
+- `@nervekit/workbench-app` and `@nervekit/workbench-ui`;
+- `@nervekit/sandbox-runtime`, `@nervekit/sandbox-manager`, and
+  `@nervekit/sandbox-manager-app`.
 
 ## Local validation
 
@@ -49,7 +49,7 @@ For npm package inspection:
 
 ```sh
 node scripts/pack-npm.mjs
-ls release/npm           # expect 7 tarballs
+ls release/npm           # expect 5 tarballs
 npm publish release/npm/*.tgz --dry-run --access public
 ```
 
@@ -92,18 +92,18 @@ so the very first `@nervekit/*` publish is done manually. One time only:
    ```sh
    pnpm release:build
    node scripts/pack-npm.mjs
-   ls release/npm           # expect 7 tarballs
+   ls release/npm           # expect 5 tarballs
    ```
 
-4. Publish the seven tarballs in dependency-friendly order:
+4. Publish the five tarballs in dependency-friendly order:
 
    ```sh
-   for pkg in shared tools agent web orchestrator cli desktop; do
+   for pkg in contracts agent-tools agent-runtime orchestrator desktop-shell; do
      npm publish release/npm/nervekit-${pkg}-0.1.0.tgz --access public
    done
    ```
 
-5. On npmjs.com, configure a Trusted Publisher for each of the seven packages:
+5. On npmjs.com, configure a Trusted Publisher for each of the five packages:
    - Publisher: GitHub Actions
    - Organization/user: `ThilinaTLM`
    - Repository: `nerve`
