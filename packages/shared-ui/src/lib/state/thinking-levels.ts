@@ -1,12 +1,11 @@
-import type { AgentRecord, ModelInfo } from "@nervekit/shared";
+import {
+  type AgentRecord,
+  type ModelInfo,
+  thinkingLevels,
+} from "@nervekit/shared";
 
 export const THINKING_LEVEL_ORDER: AgentRecord["thinkingLevel"][] = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
+  ...thinkingLevels,
 ];
 
 export function supportedThinkingLevelsForModel(

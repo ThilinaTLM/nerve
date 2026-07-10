@@ -16,14 +16,14 @@ describe("plan review resolve request schema", () => {
           provider: "anthropic",
           modelId: "claude-sonnet-4-5",
         },
-        implementationThinkingLevel: "high",
+        implementationThinkingLevel: "max",
       }),
       {
         implementationModel: {
           provider: "anthropic",
           modelId: "claude-sonnet-4-5",
         },
-        implementationThinkingLevel: "high",
+        implementationThinkingLevel: "max",
       },
     );
   });

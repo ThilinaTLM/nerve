@@ -7,6 +7,7 @@ export const thinkingLevels = [
   "medium",
   "high",
   "xhigh",
+  "max",
 ] as const;
 
 export const thinkingLevelSchema = z.enum(thinkingLevels);

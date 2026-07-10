@@ -36,7 +36,7 @@
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.80.3",
+    "@earendil-works/pi-ai": "0.80.6",
     "@hono/node-server": "1.19.14",
     "@nervekit/agent": "workspace:*",
     "@nervekit/shared": "workspace:*",

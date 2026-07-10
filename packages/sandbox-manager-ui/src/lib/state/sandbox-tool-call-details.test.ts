@@ -63,6 +63,22 @@ describe("sandbox tool-call details", () => {
     assert.deepEqual(record.result, { content: "fetched\n", exitCode: 0 });
   });
 
+  it("maps sandbox input waits to actionable conversation tool status", () => {
+    const waiting = sandboxToolCallGetResultToToolCallRecord(
+      {
+        ...fetched,
+        toolCall: {
+          ...fetched.toolCall,
+          toolName: "ask_user",
+          status: "waiting_for_input",
+        },
+      },
+      { ...preview, toolName: "ask_user", risk: "interaction" },
+    );
+
+    assert.equal(waiting.status, "waiting_for_user");
+  });
+
   it("falls back to promoted previews when disconnected or fetching fails", async () => {
     const state: ConversationRenderState = {
       conversationId: "conv_details",

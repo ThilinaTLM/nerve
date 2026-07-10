@@ -1,5 +1,5 @@
 import path from "node:path";
-import { AgentToolSuspension } from "@nervekit/agent";
+import { AgentToolSuspension, isAgentToolSuspension } from "@nervekit/agent";
 import type {
   ApprovalPolicy,
   PermissionLevel,
@@ -368,7 +368,11 @@ export class SandboxToolRuntime {
         }
         return result;
       } catch (error) {
-        if (active?.latestStatus === "cancelled") throw error;
+        if (
+          active?.latestStatus === "cancelled" ||
+          isAgentToolSuspension(error)
+        )
+          throw error;
         await this.record(
           {
             toolCallId,
@@ -602,6 +606,7 @@ function mergedSignal(
 function normalizeToolStatus(status: unknown) {
   if (
     status === "requested" ||
+    status === "waiting_for_input" ||
     status === "waiting_for_approval" ||
     status === "started" ||
     status === "completed" ||

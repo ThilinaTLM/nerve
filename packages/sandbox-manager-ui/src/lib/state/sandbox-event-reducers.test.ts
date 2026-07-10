@@ -137,11 +137,35 @@ describe("applySandboxEvent", () => {
     assert.deepEqual(toolCall.displayArgs, { path: "README.md" });
   });
 
-  it("creates input and approval wait records", () => {
+  it("creates input and approval wait records and projects blocked statuses", () => {
     const detail = createSandboxDetailState("sbx_1");
     applySandboxEvent(
       detail,
-      event(1, "run.waiting_for_input", {
+      event(1, "run.started", {
+        ...scope,
+        commandId: "cmd_1",
+        status: "running",
+        startedAt: ts,
+      }),
+    );
+    [
+      ["wait_input", "ask_user"],
+      ["tool_1", "bash"],
+    ].forEach(([toolCallId, toolName], index) => {
+      applySandboxEvent(
+        detail,
+        event(2 + index, "tool.call.started", {
+          ...scope,
+          toolCallId,
+          toolName,
+          status: "started",
+          startedAt: ts,
+        }),
+      );
+    });
+    applySandboxEvent(
+      detail,
+      event(4, "run.waiting_for_input", {
         ...scope,
         requestId: "wait_input",
         question: { text: "Proceed?" },
@@ -151,7 +175,7 @@ describe("applySandboxEvent", () => {
     );
     applySandboxEvent(
       detail,
-      event(2, "run.waiting_for_approval", {
+      event(5, "run.waiting_for_approval", {
         ...scope,
         approvalId: "wait_appr",
         toolCallId: "tool_1",
@@ -164,6 +188,9 @@ describe("applySandboxEvent", () => {
     assert.equal(detail.waitsById.wait_input.kind, "input");
     assert.equal(detail.waitsById.wait_appr.kind, "approval");
     assert.equal(detail.waitsById.wait_appr.status, "waiting");
+    assert.equal(detail.toolCallsById.wait_input.status, "waiting_for_input");
+    assert.equal(detail.toolCallsById.tool_1.status, "waiting_for_approval");
+    assert.equal(detail.liveRuns.run_1.status, "waiting_for_approval");
   });
 
   it("merges typed startup stage progress and failures", () => {

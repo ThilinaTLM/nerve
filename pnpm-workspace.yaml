@@ -8,4 +8,4 @@ allowBuilds:
   protobufjs: true
   sharp: true
 minimumReleaseAgeExclude:
-  - '@earendil-works/pi-ai@0.80.3'
+  - '@earendil-works/pi-ai@0.80.6'

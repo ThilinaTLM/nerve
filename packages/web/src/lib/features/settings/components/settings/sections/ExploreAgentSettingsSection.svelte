@@ -1,5 +1,6 @@
 <script lang="ts">
   import Info from "@lucide/svelte/icons/info";
+  import { thinkingLevels } from "@nervekit/shared";
   import type {
     AuthProviderMetadata,
     ModelInfo,
@@ -40,7 +41,7 @@
       ? availableModels.find((model) => modelKey(model) === modelKey(settingsDraft.exploreAgent.model as ModelSelection))
       : undefined,
   );
-  const fallbackThinkingLevels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
+  const fallbackThinkingLevels = thinkingLevels;
 
 
   function saveExploreModel(selection: {

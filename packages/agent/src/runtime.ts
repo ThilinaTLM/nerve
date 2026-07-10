@@ -328,10 +328,12 @@ export function streamAgentPrompt(
 }
 
 const COMPLETE_MODEL_LIST_PROVIDERS = new Set<string>([
-  // Nerve supports Anthropic subscription OAuth, and newer Opus/Sonnet
-  // models sort after older Claude 3.x IDs. Truncating the provider list hides
-  // currently available subscription models such as claude-opus-4-8.
+  // Nerve supports subscription OAuth for Anthropic and OpenAI Codex, and
+  // current models sort after older catalog entries. Truncating these provider
+  // lists also hides direct OpenAI models such as the GPT-5.6 variants.
   "anthropic",
+  "openai",
+  "openai-codex",
 ]);
 
 function visibleModelsForProvider(provider: string): readonly Model<string>[] {

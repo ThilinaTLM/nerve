@@ -152,6 +152,7 @@
     medium: "Medium",
     high: "High",
     xhigh: "Extra high",
+    max: "Maximum",
   };
   const toolLabels: Record<CreateSandboxToolKey, string> = {
     fileInspection: "File inspection",

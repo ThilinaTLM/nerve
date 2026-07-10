@@ -54,6 +54,50 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         prompt: "Ask me for a value",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, start.runId, "waiting_for_input");
+      await waitForConversationToolStatus(
+        stores,
+        start.runId,
+        "waiting_for_user",
+      );
+
+      const waitingStatus = (await daemon.router.dispatch(
+        "sandbox.status.get",
+        {},
+      )) as {
+        runs: Array<{
+          runId: string;
+          toolCalls?: Array<{ toolName: string; status: string }>;
+        }>;
+      };
+      const waitingRun = waitingStatus.runs.find(
+        (entry) => entry.runId === start.runId,
+      );
+      assert.equal(
+        waitingRun?.toolCalls?.find((tool) => tool.toolName === "ask_user")
+          ?.status,
+        "waiting_for_input",
+      );
+
+      const waitingConversation = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: start.conversationId,
+          agentId: start.agentId,
+          runId: start.runId,
+        },
+      )) as {
+        snapshot?: {
+          activeRun?: unknown;
+          toolCalls: Array<{ toolName: string; status: string }>;
+        };
+      };
+      assert.equal(waitingConversation.snapshot?.activeRun, undefined);
+      assert.equal(
+        waitingConversation.snapshot?.toolCalls.find(
+          (tool) => tool.toolName === "ask_user",
+        )?.status,
+        "waiting_for_user",
+      );
 
       const toolFile = path.join(
         dir,
@@ -118,7 +162,105 @@ describe("sandbox input wait/recovery with scripted provider", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("projects approval suspensions as actionable pending tool calls", async () => {
+    const registration = registerAgentScriptedProvider({
+      steps: [
+        {
+          type: "toolCall",
+          id: "approval_1",
+          name: "bash",
+          args: { command: "rm -rf .nerve-approval-test-nonexistent" },
+        },
+      ],
+    });
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-approval-wait-"));
+    try {
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      const daemon = new SandboxDaemon(
+        config(),
+        "sha256:test",
+        "inst_1",
+        stores,
+        { workspaceDir: process.cwd() },
+      );
+      daemon.start();
+      const start = (await daemon.router.dispatch("sandbox.run.start", {
+        commandId: "cmd_start_approval",
+        prompt: "Run the approval-gated command",
+      })) as { conversationId: string; agentId: string; runId: string };
+      await waitForRun(daemon, start.runId, "waiting_for_approval");
+      await waitForConversationToolStatus(
+        stores,
+        start.runId,
+        "pending_approval",
+      );
+
+      const status = (await daemon.router.dispatch(
+        "sandbox.status.get",
+        {},
+      )) as {
+        runs: Array<{
+          runId: string;
+          toolCalls?: Array<{ toolName: string; status: string }>;
+        }>;
+      };
+      const run = status.runs.find((entry) => entry.runId === start.runId);
+      assert.equal(
+        run?.toolCalls?.find((tool) => tool.toolName === "bash")?.status,
+        "waiting_for_approval",
+      );
+
+      const conversation = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: start.conversationId,
+          agentId: start.agentId,
+          runId: start.runId,
+        },
+      )) as {
+        snapshot?: {
+          activeRun?: unknown;
+          toolCalls: Array<{ toolName: string; status: string }>;
+        };
+      };
+      assert.equal(conversation.snapshot?.activeRun, undefined);
+      assert.equal(
+        conversation.snapshot?.toolCalls.find(
+          (tool) => tool.toolName === "bash",
+        )?.status,
+        "pending_approval",
+      );
+    } finally {
+      registration.unregister();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
+
+async function waitForConversationToolStatus(
+  stores: SandboxStateStores,
+  runId: string,
+  status: string,
+): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const found = stores.events.all().some((event) => {
+      if (event.type !== "conversation.tool_call.updated") return false;
+      const data = event.data as {
+        runId?: string;
+        toolCall?: { status?: string };
+      };
+      return data.runId === runId && data.toolCall?.status === status;
+    });
+    if (found) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(
+    `Timed out waiting for conversation tool status ${status} in ${runId}`,
+  );
+}
 
 async function waitForRun(
   daemon: SandboxDaemon,

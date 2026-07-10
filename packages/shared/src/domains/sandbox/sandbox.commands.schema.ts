@@ -508,6 +508,7 @@ export const sandboxToolCallSummarySchema = z.object({
   group: z.string().min(1).optional(),
   status: z.enum([
     "requested",
+    "waiting_for_input",
     "waiting_for_approval",
     "started",
     "completed",

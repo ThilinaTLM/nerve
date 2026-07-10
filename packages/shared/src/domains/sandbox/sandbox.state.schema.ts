@@ -193,6 +193,7 @@ export const sandboxToolCallRecordSchema = z.object({
   toolName: z.string().min(1),
   status: z.enum([
     "requested",
+    "waiting_for_input",
     "waiting_for_approval",
     "started",
     "completed",

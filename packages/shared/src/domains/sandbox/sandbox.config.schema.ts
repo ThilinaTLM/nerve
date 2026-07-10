@@ -1,5 +1,6 @@
 // biome-ignore lint/style/noExcessiveLinesPerFile: Sandbox v1 config schema intentionally centralizes cross-field validation.
 import { z } from "zod";
+import { thinkingLevelSchema } from "../models/index.js";
 
 const extensionRecordSchema = z.record(z.string(), z.unknown());
 const stringRecordSchema = z.record(z.string(), z.string());
@@ -174,9 +175,7 @@ export type SandboxSecretStoresConfig = z.infer<
 export const sandboxAgentModelSelectionSchema = z.object({
   provider: z.string().min(1),
   model: z.string().min(1),
-  thinkingLevel: z
-    .enum(["off", "minimal", "low", "medium", "high", "xhigh"])
-    .optional(),
+  thinkingLevel: thinkingLevelSchema.optional(),
 });
 export type SandboxAgentModelSelection = z.infer<
   typeof sandboxAgentModelSelectionSchema

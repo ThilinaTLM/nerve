@@ -455,6 +455,10 @@ function applyWaitingForInput(
     createdAt: typeof data.createdAt === "string" ? data.createdAt : event.ts,
   };
   detail.waitsById[waitId] = wait;
+  const toolCall = detail.toolCallsById[toolCallId];
+  if (toolCall) toolCall.status = "waiting_for_input";
+  const run = detail.liveRuns[String(data.runId ?? "")];
+  if (run) run.status = "waiting_for_input";
 }
 
 function applyWaitingForApproval(
@@ -464,16 +468,21 @@ function applyWaitingForApproval(
 ): void {
   const waitId = String(data.approvalId ?? "");
   if (!waitId) return;
+  const toolCallId =
+    typeof data.toolCallId === "string" ? data.toolCallId : undefined;
   detail.waitsById[waitId] = {
     waitId,
     kind: "approval",
     status: "waiting",
-    toolCallId:
-      typeof data.toolCallId === "string" ? data.toolCallId : undefined,
+    toolCallId,
     risks: Array.isArray(data.risk) ? (data.risk as string[]) : undefined,
     reason: typeof data.reason === "string" ? data.reason : undefined,
     createdAt: typeof data.createdAt === "string" ? data.createdAt : event.ts,
   };
+  const toolCall = toolCallId ? detail.toolCallsById[toolCallId] : undefined;
+  if (toolCall) toolCall.status = "waiting_for_approval";
+  const run = detail.liveRuns[String(data.runId ?? "")];
+  if (run) run.status = "waiting_for_approval";
 }
 
 function applyRunTerminal(

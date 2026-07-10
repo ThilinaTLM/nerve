@@ -55,7 +55,8 @@
     low: "Light reasoning",
     medium: "Moderate reasoning",
     high: "Deep reasoning",
-    xhigh: "Maximum reasoning",
+    xhigh: "Extra-high reasoning",
+    max: "Maximum reasoning",
   };
 
   function thinkingLevelLabel(level: ThinkingLevel): string {

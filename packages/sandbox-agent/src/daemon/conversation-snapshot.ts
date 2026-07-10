@@ -254,6 +254,7 @@ function mapToolStatus(
 ): ToolCallTranscriptRecord["status"] {
   if (status === "started") return "running";
   if (status === "failed") return "error";
+  if (status === "waiting_for_input") return "waiting_for_user";
   if (status === "waiting_for_approval") return "pending_approval";
   if (status === "cancelled") return "denied";
   return status;

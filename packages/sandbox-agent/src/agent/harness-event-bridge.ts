@@ -196,6 +196,12 @@ export class HarnessEventBridge {
         createdAt: input.createdAt,
         checkpointId: checkpoint?.checkpointId,
       });
+      await this.publishSuspension(
+        context,
+        suspension.data,
+        "waiting_for_user",
+        input.createdAt,
+      );
       return;
     }
     const approval = this.waiters.approval
@@ -224,7 +230,48 @@ export class HarnessEventBridge {
         createdAt: approval.createdAt,
         checkpointId: checkpoint?.checkpointId,
       });
+      await this.publishSuspension(
+        context,
+        suspension.data,
+        "pending_approval",
+        approval.createdAt,
+      );
     }
+  }
+
+  private async publishSuspension(
+    context: HarnessRunContext,
+    suspension: { toolCallId: string; toolName: string; reason: string },
+    status: "waiting_for_user" | "pending_approval",
+    createdAt: string,
+  ): Promise<void> {
+    const suspendedAt = new Date().toISOString();
+    await this.publishToolCallUpdated(context, {
+      toolCallId: suspension.toolCallId,
+      toolName: suspension.toolName,
+      status,
+      createdAt,
+      updatedAt: suspendedAt,
+    });
+    await this.events?.append({
+      type: "conversation.run.suspended",
+      durability: "durable",
+      conversationId: context.conversationId,
+      agentId: context.agentId,
+      runId: context.runId,
+      data: {
+        conversationId: context.conversationId,
+        agentId: context.agentId,
+        runId: context.runId,
+        projectId: this.projectId(),
+        suspensionId: `susp_${sandboxSha256Digest(`${context.runId}:${suspension.toolCallId}`).slice(7, 23)}`,
+        toolCallId: normalizeToolCallId(suspension.toolCallId),
+        suspendedAt,
+        reason: suspension.reason,
+      },
+    });
+    this.conversationRuntime.completeRun(context.runId);
+    this.liveRuns.delete(context.runId);
   }
 
   async delta(run: RunState, text: string): Promise<void> {

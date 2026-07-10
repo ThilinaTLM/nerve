@@ -304,8 +304,8 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 
 /**
  * Thinking/reasoning level for models that support it.
- * Note: "xhigh" is only supported by selected model families. Use model thinking-level metadata
- * from @earendil-works/pi-ai to detect support for a concrete model.
+ * Note: "xhigh" and "max" are only supported by selected model families. Use model
+ * thinking-level metadata from @earendil-works/pi-ai to detect support for a concrete model.
  */
 export type ThinkingLevel =
   | "off"
@@ -313,7 +313,8 @@ export type ThinkingLevel =
   | "low"
   | "medium"
   | "high"
-  | "xhigh";
+  | "xhigh"
+  | "max";
 
 /**
  * Extensible interface for custom app messages.

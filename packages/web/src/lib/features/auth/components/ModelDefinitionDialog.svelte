@@ -1,6 +1,7 @@
 <script lang="ts">
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { ModelDefinition, ThinkingLevel } from "$lib/api";
+  import { thinkingLevels } from "@nervekit/shared";
   import { upsertModelDefinition } from "$lib/api";
   import { Button } from "@nervekit/shared-ui/components/ui/button";
   import Dialog from "@nervekit/shared-ui/components/ui/dialog-shell";
@@ -27,14 +28,7 @@
   }: Props = $props();
 
   const editing = $derived(Boolean(model));
-  const THINKING_LEVELS: ThinkingLevel[] = [
-    "off",
-    "minimal",
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-  ];
+  const THINKING_LEVELS: ThinkingLevel[] = [...thinkingLevels];
 
   let provider = $state("");
   let modelId = $state("");
