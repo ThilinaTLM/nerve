@@ -38,25 +38,46 @@
     {#each visibleGroups as group (group.id)}
       <PanelSection
         title={group.title}
+        icon={group.icon}
         open={group.open ?? true}
         onOpenChange={(open) => onGroupOpenChange?.(group, open)}
         contentClass="grid gap-0.5"
       >
+        {#if group.meta}
+          {#snippet meta()}<span>{group.meta}</span>{/snippet}
+        {/if}
         {#if groupActions}
           {#snippet actions()}{@render groupActions(group)}{/snippet}
         {/if}
         {#each group.items as item (item.id)}
-          <NavigatorItem
-            title={item.title}
-            subtitle={item.subtitle}
-            active={item.active}
-            isOpen={item.open}
-            statusTone={item.statusTone}
-            statusPulse={item.statusPulse}
-            statusLabel={item.statusLabel}
-            menuItems={item.menuItems}
-            onSelect={() => onSelect?.(item, group)}
-          />
+          {#if itemTooltip}
+            <NavigatorItem
+              title={item.title}
+              subtitle={item.subtitle}
+              active={item.active}
+              isOpen={item.open}
+              statusTone={item.statusTone}
+              statusPulse={item.statusPulse}
+              statusLabel={item.statusLabel}
+              menuItems={item.menuItems}
+              tooltipClass="conversation-tooltip"
+              onSelect={() => onSelect?.(item, group)}
+            >
+              {#snippet tooltip()}{@render itemTooltip(item, group)}{/snippet}
+            </NavigatorItem>
+          {:else}
+            <NavigatorItem
+              title={item.title}
+              subtitle={item.subtitle}
+              active={item.active}
+              isOpen={item.open}
+              statusTone={item.statusTone}
+              statusPulse={item.statusPulse}
+              statusLabel={item.statusLabel}
+              menuItems={item.menuItems}
+              onSelect={() => onSelect?.(item, group)}
+            />
+          {/if}
         {:else}
           <p class="px-2 py-1 text-xs text-muted-foreground">
             {group.emptyLabel ?? "No conversations"}

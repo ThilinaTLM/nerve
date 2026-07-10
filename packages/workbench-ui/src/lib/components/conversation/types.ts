@@ -1,5 +1,6 @@
 import type {
   ApprovalPolicy,
+  CompletionItem,
   ContextUsage,
   Mode,
   ModelInfo,
@@ -8,6 +9,7 @@ import type {
   ProjectRecord,
   QueuedPromptRecord,
   ThinkingLevel,
+  TodoItem,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "@nervekit/contracts";
@@ -32,8 +34,14 @@ export type ConversationComposerCapabilities = {
 export type ConversationComposerModel = {
   text: string;
   disabled?: boolean;
+  editorDisabled?: boolean;
+  submitDisabled?: boolean;
   sending?: boolean;
   compacting?: boolean;
+  showStop?: boolean;
+  pendingApproval?: boolean;
+  pendingQuestion?: boolean;
+  pendingPlan?: boolean;
   models: ModelInfo[];
   selectedModelKey: string;
   thinkingLevel: ThinkingLevel;
@@ -45,6 +53,23 @@ export type ConversationComposerModel = {
   hint?: string;
   placeholder?: string;
   focusToken?: number;
+  controlsDisabled?: boolean;
+  modeDisabled?: boolean;
+  modelDisabled?: boolean;
+  runtimeChangeHint?: string;
+  sendAriaLabel?: string;
+  sendTitle?: string;
+  stopShortcutAria?: string;
+  stopTitle?: string;
+  permissionShortcut?: string;
+  permissionShortcutAria?: string;
+  modeShortcut?: string;
+  modeShortcutAria?: string;
+  thinkingShortcut?: string;
+  modelEmptyMessage?: string;
+  todos?: TodoItem[];
+  slashCompletions?: CompletionItem[];
+  fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   capabilities?: ConversationComposerCapabilities;
 };
 
@@ -82,6 +107,7 @@ export type ConversationPaneActions = {
   onModeChange?: (value: Mode) => void;
   onPermissionChange?: (value: PermissionLevel) => void;
   onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
+  onPasteImage?: (file: File) => Promise<string>;
   onOpenFile?: (path: string, line?: number) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void;
   onDismissUserQuestion?: (id: string) => void;

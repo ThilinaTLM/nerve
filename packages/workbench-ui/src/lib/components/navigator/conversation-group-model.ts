@@ -1,3 +1,4 @@
+import type { Component } from "svelte";
 import type { ContextMenuItem } from "../ui/context-menu-list/index.js";
 import type { StatusTone } from "../ui/status-dot/index.js";
 
@@ -12,11 +13,15 @@ export type ConversationNavigatorItem = {
   statusPulse?: boolean;
   statusLabel?: string;
   menuItems?: ContextMenuItem[];
+  metadata?: Record<string, string | undefined>;
 };
 
 export type ConversationNavigatorGroup = {
   id: string;
   title: string;
+  searchText?: string;
+  icon?: Component;
+  meta?: string;
   open?: boolean;
   selected?: boolean;
   emptyLabel?: string;
@@ -34,7 +39,13 @@ export function filterConversationGroups(
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
-        [group.title, item.title, item.subtitle, item.searchText]
+        [
+          group.title,
+          group.searchText,
+          item.title,
+          item.subtitle,
+          item.searchText,
+        ]
           .filter(Boolean)
           .some((value) => value?.toLocaleLowerCase().includes(normalized)),
       ),

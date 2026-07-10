@@ -1,19 +1,14 @@
 <script lang="ts">
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mic from "@lucide/svelte/icons/mic";
-  import {
-    hasExecutableCommandBlocks,
-    isInlineCommandPrompt,
-  } from "@nervekit/contracts";
+  import { isInlineCommandPrompt } from "@nervekit/contracts";
   import { uploadClipboardImage } from "$lib/api";
   import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
   import {
     voiceInputSession,
     type VoiceInputTarget,
   } from "$lib/core/audio/voice-input-session.svelte";
-  import ComposerEditor from "@nervekit/workbench-ui/components/composer/ComposerEditor.svelte";
-  import ComposerShell from "@nervekit/workbench-ui/components/composer/ComposerShell.svelte";
-  import ComposerToolbar from "@nervekit/workbench-ui/components/composer/ComposerToolbar.svelte";
+  import { AgentComposer } from "@nervekit/workbench-ui/components/conversation";
   import { Button } from "@nervekit/workbench-ui/components/ui/button";
   import {
     AudioInputAuthRequiredDialog,
@@ -112,7 +107,6 @@
   const canPrompt = $derived(Boolean(activeProject && (activeConversation || pendingConversationActive) && models.length > 0 && !blockedForReview && !compacting));
   const editorDisabled = $derived(!interactive || !canPrompt);
   const commandMode = $derived(isInlineCommandPrompt(text));
-  const executableBlocks = $derived(hasExecutableCommandBlocks(text));
   const submitDisabled = $derived(
     !interactive || !canPrompt || voiceSubmitPending || (commandMode && sending),
   );
@@ -210,13 +204,6 @@
     sending ? "Changes apply to the next model request" : undefined,
   );
 
-  const modeLabel = $derived(mode === "planning" ? "Planning" : "Coding");
-  const modePlanning = $derived(mode === "planning");
-
-  function toggleMode() {
-    onModeChange?.(mode === "coding" ? "planning" : "coding");
-  }
-
   function toggleRecording() {
     if (!interactive || micDisabled || compacting || !voiceTarget) return;
     if (!recording && !chatGptAudioConfigured) {
@@ -269,21 +256,77 @@
   }
 </script>
 
-<ComposerShell
-  {mode}
-  {commandMode}
-  {executableBlocks}
-  {pendingApproval}
-  {pendingQuestion}
-  {pendingPlan}
-  showStop={sending && !pendingQuestion && !compacting}
-  stopShortcutAria={stopShortcutAria}
-  stopTitle={stopShortcut ? `Stop generation (${stopShortcut})` : "Stop generation"}
-  {submitDisabled}
-  {sendAriaLabel}
-  {sendTitle}
-  {onAbort}
-  onSubmit={submitComposer}
+<AgentComposer
+  model={{
+    text,
+    disabled: editorDisabled,
+    editorDisabled,
+    submitDisabled,
+    sending,
+    compacting,
+    showStop: sending && !pendingQuestion && !compacting,
+    pendingApproval,
+    pendingQuestion,
+    pendingPlan,
+    models,
+    selectedModelKey,
+    thinkingLevel,
+    mode,
+    permissionLevel,
+    approvalPolicy,
+    contextUsage,
+    contextWindow,
+    placeholder: pendingApproval
+      ? "Approval required before the agent can continue"
+      : pendingPlan
+        ? "Review the plan in the transcript before the agent can continue"
+        : pendingQuestion
+          ? "Reply in the transcript before the agent can continue"
+          : compacting
+            ? "Compacting context…"
+            : sending
+              ? "Queue a prompt for the next agent turn"
+              : "Ask the local Nerve agent",
+    focusToken: editorFocusToken,
+    controlsDisabled,
+    modeDisabled,
+    modelDisabled,
+    runtimeChangeHint: modelRuntimeChangeHint,
+    sendAriaLabel,
+    sendTitle,
+    stopShortcutAria,
+    stopTitle: stopShortcut
+      ? `Stop generation (${stopShortcut})`
+      : "Stop generation",
+    permissionShortcut,
+    permissionShortcutAria,
+    modeShortcut,
+    modeShortcutAria,
+    thinkingShortcut,
+    todos,
+    slashCompletions,
+    fileCompletions,
+    capabilities: {
+      voice: true,
+      imagePaste: true,
+      completions: true,
+      suggestions: true,
+      shortcuts: true,
+      todos: true,
+      queueing: true,
+    },
+  }}
+  actions={{
+    onComposerChange: onChange,
+    onSubmit: submitComposer,
+    onAbort,
+    onModelChange,
+    onThinkingLevelChange,
+    onModeChange,
+    onPermissionChange,
+    onApprovalPolicyChange,
+    onPasteImage: pasteImage,
+  }}
 >
   {#snippet header()}
     {#if composerSuggestions.length > 0 && !blockedForReview && !sending && !compacting && canPrompt}
@@ -293,49 +336,6 @@
         onDraft={onDraftSuggestion}
       />
     {/if}
-  {/snippet}
-
-  {#snippet toolbar()}
-    <ComposerToolbar
-      {controlsDisabled}
-      {modeDisabled}
-      {modelDisabled}
-      {permissionLevel}
-      {approvalPolicy}
-      {modeLabel}
-      {modePlanning}
-      onToggleMode={toggleMode}
-      {permissionShortcut}
-      {permissionShortcutAria}
-      {modeShortcut}
-      {modeShortcutAria}
-      {thinkingShortcut}
-      {contextUsage}
-      {contextWindow}
-      {todos}
-      {models}
-      {selectedModelKey}
-      {thinkingLevel}
-      runtimeChangeHint={modelRuntimeChangeHint}
-      {onModelChange}
-      {onThinkingLevelChange}
-      {onPermissionChange}
-      {onApprovalPolicyChange}
-    />
-  {/snippet}
-
-  {#snippet editor()}
-    <ComposerEditor
-      value={text}
-      disabled={editorDisabled}
-      placeholder={pendingApproval ? "Approval required before the agent can continue" : pendingPlan ? "Review the plan in the transcript before the agent can continue" : pendingQuestion ? "Reply in the transcript before the agent can continue" : compacting ? "Compacting context…" : sending ? "Queue a prompt for the next agent turn" : "Ask the local Nerve agent"}
-      {slashCompletions}
-      {fileCompletions}
-      focusToken={editorFocusToken}
-      onChange={onChange}
-      onSubmit={submitComposer}
-      onPasteImage={pasteImage}
-    />
   {/snippet}
 
   {#snippet sendLeading()}
@@ -367,6 +367,6 @@
       {/if}
     </Button>
   {/snippet}
-</ComposerShell>
+</AgentComposer>
 
 <AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
