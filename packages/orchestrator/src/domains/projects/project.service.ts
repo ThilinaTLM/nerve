@@ -4,7 +4,7 @@ import {
   type CreateProjectRequest,
   createId,
   type ProjectRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";

@@ -1,4 +1,4 @@
-import type { ManagedSandboxRecord } from "@nervekit/shared";
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import { transitionSandboxLifecycle } from "./lifecycle-state.js";

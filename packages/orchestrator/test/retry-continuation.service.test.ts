@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentRecord, ConversationEntry } from "@nervekit/shared";
+import type { AgentRecord, ConversationEntry } from "@nervekit/contracts";
 import { RetryContinuationService } from "../src/domains/agents/retry-continuation.service.js";
 import type { RuntimeState } from "../src/runtime/runtime-state.js";
 

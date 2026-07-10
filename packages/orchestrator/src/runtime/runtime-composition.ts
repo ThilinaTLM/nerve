@@ -2,8 +2,8 @@ import {
   DEFAULT_COMPACTION_SETTINGS,
   generateSummary,
   resolveAgentModel,
-} from "@nervekit/agent";
-import { GitService } from "@nervekit/tools";
+} from "@nervekit/agent-runtime";
+import { GitService } from "@nervekit/agent-tools";
 import { AgentSuspensionService } from "../domains/agents/agent-suspension.service.js";
 import {
   AgentLifecycleService,

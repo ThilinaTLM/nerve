@@ -6,14 +6,14 @@ import {
   DEFAULT_COMPACTION_SETTINGS,
   estimateTokens,
   prepareCompaction,
-} from "@nervekit/agent";
+} from "@nervekit/agent-runtime";
 import type {
   CompactConversationRequest,
   ConversationCompactionReason,
   ConversationEntry,
   ConversationRecord,
   ProjectRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import type { HarnessManager } from "../harness-manager.js";

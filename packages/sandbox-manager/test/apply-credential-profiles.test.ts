@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { sandboxConfigV1Schema } from "@nervekit/shared";
+import { sandboxConfigV1Schema } from "@nervekit/contracts";
 import { applyCredentialProfiles } from "../src/config/apply-credential-profiles.js";
 
 const now = new Date().toISOString();

@@ -8,7 +8,7 @@ import type {
   RemoveOptions,
   RuntimeDriverCapabilities,
   StopOptions,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { AutoContainerDriver } from "../src/drivers/auto-container-driver.js";
 import type {
   ContainerRuntimeDriver,

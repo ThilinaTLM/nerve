@@ -1,4 +1,4 @@
-import type { FlowMode } from "@nervekit/shared";
+import type { FlowMode } from "@nervekit/contracts";
 import { PROTOCOL_LIMITS } from "./constants.js";
 import type { ProtocolSessionQueueStats } from "./session-queue.js";
 

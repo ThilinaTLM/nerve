@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { SandboxActivitySummary } from "@nervekit/shared";
+import type { SandboxActivitySummary } from "@nervekit/contracts";
 import { SandboxActivityTracker } from "../src/events/sandbox-activity-tracker.js";
 
 function collector() {

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { ManagedContainerRef } from "@nervekit/shared";
+import type { ManagedContainerRef } from "@nervekit/contracts";
 
 const execFileAsync = promisify(execFile);
 export type OrphanDiscoveryBackend =

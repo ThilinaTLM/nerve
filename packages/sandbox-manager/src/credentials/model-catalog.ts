@@ -3,7 +3,7 @@ import {
   builtinModels,
   getBuiltinProviders,
 } from "@earendil-works/pi-ai/providers/all";
-import type { ModelInfo } from "@nervekit/shared";
+import type { ModelInfo } from "@nervekit/contracts";
 
 const models = builtinModels();
 const providerIds = getBuiltinProviders();

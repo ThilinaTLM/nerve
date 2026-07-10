@@ -6,8 +6,8 @@ import {
   type AgentTool,
   runAgentLoop,
   type StreamFn,
-} from "../packages/agent/src/index.ts";
-import { coreToolDefinitions } from "../packages/tools/src/index.ts";
+} from "../packages/agent-runtime/src/index.ts";
+import { coreToolDefinitions } from "../packages/agent-tools/src/index.ts";
 
 const model: Model<string> = {
   provider: "nerve-debug",

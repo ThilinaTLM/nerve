@@ -5,7 +5,7 @@ import {
   type QueuedPromptBehavior,
   type QueuedPromptRecord,
   queuedPromptRecordSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import {
   appendJsonLine,
   type InitializedStorage,

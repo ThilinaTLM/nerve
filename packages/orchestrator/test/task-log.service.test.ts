@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { createId, type TaskLogEvent, type TaskRecord } from "@nervekit/shared";
+import {
+  createId,
+  type TaskLogEvent,
+  type TaskRecord,
+} from "@nervekit/contracts";
 import {
   createTaskLogCursor,
   MAX_BUFFERED_LOG_LINE_CHARS,

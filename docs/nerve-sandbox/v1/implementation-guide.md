@@ -7,7 +7,7 @@ This guide is non-normative. It describes a practical path for implementing Sand
 A future implementation could use modules such as:
 
 ```text
-packages/shared/src/domains/sandbox/
+packages/contracts/src/domains/sandbox/
   config.schema.ts
   commands.schema.ts
   events.schema.ts
@@ -19,7 +19,7 @@ packages/shared/src/domains/sandbox/
   skills.schema.ts
   setup.schema.ts
 
-packages/sandbox-agent/
+packages/sandbox-runtime/
   src/entrypoint.ts
   src/config/load-config.ts
   src/config/digest.ts
@@ -60,18 +60,18 @@ packages/sandbox-manager/
   src/config/materialize-sandbox-config.ts
   src/events/manager-event-bus.ts
 
-packages/sandbox-manager-ui/
+packages/sandbox-manager-app/
   src/lib/api/
   src/lib/state/
   src/lib/routes/
   src/lib/components/
 
-packages/shared-ui/
+packages/workbench-ui/
   src/lib/components/ui/
   src/styles/
 ```
 
-This layout is illustrative. Protocol, config, command, event, state, credential, and manager schemas that are shared by controllers, sandboxes, and the web UI should live in `packages/shared`. Svelte components, CSS, and browser display helpers belong in `packages/shared-ui`, not `packages/shared`.
+This layout is illustrative. Protocol, config, command, event, state, credential, and manager schemas that are shared by controllers, sandboxes, and the web UI should live in `packages/contracts`. Svelte components, CSS, and browser display helpers belong in `packages/workbench-ui`, not `packages/contracts`.
 
 ## Reuse candidates
 
@@ -79,24 +79,24 @@ Current Nerve components that may be reused or adapted:
 
 | Area | Current anchor |
 | --- | --- |
-| Agent harness | `packages/agent` |
-| pi-ai provider/model resolution | `packages/agent/src/runtime.ts` |
-| Skill loading/formatting | `packages/agent/src/harness/skills/*` |
-| Conversation JSONL/storage patterns | `packages/agent/src/harness/conversation/*` |
+| Agent harness | `packages/agent-runtime` |
+| pi-ai provider/model resolution | `packages/agent-runtime/src/runtime.ts` |
+| Skill loading/formatting | `packages/agent-runtime/src/harness/skills/*` |
+| Conversation JSONL/storage patterns | `packages/agent-runtime/src/harness/conversation/*` |
 | `AGENTS.md` and `.agents/skills` resource loading | `packages/orchestrator/src/domains/agents/prompting/resource-loader.ts` |
-| Tool definitions and execution | `packages/tools` |
-| Tool names, risks, call records | `packages/shared/src/domains/tools/*` |
-| Agent settings and workspace scope | `packages/shared/src/domains/agents/agent.schema.ts` |
-| Provider/catalog schemas | `packages/shared/src/domains/providers/providers.schema.ts` |
-| Model selection/thinking levels | `packages/shared/src/domains/models/models.schema.ts` |
-| Auth metadata and OAuth flow schemas | `packages/shared/src/domains/auth/auth.schema.ts` |
-| Git/GitHub request/response schemas | `packages/shared/src/domains/git/git.schema.ts` |
-| Event envelope | `packages/shared/src/domains/events/envelope.schema.ts` |
+| Tool definitions and execution | `packages/agent-tools` |
+| Tool names, risks, call records | `packages/contracts/src/domains/tools/*` |
+| Agent settings and workspace scope | `packages/contracts/src/domains/agents/agent.schema.ts` |
+| Provider/catalog schemas | `packages/contracts/src/domains/providers/providers.schema.ts` |
+| Model selection/thinking levels | `packages/contracts/src/domains/models/models.schema.ts` |
+| Auth metadata and OAuth flow schemas | `packages/contracts/src/domains/auth/auth.schema.ts` |
+| Git/GitHub request/response schemas | `packages/contracts/src/domains/git/git.schema.ts` |
+| Event envelope | `packages/contracts/src/domains/events/envelope.schema.ts` |
 | Tool policy ideas | `packages/orchestrator/src/domains/tools/policy.ts` |
 | Git/GitHub service ideas | `packages/orchestrator/src/domains/git/*` |
 | Agent/tool orchestration glue | `packages/orchestrator/src/domains/agents/run/*` and `domains/tools/*` |
 
-The sandbox agent image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/sandbox-manager-ui` app using shared primitives from `packages/shared-ui`, not the current local workbench reused unchanged.
+The sandbox agent image should avoid copying UI-specific or desktop-specific concerns. The sandbox-manager UI should be a separate `packages/sandbox-manager-app` app using shared primitives from `packages/workbench-ui`, not the current local workbench reused unchanged.
 
 ## Phase 1: shared schemas
 
@@ -410,7 +410,7 @@ Validation:
 
 ## Phase 16: sandbox-manager web UI
 
-Implement the dedicated `packages/sandbox-manager-ui` app described in [Web UI](./web-ui.md).
+Implement the dedicated `packages/sandbox-manager-app` app described in [Web UI](./web-ui.md).
 
 Validation:
 
@@ -421,7 +421,7 @@ Validation:
 - run view supports transcript/tool lifecycle, approvals, and input waits;
 - lifecycle actions use idempotent manager commands;
 - no raw secrets are requested or rendered;
-- styling follows `packages/shared-ui`/`packages/sandbox-manager-ui` AGENTS guidance and shadcn-svelte conventions.
+- styling follows `packages/workbench-ui`/`packages/sandbox-manager-app` AGENTS guidance and shadcn-svelte conventions.
 
 ## Phase 17: future ECS driver
 

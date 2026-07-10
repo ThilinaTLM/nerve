@@ -4,7 +4,7 @@ import {
   type PinnedCommand,
   type ProjectRecord,
   type UpdatePinnedCommandRequest,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
 import type { PinnedCommandRepository } from "./pinned-command.repository.js";
 

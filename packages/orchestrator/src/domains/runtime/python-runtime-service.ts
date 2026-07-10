@@ -1,9 +1,9 @@
-import type { PythonRuntimeStatus as SharedPythonRuntimeStatus } from "@nervekit/shared";
 import {
   type PythonRuntime,
   type PythonRuntimeStatus,
   resolvePythonRuntime,
-} from "@nervekit/tools";
+} from "@nervekit/agent-tools";
+import type { PythonRuntimeStatus as SharedPythonRuntimeStatus } from "@nervekit/contracts";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 
 export class PythonRuntimeService {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { SandboxConfigV1 } from "@nervekit/shared";
+import type { SandboxConfigV1 } from "@nervekit/contracts";
 import { buildSandboxLaunchSpec } from "../src/config/sandbox-launch-spec.js";
 
 function baseConfig(

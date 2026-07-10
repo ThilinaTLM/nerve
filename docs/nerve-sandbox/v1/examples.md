@@ -5,7 +5,7 @@ These examples are illustrative. IDs, timestamps, URLs, image names, model names
 ## 1. Minimal YAML config
 
 ```yaml
-# yaml-language-server: $schema=../../../packages/shared/schemas/sandbox-config-v1.schema.json
+# yaml-language-server: $schema=../../../packages/contracts/schemas/sandbox-config-v1.schema.json
 version: 1
 
 modelCatalog:
@@ -864,7 +864,7 @@ If reconnect succeeds before the deadline, the sandbox emits `sandbox.controller
 
 ## 18. Sandbox-manager web UI flow
 
-The dedicated frontend in `packages/sandbox-manager-ui` connects to the sandbox manager, not directly to sandbox containers.
+The dedicated frontend in `packages/sandbox-manager-app` connects to the sandbox manager, not directly to sandbox containers.
 
 ```text
 1. UI authenticates to sandbox manager.

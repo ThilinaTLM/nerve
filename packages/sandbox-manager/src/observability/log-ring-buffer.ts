@@ -3,7 +3,7 @@ import type {
   ManagerLogTailRecord,
   StructuredLogLevel,
   StructuredLogRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 const LEVEL_ORDER: Record<StructuredLogLevel, number> = {
   debug: 10,

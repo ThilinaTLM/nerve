@@ -3,7 +3,7 @@ import type {
   ManagedSandboxDaemonMetadata,
   ManagedSandboxLifecycleState,
   ManagedSandboxRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerLifecycleEventInput } from "../events/manager-events.js";
 import type { ManagerStore } from "../state/manager-store.js";
 

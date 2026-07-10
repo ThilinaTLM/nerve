@@ -8,7 +8,7 @@ import type {
   GithubPrListResponse,
   GithubStatusResponse,
   GitRepoSummary,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
 import { noChecksSummary, parseGithubChecks } from "./git-github-parsers.js";
 import { parsePorcelainV2 } from "./git-status.js";

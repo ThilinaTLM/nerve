@@ -1,4 +1,4 @@
-import type { TaskRecord } from "@nervekit/shared";
+import type { TaskRecord } from "@nervekit/contracts";
 import type { TaskManager } from "./task-manager.js";
 import { spawnManagedTaskRun } from "./task-manager-start.js";
 

@@ -1,4 +1,4 @@
-import type { EventEnvelope, NerveMessage } from "@nervekit/shared";
+import type { EventEnvelope, NerveMessage } from "@nervekit/contracts";
 
 export type QueuePriority = "control" | "replay" | "durable" | "transient";
 

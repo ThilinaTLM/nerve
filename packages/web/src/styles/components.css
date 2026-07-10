@@ -1,6 +1,0 @@
-/* Workbench-specific semantic component classes. Shared primitives/helpers live
- * in @nervekit/shared-ui/styles/components.css. */
-
-@import "./components/composer.css";
-@import "./components/settings.css";
-@import "./components/directory-picker.css";

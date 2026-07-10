@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { StructuredLogger } from "@nervekit/shared";
+import type { StructuredLogger } from "@nervekit/contracts";
 
 type ErrorResponse = { status: number; body: unknown };
 

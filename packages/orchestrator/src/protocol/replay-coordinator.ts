@@ -2,7 +2,7 @@ import {
   createId,
   type EventEnvelope,
   type ReplayRequestData,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import type { ProtocolReplaySource } from "../infrastructure/events/event-bus.js";
 import { GLOBAL_STREAM, PROTOCOL_LIMITS } from "./constants.js";

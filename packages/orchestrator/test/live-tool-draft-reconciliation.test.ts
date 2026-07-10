@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { ConversationRuntime } from "@nervekit/shared";
+import { ConversationRuntime } from "@nervekit/contracts";
 import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,

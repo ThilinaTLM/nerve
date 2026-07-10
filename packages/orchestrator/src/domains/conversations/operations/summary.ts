@@ -2,9 +2,9 @@ import {
   type AgentMessage,
   convertToLlm,
   serializeConversation,
-} from "@nervekit/agent";
+} from "@nervekit/agent-runtime";
 
-export { deriveConversationTitle } from "@nervekit/shared";
+export { deriveConversationTitle } from "@nervekit/contracts";
 
 export interface ExtractiveSummaryInput {
   title: string;

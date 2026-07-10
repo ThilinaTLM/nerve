@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { type PinnedCommand, pinnedCommandSchema } from "@nervekit/shared";
+import { type PinnedCommand, pinnedCommandSchema } from "@nervekit/contracts";
 import {
   atomicWriteJson,
   type InitializedStorage,

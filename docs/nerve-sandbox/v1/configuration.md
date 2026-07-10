@@ -20,12 +20,12 @@ The configuration is an input contract for the sandbox daemon. It is not an auth
 
 The sandbox-agent loads its YAML config from `NERVE_SANDBOX_AGENT_CONFIG` when set, otherwise from `/etc/nerve/sandbox.yaml`. The sandbox manager normally materializes and mounts that file read-only at `/etc/nerve/sandbox.yaml`.
 
-The authoritative runtime schema is the Zod schema in `packages/shared/src/domains/sandbox/sandbox.config.schema.ts` (`sandboxConfigV1Schema`). A generated Draft 7 JSON Schema for editor and YAML language-server tooling is committed at `packages/shared/schemas/sandbox-config-v1.schema.json` and exported from `@nervekit/shared/schemas/sandbox-config-v1.schema.json`.
+The authoritative runtime schema is the Zod schema in `packages/contracts/src/domains/sandbox/sandbox.config.schema.ts` (`sandboxConfigV1Schema`). A generated Draft 7 JSON Schema for editor and YAML language-server tooling is committed at `packages/contracts/schemas/sandbox-config-v1.schema.json` and exported from `@nervekit/contracts/schemas/sandbox-config-v1.schema.json`.
 
 YAML files can use JSON Schema because YAML maps to the JSON data model used by schema tooling. For local authoring, associate the schema explicitly:
 
 ```yaml
-# yaml-language-server: $schema=./packages/shared/schemas/sandbox-config-v1.schema.json
+# yaml-language-server: $schema=./packages/contracts/schemas/sandbox-config-v1.schema.json
 version: 1
 ```
 

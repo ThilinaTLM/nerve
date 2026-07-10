@@ -2,7 +2,7 @@ import type {
   RemoveOptions,
   SandboxConfigV1,
   VolumeRef,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export type RuntimeMaterialization = {
   configYaml: string;

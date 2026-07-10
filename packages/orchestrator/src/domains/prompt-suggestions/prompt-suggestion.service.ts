@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { GitService } from "@nervekit/agent-tools";
 import type {
   AgentRecord,
   ConversationRecord,
@@ -6,8 +7,7 @@ import type {
   PromptSuggestionListResponse,
   PromptSuggestionStatus,
   UpdatePromptSuggestionTrustRequest,
-} from "@nervekit/shared";
-import type { GitService } from "@nervekit/tools";
+} from "@nervekit/contracts";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import { evaluatePromptSuggestions } from "./prompt-suggestion-evaluator.js";

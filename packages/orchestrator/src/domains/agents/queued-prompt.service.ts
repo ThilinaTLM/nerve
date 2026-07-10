@@ -1,4 +1,4 @@
-import type { QueuedPromptRecord } from "@nervekit/shared";
+import type { QueuedPromptRecord } from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";

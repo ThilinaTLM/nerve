@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import type { TaskListeningPort, TaskRuntime } from "@nervekit/shared";
-import { resolveBashShellConfig } from "@nervekit/tools";
+import { resolveBashShellConfig } from "@nervekit/agent-tools";
+import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 import {
   inspectPortListeners,
   inspectRuntimeListeningPorts,

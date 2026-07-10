@@ -7,7 +7,7 @@ import type {
   SandboxContainerBackend,
   SandboxManagerBackendOption,
   StopOptions,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerConfig } from "../config/manager-config.js";
 import { AutoContainerDriver } from "./auto-container-driver.js";
 import type {

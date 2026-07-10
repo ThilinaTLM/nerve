@@ -7,7 +7,7 @@ import {
   JsonlConversationStorage,
   NodeExecutionEnv,
   resolveAgentModel,
-} from "@nervekit/agent";
+} from "@nervekit/agent-runtime";
 import type {
   AgentRecord,
   ConversationRecord,
@@ -19,8 +19,8 @@ import type {
   PermissionLevel,
   ThinkingLevel,
   WorkspaceScope,
-} from "@nervekit/shared";
-import { createId } from "@nervekit/shared";
+} from "@nervekit/contracts";
+import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import {

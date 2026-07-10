@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { AgentRecord } from "@nervekit/shared";
+import type { AgentRecord } from "@nervekit/contracts";
 import {
   buildNerveSystemPrompt,
   loadHarnessResources,

@@ -1,4 +1,4 @@
-import type { LogReadOptions, ManagedContainerRef } from "@nervekit/shared";
+import type { LogReadOptions, ManagedContainerRef } from "@nervekit/contracts";
 import type {
   ContainerRuntimeDriver,
   LogChunk,

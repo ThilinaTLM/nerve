@@ -1,6 +1,6 @@
 import { readdir, readFile, readlink } from "node:fs/promises";
 import { join } from "node:path";
-import type { TaskListeningPort, TaskRuntime } from "@nervekit/shared";
+import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 
 const LISTEN_STATE = "0A";
 const PROC_ROOT = "/proc";

@@ -1,0 +1,4 @@
+@import "@nervekit/workbench-ui/styles/app.css";
+@import "./components.css";
+@source "../../../workbench-ui/src/lib/**/*.{svelte,ts}";
+@source "../**/*.{svelte,ts}";

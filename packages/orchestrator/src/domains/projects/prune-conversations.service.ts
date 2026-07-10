@@ -5,7 +5,7 @@ import type {
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
   TaskRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { ConversationRepository } from "../conversations/index.js";

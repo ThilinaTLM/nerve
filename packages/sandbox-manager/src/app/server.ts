@@ -13,7 +13,7 @@ import {
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
   sandboxWorkspaceFileQuerySchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { parse as parseYaml } from "yaml";
 import {
   commandRequestSchema,

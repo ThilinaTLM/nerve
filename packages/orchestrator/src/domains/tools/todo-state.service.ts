@@ -1,4 +1,4 @@
-import type { ToolCallRecord } from "@nervekit/shared";
+import type { ToolCallRecord } from "@nervekit/contracts";
 
 export type TodoItem = { todo: string; done: boolean };
 

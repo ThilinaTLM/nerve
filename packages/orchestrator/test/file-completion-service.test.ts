@@ -48,17 +48,17 @@ describe("file completion service", () => {
   it("fuzzy matches basename acronyms", () => {
     const labels = labelsFor("cmcomp", [
       candidate(
-        "packages/web/src/lib/features/conversations/components/CodeMirrorComposer.svelte",
+        "packages/workbench-app/src/lib/features/conversations/components/CodeMirrorComposer.svelte",
       ),
       candidate(
-        "packages/web/src/lib/features/conversations/components/ComposerToolbar.svelte",
+        "packages/workbench-app/src/lib/features/conversations/components/ComposerToolbar.svelte",
       ),
       candidate("packages/orchestrator/src/routes/completion-routes.ts"),
     ]);
 
     assert.equal(
       labels[0],
-      "@packages/web/src/lib/features/conversations/components/CodeMirrorComposer.svelte",
+      "@packages/workbench-app/src/lib/features/conversations/components/CodeMirrorComposer.svelte",
     );
   });
 

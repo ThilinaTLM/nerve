@@ -19,7 +19,7 @@ import {
   sandboxProtocolReadySchema,
   sandboxProtocolReplayRequestSchema,
   sandboxProtocolResponseSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../app/manager-state.js";
 import {

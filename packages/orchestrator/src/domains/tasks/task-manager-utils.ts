@@ -2,7 +2,7 @@ import type {
   StartTaskRequest,
   TaskEnvInfo,
   TaskRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 const RUNTIME_TIMEOUT_FORCE_KILL_AFTER_MS = 5000;
 const FOREGROUND_TIMEOUT_RESULT_GRACE_MS = 500;

@@ -8,7 +8,7 @@ import {
   type TaskLogQuery,
   type TaskRecord,
   type ToolCallRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { OrchestrationToolDispatcher } from "../src/domains/tools/orchestration-tool-dispatcher.js";
 import { CodedToolError } from "../src/domains/tools/tool-errors.js";
 

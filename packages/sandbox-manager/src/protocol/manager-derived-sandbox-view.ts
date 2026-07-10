@@ -2,7 +2,7 @@ import type {
   ManagedContainerStatus,
   ManagedSandboxRecord,
   SandboxRuntimeContainerStatus,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { lifecycleSummary } from "../lifecycle/lifecycle-state.js";
 import { refreshSandboxObservedState } from "../lifecycle/reconciler.js";

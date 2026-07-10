@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
-import type { TaskRecord } from "@nervekit/shared";
+import type { TaskRecord } from "@nervekit/contracts";
 import { TaskManager } from "../src/domains/tasks/task-manager.js";
 import { EventBus } from "../src/infrastructure/events/index.js";
 import { readJsonFile } from "../src/infrastructure/storage/index.js";

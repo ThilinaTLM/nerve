@@ -6,7 +6,7 @@ import {
   type SandboxManagerCredentialProfileWrite,
   type SandboxManagerCredentialStatus,
   sandboxManagerCredentialProfileSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { PostgresPool } from "../db/postgres.js";
 import { dbTables } from "../db/tables.js";
 import type { PostgresKvSecretStore } from "../secrets/postgres-kv-secret-store.js";

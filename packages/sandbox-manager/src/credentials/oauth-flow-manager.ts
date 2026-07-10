@@ -12,7 +12,7 @@ import {
   type OAuthFlowInfo,
   type RespondOAuthFlowRequest,
   type SandboxManagerCredentialProfile,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { CredentialProfileService } from "./credential-profile-service.js";
 import { loginWithManualRedirect } from "./manual-oauth-login.js";
 

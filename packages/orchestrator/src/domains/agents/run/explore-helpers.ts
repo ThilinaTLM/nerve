@@ -4,7 +4,7 @@ import type {
   ExploreStepPayload,
   ExploreUsageStatsPayload,
   ModelSelection,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ExploreProgressUpdate } from "../../tools/tool-service.js";
 import { promptText } from "../prompting/prompt-text.js";
 import type {

@@ -1,7 +1,7 @@
 import {
   sandboxCreateRequestSchema,
   sandboxManagerCredentialProfileWriteSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 /**
  * Manager create-request schema. Accepts UI-friendly create input where

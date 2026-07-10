@@ -4,13 +4,13 @@ import {
   Conversation,
   JsonlConversationStorage,
   NodeExecutionEnv,
-} from "@nervekit/agent";
+} from "@nervekit/agent-runtime";
 import type {
   AgentRecord,
   ConversationEntry,
   ConversationRecord,
   ProjectRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { pathExists } from "../../infrastructure/storage/index.js";
 import type { ConversationRepository } from "./index.js";
 

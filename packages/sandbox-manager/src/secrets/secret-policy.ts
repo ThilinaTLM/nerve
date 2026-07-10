@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { SandboxConfigV1, SandboxSecretRef } from "@nervekit/shared";
+import type { SandboxConfigV1, SandboxSecretRef } from "@nervekit/contracts";
 
 export class SecretPolicyError extends Error {
   constructor(message: string) {

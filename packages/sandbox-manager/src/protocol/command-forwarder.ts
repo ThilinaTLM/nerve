@@ -2,7 +2,7 @@ import {
   type StructuredLogger,
   sandboxProtocolErrorSchema,
   sandboxProtocolResponseSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { encodeProtocolMessage } from "./messages.js";
 
 export type CommandSocket = { send(data: string): void };

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { EventEnvelope, ToolCallRecord } from "@nervekit/shared";
+import type { EventEnvelope, ToolCallRecord } from "@nervekit/contracts";
 import { createOrchestratorState } from "../src/app/orchestrator-state.js";
 import { HttpError } from "../src/http/errors.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";

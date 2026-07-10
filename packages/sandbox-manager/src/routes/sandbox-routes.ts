@@ -7,11 +7,11 @@ import type {
   SandboxCreateAuthRefs,
   SandboxCreateConfigInput,
   SandboxLaunchConfig,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import {
   sandboxConfigDigestStable,
   sandboxConfigV1Schema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { parse as parseYaml } from "yaml";
 import type { ManagerState } from "../app/manager-state.js";
 import {

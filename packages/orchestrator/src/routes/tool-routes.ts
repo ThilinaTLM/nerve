@@ -6,7 +6,7 @@ import {
   resolvePlanReviewRequestSchema,
   toolCallStatusSchema,
   userQuestionStatusSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { planReviewPreview } from "../domains/plans/plan-service.js";

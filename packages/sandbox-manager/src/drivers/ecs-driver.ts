@@ -26,7 +26,7 @@ import type {
   RuntimeResourceSpec,
   StopOptions,
   VolumeRef,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerConfig } from "../config/manager-config.js";
 import type {
   ContainerRuntimeDriver,

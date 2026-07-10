@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { PromptSuggestionListResponse } from "@nervekit/shared";
+import type { PromptSuggestionListResponse } from "@nervekit/contracts";
 import { createAuthenticatedApp, tempHome } from "./helpers/server-routes.js";
 
 async function writeSuggestion(

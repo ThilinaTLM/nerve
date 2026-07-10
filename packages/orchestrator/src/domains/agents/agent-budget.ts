@@ -1,4 +1,4 @@
-import type { AgentRecord, CreateAgentRequest } from "@nervekit/shared";
+import type { AgentRecord, CreateAgentRequest } from "@nervekit/contracts";
 
 export function agentBudget(
   parent: AgentRecord | undefined,

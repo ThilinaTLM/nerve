@@ -9,7 +9,7 @@ import type {
   ProjectRecord,
   PromptSuggestionSourceKind,
   PromptSuggestionWhen,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export type PromptSuggestionDiagnosticCode =
   | "list_failed"

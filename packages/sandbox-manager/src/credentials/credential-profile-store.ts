@@ -2,7 +2,7 @@ import {
   type SandboxManagerCredentialProfile,
   type SandboxManagerCredentialProfileKind,
   sandboxManagerCredentialProfileSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { PostgresPool } from "../db/postgres.js";
 import { dbTables } from "../db/tables.js";
 

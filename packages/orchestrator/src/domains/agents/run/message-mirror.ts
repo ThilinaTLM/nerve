@@ -2,13 +2,13 @@ import type {
   AgentMessage,
   ConversationTreeEntry,
   JsonlConversationStorage,
-} from "@nervekit/agent";
+} from "@nervekit/agent-runtime";
 import type {
   AgentRecord,
   ConversationEntry,
   ConversationEntryUsage,
   ConversationRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import { deriveConversationTitle } from "../../conversations/operations/index.js";

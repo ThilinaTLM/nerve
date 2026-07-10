@@ -9,7 +9,7 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
   WorkerRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { refsForEvent } from "./event-refs.js";
 import { INDEX_STORE_SCHEMA_SQL } from "./schema.js";
 

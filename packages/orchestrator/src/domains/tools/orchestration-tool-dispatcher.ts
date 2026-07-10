@@ -1,5 +1,13 @@
 import { isAbsolute, resolve } from "node:path";
 import {
+  buildProcessTextResult,
+  createTodoHandlers,
+  type ToolExecutionContext,
+  type ToolExecutionOutputUpdate,
+  type ToolHandlerRegistry,
+  toolDefinitionByName,
+} from "@nervekit/agent-tools";
+import {
   type AgentRecord,
   type ConversationRuntime,
   createId,
@@ -7,13 +15,7 @@ import {
   type TaskLogEvent,
   type TaskRecord,
   type ToolCallRecord,
-} from "@nervekit/shared";
-import {
-  buildProcessTextResult,
-  executeTool,
-  type ToolExecutionContext,
-  type ToolExecutionOutputUpdate,
-} from "@nervekit/tools";
+} from "@nervekit/contracts";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
@@ -42,8 +44,8 @@ import {
   taskLogsFromTool as taskLogsFromToolImpl,
   tasksInScope as tasksInScopeImpl,
 } from "./orchestration-tool-dispatcher-handlers.js";
+import { executeOrchestratorTool } from "./orchestrator-tool-host.js";
 import type { TodoStateService } from "./todo-state.service.js";
-import { todoItemsArg, todosResult } from "./todo-state.service.js";
 import {
   optionalBoundedIntegerArg,
   optionalStringArg,
@@ -87,9 +89,27 @@ export interface OrchestrationToolDispatcherDeps {
 }
 
 export class OrchestrationToolDispatcher {
-  constructor(readonly deps: OrchestrationToolDispatcherDeps) {}
+  private readonly todoHandlers: ToolHandlerRegistry;
+
+  constructor(readonly deps: OrchestrationToolDispatcherDeps) {
+    this.todoHandlers = createTodoHandlers({
+      get: async (identity) => this.deps.todoState.get(String(identity)),
+      set: async (identity, todos) => {
+        this.deps.todoState.set(String(identity), todos);
+        return this.deps.todoState.get(String(identity));
+      },
+    });
+  }
 
   async execute(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+    options: ToolRequestOptions = {},
+  ): Promise<unknown> {
+    return executeOrchestratorTool(this, toolCall, args, options);
+  }
+
+  async executeHostTool(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
     options: ToolRequestOptions = {},
@@ -143,87 +163,102 @@ export class OrchestrationToolDispatcher {
           args,
           options,
         );
-      case "todos_set": {
-        const items = todoItemsArg(args);
-        this.deps.todoState.set(toolCall.agentId, items);
-        return todosResult(items);
+      case "todos_set":
+      case "todos_get": {
+        const handler = this.todoHandlers[toolCall.toolName];
+        if (!handler) {
+          throw new Error(`Missing shared handler for ${toolCall.toolName}.`);
+        }
+        return handler(args, {
+          ...this.executionContext(toolCall, options),
+          toolName: toolCall.toolName,
+          identity: toolCall.agentId,
+        });
       }
-      case "todos_get":
-        return todosResult(this.deps.todoState.get(toolCall.agentId));
       case "plan_mode_enter":
         return this.enterPlanMode(toolCall, args);
       case "plan_mode_present":
         return this.requestPlanReview(toolCall, args, options);
       case "plan_mode_force_exit":
         return this.forceExitPlanMode(toolCall, args);
-      default: {
-        const executionContext: ToolExecutionContext = {
-          cwd: toolCall.cwd,
-          signal: options.signal,
-          dataDir: this.deps.storage.paths.home,
-          shellPath: this.deps.storage.settings.runtime.shellPath,
-          getApiKey: this.deps.getApiKey,
-          getProviderConfig: async (provider) => {
-            if (provider === "jira")
-              return this.deps.storage.settings.tools.jira;
-            if (provider === "confluence") {
-              return this.deps.storage.settings.tools.confluence;
-            }
-            return undefined;
-          },
-          onUpdate: (update) =>
-            this.publishToolExecutionUpdate(toolCall, update, options.runId),
-        };
-        if (toolCall.toolName === "bash" || toolCall.toolName === "python") {
-          delete args.cwd;
-        }
-        if (
-          toolCall.toolName === "bash" &&
-          options.useForegroundBash !== false
-        ) {
-          const agent = this.deps.getAgent(toolCall.agentId);
-          const promoted = await this.deps.tasks.runForegroundBashWithPromotion(
-            {
-              command: stringArg(args, "command"),
-              cwd: toolCall.cwd,
-              workerId: agent.workerId,
-              projectId: toolCall.projectId,
-              conversationId: toolCall.conversationId,
-              agentId: toolCall.agentId,
-              timeoutMs: bashTimeoutMs(args.timeout),
-              autoPromoteAfterMs: DEFAULT_BASH_AUTO_PROMOTE_AFTER_MS,
-              signal: options.signal,
-              onOutput: executionContext.onUpdate,
-              origin: {
-                kind: "agent_tool",
-                toolCallId: toolCall.id,
-                providerToolCallId: toolCall.providerToolCallId,
-                runId: toolCall.runId,
-                turnId: toolCall.turnId,
-                liveMessageId: toolCall.liveMessageId,
-                contentIndex: toolCall.contentIndex,
-              },
-              continueAfterPromotion:
-                options.continueAfterPromotedTask !== false,
-            },
-          );
-          return promoted.result;
-        }
-        if (toolCall.toolName === "python") {
-          const agent = this.deps.getAgent(toolCall.agentId);
-          const runtime = await this.deps.pythonRuntime.runtimeForProject(
-            agent.projectDir,
-          );
-          if (!runtime) throw new Error("Python runtime is not available.");
-          executionContext.pythonRuntime = runtime;
-          executionContext.pythonPolicy = {
-            allowNetwork: true,
-            allowFileWrite: agent.mode !== "planning",
-          };
-        }
-        return executeTool(toolCall.toolName, args, executionContext);
-      }
+      default:
+        throw new Error(`Tool '${toolCall.toolName}' is not host-executed.`);
     }
+  }
+
+  executionContext(
+    toolCall: ToolCallRecord,
+    options: ToolRequestOptions = {},
+  ): ToolExecutionContext {
+    return {
+      cwd: toolCall.cwd,
+      signal: options.signal,
+      dataDir: this.deps.storage.paths.home,
+      shellPath: this.deps.storage.settings.runtime.shellPath,
+      getApiKey: this.deps.getApiKey,
+      getProviderConfig: async (provider) => {
+        if (provider === "jira") return this.deps.storage.settings.tools.jira;
+        if (provider === "confluence") {
+          return this.deps.storage.settings.tools.confluence;
+        }
+        return undefined;
+      },
+      onUpdate: (update) =>
+        this.publishToolExecutionUpdate(toolCall, update, options.runId),
+    };
+  }
+
+  async executeLocalOverride(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+    options: ToolRequestOptions,
+    executionContext: ToolExecutionContext,
+  ): Promise<unknown> {
+    delete args.cwd;
+    if (toolCall.toolName === "bash" && options.useForegroundBash !== false) {
+      const agent = this.deps.getAgent(toolCall.agentId);
+      const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
+        command: stringArg(args, "command"),
+        cwd: toolCall.cwd,
+        workerId: agent.workerId,
+        projectId: toolCall.projectId,
+        conversationId: toolCall.conversationId,
+        agentId: toolCall.agentId,
+        timeoutMs: bashTimeoutMs(args.timeout),
+        autoPromoteAfterMs: DEFAULT_BASH_AUTO_PROMOTE_AFTER_MS,
+        signal: options.signal,
+        onOutput: executionContext.onUpdate,
+        origin: {
+          kind: "agent_tool",
+          toolCallId: toolCall.id,
+          providerToolCallId: toolCall.providerToolCallId,
+          runId: toolCall.runId,
+          turnId: toolCall.turnId,
+          liveMessageId: toolCall.liveMessageId,
+          contentIndex: toolCall.contentIndex,
+        },
+        continueAfterPromotion: options.continueAfterPromotedTask !== false,
+      });
+      return promoted.result;
+    }
+    if (toolCall.toolName === "python") {
+      const agent = this.deps.getAgent(toolCall.agentId);
+      const runtime = await this.deps.pythonRuntime.runtimeForProject(
+        agent.projectDir,
+      );
+      if (!runtime) throw new Error("Python runtime is not available.");
+      executionContext.pythonRuntime = runtime;
+      executionContext.pythonPolicy = {
+        allowNetwork: true,
+        allowFileWrite: agent.mode !== "planning",
+      };
+      const definition = toolDefinitionByName("python");
+      if (definition?.executionKind !== "local") {
+        throw new Error("Python tool executor is unavailable.");
+      }
+      return definition.executor(args, executionContext);
+    }
+    throw new Error(`No local override for '${toolCall.toolName}'.`);
   }
 
   async startTasksFromTool(

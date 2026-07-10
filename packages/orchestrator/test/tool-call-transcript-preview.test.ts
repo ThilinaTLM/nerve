@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ToolCallRecord } from "@nervekit/shared";
+import type { ToolCallRecord } from "@nervekit/contracts";
 import { toToolCallTranscriptRecord } from "../src/domains/tools/tool-call-transcript-preview.js";
 
 function toolCall(overrides: Partial<ToolCallRecord>): ToolCallRecord {

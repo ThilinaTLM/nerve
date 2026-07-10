@@ -20,7 +20,7 @@ import {
   type ConversationRunRetrySnapshot,
   createId,
   type QueuedPromptRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export interface StartRunInput {
   conversationId: string;

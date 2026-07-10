@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentRecord } from "@nervekit/shared";
+import type { AgentRecord } from "@nervekit/contracts";
 import { exploreProgressFromHarnessEvent } from "../src/domains/agents/run/explore-helpers.js";
 import type { SubagentRunSpec } from "../src/domains/agents/run/subagent-runner.js";
 

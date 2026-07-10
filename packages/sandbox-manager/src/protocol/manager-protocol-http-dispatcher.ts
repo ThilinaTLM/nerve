@@ -5,7 +5,7 @@ import {
   type NerveMessage,
   nerveErrorCodeSchema,
   protocolRequestMessageSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { readJsonBody } from "../http/body.js";
 import { HttpError } from "../http/errors.js";

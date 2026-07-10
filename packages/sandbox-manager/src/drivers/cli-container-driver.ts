@@ -8,7 +8,7 @@ import type {
   RemoveOptions,
   RuntimeDriverCapabilities,
   StopOptions,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { containerCreateArgs, containerName } from "./container-args.js";
 import type {
   ContainerRuntimeDriver,

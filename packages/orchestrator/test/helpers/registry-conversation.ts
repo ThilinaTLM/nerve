@@ -7,7 +7,7 @@ import {
   type ConversationRecord,
   createId,
   type TaskRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { createOrchestratorState } from "../../src/app/orchestrator-state.js";
 import { initializeStorage } from "../../src/infrastructure/storage/index.js";
 

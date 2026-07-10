@@ -7,7 +7,8 @@ import {
   deriveAutoCompactionPolicy,
   getModelContextWindow,
   isContextOverflowAssistantMessage,
-} from "@nervekit/agent";
+} from "@nervekit/agent-runtime";
+import type { ToolExecutionResult } from "@nervekit/agent-tools";
 import {
   type AgentRecord,
   type ContextUsage,
@@ -22,8 +23,7 @@ import {
   type QueuedPromptRecord,
   type ToolCallRecord,
   type ToolName,
-} from "@nervekit/shared";
-import type { ToolExecutionResult } from "@nervekit/tools";
+} from "@nervekit/contracts";
 import { HttpError } from "../../../http/errors.js";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";

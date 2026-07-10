@@ -1,4 +1,0 @@
-@import "@nervekit/shared-ui/styles/app.css";
-@import "./components.css";
-@source "../../../shared-ui/src/lib/**/*.{svelte,ts}";
-@source "../**/*.{svelte,ts}";

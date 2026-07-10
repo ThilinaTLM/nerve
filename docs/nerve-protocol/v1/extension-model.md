@@ -7,7 +7,7 @@ Nerve Protocol v1 is intentionally small at the core. New features should extend
 Extensions MUST preserve these constraints:
 
 - **Additive by default**: new optional fields, message kinds, methods, events, and capabilities must not break peers that did not negotiate them.
-- **Schema-first**: shared schemas live in `packages/shared` before multiple clients depend on them.
+- **Schema-first**: shared schemas live in `packages/contracts` before multiple clients depend on them.
 - **Transport-neutral payloads**: domain payloads must not assume WebSocket, browser APIs, Svelte state, or a specific transport.
 - **Orchestrator-owned safety**: tools, filesystem access, shell commands, credentials, OAuth tokens, and storage policy remain enforced in the orchestrator/tool layer.
 - **No secrets in metadata**: protocol `meta`, tracing fields, ordinary event payloads, and logs must remain safe after redaction.
@@ -170,7 +170,7 @@ Every new event family or event type SHOULD document:
 
 - event `type` string;
 - durability (`durable` or `transient`);
-- payload schema owner in `packages/shared`;
+- payload schema owner in `packages/contracts`;
 - entity IDs included in payload;
 - reducer/idempotency behavior;
 - whether it affects materialized workspace/conversation/task state;
@@ -187,7 +187,7 @@ A transient event MUST NOT be the only record of durable state.
 
 ### Payload schemas
 
-Payload schemas SHOULD live with the domain in `packages/shared`, not in protocol control schemas. The protocol event payload remains `data: unknown` at the envelope level until validated by event type.
+Payload schemas SHOULD live with the domain in `packages/contracts`, not in protocol control schemas. The protocol event payload remains `data: unknown` at the envelope level until validated by event type.
 
 ## Snapshot extension rules
 
@@ -308,7 +308,7 @@ When adding a protocol feature, answer these questions:
 1. Is it a domain event, protocol control message, HTTP method, snapshot, transport binding, or capability?
 2. Can peers that do not support it ignore it safely?
 3. Which capability gates the behavior?
-4. Are schemas in `packages/shared`?
+4. Are schemas in `packages/contracts`?
 5. Does it affect durable state, transient state, or diagnostics only?
 6. How does a client recover after reload/reconnect?
 7. Does it need cursor metadata?

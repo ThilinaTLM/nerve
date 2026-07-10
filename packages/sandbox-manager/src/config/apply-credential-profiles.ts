@@ -2,8 +2,8 @@ import type {
   SandboxCreateAuthRefs,
   SandboxCreateConfigInput,
   SandboxManagerCredentialProfile,
-} from "@nervekit/shared";
-import { sandboxCreateConfigInputSchema } from "@nervekit/shared";
+} from "@nervekit/contracts";
+import { sandboxCreateConfigInputSchema } from "@nervekit/contracts";
 
 export function applyCredentialProfiles(
   config: SandboxCreateConfigInput,

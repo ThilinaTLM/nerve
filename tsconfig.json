@@ -1,13 +1,13 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/shared" },
-    { "path": "./packages/sandbox-agent" },
+    { "path": "./packages/contracts" },
+    { "path": "./packages/sandbox-runtime" },
     { "path": "./packages/sandbox-manager" },
     { "path": "./packages/orchestrator" },
     { "path": "./packages/cli" },
-    { "path": "./packages/agent" },
-    { "path": "./packages/tools" },
-    { "path": "./packages/desktop" }
+    { "path": "./packages/agent-runtime" },
+    { "path": "./packages/agent-tools" },
+    { "path": "./packages/desktop-shell" }
   ]
 }

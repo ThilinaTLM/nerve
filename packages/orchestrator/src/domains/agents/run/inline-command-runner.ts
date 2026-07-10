@@ -1,12 +1,15 @@
-import { buildConversationContext, convertToLlm } from "@nervekit/agent";
+import {
+  buildConversationContext,
+  convertToLlm,
+} from "@nervekit/agent-runtime";
+import { executeBash, type ToolExecutionResult } from "@nervekit/agent-tools";
 import {
   type AgentRecord,
   type ConversationEntry,
   createId,
   deriveConversationTitle,
   type ToolCallRecord,
-} from "@nervekit/shared";
-import { executeBash, type ToolExecutionResult } from "@nervekit/tools";
+} from "@nervekit/contracts";
 import { HttpError } from "../../../http/errors.js";
 import type { AgentRunnerDeps } from "./agent-runner.js";
 import {

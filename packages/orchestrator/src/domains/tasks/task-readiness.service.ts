@@ -2,7 +2,7 @@ import type {
   StartTaskRequest,
   TaskLogEvent,
   TaskRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 const urlPattern = /https?:\/\/[^\s)'"]+/i;
 

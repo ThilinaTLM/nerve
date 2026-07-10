@@ -7,7 +7,7 @@ import {
   deriveConversationTitle,
   type ToolCallTranscriptRecord,
   toolCallTranscriptRecordSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { StoredSandboxEvent } from "../state/event-store.js";
 
 /**

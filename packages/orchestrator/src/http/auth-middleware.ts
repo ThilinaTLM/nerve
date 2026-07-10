@@ -1,4 +1,4 @@
-import { parseCookieHeader } from "@nervekit/shared";
+import { parseCookieHeader } from "@nervekit/contracts";
 import type { MiddlewareHandler } from "hono";
 import { requestContextFor } from "./request-context.js";
 

@@ -2,7 +2,7 @@ import type {
   ManagedSandboxLifecycleState,
   ManagedSandboxObservedState,
   ManagedSandboxRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
 import type { ManagerStore } from "../state/manager-store.js";
 

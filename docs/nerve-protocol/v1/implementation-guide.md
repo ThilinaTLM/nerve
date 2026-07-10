@@ -6,12 +6,12 @@ This guide describes how to implement Nerve Protocol v1 incrementally in the cur
 
 Relevant current files:
 
-- `packages/shared/src/domains/events/envelope.schema.ts` — current `EventEnvelope` schema.
+- `packages/contracts/src/domains/events/envelope.schema.ts` — current `EventEnvelope` schema.
 - `packages/orchestrator/src/infrastructure/events/event-bus.ts` — event sequencing, persistence, replay, and subscription.
 - `packages/orchestrator/src/main.ts` — current `/ws` WebSocket upgrade and raw event streaming.
 - `packages/orchestrator/src/routes/status-routes.ts` — current `/api/events?since=...` replay route.
-- `packages/web/src/lib/core/events/websocket-client.svelte.ts` — current UI WebSocket client.
-- `packages/web/src/lib/core/events/event-bus.ts` — frontend coalesced event dispatch.
+- `packages/workbench-app/src/lib/core/events/websocket-client.svelte.ts` — current UI WebSocket client.
+- `packages/workbench-app/src/lib/core/events/event-bus.ts` — frontend coalesced event dispatch.
 
 The implementation should preserve these strengths while replacing ad-hoc WebSocket frames with protocol messages.
 
@@ -20,12 +20,12 @@ Current implementation status is tracked in `implementation-status.md`. The acti
 
 ## Proposed shared package layout
 
-Protocol schemas should live in `packages/shared` so orchestrator, UI, desktop, CLI, and tests use the same types.
+Protocol schemas should live in `packages/contracts` so orchestrator, UI, desktop, CLI, and tests use the same types.
 
 Recommended layout:
 
 ```text
-packages/shared/src/domains/protocol/
+packages/contracts/src/domains/protocol/
   index.ts
   envelope.schema.ts
   session.schema.ts
@@ -39,7 +39,7 @@ packages/shared/src/domains/protocol/
 The existing event envelope should remain in the events domain or be re-exported from protocol schemas:
 
 ```text
-packages/shared/src/domains/events/envelope.schema.ts
+packages/contracts/src/domains/events/envelope.schema.ts
 ```
 
 Do not move domain schemas into protocol unless they are protocol-control payloads. Domain event payloads belong to their domains.
@@ -139,7 +139,7 @@ The UI protocol client should own:
 Suggested modules:
 
 ```text
-packages/web/src/lib/core/protocol/
+packages/workbench-app/src/lib/core/protocol/
   client.svelte.ts
   websocket-transport.ts
   event-stream.ts
@@ -425,7 +425,7 @@ Run targeted tests as they are added for shared protocol schemas and orchestrato
 
 The v1 WebSocket event-stream profile is implemented when:
 
-- shared protocol schemas exist in `packages/shared` and are imported by orchestrator/UI code;
+- shared protocol schemas exist in `packages/contracts` and are imported by orchestrator/UI code;
 - the server accepts protocol clients through `hello` and replies with `welcome` or protocol `error`;
 - the client sends `ready` before high-volume event delivery;
 - live domain events are delivered as `event.batch` messages;

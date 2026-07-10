@@ -3,7 +3,7 @@ import {
   gitFileActionRequestSchema,
   gitRemoteOpRequestSchema,
   switchBranchRequestSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { HttpError } from "../http/errors.js";

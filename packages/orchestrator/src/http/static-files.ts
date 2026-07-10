@@ -43,7 +43,7 @@ export function fallbackHtml(state: OrchestratorState): string {
       <div class="eyebrow">orchestrator online</div>
       <h1>nerve</h1>
       <p>The daemon is running at <code>http://${state.host}:${state.port}</code>.</p>
-      <p>Build the Svelte UI with <code>pnpm --filter @nervekit/web build</code> to replace this fallback shell.</p>
+      <p>Build the Svelte UI with <code>pnpm --filter @nervekit/workbench-app build</code> to replace this fallback shell.</p>
     </main>
   </body>
 </html>`;

@@ -1,13 +1,13 @@
+import {
+  buildProcessTextResult,
+  type ToolExecutionOutputUpdate,
+} from "@nervekit/agent-tools";
 import type {
   TaskCancelResultPayload,
   TaskLogEvent,
   TaskRecord,
   ToolCallRecord,
-} from "@nervekit/shared";
-import {
-  buildProcessTextResult,
-  type ToolExecutionOutputUpdate,
-} from "@nervekit/tools";
+} from "@nervekit/contracts";
 import { ensurePlanDir } from "../plans/plan-paths.js";
 import { isActiveTaskStatus } from "../tasks/index.js";
 import { formatListeningPort } from "../tasks/task-port-inspector.js";

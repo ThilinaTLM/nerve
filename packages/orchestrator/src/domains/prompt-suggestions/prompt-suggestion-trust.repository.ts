@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { PromptSuggestionTrustStatus } from "@nervekit/shared";
+import type { PromptSuggestionTrustStatus } from "@nervekit/contracts";
 import { z } from "zod";
 import type {
   IndexStore,

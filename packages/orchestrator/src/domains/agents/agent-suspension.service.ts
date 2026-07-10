@@ -4,7 +4,7 @@ import {
   agentSuspensionRecordSchema,
   createId,
   type SuspensionStatus,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {

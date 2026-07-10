@@ -1,4 +1,4 @@
-import type { TaskRecord } from "@nervekit/shared";
+import type { TaskRecord } from "@nervekit/contracts";
 
 export function isActiveTaskStatus(status: TaskRecord["status"]): boolean {
   return (

@@ -2,7 +2,7 @@ import type {
   ApplicationLogLevel,
   ApplicationLogQueryResponse,
   ApplicationLogSource,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { apiGet } from "../daemon/http-client.js";
 import { delay, readOption } from "../output/prompts.js";
 

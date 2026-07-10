@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { StructuredLogLevel, StructuredLogRecord } from "@nervekit/shared";
+import type {
+  StructuredLogLevel,
+  StructuredLogRecord,
+} from "@nervekit/contracts";
 import { LogRingBuffer } from "../src/observability/log-ring-buffer.js";
 
 function record(

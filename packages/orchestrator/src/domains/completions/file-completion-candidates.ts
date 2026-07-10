@@ -10,7 +10,7 @@ import {
   resolve,
 } from "node:path";
 import { promisify } from "node:util";
-import type { CompletionItem } from "@nervekit/shared";
+import type { CompletionItem } from "@nervekit/contracts";
 import {
   labelNameOffset,
   toCompletionItem,

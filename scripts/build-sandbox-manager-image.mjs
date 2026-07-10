@@ -11,10 +11,10 @@ run("pnpm", [
   "--filter",
   "@nervekit/sandbox-manager...",
   "--filter",
-  "@nervekit/sandbox-manager-ui",
+  "@nervekit/sandbox-manager-app",
   "build",
 ]);
-run("node", ["scripts/copy-sandbox-manager-ui-dist-to-manager.mjs"]);
+run("node", ["scripts/copy-sandbox-manager-app-dist-to-manager.mjs"]);
 
 const cli = selectContainerCli();
 console.log(`Building ${imageTag} with ${cli}`);

@@ -3,7 +3,7 @@ import type {
   ManagedSandboxRecord,
   RemoveOptions,
   StopOptions,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
 import type { ManagerLifecycleEventInput } from "../events/manager-events.js";
 import type { ManagerStore } from "../state/manager-store.js";

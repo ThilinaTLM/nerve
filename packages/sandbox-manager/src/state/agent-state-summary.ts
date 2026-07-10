@@ -8,7 +8,7 @@ import {
   type SandboxSetupTimelineItem,
   sandboxOutboxRecordSchema,
   summarizeSandboxStartupEvents,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export type AgentStateSummary = {
   setup?: SandboxSetupStatusSummary;

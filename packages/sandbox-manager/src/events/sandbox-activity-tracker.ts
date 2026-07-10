@@ -1,4 +1,4 @@
-import type { SandboxActivitySummary } from "@nervekit/shared";
+import type { SandboxActivitySummary } from "@nervekit/contracts";
 
 const MAX_TITLE = 80;
 const THROTTLE_MS = 750;

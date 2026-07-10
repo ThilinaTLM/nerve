@@ -1,0 +1,137 @@
+import { modelKey } from "@nervekit/workbench-ui/core/utils/model";
+import {
+  activeRunToLegacyLive,
+  entriesToTranscript,
+  liveTextFromLegacyLive,
+} from "@nervekit/workbench-ui/state";
+import {
+  type AgentRecord,
+  type ConversationRecord,
+  getConversationSnapshot,
+  getProject,
+  type ProjectRecord,
+} from "$lib/api";
+import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
+import { replaceOpenCenterTabs } from "$lib/features/workspace/state/center-tabs.svelte";
+import {
+  composerDraft,
+  selection,
+} from "$lib/features/workspace/state/selection.svelte";
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import {
+  clearActiveSelection,
+  ensureConversationView,
+  persistConversationTabs,
+} from "./state";
+
+function agentForConversation(
+  conversation: ConversationRecord,
+): AgentRecord | undefined {
+  return workspaceState.agents.find(
+    (agent) =>
+      agent.id === conversation.activeAgentId ||
+      agent.conversationId === conversation.id,
+  );
+}
+
+async function projectForConversation(
+  conversation: ConversationRecord,
+): Promise<ProjectRecord> {
+  return (
+    workspaceState.projects.find(
+      (candidate) => candidate.id === conversation.projectId,
+    ) ?? (await getProject(conversation.projectId))
+  );
+}
+
+export async function applyActiveConversationSelection(
+  conversation: ConversationRecord,
+) {
+  selection.conversationId = conversation.id;
+  selection.projectId = conversation.projectId;
+  const conversationAgent = agentForConversation(conversation);
+  selection.agentId = conversation.activeAgentId ?? conversationAgent?.id;
+  selection.entryId = conversation.activeEntryId;
+  const project = await projectForConversation(conversation);
+  composerDraft.projectDir = project.dir;
+  if (conversationAgent?.model) {
+    conversationState.selectedModelKey = modelKey(conversationAgent.model);
+  }
+  conversationState.selectedThinkingLevel =
+    conversationAgent?.thinkingLevel ?? "off";
+  conversationState.selectedMode = conversationAgent?.mode ?? conversation.mode;
+  conversationState.selectedPermissionLevel =
+    conversationAgent?.permissionLevel ?? conversation.permissionLevel;
+  conversationState.selectedApprovalPolicy =
+    conversationAgent?.approvalPolicy ?? conversation.approvalPolicy;
+}
+
+export async function refreshConversationView(conversationId: string) {
+  const view = ensureConversationView(conversationId);
+  view.loading = true;
+  try {
+    const snapshot = await getConversationSnapshot(conversationId);
+    view.activeEntryId = snapshot.tree.activeEntryId;
+    view.activeEntryIds = snapshot.activeEntryIds;
+    view.transcript = entriesToTranscript(snapshot.entries);
+    view.toolCalls = snapshot.toolCalls;
+    view.treeNodes = snapshot.tree.nodes;
+    view.activeRun = snapshot.activeRun;
+    view.queuedPrompts = snapshot.activeRun?.queuedPrompts ?? [];
+    view.contextUsage = snapshot.contextUsage;
+    view.cursorSeq = snapshot.cursorSeq;
+    workspaceState.conversations = workspaceState.conversations.map(
+      (candidate) =>
+        candidate.id === conversationId ? snapshot.conversation : candidate,
+    );
+    const persistedLiveMessageIds = new Set(
+      snapshot.entries.flatMap((entry) =>
+        entry.role === "assistant" && entry.liveMessageId
+          ? [entry.liveMessageId]
+          : [],
+      ),
+    );
+    view.live = activeRunToLegacyLive(snapshot.activeRun, {
+      excludeLiveMessageIds: persistedLiveMessageIds,
+    });
+    view.streamingText = liveTextFromLegacyLive(view.live);
+    view.sending = Boolean(snapshot.activeRun);
+    if (selection.conversationId === conversationId) {
+      selection.entryId = snapshot.tree.activeEntryId;
+    }
+  } finally {
+    view.loading = false;
+  }
+}
+
+export function clearConversationState() {
+  void voiceInputSession.cancel();
+  replaceOpenCenterTabs([]);
+  conversationState.activeConversationTabId = undefined;
+  workspaceState.activeCenterTab = undefined;
+  conversationState.conversationViews = {};
+  conversationState.pendingConversations = {};
+  fileState.fileViews = {};
+  clearActiveSelection();
+  persistConversationTabs();
+}
+
+export function upsertConversationRecord(
+  conversation: ConversationRecord,
+): void {
+  workspaceState.conversations = [
+    conversation,
+    ...workspaceState.conversations.filter(
+      (candidate) => candidate.id !== conversation.id,
+    ),
+  ];
+}
+
+export function upsertAgentRecord(agent: AgentRecord): void {
+  workspaceState.agents = [
+    agent,
+    ...workspaceState.agents.filter((candidate) => candidate.id !== agent.id),
+  ];
+}

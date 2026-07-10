@@ -7,7 +7,7 @@ import {
   type AgentWorkerClientMessage,
   agentWorkerServerMessageSchema,
   type ModelSelection,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export interface AgentProcessInput {
   runId: string;
@@ -50,7 +50,7 @@ export function launchAgentProcess(
   handlers: AgentProcessHandlers = {},
 ): AgentProcessRun {
   const workerPath = fileURLToPath(
-    import.meta.resolve("@nervekit/agent/worker"),
+    import.meta.resolve("@nervekit/agent-runtime/worker"),
   );
   const child = spawn(process.execPath, [workerPath], {
     env: { ...process.env, ...(input.env ?? {}) },

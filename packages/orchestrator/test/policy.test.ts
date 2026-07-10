@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentRecord, PermissionLevel, ToolName } from "@nervekit/shared";
+import type {
+  AgentRecord,
+  PermissionLevel,
+  ToolName,
+} from "@nervekit/contracts";
 import { evaluateToolPolicy } from "../src/domains/tools/policy.js";
 
 function agent(

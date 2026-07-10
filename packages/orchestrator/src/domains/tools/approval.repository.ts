@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { ApprovalRecord } from "@nervekit/shared";
+import type { ApprovalRecord } from "@nervekit/contracts";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
   appendJsonLine,

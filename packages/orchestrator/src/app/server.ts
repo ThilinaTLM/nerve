@@ -1,5 +1,5 @@
 import { getConnInfo } from "@hono/node-server/conninfo";
-import { createId } from "@nervekit/shared";
+import { createId } from "@nervekit/contracts";
 import { Hono } from "hono";
 import {
   cookieHeader,

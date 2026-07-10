@@ -3,14 +3,14 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { AgentRecord, ToolCallRecord } from "@nervekit/shared";
-import { coreToolNameSchema, defaultSettings } from "@nervekit/shared";
 import {
   allToolDefinitions,
   coreToolDefinitionByName,
   coreToolDefinitions,
   coreToolDescriptors,
-} from "@nervekit/tools";
+} from "@nervekit/agent-tools";
+import type { AgentRecord, ToolCallRecord } from "@nervekit/contracts";
+import { coreToolNameSchema, defaultSettings } from "@nervekit/contracts";
 import {
   exploreRunPlanArg,
   exploreSystemPrompt,
@@ -122,6 +122,11 @@ describe("agent tool definitions", () => {
       "grep",
       "find",
       "ls",
+      "ask_user",
+      "todos_set",
+      "todos_get",
+      "web_search",
+      "web_fetch",
       "task_start",
       "task_status",
       "task_logs",
@@ -129,11 +134,6 @@ describe("agent tool definitions", () => {
       "task_restart",
       "task_list",
       "explore",
-      "ask_user",
-      "todos_set",
-      "todos_get",
-      "web_search",
-      "web_fetch",
       "plan_mode_enter",
     ];
     const planningTools = [
@@ -144,15 +144,15 @@ describe("agent tool definitions", () => {
       "grep",
       "find",
       "ls",
-      "task_status",
-      "task_logs",
-      "task_list",
-      "explore",
       "ask_user",
       "todos_set",
       "todos_get",
       "web_search",
       "web_fetch",
+      "task_status",
+      "task_logs",
+      "task_list",
+      "explore",
       "plan_mode_enter",
       "plan_mode_present",
       "plan_mode_force_exit",
@@ -179,13 +179,11 @@ describe("agent tool definitions", () => {
       "grep",
       "find",
       "ls",
+      "ask_user",
+      "todos_get",
       "task_status",
       "task_logs",
       "task_list",
-      "ask_user",
-      "todos_set",
-      "todos_get",
-      "plan_mode_enter",
     ]);
     assert.deepEqual(
       activeToolNamesForAgent({ ...agent("read_only"), mode: "planning" }),
@@ -194,15 +192,12 @@ describe("agent tool definitions", () => {
         "grep",
         "find",
         "ls",
+        "ask_user",
+        "todos_get",
         "task_status",
         "task_logs",
         "task_list",
-        "ask_user",
-        "todos_set",
-        "todos_get",
-        "plan_mode_enter",
         "plan_mode_present",
-        "plan_mode_force_exit",
       ],
     );
   });

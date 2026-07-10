@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import type {
   ManagedContainerCreateSpec,
   SandboxManagerCredentialProfile,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { applyCredentialProfiles } from "../src/config/apply-credential-profiles.js";
 import { containerCreateArgs } from "../src/drivers/container-args.js";
 import { validateManagedContainerCreateSpec } from "../src/drivers/validation.js";

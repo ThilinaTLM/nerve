@@ -1,6 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { StructuredLogger } from "@nervekit/shared";
+import type { StructuredLogger } from "@nervekit/contracts";
 import { runner } from "node-pg-migrate";
 import pg from "pg";
 import {

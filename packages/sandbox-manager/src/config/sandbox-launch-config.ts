@@ -4,7 +4,7 @@ import type {
   SandboxLaunchConfig,
   SandboxLaunchLabels,
   SandboxLaunchResourceSpec,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerConfig } from "./manager-config.js";
 
 export type NormalizedSandboxLaunchConfig = {

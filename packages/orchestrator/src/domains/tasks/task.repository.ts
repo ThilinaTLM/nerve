@@ -1,6 +1,6 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { type TaskRecord, taskRecordSchema } from "@nervekit/shared";
+import { type TaskRecord, taskRecordSchema } from "@nervekit/contracts";
 
 export type LegacyProcessRecord = {
   id: string;

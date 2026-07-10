@@ -2,7 +2,7 @@ import {
   SUBSCRIPTION_USAGE_EVENT,
   type SubscriptionUsage,
   type SubscriptionUsageProvider,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "../auth/index.js";
 import { fetchAnthropicUsage as defaultFetchAnthropicUsage } from "./anthropic-client.js";

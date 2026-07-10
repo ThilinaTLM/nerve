@@ -1,0 +1,47 @@
+{
+  "name": "@nervekit/contracts",
+  "version": "0.7.0",
+  "description": "Transport-neutral schemas, events, policies, and result contracts.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/contracts"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
+  "files": [
+    "dist/**",
+    "schemas/**",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas/sandbox-config-v1.schema.json": "./schemas/sandbox-config-v1.schema.json"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check": "tsc -b --pretty false && pnpm schema:check",
+    "schema:generate": "tsx scripts/generate-sandbox-config-schema.ts",
+    "schema:check": "tsx scripts/generate-sandbox-config-schema.ts --check",
+    "test": "tsx --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

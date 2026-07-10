@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import type { ManagedSandboxRecord } from "@nervekit/shared";
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
 import type { ManagerState } from "../src/app/manager-state.js";
 import { HttpError } from "../src/http/errors.js";
 import { getSandboxWorkspaceFile } from "../src/routes/sandbox-workspace-file-routes.js";

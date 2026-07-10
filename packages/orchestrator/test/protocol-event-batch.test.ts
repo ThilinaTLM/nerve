@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { EventEnvelope } from "@nervekit/shared";
+import type { EventEnvelope } from "@nervekit/contracts";
 import { buildEventBatch, chunkEvents } from "../src/protocol/event-batch.js";
 
 const ts = "2026-06-26T12:00:00.000Z";

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import type { AgentRecord, ToolCallRecord } from "@nervekit/shared";
+import type { AgentRecord, ToolCallRecord } from "@nervekit/contracts";
 import { PlanService } from "../src/domains/plans/plan-service.js";
 import { EventBus } from "../src/infrastructure/events/index.js";
 import type { InitializedStorage } from "../src/infrastructure/storage/index.js";

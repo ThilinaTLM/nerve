@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   type SubscriptionUsage,
   subscriptionUsageSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { AuthManager } from "../src/domains/auth/index.js";
 import { parseAnthropicUsageResponse } from "../src/domains/usage/anthropic-client.js";
 import {

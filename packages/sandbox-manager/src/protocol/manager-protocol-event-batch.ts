@@ -3,8 +3,8 @@ import type {
   EventBatchData,
   EventBatchReason,
   EventEnvelope,
-} from "@nervekit/shared";
-import { eventBatchDataSchema } from "@nervekit/shared";
+} from "@nervekit/contracts";
+import { eventBatchDataSchema } from "@nervekit/contracts";
 import type { ManagerEvent } from "../events/manager-event-bus.js";
 import type { StoredSandboxEvent } from "../state/event-store.js";
 

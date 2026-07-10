@@ -26,4 +26,4 @@ Everything else lives under an ownership area:
 
 Files use the dotted `*.service.ts` / `*.repository.ts` convention within domains.
 
-Keep transport-neutral schemas in `@nervekit/shared`, reusable harness/conversation mechanics in `@nervekit/agent`, and frontend presentation state in `packages/web`. Domains/tools execution plus managed task/explore-agent execution stay orchestrator-owned; `@nervekit/tools` only executes local core tools and intentionally rejects orchestrator-managed capabilities.
+Keep transport-neutral schemas in `@nervekit/contracts`, reusable harness/conversation mechanics in `@nervekit/agent-runtime`, and frontend presentation state in `packages/workbench-app`. Domains/tools execution plus managed task/explore-agent execution stay orchestrator-owned; `@nervekit/agent-tools` only executes local core tools and intentionally rejects orchestrator-managed capabilities.

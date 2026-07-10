@@ -6,6 +6,6 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "references": [{ "path": "../shared" }, { "path": "../orchestrator" }],
+  "references": [{ "path": "../contracts" }, { "path": "../orchestrator" }],
   "include": ["src/**/*.ts"]
 }

@@ -76,7 +76,7 @@ jobs:
         run: node scripts/pack-npm.mjs
 
       - name: Verify desktop bin launcher
-        run: node packages/desktop/dist/bin.js --version
+        run: node packages/desktop-shell/dist/bin.js --version
 
   publish-npm:
     name: Publish to npmjs.com

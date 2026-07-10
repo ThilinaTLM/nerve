@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { sandboxManagerStatusSchema } from "@nervekit/shared";
+import { sandboxManagerStatusSchema } from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { sandboxManagerVersion } from "../app/version.js";
 

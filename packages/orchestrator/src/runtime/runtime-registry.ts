@@ -1,5 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { listAvailableModels } from "@nervekit/agent";
+import { listAvailableModels } from "@nervekit/agent-runtime";
 import type {
   AgentRecord,
   CancelTaskRequest,
@@ -30,7 +30,7 @@ import type {
   UpdateAgentRequest,
   UpdatePinnedCommandRequest,
   UserQuestionStatus,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { AuthManager } from "../domains/auth/index.js";
 import type { ProviderCatalogStore } from "../domains/providers/index.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";

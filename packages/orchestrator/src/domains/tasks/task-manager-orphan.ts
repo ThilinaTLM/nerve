@@ -3,7 +3,7 @@ import type {
   TaskListeningPort,
   TaskRecord,
   TaskRuntime,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { TaskManager } from "./task-manager.js";
 import {
   dedupeListeningPorts,

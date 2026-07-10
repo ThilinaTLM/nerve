@@ -1,6 +1,6 @@
 # Sandbox Manager Web UI
 
-The sandbox-manager web UI is a dedicated Svelte app in `packages/sandbox-manager-ui` for managing and observing sandboxes through `packages/sandbox-manager`.
+The sandbox-manager web UI is a dedicated Svelte app in `packages/sandbox-manager-app` for managing and observing sandboxes through `packages/sandbox-manager`.
 
 It is not the current local workbench with minor changes. It should reuse the same design language, shadcn-svelte primitives, theme tokens, protocol helpers, and event-stream patterns, but it has distinct navigation, state, and user workflows centered on sandbox lifecycle and fleet operations.
 
@@ -34,14 +34,14 @@ The web UI MUST NOT:
 Current package organization:
 
 ```text
-packages/sandbox-manager-ui/  # dedicated Svelte app: routes, manager API clients, state, components
-packages/shared-ui/                  # shared shadcn-svelte primitives, theme/styles, generic display helpers
-packages/web/                 # local workbench UI only; no sandbox-manager surface
-packages/shared/              # transport-neutral protocol/schema types only
+packages/sandbox-manager-app/  # dedicated Svelte app: routes, manager API clients, state, components
+packages/workbench-ui/                  # shared shadcn-svelte primitives, theme/styles, generic display helpers
+packages/workbench-app/                 # local workbench UI only; no sandbox-manager surface
+packages/contracts/              # transport-neutral protocol/schema types only
 packages/sandbox-manager/     # manager API/service; serves the built UI when enabled
 ```
 
-The sandbox-manager UI is always the sandbox manager app. `/` is the server/deployment landing path handled by `packages/sandbox-manager`, and `/settings` is the dedicated configuration route; neither is a runtime surface switch inside `packages/web`.
+The sandbox-manager UI is always the sandbox manager app. `/` is the server/deployment landing path handled by `packages/sandbox-manager`, and `/settings` is the dedicated configuration route; neither is a runtime surface switch inside `packages/workbench-app`.
 
 ## Manager connection model
 
@@ -205,14 +205,14 @@ UI reducers MUST deduplicate durable events by event ID/sequence and MUST NOT ad
 
 The UI must follow the shared styling conventions:
 
-- use official shadcn-svelte primitives from `@nervekit/shared-ui/components/ui/*`;
-- import shared theme/base styles from `@nervekit/shared-ui/styles/app.css`;
+- use official shadcn-svelte primitives from `@nervekit/workbench-ui/components/ui/*`;
+- import shared theme/base styles from `@nervekit/workbench-ui/styles/app.css`;
 - use Tailwind token utilities and theme tokens for colors, typography, spacing, radius, and shadows;
 - use only approved semantic additions such as `success`, `warning`, and `info`;
 - avoid hard-coded colors, font sizes, spacing, and one-off visual constants;
 - use `@lucide/svelte` icons;
 - use monospace only for code, logs, IDs, and paths;
-- keep app-specific global CSS under `packages/sandbox-manager-ui/src/styles/`;
+- keep app-specific global CSS under `packages/sandbox-manager-app/src/styles/`;
 - avoid component `<style>` blocks except for documented escape hatches;
 - validate important flows visually in light and dark mode.
 
@@ -229,7 +229,7 @@ Sandbox-manager UI state SHOULD be separate from the current workbench state:
 - no assumption of one local project/workspace;
 - no direct dependency on desktop-only APIs.
 
-Shared UI/display utilities come from `@nervekit/shared-ui`. Shared protocol schemas remain in `@nervekit/shared`; do not place Svelte components or browser CSS in `packages/shared`.
+Shared UI/display utilities come from `@nervekit/workbench-ui`. Shared protocol schemas remain in `@nervekit/contracts`; do not place Svelte components or browser CSS in `packages/contracts`.
 
 ## Security requirements
 
@@ -281,16 +281,16 @@ A first implementation SHOULD verify:
 - boot timeline accurately reflects setup order;
 - approval/input actions use manager-mediated commands;
 - Docker/Podman limitations are visible;
-- styling follows `packages/shared-ui` and `packages/sandbox-manager-ui` guardrails;
+- styling follows `packages/workbench-ui` and `packages/sandbox-manager-app` guardrails;
 - light and dark mode remain readable.
 
 ## Implemented app (v1)
 
-The implementation ships as `packages/sandbox-manager-ui`, a dedicated Svelte
+The implementation ships as `packages/sandbox-manager-app`, a dedicated Svelte
 app built independently from the local workbench. `packages/sandbox-manager`
 serves it same-origin at `/` from, in order: an explicit
 `NERVE_SANDBOX_MANAGER_WEB_DIST`, bundled `packages/sandbox-manager/dist/web`,
-or workspace `packages/sandbox-manager-ui/dist`. The top-level `/settings`
+or workspace `packages/sandbox-manager-app/dist`. The top-level `/settings`
 route manages all LLM providers exposed by the installed `@earendil-works/pi-ai`
 package, including subscription/OAuth providers, API-key providers, provider
 `env`/endpoint overrides, Git/GitHub, Jira, Confluence, and web-search
@@ -298,11 +298,11 @@ credential profiles.
 
 ### Bootstrap
 
-- `packages/sandbox-manager-ui/src/App.svelte` always renders the sandbox
+- `packages/sandbox-manager-app/src/App.svelte` always renders the sandbox
   manager app; there is no workbench surface switch or service worker.
 - `SandboxManagerProvider.svelte` creates a runes `SandboxManagerStore`
   (`state/sandbox-manager-state.svelte.ts`) and provides it via context.
-- The workbench `packages/web` app, desktop bridge, shortcuts, and PWA setup are
+- The workbench `packages/workbench-app` app, desktop bridge, shortcuts, and PWA setup are
   not mounted by the sandbox-manager UI.
 
 ### Clients
@@ -342,31 +342,31 @@ NERVE_SANDBOX_MANAGER_MODE=development node packages/sandbox-manager/dist/main.j
 
 # terminal 2: sandbox-manager UI dev server proxied to the manager
 NERVE_SANDBOX_MANAGER_API_TARGET=http://127.0.0.1:7869 \
-  pnpm --filter @nervekit/sandbox-manager-ui dev
+  pnpm --filter @nervekit/sandbox-manager-app dev
 ```
 
 Production / static with explicit dist:
 
 ```sh
-pnpm --filter @nervekit/sandbox-manager-ui build
-NERVE_SANDBOX_MANAGER_WEB_DIST=packages/sandbox-manager-ui/dist \
+pnpm --filter @nervekit/sandbox-manager-app build
+NERVE_SANDBOX_MANAGER_WEB_DIST=packages/sandbox-manager-app/dist \
   node packages/sandbox-manager/dist/main.js
 ```
 
 Bundled production:
 
 ```sh
-pnpm --filter @nervekit/sandbox-manager-ui build
+pnpm --filter @nervekit/sandbox-manager-app build
 pnpm --filter @nervekit/sandbox-manager build
-node scripts/copy-sandbox-manager-ui-dist-to-manager.mjs
+node scripts/copy-sandbox-manager-app-dist-to-manager.mjs
 node packages/sandbox-manager/dist/main.js
 ```
 
 Container build example:
 
 ```sh
-pnpm --filter @nervekit/shared-ui build
-pnpm --filter @nervekit/sandbox-manager-ui build
+pnpm --filter @nervekit/workbench-ui build
+pnpm --filter @nervekit/sandbox-manager-app build
 pnpm --filter @nervekit/sandbox-manager build
 docker build -f packages/sandbox-manager/Dockerfile -t nerve-sandbox-manager:dev .
 ```

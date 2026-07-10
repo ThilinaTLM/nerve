@@ -7,11 +7,11 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packDir = join(repoRoot, "release", "npm");
 const legalFiles = ["LICENSE", "NOTICE"];
 const publishPackages = [
-  ["@nervekit/shared", join("packages", "shared")],
-  ["@nervekit/tools", join("packages", "tools")],
-  ["@nervekit/agent", join("packages", "agent")],
+  ["@nervekit/contracts", join("packages", "contracts")],
+  ["@nervekit/agent-tools", join("packages", "agent-tools")],
+  ["@nervekit/agent-runtime", join("packages", "agent-runtime")],
   ["@nervekit/orchestrator", join("packages", "orchestrator")],
-  ["@nervekit/desktop", join("packages", "desktop")],
+  ["@nervekit/desktop-shell", join("packages", "desktop-shell")],
 ];
 
 const createdLegalFiles = [];
@@ -25,21 +25,21 @@ try {
     );
   });
 
-  await access(join(repoRoot, "packages", "web", "dist", "index.html")).catch(
-    () => {
-      throw new Error(
-        "Missing packages/web/dist/index.html. Run pnpm release:build before packing npm packages.",
-      );
-    },
-  );
+  await access(
+    join(repoRoot, "packages", "workbench-app", "dist", "index.html"),
+  ).catch(() => {
+    throw new Error(
+      "Missing packages/workbench-app/dist/index.html. Run pnpm release:build before packing npm packages.",
+    );
+  });
 
-  await access(join(repoRoot, "packages", "desktop", "dist", "bin.js")).catch(
-    () => {
-      throw new Error(
-        "Missing packages/desktop/dist/bin.js. Run pnpm release:build before packing npm packages.",
-      );
-    },
-  );
+  await access(
+    join(repoRoot, "packages", "desktop-shell", "dist", "bin.js"),
+  ).catch(() => {
+    throw new Error(
+      "Missing packages/desktop-shell/dist/bin.js. Run pnpm release:build before packing npm packages.",
+    );
+  });
 
   await rm(packDir, { recursive: true, force: true });
   await mkdir(packDir, { recursive: true });

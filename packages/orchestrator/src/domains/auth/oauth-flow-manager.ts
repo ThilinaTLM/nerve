@@ -11,7 +11,7 @@ import {
   createId,
   type OAuthFlowInfo,
   type RespondOAuthFlowRequest,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "./auth-manager.js";

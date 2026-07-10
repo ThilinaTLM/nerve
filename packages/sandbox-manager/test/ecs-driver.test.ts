@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type {
   ManagedContainerCreateSpec,
   SandboxConfigV1,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import {
   loadManagerConfig,
   type ManagerConfig,

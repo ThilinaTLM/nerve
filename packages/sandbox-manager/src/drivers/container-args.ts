@@ -1,4 +1,7 @@
-import type { ManagedContainerCreateSpec, VolumeRef } from "@nervekit/shared";
+import type {
+  ManagedContainerCreateSpec,
+  VolumeRef,
+} from "@nervekit/contracts";
 
 export function containerCreateArgs(
   spec: ManagedContainerCreateSpec,

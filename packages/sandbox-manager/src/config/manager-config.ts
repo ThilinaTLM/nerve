@@ -4,7 +4,7 @@ import {
   resolveLogLevel,
   type SandboxContainerBackend,
   type StructuredLogLevel,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export type ContainerBackend = SandboxContainerBackend;
 export type LocalContainerBackend = Exclude<ContainerBackend, "ecs">;

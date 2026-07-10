@@ -1,4 +1,7 @@
-import { type SandboxConfigV1, sandboxConfigV1Schema } from "@nervekit/shared";
+import {
+  type SandboxConfigV1,
+  sandboxConfigV1Schema,
+} from "@nervekit/contracts";
 import { stringify } from "yaml";
 
 export function materializeSandboxConfig(config: SandboxConfigV1): string {

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { promptSuggestionWhenSchema } from "@nervekit/shared";
+import { promptSuggestionWhenSchema } from "@nervekit/contracts";
 import { parse } from "yaml";
 import { pathExists } from "../../infrastructure/storage/json.js";
 import type {

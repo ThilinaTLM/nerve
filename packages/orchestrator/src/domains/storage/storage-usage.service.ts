@@ -8,7 +8,7 @@ import type {
   StorageCleanupResponse,
   StorageCleanupResult,
   StorageUsageResponse,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { StoragePaths } from "../../infrastructure/storage/index.js";
 

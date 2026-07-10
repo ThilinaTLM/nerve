@@ -38,10 +38,10 @@ Nerve Protocol v1 has five core ideas:
 
 The existing Nerve implementation already has most of the lower-level primitives needed for this protocol:
 
-- `packages/shared/src/domains/events/envelope.schema.ts` defines the current durable event envelope.
+- `packages/contracts/src/domains/events/envelope.schema.ts` defines the current durable event envelope.
 - `packages/orchestrator/src/infrastructure/events/event-bus.ts` owns event sequencing, persistence, and replay.
 - `packages/orchestrator/src/main.ts` exposes the current `/ws` WebSocket event stream.
-- `packages/web/src/lib/core/events/websocket-client.svelte.ts` connects, tracks the current `lastEventSeq`, and reconnects with `since`; protocol migration must split this into received and processed durable cursors.
+- `packages/workbench-app/src/lib/core/events/websocket-client.svelte.ts` connects, tracks the current `lastEventSeq`, and reconnects with `since`; protocol migration must split this into received and processed durable cursors.
 - `packages/orchestrator/src/routes/status-routes.ts` exposes current HTTP event replay through `/api/events?since=...`.
 
 Those files are implementation references, not wire-protocol constraints. The normative protocol is defined by these documents.

@@ -2,7 +2,7 @@ import {
   createId,
   type NerveMessage,
   type PeerDescriptor,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export interface ProtocolMessageOptions {
   source?: PeerDescriptor;

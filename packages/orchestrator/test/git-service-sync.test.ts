@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { promisify } from "node:util";
-import type { ProjectRecord } from "@nervekit/shared";
+import type { ProjectRecord } from "@nervekit/contracts";
 import { GitService } from "../src/domains/git/git-service.js";
 import { HttpError } from "../src/http/errors.js";
 

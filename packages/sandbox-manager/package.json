@@ -30,14 +30,14 @@
     "check": "tsc -b --pretty false",
     "dev": "node --env-file-if-exists=dev.defaults.env --env-file-if-exists=.env --import tsx src/main.ts",
     "test": "tsx --test \"test/**/*.test.ts\"",
-    "bundle:web": "node ../../scripts/copy-sandbox-manager-ui-dist-to-manager.mjs",
+    "bundle:web": "node ../../scripts/copy-sandbox-manager-app-dist-to-manager.mjs",
     "migrate": "node dist/db/migrations.js"
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.1081.0",
     "@aws-sdk/client-ecs": "^3.1081.0",
     "@earendil-works/pi-ai": "0.80.6",
-    "@nervekit/shared": "workspace:*",
+    "@nervekit/contracts": "workspace:*",
     "node-pg-migrate": "8.0.4",
     "pg": "8.13.1",
     "ws": "8.18.3",

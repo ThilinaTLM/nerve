@@ -9,7 +9,7 @@ import {
   sandboxManagerStatusSchema,
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { parse as parseYaml } from "yaml";
 import { ManagerState } from "../src/app/manager-state.js";
 import { createManagerServer } from "../src/app/server.js";

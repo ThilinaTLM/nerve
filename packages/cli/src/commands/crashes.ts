@@ -3,7 +3,7 @@ import { join } from "node:path";
 import {
   type DaemonCrashReport,
   daemonCrashReportSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { dataDir } from "../daemon/connection.js";
 import { delay, readOption } from "../output/prompts.js";
 

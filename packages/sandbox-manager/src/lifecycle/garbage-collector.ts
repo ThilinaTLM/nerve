@@ -1,4 +1,4 @@
-import type { ManagedSandboxRecord } from "@nervekit/shared";
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
 import type { ManagerStore } from "../state/manager-store.js";
 import { retentionElapsed, shouldPreserveRecord } from "./retention-policy.js";
 

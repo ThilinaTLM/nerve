@@ -3,7 +3,7 @@ import type {
   TaskLogEvent,
   ToolCallRecord,
   ToolCallTranscriptRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 const PREVIEW_COUNT = 10;
 const MAX_PREVIEW_CHARS = 8 * 1024;

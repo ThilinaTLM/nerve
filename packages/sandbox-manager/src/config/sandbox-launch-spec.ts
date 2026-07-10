@@ -7,7 +7,7 @@ import type {
   SandboxLaunchResourceSpec,
   StructuredLogLevel,
   VolumeRef,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ContainerBackend } from "./manager-config.js";
 
 export type SandboxRuntimeMountRefs = {

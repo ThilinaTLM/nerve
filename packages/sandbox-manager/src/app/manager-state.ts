@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { createLogger, type StructuredLogger } from "@nervekit/shared";
+import { createLogger, type StructuredLogger } from "@nervekit/contracts";
 import type { ManagerConfig } from "../config/manager-config.js";
 import { CredentialProfileService } from "../credentials/credential-profile-service.js";
 import { PostgresCredentialProfileStore } from "../credentials/credential-profile-store.js";

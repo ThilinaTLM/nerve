@@ -14,7 +14,7 @@ import {
   type SandboxWorkspaceFileResponse,
   sandboxWorkspaceFileQuerySchema,
   sandboxWorkspaceFileResponseSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { HttpError } from "../http/errors.js";
 

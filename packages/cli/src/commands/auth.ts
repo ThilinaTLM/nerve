@@ -1,4 +1,4 @@
-import type { AuthProviderMetadata, OAuthFlowInfo } from "@nervekit/shared";
+import type { AuthProviderMetadata, OAuthFlowInfo } from "@nervekit/contracts";
 import { apiDelete, apiGet, apiPost, apiPut } from "../daemon/http-client.js";
 import {
   delay,

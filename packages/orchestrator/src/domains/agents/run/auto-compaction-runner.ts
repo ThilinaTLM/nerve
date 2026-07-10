@@ -5,12 +5,12 @@ import {
   deriveAutoCompactionPolicy,
   getModelContextWindow,
   shouldAutoCompact,
-} from "@nervekit/agent";
+} from "@nervekit/agent-runtime";
 import type {
   AgentRecord,
   ContextUsage,
   ConversationEntry,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { AgentRunnerDeps } from "./agent-runner.js";
 
 /** Max consecutive auto-continuations per conversation before stopping. */

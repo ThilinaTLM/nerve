@@ -36,4 +36,4 @@ cd deploy/aws/environments/nonprod/dev
 ./build-push-sandbox-manager-image.sh
 ```
 
-The helpers check Docker authentication for the target ECR registry and log in through `aws ecr get-login-password` when needed. The sandbox-manager image build bundles `packages/sandbox-manager-ui/dist` into the manager image so the manager serves the UI itself.
+The helpers check Docker authentication for the target ECR registry and log in through `aws ecr get-login-password` when needed. The sandbox-manager image build bundles `packages/sandbox-manager-app/dist` into the manager image so the manager serves the UI itself.

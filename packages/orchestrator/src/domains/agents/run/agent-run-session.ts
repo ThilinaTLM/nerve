@@ -6,19 +6,19 @@ import {
   isAgentToolSuspension,
   NodeExecutionEnv,
   resolveAgentModel,
-} from "@nervekit/agent";
+} from "@nervekit/agent-runtime";
 import type {
   AgentRecord,
   ConversationEntry,
   PromptRequest,
   ToolName,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import {
   createId,
   findExecutableCommandBlocks,
   replaceExecutableCommandBlocks,
   toolNameSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { HttpError } from "../../../http/errors.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {

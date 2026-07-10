@@ -1,6 +1,10 @@
 import type { ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import type {
+  ToolExecutionOutputUpdate,
+  ToolExecutionResult,
+} from "@nervekit/agent-tools";
 import {
   type CancelTaskRequest,
   createId,
@@ -11,11 +15,7 @@ import {
   type TaskLogQueryResponse,
   type TaskRecord,
   type TaskRuntime,
-} from "@nervekit/shared";
-import type {
-  ToolExecutionOutputUpdate,
-  ToolExecutionResult,
-} from "@nervekit/tools";
+} from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";

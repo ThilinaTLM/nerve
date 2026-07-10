@@ -3,7 +3,7 @@ import type {
   TaskLogEvent,
   TaskLogQueryResponse,
   TaskRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { formatListeningPort } from "./task-port-inspector.js";
 import { isActiveTaskStatus } from "./task-status.js";
 

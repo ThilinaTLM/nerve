@@ -4,14 +4,14 @@ FROM node:24-bookworm-slim AS manager-deps
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages/shared/package.json packages/shared/package.json
-COPY packages/shared/dist packages/shared/dist
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/contracts/dist packages/contracts/dist
 COPY packages/sandbox-manager/package.json packages/sandbox-manager/package.json
 COPY packages/sandbox-manager/migrations packages/sandbox-manager/migrations
 COPY packages/sandbox-manager/dist packages/sandbox-manager/dist
-COPY packages/sandbox-manager-ui/dist packages/sandbox-manager-ui/dist
+COPY packages/sandbox-manager-app/dist packages/sandbox-manager-app/dist
 RUN pnpm --filter @nervekit/sandbox-manager deploy --prod --legacy /manager
-RUN rm -rf /manager/dist/web && mkdir -p /manager/dist/web && cp -R packages/sandbox-manager-ui/dist/. /manager/dist/web/
+RUN rm -rf /manager/dist/web && mkdir -p /manager/dist/web && cp -R packages/sandbox-manager-app/dist/. /manager/dist/web/
 
 FROM node:24-bookworm-slim
 ARG INSTALL_LOCAL_RUNTIMES=true

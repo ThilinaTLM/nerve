@@ -5,7 +5,7 @@ import type {
   ConversationTree,
   ToolCallRecord,
   ToolCallTranscriptRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";

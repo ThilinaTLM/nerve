@@ -1,4 +1,4 @@
-import type { StatusResponse } from "@nervekit/shared";
+import type { StatusResponse } from "@nervekit/contracts";
 import { apiGet } from "../daemon/http-client.js";
 
 export async function commandStatus(): Promise<void> {

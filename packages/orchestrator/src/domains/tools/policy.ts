@@ -1,12 +1,10 @@
 import { resolve } from "node:path";
-import type { AgentRecord, ToolName, ToolRisk } from "@nervekit/shared";
 import {
-  hasDangerousCommandPattern,
+  classifyToolRisk,
   isAllowedPlanModeBashCommand,
-  isKnownReadOnlyCommand,
   isReadOnlyNetworkToolForApproval,
-  toolRiskForName,
-} from "@nervekit/tools";
+} from "@nervekit/agent-tools";
+import type { AgentRecord, ToolName, ToolRisk } from "@nervekit/contracts";
 import {
   isPathInsidePlanDir,
   planDirForStorageHome,
@@ -35,7 +33,7 @@ export function evaluateToolPolicy(
 ): PolicyEvaluation {
   const cwd = normalizeCwd(agent, args);
   const normalizedArgs = { ...args };
-  const risk = classifyRisk(toolName, args);
+  const risk = classifyToolRisk(toolName, args);
 
   if (agent.mode === "planning") {
     const planningDecision = evaluatePlanningModePolicy(
@@ -406,57 +404,4 @@ function evaluatePlanningModePolicy(
     normalizedArgs,
     cwd,
   };
-}
-
-function taskStartCommands(args: Record<string, unknown>): string[] {
-  if (typeof args.command === "string") return [args.command];
-  if (!Array.isArray(args.tasks)) return [];
-  return args.tasks
-    .map((task) =>
-      task && typeof task === "object"
-        ? (task as Record<string, unknown>).command
-        : undefined,
-    )
-    .filter((command): command is string => typeof command === "string");
-}
-
-function classifyRisk(
-  toolName: ToolName,
-  args: Record<string, unknown>,
-): ToolRisk {
-  if (
-    toolName === "ask_user" ||
-    toolName === "todos_set" ||
-    toolName === "plan_mode_enter" ||
-    toolName === "plan_mode_present" ||
-    toolName === "plan_mode_force_exit"
-  ) {
-    return "interaction";
-  }
-  if (
-    toolName === "todos_get" ||
-    toolName === "task_status" ||
-    toolName === "task_logs" ||
-    toolName === "task_list"
-  ) {
-    return "read";
-  }
-  if (toolName === "task_cancel" || toolName === "task_restart") {
-    return "command";
-  }
-  if (toolName === "task_start") {
-    const commands = taskStartCommands(args);
-    if (commands.some((command) => hasDangerousCommandPattern(command))) {
-      return "destructive";
-    }
-    return "command";
-  }
-  if (toolName === "web_search" || toolName === "web_fetch") {
-    return "network";
-  }
-  if (toolName === "bash" && typeof args.command === "string") {
-    if (hasDangerousCommandPattern(args.command)) return "destructive";
-    if (isKnownReadOnlyCommand(args.command)) return "read";
-  }
-  return toolRiskForName(toolName);
 }

@@ -1,6 +1,6 @@
 # Release checklist
 
-Nerve's public release path publishes all `@nervekit/*` packages to npmjs.com. The desktop app is distributed as the runnable `@nervekit/desktop` npm package.
+Nerve's public release path publishes all `@nervekit/*` packages to npmjs.com. The desktop app is distributed as the runnable `@nervekit/desktop-shell` npm package.
 
 ## Requirements
 
@@ -21,14 +21,14 @@ pnpm release:verify-tag -- v0.1.0
 
 Published publicly to npmjs.com under the `@nervekit` scope:
 
-- `@nervekit/shared`
-- `@nervekit/tools`
-- `@nervekit/agent`
-- `@nervekit/web` — static web UI assets (no CLI/bin); the desktop and daemon
+- `@nervekit/contracts`
+- `@nervekit/agent-tools`
+- `@nervekit/agent-runtime`
+- `@nervekit/workbench-app` — static web UI assets (no CLI/bin); the desktop and daemon
   serve the web UI through `@nervekit/orchestrator`, which embeds its own copy.
 - `@nervekit/orchestrator`
 - `@nervekit/cli`
-- `@nervekit/desktop` — runnable via `npx` or `pnpm dlx`.
+- `@nervekit/desktop-shell` — runnable via `npx` or `pnpm dlx`.
 
 Private (never published):
 
@@ -56,16 +56,16 @@ npm publish release/npm/*.tgz --dry-run --access public
 Desktop launcher smoke test:
 
 ```sh
-node packages/desktop/dist/bin.js --version
-node packages/desktop/dist/bin.js --help
-node packages/desktop/dist/bin.js     # launches the desktop app
+node packages/desktop-shell/dist/bin.js --version
+node packages/desktop-shell/dist/bin.js --help
+node packages/desktop-shell/dist/bin.js     # launches the desktop app
 ```
 
 ## Running the desktop app from npm
 
 ```sh
-npx @nervekit/desktop
-pnpm dlx @nervekit/desktop
+npx @nervekit/desktop-shell
+pnpm dlx @nervekit/desktop-shell
 ```
 
 Notes:

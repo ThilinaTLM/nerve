@@ -1,4 +1,4 @@
-import type { NerveErrorCode, ProtocolErrorData } from "@nervekit/shared";
+import type { NerveErrorCode, ProtocolErrorData } from "@nervekit/contracts";
 
 const SECRET_KEY_PATTERN =
   /authorization|cookie|token|apikey|api_key|password|passwd|secret|credential|private_key|private-key/i;

@@ -21,7 +21,7 @@ import {
   replayRequestMessageSchema,
   type StreamCursor,
   type WelcomeData,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import WebSocket from "ws";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { version } from "../app/version.js";

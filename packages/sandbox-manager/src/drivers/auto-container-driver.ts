@@ -6,7 +6,7 @@ import type {
   RemoveOptions,
   RuntimeDriverCapabilities,
   StopOptions,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import {
   type ContainerRuntimeDriver,
   type LogChunk,

@@ -14,7 +14,7 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
   WorkerRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { IndexStore } from "../src/infrastructure/index-store/index.js";
 
 const roots: string[] = [];

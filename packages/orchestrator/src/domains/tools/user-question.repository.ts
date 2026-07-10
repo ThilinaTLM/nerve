@@ -1,5 +1,8 @@
 import { join } from "node:path";
-import type { UserQuestionRecord, UserQuestionStatus } from "@nervekit/shared";
+import type {
+  UserQuestionRecord,
+  UserQuestionStatus,
+} from "@nervekit/contracts";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
   appendJsonLine,

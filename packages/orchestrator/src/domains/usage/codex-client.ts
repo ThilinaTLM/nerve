@@ -1,6 +1,9 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SubscriptionUsage, SubscriptionWindow } from "@nervekit/shared";
+import type {
+  SubscriptionUsage,
+  SubscriptionWindow,
+} from "@nervekit/contracts";
 
 const API_URL = "https://chatgpt.com/backend-api/wham/usage";
 const API_TIMEOUT_MS = 5000;

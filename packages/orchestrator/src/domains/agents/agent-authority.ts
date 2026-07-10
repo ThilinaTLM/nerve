@@ -1,4 +1,4 @@
-import type { AgentRecord, Mode, PermissionLevel } from "@nervekit/shared";
+import type { AgentRecord, Mode, PermissionLevel } from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
 
 export function assertChildAuthority(

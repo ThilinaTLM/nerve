@@ -1,4 +1,4 @@
-import type { ConversationLiveToolDraftProgressSnapshot } from "@nervekit/shared";
+import type { ConversationLiveToolDraftProgressSnapshot } from "@nervekit/contracts";
 
 export type ToolDraftProgressToolName = "write" | "edit";
 

@@ -1,4 +1,7 @@
-import type { AgentRecord, UserConfigurableToolName } from "@nervekit/shared";
+import type {
+  AgentRecord,
+  UserConfigurableToolName,
+} from "@nervekit/contracts";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {
   activeToolNamesForAgent,

@@ -1,6 +1,9 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SubscriptionUsage, SubscriptionWindow } from "@nervekit/shared";
+import type {
+  SubscriptionUsage,
+  SubscriptionWindow,
+} from "@nervekit/contracts";
 
 const API_HOST = "api.anthropic.com";
 const API_PATH = "/api/oauth/usage";

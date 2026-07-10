@@ -2,7 +2,7 @@ import type {
   SandboxManagerCredentialProfile,
   SandboxManagerCredentialProfileKind,
   SandboxManagerCredentialProviderKind,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export function primaryPurposeForKind(
   kind: SandboxManagerCredentialProfileKind,

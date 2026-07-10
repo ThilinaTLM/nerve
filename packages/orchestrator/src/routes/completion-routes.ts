@@ -1,5 +1,5 @@
-import type { CompletionItem } from "@nervekit/shared";
-import { fileCompletionQuerySchema } from "@nervekit/shared";
+import type { CompletionItem } from "@nervekit/contracts";
+import { fileCompletionQuerySchema } from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { FileCompletionService } from "../domains/completions/index.js";

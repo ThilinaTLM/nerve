@@ -1,4 +1,7 @@
-import { formatSkillsForSystemPrompt, type Skill } from "@nervekit/agent";
+import {
+  formatSkillsForSystemPrompt,
+  type Skill,
+} from "@nervekit/agent-runtime";
 import { promptText } from "./prompt-text.js";
 
 export interface BuildNerveSystemPromptOptions {

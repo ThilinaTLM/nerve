@@ -7,7 +7,7 @@ import type {
   RuntimeDriverCapabilities,
   SandboxManagerBackendOption,
   StopOptions,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export type LogChunk = {
   stream: "stdout" | "stderr";

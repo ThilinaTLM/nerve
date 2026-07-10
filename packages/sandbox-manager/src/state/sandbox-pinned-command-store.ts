@@ -4,7 +4,7 @@ import {
   type SandboxPinnedCommand,
   sandboxPinnedCommandSchema,
   type UpdatePinnedCommandRequest,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { PostgresPool } from "../db/postgres.js";
 import { dbTables } from "../db/tables.js";
 import { HttpError } from "../http/errors.js";

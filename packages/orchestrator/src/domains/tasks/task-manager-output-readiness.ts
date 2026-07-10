@@ -1,7 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import type { TaskLogEvent, TaskRecord } from "@nervekit/shared";
-import { boundLiveOutputChunk } from "@nervekit/tools";
+import { boundLiveOutputChunk } from "@nervekit/agent-tools";
+import type { TaskLogEvent, TaskRecord } from "@nervekit/contracts";
 import { isActiveTaskStatus } from "./index.js";
 import type { ManagedTask, TaskManager } from "./task-manager.js";
 

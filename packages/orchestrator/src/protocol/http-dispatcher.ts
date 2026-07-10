@@ -1,3 +1,4 @@
+import { GitWorkflowError } from "@nervekit/agent-tools";
 import {
   type NerveErrorCode,
   type NerveMessage,
@@ -5,8 +6,7 @@ import {
   protocolMethodDefinition,
   protocolMethodNameSchema,
   protocolRequestMessageSchema,
-} from "@nervekit/shared";
-import { GitWorkflowError } from "@nervekit/tools";
+} from "@nervekit/contracts";
 import { ZodError } from "zod";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { HttpError } from "../http/errors.js";

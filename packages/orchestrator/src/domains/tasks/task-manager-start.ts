@@ -1,13 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import type { ToolExecutionOutputUpdate } from "@nervekit/agent-tools";
 import {
   createId,
   type StartTaskRequest,
   type TaskListeningPort,
   type TaskRecord,
   type TaskRuntime,
-} from "@nervekit/shared";
-import type { ToolExecutionOutputUpdate } from "@nervekit/tools";
+} from "@nervekit/contracts";
 import { createTaskLogCursor } from "./index.js";
 import type { ManagedTask, TaskManager } from "./task-manager.js";
 import {

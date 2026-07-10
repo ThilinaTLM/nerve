@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import type { ManagedSandboxRecord } from "@nervekit/shared";
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
 import { readAgentStateSummary } from "../src/state/agent-state-summary.js";
 
 const ts = "2026-07-07T17:06:10.000Z";

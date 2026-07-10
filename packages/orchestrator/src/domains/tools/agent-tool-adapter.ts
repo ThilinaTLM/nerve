@@ -3,23 +3,25 @@ import {
   type AgentTool,
   type AgentToolResult,
   AgentToolSuspension,
-} from "@nervekit/agent";
+  createAgentToolsFromDefinitions,
+} from "@nervekit/agent-runtime";
+import {
+  allToolDefinitions,
+  appendBoundedTextNotice,
+  boundContentBlocks,
+  boundText,
+  MODEL_TEXT_MAX_LINE_CHARS,
+  MODEL_TEXT_MAX_LINES,
+  resolveToolAvailability,
+  toolDefinitionsByGroup,
+} from "@nervekit/agent-tools";
 import type {
   AgentRecord,
   ToolAnchor,
   ToolCallRecord,
   ToolName,
   UserConfigurableToolName,
-} from "@nervekit/shared";
-import {
-  allToolDefinitions,
-  appendBoundedTextNotice,
-  boundContentBlocks,
-  boundText,
-  type CoreToolDefinition,
-  MODEL_TEXT_MAX_LINE_CHARS,
-  MODEL_TEXT_MAX_LINES,
-} from "@nervekit/tools";
+} from "@nervekit/contracts";
 import type { ToolService } from "./tool-service.js";
 
 export type AgentToolPromptMetadata = {
@@ -39,25 +41,51 @@ export function createAgentToolsForAgent(
   } = {},
 ): AgentTool[] {
   const allowed = options.allowedToolNames
-    ? new Set(options.allowedToolNames)
+    ? new Set<string>(options.allowedToolNames)
     : undefined;
-  return allToolDefinitions
-    .filter((definition) => !allowed || allowed.has(definition.name))
-    .map((definition) =>
-      wrapCoreToolDefinition(definition, agent, tools, options),
-    );
+  return createAgentToolsFromDefinitions(
+    allToolDefinitions,
+    allowed,
+    async (definition, sourceToolCallId, params, signal) => {
+      const toolName = definition.name as ToolName;
+      const toolCall = await tools.requestToolAndWait(agent, toolName, params, {
+        signal,
+        sourceToolCallId,
+        providerToolCallId: sourceToolCallId,
+        runId: options.runId,
+        anchor: options.resolveToolAnchor?.(sourceToolCallId),
+        durableSuspend: true,
+        hidden: options.hidden === true ? true : undefined,
+      });
+      if (toolCall.status === "completed") return completedToolResult(toolCall);
+      if (
+        toolCall.status === "waiting_for_user" &&
+        (toolName === "ask_user" || toolName === "plan_mode_present")
+      ) {
+        throw new AgentToolSuspension({
+          toolCallId: toolCall.id,
+          toolName,
+          reason: `Tool ${toolName} is awaiting user input.`,
+        });
+      }
+      throw new Error(toolCall.error ?? `Tool ${toolName} ${toolCall.status}.`);
+    },
+  );
 }
 
 export function activeToolNamesForExploreAgent(): ToolName[] {
-  return [
-    "read",
-    "grep",
-    "find",
-    "ls",
-    "task_status",
-    "task_logs",
-    "task_list",
-  ];
+  return resolveToolAvailability({
+    permissionLevel: "read_only",
+    enabledNames: [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "task_status",
+      "task_logs",
+      "task_list",
+    ],
+  }).activeToolNames;
 }
 
 export function activeToolNamesForAgent(
@@ -69,128 +97,44 @@ export function activeToolNamesForAgent(
     confluenceEnabled?: boolean;
   } = {},
 ): ToolName[] {
-  const finish = (tools: ToolName[]) =>
-    filterDisabledUserTools(tools, options.disabledToolNames);
-
-  if (agent.permissionLevel === "read_only") {
-    const tools: ToolName[] = [
-      "read",
-      "grep",
-      "find",
-      "ls",
-      "task_status",
-      "task_logs",
-      "task_list",
-      "ask_user",
-      "todos_set",
-      "todos_get",
-      "plan_mode_enter",
-    ];
-    if (agent.mode === "planning") {
-      tools.push("plan_mode_present", "plan_mode_force_exit");
-    }
-    return finish(tools);
+  const unavailable: ToolName[] = [];
+  if (options.pythonAvailable !== true) unavailable.push("python");
+  if (options.jiraEnabled !== true) {
+    unavailable.push(
+      ...toolDefinitionsByGroup("jira").map((tool) => tool.name),
+    );
   }
-  const pythonTools: ToolName[] =
-    options.pythonAvailable === true ? ["python"] : [];
-  const jiraReadTools: ToolName[] =
-    options.jiraEnabled === true
-      ? [
-          "jira_search_users",
-          "jira_search_issues",
-          "jira_get_issue",
-          "jira_get_project",
-        ]
-      : [];
-  const jiraMutationTools: ToolName[] =
-    options.jiraEnabled === true
-      ? [
-          "jira_create_issue",
-          "jira_update_issue",
-          "jira_add_comment",
-          "jira_transition_issue",
-        ]
-      : [];
-  const confluenceReadTools: ToolName[] =
-    options.confluenceEnabled === true
-      ? [
-          "confluence_search_spaces",
-          "confluence_search_pages",
-          "confluence_get_page",
-          "confluence_download_pages",
-        ]
-      : [];
-  const confluenceMutationTools: ToolName[] =
-    options.confluenceEnabled === true
-      ? [
-          "confluence_create_page",
-          "confluence_update_page",
-          "confluence_publish_pages",
-          "confluence_upload_attachment",
-        ]
-      : [];
+  if (options.confluenceEnabled !== true) {
+    unavailable.push(
+      ...toolDefinitionsByGroup("confluence").map((tool) => tool.name),
+    );
+  }
+
+  const disabled = new Set<ToolName>(options.disabledToolNames ?? []);
   if (agent.mode === "planning") {
-    return finish([
-      "read",
-      "bash",
-      ...pythonTools,
-      "edit",
-      "write",
-      "grep",
-      "find",
-      "ls",
-      "task_status",
-      "task_logs",
-      "task_list",
-      "explore",
-      "ask_user",
-      "todos_set",
-      "todos_get",
-      "web_search",
-      "web_fetch",
-      ...jiraReadTools,
-      ...confluenceReadTools,
-      "plan_mode_enter",
-      "plan_mode_present",
-      "plan_mode_force_exit",
-    ]);
+    for (const name of [
+      "task_start",
+      "task_cancel",
+      "task_restart",
+    ] as ToolName[]) {
+      disabled.add(name);
+    }
+    for (const group of ["jira", "confluence"] as const) {
+      for (const definition of toolDefinitionsByGroup(group)) {
+        if (definition.traits.includes("write_capable"))
+          disabled.add(definition.name);
+      }
+    }
+  } else {
+    disabled.add("plan_mode_present");
+    disabled.add("plan_mode_force_exit");
   }
-  return finish([
-    "read",
-    "bash",
-    ...pythonTools,
-    "edit",
-    "write",
-    "grep",
-    "find",
-    "ls",
-    "task_start",
-    "task_status",
-    "task_logs",
-    "task_cancel",
-    "task_restart",
-    "task_list",
-    "explore",
-    "ask_user",
-    "todos_set",
-    "todos_get",
-    "web_search",
-    "web_fetch",
-    ...jiraReadTools,
-    ...jiraMutationTools,
-    ...confluenceReadTools,
-    ...confluenceMutationTools,
-    "plan_mode_enter",
-  ]);
-}
 
-function filterDisabledUserTools(
-  tools: ToolName[],
-  disabledToolNames: readonly UserConfigurableToolName[] | undefined,
-): ToolName[] {
-  if (!disabledToolNames || disabledToolNames.length === 0) return tools;
-  const disabled = new Set<ToolName>(disabledToolNames);
-  return tools.filter((tool) => !disabled.has(tool));
+  return resolveToolAvailability({
+    permissionLevel: agent.permissionLevel,
+    disabledNames: [...disabled],
+    unavailableNames: unavailable,
+  }).activeToolNames;
 }
 
 export function toolPromptMetadata(
@@ -214,58 +158,6 @@ export function toolPromptMetadata(
   }
 
   return { activeToolNames: [...active], snippets, guidelines };
-}
-
-function wrapCoreToolDefinition(
-  definition: CoreToolDefinition,
-  agent: AgentRecord,
-  tools: ToolService,
-  options: {
-    runId?: string;
-    resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
-    hidden?: boolean;
-    allowedToolNames?: ToolName[];
-  },
-): AgentTool {
-  return {
-    name: definition.name,
-    label: definition.label,
-    description: definition.description,
-    parameters: definition.parameters,
-    prepareArguments: definition.prepareArguments,
-    executionMode: definition.executionMode,
-    execute: async (sourceToolCallId, params, signal) => {
-      const toolCall = await tools.requestToolAndWait(
-        agent,
-        definition.name,
-        params as Record<string, unknown>,
-        {
-          signal,
-          sourceToolCallId,
-          providerToolCallId: sourceToolCallId,
-          runId: options.runId,
-          anchor: options.resolveToolAnchor?.(sourceToolCallId),
-          durableSuspend: true,
-          hidden: options.hidden === true ? true : undefined,
-        },
-      );
-      if (toolCall.status === "completed") return completedToolResult(toolCall);
-      if (
-        toolCall.status === "waiting_for_user" &&
-        (definition.name === "ask_user" ||
-          definition.name === "plan_mode_present")
-      ) {
-        throw new AgentToolSuspension({
-          toolCallId: toolCall.id,
-          toolName: definition.name,
-          reason: `Tool ${definition.name} is awaiting user input.`,
-        });
-      }
-      const message =
-        toolCall.error ?? `Tool ${definition.name} ${toolCall.status}.`;
-      throw new Error(message);
-    },
-  };
 }
 
 export function completedToolResult(

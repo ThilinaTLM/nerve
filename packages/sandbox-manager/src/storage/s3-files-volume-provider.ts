@@ -1,4 +1,4 @@
-import type { SandboxConfigV1 } from "@nervekit/shared";
+import type { SandboxConfigV1 } from "@nervekit/contracts";
 import type {
   PreparedRuntimeVolumes,
   RuntimeVolumeProvider,

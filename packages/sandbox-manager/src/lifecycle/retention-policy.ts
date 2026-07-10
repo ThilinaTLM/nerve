@@ -1,4 +1,4 @@
-import type { ManagedSandboxRecord } from "@nervekit/shared";
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
 
 export function shouldPreserveRecord(record: ManagedSandboxRecord): boolean {
   return Boolean(

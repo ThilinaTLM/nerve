@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ToolOutputLimitsPayload } from "@nervekit/shared";
-import { appendBoundedTextNotice, boundText } from "@nervekit/tools";
+import { appendBoundedTextNotice, boundText } from "@nervekit/agent-tools";
+import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
 
 const STORAGE_TEXT_MAX_BYTES = 256 * 1024;
 const STORAGE_TEXT_MAX_LINES = 5000;

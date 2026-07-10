@@ -13,7 +13,7 @@ import {
   type TaskListeningPort,
   type TaskRecord,
   type TaskRuntime,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { TaskLaunchConfigStore } from "../../src/domains/tasks/task-launch-config.store.js";
 import { TaskManager } from "../../src/domains/tasks/task-manager.js";
 import type {

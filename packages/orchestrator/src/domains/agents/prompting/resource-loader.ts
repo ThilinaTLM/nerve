@@ -2,7 +2,11 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { loadSkills, NodeExecutionEnv, type Skill } from "@nervekit/agent";
+import {
+  loadSkills,
+  NodeExecutionEnv,
+  type Skill,
+} from "@nervekit/agent-runtime";
 import { resolveDataDir } from "../../../infrastructure/storage/paths.js";
 
 const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "AGENTS.MD"];

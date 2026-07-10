@@ -1,7 +1,7 @@
 import {
   type SandboxProtocolMessage,
   sandboxProtocolMessageSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export type ManagerProtocolMessage = SandboxProtocolMessage;
 

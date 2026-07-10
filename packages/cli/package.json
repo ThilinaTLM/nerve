@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@nervekit/orchestrator": "workspace:*",
-    "@nervekit/shared": "workspace:*"
+    "@nervekit/contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

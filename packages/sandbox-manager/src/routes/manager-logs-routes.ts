@@ -1,7 +1,7 @@
 import {
   applicationLogLevelSchema,
   type ManagerLogTailResponse,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 
 /**

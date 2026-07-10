@@ -4,7 +4,7 @@ import {
   type EventBatchReason,
   type EventEnvelope,
   eventBatchDataSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { GLOBAL_STREAM } from "./constants.js";
 
 export interface BuildEventBatchOptions {

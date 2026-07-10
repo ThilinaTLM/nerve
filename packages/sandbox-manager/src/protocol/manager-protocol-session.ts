@@ -3,7 +3,7 @@ import type {
   NerveMessage,
   PeerDescriptor,
   StreamCursor,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 const MANAGER_PEER: PeerDescriptor = {
   role: "orchestrator",

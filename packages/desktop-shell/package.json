@@ -1,0 +1,56 @@
+{
+  "name": "@nervekit/desktop-shell",
+  "version": "0.7.0",
+  "description": "Electron packaging and desktop bridge shell for Nerve.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/desktop-shell"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
+  "desktopName": "nerve-desktop",
+  "main": "dist/main.js",
+  "bin": {
+    "nerve-desktop": "./dist/bin.js"
+  },
+  "files": [
+    "dist/**",
+    "build/**",
+    "package.json",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
+    "build": "pnpm run icons && tsc -b && node scripts/copy-preload.mjs",
+    "check": "tsc -b --pretty false",
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "start": "node scripts/start-electron.mjs",
+    "build:deps": "pnpm --filter @nervekit/contracts --filter @nervekit/agent-runtime --filter @nervekit/agent-tools build",
+    "dev": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-workbench-app-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop-shell build && node scripts/start-electron.mjs",
+    "build:package": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-workbench-app-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop-shell build && electron-builder --publish never",
+    "package:linux": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/orchestrator build && node ../../scripts/copy-workbench-app-dist-to-orchestrator.mjs && pnpm --filter @nervekit/desktop-shell build && electron-builder --linux AppImage deb rpm --publish never"
+  },
+  "dependencies": {
+    "@nervekit/orchestrator": "workspace:*",
+    "@nervekit/contracts": "workspace:*",
+    "electron": "^42.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "electron-builder": "^26.15.0",
+    "sharp": "^0.34.5",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

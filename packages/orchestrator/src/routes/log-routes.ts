@@ -2,7 +2,7 @@ import {
   applicationLogPruneRequestSchema,
   applicationLogQuerySchema,
   clientApplicationLogRequestSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { numberQuery } from "../http/query.js";

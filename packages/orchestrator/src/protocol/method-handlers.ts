@@ -3,7 +3,7 @@ import type {
   ModelSelection,
   ProtocolMethodName,
   ThinkingLevel,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import {
   providerApiKeySecretName,

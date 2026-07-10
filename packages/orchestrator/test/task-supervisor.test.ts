@@ -5,7 +5,7 @@ import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { TaskRuntime } from "@nervekit/shared";
+import type { TaskRuntime } from "@nervekit/contracts";
 import {
   defaultTaskSupervisor,
   isTaskRuntimeTargetAlive,

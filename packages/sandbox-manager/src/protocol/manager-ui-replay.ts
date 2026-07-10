@@ -2,7 +2,7 @@ import type {
   NerveMessage,
   ReplayRequestData,
   StreamState,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { MANAGER_EVENT_STREAM } from "../events/manager-events.js";
 import { managerEventBatch } from "./manager-protocol-event-batch.js";

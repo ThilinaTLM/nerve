@@ -1,6 +1,6 @@
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { RemoveOptions, SandboxConfigV1 } from "@nervekit/shared";
+import type { RemoveOptions, SandboxConfigV1 } from "@nervekit/contracts";
 import type {
   PreparedRuntimeVolumes,
   RuntimeMaterialization,

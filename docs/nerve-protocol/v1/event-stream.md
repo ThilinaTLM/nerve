@@ -337,7 +337,7 @@ When adding or changing a domain event, document and test:
 
 - event `type` string;
 - durability (`durable` or `transient`);
-- payload schema owner in `packages/shared`;
+- payload schema owner in `packages/contracts`;
 - required entity IDs for reducers and correlation;
 - reducer idempotency behavior for duplicate durable events;
 - whether the event affects workspace, conversation, task, settings/auth, or notification materialized state;

@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { VolumeRef } from "@nervekit/shared";
+import type { VolumeRef } from "@nervekit/contracts";
 export class VolumeManager {
   constructor(private readonly rootDir: string) {}
   async prepare(

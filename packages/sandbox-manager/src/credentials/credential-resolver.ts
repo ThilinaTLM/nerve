@@ -3,7 +3,7 @@ import {
   getOAuthApiKey,
   type OAuthCredentials,
 } from "@earendil-works/pi-ai/oauth";
-import type { ManagerCredentialResolveResponse } from "@nervekit/shared";
+import type { ManagerCredentialResolveResponse } from "@nervekit/contracts";
 import type { PostgresPool } from "../db/postgres.js";
 import { dbTables } from "../db/tables.js";
 import type { PostgresKvSecretStore } from "../secrets/postgres-kv-secret-store.js";

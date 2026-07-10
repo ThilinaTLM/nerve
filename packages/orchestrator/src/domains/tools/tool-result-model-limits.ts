@@ -1,10 +1,10 @@
-import type { ToolOutputLimitsPayload } from "@nervekit/shared";
 import {
   boundText,
   MODEL_TEXT_MAX_LINE_CHARS,
   MODEL_TEXT_MAX_LINES,
   textLimitSnapshot,
-} from "@nervekit/tools";
+} from "@nervekit/agent-tools";
+import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
 
 const MODEL_RESULT_MAX_BYTES = 24_000;
 

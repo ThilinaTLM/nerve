@@ -1,11 +1,11 @@
 import { join } from "node:path";
-import { setCustomModelProvider } from "@nervekit/agent";
+import { setCustomModelProvider } from "@nervekit/agent-runtime";
 import {
   createId,
   type DaemonFile,
   type MobileHttpsInfo,
   type StatusResponse,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import {
   AuthManager,
   CredentialKeyService,

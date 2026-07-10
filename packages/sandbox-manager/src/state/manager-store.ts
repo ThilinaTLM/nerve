@@ -3,7 +3,7 @@ import path from "node:path";
 import {
   type ManagedSandboxRecord,
   managedSandboxRecordSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { PostgresPool } from "../db/postgres.js";
 import { dbTables } from "../db/tables.js";
 import { atomicWriteFile, isNotFound } from "./atomic-write.js";

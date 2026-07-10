@@ -13,7 +13,7 @@ import type {
   OpenProjectInEditorResponse,
   ProjectEditor,
   ProjectRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
 
 type EditorLauncherSource = NonNullable<ExternalEditorStatus["source"]>;

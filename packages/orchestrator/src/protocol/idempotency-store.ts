@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { NerveMessage } from "@nervekit/shared";
+import type { NerveMessage } from "@nervekit/contracts";
 
 export interface IdempotencyEntry {
   scope: string;

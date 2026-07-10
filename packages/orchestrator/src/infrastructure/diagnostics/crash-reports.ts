@@ -5,7 +5,7 @@ import {
   createId,
   type DaemonCrashReport,
   daemonCrashReportSchema,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 
 export type CrashReportInput = Omit<
   DaemonCrashReport,

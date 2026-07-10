@@ -5,7 +5,7 @@ import {
   type ConversationRecord,
   ConversationRuntime,
   type ProjectRecord,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { AgentRunState } from "../domains/agents/run/index.js";
 import { HttpError } from "../http/errors.js";
 

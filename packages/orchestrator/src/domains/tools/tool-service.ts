@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { allToolDescriptors, toolRiskForName } from "@nervekit/agent-tools";
 import {
   type AgentRecord,
   type ApprovalRecord,
@@ -13,8 +14,7 @@ import {
   type ToolName,
   type UserQuestionRecord,
   type UserQuestionStatus,
-} from "@nervekit/shared";
-import { allToolDescriptors, toolRiskForName } from "@nervekit/tools";
+} from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";

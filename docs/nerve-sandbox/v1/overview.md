@@ -7,7 +7,7 @@ Nerve Sandbox v1 packages the Nerve agent runtime as a durable, isolated contain
 ```text
 +-------------------------------------------------------------+
 | Frontend / CLI / scheduler / external automation             |
-| - packages/sandbox-manager-ui web app                        |
+| - packages/sandbox-manager-app web app                        |
 | - other protocol-compatible clients                          |
 +-----------------------------+-------------------------------+
                               | Nerve Protocol v1 / HTTP
@@ -119,8 +119,8 @@ Sandbox v1 aims to provide:
     - The sandbox self-exits after the configured controller disconnect grace period, 5 minutes by default, so detached containers do not run indefinitely.
 
 12. **Separate sandbox-manager web UI**
-    - `packages/sandbox-manager-ui` provides a dedicated UI app for the sandbox manager.
-    - `packages/shared-ui` provides shared Svelte primitives/theme used by both UI apps.
+    - `packages/sandbox-manager-app` provides a dedicated UI app for the sandbox manager.
+    - `packages/workbench-ui` provides shared Svelte primitives/theme used by both UI apps.
     - The UI connects to manager APIs without reusing the local workbench as-is.
 
 ## Non-goals
@@ -161,8 +161,8 @@ Sandbox v1 does not define:
 | Sandbox | One configured agent runtime instance, usually one container. |
 | Sandbox daemon | The process inside the container that loads config, applies Git/GitHub setup, runs boot, manages the agent harness and tools, journals state, refreshes configured credentials, and connects to the controller. |
 | Manager/controller | The external API/service peer that authenticates users/services, starts sandboxes, provides config/credentials, sends commands, receives events, exposes frontend APIs, and owns product-specific persistence/UI integration. Baseline package: `packages/sandbox-manager`. |
-| Sandbox agent image | The container image/runtime package that contains `/agent`, the sandbox daemon, agent runtime, tools, and built-in skills. Baseline package: `packages/sandbox-agent`. |
-| Sandbox-manager UI | A dedicated `packages/sandbox-manager-ui` app that connects to the manager to observe and operate sandboxes. |
+| Sandbox agent image | The container image/runtime package that contains `/agent`, the sandbox daemon, agent runtime, tools, and built-in skills. Baseline package: `packages/sandbox-runtime`. |
+| Sandbox-manager UI | A dedicated `packages/sandbox-manager-app` app that connects to the manager to observe and operate sandboxes. |
 | Workspace | The writable project directory mounted at `/workspace`. Agent file tools operate here by default. |
 | State store | Durable directory mounted at `/state`; contains journals, checkpoints, refreshed credentials, run/conversation/agent state, skills metadata, and transcripts. |
 | Conversation | A durable thread of agent/user/tool interaction. A sandbox commonly starts with one conversation but the state model allows more. |
@@ -189,7 +189,7 @@ Sandbox implementations SHOULD keep these layers separate:
 
 ```text
 +--------------------------------------------------------------+
-| Frontend/UI product logic (`packages/sandbox-manager-ui`)      |
+| Frontend/UI product logic (`packages/sandbox-manager-app`)      |
 +--------------------------------------------------------------+
 | Sandbox manager API, KV secrets, lifecycle, and GC             |
 +--------------------------------------------------------------+

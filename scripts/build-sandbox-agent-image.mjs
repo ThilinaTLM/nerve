@@ -5,14 +5,14 @@ const imageTag =
   process.env.NERVE_SANDBOX_AGENT_IMAGE ?? "nerve-sandbox-agent:dev";
 const useShell = process.platform === "win32";
 
-run("pnpm", ["--filter", "@nervekit/sandbox-agent...", "build"]);
+run("pnpm", ["--filter", "@nervekit/sandbox-runtime...", "build"]);
 
 const cli = selectContainerCli();
 console.log(`Building ${imageTag} with ${cli}`);
 run(cli, [
   "build",
   "-f",
-  "packages/sandbox-agent/Dockerfile",
+  "packages/sandbox-runtime/Dockerfile",
   "-t",
   imageTag,
   ".",

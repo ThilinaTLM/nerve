@@ -2,7 +2,7 @@ import type {
   ConversationSnapshot,
   ConversationSnapshotResponse,
   WorkspaceSnapshotResponse,
-} from "@nervekit/shared";
+} from "@nervekit/contracts";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { planReviewPreview } from "../domains/plans/plan-service.js";
 import { GLOBAL_STREAM } from "./constants.js";
