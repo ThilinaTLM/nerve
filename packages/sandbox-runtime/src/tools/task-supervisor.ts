@@ -19,6 +19,8 @@ export type SupervisedTaskStatus =
 export type SupervisedTask = {
   id: string;
   name?: string;
+  groupId?: string;
+  groupName?: string;
   command: string;
   cwd?: string;
   conversationId?: string;
@@ -60,6 +62,8 @@ export type TaskSupervisorOptions = {
 
 export type StartSupervisedTaskOptions = {
   name?: string;
+  groupId?: string;
+  groupName?: string;
   origin?: TaskOrigin;
   env?: Record<string, string>;
   restartedFromTaskId?: string;
@@ -137,6 +141,8 @@ export class TaskSupervisor {
         const task: SupervisedTask = {
           id: String(raw.id ?? entry),
           name: raw.name,
+          groupId: raw.groupId,
+          groupName: raw.groupName,
           command: String(raw.command ?? ""),
           cwd: raw.cwd,
           conversationId: raw.conversationId,
@@ -188,6 +194,8 @@ export class TaskSupervisor {
     const task: SupervisedTask = {
       id: `task_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       name: options.name,
+      groupId: options.groupId,
+      groupName: options.groupName,
       command,
       cwd,
       conversationId: options.conversationId,
@@ -322,6 +330,8 @@ export class TaskSupervisor {
       timeoutMs ?? task.maxRuntimeMs,
       {
         name: task.name,
+        groupId: task.groupId,
+        groupName: task.groupName,
         conversationId: task.conversationId,
         agentId: task.agentId,
         runId: task.runId,

@@ -1,6 +1,5 @@
 import {
   createToolDispatcher,
-  hostToolDefinitions,
   type ToolExecutionContext,
   type ToolExecutionResult,
   type ToolHandlerRegistry,
@@ -13,11 +12,10 @@ export type OrchestratorToolHostPort = {
     toolCall: ToolCallRecord,
     options: ToolRequestOptions,
   ): Promise<ToolExecutionContext> | ToolExecutionContext;
-  executeHostTool(
+  hostHandlers(
     toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
     options: ToolRequestOptions,
-  ): Promise<unknown>;
+  ): ToolHandlerRegistry;
   executeLocalOverride(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
@@ -31,15 +29,7 @@ export function createOrchestratorToolHost(
   toolCall: ToolCallRecord,
   options: ToolRequestOptions,
 ) {
-  const hostHandlers: ToolHandlerRegistry = {};
-  for (const definition of hostToolDefinitions) {
-    hostHandlers[definition.name] = async (args) =>
-      (await port.executeHostTool(
-        { ...toolCall, toolName: definition.name },
-        args,
-        options,
-      )) as ToolExecutionResult;
-  }
+  const hostHandlers = port.hostHandlers(toolCall, options);
   const localOverride = async (
     args: Record<string, unknown>,
     context: ToolExecutionContext,
@@ -69,8 +59,5 @@ export async function executeOrchestratorTool(
   options: ToolRequestOptions,
 ): Promise<ToolExecutionResult> {
   const host = createOrchestratorToolHost(port, toolCall, options);
-  return host.execute(toolCall.toolName as ToolName, args, {
-    toolCallId: toolCall.id,
-    providerToolCallId: toolCall.providerToolCallId,
-  });
+  return host.execute(toolCall.toolName as ToolName, args, toolCall);
 }

@@ -412,6 +412,21 @@ export async function requestPlanReview(
   args: Record<string, unknown>,
   options: ToolRequestOptions = {},
 ): Promise<unknown> {
+  const existing = this.deps.plans
+    .listPlanReviews()
+    .find((review) => review.toolCallId === toolCall.id);
+  if (existing) {
+    if (existing.status !== "pending") {
+      return this.deps.plans.planReviewResult(existing);
+    }
+    if (!options.durableSuspend) {
+      return this.deps.plans.waitForPlanReviewResult(
+        existing.id,
+        options.signal,
+      );
+    }
+    throw new ToolExecutionSuspended();
+  }
   const waitingToolCall = await this.deps.updateToolCall(toolCall.id, {
     status: "waiting_for_user",
   });

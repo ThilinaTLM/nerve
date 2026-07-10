@@ -6,6 +6,7 @@ import {
 import type {
   ToolExecutionContext,
   ToolExecutionResult,
+  ToolHandlerRegistry,
 } from "@nervekit/agent-tools";
 import { toolDefinitionByName, toolManifest } from "@nervekit/agent-tools";
 import type {
@@ -26,8 +27,8 @@ import { sandboxSha256Digest } from "../state/hash.js";
 import { JsonlStore } from "../state/jsonl-store.js";
 import type { ApprovalWaiter } from "./approval-waiter.js";
 import type { InputWaiter } from "./input-waiter.js";
-import { OrchestrationToolRunner } from "./orchestration-tool-runner.js";
 import type { PlanReviewWaiter } from "./plan-review-waiter.js";
+import { createSandboxOrchestrationHandlers } from "./sandbox-orchestration-handlers.js";
 import { executeSandboxTool } from "./sandbox-tool-host.js";
 import type { TaskSupervisor } from "./task-supervisor.js";
 import { TodoStore } from "./todo-store.js";
@@ -73,7 +74,7 @@ export class SandboxToolRuntime {
   private readonly records: JsonlStore<Record<string, unknown>>;
   private readonly redactor: Redactor;
   private readonly todoStore: TodoStore;
-  private orchestrationRunner: OrchestrationToolRunner;
+  private orchestrationHandlers: ToolHandlerRegistry;
   private readonly active = new Map<string, ActiveToolExecution>();
   private policyOverride: {
     permissionLevel?: PermissionLevel;
@@ -91,16 +92,16 @@ export class SandboxToolRuntime {
     );
     this.redactor = options.redactor ?? new Redactor({ secrets: [] });
     this.todoStore = options.todoStore ?? new TodoStore(options.stateDir);
-    this.orchestrationRunner = this.createOrchestrationRunner();
+    this.orchestrationHandlers = this.createOrchestrationHandlers();
   }
 
   setExploreRuntime(exploreRuntime: ExploreRuntime): void {
     this.options.exploreRuntime = exploreRuntime;
-    this.orchestrationRunner = this.createOrchestrationRunner();
+    this.orchestrationHandlers = this.createOrchestrationHandlers();
   }
 
-  private createOrchestrationRunner(): OrchestrationToolRunner {
-    return new OrchestrationToolRunner({
+  private createOrchestrationHandlers(): ToolHandlerRegistry {
+    return createSandboxOrchestrationHandlers({
       workspaceDir: this.options.workspaceDir,
       redactor: this.redactor,
       inputWaiter: this.options.inputWaiter,
@@ -238,6 +239,7 @@ export class SandboxToolRuntime {
       runId?: string;
       executionId?: string;
       toolCallId?: string;
+      lifecycleOwner?: "bridge" | "runtime";
     } = {},
   ): Promise<ToolExecutionResult> {
     const toolCallId =
@@ -397,12 +399,13 @@ export class SandboxToolRuntime {
               active?.abortController.signal,
             ),
           },
-          orchestrationRunner: this.orchestrationRunner,
-          identity: context,
-          tracking: {
+          hostHandlers: this.orchestrationHandlers,
+          identity: {
+            scope: toolScope(context),
             toolCallId,
+            context,
             setCancel: active
-              ? (cancel) => (active.cancel = cancel)
+              ? (cancel: () => Promise<void> | void) => (active.cancel = cancel)
               : undefined,
           },
         });
@@ -479,7 +482,7 @@ export class SandboxToolRuntime {
           getApiKey: (provider) => this.resolveToolCredential(provider),
           getProviderConfig: (provider) => this.toolProviderConfig(provider),
         },
-        orchestrationRunner: this.orchestrationRunner,
+        hostHandlers: this.orchestrationHandlers,
         identity: context,
       });
       if (!isActiveCancelled(active)) {
@@ -628,11 +631,15 @@ export class SandboxToolRuntime {
     }) as Record<string, unknown>;
     await this.records.append(record);
     if (!context || !this.options.toolCallStore) return;
+    const harnessOwnsLifecycle =
+      (context as Record<string, unknown>).lifecycleOwner === "bridge";
+    if (harnessOwnsLifecycle && entry.status !== "cancelled") return;
+    const status = normalizeToolStatus(entry.status);
     const scope = toolScope(context);
     await this.options.toolCallStore.append(scope, {
       toolCallId: String(entry.toolCallId ?? "tool_unknown"),
       toolName: String(entry.toolName ?? "tool_unknown"),
-      status: normalizeToolStatus(entry.status),
+      status,
       displayArgs: entry.displayArgs,
       args: entry.displayArgs
         ? { hash: sandboxSha256Digest(entry.displayArgs) }
@@ -643,12 +650,10 @@ export class SandboxToolRuntime {
         typeof entry.lifecycleSeq === "number" ? entry.lifecycleSeq : undefined,
       redactionVersion: 1,
       requestedAt: now,
-      startedAt: entry.status === "started" ? now : undefined,
+      startedAt: status === "started" ? now : undefined,
       completedAt:
-        entry.status === "completed" || entry.status === "failed"
-          ? now
-          : undefined,
-      cancelledAt: entry.status === "cancelled" ? now : undefined,
+        status === "completed" || status === "failed" ? now : undefined,
+      cancelledAt: status === "cancelled" ? now : undefined,
       result: entry.result,
       error: normalizeError(entry.error),
     });

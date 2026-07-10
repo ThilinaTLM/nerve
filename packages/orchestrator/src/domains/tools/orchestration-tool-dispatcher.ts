@@ -1,9 +1,14 @@
 import { isAbsolute, resolve } from "node:path";
 import {
   buildProcessTextResult,
+  createExploreHandlers,
+  createInteractionHandlers,
+  createPlanHandlers,
+  createTaskHandlers,
   createTodoHandlers,
   type ToolExecutionContext,
   type ToolExecutionOutputUpdate,
+  type ToolExecutionResult,
   type ToolHandlerRegistry,
   toolDefinitionByName,
 } from "@nervekit/agent-tools";
@@ -89,17 +94,7 @@ export interface OrchestrationToolDispatcherDeps {
 }
 
 export class OrchestrationToolDispatcher {
-  private readonly todoHandlers: ToolHandlerRegistry;
-
-  constructor(readonly deps: OrchestrationToolDispatcherDeps) {
-    this.todoHandlers = createTodoHandlers({
-      get: async (identity) => this.deps.todoState.get(String(identity)),
-      set: async (identity, todos) => {
-        this.deps.todoState.set(String(identity), todos);
-        return this.deps.todoState.get(String(identity));
-      },
-    });
-  }
+  constructor(readonly deps: OrchestrationToolDispatcherDeps) {}
 
   async execute(
     toolCall: ToolCallRecord,
@@ -109,81 +104,75 @@ export class OrchestrationToolDispatcher {
     return executeOrchestratorTool(this, toolCall, args, options);
   }
 
-  async executeHostTool(
+  hostHandlers(
     toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
     options: ToolRequestOptions = {},
-  ): Promise<unknown> {
-    switch (toolCall.toolName) {
-      case "task_start":
-        return this.startTasksFromTool(toolCall, args);
-      case "task_status":
-        return this.taskStatusFromTool(toolCall, args);
-      case "task_logs":
-        return this.taskLogsFromTool(toolCall, args);
-      case "task_cancel":
-        return this.taskCancelFromTool(toolCall, args);
-      case "task_restart": {
-        const restartedFromTaskId = this.resolveTaskReference(
-          stringArg(args, "taskId"),
-          toolCall,
-        ).id;
-        const task =
-          await this.restartTaskWithStructuredErrors(restartedFromTaskId);
-        const label = task.name ? `${task.name} (${task.id})` : task.id;
-        return {
-          task,
-          tasks: [task],
-          restartedFromTaskId,
-          newTaskId: task.id,
-          restartRootTaskId: task.restartRootTaskId,
-          contentBlocks: [
-            {
-              type: "text",
-              text: `Restarted ${restartedFromTaskId} as ${label}. Use task_status/task_logs with taskId "${task.id}".`,
-            },
-          ],
-        };
-      }
-      case "task_list":
-        return this.taskListFromTool(toolCall, args);
-      case "explore":
-        return this.deps.runExplore(
-          this.deps.getAgent(toolCall.agentId),
-          args,
-          {
-            onProgress: (message) =>
-              this.publishExploreProgress(toolCall, message, options.runId),
-            signal: options.signal,
-          },
-        );
-      case "ask_user":
-        return this.deps.interactionSessions.requestUserQuestion(
-          toolCall,
-          args,
-          options,
-        );
-      case "todos_set":
-      case "todos_get": {
-        const handler = this.todoHandlers[toolCall.toolName];
-        if (!handler) {
-          throw new Error(`Missing shared handler for ${toolCall.toolName}.`);
-        }
-        return handler(args, {
-          ...this.executionContext(toolCall, options),
-          toolName: toolCall.toolName,
-          identity: toolCall.agentId,
-        });
-      }
-      case "plan_mode_enter":
-        return this.enterPlanMode(toolCall, args);
-      case "plan_mode_present":
-        return this.requestPlanReview(toolCall, args, options);
-      case "plan_mode_force_exit":
-        return this.forceExitPlanMode(toolCall, args);
-      default:
-        throw new Error(`Tool '${toolCall.toolName}' is not host-executed.`);
-    }
+  ): ToolHandlerRegistry {
+    const result = (value: Promise<unknown>) =>
+      value as Promise<ToolExecutionResult>;
+    return {
+      ...createInteractionHandlers({
+        resolve: async () =>
+          this.deps.interactionSessions.resolvedUserQuestion(toolCall.id) as
+            | ToolExecutionResult
+            | undefined,
+        request: (_identity, input) =>
+          result(
+            this.deps.interactionSessions.requestUserQuestion(
+              toolCall,
+              input,
+              options,
+            ),
+          ),
+      }),
+      ...createPlanHandlers({
+        enter: (_identity, reason) =>
+          result(this.enterPlanMode(toolCall, { reason })),
+        present: (_identity, request) =>
+          result(
+            this.requestPlanReview(
+              toolCall,
+              {
+                file_path: request.filePath,
+                title: request.title,
+                summary: request.summary,
+              },
+              options,
+            ),
+          ),
+        forceExit: (_identity, reason) =>
+          result(this.forceExitPlanMode(toolCall, { reason })),
+      }),
+      ...createTaskHandlers({
+        start: (args) => result(this.startTasksFromTool(toolCall, args)),
+        status: (args) => result(this.taskStatusFromTool(toolCall, args)),
+        logs: (args) => result(this.taskLogsFromTool(toolCall, args)),
+        cancel: (args) => result(this.taskCancelFromTool(toolCall, args)),
+        restart: (args) => result(this.restartTaskFromTool(toolCall, args)),
+        list: (args) => result(this.taskListFromTool(toolCall, args)),
+      }),
+      ...createExploreHandlers({
+        run: (request, _identity, signal) =>
+          result(
+            this.deps.runExplore(
+              this.deps.getAgent(toolCall.agentId),
+              request,
+              {
+                onProgress: (message) =>
+                  this.publishExploreProgress(toolCall, message, options.runId),
+                signal,
+              },
+            ),
+          ),
+      }),
+      ...createTodoHandlers({
+        get: async () => this.deps.todoState.get(toolCall.agentId),
+        set: async (_identity, todos) => {
+          this.deps.todoState.set(toolCall.agentId, todos);
+          return this.deps.todoState.get(toolCall.agentId);
+        },
+      }),
+    };
   }
 
   executionContext(
@@ -441,6 +430,32 @@ export class OrchestrationToolDispatcher {
       dataDir: this.deps.storage.paths.home,
     });
     return { tasks: rows, contentBlocks: bounded.contentBlocks };
+  }
+
+  async restartTaskFromTool(
+    toolCall: ToolCallRecord,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    const restartedFromTaskId = this.resolveTaskReference(
+      stringArg(args, "taskId"),
+      toolCall,
+    ).id;
+    const task =
+      await this.restartTaskWithStructuredErrors(restartedFromTaskId);
+    const label = task.name ? `${task.name} (${task.id})` : task.id;
+    return {
+      task,
+      tasks: [task],
+      restartedFromTaskId,
+      newTaskId: task.id,
+      restartRootTaskId: task.restartRootTaskId,
+      contentBlocks: [
+        {
+          type: "text",
+          text: `Restarted ${restartedFromTaskId} as ${label}. Use task_status/task_logs with taskId "${task.id}".`,
+        },
+      ],
+    };
   }
 
   async restartTaskWithStructuredErrors(taskId: string): Promise<TaskRecord> {

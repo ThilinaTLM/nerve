@@ -29,6 +29,15 @@ export class InteractionSessionService {
     args: Record<string, unknown>,
     options: ToolRequestOptions = {},
   ): Promise<unknown> {
+    const existing = this.questionForToolCall(toolCall.id);
+    if (existing) {
+      if (existing.status !== "pending")
+        return this.userQuestionResult(existing);
+      if (options.durableSuspend) throw new ToolExecutionSuspended();
+      return this.userQuestionResult(
+        await this.waitForUserQuestion(existing.id, options.signal),
+      );
+    }
     const now = new Date().toISOString();
     const question: UserQuestionRecord = {
       id: createId("question"),
@@ -100,6 +109,23 @@ export class InteractionSessionService {
     });
     this.notifyUserQuestionWaiters(updated);
     return updated;
+  }
+
+  resolvedUserQuestion(
+    toolCallId: string,
+  ): Record<string, unknown> | undefined {
+    const question = this.questionForToolCall(toolCallId);
+    return question && question.status !== "pending"
+      ? this.userQuestionResult(question)
+      : undefined;
+  }
+
+  private questionForToolCall(
+    toolCallId: string,
+  ): UserQuestionRecord | undefined {
+    return this.deps.userQuestionRepository
+      .list()
+      .find((question) => question.toolCallId === toolCallId);
   }
 
   userQuestionResult(question: UserQuestionRecord): Record<string, unknown> {

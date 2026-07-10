@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  createExploreHandlers,
+  createInteractionHandlers,
+  createPlanHandlers,
+  createTaskHandlers,
   createTodoHandlers,
   createToolDispatcher,
   decideToolPermission,
@@ -108,6 +112,105 @@ describe("shared tool runtime contract", () => {
       ).decision,
       "deny",
     );
+  });
+
+  it("routes orchestration handlers through typed ports with opaque identity", async () => {
+    const identity = { opaque: "host-suspension-id" };
+    const calls: string[] = [];
+    const context = {
+      cwd: process.cwd(),
+      toolName: "ask_user" as const,
+      identity,
+      signal: new AbortController().signal,
+    };
+    const interaction = createInteractionHandlers({
+      resolve: async (value) => {
+        assert.equal(value, identity);
+        calls.push("interaction.resolve");
+        return undefined;
+      },
+      request: async (value, request) => {
+        assert.equal(value, identity);
+        assert.equal(request.question, "Choose one");
+        calls.push("interaction.request");
+        return { content: "suspended" };
+      },
+    });
+    assert.equal(
+      (await interaction.ask_user?.({ question: " Choose one " }, context))
+        ?.content,
+      "suspended",
+    );
+
+    const plans = createPlanHandlers({
+      enter: async (value, reason) => {
+        assert.equal(value, identity);
+        calls.push(`plan.enter:${reason}`);
+        return { content: "planning" };
+      },
+      present: async (value, request) => {
+        assert.equal(value, identity);
+        calls.push(`plan.present:${request.filePath}`);
+        return { content: "review" };
+      },
+      forceExit: async () => ({ content: "coding" }),
+    });
+    await plans.plan_mode_enter?.(
+      { reason: " investigate " },
+      { ...context, toolName: "plan_mode_enter" },
+    );
+    await plans.plan_mode_present?.(
+      { file_path: " plans/reuse.md " },
+      { ...context, toolName: "plan_mode_present" },
+    );
+
+    const tasks = createTaskHandlers({
+      start: async (_args, value, signal) => {
+        assert.equal(value, identity);
+        assert.equal(signal, context.signal);
+        calls.push("task.start");
+        return { content: "started" };
+      },
+      status: async () => ({ content: "status" }),
+      logs: async () => ({ content: "logs" }),
+      cancel: async () => ({ content: "cancelled" }),
+      restart: async () => ({ content: "restarted" }),
+      list: async () => ({ content: "listed" }),
+    });
+    await tasks.task_start?.(
+      { command: "pnpm check" },
+      { ...context, toolName: "task_start" },
+    );
+    await tasks.task_cancel?.({}, { ...context, toolName: "task_cancel" });
+    await assert.rejects(
+      tasks.task_cancel?.(
+        { taskId: "task_one", groupId: "taskgrp_one" },
+        { ...context, toolName: "task_cancel" },
+      ) ?? Promise.resolve(),
+      /Provide only one/,
+    );
+
+    const explore = createExploreHandlers({
+      run: async (request, value, signal) => {
+        assert.equal(value, identity);
+        assert.equal(signal, context.signal);
+        calls.push(`explore:${request.task}`);
+        return { content: "report" };
+      },
+    });
+    await explore.explore?.(
+      { task: " inspect adapters " },
+      { ...context, toolName: "explore" },
+    );
+
+    assert.deepEqual(calls, [
+      "interaction.resolve",
+      "interaction.request",
+      "plan.enter:investigate",
+      "plan.present:plans/reuse.md",
+      "task.start",
+      "explore:inspect adapters",
+    ]);
   });
 
   it("shares todo validation and result formatting through a host port", async () => {

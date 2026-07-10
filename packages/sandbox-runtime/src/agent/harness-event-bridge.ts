@@ -278,6 +278,55 @@ export class HarnessEventBridge {
     }
   }
 
+  private async ensureToolRequested(
+    context: HarnessRunContext,
+    toolCall: { toolCallId: string; toolName: string; args: unknown },
+  ): Promise<void> {
+    const existing = (
+      await this.runs?.toolCallStore().latestByToolCallId(context)
+    )?.get(toolCall.toolCallId);
+    if (existing) return;
+    const requestedAt = new Date().toISOString();
+    const placement = this.toolPlacement(context, toolCall.toolCallId);
+    await this.runs?.toolCallStore().append(context, {
+      toolCallId: toolCall.toolCallId,
+      toolName: toolCall.toolName,
+      status: "requested",
+      displayArgs: toolCall.args,
+      args: { hash: sandboxSha256Digest(toolCall.args) },
+      ...placement,
+      lifecycleSeq: 1,
+      redactionVersion: 1,
+      requestedAt,
+    });
+    await this.publishToolCallUpdated(context, {
+      toolCallId: toolCall.toolCallId,
+      toolName: toolCall.toolName,
+      status: "requested",
+      argsPreview: toolCall.args,
+      createdAt: requestedAt,
+      updatedAt: requestedAt,
+    });
+    await this.events?.append({
+      type: "tool.call.requested",
+      durability: "durable",
+      conversationId: context.conversationId,
+      agentId: context.agentId,
+      runId: context.runId,
+      data: {
+        ...this.commonData,
+        ...scopeData(context),
+        toolCallId: toolCall.toolCallId,
+        toolName: toolCall.toolName,
+        status: "requested",
+        displayArgs: toolCall.args,
+        ...placement,
+        lifecycleSeq: 1,
+        requestedAt,
+      },
+    });
+  }
+
   private async publishSuspension(
     context: HarnessRunContext,
     suspension: { toolCallId: string; toolName: string; reason: string },
@@ -286,6 +335,26 @@ export class HarnessEventBridge {
     resultPreview?: unknown,
   ): Promise<void> {
     const suspendedAt = new Date().toISOString();
+    const existing = (
+      await this.runs?.toolCallStore().latestByToolCallId(context)
+    )?.get(suspension.toolCallId);
+    const placement = this.toolPlacement(context, suspension.toolCallId);
+    await this.runs?.toolCallStore().append(context, {
+      toolCallId: suspension.toolCallId,
+      toolName: suspension.toolName,
+      status:
+        status === "pending_approval"
+          ? "waiting_for_approval"
+          : "waiting_for_input",
+      displayArgs: existing?.displayArgs,
+      args: existing?.args,
+      ...placement,
+      lifecycleSeq: 2,
+      redactionVersion: 1,
+      requestedAt: existing?.requestedAt ?? createdAt,
+      startedAt: existing?.startedAt,
+      result: resultPreview,
+    });
     await this.publishToolCallUpdated(context, {
       toolCallId: suspension.toolCallId,
       toolName: suspension.toolName,
@@ -505,45 +574,10 @@ export class HarnessEventBridge {
       return;
     }
     if (event.type === "tool_call") {
-      const requestedAt = new Date().toISOString();
-      const displayArgs = event.input;
-      const placement = this.toolPlacement(context, event.toolCallId);
-      await this.runs?.toolCallStore().append(context, {
+      await this.ensureToolRequested(context, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
-        status: "requested",
-        displayArgs,
-        args: { hash: sandboxSha256Digest(displayArgs) },
-        ...placement,
-        lifecycleSeq: 1,
-        redactionVersion: 1,
-        requestedAt,
-      });
-      await this.publishToolCallUpdated(context, {
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        status: "requested",
-        argsPreview: displayArgs,
-        createdAt: requestedAt,
-        updatedAt: requestedAt,
-      });
-      await this.events?.append({
-        type: "tool.call.requested",
-        durability: "durable",
-        conversationId: context.conversationId,
-        agentId: context.agentId,
-        runId: context.runId,
-        data: {
-          ...this.commonData,
-          ...scopeData(context),
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          status: "requested",
-          displayArgs,
-          ...placement,
-          lifecycleSeq: 1,
-          requestedAt,
-        },
+        args: event.input,
       });
       this.log(context).debug("tool requested", {
         toolCallId: event.toolCallId,
@@ -553,6 +587,12 @@ export class HarnessEventBridge {
     }
     if (event.type === "tool_execution_start") {
       const startedAt = new Date().toISOString();
+      await this.ensureToolRequested(context, {
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        args: event.args,
+      });
+
       this.toolStartedAt.set(
         `${context.runId}:${event.toolCallId}`,
         Date.now(),

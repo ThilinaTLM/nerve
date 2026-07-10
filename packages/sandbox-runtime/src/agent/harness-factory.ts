@@ -303,6 +303,7 @@ export class HarnessFactory {
           runId: scope.runId,
           executionId: scope.executionId,
           toolCallId,
+          lifecycleOwner: "bridge",
           signal,
           onUpdate: (update: { chunk?: unknown }) => {
             if ("chunk" in update) {

@@ -20,6 +20,8 @@ export function taskRecordFromSupervisedTask(task: SupervisedTask): TaskRecord {
   return {
     id: task.id,
     name: task.name,
+    groupId: task.groupId,
+    groupName: task.groupName,
     conversationId: task.conversationId,
     agentId: task.agentId,
     cwd: task.cwd ?? "/workspace",

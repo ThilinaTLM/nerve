@@ -5,13 +5,19 @@ import { parseTaskSelector, requiredString } from "./args.js";
 
 export type TaskToolName = Extract<ToolName, `task_${string}`>;
 
+type TaskPortHandler = (
+  args: Record<string, unknown>,
+  identity: unknown,
+  signal?: AbortSignal,
+) => Promise<ToolExecutionResult>;
+
 export type TaskToolPort = {
-  execute(
-    name: TaskToolName,
-    args: Record<string, unknown>,
-    identity: unknown,
-    signal?: AbortSignal,
-  ): Promise<ToolExecutionResult>;
+  start: TaskPortHandler;
+  status: TaskPortHandler;
+  logs: TaskPortHandler;
+  cancel: TaskPortHandler;
+  restart: TaskPortHandler;
+  list: TaskPortHandler;
 };
 
 function validateTaskArgs(
@@ -33,31 +39,40 @@ function validateTaskArgs(
   } else if (name === "task_restart") {
     requiredString(args.taskId, "taskId");
   } else if (name === "task_cancel" || name === "task_logs") {
-    parseTaskSelector(args);
+    parseTaskSelector(args, false);
+  } else if (name === "task_status") {
+    const selectors = [
+      typeof args.taskId === "string" && args.taskId.trim().length > 0,
+      Array.isArray(args.taskIds),
+      typeof args.groupId === "string" && args.groupId.trim().length > 0,
+    ].filter(Boolean).length;
+    if (selectors > 1) {
+      throw new ToolValidationError(
+        "task_status accepts at most one of taskId, taskIds, or groupId.",
+      );
+    }
+    if (Array.isArray(args.taskIds) && args.taskIds.length > 20) {
+      throw new ToolValidationError("task_status accepts at most 20 task IDs.");
+    }
   }
   return args;
 }
 
 export function createTaskHandlers(port: TaskToolPort): ToolHandlerRegistry {
   const handler =
-    (name: TaskToolName) =>
+    (name: TaskToolName, execute: TaskPortHandler) =>
     async (
       args: Record<string, unknown>,
       context: { identity?: unknown; signal?: AbortSignal },
     ) =>
-      port.execute(
-        name,
-        validateTaskArgs(name, args),
-        context.identity,
-        context.signal,
-      );
+      execute(validateTaskArgs(name, args), context.identity, context.signal);
 
   return {
-    task_start: handler("task_start"),
-    task_status: handler("task_status"),
-    task_logs: handler("task_logs"),
-    task_cancel: handler("task_cancel"),
-    task_restart: handler("task_restart"),
-    task_list: handler("task_list"),
+    task_start: handler("task_start", port.start),
+    task_status: handler("task_status", port.status),
+    task_logs: handler("task_logs", port.logs),
+    task_cancel: handler("task_cancel", port.cancel),
+    task_restart: handler("task_restart", port.restart),
+    task_list: handler("task_list", port.list),
   };
 }

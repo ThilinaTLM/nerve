@@ -110,7 +110,18 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         "tools",
         "tool-calls.jsonl",
       );
-      assert.ok((await readFile(toolFile, "utf8")).includes("ask_1"));
+      const toolRows = (await readFile(toolFile, "utf8"))
+        .trim()
+        .split("\n")
+        .map(
+          (line) => JSON.parse(line) as { toolCallId: string; status: string },
+        )
+        .filter((row) => row.toolCallId === "ask_1");
+      assert.deepEqual(
+        toolRows.map((row) => row.status),
+        ["requested", "started", "waiting_for_input"],
+        "the harness bridge is the single structured lifecycle writer",
+      );
       const checkpointDir = path.join(
         dir,
         "conversations",

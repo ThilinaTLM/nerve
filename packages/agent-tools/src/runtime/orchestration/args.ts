@@ -54,13 +54,29 @@ export function parseExploreRequest(args: Record<string, unknown>) {
   if (tasks && (tasks.length < 2 || tasks.length > 5)) {
     throw new ToolValidationError("explore tasks must contain 2 to 5 items.");
   }
-  return { ...args, task, tasks };
+  return {
+    ...args,
+    task,
+    tasks,
+    context: optionalString(args.context),
+    label: optionalString(args.label),
+    depth:
+      typeof args.depth === "number" && Number.isFinite(args.depth)
+        ? args.depth
+        : undefined,
+  };
 }
 
-export function parseTaskSelector(args: Record<string, unknown>) {
+export function parseTaskSelector(
+  args: Record<string, unknown>,
+  required = true,
+) {
   const taskId = optionalString(args.taskId);
   const groupId = optionalString(args.groupId);
-  if (!taskId && !groupId) {
+  if (taskId && groupId) {
+    throw new ToolValidationError("Provide only one of taskId or groupId.");
+  }
+  if (required && !taskId && !groupId) {
     throw new ToolValidationError("A taskId or groupId is required.");
   }
   return { taskId, groupId };
