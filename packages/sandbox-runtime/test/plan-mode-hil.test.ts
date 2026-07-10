@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/agent-runtime";
 import { SandboxDaemon } from "../src/daemon/sandbox-daemon.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
+import { PlanReviewWaiter } from "../src/tools/plan-review-waiter.js";
 
 function config(provider: string) {
   return {
@@ -123,6 +124,43 @@ describe("sandbox plan-mode HIL", () => {
       assert.match(conversation, /"status":"accepted"/);
     } finally {
       registration.unregister();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("derives bounded slugs from long filename hyphen runs", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-plan-slug-"));
+    const waiter = new PlanReviewWaiter(dir, "proj_test");
+    const planDir = await waiter.ensurePlanDir();
+    const trailingPath = path.join(planDir, `plan${"-".repeat(230)}.md`);
+    const embeddedPath = path.join(planDir, `plan${"-".repeat(229)}x.md`);
+    await Promise.all([
+      writeFile(trailingPath, "# Trailing hyphens\n"),
+      writeFile(embeddedPath, "# Embedded hyphens\n"),
+    ]);
+
+    try {
+      const request = {
+        conversationId: "conv_slug",
+        agentId: "agent_slug",
+        runId: "run_slug",
+        cwd: planDir,
+      };
+      const trailing = await waiter.request({
+        ...request,
+        providerToolCallId: "call_trailing",
+        filePath: trailingPath,
+      });
+      const embedded = await waiter.request({
+        ...request,
+        providerToolCallId: "call_embedded",
+        filePath: embeddedPath,
+      });
+
+      assert.equal(trailing.review.slug, "plan");
+      assert.equal(embedded.review.slug.length, 80);
+      assert.equal(embedded.review.slug, `plan${"-".repeat(76)}`);
+    } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });

@@ -267,14 +267,15 @@ async function assertInside(root: string, candidate: string): Promise<void> {
 }
 
 function planSlug(filePath: string): string {
-  const slug = path
+  const normalized = path
     .basename(filePath)
     .replace(/\.md$/i, "")
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^[^a-z0-9]+/, "")
-    .replace(/-+$/g, "")
-    .slice(0, 80);
+    .replace(/^[^a-z0-9]+/, "");
+  let end = normalized.length;
+  while (end > 0 && normalized[end - 1] === "-") end -= 1;
+  const slug = normalized.slice(0, end).slice(0, 80);
   return slug || "plan";
 }
 
