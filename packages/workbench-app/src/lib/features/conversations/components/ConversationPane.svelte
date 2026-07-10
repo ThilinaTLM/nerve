@@ -11,13 +11,11 @@
     currentTodosForAgent,
     selectVisibleCommitted,
   } from "@nervekit/workbench-ui/state";
-  import { Button } from "@nervekit/workbench-ui/components/ui/button";
-  import {
-    AgentConversationPane,
-  } from "@nervekit/workbench-ui";
+  import { AgentConversationPane } from "@nervekit/workbench-ui";
   import { setConversationUiCapabilities } from "@nervekit/workbench-ui/context";
   import WorkbenchComposerAdapter from "../adapters/WorkbenchComposerAdapter.svelte";
   import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
+  import ConversationWelcome from "./ConversationWelcome.svelte";
 
   setConversationUiCapabilities(workbenchConversationUiCapabilities());
   import { messageMenu, toolMenu } from "./conversation-menus";
@@ -264,66 +262,6 @@
   {/snippet}
 
   {#snippet emptyExtension()}
-    <div class="empty-center">
-      <div class="prompt-line" aria-label="Nerve prompt">
-        <span class="prompt-sigil">nerve</span>
-        <span class="prompt-arrow">&#10095;</span>
-        <span class="prompt-caret" aria-hidden="true"></span>
-      </div>
-      <span class="prompt-hint">Open a conversation or start a new one.</span>
-      <Button class="empty-action" variant="ghost" size="sm" onclick={onOpenProject}>New chat</Button>
-    </div>
+    <ConversationWelcome onNewChat={() => onOpenProject?.()} />
   {/snippet}
 </AgentConversationPane>
-
-<style>
-  .empty-center {
-    display: grid;
-    place-content: center;
-    gap: 0.35rem;
-    min-height: 100%;
-    padding: 2rem;
-    color: var(--muted-foreground);
-    text-align: center;
-  }
-
-  .prompt-line {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-lg);
-    letter-spacing: 0.02em;
-  }
-
-  .prompt-sigil {
-    color: var(--muted-foreground);
-  }
-
-  .prompt-arrow {
-    color: var(--primary);
-    font-weight: 600;
-  }
-
-  .prompt-caret {
-    width: 0.55rem;
-    height: 1.2rem;
-    background: var(--primary);
-    display: inline-block;
-    animation: pulse 1.1s steps(1) infinite;
-  }
-
-  .prompt-hint {
-    margin-top: 0.7rem;
-    font-size: var(--text-sm);
-    color: var(--muted-foreground);
-  }
-
-  .empty-center :global(.empty-action) {
-    justify-self: center;
-    margin-top: 0.6rem;
-    color: var(--muted-foreground);
-  }
-
-</style>

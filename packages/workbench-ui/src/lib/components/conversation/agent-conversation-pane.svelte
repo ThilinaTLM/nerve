@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Folder from "@lucide/svelte/icons/folder";
   import type { Snippet } from "svelte";
   import ConversationPaneLayout from "../ConversationPaneLayout.svelte";
   import TranscriptList from "../transcript/TranscriptList.svelte";
@@ -6,6 +7,7 @@
   import AgentComposer from "./agent-composer.svelte";
   import ConversationBanner from "./conversation-banner.svelte";
   import ConversationEmptyState from "./conversation-empty-state.svelte";
+  import ConversationSignal from "./conversation-signal.svelte";
   import type {
     ConversationMenuBuilders,
     ConversationPaneActions,
@@ -50,10 +52,24 @@
       {/if}
       <div class="min-h-0 flex-1">
         {#if model.hasContent === false}
-          <ConversationEmptyState
-            title={model.emptyTitle}
-            message={model.emptyMessage}
-          />
+          <ConversationSignal
+            title="Where should we start?"
+            message="Ask Nerve to explore, plan, or build in this project."
+          >
+            {#snippet footer()}
+              {#if model.activeProjectLabel}
+                <div
+                  class="inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground"
+                  title={model.activeProject?.dir}
+                  aria-label={`Conversation will be created in project ${model.activeProject?.dir}`}
+                >
+                  <Folder class="size-3.5 shrink-0" strokeWidth={2.2} aria-hidden="true" />
+                  <span class="shrink-0">Project:</span>
+                  <span class="truncate font-mono text-foreground">{model.activeProjectLabel}</span>
+                </div>
+              {/if}
+            {/snippet}
+          </ConversationSignal>
         {:else}
         <TranscriptList
           bind:controller={scroll.controller}

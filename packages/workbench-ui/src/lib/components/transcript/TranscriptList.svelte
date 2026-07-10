@@ -18,6 +18,7 @@
   } from "@nervekit/workbench-ui/components/ui/virtual-list";
   import type { TranscriptItem } from "../../state/transcript-types";
   import type { TimelineItem } from "../../state/timeline";
+  import ConversationSignal from "../conversation/conversation-signal.svelte";
   import QueuedPromptRow from "./QueuedPromptRow.svelte";
   import TranscriptRow from "./TranscriptRow.svelte";
 
@@ -91,7 +92,11 @@
     atEnd = $bindable(true),
     paddingEnd = 0,
     heightCacheKey,
-    contentVisibility = true,
+    // Transcript rows change height in place as tool results hydrate and wrap.
+    // Let the virtualizer observe their real layout continuously: applying
+    // content-visibility here can leave a row reporting its stale intrinsic
+    // height while its newly rendered body paints over the following row.
+    contentVisibility = false,
     timeline,
     streamingText,
     sending,
@@ -175,27 +180,24 @@
 </script>
 
 {#if showEmptyRun}
-  <div class="empty-run-wrap">
-    <div class="empty-run">
-      <div class="prompt-line">
-        <span class="prompt-sigil">nerve</span>
-        <span class="prompt-arrow">&#10095;</span>
-        <span class="prompt-caret" aria-hidden="true"></span>
-      </div>
-      <span class="prompt-hint">Type below to wake the agent.</span>
+  <ConversationSignal
+    title="Where should we start?"
+    message="Ask Nerve to explore, plan, or build in this project."
+  >
+    {#snippet footer()}
       {#if activeProjectLabel}
         <div
-          class="prompt-project"
+          class="inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground"
           title={activeProject?.dir}
           aria-label={`Conversation will be created in project ${activeProject?.dir}`}
         >
-          <Folder size={13} strokeWidth={2.2} aria-hidden="true" />
-          <span class="prompt-project-label">Project:</span>
-          <span class="prompt-project-path">{activeProjectLabel}</span>
+          <Folder class="size-3.5 shrink-0" strokeWidth={2.2} aria-hidden="true" />
+          <span class="shrink-0">Project:</span>
+          <span class="truncate font-mono text-foreground">{activeProjectLabel}</span>
         </div>
       {/if}
-    </div>
-  </div>
+    {/snippet}
+  </ConversationSignal>
 {:else}
   <VirtualScroller
     bind:controller
@@ -266,13 +268,6 @@
     padding: 0 0.75rem;
   }
 
-  .empty-run-wrap {
-    display: grid;
-    min-height: 100%;
-    align-content: start;
-    padding: 0.75rem;
-  }
-
   .waiting-entry {
     position: relative;
     width: 100%;
@@ -310,75 +305,4 @@
     animation: pulse 1s steps(2, start) infinite;
   }
 
-
-  .empty-run {
-    display: grid;
-    place-content: center;
-    gap: 0.35rem;
-    min-height: 22rem;
-    color: var(--muted-foreground);
-    text-align: center;
-  }
-
-  .prompt-line {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    font-family: var(--font-mono);
-    font-size: var(--text-lg);
-    letter-spacing: 0.02em;
-  }
-
-  .prompt-sigil {
-    color: var(--muted-foreground);
-  }
-
-  .prompt-arrow {
-    color: var(--primary);
-    font-weight: 600;
-  }
-
-  .prompt-caret {
-    width: 0.55rem;
-    height: 1.2rem;
-    background: var(--primary);
-    display: inline-block;
-    animation: pulse 1.1s steps(1) infinite;
-  }
-
-  .prompt-hint {
-    margin-top: 0.7rem;
-    font-size: var(--text-sm);
-    color: var(--muted-foreground);
-  }
-
-  .prompt-project {
-    display: inline-flex;
-    align-items: center;
-    justify-self: center;
-    max-width: min(28rem, 86vw);
-    gap: 0.4rem;
-    margin-top: 0.35rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--muted);
-    padding: 0.25rem 0.55rem;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-  }
-
-  .prompt-project-label {
-    flex: 0 0 auto;
-    color: var(--muted-foreground);
-  }
-
-  .prompt-project-path {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--foreground);
-    font-family: var(--font-mono);
-  }
 </style>
