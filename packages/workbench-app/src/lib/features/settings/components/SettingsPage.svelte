@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Component } from "svelte";
   import Bot from "@lucide/svelte/icons/bot";
+  import HardDrive from "@lucide/svelte/icons/hard-drive";
   import Lightbulb from "@lucide/svelte/icons/lightbulb";
   import Monitor from "@lucide/svelte/icons/monitor";
   import Server from "@lucide/svelte/icons/server";
@@ -43,7 +44,7 @@
     | "server"
     | "storage"
     | "runtime";
-  type GroupId = "workbench" | "agents" | "suggestions" | "models" | "tools" | "system";
+  type GroupId = "workbench" | "agents" | "suggestions" | "models" | "tools" | "storage" | "system";
   type GroupSection = { id: SectionId; label: string };
   type SettingsGroup = SettingsShellGroup & {
     id: GroupId;
@@ -105,12 +106,17 @@
       sections: [{ id: "tools", label: "Tool configuration" }],
     },
     {
+      id: "storage",
+      label: "Storage",
+      icon: HardDrive,
+      sections: [{ id: "storage", label: "Storage cleanup" }],
+    },
+    {
       id: "system",
       label: "System",
       icon: Server,
       sections: [
         { id: "server", label: "Server" },
-        { id: "storage", label: "Storage" },
         { id: "runtime", label: "Diagnostics" },
       ],
     },
@@ -156,9 +162,10 @@
         <ScopedModelsSettingsSection {settingsDraft} {models} {authProviders} {onSettingsChange} />
       {:else if activeGroup.id === "tools"}
         <ToolsSettingsSection {settingsDraft} {status} {authProviders} {onSettingsChange} />
+      {:else if activeGroup.id === "storage"}
+        <StorageSettingsSection />
       {:else if activeGroup.id === "system"}
         <ServerSettingsSection {settingsDraft} {onSettingsChange} />
-        <StorageSettingsSection />
         <GeneralSettingsSection {status} />
       {/if}
     {:else}

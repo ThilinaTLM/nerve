@@ -1,6 +1,8 @@
 import type {
+  StorageCleanupCancelResponse,
   StorageCleanupRequest,
-  StorageCleanupResponse,
+  StorageCleanupStartResponse,
+  StorageCleanupStatusResponse,
   StorageUsageResponse,
 } from "$lib/api";
 import { protocolRequest } from "$lib/core/protocol/http-client";
@@ -10,10 +12,33 @@ export async function getStorageUsage(): Promise<StorageUsageResponse> {
     .result;
 }
 
-export async function runStorageCleanup(
+export async function startStorageCleanup(
   body: StorageCleanupRequest,
-): Promise<StorageCleanupResponse> {
+): Promise<StorageCleanupStartResponse> {
   return (
-    await protocolRequest<StorageCleanupResponse>("storage.cleanup", body)
+    await protocolRequest<StorageCleanupStartResponse>("storage.cleanup", body)
+  ).result;
+}
+
+export async function getStorageCleanup(
+  operationId?: string,
+): Promise<StorageCleanupStatusResponse> {
+  return (
+    await protocolRequest<StorageCleanupStatusResponse>("storage.cleanup.get", {
+      ...(operationId ? { operationId } : {}),
+    })
+  ).result;
+}
+
+export async function cancelStorageCleanup(
+  operationId: string,
+): Promise<StorageCleanupCancelResponse> {
+  return (
+    await protocolRequest<StorageCleanupCancelResponse>(
+      "storage.cleanup.cancel",
+      {
+        operationId,
+      },
+    )
   ).result;
 }

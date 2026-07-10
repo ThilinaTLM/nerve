@@ -162,6 +162,7 @@ async function main() {
   });
   const registryHydrateStartedAt = Date.now();
   await state.registry.hydrate();
+  await state.storageCleanup.hydrate();
   await state.registry.pythonRuntime
     .refresh()
     .catch((error) =>
@@ -313,6 +314,7 @@ async function main() {
       .info("Daemon file removed", { durationMs: Date.now() - startedAt })
       .catch(() => undefined);
     state.subscriptionUsage.stop();
+    await state.storageCleanup.shutdown().catch(() => undefined);
     stopHeartbeat();
     for (const session of [
       ...protocolSessions,

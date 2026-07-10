@@ -15,6 +15,7 @@ export interface PruneConversationsTaskPort {
   removeInactiveTasksForConversations(
     conversationIds: string[],
   ): Promise<string[]>;
+  listTasks(): TaskRecord[];
 }
 
 export interface PruneConversationsToolPort {
@@ -23,11 +24,9 @@ export interface PruneConversationsToolPort {
     agentIds: string[],
   ): Promise<void>;
 }
-
 export interface PruneConversationsPlanPort {
   removeReviewsForConversations(conversationIds: string[]): Promise<void>;
 }
-
 export interface PruneConversationsSuspensionPort {
   removeSuspensionsForConversations(conversationIds: string[]): Promise<void>;
 }
@@ -57,27 +56,42 @@ export class PruneProjectConversationsService {
       olderThanDays: 7,
     },
   ): Promise<PruneProjectConversationsResponse> {
-    this.deps.getProject(projectId);
+    const project = this.deps.getProject(projectId);
+    return (
+      await this.pruneAcrossProjects([project], request)
+    )[0] as PruneProjectConversationsResponse;
+  }
+
+  async pruneAcrossProjects(
+    projects: ProjectRecord[],
+    request: PruneProjectConversationsRequest,
+  ): Promise<PruneProjectConversationsResponse[]> {
+    const projectIds = new Set(projects.map((project) => project.id));
     const projectConversations = this.deps
       .listConversations()
-      .filter((conversation) => conversation.projectId === projectId);
-    const candidates = this.pruneCandidates(projectConversations, request);
+      .filter((conversation) => projectIds.has(conversation.projectId));
+    const candidates = this.pruneCandidatesByProject(
+      projectConversations,
+      request,
+    );
     const candidateIds = candidates.map((conversation) => conversation.id);
     const activeTaskConversationIds = new Set(
       this.deps.tasks
         .activeTasksForConversations(candidateIds)
         .map((task) => task.conversationId)
-        .filter((conversationId): conversationId is string =>
-          Boolean(conversationId),
-        ),
+        .filter((id): id is string => Boolean(id)),
     );
     const agentsByConversationId = this.agentsByConversation(candidateIds);
-
-    const prunedConversationIds: string[] = [];
+    const pruned: ConversationRecord[] = [];
+    const skippedByProject = new Map<
+      string,
+      PruneProjectConversationsResponse["skipped"]
+    >();
     const prunedAgentIds: string[] = [];
-    const skipped: PruneProjectConversationsResponse["skipped"] = [];
+
     for (const conversation of candidates) {
       const agents = agentsByConversationId.get(conversation.id) ?? [];
+      const skipped = skippedByProject.get(conversation.projectId) ?? [];
       if (
         agents.some(
           (agent) =>
@@ -88,6 +102,7 @@ export class PruneProjectConversationsService {
           conversationId: conversation.id,
           reason: "active_agent",
         });
+        skippedByProject.set(conversation.projectId, skipped);
         continue;
       }
       if (activeTaskConversationIds.has(conversation.id)) {
@@ -95,77 +110,98 @@ export class PruneProjectConversationsService {
           conversationId: conversation.id,
           reason: "active_task",
         });
+        skippedByProject.set(conversation.projectId, skipped);
         continue;
       }
-      prunedConversationIds.push(conversation.id);
+      pruned.push(conversation);
       prunedAgentIds.push(...agents.map((agent) => agent.id));
     }
 
+    const prunedIds = pruned.map((conversation) => conversation.id);
+    const taskProjectById = new Map(
+      this.deps.tasks.listTasks().map((task) => [task.id, task.projectId]),
+    );
     const prunedTaskIds =
-      await this.deps.tasks.removeInactiveTasksForConversations(
-        prunedConversationIds,
-      );
+      await this.deps.tasks.removeInactiveTasksForConversations(prunedIds);
     await this.deps.tools.removeRecordsForConversations(
-      prunedConversationIds,
+      prunedIds,
       prunedAgentIds,
     );
-    await this.deps.plans.removeReviewsForConversations(prunedConversationIds);
-    await this.deps.suspensions.removeSuspensionsForConversations(
-      prunedConversationIds,
-    );
-    for (const conversationId of prunedConversationIds) {
-      await this.deps.removeConversation(conversationId);
-    }
+    await this.deps.plans.removeReviewsForConversations(prunedIds);
+    await this.deps.suspensions.removeSuspensionsForConversations(prunedIds);
+    for (const conversation of pruned)
+      await this.deps.removeConversation(conversation.id);
+    // removeConversation publishes a deletion event into the per-conversation
+    // log, which recreates the directory. Remove the final persisted trace.
     await Promise.all(
-      prunedConversationIds.map((conversationId) =>
+      prunedIds.map((conversationId) =>
         this.deps.conversationRepository
           .remove(conversationId)
           .catch(() => undefined),
       ),
     );
-    await this.deps.events.removeEventsForConversations(prunedConversationIds);
-    await this.deps.logger.removeLogsForConversations(prunedConversationIds);
-    await this.deps.rebuildIndex();
+    await this.deps.events.removeEventsForConversations(prunedIds);
+    await this.deps.logger.removeLogsForConversations(prunedIds);
+    if (prunedIds.length > 0) await this.deps.rebuildIndex();
 
-    const response: PruneProjectConversationsResponse = {
-      projectId,
-      strategy: request.strategy,
-      prunedConversationIds,
-      prunedTaskIds,
-      skipped,
-    };
-    await this.deps.events.publish("project.conversations.pruned", response);
-    return response;
+    const responses = projects.map((project) => {
+      const response: PruneProjectConversationsResponse = {
+        projectId: project.id,
+        strategy: request.strategy,
+        prunedConversationIds: pruned
+          .filter((conversation) => conversation.projectId === project.id)
+          .map((conversation) => conversation.id),
+        prunedTaskIds: prunedTaskIds.filter(
+          (taskId) => taskProjectById.get(taskId) === project.id,
+        ),
+        skipped: skippedByProject.get(project.id) ?? [],
+      };
+      return response;
+    });
+    for (const response of responses) {
+      await this.deps.events.publish("project.conversations.pruned", response);
+    }
+    return responses;
   }
 
-  private pruneCandidates(
+  private pruneCandidatesByProject(
     conversations: ConversationRecord[],
     request: PruneProjectConversationsRequest,
   ): ConversationRecord[] {
     if (request.strategy === "olderThanDays") {
-      const cutoffMs = Date.now() - request.olderThanDays * 24 * 60 * 60 * 1000;
+      const cutoffMs = Date.now() - request.olderThanDays * 86_400_000;
       return conversations.filter((conversation) => {
         const updatedAt = Date.parse(conversation.updatedAt);
         return Number.isFinite(updatedAt) && updatedAt < cutoffMs;
       });
     }
-
-    return [...conversations]
-      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-      .slice(request.keepLatest);
+    const byProject = new Map<string, ConversationRecord[]>();
+    for (const conversation of conversations) {
+      const values = byProject.get(conversation.projectId) ?? [];
+      values.push(conversation);
+      byProject.set(conversation.projectId, values);
+    }
+    return [...byProject.values()].flatMap((values) =>
+      values
+        .sort(
+          (left, right) =>
+            Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
+        )
+        .slice(request.keepLatest),
+    );
   }
 
   private agentsByConversation(
     conversationIds: string[],
   ): Map<string, AgentRecord[]> {
     const candidateIds = new Set(conversationIds);
-    const agentsByConversationId = new Map<string, AgentRecord[]>();
+    const result = new Map<string, AgentRecord[]>();
     for (const agent of this.deps.agents.values()) {
       if (!candidateIds.has(agent.conversationId)) continue;
-      const agents = agentsByConversationId.get(agent.conversationId) ?? [];
-      agents.push(agent);
-      agentsByConversationId.set(agent.conversationId, agents);
+      const values = result.get(agent.conversationId) ?? [];
+      values.push(agent);
+      result.set(agent.conversationId, values);
     }
-    return agentsByConversationId;
+    return result;
   }
 }

@@ -100,8 +100,12 @@ import {
 } from "../settings/index.js";
 import { storageInfoSchema } from "../status/index.js";
 import {
+  storageCleanupCancelParamsSchema,
+  storageCleanupCancelResponseSchema,
+  storageCleanupGetParamsSchema,
   storageCleanupRequestSchema,
-  storageCleanupResponseSchema,
+  storageCleanupStartResponseSchema,
+  storageCleanupStatusResponseSchema,
   storageUsageResponseSchema,
 } from "../storage/index.js";
 import {
@@ -146,6 +150,8 @@ export const protocolMethodNameSchema = z.enum([
   "storage.rebuildIndex",
   "storage.usage.get",
   "storage.cleanup",
+  "storage.cleanup.get",
+  "storage.cleanup.cancel",
   "model.list",
   "usage.subscription.get",
   "tool.list",
@@ -565,7 +571,21 @@ const methodDefinitions = {
   "storage.cleanup": def(
     "storage.cleanup",
     storageCleanupRequestSchema,
-    storageCleanupResponseSchema,
+    storageCleanupStartResponseSchema,
+    "accepted_async",
+    "recommended",
+  ),
+  "storage.cleanup.get": def(
+    "storage.cleanup.get",
+    storageCleanupGetParamsSchema,
+    storageCleanupStatusResponseSchema,
+    "read",
+    "none",
+  ),
+  "storage.cleanup.cancel": def(
+    "storage.cleanup.cancel",
+    storageCleanupCancelParamsSchema,
+    storageCleanupCancelResponseSchema,
     "mutation",
     "recommended",
   ),

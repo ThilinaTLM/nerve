@@ -31,7 +31,8 @@ export type IdPrefix =
   | "log"
   | "crash"
   | "promptq"
-  | "pin";
+  | "pin"
+  | "storageop";
 
 const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

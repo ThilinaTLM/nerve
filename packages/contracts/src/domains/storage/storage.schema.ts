@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-// Stable identifiers for categories the UI knows how to render/clean.
 export const storageCategoryKeySchema = z.enum([
   "conversations",
   "logs",
@@ -9,12 +8,12 @@ export const storageCategoryKeySchema = z.enum([
   "plans",
   "agents",
   "tasks",
-  "workflowState", // suspensions, approvals, user-questions, handover(s)
+  "workflowState",
   "projects",
   "workers",
   "cache",
   "tmp",
-  "protected", // auth, keys, tls, config.json, daemon.json (never cleared)
+  "protected",
   "other",
 ]);
 export type StorageCategoryKey = z.infer<typeof storageCategoryKeySchema>;
@@ -25,10 +24,32 @@ export const storageCategoryUsageSchema = z.object({
   description: z.string(),
   bytes: z.number().int().nonnegative(),
   fileCount: z.number().int().nonnegative(),
-  cleanable: z.boolean(), // can be targeted by cleanup at all
-  protected: z.boolean(), // secrets/config; never deleted
+  cleanable: z.boolean(),
+  protected: z.boolean(),
 });
 export type StorageCategoryUsage = z.infer<typeof storageCategoryUsageSchema>;
+
+export const storageCleanupTargetSchema = z.enum([
+  "conversations",
+  "datedLogs",
+  "rotatedEventLog",
+  "toolCallLog",
+  "exploreReports",
+  "cache",
+  "tmp",
+  "searchIndex",
+]);
+export type StorageCleanupTarget = z.infer<typeof storageCleanupTargetSchema>;
+
+export const storageCleanupTargetUsageSchema = z.object({
+  target: storageCleanupTargetSchema,
+  bytes: z.number().int().nonnegative(),
+  itemCount: z.number().int().nonnegative(),
+  estimate: z.enum(["exact", "upTo", "unknown"]),
+});
+export type StorageCleanupTargetUsage = z.infer<
+  typeof storageCleanupTargetUsageSchema
+>;
 
 export const largestConversationUsageSchema = z.object({
   conversationId: z.string(),
@@ -44,6 +65,7 @@ export const storageUsageResponseSchema = z.object({
   generatedAt: z.string().datetime(),
   totalBytes: z.number().int().nonnegative(),
   categories: z.array(storageCategoryUsageSchema),
+  cleanupTargets: z.array(storageCleanupTargetUsageSchema),
   sqlite: z.object({
     dbBytes: z.number().int().nonnegative(),
     walBytes: z.number().int().nonnegative(),
@@ -56,7 +78,6 @@ export const storageUsageResponseSchema = z.object({
 });
 export type StorageUsageResponse = z.infer<typeof storageUsageResponseSchema>;
 
-// Cleanup is a set of independent, explicitly-opted-in targets.
 export const storageCleanupRequestSchema = z
   .object({
     conversationsOlderThanDays: z
@@ -66,12 +87,12 @@ export const storageCleanupRequestSchema = z
       .max(3650)
       .optional(),
     logsOlderThanDays: z.number().int().positive().max(3650).optional(),
-    truncateEventLog: z.boolean().optional(), // delete rotated events.jsonl.1
-    clearToolCallLog: z.boolean().optional(), // truncate logs/tool-calls.jsonl
+    truncateEventLog: z.boolean().optional(),
+    clearToolCallLog: z.boolean().optional(),
     clearExploreReports: z.boolean().optional(),
     clearCache: z.boolean().optional(),
     clearTmp: z.boolean().optional(),
-    vacuumSqlite: z.boolean().optional(), // checkpoint + VACUUM
+    rebuildSearchIndex: z.boolean().optional(),
   })
   .refine(
     (value) =>
@@ -83,19 +104,89 @@ export const storageCleanupRequestSchema = z
 export type StorageCleanupRequest = z.infer<typeof storageCleanupRequestSchema>;
 
 export const storageCleanupResultSchema = z.object({
-  target: z.string(),
+  target: storageCleanupTargetSchema,
+  outcome: z.enum(["succeeded", "failed", "cancelled"]),
   freedBytes: z.number().int().nonnegative(),
   removedItems: z.number().int().nonnegative(),
   skipped: z.number().int().nonnegative(),
   note: z.string().optional(),
+  error: z.string().optional(),
 });
 export type StorageCleanupResult = z.infer<typeof storageCleanupResultSchema>;
 
-export const storageCleanupResponseSchema = z.object({
+export const storageCleanupOperationStatusSchema = z.enum([
+  "queued",
+  "running",
+  "cancelling",
+  "succeeded",
+  "failed",
+  "cancelled",
+]);
+export type StorageCleanupOperationStatus = z.infer<
+  typeof storageCleanupOperationStatusSchema
+>;
+
+export const storageCleanupOperationSchema = z.object({
+  id: z.string().startsWith("storageop_"),
+  request: storageCleanupRequestSchema,
+  status: storageCleanupOperationStatusSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  startedAt: z.string().datetime().optional(),
+  completedAt: z.string().datetime().optional(),
+  currentTarget: storageCleanupTargetSchema.optional(),
+  message: z.string(),
+  completedTargets: z.number().int().nonnegative(),
+  totalTargets: z.number().int().nonnegative(),
+  cancellable: z.boolean(),
+  cancellationRequested: z.boolean().default(false),
   freedBytes: z.number().int().nonnegative(),
   results: z.array(storageCleanupResultSchema),
-  usage: storageUsageResponseSchema, // post-cleanup snapshot for instant refresh
+  usage: storageUsageResponseSchema.optional(),
+  error: z.string().optional(),
 });
-export type StorageCleanupResponse = z.infer<
-  typeof storageCleanupResponseSchema
+export type StorageCleanupOperation = z.infer<
+  typeof storageCleanupOperationSchema
+>;
+
+export const storageCleanupStartResponseSchema = z.object({
+  operation: storageCleanupOperationSchema,
+});
+export type StorageCleanupStartResponse = z.infer<
+  typeof storageCleanupStartResponseSchema
+>;
+
+export const storageCleanupGetParamsSchema = z
+  .object({ operationId: z.string().startsWith("storageop_").optional() })
+  .optional();
+export type StorageCleanupGetParams = z.infer<
+  typeof storageCleanupGetParamsSchema
+>;
+
+export const storageCleanupStatusResponseSchema = z.object({
+  operation: storageCleanupOperationSchema.nullable(),
+});
+export type StorageCleanupStatusResponse = z.infer<
+  typeof storageCleanupStatusResponseSchema
+>;
+
+export const storageCleanupCancelParamsSchema = z.object({
+  operationId: z.string().startsWith("storageop_"),
+});
+export type StorageCleanupCancelParams = z.infer<
+  typeof storageCleanupCancelParamsSchema
+>;
+
+export const storageCleanupCancelResponseSchema = z.object({
+  operation: storageCleanupOperationSchema,
+});
+export type StorageCleanupCancelResponse = z.infer<
+  typeof storageCleanupCancelResponseSchema
+>;
+
+export const storageCleanupUpdatedEventSchema = z.object({
+  operation: storageCleanupOperationSchema,
+});
+export type StorageCleanupUpdatedEvent = z.infer<
+  typeof storageCleanupUpdatedEventSchema
 >;

@@ -117,7 +117,17 @@ export async function handleProtocolMethod(
     case "storage.usage.get":
       return state.storageUsage.computeUsage();
     case "storage.cleanup":
-      return state.storageUsage.cleanup(params as never);
+      return { operation: await state.storageCleanup.start(params as never) };
+    case "storage.cleanup.get": {
+      const request = (params ?? {}) as { operationId?: string };
+      return { operation: state.storageCleanup.get(request.operationId) };
+    }
+    case "storage.cleanup.cancel": {
+      const request = params as { operationId: string };
+      return {
+        operation: await state.storageCleanup.cancel(request.operationId),
+      };
+    }
     case "model.list":
       return { models: state.registry.listModels() };
     case "usage.subscription.get":

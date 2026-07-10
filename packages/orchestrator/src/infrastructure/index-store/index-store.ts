@@ -1,3 +1,4 @@
+import { existsSync, renameSync, rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type {
   AgentRecord,
@@ -46,11 +47,16 @@ export interface RebuildIndexInput {
   userQuestions?: UserQuestionRecord[];
 }
 
+export interface IndexReplacementToken {
+  readonly backupPath: string;
+}
+
 export class IndexStore {
-  private readonly db: DatabaseSync;
+  private db: DatabaseSync;
   private healthy = true;
 
   constructor(readonly path: string) {
+    this.recoverReplacementFiles();
     this.db = new DatabaseSync(path);
   }
 
@@ -759,8 +765,70 @@ export class IndexStore {
     }));
   }
 
+  beginFreshReplacement(): IndexReplacementToken {
+    const backupPath = `${this.path}.cleanup-backup`;
+    this.checkpoint();
+    this.db.close();
+    try {
+      for (const suffix of ["", "-wal", "-shm"]) {
+        const source = `${this.path}${suffix}`;
+        const backup = `${backupPath}${suffix}`;
+        rmSync(backup, { force: true });
+        if (existsSync(source)) renameSync(source, backup);
+      }
+      this.db = new DatabaseSync(this.path);
+      this.healthy = true;
+      this.initialize();
+      return { backupPath };
+    } catch (error) {
+      for (const suffix of ["", "-wal", "-shm"]) {
+        rmSync(`${this.path}${suffix}`, { force: true });
+      }
+      this.restoreReplacementFiles(backupPath);
+      this.db = new DatabaseSync(this.path);
+      this.healthy = false;
+      throw error;
+    }
+  }
+
+  commitFreshReplacement(token: IndexReplacementToken): void {
+    for (const suffix of ["", "-wal", "-shm"]) {
+      rmSync(`${token.backupPath}${suffix}`, { force: true });
+    }
+  }
+
+  rollbackFreshReplacement(token: IndexReplacementToken): void {
+    this.db.close();
+    for (const suffix of ["", "-wal", "-shm"]) {
+      rmSync(`${this.path}${suffix}`, { force: true });
+    }
+    this.restoreReplacementFiles(token.backupPath);
+    this.db = new DatabaseSync(this.path);
+    this.healthy = true;
+  }
+
   close(): void {
     this.db.close();
+  }
+
+  private recoverReplacementFiles(): void {
+    const backupPath = `${this.path}.cleanup-backup`;
+    if (!existsSync(this.path) && existsSync(backupPath)) {
+      this.restoreReplacementFiles(backupPath);
+      return;
+    }
+    if (existsSync(this.path)) {
+      for (const suffix of ["", "-wal", "-shm"]) {
+        rmSync(`${backupPath}${suffix}`, { force: true });
+      }
+    }
+  }
+
+  private restoreReplacementFiles(backupPath: string): void {
+    for (const suffix of ["", "-wal", "-shm"]) {
+      const backup = `${backupPath}${suffix}`;
+      if (existsSync(backup)) renameSync(backup, `${this.path}${suffix}`);
+    }
   }
 
   private countTable(table: string): number {

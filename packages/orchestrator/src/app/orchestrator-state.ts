@@ -12,7 +12,11 @@ import {
   OAuthFlowManager,
 } from "../domains/auth/index.js";
 import { ProviderCatalogStore } from "../domains/providers/index.js";
-import { StorageUsageService } from "../domains/storage/index.js";
+import {
+  StorageCleanupRepository,
+  StorageCleanupService,
+  StorageUsageService,
+} from "../domains/storage/index.js";
 import { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import { EventBus } from "../infrastructure/events/index.js";
@@ -37,6 +41,7 @@ export interface OrchestratorState {
   registry: RuntimeRegistry;
   index: IndexStore;
   storageUsage: StorageUsageService;
+  storageCleanup: StorageCleanupService;
   secrets: SecretProvider;
   auth: AuthManager;
   providerCatalog: ProviderCatalogStore;
@@ -84,7 +89,16 @@ export function createOrchestratorState(
   );
   const storageUsage = new StorageUsageService({
     paths: storage.paths,
-    index,
+    getRegistry: () => registry,
+  });
+  const storageCleanup = new StorageCleanupService({
+    paths: storage.paths,
+    repository: new StorageCleanupRepository(
+      join(storage.paths.home, "maintenance", "storage-cleanup.json"),
+    ),
+    usage: storageUsage,
+    events,
+    logger,
     getRegistry: () => registry,
   });
   return {
@@ -98,6 +112,7 @@ export function createOrchestratorState(
     registry,
     index,
     storageUsage,
+    storageCleanup,
     secrets,
     auth,
     providerCatalog,

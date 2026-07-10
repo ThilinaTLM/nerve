@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { pathExists } from "../src/infrastructure/storage/index.js";
@@ -150,6 +151,45 @@ describe("RuntimeRegistry conversation pruning", () => {
         state.registry.tasks.getTask(activeTask.id).id,
         activeTask.id,
       );
+    } finally {
+      state.index.close();
+    }
+  });
+
+  it("batches old conversation pruning across projects", async () => {
+    const state = await createState("nerve-registry-prune-all-");
+    try {
+      const firstDir = join(state.storage.paths.home, "first");
+      const secondDir = join(state.storage.paths.home, "second");
+      await mkdir(firstDir, { recursive: true });
+      await mkdir(secondDir, { recursive: true });
+      const firstProject = await state.registry.createProject({
+        dir: firstDir,
+      });
+      const secondProject = await state.registry.createProject({
+        dir: secondDir,
+      });
+      const first = await state.registry.createConversation({
+        projectId: firstProject.id,
+      });
+      const second = await state.registry.createConversation({
+        projectId: secondProject.id,
+      });
+      ageConversation(state, first, "2000-01-01T00:00:00.000Z");
+      ageConversation(state, second, "2000-01-01T00:00:00.000Z");
+
+      const result = await state.registry.pruneConversationsAcrossProjects({
+        strategy: "olderThanDays",
+        olderThanDays: 7,
+      });
+
+      assert.deepEqual(
+        result.prunedConversationIds.sort(),
+        [first.id, second.id].sort(),
+      );
+      assert.equal(result.skippedCount, 0);
+      assert.throws(() => state.registry.getConversation(first.id));
+      assert.throws(() => state.registry.getConversation(second.id));
     } finally {
       state.index.close();
     }
