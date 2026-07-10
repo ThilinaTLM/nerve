@@ -14,6 +14,7 @@
     getKey,
     estimateSize,
     heightCacheKey,
+    measurementVersion,
     contentVisibility = false,
     overscan = 8,
     anchor = "start",
@@ -241,7 +242,7 @@
     measureFrame = undefined;
   }
 
-  function measure(node: HTMLElement) {
+  function measure(node: HTMLElement, _measurementVersion: unknown) {
     let lastHeight = measurableHeight(node) ?? 0;
     let observer: ResizeObserver | undefined;
 
@@ -258,7 +259,7 @@
     }
 
     return {
-      update() {
+      update(_nextMeasurementVersion: unknown) {
         queueMeasure(node);
       },
       destroy() {
@@ -295,7 +296,7 @@
           class="virtual-scroller-row"
           class:cv-auto={contentVisibility}
           data-index={virtualRow.index}
-          use:measure
+          use:measure={measurementVersion}
           style:transform={`translateY(${virtualRow.start}px)`}
           style:contain-intrinsic-size={contentVisibility
             ? `auto ${Math.max(1, Math.round(virtualRow.size))}px`

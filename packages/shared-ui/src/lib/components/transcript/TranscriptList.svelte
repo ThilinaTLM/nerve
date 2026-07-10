@@ -139,6 +139,36 @@
     return result;
   });
 
+  // Tool/HIL rows can replace their body in place while retaining the same
+  // timeline key. Give the virtualizer an explicit revision so it remeasures
+  // rendered rows after Svelte commits the new card content; relying only on
+  // ResizeObserver can leave one stale frame when content-visibility is active.
+  const measurementVersion = $derived.by(() => {
+    const timelineRevision = timeline
+      .map((node) => {
+        if (node.kind === "tool")
+          return `${node.key}:${node.toolCall.status}:${node.toolCall.updatedAt}`;
+        if (node.kind === "message")
+          return `${node.key}:${node.item.text.length}:${node.item.done}`;
+        return node.key;
+      })
+      .join("|");
+    const approvalRevision = approvals
+      .map((approval) => `${approval.id}:${approval.status}`)
+      .join("|");
+    return [
+      timelineRevision,
+      approvalRevision,
+      pendingUserQuestion
+        ? `${pendingUserQuestion.id}:${pendingUserQuestion.status}`
+        : "no-question",
+      pendingPlanReview
+        ? `${pendingPlanReview.id}:${pendingPlanReview.status}`
+        : "no-plan",
+      sending ? "sending" : "idle",
+    ].join("\0");
+  });
+
   const showEmptyRun = $derived(
     timeline.length === 0 && !streamingText && !sending,
   );
@@ -173,6 +203,7 @@
     items={rows}
     getKey={(row) => row.key}
     {heightCacheKey}
+    {measurementVersion}
     {contentVisibility}
     estimateSize={() => 120}
     overscan={10}

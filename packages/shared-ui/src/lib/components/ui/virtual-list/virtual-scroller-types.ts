@@ -38,6 +38,12 @@ export type VirtualScrollerProps<T> = {
    * heights instead of {@link estimateSize}, avoiding a synchronous reflow.
    */
   heightCacheKey?: string;
+  /**
+   * Reactive value that forces all currently rendered rows to be measured on
+   * the next animation frame. Use when row content can change without its item
+   * identity changing (for example, an inline HIL card resolving in place).
+   */
+  measurementVersion?: unknown;
   /** Extra rows rendered above/below the viewport. Defaults to 8. */
   overscan?: number;
   /**
