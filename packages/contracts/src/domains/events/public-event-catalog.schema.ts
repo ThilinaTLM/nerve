@@ -68,8 +68,12 @@ const definitions: PublicEventDefinition[] = [
     "task.timed_out",
     "task.cancelled",
     "task.orphaned",
-    "task.removed",
   ].map((name) => definition(name, taskPayloadSchema, { scope: ["task.id"] })),
+  definition(
+    "task.removed",
+    z.object({ taskId: z.string().startsWith("task_") }),
+    { scope: ["taskId"] },
+  ),
   definition(
     "task.output",
     z.object({

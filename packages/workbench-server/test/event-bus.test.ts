@@ -34,8 +34,8 @@ describe("EventBus", () => {
       projectId: "proj_eventbus",
     });
     await bus.publish(
-      "conversation.live.delta",
-      { conversationId: "conv_eventbus" },
+      "task.output",
+      { taskId: "task_eventbus", stream: "stdout", text: "live" },
       { durability: "transient" },
     );
 
@@ -71,8 +71,8 @@ describe("EventBus", () => {
     const first = await bus.publish("project.created", { projectId: "p1" });
     const second = await bus.publish("project.created", { projectId: "p2" });
     await bus.publish(
-      "conversation.live.delta",
-      { conversationId: "conv_x" },
+      "task.output",
+      { taskId: "task_x", stream: "stdout", text: "live" },
       { durability: "transient" },
     );
 
@@ -98,8 +98,8 @@ describe("EventBus", () => {
     const bus = new EventBus(home, index);
     const first = await bus.publish("project.created", { projectId: "p1" });
     await bus.publish(
-      "conversation.live.delta",
-      { conversationId: "conv_x" },
+      "task.output",
+      { taskId: "task_x", stream: "stdout", text: "live" },
       { durability: "transient" },
     );
     const second = await bus.publish("project.created", { projectId: "p2" });
@@ -121,8 +121,8 @@ describe("EventBus", () => {
     const bus = new EventBus(home);
     const durable = await bus.publish("project.created", { projectId: "p1" });
     const transient = await bus.publish(
-      "conversation.live.delta",
-      { conversationId: "conv_x" },
+      "task.output",
+      { taskId: "task_x", stream: "stdout", text: "live" },
       { durability: "transient" },
     );
 
@@ -180,10 +180,10 @@ describe("EventBus", () => {
     const home = await tempHome();
     const index = makeIndex(home);
     const bus = new EventBus(home, index);
-    const keep = await bus.publish("conversation.entry.appended", {
+    const keep = await bus.publish("conversation.updated", {
       conversationId: "conv_keep",
     });
-    await bus.publish("conversation.entry.appended", {
+    await bus.publish("conversation.updated", {
       conversationId: "conv_drop",
     });
 

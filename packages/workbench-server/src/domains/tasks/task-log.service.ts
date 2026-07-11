@@ -204,10 +204,8 @@ export class TaskLogService {
     await appendJsonLine(record.logsPath, event, 0o600);
     await this.events.publish("task.output", {
       taskId: record.id,
-      projectId: record.projectId,
-      conversationId: record.conversationId,
-      agentId: record.agentId,
-      log: event,
+      stream,
+      text: cleaned.slice(-16_384),
     });
     await onLog(event);
   }

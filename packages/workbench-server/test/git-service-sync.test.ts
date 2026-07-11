@@ -6,8 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { promisify } from "node:util";
 import type { ProjectRecord } from "@nervekit/contracts";
-import { GitService } from "@nervekit/host-runtime/tools";
-import { HttpError } from "../src/http/errors.js";
+import { GitService, GitWorkflowError } from "@nervekit/host-runtime/tools";
 
 const execFileAsync = promisify(execFile);
 
@@ -143,7 +142,8 @@ describe("GitService.syncBranch", () => {
       await assert.rejects(
         () => service.syncBranch("project", "."),
         (error) =>
-          error instanceof HttpError && error.code === "GIT_DIRTY_WORKTREE",
+          error instanceof GitWorkflowError &&
+          error.code === "GIT_DIRTY_WORKTREE",
       );
 
       await assert.rejects(() => git(localDir, ["show", "HEAD:behind.txt"]));

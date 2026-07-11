@@ -19,7 +19,7 @@ export async function restartActiveTaskInPlace(
   const signal: NodeJS.Signals = "SIGTERM";
   const stopping = await this.updateTask(record.id, { status: "stopping" });
   await this.events.publish("task.stop_requested", {
-    taskId: record.id,
+    task: stopping,
     signal,
     reason: "restart requested",
   });

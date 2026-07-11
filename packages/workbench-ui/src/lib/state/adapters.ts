@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- Shared reducer covers the full live conversation event surface. */
-import type {
-  ConversationActiveRunSnapshot,
+import {
+  conversationEventTypes,
+  type ConversationActiveRunSnapshot,
   ConversationCompactionFailedData,
   ConversationCompactionStartedData,
   ConversationEntry,
@@ -46,6 +47,8 @@ import {
 
 export const MAX_LIVE_TOOL_OUTPUT_CHARS = 32_000;
 export const MAX_LIVE_TOOL_OUTPUT_CHUNKS = 400;
+
+const conversationEventTypeSet = new Set<string>(conversationEventTypes);
 
 export type ApplyConversationEventOptions = {
   onGap?: (reason: {
@@ -100,7 +103,7 @@ export function applyConversationEvent(
   event: EventEnvelope,
   options: ApplyConversationEventOptions = {},
 ): ConversationRenderState {
-  if (!event.type.startsWith("conversation.")) return state;
+  if (!conversationEventTypeSet.has(event.type)) return state;
   if (event.durability === "durable" && event.seq <= state.cursorSeq) {
     return state;
   }

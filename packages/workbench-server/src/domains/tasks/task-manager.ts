@@ -276,7 +276,7 @@ export class TaskManager {
       status: "stopping",
     });
     await this.events.publish("task.stop_requested", {
-      taskId: record.id,
+      task: stopping,
       signal,
     });
     await this.logger?.info("Task stop requested", {

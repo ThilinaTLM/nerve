@@ -142,23 +142,19 @@ export class CompactionService {
     const startedAt = new Date().toISOString();
     let started = false;
     try {
-      await this.events.publish(
-        "conversation.compaction.started",
-        {
-          conversationId,
-          agentId: options.agentId,
-          runId: options.runId,
-          reason,
-          startedAt,
-          contextWindow: options.contextWindow,
-          contextTokens: options.contextTokens ?? preparation.tokensBefore,
-          thresholdTokens: options.thresholdTokens,
-          triggerReserveTokens: options.triggerReserveTokens,
-          keepRecentTokens: settings.keepRecentTokens,
-          failedEntryId: options.failedEntryId,
-        },
-        { durability: "transient" },
-      );
+      await this.events.publish("conversation.compaction.started", {
+        conversationId,
+        agentId: options.agentId,
+        runId: options.runId,
+        reason,
+        startedAt,
+        contextWindow: options.contextWindow,
+        contextTokens: options.contextTokens ?? preparation.tokensBefore,
+        thresholdTokens: options.thresholdTokens,
+        triggerReserveTokens: options.triggerReserveTokens,
+        keepRecentTokens: settings.keepRecentTokens,
+        failedEntryId: options.failedEntryId,
+      });
       started = true;
 
       const summary =

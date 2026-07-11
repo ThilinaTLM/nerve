@@ -84,7 +84,7 @@ export async function cleanupOrphanedTask(
   const timeoutMs = request.timeoutMs ?? 5000;
 
   await this.events.publish("task.stop_requested", {
-    taskId: record.id,
+    task: record,
     signal: initialSignal,
     orphaned: true,
   });

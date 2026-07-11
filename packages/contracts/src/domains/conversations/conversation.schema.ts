@@ -60,6 +60,7 @@ export interface ConversationRunFailedData {
   projectId: string;
   message: string;
   aborted: boolean;
+  interrupted?: boolean;
   failedAt: string;
   retryExhausted?: ConversationRunRetryExhaustedData;
 }
@@ -602,6 +603,7 @@ const conversationRunFailedDataSchema = z.object({
   projectId: z.string().startsWith("proj_"),
   message: z.string(),
   aborted: z.boolean(),
+  interrupted: z.boolean().optional(),
   failedAt: z.string().datetime(),
   retryExhausted: conversationRunRetryExhaustedDataSchema.optional(),
 });
