@@ -68,7 +68,7 @@ describe("manager protocol method handlers", () => {
     assert.match(result.limitations?.[0] ?? "", /read-only snapshots/);
   });
 
-  it("forwards connected prompt commands with command id idempotency", async () => {
+  it("forwards canonical host operations unchanged using the target id", async () => {
     const sent: Array<{ method: string; params: unknown; requestId: string }> =
       [];
     const ctx = context({
@@ -82,40 +82,20 @@ describe("manager protocol method handlers", () => {
             requestId: string,
           ) => {
             sent.push({ method, params, requestId });
-            return {
-              accepted: true,
-              commandId: requestId,
-              status: "running",
-              conversationId: "conv_1",
-              agentId: "agent_1",
-              runId: "run_1",
-            };
+            return { tasks: [] };
           },
         },
       },
+      target: { role: "sandbox_agent", id: "sbx_1" },
+      idempotencyKey: "request_1",
     });
-    const result = await handleManagerProtocolMethod(
-      ctx,
-      "sandbox.agent.prompt",
-      {
-        sandboxId: "sbx_1",
-        commandId: "cmd_1",
-        conversationId: "conv_1",
-        agentId: "agent_1",
-        prompt: "hello",
-      },
-    );
-    assert.equal((result as { commandId?: string }).commandId, "cmd_1");
+    const result = await handleManagerProtocolMethod(ctx, "task.list", {});
+    assert.deepEqual(result, { tasks: [] });
     assert.deepEqual(sent, [
       {
-        method: "sandbox.run.start",
-        params: {
-          commandId: "cmd_1",
-          conversationId: "conv_1",
-          agentId: "agent_1",
-          prompt: "hello",
-        },
-        requestId: "cmd_1",
+        method: "task.list",
+        params: {},
+        requestId: "request_1",
       },
     ]);
   });
@@ -236,11 +216,11 @@ describe("manager protocol method handlers", () => {
     );
     await assert.rejects(
       () =>
-        handleManagerProtocolMethod(context(), "sandbox.agent.prompt", {
-          sandboxId: "sbx_1",
-          commandId: "cmd_1",
-          prompt: "hello",
-        }),
+        handleManagerProtocolMethod(
+          context({ target: { role: "sandbox_agent", id: "sbx_1" } }),
+          "task.list",
+          {},
+        ),
       (error) =>
         error instanceof HttpError && error.code === "SERVICE_UNAVAILABLE",
     );
@@ -253,6 +233,10 @@ function context(
     events?: unknown[];
     record?: typeof record;
     driverStatus?: { state: string; exitCode?: number; finishedAt?: string };
+    target?:
+      | { role: "sandbox_manager" }
+      | { role: "sandbox_agent"; id: string };
+    idempotencyKey?: string;
   } = {},
 ) {
   const idempotency = new Map<string, { hash: string; value: unknown }>();
@@ -284,6 +268,8 @@ function context(
     controller: {
       getSession: () => options.session,
     } as unknown as SandboxWsServer,
+    target: options.target ?? { role: "sandbox_manager" },
+    idempotencyKey: options.idempotencyKey,
   };
 }
 

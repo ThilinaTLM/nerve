@@ -261,7 +261,11 @@ export class SandboxDaemon {
   }
 
   private registerBuiltins(): void {
-    registerSandboxGitHandlers(this.router, this.workspaceDir);
+    registerSandboxGitHandlers(
+      this.router,
+      this.workspaceDir,
+      this.state ? (event) => this.state!.events.append(event) : undefined,
+    );
     registerSandboxTaskHandlers(
       this.router,
       () => this.taskSupervisor,

@@ -135,11 +135,8 @@ export async function handleUiReplayRequest(
     return;
   }
   sendReplayStarted(session, request, streamStates, send);
-  for (const { streamRequest, durableEvents, latestSeq } of streamStates) {
-    const events = replaySlice(durableEvents, streamRequest).slice(
-      0,
-      request.preferences?.maxEvents ?? 1_000,
-    );
+  for (const { streamRequest, durableEvents } of streamStates) {
+    const events = limitedReplaySlice(durableEvents, streamRequest, request);
     const batch = managerEventBatch({
       stream: streamRequest.stream,
       batchId: `replay_${request.replayId}_${streamRequest.stream}`,
@@ -149,8 +146,8 @@ export async function handleUiReplayRequest(
       replay: {
         replayId: request.replayId,
         fromSeq: streamRequest.fromSeq,
-        toSeq: streamRequest.toSeq ?? latestSeq,
-        complete: events.length < (request.preferences?.maxEvents ?? 1_000),
+        toSeq: events.at(-1)?.seq ?? streamRequest.fromSeq,
+        complete: true,
       },
     });
     send(makeManagerMessage("event.batch", batch));
@@ -187,19 +184,24 @@ function sendReplayStarted(
       sessionId: session.sessionId,
       replayId: request.replayId,
       streams: streamStates.map(
-        ({ streamRequest, latestSeq, durableEvents }) => ({
-          stream: streamRequest.stream,
-          fromSeq: streamRequest.fromSeq,
-          toSeq: streamRequest.toSeq ?? latestSeq,
-          latestSeq,
-          durableFromSeq: durableEvents.find(
-            (event) => (event.seq ?? 0) > streamRequest.fromSeq,
-          )?.seq,
-          durableToSeq: durableEvents.at(-1)?.seq,
-          estimatedEvents: replaySlice(durableEvents, streamRequest).length,
-          source: "log" as const,
-          transientPolicy: "omitted" as const,
-        }),
+        ({ streamRequest, latestSeq, durableEvents }) => {
+          const sent = limitedReplaySlice(
+            durableEvents,
+            streamRequest,
+            request,
+          );
+          return {
+            stream: streamRequest.stream,
+            fromSeq: streamRequest.fromSeq,
+            toSeq: sent.at(-1)?.seq ?? streamRequest.fromSeq,
+            latestSeq,
+            durableFromSeq: sent.at(0)?.seq,
+            durableToSeq: sent.at(-1)?.seq,
+            estimatedEvents: sent.length,
+            source: "log" as const,
+            transientPolicy: "omitted" as const,
+          };
+        },
       ),
     }),
   );
@@ -217,11 +219,15 @@ function sendReplayComplete(
       replayId: request.replayId,
       streams: streamStates.map(
         ({ streamRequest, durableEvents, latestSeq }) => {
-          const sent = replaySlice(durableEvents, streamRequest);
+          const sent = limitedReplaySlice(
+            durableEvents,
+            streamRequest,
+            request,
+          );
           return {
             stream: streamRequest.stream,
             fromSeq: streamRequest.fromSeq,
-            toSeq: streamRequest.toSeq ?? latestSeq,
+            toSeq: sent.at(-1)?.seq ?? streamRequest.fromSeq,
             latestSeq,
             durableCompleteThroughSeq:
               sent.at(-1)?.seq ?? streamRequest.fromSeq,
@@ -233,6 +239,17 @@ function sendReplayComplete(
       ),
       liveDelivery: "continued" as const,
     }),
+  );
+}
+
+function limitedReplaySlice(
+  events: Awaited<ReturnType<typeof replayEvents>>,
+  streamRequest: ReplayRequestData["streams"][number],
+  request: ReplayRequestData,
+) {
+  return replaySlice(events, streamRequest).slice(
+    0,
+    request.preferences?.maxEvents ?? 1_000,
   );
 }
 

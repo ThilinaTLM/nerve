@@ -2,20 +2,16 @@ import { createHash } from "node:crypto";
 import {
   type NerveErrorCode,
   type OperationName,
+  type PeerDescriptor,
   operationDefinition,
   operationNameSchema,
   operationParamsSchema,
   operationResultSchema,
-  sandboxAgentConfigureParamsSchema,
   sandboxConversationSnapshotGetParamsSchema,
   sandboxConversationViewSnapshotSchema,
   sandboxIdSchema,
-  sandboxRunCancelParamsSchema,
-  sandboxRunContinueParamsSchema,
-  sandboxRunStartParamsSchema,
   sandboxSnapshotGetParamsSchema,
   sandboxSnapshotResultSchema,
-  sandboxToolCallGetParamsSchema,
 } from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { HttpError } from "../http/errors.js";
@@ -33,40 +29,8 @@ import type { SandboxWsServer } from "./sandbox-ws-server.js";
 type ProtocolHandlerContext = {
   state: ManagerState;
   controller: SandboxWsServer;
+  target: PeerDescriptor;
   idempotencyKey?: string;
-};
-
-const FORWARDED_METHODS: Partial<Record<OperationName, string>> = {
-  "sandbox.agent.prompt": "sandbox.run.start",
-  "sandbox.agent.abort": "sandbox.run.cancel",
-  "sandbox.agent.continue": "sandbox.run.continue",
-  "sandbox.agent.configure": "sandbox.agent.configure",
-  "sandbox.toolCall.get": "sandbox.toolCall.get",
-  "git.repos.discover": "git.repos.discover",
-  "git.overview.get": "git.overview.get",
-  "git.branches.list": "git.branches.list",
-  "git.branch.create": "git.branch.create",
-  "git.branch.switch": "git.branch.switch",
-  "git.file.stage": "git.file.stage",
-  "git.file.unstage": "git.file.unstage",
-  "git.file.discard": "git.file.discard",
-  "git.sync": "git.sync",
-  "git.push": "git.push",
-  "git.pull": "git.pull",
-  "git.fetch": "git.fetch",
-  "git.switchBaseAndPull": "git.switchBaseAndPull",
-  "github.status.get": "github.status.get",
-  "github.pr.list": "github.pr.list",
-  "github.pr.get": "github.pr.get",
-  "github.pr.checkout": "github.pr.checkout",
-  "task.list": "task.list",
-  "task.start": "task.start",
-  "task.get": "task.get",
-  "task.cancel": "task.cancel",
-  "task.restart": "task.restart",
-  "task.prune": "task.prune",
-  "task.delete": "task.delete",
-  "task.logs": "task.logs",
 };
 
 export async function handleManagerProtocolMethod(
@@ -75,15 +39,16 @@ export async function handleManagerProtocolMethod(
   paramsInput: unknown,
 ): Promise<unknown> {
   const method = parseProtocolMethod(methodInput);
-  if (!method.startsWith("sandbox."))
-    throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");
   const definition = operationDefinition(method);
+  if (!definition.allowedTargetRoles.includes(context.target.role)) {
+    throw protocolHttpError(
+      400,
+      `Method ${method} cannot target ${context.target.role}`,
+      "VALIDATION_FAILED",
+    );
+  }
   const params = operationParamsSchema(method).parse(paramsInput ?? {});
-  const idempotencyKey =
-    context.idempotencyKey ??
-    (isRecord(params) && typeof params.commandId === "string"
-      ? params.commandId
-      : undefined);
+  const idempotencyKey = context.idempotencyKey;
   if (definition.idempotency === "required" && !idempotencyKey) {
     throw protocolHttpError(
       400,
@@ -97,7 +62,7 @@ export async function handleManagerProtocolMethod(
   };
   if (!idempotencyKey || definition.idempotency === "none") return run();
   const hash = createHash("sha256")
-    .update(JSON.stringify({ method, params }))
+    .update(JSON.stringify({ method, params, target: context.target }))
     .digest("hex");
   const stored = await context.state.idempotency.get<unknown>(idempotencyKey);
   if (stored) {
@@ -119,6 +84,16 @@ async function dispatchSandboxMethod(
   method: OperationName,
   params: unknown,
 ): Promise<unknown> {
+  if (context.target.role === "sandbox_agent") {
+    return forwardSandboxOperation(context, method, params);
+  }
+  if (context.target.role !== "sandbox_manager") {
+    throw protocolHttpError(
+      400,
+      "Unsupported protocol target",
+      "VALIDATION_FAILED",
+    );
+  }
   switch (method) {
     case "sandbox.snapshot.get":
       return sandboxSnapshot(context, params);
@@ -133,8 +108,6 @@ async function dispatchSandboxMethod(
     case "sandbox.pinnedCommand.delete":
       return sandboxPinnedCommandDelete(context, params);
     default:
-      if (FORWARDED_METHODS[method])
-        return forwardSandboxCommand(context, method, params);
       throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");
   }
 }
@@ -320,12 +293,19 @@ function sandboxIdOnlyParams(paramsInput: unknown): { sandboxId: string } {
   return { sandboxId: sandboxIdFromParams(paramsInput) };
 }
 
-async function forwardSandboxCommand(
-  { state, controller }: ProtocolHandlerContext,
+async function forwardSandboxOperation(
+  { state, controller, target, idempotencyKey }: ProtocolHandlerContext,
   method: OperationName,
-  paramsInput: unknown,
+  params: unknown,
 ): Promise<unknown> {
-  const sandboxId = sandboxIdFromParams(paramsInput);
+  const sandboxId = target.id;
+  if (!sandboxId) {
+    throw protocolHttpError(
+      400,
+      "A sandbox_agent target id is required",
+      "VALIDATION_FAILED",
+    );
+  }
   const record = await state.sandboxes.get(sandboxId);
   if (!lifecycleReadyForCommands(record)) {
     throw protocolHttpError(
@@ -341,46 +321,7 @@ async function forwardSandboxCommand(
       "Sandbox command forwarding requires a connected controller session",
       "SERVICE_UNAVAILABLE",
     );
-  const internalMethod = FORWARDED_METHODS[method];
-  if (!internalMethod)
-    throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");
-  const params = stripSandboxId(normalizeForwardedParams(method, paramsInput));
-  return session.forwarder.send(
-    session.socket,
-    internalMethod,
-    params,
-    requestIdFromParams(params),
-  );
-}
-
-function normalizeForwardedParams(
-  method: OperationName,
-  params: unknown,
-): Record<string, unknown> {
-  switch (method) {
-    case "sandbox.agent.prompt":
-      return sandboxRunStartParamsSchema
-        .safeExtend({ sandboxId: sandboxIdParamSchema })
-        .parse(params);
-    case "sandbox.agent.abort":
-      return sandboxRunCancelParamsSchema
-        .extend({ sandboxId: sandboxIdParamSchema })
-        .parse(params);
-    case "sandbox.agent.continue":
-      return sandboxRunContinueParamsSchema
-        .extend({ sandboxId: sandboxIdParamSchema })
-        .parse(params);
-    case "sandbox.agent.configure":
-      return sandboxAgentConfigureParamsSchema
-        .extend({ sandboxId: sandboxIdParamSchema })
-        .parse(params);
-    case "sandbox.toolCall.get":
-      return sandboxToolCallGetParamsSchema
-        .extend({ sandboxId: sandboxIdParamSchema })
-        .parse(params);
-    default:
-      return isRecord(params) ? params : {};
-  }
+  return session.forwarder.send(session.socket, method, params, idempotencyKey);
 }
 
 async function managerDerivedSnapshot(
@@ -422,22 +363,6 @@ function sandboxIdFromParams(params: unknown): string {
     return params.sandboxId;
   }
   throw protocolHttpError(400, "sandboxId is required", "VALIDATION_FAILED");
-}
-
-function stripSandboxId(
-  params: Record<string, unknown>,
-): Record<string, unknown> {
-  const rest = { ...params };
-  Reflect.deleteProperty(rest, "sandboxId");
-  return rest;
-}
-
-function requestIdFromParams(
-  params: Record<string, unknown>,
-): string | undefined {
-  return typeof params.commandId === "string" && params.commandId.trim()
-    ? params.commandId
-    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

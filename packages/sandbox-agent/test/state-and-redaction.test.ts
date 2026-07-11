@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -11,7 +11,10 @@ import { EventOutbox } from "../src/state/event-outbox.js";
 import { StateLock } from "../src/state/file-lock.js";
 import { recoverSandboxState } from "../src/state/recovery.js";
 import { resolveSandboxRuntimePaths } from "../src/state/state-layout.js";
-import { initializeSandboxState } from "../src/state/state-store.js";
+import {
+  initializeSandboxState,
+  SandboxStateError,
+} from "../src/state/state-store.js";
 
 describe("sandbox agent image durable state foundations", () => {
   it("enforces a single state lock", async () => {
@@ -88,6 +91,8 @@ describe("sandbox agent image durable state foundations", () => {
       assert.equal(outbox.unacked(0).length, 1);
       const ack = await outbox.ack("sandbox", 1);
       assert.equal(ack.streams[0]?.processedSeq, 1);
+      const staleAck = await outbox.ack("sandbox", 0);
+      assert.equal(staleAck.streams[0]?.processedSeq, 1);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -142,6 +147,49 @@ describe("sandbox agent image durable state foundations", () => {
         () => recoverSandboxState(digest, paths),
         (error) =>
           error instanceof SandboxStateCorruptionError && error.exitCode === 30,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects incompatible state with one reset instruction", async () => {
+    const dir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-sandbox-agent-version-"),
+    );
+    try {
+      const paths = resolveSandboxRuntimePaths({
+        NERVE_SANDBOX_AGENT_STATE_DIR: path.join(dir, "state"),
+        NERVE_SANDBOX_AGENT_WORKSPACE_DIR: path.join(dir, "workspace"),
+      });
+      await mkdir(paths.stateDir, { recursive: true });
+      await writeFile(
+        path.join(paths.stateDir, "VERSION"),
+        '{"format":"nerve-sandbox-agent-state","version":0}\n',
+      );
+      const config = {
+        version: 1,
+        agent: {
+          defaultModel: { provider: "anthropic", model: "claude-sonnet-4-5" },
+        },
+        controller: {
+          websocket: { url: "wss://manager.example.test/ws" },
+          auth: { type: "api_key", apiKey: { env: "TOKEN" } },
+        },
+      } as const;
+      await assert.rejects(
+        () =>
+          initializeSandboxState(
+            config,
+            sandboxConfigDigest(config),
+            "/config/sandbox.yaml",
+            paths,
+          ),
+        (error) =>
+          error instanceof SandboxStateError &&
+          error.exitCode === 11 &&
+          error.message.includes(`Reset this directory`) &&
+          error.message.includes(paths.stateDir),
       );
     } finally {
       await rm(dir, { recursive: true, force: true });

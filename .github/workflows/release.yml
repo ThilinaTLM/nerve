@@ -136,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           # Publish in dependency-friendly order.
-          order=(contracts agent-tools agent-runtime orchestrator desktop-shell)
+          order=(contracts protocol harness tools host-runtime workbench-server desktop-shell)
           for pkg in "${order[@]}"; do
             tgz="$(ls release/npm/nervekit-${pkg}-*.tgz 2>/dev/null | head -n1 || true)"
             if [ -z "${tgz}" ]; then

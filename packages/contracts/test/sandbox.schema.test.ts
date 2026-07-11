@@ -922,7 +922,7 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
-  it("validates known protocol event payloads and allows unknown event types", () => {
+  it("validates known protocol event payloads and rejects unknown event types", () => {
     assert.equal(
       sandboxEventEnvelopeSchema.safeParse({
         id: "evt_ready",

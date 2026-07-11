@@ -7,6 +7,11 @@ const SANDBOX_PROJECT_ID = "sandbox_workspace";
 export function registerSandboxGitHandlers(
   router: SandboxCommandRouter,
   workspaceDir = "/workspace",
+  publish?: (event: {
+    type: "git.repository.changed";
+    durability: "durable";
+    data: { repo: string; reason: string };
+  }) => Promise<unknown>,
 ): void {
   const git = GitService.forWorkspace(workspaceDir, "workspace");
 
@@ -30,41 +35,63 @@ export function registerSandboxGitHandlers(
   router.register("git.branches.list", (params) =>
     run(() => git.listBranches(SANDBOX_PROJECT_ID, repo(params))),
   );
+  const mutate = async <T>(
+    reason: string,
+    params: unknown,
+    fn: () => Promise<T>,
+  ): Promise<T> => {
+    const result = await run(fn);
+    await publish?.({
+      type: "git.repository.changed",
+      durability: "durable",
+      data: { repo: repo(params), reason },
+    });
+    return result;
+  };
+
   router.register("git.branch.create", (params) =>
-    run(() => git.createBranch(SANDBOX_PROJECT_ID, repo(params), name(params))),
+    mutate("branch.create", params, () =>
+      git.createBranch(SANDBOX_PROJECT_ID, repo(params), name(params)),
+    ),
   );
   router.register("git.branch.switch", (params) =>
-    run(() => git.switchBranch(SANDBOX_PROJECT_ID, repo(params), name(params))),
+    mutate("branch.switch", params, () =>
+      git.switchBranch(SANDBOX_PROJECT_ID, repo(params), name(params)),
+    ),
   );
   router.register("git.file.stage", (params) =>
-    run(() =>
+    mutate("file.stage", params, () =>
       git.stageFile(SANDBOX_PROJECT_ID, repo(params), filePath(params)),
     ),
   );
   router.register("git.file.unstage", (params) =>
-    run(() =>
+    mutate("file.unstage", params, () =>
       git.unstageFile(SANDBOX_PROJECT_ID, repo(params), filePath(params)),
     ),
   );
   router.register("git.file.discard", (params) =>
-    run(() =>
+    mutate("file.discard", params, () =>
       git.discardFile(SANDBOX_PROJECT_ID, repo(params), filePath(params)),
     ),
   );
   router.register("git.sync", (params) =>
-    run(() => git.syncBranch(SANDBOX_PROJECT_ID, repo(params))),
+    mutate("sync", params, () =>
+      git.syncBranch(SANDBOX_PROJECT_ID, repo(params)),
+    ),
   );
   router.register("git.push", (params) =>
-    run(() => git.push(SANDBOX_PROJECT_ID, repo(params))),
+    mutate("push", params, () => git.push(SANDBOX_PROJECT_ID, repo(params))),
   );
   router.register("git.pull", (params) =>
-    run(() => git.pull(SANDBOX_PROJECT_ID, repo(params))),
+    mutate("pull", params, () => git.pull(SANDBOX_PROJECT_ID, repo(params))),
   );
   router.register("git.fetch", (params) =>
-    run(() => git.fetch(SANDBOX_PROJECT_ID, repo(params))),
+    mutate("fetch", params, () => git.fetch(SANDBOX_PROJECT_ID, repo(params))),
   );
   router.register("git.switchBaseAndPull", (params) =>
-    run(() => git.switchBaseAndPull(SANDBOX_PROJECT_ID, repo(params))),
+    mutate("switch_base_and_pull", params, () =>
+      git.switchBaseAndPull(SANDBOX_PROJECT_ID, repo(params)),
+    ),
   );
   router.register("github.status.get", (params) =>
     run(() => git.githubStatus(SANDBOX_PROJECT_ID, repo(params))),
@@ -76,7 +103,7 @@ export function registerSandboxGitHandlers(
     run(() => git.prDetail(SANDBOX_PROJECT_ID, repo(params), prNumber(params))),
   );
   router.register("github.pr.checkout", (params) =>
-    run(() =>
+    mutate("github.pr.checkout", params, () =>
       git.checkoutPr(SANDBOX_PROJECT_ID, repo(params), prNumber(params)),
     ),
   );

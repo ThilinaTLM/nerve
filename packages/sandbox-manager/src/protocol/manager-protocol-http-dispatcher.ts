@@ -46,6 +46,7 @@ export async function handleManagerProtocolHttpRequest(
       {
         state,
         controller,
+        target: request.target,
         idempotencyKey: request.data.idempotencyKey,
       },
       request.data.method,

@@ -21,40 +21,6 @@ import {
   toolGroupStatusSchema,
 } from "./sandbox.common.schema.js";
 
-export const sandboxEventTypeSchema = z.enum([
-  "sandbox.startup.stage.started",
-  "sandbox.startup.stage.completed",
-  "sandbox.config.loaded",
-  "sandbox.secret_store.checked",
-  "sandbox.credentials.refreshed",
-  "sandbox.setup.git.started",
-  "sandbox.setup.git.completed",
-  "sandbox.setup.github.started",
-  "sandbox.setup.github.completed",
-  "sandbox.boot.started",
-  "sandbox.boot.completed",
-  "sandbox.skills.loaded",
-  "sandbox.ready",
-  "sandbox.controller.disconnected",
-  "sandbox.controller.reconnected",
-  "sandbox.shutdown.scheduled",
-  "sandbox.shutdown.started",
-  "sandbox.security.denied",
-  "run.started",
-  "run.delta",
-  "run.transcript.appended",
-  "run.waiting_for_input",
-  "run.waiting_for_approval",
-  "run.waiting_for_plan_review",
-  "planReview.resolved",
-  "run.checkpointed",
-  "run.completed",
-  "run.failed",
-  "run.cancelled",
-  "toolCall.updated",
-]);
-export type SandboxEventType = z.infer<typeof sandboxEventTypeSchema>;
-
 export const sandboxStartupStageStartedEventSchema =
   sandboxEventCommonSchema.extend({
     stage: sandboxStartupStageSchema,
@@ -432,6 +398,13 @@ export const sandboxEventPayloadSchemas = {
     conversationEventPayloadSchemas["toolCall.updated"],
   ]),
 } as const;
+
+const sandboxEventNames = Object.keys(sandboxEventPayloadSchemas) as [
+  keyof typeof sandboxEventPayloadSchemas,
+  ...(keyof typeof sandboxEventPayloadSchemas)[],
+];
+export const sandboxEventTypeSchema = z.enum(sandboxEventNames);
+export type SandboxEventType = z.infer<typeof sandboxEventTypeSchema>;
 
 export const sandboxEventEnvelopeSchema = z
   .object({

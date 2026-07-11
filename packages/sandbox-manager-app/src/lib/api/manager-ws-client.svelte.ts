@@ -6,6 +6,7 @@ import {
   eventBatchMessageSchema,
   replayStartedMessageSchema,
   replayUnavailableMessageSchema,
+  sandboxManagerEventEnvelopeSchema,
   welcomeMessageSchema,
 } from "@nervekit/contracts";
 import {
@@ -263,16 +264,18 @@ export class ManagerWsClient {
     stream: string,
     event: EventEnvelope<Record<string, unknown>>,
   ): void {
-    this.handlers.onEvent({
-      stream,
-      sandboxId: streamSandboxId(stream),
-      seq: event.seq,
-      id: event.id,
-      ts: event.ts,
-      type: event.type,
-      durability: event.durability,
-      data: event.data,
-    });
+    this.handlers.onEvent(
+      sandboxManagerEventEnvelopeSchema.parse({
+        stream,
+        sandboxId: streamSandboxId(stream),
+        seq: event.seq,
+        id: event.id,
+        ts: event.ts,
+        type: event.type,
+        durability: event.durability,
+        data: event.data,
+      }),
+    );
   }
 
   private requestReplay(stream: string, fromSeq?: number): void {

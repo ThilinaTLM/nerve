@@ -8,9 +8,11 @@ const packDir = join(repoRoot, "release", "npm");
 const legalFiles = ["LICENSE", "NOTICE"];
 const publishPackages = [
   ["@nervekit/contracts", join("packages", "contracts")],
-  ["@nervekit/tools", join("packages", "agent-tools")],
-  ["@nervekit/harness", join("packages", "agent-runtime")],
-  ["@nervekit/workbench-server", join("packages", "orchestrator")],
+  ["@nervekit/protocol", join("packages", "protocol")],
+  ["@nervekit/harness", join("packages", "harness")],
+  ["@nervekit/tools", join("packages", "tools")],
+  ["@nervekit/host-runtime", join("packages", "host-runtime")],
+  ["@nervekit/workbench-server", join("packages", "workbench-server")],
   ["@nervekit/desktop-shell", join("packages", "desktop-shell")],
 ];
 
@@ -18,7 +20,7 @@ const createdLegalFiles = [];
 
 try {
   await access(
-    join(repoRoot, "packages", "orchestrator", "dist", "web", "index.html"),
+    join(repoRoot, "packages", "workbench-server", "dist", "web", "index.html"),
   ).catch(() => {
     throw new Error(
       "Missing packages/workbench-server/dist/web/index.html. Run pnpm release:build before packing npm packages.",

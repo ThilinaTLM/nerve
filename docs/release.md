@@ -79,6 +79,22 @@ Notes:
   or DMG packaging is future work and is not required for source development or
   the npm launcher.
 
+## Protocol v1 development-state reset
+
+Protocol v1 does not read pre-v1 sandbox event, command, cursor, session, or
+idempotency layouts. Before upgrading an early development environment, stop
+all Nerve processes and reset the affected disposable state:
+
+- local workbench: remove `~/.nerve` (or the configured `NERVE_HOME`);
+- sandbox agent: recreate the `/state` volume;
+- sandbox manager: reset its development database and configured storage
+  directory;
+- browser apps: clear site storage so old session and cursor keys are removed.
+
+A sandbox agent that finds an absent or incompatible v1 `VERSION` marker next
+to legacy protocol files fails with the exact `/state` reset path instead of
+silently parsing or migrating those files.
+
 ## First public release: npm bootstrap
 
 npm Trusted Publishing (OIDC) cannot publish a package that does not yet exist,
@@ -92,18 +108,18 @@ so the very first `@nervekit/*` publish is done manually. One time only:
    ```sh
    pnpm release:build
    node scripts/pack-npm.mjs
-   ls release/npm           # expect 5 tarballs
+   ls release/npm           # expect 7 tarballs
    ```
 
-4. Publish the five tarballs in dependency-friendly order:
+4. Publish the seven tarballs in dependency-friendly order:
 
    ```sh
-   for pkg in contracts agent-tools agent-runtime orchestrator desktop-shell; do
+   for pkg in contracts protocol harness tools host-runtime workbench-server desktop-shell; do
      npm publish release/npm/nervekit-${pkg}-0.1.0.tgz --access public
    done
    ```
 
-5. On npmjs.com, configure a Trusted Publisher for each of the five packages:
+5. On npmjs.com, configure a Trusted Publisher for each package:
    - Publisher: GitHub Actions
    - Organization/user: `ThilinaTLM`
    - Repository: `nerve`

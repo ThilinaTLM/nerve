@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- Manager schemas intentionally centralize sandbox manager API and storage contracts. */
 import { z } from "zod";
+import { sandboxEventTypeSchema } from "./sandbox.events.schema.js";
 import {
   createPinnedCommandRequestSchema,
   updatePinnedCommandRequestSchema,
@@ -605,6 +606,8 @@ export const sandboxManagerLifecycleEventTypeSchema = z.enum([
   "manager.sandbox.stopped",
   "manager.sandbox.removed",
   "sandbox.lifecycle.changed",
+  "container.lifecycle.changed",
+  "sandbox.activity.changed",
   "manager.sandbox.container_created",
   "manager.sandbox.container_started",
   "sandbox.daemon.connection_changed",
@@ -615,10 +618,7 @@ export type SandboxManagerLifecycleEventType = z.infer<
   typeof sandboxManagerLifecycleEventTypeSchema
 >;
 
-/**
- * UI-consumed event envelope streamed over the manager UI WebSocket. Reducers
- * remain tolerant of future/unknown `type` values, so `data` stays `unknown`.
- */
+/** UI-consumed, JSON-safe event envelope streamed over the manager UI WebSocket. */
 export const sandboxManagerEventEnvelopeSchema = z
   .object({
     stream: z.string().min(1),
@@ -626,9 +626,12 @@ export const sandboxManagerEventEnvelopeSchema = z
     seq: z.number().int().nonnegative().safe(),
     id: z.string().min(1).optional(),
     ts: isoDateTimeSchema,
-    type: z.string().min(1),
+    type: z.union([
+      sandboxManagerLifecycleEventTypeSchema,
+      sandboxEventTypeSchema,
+    ]),
     durability: z.enum(["durable", "transient"]).optional(),
-    data: z.unknown().optional(),
+    data: z.json().optional(),
   })
   .passthrough();
 export type SandboxManagerEventEnvelope = z.infer<

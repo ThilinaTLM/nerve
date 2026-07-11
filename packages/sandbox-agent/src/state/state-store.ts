@@ -1,4 +1,4 @@
-import { access, chmod, mkdir, rm, stat } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { SandboxConfigV1 } from "@nervekit/contracts";
 import { stringify as stringifyYaml } from "yaml";
@@ -42,6 +42,7 @@ export async function initializeSandboxState(
 ): Promise<PersistedConfigState> {
   try {
     await mkdir(paths.stateDir, { recursive: true });
+    await assertCompatibleStateLayout(paths);
     for (const directory of stateSubdirectories(paths)) {
       await mkdir(directory, { recursive: true });
     }
@@ -80,6 +81,7 @@ export async function initializeSandboxState(
     );
     await writeInitialStateFiles(paths, now);
   } catch (error) {
+    if (error instanceof SandboxStateError) throw error;
     if (error instanceof StateLockConflictError) {
       throw new SandboxStateError(error.message, error.exitCode, error);
     }
@@ -96,6 +98,49 @@ export async function initializeSandboxState(
     stateDir: paths.stateDir,
     workspaceDir: paths.workspaceDir,
   };
+}
+
+async function assertCompatibleStateLayout(
+  paths: SandboxRuntimePaths,
+): Promise<void> {
+  const versionPath = path.join(paths.stateDir, "VERSION");
+  try {
+    const marker = JSON.parse(await readFile(versionPath, "utf8")) as {
+      format?: unknown;
+      version?: unknown;
+    };
+    if (marker.format !== "nerve-sandbox-agent-state" || marker.version !== 1) {
+      throw new Error("incompatible marker");
+    }
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw new SandboxStateError(
+        `Incompatible sandbox state at ${paths.stateDir}. Reset this directory before starting Nerve Protocol v1.`,
+        11,
+        error,
+      );
+    }
+  }
+  const legacyFiles = [
+    path.join(paths.commandsDir, "inbox.jsonl"),
+    path.join(paths.eventsDir, "outbox.jsonl"),
+    path.join(paths.eventsDir, "ack.json"),
+    path.join(paths.controllerDir, "session.json"),
+    path.join(paths.controllerDir, "cursors.json"),
+  ];
+  for (const legacyPath of legacyFiles) {
+    try {
+      await access(legacyPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    throw new SandboxStateError(
+      `Incompatible sandbox state at ${paths.stateDir}. Reset this directory before starting Nerve Protocol v1.`,
+      11,
+    );
+  }
 }
 
 async function writeInitialStateFiles(

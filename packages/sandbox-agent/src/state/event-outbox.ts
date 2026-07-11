@@ -47,8 +47,14 @@ export class EventOutbox {
       streams: [],
       updatedAt: new Date().toISOString(),
     });
+    const previous = current.streams.find((entry) => entry.stream === stream);
+    const nextProcessedSeq = Math.max(
+      previous?.processedSeq ?? 0,
+      processedSeq,
+    );
     const streams = current.streams.filter((entry) => entry.stream !== stream);
-    streams.push({ stream, processedSeq });
+    streams.push({ stream, processedSeq: nextProcessedSeq });
+    streams.sort((left, right) => left.stream.localeCompare(right.stream));
     const next = { streams, updatedAt: new Date().toISOString() };
     await this.ackStore.write(next);
     return next;

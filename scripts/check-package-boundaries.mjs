@@ -156,7 +156,7 @@ const sandboxManagerAppRoot = join(
   "src",
 );
 const hostImportPattern =
-  /(?:from\s+["'](?:\$lib\/|@nervekit\/(?:workbench-app|sandbox-manager-app|orchestrator|desktop-shell))|import\(["'](?:\$lib\/|@nervekit\/(?:workbench-app|sandbox-manager-app|orchestrator|desktop-shell)))/;
+  /(?:from\s+["'](?:\$lib\/|@nervekit\/(?:workbench-app|sandbox-manager-app|workbench-server|sandbox-manager|sandbox-agent|desktop-shell))|import\(["'](?:\$lib\/|@nervekit\/(?:workbench-app|sandbox-manager-app|workbench-server|sandbox-manager|sandbox-agent|desktop-shell)))/;
 const workbenchAppImportPattern =
   /(?:from\s+["']@nervekit\/workbench-app|import\(["']@nervekit\/workbench-app)/;
 

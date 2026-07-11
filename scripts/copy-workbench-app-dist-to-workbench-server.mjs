@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workbenchAppDist = join(repoRoot, "packages", "workbench-app", "dist");
-const orchestratorWebDist = join(
+const workbenchServerWebDist = join(
   repoRoot,
   "packages",
-  "orchestrator",
+  "workbench-server",
   "dist",
   "web",
 );
@@ -18,8 +18,8 @@ await access(join(workbenchAppDist, "index.html")).catch(() => {
   );
 });
 
-await mkdir(dirname(orchestratorWebDist), { recursive: true });
-await rm(orchestratorWebDist, { recursive: true, force: true });
-await cp(workbenchAppDist, orchestratorWebDist, { recursive: true });
+await mkdir(dirname(workbenchServerWebDist), { recursive: true });
+await rm(workbenchServerWebDist, { recursive: true, force: true });
+await cp(workbenchAppDist, workbenchServerWebDist, { recursive: true });
 
-console.log(`Copied Web UI assets to ${orchestratorWebDist}`);
+console.log(`Copied Web UI assets to ${workbenchServerWebDist}`);

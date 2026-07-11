@@ -22,16 +22,19 @@ export class SandboxEventIngestor {
     let processedSeq = 0;
     let accepted = 0;
     for (const event of events) {
-      processedSeq = Math.max(processedSeq, event.seq ?? 0);
+      const durability =
+        event.durability ??
+        (event.type === "run.delta" ? "transient" : ("durable" as const));
+      if (durability === "durable") {
+        processedSeq = Math.max(processedSeq, event.seq ?? 0);
+      }
       const stored = {
         sandboxId,
         id: event.id,
         seq: event.seq,
         type: event.type,
         ts: event.ts,
-        durability:
-          event.durability ??
-          (event.type === "run.delta" ? "transient" : ("durable" as const)),
+        durability,
         payload: redactManagerEvent(event.data ?? event),
       };
       if (await this.store.append(stored)) {
