@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type {
-  SandboxToolCallGetResult,
+  SandboxToolCallDetails,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 import type { ConversationRenderState } from "@nervekit/workbench-ui/state";
@@ -27,7 +27,7 @@ const preview: ToolCallTranscriptRecord = {
   updatedAt: "2026-07-07T00:00:01.000Z",
 };
 
-const fetched: SandboxToolCallGetResult = {
+const fetched: SandboxToolCallDetails = {
   toolCall: {
     toolCallId: "raw_bash_1",
     conversationId: "conv_details",

@@ -1,4 +1,9 @@
-import type { OperationName, SnapshotCursor } from "@nervekit/contracts";
+import type {
+  OperationName,
+  OperationParams,
+  OperationResult,
+  SnapshotCursor,
+} from "@nervekit/contracts";
 import {
   ProtocolRequestError,
   type ProtocolRequestOptions,
@@ -7,28 +12,28 @@ import {
 
 export { ProtocolRequestError };
 
-export function sandboxProtocolRequest<T>(
+export function sandboxProtocolRequest<M extends OperationName>(
   sandboxId: string,
-  method: OperationName,
-  params?: unknown,
+  method: M,
+  params: OperationParams<M>,
   options: Pick<ProtocolRequestOptions, "idempotencyKey" | "timeoutMs"> = {},
-): Promise<{ result: T; cursor?: SnapshotCursor }> {
-  return protocolRequest<T>(method, params, {
+): Promise<{ result: OperationResult<M>; cursor?: SnapshotCursor }> {
+  return protocolRequest(method, params, {
     ...options,
     target: { role: "sandbox_agent", id: sandboxId },
   });
 }
 
-export function protocolRequest<T>(
-  method: OperationName,
-  params?: unknown,
+export function protocolRequest<M extends OperationName>(
+  method: M,
+  params: OperationParams<M>,
   options: Pick<
     ProtocolRequestOptions,
     "idempotencyKey" | "timeoutMs" | "target"
   > = {},
-): Promise<{ result: T; cursor?: SnapshotCursor }> {
+): Promise<{ result: OperationResult<M>; cursor?: SnapshotCursor }> {
   const routed = routeSandboxHostOperation(method, params, options.target);
-  return sharedProtocolRequest<T>(method, routed.params, {
+  return sharedProtocolRequest(method, routed.params, {
     ...options,
     apiPath: "/api/protocol/v1",
     sourceName: "Nerve Sandbox Manager UI",
@@ -36,11 +41,14 @@ export function protocolRequest<T>(
   });
 }
 
-function routeSandboxHostOperation(
-  method: OperationName,
-  params: unknown,
+function routeSandboxHostOperation<M extends OperationName>(
+  method: M,
+  params: OperationParams<M>,
   explicitTarget: ProtocolRequestOptions["target"],
-): { params: unknown; target: NonNullable<ProtocolRequestOptions["target"]> } {
+): {
+  params: OperationParams<M>;
+  target: NonNullable<ProtocolRequestOptions["target"]>;
+} {
   if (explicitTarget) return { params, target: explicitTarget };
   if (
     !method.startsWith("sandbox.") &&
@@ -53,7 +61,7 @@ function routeSandboxHostOperation(
       sandboxId: string;
     };
     return {
-      params: domainParams,
+      params: domainParams as OperationParams<M>,
       target: { role: "sandbox_agent", id: sandboxId },
     };
   }

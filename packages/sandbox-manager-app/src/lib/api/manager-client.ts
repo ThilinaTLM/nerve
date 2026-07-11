@@ -3,6 +3,8 @@ import {
   type ManagedSandboxRecord,
   type ModelInfo,
   type OperationName,
+  type OperationParams,
+  type OperationResult,
   managedSandboxListItemSchema,
   managedSandboxRecordSchema,
   modelInfoSchema,
@@ -346,14 +348,14 @@ export async function getLatestSession(
   );
 }
 
-export async function sendSandboxCommand(
+export async function sendSandboxCommand<M extends OperationName>(
   sandboxId: string,
-  method: OperationName,
-  params: unknown,
+  method: M,
+  params: OperationParams<M>,
   idempotencyKey: string,
-): Promise<unknown> {
+): Promise<OperationResult<M>> {
   return (
-    await sandboxProtocolRequest<unknown>(sandboxId, method, params, {
+    await sandboxProtocolRequest(sandboxId, method, params, {
       idempotencyKey,
     })
   ).result;

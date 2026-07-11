@@ -3,6 +3,8 @@ import type {
   HelloData,
   NerveMessage,
   OperationName,
+  OperationParams,
+  OperationResult,
   ProtocolRequestData,
   PeerDescriptor,
   ProtocolLimits,
@@ -172,17 +174,17 @@ export class ProtocolClientSession {
     await this.#options.onMessage?.(message);
   }
 
-  request<TResult = unknown>(
-    method: OperationName,
-    params?: unknown,
+  request<M extends OperationName>(
+    method: M,
+    params: OperationParams<M>,
     options: Pick<
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
     > = {},
-  ): Promise<TResult> {
+  ): Promise<OperationResult<M>> {
     if (this.state !== "ready")
       throw new SessionStateError("RPC requests require a ready session");
-    return this.#rpc.request<TResult>(method, params, options);
+    return this.#rpc.request(method, params, options);
   }
 
   /** Atomically installs every cursor returned by snapshot recovery. */

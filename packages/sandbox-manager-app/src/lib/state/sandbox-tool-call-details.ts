@@ -1,6 +1,6 @@
 import {
-  type SandboxToolCallGetResult,
-  sandboxToolCallGetResultSchema,
+  type SandboxToolCallDetails,
+  sandboxToolCallDetailsSchema,
   type ToolCallRecord,
   type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
@@ -16,7 +16,7 @@ type FetchSandboxToolCall = (
     runId: string;
     toolCallId: string;
   },
-) => Promise<SandboxToolCallGetResult>;
+) => Promise<SandboxToolCallDetails>;
 
 export type ResolveToolCallDetailsOptions = {
   connected?: boolean;
@@ -57,7 +57,7 @@ export async function resolveToolCallDetails(
 }
 
 export function sandboxToolCallGetResultToToolCallRecord(
-  result: SandboxToolCallGetResult,
+  result: SandboxToolCallDetails,
   preview: ToolCallTranscriptRecord,
 ): ToolCallRecord {
   const { argsPreview, resultPreview, previewOverflow, ...base } = preview;
@@ -90,9 +90,9 @@ function previewToolCallToRecord(
 async function defaultFetch(
   sandboxId: string,
   params: Parameters<FetchSandboxToolCall>[1],
-): Promise<SandboxToolCallGetResult> {
+): Promise<SandboxToolCallDetails> {
   const key = `cmd_tool_details_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  return sandboxToolCallGetResultSchema.parse(
+  return sandboxToolCallDetailsSchema.parse(
     await api.sendSandboxCommand(sandboxId, "toolCall.get", params, key),
   );
 }
@@ -102,7 +102,7 @@ function rawToolCallId(record: ToolCallTranscriptRecord): string {
 }
 
 function mapSandboxStatus(
-  status: SandboxToolCallGetResult["toolCall"]["status"],
+  status: SandboxToolCallDetails["toolCall"]["status"],
 ): ToolCallRecord["status"] {
   if (status === "started") return "running";
   if (status === "failed") return "error";

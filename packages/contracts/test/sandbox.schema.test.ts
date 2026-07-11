@@ -13,7 +13,6 @@ import {
   runtimeDriverResourceOptionsSchema,
   sandboxAckStateSchema,
   sandboxCanonicalJson,
-  sandboxCommandRecordSchema,
   sandboxConfigV1Schema,
   sandboxConfigYamlResultSchema,
   sandboxContainerLogsResultSchema,
@@ -23,12 +22,10 @@ import {
   sandboxEventPayloadSchemas,
   sandboxManagerEventEnvelopeSchema,
   sandboxManagerLifecycleEventTypeSchema,
-  sandboxPlanReviewResolveParamsSchema,
   sandboxPlanReviewWaitRecordSchema,
   streamCursorSchema,
   sandboxEventEnvelopeSchema,
   sandboxRunExecutionRecordSchema,
-  sandboxRunStartParamsSchema,
   sandboxRuntimeContainerStatusSchema,
   sandboxSecretRefSchema,
   sandboxSnapshotResultSchema,
@@ -91,19 +88,6 @@ describe("Sandbox shared schemas", () => {
         runId: "run_1",
         status: "pending",
         createdAt: ts,
-      }).success,
-      true,
-    );
-    assert.equal(
-      sandboxPlanReviewResolveParamsSchema.safeParse({
-        commandId: "cmd_plan_1",
-        conversationId: "conv_1",
-        agentId: "agent_1",
-        runId: "run_1",
-        reviewId: "plan_review_1",
-        decision: "accept",
-        implementationModel: { provider: "anthropic", modelId: "claude" },
-        implementationThinkingLevel: "high",
       }).success,
       true,
     );
@@ -678,24 +662,7 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
-  it("validates representative command parameter shapes", () => {
-    assert.equal(
-      sandboxRunStartParamsSchema.safeParse({
-        commandId: "cmd_1",
-        conversationId: "conv_1",
-        agentId: "agent_1",
-        prompt: "Build the project",
-      }).success,
-      true,
-    );
-    assert.equal(
-      sandboxRunStartParamsSchema.safeParse({
-        commandId: "cmd_1",
-        conversationId: "conv_1",
-        agentId: "agent_1",
-      }).success,
-      false,
-    );
+  it("validates bounded snapshot query parameters", () => {
     assert.equal(
       sandboxStatusGetParamsSchema.safeParse({ includeConfig: "sanitized" })
         .success,
@@ -800,18 +767,6 @@ describe("Sandbox shared schemas", () => {
     )?.value;
     assert.ok(status);
     assert.ok(snapshot);
-    assert.equal(
-      sandboxCommandRecordSchema.safeParse({
-        commandId: "cmd_1",
-        messageId: "msg_1",
-        method: "run.start",
-        paramsHash: `sha256:${"a".repeat(64)}`,
-        params: {},
-        acceptedAt: ts,
-        status: "accepted",
-      }).success,
-      true,
-    );
     assert.equal(
       sandboxTranscriptEntrySchema.safeParse({
         entryId: "entry_1",

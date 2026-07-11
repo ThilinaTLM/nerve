@@ -1,9 +1,14 @@
 import {
   nerveMessageSchema,
+  operationDefinition,
+  parseOperationParams,
+  parseProtocolResponseData,
   protocolResponseMessageSchema,
   type NerveMessage,
   type PeerDescriptor,
   type OperationName,
+  type OperationParams,
+  type OperationResult,
   type SnapshotCursor,
 } from "@nervekit/contracts";
 import { protocolClientId, protocolInstanceId } from "./browser-ids.js";
@@ -35,11 +40,11 @@ export interface ProtocolRequestOptions {
   readonly credentials?: RequestCredentials;
 }
 
-export async function protocolRequest<T>(
-  method: OperationName,
-  params?: unknown,
+export async function protocolRequest<M extends OperationName>(
+  method: M,
+  params: OperationParams<M>,
   options: ProtocolRequestOptions = {},
-): Promise<{ result: T; cursor?: SnapshotCursor }> {
+): Promise<{ result: OperationResult<M>; cursor?: SnapshotCursor }> {
   const source: PeerDescriptor = {
     role: "ui",
     id: options.source?.id ?? protocolClientId(),
@@ -48,9 +53,38 @@ export async function protocolRequest<T>(
     ...options.source,
   };
   const target = options.target ?? { role: "workbench_server" };
+  const operation = operationDefinition(method);
+  if (!operation.allowedTargetRoles.includes(target.role)) {
+    throw new ProtocolRequestError(
+      undefined,
+      "AUTH_FORBIDDEN",
+      `Operation ${method} cannot target ${target.role}`,
+    );
+  }
+  if (target.role === "sandbox_agent" && !target.id) {
+    throw new ProtocolRequestError(
+      undefined,
+      "VALIDATION_FAILED",
+      "Sandbox agent requests require a nonempty target id",
+    );
+  }
+  if (operation.idempotency === "none" && options.idempotencyKey) {
+    throw new ProtocolRequestError(
+      undefined,
+      "VALIDATION_FAILED",
+      `Operation ${method} does not accept an idempotency key`,
+    );
+  }
+  if (operation.idempotency === "required" && !options.idempotencyKey) {
+    throw new ProtocolRequestError(
+      undefined,
+      "VALIDATION_FAILED",
+      `Operation ${method} requires an idempotency key`,
+    );
+  }
   const request = createMessageFactory({ source, target })("request", {
     method,
-    params,
+    params: parseOperationParams(method, params),
     idempotencyKey: options.idempotencyKey,
     timeoutMs: options.timeoutMs,
   });
@@ -97,9 +131,10 @@ export async function protocolRequest<T>(
       "Protocol response method did not match request",
     );
   }
+  const data = parseProtocolResponseData(method, parsed.data);
   return {
-    result: parsed.data.result as T,
-    cursor: parsed.data.cursor as SnapshotCursor | undefined,
+    result: data.result,
+    cursor: data.cursor as SnapshotCursor | undefined,
   };
 }
 

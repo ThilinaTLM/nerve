@@ -21,17 +21,11 @@ export async function getClientConfig(): Promise<ClientConfig> {
 }
 
 export async function getModels(): Promise<ModelInfo[]> {
-  return (await protocolRequest<{ models: ModelInfo[] }>("model.list", {}))
-    .result.models;
+  return (await protocolRequest("model.list", {})).result.models;
 }
 
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
-  return (
-    await protocolRequest<{ items: CompletionItem[] }>(
-      "completion.slash.list",
-      {},
-    )
-  ).result.items;
+  return (await protocolRequest("completion.slash.list", {})).result.items;
 }
 
 export async function getFileCompletions(
@@ -40,9 +34,6 @@ export async function getFileCompletions(
 ): Promise<CompletionItem[]> {
   if (!projectId) return [];
   return (
-    await protocolRequest<{ items: CompletionItem[] }>(
-      "completion.files.list",
-      { projectId, q: query },
-    )
+    await protocolRequest("completion.files.list", { projectId, q: query })
   ).result.items;
 }

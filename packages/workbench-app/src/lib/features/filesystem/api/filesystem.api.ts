@@ -27,10 +27,7 @@ export async function listDirectories(
   showHidden = false,
 ): Promise<FilesystemDirectoryResponse> {
   return (
-    await protocolRequest<FilesystemDirectoryResponse>(
-      "filesystem.directories.list",
-      { path, showHidden },
-    )
+    await protocolRequest("filesystem.directories.list", { path, showHidden })
   ).result;
 }
 

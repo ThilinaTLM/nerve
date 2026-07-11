@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { OperationDefinition } from "./operation-definition.schema.js";
 export type {
   OperationDefinition,
   OperationIdempotency,
@@ -56,7 +55,19 @@ if (new Set(methods).size !== methods.length) {
   throw new Error("Duplicate operation method in the Protocol v1 catalog");
 }
 
-export type OperationName = (typeof methodDefinitions)[number]["method"];
+type CatalogOperationDefinition = (typeof methodDefinitions)[number];
+export type OperationName = CatalogOperationDefinition["method"];
+export type OperationDefinitionFor<M extends OperationName> = Extract<
+  CatalogOperationDefinition,
+  { readonly method: M }
+>;
+export type OperationParams<M extends OperationName> = z.input<
+  OperationDefinitionFor<M>["paramsSchema"]
+>;
+export type OperationResult<M extends OperationName> = z.output<
+  OperationDefinitionFor<M>["resultSchema"]
+>;
+
 export const operationNameSchema = z.enum(
   methods as [OperationName, ...OperationName[]],
 );
@@ -71,27 +82,46 @@ export const operationIdempotencySchema = z.enum([
   "required",
 ]);
 
-const definitionMap = new Map<
-  OperationName,
-  OperationDefinition<OperationName>
->(methodDefinitions.map((definition) => [definition.method, definition]));
+const definitionMap = new Map<OperationName, CatalogOperationDefinition>(
+  methodDefinitions.map((definition) => [definition.method, definition]),
+);
 
-export function operationDefinition(
-  method: OperationName,
-): OperationDefinition<OperationName> {
+export function operationDefinition<M extends OperationName>(
+  method: M,
+): OperationDefinitionFor<M> {
   const definition = definitionMap.get(method);
   if (!definition) throw new Error(`Unknown operation: ${method}`);
-  return definition;
+  return definition as OperationDefinitionFor<M>;
 }
 
-export function operationParamsSchema(method: OperationName): z.ZodType {
-  return operationDefinition(method).paramsSchema;
+export function operationParamsSchema<M extends OperationName>(
+  method: M,
+): OperationDefinitionFor<M>["paramsSchema"] {
+  return operationDefinition(method)
+    .paramsSchema as OperationDefinitionFor<M>["paramsSchema"];
 }
 
-export function operationResultSchema(method: OperationName): z.ZodType {
-  return operationDefinition(method).resultSchema;
+export function operationResultSchema<M extends OperationName>(
+  method: M,
+): OperationDefinitionFor<M>["resultSchema"] {
+  return operationDefinition(method)
+    .resultSchema as OperationDefinitionFor<M>["resultSchema"];
 }
 
-export function allOperationDefinitions(): OperationDefinition<OperationName>[] {
-  return [...methodDefinitions];
+export function parseOperationParams<M extends OperationName>(
+  method: M,
+  input: unknown,
+): OperationParams<M> {
+  return operationParamsSchema(method).parse(input) as OperationParams<M>;
+}
+
+export function parseOperationResult<M extends OperationName>(
+  method: M,
+  input: unknown,
+): OperationResult<M> {
+  return operationResultSchema(method).parse(input) as OperationResult<M>;
+}
+
+export function allOperationDefinitions(): readonly CatalogOperationDefinition[] {
+  return methodDefinitions;
 }

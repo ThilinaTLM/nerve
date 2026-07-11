@@ -1,4 +1,4 @@
-import type { NerveMessage } from "@nervekit/contracts";
+import { operationDefinition, type NerveMessage } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -147,6 +147,34 @@ test("RPC correlates responses, validates targets, and replays idempotent result
     await rpc.request("settings.get", { value: 1 }, { idempotencyKey: "same" }),
     { params: { value: 1 } },
   );
+});
+
+test("RPC enforces catalog idempotency and sandbox target identity", async () => {
+  const dispatcher = new RpcDispatcher({
+    operation: (method) => operationDefinition(method),
+    handle: () => ({ tasks: [] }),
+  });
+  const missingTarget = clientMessages(
+    "request",
+    { method: "task.list", params: {} },
+    { target: { role: "sandbox_agent" } },
+  );
+  assert.deepEqual(await dispatcher.dispatch(missingTarget as never), {
+    ok: false,
+    error: {
+      code: "VALIDATION_FAILED",
+      message: "Sandbox agent requests require a nonempty target id",
+      retryable: false,
+    },
+  });
+  const forbiddenKey = clientMessages("request", {
+    method: "settings.get",
+    params: {},
+    idempotencyKey: "not-allowed",
+  });
+  const result = await dispatcher.dispatch(forbiddenKey as never);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error.code, "VALIDATION_FAILED");
 });
 
 test("event continuity and processed ACKs are independent per stream", () => {

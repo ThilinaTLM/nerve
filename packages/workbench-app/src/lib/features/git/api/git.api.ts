@@ -14,7 +14,7 @@ export async function discoverGitRepos(
   projectId: string,
 ): Promise<GitDiscoveryResponse> {
   return (
-    await protocolRequest<GitDiscoveryResponse>("git.repos.discover", {
+    await protocolRequest("git.repos.discover", {
       projectId,
     })
   ).result;
@@ -25,7 +25,7 @@ export async function getGitOverview(
   repo: string,
 ): Promise<GitOverviewResponse> {
   return (
-    await protocolRequest<GitOverviewResponse>("git.overview.get", {
+    await protocolRequest("git.overview.get", {
       projectId,
       repo,
     })
@@ -37,7 +37,7 @@ export async function listGitBranches(
   repo: string,
 ): Promise<GitBranchListResponse> {
   return (
-    await protocolRequest<GitBranchListResponse>("git.branches.list", {
+    await protocolRequest("git.branches.list", {
       projectId,
       repo,
     })
@@ -50,7 +50,7 @@ export async function createGitBranch(
   name: string,
 ): Promise<GitMutationResponse> {
   return (
-    await protocolRequest<GitMutationResponse>("git.branch.create", {
+    await protocolRequest("git.branch.create", {
       projectId,
       repo,
       name,
@@ -64,7 +64,7 @@ export async function switchGitBranch(
   name: string,
 ): Promise<GitMutationResponse> {
   return (
-    await protocolRequest<GitMutationResponse>("git.branch.switch", {
+    await protocolRequest("git.branch.switch", {
       projectId,
       repo,
       name,
@@ -76,36 +76,28 @@ export async function syncGitBranch(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest<GitMutationResponse>("git.sync", { projectId, repo })
-  ).result;
+  return (await protocolRequest("git.sync", { projectId, repo })).result;
 }
 
 export async function pushGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest<GitMutationResponse>("git.push", { projectId, repo })
-  ).result;
+  return (await protocolRequest("git.push", { projectId, repo })).result;
 }
 
 export async function pullGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest<GitMutationResponse>("git.pull", { projectId, repo })
-  ).result;
+  return (await protocolRequest("git.pull", { projectId, repo })).result;
 }
 
 export async function fetchGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest<GitMutationResponse>("git.fetch", { projectId, repo })
-  ).result;
+  return (await protocolRequest("git.fetch", { projectId, repo })).result;
 }
 
 export async function switchBaseAndPullGit(
@@ -113,7 +105,7 @@ export async function switchBaseAndPullGit(
   repo: string,
 ): Promise<GitMutationResponse> {
   return (
-    await protocolRequest<GitMutationResponse>("git.switchBaseAndPull", {
+    await protocolRequest("git.switchBaseAndPull", {
       projectId,
       repo,
     })
@@ -126,7 +118,7 @@ export async function stageGitFile(
   path: string,
 ): Promise<GitMutationResponse> {
   return (
-    await protocolRequest<GitMutationResponse>("git.file.stage", {
+    await protocolRequest("git.file.stage", {
       projectId,
       repo,
       path,
@@ -140,7 +132,7 @@ export async function unstageGitFile(
   path: string,
 ): Promise<GitMutationResponse> {
   return (
-    await protocolRequest<GitMutationResponse>("git.file.unstage", {
+    await protocolRequest("git.file.unstage", {
       projectId,
       repo,
       path,
@@ -154,7 +146,7 @@ export async function discardGitFile(
   path: string,
 ): Promise<GitMutationResponse> {
   return (
-    await protocolRequest<GitMutationResponse>("git.file.discard", {
+    await protocolRequest("git.file.discard", {
       projectId,
       repo,
       path,
@@ -167,7 +159,7 @@ export async function getGithubStatus(
   repo: string,
 ): Promise<GithubStatusResponse> {
   return (
-    await protocolRequest<GithubStatusResponse>("github.status.get", {
+    await protocolRequest("github.status.get", {
       projectId,
       repo,
     })
@@ -179,7 +171,7 @@ export async function listGithubPrs(
   repo: string,
 ): Promise<GithubPrListResponse> {
   return (
-    await protocolRequest<GithubPrListResponse>("github.pr.list", {
+    await protocolRequest("github.pr.list", {
       projectId,
       repo,
     })
@@ -192,7 +184,7 @@ export async function getGithubPr(
   number: number,
 ): Promise<GithubPrDetail> {
   return (
-    await protocolRequest<GithubPrDetail>("github.pr.get", {
+    await protocolRequest("github.pr.get", {
       projectId,
       repo,
       number,
@@ -206,7 +198,7 @@ export async function checkoutGithubPr(
   number: number,
 ): Promise<GithubPrCheckoutResponse> {
   return (
-    await protocolRequest<GithubPrCheckoutResponse>("github.pr.checkout", {
+    await protocolRequest("github.pr.checkout", {
       projectId,
       repo,
       number,

@@ -323,10 +323,10 @@ async function cancelQueuedPrompt(
   prompt: QueuedPromptRecord,
 ): Promise<boolean> {
   try {
-    await protocolRequest<{ queuedPrompt: QueuedPromptRecord }>(
-      "agent.promptQueue.cancel",
-      { agentId: prompt.agentId, queuedPromptId: prompt.id },
-    );
+    await protocolRequest("agent.promptQueue.cancel", {
+      agentId: prompt.agentId,
+      queuedPromptId: prompt.id,
+    });
     const targetView = ensureConversationView(prompt.conversationId);
     targetView.queuedPrompts = targetView.queuedPrompts.filter(
       (candidate) => candidate.id !== prompt.id,

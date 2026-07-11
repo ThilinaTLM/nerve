@@ -40,10 +40,5 @@ export async function getApplicationLogs(
 export async function pruneApplicationLogs(
   request: ApplicationLogPruneRequest,
 ): Promise<ApplicationLogPruneResponse> {
-  return (
-    await protocolRequest<ApplicationLogPruneResponse>(
-      "applicationLog.prune",
-      request,
-    )
-  ).result;
+  return (await protocolRequest("applicationLog.prune", request)).result;
 }

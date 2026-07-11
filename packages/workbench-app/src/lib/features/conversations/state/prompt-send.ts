@@ -3,12 +3,7 @@ import {
   isInlineCommandPrompt,
 } from "@nervekit/contracts";
 import { scopedUsableModelOptions } from "@nervekit/workbench-ui/core/utils/model";
-import {
-  type AgentRecord,
-  type ConversationRecord,
-  deleteConversation,
-  updateAgentConfig,
-} from "$lib/api";
+import { deleteConversation, updateAgentConfig } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { pendingConversationKey } from "$lib/core/state/state-keys";
@@ -91,7 +86,7 @@ export async function ensureAgent(): Promise<string> {
   }
   if (selection.projectId && selection.conversationId) {
     const { agent } = (
-      await protocolRequest<{ agent: AgentRecord }>("agent.create", {
+      await protocolRequest("agent.create", {
         projectId: selection.projectId,
         conversationId: selection.conversationId,
         model: selectedModel(),
@@ -158,9 +153,7 @@ async function sendPendingPrompt(
   let createdConversationId: string | undefined;
   try {
     const { conversation } = (
-      await protocolRequest<{
-        conversation: ConversationRecord;
-      }>("conversation.create", {
+      await protocolRequest("conversation.create", {
         projectId: pending.projectId,
         title: deriveConversationTitle(text),
         mode: pending.mode,
@@ -170,7 +163,7 @@ async function sendPendingPrompt(
     ).result;
     createdConversationId = conversation.id;
     const { agent } = (
-      await protocolRequest<{ agent: AgentRecord }>("agent.create", {
+      await protocolRequest("agent.create", {
         projectId: pending.projectId,
         conversationId: conversation.id,
         model: selectedModel(),
@@ -211,7 +204,7 @@ async function sendPendingPrompt(
     persistConversationTabs();
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    await protocolRequest<{ accepted: true }>(
+    await protocolRequest(
       "run.start",
       { agentId: agent.id, text },
       { idempotencyKey: crypto.randomUUID() },
@@ -286,7 +279,7 @@ export async function sendPromptText(
       composerDraft.text = "";
     }
     if (queueWhileRunning) {
-      await protocolRequest<{ accepted: true }>(
+      await protocolRequest(
         "run.steer",
         { agentId, text },
         { idempotencyKey: crypto.randomUUID() },
@@ -299,7 +292,7 @@ export async function sendPromptText(
         { role: "user", text, optimistic: true },
       ];
     }
-    await protocolRequest<{ accepted: true }>(
+    await protocolRequest(
       "run.start",
       { agentId, text },
       { idempotencyKey: crypto.randomUUID() },

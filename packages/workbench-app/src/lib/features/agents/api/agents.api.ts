@@ -11,12 +11,16 @@ export async function updateAgentConfig(
     thinkingLevel?: AgentRecord["thinkingLevel"];
   },
 ): Promise<AgentRecord> {
-  return (
-    await protocolRequest<{ agent: AgentRecord }>("agent.configure", {
+  const result = (
+    await protocolRequest("agent.configure", {
       agentId,
       ...patch,
     })
-  ).result.agent;
+  ).result;
+  if (!("agent" in result)) {
+    throw new Error("Workbench agent configuration returned an async result");
+  }
+  return result.agent;
 }
 
 export async function updateAgentModel(

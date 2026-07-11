@@ -1,4 +1,3 @@
-import type { ConversationRecord } from "$lib/api";
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
 import { protocolRequest } from "@nervekit/protocol";
 import {
@@ -35,12 +34,8 @@ export async function openConversation(conversationId: string) {
     workspaceState.conversations.find(
       (candidate) => candidate.id === conversationId,
     ) ??
-    (
-      await protocolRequest<{ conversation: ConversationRecord }>(
-        "conversation.get",
-        { conversationId },
-      )
-    ).result.conversation;
+    (await protocolRequest("conversation.get", { conversationId })).result
+      .conversation;
   addConversationTab(conversation.id);
   conversationState.activeConversationTabId = conversation.id;
   setActiveCenterTab({ kind: "conversation", id: conversation.id });

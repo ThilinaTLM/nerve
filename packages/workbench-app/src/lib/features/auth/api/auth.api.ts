@@ -15,12 +15,7 @@ import {
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
-  return (
-    await protocolRequest<{ providers: AuthProviderMetadata[] }>(
-      "auth.providers.list",
-      {},
-    )
-  ).result.providers;
+  return (await protocolRequest("auth.providers.list", {})).result.providers;
 }
 
 export async function getCredentialKey(): Promise<CredentialKeyResponse> {

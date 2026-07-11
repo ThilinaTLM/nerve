@@ -426,14 +426,15 @@ export class SandboxManagerStore {
     const target = conversationId ?? detail.selectedConversationId;
     if (isPendingConversationId(target)) return;
     if (!target && detail.selectedPendingConversationId) return;
-    const { result } = await protocolRequest<
-      import("@nervekit/contracts").SandboxConversationViewSnapshot
-    >("sandbox.conversation.snapshot.get", {
-      sandboxId,
-      conversationId: outboundConversationId(target),
-      agentId: detail.selectedAgentId,
-      runId: detail.selectedRunId,
-    });
+    const { result } = await protocolRequest(
+      "sandbox.conversation.snapshot.get",
+      {
+        sandboxId,
+        conversationId: outboundConversationId(target),
+        agentId: detail.selectedAgentId,
+        runId: detail.selectedRunId,
+      },
+    );
     const renderState = fromSandboxConversationViewSnapshot(result);
     const key = renderState.conversationId ?? result.conversationId;
     if (!key) return;

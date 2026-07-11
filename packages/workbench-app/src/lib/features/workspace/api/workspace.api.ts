@@ -28,7 +28,7 @@ export type WorkspaceSnapshotResponse = {
 };
 
 export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshotResponse> {
-  const { result: response } = await protocolRequest<WorkspaceSnapshotResponse>(
+  const { result: response } = await protocolRequest(
     "snapshot.workspace.get",
     {},
   );

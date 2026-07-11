@@ -1,18 +1,16 @@
 import type {
   StartTaskRequest,
+  TaskLogQuery,
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/contracts";
-import { protocolRequest } from "./manager-protocol-client";
+import { sandboxProtocolRequest } from "./manager-protocol-client";
 
 export async function listSandboxTasks(
   sandboxId: string,
 ): Promise<TaskRecord[]> {
-  return (
-    await protocolRequest<{ tasks: TaskRecord[] }>("task.list", {
-      sandboxId,
-    })
-  ).result.tasks;
+  return (await sandboxProtocolRequest(sandboxId, "task.list", {})).result
+    .tasks;
 }
 
 export async function startSandboxTask(
@@ -20,9 +18,10 @@ export async function startSandboxTask(
   request: Omit<StartTaskRequest, "cwd"> & { cwd?: string },
 ): Promise<TaskRecord> {
   return (
-    await protocolRequest<{ task: TaskRecord }>(
+    await sandboxProtocolRequest(
+      sandboxId,
       "task.start",
-      { sandboxId, ...request },
+      { ...request, cwd: request.cwd ?? "/workspace" },
       { idempotencyKey: `sandbox-task-start-${sandboxId}-${Date.now()}` },
     )
   ).result.task;
@@ -32,12 +31,8 @@ export async function getSandboxTask(
   sandboxId: string,
   taskId: string,
 ): Promise<TaskRecord> {
-  return (
-    await protocolRequest<{ task: TaskRecord }>("task.get", {
-      sandboxId,
-      taskId,
-    })
-  ).result.task;
+  return (await sandboxProtocolRequest(sandboxId, "task.get", { taskId }))
+    .result.task;
 }
 
 export async function cancelSandboxTask(
@@ -45,9 +40,10 @@ export async function cancelSandboxTask(
   taskId: string,
 ): Promise<TaskRecord> {
   return (
-    await protocolRequest<{ task: TaskRecord }>(
+    await sandboxProtocolRequest(
+      sandboxId,
       "task.cancel",
-      { sandboxId, taskId },
+      { taskId },
       {
         idempotencyKey: `sandbox-task-cancel-${sandboxId}-${taskId}-${Date.now()}`,
       },
@@ -60,9 +56,10 @@ export async function restartSandboxTask(
   taskId: string,
 ): Promise<TaskRecord> {
   return (
-    await protocolRequest<{ task: TaskRecord }>(
+    await sandboxProtocolRequest(
+      sandboxId,
       "task.restart",
-      { sandboxId, taskId },
+      { taskId },
       {
         idempotencyKey: `sandbox-task-restart-${sandboxId}-${taskId}-${Date.now()}`,
       },
@@ -74,9 +71,10 @@ export async function deleteSandboxTask(
   sandboxId: string,
   taskId: string,
 ): Promise<void> {
-  await protocolRequest<{ removed: true }>(
+  await sandboxProtocolRequest(
+    sandboxId,
     "task.delete",
-    { sandboxId, taskId },
+    { taskId },
     {
       idempotencyKey: `sandbox-task-delete-${sandboxId}-${taskId}-${Date.now()}`,
     },
@@ -87,9 +85,10 @@ export async function pruneSandboxTasks(
   sandboxId: string,
 ): Promise<{ removed: string[] }> {
   return (
-    await protocolRequest<{ removed: string[] }>(
+    await sandboxProtocolRequest(
+      sandboxId,
       "task.prune",
-      { sandboxId },
+      {},
       { idempotencyKey: `sandbox-task-prune-${sandboxId}-${Date.now()}` },
     )
   ).result;
@@ -98,11 +97,10 @@ export async function pruneSandboxTasks(
 export async function getSandboxTaskLogs(
   sandboxId: string,
   taskId: string,
-  mode = "recent",
+  mode: TaskLogQuery["mode"] = "recent",
 ): Promise<TaskLogQueryResponse> {
   return (
-    await protocolRequest<TaskLogQueryResponse>("task.logs", {
-      sandboxId,
+    await sandboxProtocolRequest(sandboxId, "task.logs", {
       taskId,
       mode,
       limit: 120,

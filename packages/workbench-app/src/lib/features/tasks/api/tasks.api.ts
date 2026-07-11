@@ -17,27 +17,21 @@ export async function getTaskLogs(
 }
 
 export async function startTask(body: StartTaskRequest): Promise<TaskRecord> {
-  return (await protocolRequest<{ task: TaskRecord }>("task.start", body))
-    .result.task;
+  return (await protocolRequest("task.start", body)).result.task;
 }
 
 export async function cancelTask(taskId: string): Promise<TaskRecord> {
-  return (
-    await protocolRequest<{ task: TaskRecord }>("task.cancel", { taskId })
-  ).result.task;
+  return (await protocolRequest("task.cancel", { taskId })).result.task;
 }
 
 export async function restartTask(taskId: string): Promise<TaskRecord> {
-  return (
-    await protocolRequest<{ task: TaskRecord }>("task.restart", { taskId })
-  ).result.task;
+  return (await protocolRequest("task.restart", { taskId })).result.task;
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
-  await protocolRequest<{ removed: true }>("task.delete", { taskId });
+  await protocolRequest("task.delete", { taskId });
 }
 
 export async function pruneTasks(): Promise<{ removed: string[] }> {
-  return (await protocolRequest<{ removed: string[] }>("task.prune", {}))
-    .result;
+  return (await protocolRequest("task.prune", {})).result;
 }

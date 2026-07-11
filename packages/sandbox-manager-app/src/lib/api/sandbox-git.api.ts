@@ -12,14 +12,16 @@ import type {
   GitRemoteOpRequest,
   SwitchBranchRequest,
 } from "@nervekit/contracts";
-import { protocolRequest } from "./manager-protocol-client";
+import { sandboxProtocolRequest } from "./manager-protocol-client";
+
+const SANDBOX_PROJECT_ID = "sandbox_workspace";
 
 export async function discoverSandboxGitRepos(
   sandboxId: string,
 ): Promise<GitDiscoveryResponse> {
   return (
-    await protocolRequest<GitDiscoveryResponse>("git.repos.discover", {
-      sandboxId,
+    await sandboxProtocolRequest(sandboxId, "git.repos.discover", {
+      projectId: SANDBOX_PROJECT_ID,
     })
   ).result;
 }
@@ -29,8 +31,8 @@ export async function getSandboxGitOverview(
   repo = ".",
 ): Promise<GitOverviewResponse> {
   return (
-    await protocolRequest<GitOverviewResponse>("git.overview.get", {
-      sandboxId,
+    await sandboxProtocolRequest(sandboxId, "git.overview.get", {
+      projectId: SANDBOX_PROJECT_ID,
       repo,
     })
   ).result;
@@ -41,8 +43,8 @@ export async function listSandboxGitBranches(
   repo = ".",
 ): Promise<GitBranchListResponse> {
   return (
-    await protocolRequest<GitBranchListResponse>("git.branches.list", {
-      sandboxId,
+    await sandboxProtocolRequest(sandboxId, "git.branches.list", {
+      projectId: SANDBOX_PROJECT_ID,
       repo,
     })
   ).result;
@@ -53,9 +55,10 @@ export async function createSandboxGitBranch(
   request: CreateBranchRequest,
 ): Promise<GitMutationResponse> {
   return (
-    await protocolRequest<GitMutationResponse>(
+    await sandboxProtocolRequest(
+      sandboxId,
       "git.branch.create",
-      { sandboxId, ...request },
+      { projectId: SANDBOX_PROJECT_ID, ...request },
       {
         idempotencyKey: `sandbox-git-create-${sandboxId}-${request.repo ?? "."}-${request.name}`,
       },
@@ -68,9 +71,10 @@ export async function switchSandboxGitBranch(
   request: SwitchBranchRequest,
 ): Promise<GitMutationResponse> {
   return (
-    await protocolRequest<GitMutationResponse>(
+    await sandboxProtocolRequest(
+      sandboxId,
       "git.branch.switch",
-      { sandboxId, ...request },
+      { projectId: SANDBOX_PROJECT_ID, ...request },
       {
         idempotencyKey: `sandbox-git-switch-${sandboxId}-${request.repo ?? "."}-${request.name}-${Date.now()}`,
       },
@@ -85,9 +89,10 @@ export async function sandboxGitFileAction(
 ): Promise<GitMutationResponse> {
   const method = `git.file.${action}` as const;
   return (
-    await protocolRequest<GitMutationResponse>(
+    await sandboxProtocolRequest(
+      sandboxId,
       method,
-      { sandboxId, ...request },
+      { projectId: SANDBOX_PROJECT_ID, ...request },
       {
         idempotencyKey: `sandbox-git-file-${action}-${sandboxId}-${request.repo ?? "."}-${request.path}-${Date.now()}`,
       },
@@ -102,9 +107,10 @@ export async function sandboxGitRemoteAction(
 ): Promise<GitMutationResponse> {
   const method = `git.${action}` as const;
   return (
-    await protocolRequest<GitMutationResponse>(
+    await sandboxProtocolRequest(
+      sandboxId,
       method,
-      { sandboxId, ...request },
+      { projectId: SANDBOX_PROJECT_ID, ...request },
       {
         idempotencyKey: `sandbox-git-${action}-${sandboxId}-${request.repo ?? "."}-${Date.now()}`,
       },
@@ -117,8 +123,8 @@ export async function getSandboxGithubStatus(
   repo = ".",
 ): Promise<GithubStatusResponse> {
   return (
-    await protocolRequest<GithubStatusResponse>("github.status.get", {
-      sandboxId,
+    await sandboxProtocolRequest(sandboxId, "github.status.get", {
+      projectId: SANDBOX_PROJECT_ID,
       repo,
     })
   ).result;
@@ -129,8 +135,8 @@ export async function listSandboxGithubPrs(
   repo = ".",
 ): Promise<GithubPrListResponse> {
   return (
-    await protocolRequest<GithubPrListResponse>("github.pr.list", {
-      sandboxId,
+    await sandboxProtocolRequest(sandboxId, "github.pr.list", {
+      projectId: SANDBOX_PROJECT_ID,
       repo,
     })
   ).result;
@@ -142,8 +148,8 @@ export async function getSandboxGithubPr(
   number: number,
 ): Promise<GithubPrDetail> {
   return (
-    await protocolRequest<GithubPrDetail>("github.pr.get", {
-      sandboxId,
+    await sandboxProtocolRequest(sandboxId, "github.pr.get", {
+      projectId: SANDBOX_PROJECT_ID,
       repo,
       number,
     })
@@ -156,9 +162,10 @@ export async function checkoutSandboxGithubPr(
   number: number,
 ): Promise<GithubPrCheckoutResponse> {
   return (
-    await protocolRequest<GithubPrCheckoutResponse>(
+    await sandboxProtocolRequest(
+      sandboxId,
       "github.pr.checkout",
-      { sandboxId, repo, number },
+      { projectId: SANDBOX_PROJECT_ID, repo, number },
       {
         idempotencyKey: `sandbox-pr-checkout-${sandboxId}-${repo}-${number}-${Date.now()}`,
       },

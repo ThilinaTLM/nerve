@@ -10,10 +10,10 @@ export async function getPromptSuggestions(
   options: { conversationId?: string; agentId?: string } = {},
 ): Promise<PromptSuggestionListResponse> {
   return (
-    await protocolRequest<PromptSuggestionListResponse>(
-      "promptSuggestion.listForProject",
-      { projectId, ...options },
-    )
+    await protocolRequest("promptSuggestion.listForProject", {
+      projectId,
+      ...options,
+    })
   ).result;
 }
 
@@ -21,17 +21,14 @@ export async function getPromptSuggestionStatuses(
   projectId?: string,
 ): Promise<PromptSuggestionStatus[]> {
   return (
-    await protocolRequest<{ statuses: PromptSuggestionStatus[] }>(
-      "promptSuggestion.statuses.list",
-      { projectId },
-    )
+    await protocolRequest("promptSuggestion.statuses.list", { projectId })
   ).result.statuses;
 }
 
 export async function updatePromptSuggestionTrust(
   body: UpdatePromptSuggestionTrustRequest,
 ): Promise<void> {
-  await protocolRequest<{ ok: true }>("promptSuggestion.trust.update", body);
+  await protocolRequest("promptSuggestion.trust.update", body);
 }
 
 export type {

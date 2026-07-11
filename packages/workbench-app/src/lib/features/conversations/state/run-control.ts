@@ -15,7 +15,7 @@ export async function navigateToEntry(
 ) {
   if (!selection.conversationId) return;
   const conversationId = selection.conversationId;
-  await protocolRequest<{ conversation: unknown }>("conversation.navigate", {
+  await protocolRequest("conversation.navigate", {
     conversationId,
     activeEntryId: entryId ?? null,
     summarize,
@@ -65,7 +65,7 @@ export async function continueFromFailure(statusEntryId: string) {
   view.error = undefined;
   workspaceState.error = undefined;
   try {
-    await protocolRequest<{ accepted: true }>(
+    await protocolRequest(
       "run.continue",
       { agentId: selection.agentId, statusEntryId },
       { idempotencyKey: crypto.randomUUID() },
@@ -84,7 +84,7 @@ export async function abortActiveRun() {
   const view = selection.conversationId
     ? ensureConversationView(selection.conversationId)
     : undefined;
-  await protocolRequest<{ accepted: true }>(
+  await protocolRequest(
     "run.cancel",
     { agentId: selection.agentId },
     { idempotencyKey: crypto.randomUUID() },

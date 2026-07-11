@@ -18,7 +18,7 @@ import {
   userQuestionRecordSchema,
   userQuestionStatusSchema,
 } from "./index.js";
-import { boundedPublicJsonSchema } from "../events/bounded-public-data.schema.js";
+import { sandboxToolCallDetailsSchema } from "./tool-call-details.schema.js";
 import { z } from "zod";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 
@@ -56,24 +56,6 @@ const toolCallGetParamsSchema = z.object({
   conversationId: z.string().startsWith("conv_").optional(),
   agentId: z.string().startsWith("agent_").optional(),
   runId: z.string().startsWith("run_").optional(),
-});
-const sandboxToolCallDetailsSchema = z.object({
-  toolCall: z.object({
-    toolCallId: z.string().min(1).max(256),
-    conversationId: z.string().startsWith("conv_"),
-    agentId: z.string().startsWith("agent_"),
-    runId: z.string().startsWith("run_"),
-    toolName: z.string().min(1).max(128),
-    status: z.string().min(1).max(64),
-    args: boundedPublicJsonSchema.optional(),
-    result: boundedPublicJsonSchema.optional(),
-    error: boundedPublicJsonSchema.optional(),
-    requestedAt: z.string().datetime(),
-  }),
-  argsPreview: boundedPublicJsonSchema.optional(),
-  resultPreview: boundedPublicJsonSchema.optional(),
-  displayTitle: z.string().max(512).optional(),
-  displaySummary: z.string().max(2_048).optional(),
 });
 const interactionAcceptedResultSchema = z.object({
   accepted: z.literal(true),

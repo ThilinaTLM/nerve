@@ -1,3 +1,4 @@
+import { pinnedCommandSchema } from "@nervekit/contracts";
 import type {
   CreatePinnedCommandRequest,
   OpenProjectInEditorResponse,
@@ -11,21 +12,19 @@ import type {
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function createProject(dir: string): Promise<ProjectRecord> {
-  return (
-    await protocolRequest<{ project: ProjectRecord }>("project.create", { dir })
-  ).result.project;
+  return (await protocolRequest("project.create", { dir })).result.project;
 }
 
 export async function getProject(projectId: string): Promise<ProjectRecord> {
   return (
-    await protocolRequest<{ project: ProjectRecord }>("project.get", {
+    await protocolRequest("project.get", {
       projectId,
     })
   ).result.project;
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  await protocolRequest<{ ok: true }>("project.delete", { projectId });
+  await protocolRequest("project.delete", { projectId });
 }
 
 export async function pruneProjectConversations(
@@ -33,10 +32,10 @@ export async function pruneProjectConversations(
   request: PruneProjectConversationsRequest,
 ): Promise<PruneProjectConversationsResponse> {
   return (
-    await protocolRequest<PruneProjectConversationsResponse>(
-      "project.conversations.prune",
-      { projectId, ...request },
-    )
+    await protocolRequest("project.conversations.prune", {
+      projectId,
+      ...request,
+    })
   ).result;
 }
 
@@ -45,7 +44,7 @@ export async function openProjectInEditor(
   editor: ProjectEditor,
 ): Promise<OpenProjectInEditorResponse> {
   return (
-    await protocolRequest<OpenProjectInEditorResponse>("project.openEditor", {
+    await protocolRequest("project.openEditor", {
       projectId,
       editor,
     })
@@ -55,23 +54,25 @@ export async function openProjectInEditor(
 export async function getPinnedCommands(
   projectId: string,
 ): Promise<PinnedCommand[]> {
-  return (
-    await protocolRequest<{ commands: PinnedCommand[] }>("pinnedCommand.list", {
+  const commands = (
+    await protocolRequest("pinnedCommand.list", {
       projectId,
     })
   ).result.commands;
+  return commands.map((command) => pinnedCommandSchema.parse(command));
 }
 
 export async function createPinnedCommand(
   projectId: string,
   body: CreatePinnedCommandRequest,
 ): Promise<PinnedCommand> {
-  return (
-    await protocolRequest<{ command: PinnedCommand }>("pinnedCommand.create", {
+  const command = (
+    await protocolRequest("pinnedCommand.create", {
       projectId,
       ...body,
     })
   ).result.command;
+  return pinnedCommandSchema.parse(command);
 }
 
 export async function updatePinnedCommand(
@@ -79,20 +80,21 @@ export async function updatePinnedCommand(
   commandId: string,
   body: UpdatePinnedCommandRequest,
 ): Promise<PinnedCommand> {
-  return (
-    await protocolRequest<{ command: PinnedCommand }>("pinnedCommand.update", {
+  const command = (
+    await protocolRequest("pinnedCommand.update", {
       projectId,
       commandId,
       ...body,
     })
   ).result.command;
+  return pinnedCommandSchema.parse(command);
 }
 
 export async function deletePinnedCommand(
   projectId: string,
   commandId: string,
 ): Promise<void> {
-  await protocolRequest<{ ok: true }>("pinnedCommand.delete", {
+  await protocolRequest("pinnedCommand.delete", {
     projectId,
     commandId,
   });

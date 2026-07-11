@@ -16,6 +16,10 @@ import {
   operationNameSchema,
   operationParamsSchema,
   operationResultSchema,
+  parseOperationParams,
+  parseOperationResult,
+  parseProtocolRequestData,
+  parseProtocolResponseData,
   replayCompleteMessageSchema,
   replayRequestMessageSchema,
   snapshotCursorSchema,
@@ -225,6 +229,42 @@ describe("Protocol v1 shared schemas", () => {
         generatedAt: ts,
       }).success,
       true,
+    );
+  });
+
+  it("dispatches HTTP and RPC payloads through catalog schemas", () => {
+    assert.deepEqual(
+      parseOperationParams("project.get", { projectId: "proj_1" }),
+      {
+        projectId: "proj_1",
+      },
+    );
+    assert.throws(() => parseOperationParams("project.get", {}));
+    assert.deepEqual(
+      parseProtocolRequestData({
+        method: "project.get",
+        params: { projectId: "proj_1" },
+      }),
+      { method: "project.get", params: { projectId: "proj_1" } },
+    );
+    assert.deepEqual(parseOperationResult("project.delete", { ok: true }), {
+      ok: true,
+    });
+    assert.throws(() => parseOperationResult("project.delete", { ok: false }));
+    assert.deepEqual(
+      parseProtocolResponseData("project.delete", {
+        ok: true,
+        method: "project.delete",
+        result: { ok: true },
+      }).result,
+      { ok: true },
+    );
+    assert.throws(() =>
+      parseProtocolResponseData("project.get", {
+        ok: true,
+        method: "project.delete",
+        result: { ok: true },
+      }),
     );
   });
 

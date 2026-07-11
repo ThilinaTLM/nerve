@@ -1,7 +1,7 @@
 import type {
   SandboxSetupStatusSummary,
   SandboxSetupTimelineItem,
-} from "./sandbox.commands.schema.js";
+} from "./sandbox.snapshot.schema.js";
 import type {
   RedactedError,
   SandboxStartupStage,

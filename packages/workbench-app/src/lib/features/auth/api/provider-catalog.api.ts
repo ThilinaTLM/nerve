@@ -6,26 +6,21 @@ import type {
 import { protocolRequest } from "@nervekit/protocol";
 
 export async function getProviderCatalog(): Promise<ProviderCatalog> {
-  return (await protocolRequest<ProviderCatalog>("providerCatalog.get", {}))
-    .result;
+  return (await protocolRequest("providerCatalog.get", {})).result;
 }
 
 export async function upsertCustomProvider(
   provider: CustomProvider,
 ): Promise<ProviderCatalog> {
-  return (
-    await protocolRequest<ProviderCatalog>(
-      "providerCatalog.custom.upsert",
-      provider,
-    )
-  ).result;
+  return (await protocolRequest("providerCatalog.custom.upsert", provider))
+    .result;
 }
 
 export async function deleteCustomProvider(
   id: string,
 ): Promise<ProviderCatalog> {
   return (
-    await protocolRequest<ProviderCatalog>("providerCatalog.custom.delete", {
+    await protocolRequest("providerCatalog.custom.delete", {
       id,
     })
   ).result;
@@ -34,12 +29,7 @@ export async function deleteCustomProvider(
 export async function upsertModelDefinition(
   model: ModelDefinition,
 ): Promise<ProviderCatalog> {
-  return (
-    await protocolRequest<ProviderCatalog>(
-      "providerCatalog.model.upsert",
-      model,
-    )
-  ).result;
+  return (await protocolRequest("providerCatalog.model.upsert", model)).result;
 }
 
 export async function deleteModelDefinition(
@@ -47,7 +37,7 @@ export async function deleteModelDefinition(
   modelId: string,
 ): Promise<ProviderCatalog> {
   return (
-    await protocolRequest<ProviderCatalog>("providerCatalog.model.delete", {
+    await protocolRequest("providerCatalog.model.delete", {
       provider,
       modelId,
     })

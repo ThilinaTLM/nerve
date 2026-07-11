@@ -1,3 +1,4 @@
+import { sandboxPinnedCommandSchema } from "@nervekit/contracts";
 import type {
   CreatePinnedCommandRequest,
   SandboxPinnedCommand,
@@ -8,21 +9,22 @@ import { protocolRequest } from "./manager-protocol-client";
 export async function listSandboxPinnedCommands(
   sandboxId: string,
 ): Promise<SandboxPinnedCommand[]> {
-  return (
-    await protocolRequest<{ commands: SandboxPinnedCommand[] }>(
+  const commands = (
+    await protocolRequest(
       "pinnedCommand.list",
       { sandboxId },
       { target: { role: "sandbox_manager" } },
     )
   ).result.commands;
+  return commands.map((command) => sandboxPinnedCommandSchema.parse(command));
 }
 
 export async function createSandboxPinnedCommand(
   sandboxId: string,
   request: CreatePinnedCommandRequest,
 ): Promise<SandboxPinnedCommand> {
-  return (
-    await protocolRequest<{ command: SandboxPinnedCommand }>(
+  const command = (
+    await protocolRequest(
       "pinnedCommand.create",
       { sandboxId, ...request },
       {
@@ -31,6 +33,7 @@ export async function createSandboxPinnedCommand(
       },
     )
   ).result.command;
+  return sandboxPinnedCommandSchema.parse(command);
 }
 
 export async function updateSandboxPinnedCommand(
@@ -38,8 +41,8 @@ export async function updateSandboxPinnedCommand(
   commandId: string,
   request: UpdatePinnedCommandRequest,
 ): Promise<SandboxPinnedCommand> {
-  return (
-    await protocolRequest<{ command: SandboxPinnedCommand }>(
+  const command = (
+    await protocolRequest(
       "pinnedCommand.update",
       { sandboxId, commandId, ...request },
       {
@@ -48,13 +51,14 @@ export async function updateSandboxPinnedCommand(
       },
     )
   ).result.command;
+  return sandboxPinnedCommandSchema.parse(command);
 }
 
 export async function deleteSandboxPinnedCommand(
   sandboxId: string,
   commandId: string,
 ): Promise<void> {
-  await protocolRequest<{ ok: true }>(
+  await protocolRequest(
     "pinnedCommand.delete",
     { sandboxId, commandId },
     {

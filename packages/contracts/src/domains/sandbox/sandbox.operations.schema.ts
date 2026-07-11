@@ -15,9 +15,11 @@ import {
 import {
   sandboxConversationSnapshotGetParamsSchema,
   sandboxConversationViewSnapshotSchema,
+} from "./sandbox.conversation-snapshot.schema.js";
+import {
   sandboxSnapshotGetParamsSchema,
   sandboxSnapshotResultSchema,
-} from "./sandbox.commands.schema.js";
+} from "./sandbox.snapshot.schema.js";
 
 const sandboxIdSchema = z.string().min(1);
 const sandboxIdParamsSchema = z.object({ sandboxId: sandboxIdSchema });

@@ -1,8 +1,12 @@
 import {
   operationDefinition,
+  parseOperationParams,
+  parseOperationResult,
   protocolRequestDataSchema,
   type NerveMessage,
   type OperationName,
+  type OperationParams,
+  type OperationResult,
   type ProtocolErrorData,
   type ProtocolRequestData,
   type ProtocolResponseData,
@@ -41,17 +45,25 @@ export class RpcClient {
     this.#options = options;
   }
 
-  async request<TResult = unknown>(
-    method: OperationName,
-    params?: unknown,
+  async request<M extends OperationName>(
+    method: M,
+    params: OperationParams<M>,
     options: Pick<
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
     > = {},
-  ): Promise<TResult> {
-    const operation =
-      this.#options.operation?.(method) ?? operationDefinition(method);
-    const validatedParams = operation.paramsSchema.parse(params);
+  ): Promise<OperationResult<M>> {
+    const customOperation = this.#options.operation?.(method);
+    const operation = customOperation ?? operationDefinition(method);
+    const validatedParams = customOperation
+      ? customOperation.paramsSchema.parse(params)
+      : parseOperationParams(method, params);
+    if (operation.idempotency === "none" && options.idempotencyKey)
+      throw new RpcError({
+        code: "VALIDATION_FAILED",
+        message: `Operation ${method} does not accept an idempotency key`,
+        retryable: false,
+      });
     if (operation.idempotency === "required" && !options.idempotencyKey)
       throw new RpcError({
         code: "VALIDATION_FAILED",
@@ -66,7 +78,7 @@ export class RpcClient {
     const message = this.#options.createMessage("request", data);
     const timeoutMs =
       data.timeoutMs ?? this.#options.defaultTimeoutMs ?? 30_000;
-    const response = new Promise<TResult>((resolve, reject) => {
+    const response = new Promise<OperationResult<M>>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.#pending.delete(message.id);
         reject(
@@ -117,7 +129,8 @@ export class RpcClient {
       }
       try {
         pending.resolve(
-          pending.resultSchema?.parse(response.result) ?? response.result,
+          pending.resultSchema?.parse(response.result) ??
+            parseOperationResult(pending.method, response.result),
         );
       } catch {
         pending.reject(
@@ -204,6 +217,12 @@ export class RpcDispatcher {
     const operation = this.options.operation(method);
     if (!operation)
       return failure("METHOD_NOT_FOUND", `Unknown operation: ${method}`);
+    if (request.target.role === "sandbox_agent" && !request.target.id) {
+      return failure(
+        "VALIDATION_FAILED",
+        "Sandbox agent requests require a nonempty target id",
+      );
+    }
     if (
       operation.allowedTargetRoles &&
       !operation.allowedTargetRoles.includes(request.target.role)
@@ -221,6 +240,12 @@ export class RpcDispatcher {
       return failure(
         "CAPABILITY_REQUIRED",
         `Operation ${method} requires capability ${operation.requiredCapability}`,
+      );
+    }
+    if (operation.idempotency === "none" && idempotencyKey) {
+      return failure(
+        "VALIDATION_FAILED",
+        `Operation ${method} does not accept an idempotency key`,
       );
     }
     if (operation.idempotency === "required" && !idempotencyKey) {
