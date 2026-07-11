@@ -61,9 +61,9 @@ describe("sandbox plan-mode HIL", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const start = (await daemon.router.dispatch("sandbox.run.start", {
+      const start = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_plan_start",
-        prompt: "Prepare and present the plan",
+        text: "Prepare and present the plan",
       })) as { conversationId: string; agentId: string; runId: string };
       const first = await waitForPlanReview(daemon, start.runId, "plan_1");
 
@@ -77,23 +77,21 @@ describe("sandbox plan-mode HIL", () => {
         { workspaceDir: process.cwd() },
       );
       recovered.start();
-      await recovered.router.dispatch("sandbox.planReview.resolve", {
+      await recovered.router.dispatch("planReview.requestChanges", {
         commandId: "cmd_plan_changes",
         conversationId: start.conversationId,
         agentId: start.agentId,
         runId: start.runId,
         reviewId: first.reviewId,
-        decision: "request_changes",
         feedback: "Clarify the implementation step.",
       });
       const second = await waitForPlanReview(recovered, start.runId, "plan_2");
-      await recovered.router.dispatch("sandbox.planReview.resolve", {
+      await recovered.router.dispatch("planReview.accept", {
         commandId: "cmd_plan_accept",
         conversationId: start.conversationId,
         agentId: start.agentId,
         runId: start.runId,
         reviewId: second.reviewId,
-        decision: "accept",
         implementationThinkingLevel: "high",
       });
       await waitForRun(recovered, start.runId, "completed");
@@ -192,9 +190,9 @@ describe("sandbox plan-mode HIL", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const start = (await daemon.router.dispatch("sandbox.run.start", {
+      const start = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_plan_outside",
-        prompt: "Present outside plan",
+        text: "Present outside plan",
       })) as { runId: string };
       await waitForRun(daemon, start.runId, "completed");
       const snapshot = (await daemon.router.dispatch(

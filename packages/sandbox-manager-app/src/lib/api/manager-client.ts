@@ -2,6 +2,7 @@ import {
   type ManagedSandboxListItem,
   type ManagedSandboxRecord,
   type ModelInfo,
+  type OperationName,
   managedSandboxListItemSchema,
   managedSandboxRecordSchema,
   modelInfoSchema,
@@ -27,6 +28,7 @@ import {
   sandboxStatusGetResultSchema,
   sandboxWorkspaceFileResponseSchema,
 } from "@nervekit/contracts";
+import { sandboxProtocolRequest } from "./manager-protocol-client";
 import { apiPathSegment, fetchJson } from "@nervekit/ui-kit/core/api/client";
 import type {
   ManagerEnvelope,
@@ -346,12 +348,13 @@ export async function getLatestSession(
 
 export async function sendSandboxCommand(
   sandboxId: string,
-  method: string,
+  method: OperationName,
   params: unknown,
   idempotencyKey: string,
 ): Promise<unknown> {
-  return sendData<unknown>(sandboxPath(sandboxId, "/commands"), "POST", {
-    body: { method, params, idempotencyKey },
-    idempotencyKey,
-  });
+  return (
+    await sandboxProtocolRequest<unknown>(sandboxId, method, params, {
+      idempotencyKey,
+    })
+  ).result;
 }

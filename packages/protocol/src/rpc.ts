@@ -1,6 +1,8 @@
 import {
+  operationDefinition,
   protocolRequestDataSchema,
   type NerveMessage,
+  type OperationName,
   type ProtocolErrorData,
   type ProtocolRequestData,
   type ProtocolResponseData,
@@ -18,10 +20,14 @@ export interface RpcClientOptions {
   readonly createMessage: MessageFactory;
   readonly send: (message: NerveMessage) => void | Promise<void>;
   readonly defaultTimeoutMs?: number;
+  readonly operation?: (
+    method: OperationName,
+  ) => RpcOperationDefinition | undefined;
 }
 
 type PendingRequest = {
-  readonly method: string;
+  readonly method: OperationName;
+  readonly resultSchema?: RpcOperationDefinition["resultSchema"];
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: unknown) => void;
   readonly timeout: ReturnType<typeof setTimeout>;
@@ -36,16 +42,25 @@ export class RpcClient {
   }
 
   async request<TResult = unknown>(
-    method: string,
+    method: OperationName,
     params?: unknown,
     options: Pick<
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
     > = {},
   ): Promise<TResult> {
+    const operation =
+      this.#options.operation?.(method) ?? operationDefinition(method);
+    const validatedParams = operation.paramsSchema.parse(params);
+    if (operation.idempotency === "required" && !options.idempotencyKey)
+      throw new RpcError({
+        code: "VALIDATION_FAILED",
+        message: `Operation ${method} requires an idempotency key`,
+        retryable: false,
+      });
     const data = protocolRequestDataSchema.parse({
       method,
-      params,
+      params: validatedParams,
       ...options,
     });
     const message = this.#options.createMessage("request", data);
@@ -64,6 +79,7 @@ export class RpcClient {
       }, timeoutMs);
       this.#pending.set(message.id, {
         method,
+        resultSchema: operation.resultSchema,
         resolve: resolve as (value: unknown) => void,
         reject,
         timeout,
@@ -89,7 +105,29 @@ export class RpcClient {
       pending.reject(new RpcError(message.data as ProtocolErrorData));
     } else {
       const response = message.data as ProtocolResponseData;
-      pending.resolve(response.result);
+      if (response.method !== pending.method) {
+        pending.reject(
+          new RpcError({
+            code: "INVALID_MESSAGE",
+            message: "RPC response method did not match the request",
+            retryable: false,
+          }),
+        );
+        return true;
+      }
+      try {
+        pending.resolve(
+          pending.resultSchema?.parse(response.result) ?? response.result,
+        );
+      } catch {
+        pending.reject(
+          new RpcError({
+            code: "INVALID_MESSAGE",
+            message: `Invalid result for ${pending.method}`,
+            retryable: false,
+          }),
+        );
+      }
     }
     return true;
   }
@@ -116,13 +154,16 @@ export interface RpcOperationDefinition {
 }
 
 export interface RpcDispatcherOptions {
-  readonly operation: (method: string) => RpcOperationDefinition | undefined;
+  readonly operation: (
+    method: OperationName,
+  ) => RpcOperationDefinition | undefined;
   readonly handle: (
-    method: string,
+    method: OperationName,
     params: unknown,
     request: NerveMessage<ProtocolRequestData>,
   ) => unknown | Promise<unknown>;
   readonly idempotency?: IdempotencyStorePort;
+  readonly acceptedCapabilities?: readonly string[];
 }
 
 export interface IdempotencyStorePort {
@@ -170,6 +211,16 @@ export class RpcDispatcher {
       return failure(
         "AUTH_FORBIDDEN",
         `Operation ${method} cannot target ${request.target.role}`,
+      );
+    }
+    if (
+      operation.requiredCapability &&
+      this.options.acceptedCapabilities &&
+      !this.options.acceptedCapabilities.includes(operation.requiredCapability)
+    ) {
+      return failure(
+        "CAPABILITY_REQUIRED",
+        `Operation ${method} requires capability ${operation.requiredCapability}`,
       );
     }
     if (operation.idempotency === "required" && !idempotencyKey) {

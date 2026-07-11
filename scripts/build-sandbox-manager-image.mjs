@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
+const { version } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
 const imageTag =
   process.env.NERVE_SANDBOX_MANAGER_IMAGE ?? "nerve-sandbox-manager:dev";
 const installLocalRuntimes =
@@ -24,6 +28,8 @@ run(cli, [
   "packages/sandbox-manager/Dockerfile",
   "--build-arg",
   `INSTALL_LOCAL_RUNTIMES=${installLocalRuntimes}`,
+  "--build-arg",
+  `NERVE_VERSION=${version}`,
   "-t",
   imageTag,
   ".",

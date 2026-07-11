@@ -1,3 +1,4 @@
+export * from "./git-mutation-publisher.js";
 export * from "./task-service.js";
 
 export interface ClockPort {

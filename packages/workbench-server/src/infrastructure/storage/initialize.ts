@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type DaemonFile,
@@ -43,6 +43,7 @@ export async function initializeStorage(
   const paths = storagePaths(home);
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   await chmod(paths.home, 0o700).catch(() => undefined);
+  await ensureStateLayout(paths.home);
   for (const subdir of dataSubdirs) {
     const mode = subdir === "auth" || subdir === "keys" ? 0o700 : 0o755;
     const dir = join(paths.home, subdir);
@@ -70,6 +71,35 @@ export async function initializeStorage(
   const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
 
   return { paths, settings, localToken };
+}
+
+async function ensureStateLayout(home: string): Promise<void> {
+  const markerPath = join(home, "VERSION");
+  if (await pathExists(markerPath)) {
+    try {
+      const marker = JSON.parse(await readFile(markerPath, "utf8")) as {
+        format?: unknown;
+        version?: unknown;
+      };
+      if (marker.format === "nerve-workbench-state" && marker.version === 1)
+        return;
+    } catch {
+      // Report one deterministic reset instruction below.
+    }
+    throw new Error(
+      `Incompatible Nerve state at ${home}. Reset this directory before starting Nerve Protocol v1.`,
+    );
+  }
+  if ((await readdir(home)).length > 0) {
+    throw new Error(
+      `Incompatible Nerve state at ${home}. Reset this directory before starting Nerve Protocol v1.`,
+    );
+  }
+  await writeTextFileIfMissing(
+    markerPath,
+    `${JSON.stringify({ format: "nerve-workbench-state", version: 1 }, null, 2)}\n`,
+    0o600,
+  );
 }
 
 export async function writeSettings(

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { conversationEventPayloadSchemas } from "../conversations/index.js";
 import { sandboxEventPayloadSchemas } from "../sandbox/sandbox.events.schema.js";
 import {
   managedContainerRefSchema,
@@ -9,6 +8,7 @@ import {
 } from "../sandbox/sandbox.manager.schema.js";
 import { taskRecordSchema } from "../tasks/index.js";
 import type { PeerRole } from "../protocol/envelope.schema.js";
+import { boundedPublicObjectSchema } from "./bounded-public-data.schema.js";
 
 export type EventCoalescing = "latest_by_scope" | "concat_delta";
 
@@ -23,7 +23,6 @@ export interface PublicEventDefinition {
 
 const hostRoles = ["workbench_server", "sandbox_agent"] as const;
 const managerRoles = ["sandbox_manager"] as const;
-const genericPayloadSchema = z.record(z.string(), z.unknown());
 const taskPayloadSchema = z.object({ task: taskRecordSchema }).passthrough();
 
 function definition(
@@ -42,20 +41,20 @@ function definition(
 }
 
 const definitions: PublicEventDefinition[] = [
-  ...Object.entries(conversationEventPayloadSchemas).map(
-    ([name, payloadSchema]) =>
-      definition(name, payloadSchema, {
-        durability: name.startsWith("conversation.live.")
-          ? "transient"
-          : "durable",
-        coalescing: name.endsWith(".delta") ? "concat_delta" : undefined,
-        scope: ["conversationId", "runId"],
-      }),
-  ),
   ...Object.entries(sandboxEventPayloadSchemas).map(([name, payloadSchema]) =>
     definition(name, payloadSchema, {
-      durability: name === "run.delta" ? "transient" : "durable",
-      scope: ["sandboxId", "conversationId", "runId"],
+      durability:
+        name === "run.delta" ||
+        name === "conversation.context.updated" ||
+        name.startsWith("conversation.live.")
+          ? "transient"
+          : "durable",
+      coalescing: name.endsWith(".delta")
+        ? "concat_delta"
+        : name === "conversation.context.updated"
+          ? "latest_by_scope"
+          : undefined,
+      scope: ["sandboxId", "projectId", "conversationId", "runId"],
     }),
   ),
   ...[
@@ -66,6 +65,7 @@ const definitions: PublicEventDefinition[] = [
     "task.completed",
     "task.failed",
     "task.timed_out",
+    "task.readiness_failed",
     "task.cancelled",
     "task.orphaned",
   ].map((name) => definition(name, taskPayloadSchema, { scope: ["task.id"] })),
@@ -192,13 +192,13 @@ const definitions: PublicEventDefinition[] = [
     "task.runtime_updated",
     "task.orphan_cleanup_succeeded",
     "task.cleanup_failed",
-  ].map((name) => definition(name, genericPayloadSchema)),
-  definition("storage.cleanup.updated", genericPayloadSchema, {
+  ].map((name) => definition(name, boundedPublicObjectSchema)),
+  definition("storage.cleanup.updated", boundedPublicObjectSchema, {
     durability: "transient",
     coalescing: "latest_by_scope",
     scope: ["operation.id"],
   }),
-  definition("usage.subscription.updated", genericPayloadSchema, {
+  definition("usage.subscription.updated", boundedPublicObjectSchema, {
     durability: "transient",
     coalescing: "latest_by_scope",
     scope: ["provider"],
@@ -207,7 +207,8 @@ const definitions: PublicEventDefinition[] = [
 
 const definitionMap = new Map<string, PublicEventDefinition>();
 for (const item of definitions) {
-  if (definitionMap.has(item.name)) continue;
+  if (definitionMap.has(item.name))
+    throw new Error(`Duplicate public event definition: ${item.name}`);
   definitionMap.set(item.name, item);
 }
 

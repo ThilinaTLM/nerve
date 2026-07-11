@@ -1,4 +1,4 @@
-# Build from repository root after pnpm builds the manager and sandbox-manager-ui.
+# Build from repository root after pnpm builds the manager and manager app.
 FROM node:24-bookworm-slim AS manager-deps
 
 WORKDIR /repo
@@ -6,6 +6,8 @@ RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/contracts/dist packages/contracts/dist
+COPY packages/protocol/package.json packages/protocol/package.json
+COPY packages/protocol/dist packages/protocol/dist
 COPY packages/sandbox-manager/package.json packages/sandbox-manager/package.json
 COPY packages/sandbox-manager/migrations packages/sandbox-manager/migrations
 COPY packages/sandbox-manager/dist packages/sandbox-manager/dist
@@ -15,7 +17,8 @@ RUN rm -rf /manager/dist/web && mkdir -p /manager/dist/web && cp -R packages/san
 
 FROM node:24-bookworm-slim
 ARG INSTALL_LOCAL_RUNTIMES=true
-LABEL org.nerve.sandbox-manager.version="0.6.0"
+ARG NERVE_VERSION
+LABEL org.nerve.sandbox-manager.version="${NERVE_VERSION}"
 
 RUN set -eux; \
   apt-get update; \

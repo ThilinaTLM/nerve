@@ -1,1 +1,3 @@
-export const sandboxManagerVersion = "0.6.0";
+import packageManifest from "../../package.json" with { type: "json" };
+
+export const sandboxManagerVersion = packageManifest.version;

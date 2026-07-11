@@ -49,10 +49,11 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         },
       );
       daemon.start();
-      const start = (await daemon.router.dispatch("sandbox.run.start", {
-        commandId: "cmd_start_wait",
-        prompt: "Ask me for a value",
-      })) as { conversationId: string; agentId: string; runId: string };
+      const start = (await daemon.router.dispatch(
+        "run.start",
+        { text: "Ask me for a value" },
+        { idempotencyKey: "cmd_start_wait" },
+      )) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, start.runId, "waiting_for_input");
       await waitForConversationToolStatus(
         stores,
@@ -144,15 +145,12 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         { workspaceDir: process.cwd() },
       );
       recovered.start();
-      const submit = (await recovered.router.dispatch("sandbox.input.submit", {
-        commandId: "cmd_submit_wait",
-        conversationId: start.conversationId,
-        agentId: start.agentId,
-        runId: start.runId,
-        requestId: "ask_1",
-        text: "42",
-      })) as { status: string };
-      assert.equal(submit.status, "queued");
+      const submit = (await recovered.router.dispatch(
+        "userQuestion.answer",
+        { questionId: "ask_1", answer: "42" },
+        { idempotencyKey: "cmd_submit_wait" },
+      )) as { status: string };
+      assert.equal(submit.status, "answered");
       await waitForRun(recovered, start.runId, "completed");
 
       const status = (await recovered.router.dispatch(
@@ -228,10 +226,11 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const start = (await daemon.router.dispatch("sandbox.run.start", {
-        commandId: "cmd_start_approval",
-        prompt: "Run the approval-gated command",
-      })) as { conversationId: string; agentId: string; runId: string };
+      const start = (await daemon.router.dispatch(
+        "run.start",
+        { text: "Run the approval-gated command" },
+        { idempotencyKey: "cmd_start_approval" },
+      )) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, start.runId, "waiting_for_approval");
       await waitForConversationToolStatus(
         stores,

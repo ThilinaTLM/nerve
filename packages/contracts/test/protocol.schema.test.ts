@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   ackMessageSchema,
+  allOperationDefinitions,
+  allPublicEventDefinitions,
   type EventBatchData,
   type EventEnvelope,
   eventBatchDataSchema,
@@ -10,12 +12,14 @@ import {
   helloMessageSchema,
   nerveMessageSchema,
   protocolErrorMessageSchema,
+  operationDefinition,
   operationNameSchema,
   operationParamsSchema,
   operationResultSchema,
   replayCompleteMessageSchema,
   replayRequestMessageSchema,
   snapshotCursorSchema,
+  validatePublicEvent,
   welcomeMessageSchema,
   workspaceSnapshotResponseSchema,
 } from "../src/index.js";
@@ -221,6 +225,88 @@ describe("Protocol v1 shared schemas", () => {
         generatedAt: ts,
       }).success,
       true,
+    );
+  });
+
+  it("owns every operation once with explicit routing metadata", () => {
+    const definitions = allOperationDefinitions();
+    assert.equal(
+      new Set(definitions.map((definition) => definition.method)).size,
+      definitions.length,
+    );
+    for (const definition of definitions) {
+      assert.ok(definition.requiredCapability.startsWith("operation."));
+      assert.ok(definition.allowedTargetRoles.length > 0);
+      assert.ok(
+        ["read", "mutation", "accepted_async"].includes(definition.kind),
+      );
+      assert.ok(
+        ["none", "recommended", "required"].includes(definition.idempotency),
+      );
+      assert.equal(operationDefinition(definition.method), definition);
+    }
+
+    for (const retired of [
+      "agent.prompt",
+      "agent.abort",
+      "agent.continueFromFailure",
+      "sandbox.agent.prompt",
+      "sandbox.agent.abort",
+      "sandbox.agent.continue",
+      "sandbox.agent.configure",
+      "sandbox.toolCall.get",
+      "sandbox.run.start",
+      "sandbox.input.submit",
+    ]) {
+      assert.equal(
+        operationNameSchema.safeParse(retired).success,
+        false,
+        retired,
+      );
+    }
+  });
+
+  it("bounds and redacts every public event definition", () => {
+    const definitions = allPublicEventDefinitions();
+    assert.equal(
+      new Set(definitions.map((definition) => definition.name)).size,
+      definitions.length,
+    );
+    for (const definition of definitions) {
+      assert.ok(definition.allowedSourceRoles.length > 0);
+      assert.ok(["durable", "transient"].includes(definition.durability));
+      assert.ok(Array.isArray(definition.scope));
+    }
+    assert.throws(
+      () =>
+        validatePublicEvent(
+          "settings.updated",
+          { authorization_token: "secret" },
+          "workbench_server",
+        ),
+      /secret-like/,
+    );
+    assert.throws(
+      () =>
+        validatePublicEvent(
+          "settings.updated",
+          { endpoint: "https://user:password@example.test" },
+          "workbench_server",
+        ),
+      /credential-bearing URL/,
+    );
+    assert.throws(
+      () =>
+        validatePublicEvent(
+          "sandbox.lifecycle.changed",
+          {
+            sandboxId: "sbx_1",
+            current: "ready",
+            changedAt: ts,
+          },
+          "sandbox_agent",
+        ),
+      /cannot be emitted/,
     );
   });
 

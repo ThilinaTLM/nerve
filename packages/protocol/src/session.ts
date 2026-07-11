@@ -1,6 +1,9 @@
 import type {
+  EventEnvelope,
   HelloData,
   NerveMessage,
+  OperationName,
+  ProtocolRequestData,
   PeerDescriptor,
   ProtocolLimits,
   ProtocolV1Message,
@@ -9,6 +12,15 @@ import type {
   WelcomeData,
 } from "@nervekit/contracts";
 import type { MessageFactory } from "./messages.js";
+import { ProcessedAckTracker } from "./ack-tracker.js";
+import {
+  applyEventBatch,
+  createClientEventStreamState,
+  markProcessed,
+  resetClientEventStreamState,
+  type ClientEventStreamState,
+} from "./event-stream.js";
+import { RpcClient, type RpcDispatcher } from "./rpc.js";
 
 export type ClientSessionState =
   | "idle"
@@ -27,15 +39,40 @@ export interface ClientSessionOptions {
   readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
   readonly onReady?: (welcome: WelcomeData) => void | Promise<void>;
   readonly onSnapshotRequired?: (welcome: WelcomeData) => void | Promise<void>;
+  readonly onReplayUnavailable?: (
+    message: ProtocolV1Message,
+  ) => void | Promise<void>;
+  readonly applyEvent?: (
+    stream: string,
+    event: EventEnvelope<Record<string, unknown>>,
+  ) => void | Promise<void>;
+  readonly onFlowUpdate?: (message: ProtocolV1Message) => void | Promise<void>;
+  readonly rpcTimeoutMs?: number;
 }
 
 export class ProtocolClientSession {
   state: ClientSessionState = "idle";
   sessionId?: string;
   readonly #options: ClientSessionOptions;
+  readonly #streams = new Map<string, ClientEventStreamState>();
+  readonly #acks: ProcessedAckTracker;
+  readonly #rpc: RpcClient;
 
   constructor(options: ClientSessionOptions) {
     this.#options = options;
+    const cursors = options.cursors?.() ?? [];
+    this.#acks = new ProcessedAckTracker(cursors);
+    for (const cursor of cursors) {
+      this.#streams.set(
+        cursor.stream,
+        createClientEventStreamState(cursor.processedSeq),
+      );
+    }
+    this.#rpc = new RpcClient({
+      createMessage: options.createMessage,
+      send: options.send,
+      defaultTimeoutMs: options.rpcTimeoutMs,
+    });
   }
 
   async start(): Promise<void> {
@@ -104,7 +141,107 @@ export class ProtocolClientSession {
         `Cannot receive ${message.kind} while ${this.state}`,
       );
     }
+    if (this.#rpc.handle(message)) return;
+    if (message.kind === "event.batch") {
+      await this.#receiveEventBatch(message);
+      return;
+    }
+    if (message.kind === "replay.unavailable") {
+      await this.#options.onReplayUnavailable?.(message);
+      return;
+    }
+    if (message.kind === "flow.update") {
+      await this.#options.onFlowUpdate?.(message);
+      return;
+    }
+    if (message.kind === "heartbeat") {
+      await this.#options.send(
+        this.#options.createMessage("heartbeat", {
+          sessionId: this.sessionId,
+          sentAt: new Date().toISOString(),
+          processed: this.#acks.cursors(),
+        }),
+      );
+      return;
+    }
+    if (message.kind === "goodbye") {
+      this.#rpc.close();
+      this.state = "closed";
+      return;
+    }
     await this.#options.onMessage?.(message);
+  }
+
+  request<TResult = unknown>(
+    method: OperationName,
+    params?: unknown,
+    options: Pick<
+      ProtocolRequestData,
+      "idempotencyKey" | "timeoutMs" | "expect"
+    > = {},
+  ): Promise<TResult> {
+    if (this.state !== "ready")
+      throw new SessionStateError("RPC requests require a ready session");
+    return this.#rpc.request<TResult>(method, params, options);
+  }
+
+  /** Atomically installs every cursor returned by snapshot recovery. */
+  resetStreams(cursors: readonly StreamCursor[]): void {
+    const names = new Set(cursors.map((cursor) => cursor.stream));
+    for (const name of [...this.#streams.keys()]) {
+      if (!names.has(name)) this.#streams.delete(name);
+    }
+    for (const cursor of cursors) {
+      const state =
+        this.#streams.get(cursor.stream) ?? createClientEventStreamState();
+      resetClientEventStreamState(state, cursor.processedSeq);
+      this.#streams.set(cursor.stream, state);
+    }
+    this.#acks.reset(cursors);
+  }
+
+  async #receiveEventBatch(
+    message: ProtocolV1Message & { kind: "event.batch" },
+  ): Promise<void> {
+    const stream = message.data.stream;
+    const state = this.#streams.get(stream) ?? createClientEventStreamState(0);
+    this.#streams.set(stream, state);
+    const events: EventEnvelope<Record<string, unknown>>[] = [];
+    const result = applyEventBatch(
+      message.data,
+      state,
+      (event) => events.push(event),
+      stream,
+    );
+    this.#acks.markReceived(stream, result.highestReceivedSeq);
+    if (result.replayRequired) {
+      await this.#options.send(
+        this.#options.createMessage("replay.request", {
+          sessionId: this.sessionId,
+          replayId: `rpl_${globalThis.crypto.randomUUID()}`,
+          streams: [{ stream, fromSeq: result.replayRequired.fromSeq + 1 }],
+          reason: result.replayRequired.reason,
+        }),
+      );
+      return;
+    }
+    for (const event of events) {
+      await this.#options.applyEvent?.(stream, event);
+      if (event.durability === "durable") {
+        markProcessed(state, event.seq);
+        this.#acks.markProcessed(stream, event.seq);
+      }
+    }
+    if (events.some((event) => event.durability === "durable")) {
+      await this.#options.send(
+        this.#options.createMessage("event.ack", {
+          sessionId: this.sessionId,
+          ackId: `ack_${globalThis.crypto.randomUUID()}`,
+          streams: this.#acks.cursors(),
+          received: [{ stream, highestSeq: result.highestReceivedSeq }],
+        }),
+      );
+    }
   }
 
   async close(
@@ -119,6 +256,7 @@ export class ProtocolClientSession {
         finalCursors: this.#options.cursors?.() as StreamCursor[] | undefined,
       }),
     );
+    this.#rpc.close();
     this.state = "closed";
   }
 }
@@ -156,6 +294,13 @@ export interface ServerSessionOptions {
     message: ProtocolV1Message & { kind: "ready" },
   ) => void | Promise<void>;
   readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
+  readonly rpcDispatcher?: RpcDispatcher;
+  readonly onAck?: (
+    message: ProtocolV1Message & { kind: "event.ack" },
+  ) => void | Promise<void>;
+  readonly onReplayRequest?: (
+    message: ProtocolV1Message & { kind: "replay.request" },
+  ) => void | Promise<void>;
 }
 
 export class ProtocolServerSession {
@@ -235,6 +380,53 @@ export class ProtocolServerSession {
     }
     if (message.kind === "goodbye") {
       this.state = "closed";
+      return;
+    }
+    if (message.kind === "request" && this.#options.rpcDispatcher) {
+      const result = await this.#options.rpcDispatcher.dispatch(message);
+      await this.#options.send(
+        result.ok
+          ? this.#options.createMessage(
+              "response",
+              {
+                ok: true,
+                method: message.data.method,
+                result: result.result,
+              },
+              {
+                target: message.source,
+                replyTo: message.id,
+                correlationId: message.id,
+              },
+            )
+          : this.#options.createMessage("error", result.error, {
+              target: message.source,
+              replyTo: message.id,
+              correlationId: message.id,
+            }),
+      );
+      return;
+    }
+    if (message.kind === "event.ack") {
+      await this.#options.onAck?.(message);
+      return;
+    }
+    if (message.kind === "replay.request") {
+      await this.#options.onReplayRequest?.(message);
+      return;
+    }
+    if (message.kind === "heartbeat") {
+      await this.#options.send(
+        this.#options.createMessage(
+          "heartbeat",
+          {
+            sessionId: this.sessionId,
+            sentAt: new Date().toISOString(),
+            processed: [],
+          },
+          { target: message.source },
+        ),
+      );
       return;
     }
     await this.#options.onMessage?.(message);

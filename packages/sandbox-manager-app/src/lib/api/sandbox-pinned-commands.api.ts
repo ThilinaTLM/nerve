@@ -10,8 +10,9 @@ export async function listSandboxPinnedCommands(
 ): Promise<SandboxPinnedCommand[]> {
   return (
     await protocolRequest<{ commands: SandboxPinnedCommand[] }>(
-      "sandbox.pinnedCommand.list",
+      "pinnedCommand.list",
       { sandboxId },
+      { target: { role: "sandbox_manager" } },
     )
   ).result.commands;
 }
@@ -22,9 +23,12 @@ export async function createSandboxPinnedCommand(
 ): Promise<SandboxPinnedCommand> {
   return (
     await protocolRequest<{ command: SandboxPinnedCommand }>(
-      "sandbox.pinnedCommand.create",
+      "pinnedCommand.create",
       { sandboxId, ...request },
-      { idempotencyKey: `sandbox-pin-create-${sandboxId}-${Date.now()}` },
+      {
+        idempotencyKey: `sandbox-pin-create-${sandboxId}-${Date.now()}`,
+        target: { role: "sandbox_manager" },
+      },
     )
   ).result.command;
 }
@@ -36,10 +40,11 @@ export async function updateSandboxPinnedCommand(
 ): Promise<SandboxPinnedCommand> {
   return (
     await protocolRequest<{ command: SandboxPinnedCommand }>(
-      "sandbox.pinnedCommand.update",
+      "pinnedCommand.update",
       { sandboxId, commandId, ...request },
       {
         idempotencyKey: `sandbox-pin-update-${sandboxId}-${commandId}-${Date.now()}`,
+        target: { role: "sandbox_manager" },
       },
     )
   ).result.command;
@@ -50,10 +55,11 @@ export async function deleteSandboxPinnedCommand(
   commandId: string,
 ): Promise<void> {
   await protocolRequest<{ ok: true }>(
-    "sandbox.pinnedCommand.delete",
+    "pinnedCommand.delete",
     { sandboxId, commandId },
     {
       idempotencyKey: `sandbox-pin-delete-${sandboxId}-${commandId}-${Date.now()}`,
+      target: { role: "sandbox_manager" },
     },
   );
 }

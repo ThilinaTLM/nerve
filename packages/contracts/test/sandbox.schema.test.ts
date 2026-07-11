@@ -12,7 +12,6 @@ import {
   operationParamsSchema,
   runtimeDriverResourceOptionsSchema,
   sandboxAckStateSchema,
-  sandboxAgentConfigureParamsSchema,
   sandboxCanonicalJson,
   sandboxCommandRecordSchema,
   sandboxConfigV1Schema,
@@ -478,7 +477,6 @@ describe("Sandbox shared schemas", () => {
       }).success,
       true,
     );
-    // Envelopes never force sandbox daemon payload validation.
     assert.equal(
       sandboxManagerEventEnvelopeSchema.safeParse({
         stream: "sandbox:sbx_1",
@@ -492,49 +490,38 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
-  it("validates sandbox chat protocol method definitions", () => {
+  it("validates canonical sandbox-targeted operation definitions", () => {
     assert.equal(
-      sandboxAgentConfigureParamsSchema.safeParse({
-        sandboxId: "sbx_1",
-        conversationId: "conv_1",
+      operationParamsSchema("agent.configure").safeParse({
         agentId: "agent_1",
-        model: {
-          provider: "openai",
-          model: "gpt-5.4-mini",
-          thinkingLevel: "medium",
-        },
+        model: { provider: "openai", modelId: "gpt-5.4-mini" },
+        thinkingLevel: "medium",
         mode: "coding",
         permissionLevel: "supervised",
         approvalPolicy: { autoApproveReadOnly: false },
-        modelProfileId: "profile_openai_default",
       }).success,
       true,
     );
     assert.equal(
-      operationParamsSchema("sandbox.agent.configure").safeParse({
-        sandboxId: "sbx_1",
-        model: { provider: "openai", model: "gpt-5.4-mini" },
-        permissionLevel: "autonomous",
+      operationParamsSchema("run.start").safeParse({
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        text: "Implement the plan",
       }).success,
       true,
     );
-    assert.equal(
-      operationParamsSchema("sandbox.agent.configure").safeParse({
-        model: { provider: "openai", model: "gpt-5.4-mini" },
-      }).success,
-      false,
-    );
-    assert.equal(
-      operationDefinition("sandbox.agent.prompt").idempotency,
-      "required",
-    );
+    assert.equal(operationDefinition("run.start").idempotency, "required");
+    assert.deepEqual(operationDefinition("run.start").allowedTargetRoles, [
+      "workbench_server",
+      "sandbox_agent",
+    ]);
     assert.equal(
       operationDefinition("sandbox.conversation.snapshot.get").kind,
       "read",
     );
   });
 
-  it("validates sandbox utility protocol method definitions", () => {
+  it("validates host and manager operation definitions", () => {
     const readMethods = [
       "git.repos.discover",
       "git.overview.get",
@@ -545,7 +532,8 @@ describe("Sandbox shared schemas", () => {
       "task.list",
       "task.get",
       "task.logs",
-      "sandbox.pinnedCommand.list",
+      "sandbox.list",
+      "sandbox.get",
     ] as const;
     for (const method of readMethods) {
       assert.equal(operationDefinition(method).kind, "read");
@@ -569,12 +557,12 @@ describe("Sandbox shared schemas", () => {
       "task.restart",
       "task.prune",
       "task.delete",
-      "sandbox.pinnedCommand.create",
-      "sandbox.pinnedCommand.update",
-      "sandbox.pinnedCommand.delete",
+      "sandbox.start",
+      "sandbox.stop",
+      "sandbox.restart",
     ] as const;
     for (const method of mutationMethods) {
-      assert.equal(operationDefinition(method).idempotency, "recommended");
+      assert.notEqual(operationDefinition(method).idempotency, "none");
     }
 
     assert.equal(
@@ -585,12 +573,8 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      operationParamsSchema("sandbox.pinnedCommand.create").safeParse({
-        sandboxId: "sbx_1",
-        command: "pnpm dev",
-        cwd: "/workspace",
-      }).success,
-      true,
+      operationParamsSchema("sandbox.create").safeParse({}).success,
+      false,
     );
     assert.equal(
       operationParamsSchema("github.pr.get").safeParse({
@@ -601,7 +585,6 @@ describe("Sandbox shared schemas", () => {
       true,
     );
   });
-
   it("validates rich sandbox conversation view snapshots", () => {
     assert.equal(
       sandboxConversationViewSnapshotSchema.safeParse({
@@ -821,7 +804,7 @@ describe("Sandbox shared schemas", () => {
       sandboxCommandRecordSchema.safeParse({
         commandId: "cmd_1",
         messageId: "msg_1",
-        method: "sandbox.run.start",
+        method: "run.start",
         paramsHash: `sha256:${"a".repeat(64)}`,
         params: {},
         acceptedAt: ts,

@@ -65,10 +65,11 @@ export async function continueFromFailure(statusEntryId: string) {
   view.error = undefined;
   workspaceState.error = undefined;
   try {
-    await protocolRequest<{ ok: true }>("agent.continueFromFailure", {
-      agentId: selection.agentId,
-      statusEntryId,
-    });
+    await protocolRequest<{ accepted: true }>(
+      "run.continue",
+      { agentId: selection.agentId, statusEntryId },
+      { idempotencyKey: crypto.randomUUID() },
+    );
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.sending = false;
@@ -83,9 +84,11 @@ export async function abortActiveRun() {
   const view = selection.conversationId
     ? ensureConversationView(selection.conversationId)
     : undefined;
-  await protocolRequest<{ ok: true }>("agent.abort", {
-    agentId: selection.agentId,
-  });
+  await protocolRequest<{ accepted: true }>(
+    "run.cancel",
+    { agentId: selection.agentId },
+    { idempotencyKey: crypto.randomUUID() },
+  );
   if (view) {
     view.sending = false;
     view.streamingText = "";

@@ -93,12 +93,7 @@ async function defaultFetch(
 ): Promise<SandboxToolCallGetResult> {
   const key = `cmd_tool_details_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   return sandboxToolCallGetResultSchema.parse(
-    await api.sendSandboxCommand(
-      sandboxId,
-      "sandbox.toolCall.get",
-      params,
-      key,
-    ),
+    await api.sendSandboxCommand(sandboxId, "toolCall.get", params, key),
   );
 }
 

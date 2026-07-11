@@ -315,10 +315,25 @@ export async function handleProtocolMethod(
         ),
       };
     }
-    case "agent.prompt": {
-      const request = params as { agentId: string };
-      await state.registry.promptAgent(request.agentId, request as never);
-      return { ok: true };
+    case "run.start":
+    case "run.steer":
+    case "run.followUp": {
+      const request = params as {
+        agentId?: string;
+        text: string;
+        images?: unknown[];
+      };
+      if (!request.agentId) throw new Error(`${method} requires agentId`);
+      await state.registry.promptAgent(request.agentId, {
+        ...request,
+        behavior:
+          method === "run.steer"
+            ? "steer"
+            : method === "run.followUp"
+              ? "follow-up"
+              : "reject-if-busy",
+      } as never);
+      return { accepted: true, agentId: request.agentId };
     }
     case "agent.promptQueue.list":
       return {
@@ -345,17 +360,22 @@ export async function handleProtocolMethod(
         request.args,
       );
     }
-    case "agent.continueFromFailure": {
-      const request = params as { agentId: string; statusEntryId: string };
+    case "run.continue": {
+      const request = params as { agentId?: string; statusEntryId?: string };
+      if (!request.agentId || !request.statusEntryId)
+        throw new Error("run.continue requires agentId and statusEntryId");
       await state.registry.continueFromFailedTurn(
         request.agentId,
         request.statusEntryId,
       );
-      return { ok: true };
+      return { accepted: true, agentId: request.agentId };
     }
-    case "agent.abort":
-      await state.registry.abortAgent((params as { agentId: string }).agentId);
-      return { ok: true };
+    case "run.cancel": {
+      const request = params as { agentId?: string };
+      if (!request.agentId) throw new Error("run.cancel requires agentId");
+      await state.registry.abortAgent(request.agentId);
+      return { accepted: true, agentId: request.agentId, status: "cancelled" };
+    }
     case "project.create":
       return { project: await state.registry.createProject(params as never) };
     case "project.list":

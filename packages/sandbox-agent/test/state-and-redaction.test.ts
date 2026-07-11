@@ -40,7 +40,7 @@ describe("sandbox agent image durable state foundations", () => {
       const first = await inbox.accept({
         commandId: "cmd_1",
         messageId: "msg_1",
-        method: "sandbox.run.start",
+        method: "run.start",
         params: { commandId: "cmd_1", prompt: "hi" },
       });
       assert.equal(first.duplicate, false);
@@ -48,7 +48,7 @@ describe("sandbox agent image durable state foundations", () => {
       const duplicate = await inbox.accept({
         commandId: "cmd_1",
         messageId: "msg_2",
-        method: "sandbox.run.start",
+        method: "run.start",
         params: { prompt: "hi", commandId: "cmd_1" },
       });
       assert.equal(duplicate.duplicate, true);
@@ -57,7 +57,7 @@ describe("sandbox agent image durable state foundations", () => {
           inbox.accept({
             commandId: "cmd_1",
             messageId: "msg_3",
-            method: "sandbox.run.start",
+            method: "run.start",
             params: { commandId: "cmd_1", prompt: "different" },
           }),
         /IDEMPOTENCY_CONFLICT/,
@@ -68,7 +68,7 @@ describe("sandbox agent image durable state foundations", () => {
       const duplicateWithResult = await inbox.accept({
         commandId: "cmd_1",
         messageId: "msg_4",
-        method: "sandbox.run.start",
+        method: "run.start",
         params: { prompt: "hi", commandId: "cmd_1" },
       });
       assert.equal(duplicateWithResult.result?.status, "completed");

@@ -253,15 +253,5 @@ function resolveManagerWebDist(state: ManagerState): string | undefined {
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const packageLocalDist = resolve(moduleDir, "..", "web");
   if (existsSync(join(packageLocalDist, "index.html"))) return packageLocalDist;
-  const workspaceDist = resolve(
-    moduleDir,
-    "..",
-    "..",
-    "..",
-    "sandbox-manager-ui",
-    "dist",
-  );
-  return existsSync(join(workspaceDist, "index.html"))
-    ? workspaceDist
-    : undefined;
+  return undefined;
 }

@@ -14,6 +14,7 @@ export * from "./rpc.js";
 export * from "./session-queue.js";
 export * from "./session.js";
 export * from "./transport.js";
+export * from "./websocket-transport.js";
 
 export const NERVE_PROTOCOL_NAME = "nerve" as const;
 export const NERVE_PROTOCOL_VERSION = 1 as const;

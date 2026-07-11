@@ -11,8 +11,7 @@ import type {
 import {
   createNoopLogger,
   parseInlineCommandPrompt,
-  sandboxAgentConfigureParamsSchema,
-  sandboxRunStartParamsSchema,
+  runStartParamsSchema,
   summarizeSandboxStartupEvents,
 } from "@nervekit/contracts";
 import {
@@ -390,16 +389,36 @@ export class SandboxDaemon {
         };
       },
     );
-    this.router.register("sandbox.agent.configure", async (params) => {
+    this.router.register("agent.configure", async (params) => {
       await this.requireReady();
       if (!this.agentConfigStore)
         throw new SandboxCommandError(
           "UNAVAILABLE",
           "Runtime configuration store is unavailable",
         );
-      const parsed = sandboxAgentConfigureParamsSchema.parse(params ?? {});
+      const parsed = params as {
+        agentId: string;
+        model?: { provider: string; modelId: string } | null;
+        thinkingLevel?:
+          | "off"
+          | "minimal"
+          | "low"
+          | "medium"
+          | "high"
+          | "xhigh"
+          | "max";
+        mode?: "planning" | "coding";
+        permissionLevel?: "read_only" | "supervised" | "autonomous";
+        approvalPolicy?: { autoApproveReadOnly?: boolean };
+      };
       const patch = {
-        model: parsed.model,
+        model: parsed.model
+          ? {
+              provider: parsed.model.provider,
+              model: parsed.model.modelId,
+              thinkingLevel: parsed.thinkingLevel,
+            }
+          : undefined,
         mode: parsed.mode,
         permissionLevel: parsed.permissionLevel,
         approvalPolicy: parsed.approvalPolicy,
@@ -412,25 +431,14 @@ export class SandboxDaemon {
         });
       }
       const nextRunOnly = Boolean(parsed.model || parsed.mode);
+      void overlay;
       return {
-        applied: {
-          conversationId: parsed.conversationId,
-          agentId: parsed.agentId,
-          model: overlay.model,
-          mode: overlay.mode,
-          permissionLevel: overlay.permissionLevel,
-          approvalPolicy: overlay.approvalPolicy,
-        },
-        effective: this.agentConfigStore.effective(this.config),
-        warnings: parsed.modelProfileId
-          ? [
-              "modelProfileId was accepted as a manager-side credential reference; sandbox runtime applied only resolved model fields",
-            ]
-          : [],
+        accepted: true,
+        agentId: parsed.agentId,
         effectiveAt: nextRunOnly ? "next_run" : "immediate",
       };
     });
-    this.router.register("sandbox.toolCall.get", async (params) => {
+    this.router.register("toolCall.get", async (params) => {
       await this.requireReady();
       const input = params as {
         conversationId: string;
@@ -452,56 +460,21 @@ export class SandboxDaemon {
         displaySummary: toolCall.error?.message,
       };
     });
-    this.router.register("sandbox.run.start", async (params) => {
+    this.router.register("run.start", async (params, context) => {
       await this.requireReady();
-      const parsed = sandboxRunStartParamsSchema.parse(params ?? {});
-      const accepted = await this.acceptCommand("sandbox.run.start", params);
+      const parsed = runStartParamsSchema.parse(params ?? {});
+      const accepted = await this.acceptCommand(
+        "run.start",
+        params,
+        context.idempotencyKey,
+        context.requestId,
+      );
       if (accepted.result) return accepted.result.result;
-      const prompt = parsed.prompt;
-      if (parsed.behavior === "steer") {
-        if (
-          !parsed.conversationId ||
-          !parsed.agentId ||
-          !parsed.runId ||
-          !prompt
-        )
-          throw new SandboxCommandError(
-            "VALIDATION_FAILED",
-            "steer requires conversationId, agentId, runId, and prompt",
-          );
-        try {
-          await this.agentRuntime?.steerRun(
-            {
-              conversationId: parsed.conversationId,
-              agentId: parsed.agentId,
-              runId: parsed.runId,
-            },
-            prompt,
-          );
-        } catch (error) {
-          const mapped = mapRuntimeError(error);
-          await this.state?.commands
-            .fail(accepted.commandId, mapped)
-            .catch(() => undefined);
-          throw mapped;
-        }
-        const result = {
-          accepted: true,
-          commandId: accepted.commandId,
-          conversationId: parsed.conversationId,
-          agentId: parsed.agentId,
-          runId: parsed.runId,
-          status: "running",
-        };
-        await this.state?.commands
-          .complete(accepted.commandId, result)
-          .catch(() => undefined);
-        return result;
-      }
+      const prompt = parsed.text;
       if (!prompt)
         throw new SandboxCommandError(
           "VALIDATION_FAILED",
-          "sandbox.run.start requires prompt",
+          "run.start requires text",
         );
       const inlineCommand = parseInlineCommandPrompt(prompt);
       if (!inlineCommand && this.recovered.modelRuntime?.degraded)
@@ -554,9 +527,49 @@ export class SandboxDaemon {
         .catch(() => undefined);
       return result;
     });
-    this.router.register("sandbox.run.continue", async (params) => {
+    this.router.register("run.followUp", (params, context) =>
+      this.router.dispatch("run.start", params, context),
+    );
+    this.router.register("run.steer", async (params, context) => {
       await this.requireReady();
-      const accepted = await this.acceptCommand("sandbox.run.continue", params);
+      const input = params as {
+        conversationId?: string;
+        agentId: string;
+        runId?: string;
+        text: string;
+      };
+      if (!input.conversationId || !input.runId)
+        throw new SandboxCommandError(
+          "VALIDATION_FAILED",
+          "run.steer requires conversationId and runId",
+        );
+      const accepted = await this.acceptCommand(
+        "run.steer",
+        params,
+        context.idempotencyKey,
+        context.requestId,
+      );
+      if (accepted.result) return accepted.result.result;
+      await this.agentRuntime?.steerRun(
+        {
+          conversationId: input.conversationId,
+          agentId: input.agentId,
+          runId: input.runId,
+        },
+        input.text,
+      );
+      const result = { accepted: true, ...input, status: "running" as const };
+      await this.state?.commands.complete(accepted.commandId, result);
+      return result;
+    });
+    this.router.register("run.continue", async (params, context) => {
+      await this.requireReady();
+      const accepted = await this.acceptCommand(
+        "run.continue",
+        params,
+        context.idempotencyKey,
+        context.requestId,
+      );
       if (accepted.result) return accepted.result.result;
       try {
         await this.agentRuntime?.continueRun(
@@ -580,7 +593,7 @@ export class SandboxDaemon {
         .catch(() => undefined);
       return result;
     });
-    this.router.register("sandbox.run.cancel", async (params) => {
+    this.router.register("run.cancel", async (params, context) => {
       await this.requireReady();
       const input = params as {
         conversationId: string;
@@ -588,7 +601,12 @@ export class SandboxDaemon {
         runId: string;
         reason?: string;
       };
-      const accepted = await this.acceptCommand("sandbox.run.cancel", params);
+      const accepted = await this.acceptCommand(
+        "run.cancel",
+        params,
+        context.idempotencyKey,
+        context.requestId,
+      );
       if (accepted.result) return accepted.result.result;
       let run: RunState | undefined;
       try {
@@ -617,41 +635,40 @@ export class SandboxDaemon {
         .catch(() => undefined);
       return result;
     });
-    this.router.register("sandbox.input.submit", async (params) => {
+    this.router.register("userQuestion.answer", async (params, context) => {
       await this.requireReady();
-      const input = params as {
-        commandId?: string;
-        conversationId?: string;
-        agentId?: string;
-        runId: string;
-        requestId: string;
-        text: string;
-      };
-      const accepted = await this.acceptCommand("sandbox.input.submit", params);
+      const input = params as { questionId: string; answer: string };
+      const accepted = await this.acceptCommand(
+        "userQuestion.answer",
+        params,
+        context.idempotencyKey,
+        context.requestId,
+      );
       if (accepted.result) return accepted.result.result;
       try {
-        const wait = this.inputWaiter?.get(input.requestId);
-        if (!wait) throw new Error(`Unknown input request: ${input.requestId}`);
-        if (wait.status === "submitted" && wait.response?.text !== input.text)
-          throw new Error(`Conflicting input submission: ${input.requestId}`);
+        const wait = this.inputWaiter?.get(input.questionId);
+        if (!wait)
+          throw new Error(`Unknown input request: ${input.questionId}`);
+        if (wait.status === "submitted" && wait.response?.text !== input.answer)
+          throw new Error(`Conflicting input submission: ${input.questionId}`);
         const scope = {
-          conversationId: input.conversationId ?? wait.conversationId,
-          agentId: input.agentId ?? wait.agentId,
-          runId: input.runId,
+          conversationId: wait.conversationId,
+          agentId: wait.agentId,
+          runId: wait.runId,
         };
-        const entryId = toolResultEntryId(input.runId, input.requestId);
-        const result = {
+        const entryId = toolResultEntryId(scope.runId, input.questionId);
+        const toolResult = {
           question: wait.question.text,
           context: wait.context,
           recommendation: wait.recommendation,
-          response: input.text,
+          response: input.answer,
         };
         const message: AgentMessage = {
           role: "toolResult",
-          toolCallId: input.requestId,
+          toolCallId: input.questionId,
           toolName: "ask_user",
-          content: [{ type: "text", text: input.text.slice(0, 16_000) }],
-          details: result,
+          content: [{ type: "text", text: input.answer.slice(0, 16_000) }],
+          details: toolResult,
           isError: false,
           timestamp: Date.now(),
         };
@@ -666,24 +683,25 @@ export class SandboxDaemon {
           "input_resolution",
           {
             status: "waiting_for_input",
-            waitId: input.requestId,
+            waitId: input.questionId,
             resolutionId: accepted.commandId,
             transcriptEntryId: entryId,
             summary: { text: "user input submitted" },
           },
         );
         await this.inputWaiter?.submit({
-          ...input,
           ...scope,
+          requestId: input.questionId,
+          text: input.answer,
           commandId: accepted.commandId,
           toolResultEntryId: entryId,
           checkpointId: checkpoint?.checkpointId,
         });
         await this.bridge?.completeSuspendedTool(
           scope,
-          input.requestId,
+          input.questionId,
           "ask_user",
-          result,
+          toolResult,
         );
         const run = await this.runs?.read(scope);
         if (run?.status === "waiting_for_input")
@@ -701,24 +719,21 @@ export class SandboxDaemon {
       }
       const result = {
         accepted: true,
-        commandId: accepted.commandId,
-        ...input,
-        status: "queued",
+        interactionId: input.questionId,
+        status: "answered" as const,
       };
-      await this.state?.commands
-        .complete(accepted.commandId, result)
-        .catch(() => undefined);
+      await this.state?.commands.complete(accepted.commandId, result);
       return result;
     });
-    this.router.register("sandbox.planReview.resolve", async (params) => {
+    this.router.register("planReview.accept", async (params, context) => {
       await this.requireReady();
       const input = params as {
         commandId?: string;
         conversationId?: string;
         agentId?: string;
-        runId: string;
+        runId?: string;
         reviewId: string;
-        decision: "accept" | "request_changes" | "discard";
+        decision?: "accept" | "request_changes" | "discard";
         feedback?: string;
         implementationModel?: { provider: string; modelId: string };
         implementationThinkingLevel?:
@@ -730,9 +745,17 @@ export class SandboxDaemon {
           | "xhigh"
           | "max";
       };
+      const decision =
+        context.requestedMethod === "planReview.requestChanges"
+          ? "request_changes"
+          : context.requestedMethod === "planReview.discard"
+            ? "discard"
+            : "accept";
       const accepted = await this.acceptCommand(
-        "sandbox.planReview.resolve",
+        context.requestedMethod ?? "planReview.accept",
         params,
+        context.idempotencyKey,
+        context.requestId,
       );
       if (accepted.result) return accepted.result.result;
       try {
@@ -741,9 +764,9 @@ export class SandboxDaemon {
         const scope = {
           conversationId: input.conversationId ?? pending.conversationId,
           agentId: input.agentId ?? pending.agentId,
-          runId: input.runId,
+          runId: input.runId ?? pending.runId,
         };
-        if (input.decision === "accept") {
+        if (decision === "accept") {
           await this.agentConfigStore?.update({
             mode: "coding",
             model: input.implementationModel
@@ -756,18 +779,19 @@ export class SandboxDaemon {
                 ? { thinkingLevel: input.implementationThinkingLevel }
                 : undefined,
           });
-        } else if (input.decision === "request_changes") {
+        } else if (decision === "request_changes") {
           await this.agentConfigStore?.update({ mode: "planning" });
         } else {
           await this.agentConfigStore?.update({ mode: "coding" });
         }
         const entryId = toolResultEntryId(
-          input.runId,
+          scope.runId,
           pending.providerToolCallId,
         );
         const resolved = await this.planReviewWaiter?.resolve({
           ...input,
           ...scope,
+          decision,
           commandId: accepted.commandId,
           toolResultEntryId: entryId,
         });
@@ -807,13 +831,13 @@ export class SandboxDaemon {
             configDigest: this.configDigest,
             ...scope,
             reviewId: resolved.review.id,
-            decision: input.decision,
+            decision,
             planReview: resolved.review,
             resolvedAt: resolved.resolvedAt,
           },
         });
         const run = await this.runs?.read(scope);
-        if (input.decision === "discard") {
+        if (decision === "discard") {
           if (run?.status === "waiting_for_input") {
             await this.runs?.markCompleted(scope);
             await this.bridge?.completeRun(scope);
@@ -829,9 +853,13 @@ export class SandboxDaemon {
           commandId: accepted.commandId,
           ...scope,
           reviewId: input.reviewId,
-          decision: input.decision,
-          review: resolved.review,
-          status: "queued",
+          interactionId: input.reviewId,
+          status:
+            decision === "accept"
+              ? "accepted"
+              : decision === "request_changes"
+                ? "changes_requested"
+                : "discarded",
         };
         await this.state?.commands
           .complete(accepted.commandId, resultEnvelope)
@@ -845,43 +873,55 @@ export class SandboxDaemon {
         throw mapped;
       }
     });
-    this.router.register("sandbox.approval.resolve", async (params) => {
+    this.router.register("planReview.requestChanges", (params, context) =>
+      this.router.dispatch("planReview.accept", params, context),
+    );
+    this.router.register("planReview.discard", (params, context) =>
+      this.router.dispatch("planReview.accept", params, context),
+    );
+    this.router.register("approval.grant", async (params, context) => {
       await this.requireReady();
       const input = params as {
         commandId?: string;
         conversationId?: string;
         agentId?: string;
-        runId: string;
+        runId?: string;
         approvalId: string;
-        decision: "grant" | "deny";
+        decision?: "grant" | "deny";
         note?: string;
         selectedScope?: "single_call" | "same_tool_same_args" | "run";
       };
+      const decision =
+        context.requestedMethod === "approval.deny" ? "deny" : "grant";
       const accepted = await this.acceptCommand(
-        "sandbox.approval.resolve",
+        context.requestedMethod ?? "approval.grant",
         params,
+        context.idempotencyKey,
+        context.requestId,
       );
       if (accepted.result) return accepted.result.result;
       try {
-        const scope =
-          input.conversationId && input.agentId
-            ? {
-                conversationId: input.conversationId,
-                agentId: input.agentId,
-                runId: input.runId,
-              }
-            : undefined;
+        const pending = this.approvalWaiter
+          ?.list()
+          .find((approval) => approval.id === input.approvalId);
+        const scope = pending
+          ? {
+              conversationId: pending.conversationId,
+              agentId: pending.agentId,
+              runId: pending.runId,
+            }
+          : undefined;
         const checkpoint = scope
           ? await this.runs?.writeCheckpoint(scope, "approval_resolution", {
               status: "waiting_for_approval",
               waitId: input.approvalId,
               resolutionId: accepted.commandId,
-              summary: { text: `approval ${input.decision}` },
+              summary: { text: `approval ${decision}` },
             })
           : undefined;
         await this.approvalWaiter?.resolve(
           input.approvalId,
-          input.decision,
+          decision,
           input.note,
           {
             selectedScope: input.selectedScope,
@@ -905,14 +945,17 @@ export class SandboxDaemon {
       const result = {
         accepted: true,
         commandId: accepted.commandId,
-        ...input,
-        status: "queued",
+        interactionId: input.approvalId,
+        status: decision === "grant" ? "granted" : "denied",
       };
       await this.state?.commands
         .complete(accepted.commandId, result)
         .catch(() => undefined);
       return result;
     });
+    this.router.register("approval.deny", (params, context) =>
+      this.router.dispatch("approval.grant", params, context),
+    );
   }
 
   private async requireReady(): Promise<void> {
@@ -954,17 +997,18 @@ export class SandboxDaemon {
   private async acceptCommand(
     method: string,
     params: unknown,
+    idempotencyKey?: string,
+    requestId?: string,
   ): Promise<{
     commandId: string;
     duplicate: boolean;
     result?: { result?: unknown };
   }> {
-    const commandId = (params as { commandId?: string }).commandId;
-    const id = commandId ?? `cmd_${Date.now()}`;
+    const id = idempotencyKey ?? `cmd_${Date.now()}`;
     try {
       const accepted = await this.state?.commands.accept({
         commandId: id,
-        messageId: `msg_${Date.now()}`,
+        messageId: requestId ?? `msg_${Date.now()}`,
         method,
         params,
         conversationId: (params as { conversationId?: string }).conversationId,

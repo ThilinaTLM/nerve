@@ -6,6 +6,7 @@ export type {
   OperationKind,
 } from "./operation-definition.schema.js";
 import { agentsOperationDefinitions } from "../agents/agent.operations.schema.js";
+import { runOperationDefinitions } from "../agents/run.operations.schema.js";
 import { authOperationDefinitions } from "../auth/auth.operations.schema.js";
 import { completionsOperationDefinitions } from "../completions/completion.operations.schema.js";
 import { conversationsOperationDefinitions } from "../conversations/conversation.operations.schema.js";
@@ -28,6 +29,7 @@ import { workersOperationDefinitions } from "../workers/worker.operations.schema
 
 const methodDefinitions = [
   ...agentsOperationDefinitions,
+  ...runOperationDefinitions,
   ...authOperationDefinitions,
   ...completionsOperationDefinitions,
   ...conversationsOperationDefinitions,

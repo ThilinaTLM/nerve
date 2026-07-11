@@ -5,33 +5,34 @@ import {
 } from "../tools/index.js";
 import {
   agentRecordSchema,
-  continueFromFailureRequestSchema,
   createAgentRequestSchema,
-  promptRequestSchema,
   queuedPromptRecordSchema,
   updateAgentRequestSchema,
-} from "./index.js";
+} from "./agent.schema.js";
 import { z } from "zod";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 
 const emptyParamsSchema = z.object({}).optional();
-const okResultSchema = z.object({ ok: z.literal(true) });
 const agentIdSchema = z.string().startsWith("agent_");
 const queuedPromptIdSchema = z.string().startsWith("promptq_");
 const agentIdParamsSchema = z.object({ agentId: agentIdSchema });
 const agentConfigureParamsSchema = agentIdParamsSchema.merge(
   updateAgentRequestSchema,
 );
-const agentPromptParamsSchema = agentIdParamsSchema.merge(promptRequestSchema);
+const agentConfigureResultSchema = z.union([
+  z.object({ agent: agentRecordSchema }),
+  z.object({
+    accepted: z.literal(true),
+    agentId: agentIdSchema,
+    effectiveAt: z.enum(["immediate", "next_run"]),
+  }),
+]);
 const agentPromptQueueParamsSchema = agentIdParamsSchema;
 const agentPromptQueueCancelParamsSchema = agentIdParamsSchema.extend({
   queuedPromptId: queuedPromptIdSchema,
 });
 const agentRequestToolParamsSchema = agentIdParamsSchema.merge(
   executeToolRequestSchema,
-);
-const agentContinueFromFailureParamsSchema = agentIdParamsSchema.merge(
-  continueFromFailureRequestSchema,
 );
 
 export const agentsOperationDefinitions = [
@@ -65,20 +66,11 @@ export const agentsOperationDefinitions = [
   defineOperation(
     "agent.configure",
     agentConfigureParamsSchema,
-    z.object({ agent: agentRecordSchema }),
+    agentConfigureResultSchema,
     "mutation",
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,
     "operation.agent.configure",
-  ),
-  defineOperation(
-    "agent.prompt",
-    agentPromptParamsSchema,
-    okResultSchema,
-    "accepted_async",
-    "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
-    "operation.agent.prompt",
   ),
   defineOperation(
     "agent.promptQueue.list",
@@ -109,23 +101,5 @@ export const agentsOperationDefinitions = [
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,
     "operation.agent.requestTool",
-  ),
-  defineOperation(
-    "agent.continueFromFailure",
-    agentContinueFromFailureParamsSchema,
-    okResultSchema,
-    "accepted_async",
-    "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
-    "operation.agent.continueFromFailure",
-  ),
-  defineOperation(
-    "agent.abort",
-    agentIdParamsSchema,
-    okResultSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
-    "operation.agent.abort",
   ),
 ] as const;

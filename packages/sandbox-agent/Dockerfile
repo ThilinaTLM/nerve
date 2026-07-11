@@ -7,10 +7,14 @@ RUN npm install --global "pnpm@${PNPM_VERSION}" && npm cache clean --force
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/contracts/dist packages/contracts/dist
+COPY packages/protocol/package.json packages/protocol/package.json
+COPY packages/protocol/dist packages/protocol/dist
 COPY packages/harness/package.json packages/harness/package.json
 COPY packages/harness/dist packages/harness/dist
 COPY packages/tools/package.json packages/tools/package.json
 COPY packages/tools/dist packages/tools/dist
+COPY packages/host-runtime/package.json packages/host-runtime/package.json
+COPY packages/host-runtime/dist packages/host-runtime/dist
 COPY packages/sandbox-agent/package.json packages/sandbox-agent/package.json
 COPY packages/sandbox-agent/dist packages/sandbox-agent/dist
 RUN pnpm --filter @nervekit/sandbox-agent deploy --prod --legacy /agent
@@ -22,9 +26,10 @@ ARG UV_VERSION=0.11.27
 ARG NVM_VERSION=v0.40.5
 ARG SANDBOX_UID=10001
 ARG SANDBOX_GID=10001
+ARG NERVE_VERSION
 
 LABEL org.nerve.sandbox.spec="v1" \
-  org.nerve.sandbox.agent.version="0.6.0"
+  org.nerve.sandbox.agent.version="${NERVE_VERSION}"
 
 ENV HOME=/home/sandbox \
   NVM_DIR=/home/sandbox/.nvm \

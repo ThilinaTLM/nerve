@@ -1,3 +1,4 @@
+import type { NerveMessage } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -119,6 +120,11 @@ test("RPC correlates responses, validates targets, and replays idempotent result
   });
   const rpc = new RpcClient({
     createMessage: clientMessages,
+    operation: () => ({
+      paramsSchema: { parse: (input: unknown) => input },
+      resultSchema: { parse: (input: unknown) => input },
+      idempotency: "recommended",
+    }),
     send: async (request) => {
       const first = await dispatcher.dispatch(request as never);
       assert.equal(first.ok, true);
@@ -176,6 +182,124 @@ test("event continuity and processed ACKs are independent per stream", () => {
     { stream: "manager", processedSeq: 1 },
     { stream: "sandbox:one", processedSeq: 1 },
   ]);
+});
+
+test("client session applies durable events before ACK and requests replay on gaps", async () => {
+  const outbound: NerveMessage[] = [];
+  const applied: number[] = [];
+  const client = new ProtocolClientSession({
+    createMessage: clientMessages,
+    capabilities: ["event.batch", "event.replay", "event.ack.processed"],
+    cursors: () => [{ stream: "manager", processedSeq: 0 }],
+    applyEvent: async (_stream, event) => applied.push(event.seq),
+    send: (message) => outbound.push(message),
+  });
+  await client.start();
+  await client.receive(
+    serverMessages("welcome", {
+      sessionId: "session_events",
+      acceptingPeer: server,
+      acceptedVersion: 1,
+      capabilities: ["event.batch", "event.replay", "event.ack.processed"],
+      encoding: "json",
+      streams: [{ stream: "manager", latestSeq: 3 }],
+      limits,
+      heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+      resume: { accepted: true, mode: "live" },
+    }) as never,
+  );
+  outbound.length = 0;
+  const event = {
+    seq: 1,
+    id: "evt_1",
+    ts: new Date().toISOString(),
+    type: "project.created",
+    durability: "durable" as const,
+    data: {},
+  };
+  await client.receive(
+    serverMessages(
+      "event.batch",
+      buildEventBatch([event], {
+        stream: "manager",
+        reason: "live",
+        previousDurableSeq: 0,
+      }),
+    ) as never,
+  );
+  assert.deepEqual(applied, [1]);
+  assert.equal(outbound.at(-1).kind, "event.ack");
+  assert.deepEqual(outbound.at(-1).data.streams, [
+    { stream: "manager", processedSeq: 1 },
+  ]);
+
+  outbound.length = 0;
+  await client.receive(
+    serverMessages(
+      "event.batch",
+      buildEventBatch([{ ...event, seq: 3, id: "evt_3" }], {
+        stream: "manager",
+        reason: "live",
+        previousDurableSeq: 2,
+      }),
+    ) as never,
+  );
+  assert.equal(outbound.at(-1).kind, "replay.request");
+  assert.deepEqual(outbound.at(-1).data.streams, [
+    { stream: "manager", fromSeq: 2 },
+  ]);
+});
+
+test("client does not ACK when reducer application fails", async () => {
+  const outbound: NerveMessage[] = [];
+  const client = new ProtocolClientSession({
+    createMessage: clientMessages,
+    cursors: () => [{ stream: "local", processedSeq: 0 }],
+    applyEvent: () => {
+      throw new Error("reducer failed");
+    },
+    send: (message) => outbound.push(message),
+  });
+  await client.start();
+  await client.receive(
+    serverMessages("welcome", {
+      sessionId: "session_failure",
+      acceptingPeer: server,
+      acceptedVersion: 1,
+      capabilities: [],
+      encoding: "json",
+      streams: [{ stream: "local", latestSeq: 1 }],
+      limits,
+      heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+      resume: { accepted: true, mode: "live" },
+    }) as never,
+  );
+  outbound.length = 0;
+  const event = {
+    seq: 1,
+    id: "evt_failure",
+    ts: new Date().toISOString(),
+    type: "project.created",
+    durability: "durable" as const,
+    data: {},
+  };
+  await assert.rejects(
+    client.receive(
+      serverMessages(
+        "event.batch",
+        buildEventBatch([event], {
+          stream: "local",
+          reason: "live",
+          previousDurableSeq: 0,
+        }),
+      ) as never,
+    ),
+    /reducer failed/,
+  );
+  assert.equal(
+    outbound.some((message) => message.kind === "event.ack"),
+    false,
+  );
 });
 
 test("reconnect policy is bounded and deterministic with injected jitter", () => {

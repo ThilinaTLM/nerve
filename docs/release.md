@@ -49,7 +49,7 @@ For npm package inspection:
 
 ```sh
 node scripts/pack-npm.mjs
-ls release/npm           # expect 5 tarballs
+ls release/npm           # expect 7 tarballs
 npm publish release/npm/*.tgz --dry-run --access public
 ```
 

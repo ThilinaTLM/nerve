@@ -25,6 +25,7 @@ import { PostgresEventStore } from "../state/event-store.js";
 import { PostgresIdempotencyStore } from "../state/idempotency-store.js";
 import { PostgresManagerStore } from "../state/manager-store.js";
 import { SandboxPinnedCommandStore } from "../state/sandbox-pinned-command-store.js";
+import { ensureManagerStateLayout } from "../state/state-layout.js";
 import { PostgresSessionStore } from "../state/session-store.js";
 import { EfsVolumeProvider } from "../storage/efs-volume-provider.js";
 import { LocalVolumeProvider } from "../storage/local-volume-provider.js";
@@ -122,6 +123,7 @@ export class ManagerState {
     );
   }
   async init(): Promise<void> {
+    await ensureManagerStateLayout(this.config.storageDir);
     await mkdir(path.join(this.config.storageDir, "volumes"), {
       recursive: true,
     });

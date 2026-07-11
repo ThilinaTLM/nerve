@@ -211,10 +211,11 @@ async function sendPendingPrompt(
     persistConversationTabs();
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    await protocolRequest<{ ok: true }>("agent.prompt", {
-      agentId: agent.id,
-      text,
-    });
+    await protocolRequest<{ accepted: true }>(
+      "run.start",
+      { agentId: agent.id, text },
+      { idempotencyKey: crypto.randomUUID() },
+    );
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     if (view) {
@@ -285,11 +286,11 @@ export async function sendPromptText(
       composerDraft.text = "";
     }
     if (queueWhileRunning) {
-      await protocolRequest<{ ok: true }>("agent.prompt", {
-        agentId,
-        text,
-        behavior: "steer",
-      });
+      await protocolRequest<{ accepted: true }>(
+        "run.steer",
+        { agentId, text },
+        { idempotencyKey: crypto.randomUUID() },
+      );
       return;
     }
     if (!isInlineCommandPrompt(text)) {
@@ -298,7 +299,11 @@ export async function sendPromptText(
         { role: "user", text, optimistic: true },
       ];
     }
-    await protocolRequest<{ ok: true }>("agent.prompt", { agentId, text });
+    await protocolRequest<{ accepted: true }>(
+      "run.start",
+      { agentId, text },
+      { idempotencyKey: crypto.randomUUID() },
+    );
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.error = message;

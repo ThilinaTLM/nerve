@@ -3,6 +3,7 @@ import {
   generateSummary,
   resolveAgentModel,
 } from "@nervekit/host-runtime/harness";
+import { withGitMutationEvents } from "@nervekit/host-runtime";
 import { GitService } from "@nervekit/host-runtime/tools";
 import { AgentSuspensionService } from "../domains/agents/agent-suspension.service.js";
 import {
@@ -314,7 +315,7 @@ export function composeRuntime(
       services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
   );
   services.suspensions = new AgentSuspensionService(storage, events);
-  services.git = new GitService(getProject);
+  services.git = withGitMutationEvents(new GitService(getProject), events);
   const promptSuggestionTrustRepository = new PromptSuggestionTrustRepository(
     storage,
     index,

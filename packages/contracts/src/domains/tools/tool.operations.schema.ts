@@ -18,6 +18,7 @@ import {
   userQuestionRecordSchema,
   userQuestionStatusSchema,
 } from "./index.js";
+import { boundedPublicJsonSchema } from "../events/bounded-public-data.schema.js";
 import { z } from "zod";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 
@@ -26,10 +27,10 @@ const approvalParamsSchema = z
   .object({ approvalId: z.string().startsWith("approval_") })
   .merge(resolveApprovalRequestSchema);
 const userQuestionAnswerParamsSchema = z
-  .object({ questionId: z.string().startsWith("question_") })
+  .object({ questionId: z.string().min(1).max(256) })
   .merge(answerUserQuestionRequestSchema);
 const userQuestionDismissParamsSchema = z
-  .object({ questionId: z.string().startsWith("question_") })
+  .object({ questionId: z.string().min(1).max(256) })
   .merge(dismissUserQuestionRequestSchema);
 const planReviewParamsSchema = z
   .object({ reviewId: z.string().startsWith("plan_review_") })
@@ -49,8 +50,45 @@ const userQuestionListParamsSchema = z
 const planReviewListParamsSchema = z
   .object({ status: planReviewStatusSchema.optional() })
   .optional();
-const toolCallIdSchema = z.string().startsWith("tool_");
-const toolCallGetParamsSchema = z.object({ toolCallId: toolCallIdSchema });
+const toolCallIdSchema = z.string().min(1).max(256);
+const toolCallGetParamsSchema = z.object({
+  toolCallId: toolCallIdSchema,
+  conversationId: z.string().startsWith("conv_").optional(),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: z.string().startsWith("run_").optional(),
+});
+const sandboxToolCallDetailsSchema = z.object({
+  toolCall: z.object({
+    toolCallId: z.string().min(1).max(256),
+    conversationId: z.string().startsWith("conv_"),
+    agentId: z.string().startsWith("agent_"),
+    runId: z.string().startsWith("run_"),
+    toolName: z.string().min(1).max(128),
+    status: z.string().min(1).max(64),
+    args: boundedPublicJsonSchema.optional(),
+    result: boundedPublicJsonSchema.optional(),
+    error: boundedPublicJsonSchema.optional(),
+    requestedAt: z.string().datetime(),
+  }),
+  argsPreview: boundedPublicJsonSchema.optional(),
+  resultPreview: boundedPublicJsonSchema.optional(),
+  displayTitle: z.string().max(512).optional(),
+  displaySummary: z.string().max(2_048).optional(),
+});
+const interactionAcceptedResultSchema = z.object({
+  accepted: z.literal(true),
+  interactionId: z.string().min(1).max(256),
+  status: z.enum([
+    "queued",
+    "answered",
+    "dismissed",
+    "granted",
+    "denied",
+    "accepted",
+    "changes_requested",
+    "discarded",
+  ]),
+});
 
 export const toolsOperationDefinitions = [
   defineOperation(
@@ -74,7 +112,10 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "toolCall.get",
     toolCallGetParamsSchema,
-    z.object({ toolCall: toolCallRecordSchema }),
+    z.union([
+      z.object({ toolCall: toolCallRecordSchema }),
+      sandboxToolCallDetailsSchema,
+    ]),
     "read",
     "none",
     ["workbench_server", "sandbox_agent"] as const,
@@ -92,7 +133,10 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "approval.grant",
     approvalParamsSchema,
-    z.object({ toolCall: toolCallRecordSchema }),
+    z.union([
+      z.object({ toolCall: toolCallRecordSchema }),
+      interactionAcceptedResultSchema,
+    ]),
     "mutation",
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,
@@ -101,7 +145,10 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "approval.deny",
     approvalParamsSchema,
-    z.object({ toolCall: toolCallRecordSchema }),
+    z.union([
+      z.object({ toolCall: toolCallRecordSchema }),
+      interactionAcceptedResultSchema,
+    ]),
     "mutation",
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,
@@ -119,7 +166,10 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "userQuestion.answer",
     userQuestionAnswerParamsSchema,
-    z.object({ question: userQuestionRecordSchema }),
+    z.union([
+      z.object({ question: userQuestionRecordSchema }),
+      interactionAcceptedResultSchema,
+    ]),
     "mutation",
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,
@@ -128,7 +178,10 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "userQuestion.dismiss",
     userQuestionDismissParamsSchema,
-    z.object({ question: userQuestionRecordSchema }),
+    z.union([
+      z.object({ question: userQuestionRecordSchema }),
+      interactionAcceptedResultSchema,
+    ]),
     "mutation",
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,
@@ -146,7 +199,10 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "planReview.accept",
     planReviewParamsSchema,
-    z.object({ planReview: planReviewRecordSchema }),
+    z.union([
+      z.object({ planReview: planReviewRecordSchema }),
+      interactionAcceptedResultSchema,
+    ]),
     "mutation",
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,
@@ -168,7 +224,10 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "planReview.requestChanges",
     planReviewParamsSchema,
-    z.object({ planReview: planReviewRecordSchema }),
+    z.union([
+      z.object({ planReview: planReviewRecordSchema }),
+      interactionAcceptedResultSchema,
+    ]),
     "mutation",
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,
@@ -186,7 +245,10 @@ export const toolsOperationDefinitions = [
   defineOperation(
     "planReview.discard",
     planReviewParamsSchema,
-    z.object({ planReview: planReviewRecordSchema }),
+    z.union([
+      z.object({ planReview: planReviewRecordSchema }),
+      interactionAcceptedResultSchema,
+    ]),
     "mutation",
     "recommended",
     ["workbench_server", "sandbox_agent"] as const,

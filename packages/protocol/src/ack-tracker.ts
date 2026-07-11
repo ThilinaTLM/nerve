@@ -29,6 +29,15 @@ export class ProcessedAckTracker {
     );
   }
 
+  reset(cursors: readonly StreamCursor[]): void {
+    this.#processed.clear();
+    this.#received.clear();
+    for (const cursor of cursors) {
+      this.#received.set(cursor.stream, cursor.processedSeq);
+      this.#processed.set(cursor.stream, cursor.processedSeq);
+    }
+  }
+
   processed(stream: string): number {
     return this.#processed.get(stream) ?? 0;
   }

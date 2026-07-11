@@ -13,16 +13,41 @@ export interface TaskRepositoryPort {
   remove(id: string): Promise<void>;
 }
 
+export interface TaskProcessExit {
+  readonly exitCode?: number;
+  readonly signal?: string;
+  readonly exitedAt: string;
+}
+
+export interface TaskProcessCallbacks {
+  readonly onOutput?: (
+    stream: "stdout" | "stderr",
+    text: string,
+  ) => void | Promise<void>;
+  readonly onExit?: (exit: TaskProcessExit) => void | Promise<void>;
+}
+
 export interface TaskProcessPort {
   spawn(
     input: StartTaskRequest & { taskId: string },
+    callbacks?: TaskProcessCallbacks,
   ): Promise<TaskRecord["runtime"]>;
   signal(task: TaskRecord, options: TaskCancelOptions): Promise<void>;
   inspect(task: TaskRecord): Promise<"running" | "exited" | "unknown">;
+  waitForExit?(
+    task: TaskRecord,
+    timeoutMs: number,
+  ): Promise<TaskProcessExit | "timeout" | "unavailable">;
+  inspectPorts?(task: TaskRecord): Promise<readonly number[] | "unavailable">;
 }
 
 export interface TaskLogPort {
   query(task: TaskRecord, query: TaskLogQuery): Promise<TaskLogQueryResponse>;
+  append?(
+    task: TaskRecord,
+    stream: "stdout" | "stderr",
+    text: string,
+  ): Promise<void>;
   remove(task: TaskRecord): Promise<void>;
 }
 
@@ -39,6 +64,13 @@ export interface TaskCancelOptions {
   readonly reason?: string;
 }
 
+export interface TaskNotificationPort {
+  notify(
+    task: TaskRecord,
+    event: "ready" | "completed" | "failed",
+  ): Promise<void>;
+}
+
 export interface TaskServicePorts {
   readonly repository: TaskRepositoryPort;
   readonly process: TaskProcessPort;
@@ -47,6 +79,7 @@ export interface TaskServicePorts {
   readonly events: DomainEventPublisherPort;
   readonly clock: ClockPort;
   readonly ids: IdPort;
+  readonly notifications?: TaskNotificationPort;
   readonly workspaceRoot: string;
 }
 
@@ -105,16 +138,24 @@ export class TaskService {
     await this.ports.repository.save(task);
     await this.publish("task.created", task);
     try {
-      task.runtime = await this.ports.process.spawn({
-        ...request,
-        taskId: task.id,
-      });
+      task.runtime = await this.ports.process.spawn(
+        {
+          ...request,
+          taskId: task.id,
+        },
+        {
+          onOutput: (stream, text) => this.recordOutput(task.id, stream, text),
+          onExit: (exit) => this.recordExit(task.id, exit),
+        },
+      );
       task.status = "running";
       task.updatedAt = this.ports.clock.now().toISOString();
       await this.ports.repository.save(task);
       await this.publish("task.started", task);
       if (task.readiness.outcome === "pending")
         void this.watchReadiness(task, request);
+      if (request.timeoutMs)
+        void this.watchRuntimeTimeout(task.id, request.timeoutMs);
       return task;
     } catch (error) {
       task.status = "failed";
@@ -160,12 +201,14 @@ export class TaskService {
     await this.ports.repository.save(task);
     await this.publish("task.stop_requested", task);
     await this.ports.process.signal(task, options);
-    task.status = "cancelled";
-    task.finishedAt = this.ports.clock.now().toISOString();
-    task.updatedAt = task.finishedAt;
-    await this.ports.repository.save(task);
-    await this.publish("task.cancelled", task);
-    return task;
+    const timeoutMs = options.timeoutMs ?? 5_000;
+    const exit = this.ports.process.waitForExit
+      ? await this.ports.process.waitForExit(task, timeoutMs)
+      : await this.ports.process.inspect(task);
+    const exited =
+      (typeof exit === "object" && exit !== null) || exit === "exited";
+    if (!exited) return (await this.ports.repository.get(id)) ?? task;
+    return this.finishCancelled(task, options.reason);
   }
 
   async restart(id: string): Promise<TaskRecord> {
@@ -239,21 +282,103 @@ export class TaskService {
       : "unavailable";
     const current = await this.require(task.id);
     if (terminalStatuses.has(current.status)) return;
-    current.readiness.outcome = outcome === "unavailable" ? "none" : outcome;
+    current.readiness.outcome = outcome;
     current.updatedAt = this.ports.clock.now().toISOString();
     if (outcome === "ready") {
       current.status = "ready";
       current.readiness.readyAt = current.updatedAt;
       await this.ports.repository.save(current);
       await this.publish("task.ready", current);
+      await this.ports.notifications?.notify(current, "ready");
     } else if (outcome === "timeout") {
-      current.status = "timed_out";
-      current.finishedAt = current.updatedAt;
       await this.ports.repository.save(current);
-      await this.publish("task.timed_out", current);
+      await this.publish("task.readiness_failed", current);
     } else {
       await this.ports.repository.save(current);
     }
+  }
+
+  private async recordOutput(
+    id: string,
+    stream: "stdout" | "stderr",
+    text: string,
+  ): Promise<void> {
+    const task = await this.require(id);
+    const bounded = text.slice(-16_384);
+    await this.ports.logs.append?.(task, stream, bounded);
+    await this.ports.events.publish({
+      type: "task.output",
+      data: { taskId: id, stream, text: bounded },
+      durability: "transient",
+      occurredAt: this.ports.clock.now().toISOString(),
+    });
+  }
+
+  private async recordExit(id: string, exit: TaskProcessExit): Promise<void> {
+    const task = await this.require(id);
+    if (terminalStatuses.has(task.status)) return;
+    if (task.status === "stopping") {
+      await this.finishCancelled(task);
+      return;
+    }
+    task.exitCode = exit.exitCode ?? null;
+    task.signal = exit.signal ?? null;
+    task.finishedAt = exit.exitedAt;
+    task.updatedAt = exit.exitedAt;
+    task.status = exit.exitCode === 0 ? "completed" : "failed";
+    await this.ports.repository.save(task);
+    await this.publish(`task.${task.status}`, task);
+    await this.ports.notifications?.notify(
+      task,
+      task.status === "completed" ? "completed" : "failed",
+    );
+  }
+
+  private async finishCancelled(
+    task: TaskRecord,
+    reason?: string,
+  ): Promise<TaskRecord> {
+    task.status = "cancelled";
+    task.error = reason;
+    task.finishedAt = this.ports.clock.now().toISOString();
+    task.updatedAt = task.finishedAt;
+    await this.ports.repository.save(task);
+    await this.publish("task.cancelled", task);
+    return task;
+  }
+
+  private async watchRuntimeTimeout(
+    id: string,
+    timeoutMs: number,
+  ): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+    const task = await this.require(id);
+    if (terminalStatuses.has(task.status)) return;
+    task.status = "stopping";
+    task.updatedAt = this.ports.clock.now().toISOString();
+    await this.ports.repository.save(task);
+    await this.publish("task.stop_requested", task);
+    await this.ports.process.signal(task, {
+      signal: "SIGTERM",
+      timeoutMs: 5_000,
+      reason: "runtime_timeout",
+    });
+    const exit = this.ports.process.waitForExit
+      ? await this.ports.process.waitForExit(task, 5_000)
+      : await this.ports.process.inspect(task);
+    if (
+      exit === "timeout" ||
+      exit === "unavailable" ||
+      exit === "running" ||
+      exit === "unknown"
+    )
+      return;
+    task.status = "timed_out";
+    task.finishedAt = this.ports.clock.now().toISOString();
+    task.updatedAt = task.finishedAt;
+    await this.ports.repository.save(task);
+    await this.publish("task.timed_out", task);
+    await this.ports.notifications?.notify(task, "failed");
   }
 
   private async require(id: string): Promise<TaskRecord> {

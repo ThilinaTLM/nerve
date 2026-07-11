@@ -6,6 +6,7 @@ import type {
   ManagedSandboxRecord,
   ModelInfo,
   ModelSelection,
+  OperationName,
   RemoveOptions,
   SandboxActivitySummary,
   SandboxConfigYamlResult,
@@ -24,7 +25,7 @@ import type {
 import {
   deriveConversationTitle,
   sandboxActivitySummarySchema,
-  sandboxRunStartResultSchema,
+  runAcceptedResultSchema,
 } from "@nervekit/contracts";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { notify } from "@nervekit/ui-kit/core/notify";
@@ -991,16 +992,16 @@ export class SandboxManagerStore {
         conversationId && detail.selectedRunId ? "follow_up" : "start";
       const raw = await this.sendCommand(
         sandboxId,
-        "sandbox.run.start",
-        (key) => ({
-          commandId: key,
+        behavior === "follow_up" ? "run.followUp" : "run.start",
+        () => ({
           conversationId,
           agentId: detail.selectedAgentId,
-          prompt: trimmed,
-          behavior,
+          text: trimmed,
         }),
       );
-      const result = sandboxRunStartResultSchema.parse(raw);
+      const result = runAcceptedResultSchema
+        .required({ conversationId: true, agentId: true, runId: true })
+        .parse(raw);
       // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Timestamp is read immediately and is not reactive state.
       const now = new Date().toISOString();
       const pendingCreatedAt = pendingId
@@ -1039,8 +1040,7 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
     if (!detail.selectedRunId) return;
-    await this.sendCommand(sandboxId, "sandbox.run.cancel", (key) => ({
-      commandId: key,
+    await this.sendCommand(sandboxId, "run.cancel", () => ({
       conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
@@ -1051,8 +1051,7 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
     if (!detail.selectedRunId) return;
-    await this.sendCommand(sandboxId, "sandbox.run.continue", (key) => ({
-      commandId: key,
+    await this.sendCommand(sandboxId, "run.continue", () => ({
       conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
@@ -1067,13 +1066,9 @@ export class SandboxManagerStore {
   ): Promise<void> {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
-    await this.sendCommand(sandboxId, "sandbox.input.submit", (key) => ({
-      commandId: key,
-      conversationId: outboundConversationId(detail.selectedConversationId),
-      agentId: detail.selectedAgentId,
-      runId: detail.selectedRunId,
-      requestId: waitId,
-      text,
+    await this.sendCommand(sandboxId, "userQuestion.answer", () => ({
+      questionId: waitId,
+      answer: text,
     }));
     const wait = detail.waitsById[waitId];
     if (wait) wait.status = "submitted";
@@ -1091,13 +1086,14 @@ export class SandboxManagerStore {
   ): Promise<void> {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
-    await this.sendCommand(sandboxId, "sandbox.planReview.resolve", (key) => ({
-      commandId: key,
-      conversationId: outboundConversationId(detail.selectedConversationId),
-      agentId: detail.selectedAgentId,
-      runId: detail.selectedRunId,
+    const method =
+      decision === "accept"
+        ? "planReview.accept"
+        : decision === "request_changes"
+          ? "planReview.requestChanges"
+          : "planReview.discard";
+    await this.sendCommand(sandboxId, method, () => ({
       reviewId,
-      decision,
       ...options,
     }));
     const wait = detail.waitsById[reviewId];
@@ -1135,14 +1131,11 @@ export class SandboxManagerStore {
   ): Promise<void> {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
-    await this.sendCommand(sandboxId, "sandbox.approval.resolve", (key) => ({
-      commandId: key,
-      conversationId: outboundConversationId(detail.selectedConversationId),
-      agentId: detail.selectedAgentId,
-      runId: detail.selectedRunId,
-      approvalId: waitId,
-      decision,
-    }));
+    await this.sendCommand(
+      sandboxId,
+      decision === "grant" ? "approval.grant" : "approval.deny",
+      () => ({ approvalId: waitId }),
+    );
     const wait = detail.waitsById[waitId];
     if (wait) wait.status = decision === "grant" ? "granted" : "denied";
   }
@@ -1150,7 +1143,7 @@ export class SandboxManagerStore {
   /**
    * Apply runtime agent controls (model/thinking/mode/permission/policy). Model,
    * thinking, and mode changes take effect on the next model request; permission
-   * and approval-policy changes apply immediately. `sandbox.run.start` has no
+   * and approval-policy changes apply immediately. `run.start` has no
    * per-run overrides, so every control change routes through configure.
    */
   async configureAgent(
@@ -1168,11 +1161,16 @@ export class SandboxManagerStore {
   ): Promise<void> {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId, false)) return;
-    await this.sendCommand(sandboxId, "sandbox.agent.configure", (key) => ({
-      commandId: key,
-      conversationId: outboundConversationId(detail.selectedConversationId),
+    if (!detail.selectedAgentId) return;
+    await this.sendCommand(sandboxId, "agent.configure", () => ({
       agentId: detail.selectedAgentId,
-      ...patch,
+      model: patch.model
+        ? { provider: patch.model.provider, modelId: patch.model.model }
+        : undefined,
+      thinkingLevel: patch.model?.thinkingLevel,
+      mode: patch.mode,
+      permissionLevel: patch.permissionLevel,
+      approvalPolicy: patch.approvalPolicy,
     }));
   }
 
@@ -1192,7 +1190,7 @@ export class SandboxManagerStore {
 
   private async sendCommand(
     sandboxId: string,
-    method: string,
+    method: OperationName,
     buildParams: (key: string) => Record<string, unknown>,
   ): Promise<unknown> {
     return this.runOperation("command", sandboxId, method, (key) =>

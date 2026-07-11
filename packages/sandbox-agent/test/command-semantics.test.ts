@@ -68,21 +68,24 @@ describe("sandbox daemon command semantics", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const first = (await daemon.router.dispatch("sandbox.run.start", {
-        commandId: "cmd_idem_start",
-        prompt: "hello",
-      })) as { runId: string };
-      const duplicate = (await daemon.router.dispatch("sandbox.run.start", {
-        commandId: "cmd_idem_start",
-        prompt: "hello",
-      })) as { runId: string };
+      const first = (await daemon.router.dispatch(
+        "run.start",
+        { text: "hello" },
+        { idempotencyKey: "cmd_idem_start" },
+      )) as { runId: string };
+      const duplicate = (await daemon.router.dispatch(
+        "run.start",
+        { text: "hello" },
+        { idempotencyKey: "cmd_idem_start" },
+      )) as { runId: string };
       assert.equal(duplicate.runId, first.runId);
       await assert.rejects(
         () =>
-          daemon.router.dispatch("sandbox.run.start", {
-            commandId: "cmd_idem_start",
-            prompt: "different",
-          }),
+          daemon.router.dispatch(
+            "run.start",
+            { text: "different" },
+            { idempotencyKey: "cmd_idem_start" },
+          ),
         (error) =>
           error instanceof SandboxCommandError &&
           error.code === "IDEMPOTENCY_CONFLICT",
@@ -113,17 +116,17 @@ describe("sandbox daemon command semantics", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const first = (await daemon.router.dispatch("sandbox.run.start", {
+      const first = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_snapshot_first",
-        prompt: "first prompt",
+        text: "first prompt",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, first.runId, "completed");
-      const second = (await daemon.router.dispatch("sandbox.run.start", {
+      const second = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_snapshot_second",
         conversationId: first.conversationId,
         agentId: first.agentId,
         behavior: "follow_up",
-        prompt: "second prompt",
+        text: "second prompt",
       })) as { conversationId: string; agentId: string; runId: string };
 
       await waitForRun(daemon, second.runId, "completed");
@@ -179,9 +182,9 @@ describe("sandbox daemon command semantics", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const run = (await daemon.router.dispatch("sandbox.run.start", {
+      const run = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_rich_bash",
-        prompt: "Run the scripted bash tool",
+        text: "Run the scripted bash tool",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, run.runId, "completed");
 
@@ -251,9 +254,9 @@ describe("sandbox daemon command semantics", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const run = (await daemon.router.dispatch("sandbox.run.start", {
+      const run = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_inline_only",
-        prompt: "!printf 'sandbox command only\\n'",
+        text: "!printf 'sandbox command only\\n'",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, run.runId, "completed");
 
@@ -315,9 +318,9 @@ describe("sandbox daemon command semantics", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const run = (await daemon.router.dispatch("sandbox.run.start", {
+      const run = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_block_expand",
-        prompt: [
+        text: [
           "Summarize this command output:",
           "```!!!",
           "printf 'block output\\n'",
@@ -368,9 +371,9 @@ describe("sandbox daemon command semantics", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const run = (await daemon.router.dispatch("sandbox.run.start", {
+      const run = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_details",
-        prompt: "think then answer",
+        text: "think then answer",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, run.runId, "completed");
       const transcriptPath = path.join(
@@ -420,8 +423,8 @@ describe("sandbox daemon command semantics", () => {
     const daemon = new SandboxDaemon(baseConfig, "sha256:test", "inst_1");
     daemon.start();
     await assert.rejects(
-      () => daemon.router.dispatch("sandbox.run.start", { commandId: "cmd_1" }),
-      (error) => error instanceof Error && /prompt/.test(error.message),
+      () => daemon.router.dispatch("run.start", {}),
+      (error) => error instanceof Error && /text/.test(error.message),
     );
   });
 });

@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
+const { version } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
 const imageTag =
   process.env.NERVE_SANDBOX_AGENT_IMAGE ?? "nerve-sandbox-agent:dev";
 const useShell = process.platform === "win32";
@@ -13,6 +17,8 @@ run(cli, [
   "build",
   "-f",
   "packages/sandbox-agent/Dockerfile",
+  "--build-arg",
+  `NERVE_VERSION=${version}`,
   "-t",
   imageTag,
   ".",

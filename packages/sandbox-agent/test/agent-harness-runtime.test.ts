@@ -34,9 +34,9 @@ describe("sandbox live AgentHarness runtime", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
-      const result = (await daemon.router.dispatch("sandbox.run.start", {
+      const result = (await daemon.router.dispatch("run.start", {
         commandId: "cmd_live_1",
-        prompt: "Say hello from the live harness",
+        text: "Say hello from the live harness",
       })) as { runId: string; status: string };
       assert.equal(result.status, "queued");
 
@@ -81,9 +81,9 @@ describe("sandbox live AgentHarness runtime", () => {
       daemon.start();
       await assert.rejects(
         () =>
-          daemon.router.dispatch("sandbox.run.start", {
+          daemon.router.dispatch("run.start", {
             commandId: "cmd_no_auth",
-            prompt: "hello",
+            text: "hello",
           }),
         (error) =>
           error instanceof SandboxCommandError && error.code === "UNAVAILABLE",

@@ -99,13 +99,13 @@ async function dispatchSandboxMethod(
       return sandboxSnapshot(context, params);
     case "sandbox.conversation.snapshot.get":
       return sandboxConversationSnapshot(context, params);
-    case "sandbox.pinnedCommand.list":
+    case "pinnedCommand.list":
       return sandboxPinnedCommandList(context, params);
-    case "sandbox.pinnedCommand.create":
+    case "pinnedCommand.create":
       return sandboxPinnedCommandCreate(context, params);
-    case "sandbox.pinnedCommand.update":
+    case "pinnedCommand.update":
       return sandboxPinnedCommandUpdate(context, params);
-    case "sandbox.pinnedCommand.delete":
+    case "pinnedCommand.delete":
       return sandboxPinnedCommandDelete(context, params);
     default:
       throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");

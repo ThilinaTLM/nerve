@@ -21,7 +21,14 @@ export const taskReadinessSchema = z.object({
   readyOnUrl: z.boolean().optional(),
   readyPattern: z.string().optional(),
   timeoutMs: z.number().int().nonnegative().optional(),
-  outcome: z.enum(["pending", "ready", "timeout", "exited", "none"]),
+  outcome: z.enum([
+    "pending",
+    "ready",
+    "timeout",
+    "exited",
+    "unavailable",
+    "none",
+  ]),
   matched: z.string().optional(),
   readyAt: z.string().datetime().optional(),
 });

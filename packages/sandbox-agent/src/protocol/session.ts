@@ -310,6 +310,10 @@ export class ProtocolSession {
         const result = await this.daemon.router.dispatch(
           message.data.method,
           message.data.params,
+          {
+            idempotencyKey: message.data.idempotencyKey,
+            requestId: message.id,
+          },
         );
         this.client?.send(
           this.message(
