@@ -97,6 +97,17 @@ export function enqueueEvent(event: WorkbenchEvent): void {
 }
 
 /**
+ * Applies one transport event and waits for every reducer before returning.
+ * Protocol durable acknowledgements must use this path rather than the
+ * animation-frame queue, whose handlers deliberately isolate failures.
+ */
+export async function applyEventAndFlush(event: WorkbenchEvent): Promise<void> {
+  const handlers = [...(handlersByType.get(event.type) ?? []), ...anyHandlers];
+  for (const handler of handlers) await handler(event);
+  for (const handler of flushHandlers) handler([event]);
+}
+
+/**
  * Synchronously drain the buffered event queue in FIFO order. Safe to call for
  * deterministic teardown (disconnect) and in tests.
  */

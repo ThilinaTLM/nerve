@@ -286,7 +286,6 @@ async function main() {
         storage.localToken,
       )
     : undefined;
-  const stopHeartbeat = startWebSocketHeartbeat(webSockets);
   let shuttingDown = false;
 
   const shutdown = async (signal: NodeJS.Signals) => {
@@ -315,13 +314,11 @@ async function main() {
       .catch(() => undefined);
     state.subscriptionUsage.stop();
     await state.storageCleanup.shutdown().catch(() => undefined);
-    stopHeartbeat();
-    for (const session of [
-      ...protocolSessions,
-      ...(httpsProtocolSessions ?? []),
-    ]) {
-      session.shutdown("Daemon shutting down");
-    }
+    await Promise.all(
+      [...protocolSessions, ...(httpsProtocolSessions ?? [])].map((session) =>
+        session.shutdown("Daemon shutting down"),
+      ),
+    );
     closeWebSocketClients(webSockets);
     webSockets.close();
     state.index.close();
@@ -391,36 +388,6 @@ function installCrashGuards(
   process.on("unhandledRejection", (reason) =>
     fatal("unhandledRejection", reason),
   );
-}
-
-const heartbeatIntervalMs = 30_000;
-type AliveSocket = WebSocket & { isAlive?: boolean };
-/**
- * Detect half-open sockets (sleep/wake, NIC drops, dead peers that never sent a
- * close frame). Each interval we terminate clients that did not answer the
- * previous ping, then ping the rest. Protocol sessions send app-level heartbeat
- * messages from their session timers.
- */
-function startWebSocketHeartbeat(webSockets: WebSocketServer): () => void {
-  const interval = setInterval(() => {
-    for (const client of webSockets.clients) {
-      const alive = client as AliveSocket;
-      if (alive.isAlive === false) {
-        client.terminate();
-        continue;
-      }
-      alive.isAlive = false;
-      if (client.readyState === WebSocket.OPEN) {
-        try {
-          client.ping();
-        } catch {
-          client.terminate();
-        }
-      }
-    }
-  }, heartbeatIntervalMs);
-  interval.unref();
-  return () => clearInterval(interval);
 }
 
 function closeWebSocketClients(webSockets: WebSocketServer): void {
