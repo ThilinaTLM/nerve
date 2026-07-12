@@ -9,6 +9,11 @@ import {
   isContextOverflowAssistantMessage,
 } from "@nervekit/host-runtime/harness";
 import type { ToolExecutionResult } from "@nervekit/host-runtime/tools";
+import type {
+  RunExecutionControl,
+  RunExecutionOutcome,
+  RunExecutionSink,
+} from "@nervekit/host-runtime";
 import {
   type AgentRecord,
   type ContextUsage,
@@ -19,6 +24,7 @@ import {
   type ConversationRunStatusState,
   type CreateAgentRequest,
   type PromptRequest,
+  type RunRecord,
   parseInlineCommandPrompt,
   type QueuedPromptRecord,
   type ToolCallRecord,
@@ -34,6 +40,7 @@ import type { ConversationService } from "../../conversations/conversation-servi
 import type { HarnessManager } from "../../conversations/harness-manager.js";
 import type { CompactionService } from "../../conversations/operations/index.js";
 import type { PythonRuntimeService } from "../../runtime/python-runtime-service.js";
+import type { PlanService } from "../../plans/plan-service.js";
 import { activeToolNamesForAgent } from "../../tools/agent-tool-adapter.js";
 import type {
   ExploreProgressUpdate,
@@ -56,6 +63,7 @@ export interface AgentRunnerDeps {
   tools: ToolService;
   pythonRuntime: PythonRuntimeService;
   suspensions: AgentSuspensionService;
+  plans: PlanService;
   harnessManager: HarnessManager;
   conversationService: ConversationService;
   compactionService: CompactionService;
@@ -353,7 +361,36 @@ export class AgentRunner {
     request: PromptRequest,
     options: { continue?: boolean } = {},
   ): Promise<ConversationEntry> {
-    return runAgentPromptSession.call(this, agent, request, options);
+    return (await runAgentPromptSession.call(
+      this,
+      agent,
+      request,
+      options,
+    )) as ConversationEntry;
+  }
+
+  async runCoordinatorExecution(input: {
+    run: RunRecord;
+    sink: RunExecutionSink;
+    command: "start" | "continue";
+    prompt?: string;
+    signal: AbortSignal;
+    installControl(control: RunExecutionControl): void;
+    checkpointCommand(
+      boundary: "after_provider_response" | "suspension",
+      interactionId?: string,
+    ): Promise<import("@nervekit/host-runtime").CheckpointCommand>;
+  }): Promise<RunExecutionOutcome> {
+    const agent = this.deps.state.getAgent(input.run.agentId);
+    return (await runAgentPromptSession.call(
+      this,
+      agent,
+      { text: input.prompt ?? "" },
+      {
+        continue: input.command === "continue",
+        coordinator: input,
+      },
+    )) as RunExecutionOutcome;
   }
 
   async terminateRunToolCalls(

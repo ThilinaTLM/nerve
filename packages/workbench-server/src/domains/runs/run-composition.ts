@@ -37,7 +37,9 @@ export function createWorkbenchRunRuntime(input: {
   events: EventBus;
   tools: ToolService;
   harnessManager: HarnessManager;
-  execution: WorkbenchRunExecutionAdapter;
+  execution:
+    | WorkbenchRunExecutionAdapter
+    | ((references: WorkbenchRunReferences) => WorkbenchRunExecutionAdapter);
   logger?: ApplicationLogger;
 }): WorkbenchRunRuntime {
   const unitOfWork = new WorkbenchRunUnitOfWork(input.home);
@@ -54,7 +56,11 @@ export function createWorkbenchRunRuntime(input: {
   );
   const live = new WorkbenchLiveExecutions();
   const cancellation = new WorkbenchRunCancellation(live, input.tools);
-  const execution = new WorkbenchRunExecutionFactory(input.execution, live);
+  const adapter =
+    typeof input.execution === "function"
+      ? input.execution(references)
+      : input.execution;
+  const execution = new WorkbenchRunExecutionFactory(adapter, live);
   const coordinator = new RunCoordinator({
     sourceRole: "workbench_server",
     unitOfWork,

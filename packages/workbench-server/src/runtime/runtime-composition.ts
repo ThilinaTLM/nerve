@@ -357,6 +357,7 @@ export function composeRuntime(
     tools: services.tools,
     pythonRuntime: services.pythonRuntime,
     suspensions: services.suspensions,
+    plans: services.plans,
     harnessManager: services.harnessManager,
     conversationService: services.conversationService,
     compactionService: services.compactionService,

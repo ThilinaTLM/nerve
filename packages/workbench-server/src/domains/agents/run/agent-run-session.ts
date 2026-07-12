@@ -13,8 +13,17 @@ import type {
   AgentRecord,
   ConversationEntry,
   PromptRequest,
+  RunRecord,
+  ToolCallRecord,
   ToolName,
 } from "@nervekit/contracts";
+import type {
+  CheckpointCommand,
+  RunExecutionControl,
+  RunExecutionOutcome,
+  RunExecutionSink,
+  WaitCommand,
+} from "@nervekit/host-runtime";
 import {
   createId,
   findExecutableCommandBlocks,
@@ -28,6 +37,7 @@ import {
   createAgentToolsForAgent,
   toolPromptMetadata,
 } from "../../tools/agent-tool-adapter.js";
+import { toToolCallTranscriptRecord } from "../../tools/tool-call-transcript-preview.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 import type { AgentRunner } from "./agent-runner.js";
 import {
@@ -51,13 +61,30 @@ import {
   shouldPublishToolDraftProgress,
   shouldStreamToolDraftArguments,
 } from "./tool-draft-streaming.js";
+interface CoordinatorExecutionOptions {
+  run: RunRecord;
+  sink: RunExecutionSink;
+  command: "start" | "continue";
+  prompt?: string;
+  signal: AbortSignal;
+  installControl(control: RunExecutionControl): void;
+  checkpointCommand(
+    boundary: CheckpointCommand["boundary"],
+    interactionId?: string,
+  ): Promise<CheckpointCommand>;
+}
+
 export async function runAgentPromptSession(
   this: AgentRunner,
   agent: AgentRecord,
   request: PromptRequest,
-  options: { continue?: boolean } = {},
-): Promise<ConversationEntry> {
-  if (this.deps.state.runs.has(agent.id)) {
+  options: {
+    continue?: boolean;
+    coordinator?: CoordinatorExecutionOptions;
+  } = {},
+): Promise<ConversationEntry | RunExecutionOutcome> {
+  const coordinator = options.coordinator;
+  if (!coordinator && this.deps.state.runs.has(agent.id)) {
     throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
   }
   // A fresh (non-continuation) prompt resets the auto-continuation budget so
@@ -65,10 +92,18 @@ export async function runAgentPromptSession(
   if (!options.continue) {
     this.autoContinuationCounts.delete(agent.conversationId);
   }
-  const runId = createId("run");
+  const runId = coordinator?.run.runId ?? createId("run");
   const runStartedAt = performance.now();
   let abortRequested = false;
   const runAbortController = new AbortController();
+  if (coordinator) {
+    if (coordinator.signal.aborted) runAbortController.abort();
+    coordinator.signal.addEventListener(
+      "abort",
+      () => runAbortController.abort(),
+      { once: true },
+    );
+  }
   let lastAssistantEntry: ConversationEntry | undefined;
   let currentTurnId: string | undefined;
   let currentLiveMessageId: string | undefined;
@@ -200,12 +235,15 @@ export async function runAgentPromptSession(
       if (event.type === "tool_execution_end") {
         const started = pendingProviderToolCalls.get(event.toolCallId);
         pendingProviderToolCalls.delete(event.toolCallId);
-        if (!event.isError) return;
-        if (
-          this.deps.tools.findToolCallByProviderToolCallId(event.toolCallId)
-        ) {
-          return;
+        const existingToolCall =
+          this.deps.tools.findToolCallByProviderToolCallId(event.toolCallId);
+        if (coordinator && existingToolCall) {
+          await coordinator.sink.upsertToolCalls([
+            toToolCallTranscriptRecord(existingToolCall),
+          ]);
         }
+        if (!event.isError) return;
+        if (existingToolCall) return;
         const parsedToolName = toolNameSchema.safeParse(event.toolName);
         if (!parsedToolName.success) {
           await this.deps.logger.warn(
@@ -473,8 +511,11 @@ export async function runAgentPromptSession(
           },
         );
         let shouldPublishContextUsage = false;
+        if (coordinator && mirrored.length > 0) {
+          await coordinator.sink.appendEntries(mirrored);
+        }
         for (const entry of mirrored) {
-          await this.deps.events.publish("conversation.entry.appended", {
+          if (!coordinator) await this.deps.events.publish("conversation.entry.appended", {
             conversationId: agent.conversationId,
             agentId: agent.id,
             runId,
@@ -519,14 +560,16 @@ export async function runAgentPromptSession(
       runId,
       startedAt,
     });
-    await this.deps.events.publish("run.started", {
-      agentId: agent.id,
-      projectId: agent.projectId,
-      conversationId: agent.conversationId,
-      runId,
-      parentEntryId: conversation.activeEntryId,
-      startedAt,
-    });
+    if (!coordinator) {
+      await this.deps.events.publish("run.started", {
+        agentId: agent.id,
+        projectId: agent.projectId,
+        conversationId: agent.conversationId,
+        runId,
+        parentEntryId: conversation.activeEntryId,
+        startedAt,
+      });
+    }
     await this.deps.logger.info("Agent run started", {
       agentId: agent.id,
       conversationId: agent.conversationId,
@@ -538,48 +581,65 @@ export async function runAgentPromptSession(
         provider: model.provider,
       },
     });
-    this.deps.state.runs.set(agent.id, {
-      runId,
-      abort: async () => {
-        abortRequested = true;
-        this.deps.state.conversationRuntime.markAborting(runId);
-        runAbortController.abort();
-        await harness.abort();
-      },
-      messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
-      steer: (text, options, queuedPromptId) =>
-        harness.steer(text, { images: options?.images, id: queuedPromptId }),
-      followUp: (text, options, queuedPromptId) =>
-        harness.steer(text, { images: options?.images, id: queuedPromptId }),
-      removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
-      updateAgentRuntimeConfig: async (updatedAgent) => {
-        const nextActiveToolNames = await this.activeToolNamesFor(updatedAgent);
-        if (!sameStringList(nextActiveToolNames, activeToolNames)) {
-          activeToolNames = nextActiveToolNames;
-          await harness.setActiveTools(nextActiveToolNames);
-        }
-        const nextModel = resolveAgentModel(updatedAgent.model);
-        const currentModel = harness.getModel();
-        if (
-          currentModel.provider !== nextModel.provider ||
-          currentModel.id !== nextModel.id
-        ) {
-          await harness.setModel(nextModel);
-        }
-        if (harness.getThinkingLevel() !== updatedAgent.thinkingLevel) {
-          await harness.setThinkingLevel(updatedAgent.thinkingLevel);
-        }
-      },
-      appendExternalMessage: (input) => harness.appendExternalMessage(input),
-      enqueueHarnessMessage: (input) =>
-        harness.enqueueHarnessMessage({
-          id: input.id,
-          message: input.message,
-          timestamp: input.timestamp,
-          delivery: input.delivery,
-        }),
-    });
-    await this.deps.setAgentStatus(agent, "running");
+    const abort = async () => {
+      abortRequested = true;
+      this.deps.state.conversationRuntime.markAborting(runId);
+      runAbortController.abort();
+      await harness.abort();
+    };
+    const updateAgentRuntimeConfig = async (updatedAgent: AgentRecord) => {
+      const nextActiveToolNames = await this.activeToolNamesFor(updatedAgent);
+      if (!sameStringList(nextActiveToolNames, activeToolNames)) {
+        activeToolNames = nextActiveToolNames;
+        await harness.setActiveTools(nextActiveToolNames);
+      }
+      const nextModel = resolveAgentModel(updatedAgent.model);
+      const currentModel = harness.getModel();
+      if (
+        currentModel.provider !== nextModel.provider ||
+        currentModel.id !== nextModel.id
+      ) {
+        await harness.setModel(nextModel);
+      }
+      if (harness.getThinkingLevel() !== updatedAgent.thinkingLevel) {
+        await harness.setThinkingLevel(updatedAgent.thinkingLevel);
+      }
+    };
+    if (coordinator) {
+      coordinator.installControl({
+        steer: (prompt) => harness.steer(prompt.text, { id: prompt.id }),
+        followUp: (prompt) => harness.followUp(prompt.text, { id: prompt.id }),
+        continue: async () => undefined,
+        cancel: abort,
+      });
+    } else {
+      this.deps.state.runs.set(agent.id, {
+        runId,
+        abort,
+        messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
+        steer: (text, promptOptions, queuedPromptId) =>
+          harness.steer(text, {
+            images: promptOptions?.images,
+            id: queuedPromptId,
+          }),
+        followUp: (text, promptOptions, queuedPromptId) =>
+          harness.followUp(text, {
+            images: promptOptions?.images,
+            id: queuedPromptId,
+          }),
+        removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
+        updateAgentRuntimeConfig,
+        appendExternalMessage: (input) => harness.appendExternalMessage(input),
+        enqueueHarnessMessage: (input) =>
+          harness.enqueueHarnessMessage({
+            id: input.id,
+            message: input.message,
+            timestamp: input.timestamp,
+            delivery: input.delivery,
+          }),
+      });
+      await this.deps.setAgentStatus(agent, "running");
+    }
 
     const promptRequest = await expandExecutablePromptBlocks(
       this,
@@ -596,7 +656,7 @@ export async function runAgentPromptSession(
       agent,
     });
     const latest = this.deps.state.agents.get(agent.id);
-    this.deps.state.runs.delete(agent.id);
+    if (!coordinator) this.deps.state.runs.delete(agent.id);
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const messages = convertToLlm(buildConversationContext(branch).messages);
     this.deps.conversationService.setForAgent(agent.id, messages);
@@ -609,6 +669,20 @@ export async function runAgentPromptSession(
       runAssistant.stopReason === "aborted"
     ) {
       const aborted = runAssistant.stopReason === "aborted" || abortRequested;
+      if (coordinator) {
+        return {
+          status: aborted ? "interrupted" : "failed",
+          ...(aborted
+            ? { message: "Agent run aborted." }
+            : {
+                failure: {
+                  code: "MODEL_REQUEST_FAILED",
+                  message: runAssistant.errorMessage ?? "Agent run failed.",
+                  retryable: true,
+                },
+              }),
+        } as RunExecutionOutcome;
+      }
       if (latest)
         await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
       const retryExhausted = !aborted
@@ -644,6 +718,15 @@ export async function runAgentPromptSession(
         },
       });
       return assistantEntry;
+    }
+    if (coordinator) {
+      await coordinator.sink.checkpoint(
+        await coordinator.checkpointCommand("after_provider_response"),
+      );
+      return {
+        status: "completed",
+        result: { finalEntryId: assistantEntry.id },
+      };
     }
     if (latest) await this.deps.setAgentStatus(latest, "idle");
     const completedAt = new Date().toISOString();
@@ -688,7 +771,7 @@ export async function runAgentPromptSession(
       ? error
       : this.suspensionFromWaitingToolCall(agent, runId, error);
     if (suspensionError) {
-      this.deps.state.runs.delete(agent.id);
+      if (!coordinator) this.deps.state.runs.delete(agent.id);
       const latest = this.deps.state.agents.get(agent.id);
       const toolCall = this.deps.tools.getToolCall(
         suspensionError.data.toolCallId,
@@ -698,6 +781,29 @@ export async function runAgentPromptSession(
         toolCall.sourceToolCallId ??
         suspensionError.data.toolCall?.id ??
         suspensionError.data.toolCallId;
+      if (coordinator) {
+        const interactionId =
+          this.deps.tools.listUserQuestions().find(
+            (question) => question.toolCallId === toolCall.id,
+          )?.id ??
+          this.deps.plans.listPlanReviews().find(
+            (review) => review.toolCallId === toolCall.id,
+          )?.id ??
+          toolCall.id;
+        const checkpoint = await coordinator.checkpointCommand(
+          "suspension",
+          interactionId,
+        );
+        const wait = canonicalWaitCommand(
+          interactionId,
+          toolCall,
+          checkpoint,
+          suspensionError.data.reason,
+          this.deps,
+        );
+        await coordinator.sink.wait(wait);
+        return { status: "suspended" };
+      }
       const suspension = await this.deps.suspensions.createSuspension({
         agentId: agent.id,
         conversationId: agent.conversationId,
@@ -748,9 +854,21 @@ export async function runAgentPromptSession(
         cause: error,
       });
     }
-    this.deps.state.runs.delete(agent.id);
+    if (!coordinator) this.deps.state.runs.delete(agent.id);
     const aborted = abortRequested;
     const latest = this.deps.state.agents.get(agent.id);
+    if (coordinator) {
+      return aborted
+        ? { status: "interrupted", message: "Agent run aborted." }
+        : {
+            status: "failed",
+            failure: {
+              code: "EXECUTION_FAILED",
+              message: error instanceof Error ? error.message : String(error),
+              retryable: true,
+            },
+          };
+    }
     if (latest)
       await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
     const failureMessage =
@@ -790,6 +908,65 @@ export async function runAgentPromptSession(
     throw error;
   }
 }
+function canonicalWaitCommand(
+  interactionId: string,
+  toolCall: ToolCallRecord,
+  checkpoint: CheckpointCommand,
+  reason: string,
+  deps: AgentRunner["deps"],
+): WaitCommand {
+  if (toolCall.toolName === "plan_mode_present") {
+    const review = deps.plans
+      .listPlanReviews()
+      .find((candidate) => candidate.toolCallId === toolCall.id);
+    if (!review) {
+      throw new Error(`Plan review for tool call ${toolCall.id} was not found.`);
+    }
+    return {
+      kind: "plan_review",
+      interactionId,
+      toolCallId: toolCall.id,
+      prompt: reason,
+      planReview: review,
+      checkpoint,
+    };
+  }
+  const approval = deps.tools
+    .listApprovals()
+    .find(
+      (candidate) =>
+        candidate.toolCallId === toolCall.id && candidate.status === "pending",
+    );
+  if (approval) {
+    return {
+      kind: "approval",
+      interactionId,
+      toolCallId: toolCall.id,
+      prompt: reason,
+      risk: [approval.risk, approval.reason],
+      normalizedArgs:
+        toolCall.args && typeof toolCall.args === "object"
+          ? (toolCall.args as Record<string, unknown>)
+          : {},
+      offeredScopes: ["single_call"],
+      checkpoint,
+    };
+  }
+  const question = deps.tools
+    .listUserQuestions()
+    .find((candidate) => candidate.toolCallId === toolCall.id);
+  return {
+    kind: "question",
+    interactionId,
+    toolCallId: toolCall.id,
+    prompt: question?.question ?? reason,
+    context: question?.context,
+    placeholder: question?.placeholder,
+    required: true,
+    checkpoint,
+  };
+}
+
 async function expandExecutablePromptBlocks(
   runner: AgentRunner,
   agent: AgentRecord,
