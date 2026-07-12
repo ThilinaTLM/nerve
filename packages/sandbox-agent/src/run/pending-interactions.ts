@@ -54,11 +54,12 @@ export class SandboxPendingInteractions {
    * AgentToolSuspension into a plain Error whose suffix is either the provider
    * toolCallId (question/approval) or explicit interaction id (plan review).
    */
-  takeForSignal(signalId: string):
-    | { toolCallId: string; detail: PendingInteractionDetail }
-    | undefined {
+  takeForSignal(
+    signalId: string,
+  ): { toolCallId: string; detail: PendingInteractionDetail } | undefined {
     for (const [toolCallId, detail] of this.details) {
-      if (toolCallId !== signalId && detail.interactionId !== signalId) continue;
+      if (toolCallId !== signalId && detail.interactionId !== signalId)
+        continue;
       this.details.delete(toolCallId);
       return { toolCallId, detail };
     }

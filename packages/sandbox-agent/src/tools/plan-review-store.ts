@@ -24,7 +24,7 @@ export type PlanReviewRequest = {
   summary?: string;
 };
 
-export class PlanReviewWaiter {
+export class SandboxPlanReviewStore {
   private readonly reviews = new Map<string, SandboxPlanReviewWaitRecord>();
   private readonly store: JsonlStore<SandboxPlanReviewWaitRecord>;
   readonly planDir: string;
@@ -50,7 +50,7 @@ export class PlanReviewWaiter {
     return this.planDir;
   }
 
-  async request(
+  async createReview(
     input: PlanReviewRequest,
   ): Promise<SandboxPlanReviewWaitRecord> {
     const existing = this.byProviderToolCallId(input.providerToolCallId);
@@ -116,7 +116,7 @@ export class PlanReviewWaiter {
     return this.save({ ...current, checkpointId });
   }
 
-  async resolve(input: {
+  async recordResolution(input: {
     reviewId: string;
     conversationId?: string;
     agentId?: string;

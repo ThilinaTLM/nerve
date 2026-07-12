@@ -95,7 +95,10 @@ export function createSandboxRunRuntime(
     clock: { now: () => new Date() },
     ids: { next: () => randomUUID() },
     integrity,
-    flushEvents: () => delivery.flush(),
+    flushEvents: async () => {
+      await delivery.flush();
+      await transient.flush();
+    },
     transient,
     diagnostics: toDiagnostics(deps.logger),
   });

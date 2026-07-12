@@ -19,6 +19,106 @@ export class SandboxRunQueryAdapter {
     return (await this.states()).map((state) => this.runLike(state));
   }
 
+  async waits(): Promise<unknown[]> {
+    return (await this.states()).flatMap((state) =>
+      state.interactions.map((interaction) => {
+        const status =
+          interaction.status === "pending" ? "waiting" : "submitted";
+        if (interaction.kind === "question") {
+          return {
+            requestId: interaction.id,
+            runId: interaction.runId,
+            status,
+            question: { text: interaction.prompt },
+            createdAt: interaction.createdAt,
+            resolvedAt: interaction.resolvedAt,
+          };
+        }
+        if (interaction.kind === "plan_review") {
+          return {
+            review: interaction.planReview,
+            providerToolCallId: interaction.toolCallId,
+            runId: interaction.runId,
+            status: interaction.status === "pending" ? "pending" : "resolved",
+            createdAt: interaction.createdAt,
+            resolvedAt: interaction.resolvedAt,
+          };
+        }
+        return {
+          id: interaction.id,
+          approvalId: interaction.id,
+          toolCallId: interaction.toolCallId,
+          runId: interaction.runId,
+          status,
+          risk: interaction.risk,
+          reason: interaction.prompt,
+          createdAt: interaction.createdAt,
+          resolvedAt: interaction.resolvedAt,
+        };
+      }),
+    );
+  }
+
+  async toolCall(
+    toolCallId: string,
+    runId?: string,
+  ): Promise<
+    | {
+        toolCall: Record<string, unknown>;
+        argsPreview?: unknown;
+        resultPreview?: unknown;
+        displayTitle?: string;
+        displaySummary?: string;
+      }
+    | undefined
+  > {
+    let found:
+      | RunHydratedState["transitions"][number]["toolCalls"][number]
+      | undefined;
+    for (const state of await this.states()) {
+      if (runId && state.run.runId !== runId) continue;
+      for (const transition of state.transitions) {
+        for (const call of transition.toolCalls) {
+          if (
+            call.id === toolCallId ||
+            call.providerToolCallId === toolCallId ||
+            call.sourceToolCallId === toolCallId
+          ) {
+            found = call;
+          }
+        }
+      }
+    }
+    if (!found) return undefined;
+    const status = sandboxToolStatus(found.status);
+    return {
+      toolCall: {
+        toolCallId: found.id,
+        conversationId: found.conversationId,
+        agentId: found.agentId,
+        runId: found.runId,
+        toolName: found.toolName,
+        status,
+        displayArgs: found.argsPreview,
+        result: found.resultPreview,
+        redactionVersion: 1,
+        requestedAt: found.createdAt,
+        startedAt: status === "started" ? found.updatedAt : undefined,
+        completedAt:
+          status === "completed" || status === "failed"
+            ? found.updatedAt
+            : undefined,
+        error: found.errorDetails
+          ? { ...found.errorDetails, redactionVersion: undefined }
+          : undefined,
+      },
+      argsPreview: found.argsPreview,
+      resultPreview: found.resultPreview,
+      displayTitle: found.toolName,
+      displaySummary: found.error,
+    };
+  }
+
   private runLike(state: RunHydratedState): RunLike {
     const run = state.run;
     const entries = state.transitions.flatMap(
@@ -85,7 +185,8 @@ export class SandboxRunQueryAdapter {
           status: executionStatus(run.status),
           startedAt: run.startedAt ?? run.createdAt,
           completedAt: run.terminalAt,
-          recoverability: run.recoverability,
+          recoverability:
+            run.recoverability === "not_needed" ? "none" : run.recoverability,
           error: run.failure,
           lastCheckpointId: run.lastCheckpointId,
         },

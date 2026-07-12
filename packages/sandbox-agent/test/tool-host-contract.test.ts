@@ -5,7 +5,7 @@ import path from "node:path";
 import { after, describe, it } from "node:test";
 import { isAgentToolSuspension } from "@nervekit/host-runtime/harness";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
-import { InputWaiter } from "../src/tools/input-waiter.js";
+import type { SandboxInteractionPort } from "../src/tools/sandbox-orchestration-types.js";
 import { SandboxTaskService } from "../src/tools/sandbox-task-service.js";
 import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 
@@ -42,13 +42,19 @@ describe("sandbox shared tool host contract", () => {
   it("preserves the opaque provider tool-call id across ask-user suspension", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "nerve-host-input-"));
     roots.push(root);
-    const inputWaiter = new InputWaiter(root);
-    await inputWaiter.load();
+    let pendingToolCallId: string | undefined;
+    const resolutionRef: { current?: Record<string, unknown> } = {};
+    const interactions: SandboxInteractionPort = {
+      setPending: (toolCallId) => {
+        pendingToolCallId = toolCallId;
+      },
+      resolved: async () => resolutionRef.current,
+    };
     const runtime = new SandboxToolRuntime(config(), {
       workspaceDir: process.cwd(),
       stateDir: root,
-      inputWaiter,
     });
+    runtime.setInteractions(interactions);
     const scope = {
       conversationId: "conv_contract",
       agentId: "agent_main",
@@ -65,13 +71,8 @@ describe("sandbox shared tool host contract", () => {
         return true;
       },
     );
-    const wait = inputWaiter.get(scope.toolCallId);
-    assert.equal(wait?.requestId, scope.toolCallId);
-    await inputWaiter.submit({
-      requestId: scope.toolCallId,
-      ...scope,
-      text: "Proceed.",
-    });
+    assert.equal(pendingToolCallId, scope.toolCallId);
+    resolutionRef.current = { text: "Proceed." };
     const result = await runtime.execute(
       "ask_user",
       { question: "Proceed?" },

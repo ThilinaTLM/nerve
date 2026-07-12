@@ -1,5 +1,4 @@
 import type { ToolExecutionContext } from "@nervekit/host-runtime/tools";
-import type { ToolCallScope } from "../agent/tool-call-store.js";
 
 export type ToolRuntimeContext = Partial<ToolExecutionContext> & {
   conversationId?: string;
@@ -12,6 +11,8 @@ export type ToolRuntimeScope = {
   agentId: string;
   runId: string;
 };
+
+type ToolCallScope = ToolRuntimeScope;
 
 export function toolScope(context: ToolRuntimeContext): ToolRuntimeScope {
   return {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -100,40 +100,18 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         "waiting_for_user",
       );
 
-      const toolFile = path.join(
+      const transitionFile = path.join(
         dir,
-        "conversations",
-        start.conversationId,
-        "agents",
-        start.agentId,
+        "run-runtime",
         "runs",
         start.runId,
-        "tools",
-        "tool-calls.jsonl",
+        "transitions.jsonl",
       );
-      const toolRows = (await readFile(toolFile, "utf8"))
-        .trim()
-        .split("\n")
-        .map(
-          (line) => JSON.parse(line) as { toolCallId: string; status: string },
-        )
-        .filter((row) => row.toolCallId === "ask_1");
-      assert.deepEqual(
-        toolRows.map((row) => row.status),
-        ["requested", "started", "waiting_for_input"],
-        "the harness bridge is the single structured lifecycle writer",
-      );
-      const checkpointDir = path.join(
-        dir,
-        "conversations",
-        start.conversationId,
-        "agents",
-        start.agentId,
-        "runs",
-        start.runId,
-        "checkpoints",
-      );
-      await stat(checkpointDir);
+      const waitingTransitions = await readFile(transitionFile, "utf8");
+      assert.match(waitingTransitions, /"kind":"waiting"/);
+      assert.match(waitingTransitions, /"kind":"tool_calls_upserted"/);
+      assert.match(waitingTransitions, /"status":"waiting_for_user"/);
+      assert.match(waitingTransitions, /"boundary":"suspension"/);
 
       const recoveredStores = new SandboxStateStores(dir);
       await recoveredStores.load();
@@ -167,36 +145,10 @@ describe("sandbox input wait/recovery with scripted provider", () => {
       assert.ok(run?.executions?.length);
       assert.ok(run?.checkpoints?.length);
 
-      const harnessConversation = await readFile(
-        path.join(
-          dir,
-          "conversations",
-          start.conversationId,
-          "agents",
-          start.agentId,
-          "conversation.jsonl",
-        ),
-        "utf8",
-      );
-      assert.match(harnessConversation, /"role":"toolResult"/);
-      assert.match(harnessConversation, /"toolCallId":"ask_1"/);
-      assert.match(harnessConversation, /"response":"42"/);
-      const transcript = await readFile(
-        path.join(
-          dir,
-          "conversations",
-          start.conversationId,
-          "agents",
-          start.agentId,
-          "runs",
-          start.runId,
-          "transcript.jsonl",
-        ),
-        "utf8",
-      );
-      assert.doesNotMatch(transcript, /"role":"user"[^\n]*"42"/);
-      const completedTools = await readFile(toolFile, "utf8");
-      assert.match(completedTools, /"response":"42"/);
+      const completedTransitions = await readFile(transitionFile, "utf8");
+      assert.match(completedTransitions, /"kind":"interaction_resolved"/);
+      assert.match(completedTransitions, /"kind":"completed"/);
+      assert.match(completedTransitions, /"text":"42"/);
     } finally {
       registration.unregister();
       await rm(dir, { recursive: true, force: true });

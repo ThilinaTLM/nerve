@@ -24,14 +24,11 @@ import type {
 } from "@nervekit/contracts";
 import type { AgentConfigStore } from "../agent/agent-config-store.js";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
-import type { ToolCallScope, ToolCallStore } from "../agent/tool-call-store.js";
 import type { SecretResolver } from "../credentials/secret-resolver.js";
 import { Redactor } from "../security/redaction.js";
 import { sandboxSha256Digest } from "../state/hash.js";
 import { JsonlStore } from "../state/jsonl-store.js";
-import type { ApprovalWaiter } from "./approval-waiter.js";
-import type { InputWaiter } from "./input-waiter.js";
-import type { PlanReviewWaiter } from "./plan-review-waiter.js";
+import type { SandboxPlanReviewStore } from "./plan-review-store.js";
 import { createSandboxOrchestrationHandlers } from "./sandbox-orchestration-handlers.js";
 import type { SandboxInteractionPort } from "./sandbox-orchestration-types.js";
 import type { SandboxTaskService } from "./sandbox-task-service.js";
@@ -43,7 +40,7 @@ import {
   enforceToolPolicy,
   type ToolDecision,
 } from "./tool-policy.js";
-import { activeKey, scopeValue, toolScope } from "./tool-scope.js";
+import { activeKey, toolScope, type ToolRuntimeScope } from "./tool-scope.js";
 
 export type SandboxToolRuntimeOptions = {
   workspaceDir: string;
@@ -52,14 +49,11 @@ export type SandboxToolRuntimeOptions = {
   readOnly?: boolean;
   redactor?: Redactor;
   secretResolver?: SecretResolver;
-  approvalWaiter?: ApprovalWaiter;
-  inputWaiter?: InputWaiter;
-  planReviewWaiter?: PlanReviewWaiter;
+  planReviewStore?: SandboxPlanReviewStore;
   configStore?: AgentConfigStore;
   taskService?: SandboxTaskService;
   todoStore?: TodoStore;
   exploreRuntime?: ExploreRuntime;
-  toolCallStore?: ToolCallStore;
 };
 
 type SandboxHostToolExecution = {
@@ -69,7 +63,7 @@ type SandboxHostToolExecution = {
   identity?: unknown;
 };
 
-type ActiveToolExecution = ToolCallScope & {
+type ActiveToolExecution = ToolRuntimeScope & {
   key: string;
   toolCallId: string;
   toolName: string;
@@ -125,8 +119,7 @@ export class SandboxToolRuntime {
       workspaceDir: this.options.workspaceDir,
       redactor: this.redactor,
       interactions: this.interactions,
-      inputWaiter: this.options.inputWaiter,
-      planReviewWaiter: this.options.planReviewWaiter,
+      planReviewStore: this.options.planReviewStore,
       configStore: this.options.configStore,
       taskService: this.options.taskService,
       todoStore: this.todoStore,
@@ -198,9 +191,7 @@ export class SandboxToolRuntime {
   }
 
   private async resolveApproval(
-    scope: ToolCallScope,
     toolCallId: string,
-    tool: string,
     args: Record<string, unknown>,
   ): Promise<
     | {
@@ -229,20 +220,7 @@ export class SandboxToolRuntime {
         argsHash: sandboxSha256Digest(args),
       };
     }
-    return this.options.approvalWaiter?.resolutionForToolCallOrScope({
-      ...scope,
-      toolCallId,
-      toolName: tool,
-      normalizedArgs: args,
-    }) as
-      | {
-          status: "granted" | "denied";
-          toolCallId?: string;
-          argsHash?: string;
-          normalizedArgs?: unknown;
-          denialError?: { code: string; message: string };
-        }
-      | undefined;
+    return undefined;
   }
 
   private async toolProviderConfig(provider: string): Promise<unknown> {
@@ -342,7 +320,7 @@ export class SandboxToolRuntime {
       await enforceToolPolicy(tool, args, this.effectiveConfig(), {
         ...this.options,
         mode: effectiveMode,
-        planDir: this.options.planReviewWaiter?.planDir,
+        planDir: this.options.planReviewStore?.planDir,
       });
     const decision =
       effectiveMode === "planning" &&
@@ -362,14 +340,8 @@ export class SandboxToolRuntime {
       );
       throw new Error(decision.reason ?? "tool denied by sandbox policy");
     }
-    if (decision.approvalRequired && (this.interactions || this.options.approvalWaiter)) {
-      const scope = toolScope(context);
-      const resolution = await this.resolveApproval(
-        scope,
-        toolCallId,
-        tool,
-        args,
-      );
+    if (decision.approvalRequired) {
+      const resolution = await this.resolveApproval(toolCallId, args);
       if (resolution?.status === "denied") {
         await this.record(
           {
@@ -426,23 +398,10 @@ export class SandboxToolRuntime {
           normalizedArgs: args,
           offeredScopes: ["single_call", "same_tool_same_args", "run"],
         });
-        // Legacy disk-waiter path only when the coordinator interaction port
-        // is not wired; the coordinator otherwise owns the durable wait.
         if (!this.interactions) {
-          await this.options.approvalWaiter?.request({
-            id: toolCallId,
-            toolCallId,
-            conversationId:
-              scopeValue(context, "conversationId") ?? "conv_unknown",
-            agentId: scopeValue(context, "agentId") ?? "agent_main",
-            runId: scopeValue(context, "runId") ?? "run_unknown",
-            reason: decision.reason ?? "approval required",
-            risk: [decision.reason ?? "policy"],
-            normalizedArgs: args,
-            displayArgs: this.redactor.redact(args),
-            toolName: tool,
-            argsHash: sandboxSha256Digest(args),
-          });
+          throw new Error(
+            "UNAVAILABLE: run interaction port is not configured",
+          );
         }
         await this.record(
           {
@@ -533,7 +492,7 @@ export class SandboxToolRuntime {
     await enforceToolPolicy(tool, args, this.effectiveConfig(), {
       ...this.options,
       mode: this.options.configStore?.effective(this.config).mode,
-      planDir: this.options.planReviewWaiter?.planDir,
+      planDir: this.options.planReviewStore?.planDir,
     });
     const active = this.registerActive(tool, toolCallId, context, 1);
     await this.record(
@@ -602,7 +561,7 @@ export class SandboxToolRuntime {
     }
   }
 
-  async cancelRun(scope: ToolCallScope): Promise<void> {
+  async cancelRun(scope: ToolRuntimeScope): Promise<void> {
     const matching = Array.from(this.active.values()).filter(
       (entry) =>
         entry.conversationId === scope.conversationId &&
@@ -673,39 +632,15 @@ export class SandboxToolRuntime {
       runId?: string;
     },
   ): Promise<void> {
+    void context;
     const now = new Date().toISOString();
     const record = this.redactor.redact({
       ...entry,
       ts: now,
     }) as Record<string, unknown>;
     await this.records.append(record);
-    if (!context || !this.options.toolCallStore) return;
-    const harnessOwnsLifecycle =
-      (context as Record<string, unknown>).lifecycleOwner === "bridge";
-    if (harnessOwnsLifecycle && entry.status !== "cancelled") return;
-    const status = normalizeToolStatus(entry.status);
-    const scope = toolScope(context);
-    await this.options.toolCallStore.append(scope, {
-      toolCallId: String(entry.toolCallId ?? "tool_unknown"),
-      toolName: String(entry.toolName ?? "tool_unknown"),
-      status,
-      displayArgs: entry.displayArgs,
-      args: entry.displayArgs
-        ? { hash: sandboxSha256Digest(entry.displayArgs) }
-        : undefined,
-      approvalId:
-        typeof entry.approvalId === "string" ? entry.approvalId : undefined,
-      lifecycleSeq:
-        typeof entry.lifecycleSeq === "number" ? entry.lifecycleSeq : undefined,
-      redactionVersion: 1,
-      requestedAt: now,
-      startedAt: status === "started" ? now : undefined,
-      completedAt:
-        status === "completed" || status === "failed" ? now : undefined,
-      cancelledAt: status === "cancelled" ? now : undefined,
-      result: entry.result,
-      error: normalizeError(entry.error),
-    });
+    // Canonical tool-call state is reported by SandboxRunExecution through
+    // RunExecutionSink. This operational log is diagnostic only.
   }
 }
 
@@ -719,20 +654,6 @@ function mergedSignal(
 ): AbortSignal | undefined {
   if (outer && inner) return AbortSignal.any([outer, inner]);
   return inner ?? outer;
-}
-
-function normalizeToolStatus(status: unknown) {
-  if (
-    status === "requested" ||
-    status === "waiting_for_input" ||
-    status === "waiting_for_approval" ||
-    status === "started" ||
-    status === "completed" ||
-    status === "failed" ||
-    status === "cancelled"
-  )
-    return status;
-  return "failed" as const;
 }
 
 function credentialSecretRef(
@@ -752,16 +673,6 @@ function credentialSecretRef(
     case "gpg":
       return credential.privateKey;
   }
-}
-
-function normalizeError(error: unknown) {
-  if (!error) return undefined;
-  if (typeof error === "object" && error !== null) {
-    const value = error as { code?: unknown; message?: unknown };
-    if (typeof value.code === "string" && typeof value.message === "string")
-      return { code: value.code, message: value.message };
-  }
-  return { code: "TOOL_FAILED", message: String(error).slice(0, 500) };
 }
 
 function isOrchestrationTool(tool: string): boolean {

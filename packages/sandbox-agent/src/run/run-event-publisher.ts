@@ -31,9 +31,7 @@ function scopeOf(data: unknown): IntentScope {
  * crash between commit and delivery-marker is a no-op (EventOutbox.append is
  * idempotent by id).
  */
-export class SandboxRunEventPublisher
-  implements IdempotentRunEventPublisherPort
-{
+export class SandboxRunEventPublisher implements IdempotentRunEventPublisherPort {
   constructor(private readonly outbox: EventOutbox) {}
 
   async publish(
@@ -59,20 +57,28 @@ export class SandboxRunEventPublisher
  * outbox as a transient record. Never persisted; never part of run state.
  */
 export class SandboxRunTransientPublisher implements RunTransientEventPort {
+  private tail: Promise<void> = Promise.resolve();
+
   constructor(private readonly outbox: EventOutbox) {}
 
   publish(event: RunProgressEvent): void {
     const scope = scopeOf(event.data);
-    void this.outbox
-      .append({
-        type: event.type,
-        durability: "transient",
-        data: event.data,
-        ts: event.occurredAt,
-        conversationId: scope.conversationId,
-        agentId: scope.agentId,
-        runId: scope.runId,
+    this.tail = this.tail
+      .then(async () => {
+        await this.outbox.append({
+          type: event.type,
+          durability: "transient",
+          data: event.data,
+          ts: event.occurredAt,
+          conversationId: scope.conversationId,
+          agentId: scope.agentId,
+          runId: scope.runId,
+        });
       })
       .catch(() => undefined);
+  }
+
+  async flush(): Promise<void> {
+    await this.tail;
   }
 }

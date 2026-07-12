@@ -38,16 +38,20 @@ describe("sandbox live AgentHarness runtime", () => {
         requestId: "cmd_live_1",
         text: "Say hello from the live harness",
       })) as { runId: string; status: string };
-      assert.equal(result.status, "queued");
+      assert.equal(result.status, "running");
 
       const run = await waitForRun(daemon, result.runId, "completed");
       assert.equal(run.status, "completed");
       const events = stores.events.all();
-      assert.ok(events.some((event) => event.type === "run.delta"));
-      assert.ok(
-        events.some((event) => event.type === "run.transcript.appended"),
-      );
+      assert.ok(events.some((event) => event.type === "run.started"));
       assert.ok(events.some((event) => event.type === "run.completed"));
+      const snapshot = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        { runId: result.runId },
+      )) as { snapshot?: { entries: Array<{ role: string }> } };
+      assert.ok(
+        snapshot.snapshot?.entries.some((entry) => entry.role === "assistant"),
+      );
       for (const event of events) {
         const schema = publicEventDefinition(event.type)?.payloadSchema;
         assert.ok(schema, event.type);

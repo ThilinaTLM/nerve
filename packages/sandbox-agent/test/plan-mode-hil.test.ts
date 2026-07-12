@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
 import { SandboxDaemon } from "../src/daemon/sandbox-daemon.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
-import { PlanReviewWaiter } from "../src/tools/plan-review-waiter.js";
+import { SandboxPlanReviewStore } from "../src/tools/plan-review-store.js";
 
 function config(provider: string) {
   return {
@@ -125,7 +125,7 @@ describe("sandbox plan-mode HIL", () => {
 
   it("derives bounded slugs from long filename hyphen runs", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-plan-slug-"));
-    const waiter = new PlanReviewWaiter(dir, "proj_test");
+    const waiter = new SandboxPlanReviewStore(dir, "proj_test");
     const planDir = await waiter.ensurePlanDir();
     const trailingPath = path.join(planDir, `plan${"-".repeat(230)}.md`);
     const embeddedPath = path.join(planDir, `plan${"-".repeat(229)}x.md`);
@@ -141,12 +141,12 @@ describe("sandbox plan-mode HIL", () => {
         runId: "run_slug",
         cwd: planDir,
       };
-      const trailing = await waiter.request({
+      const trailing = await waiter.createReview({
         ...request,
         providerToolCallId: "call_trailing",
         filePath: trailingPath,
       });
-      const embedded = await waiter.request({
+      const embedded = await waiter.createReview({
         ...request,
         providerToolCallId: "call_embedded",
         filePath: embeddedPath,

@@ -23,23 +23,13 @@ export function createSandboxInteractionHandlers(
     ...createInteractionHandlers({
       resolve: async (value) => {
         const current = identity(value);
-        if (options.interactions) {
-          const resolution = await options.interactions.resolved(
-            current.toolCallId,
-          );
-          const text = resolution?.text ?? resolution?.answer;
-          if (typeof text !== "string") return undefined;
-          return {
-            content: redactor.redactText(text),
-            details: { requestId: current.toolCallId, status: "submitted" },
-          };
-        }
-        const submitted = options.inputWaiter?.resolutionForRequest(
+        const resolution = await options.interactions?.resolved(
           current.toolCallId,
         );
-        if (submitted?.response?.text === undefined) return undefined;
+        const text = resolution?.text ?? resolution?.answer;
+        if (typeof text !== "string") return undefined;
         return {
-          content: redactor.redactText(submitted.response.text),
+          content: redactor.redactText(text),
           details: { requestId: current.toolCallId, status: "submitted" },
         };
       },
@@ -54,45 +44,31 @@ export function createSandboxInteractionHandlers(
           },
           { ...current.context, ...current.scope },
         );
-        if (options.interactions) {
-          options.interactions.setPending(current.toolCallId, {
-            kind: "question",
-            prompt: input.question,
-            context: input.context,
-            placeholder: input.placeholder,
-            required: true,
-          });
-          throw new AgentToolSuspension({
-            toolCallId: current.toolCallId,
-            toolName: "ask_user",
-            reason: `WAITING_FOR_INPUT: ${current.toolCallId}`,
-          });
+        if (!options.interactions) {
+          throw new Error(
+            "UNAVAILABLE: run interaction port is not configured",
+          );
         }
-        if (!options.inputWaiter) {
-          throw new Error("UNAVAILABLE: input waiter is not configured");
-        }
-        const wait = await options.inputWaiter.request({
-          requestId: current.toolCallId,
-          ...current.scope,
-          question: { text: input.question },
+        options.interactions.setPending(current.toolCallId, {
+          kind: "question",
+          prompt: input.question,
           context: input.context,
-          recommendation: input.recommendation,
           placeholder: input.placeholder,
-          redactedDisplay: { text: redactor.redactText(input.question) },
+          required: true,
         });
         throw new AgentToolSuspension({
           toolCallId: current.toolCallId,
           toolName: "ask_user",
-          reason: `WAITING_FOR_INPUT: ${wait.requestId}`,
+          reason: `WAITING_FOR_INPUT: ${current.toolCallId}`,
         });
       },
     }),
     ...createPlanHandlers({
       enter: async (_value, reason) => {
-        if (!options.planReviewWaiter || !options.configStore) {
+        if (!options.planReviewStore || !options.configStore) {
           throw new Error("UNAVAILABLE: plan mode is not configured");
         }
-        const planDir = await options.planReviewWaiter.ensurePlanDir();
+        const planDir = await options.planReviewStore.ensurePlanDir();
         const alreadyPlanning = options.configStore.read().mode === "planning";
         await options.configStore.update({ mode: "planning" });
         const resolvedReason = reason ?? "Agent entered planning mode.";
@@ -108,13 +84,13 @@ export function createSandboxInteractionHandlers(
       },
       present: async (value, request) => {
         const current = identity(value);
-        const waiter = options.planReviewWaiter;
-        if (!waiter) {
-          throw new Error("UNAVAILABLE: plan review waiter is not configured");
+        const store = options.planReviewStore;
+        if (!store) {
+          throw new Error("UNAVAILABLE: plan review store is not configured");
         }
-        // The waiter validates the plan file and builds the record (idempotent
-        // by providerToolCallId); it is a plan-file helper, not run authority.
-        const review = await waiter.request({
+        // The store validates the plan file and builds the record (idempotent
+        // by providerToolCallId); it is not run lifecycle authority.
+        const review = await store.createReview({
           providerToolCallId: current.toolCallId,
           ...current.scope,
           cwd: options.workspaceDir,

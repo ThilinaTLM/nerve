@@ -22,6 +22,7 @@ import {
   createNoopLogger,
   findExecutableCommandBlocks,
   formatInlineCommandResultText,
+  parseInlineCommandPrompt,
   replaceExecutableCommandBlocks,
   type SandboxConfigV1,
   type StructuredLogger,
@@ -58,6 +59,7 @@ export class SandboxRunExecutionFactory implements RunExecutionFactoryPort {
   constructor(private readonly deps: SandboxRunExecutionDeps) {}
 
   async create(run: RunRecord, sink: RunExecutionSink): Promise<RunExecution> {
+    await this.deps.harnessFactory.assertModelAvailable();
     return new SandboxRunExecution(run, sink, this.deps);
   }
 }
@@ -66,6 +68,7 @@ class SandboxRunExecution implements RunExecution {
   private harness?: AgentHarness;
   private readonly abort = new AbortController();
   private readonly toolCalls = new Map<string, ToolCallTranscriptRecord>();
+  private projectionTail: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly run: RunRecord,
@@ -102,10 +105,19 @@ class SandboxRunExecution implements RunExecution {
       runId: this.run.runId,
       executionId: this.run.executionId,
     });
-    if (input.signal.aborted) return { status: "interrupted", message: "aborted" };
+    if (input.signal.aborted)
+      return { status: "interrupted", message: "aborted" };
     input.signal.addEventListener("abort", () => this.abort.abort(), {
       once: true,
     });
+    if (input.command === "continue") {
+      await this.prepareResolvedPlanReview();
+    }
+    if (input.command === "start") {
+      const prompt = input.prompt ?? "";
+      const inline = parseInlineCommandPrompt(prompt);
+      if (inline) return this.executeInline(inline.command);
+    }
     let harness: AgentHarness;
     try {
       harness = await this.deps.harnessFactory.create(this.scope);
@@ -114,18 +126,20 @@ class SandboxRunExecution implements RunExecution {
     }
     this.harness = harness;
     this.deps.live.set(this.run.runId, { harness, abort: this.abort });
-    const dispose = harness.subscribe((event) =>
-      void this.project(event).catch((error) =>
-        log.warn("run projection failed", { err: error }),
-      ),
-    );
+    const dispose = harness.subscribe((event) => {
+      this.projectionTail = this.projectionTail
+        .then(() => this.project(event))
+        .catch((error) => log.warn("run projection failed", { err: error }));
+    });
     try {
       if (input.command === "continue") {
         await harness.continue();
       } else {
         const prompt = await this.resolvePrompt(input.prompt ?? "");
+        await this.appendUserEntry(prompt);
         await harness.prompt(prompt);
       }
+      await this.projectionTail;
       if (this.abort.signal.aborted) {
         return { status: "interrupted", message: "aborted" };
       }
@@ -154,6 +168,136 @@ class SandboxRunExecution implements RunExecution {
     } finally {
       dispose();
       this.deps.live.delete(this.run.runId);
+    }
+  }
+
+  private async prepareResolvedPlanReview(): Promise<void> {
+    const state = await this.deps.references.loadRun(this.run.runId);
+    const interaction = [...(state?.interactions ?? [])]
+      .reverse()
+      .find(
+        (item) => item.kind === "plan_review" && item.status === "resolved",
+      );
+    if (!interaction || interaction.kind !== "plan_review") return;
+    const decision = String(interaction.resolution?.decision ?? "accept");
+    const feedback =
+      typeof interaction.resolution?.feedback === "string"
+        ? interaction.resolution.feedback
+        : undefined;
+    const resolvedPlanReview =
+      interaction.resolution?.planReview &&
+      typeof interaction.resolution.planReview === "object"
+        ? interaction.resolution.planReview
+        : interaction.planReview;
+    const content = [
+      `Plan review decision: ${decision}.`,
+      feedback ? `Feedback: ${feedback}` : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const entryId = `entry_${sandboxSha256Digest(`${interaction.id}:${interaction.resolutionRequestId ?? "resolved"}`).slice(7, 23)}`;
+    const conversation =
+      await this.deps.harnessFactory.openOrCreateConversation(
+        interaction.conversationId,
+        interaction.agentId,
+      );
+    if (await conversation.getEntry(entryId)) return;
+    await this.deps.harnessFactory.appendConversationMessage(
+      interaction.conversationId,
+      interaction.agentId,
+      entryId,
+      {
+        role: "toolResult",
+        toolCallId: interaction.toolCallId,
+        toolName: "plan_mode_present",
+        content: [{ type: "text", text: content }],
+        details: {
+          decision,
+          feedback,
+          planReview: resolvedPlanReview,
+        },
+        isError: false,
+        timestamp: Date.now(),
+      },
+    );
+  }
+
+  private async appendUserEntry(prompt: string): Promise<void> {
+    if (!prompt) return;
+    await this.sink.appendEntries([
+      {
+        id: `entry_${sandboxSha256Digest(`${this.run.runId}:user:${this.run.attempt}`).slice(7, 23)}`,
+        conversationId: this.run.conversationId,
+        agentId: this.run.agentId,
+        runId: this.run.runId,
+        role: "user",
+        kind: "message",
+        text: prompt.slice(0, 200_000),
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }
+
+  private async executeInline(command: string): Promise<RunExecutionOutcome> {
+    const runtime = this.deps.toolRuntime;
+    if (!runtime) {
+      return {
+        status: "failed",
+        failure: {
+          code: "UNAVAILABLE",
+          message: "Inline command tool runtime is unavailable",
+          retryable: false,
+        },
+      };
+    }
+    try {
+      const providerToolCallId = `inline_${sandboxSha256Digest(`${this.run.runId}:${command}`).slice(7, 23)}`;
+      const started = this.toolCallRecord(
+        providerToolCallId,
+        "bash",
+        "running",
+        { command },
+      );
+      if (started) await this.sink.upsertToolCalls([started]);
+      const result = await runtime.execute(
+        "bash",
+        { command },
+        {
+          ...this.scope,
+          toolCallId: providerToolCallId,
+          signal: this.abort.signal,
+        },
+      );
+      const completed = this.toolCallRecord(
+        providerToolCallId,
+        "bash",
+        "completed",
+        undefined,
+        result,
+      );
+      if (completed) await this.sink.upsertToolCalls([completed]);
+      const text = formatInlineCommandResultText({
+        command,
+        output: result.content || "(no output)",
+        status: "completed",
+        exitCode: result.exitCode,
+      });
+      await this.sink.appendEntries([
+        {
+          id: `entry_${sandboxSha256Digest(`${this.run.runId}:inline:${this.run.attempt}`).slice(7, 23)}`,
+          conversationId: this.run.conversationId,
+          agentId: this.run.agentId,
+          runId: this.run.runId,
+          role: "system",
+          kind: "message",
+          text: text.slice(0, 200_000),
+          details: { type: "inline_command_result", command },
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      return { status: "completed" };
+    } catch (error) {
+      return { status: "failed", failure: normalizeFailure(error) };
     }
   }
 
@@ -234,11 +378,25 @@ class SandboxRunExecution implements RunExecution {
     knownDetail?: import("./pending-interactions.js").PendingInteractionDetail,
   ): Promise<void> {
     const command = knownDetail ?? this.deps.pending.take(toolCallId);
-    // The interaction id defaults to the provider toolCallId so client
-    // resolution ids, the durable interaction, and the tool's resume lookup
-    // align; plan review overrides it with the review record id.
     const interactionId = command?.interactionId ?? toolCallId;
-    const checkpoint = await this.checkpointCommand("suspension", interactionId);
+    const waitKind = command?.kind ?? "question";
+    // Commit the final waiting tool revision before capturing checkpoint
+    // references so restart validation observes the same lifecycle revision.
+    const currentTool = this.toolCalls.get(toolCallId);
+    if (currentTool) {
+      const updated: ToolCallTranscriptRecord = {
+        ...currentTool,
+        status:
+          waitKind === "approval" ? "pending_approval" : "waiting_for_user",
+        updatedAt: new Date().toISOString(),
+      };
+      this.toolCalls.set(toolCallId, updated);
+      await this.sink.upsertToolCalls([updated]);
+    }
+    const checkpoint = await this.checkpointCommand(
+      "suspension",
+      interactionId,
+    );
     const wait: WaitCommand = command
       ? { ...command, interactionId, toolCallId, checkpoint }
       : {
@@ -249,17 +407,6 @@ class SandboxRunExecution implements RunExecution {
           required: true,
           checkpoint,
         };
-    const currentTool = this.toolCalls.get(toolCallId);
-    if (currentTool) {
-      const updated: ToolCallTranscriptRecord = {
-        ...currentTool,
-        status:
-          wait.kind === "approval" ? "pending_approval" : "waiting_for_user",
-        updatedAt: new Date().toISOString(),
-      };
-      this.toolCalls.set(toolCallId, updated);
-      await this.sink.upsertToolCalls([updated]);
-    }
     await this.sink.wait(wait);
   }
 
@@ -369,13 +516,16 @@ class SandboxRunExecution implements RunExecution {
       conversationId: this.run.conversationId,
       projectId: this.run.projectId,
       runId: this.run.runId,
+      turnId: `turn_${sandboxSha256Digest(`${this.run.runId}:${this.run.attempt}`).slice(7, 23)}`,
+      liveMessageId: `msg_${sandboxSha256Digest(`${this.run.runId}:${providerToolCallId}`).slice(7, 23)}`,
+      contentIndex: 0,
       toolName: parsedName.data,
       providerToolCallId,
       risk: toolRisk(parsedName.data),
       cwd: this.deps.config.agent.workspaceRoot ?? process.cwd(),
       status,
       argsPreview: args ?? previous?.argsPreview,
-      resultPreview: result,
+      resultPreview: previewResult(result),
       createdAt: previous?.createdAt ?? now,
       updatedAt: now,
     };
@@ -397,9 +547,24 @@ function messageText(message: AgentMessage): string {
     .join("");
 }
 
-function toolRisk(
-  toolName: string,
-): ToolCallTranscriptRecord["risk"] {
+function previewResult(result: unknown): unknown {
+  if (!result || typeof result !== "object") return result;
+  const content = (result as { content?: unknown }).content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const text = content
+      .map((block) =>
+        block && typeof block === "object" && "text" in block
+          ? String((block as { text?: unknown }).text ?? "")
+          : "",
+      )
+      .join("");
+    return text ? { content: text } : result;
+  }
+  return result;
+}
+
+function toolRisk(toolName: string): ToolCallTranscriptRecord["risk"] {
   if (["ask_user", "plan_mode_present", "plan_mode_enter"].includes(toolName))
     return "interaction";
   if (toolName === "bash") return "command";

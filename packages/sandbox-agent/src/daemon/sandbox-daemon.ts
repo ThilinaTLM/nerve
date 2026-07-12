@@ -1,9 +1,7 @@
 /* eslint-disable max-lines -- The daemon centralizes command registration and runtime wiring. */
 import type {
   ContextFileStatus,
-  PlanReviewRecord,
   SandboxConfigV1,
-  SandboxRunStatus,
   SkillStatus,
   StartupSetupStatus,
   StructuredLogger,
@@ -21,17 +19,14 @@ import {
 import { ExploreRuntime } from "../agent/explore-runtime.js";
 
 import { HarnessFactory } from "../agent/harness-factory.js";
-import { ToolCallStore } from "../agent/tool-call-store.js";
-import { toolResultPreview } from "../agent/tool-result-preview.js";
 import type { SecretResolver } from "../credentials/secret-resolver.js";
 import type { ResolvedModelRuntime } from "../models/model-runtime.js";
 import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
-import { sandboxSha256Digest } from "../state/hash.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
 import {
-  PlanReviewWaiter,
+  SandboxPlanReviewStore,
   sandboxProjectId,
-} from "../tools/plan-review-waiter.js";
+} from "../tools/plan-review-store.js";
 import { SandboxTaskService } from "../tools/sandbox-task-service.js";
 
 import { SandboxToolRuntime } from "../tools/tool-runtime.js";
@@ -69,8 +64,7 @@ export class SandboxDaemon {
   readonly status = new DaemonStatusMachine();
   readonly router = new SandboxOperationRouter();
   readonly startedAt = new Date().toISOString();
-  private toolCallStore?: ToolCallStore;
-  private planReviewWaiter?: PlanReviewWaiter;
+  private planReviewStore?: SandboxPlanReviewStore;
   private runRuntime?: SandboxRunRuntime;
   private taskService?: SandboxTaskService;
   private toolRuntime?: SandboxToolRuntime;
@@ -143,16 +137,13 @@ export class SandboxDaemon {
       process.cwd();
     const state = this.state;
     const logger = recovered.logger ?? this.logger;
-    this.toolCallStore = new ToolCallStore(state.stateDir);
     // Retained narrowly as a plan-file validator/record builder until the plan
     // storage adapter is separated; it no longer owns run wait lifecycle.
-    this.planReviewWaiter = new PlanReviewWaiter(
+    this.planReviewStore = new SandboxPlanReviewStore(
       state.stateDir,
       sandboxProjectId(this.identity.sandboxId),
     );
-    const loadPromises: Array<Promise<unknown>> = [
-      this.planReviewWaiter.load(),
-    ];
+    const loadPromises: Array<Promise<unknown>> = [this.planReviewStore.load()];
     this.agentConfigStore = new AgentConfigStore(state.stateDir);
     loadPromises.push(this.agentConfigStore.load());
     const taskConfig = this.config.tools?.groups?.taskManagement;
@@ -170,16 +161,14 @@ export class SandboxDaemon {
       stateDir: state.stateDir,
       readOnly: true,
       secretResolver: recovered.secretResolver,
-      toolCallStore: this.toolCallStore,
     });
     this.toolRuntime = new SandboxToolRuntime(this.config, {
       workspaceDir: this.workspaceDir,
       stateDir: state.stateDir,
       secretResolver: recovered.secretResolver,
-      planReviewWaiter: this.planReviewWaiter,
+      planReviewStore: this.planReviewStore,
       configStore: this.agentConfigStore,
       taskService: this.taskService,
-      toolCallStore: this.toolCallStore,
     });
     const factory = new HarnessFactory(this.config, {
       workspaceDir: this.workspaceDir,
@@ -243,7 +232,7 @@ export class SandboxDaemon {
       const runs = (await this.runRuntime?.query.runLikes()) ?? [];
       const ack = await this.state?.events.ackState();
       const modelSummaries = this.modelSummaries();
-      const waits: never[] = [];
+      const waits = (await this.runRuntime?.query.waits()) ?? [];
       const startup = summarizeSandboxStartupEvents(
         this.state?.events.all() ?? [],
       );
@@ -265,12 +254,7 @@ export class SandboxDaemon {
         connectivity: { state: "connected", connectedAt: this.startedAt },
         conversations: summarizeConversations(runs),
         agents: summarizeAgents(runs, modelSummaries[0]),
-        runs: await summarizeRuns(
-          runs,
-          waits,
-          undefined,
-          this.state?.stateDir,
-        ),
+        runs: await summarizeRuns(runs, waits, this.state?.stateDir),
         agentConfig: sanitizeEffectiveAgentConfig(
           this.config,
           this.agentConfigStore,
@@ -282,6 +266,7 @@ export class SandboxDaemon {
         this.state?.events.all() ?? [],
       );
       const snapshotRuns = (await this.runRuntime?.query.runLikes()) ?? [];
+      const snapshotWaits = (await this.runRuntime?.query.waits()) ?? [];
       return buildSandboxSnapshot({
         config: this.config,
         configDigest: this.configDigest,
@@ -296,8 +281,7 @@ export class SandboxDaemon {
         agents: summarizeAgents(snapshotRuns, this.modelSummaries()[0]),
         runs: await summarizeRuns(
           snapshotRuns,
-          [],
-          undefined,
+          snapshotWaits,
           this.state?.stateDir,
         ),
         toolGroups: this.toolRuntime?.groups() ?? [],
@@ -317,7 +301,6 @@ export class SandboxDaemon {
         const states = (await this.runRuntime?.query.states()) ?? [];
         const snapshot = await buildConversationSnapshot({
           config: this.config,
-          sandboxId: this.identity.sandboxId,
           instanceId: this.identity.instanceId,
           states,
           cursorSeq: this.state?.events.all().at(-1)?.seq ?? 0,
@@ -406,22 +389,18 @@ export class SandboxDaemon {
         runId: string;
         toolCallId: string;
       };
-      const records = await this.toolCallStore?.latestByToolCallId(input);
-      const toolCall = records?.get(input.toolCallId);
-      if (!toolCall)
+      const details = await this.runRuntime?.query.toolCall(
+        input.toolCallId,
+        input.runId,
+      );
+      if (!details)
         throw new SandboxOperationError("UNKNOWN_RUN", "Tool call not found");
-      return {
-        toolCall,
-        argsPreview: toolCall.displayArgs,
-        resultPreview: toolResultPreview(toolCall.result),
-        displayTitle: toolCall.toolName,
-        displaySummary: toolCall.error?.message,
-      };
+      return details;
     });
     this.router.register("run.start", async (params, context) => {
       await this.requireReady();
       const parsed = runStartParamsSchema.parse(params ?? {});
-      const accepted = await this.acceptRequest(
+      await this.acceptRequest(
         "run.start",
         params,
         context.idempotencyKey,
@@ -472,6 +451,14 @@ export class SandboxDaemon {
           scopeId: scope.scopeId,
           prompt,
         });
+        if (run.status === "failed" && run.failure) {
+          throw new SandboxOperationError(
+            run.failure.code === "RUN_CONSTRUCTION_FAILED"
+              ? "UNAVAILABLE"
+              : "INTERNAL",
+            run.failure.message,
+          );
+        }
       } catch (error) {
         throw mapRuntimeError(error);
       }
@@ -649,6 +636,15 @@ export class SandboxDaemon {
             : decision === "request_changes"
               ? "changes_requested"
               : "discarded";
+        const planRecord = await this.planReviewStore?.recordResolution({
+          reviewId: input.reviewId,
+          ...scope,
+          decision,
+          feedback: input.feedback,
+          implementationModel: input.implementationModel,
+          implementationThinkingLevel: input.implementationThinkingLevel,
+          resolutionRequestId: accepted.requestId,
+        });
         await this.state?.events.append({
           type: "planReview.updated",
           durability: "durable",
@@ -662,7 +658,7 @@ export class SandboxDaemon {
             ...scope,
             reviewId: interaction.planReview.id,
             decision,
-            planReview: {
+            planReview: planRecord?.review ?? {
               ...interaction.planReview,
               status: reviewStatus,
               updatedAt: resolvedAt,
@@ -675,7 +671,11 @@ export class SandboxDaemon {
         await coordinator.resolveInteraction(interaction.runId, {
           interactionId: input.reviewId,
           resolutionRequestId: accepted.requestId,
-          resolution: { decision, feedback: input.feedback },
+          resolution: {
+            decision,
+            feedback: input.feedback,
+            planReview: planRecord?.review,
+          },
         });
         await coordinator.continue(interaction.runId);
         const resultEnvelope = {
@@ -775,7 +775,8 @@ export class SandboxDaemon {
 
   private runScope(p: Record<string, unknown>) {
     const conversationId =
-      typeof p.conversationId === "string" && p.conversationId.startsWith("conv_")
+      typeof p.conversationId === "string" &&
+      p.conversationId.startsWith("conv_")
         ? p.conversationId
         : `conv_${Date.now()}`;
     const agentId =
@@ -825,28 +826,3 @@ export class SandboxDaemon {
     return { requestId: requestId ?? idempotencyKey ?? `req_${Date.now()}` };
   }
 }
-
-function planReviewToolResult(
-  review: PlanReviewRecord,
-): Record<string, unknown> {
-  const content =
-    review.status === "accepted"
-      ? "Plan accepted. Implement the accepted plan now."
-      : review.status === "changes_requested"
-        ? "Plan changes requested. Revise the plan using the feedback and present it again."
-        : "Plan discarded.";
-  return {
-    review,
-    outcome: review.status,
-    feedback: review.feedback,
-    mode: review.status === "accepted" ? "coding" : "planning",
-    content,
-    contentBlocks: [{ type: "text", text: content }],
-  };
-}
-
-function toolResultEntryId(runId: string, toolCallId: string): string {
-  return `msg_tool_result_${sandboxSha256Digest(`${runId}:${toolCallId}`).slice(7, 23)}`;
-}
-
-

@@ -3,10 +3,11 @@ import path from "node:path";
 import {
   deriveConversationTitle,
   type SandboxAgentRelationshipRecord,
+  type SandboxToolCallSummary,
+  type SandboxTranscriptSummaryEntry,
   type SandboxRunStatus,
 } from "@nervekit/contracts";
 
-import type { RunManager } from "../agent/run-manager.js";
 import { Redactor } from "../security/redaction.js";
 
 export type RunLike = {
@@ -22,10 +23,24 @@ export type RunLike = {
   prompt?: unknown;
   error?: unknown;
   lastCheckpointId?: unknown;
-  transcript?: any[];
-  toolCalls?: any[];
-  checkpoints?: any[];
-  executions?: any[];
+  transcript?: SandboxTranscriptSummaryEntry[];
+  toolCalls?: SandboxToolCallSummary[];
+  checkpoints?: Array<{
+    checkpointId: string;
+    status: SandboxRunStatus;
+    createdAt: string;
+    summary?: unknown;
+  }>;
+  executions?: Array<{
+    executionId: string;
+    attempt: number;
+    status: string;
+    startedAt: string;
+    completedAt?: string;
+    recoverability?: string;
+    error?: { code: string; message: string; retryable?: boolean };
+    lastCheckpointId?: string;
+  }>;
 };
 
 export function summarizeConversations(runs: RunLike[]) {
@@ -108,7 +123,6 @@ export function summarizeAgents(runs: RunLike[], model?: unknown) {
 export async function summarizeRuns(
   runs: RunLike[],
   waits: unknown[] = [],
-  manager?: RunManager,
   stateDir?: string,
 ) {
   return Promise.all(
@@ -120,33 +134,11 @@ export async function summarizeRuns(
             runId: run.runId,
           }
         : undefined;
-      const executions = scope
-        ? await manager?.executionStore().list(scope)
-        : undefined;
-      const transcript = scope
-        ? manager
-          ? ((await manager.transcriptStore().read(scope)) ?? [])
-              .slice(-20)
-              .map((entry) => summarizeTranscriptEntry(entry))
-          : run.transcript?.slice(-20)
-        : undefined;
-      const toolCalls = scope
-        ? manager
-          ? Array.from(
-              (
-                (await manager.toolCallStore().latestByToolCallId(scope)) ??
-                new Map()
-              ).values(),
-            ).slice(-50)
-          : run.toolCalls?.slice(-50)
-        : undefined;
-      const checkpoints = scope
-        ? manager
-          ? ((await manager.checkpointStore().list(scope)) ?? []).slice(-20)
-          : run.checkpoints?.slice(-20)
-        : undefined;
-      const projectionExecutions = executions ?? run.executions;
-      const latestExecution = projectionExecutions?.at(-1) as any;
+      const transcript = scope ? run.transcript?.slice(-20) : undefined;
+      const toolCalls = scope ? run.toolCalls?.slice(-50) : undefined;
+      const checkpoints = scope ? run.checkpoints?.slice(-20) : undefined;
+      const projectionExecutions = run.executions;
+      const latestExecution = projectionExecutions?.at(-1);
       const childAgents = scope
         ? await readChildAgents(stateDir, scope).then((entries) =>
             entries.slice(-20),
@@ -197,7 +189,7 @@ export async function summarizeRuns(
           createdAt: checkpoint.createdAt,
           summary: checkpoint.summary,
         })),
-        executions: projectionExecutions?.map((execution: any) => ({
+        executions: projectionExecutions?.map((execution) => ({
           executionId: execution.executionId,
           attempt: execution.attempt,
           status: execution.status,
@@ -347,29 +339,6 @@ async function readTasks(
   return tasks.sort((a, b) =>
     String(a.startedAt ?? "").localeCompare(String(b.startedAt ?? "")),
   );
-}
-
-function summarizeTranscriptEntry(entry: unknown) {
-  const value = entry as Record<string, unknown>;
-  const content = value.content as Record<string, unknown> | undefined;
-  const hasArtifact =
-    content &&
-    (typeof content.path === "string" || typeof content.contentId === "string");
-  return {
-    entryId: String(value.entryId ?? `entry_${Date.now()}`),
-    index: typeof value.index === "number" ? value.index : undefined,
-    role:
-      value.role === "user" ||
-      value.role === "assistant" ||
-      value.role === "tool" ||
-      value.role === "system"
-        ? value.role
-        : "system",
-    content: hasArtifact ? undefined : content,
-    artifactRefs: hasArtifact ? [content] : undefined,
-    createdAt:
-      typeof value.createdAt === "string" ? value.createdAt : undefined,
-  };
 }
 
 function summarizeWaitsForRun(waits: unknown[], runId: string) {

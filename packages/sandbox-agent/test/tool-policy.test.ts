@@ -16,7 +16,6 @@ import {
 } from "../src/credentials/secret-resolver.js";
 import { SecretStoreRegistry } from "../src/secret-stores/secret-store-registry.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
-import { ApprovalWaiter } from "../src/tools/approval-waiter.js";
 import { SandboxTaskService } from "../src/tools/sandbox-task-service.js";
 import { enforceToolPolicy } from "../src/tools/tool-policy.js";
 import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
@@ -137,33 +136,6 @@ describe("sandbox tool policy", () => {
           }),
         /denied while planning/,
       );
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("persists approval waits and rejects conflicting resolutions", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-approvals-"));
-    try {
-      const waiter = new ApprovalWaiter(dir);
-      await waiter.request({
-        id: "approval_1",
-        toolCallId: "tool_1",
-        reason: "risky",
-        risk: ["destructive"],
-        normalizedArgs: {},
-      });
-      assert.equal(
-        (await waiter.resolve("approval_1", "grant")).resolved?.decision,
-        "grant",
-      );
-      await assert.rejects(
-        () => waiter.resolve("approval_1", "deny"),
-        /Conflicting/,
-      );
-      const recovered = new ApprovalWaiter(dir);
-      await recovered.load();
-      assert.equal(recovered.list()[0]?.resolved?.decision, "grant");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

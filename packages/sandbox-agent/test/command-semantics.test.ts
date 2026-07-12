@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appendFile, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -324,32 +324,12 @@ describe("sandbox daemon operation semantics", () => {
         { workspaceDir: process.cwd() },
       );
       daemon.start();
+      const command = "printf 'details preserved\\n'";
       const run = (await daemon.router.dispatch("run.start", {
         requestId: "cmd_details",
-        text: "think then answer",
+        text: `!${command}`,
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, run.runId, "completed");
-      const transcriptPath = path.join(
-        dir,
-        "conversations",
-        run.conversationId,
-        "agents",
-        run.agentId,
-        "runs",
-        run.runId,
-        "transcript.jsonl",
-      );
-      await appendFile(
-        transcriptPath,
-        `${JSON.stringify({
-          entryId: "entry_details",
-          index: 99,
-          role: "assistant",
-          content: { text: "final" },
-          details: { thinkingBlocks: [{ text: "hidden chain summary" }] },
-          createdAt: "2026-07-07T03:10:00.000Z",
-        })}\n`,
-      );
 
       const result = (await daemon.router.dispatch(
         "sandbox.conversation.snapshot.get",
@@ -359,13 +339,16 @@ describe("sandbox daemon operation semantics", () => {
           runId: run.runId,
         },
       )) as {
-        snapshot?: { entries: Array<{ id: string; details?: unknown }> };
+        snapshot?: {
+          entries: Array<{ role: string; details?: unknown }>;
+        };
       };
       const entry = result.snapshot?.entries.find(
-        (candidate) => candidate.id === "entry_details",
+        (candidate) => candidate.role === "system",
       );
       assert.deepEqual(entry?.details, {
-        thinkingBlocks: [{ text: "hidden chain summary" }],
+        type: "inline_command_result",
+        command,
       });
     } finally {
       await rm(dir, { recursive: true, force: true });
