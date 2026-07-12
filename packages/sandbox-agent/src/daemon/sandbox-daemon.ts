@@ -625,69 +625,21 @@ export class SandboxDaemon {
         context.requestId,
       );
       try {
-        const wait = this.inputWaiter?.get(input.questionId);
-        if (!wait)
-          throw new Error(`Unknown input request: ${input.questionId}`);
-        if (wait.status === "submitted" && wait.response?.text !== input.answer)
-          throw new Error(`Conflicting input submission: ${input.questionId}`);
-        const scope = {
-          conversationId: wait.conversationId,
-          agentId: wait.agentId,
-          runId: wait.runId,
-        };
-        const entryId = toolResultEntryId(scope.runId, input.questionId);
-        const toolResult = {
-          question: wait.question.text,
-          context: wait.context,
-          recommendation: wait.recommendation,
-          response: input.answer,
-        };
-        const message: AgentMessage = {
-          role: "toolResult",
-          toolCallId: input.questionId,
-          toolName: "ask_user",
-          content: [{ type: "text", text: input.answer.slice(0, 16_000) }],
-          details: toolResult,
-          isError: false,
-          timestamp: Date.now(),
-        };
-        await this.harnessFactory?.appendConversationMessage(
-          scope.conversationId,
-          scope.agentId,
-          entryId,
-          message,
-        );
-        const checkpoint = await this.runs?.writeCheckpoint(
-          scope,
-          "input_resolution",
-          {
-            status: "waiting_for_input",
-            waitId: input.questionId,
-            resolutionId: accepted.requestId,
-            transcriptEntryId: entryId,
-            summary: { text: "user input submitted" },
-          },
-        );
-        await this.inputWaiter?.submit({
-          ...scope,
-          requestId: input.questionId,
-          text: input.answer,
-          resolutionRequestId: accepted.requestId,
-          toolResultEntryId: entryId,
-          checkpointId: checkpoint?.checkpointId,
-        });
-        await this.bridge?.completeSuspendedTool(
-          scope,
+        const coordinator = this.requireCoordinator();
+        const interaction = await this.runRuntime!.references.interaction(
           input.questionId,
-          "ask_user",
-          toolResult,
         );
-        const run = await this.runs?.read(scope);
-        if (run?.status === "waiting_for_input")
-          await this.agentRuntime?.continueRun({
-            ...scope,
-            reason: "input_submitted",
-          });
+        if (!interaction)
+          throw new Error(`Unknown input request: ${input.questionId}`);
+        // Resolve the durable interaction, then resume from its checkpoint. The
+        // harness re-runs ask_user, whose resolve callback reads this durable
+        // resolution and returns the answer without a manual transcript write.
+        await coordinator.resolveInteraction(interaction.runId, {
+          interactionId: input.questionId,
+          resolutionRequestId: accepted.requestId,
+          resolution: { text: input.answer },
+        });
+        await coordinator.continue(interaction.runId);
       } catch (error) {
         if (error instanceof SandboxOperationError) throw error;
         const mapped = mapWaitError(error, "UNKNOWN_INPUT_REQUEST");
