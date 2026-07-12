@@ -42,11 +42,25 @@ export class RpcForwarder {
   private readonly logger?: StructuredLogger;
   constructor(
     private readonly sandboxId = "unknown",
-    options: { maxPending?: number; logger?: StructuredLogger } = {},
+    options: {
+      maxPending?: number;
+      logger?: StructuredLogger;
+      request?: (
+        method: string,
+        params: unknown,
+        options: { idempotencyKey?: string; timeoutMs?: number },
+      ) => Promise<unknown>;
+    } = {},
   ) {
     this.maxPending = options.maxPending ?? 100;
     this.logger = options.logger;
+    this.request = options.request;
   }
+  private readonly request?: (
+    method: string,
+    params: unknown,
+    options: { idempotencyKey?: string; timeoutMs?: number },
+  ) => Promise<unknown>;
 
   pendingCount(): number {
     return this.pending.size;
@@ -59,6 +73,8 @@ export class RpcForwarder {
     idempotencyKey?: string,
     timeoutMs = 30_000,
   ): Promise<unknown> {
+    if (this.request)
+      return this.request(method, params, { idempotencyKey, timeoutMs });
     if (this.pending.size >= this.maxPending) {
       return Promise.reject(
         new ForwardedRpcError(

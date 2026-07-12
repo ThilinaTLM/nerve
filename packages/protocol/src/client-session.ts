@@ -50,6 +50,8 @@ export interface ClientSessionOptions {
   readonly sessionId?: () => string | undefined;
   readonly send: (message: NerveMessage) => void | Promise<void>;
   readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
+  /** Optional host readiness gate resolved before the protocol ready frame. */
+  readonly awaitReady?: (welcome: WelcomeData) => void | Promise<void>;
   readonly onReady?: (welcome: WelcomeData) => void | Promise<void>;
   readonly onSnapshotRequired?: (welcome: WelcomeData) => void | Promise<void>;
   readonly onReplayUnavailable?: (
@@ -60,6 +62,10 @@ export interface ClientSessionOptions {
     event: EventEnvelope<Record<string, unknown>>,
   ) => void | Promise<void>;
   readonly onFlowUpdate?: (message: ProtocolV1Message) => void | Promise<void>;
+  readonly rpcDispatcher?: import("./rpc.js").RpcDispatcher;
+  readonly onAck?: (
+    message: ProtocolV1Message & { kind: "event.ack" },
+  ) => void | Promise<void>;
   readonly onDisconnect?: (error: Error) => void | Promise<void>;
   readonly snapshotRecovery?: SnapshotRecovery;
   readonly installSnapshot?: (
@@ -166,6 +172,7 @@ export class ProtocolClientSession {
       }
       this.sessionId = welcome.sessionId;
       this.#acceptingPeer = welcome.acceptingPeer;
+      await this.#options.awaitReady?.(welcome);
       await this.#options.send(
         this.#options.createMessage("ready", {
           sessionId: welcome.sessionId,
@@ -194,6 +201,31 @@ export class ProtocolClientSession {
       );
     }
     const rpcHandled = this.#rpc.handle(message);
+    if (message.kind === "request" && this.#options.rpcDispatcher) {
+      const result = await this.#options.rpcDispatcher.dispatch(message);
+      await this.#options.send(
+        result.ok
+          ? this.#options.createMessage(
+              "response",
+              { ok: true, method: message.data.method, result: result.result },
+              {
+                target: message.source,
+                replyTo: message.id,
+                correlationId: message.id,
+              },
+            )
+          : this.#options.createMessage("error", result.error, {
+              target: message.source,
+              replyTo: message.id,
+              correlationId: message.id,
+            }),
+      );
+      return;
+    }
+    if (message.kind === "event.ack") {
+      await this.#options.onAck?.(message);
+      return;
+    }
     if (message.kind === "error" && message.data.close) {
       await this.#options.onMessage?.(message);
       this.disconnect(new Error(message.data.message));
@@ -277,6 +309,14 @@ export class ProtocolClientSession {
       return;
     }
     await this.#options.onMessage?.(message);
+  }
+
+  async publishEventBatch(
+    data: Extract<ProtocolV1Message, { kind: "event.batch" }>["data"],
+  ): Promise<void> {
+    if (this.state !== "ready")
+      throw new SessionStateError("Event publication requires a ready session");
+    await this.#options.send(this.#options.createMessage("event.batch", data));
   }
 
   request<M extends OperationName>(

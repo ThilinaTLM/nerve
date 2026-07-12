@@ -25,7 +25,7 @@ import {
   sandboxActivitySummarySchema,
   runAcceptedResultSchema,
 } from "@nervekit/contracts";
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { SvelteSet } from "svelte/reactivity";
 import { notify } from "@nervekit/ui-kit/core/notify";
 import {
   applyConversationEvent,
@@ -78,7 +78,6 @@ import {
   sandboxCanQueuePrompt,
   sandboxIsConnected,
   sandboxLifecycleMessage,
-  sandboxShouldPollStatus,
 } from "./sandbox-lifecycle";
 import { applySnapshot } from "./sandbox-snapshot-adapter";
 import type { SandboxFleetFilter } from "./sandbox-status";
@@ -169,10 +168,6 @@ export class SandboxManagerStore {
   private ws: ManagerWsClient;
   private readonly conversationsLoading = new SvelteSet<string>();
   private fleetRefreshTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly statusPollTimers = new SvelteMap<
-    string,
-    ReturnType<typeof setTimeout>
-  >();
   private readonly operationCleanupTimers = new SvelteSet<
     ReturnType<typeof setTimeout>
   >();
@@ -190,14 +185,28 @@ export class SandboxManagerStore {
         if (this.selectedSandboxId)
           void this.loadDetail(this.selectedSandboxId);
       },
-      onReplayUnavailable: (streams) => {
-        for (const stream of streams) {
+      onSnapshotRecovery: async (streams) => {
+        await Promise.all(
+          streams.map((stream) => {
+            const sandboxId = stream.startsWith("sandbox:")
+              ? stream.slice("sandbox:".length)
+              : undefined;
+            return sandboxId
+              ? this.recoverConversationSnapshot(sandboxId)
+              : this.refreshFleet();
+          }),
+        );
+        return streams.map((stream) => {
           const sandboxId = stream.startsWith("sandbox:")
             ? stream.slice("sandbox:".length)
             : undefined;
-          if (sandboxId) void this.recoverConversationSnapshot(sandboxId);
-          else void this.refreshFleet();
-        }
+          return {
+            stream,
+            processedSeq: sandboxId
+              ? (this.details[sandboxId]?.lastRichSnapshot?.cursorSeq ?? 0)
+              : 0,
+          };
+        });
       },
     });
   }
@@ -215,7 +224,6 @@ export class SandboxManagerStore {
   dispose(): void {
     this.disposed = true;
     if (this.fleetRefreshTimer) clearTimeout(this.fleetRefreshTimer);
-    this.stopStatusPolling();
     for (const timer of this.operationCleanupTimers) clearTimeout(timer);
     this.operationCleanupTimers.clear();
     this.ws.close();
@@ -281,67 +289,11 @@ export class SandboxManagerStore {
   }
 
   async selectSandbox(sandboxId: string | undefined): Promise<void> {
-    this.stopStatusPolling();
     this.selectedSandboxId = sandboxId;
     if (!sandboxId) return;
     this.detail(sandboxId);
     this.ws.subscribeStream(sandboxId);
     await this.loadDetail(sandboxId);
-    // The status snapshot is only fetched on load and live boot events can be
-    // missed on a fresh subscription, so poll until the controller connects to
-    // reliably observe the boot -> ready transition.
-    this.ensureStatusPolling(sandboxId);
-  }
-
-  private ensureStatusPolling(sandboxId: string): void {
-    if (this.disposed || this.selectedSandboxId !== sandboxId) return;
-    if (this.statusPollTimers.has(sandboxId)) return;
-    const detail = this.details[sandboxId];
-    const record = this.sandboxes.find((item) => item.sandboxId === sandboxId);
-    if (!sandboxShouldPollStatus(record, detail)) return;
-    const timer = setTimeout(() => {
-      this.statusPollTimers.delete(sandboxId);
-      void this.pollStatusOnce(sandboxId);
-    }, 1500);
-    this.statusPollTimers.set(sandboxId, timer);
-  }
-
-  private async pollStatusOnce(sandboxId: string): Promise<void> {
-    if (this.disposed || this.selectedSandboxId !== sandboxId) return;
-    const detail = this.details[sandboxId];
-    if (!detail) return;
-    try {
-      const status = await api.getSandboxStatus(sandboxId);
-      const wasConnected = sandboxIsConnected(detail);
-      detail.status = status;
-      detail.controllerConnected = status.connected;
-      if (status.connected) void this.flushQueuedPrompt(sandboxId);
-      const shouldStopPolling = !sandboxShouldPollStatus(
-        recordForDetail(this, sandboxId),
-        detail,
-      );
-      if ((status.connected && !wasConnected) || shouldStopPolling) {
-        // Fully sync record/snapshot/session once the controller is live or
-        // when manager-derived status observes an offline/failed lifecycle.
-        void this.refreshFleet();
-        void this.loadDetail(sandboxId);
-        return;
-      }
-    } catch {
-      // Status can be unavailable while the controller is still booting.
-    }
-    this.ensureStatusPolling(sandboxId);
-  }
-
-  private stopStatusPolling(sandboxId?: string): void {
-    if (sandboxId) {
-      const timer = this.statusPollTimers.get(sandboxId);
-      if (timer) clearTimeout(timer);
-      this.statusPollTimers.delete(sandboxId);
-      return;
-    }
-    for (const timer of this.statusPollTimers.values()) clearTimeout(timer);
-    this.statusPollTimers.clear();
   }
 
   async loadDetail(sandboxId: string): Promise<void> {
@@ -465,7 +417,6 @@ export class SandboxManagerStore {
       readOnly: result.fallback?.readOnly,
       reason: result.fallback?.reason,
     };
-    this.ws.markSnapshotRecovered(`sandbox:${sandboxId}`);
   }
 
   async previewSandboxConfigYaml(
@@ -1304,7 +1255,6 @@ export class SandboxManagerStore {
     applySandboxEvent(detail, uiEvent);
     if (envelope.type === "sandbox.controller.disconnected") {
       if (detail.status) detail.status.connected = false;
-      this.ensureStatusPolling(sandboxId);
     }
     if (
       envelope.type === "sandbox.ready" ||

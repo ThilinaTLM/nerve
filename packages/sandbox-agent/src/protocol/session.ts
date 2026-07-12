@@ -1,11 +1,11 @@
 import {
   allOperationDefinitions,
   createLogger,
-  type NerveMessage,
   operationNameSchema,
+  type NerveMessage,
+  type OperationName,
   type ProtocolErrorData,
   type ProtocolRequestData,
-  type ProtocolV1Message,
   type SandboxConfigV1,
   type SandboxOutboxRecord,
   type StructuredLogger,
@@ -13,15 +13,21 @@ import {
 import {
   buildEventBatch,
   createMessageFactory,
+  nodeWebSocketTransportFactory,
+  ProtocolClientConnection,
+  ProtocolClientSession,
   RpcDispatcher,
   type OperationHandlerRegistry,
+  type ProtocolClientConnectionState,
+  ReconnectPolicy,
+  type WebSocketLike,
 } from "@nervekit/protocol";
+import WebSocket from "ws";
 import { SecretResolver } from "../credentials/secret-resolver.js";
 import { SandboxOperationError } from "../daemon/errors.js";
 import type { SandboxDaemon } from "../daemon/sandbox-daemon.js";
 import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
-import { SandboxWebSocketClient } from "./websocket-client.js";
 
 export type ProtocolSessionState =
   | "disconnected"
@@ -59,7 +65,7 @@ export function sandboxDaemonCapabilities(config: SandboxConfigV1): string[] {
   capabilities.add("sandbox.multi_agent_state.v1");
   if (config.security?.network)
     capabilities.add("sandbox.network.egress_policy.v1");
-  return Array.from(capabilities).sort();
+  return [...capabilities].sort();
 }
 
 export class ProtocolSession {
@@ -67,30 +73,16 @@ export class ProtocolSession {
   sessionId?: string;
   connectedAt?: string;
   disconnectedAt?: string;
-  private client?: SandboxWebSocketClient;
-  private heartbeat?: NodeJS.Timeout;
-  private heartbeatTimeout?: NodeJS.Timeout;
-  private reconnectAttempts = 0;
-  private reconnectScheduled = false;
-  private pendingDisconnectReason:
-    | "transport_closed"
-    | "heartbeat_timeout"
-    | "auth_failed"
-    | "protocol_error"
-    | "network_error"
-    | "unknown" = "unknown";
+  private connection?: ProtocolClientConnection;
+  private activeSession?: ProtocolClientSession;
   private readyStatus?: "ready" | "degraded";
-  private acceptedCapabilities: string[] = [];
-  private lastHeartbeatAt?: string;
   private stopping = false;
-  private welcomeReceived = false;
-  private welcomeWaiters: Array<{
-    resolve: () => void;
-    reject: (error: Error) => void;
-    timer?: NodeJS.Timeout;
-  }> = [];
+  private welcomed = false;
   private flushScheduled = false;
   private unsubscribeOutbox?: () => void;
+  private reconnectAttempts = 0;
+  private resumeCursors: Array<{ stream: string; processedSeq: number }> = [];
+  private acceptedCapabilities: string[] = [];
   private readonly logger: StructuredLogger;
   private readonly identity: SandboxRuntimeIdentity;
   private readonly rpcDispatcher: RpcDispatcher;
@@ -121,72 +113,16 @@ export class ProtocolSession {
         base: {
           source: "sandbox-agent",
           component: "controller-session",
-          sandboxId: this.identity.sandboxId,
-          instanceId: this.identity.instanceId,
+          ...this.identity,
         },
       });
   }
 
   async start(): Promise<void> {
+    this.resumeCursors = [...(await this.stores.events.ackState()).streams];
     this.unsubscribeOutbox ??= this.stores.events.subscribe((record) => {
       if (record.durability === "durable") this.scheduleFlush();
     });
-    await this.connect();
-  }
-
-  async waitForWelcome(timeoutMs = 60_000): Promise<void> {
-    if (this.welcomeReceived && this.state === "connected") return;
-    await new Promise<void>((resolve, reject) => {
-      const waiter: {
-        resolve: () => void;
-        reject: (error: Error) => void;
-        timer?: NodeJS.Timeout;
-      } = { resolve, reject };
-      waiter.timer = setTimeout(() => {
-        this.welcomeWaiters = this.welcomeWaiters.filter(
-          (entry) => entry !== waiter,
-        );
-        reject(new Error("Timed out waiting for sandbox manager welcome"));
-      }, timeoutMs);
-      waiter.timer.unref();
-      this.welcomeWaiters.push(waiter);
-    });
-  }
-
-  async markReady(status: "ready" | "degraded" = "ready"): Promise<void> {
-    this.readyStatus = status;
-    await this.waitForWelcome();
-    await this.announceReady(status);
-  }
-
-  async stop(): Promise<void> {
-    this.stopping = true;
-    if (this.heartbeat) clearInterval(this.heartbeat);
-    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout);
-    this.client?.send(
-      this.message("goodbye", {
-        sessionId: this.sessionId,
-        reason: "client_closing",
-      }),
-    );
-    this.unsubscribeOutbox?.();
-    this.unsubscribeOutbox = undefined;
-    this.client?.close();
-    this.state = "closed";
-    await this.persistConnectivity("shutting_down", {
-      closeReason: "shutdown",
-    });
-  }
-
-  private async connect(): Promise<void> {
-    this.reconnectScheduled = false;
-    this.state = this.reconnectAttempts > 0 ? "reconnecting" : "connecting";
-    this.logger.info("controller connection attempt started", {
-      reconnect: this.reconnectAttempts > 0,
-      reconnectAttempts: this.reconnectAttempts,
-      websocketUrl: safeWebSocketUrl(this.config.controller.websocket.url),
-    });
-    await this.persistConnectivity(this.state);
     const token = await new SecretResolver(
       this.config,
       undefined,
@@ -194,306 +130,8 @@ export class ProtocolSession {
     ).resolve(this.config.controller.auth.apiKey);
     const header = this.config.controller.auth.header ?? "authorization";
     const scheme = this.config.controller.auth.scheme ?? "Bearer";
-    const headers: Record<string, string> = {
-      [header]: scheme ? `${scheme} ${token}` : token,
-    };
-    const client = new SandboxWebSocketClient(
-      this.config.controller.websocket.url,
-      {
-        headers,
-        connectTimeoutMs: this.config.controller.websocket.connectTimeoutMs,
-      },
-    );
-    this.client = client;
-    client.addEventListener("open", () => void this.onOpen(client));
-    client.addEventListener(
-      "message",
-      (event) => void this.onMessage((event as CustomEvent).detail),
-    );
-    client.addEventListener("close", (event) => {
-      const detail = (
-        event as CustomEvent<{
-          code?: number;
-          reason?: string;
-          closedByClient?: boolean;
-        }>
-      ).detail;
-      void this.onDisconnect(client, detail);
-    });
-    client.addEventListener("error", (event) => {
-      const error = (event as CustomEvent<unknown>).detail;
-      this.pendingDisconnectReason = "network_error";
-      this.logger.warn("controller connection error", {
-        reconnectAttempts: this.reconnectAttempts,
-        failure: safeError(error),
-      });
-    });
-    client.connect();
-  }
-
-  private async onOpen(client: SandboxWebSocketClient): Promise<void> {
-    this.logger.info("controller socket opened; sending hello", {
-      reconnect: this.reconnectAttempts > 0,
-      reconnectAttempts: this.reconnectAttempts,
-    });
-    const ack = await this.stores.events.ackState();
-    client.send(
-      this.message("hello", {
-        requestedVersion: 1,
-        capabilities: sandboxDaemonCapabilities(this.config),
-        requiredCapabilities: [...REQUIRED_CAPABILITIES],
-        encodings: ["json"],
-        resume: { streams: ack.streams },
-      }),
-    );
-  }
-
-  private async onMessage(message: ProtocolV1Message): Promise<void> {
-    if (message.kind === "welcome") {
-      const accepted = new Set(message.data.capabilities);
-      for (const capability of REQUIRED_CAPABILITIES) {
-        if (!accepted.has(capability)) {
-          throw new Error(
-            `Required sandbox capability was not accepted: ${capability}`,
-          );
-        }
-      }
-      this.sessionId = message.data.sessionId;
-      this.acceptedCapabilities = [...accepted].sort();
-      this.state = "connected";
-      this.connectedAt = new Date().toISOString();
-      this.lastHeartbeatAt = this.connectedAt;
-      const reconnectAttempts = this.reconnectAttempts;
-      const wasReconnect = reconnectAttempts > 0;
-      const disconnectedAt = this.disconnectedAt;
-      const downtimeMs = disconnectedAt
-        ? Math.max(0, Date.now() - Date.parse(disconnectedAt))
-        : undefined;
-      this.reconnectAttempts = 0;
-      this.pendingDisconnectReason = "unknown";
-      await this.persistConnectivity("connected");
-      this.welcomeReceived = true;
-      for (const waiter of this.welcomeWaiters.splice(0)) {
-        if (waiter.timer) clearTimeout(waiter.timer);
-        waiter.resolve();
-      }
-      if (wasReconnect) {
-        await this.stores.events.append({
-          type: "sandbox.controller.reconnected",
-          durability: "durable",
-          data: {
-            ...this.identity,
-            configDigest: this.configDigest,
-            disconnectedAt,
-            reconnectedAt: this.connectedAt,
-            downtimeMs,
-            reconnectAttempts,
-            sessionId: this.sessionId,
-            replayRequired: true,
-          },
-        });
-      }
-      await this.flushUnacked();
-      if (wasReconnect && this.readyStatus)
-        await this.announceReady(this.readyStatus);
-      this.startHeartbeat(message.data.heartbeat.intervalMs);
-      this.startHeartbeatTimeout(message.data.heartbeat.timeoutMs);
-      return;
-    }
-    if (message.kind === "heartbeat") {
-      this.lastHeartbeatAt = new Date().toISOString();
-      await this.persistConnectivity(
-        this.state === "connected" ? "connected" : "reconnecting",
-      );
-      return;
-    }
-    if (message.kind === "event.ack") {
-      this.lastHeartbeatAt = new Date().toISOString();
-      for (const cursor of message.data.streams) {
-        if (cursor.stream === `sandbox:${this.identity.sandboxId}`) {
-          await this.stores.events.ack(cursor.stream, cursor.processedSeq);
-        }
-      }
-      await this.persistConnectivity(
-        this.state === "connected" ? "connected" : "reconnecting",
-      );
-      return;
-    }
-    if (message.kind === "request") {
-      const startedAt = Date.now();
-      if (!isPrivateProjection(message.data.method)) {
-        const dispatched = await this.rpcDispatcher.dispatch(message);
-        this.client?.send(
-          dispatched.ok
-            ? this.message(
-                "response",
-                {
-                  ok: true,
-                  method: message.data.method,
-                  result: dispatched.result,
-                },
-                { replyTo: message.id, correlationId: message.id },
-              )
-            : this.message("error", dispatched.error, {
-                replyTo: message.id,
-                correlationId: message.id,
-              }),
-        );
-        if (dispatched.ok) {
-          this.logger.debug("operation completed", {
-            method: message.data.method,
-            requestId: message.id,
-            durationMs: Date.now() - startedAt,
-          });
-          await this.flushUnacked();
-        }
-        return;
-      }
-      let params: unknown;
-      try {
-        params = this.daemon.router.parseParams(
-          message.data.method,
-          message.data.params,
-        );
-      } catch (error) {
-        this.client?.send(
-          this.message("error", operationError(error), {
-            replyTo: message.id,
-            correlationId: message.id,
-          }),
-        );
-        return;
-      }
-      const invoke = async () => {
-        try {
-          return {
-            status: "success" as const,
-            result: await this.daemon.router.dispatch(
-              message.data.method,
-              params,
-              {
-                idempotencyKey: message.data.idempotencyKey,
-                requestId: message.id,
-              },
-            ),
-          };
-        } catch (error) {
-          return {
-            status: "error" as const,
-            error: operationError(error),
-          };
-        }
-      };
-      const execution = message.data.idempotencyKey
-        ? await this.stores.idempotency.execute(
-            `${message.source.role}:${message.source.id ?? message.source.instanceId ?? "anonymous"}`,
-            message.data.idempotencyKey,
-            message.data.method,
-            params,
-            invoke,
-          )
-        : { status: "executed" as const, outcome: await invoke() };
-      const outcome =
-        execution.status === "conflict"
-          ? {
-              status: "error" as const,
-              error: {
-                code: "IDEMPOTENCY_CONFLICT" as const,
-                message:
-                  "Idempotency key was already used for different parameters",
-                retryable: false,
-              },
-            }
-          : execution.outcome;
-      this.client?.send(
-        outcome.status === "success"
-          ? this.message(
-              "response",
-              {
-                ok: true,
-                method: message.data.method,
-                result: outcome.result,
-              },
-              { replyTo: message.id, correlationId: message.id },
-            )
-          : this.message("error", outcome.error, {
-              replyTo: message.id,
-              correlationId: message.id,
-            }),
-      );
-      if (outcome.status === "success") {
-        this.logger.debug("operation completed", {
-          method: message.data.method,
-          requestId: message.id,
-          durationMs: Date.now() - startedAt,
-          replayed: execution.status === "replayed",
-        });
-        await this.flushUnacked();
-      }
-      return;
-    }
-    if (message.kind === "goodbye") this.client?.close();
-  }
-
-  private startHeartbeat(intervalMs: number): void {
-    if (this.heartbeat) clearInterval(this.heartbeat);
-    this.heartbeat = setInterval(() => {
-      if (!this.sessionId) return;
-      this.client?.send(
-        this.message("heartbeat", {
-          sessionId: this.sessionId,
-          sentAt: new Date().toISOString(),
-          processed: [],
-        }),
-      );
-    }, intervalMs);
-  }
-
-  private startHeartbeatTimeout(timeoutMs: number): void {
-    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout);
-    this.heartbeatTimeout = setTimeout(() => {
-      if (this.stopping || this.state !== "connected") return;
-      const now = Date.now();
-      const last = this.lastHeartbeatAt
-        ? Date.parse(this.lastHeartbeatAt)
-        : Date.parse(this.connectedAt ?? new Date().toISOString());
-      if (now - last < timeoutMs) {
-        this.startHeartbeatTimeout(timeoutMs - (now - last));
-        return;
-      }
-      this.logger.warn("controller heartbeat timed out", {
-        sessionId: this.sessionId,
-        timeoutMs,
-        lastHeartbeatAt: this.lastHeartbeatAt,
-      });
-      this.pendingDisconnectReason = "heartbeat_timeout";
-      this.client?.close();
-    }, timeoutMs);
-    this.heartbeatTimeout.unref();
-  }
-
-  private async announceReady(status: "ready" | "degraded"): Promise<void> {
-    const readyAt = new Date().toISOString();
-    const cursors = (await this.stores.events.ackState()).streams;
-    if (!this.sessionId) return;
-    this.client?.send(
-      this.message("ready", { sessionId: this.sessionId, streams: cursors }),
-    );
-    this.logger.info("controller readiness announced", {
-      sessionId: this.sessionId,
-      status,
-      reconnect: Boolean(this.disconnectedAt),
-    });
-    await this.persistConnectivity("connected", { readyAt });
-    await this.flushUnacked();
-  }
-
-  private message<TData>(
-    kind: string,
-    data: TData,
-    options: { replyTo?: string; correlationId?: string } = {},
-  ): NerveMessage<TData> {
-    return createMessageFactory({
+    const headers = { [header]: scheme ? `${scheme} ${token}` : token };
+    const messages = createMessageFactory({
       source: {
         role: "sandbox_agent",
         id: this.identity.sandboxId,
@@ -501,7 +139,157 @@ export class ProtocolSession {
         name: "Nerve Sandbox Agent",
       },
       target: { role: "sandbox_manager", id: "sandbox-manager" },
-    })(kind, data, options);
+    });
+    this.connection = new ProtocolClientConnection({
+      transport: nodeWebSocketTransportFactory(
+        () =>
+          new WebSocket(this.config.controller.websocket.url, {
+            headers,
+            handshakeTimeout: this.config.controller.websocket.connectTimeoutMs,
+          }) as unknown as WebSocketLike,
+      ),
+      reconnect: new ReconnectPolicy({
+        initialDelayMs: this.config.controller.websocket.reconnect?.minDelayMs,
+        maximumDelayMs: this.config.controller.websocket.reconnect?.maxDelayMs,
+        multiplier: this.config.controller.websocket.reconnect?.multiplier,
+        jitter: this.config.controller.websocket.reconnect?.jitter ? 0.2 : 0,
+      }),
+      onStateChange: (state) => void this.onConnectionState(state),
+      onError: (error) =>
+        this.logger.warn("controller protocol error", {
+          failure: safeError(error),
+        }),
+      createSession: ({ send, onDisconnect }) => {
+        const session = new ProtocolClientSession({
+          createMessage: messages,
+          capabilities: sandboxDaemonCapabilities(this.config),
+          requiredCapabilities: REQUIRED_CAPABILITIES,
+          cursors: () => this.resumeCursors,
+          send,
+          onDisconnect,
+          rpcDispatcher: this.rpcDispatcher,
+          awaitReady: async (welcome) => {
+            this.sessionId = welcome.sessionId;
+            this.acceptedCapabilities = [...welcome.capabilities].sort();
+            this.welcomed = true;
+            while (!this.readyStatus && !this.stopping)
+              await new Promise((resolve) => setTimeout(resolve, 25));
+          },
+          onReady: async () => {
+            this.activeSession = session;
+            this.connectedAt = new Date().toISOString();
+            this.state = "connected";
+            this.reconnectAttempts = 0;
+            await this.persistConnectivity("connected");
+            await this.flushUnacked(true);
+          },
+          onAck: async (message) => {
+            const expected = `sandbox:${this.identity.sandboxId}`;
+            const cursor = message.data.streams.find(
+              (item) => item.stream === expected,
+            );
+            if (cursor) {
+              await this.stores.events.ack(expected, cursor.processedSeq);
+              this.resumeCursors = [
+                { stream: expected, processedSeq: cursor.processedSeq },
+              ];
+            }
+            this.scheduleFlush();
+          },
+        });
+        this.activeSession = session;
+        return session;
+      },
+    });
+    this.state = "connecting";
+    await this.persistConnectivity("connecting");
+    void this.connection.start();
+  }
+
+  async waitForWelcome(timeoutMs = 60_000): Promise<void> {
+    const started = Date.now();
+    while (!this.welcomed) {
+      if (Date.now() - started >= timeoutMs)
+        throw new Error("Timed out waiting for sandbox manager welcome");
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
+  async markReady(status: "ready" | "degraded" = "ready"): Promise<void> {
+    this.readyStatus = status;
+    await this.waitForWelcome();
+    await this.persistConnectivity("connected", {
+      readyAt: new Date().toISOString(),
+      agentStatus: status,
+    });
+    await this.flushUnacked(false);
+  }
+
+  async stop(): Promise<void> {
+    this.stopping = true;
+    this.unsubscribeOutbox?.();
+    this.unsubscribeOutbox = undefined;
+    await this.connection?.close();
+    this.state = "closed";
+    await this.persistConnectivity("shutting_down", {
+      closeReason: "shutdown",
+    });
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushScheduled || this.state !== "connected") return;
+    this.flushScheduled = true;
+    setTimeout(() => {
+      this.flushScheduled = false;
+      void this.flushUnacked(false).catch((error) =>
+        this.logger.warn("failed to flush sandbox outbox", {
+          failure: safeError(error),
+        }),
+      );
+    }, 100).unref();
+  }
+
+  private async flushUnacked(replay: boolean): Promise<void> {
+    const session = this.activeSession;
+    if (!session || session.state !== "ready") return;
+    const stream = `sandbox:${this.identity.sandboxId}`;
+    const ack = await this.stores.events.ackState();
+    const processedSeq =
+      ack.streams.find((item) => item.stream === stream)?.processedSeq ?? 0;
+    const unacked = this.stores.events.unacked(processedSeq);
+    for (let index = 0; index < unacked.length; index += 100) {
+      const batch = unacked.slice(index, index + 100);
+      await session.publishEventBatch(
+        buildEventBatch(batch.map(toProtocolEvent), {
+          stream,
+          reason: replay ? "replay" : "live",
+          previousDurableSeq: processedSeq,
+        }),
+      );
+    }
+  }
+
+  private async onConnectionState(
+    value: ProtocolClientConnectionState,
+  ): Promise<void> {
+    if (value === "ready") return;
+    if (value === "closed" && this.stopping) return;
+    if (value === "connecting" || value === "handshaking") {
+      this.state = this.welcomed ? "reconnecting" : "connecting";
+      return;
+    }
+    if (value !== "closed") return;
+    this.disconnectedAt = new Date().toISOString();
+    this.state = "reconnecting";
+    this.reconnectAttempts += 1;
+    await this.persistConnectivity("reconnecting");
+    const policy = this.config.controller.disconnectPolicy;
+    if ((policy?.mode ?? "exit_self") === "exit_self") {
+      const exitAfterMs = policy?.exitAfterMs ?? 300_000;
+      setTimeout(() => {
+        if (this.state !== "connected") process.exit(22);
+      }, exitAfterMs).unref();
+    }
   }
 
   private async persistConnectivity(
@@ -521,146 +309,30 @@ export class ProtocolSession {
         : undefined,
       connectedAt: this.connectedAt,
       disconnectedAt: this.disconnectedAt,
-      lastHeartbeatAt: this.lastHeartbeatAt,
       reconnectAttempts: this.reconnectAttempts,
       updatedAt: new Date().toISOString(),
       ...extra,
     });
   }
-
-  private scheduleFlush(): void {
-    if (this.flushScheduled || this.state !== "connected") return;
-    this.flushScheduled = true;
-    setTimeout(() => {
-      this.flushScheduled = false;
-      void this.flushUnacked().catch((error) =>
-        this.logger.warn("failed to flush startup events", { err: error }),
-      );
-    }, 100).unref();
-  }
-
-  private async flushUnacked(): Promise<void> {
-    const ack = await this.stores.events.ackState();
-    const processedSeq = Math.max(
-      0,
-      ...ack.streams.map((stream) => stream.processedSeq),
-    );
-    const unacked = this.stores.events.unacked(processedSeq);
-    if (unacked.length === 0) return;
-    for (let i = 0; i < unacked.length; i += 100) {
-      const batch = unacked.slice(i, i + 100);
-      const data = buildEventBatch(batch.map(toProtocolEvent), {
-        stream: `sandbox:${this.identity.sandboxId}`,
-        reason: "live",
-        previousDurableSeq: processedSeq,
-      });
-      this.client?.send(this.message("event.batch", data));
-    }
-  }
-
-  private async onDisconnect(
-    client: SandboxWebSocketClient,
-    detail: { code?: number; reason?: string; closedByClient?: boolean } = {},
-  ): Promise<void> {
-    if (client !== this.client || this.stopping || this.state === "closed")
-      return;
-    if (this.reconnectScheduled) return;
-    this.reconnectScheduled = true;
-    if (this.heartbeat) clearInterval(this.heartbeat);
-    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout);
-    this.disconnectedAt = new Date().toISOString();
-    this.state = "reconnecting";
-    this.reconnectAttempts += 1;
-    const reconnectDelay = this.reconnectDelayMs();
-    const reason = disconnectReason(
-      this.pendingDisconnectReason,
-      detail.code,
-      detail.reason,
-    );
-    const policy = this.config.controller.disconnectPolicy;
-    const exits = (policy?.mode ?? "exit_self") === "exit_self";
-    const exitAfterMs = exits ? (policy?.exitAfterMs ?? 300_000) : undefined;
-    const exitAt =
-      exitAfterMs === undefined
-        ? undefined
-        : new Date(Date.now() + exitAfterMs).toISOString();
-    this.logger.warn("controller connection lost; reconnecting", {
-      sessionId: this.sessionId,
-      reason,
-      closeCode: detail.code,
-      closeReason: detail.reason?.trim() || undefined,
-      reconnectAttempts: this.reconnectAttempts,
-      reconnectDelayMs: reconnectDelay,
-      exitAt,
-    });
-    await this.persistConnectivity("reconnecting", {
-      closeCode: detail.code,
-      closeReason: detail.reason?.trim() || undefined,
-      lastErrorCode: reason.toUpperCase(),
-      exitAfterMs,
-      exitAt,
-    });
-    await this.stores.events.append({
-      type: "sandbox.controller.disconnected",
-      durability: "durable",
-      data: {
-        ...this.identity,
-        configDigest: this.configDigest,
-        disconnectedAt: this.disconnectedAt,
-        reason,
-        retryable: true,
-        reconnectAttempts: this.reconnectAttempts,
-        closeCode: detail.code,
-        closeReason: detail.reason?.trim() || undefined,
-        exitAfterMs,
-        exitAt,
-      },
-    });
-    if (exitAfterMs !== undefined) {
-      setTimeout(() => {
-        if (this.state !== "connected") process.exit(22);
-      }, exitAfterMs).unref();
-    }
-    setTimeout(() => void this.connect(), reconnectDelay).unref();
-  }
-
-  private reconnectDelayMs(): number {
-    const reconnect = this.config.controller.websocket.reconnect;
-    const min = reconnect?.minDelayMs ?? 1_000;
-    const max = reconnect?.maxDelayMs ?? 30_000;
-    return Math.min(max, min * 2 ** Math.min(this.reconnectAttempts, 6));
-  }
-}
-
-const privateProjectionMethods = new Set([
-  "sandbox.status.get",
-  "sandbox.snapshot.get",
-  "sandbox.conversation.snapshot.get",
-]);
-
-function isPrivateProjection(method: string): boolean {
-  return privateProjectionMethods.has(method);
 }
 
 function sandboxOperationHandlers(
   daemon: SandboxDaemon,
 ): Partial<OperationHandlerRegistry> {
-  const publicMethods = new Set<string>(
+  const methods = new Set<string>(
     allOperationDefinitions()
-      .filter(
-        (definition) =>
-          definition.allowedTargetRoles.includes("sandbox_agent") &&
-          !isPrivateProjection(definition.method),
+      .filter((definition) =>
+        definition.allowedTargetRoles.includes("sandbox_agent"),
       )
       .map((definition) => definition.method),
   );
-  return new Proxy<Partial<OperationHandlerRegistry>>(
+  return new Proxy(
     {},
     {
       get(_target, property) {
-        if (typeof property !== "string" || !publicMethods.has(property))
+        if (typeof property !== "string" || !methods.has(property))
           return undefined;
-        const method = operationNameSchema.parse(property);
+        const method = operationNameSchema.parse(property) as OperationName;
         return (params: unknown, request: NerveMessage<ProtocolRequestData>) =>
           daemon.router.dispatch(method, params, {
             idempotencyKey: request.data.idempotencyKey,
@@ -670,72 +342,24 @@ function sandboxOperationHandlers(
     },
   );
 }
-
 function operationError(error: unknown): ProtocolErrorData {
-  const domainError =
-    error instanceof SandboxOperationError ? error : undefined;
+  const domain = error instanceof SandboxOperationError;
   return {
-    code: domainError ? "DOMAIN_VALIDATION_FAILED" : "INTERNAL_ERROR",
-    message: (error instanceof Error ? error.message : String(error)).slice(
-      0,
-      2_000,
-    ),
+    code: domain ? "DOMAIN_VALIDATION_FAILED" : "INTERNAL_ERROR",
+    message: safeError(error),
     retryable: false,
   };
 }
-
-function safeWebSocketUrl(value: string): string {
-  try {
-    const url = new URL(value);
-    url.username = "";
-    url.password = "";
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return "[invalid websocket URL]";
-  }
-}
-
-function safeError(error: unknown): { name?: string; message: string } {
-  return error instanceof Error
-    ? { name: error.name, message: error.message }
-    : { message: String(error) };
-}
-
-function disconnectReason(
-  pending:
-    | "transport_closed"
-    | "heartbeat_timeout"
-    | "auth_failed"
-    | "protocol_error"
-    | "network_error"
-    | "unknown",
-  closeCode?: number,
-  closeReason?: string,
-):
-  | "transport_closed"
-  | "heartbeat_timeout"
-  | "auth_failed"
-  | "protocol_error"
-  | "network_error"
-  | "unknown" {
-  if (pending !== "unknown") return pending;
-  const text = closeReason?.toLowerCase() ?? "";
-  if (closeCode === 1008 || /auth|unauthor|forbidden/.test(text))
-    return "auth_failed";
-  if (/protocol|invalid|capabilit/.test(text)) return "protocol_error";
-  if (/timeout/.test(text)) return "network_error";
-  return closeCode === undefined ? "unknown" : "transport_closed";
-}
-
 function toProtocolEvent(record: SandboxOutboxRecord) {
   return {
     id: record.id,
     seq: record.seq,
-    ts: record.ts,
     type: record.type,
+    ts: record.ts,
     durability: record.durability,
     data: record.data,
   };
+}
+function safeError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 512);
 }

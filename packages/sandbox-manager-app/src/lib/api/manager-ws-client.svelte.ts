@@ -1,20 +1,18 @@
-import type { EventEnvelope } from "@nervekit/contracts";
-import {
-  eventBatchMessageSchema,
-  replayStartedMessageSchema,
-  replayUnavailableMessageSchema,
-  welcomeMessageSchema,
+import { SvelteMap, SvelteSet, SvelteURL } from "svelte/reactivity";
+import type {
+  EventEnvelope,
+  PeerDescriptor,
+  StreamCursor,
 } from "@nervekit/contracts";
 import {
-  applyEventBatch,
-  type ClientEventStreamState,
-  createClientEventStreamState,
-  markProcessed,
-  ProtocolCodec,
+  browserWebSocketTransportFactory,
+  createMessageFactory,
+  ProtocolClientConnection,
+  ProtocolClientSession,
+  protocolClientId,
+  protocolInstanceId,
+  type ProtocolClientConnectionState,
 } from "@nervekit/protocol";
-import { protocolClientId, protocolInstanceId } from "@nervekit/protocol";
-
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 export type ManagerWsConnectionState =
   | "idle"
@@ -34,45 +32,44 @@ const UI_CAPABILITIES = [
   "sandbox.manager.snapshots.v1",
   "sandbox.manager.lifecycle.v1",
 ];
-
+const STATE_KEY = "nerve.protocol.v1.sandbox-manager-ui";
+const STATE_EPOCH = "protocol-v1";
 export const MANAGER_STREAM = "manager";
 
 export function sandboxStreamId(sandboxId: string): string {
   return `sandbox:${sandboxId}`;
 }
-
 export type ManagerStreamEventEnvelope = EventEnvelope<
   Record<string, unknown>
 > & {
   stream: string;
   sandboxId?: string;
 };
-
 export type ManagerWsHandlers = {
-  onEvent: (envelope: ManagerStreamEventEnvelope) => void;
+  onEvent: (envelope: ManagerStreamEventEnvelope) => void | Promise<void>;
   onConnectionChange: (state: ManagerWsConnectionState, error?: string) => void;
   onReconnected?: () => void;
-  onReplayUnavailable?: (streams: string[]) => void;
+  onSnapshotRecovery?: (
+    streams: readonly string[],
+  ) => readonly StreamCursor[] | void | Promise<readonly StreamCursor[] | void>;
+};
+
+type PersistedProtocolState = {
+  epoch: typeof STATE_EPOCH;
+  cursors: StreamCursor[];
 };
 
 export class ManagerWsClient {
-  private ws: WebSocket | undefined;
-  private readonly streams = new SvelteSet<string>([MANAGER_STREAM]);
-  private readonly streamStates = new SvelteMap<
-    string,
-    ClientEventStreamState
-  >();
-  private reconnectAttempts = 0;
-  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  private ackTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly pendingAcks = new SvelteSet<string>();
-  private readonly recoveredReplayStreams = new SvelteSet<string>();
+  private connection?: ProtocolClientConnection;
+  private readonly cursors = new SvelteMap<string, number>();
+  private selectedStream?: string;
   private closedByCaller = false;
-  private hadWelcome = false;
-  private sessionId: string | undefined;
-  private readonly codec = new ProtocolCodec();
+  private wasReady = false;
 
-  constructor(private readonly handlers: ManagerWsHandlers) {}
+  constructor(private readonly handlers: ManagerWsHandlers) {
+    this.restore();
+    if (!this.cursors.has(MANAGER_STREAM)) this.cursors.set(MANAGER_STREAM, 0);
+  }
 
   connect(): void {
     this.closedByCaller = false;
@@ -81,267 +78,159 @@ export class ManagerWsClient {
 
   close(): void {
     this.closedByCaller = true;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    if (this.ackTimer) clearTimeout(this.ackTimer);
-    this.ws?.close(1000, "client_close");
-    this.ws = undefined;
+    void this.connection?.close();
+    this.connection = undefined;
     this.handlers.onConnectionChange("closed");
   }
 
   subscribeStream(sandboxId: string): void {
     const stream = sandboxStreamId(sandboxId);
-    if (this.streams.has(stream)) return;
-    this.streams.add(stream);
-    this.stateFor(stream);
-    if (this.hadWelcome) this.requestReplay(stream);
-  }
-
-  private stateFor(stream: string): ClientEventStreamState {
-    let state = this.streamStates.get(stream);
-    if (!state) {
-      state = createClientEventStreamState(0);
-      this.streamStates.set(stream, state);
+    if (this.selectedStream === stream) return;
+    this.selectedStream = stream;
+    if (!this.cursors.has(stream)) this.cursors.set(stream, 0);
+    // Stream subscription is expressed by the resume cursor set. Restarting the
+    // shared connection atomically replaces the old selection/generation.
+    if (this.connection) {
+      void this.connection.close().finally(() => {
+        if (!this.closedByCaller) this.open();
+      });
     }
-    return state;
-  }
-
-  private wsUrl(): string {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${protocol}//${window.location.host}/api/manager/ws`;
   }
 
   private open(): void {
-    this.handlers.onConnectionChange(
-      this.reconnectAttempts > 0 ? "reconnecting" : "connecting",
-    );
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(this.wsUrl());
-    } catch (error) {
-      this.scheduleReconnect(
-        error instanceof Error ? error.message : "connect_failed",
-      );
-      return;
-    }
-    this.ws = ws;
-    ws.addEventListener("open", () => this.sendHello());
-    ws.addEventListener("message", (event) => this.handleMessage(event.data));
-    ws.addEventListener("close", () => this.handleClose());
-    ws.addEventListener("error", () => {
-      this.handlers.onConnectionChange("error", "socket_error");
-    });
-  }
-
-  private sendHello(): void {
-    this.sendMessage("hello", {
-      requestedVersion: 1,
-      capabilities: UI_CAPABILITIES,
-      encodings: ["json"],
-      resume: {
-        streams: [...this.streams].map((stream) => ({
-          stream,
-          processedSeq: this.stateFor(stream).processedSeq,
-        })),
-      },
-      preferences: { replay: { preferSnapshot: true, maxReplayEvents: 1_000 } },
-    });
-  }
-
-  private handleClose(): void {
-    if (this.closedByCaller) return;
-    this.scheduleReconnect("socket_closed");
-  }
-
-  private scheduleReconnect(error?: string): void {
-    this.ws = undefined;
-    this.hadWelcome = false;
-    this.sessionId = undefined;
-    if (this.closedByCaller) return;
-    this.handlers.onConnectionChange("reconnecting", error);
-    const delay = Math.min(30_000, 500 * 2 ** this.reconnectAttempts);
-    this.reconnectAttempts += 1;
-    this.reconnectTimer = setTimeout(() => this.open(), delay);
-  }
-
-  private handleMessage(raw: unknown): void {
-    let message;
-    try {
-      message = this.codec.decode(String(raw));
-    } catch {
-      return;
-    }
-    switch (message.kind) {
-      case "welcome":
-        this.onWelcome(message);
-        return;
-      case "event.batch":
-        this.onEventBatch(message.data);
-        return;
-      case "heartbeat":
-        this.sendHeartbeat();
-        return;
-      case "replay.started":
-        this.onReplayStarted(message);
-        return;
-      case "replay.complete":
-        return;
-      case "replay.unavailable":
-        this.onReplayUnavailable(message);
-        return;
-      case "goodbye":
-        this.ws?.close(1000, "server_goodbye");
-        return;
-      case "error":
-        this.handlers.onConnectionChange("error", "protocol_error");
-        return;
-      default:
-        return;
-    }
-  }
-
-  private onWelcome(message: unknown): void {
-    const parsed = welcomeMessageSchema.safeParse(message);
-    if (!parsed.success) return;
-    const reconnected = this.reconnectAttempts > 0;
-    this.reconnectAttempts = 0;
-    this.hadWelcome = true;
-    this.sessionId = parsed.data.data.sessionId;
-    this.handlers.onConnectionChange("live");
-    for (const stream of this.streams) this.requestReplay(stream);
-    if (reconnected) this.handlers.onReconnected?.();
-  }
-
-  private onReplayStarted(message: unknown): void {
-    const parsed = replayStartedMessageSchema.safeParse(message);
-    if (!parsed.success) return;
-    // A replay is the recovery path after a detected gap. Clear the blocked flag
-    // and rewind continuity to the processed cursor so the incoming replay batch
-    // (and subsequent live events) are applied instead of dropped.
-    for (const stream of parsed.data.data.streams) {
-      const state = this.stateFor(stream.stream);
-      state.replayBlocked = false;
-      state.continuitySeq = state.processedSeq;
-    }
-  }
-
-  private onReplayUnavailable(message: unknown): void {
-    const parsed = replayUnavailableMessageSchema.safeParse(message);
-    if (!parsed.success) {
-      this.handlers.onConnectionChange("error", "protocol_error");
-      return;
-    }
-    const streams = parsed.data.data.streams.map((stream) => stream.stream);
-    const unrecovered = streams.filter(
-      (stream) => !this.recoveredReplayStreams.has(stream),
-    );
-    for (const stream of streams) this.recoveredReplayStreams.add(stream);
-    if (unrecovered.length) this.handlers.onReplayUnavailable?.(unrecovered);
-  }
-
-  markSnapshotRecovered(stream: string): void {
-    this.recoveredReplayStreams.add(stream);
-  }
-
-  private onEventBatch(data: unknown): void {
-    const parsed = eventBatchMessageSchema.shape.data.safeParse(data);
-    if (!parsed.success) return;
-    const batch = parsed.data;
-    const state = this.stateFor(batch.stream);
-    const result = applyEventBatch(
-      batch,
-      state,
-      (event) => this.deliverEvent(batch.stream, event),
-      batch.stream,
-    );
-    if (result.replayRequired) {
-      this.requestReplay(batch.stream, result.replayRequired.fromSeq);
-      return;
-    }
-    if (result.durableEventsQueued > 0) {
-      markProcessed(state, result.highestDurableQueuedSeq);
-      this.queueAck(batch.stream);
-    }
-  }
-
-  private deliverEvent(
-    stream: string,
-    event: EventEnvelope<Record<string, unknown>>,
-  ): void {
-    this.handlers.onEvent({
-      ...event,
-      stream,
-      sandboxId: streamSandboxId(stream),
-    });
-  }
-
-  private requestReplay(stream: string, fromSeq?: number): void {
-    if (!this.sessionId) return;
-    this.sendMessage("replay.request", {
-      sessionId: this.sessionId,
-      replayId: `replay_${Date.now()}`,
-      streams: [
-        { stream, fromSeq: fromSeq ?? this.stateFor(stream).processedSeq },
-      ],
-      reason: "resume",
-      preferences: { maxEvents: 1_000, preferSnapshot: true },
-    });
-  }
-
-  private sendHeartbeat(): void {
-    if (!this.sessionId) return;
-    this.sendMessage("heartbeat", {
-      sessionId: this.sessionId,
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Timestamp is read immediately and is not reactive state.
-      sentAt: new Date().toISOString(),
-      processed: [...this.streamStates.entries()].map(([stream, state]) => ({
-        stream,
-        processedSeq: state.processedSeq,
-      })),
-    });
-  }
-
-  private queueAck(stream: string): void {
-    this.pendingAcks.add(stream);
-    if (this.ackTimer) return;
-    this.ackTimer = setTimeout(() => this.flushAcks(), 250);
-  }
-
-  private flushAcks(): void {
-    this.ackTimer = undefined;
-    if (!this.sessionId || this.pendingAcks.size === 0) return;
-    this.sendMessage("event.ack", {
-      sessionId: this.sessionId,
-      ackId: `ack_${Date.now()}`,
-      streams: [...this.pendingAcks].map((stream) => ({
-        stream,
-        processedSeq: this.stateFor(stream).processedSeq,
-      })),
-    });
-    this.pendingAcks.clear();
-  }
-
-  private sendMessage(kind: string, data: unknown): void {
-    this.send({
-      protocol: "nerve",
-      version: 1,
-      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      kind,
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- Timestamp is read immediately and is not reactive state.
-      ts: new Date().toISOString(),
-      source: {
-        role: "ui",
-        id: protocolClientId(),
-        instanceId: protocolInstanceId(),
-        name: "Nerve Sandbox Manager UI",
-      },
+    const source: PeerDescriptor = {
+      role: "ui",
+      id: protocolClientId(),
+      instanceId: protocolInstanceId(),
+      name: "Nerve Sandbox Manager UI",
+    };
+    const messages = createMessageFactory({
+      source,
       target: { role: "sandbox_manager", id: "sandbox-manager" },
-      data,
     });
+    this.connection = new ProtocolClientConnection({
+      transport: browserWebSocketTransportFactory(this.wsUrl()),
+      onStateChange: (state) => this.onConnectionState(state),
+      onError: (error) => {
+        if (!this.closedByCaller)
+          this.handlers.onConnectionChange("error", boundedError(error));
+      },
+      createSession: ({ send, onDisconnect }) =>
+        new ProtocolClientSession({
+          createMessage: messages,
+          capabilities: UI_CAPABILITIES,
+          requiredCapabilities: UI_CAPABILITIES,
+          cursors: () => this.currentCursors(),
+          send,
+          onDisconnect,
+          onReady: () => {
+            const reconnected = this.wasReady;
+            this.wasReady = true;
+            this.handlers.onConnectionChange("live");
+            if (reconnected) this.handlers.onReconnected?.();
+          },
+          applyEvent: async (stream, event) => {
+            if (stream.startsWith("sandbox:") && stream !== this.selectedStream)
+              return;
+            await this.handlers.onEvent({
+              ...event,
+              stream,
+              sandboxId: streamSandboxId(stream),
+            });
+          },
+          processedEvents: {
+            persist: (cursors) => this.installCursors(cursors),
+          },
+          snapshotRecovery: {
+            load: async ({ streams }) => {
+              const recovered =
+                await this.handlers.onSnapshotRecovery?.(streams);
+              return {
+                snapshot: undefined,
+                cursors: recovered?.length ? recovered : this.currentCursors(),
+                stateEpoch: STATE_EPOCH,
+              };
+            },
+          },
+          installSnapshot: () => undefined,
+        }),
+    });
+    void this.connection.start();
   }
 
-  private send(message: unknown): void {
-    if (this.ws?.readyState === WebSocket.OPEN)
-      this.ws.send(JSON.stringify(message));
+  private currentCursors(): StreamCursor[] {
+    const active = new SvelteSet([MANAGER_STREAM]);
+    if (this.selectedStream) active.add(this.selectedStream);
+    return [...active].map((stream) => ({
+      stream,
+      processedSeq: this.cursors.get(stream) ?? 0,
+    }));
+  }
+
+  private installCursors(cursors: readonly StreamCursor[]): void {
+    for (const cursor of cursors)
+      this.cursors.set(
+        cursor.stream,
+        Math.max(this.cursors.get(cursor.stream) ?? 0, cursor.processedSeq),
+      );
+    try {
+      localStorage.setItem(
+        STATE_KEY,
+        JSON.stringify({
+          epoch: STATE_EPOCH,
+          cursors: [...this.cursors].map(([stream, processedSeq]) => ({
+            stream,
+            processedSeq,
+          })),
+        } satisfies PersistedProtocolState),
+      );
+    } catch {
+      /* Browser storage is optional. */
+    }
+  }
+
+  private restore(): void {
+    try {
+      const raw = localStorage.getItem(STATE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<PersistedProtocolState>;
+      if (parsed.epoch !== STATE_EPOCH || !Array.isArray(parsed.cursors)) {
+        localStorage.removeItem(STATE_KEY);
+        return;
+      }
+      for (const cursor of parsed.cursors) {
+        if (
+          typeof cursor.stream === "string" &&
+          Number.isSafeInteger(cursor.processedSeq) &&
+          cursor.processedSeq >= 0
+        )
+          this.cursors.set(cursor.stream, cursor.processedSeq);
+      }
+    } catch {
+      try {
+        localStorage.removeItem(STATE_KEY);
+      } catch {
+        /* optional */
+      }
+    }
+  }
+
+  private onConnectionState(state: ProtocolClientConnectionState): void {
+    if (state === "ready") return;
+    if (state === "closed" && this.closedByCaller)
+      this.handlers.onConnectionChange("closed");
+    else if (state === "closed")
+      this.handlers.onConnectionChange("reconnecting");
+    else
+      this.handlers.onConnectionChange(
+        this.wasReady ? "reconnecting" : "connecting",
+      );
+  }
+
+  private wsUrl(): URL {
+    const url = new SvelteURL("/api/manager/ws", window.location.href);
+    url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return url;
   }
 }
 
@@ -349,4 +238,7 @@ function streamSandboxId(stream: string): string | undefined {
   return stream.startsWith("sandbox:")
     ? stream.slice("sandbox:".length)
     : undefined;
+}
+function boundedError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 512);
 }

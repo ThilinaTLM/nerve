@@ -1,16 +1,21 @@
+/* eslint-disable max-lines -- Shared server lifecycle remains one cohesive state machine. */
 import type {
   EventEnvelope,
   HelloData,
   NerveMessage,
+  OperationName,
+  OperationParams,
+  OperationResult,
   PeerDescriptor,
   ProtocolErrorData,
+  ProtocolRequestData,
   ProtocolV1Message,
   ReplayUnavailableData,
   StreamState,
 } from "@nervekit/contracts";
 import { buildEventBatch, chunkEvents } from "./event-batch.js";
 import type { ProtocolIdSource, ProtocolTimers } from "./ports.js";
-import type { RpcDispatcher } from "./rpc.js";
+import { RpcClient, type RpcDispatcher } from "./rpc.js";
 import {
   systemProtocolClock,
   systemProtocolIds,
@@ -35,6 +40,7 @@ export class ProtocolServerSession {
   readonly #timers: ProtocolTimers;
   readonly #ids: ProtocolIdSource;
   readonly #sender: PrioritizedMessageSender;
+  readonly #rpc: RpcClient;
   readonly #queues = new Map<string, ProtocolSessionQueue>();
   readonly #replaying = new Map<string, Set<string>>();
   readonly #previousDurableSeq = new Map<string, number>();
@@ -53,6 +59,12 @@ export class ProtocolServerSession {
     this.#timers = options.timers ?? systemProtocolTimers;
     this.#ids = options.ids ?? systemProtocolIds;
     this.#sender = new PrioritizedMessageSender(options.send);
+    this.#rpc = new RpcClient({
+      createMessage: options.createMessage,
+      send: options.send,
+      defaultTimeoutMs: options.rpcTimeoutMs,
+      timers: this.#timers,
+    });
     this.#heartbeat = new ServerHeartbeat({
       clock,
       timers: this.#timers,
@@ -82,6 +94,19 @@ export class ProtocolServerSession {
       if (this.state === "awaiting_hello" || this.state === "awaiting_ready")
         void this.shutdown("idle_timeout", "Protocol handshake timed out");
     }, options.heartbeat.timeoutMs);
+  }
+
+  request<M extends OperationName>(
+    method: M,
+    params: OperationParams<M>,
+    options: Pick<
+      ProtocolRequestData,
+      "idempotencyKey" | "timeoutMs" | "expect"
+    > = {},
+  ): Promise<OperationResult<M>> {
+    if (this.state !== "ready")
+      throw new SessionStateError("RPC requests require a ready session");
+    return this.#rpc.request(method, params, options);
   }
 
   async receive(message: ProtocolV1Message): Promise<void> {
@@ -246,6 +271,26 @@ export class ProtocolServerSession {
       }
       this.#heartbeat.stop();
       this.state = "closed";
+      return;
+    }
+    if (this.#rpc.handle(message)) return;
+    if (message.kind === "event.batch" && this.#options.onEventBatch) {
+      const applied = await this.#options.onEventBatch(message);
+      await this.#sendControl(
+        this.#options.createMessage(
+          "event.ack",
+          {
+            sessionId: this.sessionId as string,
+            ackId: message.data.batchId,
+            streams: [...applied.streams],
+            stats:
+              applied.appliedEvents === undefined
+                ? undefined
+                : { appliedEvents: applied.appliedEvents },
+          },
+          { target: message.source, correlationId: message.id },
+        ),
+      );
       return;
     }
     if (message.kind === "request" && this.#rpcDispatcher) {
@@ -584,6 +629,7 @@ export class ProtocolServerSession {
     this.state = "closed";
     this.#liveDeliveryEnabled = false;
     this.#heartbeat.stop();
+    this.#rpc.disconnect(new Error("Protocol server session disposed"));
     if (this.#handshakeTimeout !== undefined)
       this.#timers.clearTimeout(this.#handshakeTimeout);
     this.#handshakeTimeout = undefined;
@@ -603,6 +649,7 @@ export class ProtocolServerSession {
     this.state = "closing";
     this.#liveDeliveryEnabled = false;
     this.#heartbeat.stop();
+    this.#rpc.disconnect(new Error("Protocol server session closed"));
     if (this.#handshakeTimeout !== undefined)
       this.#timers.clearTimeout(this.#handshakeTimeout);
     this.#handshakeTimeout = undefined;

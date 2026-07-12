@@ -2,39 +2,24 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
-  ackMessageSchema,
-  goodbyeMessageSchema,
-  heartbeatMessageSchema,
-  helloMessageSchema,
-  type NerveMessage,
-  nerveMessageSchema,
-  protocolRequestMessageSchema,
-  readyMessageSchema,
-  replayRequestMessageSchema,
+  operationNameSchema,
+  type ProtocolV1Message,
 } from "@nervekit/contracts";
+import {
+  createMessageFactory,
+  ProtocolConnection,
+  ProtocolServerSession,
+  websocketTransport,
+  type WebSocketLike,
+} from "@nervekit/protocol";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../app/manager-state.js";
-import {
-  MANAGER_EVENT_STREAM,
-  recordManagerLifecycleEvent,
-} from "../events/manager-events.js";
+import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
 import { extractSandboxToken, timingSafeTokenEquals } from "../http/auth.js";
 import { transitionSandboxLifecycle } from "../lifecycle/lifecycle-state.js";
-import { managerRpcDispatcher } from "./manager-protocol-http-dispatcher.js";
+import { createManagerUiSharedSession } from "./manager-ui-shared-session.js";
 import { RpcForwarder } from "./rpc-forwarder.js";
-import { managerEventBatch } from "./manager-protocol-event-batch.js";
-import {
-  createUiProtocolSession,
-  makeManagerMessage,
-  type UiProtocolSession,
-  updateUiSessionAck,
-} from "./manager-protocol-session.js";
-import {
-  handleUiReplayRequest,
-  uiWelcomeStreams,
-} from "./manager-ui-replay.js";
-import { parseProtocolMessage } from "./messages.js";
 import {
   type ConnectedSandboxSession,
   SandboxSessionRegistry,
@@ -68,24 +53,6 @@ const CONTROLLER_CAPABILITIES = new Set([
   "sandbox.multi_agent_state.v1",
   "sandbox.network.egress_policy.v1",
 ]);
-
-const UI_CAPABILITIES = new Set([
-  "encoding.json",
-  "event.batch",
-  "event.replay",
-  "event.ack.processed",
-  "flow.backpressure",
-  "sandbox.manager.ui.v1",
-  "sandbox.manager.snapshots.v1",
-  "sandbox.manager.lifecycle.v1",
-]);
-
-function acceptedCapabilities(
-  advertised: readonly string[],
-  allowed = CONTROLLER_CAPABILITIES,
-): string[] {
-  return advertised.filter((capability) => allowed.has(capability));
-}
 
 export class SandboxWsServer {
   readonly sessions = new SandboxSessionRegistry();
@@ -146,307 +113,106 @@ export class SandboxWsServer {
   }
 
   private async handleUiConnection(ws: WebSocket): Promise<void> {
-    let unsubscribe: (() => void) | undefined;
-    let session: UiProtocolSession | undefined;
-    const send = (message: NerveMessage<unknown>): void => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
-    };
-    const fail = (code: string, message: string): void => {
-      send(
-        makeManagerMessage("error", {
-          code,
-          message,
-          retryable: false,
-        }),
-      );
-      ws.close(1008, code);
-    };
-    const helloTimer = setTimeout(
-      () => fail("HELLO_TIMEOUT", "UI hello was not received in time"),
-      10_000,
-    );
-    const cleanupHelloTimer = () => clearTimeout(helloTimer);
-    ws.once("message", async (data) => {
-      cleanupHelloTimer();
-      try {
-        const hello = helloMessageSchema.parse(JSON.parse(String(data)));
-        const targetPeer = hello.source;
-        session = createUiProtocolSession({
-          source: targetPeer,
-          resume: hello.data.resume,
-        });
-        const capabilities = acceptedCapabilities(
-          hello.data.capabilities,
-          UI_CAPABILITIES,
-        );
-        if (!hello.data.encodings.includes("json")) {
-          fail("CAPABILITY_MISSING", "json encoding is required");
-          return;
-        }
-        send(
-          makeManagerMessage(
-            "welcome",
-            {
-              sessionId: session.sessionId,
-              acceptingPeer: {
-                role: "sandbox_manager",
-                id: "sandbox-manager",
-                instanceId: "sandbox-manager",
-              },
-              acceptedVersion: 1,
-              capabilities,
-              encoding: "json",
-              streams: await uiWelcomeStreams(
-                this.state,
-                Array.from(session.subscribedStreams),
-              ),
-              limits: {
-                maxMessageBytes: 1_000_000,
-                maxBatchEvents: 1_000,
-                maxBatchBytes: 1_000_000,
-                maxInflightBatches: 16,
-                maxUnackedDurableEvents: 10_000,
-              },
-              heartbeat: {
-                intervalMs: 15_000,
-                timeoutMs: this.state.config.heartbeatTimeoutMs,
-              },
-              resume: {
-                accepted: true,
-                mode: hello.data.resume?.streams?.length ? "replay" : "live",
-              },
-            },
-            { target: targetPeer },
-          ),
-        );
-        unsubscribe = this.state.eventBus.subscribe((event) => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          const stream = event.stream ?? MANAGER_EVENT_STREAM;
-          if (!session?.subscribedStreams.has(stream)) return;
-          const isDurable = event.durability === "durable";
-          // Transient events (streaming deltas) occupy seq numbers between
-          // durable events, so a durable event's predecessor is the last durable
-          // seq we actually sent on this stream — not `seq - 1`. Using `seq - 1`
-          // makes the client see a false gap and drop the batch, which blocks all
-          // further live events (no streaming/thinking is rendered).
-          const previousDurableSeq = isDurable
-            ? (session.latestSentSeqs.get(stream) ?? 0)
-            : undefined;
-          const batch = managerEventBatch({
-            stream,
-            batchId: `batch_${stream}_${event.seq ?? Date.now()}`,
-            reason: "live",
-            events: [event],
-            previousDurableSeq,
-          });
-          send(makeManagerMessage("event.batch", batch));
-          if (isDurable && typeof event.seq === "number")
-            session.latestSentSeqs.set(stream, event.seq);
-        });
-        const uiSession = session;
-        ws.on(
-          "message",
-          (next) => void this.handleUiMessage(ws, next as Buffer, uiSession),
-        );
-      } catch (error) {
-        fail(
-          "INVALID_HELLO",
-          error instanceof Error ? error.message : "Invalid hello",
-        );
-      }
-    });
-    ws.on("close", () => {
-      cleanupHelloTimer();
-      unsubscribe?.();
-    });
-    ws.on("error", () => {
-      cleanupHelloTimer();
-      unsubscribe?.();
-    });
+    await createManagerUiSharedSession(ws, this.state, this);
   }
-  private async handleUiMessage(
-    ws: WebSocket,
-    data: Buffer,
-    session: UiProtocolSession,
-  ): Promise<void> {
-    const send = (message: NerveMessage<unknown>): void => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
-    };
-    let message: NerveMessage<unknown>;
-    try {
-      message = nerveMessageSchema.parse(JSON.parse(String(data)));
-    } catch {
-      send(
-        makeManagerMessage("error", {
-          code: "INVALID_MESSAGE",
-          message: "Invalid JSON or Nerve message",
-          retryable: false,
-        }),
-      );
-      return;
-    }
-    if (message.kind === "event.ack") {
-      const ack = ackMessageSchema.parse(message);
-      if (ack.data.sessionId !== session.sessionId) {
-        send(
-          makeManagerMessage("error", {
-            code: "INVALID_SESSION",
-            message: "Ack sessionId does not match this websocket session",
-            retryable: false,
-          }),
-        );
-        return;
-      }
-      updateUiSessionAck(session, ack.data.streams);
-      return;
-    }
-    if (message.kind === "heartbeat") {
-      const heartbeat = heartbeatMessageSchema.parse(message);
-      session.heartbeat.lastReceivedAt = new Date().toISOString();
-      send(
-        makeManagerMessage("heartbeat", {
-          sessionId: session.sessionId,
-          sentAt: new Date().toISOString(),
-          processed: heartbeat.data.processed,
-        }),
-      );
-      return;
-    }
-    if (message.kind === "ready") {
-      readyMessageSchema.parse(message);
-      return;
-    }
-    if (message.kind === "goodbye") {
-      goodbyeMessageSchema.parse(message);
-      ws.close(1000, "goodbye");
-      return;
-    }
-    if (message.kind === "replay.request") {
-      const request = replayRequestMessageSchema.parse(message);
-      await handleUiReplayRequest(this.state, session, request.data, send);
-      return;
-    }
-    if (message.kind === "request") {
-      const request = protocolRequestMessageSchema.parse(message);
-      const dispatched = await managerRpcDispatcher(this.state, this).dispatch(
-        request,
-      );
-      send(
-        makeManagerMessage(
-          dispatched.ok ? "response" : "error",
-          dispatched.ok
-            ? {
-                ok: true as const,
-                method: request.data.method,
-                result: dispatched.result,
-              }
-            : dispatched.error,
-          {
-            target: request.source,
-            correlationId: request.correlationId ?? request.id,
-            replyTo: request.id,
-          },
-        ),
-      );
-      return;
-    }
-    send(
-      makeManagerMessage("error", {
-        code: "UNSUPPORTED_MESSAGE",
-        message: `Unsupported UI message: ${message.kind}`,
-        retryable: false,
-      }),
-    );
-  }
-
   private async handleConnection(
     sandboxId: string,
     ws: WebSocket,
   ): Promise<void> {
-    let session: ConnectedSandboxSession | undefined;
-    const send = (message: NerveMessage): void => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
-    };
-    const fail = (code: string, message: string): void => {
-      this.state.logger.warn("controller handshake rejected", {
-        sandboxId,
-        code,
-        reason: message,
-      });
-      send(
-        makeManagerMessage(
-          "error",
-          { code: "SESSION_REJECTED", message, retryable: false, close: true },
-          { target: { role: "sandbox_agent", id: sandboxId } },
-        ),
-      );
-      ws.close(1008, code);
-    };
-    const helloTimer = setTimeout(
-      () => fail("HELLO_TIMEOUT", "Sandbox hello was not received in time"),
-      10_000,
-    );
-    const cleanupHelloTimer = () => clearTimeout(helloTimer);
-
-    ws.once("message", async (data) => {
-      cleanupHelloTimer();
-      try {
-        const hello = parseProtocolMessage(data as Buffer);
-        if (
-          hello.kind !== "hello" ||
-          hello.source.role !== "sandbox_agent" ||
-          hello.source.id !== sandboxId
-        ) {
-          fail(
-            "INVALID_HELLO",
-            "Expected a sandbox-agent hello matching the URL",
-          );
-          return;
-        }
-        const record = await this.state.sandboxes.get(sandboxId);
-        if (!record?.controller) {
-          fail("UNKNOWN_SANDBOX", "Sandbox record is missing");
-          return;
-        }
-        const instanceId = hello.source.instanceId;
-        if (!instanceId) {
-          fail("INVALID_HELLO", "Sandbox instance identity is required");
-          return;
-        }
+    const record = await this.state.sandboxes.get(sandboxId);
+    if (!record?.controller) {
+      ws.close(1008, "unknown_sandbox");
+      return;
+    }
+    const peer = { role: "sandbox_manager" as const, id: "sandbox-manager" };
+    const messages = createMessageFactory({
+      source: peer,
+      target: { role: "sandbox_agent", id: sandboxId },
+    });
+    const transport = websocketTransport(ws as unknown as WebSocketLike);
+    let connected: ConnectedSandboxSession | undefined;
+    let disposed = false;
+    let agentProcessedSeq = 0;
+    const agentStream = `sandbox:${sandboxId}`;
+    const protocolSession: ProtocolServerSession = new ProtocolServerSession({
+      acceptingPeer: peer,
+      allowedPeerRoles: ["sandbox_agent"],
+      createMessage: messages,
+      capabilities: [...CONTROLLER_CAPABILITIES],
+      streams: () => [
+        {
+          stream: agentStream,
+          latestSeq: agentProcessedSeq,
+          durableSeq: agentProcessedSeq,
+          replayAvailableFromSeq: agentProcessedSeq,
+        },
+      ],
+      limits: {
+        maxMessageBytes: 1_000_000,
+        maxBatchEvents: 1_000,
+        maxBatchBytes: 1_000_000,
+        maxInflightBatches: 16,
+        maxUnackedDurableEvents: 10_000,
+      },
+      heartbeat: { intervalMs: 15_000, timeoutMs: 45_000 },
+      sessionId: () => `sess_${randomUUID()}`,
+      send: async (message) => {
+        await connection.send(message as ProtocolV1Message);
+      },
+      resume: (hello, source) => {
+        if (source.id !== sandboxId || !source.instanceId)
+          throw new Error("Sandbox agent identity does not match the endpoint");
+        agentProcessedSeq =
+          hello.resume?.streams?.find((cursor) => cursor.stream === agentStream)
+            ?.processedSeq ?? 0;
         if (
           record.instanceId &&
-          record.instanceId !== instanceId &&
+          record.instanceId !== source.instanceId &&
           record.desiredState !== "running" &&
           record.desiredState !== "created"
-        ) {
-          fail("INSTANCE_MISMATCH", "Sandbox instance is not current");
-          return;
-        }
-        const sessionId = `sess_${randomUUID()}`;
+        )
+          throw new Error("Sandbox instance is not current");
+        return { accepted: true, mode: "live" as const };
+      },
+      onReady: async (ready) => {
+        const instanceId = protocolSession.peer?.instanceId;
+        if (!instanceId || !protocolSession.sessionId)
+          throw new Error("Sandbox identity/session missing at ready");
         const now = new Date().toISOString();
-        const capabilities = acceptedCapabilities(hello.data.capabilities);
+        const sessionId = protocolSession.sessionId;
         const forwarder = new RpcForwarder(sandboxId, {
           logger: this.state.logger.child({ sandboxId, sessionId }),
+          request: (method, params, options) =>
+            protocolSession.request(
+              operationNameSchema.parse(method),
+              params as never,
+              options,
+            ),
         });
-        session = {
+        connected = {
           sandboxId,
           instanceId,
           sessionId,
           connectedAt: now,
+          readyAt: now,
           lastHeartbeatAt: now,
+          agentStatus: "ready",
           socket: ws,
           forwarder,
         };
-        this.sessions.set(session);
+        this.sessions.set(connected);
         await this.state.sessions.put({
           sandboxId,
           sessionId,
           state: "connected",
           updatedAt: now,
           connectedAt: now,
-          agentStatus: "booting",
-          cursors: hello.data.resume?.streams,
-          capabilities,
+          readyAt: now,
+          agentStatus: "ready",
+          cursors: ready.data.streams,
+          capabilities: protocolSession.peer
+            ? [...CONTROLLER_CAPABILITIES]
+            : [],
         });
         const connectedRecord = await transitionSandboxLifecycle(
           {
@@ -455,204 +221,81 @@ export class SandboxWsServer {
               recordManagerLifecycleEvent(this.state, event),
           },
           sandboxId,
-          "daemon_connected",
+          "ready",
           {
             observedState: "running",
             instanceId,
-            daemon: { sessionId, connectedAt: now, lastHeartbeatAt: now },
+            daemon: {
+              sessionId,
+              connectedAt: now,
+              readyAt: now,
+              lastHeartbeatAt: now,
+            },
             force: true,
           },
         );
         await this.state.sandboxes.put({
           ...connectedRecord,
-          controller: { ...record.controller, sessionId },
+          controller: {
+            ...record.controller,
+            token: record.controller?.token ?? "",
+            sessionId,
+          },
         });
-        send(
-          makeManagerMessage(
-            "welcome",
-            {
-              sessionId,
-              acceptingPeer: { role: "sandbox_manager", id: "sandbox-manager" },
-              acceptedVersion: 1,
-              capabilities,
-              encoding: "json",
-              streams: [
-                {
-                  stream: `sandbox:${sandboxId}`,
-                  latestSeq: 0,
-                  durableSeq: 0,
-                },
-              ],
-              limits: {
-                maxMessageBytes: 1_000_000,
-                maxBatchEvents: 1_000,
-                maxBatchBytes: 1_000_000,
-                maxInflightBatches: 16,
-                maxUnackedDurableEvents: 10_000,
-              },
-              heartbeat: { intervalMs: 15_000, timeoutMs: 45_000 },
-              resume: {
-                accepted: true,
-                mode: hello.data.resume ? "replay" : "fresh",
-              },
-            },
-            { target: hello.source, correlationId: hello.id },
-          ),
-        );
-        session.heartbeat = setInterval(() => {
-          send(
-            makeManagerMessage(
-              "heartbeat",
-              { sessionId, sentAt: new Date().toISOString() },
-              { target: hello.source },
-            ),
+      },
+      onEventBatch: async (message) => {
+        const expectedStream = `sandbox:${sandboxId}`;
+        if (message.data.stream !== expectedStream)
+          throw new Error(
+            "Sandbox event stream does not match authenticated identity",
           );
-        }, 15_000);
-        session.heartbeat.unref();
-        ws.on(
-          "message",
-          (next) =>
-            void this.handleMessage(
-              session as ConnectedSandboxSession,
-              next as Buffer,
-            ),
+        const result = await this.ingestor.ingestBatch(
+          sandboxId,
+          message.data.events,
         );
-      } catch (error) {
-        fail(
-          "INVALID_HELLO",
-          error instanceof Error ? error.message : "Invalid hello",
-        );
-      }
+        return {
+          streams: [
+            { stream: expectedStream, processedSeq: result.processedSeq },
+          ],
+          appliedEvents: result.accepted,
+        };
+      },
     });
-
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      protocolSession.dispose();
+      connection.dispose();
+    };
+    const connection: ProtocolConnection = new ProtocolConnection({
+      transport,
+      onMessage: (message) => protocolSession.receive(message),
+      onProtocolError: () => {
+        void protocolSession
+          .shutdown("protocol_error", "Invalid protocol frame")
+          .then(() => transport.close(1002, "protocol_error"))
+          .finally(dispose);
+      },
+      onError: (error) => {
+        this.state.logger.warn("Sandbox protocol session failed", {
+          sandboxId,
+          error: (error instanceof Error ? error.message : String(error)).slice(
+            0,
+            512,
+          ),
+        });
+        dispose();
+      },
+    });
     ws.on("close", (code, reason) => {
-      cleanupHelloTimer();
-      this.safeHandleClose(sandboxId, session, code, reason.toString());
+      dispose();
+      this.safeHandleClose(sandboxId, connected, code, reason.toString());
     });
     ws.on("error", (error) => {
-      cleanupHelloTimer();
-      this.safeHandleClose(sandboxId, session, undefined, error.message);
+      dispose();
+      this.safeHandleClose(sandboxId, connected, undefined, error.message);
     });
   }
-
-  private async handleMessage(
-    session: ConnectedSandboxSession,
-    data: Buffer,
-  ): Promise<void> {
-    let message;
-    try {
-      message = parseProtocolMessage(data);
-    } catch (error) {
-      session.socket.send(
-        JSON.stringify(
-          makeManagerMessage(
-            "error",
-            {
-              code: "INVALID_MESSAGE",
-              message:
-                error instanceof Error ? error.message : "Invalid message",
-              retryable: false,
-            },
-            { target: { role: "sandbox_agent", id: session.sandboxId } },
-          ),
-        ),
-      );
-      return;
-    }
-    if (
-      message.source.role !== "sandbox_agent" ||
-      message.source.id !== session.sandboxId
-    ) {
-      session.socket.close(1008, "source_mismatch");
-      return;
-    }
-    if (message.kind === "ready") {
-      const now = new Date().toISOString();
-      session.readyAt = now;
-      session.agentStatus = "ready";
-      await this.state.sessions.put({
-        sandboxId: session.sandboxId,
-        sessionId: session.sessionId,
-        state: "connected",
-        updatedAt: now,
-        connectedAt: session.connectedAt,
-        readyAt: now,
-        agentStatus: "ready",
-        cursors: message.data.streams,
-      });
-      await transitionSandboxLifecycle(
-        {
-          store: this.state.sandboxes,
-          recordEvent: (event) =>
-            recordManagerLifecycleEvent(this.state, event),
-        },
-        session.sandboxId,
-        "ready",
-        {
-          daemon: {
-            sessionId: session.sessionId,
-            connectedAt: session.connectedAt,
-            readyAt: now,
-            lastHeartbeatAt: session.lastHeartbeatAt,
-          },
-          force: true,
-        },
-      );
-      return;
-    }
-    if (message.kind === "heartbeat") {
-      session.lastHeartbeatAt = new Date().toISOString();
-      await this.state.sessions.put({
-        sandboxId: session.sandboxId,
-        sessionId: session.sessionId,
-        state: "connected",
-        updatedAt: session.lastHeartbeatAt,
-        connectedAt: session.connectedAt,
-        readyAt: session.readyAt,
-        agentStatus: session.agentStatus ?? "booting",
-        cursors: message.data.processed,
-      });
-      return;
-    }
-    if (message.kind === "event.batch") {
-      const expectedStream = `sandbox:${session.sandboxId}`;
-      if (message.data.stream !== expectedStream) {
-        session.socket.close(1008, "stream_mismatch");
-        return;
-      }
-      const result = await this.ingestor.ingestBatch(
-        session.sandboxId,
-        message.data.events,
-      );
-      session.socket.send(
-        JSON.stringify(
-          makeManagerMessage(
-            "event.ack",
-            {
-              sessionId: session.sessionId,
-              ackId: message.data.batchId,
-              streams: [
-                { stream: expectedStream, processedSeq: result.processedSeq },
-              ],
-              stats: { appliedEvents: result.accepted },
-            },
-            { target: message.source, correlationId: message.id },
-          ),
-        ),
-      );
-      return;
-    }
-    if (message.kind === "response") {
-      session.forwarder.resolve(message);
-      return;
-    }
-    if (message.kind === "error") {
-      session.forwarder.reject(message);
-      return;
-    }
-    if (message.kind === "goodbye") session.socket.close(1000, "goodbye");
-  }
-
   private safeHandleClose(
     sandboxId: string,
     session?: ConnectedSandboxSession,

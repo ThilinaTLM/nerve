@@ -1,10 +1,15 @@
 import type {
   HelloData,
   NerveMessage,
+  OperationName,
+  OperationParams,
+  OperationResult,
   PeerDescriptor,
   PeerRole,
   ProtocolLimits,
+  ProtocolRequestData,
   ProtocolV1Message,
+  StreamCursor,
   StreamState,
 } from "@nervekit/contracts";
 import type { MessageFactory } from "./messages.js";
@@ -51,6 +56,18 @@ export interface ServerSessionOptions {
     message: ProtocolV1Message & { kind: "ready" },
   ) => void | Promise<void>;
   readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
+  /** Applies a peer-owned event batch before the shared session acknowledges it. */
+  readonly onEventBatch?: (
+    message: ProtocolV1Message & { kind: "event.batch" },
+  ) =>
+    | {
+        readonly streams: readonly StreamCursor[];
+        readonly appliedEvents?: number;
+      }
+    | Promise<{
+        readonly streams: readonly StreamCursor[];
+        readonly appliedEvents?: number;
+      }>;
   readonly rpcDispatcher?:
     | RpcDispatcher
     | ((context: {
@@ -68,4 +85,16 @@ export interface ServerSessionOptions {
   readonly clock?: ProtocolClock;
   readonly timers?: ProtocolTimers;
   readonly ids?: ProtocolIdSource;
+  readonly rpcTimeoutMs?: number;
+}
+
+export interface ServerSessionRpc {
+  request<M extends OperationName>(
+    method: M,
+    params: OperationParams<M>,
+    options?: Pick<
+      ProtocolRequestData,
+      "idempotencyKey" | "timeoutMs" | "expect"
+    >,
+  ): Promise<OperationResult<M>>;
 }

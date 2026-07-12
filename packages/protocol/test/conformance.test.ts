@@ -91,6 +91,73 @@ test("client and server negotiate hello, welcome, and ready", async () => {
   assert.equal(client.sessionId, "session_test");
 });
 
+test("client readiness gate and peer-owned event ACK use shared sessions", async () => {
+  const clientOutbound: NerveMessage[] = [];
+  const serverOutbound: NerveMessage[] = [];
+  let releaseReady!: () => void;
+  const readyGate = new Promise<void>((resolve) => {
+    releaseReady = resolve;
+  });
+  const client = new ProtocolClientSession({
+    createMessage: clientMessages,
+    capabilities: ["events"],
+    awaitReady: () => readyGate,
+    send: (message) => clientOutbound.push(message),
+  });
+  const host = new ProtocolServerSession({
+    acceptingPeer: server,
+    createMessage: serverMessages,
+    capabilities: ["events"],
+    streams: () => [],
+    limits,
+    heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+    sessionId: () => "session_peer_events",
+    send: (message) => serverOutbound.push(message),
+    onEventBatch: async (message) => ({
+      streams: [
+        {
+          stream: message.data.stream,
+          processedSeq: message.data.events.at(-1)?.seq ?? 0,
+        },
+      ],
+      appliedEvents: message.data.events.length,
+    }),
+  });
+  await client.start();
+  await host.receive(clientOutbound.shift() as never);
+  const receivingWelcome = client.receive(serverOutbound.shift() as never);
+  await Promise.resolve();
+  assert.equal(clientOutbound.length, 0);
+  releaseReady();
+  await receivingWelcome;
+  await host.receive(clientOutbound.shift() as never);
+
+  await client.publishEventBatch(
+    buildEventBatch(
+      [
+        {
+          id: "evt_peer_1",
+          seq: 1,
+          type: "project.created",
+          ts: new Date().toISOString(),
+          durability: "durable",
+          data: {},
+        },
+      ],
+      { stream: "sandbox:test", reason: "replay", previousDurableSeq: 0 },
+    ),
+  );
+  await host.receive(clientOutbound.shift() as never);
+  assert.equal(serverOutbound.at(-1)?.kind, "event.ack");
+  assert.deepEqual(
+    (serverOutbound.at(-1) as Extract<NerveMessage, { kind: "event.ack" }>).data
+      .streams,
+    [{ stream: "sandbox:test", processedSeq: 1 }],
+  );
+  client.disconnect();
+  host.dispose();
+});
+
 test("server rejects a non-hello first message", async () => {
   const host = new ProtocolServerSession({
     acceptingPeer: server,
