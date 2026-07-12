@@ -52,6 +52,15 @@ export interface ServerSessionOptions {
   ) => SessionResumeDecision | Promise<SessionResumeDecision>;
   readonly sessionId: () => string;
   readonly send: (message: NerveMessage) => void | Promise<void>;
+  /** Authorizes post-handshake targets; defaults to the target addressed by hello. */
+  readonly authorizeTarget?: (
+    message: ProtocolV1Message,
+    context: {
+      readonly peer: PeerDescriptor;
+      readonly negotiatedTarget: PeerDescriptor;
+      readonly acceptingPeer: PeerDescriptor;
+    },
+  ) => boolean | Promise<boolean>;
   readonly onReady?: (
     message: ProtocolV1Message & { kind: "ready" },
   ) => void | Promise<void>;

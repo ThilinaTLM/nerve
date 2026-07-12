@@ -19,7 +19,7 @@ import {
   resetClientEventStreamState,
   type ClientEventStreamState,
 } from "./event-stream.js";
-import type { MessageFactory } from "./messages.js";
+import type { MessageFactory, MessageFactoryOptions } from "./messages.js";
 import type {
   ProcessedEventSink,
   ProtocolClock,
@@ -171,7 +171,7 @@ export class ProtocolClientSession {
         !this.#addressedPeer ||
         !samePeer(message.target, this.#localPeer) ||
         !samePeer(message.source, welcome.acceptingPeer) ||
-        message.source.role !== this.#addressedPeer.role
+        !matchesAddressedPeer(this.#addressedPeer, welcome.acceptingPeer)
       ) {
         this.state = "closed";
         throw new SessionStateError(
@@ -351,7 +351,13 @@ export class ProtocolClientSession {
     options: Pick<
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
-    > = {},
+    > &
+      Partial<
+        Pick<
+          MessageFactoryOptions,
+          "correlationId" | "causationId" | "traceId" | "target"
+        >
+      > = {},
   ): Promise<OperationResult<M>> {
     if (this.state !== "ready")
       throw new SessionStateError("RPC requests require a ready session");
@@ -523,6 +529,19 @@ export class ProtocolClientSession {
     this.#rpc.close();
     this.state = "closed";
   }
+}
+
+function matchesAddressedPeer(
+  addressed: PeerDescriptor,
+  accepting: PeerDescriptor,
+): boolean {
+  return (
+    addressed.role === accepting.role &&
+    (addressed.id === undefined || addressed.id === accepting.id) &&
+    (addressed.instanceId === undefined ||
+      addressed.instanceId === accepting.instanceId) &&
+    (addressed.name === undefined || addressed.name === accepting.name)
+  );
 }
 
 function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {

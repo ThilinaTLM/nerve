@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { HelloData, ProtocolV1Message } from "@nervekit/contracts";
+import {
+  allOperationDefinitions,
+  type HelloData,
+  type ProtocolV1Message,
+} from "@nervekit/contracts";
 import {
   createInMemoryTransportPair,
   createMessageFactory,
@@ -9,6 +13,15 @@ import {
   type TransportFactory,
 } from "@nervekit/protocol";
 import { ManagerWsClient } from "./manager-ws-client.svelte";
+
+const rpcCapabilities = allOperationDefinitions()
+  .filter(
+    (definition) =>
+      definition.allowedTargetRoles.includes("sandbox_manager") ||
+      definition.allowedTargetRoles.includes("sandbox_agent"),
+  )
+  .map((definition) => definition.requiredCapability)
+  .filter((capability): capability is string => Boolean(capability));
 
 const capabilities = [
   "encoding.json",
@@ -20,6 +33,7 @@ const capabilities = [
   "sandbox.manager.snapshots.v1",
   "operation.sandbox.manager.recovery.get",
   "sandbox.manager.lifecycle.v1",
+  ...rpcCapabilities,
 ];
 
 test("ManagerWsClient keeps only the latest selection generation and installs exact cursors", async () => {

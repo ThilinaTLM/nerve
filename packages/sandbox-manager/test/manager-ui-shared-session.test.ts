@@ -24,23 +24,60 @@ const capabilities = [
   "sandbox.manager.snapshots.v1",
   "operation.sandbox.manager.recovery.get",
   "sandbox.manager.lifecycle.v1",
+  "operation.pinnedCommand.list",
+  "operation.task.list",
 ];
 
 test("manager UI adapter publishes only manager and selected sandbox streams", async () => {
   const http = createServer();
   const sockets = new WebSocketServer({ server: http });
   const eventBus = new ManagerEventBus();
+  const forwarded: Array<{
+    method: string;
+    params: unknown;
+    lineage: unknown;
+  }> = [];
+  const sandboxRecord = {
+    sandboxId: "a",
+    lifecycleState: "ready",
+    desiredState: "running",
+    observedState: "running",
+  };
   const state = {
     config: { heartbeatTimeoutMs: 45_000 },
     sandboxes: {
       list: async () => [{ sandboxId: "a" }, { sandboxId: "b" }],
+      get: async (sandboxId: string) =>
+        sandboxId === "a" ? sandboxRecord : undefined,
     },
+    pinnedCommands: { list: async () => [] },
     events: { list: async () => [] },
     eventBus,
     logger: { warn: () => undefined },
   } as unknown as ManagerState;
+  const controller = {
+    getSession: (sandboxId: string) =>
+      sandboxId === "a"
+        ? {
+            socket: {},
+            forwarder: {
+              send: async (
+                _socket: unknown,
+                method: string,
+                params: unknown,
+                _idempotencyKey: string | undefined,
+                _timeoutMs: number,
+                lineage: unknown,
+              ) => {
+                forwarded.push({ method, params, lineage });
+                return { tasks: [] };
+              },
+            },
+          }
+        : undefined,
+  } as unknown as SandboxWsServer;
   sockets.on("connection", (socket) => {
-    void createManagerUiSharedSession(socket, state, {} as SandboxWsServer);
+    void createManagerUiSharedSession(socket, state, controller);
   });
   await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
   const address = http.address();
@@ -111,6 +148,48 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
     });
     await waitFor(() => received.length === 2);
     assert.deepEqual(received.sort(), ["manager", "sandbox:a"]);
+
+    const managerResult = await connection.request(
+      "pinnedCommand.list",
+      { sandboxId: "a" },
+      { target: { role: "sandbox_manager", id: "sandbox-manager" } },
+    );
+    assert.deepEqual(managerResult, { commands: [] });
+
+    const agentResult = await connection.request(
+      "task.list",
+      {},
+      {
+        target: { role: "sandbox_agent", id: "a" },
+        correlationId: "upstream_correlation",
+        traceId: "trace_manager_ui",
+      },
+    );
+    assert.deepEqual(agentResult, { tasks: [] });
+    assert.equal(forwarded[0]?.method, "task.list");
+    assert.deepEqual(forwarded[0]?.params, {});
+    assert.deepEqual(forwarded[0]?.lineage, {
+      correlationId: "upstream_correlation",
+      causationId: forwarded[0]
+        ? (forwarded[0].lineage as { causationId?: string }).causationId
+        : undefined,
+      traceId: "trace_manager_ui",
+    });
+    assert.ok(
+      (
+        forwarded[0]?.lineage as { causationId?: string }
+      ).causationId?.startsWith("msg_"),
+    );
+
+    await assert.rejects(
+      connection.request(
+        "task.list",
+        {},
+        {
+          target: { role: "sandbox_agent", id: "b" },
+        },
+      ),
+    );
   } finally {
     await connection.close();
     await new Promise<void>((resolve) => sockets.close(() => resolve()));

@@ -76,7 +76,13 @@ export class ProtocolClientConnection {
     options: Pick<
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
-    > = {},
+    > &
+      Partial<
+        Pick<
+          import("./messages.js").MessageFactoryOptions,
+          "correlationId" | "causationId" | "traceId" | "target"
+        >
+      > = {},
   ): Promise<OperationResult<M>> {
     return this.session.request(method, params, options);
   }

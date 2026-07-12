@@ -1,8 +1,9 @@
 import { SvelteMap, SvelteSet, SvelteURL } from "svelte/reactivity";
-import type {
-  EventEnvelope,
-  PeerDescriptor,
-  StreamCursor,
+import {
+  allOperationDefinitions,
+  type EventEnvelope,
+  type PeerDescriptor,
+  type StreamCursor,
 } from "@nervekit/contracts";
 import {
   browserWebSocketTransportFactory,
@@ -23,6 +24,15 @@ export type ManagerWsConnectionState =
   | "error"
   | "closed";
 
+const RPC_CAPABILITIES = allOperationDefinitions()
+  .filter(
+    (definition) =>
+      definition.allowedTargetRoles.includes("sandbox_manager") ||
+      definition.allowedTargetRoles.includes("sandbox_agent"),
+  )
+  .map((definition) => definition.requiredCapability)
+  .filter((capability): capability is string => Boolean(capability));
+
 const UI_CAPABILITIES = [
   "encoding.json",
   "event.batch",
@@ -33,6 +43,7 @@ const UI_CAPABILITIES = [
   "sandbox.manager.snapshots.v1",
   "operation.sandbox.manager.recovery.get",
   "sandbox.manager.lifecycle.v1",
+  ...RPC_CAPABILITIES,
 ];
 const STATE_KEY = "nerve.protocol.v1.sandbox-manager-ui";
 const STATE_EPOCH = "protocol-v1";

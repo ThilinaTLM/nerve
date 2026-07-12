@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type {
-  EventEnvelope,
-  ProtocolV1Message,
-  StreamState,
+import {
+  allOperationDefinitions,
+  type EventEnvelope,
+  type ProtocolV1Message,
+  type StreamState,
 } from "@nervekit/contracts";
 import {
   createMessageFactory,
@@ -21,6 +22,15 @@ import {
 import { managerWebSocketRpcDispatcher } from "./manager-protocol-http-dispatcher.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
+const RPC_CAPABILITIES = allOperationDefinitions()
+  .filter(
+    (definition) =>
+      definition.allowedTargetRoles.includes("sandbox_manager") ||
+      definition.allowedTargetRoles.includes("sandbox_agent"),
+  )
+  .map((definition) => definition.requiredCapability)
+  .filter((capability): capability is string => Boolean(capability));
+
 const CAPABILITIES = [
   "encoding.json",
   "event.batch",
@@ -31,6 +41,7 @@ const CAPABILITIES = [
   "sandbox.manager.snapshots.v1",
   "operation.sandbox.manager.recovery.get",
   "sandbox.manager.lifecycle.v1",
+  ...RPC_CAPABILITIES,
 ];
 const LIMITS = {
   maxMessageBytes: 1_000_000,
@@ -88,6 +99,24 @@ export async function createManagerUiSharedSession(
     sessionId: () => `ses_${randomUUID()}`,
     send: async (message): Promise<void> => {
       await connection.send(message as ProtocolV1Message);
+    },
+    authorizeTarget: async (message, context) => {
+      const target = message.target;
+      if (
+        target.role === context.negotiatedTarget.role &&
+        target.id === context.negotiatedTarget.id &&
+        target.instanceId === context.negotiatedTarget.instanceId &&
+        target.name === context.negotiatedTarget.name
+      )
+        return true;
+      if (
+        target.role !== "sandbox_agent" ||
+        !target.id ||
+        target.instanceId !== undefined ||
+        target.name !== undefined
+      )
+        return false;
+      return Boolean(await state.sandboxes.get(target.id));
     },
     rpcDispatcher: ({ capabilities }) =>
       managerWebSocketRpcDispatcher(state, server, capabilities),

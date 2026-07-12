@@ -55,9 +55,11 @@ export class RpcClient {
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
     > &
-      Pick<
-        MessageFactoryOptions,
-        "correlationId" | "causationId" | "traceId"
+      Partial<
+        Pick<
+          MessageFactoryOptions,
+          "correlationId" | "causationId" | "traceId" | "target"
+        >
       > = {},
   ): Promise<OperationResult<M>> {
     const operation = operationDefinition(method);
@@ -74,7 +76,8 @@ export class RpcClient {
         message: `Operation ${method} requires an idempotency key`,
         retryable: false,
       });
-    const { correlationId, causationId, traceId, ...requestOptions } = options;
+    const { correlationId, causationId, traceId, target, ...requestOptions } =
+      options;
     const data = protocolRequestDataSchema.parse({
       method,
       params: validatedParams,
@@ -84,6 +87,7 @@ export class RpcClient {
       correlationId,
       causationId,
       traceId,
+      target,
     });
     const timeoutMs =
       data.timeoutMs ?? this.#options.defaultTimeoutMs ?? 30_000;

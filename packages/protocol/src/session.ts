@@ -202,7 +202,7 @@ export class ProtocolServerSession {
       this.state = "awaiting_ready";
       return;
     }
-    if (!this.#hasNegotiatedPeers(message)) {
+    if (!(await this.#hasNegotiatedPeers(message))) {
       await this.fail(
         "INVALID_MESSAGE",
         "Message source or target does not match the negotiated session peers",
@@ -663,13 +663,20 @@ export class ProtocolServerSession {
     this.#finalize(new Error("Protocol server session closed"));
   }
 
-  #hasNegotiatedPeers(message: ProtocolV1Message): boolean {
-    return (
-      this.peer !== undefined &&
-      samePeer(message.source, this.peer) &&
-      this.#negotiatedTarget !== undefined &&
-      samePeer(message.target, this.#negotiatedTarget)
-    );
+  async #hasNegotiatedPeers(message: ProtocolV1Message): Promise<boolean> {
+    if (
+      this.peer === undefined ||
+      this.#negotiatedTarget === undefined ||
+      !samePeer(message.source, this.peer)
+    )
+      return false;
+    if (!this.#options.authorizeTarget)
+      return samePeer(message.target, this.#negotiatedTarget);
+    return this.#options.authorizeTarget(message, {
+      peer: this.peer,
+      negotiatedTarget: this.#negotiatedTarget,
+      acceptingPeer: this.#options.acceptingPeer,
+    });
   }
 
   #finalize(error: Error): void {
