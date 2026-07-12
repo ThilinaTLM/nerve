@@ -10,6 +10,7 @@ import type { HarnessFactory } from "../agent/harness-factory.js";
 import type { AgentConfigStore } from "../agent/agent-config-store.js";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
 import type { EventOutbox } from "../state/event-outbox.js";
+import type { SandboxInteractionPort } from "../tools/sandbox-orchestration-types.js";
 import type { SandboxTaskService } from "../tools/sandbox-task-service.js";
 import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
 import { SandboxInteractionChannel } from "./interaction-channel.js";
@@ -44,6 +45,7 @@ export interface SandboxRunRuntime {
   pending: SandboxPendingInteractions;
   live: SandboxLiveHarnessRegistry;
   delivery: RunEventDeliveryService;
+  interactions: SandboxInteractionPort;
 }
 
 /**
@@ -95,6 +97,15 @@ export function createSandboxRunRuntime(
     transient,
     diagnostics: toDiagnostics(deps.logger),
   });
+  const interactions: SandboxInteractionPort = {
+    setPending: (toolCallId, detail) => pending.set(toolCallId, detail),
+    resolved: async (toolCallId) => {
+      const record = await references.interaction(toolCallId);
+      return record?.status === "resolved"
+        ? (record.resolution ?? {})
+        : undefined;
+    },
+  };
   return {
     coordinator,
     unitOfWork,
@@ -103,6 +114,7 @@ export function createSandboxRunRuntime(
     pending,
     live,
     delivery,
+    interactions,
   };
 }
 

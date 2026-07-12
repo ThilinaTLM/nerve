@@ -242,6 +242,7 @@ export class SandboxDaemon {
       configStore: this.agentConfigStore,
       logger: logger.child({ component: "run-coordinator" }),
     });
+    this.toolRuntime.setInteractions(this.runRuntime.interactions);
     this.bridge = new HarnessEventBridge(
       state.events,
       this.runs,

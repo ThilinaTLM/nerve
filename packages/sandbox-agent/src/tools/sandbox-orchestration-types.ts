@@ -5,6 +5,7 @@ import type {
 import type { AgentConfigStore } from "../agent/agent-config-store.js";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
 import type { Redactor } from "../security/redaction.js";
+import type { PendingInteractionDetail } from "../run/pending-interactions.js";
 import type { InputWaiter } from "./input-waiter.js";
 import type { PlanReviewWaiter } from "./plan-review-waiter.js";
 import type { SandboxTaskService } from "./sandbox-task-service.js";
@@ -18,9 +19,21 @@ export type SandboxOrchestrationIdentity = {
   setCancel?: (cancel: () => Promise<void> | void) => void;
 };
 
+/**
+ * Live bridge to the RunCoordinator interaction model for tool handlers. When
+ * present it is the authority: handlers record the pending interaction detail
+ * (so the execution adapter can build the durable wait) and read the resolved
+ * resolution instead of consulting the retired disk waiters.
+ */
+export interface SandboxInteractionPort {
+  setPending(toolCallId: string, detail: PendingInteractionDetail): void;
+  resolved(toolCallId: string): Promise<Record<string, unknown> | undefined>;
+}
+
 export type SandboxOrchestrationHandlerOptions = {
   workspaceDir: string;
   redactor?: Redactor;
+  interactions?: SandboxInteractionPort;
   inputWaiter?: InputWaiter;
   planReviewWaiter?: PlanReviewWaiter;
   configStore?: AgentConfigStore;

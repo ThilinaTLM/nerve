@@ -23,6 +23,17 @@ export function createSandboxInteractionHandlers(
     ...createInteractionHandlers({
       resolve: async (value) => {
         const current = identity(value);
+        if (options.interactions) {
+          const resolution = await options.interactions.resolved(
+            current.toolCallId,
+          );
+          const text = resolution?.text ?? resolution?.answer;
+          if (typeof text !== "string") return undefined;
+          return {
+            content: redactor.redactText(text),
+            details: { requestId: current.toolCallId, status: "submitted" },
+          };
+        }
         const submitted = options.inputWaiter?.resolutionForRequest(
           current.toolCallId,
         );
@@ -34,6 +45,29 @@ export function createSandboxInteractionHandlers(
       },
       request: async (value, input) => {
         const current = identity(value);
+        await options.record(
+          {
+            toolCallId: current.toolCallId,
+            toolName: "ask_user",
+            status: "waiting_for_input",
+            lifecycleSeq: 2,
+          },
+          { ...current.context, ...current.scope },
+        );
+        if (options.interactions) {
+          options.interactions.setPending(current.toolCallId, {
+            kind: "question",
+            prompt: input.question,
+            context: input.context,
+            placeholder: input.placeholder,
+            required: true,
+          });
+          throw new AgentToolSuspension({
+            toolCallId: current.toolCallId,
+            toolName: "ask_user",
+            reason: `WAITING_FOR_INPUT: ${current.toolCallId}`,
+          });
+        }
         if (!options.inputWaiter) {
           throw new Error("UNAVAILABLE: input waiter is not configured");
         }
@@ -46,15 +80,6 @@ export function createSandboxInteractionHandlers(
           placeholder: input.placeholder,
           redactedDisplay: { text: redactor.redactText(input.question) },
         });
-        await options.record(
-          {
-            toolCallId: current.toolCallId,
-            toolName: "ask_user",
-            status: "waiting_for_input",
-            lifecycleSeq: 2,
-          },
-          { ...current.context, ...current.scope },
-        );
         throw new AgentToolSuspension({
           toolCallId: current.toolCallId,
           toolName: "ask_user",

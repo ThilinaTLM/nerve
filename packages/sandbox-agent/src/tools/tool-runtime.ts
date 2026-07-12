@@ -33,6 +33,7 @@ import type { ApprovalWaiter } from "./approval-waiter.js";
 import type { InputWaiter } from "./input-waiter.js";
 import type { PlanReviewWaiter } from "./plan-review-waiter.js";
 import { createSandboxOrchestrationHandlers } from "./sandbox-orchestration-handlers.js";
+import type { SandboxInteractionPort } from "./sandbox-orchestration-types.js";
 import type { SandboxTaskService } from "./sandbox-task-service.js";
 import { TodoStore } from "./todo-store.js";
 import { computeToolGroupStatus } from "./tool-groups.js";
@@ -84,6 +85,7 @@ export class SandboxToolRuntime {
   private readonly todoStore: TodoStore;
   private readonly hostTools: HostToolFactory<SandboxHostToolExecution>;
   private orchestrationHandlers: ToolHandlerRegistry;
+  private interactions?: SandboxInteractionPort;
   private readonly active = new Map<string, ActiveToolExecution>();
   private policyOverride: {
     permissionLevel?: PermissionLevel;
@@ -113,10 +115,16 @@ export class SandboxToolRuntime {
     this.orchestrationHandlers = this.createOrchestrationHandlers();
   }
 
+  setInteractions(interactions: SandboxInteractionPort): void {
+    this.interactions = interactions;
+    this.orchestrationHandlers = this.createOrchestrationHandlers();
+  }
+
   private createOrchestrationHandlers(): ToolHandlerRegistry {
     return createSandboxOrchestrationHandlers({
       workspaceDir: this.options.workspaceDir,
       redactor: this.redactor,
+      interactions: this.interactions,
       inputWaiter: this.options.inputWaiter,
       planReviewWaiter: this.options.planReviewWaiter,
       configStore: this.options.configStore,
@@ -364,6 +372,13 @@ export class SandboxToolRuntime {
         }
       }
       if (!resolution) {
+        this.interactions?.setPending(toolCallId, {
+          kind: "approval",
+          prompt: decision.reason ?? "approval required",
+          risk: [decision.reason ?? "policy"],
+          normalizedArgs: args,
+          offeredScopes: ["single_call", "same_tool_same_args", "run"],
+        });
         await this.options.approvalWaiter.request({
           id: toolCallId,
           toolCallId,
