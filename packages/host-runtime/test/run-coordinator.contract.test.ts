@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import type {
+  PeerRole,
   RunEventDeliveryRecord,
   RunPublicEventIntent,
   RunTransitionRecord,
@@ -11,8 +12,11 @@ import {
   RunCoordinator,
   RunEventDeliveryService,
   reduceRunTransitions,
+  RunRevisionConflictError,
   type RunExecution,
+  type RunExecutionSink,
   type RunHydratedState,
+  type RunProgressEvent,
   type RunUnitOfWorkPort,
 } from "../src/index.js";
 
@@ -80,12 +84,15 @@ function fixture(
   options: {
     cancelToolsFails?: boolean;
     publicationFails?: boolean;
+    sourceRole?: PeerRole;
   } = {},
 ) {
   const unitOfWork = new MemoryUnitOfWork();
   const published = new Map<string, { eventId: string; sequence: number }>();
   const controls: Array<{ behavior: string; text: string }> = [];
   const executions: RunExecution[] = [];
+  const sinks: RunExecutionSink[] = [];
+  const transient: RunProgressEvent[] = [];
   let id = 0;
   let finishExecution!: (value: { status: "completed" }) => void;
   const executeResult = new Promise<{ status: "completed" }>((resolve) => {
@@ -113,8 +120,11 @@ function fixture(
   );
   const coordinator = new RunCoordinator({
     unitOfWork,
+    sourceRole: options.sourceRole ?? "sandbox_agent",
+    transient: { publish: (event) => transient.push(event) },
     execution: {
-      create: async () => {
+      create: async (_run, sink) => {
+        sinks.push(sink);
         const execution: RunExecution = {
           control: {
             steer: async (prompt) => {
@@ -170,6 +180,8 @@ function fixture(
     published,
     controls,
     executions,
+    sinks,
+    transient,
     finishExecution,
     setTranscript(value: typeof transcript) {
       transcript = value;
@@ -335,6 +347,140 @@ test("partial cancellation is persisted truthfully and is not called cancelled",
     [...harness.published.keys()].some((id) => id.endsWith("/run.cancelled")),
     false,
   );
+});
+
+test("validates durable events against each host producer role", async () => {
+  for (const sourceRole of [
+    "sandbox_agent",
+    "workbench_server",
+  ] satisfies PeerRole[]) {
+    const harness = fixture({ sourceRole });
+    const run = await start(harness.coordinator, `conv_a:agent_${sourceRole}`);
+    const state = await harness.coordinator.get(run.runId);
+    assert.equal(state?.transitions[0]?.events[0]?.type, "run.started");
+    assert.equal(harness.published.size, 1);
+  }
+});
+
+test("execution sink appends durable entries and tool calls under revision", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const sink = harness.sinks[0]!;
+  await sink.appendEntries([
+    {
+      id: "entry_a",
+      parentId: null,
+      role: "assistant",
+      createdAt: "2026-07-12T00:00:10.000Z",
+      content: [{ type: "text", text: "hi" }],
+    } as never,
+  ]);
+  const state = await harness.coordinator.get(run.runId);
+  const appended = state?.transitions.find(
+    (item) => item.kind === "entries_appended",
+  );
+  assert.equal(appended?.entries[0]?.id, "entry_a");
+  assert.equal(appended?.run.revision, state?.run.revision);
+});
+
+test("execution sink publishes bounded transient progress off the durable path", async () => {
+  const harness = fixture();
+  await start(harness.coordinator);
+  harness.sinks[0]!.progress({
+    type: "assistant.delta",
+    occurredAt: "2026-07-12T00:00:10.000Z",
+    data: { text: "partial" },
+  });
+  assert.equal(harness.transient.length, 1);
+  assert.equal(harness.transient[0]?.type, "assistant.delta");
+  // Transient progress never becomes a durable intent.
+  assert.equal(
+    [...harness.published.keys()].some((id) => id.endsWith("assistant.delta")),
+    false,
+  );
+});
+
+test("execution sink enters a durable wait and resolves exactly once", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const interaction = await harness.sinks[0]!.wait({
+    kind: "approval",
+    toolCallId: "tool_write",
+    prompt: "Allow write?",
+    risk: ["filesystem"],
+    normalizedArgs: { path: "/tmp/x" },
+    offeredScopes: ["single_call"],
+    checkpoint: {
+      boundary: "suspension",
+      transcriptCursor: 0,
+      entryIds: [],
+      harnessLeafId: null,
+      harnessSavePointId: "save_0",
+      toolCalls: [],
+    },
+  });
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "waiting",
+  );
+  const resolved = await harness.coordinator.resolveInteraction(run.runId, {
+    interactionId: interaction.id,
+    resolutionRequestId: "req_1",
+    resolution: { decision: "allow" },
+  });
+  assert.equal(resolved.status, "resolved");
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "suspended",
+  );
+});
+
+test("reducer rejects a gap in transition revisions", () => {
+  const harness = fixture();
+  void harness;
+  const base = {
+    stateEpoch: 1 as const,
+    runId: "run_x",
+    scopeId: "scope",
+    kind: "started",
+    committedAt: "2026-07-12T00:00:00.000Z",
+    prompts: [],
+    interactions: [],
+    checkpoints: [],
+    entries: [],
+    toolCalls: [],
+    events: [],
+    checksum: checksum({}),
+  };
+  const transitions = [
+    {
+      ...base,
+      transitionId: "transition_1",
+      revision: 1,
+      previousRevision: 0,
+      run: { revision: 1 },
+    },
+    {
+      ...base,
+      transitionId: "transition_3",
+      revision: 3,
+      previousRevision: 2,
+      run: { revision: 3 },
+    },
+  ] as unknown as RunTransitionRecord[];
+  assert.throws(
+    () => reduceRunTransitions(transitions),
+    RunRevisionConflictError,
+  );
+});
+
+test("recovery fails an interrupted run without a valid checkpoint", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const recovered = await harness.coordinator.recover();
+  const state = recovered.find((item) => item.runId === run.runId);
+  assert.equal(state?.status, "failed");
+  assert.equal(state?.failure?.code, "INVALID_CHECKPOINT");
 });
 
 function checksum(value: unknown): string {

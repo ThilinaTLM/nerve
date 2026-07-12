@@ -1,81 +1,46 @@
-/* eslint-disable max-lines -- Canonical run coordination keeps transition ordering visible in one state machine. */ import type {
-  ConversationEntry,
-  PlanReviewRecord,
-  QueuedPromptRecord,
+import type {
+  PeerRole,
   RunCheckpointRecord,
-  RunExecutionRecord,
   RunFailureRecord,
   RunInteractionRecord,
   RunPromptRecord,
-  RunPublicEventIntent,
   RunRecord,
-  RunTransitionRecord,
-  ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
-import { RUN_STATE_EPOCH, validatePublicEvent } from "@nervekit/contracts";
 import type { ClockPort, DiagnosticPort, IdPort } from "./index.js";
+import { assertCheckpoint, checkpointValid } from "./run-checkpoints.js";
+import { RunEventFactory, type RunTransientEventPort } from "./run-events.js";
+import {
+  LiveExecutionRegistry,
+  type RunCancellationPort,
+  type RunExecution,
+  type RunExecutionFactoryPort,
+  type RunExecutionSink,
+  type RunIntegrityPort,
+} from "./run-execution.js";
+import {
+  ACTIVE_STATUSES,
+  buildTransition,
+  checkpointRecord,
+  type CheckpointCommand,
+  executionRecord,
+  failure,
+  interactionRecord,
+  newRun,
+  prefixed,
+  revise,
+  type StartRunCommand,
+  TERMINAL_STATUSES,
+  type TransitionChanges,
+  type WaitCommand,
+} from "./run-transitions.js";
 import type {
   RunCheckpointReferencePort,
   RunHydratedState,
   RunUnitOfWorkPort,
 } from "./run-unit-of-work.js";
 
-const ACTIVE_STATUSES = new Set<RunRecord["status"]>([
-  "starting",
-  "running",
-  "retrying",
-  "waiting",
-  "suspended",
-  "cancellation_requested",
-  "cancellation_failed",
-  "interrupted",
-]);
-const TERMINAL_STATUSES = new Set<RunRecord["status"]>([
-  "completed",
-  "failed",
-  "cancelled",
-]);
-
-export interface RunExecutionControl {
-  steer(prompt: RunPromptRecord): Promise<void>;
-  followUp(prompt: RunPromptRecord): Promise<void>;
-  continue(): Promise<void>;
-  cancel(reason?: string): Promise<void>;
-}
-
-export type RunExecutionOutcome =
-  | { status: "completed"; result?: Readonly<Record<string, unknown>> }
-  | { status: "suspended" }
-  | { status: "failed"; failure: RunFailureRecord }
-  | { status: "interrupted"; message: string };
-
-export interface RunExecution {
-  readonly control: RunExecutionControl;
-  execute(input: {
-    run: RunRecord;
-    command: "start" | "continue";
-    prompt?: string;
-    signal: AbortSignal;
-  }): Promise<RunExecutionOutcome>;
-}
-
-export interface RunExecutionFactoryPort {
-  create(run: RunRecord): Promise<RunExecution>;
-}
-
-export interface RunCancellationPort {
-  cancelModel(run: RunRecord): Promise<"confirmed" | "not_running">;
-  cancelTools(run: RunRecord): Promise<"confirmed" | "not_running">;
-  cancelTasks(run: RunRecord): Promise<"confirmed" | "not_running">;
-  cancelSubagents(run: RunRecord): Promise<"confirmed" | "not_running">;
-  cancelInteraction(run: RunRecord): Promise<"confirmed" | "not_running">;
-}
-
-export interface RunIntegrityPort {
-  checksum(value: unknown): string;
-}
-
 export interface RunCoordinatorPorts {
+  sourceRole: PeerRole;
   unitOfWork: RunUnitOfWorkPort;
   execution: RunExecutionFactoryPort;
   references: RunCheckpointReferencePort;
@@ -84,70 +49,14 @@ export interface RunCoordinatorPorts {
   ids: IdPort;
   integrity: RunIntegrityPort;
   flushEvents(): Promise<void>;
+  transient?: RunTransientEventPort;
   diagnostics?: DiagnosticPort;
 }
-
-export interface StartRunCommand {
-  conversationId: string;
-  agentId: string;
-  projectId: string;
-  prompt: string;
-  runId?: string;
-  scopeId?: string;
-}
-
-export interface WaitForQuestionCommand {
-  kind: "question";
-  interactionId?: string;
-  toolCallId: string;
-  prompt: string;
-  context?: string;
-  placeholder?: string;
-  required?: boolean;
-  checkpoint: CheckpointCommand;
-}
-
-export interface WaitForApprovalCommand {
-  kind: "approval";
-  interactionId?: string;
-  toolCallId: string;
-  prompt: string;
-  context?: string;
-  risk: string[];
-  normalizedArgs: Record<string, unknown>;
-  offeredScopes: Array<"single_call" | "same_tool_same_args" | "run">;
-  checkpoint: CheckpointCommand;
-}
-
-export interface WaitForPlanReviewCommand {
-  kind: "plan_review";
-  interactionId?: string;
-  toolCallId: string;
-  prompt: string;
-  context?: string;
-  planReview: PlanReviewRecord;
-  checkpoint: CheckpointCommand;
-}
-
-export type WaitCommand =
-  | WaitForQuestionCommand
-  | WaitForApprovalCommand
-  | WaitForPlanReviewCommand;
 
 export interface ResolveInteractionCommand {
   interactionId: string;
   resolutionRequestId: string;
   resolution: Record<string, unknown>;
-}
-
-export interface CheckpointCommand {
-  boundary: RunCheckpointRecord["boundary"];
-  transcriptCursor: number;
-  entryIds: string[];
-  harnessLeafId: string | null;
-  harnessSavePointId: string;
-  toolCalls: RunCheckpointRecord["toolCalls"];
-  interactionId?: string;
 }
 
 export class RunConflictError extends Error {
@@ -156,18 +65,15 @@ export class RunConflictError extends Error {
 export class InvalidRunStateError extends Error {
   readonly code = "INVALID_RUN_STATE";
 }
-export class InvalidCheckpointError extends Error {
-  readonly code = "INVALID_CHECKPOINT";
-}
 
 export class RunCoordinator {
   private readonly locks = new Map<string, Promise<void>>();
-  private readonly executions = new Map<
-    string,
-    { execution: RunExecution; abort: AbortController; promise: Promise<void> }
-  >();
+  private readonly live = new LiveExecutionRegistry();
+  private readonly events: RunEventFactory;
 
-  constructor(private readonly ports: RunCoordinatorPorts) {}
+  constructor(private readonly ports: RunCoordinatorPorts) {
+    this.events = new RunEventFactory(ports.sourceRole);
+  }
 
   async start(command: StartRunCommand): Promise<RunRecord> {
     const scopeId =
@@ -180,10 +86,13 @@ export class RunCoordinator {
         );
       }
       const now = this.now();
-      const run = this.newRun(command, scopeId, now);
+      const run = newRun(command, scopeId, now, this.ports.ids);
       let execution: RunExecution;
       try {
-        execution = await this.ports.execution.create(run);
+        execution = await this.ports.execution.create(
+          run,
+          this.sink(run.runId),
+        );
       } catch (error) {
         const failed = {
           ...run,
@@ -194,7 +103,7 @@ export class RunCoordinator {
         };
         await this.commit(undefined, failed, "construction_failed", {
           execution: executionRecord(failed, "failed", now),
-          events: [failedEvent(failed, now, false)],
+          events: [this.events.failed(failed, now, false)],
         });
         return failed;
       }
@@ -205,7 +114,7 @@ export class RunCoordinator {
       };
       await this.commit(undefined, running, "started", {
         execution: executionRecord(running, "streaming", now),
-        events: [startedEvent(running, now)],
+        events: [this.events.started(running, now)],
       });
       this.launch(running, execution, "start", command.prompt);
       return running;
@@ -238,7 +147,11 @@ export class RunCoordinator {
       ) {
         throw invalid(state.run, "continue");
       }
-      await this.assertCheckpoint(state);
+      await assertCheckpoint(
+        state,
+        this.ports.references,
+        this.ports.integrity,
+      );
       const now = this.now();
       const next: RunRecord = {
         ...state.run,
@@ -251,22 +164,35 @@ export class RunCoordinator {
         updatedAt: now,
         failure: undefined,
       };
-      const execution = await this.ports.execution.create(next);
+      const execution = await this.ports.execution.create(
+        next,
+        this.sink(next.runId),
+      );
       await this.commit(state, next, "retrying", {
         execution: executionRecord(next, "starting", now),
-        events: [retryingEvent(next, now)],
+        events: [this.events.retrying(next, now)],
       });
       this.launch(next, execution, "continue");
       return next;
     });
   }
 
-  async checkpoint(runId: string, command: CheckpointCommand) {
+  async checkpoint(
+    runId: string,
+    command: CheckpointCommand,
+  ): Promise<RunCheckpointRecord> {
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
-      if (TERMINAL_STATUSES.has(state.run.status))
+      if (TERMINAL_STATUSES.has(state.run.status)) {
         throw invalid(state.run, "checkpoint");
-      const checkpoint = this.checkpointRecord(state, command);
+      }
+      const checkpoint = checkpointRecord(
+        state,
+        command,
+        this.now(),
+        this.ports.ids,
+        this.ports.integrity,
+      );
       const next = revise(
         state.run,
         {
@@ -277,7 +203,7 @@ export class RunCoordinator {
       );
       await this.commit(state, next, "checkpointed", {
         checkpoints: [checkpoint],
-        events: [checkpointEvent(next, checkpoint)],
+        events: [this.events.checkpointed(next, checkpoint)],
       });
       return checkpoint;
     });
@@ -294,14 +220,19 @@ export class RunCoordinator {
           `Run ${runId} already has a pending interaction`,
         );
       }
-      const checkpoint = this.checkpointRecord(state, {
-        ...command.checkpoint,
-        boundary: "suspension",
-      });
-      const interaction = this.interactionRecord(
+      const checkpoint = checkpointRecord(
+        state,
+        { ...command.checkpoint, boundary: "suspension" },
+        this.now(),
+        this.ports.ids,
+        this.ports.integrity,
+      );
+      const interaction = interactionRecord(
         state.run,
         command,
         checkpoint,
+        this.now(),
+        this.ports.ids,
       );
       const now = this.now();
       const next = revise(
@@ -317,7 +248,7 @@ export class RunCoordinator {
       await this.commit(state, next, "waiting", {
         interactions: [interaction],
         checkpoints: [checkpoint],
-        events: [waitingEvent(next, interaction)],
+        events: [this.events.waiting(next, interaction)],
       });
       return interaction;
     });
@@ -327,38 +258,52 @@ export class RunCoordinator {
     runId: string,
     command: ResolveInteractionCommand,
   ): Promise<RunInteractionRecord> {
-    return this.exclusive(`run:${runId}`, async () => {
-      const state = await this.require(runId);
-      const current = state.interactions.find(
-        (item) => item.id === command.interactionId,
-      );
-      if (!current || current.runId !== runId) {
-        throw new InvalidRunStateError("Interaction does not belong to run");
-      }
-      const resolutionHash = this.ports.integrity.checksum(command.resolution);
-      if (current.status === "resolved") {
-        if (current.resolutionHash !== resolutionHash) {
-          throw new RunConflictError("Conflicting interaction resolution");
+    const { resolved, wake } = await this.exclusive(
+      `run:${runId}`,
+      async (): Promise<{
+        resolved: RunInteractionRecord;
+        wake: boolean;
+      }> => {
+        const state = await this.require(runId);
+        const current = state.interactions.find(
+          (item) => item.id === command.interactionId,
+        );
+        if (!current || current.runId !== runId) {
+          throw new InvalidRunStateError("Interaction does not belong to run");
         }
-        return current;
-      }
-      if (current.status !== "pending")
-        throw invalid(state.run, "resolve interaction");
-      const now = this.now();
-      const resolved: RunInteractionRecord = {
-        ...current,
-        status: "resolved",
-        resolutionRequestId: command.resolutionRequestId,
-        resolutionHash,
-        resolution: command.resolution,
-        resolvedAt: now,
-      };
-      const next = revise(state.run, { status: "suspended" }, now);
-      await this.commit(state, next, "interaction_resolved", {
-        interactions: [resolved],
-      });
-      return resolved;
-    });
+        const resolutionHash = this.ports.integrity.checksum(
+          command.resolution,
+        );
+        if (current.status === "resolved") {
+          if (current.resolutionHash !== resolutionHash) {
+            throw new RunConflictError("Conflicting interaction resolution");
+          }
+          return { resolved: current, wake: false };
+        }
+        if (current.status !== "pending") {
+          throw invalid(state.run, "resolve interaction");
+        }
+        const now = this.now();
+        const record: RunInteractionRecord = {
+          ...current,
+          status: "resolved",
+          resolutionRequestId: command.resolutionRequestId,
+          resolutionHash,
+          resolution: command.resolution,
+          resolvedAt: now,
+        };
+        const next = revise(state.run, { status: "suspended" }, now);
+        await this.commit(state, next, "interaction_resolved", {
+          interactions: [record],
+        });
+        return { resolved: record, wake: true };
+      },
+    );
+    // Wake the live execution outside the state lock so control resumption
+    // never re-enters coordination. Absent a live execution (e.g. after
+    // restart), the run stays resumable via checkpoint-based continue.
+    if (wake) await this.live.get(runId)?.execution.control.continue();
+    return resolved;
   }
 
   async cancel(runId: string, reason?: string): Promise<RunRecord> {
@@ -397,7 +342,7 @@ export class RunCoordinator {
       await this.commit(state, requested, "cancellation_requested", {
         prompts: cancelledPrompts,
       });
-      this.executions.get(runId)?.abort.abort(reason);
+      this.live.get(runId)?.abort.abort(reason);
       const evidence = [];
       for (const target of targets) {
         try {
@@ -443,8 +388,8 @@ export class RunCoordinator {
             terminalAt,
           ),
           events: failed
-            ? [failedEvent(next, terminalAt, true)]
-            : [cancelledEvent(next, terminalAt)],
+            ? [this.events.failed(next, terminalAt, true)]
+            : [this.events.cancelled(next, terminalAt)],
         },
       );
       return next;
@@ -463,7 +408,11 @@ export class RunCoordinator {
         continue;
       }
       try {
-        await this.assertCheckpoint(state);
+        await assertCheckpoint(
+          state,
+          this.ports.references,
+          this.ports.integrity,
+        );
         const next = revise(
           state.run,
           {
@@ -478,7 +427,7 @@ export class RunCoordinator {
           this.now(),
         );
         await this.commit(state, next, "interrupted", {
-          events: [failedEvent(next, next.updatedAt, true)],
+          events: [this.events.failed(next, next.updatedAt, true)],
         });
         recovered.push(next);
       } catch {
@@ -497,7 +446,7 @@ export class RunCoordinator {
           this.now(),
         );
         await this.commit(state, next, "interrupted_without_checkpoint", {
-          events: [failedEvent(next, next.updatedAt, true)],
+          events: [this.events.failed(next, next.updatedAt, true)],
         });
         recovered.push(next);
       }
@@ -507,6 +456,37 @@ export class RunCoordinator {
 
   async get(runId: string): Promise<RunHydratedState | undefined> {
     return this.ports.unitOfWork.load(runId);
+  }
+
+  private sink(runId: string): RunExecutionSink {
+    return {
+      appendEntries: (entries) =>
+        this.appendDurable(runId, "entries_appended", {
+          entries: [...entries],
+        }),
+      upsertToolCalls: (toolCalls) =>
+        this.appendDurable(runId, "tool_calls_upserted", {
+          toolCalls: [...toolCalls],
+        }),
+      checkpoint: (command) => this.checkpoint(runId, command),
+      wait: (command) => this.wait(runId, command),
+      progress: (event) => this.ports.transient?.publish(event),
+    };
+  }
+
+  private async appendDurable(
+    runId: string,
+    kind: string,
+    changes: TransitionChanges,
+  ): Promise<void> {
+    await this.exclusive(`run:${runId}`, async () => {
+      const state = await this.require(runId);
+      if (TERMINAL_STATUSES.has(state.run.status)) {
+        throw invalid(state.run, kind);
+      }
+      const next = revise(state.run, {}, this.now());
+      await this.commit(state, next, kind, changes);
+    });
   }
 
   private launch(
@@ -544,10 +524,10 @@ export class RunCoordinator {
           );
         }
       } finally {
-        this.executions.delete(run.runId);
+        this.live.delete(run.runId);
       }
     })();
-    this.executions.set(run.runId, { execution, abort, promise });
+    this.live.set(run.runId, { execution, abort, promise });
   }
 
   private async complete(
@@ -570,7 +550,7 @@ export class RunCoordinator {
       );
       await this.commit(state, next, "completed", {
         execution: executionRecord(next, "completed", now),
-        events: [completedEvent(next, now)],
+        events: [this.events.completed(next, now)],
       });
     });
   }
@@ -579,32 +559,32 @@ export class RunCoordinator {
     await this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
       if (TERMINAL_STATUSES.has(state.run.status)) return;
-      const checkpointValid =
-        value.retryable && (await this.checkpointValid(state));
+      const isValid =
+        value.retryable &&
+        (await checkpointValid(
+          state,
+          this.ports.references,
+          this.ports.integrity,
+        ));
       const now = this.now();
       const next = revise(
         state.run,
         {
-          status: checkpointValid ? "interrupted" : "failed",
-          recoverability: checkpointValid
+          status: isValid ? "interrupted" : "failed",
+          recoverability: isValid
             ? "checkpoint"
             : value.retryable
               ? "retryable"
               : "none",
           failure: value,
-          terminalAt: checkpointValid ? undefined : now,
+          terminalAt: isValid ? undefined : now,
         },
         now,
       );
-      await this.commit(
-        state,
-        next,
-        checkpointValid ? "interrupted" : "failed",
-        {
-          execution: executionRecord(next, "failed", now),
-          events: [failedEvent(next, now, checkpointValid)],
-        },
-      );
+      await this.commit(state, next, isValid ? "interrupted" : "failed", {
+        execution: executionRecord(next, "failed", now),
+        events: [this.events.failed(next, now, isValid)],
+      });
     });
   }
 
@@ -615,10 +595,11 @@ export class RunCoordinator {
   ): Promise<RunPromptRecord> {
     const prompt = await this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
-      if (!ACTIVE_STATUSES.has(state.run.status))
+      if (!ACTIVE_STATUSES.has(state.run.status)) {
         throw invalid(state.run, behavior);
+      }
       const now = this.now();
-      const prompt: RunPromptRecord = {
+      const record: RunPromptRecord = {
         id: prefixed("promptq", this.ports.ids.next()),
         agentId: state.run.agentId,
         conversationId: state.run.conversationId,
@@ -634,12 +615,12 @@ export class RunCoordinator {
       };
       const next = revise(state.run, {}, now);
       await this.commit(state, next, "prompt_queued", {
-        prompts: [prompt],
-        events: [queuedPromptEvent(next, prompt)],
+        prompts: [record],
+        events: [this.events.queuedPrompt(next, record)],
       });
-      return prompt;
+      return record;
     });
-    const execution = this.executions.get(runId)?.execution;
+    const execution = this.live.get(runId)?.execution;
     if (execution) await this.drainPrompts(runId, execution);
     return prompt;
   }
@@ -667,9 +648,7 @@ export class RunCoordinator {
           current,
           revise(current.run, {}, now),
           "prompt_delivered",
-          {
-            prompts: [delivered],
-          },
+          { prompts: [delivered] },
         );
         state = await this.require(runId);
       } catch (error) {
@@ -700,39 +679,17 @@ export class RunCoordinator {
     previous: RunHydratedState | undefined,
     run: RunRecord,
     kind: string,
-    changes: {
-      execution?: RunExecutionRecord;
-      prompts?: RunPromptRecord[];
-      interactions?: RunInteractionRecord[];
-      checkpoints?: RunCheckpointRecord[];
-      entries?: ConversationEntry[];
-      toolCalls?: ToolCallTranscriptRecord[];
-      events?: RunPublicEventIntent[];
-    } = {},
+    changes: TransitionChanges = {},
   ): Promise<void> {
     const expectedRevision = previous?.run.revision ?? 0;
-    const transitionBase = {
-      stateEpoch: RUN_STATE_EPOCH,
-      transitionId: prefixed("transition", this.ports.ids.next()),
-      runId: run.runId,
-      scopeId: run.scopeId,
-      revision: expectedRevision + 1,
-      previousRevision: expectedRevision,
+    const transition = buildTransition(
+      run,
       kind,
-      committedAt: run.updatedAt,
-      run: { ...run, revision: expectedRevision + 1 },
-      execution: changes.execution,
-      prompts: changes.prompts ?? [],
-      interactions: changes.interactions ?? [],
-      checkpoints: changes.checkpoints ?? [],
-      entries: changes.entries ?? [],
-      toolCalls: changes.toolCalls ?? [],
-      events: changes.events ?? [],
-    };
-    const transition: RunTransitionRecord = {
-      ...transitionBase,
-      checksum: this.ports.integrity.checksum(transitionBase),
-    };
+      expectedRevision,
+      changes,
+      this.ports.ids,
+      this.ports.integrity,
+    );
     await this.ports.unitOfWork.commit(expectedRevision, transition);
     try {
       await this.ports.unitOfWork.materialize(run.runId);
@@ -754,168 +711,21 @@ export class RunCoordinator {
     }
   }
 
-  private newRun(
-    command: StartRunCommand,
-    scopeId: string,
-    now: string,
-  ): RunRecord {
-    return {
-      stateEpoch: RUN_STATE_EPOCH,
-      conversationId: command.conversationId,
-      agentId: command.agentId,
-      projectId: command.projectId,
-      runId: command.runId ?? prefixed("run", this.ports.ids.next()),
-      scopeId,
-      revision: 1,
-      status: "starting",
-      recoverability: "retryable",
-      executionId: prefixed("exec", this.ports.ids.next()),
-      attempt: 1,
-      createdAt: now,
-      updatedAt: now,
-      cancellationEvidence: [],
-    };
-  }
-
-  private checkpointRecord(
-    state: RunHydratedState,
-    command: CheckpointCommand,
-  ): RunCheckpointRecord {
-    const base = {
-      stateEpoch: RUN_STATE_EPOCH,
-      checkpointId: prefixed("checkpoint", this.ports.ids.next()),
-      parentCheckpointId: state.run.lastCheckpointId,
-      conversationId: state.run.conversationId,
-      agentId: state.run.agentId,
-      projectId: state.run.projectId,
-      runId: state.run.runId,
-      executionId: state.run.executionId,
-      attempt: state.run.attempt,
-      boundary: command.boundary,
-      transcriptCursor: command.transcriptCursor,
-      entryIds: command.entryIds,
-      harnessLeafId: command.harnessLeafId,
-      harnessSavePointId: command.harnessSavePointId,
-      toolCalls: command.toolCalls,
-      interactionId: command.interactionId,
-      createdAt: this.now(),
-      committed: true as const,
-    };
-    return { ...base, checksum: this.ports.integrity.checksum(base) };
-  }
-
-  private interactionRecord(
-    run: RunRecord,
-    command: WaitCommand,
-    checkpoint: RunCheckpointRecord,
-  ): RunInteractionRecord {
-    const common = {
-      stateEpoch: RUN_STATE_EPOCH,
-      id:
-        command.interactionId ?? prefixed(command.kind, this.ports.ids.next()),
-      conversationId: run.conversationId,
-      agentId: run.agentId,
-      projectId: run.projectId,
-      runId: run.runId,
-      executionId: run.executionId,
-      toolCallId: command.toolCallId,
-      prompt: command.prompt,
-      context: command.context,
-      status: "pending" as const,
-      checkpointId: checkpoint.checkpointId,
-      createdAt: this.now(),
-    };
-    if (command.kind === "question") {
-      return {
-        ...common,
-        kind: "question",
-        placeholder: command.placeholder,
-        required: command.required !== false,
-      };
-    }
-    if (command.kind === "approval") {
-      return {
-        ...common,
-        kind: "approval",
-        risk: command.risk,
-        normalizedArgs: command.normalizedArgs,
-        offeredScopes: command.offeredScopes,
-      };
-    }
-    return {
-      ...common,
-      kind: "plan_review",
-      planReview: command.planReview,
-    };
-  }
-
-  private async assertCheckpoint(state: RunHydratedState): Promise<void> {
-    if (!(await this.checkpointValid(state))) {
-      throw new InvalidCheckpointError(
-        `Run ${state.run.runId} has no valid latest checkpoint`,
-      );
-    }
-  }
-
-  private async checkpointValid(state: RunHydratedState): Promise<boolean> {
-    const checkpoint = state.checkpoints.find(
-      (item) => item.checkpointId === state.run.lastCheckpointId,
-    );
-    if (
-      !checkpoint ||
-      checkpoint.stateEpoch !== this.ports.references.stateEpoch()
-    )
-      return false;
-    if (
-      checkpoint.runId !== state.run.runId ||
-      checkpoint.executionId !== state.run.executionId ||
-      checkpoint.attempt !== state.run.attempt ||
-      checkpoint.checksum !==
-        this.ports.integrity.checksum(checkpointWithoutChecksum(checkpoint))
-    )
-      return false;
-    const latest = state.checkpoints.at(-1);
-    if (latest?.checkpointId !== checkpoint.checkpointId) return false;
-    const transcript = await this.ports.references.transcript(state.run.runId);
-    if (
-      transcript.cursor !== checkpoint.transcriptCursor ||
-      transcript.harnessLeafId !== checkpoint.harnessLeafId ||
-      transcript.harnessSavePointId !== checkpoint.harnessSavePointId ||
-      !sameStrings(transcript.entryIds, checkpoint.entryIds)
-    )
-      return false;
-    const tools = await this.ports.references.toolCalls(state.run.runId);
-    for (const reference of checkpoint.toolCalls) {
-      const tool = tools.find(
-        (item) => item.toolCallId === reference.toolCallId,
-      );
-      if (!tool || tool.lifecycleRevision !== reference.lifecycleRevision)
-        return false;
-      if (["requested", "running"].includes(tool.status)) return false;
-    }
-    if (checkpoint.interactionId) {
-      const interaction = await this.ports.references.interaction(
-        checkpoint.interactionId,
-      );
-      if (!interaction || interaction.runId !== state.run.runId) return false;
-    }
-    return true;
-  }
-
   private async cancelTarget(
     target: RunRecord["cancellationEvidence"][number]["target"],
     run: RunRecord,
     reason?: string,
-  ) {
+  ): Promise<"confirmed" | "not_running"> {
     if (target === "model") {
-      const live = this.executions.get(run.runId);
+      const live = this.live.get(run.runId);
       if (live) await live.execution.control.cancel(reason);
       return this.ports.cancellation.cancelModel(run);
     }
     if (target === "tool") return this.ports.cancellation.cancelTools(run);
     if (target === "task") return this.ports.cancellation.cancelTasks(run);
-    if (target === "subagent")
+    if (target === "subagent") {
       return this.ports.cancellation.cancelSubagents(run);
+    }
     return this.ports.cancellation.cancelInteraction(run);
   }
 
@@ -950,204 +760,12 @@ export class RunCoordinator {
   }
 }
 
-function revise(
-  run: RunRecord,
-  patch: Partial<RunRecord>,
-  updatedAt: string,
-): RunRecord {
-  return { ...run, ...patch, revision: run.revision + 1, updatedAt };
-}
-
-function executionRecord(
-  run: RunRecord,
-  status: RunExecutionRecord["status"],
-  now: string,
-): RunExecutionRecord {
-  return {
-    stateEpoch: RUN_STATE_EPOCH,
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    projectId: run.projectId,
-    runId: run.runId,
-    executionId: run.executionId,
-    attempt: run.attempt,
-    status,
-    recoverability: run.recoverability,
-    startedAt: run.startedAt ?? run.createdAt,
-    completedAt: ["completed", "failed", "cancelled", "superseded"].includes(
-      status,
-    )
-      ? now
-      : undefined,
-    lastCheckpointId: run.lastCheckpointId,
-    failure: run.failure,
-  };
-}
-
-function intent(
-  run: RunRecord,
-  type: string,
-  occurredAt: string,
-  data: Record<string, unknown>,
-): RunPublicEventIntent {
-  validatePublicEvent(type, data, "workbench_server");
-  return {
-    id: `${run.runId}/${run.revision}/${type}`,
-    type,
-    durability: "durable",
-    occurredAt,
-    data,
-  };
-}
-
-function startedEvent(run: RunRecord, now: string) {
-  return intent(run, "run.started", now, {
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    projectId: run.projectId,
-    runId: run.runId,
-    startedAt: now,
-  });
-}
-function completedEvent(run: RunRecord, now: string) {
-  return intent(run, "run.completed", now, {
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    projectId: run.projectId,
-    runId: run.runId,
-    completedAt: now,
-  });
-}
-function failedEvent(run: RunRecord, now: string, interrupted: boolean) {
-  return intent(run, "run.failed", now, {
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    projectId: run.projectId,
-    runId: run.runId,
-    message: run.failure?.message ?? "run failed",
-    aborted: false,
-    interrupted: interrupted || undefined,
-    failedAt: now,
-  });
-}
-function retryingEvent(run: RunRecord, now: string) {
-  return intent(run, "run.retrying", now, {
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    projectId: run.projectId,
-    runId: run.runId,
-    attempt: run.attempt,
-    maxRetries: Math.max(run.attempt, 3),
-    delayMs: 0,
-    retryAt: now,
-    errorMessage: run.failure?.message,
-  });
-}
-function queuedPromptEvent(run: RunRecord, prompt: RunPromptRecord) {
-  return intent(run, "conversation.prompt.queued", run.updatedAt, {
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    projectId: run.projectId,
-    runId: run.runId,
-    queuedPrompt: prompt satisfies QueuedPromptRecord,
-  });
-}
-function checkpointEvent(run: RunRecord, checkpoint: RunCheckpointRecord) {
-  return intent(run, "run.checkpointed", checkpoint.createdAt, {
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    runId: run.runId,
-    checkpointId: checkpoint.checkpointId,
-    status: sandboxStatus(run),
-    checkpointedAt: checkpoint.createdAt,
-  });
-}
-function waitingEvent(run: RunRecord, interaction: RunInteractionRecord) {
-  const common = {
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    runId: run.runId,
-    createdAt: interaction.createdAt,
-  };
-  if (interaction.kind === "question") {
-    return intent(run, "run.waiting", interaction.createdAt, {
-      ...common,
-      waitKind: "input",
-      requestId: interaction.id,
-      question: { text: interaction.prompt },
-      placeholder: interaction.placeholder,
-      required: interaction.required,
-    });
-  }
-  if (interaction.kind === "approval") {
-    return intent(run, "run.waiting", interaction.createdAt, {
-      ...common,
-      waitKind: "approval",
-      approvalId: interaction.id,
-      toolCallId: interaction.toolCallId,
-      risk: interaction.risk,
-      reason: interaction.prompt,
-      normalizedArgs: interaction.normalizedArgs,
-      offeredScopes: interaction.offeredScopes,
-    });
-  }
-  return intent(run, "run.waiting", interaction.createdAt, {
-    ...common,
-    waitKind: "plan_review",
-    reviewId: interaction.planReview.id,
-    toolCallId: interaction.toolCallId,
-    planReview: interaction.planReview,
-  });
-}
-function cancelledEvent(run: RunRecord, now: string) {
-  return intent(run, "run.cancelled", now, {
-    conversationId: run.conversationId,
-    agentId: run.agentId,
-    runId: run.runId,
-    status: "cancelled",
-    cancelledAt: now,
-  });
-}
-
-function sandboxStatus(run: RunRecord): string {
-  if (run.status === "waiting") return "waiting_for_input";
-  if (["retrying", "interrupted", "cancellation_failed"].includes(run.status)) {
-    return "recoverable_failed";
-  }
-  if (run.status === "starting") return "queued";
-  if (run.status === "cancellation_requested") return "running";
-  return run.status;
-}
-
-function failure(
-  code: string,
-  error: unknown,
-  retryable: boolean,
-): RunFailureRecord {
-  return { code, message: errorMessage(error).slice(0, 2_000), retryable };
-}
 function invalid(run: RunRecord, command: string): InvalidRunStateError {
   return new InvalidRunStateError(
     `Cannot ${command} run ${run.runId} while ${run.status}`,
   );
 }
-function prefixed(prefix: string, value: string): string {
-  return value.startsWith(`${prefix}_`) ? value : `${prefix}_${value}`;
-}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-function sameStrings(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((item, index) => item === right[index])
-  );
-}
-function checkpointWithoutChecksum(checkpoint: RunCheckpointRecord) {
-  const { checksum, ...rest } = checkpoint;
-  void checksum;
-  return rest;
 }

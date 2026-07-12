@@ -1,5 +1,9 @@
 export * from "./git-mutation-publisher.js";
+export * from "./run-checkpoints.js";
 export * from "./run-coordinator.js";
+export * from "./run-events.js";
+export * from "./run-execution.js";
+export * from "./run-transitions.js";
 export * from "./run-unit-of-work.js";
 export * from "./task-service.js";
 
