@@ -1,5 +1,4 @@
 /* eslint-disable max-lines -- The daemon centralizes command registration and runtime wiring. */
-import type { AgentMessage } from "@nervekit/host-runtime/harness";
 import type {
   ContextFileStatus,
   PlanReviewRecord,
@@ -19,23 +18,16 @@ import {
   AgentConfigStore,
   sanitizeEffectiveAgentConfig,
 } from "../agent/agent-config-store.js";
-import { SandboxAgentRuntime } from "../agent/agent-runtime.js";
 import { ExploreRuntime } from "../agent/explore-runtime.js";
 
-import { HarnessEventBridge } from "../agent/harness-event-bridge.js";
 import { HarnessFactory } from "../agent/harness-factory.js";
-import { RunManager } from "../agent/run-manager.js";
-import type { RunState } from "../agent/run-state-store.js";
-import { RunStateStore } from "../agent/run-state-store.js";
+import { ToolCallStore } from "../agent/tool-call-store.js";
 import { toolResultPreview } from "../agent/tool-result-preview.js";
 import type { SecretResolver } from "../credentials/secret-resolver.js";
 import type { ResolvedModelRuntime } from "../models/model-runtime.js";
 import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
-import { ArtifactStore } from "../state/artifacts.js";
 import { sandboxSha256Digest } from "../state/hash.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
-import { ApprovalWaiter } from "../tools/approval-waiter.js";
-import { InputWaiter } from "../tools/input-waiter.js";
 import {
   PlanReviewWaiter,
   sandboxProjectId,
@@ -77,15 +69,11 @@ export class SandboxDaemon {
   readonly status = new DaemonStatusMachine();
   readonly router = new SandboxOperationRouter();
   readonly startedAt = new Date().toISOString();
-  private runs?: RunManager;
-  private inputWaiter?: InputWaiter;
+  private toolCallStore?: ToolCallStore;
   private planReviewWaiter?: PlanReviewWaiter;
-  private approvalWaiter?: ApprovalWaiter;
-  private agentRuntime?: SandboxAgentRuntime;
   private runRuntime?: SandboxRunRuntime;
   private taskService?: SandboxTaskService;
   private toolRuntime?: SandboxToolRuntime;
-  private bridge?: HarnessEventBridge;
   private harnessFactory?: HarnessFactory;
   private exploreRuntime?: ExploreRuntime;
   private agentConfigStore?: AgentConfigStore;
@@ -155,28 +143,15 @@ export class SandboxDaemon {
       process.cwd();
     const state = this.state;
     const logger = recovered.logger ?? this.logger;
-    this.runs = new RunManager(
-      new RunStateStore(state.stateDir),
-      state.stateDir,
-      state.events,
-      undefined,
-      {
-        instanceId: this.identity.instanceId,
-        configDigest: this.configDigest,
-        sandboxId: this.identity.sandboxId,
-      },
-      logger.child({ component: "run-manager" }),
-    );
-    this.inputWaiter = new InputWaiter(state.stateDir);
+    this.toolCallStore = new ToolCallStore(state.stateDir);
+    // Retained narrowly as a plan-file validator/record builder until the plan
+    // storage adapter is separated; it no longer owns run wait lifecycle.
     this.planReviewWaiter = new PlanReviewWaiter(
       state.stateDir,
       sandboxProjectId(this.identity.sandboxId),
     );
-    this.approvalWaiter = new ApprovalWaiter(state.stateDir);
     const loadPromises: Array<Promise<unknown>> = [
-      this.inputWaiter.load(),
       this.planReviewWaiter.load(),
-      this.approvalWaiter.load(),
     ];
     this.agentConfigStore = new AgentConfigStore(state.stateDir);
     loadPromises.push(this.agentConfigStore.load());
@@ -190,28 +165,21 @@ export class SandboxDaemon {
       diagnostics: logger.child({ component: "task-service" }),
     });
     loadPromises.push(this.taskService.load());
-    const eventCommonData = {
-      instanceId: this.identity.instanceId,
-      configDigest: this.configDigest,
-      sandboxId: this.identity.sandboxId,
-    };
     const readOnlyToolRuntime = new SandboxToolRuntime(this.config, {
       workspaceDir: this.workspaceDir,
       stateDir: state.stateDir,
       readOnly: true,
       secretResolver: recovered.secretResolver,
-      toolCallStore: this.runs.toolCallStore(),
+      toolCallStore: this.toolCallStore,
     });
     this.toolRuntime = new SandboxToolRuntime(this.config, {
       workspaceDir: this.workspaceDir,
       stateDir: state.stateDir,
       secretResolver: recovered.secretResolver,
-      approvalWaiter: this.approvalWaiter,
-      inputWaiter: this.inputWaiter,
       planReviewWaiter: this.planReviewWaiter,
       configStore: this.agentConfigStore,
       taskService: this.taskService,
-      toolCallStore: this.runs.toolCallStore(),
+      toolCallStore: this.toolCallStore,
     });
     const factory = new HarnessFactory(this.config, {
       workspaceDir: this.workspaceDir,
@@ -244,30 +212,6 @@ export class SandboxDaemon {
       logger: logger.child({ component: "run-coordinator" }),
     });
     this.toolRuntime.setInteractions(this.runRuntime.interactions);
-    this.bridge = new HarnessEventBridge(
-      state.events,
-      this.runs,
-      {
-        input: this.inputWaiter,
-        approval: this.approvalWaiter,
-        planReview: this.planReviewWaiter,
-      },
-      eventCommonData,
-      new ArtifactStore(state.stateDir),
-      logger.child({ component: "harness-bridge" }),
-    );
-    this.agentRuntime = new SandboxAgentRuntime(this.config, {
-      runs: this.runs,
-      harnessFactory: factory,
-      bridge: this.bridge,
-      inputWaiter: this.inputWaiter,
-      planReviewWaiter: this.planReviewWaiter,
-      approvalWaiter: this.approvalWaiter,
-      toolRuntime: this.toolRuntime,
-      exploreRuntime: this.exploreRuntime,
-      configStore: this.agentConfigStore,
-      logger: logger.child({ component: "agent-runtime" }),
-    });
     await Promise.all(loadPromises);
     // Recover runs through the coordinator: flush any pending event intents,
     // reconcile interrupted/waiting runs from checkpoints, then materialize.
@@ -337,6 +281,7 @@ export class SandboxDaemon {
       const startup = summarizeSandboxStartupEvents(
         this.state?.events.all() ?? [],
       );
+      const snapshotRuns = (await this.runRuntime?.query.runLikes()) ?? [];
       return buildSandboxSnapshot({
         config: this.config,
         configDigest: this.configDigest,
@@ -347,19 +292,12 @@ export class SandboxDaemon {
         stale: false,
         updatedAt: new Date().toISOString(),
         connectivity: { state: "connected", connectedAt: this.startedAt },
-        conversations: summarizeConversations((await this.runs?.list()) ?? []),
-        agents: summarizeAgents(
-          (await this.runs?.list()) ?? [],
-          this.modelSummaries()[0],
-        ),
+        conversations: summarizeConversations(snapshotRuns),
+        agents: summarizeAgents(snapshotRuns, this.modelSummaries()[0]),
         runs: await summarizeRuns(
-          (await this.runs?.list()) ?? [],
-          [
-            ...(this.inputWaiter?.list() ?? []),
-            ...(this.planReviewWaiter?.list() ?? []),
-            ...(this.approvalWaiter?.list() ?? []),
-          ],
-          this.runs,
+          snapshotRuns,
+          [],
+          undefined,
           this.state?.stateDir,
         ),
         toolGroups: this.toolRuntime?.groups() ?? [],
@@ -471,9 +409,7 @@ export class SandboxDaemon {
         runId: string;
         toolCallId: string;
       };
-      const records = await this.runs
-        ?.toolCallStore()
-        .latestByToolCallId(input);
+      const records = await this.toolCallStore?.latestByToolCallId(input);
       const toolCall = records?.get(input.toolCallId);
       if (!toolCall)
         throw new SandboxOperationError("UNKNOWN_RUN", "Tool call not found");
@@ -505,11 +441,6 @@ export class SandboxDaemon {
         throw new SandboxOperationError(
           "UNAVAILABLE",
           "No usable model provider is available for this sandbox",
-        );
-      if (inlineCommand && !this.agentRuntime)
-        throw new SandboxOperationError(
-          "UNAVAILABLE",
-          "Inline command execution is unavailable in this sandbox",
         );
       const p = (params as Record<string, unknown>) ?? {};
       const behavior = p.behavior === "follow_up" ? "follow-up" : undefined;
