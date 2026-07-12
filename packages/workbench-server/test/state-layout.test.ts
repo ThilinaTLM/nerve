@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -17,6 +17,14 @@ test("workbench state initializes v1 and rejects incompatible layouts", async ()
         version: 1,
       },
     );
+    await mkdir(path.join(empty, "proc", "proc_legacy"), {
+      recursive: true,
+    });
+    await assert.rejects(
+      initializeStorage(empty),
+      /Reset this directory before starting Nerve Protocol v1/,
+    );
+
     await writeFile(path.join(legacy, "config.json"), "{}\n");
     await assert.rejects(
       initializeStorage(legacy),

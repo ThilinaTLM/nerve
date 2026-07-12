@@ -136,7 +136,6 @@ export const taskRecordSchema = z.object({
   restartedFromTaskId: z.string().startsWith("task_").optional(),
   restartRootTaskId: z.string().startsWith("task_").optional(),
   restartGeneration: z.number().int().nonnegative().optional(),
-  legacyProcessId: z.string().startsWith("proc_").optional(),
   runtime: taskRuntimeSchema.optional(),
   lastOrphanCleanupReleasedPorts: z.array(taskListeningPortSchema).optional(),
   origin: taskOriginSchema.default({ kind: "api" }),

@@ -1,6 +1,4 @@
 import type { ChildProcess } from "node:child_process";
-import { mkdir } from "node:fs/promises";
-import { join, resolve } from "node:path";
 import { TaskService } from "@nervekit/host-runtime";
 import type {
   ToolExecutionOutputUpdate,
@@ -8,7 +6,6 @@ import type {
 } from "@nervekit/host-runtime/tools";
 import {
   type CancelTaskRequest,
-  createId,
   type StartTaskRequest,
   type TaskListeningPort,
   type TaskLogQuery,
@@ -27,7 +24,6 @@ import {
   TaskRepository,
   type TaskSupervisor,
 } from "./index.js";
-import type { LegacyProcessRecord } from "./task.repository.js";
 import type { TaskLaunchConfigStore } from "./task-launch-config.store.js";
 import {
   buildForegroundBashResult as buildForegroundBashResultImpl,
@@ -134,58 +130,6 @@ export class WorkbenchTaskService extends TaskService {
     for (const persisted of await this.taskRepository.hydrate())
       await this.upsertTask(persisted);
     await this.reconcileOrphans();
-    await this.migrateLegacyProcesses();
-  }
-
-  async migrateLegacyProcesses(): Promise<void> {
-    for (const legacy of await this.taskRepository.hydrateLegacyProcesses()) {
-      if (this.findTaskByLegacyProcessId(legacy.id)) continue;
-      const record = this.legacyProcessToTask(legacy);
-      await mkdir(this.taskDir(record.id), { recursive: true, mode: 0o755 });
-      await this.upsertTask(record);
-      await this.events.publish("task.orphaned", { task: record });
-    }
-  }
-
-  findTaskByLegacyProcessId(processId: string): TaskRecord | undefined {
-    return [...this.tasks.values()].find(
-      (task) => task.legacyProcessId === processId,
-    );
-  }
-
-  legacyProcessToTask(legacy: LegacyProcessRecord): TaskRecord {
-    const now = new Date().toISOString();
-    const id = createId("task");
-    const dir = this.taskDir(id);
-    return {
-      id,
-      name: legacy.name,
-      workerId: legacy.workerId,
-      projectId: legacy.projectId,
-      conversationId: legacy.conversationId,
-      agentId: legacy.agentId,
-      cwd: resolve(legacy.cwd),
-      command: legacy.command,
-      envInfo: legacy.envInfo,
-      status: "orphaned",
-      readiness: legacy.readiness ?? { outcome: "none" },
-      stdoutPath: legacy.stdoutPath ?? join(dir, "stdout.log"),
-      stderrPath: legacy.stderrPath ?? join(dir, "stderr.log"),
-      logsPath: legacy.logsPath ?? join(dir, "logs.jsonl"),
-      startedAt: legacy.startedAt ?? now,
-      updatedAt: now,
-      finishedAt: legacy.exitedAt,
-      exitCode: legacy.exitCode,
-      signal: legacy.signal,
-      error:
-        legacy.error ??
-        `Legacy process ${legacy.id} was migrated as an orphaned task after the task rename.`,
-      runtime: legacy.runtime,
-      legacyProcessId: legacy.id,
-      origin: { kind: "api" },
-      completion: { inject: false, outputTailLineCount: 80 },
-      visibility: "background",
-    };
   }
 
   listTasks(options: { includeForeground?: boolean } = {}): TaskRecord[] {

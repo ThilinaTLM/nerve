@@ -180,6 +180,7 @@ export class SandboxDaemon {
       events: state.events,
       maxTasks: taskConfig?.maxTasks,
       maxTaskRuntimeMs: taskConfig?.maxTaskRuntimeMs,
+      diagnostics: logger.child({ component: "task-service" }),
     });
     loadPromises.push(this.taskService.load());
     const eventCommonData = {

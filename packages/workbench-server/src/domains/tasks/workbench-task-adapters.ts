@@ -33,6 +33,7 @@ class WorkbenchReadinessCoordinator {
     string,
     {
       request: StartTaskRequest;
+      pattern?: RegExp;
       resolve: (
         value: "ready" | "timeout" | { outcome: "ready"; matched?: string },
       ) => void;
@@ -48,7 +49,14 @@ class WorkbenchReadinessCoordinator {
   }
 
   async wait(task: TaskRecord, request: StartTaskRequest) {
-    const immediate = this.matchValue(request, this.output.get(task.id) ?? "");
+    const pattern = request.readyPattern
+      ? new RegExp(request.readyPattern, "i")
+      : undefined;
+    const immediate = this.matchValue(
+      request,
+      this.output.get(task.id) ?? "",
+      pattern,
+    );
     if (immediate) return { outcome: "ready" as const, matched: immediate };
     const timeoutMs =
       request.readyTimeoutMs ?? (request.readyUrl ? 30_000 : 3_000);
@@ -60,11 +68,12 @@ class WorkbenchReadinessCoordinator {
         ) => {
           if (settled) return;
           settled = true;
+          clearTimeout(timer);
           this.waiters.delete(task.id);
           resolve(value === "ready" ? { outcome: "ready" } : value);
         };
-        this.waiters.set(task.id, { request, resolve: finish });
-        setTimeout(() => finish("timeout"), timeoutMs);
+        this.waiters.set(task.id, { request, pattern, resolve: finish });
+        const timer = setTimeout(() => finish("timeout"), timeoutMs);
         if (request.readyUrl)
           void this.pollUrl(request.readyUrl, finish, timeoutMs);
       },
@@ -74,20 +83,21 @@ class WorkbenchReadinessCoordinator {
   private match(taskId: string, text: string): void {
     const waiter = this.waiters.get(taskId);
     if (!waiter) return;
-    const matched = this.matchValue(waiter.request, text);
+    const matched = this.matchValue(waiter.request, text, waiter.pattern);
     if (matched) waiter.resolve({ outcome: "ready", matched });
   }
 
   private matchValue(
     request: StartTaskRequest,
     text: string,
+    pattern?: RegExp,
   ): string | undefined {
     if (request.readyOnUrl) {
       const url = text.match(/https?:\/\/[^\s)'"]+/i)?.[0];
       if (url && !url.endsWith(":")) return url;
     }
-    if (request.readyPattern) {
-      const matched = new RegExp(request.readyPattern, "i").exec(text)?.[0];
+    if (pattern) {
+      const matched = pattern.exec(text)?.[0];
       if (matched) return matched;
     }
     return undefined;
@@ -182,6 +192,19 @@ export function createWorkbenchTaskResources(
       },
     },
     events: eventPublisher,
+    diagnostics: logger
+      ? {
+          debug: (message, data) => {
+            void logger.debug(message, { context: { ...data } });
+          },
+          warn: (message, data) => {
+            void logger.warn(message, { context: { ...data } });
+          },
+          error: (message, data) => {
+            void logger.error(message, { context: { ...data } });
+          },
+        }
+      : undefined,
     repository: {
       get: async (id) => tasks.get(id),
       list: async () => [...tasks.values()],
@@ -320,16 +343,22 @@ export function createWorkbenchTaskResources(
         child.on("error", () => {
           void finish({ exitCode: 127, exitedAt: new Date().toISOString() });
         });
-        state.finalizationPromise = closePromise.then(
-          async ({ exitCode, signal }) => {
+        state.finalizationPromise = closePromise
+          .then(async ({ exitCode, signal }) => {
             await finish({
               exitCode: exitCode ?? undefined,
               signal: signal ?? undefined,
               exitedAt: new Date().toISOString(),
             });
             return tasks.get(input.taskId);
-          },
-        );
+          })
+          .catch((error: unknown) => {
+            void logger?.error("Task finalization callback failed", {
+              taskId: input.taskId,
+              error,
+            });
+            return undefined;
+          });
         return runtime;
       },
       signal: async (task, cancelOptions) => {
@@ -351,18 +380,21 @@ export function createWorkbenchTaskResources(
         if (managed.get(task.id)?.child) return "running";
         if (!task.runtime) return "exited";
         return (await supervisor.isRuntimeTargetAlive(task.runtime))
-          ? "running"
+          ? "unsupervised_running"
           : "exited";
       },
       waitForExit: async (task, timeoutMs) => {
         const close = managed.get(task.id)?.closePromise;
         if (!close) return "unavailable";
-        const result = await Promise.race([
-          close,
-          new Promise<"timeout">((resolve) =>
-            setTimeout(() => resolve("timeout"), timeoutMs),
-          ),
-        ]);
+        const result = await new Promise<
+          "timeout" | { exitCode: number | null; signal: NodeJS.Signals | null }
+        >((resolve) => {
+          const timer = setTimeout(() => resolve("timeout"), timeoutMs);
+          void close.then((exit) => {
+            clearTimeout(timer);
+            resolve(exit);
+          });
+        });
         return result === "timeout"
           ? result
           : {
@@ -390,13 +422,8 @@ export function createWorkbenchTaskResources(
           ? { ...task.completion, inject: true }
           : task.completion,
       }),
-      afterRemoved: async (task) => {
-        if (task.legacyProcessId)
-          await repository.removeLegacyProcess(task.legacyProcessId);
-      },
     },
   };
 
-  void logger;
   return { tasks, managed, repository, logs, supervisor, launchConfigs, ports };
 }

@@ -2,30 +2,6 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { type TaskRecord, taskRecordSchema } from "@nervekit/contracts";
 
-export type LegacyProcessRecord = {
-  id: string;
-  name?: string;
-  workerId?: string;
-  projectId?: string;
-  conversationId?: string;
-  agentId?: string;
-  cwd: string;
-  command: string;
-  envInfo?: TaskRecord["envInfo"];
-  status?: string;
-  readiness?: TaskRecord["readiness"];
-  stdoutPath?: string;
-  stderrPath?: string;
-  logsPath?: string;
-  startedAt?: string;
-  updatedAt?: string;
-  exitedAt?: string;
-  exitCode?: number | null;
-  signal?: string | null;
-  error?: string;
-  runtime?: TaskRecord["runtime"];
-};
-
 import {
   atomicWriteJson,
   type InitializedStorage,
@@ -55,28 +31,6 @@ export class TaskRepository {
     return records;
   }
 
-  async hydrateLegacyProcesses(): Promise<LegacyProcessRecord[]> {
-    const records: LegacyProcessRecord[] = [];
-    const root = join(this.storage.paths.home, "proc");
-    for (const processId of await listChildDirs(root)) {
-      const raw = await readJsonFile<unknown>(
-        join(root, processId, "process.json"),
-      ).catch(() => undefined);
-      if (!raw || typeof raw !== "object") continue;
-      const record = raw as Record<string, unknown>;
-      if (
-        typeof record.id !== "string" ||
-        !record.id.startsWith("proc_") ||
-        typeof record.cwd !== "string" ||
-        typeof record.command !== "string"
-      ) {
-        continue;
-      }
-      records.push(record as LegacyProcessRecord);
-    }
-    return records;
-  }
-
   async write(record: TaskRecord): Promise<void> {
     await atomicWriteJson(
       join(this.taskDir(record.id), "task.json"),
@@ -87,13 +41,6 @@ export class TaskRepository {
 
   async remove(taskId: string): Promise<void> {
     await rm(this.taskDir(taskId), { recursive: true, force: true });
-  }
-
-  async removeLegacyProcess(processId: string): Promise<void> {
-    await rm(join(this.storage.paths.home, "proc", processId), {
-      recursive: true,
-      force: true,
-    });
   }
 
   taskDir(taskId: string): string {

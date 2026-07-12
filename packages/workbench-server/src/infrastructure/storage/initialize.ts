@@ -23,7 +23,6 @@ const dataSubdirs = [
   "agents",
   "plans",
   "handovers",
-  "proc",
   "workers",
   "approvals",
   "user-questions",
@@ -81,8 +80,15 @@ async function ensureStateLayout(home: string): Promise<void> {
         format?: unknown;
         version?: unknown;
       };
-      if (marker.format === "nerve-workbench-state" && marker.version === 1)
+      if (marker.format === "nerve-workbench-state" && marker.version === 1) {
+        const retiredProcesses = join(home, "proc");
+        if (
+          (await pathExists(retiredProcesses)) &&
+          (await readdir(retiredProcesses)).length > 0
+        )
+          throw new Error("retired process state");
         return;
+      }
     } catch {
       // Report one deterministic reset instruction below.
     }

@@ -131,7 +131,7 @@ describe("task manager runtime metadata", () => {
     assert.deepEqual(persisted.runtime, runtime);
   });
 
-  it("hydrates active persisted records as orphaned and preserves runtime", async () => {
+  it("hydrates live but unsupervised persisted records as orphaned", async () => {
     const runtime = runtimeMetadata({ childPid: 4321, processGroupId: 4321 });
     const { supervisor } = fakeSupervisor({ child: fakeChild(4321), runtime });
     const { manager, storage, index, launchConfigs } =
@@ -144,7 +144,10 @@ describe("task manager runtime metadata", () => {
       index,
       undefined,
       {
-        supervisor: fakeSupervisor({ runtime }).supervisor,
+        supervisor: fakeSupervisor({
+          runtime,
+          isRuntimeTargetAlive: () => true,
+        }).supervisor,
         launchConfigs,
       },
     );

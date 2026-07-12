@@ -5,9 +5,18 @@ import type {
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/contracts";
-import type { ClockPort, DomainEventPublisherPort, IdPort } from "./index.js";
+import type {
+  ClockPort,
+  DiagnosticPort,
+  DomainEventPublisherPort,
+  IdPort,
+} from "./index.js";
 
-export type TaskProcessEvidence = "running" | "exited" | "unknown";
+export type TaskProcessEvidence =
+  | "running"
+  | "unsupervised_running"
+  | "exited"
+  | "unknown";
 export type TaskCapabilityResult<T> = T | "unavailable";
 
 export interface TaskRepositoryPort {
@@ -128,6 +137,7 @@ export interface TaskServicePorts {
   readonly launchConfigs?: TaskLaunchConfigPort;
   readonly capabilities?: TaskOptionalCapabilitiesPort;
   readonly timers?: TaskTimerPort;
+  readonly diagnostics?: DiagnosticPort;
   readonly workspaceRoot: string;
   readonly outputEventLimit?: number;
   readonly stopTimeoutMs?: number;
@@ -167,6 +177,10 @@ export class TaskService {
     NonNullable<TaskStartInput["onOutput"]>
   >();
   private readonly transitions = new Map<string, Promise<unknown>>();
+  private readonly terminalFailures = new Map<
+    string,
+    { readonly exit: TaskProcessExit; readonly error: unknown }
+  >();
 
   constructor(private readonly ports: TaskServicePorts) {}
 
@@ -195,7 +209,7 @@ export class TaskService {
       envInfo: request.env
         ? {
             keys: Object.keys(request.env).sort(),
-            persisted: true,
+            persisted: Boolean(this.ports.launchConfigs),
             redacted: true,
           }
         : undefined,
@@ -250,9 +264,17 @@ export class TaskService {
         await this.save(current);
         await this.publish("task.started", { task: current });
         if (current.readiness.outcome === "pending")
-          void this.watchReadiness(id, request);
+          this.launchBackground(
+            "readiness",
+            id,
+            this.watchReadiness(id, request),
+          );
         if (request.timeoutMs)
-          void this.watchRuntimeTimeout(id, request.timeoutMs);
+          this.launchBackground(
+            "runtime_timeout",
+            id,
+            this.watchRuntimeTimeout(id, request.timeoutMs),
+          );
         return current;
       });
     } catch (error) {
@@ -311,7 +333,10 @@ export class TaskService {
   ): Promise<TaskRecord> {
     let requested = false;
     const initial = await this.transition(id, async (task) => {
-      if (isTerminalTaskStatus(task.status) || task.status === "stopping")
+      if (
+        (isTerminalTaskStatus(task.status) && task.status !== "orphaned") ||
+        task.status === "stopping"
+      )
         return task;
       requested = true;
       this.stopReasons.set(id, "cancelled");
@@ -351,6 +376,12 @@ export class TaskService {
 
   async restart(id: string): Promise<TaskRecord> {
     const previous = await this.require(id);
+    if (previous.envInfo && !previous.envInfo.persisted)
+      throw new Error(
+        "Task launch environment was not persisted; restart is unavailable",
+      );
+    if (previous.envInfo?.persisted && !this.ports.launchConfigs)
+      throw new Error("Persisted task launch environment is unavailable");
     const env = await this.ports.launchConfigs?.load(previous);
     if (!isTerminalTaskStatus(previous.status)) {
       const stopped = await this.cancel(id, { reason: "restart" });
@@ -388,7 +419,8 @@ export class TaskService {
     for (const task of await this.ports.repository.list()) {
       if (isTerminalTaskStatus(task.status)) continue;
       const evidence = await this.ports.process.inspect(task);
-      if (evidence !== "exited") continue;
+      if (evidence !== "exited" && evidence !== "unsupervised_running")
+        continue;
       const result = await this.transition(task.id, async (current) => {
         if (isTerminalTaskStatus(current.status)) return current;
         Object.assign(
@@ -451,6 +483,61 @@ export class TaskService {
     await this.publish("task.removed", { taskId: id });
   }
 
+  pendingTerminalFailureIds(): readonly string[] {
+    return [...this.terminalFailures.keys()];
+  }
+
+  async retryTerminalFailure(id: string): Promise<TaskRecord> {
+    const failure = this.terminalFailures.get(id);
+    if (!failure)
+      throw new Error(`No pending terminal failure for task: ${id}`);
+    const current = await this.require(id);
+    const task = isTerminalTaskStatus(current.status)
+      ? current
+      : await this.finishFromExit(id, failure.exit);
+    if (isTerminalTaskStatus(current.status))
+      await this.publish(`task.${current.status}`, { task: current });
+    this.terminalFailures.delete(id);
+    return task;
+  }
+
+  private launchBackground(
+    kind: "readiness" | "runtime_timeout",
+    id: string,
+    operation: Promise<void>,
+  ): void {
+    void operation
+      .catch((error) => this.handleBackgroundFailure(kind, id, error))
+      .catch((error) =>
+        this.reportFailure(`${kind}_failure_handler`, id, error),
+      );
+  }
+
+  private async handleBackgroundFailure(
+    kind: "readiness" | "runtime_timeout",
+    id: string,
+    error: unknown,
+  ): Promise<void> {
+    this.reportFailure(kind, id, error);
+    await this.transition(id, async (task) => {
+      if (isTerminalTaskStatus(task.status)) return task;
+      if (kind === "readiness" && task.readiness.outcome === "pending") {
+        task.readiness.outcome = "unavailable";
+        task.updatedAt = this.now();
+        await this.save(task);
+        await this.publish("task.readiness_failed", {
+          task,
+          reason: boundedErrorMessage(error),
+        });
+      } else if (kind === "runtime_timeout") {
+        task.error = `Runtime timeout watcher failed: ${boundedErrorMessage(error)}`;
+        task.updatedAt = this.now();
+        await this.save(task);
+      }
+      return task;
+    });
+  }
+
   private async watchReadiness(
     id: string,
     request: StartTaskRequest,
@@ -504,7 +591,13 @@ export class TaskService {
   }
 
   private async recordExit(id: string, exit: TaskProcessExit): Promise<void> {
-    await this.finishFromExit(id, exit).catch(() => undefined);
+    try {
+      await this.finishFromExit(id, exit);
+      this.terminalFailures.delete(id);
+    } catch (error) {
+      this.terminalFailures.set(id, { exit, error });
+      this.reportFailure("terminal_persistence", id, error);
+    }
   }
 
   private async finishFromExit(
@@ -605,14 +698,16 @@ export class TaskService {
     id: string,
     change: (task: TaskRecord) => Promise<TaskRecord>,
   ): Promise<TaskRecord> {
-    const previous = this.transitions.get(id) ?? Promise.resolve();
+    const previous = (this.transitions.get(id) ?? Promise.resolve()).catch(
+      () => undefined,
+    );
     let release!: () => void;
     const gate = new Promise<void>((resolve) => (release = resolve));
     const queued = previous.then(() => gate);
     this.transitions.set(id, queued);
-    await previous.catch(() => undefined);
+    await previous;
     try {
-      return await change(await this.require(id));
+      return await change(structuredClone(await this.require(id)));
     } finally {
       release();
       if (this.transitions.get(id) === queued) this.transitions.delete(id);
@@ -644,9 +739,28 @@ export class TaskService {
     });
   }
 
+  private reportFailure(kind: string, taskId: string, error: unknown): void {
+    try {
+      this.ports.diagnostics?.error("Task lifecycle background failure", {
+        kind,
+        taskId,
+        error: boundedErrorMessage(error),
+      });
+    } catch {
+      // Diagnostics must never create a second unhandled lifecycle failure.
+    }
+  }
+
   private now(): string {
     return this.ports.clock.now().toISOString();
   }
+}
+
+function boundedErrorMessage(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(
+    0,
+    4_096,
+  );
 }
 
 export function assertWorkspacePath(

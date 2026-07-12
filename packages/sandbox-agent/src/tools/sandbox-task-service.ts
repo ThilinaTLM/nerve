@@ -4,6 +4,7 @@ import path from "node:path";
 import type { Readable } from "node:stream";
 import {
   TaskService,
+  type DiagnosticPort,
   type DomainEventIntent,
   type TaskProcessCallbacks,
   type TaskProcessExit,
@@ -21,6 +22,12 @@ import {
 } from "@nervekit/contracts";
 import type { EventOutbox } from "../state/event-outbox.js";
 import { atomicWriteFile } from "../state/json-store.js";
+import {
+  delay,
+  inspectSandboxRuntime,
+  linuxDescendantPids,
+  signalSandboxRuntime,
+} from "./sandbox-task-process.js";
 
 export type SandboxTaskServiceOptions = {
   stateDir: string;
@@ -30,6 +37,7 @@ export type SandboxTaskServiceOptions = {
   maxLogEvents?: number;
   maxTasks?: number;
   maxTaskRuntimeMs?: number;
+  diagnostics?: DiagnosticPort;
 };
 
 type StoredLogs = {
@@ -41,7 +49,10 @@ type StoredLogs = {
 
 type ChildState = {
   child: ChildProcessByStdio<null, Readable, Readable>;
+  runtime: NonNullable<TaskRecord["runtime"]>;
   settled: Promise<TaskProcessExit>;
+  stopping: boolean;
+  knownDescendants: Set<number>;
   exit?: TaskProcessExit;
 };
 
@@ -50,6 +61,7 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
   private readonly taskLogs = new Map<string, StoredLogs>();
   private readonly children = new Map<string, ChildState>();
   private readonly writes = new Map<string, Promise<void>>();
+  private readonly persistedDescendants = new Map<string, Set<number>>();
   private readonly maxLogBytes: number;
   private readonly maxLogEvents: number;
 
@@ -111,6 +123,7 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
   async remove(id: string): Promise<void> {
     this.records.delete(id);
     this.taskLogs.delete(id);
+    this.persistedDescendants.delete(id);
     await rm(path.join(this.options.stateDir, "tasks", id), {
       recursive: true,
       force: true,
@@ -224,67 +237,105 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
     const settled = new Promise<TaskProcessExit>(
       (resolve) => (settle = resolve),
     );
-    const state: ChildState = { child, settled };
-    this.children.set(input.taskId, state);
-    child.stdout.on(
-      "data",
-      (chunk) => void callbacks.onOutput?.("stdout", String(chunk)),
-    );
-    child.stderr.on(
-      "data",
-      (chunk) => void callbacks.onOutput?.("stderr", String(chunk)),
-    );
-    let finished = false;
-    const finish = (exit: TaskProcessExit) => {
-      if (finished) return;
-      finished = true;
-      state.exit = exit;
-      this.children.delete(input.taskId);
-      settle(exit);
-      void callbacks.onExit?.(exit);
-    };
-    child.on("error", (error) => {
-      void callbacks.onOutput?.(
-        "stderr",
-        error instanceof Error ? error.message : String(error),
-      );
-      finish({ exitCode: 127, exitedAt: new Date().toISOString() });
-    });
-    child.on("close", (code, signal) =>
-      finish({
-        exitCode: code ?? undefined,
-        signal: signal ?? undefined,
-        exitedAt: new Date().toISOString(),
-      }),
-    );
-    return {
+    const runtime: NonNullable<TaskRecord["runtime"]> = {
       platform: process.platform,
       childPid: child.pid,
-      processGroupId: child.pid,
-      detached: false,
+      processGroupId: process.platform === "win32" ? undefined : child.pid,
+      detached: process.platform !== "win32",
       shell: true,
       spawnedAt: new Date().toISOString(),
     };
+    const state: ChildState = {
+      child,
+      runtime,
+      settled,
+      stopping: false,
+      knownDescendants: new Set<number>(),
+    };
+    this.children.set(input.taskId, state);
+    child.stdout.on("data", (chunk) =>
+      this.observeCallback(
+        callbacks.onOutput?.("stdout", String(chunk)),
+        input.taskId,
+        "output",
+      ),
+    );
+    child.stderr.on("data", (chunk) =>
+      this.observeCallback(
+        callbacks.onOutput?.("stderr", String(chunk)),
+        input.taskId,
+        "output",
+      ),
+    );
+    let finished = false;
+    const finish = async (exit: TaskProcessExit) => {
+      if (finished) return;
+      finished = true;
+      state.exit = exit;
+      if (state.stopping)
+        await this.waitForRuntimeExit(state.runtime, state.knownDescendants);
+      this.children.delete(input.taskId);
+      settle(exit);
+      await callbacks.onExit?.(exit);
+    };
+    child.on("error", (error) => {
+      this.observeCallback(
+        callbacks.onOutput?.(
+          "stderr",
+          error instanceof Error ? error.message : String(error),
+        ),
+        input.taskId,
+        "spawn_error_output",
+      );
+      this.observeCallback(
+        finish({ exitCode: 127, exitedAt: new Date().toISOString() }),
+        input.taskId,
+        "exit",
+      );
+    });
+    child.on("close", (code, signal) =>
+      this.observeCallback(
+        finish({
+          exitCode: code ?? undefined,
+          signal: signal ?? undefined,
+          exitedAt: new Date().toISOString(),
+        }),
+        input.taskId,
+        "exit",
+      ),
+    );
+    return runtime;
   }
 
   async signal(
     task: TaskRecord,
     options: { signal?: "SIGTERM" | "SIGINT" | "SIGKILL" },
   ): Promise<void> {
-    const child = this.children.get(task.id)?.child;
-    if (child && !child.killed) child.kill(options.signal ?? "SIGTERM");
+    const state = this.children.get(task.id);
+    if (state) state.stopping = true;
+    const knownDescendants =
+      state?.knownDescendants ?? this.descendantsFor(task.id);
+    for (const pid of linuxDescendantPids(
+      (state?.runtime ?? task.runtime)?.childPid,
+    ))
+      knownDescendants.add(pid);
+    await signalSandboxRuntime(
+      state?.runtime ?? task.runtime,
+      options.signal ?? "SIGTERM",
+      knownDescendants,
+      state?.child,
+    );
   }
 
-  async inspect(task: TaskRecord): Promise<"running" | "exited" | "unknown"> {
+  async inspect(
+    task: TaskRecord,
+  ): Promise<"running" | "unsupervised_running" | "exited" | "unknown"> {
     if (this.children.has(task.id)) return "running";
-    const pid = task.runtime?.childPid;
-    if (!pid) return "exited";
-    try {
-      process.kill(pid, 0);
-      return "running";
-    } catch (error) {
-      return isMissingProcess(error) ? "exited" : "unknown";
-    }
+    const evidence = inspectSandboxRuntime(
+      task.runtime,
+      this.persistedDescendants.get(task.id),
+    );
+    return evidence === "running" ? "unsupervised_running" : evidence;
   }
 
   async waitForExit(
@@ -292,18 +343,96 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
     timeoutMs: number,
   ): Promise<TaskProcessExit | "timeout" | "unavailable"> {
     const state = this.children.get(task.id);
-    if (!state) {
-      const evidence = await this.inspect(task);
-      return evidence === "exited"
-        ? { exitedAt: new Date().toISOString() }
-        : "unavailable";
+    if (!state) return this.waitForPersistedRuntimeExit(task, timeoutMs);
+    return new Promise<TaskProcessExit | "timeout">((resolve) => {
+      const timer = setTimeout(() => resolve("timeout"), timeoutMs);
+      void state.settled.then((exit) => {
+        clearTimeout(timer);
+        resolve(exit);
+      });
+    });
+  }
+
+  async saveLaunchConfig(
+    taskId: string,
+    env: Record<string, string> | undefined,
+  ): Promise<void> {
+    if (!env) return;
+    await atomicWriteFile(
+      path.join(this.options.stateDir, "tasks", taskId, "launch.json"),
+      `${JSON.stringify({ version: 1, env })}\n`,
+      0o600,
+    );
+  }
+
+  async loadLaunchConfig(
+    task: TaskRecord,
+  ): Promise<Record<string, string> | undefined> {
+    if (!task.envInfo?.persisted) return undefined;
+    const file = path.join(
+      this.options.stateDir,
+      "tasks",
+      task.id,
+      "launch.json",
+    );
+    let value: unknown;
+    try {
+      value = JSON.parse(await readFile(file, "utf8"));
+    } catch (error) {
+      if (isNotFound(error))
+        throw new Error("Task launch environment is unavailable", {
+          cause: error,
+        });
+      throw error;
     }
-    return Promise.race([
-      state.settled,
-      new Promise<"timeout">((resolve) =>
-        setTimeout(() => resolve("timeout"), timeoutMs),
-      ),
-    ]);
+    const env = (value as { env?: unknown }).env;
+    if (!env || typeof env !== "object" || Array.isArray(env))
+      throw new Error("Task launch environment is invalid");
+    const entries = Object.entries(env);
+    if (entries.some((entry) => typeof entry[1] !== "string"))
+      throw new Error("Task launch environment is invalid");
+    return Object.fromEntries(entries) as Record<string, string>;
+  }
+
+  async removeLaunchConfig(task: TaskRecord): Promise<void> {
+    await rm(
+      path.join(this.options.stateDir, "tasks", task.id, "launch.json"),
+      { force: true },
+    );
+  }
+
+  private async waitForPersistedRuntimeExit(
+    task: TaskRecord,
+    timeoutMs: number,
+  ): Promise<TaskProcessExit | "timeout" | "unavailable"> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() <= deadline) {
+      const evidence = inspectSandboxRuntime(
+        task.runtime,
+        this.persistedDescendants.get(task.id),
+      );
+      if (evidence === "exited") return { exitedAt: new Date().toISOString() };
+      if (evidence === "unknown") return "unavailable";
+      await delay(Math.min(20, Math.max(1, deadline - Date.now())));
+    }
+    return "timeout";
+  }
+
+  private async waitForRuntimeExit(
+    runtime: TaskRecord["runtime"],
+    descendants: ReadonlySet<number>,
+  ): Promise<void> {
+    while (inspectSandboxRuntime(runtime, descendants) === "running")
+      await delay(20);
+  }
+
+  private descendantsFor(taskId: string): Set<number> {
+    let descendants = this.persistedDescendants.get(taskId);
+    if (!descendants) {
+      descendants = new Set<number>();
+      this.persistedDescendants.set(taskId, descendants);
+    }
+    return descendants;
   }
 
   async drain(timeoutMs = 2_000): Promise<void> {
@@ -317,6 +446,25 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
       ]);
     }
     await Promise.all(this.writes.values());
+  }
+
+  private observeCallback(
+    result: void | Promise<void> | undefined,
+    taskId: string,
+    kind: string,
+  ): void {
+    if (!result) return;
+    void result.catch((error) => {
+      try {
+        this.options.diagnostics?.error("Sandbox task callback failed", {
+          taskId,
+          kind,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } catch {
+        // Diagnostics must not cause an unhandled callback rejection.
+      }
+    });
   }
 
   private logsFor(id: string): StoredLogs {
@@ -379,9 +527,15 @@ export class SandboxTaskService {
       events: {
         publish: (event) => this.publish(event),
       },
+      launchConfigs: {
+        save: (taskId, env) => this.adapter.saveLaunchConfig(taskId, env),
+        load: (task) => this.adapter.loadLaunchConfig(task),
+        remove: (task) => this.adapter.removeLaunchConfig(task),
+      },
       clock: { now: () => new Date() },
       ids: { next: () => createId("task") },
       workspaceRoot: options.workspaceDir,
+      diagnostics: options.diagnostics,
     });
   }
 
@@ -501,14 +655,5 @@ function isNotFound(error: unknown): boolean {
     error !== null &&
     "code" in error &&
     (error as { code?: unknown }).code === "ENOENT"
-  );
-}
-
-function isMissingProcess(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "ESRCH"
   );
 }
