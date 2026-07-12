@@ -18,7 +18,7 @@ import {
   MANAGER_EVENT_STORE_ID,
   MANAGER_EVENT_STREAM,
 } from "../events/manager-events.js";
-import { managerRpcDispatcher } from "./manager-protocol-http-dispatcher.js";
+import { managerWebSocketRpcDispatcher } from "./manager-protocol-http-dispatcher.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
 const CAPABILITIES = [
@@ -29,6 +29,7 @@ const CAPABILITIES = [
   "flow.backpressure",
   "sandbox.manager.ui.v1",
   "sandbox.manager.snapshots.v1",
+  "operation.sandbox.manager.recovery.get",
   "sandbox.manager.lifecycle.v1",
 ];
 const LIMITS = {
@@ -45,6 +46,7 @@ export async function createManagerUiSharedSession(
   server: SandboxWsServer,
 ): Promise<void> {
   const streamStates = new Map<string, StreamState>();
+  const activeStreams = new Set<string>([MANAGER_EVENT_STREAM]);
   const records = await state.sandboxes.list();
   const streams = [
     [MANAGER_EVENT_STREAM, MANAGER_EVENT_STORE_ID] as const,
@@ -67,13 +69,17 @@ export async function createManagerUiSharedSession(
   const transport = websocketTransport(ws as unknown as WebSocketLike);
   let disposed = false;
   let unsubscribe: () => void = () => undefined;
-  const replaySource = managerReplaySource(state, streamStates);
+  const replaySource = managerReplaySource(state, streamStates, activeStreams);
   const session: ProtocolServerSession = new ProtocolServerSession({
     acceptingPeer: peer,
     allowedPeerRoles: ["ui"],
     createMessage: messages,
     capabilities: CAPABILITIES,
-    streams: () => [...streamStates.values()],
+    streams: () =>
+      [...activeStreams].flatMap((stream) => {
+        const current = streamStates.get(stream);
+        return current ? [current] : [];
+      }),
     limits: LIMITS,
     heartbeat: {
       intervalMs: 15_000,
@@ -83,11 +89,31 @@ export async function createManagerUiSharedSession(
     send: async (message): Promise<void> => {
       await connection.send(message as ProtocolV1Message);
     },
-    rpcDispatcher: () => managerRpcDispatcher(state, server),
+    rpcDispatcher: ({ capabilities }) =>
+      managerWebSocketRpcDispatcher(state, server, capabilities),
     replaySource,
     resume: async (hello) => {
+      const requested = hello.resume?.streams ?? [];
+      const names = requested.map((cursor) => cursor.stream);
+      if (new Set(names).size !== names.length)
+        return { accepted: false, mode: "snapshot_required" as const };
+      const sandboxStreams = names.filter((stream) =>
+        stream.startsWith("sandbox:"),
+      );
+      if (
+        names.some(
+          (stream) =>
+            stream !== MANAGER_EVENT_STREAM && !stream.startsWith("sandbox:"),
+        ) ||
+        sandboxStreams.length > 1 ||
+        names.some((stream) => !streamStates.has(stream))
+      )
+        return { accepted: false, mode: "snapshot_required" as const };
+      activeStreams.clear();
+      activeStreams.add(MANAGER_EVENT_STREAM);
+      for (const stream of sandboxStreams) activeStreams.add(stream);
       let needsReplay = false;
-      for (const cursor of hello.resume?.streams ?? []) {
+      for (const cursor of requested) {
         const current = streamStates.get(cursor.stream);
         if (!current || cursor.processedSeq > (current.durableSeq ?? 0))
           return { accepted: false, mode: "snapshot_required" as const };
@@ -143,6 +169,7 @@ export async function createManagerUiSharedSession(
             : Math.max(current.durableSeq ?? 0, event.seq),
       });
     }
+    if (!activeStreams.has(stream)) return;
     const envelope = toEnvelope(event);
     void session.publish(stream, envelope).catch((error: unknown) => {
       state.logger.warn("Manager UI event publication failed", {
@@ -158,12 +185,15 @@ export async function createManagerUiSharedSession(
 function managerReplaySource(
   state: ManagerState,
   streamStates: Map<string, StreamState>,
+  activeStreams: ReadonlySet<string>,
 ): ReplaySource {
   return {
     streams: () => [...streamStates.values()],
     async read(request) {
       const storeId = storeIdForStream(request.stream);
-      const current = streamStates.get(request.stream);
+      const current = activeStreams.has(request.stream)
+        ? streamStates.get(request.stream)
+        : undefined;
       if (!storeId || !current)
         return {
           available: false,

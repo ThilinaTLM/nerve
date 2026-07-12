@@ -30,6 +30,7 @@ const UI_CAPABILITIES = [
   "flow.backpressure",
   "sandbox.manager.ui.v1",
   "sandbox.manager.snapshots.v1",
+  "operation.sandbox.manager.recovery.get",
   "sandbox.manager.lifecycle.v1",
 ];
 const STATE_KEY = "nerve.protocol.v1.sandbox-manager-ui";
@@ -65,6 +66,7 @@ export class ManagerWsClient {
   private selectedStream?: string;
   private closedByCaller = false;
   private wasReady = false;
+  private generation = 0;
 
   constructor(private readonly handlers: ManagerWsHandlers) {
     this.restore();
@@ -73,11 +75,13 @@ export class ManagerWsClient {
 
   connect(): void {
     this.closedByCaller = false;
-    this.open();
+    const generation = ++this.generation;
+    this.open(generation);
   }
 
   close(): void {
     this.closedByCaller = true;
+    ++this.generation;
     void this.connection?.close();
     this.connection = undefined;
     this.handlers.onConnectionChange("closed");
@@ -90,14 +94,19 @@ export class ManagerWsClient {
     if (!this.cursors.has(stream)) this.cursors.set(stream, 0);
     // Stream subscription is expressed by the resume cursor set. Restarting the
     // shared connection atomically replaces the old selection/generation.
-    if (this.connection) {
-      void this.connection.close().finally(() => {
-        if (!this.closedByCaller) this.open();
+    const generation = ++this.generation;
+    const previous = this.connection;
+    this.connection = undefined;
+    if (previous) {
+      void previous.close().finally(() => {
+        if (!this.closedByCaller && generation === this.generation)
+          this.open(generation);
       });
-    }
+    } else if (!this.closedByCaller) this.open(generation);
   }
 
-  private open(): void {
+  private open(generation: number): void {
+    if (generation !== this.generation || this.closedByCaller) return;
     const source: PeerDescriptor = {
       role: "ui",
       id: protocolClientId(),
@@ -108,11 +117,13 @@ export class ManagerWsClient {
       source,
       target: { role: "sandbox_manager", id: "sandbox-manager" },
     });
-    this.connection = new ProtocolClientConnection({
+    const connection = new ProtocolClientConnection({
       transport: browserWebSocketTransportFactory(this.wsUrl()),
-      onStateChange: (state) => this.onConnectionState(state),
+      onStateChange: (state) => {
+        if (generation === this.generation) this.onConnectionState(state);
+      },
       onError: (error) => {
-        if (!this.closedByCaller)
+        if (!this.closedByCaller && generation === this.generation)
           this.handlers.onConnectionChange("error", boundedError(error));
       },
       createSession: ({ send, onDisconnect }) =>
@@ -124,14 +135,19 @@ export class ManagerWsClient {
           send,
           onDisconnect,
           onReady: () => {
+            if (generation !== this.generation) return;
             const reconnected = this.wasReady;
             this.wasReady = true;
             this.handlers.onConnectionChange("live");
             if (reconnected) this.handlers.onReconnected?.();
           },
           applyEvent: async (stream, event) => {
+            if (generation !== this.generation)
+              throw new Error("Stale manager UI protocol generation");
             if (stream.startsWith("sandbox:") && stream !== this.selectedStream)
-              return;
+              throw new Error(
+                `Unexpected unselected sandbox stream: ${stream}`,
+              );
             await this.handlers.onEvent({
               ...event,
               stream,
@@ -152,10 +168,15 @@ export class ManagerWsClient {
               };
             },
           },
-          installSnapshot: () => undefined,
+          installSnapshot: (_snapshot, cursors) => this.replaceCursors(cursors),
         }),
     });
-    void this.connection.start();
+    if (generation !== this.generation || this.closedByCaller) {
+      void connection.close();
+      return;
+    }
+    this.connection = connection;
+    void connection.start();
   }
 
   private currentCursors(): StreamCursor[] {
@@ -173,6 +194,16 @@ export class ManagerWsClient {
         cursor.stream,
         Math.max(this.cursors.get(cursor.stream) ?? 0, cursor.processedSeq),
       );
+    this.persistCursors();
+  }
+
+  private replaceCursors(cursors: readonly StreamCursor[]): void {
+    for (const cursor of cursors)
+      this.cursors.set(cursor.stream, cursor.processedSeq);
+    this.persistCursors();
+  }
+
+  private persistCursors(): void {
     try {
       localStorage.setItem(
         STATE_KEY,

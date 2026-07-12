@@ -11,7 +11,7 @@ import {
   type ProtocolRequestData,
   type ProtocolResponseData,
 } from "@nervekit/contracts";
-import type { MessageFactory } from "./messages.js";
+import type { MessageFactory, MessageFactoryOptions } from "./messages.js";
 import type { ProtocolTimers } from "./ports.js";
 import { systemProtocolTimers } from "./runtime.js";
 
@@ -54,7 +54,11 @@ export class RpcClient {
     options: Pick<
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
-    > = {},
+    > &
+      Pick<
+        MessageFactoryOptions,
+        "correlationId" | "causationId" | "traceId"
+      > = {},
   ): Promise<OperationResult<M>> {
     const operation = operationDefinition(method);
     const validatedParams = parseOperationParams(method, params);
@@ -70,12 +74,17 @@ export class RpcClient {
         message: `Operation ${method} requires an idempotency key`,
         retryable: false,
       });
+    const { correlationId, causationId, traceId, ...requestOptions } = options;
     const data = protocolRequestDataSchema.parse({
       method,
       params: validatedParams,
-      ...options,
+      ...requestOptions,
     });
-    const message = this.#options.createMessage("request", data);
+    const message = this.#options.createMessage("request", data, {
+      correlationId,
+      causationId,
+      traceId,
+    });
     const timeoutMs =
       data.timeoutMs ?? this.#options.defaultTimeoutMs ?? 30_000;
     const response = new Promise<OperationResult<M>>((resolve, reject) => {

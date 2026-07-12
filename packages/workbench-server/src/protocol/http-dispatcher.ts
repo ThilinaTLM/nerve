@@ -184,6 +184,20 @@ export function workbenchRpcDispatcher(
   return dispatcher;
 }
 
+export function workbenchWebSocketRpcDispatcher(
+  state: OrchestratorState,
+  acceptedCapabilities: readonly string[],
+): RpcDispatcher {
+  return new RpcDispatcher({
+    handlers: workbenchOperationHandlers(state),
+    idempotency: new FileIdempotencyStore(
+      join(state.storage.paths.home, "protocol", "idempotency-v1.json"),
+    ),
+    acceptedCapabilities,
+    translateError,
+  });
+}
+
 function translateError(error: unknown): ProtocolErrorData {
   if (error instanceof HttpError) {
     return {

@@ -101,13 +101,71 @@ describe("sandbox manager driver and event foundations", () => {
     assert.equal(provider?.baseUrl, profile.baseUrl);
   });
 
+  it("ACKs only a manager-proven durable chain across transient holes", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-manager-chain-"));
+    try {
+      const ingestor = new SandboxEventIngestor(new EventStore(dir));
+      const first = await ingestor.ingestBatch("sbx_chain", 0, [
+        {
+          id: "evt_chain_1",
+          seq: 1,
+          type: "run.started",
+          data: {
+            conversationId: "conv_1",
+            agentId: "agent_1",
+            projectId: "proj_1",
+            runId: "run_1",
+            startedAt: "2026-01-01T00:00:00.000Z",
+          },
+        },
+      ]);
+      assert.equal(first.processedSeq, 1);
+      const second = await ingestor.ingestBatch("sbx_chain", 1, [
+        {
+          id: "evt_chain_transient",
+          seq: 2,
+          type: "run.delta",
+          data: {
+            conversationId: "conv_1",
+            agentId: "agent_1",
+            runId: "run_1",
+            deltaId: "delta_1",
+            role: "assistant",
+            text: "working",
+          },
+        },
+        {
+          id: "evt_chain_3",
+          seq: 3,
+          type: "run.completed",
+          data: {
+            conversationId: "conv_1",
+            agentId: "agent_1",
+            projectId: "proj_1",
+            runId: "run_1",
+            completedAt: "2026-01-01T00:01:00.000Z",
+            status: "completed",
+          },
+        },
+      ]);
+      assert.equal(second.processedSeq, 3);
+      await assert.rejects(
+        ingestor.ingestBatch("sbx_chain", 4, []),
+        /ahead of manager storage/,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("deduplicates replayed sandbox events", async () => {
+    const startedAt = new Date().toISOString();
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-manager-events-"));
     try {
       const ingestor = new SandboxEventIngestor(new EventStore(dir));
       assert.equal(
         (
-          await ingestor.ingestBatch("sbx_1", [
+          await ingestor.ingestBatch("sbx_1", 0, [
             {
               id: "evt_1",
               seq: 1,
@@ -117,7 +175,7 @@ describe("sandbox manager driver and event foundations", () => {
                 agentId: "agent_1",
                 projectId: "proj_1",
                 runId: "run_1",
-                startedAt: new Date().toISOString(),
+                startedAt,
               },
             },
           ])
@@ -126,7 +184,7 @@ describe("sandbox manager driver and event foundations", () => {
       );
       assert.equal(
         (
-          await ingestor.ingestBatch("sbx_1", [
+          await ingestor.ingestBatch("sbx_1", 0, [
             {
               id: "evt_1",
               seq: 1,
@@ -136,7 +194,7 @@ describe("sandbox manager driver and event foundations", () => {
                 agentId: "agent_1",
                 projectId: "proj_1",
                 runId: "run_1",
-                startedAt: new Date().toISOString(),
+                startedAt,
               },
             },
           ])

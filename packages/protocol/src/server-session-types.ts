@@ -95,6 +95,10 @@ export interface ServerSessionRpc {
     options?: Pick<
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
-    >,
+    > & {
+      readonly correlationId?: string;
+      readonly causationId?: string;
+      readonly traceId?: string;
+    },
   ): Promise<OperationResult<M>>;
 }

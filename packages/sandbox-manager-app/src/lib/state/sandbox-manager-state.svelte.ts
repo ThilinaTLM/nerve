@@ -185,28 +185,36 @@ export class SandboxManagerStore {
         if (this.selectedSandboxId)
           void this.loadDetail(this.selectedSandboxId);
       },
-      onSnapshotRecovery: async (streams) => {
-        await Promise.all(
-          streams.map((stream) => {
-            const sandboxId = stream.startsWith("sandbox:")
-              ? stream.slice("sandbox:".length)
-              : undefined;
-            return sandboxId
-              ? this.recoverConversationSnapshot(sandboxId)
-              : this.refreshFleet();
-          }),
+      onSnapshotRecovery: async () => {
+        const sandboxId = this.selectedSandboxId;
+        const detail = sandboxId ? this.detail(sandboxId) : undefined;
+        const { result } = await protocolRequest(
+          "sandbox.manager.recovery.get",
+          {
+            sandboxId,
+            conversationId: detail?.selectedConversationId,
+            agentId: detail?.selectedAgentId,
+            runId: detail?.selectedRunId,
+          },
+          { target: { role: "sandbox_manager" } },
         );
-        return streams.map((stream) => {
-          const sandboxId = stream.startsWith("sandbox:")
-            ? stream.slice("sandbox:".length)
-            : undefined;
-          return {
-            stream,
-            processedSeq: sandboxId
-              ? (this.details[sandboxId]?.lastRichSnapshot?.cursorSeq ?? 0)
-              : 0,
-          };
+        this.sandboxes = result.sandboxes.map((item) => {
+          const record = { ...item };
+          Reflect.deleteProperty(record, "activity");
+          return record;
         });
+        if (sandboxId && detail && result.selectedSandbox)
+          applySnapshot(detail, result.selectedSandbox);
+        if (sandboxId && detail && result.selectedConversation) {
+          const renderState = fromSandboxConversationViewSnapshot(
+            result.selectedConversation,
+          );
+          const key =
+            renderState.conversationId ??
+            result.selectedConversation.conversationId;
+          if (key) detail.conversationViewsById[key] = renderState;
+        }
+        return result.cursors;
       },
     });
   }

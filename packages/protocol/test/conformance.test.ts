@@ -158,6 +158,64 @@ test("client readiness gate and peer-owned event ACK use shared sessions", async
   host.dispose();
 });
 
+test("server binds post-handshake envelopes to negotiated peers", async () => {
+  const outbound: NerveMessage[] = [];
+  const host = new ProtocolServerSession({
+    acceptingPeer: server,
+    createMessage: serverMessages,
+    streams: () => [],
+    limits,
+    heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+    sessionId: () => "session_bound_peers",
+    send: (message) => outbound.push(message),
+  });
+  await host.receive(clientMessages("hello", helloData()) as never);
+  await host.receive(
+    clientMessages(
+      "ready",
+      { sessionId: "session_bound_peers" },
+      { source: { role: "ui", id: "forged" } },
+    ) as never,
+  );
+  assert.equal(host.state, "closed");
+  assert.equal(outbound.at(-1)?.kind, "error");
+});
+
+test("peer goodbye fully closes server publication state", async () => {
+  const outbound: NerveMessage[] = [];
+  const host = new ProtocolServerSession({
+    acceptingPeer: server,
+    createMessage: serverMessages,
+    streams: () => [],
+    limits,
+    heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+    sessionId: () => "session_goodbye_cleanup",
+    send: (message) => outbound.push(message),
+  });
+  await host.receive(clientMessages("hello", helloData()) as never);
+  await host.receive(
+    clientMessages("ready", { sessionId: "session_goodbye_cleanup" }) as never,
+  );
+  await host.receive(
+    clientMessages("goodbye", {
+      sessionId: "session_goodbye_cleanup",
+      reason: "client_closing",
+    }) as never,
+  );
+  assert.equal(host.state, "closed");
+  await assert.rejects(
+    host.publish("local", {
+      id: "evt_after_goodbye",
+      seq: 1,
+      type: "project.created",
+      ts: new Date().toISOString(),
+      durability: "durable",
+      data: {},
+    }),
+    /open session/,
+  );
+});
+
 test("server rejects a non-hello first message", async () => {
   const host = new ProtocolServerSession({
     acceptingPeer: server,

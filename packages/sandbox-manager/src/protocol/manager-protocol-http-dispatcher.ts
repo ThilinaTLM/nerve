@@ -137,6 +137,26 @@ export function managerRpcDispatcher(
   return dispatcher;
 }
 
+export function managerWebSocketRpcDispatcher(
+  state: ManagerState,
+  controller: SandboxWsServer,
+  acceptedCapabilities: readonly string[],
+): RpcDispatcher {
+  return new RpcDispatcher({
+    handlers: createManagerOperationHandlers({ state, controller }),
+    idempotency: new MemoryIdempotencyStore(),
+    acceptedCapabilities,
+    translateError: (error) => {
+      const normalized = normalizeProtocolError(error);
+      return {
+        code: normalized.code,
+        message: normalized.message,
+        retryable: normalized.status >= 500,
+      };
+    },
+  });
+}
+
 function errorMessage(
   replyTo: string | undefined,
   code: NerveErrorCode,

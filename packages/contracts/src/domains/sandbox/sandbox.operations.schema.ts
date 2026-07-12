@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { streamCursorSchema } from "../protocol/event-stream.schema.js";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 import {
   logReadOptionsSchema,
@@ -36,8 +37,30 @@ const sandboxRemoveParamsSchema =
 const sandboxLogsParamsSchema =
   sandboxIdParamsSchema.merge(logReadOptionsSchema);
 const managerRole = ["sandbox_manager"] as const;
+const managerRecoveryParamsSchema = z.object({
+  sandboxId: sandboxIdSchema.optional(),
+  conversationId: z.string().min(1).optional(),
+  agentId: z.string().min(1).optional(),
+  runId: z.string().min(1).optional(),
+});
+const managerRecoveryResultSchema = z.object({
+  stateEpoch: z.literal("protocol-v1"),
+  cursors: z.array(streamCursorSchema),
+  sandboxes: z.array(managedSandboxListItemSchema),
+  selectedSandbox: sandboxSnapshotResultSchema.optional(),
+  selectedConversation: sandboxConversationViewSnapshotSchema.optional(),
+});
 
 export const sandboxOperationDefinitions = [
+  defineOperation(
+    "sandbox.manager.recovery.get",
+    managerRecoveryParamsSchema,
+    managerRecoveryResultSchema,
+    "read",
+    "none",
+    managerRole,
+    "operation.sandbox.manager.recovery.get",
+  ),
   defineOperation(
     "sandbox.create",
     sandboxCreateRequestSchema,

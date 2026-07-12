@@ -48,7 +48,13 @@ export class RpcForwarder {
       request?: (
         method: string,
         params: unknown,
-        options: { idempotencyKey?: string; timeoutMs?: number },
+        options: {
+          idempotencyKey?: string;
+          timeoutMs?: number;
+          correlationId?: string;
+          causationId?: string;
+          traceId?: string;
+        },
       ) => Promise<unknown>;
     } = {},
   ) {
@@ -59,7 +65,13 @@ export class RpcForwarder {
   private readonly request?: (
     method: string,
     params: unknown,
-    options: { idempotencyKey?: string; timeoutMs?: number },
+    options: {
+      idempotencyKey?: string;
+      timeoutMs?: number;
+      correlationId?: string;
+      causationId?: string;
+      traceId?: string;
+    },
   ) => Promise<unknown>;
 
   pendingCount(): number {
@@ -72,9 +84,18 @@ export class RpcForwarder {
     params: unknown,
     idempotencyKey?: string,
     timeoutMs = 30_000,
+    lineage: {
+      correlationId?: string;
+      causationId?: string;
+      traceId?: string;
+    } = {},
   ): Promise<unknown> {
     if (this.request)
-      return this.request(method, params, { idempotencyKey, timeoutMs });
+      return this.request(method, params, {
+        idempotencyKey,
+        timeoutMs,
+        ...lineage,
+      });
     if (this.pending.size >= this.maxPending) {
       return Promise.reject(
         new ForwardedRpcError(
@@ -88,12 +109,16 @@ export class RpcForwarder {
       source: { role: "sandbox_manager", id: "sandbox-manager" },
       target: { role: "sandbox_agent", id: this.sandboxId },
     });
-    const request = createMessage("request", {
-      method,
-      params,
-      idempotencyKey,
-      timeoutMs,
-    });
+    const request = createMessage(
+      "request",
+      {
+        method,
+        params,
+        idempotencyKey,
+        timeoutMs,
+      },
+      lineage,
+    );
     const startedAt = Date.now();
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {

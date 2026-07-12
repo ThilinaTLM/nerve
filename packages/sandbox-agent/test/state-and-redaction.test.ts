@@ -131,11 +131,31 @@ describe("sandbox agent image durable state foundations", () => {
           startedAt: new Date().toISOString(),
         },
       });
+      await outbox.append({
+        type: "run.delta",
+        durability: "transient",
+        data: {
+          conversationId: "conv_1",
+          agentId: "agent_1",
+          runId: "run_1",
+          deltaId: "delta_1",
+          role: "assistant",
+          text: "working",
+        },
+      });
+      assert.equal(outbox.all().length, 2);
       assert.equal(outbox.unacked(0).length, 1);
       const ack = await outbox.ack("sandbox", 1);
       assert.equal(ack.streams[0]?.processedSeq, 1);
       const staleAck = await outbox.ack("sandbox", 0);
       assert.equal(staleAck.streams[0]?.processedSeq, 1);
+      const reloadedOutbox = new EventOutbox(
+        path.join(dir, "outbox.jsonl"),
+        path.join(dir, "ack.json"),
+      );
+      await reloadedOutbox.load();
+      assert.equal(reloadedOutbox.all().length, 1);
+      assert.equal(reloadedOutbox.unacked(0).length, 1);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

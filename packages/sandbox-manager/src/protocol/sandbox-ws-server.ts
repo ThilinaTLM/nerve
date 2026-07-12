@@ -105,7 +105,7 @@ export class SandboxWsServer {
       )
         return rejectUpgrade(socket, 401, "Unauthorized");
       this.wss.handleUpgrade(req, socket, head, (ws) => {
-        void this.handleConnection(sandboxId, ws);
+        void this.acceptAgentConnection(sandboxId, ws);
       });
     } catch {
       rejectUpgrade(socket, 500, "Upgrade failed");
@@ -115,10 +115,7 @@ export class SandboxWsServer {
   private async handleUiConnection(ws: WebSocket): Promise<void> {
     await createManagerUiSharedSession(ws, this.state, this);
   }
-  private async handleConnection(
-    sandboxId: string,
-    ws: WebSocket,
-  ): Promise<void> {
+  async acceptAgentConnection(sandboxId: string, ws: WebSocket): Promise<void> {
     const record = await this.state.sandboxes.get(sandboxId);
     if (!record?.controller) {
       ws.close(1008, "unknown_sandbox");
@@ -132,7 +129,13 @@ export class SandboxWsServer {
     const transport = websocketTransport(ws as unknown as WebSocketLike);
     let connected: ConnectedSandboxSession | undefined;
     let disposed = false;
-    let agentProcessedSeq = 0;
+    const persistedEvents = await this.state.events.list(sandboxId);
+    const managerProcessedSeq = Math.max(
+      0,
+      ...persistedEvents
+        .filter((event) => event.durability !== "transient")
+        .map((event) => event.seq ?? 0),
+    );
     const agentStream = `sandbox:${sandboxId}`;
     const protocolSession: ProtocolServerSession = new ProtocolServerSession({
       acceptingPeer: peer,
@@ -142,9 +145,9 @@ export class SandboxWsServer {
       streams: () => [
         {
           stream: agentStream,
-          latestSeq: agentProcessedSeq,
-          durableSeq: agentProcessedSeq,
-          replayAvailableFromSeq: agentProcessedSeq,
+          latestSeq: managerProcessedSeq,
+          durableSeq: managerProcessedSeq,
+          replayAvailableFromSeq: managerProcessedSeq,
         },
       ],
       limits: {
@@ -162,9 +165,11 @@ export class SandboxWsServer {
       resume: (hello, source) => {
         if (source.id !== sandboxId || !source.instanceId)
           throw new Error("Sandbox agent identity does not match the endpoint");
-        agentProcessedSeq =
+        const claimedCursor =
           hello.resume?.streams?.find((cursor) => cursor.stream === agentStream)
             ?.processedSeq ?? 0;
+        if (claimedCursor > managerProcessedSeq)
+          throw new Error("Agent resume cursor is ahead of manager ingestion");
         if (
           record.instanceId &&
           record.instanceId !== source.instanceId &&
@@ -251,6 +256,7 @@ export class SandboxWsServer {
           );
         const result = await this.ingestor.ingestBatch(
           sandboxId,
+          message.data.range.previousDurableSeq ?? 0,
           message.data.events,
         );
         return {
@@ -284,7 +290,9 @@ export class SandboxWsServer {
             512,
           ),
         });
-        dispose();
+        void Promise.resolve(transport.close(1008, "session_rejected")).finally(
+          dispose,
+        );
       },
     });
     ws.on("close", (code, reason) => {

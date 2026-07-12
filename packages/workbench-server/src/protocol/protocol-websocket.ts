@@ -23,7 +23,7 @@ import {
   PROTOCOL_SESSION_LIMITS,
   GLOBAL_STREAM,
 } from "./constants.js";
-import { workbenchRpcDispatcher } from "./http-dispatcher.js";
+import { workbenchWebSocketRpcDispatcher } from "./http-dispatcher.js";
 import { orchestratorSource } from "./messages.js";
 
 /** Host binding for the shared server lifecycle. */
@@ -123,7 +123,8 @@ export function createLocalProtocolSession(
     send: async (message): Promise<void> => {
       await connection.send(message as ProtocolV1Message);
     },
-    rpcDispatcher: () => workbenchRpcDispatcher(state),
+    rpcDispatcher: ({ capabilities }) =>
+      workbenchWebSocketRpcDispatcher(state, capabilities),
     replaySource: localReplaySource(state),
     resume: async (hello) => {
       const cursor = hello.resume?.streams?.find(

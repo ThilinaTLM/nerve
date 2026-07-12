@@ -42,6 +42,30 @@ describe("manager protocol method handlers", () => {
       );
     }
   });
+  it("returns a snapshot-consistent manager recovery cursor", async () => {
+    const result = (await invokeManagerOperation(
+      context({
+        events: [
+          {
+            sandboxId: "__manager__",
+            id: "evt_manager_7",
+            seq: 7,
+            type: "sandbox.lifecycle.changed",
+            durability: "durable",
+            payload: {},
+          },
+        ],
+      }),
+      "sandbox.manager.recovery.get",
+      {},
+    )) as {
+      stateEpoch: string;
+      cursors: Array<{ stream: string; processedSeq: number }>;
+    };
+    assert.equal(result.stateEpoch, "protocol-v1");
+    assert.deepEqual(result.cursors, [{ stream: "manager", processedSeq: 7 }]);
+  });
+
   it("returns a manager-derived sandbox snapshot when disconnected", async () => {
     const result = await invokeManagerOperation(
       context(),
@@ -86,8 +110,12 @@ describe("manager protocol method handlers", () => {
   });
 
   it("forwards canonical host operations unchanged using the target id", async () => {
-    const sent: Array<{ method: string; params: unknown; requestId: string }> =
-      [];
+    const sent: Array<{
+      method: string;
+      params: unknown;
+      requestId: string;
+      lineage: unknown;
+    }> = [];
     const ctx = context({
       session: {
         socket: {},
@@ -97,8 +125,10 @@ describe("manager protocol method handlers", () => {
             method: string,
             params: unknown,
             requestId: string,
+            _timeoutMs: number,
+            lineage: unknown,
           ) => {
-            sent.push({ method, params, requestId });
+            sent.push({ method, params, requestId, lineage });
             return { tasks: [] };
           },
         },
@@ -113,6 +143,11 @@ describe("manager protocol method handlers", () => {
         method: "task.list",
         params: {},
         requestId: "request_1",
+        lineage: {
+          correlationId: "correlation_test",
+          causationId: "msg_test",
+          traceId: "trace_test",
+        },
       },
     ]);
   });
@@ -260,6 +295,8 @@ async function invokeManagerOperation(
     version: 1,
     id: "msg_test",
     kind: "request",
+    correlationId: "correlation_test",
+    traceId: "trace_test",
     ts: "2026-06-26T12:00:00.000Z",
     source: { role: "ui", id: "ui_test" },
     target: ctx.target,
@@ -291,6 +328,7 @@ function context(
       sandboxes: {
         get: async (sandboxId: string) =>
           sandboxId === "sbx_1" ? sandboxRecord : undefined,
+        list: async () => [sandboxRecord],
         put: async () => undefined,
       },
       driver: {
@@ -301,6 +339,7 @@ function context(
           finishedAt: options.driverStatus?.finishedAt,
         }),
       },
+      activity: { get: () => undefined },
       sessions: { get: async () => undefined },
       events: { list: async () => options.events ?? [] },
       idempotency: {

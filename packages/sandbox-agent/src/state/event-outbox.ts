@@ -41,7 +41,7 @@ export class EventOutbox {
       id: input.id ?? `evt_${Date.now()}_${this.nextSeq}`,
       ts: input.ts ?? new Date().toISOString(),
     };
-    await this.outbox.append(record);
+    if (record.durability === "durable") await this.outbox.append(record);
     this.records.push(record);
     for (const listener of this.listeners) listener(record);
     return record;

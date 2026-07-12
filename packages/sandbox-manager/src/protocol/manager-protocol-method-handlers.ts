@@ -13,6 +13,7 @@ import {
 } from "@nervekit/contracts";
 import type { OperationHandlerRegistry } from "@nervekit/protocol";
 import type { ManagerState } from "../app/manager-state.js";
+import { MANAGER_EVENT_STORE_ID } from "../events/manager-events.js";
 import { HttpError } from "../http/errors.js";
 import {
   lifecycleReadyForOperations,
@@ -47,6 +48,8 @@ export function createManagerOperationHandlers(
   context: ProtocolHandlerContext,
 ): Partial<OperationHandlerRegistry> {
   const managerHandlers = {
+    "sandbox.manager.recovery.get": (params) =>
+      managerRecoverySnapshot(context, params),
     "sandbox.create": async (params) => ({
       sandbox: await createManagedSandbox(context.state, params),
     }),
@@ -115,6 +118,78 @@ export function createManagerOperationHandlers(
         forwardSandboxOperation(context, method, params, request);
     },
   });
+}
+
+async function managerRecoverySnapshot(
+  context: ProtocolHandlerContext,
+  params: {
+    sandboxId?: string;
+    conversationId?: string;
+    agentId?: string;
+    runId?: string;
+  },
+): Promise<OperationResult<"sandbox.manager.recovery.get">> {
+  const managerEvents = await context.state.events.list(MANAGER_EVENT_STORE_ID);
+  const cursors = [
+    {
+      stream: "manager",
+      processedSeq: lastDurableSeq(managerEvents),
+    },
+  ];
+  const sandboxes = await listManagedSandboxes(context.state);
+  if (!params.sandboxId)
+    return { stateEpoch: "protocol-v1", cursors, sandboxes };
+  const sandboxEvents = await context.state.events.list(params.sandboxId);
+  cursors.push({
+    stream: `sandbox:${params.sandboxId}`,
+    processedSeq: lastDurableSeq(sandboxEvents),
+  });
+  const selectedSandbox = sandboxSnapshotResultSchema.parse(
+    await managerDerivedSnapshot(context.state, params.sandboxId),
+  );
+  const projected = projectConversationSnapshotFromEvents({
+    sandboxId: params.sandboxId,
+    events: sandboxEvents,
+    conversationId: params.conversationId,
+    agentId: params.agentId,
+    runId: params.runId,
+  });
+  const selectedConversation = sandboxConversationViewSnapshotSchema.parse({
+    ...selectedSandbox,
+    sandboxId: params.sandboxId,
+    connected: Boolean(context.controller.getSession(params.sandboxId)),
+    stale: true,
+    conversationId: projected?.conversation.id ?? params.conversationId,
+    agentId: projected?.conversation.activeAgentId ?? params.agentId,
+    runId: params.runId,
+    snapshot: projected,
+    fallback: {
+      conversations: selectedSandbox.conversations,
+      agents: selectedSandbox.agents,
+      runs: selectedSandbox.runs,
+      readOnly: true,
+      reason: "manager journal recovery snapshot",
+    },
+    generatedAt: new Date().toISOString(),
+  });
+  return {
+    stateEpoch: "protocol-v1",
+    cursors,
+    sandboxes,
+    selectedSandbox,
+    selectedConversation,
+  };
+}
+
+function lastDurableSeq(
+  events: readonly { seq?: number; durability?: "durable" | "transient" }[],
+): number {
+  return Math.max(
+    0,
+    ...events
+      .filter((event) => event.durability !== "transient")
+      .map((event) => event.seq ?? 0),
+  );
 }
 
 async function sandboxSnapshot(
@@ -268,6 +343,12 @@ async function forwardSandboxOperation(
     method,
     params,
     request.data.idempotencyKey,
+    request.data.timeoutMs,
+    {
+      correlationId: request.correlationId ?? request.id,
+      causationId: request.id,
+      traceId: request.traceId,
+    },
   );
 }
 

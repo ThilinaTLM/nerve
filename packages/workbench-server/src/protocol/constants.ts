@@ -5,6 +5,7 @@ export const PROTOCOL_CAPABILITIES = [
   "event.ack.processed",
   "flow.backpressure",
   "snapshot.workspace",
+  "operation.snapshot.workspace.get",
 ] as const;
 
 export const REQUIRED_PROTOCOL_CAPABILITIES = [

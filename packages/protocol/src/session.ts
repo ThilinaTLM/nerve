@@ -47,6 +47,7 @@ export class ProtocolServerSession {
   readonly #processedSeq = new Map<string, number>();
   readonly #unackedDurableSeqs = new Map<string, number[]>();
   #hello?: HelloData;
+  #negotiatedTarget?: PeerDescriptor;
   #resumeDecision?: SessionResumeDecision;
   #rpcDispatcher?: RpcDispatcher;
   #handshakeTimeout?: unknown;
@@ -102,7 +103,11 @@ export class ProtocolServerSession {
     options: Pick<
       ProtocolRequestData,
       "idempotencyKey" | "timeoutMs" | "expect"
-    > = {},
+    > &
+      Pick<
+        import("./messages.js").MessageFactoryOptions,
+        "correlationId" | "causationId" | "traceId"
+      > = {},
   ): Promise<OperationResult<M>> {
     if (this.state !== "ready")
       throw new SessionStateError("RPC requests require a ready session");
@@ -116,6 +121,7 @@ export class ProtocolServerSession {
         throw new SessionStateError("hello must be the first client message");
       }
       this.peer = message.source;
+      this.#negotiatedTarget = message.target;
       this.#hello = message.data;
       if (
         this.#options.allowedPeerRoles &&
@@ -196,6 +202,13 @@ export class ProtocolServerSession {
       this.state = "awaiting_ready";
       return;
     }
+    if (!this.#hasNegotiatedPeers(message)) {
+      await this.fail(
+        "INVALID_MESSAGE",
+        "Message source or target does not match the negotiated session peers",
+      );
+      return;
+    }
     if (this.state === "awaiting_ready") {
       if (
         message.kind !== "ready" ||
@@ -203,20 +216,18 @@ export class ProtocolServerSession {
       ) {
         throw new SessionStateError("Expected ready for the accepted session");
       }
-      for (const cursor of message.data.streams ?? []) {
-        const stream = this.#options
-          .streams()
-          .find((candidate) => candidate.stream === cursor.stream);
-        if (
-          !stream ||
-          cursor.processedSeq > stream.latestSeq ||
-          (cursor.processedSeq > 0 && !this.#resumeDecision?.accepted)
-        ) {
-          await this.fail("INVALID_MESSAGE", "Ready cursor was not accepted");
-          return;
+      if (this.#resumeDecision?.accepted) {
+        for (const cursor of message.data.streams ?? []) {
+          const stream = this.#options
+            .streams()
+            .find((candidate) => candidate.stream === cursor.stream);
+          if (!stream || cursor.processedSeq > stream.latestSeq) {
+            await this.fail("INVALID_MESSAGE", "Ready cursor was not accepted");
+            return;
+          }
+          this.#processedSeq.set(cursor.stream, cursor.processedSeq);
+          this.#previousDurableSeq.set(cursor.stream, cursor.processedSeq);
         }
-        this.#processedSeq.set(cursor.stream, cursor.processedSeq);
-        this.#previousDurableSeq.set(cursor.stream, cursor.processedSeq);
       }
       this.state = "ready";
       if (this.#handshakeTimeout !== undefined)
@@ -269,8 +280,7 @@ export class ProtocolServerSession {
         await this.fail("INVALID_MESSAGE", "Goodbye session id mismatch");
         return;
       }
-      this.#heartbeat.stop();
-      this.state = "closed";
+      this.#finalize(new Error("Protocol peer closed the session"));
       return;
     }
     if (this.#rpc.handle(message)) return;
@@ -625,16 +635,7 @@ export class ProtocolServerSession {
   }
 
   dispose(): void {
-    if (this.state === "closed") return;
-    this.state = "closed";
-    this.#liveDeliveryEnabled = false;
-    this.#heartbeat.stop();
-    this.#rpc.disconnect(new Error("Protocol server session disposed"));
-    if (this.#handshakeTimeout !== undefined)
-      this.#timers.clearTimeout(this.#handshakeTimeout);
-    this.#handshakeTimeout = undefined;
-    for (const queue of this.#queues.values()) queue.clear();
-    this.#sender.close();
+    this.#finalize(new Error("Protocol server session disposed"));
   }
 
   async shutdown(
@@ -649,7 +650,6 @@ export class ProtocolServerSession {
     this.state = "closing";
     this.#liveDeliveryEnabled = false;
     this.#heartbeat.stop();
-    this.#rpc.disconnect(new Error("Protocol server session closed"));
     if (this.#handshakeTimeout !== undefined)
       this.#timers.clearTimeout(this.#handshakeTimeout);
     this.#handshakeTimeout = undefined;
@@ -660,9 +660,31 @@ export class ProtocolServerSession {
         { target: this.peer },
       ),
     );
-    for (const queue of this.#queues.values()) queue.clear();
-    this.#sender.close();
+    this.#finalize(new Error("Protocol server session closed"));
+  }
+
+  #hasNegotiatedPeers(message: ProtocolV1Message): boolean {
+    return (
+      this.peer !== undefined &&
+      samePeer(message.source, this.peer) &&
+      this.#negotiatedTarget !== undefined &&
+      samePeer(message.target, this.#negotiatedTarget)
+    );
+  }
+
+  #finalize(error: Error): void {
+    if (this.state === "closed") return;
     this.state = "closed";
+    this.#liveDeliveryEnabled = false;
+    this.#heartbeat.stop();
+    this.#rpc.disconnect(error);
+    if (this.#handshakeTimeout !== undefined)
+      this.#timers.clearTimeout(this.#handshakeTimeout);
+    this.#handshakeTimeout = undefined;
+    this.#replaying.clear();
+    for (const queue of this.#queues.values()) queue.clear();
+    this.#queues.clear();
+    this.#sender.close();
   }
 
   async #flush(): Promise<void> {
@@ -818,6 +840,7 @@ export class ProtocolServerSession {
   }
 
   async fail(code: ProtocolErrorData["code"], message: string): Promise<void> {
+    if (this.state === "closed") return;
     this.state = "closing";
     this.#heartbeat.stop();
     if (this.#handshakeTimeout !== undefined)
@@ -831,7 +854,15 @@ export class ProtocolServerSession {
         close: true,
       }),
     );
-    this.#sender.close();
-    this.state = "closed";
+    this.#finalize(new Error(message));
   }
+}
+
+function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {
+  return (
+    left.role === right.role &&
+    left.id === right.id &&
+    left.instanceId === right.instanceId &&
+    left.name === right.name
+  );
 }

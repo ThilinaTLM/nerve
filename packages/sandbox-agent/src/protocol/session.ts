@@ -81,6 +81,10 @@ export class ProtocolSession {
   private flushScheduled = false;
   private unsubscribeOutbox?: () => void;
   private reconnectAttempts = 0;
+  private outageGeneration = 0;
+  private outageActive = false;
+  private exitTimer?: NodeJS.Timeout;
+  private readonly transientQueue: SandboxOutboxRecord[] = [];
   private resumeCursors: Array<{ stream: string; processedSeq: number }> = [];
   private acceptedCapabilities: string[] = [];
   private readonly logger: StructuredLogger;
@@ -121,7 +125,11 @@ export class ProtocolSession {
   async start(): Promise<void> {
     this.resumeCursors = [...(await this.stores.events.ackState()).streams];
     this.unsubscribeOutbox ??= this.stores.events.subscribe((record) => {
-      if (record.durability === "durable") this.scheduleFlush();
+      if (record.durability === "transient") {
+        if (this.transientQueue.length >= 256) this.transientQueue.shift();
+        this.transientQueue.push(record);
+      }
+      this.scheduleFlush();
     });
     const token = await new SecretResolver(
       this.config,
@@ -180,6 +188,10 @@ export class ProtocolSession {
             this.connectedAt = new Date().toISOString();
             this.state = "connected";
             this.reconnectAttempts = 0;
+            this.outageActive = false;
+            ++this.outageGeneration;
+            if (this.exitTimer) clearTimeout(this.exitTimer);
+            this.exitTimer = undefined;
             await this.persistConnectivity("connected");
             await this.flushUnacked(true);
           },
@@ -227,6 +239,9 @@ export class ProtocolSession {
 
   async stop(): Promise<void> {
     this.stopping = true;
+    ++this.outageGeneration;
+    if (this.exitTimer) clearTimeout(this.exitTimer);
+    this.exitTimer = undefined;
     this.unsubscribeOutbox?.();
     this.unsubscribeOutbox = undefined;
     await this.connection?.close();
@@ -267,6 +282,16 @@ export class ProtocolSession {
         }),
       );
     }
+    while (this.transientQueue.length > 0 && session.state === "ready") {
+      const batch = this.transientQueue.splice(0, 100);
+      await session.publishEventBatch(
+        buildEventBatch(batch.map(toProtocolEvent), {
+          stream,
+          reason: "live",
+          previousDurableSeq: processedSeq,
+        }),
+      );
+    }
   }
 
   private async onConnectionState(
@@ -278,17 +303,26 @@ export class ProtocolSession {
       this.state = this.welcomed ? "reconnecting" : "connecting";
       return;
     }
-    if (value !== "closed") return;
+    if (value !== "closed" && value !== "reconnecting") return;
+    if (this.outageActive) return;
+    this.outageActive = true;
+    this.transientQueue.length = 0;
     this.disconnectedAt = new Date().toISOString();
     this.state = "reconnecting";
     this.reconnectAttempts += 1;
+    const generation = ++this.outageGeneration;
     await this.persistConnectivity("reconnecting");
     const policy = this.config.controller.disconnectPolicy;
     if ((policy?.mode ?? "exit_self") === "exit_self") {
       const exitAfterMs = policy?.exitAfterMs ?? 300_000;
-      setTimeout(() => {
-        if (this.state !== "connected") process.exit(22);
-      }, exitAfterMs).unref();
+      this.exitTimer = setTimeout(() => {
+        if (
+          generation === this.outageGeneration &&
+          this.state === "reconnecting"
+        )
+          process.exit(22);
+      }, exitAfterMs);
+      this.exitTimer.unref();
     }
   }
 
