@@ -197,6 +197,54 @@ export class SandboxToolRuntime {
     return value;
   }
 
+  private async resolveApproval(
+    scope: ToolCallScope,
+    toolCallId: string,
+    tool: string,
+    args: Record<string, unknown>,
+  ): Promise<
+    | {
+        status: "granted" | "denied";
+        toolCallId?: string;
+        argsHash?: string;
+        normalizedArgs?: unknown;
+        denialError?: { code: string; message: string };
+      }
+    | undefined
+  > {
+    if (this.interactions) {
+      const resolution = await this.interactions.resolved(toolCallId);
+      if (!resolution) return undefined;
+      const decision = resolution.decision;
+      if (decision === "deny" || decision === "denied") {
+        return {
+          status: "denied",
+          denialError: { code: "POLICY_DENIED", message: "Approval denied" },
+        };
+      }
+      return {
+        status: "granted",
+        toolCallId,
+        normalizedArgs: args,
+        argsHash: sandboxSha256Digest(args),
+      };
+    }
+    return this.options.approvalWaiter?.resolutionForToolCallOrScope({
+      ...scope,
+      toolCallId,
+      toolName: tool,
+      normalizedArgs: args,
+    }) as
+      | {
+          status: "granted" | "denied";
+          toolCallId?: string;
+          argsHash?: string;
+          normalizedArgs?: unknown;
+          denialError?: { code: string; message: string };
+        }
+      | undefined;
+  }
+
   private async toolProviderConfig(provider: string): Promise<unknown> {
     const groupName = provider === "tavily" ? "web" : provider;
     const group = this.credentialGroup(groupName);
@@ -314,15 +362,14 @@ export class SandboxToolRuntime {
       );
       throw new Error(decision.reason ?? "tool denied by sandbox policy");
     }
-    if (decision.approvalRequired && this.options.approvalWaiter) {
+    if (decision.approvalRequired && (this.interactions || this.options.approvalWaiter)) {
       const scope = toolScope(context);
-      const resolution =
-        this.options.approvalWaiter.resolutionForToolCallOrScope({
-          ...scope,
-          toolCallId,
-          toolName: tool,
-          normalizedArgs: args,
-        });
+      const resolution = await this.resolveApproval(
+        scope,
+        toolCallId,
+        tool,
+        args,
+      );
       if (resolution?.status === "denied") {
         await this.record(
           {
@@ -379,20 +426,24 @@ export class SandboxToolRuntime {
           normalizedArgs: args,
           offeredScopes: ["single_call", "same_tool_same_args", "run"],
         });
-        await this.options.approvalWaiter.request({
-          id: toolCallId,
-          toolCallId,
-          conversationId:
-            scopeValue(context, "conversationId") ?? "conv_unknown",
-          agentId: scopeValue(context, "agentId") ?? "agent_main",
-          runId: scopeValue(context, "runId") ?? "run_unknown",
-          reason: decision.reason ?? "approval required",
-          risk: [decision.reason ?? "policy"],
-          normalizedArgs: args,
-          displayArgs: this.redactor.redact(args),
-          toolName: tool,
-          argsHash: sandboxSha256Digest(args),
-        });
+        // Legacy disk-waiter path only when the coordinator interaction port
+        // is not wired; the coordinator otherwise owns the durable wait.
+        if (!this.interactions) {
+          await this.options.approvalWaiter?.request({
+            id: toolCallId,
+            toolCallId,
+            conversationId:
+              scopeValue(context, "conversationId") ?? "conv_unknown",
+            agentId: scopeValue(context, "agentId") ?? "agent_main",
+            runId: scopeValue(context, "runId") ?? "run_unknown",
+            reason: decision.reason ?? "approval required",
+            risk: [decision.reason ?? "policy"],
+            normalizedArgs: args,
+            displayArgs: this.redactor.redact(args),
+            toolName: tool,
+            argsHash: sandboxSha256Digest(args),
+          });
+        }
         await this.record(
           {
             toolCallId,

@@ -817,39 +817,21 @@ export class SandboxDaemon {
         context.requestId,
       );
       try {
-        const pending = this.approvalWaiter
-          ?.list()
-          .find((approval) => approval.id === input.approvalId);
-        const scope = pending
-          ? {
-              conversationId: pending.conversationId,
-              agentId: pending.agentId,
-              runId: pending.runId,
-            }
-          : undefined;
-        const checkpoint = scope
-          ? await this.runs?.writeCheckpoint(scope, "approval_resolution", {
-              status: "waiting_for_approval",
-              waitId: input.approvalId,
-              resolutionId: accepted.requestId,
-              summary: { text: `approval ${decision}` },
-            })
-          : undefined;
-        await this.approvalWaiter?.resolve(
+        const coordinator = this.requireCoordinator();
+        const interaction = await this.runRuntime!.references.interaction(
           input.approvalId,
-          decision,
-          input.note,
-          {
-            selectedScope: input.selectedScope,
-            resolutionRequestId: accepted.requestId,
-            checkpointId: checkpoint?.checkpointId,
-          },
         );
-        if (scope)
-          await this.agentRuntime?.continueRun({
-            ...scope,
-            reason: "approval_resolved",
-          });
+        if (!interaction)
+          throw new Error(`Unknown approval request: ${input.approvalId}`);
+        await coordinator.resolveInteraction(interaction.runId, {
+          interactionId: input.approvalId,
+          resolutionRequestId: accepted.requestId,
+          resolution: {
+            decision: decision === "grant" ? "allow" : "deny",
+            selectedScope: input.selectedScope,
+          },
+        });
+        await coordinator.continue(interaction.runId);
       } catch (error) {
         if (error instanceof SandboxOperationError) throw error;
         const mapped = mapWaitError(error, "UNKNOWN_APPROVAL");
