@@ -94,7 +94,7 @@ export class FileIdempotencyStore implements IdempotencyStorePort {
       this.#entries?.push(entry);
       this.#prune();
       await this.#persist();
-      return { status: "executed", outcome: resolved };
+      return { status: "executed", outcome: entry.outcome };
     });
   }
 

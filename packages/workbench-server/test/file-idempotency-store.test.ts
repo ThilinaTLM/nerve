@@ -109,6 +109,36 @@ test("file idempotency refuses unsafe successful outcomes", async () => {
   }
 });
 
+test("file idempotency returns the same safe error for oversized records and replay", async () => {
+  const path = await fixture();
+  const params = { name: "oversized" };
+  const oversized = Object.fromEntries(
+    Array.from({ length: 5 }, (_, index) => [
+      `part${index}`,
+      "x".repeat(60 * 1024),
+    ]),
+  );
+  const first = await new FileIdempotencyStore(path).execute(
+    "ui",
+    "key-oversized-record",
+    "project.create",
+    params,
+    async () => ({ status: "success", result: oversized }),
+  );
+  assert.equal(first.status, "executed");
+  assert.equal(first.outcome.status, "error");
+
+  const replay = await new FileIdempotencyStore(path).execute(
+    "ui",
+    "key-oversized-record",
+    "project.create",
+    params,
+    async () => success,
+  );
+  assert.equal(replay.status, "replayed");
+  assert.deepEqual(replay.outcome, first.outcome);
+});
+
 test("file idempotency writes private bounded state", async () => {
   const path = await fixture();
   await new FileIdempotencyStore(path).execute(
