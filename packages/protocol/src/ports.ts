@@ -16,6 +16,8 @@ export interface ReplayReadRequest {
 
 export interface ReplayReadResult {
   readonly events: readonly EventEnvelope[];
+  /** Durable cursor immediately before the first returned event. */
+  readonly previousDurableSeq?: number;
   readonly complete: boolean;
   readonly nextSeq?: number;
 }

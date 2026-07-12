@@ -2,362 +2,92 @@ import type {
   EventEnvelope,
   HelloData,
   NerveMessage,
-  OperationName,
-  OperationParams,
-  OperationResult,
-  ProtocolRequestData,
-  ReplayUnavailableData,
   PeerDescriptor,
-  ProtocolLimits,
+  ProtocolErrorData,
   ProtocolV1Message,
-  StreamCursor,
+  ReplayUnavailableData,
   StreamState,
-  WelcomeData,
 } from "@nervekit/contracts";
-import { buildEventBatch } from "./event-batch.js";
-import type { MessageFactory } from "./messages.js";
-import type { ReplaySource } from "./ports.js";
-import { ProcessedAckTracker } from "./ack-tracker.js";
+import { buildEventBatch, chunkEvents } from "./event-batch.js";
+import type {
+  ProtocolClock,
+  ProtocolIdSource,
+  ProtocolTimers,
+} from "./ports.js";
+import type { RpcDispatcher } from "./rpc.js";
 import {
-  applyEventBatch,
-  createClientEventStreamState,
-  markProcessed,
-  resetClientEventStreamState,
-  type ClientEventStreamState,
-} from "./event-stream.js";
-import { RpcClient, type RpcDispatcher } from "./rpc.js";
-
-export type ClientSessionState =
-  | "idle"
-  | "hello_sent"
-  | "ready"
-  | "closing"
-  | "closed";
-
-export interface ClientSessionOptions {
-  readonly createMessage: MessageFactory;
-  readonly capabilities?: readonly string[];
-  readonly requiredCapabilities?: readonly string[];
-  readonly cursors?: () => readonly StreamCursor[];
-  readonly sessionId?: () => string | undefined;
-  readonly send: (message: NerveMessage) => void | Promise<void>;
-  readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
-  readonly onReady?: (welcome: WelcomeData) => void | Promise<void>;
-  readonly onSnapshotRequired?: (welcome: WelcomeData) => void | Promise<void>;
-  readonly onReplayUnavailable?: (
-    message: ProtocolV1Message,
-  ) => void | Promise<void>;
-  readonly applyEvent?: (
-    stream: string,
-    event: EventEnvelope<Record<string, unknown>>,
-  ) => void | Promise<void>;
-  readonly onFlowUpdate?: (message: ProtocolV1Message) => void | Promise<void>;
-  readonly rpcTimeoutMs?: number;
-}
-
-export class ProtocolClientSession {
-  state: ClientSessionState = "idle";
-  sessionId?: string;
-  readonly #options: ClientSessionOptions;
-  readonly #streams = new Map<string, ClientEventStreamState>();
-  readonly #acks: ProcessedAckTracker;
-  readonly #rpc: RpcClient;
-  readonly #replaying = new Set<string>();
-  readonly #liveDuringReplay = new Map<
-    string,
-    Array<ProtocolV1Message & { kind: "event.batch" }>
-  >();
-
-  constructor(options: ClientSessionOptions) {
-    this.#options = options;
-    const cursors = options.cursors?.() ?? [];
-    this.#acks = new ProcessedAckTracker(cursors);
-    for (const cursor of cursors) {
-      this.#streams.set(
-        cursor.stream,
-        createClientEventStreamState(cursor.processedSeq),
-      );
-    }
-    this.#rpc = new RpcClient({
-      createMessage: options.createMessage,
-      send: options.send,
-      defaultTimeoutMs: options.rpcTimeoutMs,
-    });
-  }
-
-  async start(): Promise<void> {
-    if (this.state !== "idle" && this.state !== "closed") {
-      throw new Error(`Cannot start a client session from ${this.state}`);
-    }
-    const previousSessionId = this.#options.sessionId?.();
-    const streams = this.#options.cursors?.();
-    const data: HelloData = {
-      requestedVersion: 1,
-      capabilities: [...(this.#options.capabilities ?? [])],
-      requiredCapabilities: this.#options.requiredCapabilities
-        ? [...this.#options.requiredCapabilities]
-        : undefined,
-      encodings: ["json"],
-      resume:
-        previousSessionId || streams?.length
-          ? {
-              sessionId: previousSessionId,
-              streams: streams ? [...streams] : undefined,
-            }
-          : undefined,
-    };
-    this.state = "hello_sent";
-    await this.#options.send(this.#options.createMessage("hello", data));
-  }
-
-  async receive(message: ProtocolV1Message): Promise<void> {
-    if (this.state === "hello_sent") {
-      if (message.kind === "error") {
-        this.state = "closed";
-        await this.#options.onMessage?.(message);
-        return;
-      }
-      if (message.kind !== "welcome") {
-        throw new SessionStateError(
-          "Expected welcome as the first server message",
-        );
-      }
-      const welcome = message.data;
-      const missing = (this.#options.requiredCapabilities ?? []).filter(
-        (capability) => !welcome.capabilities.includes(capability),
-      );
-      if (missing.length > 0) {
-        this.state = "closed";
-        throw new SessionStateError(
-          `Server did not negotiate required capabilities: ${missing.join(", ")}`,
-        );
-      }
-      this.sessionId = welcome.sessionId;
-      await this.#options.send(
-        this.#options.createMessage("ready", {
-          sessionId: welcome.sessionId,
-          streams: this.#options.cursors?.() as StreamCursor[] | undefined,
-        }),
-      );
-      this.state = "ready";
-      if (welcome.resume.mode === "snapshot_required") {
-        await this.#options.onSnapshotRequired?.(welcome);
-      }
-      await this.#options.onReady?.(welcome);
-      return;
-    }
-    if (this.state !== "ready") {
-      throw new SessionStateError(
-        `Cannot receive ${message.kind} while ${this.state}`,
-      );
-    }
-    if (this.#rpc.handle(message)) return;
-    if (message.kind === "replay.started") {
-      for (const stream of message.data.streams) {
-        this.#replaying.add(stream.stream);
-      }
-      await this.#options.onMessage?.(message);
-      return;
-    }
-    if (message.kind === "event.batch") {
-      if (
-        message.data.reason === "live" &&
-        this.#replaying.has(message.data.stream)
-      ) {
-        const buffered = this.#liveDuringReplay.get(message.data.stream) ?? [];
-        buffered.push(message);
-        this.#liveDuringReplay.set(message.data.stream, buffered);
-        return;
-      }
-      await this.#receiveEventBatch(message);
-      return;
-    }
-    if (message.kind === "replay.complete") {
-      for (const stream of message.data.streams) {
-        this.#replaying.delete(stream.stream);
-        const buffered = this.#liveDuringReplay.get(stream.stream) ?? [];
-        this.#liveDuringReplay.delete(stream.stream);
-        for (const batch of buffered) await this.#receiveEventBatch(batch);
-      }
-      await this.#options.onMessage?.(message);
-      return;
-    }
-    if (message.kind === "replay.unavailable") {
-      await this.#options.onReplayUnavailable?.(message);
-      return;
-    }
-    if (message.kind === "flow.update") {
-      await this.#options.onFlowUpdate?.(message);
-      return;
-    }
-    if (message.kind === "heartbeat") {
-      await this.#options.send(
-        this.#options.createMessage("heartbeat", {
-          sessionId: this.sessionId,
-          sentAt: new Date().toISOString(),
-          processed: this.#acks.cursors(),
-        }),
-      );
-      return;
-    }
-    if (message.kind === "goodbye") {
-      this.#rpc.close();
-      this.state = "closed";
-      return;
-    }
-    await this.#options.onMessage?.(message);
-  }
-
-  request<M extends OperationName>(
-    method: M,
-    params: OperationParams<M>,
-    options: Pick<
-      ProtocolRequestData,
-      "idempotencyKey" | "timeoutMs" | "expect"
-    > = {},
-  ): Promise<OperationResult<M>> {
-    if (this.state !== "ready")
-      throw new SessionStateError("RPC requests require a ready session");
-    return this.#rpc.request(method, params, options);
-  }
-
-  /** Atomically installs every cursor returned by snapshot recovery. */
-  resetStreams(cursors: readonly StreamCursor[]): void {
-    const names = new Set(cursors.map((cursor) => cursor.stream));
-    for (const name of [...this.#streams.keys()]) {
-      if (!names.has(name)) this.#streams.delete(name);
-    }
-    for (const cursor of cursors) {
-      const state =
-        this.#streams.get(cursor.stream) ?? createClientEventStreamState();
-      resetClientEventStreamState(state, cursor.processedSeq);
-      this.#streams.set(cursor.stream, state);
-    }
-    this.#acks.reset(cursors);
-    this.#replaying.clear();
-    this.#liveDuringReplay.clear();
-  }
-
-  async #receiveEventBatch(
-    message: ProtocolV1Message & { kind: "event.batch" },
-  ): Promise<void> {
-    const stream = message.data.stream;
-    const state = this.#streams.get(stream) ?? createClientEventStreamState(0);
-    this.#streams.set(stream, state);
-    const events: EventEnvelope<Record<string, unknown>>[] = [];
-    const result = applyEventBatch(
-      message.data,
-      state,
-      (event) => events.push(event),
-      stream,
-    );
-    this.#acks.markReceived(stream, result.highestReceivedSeq);
-    if (result.replayRequired) {
-      await this.#options.send(
-        this.#options.createMessage("replay.request", {
-          sessionId: this.sessionId,
-          replayId: `rpl_${globalThis.crypto.randomUUID()}`,
-          streams: [{ stream, fromSeq: result.replayRequired.fromSeq + 1 }],
-          reason: result.replayRequired.reason,
-        }),
-      );
-      return;
-    }
-    for (const event of events) {
-      await this.#options.applyEvent?.(stream, event);
-      if (event.durability === "durable") {
-        markProcessed(state, event.seq);
-        this.#acks.markProcessed(stream, event.seq);
-      }
-    }
-    if (events.some((event) => event.durability === "durable")) {
-      await this.#options.send(
-        this.#options.createMessage("event.ack", {
-          sessionId: this.sessionId,
-          ackId: `ack_${globalThis.crypto.randomUUID()}`,
-          streams: this.#acks.cursors(),
-          received: [{ stream, highestSeq: result.highestReceivedSeq }],
-        }),
-      );
-    }
-  }
-
-  async close(
-    reason: "client_closing" | "protocol_error" = "client_closing",
-  ): Promise<void> {
-    if (this.state === "closed") return;
-    this.state = "closing";
-    await this.#options.send(
-      this.#options.createMessage("goodbye", {
-        sessionId: this.sessionId,
-        reason,
-        finalCursors: this.#options.cursors?.() as StreamCursor[] | undefined,
-      }),
-    );
-    this.#rpc.close();
-    this.state = "closed";
-  }
-}
-
-export type ServerSessionState =
-  | "awaiting_hello"
-  | "awaiting_ready"
-  | "ready"
-  | "closing"
-  | "closed";
-
-export interface SessionResumeDecision {
-  readonly accepted: boolean;
-  readonly mode: "live" | "replay" | "snapshot_required" | "fresh";
-  readonly reason?: string;
-}
-
-export interface ServerSessionOptions {
-  readonly acceptingPeer: PeerDescriptor;
-  readonly createMessage: MessageFactory;
-  readonly capabilities?: readonly string[];
-  readonly streams: () => readonly StreamState[];
-  readonly limits: ProtocolLimits;
-  readonly heartbeat: {
-    readonly intervalMs: number;
-    readonly timeoutMs: number;
-  };
-  readonly resume?: (
-    hello: HelloData,
-    source: PeerDescriptor,
-  ) => SessionResumeDecision | Promise<SessionResumeDecision>;
-  readonly sessionId: () => string;
-  readonly send: (message: NerveMessage) => void | Promise<void>;
-  readonly onReady?: (
-    message: ProtocolV1Message & { kind: "ready" },
-  ) => void | Promise<void>;
-  readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
-  readonly rpcDispatcher?: RpcDispatcher;
-  readonly onAck?: (
-    message: ProtocolV1Message & { kind: "event.ack" },
-  ) => void | Promise<void>;
-  readonly replaySource?: ReplaySource;
-  readonly onReplayRequest?: (
-    message: ProtocolV1Message & { kind: "replay.request" },
-  ) => void | Promise<void>;
-}
-
+  systemProtocolClock,
+  systemProtocolIds,
+  systemProtocolTimers,
+} from "./runtime.js";
+import { PrioritizedMessageSender } from "./priority-sender.js";
+import { ProtocolSessionQueue } from "./session-queue.js";
+import { SessionStateError } from "./client-session.js";
+import type {
+  ServerSessionOptions,
+  ServerSessionState,
+  SessionResumeDecision,
+} from "./server-session-types.js";
 export class ProtocolServerSession {
   state: ServerSessionState = "awaiting_hello";
   sessionId?: string;
   peer?: PeerDescriptor;
   readonly #options: ServerSessionOptions;
+  readonly #clock: ProtocolClock;
+  readonly #timers: ProtocolTimers;
+  readonly #ids: ProtocolIdSource;
+  readonly #sender: PrioritizedMessageSender;
+  readonly #queues = new Map<string, ProtocolSessionQueue>();
+  readonly #replaying = new Map<string, Set<string>>();
+  readonly #previousDurableSeq = new Map<string, number>();
+  readonly #processedSeq = new Map<string, number>();
+  readonly #unackedDurableSeqs = new Map<string, number[]>();
+  #hello?: HelloData;
+  #resumeDecision?: SessionResumeDecision;
+  #rpcDispatcher?: RpcDispatcher;
+  #heartbeatInterval?: unknown;
+  #heartbeatWatchdog?: unknown;
+  #handshakeTimeout?: unknown;
+  #lastReceivedAt = 0;
+  #flushing = false;
 
   constructor(options: ServerSessionOptions) {
     this.#options = options;
+    this.#clock = options.clock ?? systemProtocolClock;
+    this.#timers = options.timers ?? systemProtocolTimers;
+    this.#ids = options.ids ?? systemProtocolIds;
+    this.#sender = new PrioritizedMessageSender(options.send);
+    this.#handshakeTimeout = this.#timers.setTimeout(() => {
+      if (this.state === "awaiting_hello" || this.state === "awaiting_ready")
+        void this.shutdown("idle_timeout", "Protocol handshake timed out");
+    }, options.heartbeat.timeoutMs);
   }
 
   async receive(message: ProtocolV1Message): Promise<void> {
+    this.#lastReceivedAt = this.#clock.now();
     if (this.state === "awaiting_hello") {
       if (message.kind !== "hello") {
         throw new SessionStateError("hello must be the first client message");
       }
       this.peer = message.source;
+      this.#hello = message.data;
+      if (
+        this.#options.allowedPeerRoles &&
+        !this.#options.allowedPeerRoles.includes(message.source.role)
+      ) {
+        await this.fail(
+          "AUTH_FORBIDDEN",
+          `Peer role ${message.source.role} is not allowed`,
+        );
+        return;
+      }
+      if (message.source.role === "sandbox_agent" && !message.source.id) {
+        await this.fail(
+          "INVALID_MESSAGE",
+          "Sandbox agent peers require a nonempty id",
+        );
+        return;
+      }
       const unsupportedRequired = (
         message.data.requiredCapabilities ?? []
       ).filter(
@@ -378,17 +108,36 @@ export class ProtocolServerSession {
         accepted: false,
         mode: "fresh" as const,
       };
+      this.#resumeDecision = decision;
+      if (decision.accepted) {
+        for (const cursor of message.data.resume?.streams ?? []) {
+          const state = this.#options
+            .streams()
+            .find((stream) => stream.stream === cursor.stream);
+          if (!state || cursor.processedSeq > state.latestSeq) continue;
+          this.#processedSeq.set(cursor.stream, cursor.processedSeq);
+          this.#previousDurableSeq.set(cursor.stream, cursor.processedSeq);
+        }
+      }
+      const capabilities = [...(this.#options.capabilities ?? [])].filter(
+        (capability) => message.data.capabilities.includes(capability),
+      );
+      this.#rpcDispatcher =
+        typeof this.#options.rpcDispatcher === "function"
+          ? this.#options.rpcDispatcher({
+              capabilities,
+              peer: message.source,
+            })
+          : this.#options.rpcDispatcher;
       this.sessionId = this.#options.sessionId();
-      await this.#options.send(
+      await this.#sendControl(
         this.#options.createMessage(
           "welcome",
           {
             sessionId: this.sessionId,
             acceptingPeer: this.#options.acceptingPeer,
             acceptedVersion: 1,
-            capabilities: [...(this.#options.capabilities ?? [])].filter(
-              (capability) => message.data.capabilities.includes(capability),
-            ),
+            capabilities,
             encoding: "json",
             streams: [...this.#options.streams()],
             limits: this.#options.limits,
@@ -408,8 +157,58 @@ export class ProtocolServerSession {
       ) {
         throw new SessionStateError("Expected ready for the accepted session");
       }
+      for (const cursor of message.data.streams ?? []) {
+        const stream = this.#options
+          .streams()
+          .find((candidate) => candidate.stream === cursor.stream);
+        if (
+          !stream ||
+          cursor.processedSeq > stream.latestSeq ||
+          (cursor.processedSeq > 0 && !this.#resumeDecision?.accepted)
+        ) {
+          await this.fail("INVALID_MESSAGE", "Ready cursor was not accepted");
+          return;
+        }
+        this.#processedSeq.set(cursor.stream, cursor.processedSeq);
+        this.#previousDurableSeq.set(cursor.stream, cursor.processedSeq);
+      }
       this.state = "ready";
+      if (this.#handshakeTimeout !== undefined)
+        this.#timers.clearTimeout(this.#handshakeTimeout);
+      this.#handshakeTimeout = undefined;
+      this.#startHeartbeat();
       await this.#options.onReady?.(message);
+      if (
+        this.#resumeDecision?.mode === "replay" &&
+        this.#hello?.resume?.streams &&
+        this.#options.replaySource
+      ) {
+        const streams = this.#hello.resume.streams
+          .map((cursor) => ({
+            stream: cursor.stream,
+            fromSeq: cursor.processedSeq + 1,
+          }))
+          .filter((cursor) => {
+            const state = this.#options
+              .streams()
+              .find((stream) => stream.stream === cursor.stream);
+            return state && cursor.fromSeq <= state.latestSeq;
+          });
+        if (streams.length > 0) {
+          await this.#replay(
+            this.#options.createMessage(
+              "replay.request",
+              {
+                sessionId: this.sessionId as string,
+                replayId: this.#ids.create("rpl"),
+                streams,
+                reason: "resume",
+              },
+              { source: message.source, target: this.#options.acceptingPeer },
+            ) as ProtocolV1Message & { kind: "replay.request" },
+          );
+        }
+      }
       return;
     }
     if (this.state !== "ready") {
@@ -418,12 +217,17 @@ export class ProtocolServerSession {
       );
     }
     if (message.kind === "goodbye") {
+      if (message.data.sessionId && message.data.sessionId !== this.sessionId) {
+        await this.fail("INVALID_MESSAGE", "Goodbye session id mismatch");
+        return;
+      }
+      this.#stopHeartbeat();
       this.state = "closed";
       return;
     }
-    if (message.kind === "request" && this.#options.rpcDispatcher) {
-      const result = await this.#options.rpcDispatcher.dispatch(message);
-      await this.#options.send(
+    if (message.kind === "request" && this.#rpcDispatcher) {
+      const result = await this.#rpcDispatcher.dispatch(message);
+      await this.#sendControl(
         result.ok
           ? this.#options.createMessage(
               "response",
@@ -447,26 +251,48 @@ export class ProtocolServerSession {
       return;
     }
     if (message.kind === "event.ack") {
+      if (message.data.sessionId !== this.sessionId) {
+        await this.fail("INVALID_MESSAGE", "ACK session id mismatch");
+        return;
+      }
+      for (const cursor of message.data.streams) {
+        const highestSent = this.#previousDurableSeq.get(cursor.stream);
+        if (highestSent === undefined || cursor.processedSeq > highestSent) {
+          await this.fail(
+            "INVALID_MESSAGE",
+            `ACK exceeds sent durable progress for ${cursor.stream}`,
+          );
+          return;
+        }
+        this.#processedSeq.set(
+          cursor.stream,
+          Math.max(
+            this.#processedSeq.get(cursor.stream) ?? 0,
+            cursor.processedSeq,
+          ),
+        );
+        this.#unackedDurableSeqs.set(
+          cursor.stream,
+          (this.#unackedDurableSeqs.get(cursor.stream) ?? []).filter(
+            (seq) => seq > cursor.processedSeq,
+          ),
+        );
+      }
       await this.#options.onAck?.(message);
       return;
     }
     if (message.kind === "replay.request") {
+      if (message.data.sessionId !== this.sessionId) {
+        await this.fail("INVALID_MESSAGE", "Replay session id mismatch");
+        return;
+      }
       if (this.#options.replaySource) await this.#replay(message);
       else await this.#options.onReplayRequest?.(message);
       return;
     }
     if (message.kind === "heartbeat") {
-      await this.#options.send(
-        this.#options.createMessage(
-          "heartbeat",
-          {
-            sessionId: this.sessionId,
-            sentAt: new Date().toISOString(),
-            processed: [],
-          },
-          { target: message.source },
-        ),
-      );
+      if (message.data.sessionId !== this.sessionId)
+        await this.fail("INVALID_MESSAGE", "Heartbeat session id mismatch");
       return;
     }
     await this.#options.onMessage?.(message);
@@ -500,7 +326,10 @@ export class ProtocolServerSession {
           latestSeq: state.latestSeq,
           reason: "cursor_too_old",
         });
-      } else if (request.fromSeq > state.latestSeq + 1) {
+      } else if (
+        request.fromSeq > state.latestSeq + 1 ||
+        (request.toSeq !== undefined && request.toSeq > state.latestSeq)
+      ) {
         unavailable.push({
           stream: request.stream,
           requestedFromSeq: request.fromSeq,
@@ -511,7 +340,7 @@ export class ProtocolServerSession {
       }
     }
     if (unavailable.length > 0) {
-      await this.#options.send(
+      await this.#sendReplay(
         this.#options.createMessage(
           "replay.unavailable",
           {
@@ -536,101 +365,419 @@ export class ProtocolServerSession {
         source: "log" as const,
       };
     });
-    await this.#options.send(
-      this.#options.createMessage(
-        "replay.started",
-        {
-          sessionId: this.sessionId,
-          replayId: message.data.replayId,
-          streams: ranges,
-        },
-        { target: message.source },
-      ),
-    );
-
-    const completed = [];
     for (const range of ranges) {
-      const read = await source.read({
-        stream: range.stream,
-        fromSeq: range.fromSeq,
-        toSeq: range.toSeq,
-        limit: this.#options.limits.maxBatchEvents,
-      });
-      const events = [...read.events];
-      if (!read.complete) {
-        await this.#options.send(
-          this.#options.createMessage(
-            "replay.unavailable",
-            {
-              sessionId: this.sessionId,
-              replayId: message.data.replayId,
-              streams: [
-                {
+      const replayIds = this.#replaying.get(range.stream) ?? new Set();
+      replayIds.add(message.data.replayId);
+      this.#replaying.set(range.stream, replayIds);
+    }
+    const completed = [];
+    try {
+      await this.#sendReplay(
+        this.#options.createMessage(
+          "replay.started",
+          {
+            sessionId: this.sessionId,
+            replayId: message.data.replayId,
+            streams: ranges,
+          },
+          { target: message.source },
+        ),
+      );
+      for (const range of ranges) {
+        let nextSeq = range.fromSeq;
+        let complete = nextSeq > range.toSeq;
+        let previousDurableSeq = Math.max(0, range.fromSeq - 1);
+        let sentEvents = 0;
+        let sentDurableEvents = 0;
+        while (!complete) {
+          const read = await source.read({
+            stream: range.stream,
+            fromSeq: nextSeq,
+            toSeq: range.toSeq,
+            limit: this.#options.limits.maxBatchEvents,
+          });
+          const events = [...read.events];
+          if (
+            events.some(
+              (event, index) =>
+                event.seq < nextSeq ||
+                event.seq > range.toSeq ||
+                (index > 0 && event.seq <= (events[index - 1]?.seq ?? 0)),
+            )
+          ) {
+            await this.#sendReplayUnavailable(
+              message,
+              range,
+              "storage_unavailable",
+            );
+            return;
+          }
+          if (events.length === 0 && !read.complete) {
+            await this.#sendReplayUnavailable(
+              message,
+              range,
+              "storage_unavailable",
+            );
+            return;
+          }
+          if (sentEvents === 0 && read.previousDurableSeq !== undefined)
+            previousDurableSeq = read.previousDurableSeq;
+          for (const batch of chunkEvents(
+            events,
+            this.#options.limits.maxBatchEvents,
+            this.#options.limits.maxBatchBytes,
+          )) {
+            const durable = batch.filter(
+              (event) => event.durability === "durable",
+            );
+            await this.#sendReplay(
+              this.#options.createMessage(
+                "event.batch",
+                buildEventBatch(batch, {
                   stream: range.stream,
-                  requestedFromSeq: range.fromSeq,
-                  latestSeq: range.latestSeq,
-                  reason: "range_too_large",
-                },
-              ],
-              recovery: { action: "load_snapshot" },
-            },
-            { target: message.source },
-          ),
-        );
-        return;
+                  reason: "replay",
+                  previousDurableSeq,
+                  replay: {
+                    replayId: message.data.replayId,
+                    fromSeq: batch[0]?.seq ?? nextSeq,
+                    toSeq: batch.at(-1)?.seq ?? nextSeq,
+                    complete:
+                      read.complete && batch.at(-1)?.seq === events.at(-1)?.seq,
+                  },
+                }),
+                { target: message.source },
+              ),
+            );
+            previousDurableSeq = durable.at(-1)?.seq ?? previousDurableSeq;
+            if (durable.length > 0) {
+              this.#previousDurableSeq.set(range.stream, previousDurableSeq);
+              this.#trackUnacked(range.stream, durable);
+            }
+            sentEvents += batch.length;
+            sentDurableEvents += durable.length;
+          }
+          complete = read.complete;
+          const inferredNext = events.at(-1)
+            ? (events.at(-1) as EventEnvelope).seq + 1
+            : nextSeq;
+          const candidate = read.nextSeq ?? inferredNext;
+          if (!complete && candidate <= nextSeq) {
+            await this.#sendReplayUnavailable(
+              message,
+              range,
+              "storage_unavailable",
+            );
+            return;
+          }
+          nextSeq = candidate;
+        }
+        completed.push({
+          stream: range.stream,
+          fromSeq: range.fromSeq,
+          toSeq: range.toSeq,
+          latestSeq: range.latestSeq,
+          durableCompleteThroughSeq: previousDurableSeq,
+          sentEvents,
+          sentDurableEvents,
+          sentTransientEvents: sentEvents - sentDurableEvents,
+        });
       }
-      if (events.length > 0) {
-        await this.#options.send(
-          this.#options.createMessage(
-            "event.batch",
-            buildEventBatch(events, {
-              stream: range.stream,
-              reason: "replay",
-              previousDurableSeq: Math.max(0, range.fromSeq - 1),
-              replay: {
-                replayId: message.data.replayId,
-                fromSeq: range.fromSeq,
-                toSeq: range.toSeq,
-                complete: true,
-              },
-            }),
-            { target: message.source },
-          ),
-        );
+      await this.#sendReplay(
+        this.#options.createMessage(
+          "replay.complete",
+          {
+            sessionId: this.sessionId,
+            replayId: message.data.replayId,
+            streams: completed,
+            liveDelivery: "resuming",
+          },
+          { target: message.source },
+        ),
+      );
+    } finally {
+      for (const range of ranges) {
+        const replayIds = this.#replaying.get(range.stream);
+        replayIds?.delete(message.data.replayId);
+        if (replayIds?.size === 0) this.#replaying.delete(range.stream);
       }
-      const durable = events.filter((event) => event.durability === "durable");
-      completed.push({
-        stream: range.stream,
-        fromSeq: range.fromSeq,
-        toSeq: range.toSeq,
-        latestSeq: range.latestSeq,
-        durableCompleteThroughSeq:
-          durable.at(-1)?.seq ?? Math.max(0, range.fromSeq - 1),
-        sentEvents: events.length,
-        sentDurableEvents: durable.length,
-        sentTransientEvents: events.length - durable.length,
+      void this.#flush();
+    }
+  }
+
+  async publish(
+    stream: string,
+    events: EventEnvelope | readonly EventEnvelope[],
+  ): Promise<void> {
+    if (this.state !== "ready")
+      throw new SessionStateError("Live events require a ready session");
+    const queue = this.#queues.get(stream) ?? new ProtocolSessionQueue();
+    this.#queues.set(stream, queue);
+    for (const event of Array.isArray(events) ? events : [events])
+      queue.enqueueLive(event);
+
+    const before = queue.stats();
+    queue.coalesceTransientOverflow(this.#options.limits.maxBatchEvents);
+    queue.dropTransientOverflow(this.#options.limits.maxBatchEvents);
+    const after = queue.stats();
+    if (
+      after.droppedTransientCount > before.droppedTransientCount ||
+      after.coalescedTransientCount > before.coalescedTransientCount
+    ) {
+      await this.#sendFlow(stream, "degraded", "transient_events_dropped", {
+        type: "pause_transient",
       });
     }
-    await this.#options.send(
+    const unacked = this.#unackedDurableSeqs.get(stream)?.length ?? 0;
+    const maximumQueueBytes =
+      this.#options.limits.maxBatchBytes *
+      this.#options.limits.maxInflightBatches;
+    if (
+      after.durableCount + unacked >
+        this.#options.limits.maxUnackedDurableEvents ||
+      after.queuedBytes > maximumQueueBytes
+    ) {
+      await this.#sendFlow(stream, "resync_required", "queue_limit_exceeded", {
+        type: "close",
+      });
+      await this.shutdown("other", "Protocol durable queue limit exceeded");
+      return;
+    }
+    await this.#flush();
+  }
+
+  async shutdown(
+    reason:
+      | "server_shutdown"
+      | "idle_timeout"
+      | "protocol_error"
+      | "other" = "server_shutdown",
+    message?: string,
+  ): Promise<void> {
+    if (this.state === "closed") return;
+    this.state = "closing";
+    this.#stopHeartbeat();
+    if (this.#handshakeTimeout !== undefined)
+      this.#timers.clearTimeout(this.#handshakeTimeout);
+    this.#handshakeTimeout = undefined;
+    await this.#sendControl(
       this.#options.createMessage(
-        "replay.complete",
+        "goodbye",
+        { sessionId: this.sessionId, reason, message },
+        { target: this.peer },
+      ),
+    );
+    for (const queue of this.#queues.values()) queue.clear();
+    this.#sender.close();
+    this.state = "closed";
+  }
+
+  async #flush(): Promise<void> {
+    if (this.#flushing || this.state !== "ready") return;
+    this.#flushing = true;
+    try {
+      for (const [stream, queue] of this.#queues) {
+        if ((this.#replaying.get(stream)?.size ?? 0) > 0) continue;
+        let events = queue.shiftDurable(this.#options.limits.maxBatchEvents);
+        if (events.length === 0)
+          events = queue.shiftTransient(this.#options.limits.maxBatchEvents);
+        while (events.length > 0 && this.state === "ready") {
+          for (const batch of chunkEvents(
+            events,
+            this.#options.limits.maxBatchEvents,
+            this.#options.limits.maxBatchBytes,
+          )) {
+            const previousDurableSeq =
+              this.#previousDurableSeq.get(stream) ??
+              this.#processedSeq.get(stream) ??
+              0;
+            await this.#sendLive(
+              this.#options.createMessage(
+                "event.batch",
+                buildEventBatch(batch, {
+                  stream,
+                  reason: "live",
+                  previousDurableSeq,
+                }),
+                { target: this.peer },
+              ),
+            );
+            const durable = batch.filter(
+              (event) => event.durability === "durable",
+            );
+            if (durable.length > 0) {
+              this.#previousDurableSeq.set(
+                stream,
+                durable.at(-1)?.seq ?? previousDurableSeq,
+              );
+              this.#trackUnacked(stream, durable);
+              const dropped = queue.dropTransientThrough(
+                durable.at(-1)?.seq ?? previousDurableSeq,
+              );
+              if (dropped > 0)
+                await this.#sendFlow(
+                  stream,
+                  "degraded",
+                  "transient_events_dropped",
+                  { type: "pause_transient" },
+                );
+            }
+          }
+          events = queue.shiftDurable(this.#options.limits.maxBatchEvents);
+          if (events.length === 0)
+            events = queue.shiftTransient(this.#options.limits.maxBatchEvents);
+        }
+      }
+    } finally {
+      this.#flushing = false;
+    }
+  }
+
+  #sendControl(message: NerveMessage): Promise<void> {
+    return this.#sender.send(message, "control");
+  }
+
+  #sendReplay(message: NerveMessage): Promise<void> {
+    return this.#sender.send(message, "replay");
+  }
+
+  #sendLive(message: NerveMessage): Promise<void> {
+    return this.#sender.send(message, "live");
+  }
+
+  #trackUnacked(stream: string, events: readonly EventEnvelope[]): void {
+    const processedSeq = this.#processedSeq.get(stream) ?? 0;
+    const pending = this.#unackedDurableSeqs.get(stream) ?? [];
+    const seen = new Set(pending);
+    for (const event of events) {
+      if (
+        event.durability === "durable" &&
+        event.seq > processedSeq &&
+        !seen.has(event.seq)
+      ) {
+        pending.push(event.seq);
+        seen.add(event.seq);
+      }
+    }
+    pending.sort((left, right) => left - right);
+    this.#unackedDurableSeqs.set(stream, pending);
+  }
+
+  async #sendFlow(
+    stream: string,
+    mode: "degraded" | "resync_required",
+    reason: "transient_events_dropped" | "queue_limit_exceeded",
+    action: { type: "pause_transient" | "close" },
+  ): Promise<void> {
+    const stats = this.#queues.get(stream)?.stats();
+    await this.#sendControl(
+      this.#options.createMessage(
+        "flow.update",
         {
-          sessionId: this.sessionId,
+          sessionId: this.sessionId as string,
+          scope: { stream },
+          mode,
+          reason,
+          stats: {
+            serverQueueEvents:
+              (stats?.durableCount ?? 0) + (stats?.transientCount ?? 0),
+            serverQueueBytes: stats?.queuedBytes ?? 0,
+            droppedTransientEvents: stats?.droppedTransientCount ?? 0,
+            coalescedTransientEvents: stats?.coalescedTransientCount ?? 0,
+            unackedDurableEvents:
+              this.#unackedDurableSeqs.get(stream)?.length ?? 0,
+          },
+          action,
+        },
+        { target: this.peer },
+      ),
+    );
+    await this.#options.diagnostics?.publish({
+      type: "flow",
+      stream,
+      count: stats?.durableCount,
+      bytes: stats?.queuedBytes,
+    });
+  }
+
+  async #sendReplayUnavailable(
+    message: ProtocolV1Message & { kind: "replay.request" },
+    range: { stream: string; fromSeq: number; latestSeq: number },
+    reason: "storage_unavailable" | "range_too_large",
+  ): Promise<void> {
+    await this.#sendReplay(
+      this.#options.createMessage(
+        "replay.unavailable",
+        {
+          sessionId: this.sessionId as string,
           replayId: message.data.replayId,
-          streams: completed,
-          liveDelivery: "resuming",
+          streams: [
+            {
+              stream: range.stream,
+              requestedFromSeq: range.fromSeq,
+              latestSeq: range.latestSeq,
+              reason,
+            },
+          ],
+          recovery: { action: "load_snapshot" },
         },
         { target: message.source },
       ),
     );
   }
 
-  async fail(
-    code: "CAPABILITY_REQUIRED" | "INVALID_MESSAGE" | "UNKNOWN_MESSAGE_KIND",
-    message: string,
-  ): Promise<void> {
+  #startHeartbeat(): void {
+    this.#stopHeartbeat();
+    this.#lastReceivedAt = this.#clock.now();
+    this.#heartbeatInterval = this.#timers.setInterval(() => {
+      if (this.state !== "ready") return;
+      void this.#sendControl(
+        this.#options.createMessage(
+          "heartbeat",
+          {
+            sessionId: this.sessionId,
+            sentAt: this.#clock.isoNow(),
+            processed: [...this.#processedSeq].map(
+              ([stream, processedSeq]) => ({ stream, processedSeq }),
+            ),
+          },
+          { target: this.peer },
+        ),
+      );
+    }, this.#options.heartbeat.intervalMs);
+    this.#heartbeatWatchdog = this.#timers.setInterval(
+      () => {
+        if (
+          this.state === "ready" &&
+          this.#clock.now() - this.#lastReceivedAt >
+            this.#options.heartbeat.timeoutMs
+        ) {
+          void this.#options.diagnostics?.publish({ type: "heartbeat" });
+          void this.shutdown("idle_timeout", "Protocol heartbeat timed out");
+        }
+      },
+      Math.min(
+        this.#options.heartbeat.intervalMs,
+        this.#options.heartbeat.timeoutMs,
+      ),
+    );
+  }
+
+  #stopHeartbeat(): void {
+    if (this.#heartbeatInterval !== undefined)
+      this.#timers.clearInterval(this.#heartbeatInterval);
+    if (this.#heartbeatWatchdog !== undefined)
+      this.#timers.clearInterval(this.#heartbeatWatchdog);
+    this.#heartbeatInterval = undefined;
+    this.#heartbeatWatchdog = undefined;
+  }
+
+  async fail(code: ProtocolErrorData["code"], message: string): Promise<void> {
     this.state = "closing";
-    await this.#options.send(
+    this.#stopHeartbeat();
+    if (this.#handshakeTimeout !== undefined)
+      this.#timers.clearTimeout(this.#handshakeTimeout);
+    this.#handshakeTimeout = undefined;
+    await this.#sendControl(
       this.#options.createMessage("error", {
         code,
         message,
@@ -638,13 +785,7 @@ export class ProtocolServerSession {
         close: true,
       }),
     );
+    this.#sender.close();
     this.state = "closed";
-  }
-}
-
-export class SessionStateError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SessionStateError";
   }
 }

@@ -1,20 +1,6 @@
-import {
-  publicEventDefinition,
-  type EventEnvelope,
-  type NerveMessage,
-} from "@nervekit/contracts";
-
-export type QueuePriority = "control" | "replay" | "durable" | "transient";
-
-export type QueuedProtocolItem =
-  | { priority: "control"; message: NerveMessage }
-  | { priority: "replay"; events: EventEnvelope[]; meta?: unknown }
-  | { priority: "durable"; events: EventEnvelope[]; reason: "live" | "catchup" }
-  | { priority: "transient"; events: EventEnvelope[]; reason: "live" };
+import { publicEventDefinition, type EventEnvelope } from "@nervekit/contracts";
 
 export interface ProtocolSessionQueueStats {
-  controlCount: number;
-  replayCount: number;
   durableCount: number;
   transientCount: number;
   queuedBytes: number;
@@ -24,32 +10,12 @@ export interface ProtocolSessionQueueStats {
 }
 
 export class ProtocolSessionQueue {
-  readonly control: NerveMessage[] = [];
-  readonly replay: EventEnvelope[][] = [];
   readonly durable: EventEnvelope[] = [];
   readonly transient: EventEnvelope[] = [];
   #queuedBytes = 0;
   #droppedTransientCount = 0;
   #coalescedTransientCount = 0;
   #latestQueuedDurableSeq = 0;
-
-  enqueueControl(message: NerveMessage): void {
-    this.control.push(message);
-    this.#queuedBytes += estimatedBytes(message);
-  }
-
-  enqueueReplay(events: EventEnvelope[]): void {
-    if (events.length === 0) return;
-    this.replay.push(events);
-    this.#queuedBytes += estimatedBytes(events);
-    this.#latestQueuedDurableSeq = Math.max(
-      this.#latestQueuedDurableSeq,
-      ...events
-        .filter((event) => event.durability === "durable")
-        .map((event) => event.seq),
-      0,
-    );
-  }
 
   enqueueLive(event: EventEnvelope): void {
     if (event.durability === "durable") {
@@ -103,12 +69,7 @@ export class ProtocolSessionQueue {
     if (coalesced <= 0) return 0;
     this.transient.splice(0, this.transient.length, ...output);
     this.#coalescedTransientCount += coalesced;
-    this.#queuedBytes = estimatedQueueBytes(
-      this.control,
-      this.replay,
-      this.durable,
-      this.transient,
-    );
+    this.#queuedBytes = estimatedQueueBytes(this.durable, this.transient);
     return coalesced;
   }
 
@@ -117,27 +78,17 @@ export class ProtocolSessionQueue {
     const dropCount = this.transient.length - maxTransient;
     this.transient.splice(0, dropCount);
     this.#droppedTransientCount += dropCount;
-    this.#queuedBytes = Math.max(0, this.#queuedBytes - dropCount * 512);
+    this.#queuedBytes = estimatedQueueBytes(this.durable, this.transient);
   }
 
-  shiftControl(): NerveMessage | undefined {
-    const message = this.control.shift();
-    if (message)
-      this.#queuedBytes = Math.max(
-        0,
-        this.#queuedBytes - estimatedBytes(message),
-      );
-    return message;
-  }
-
-  shiftReplayBatch(): EventEnvelope[] | undefined {
-    const events = this.replay.shift();
-    if (events)
-      this.#queuedBytes = Math.max(
-        0,
-        this.#queuedBytes - estimatedBytes(events),
-      );
-    return events;
+  dropTransientThrough(seq: number): number {
+    const retained = this.transient.filter((event) => event.seq > seq);
+    const dropped = this.transient.length - retained.length;
+    if (dropped === 0) return 0;
+    this.transient.splice(0, this.transient.length, ...retained);
+    this.#droppedTransientCount += dropped;
+    this.#queuedBytes = estimatedQueueBytes(this.durable, this.transient);
+    return dropped;
   }
 
   shiftDurable(maxEvents: number): EventEnvelope[] {
@@ -164,8 +115,6 @@ export class ProtocolSessionQueue {
 
   stats(): ProtocolSessionQueueStats {
     return {
-      controlCount: this.control.length,
-      replayCount: this.replay.reduce((sum, batch) => sum + batch.length, 0),
       durableCount: this.durable.length,
       transientCount: this.transient.length,
       queuedBytes: this.#queuedBytes,
@@ -176,11 +125,12 @@ export class ProtocolSessionQueue {
   }
 
   clear(): void {
-    this.control.length = 0;
-    this.replay.length = 0;
     this.durable.length = 0;
     this.transient.length = 0;
     this.#queuedBytes = 0;
+    this.#droppedTransientCount = 0;
+    this.#coalescedTransientCount = 0;
+    this.#latestQueuedDurableSeq = 0;
   }
 }
 
@@ -275,14 +225,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function estimatedQueueBytes(
-  control: NerveMessage[],
-  replay: EventEnvelope[][],
   durable: EventEnvelope[],
   transient: EventEnvelope[],
 ): number {
   return (
-    control.reduce((sum, value) => sum + estimatedBytes(value), 0) +
-    replay.reduce((sum, value) => sum + estimatedBytes(value), 0) +
     durable.reduce((sum, value) => sum + estimatedBytes(value), 0) +
     transient.reduce((sum, value) => sum + estimatedBytes(value), 0)
   );

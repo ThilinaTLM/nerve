@@ -12,6 +12,8 @@ import {
   type ProtocolResponseData,
 } from "@nervekit/contracts";
 import type { MessageFactory } from "./messages.js";
+import type { ProtocolTimers } from "./ports.js";
+import { systemProtocolTimers } from "./runtime.js";
 
 export class RpcError extends Error {
   constructor(readonly data: ProtocolErrorData) {
@@ -24,21 +26,26 @@ export interface RpcClientOptions {
   readonly createMessage: MessageFactory;
   readonly send: (message: NerveMessage) => void | Promise<void>;
   readonly defaultTimeoutMs?: number;
+  readonly timers?: Pick<ProtocolTimers, "setTimeout" | "clearTimeout">;
 }
 
 type PendingRequest = {
   readonly method: OperationName;
+  readonly message: NerveMessage<ProtocolRequestData>;
+  readonly retryable: boolean;
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: unknown) => void;
-  readonly timeout: ReturnType<typeof setTimeout>;
+  readonly timeout: unknown;
 };
 
 export class RpcClient {
   readonly #pending = new Map<string, PendingRequest>();
   readonly #options: RpcClientOptions;
+  readonly #timers: Pick<ProtocolTimers, "setTimeout" | "clearTimeout">;
 
   constructor(options: RpcClientOptions) {
     this.#options = options;
+    this.#timers = options.timers ?? systemProtocolTimers;
   }
 
   async request<M extends OperationName>(
@@ -72,7 +79,7 @@ export class RpcClient {
     const timeoutMs =
       data.timeoutMs ?? this.#options.defaultTimeoutMs ?? 30_000;
     const response = new Promise<OperationResult<M>>((resolve, reject) => {
-      const timeout = setTimeout(() => {
+      const timeout = this.#timers.setTimeout(() => {
         this.#pending.delete(message.id);
         reject(
           new RpcError({
@@ -84,6 +91,9 @@ export class RpcClient {
       }, timeoutMs);
       this.#pending.set(message.id, {
         method,
+        message,
+        retryable:
+          operation.idempotency !== "none" && Boolean(data.idempotencyKey),
         resolve: resolve as (value: unknown) => void,
         reject,
         timeout,
@@ -92,7 +102,8 @@ export class RpcClient {
     try {
       await this.#options.send(message);
     } catch (error) {
-      this.reject(message.id, error);
+      if (!this.#pending.get(message.id)?.retryable)
+        this.reject(message.id, error);
     }
     return response;
   }
@@ -104,7 +115,7 @@ export class RpcClient {
     const pending = this.#pending.get(requestId);
     if (!pending) return false;
     this.#pending.delete(requestId);
-    clearTimeout(pending.timeout);
+    this.#timers.clearTimeout(pending.timeout);
     if (message.kind === "error") {
       pending.reject(new RpcError(message.data as ProtocolErrorData));
     } else {
@@ -134,6 +145,23 @@ export class RpcClient {
     return true;
   }
 
+  disconnect(error = new Error("RPC transport disconnected")): void {
+    for (const [id, pending] of this.#pending) {
+      if (!pending.retryable) this.reject(id, error);
+    }
+  }
+
+  async retryPending(): Promise<void> {
+    for (const pending of this.#pending.values()) {
+      if (!pending.retryable) continue;
+      try {
+        await this.#options.send(pending.message);
+      } catch {
+        // Keep idempotent requests pending for a later reconnect until timeout.
+      }
+    }
+  }
+
   close(error = new Error("RPC client closed")): void {
     for (const id of [...this.#pending.keys()]) this.reject(id, error);
   }
@@ -142,7 +170,7 @@ export class RpcClient {
     const pending = this.#pending.get(id);
     if (!pending) return;
     this.#pending.delete(id);
-    clearTimeout(pending.timeout);
+    this.#timers.clearTimeout(pending.timeout);
     pending.reject(error);
   }
 }
