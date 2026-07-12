@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { constants, createReadStream, createWriteStream } from "node:fs";
 import {
   access,
-  appendFile,
   chmod,
   mkdir,
+  open,
   readdir,
   readFile,
   rename,
@@ -243,10 +243,13 @@ async function appendJsonLineDirect(
   mode?: number,
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await appendFile(path, `${JSON.stringify(value)}\n`, {
-    mode,
-    encoding: "utf8",
-  });
+  const handle = await open(path, "a", mode);
+  try {
+    await handle.write(`${JSON.stringify(value)}\n`, undefined, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
   if (mode !== undefined) await chmod(path, mode).catch(() => undefined);
 }
 

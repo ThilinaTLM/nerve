@@ -5,7 +5,9 @@ export const sandboxRuntimeEventDefinitions = Object.entries(
   sandboxOperationalEventPayloadSchemas,
 ).map(([name, payloadSchema]) =>
   definePublicEvent(name, payloadSchema, {
-    allowedSourceRoles: ["sandbox_agent"],
+    allowedSourceRoles: name.startsWith("run.")
+      ? ["workbench_server", "sandbox_agent"]
+      : ["sandbox_agent"],
     durability: name === "run.delta" ? "transient" : "durable",
     coalescing: name.endsWith(".delta") ? "concat_delta" : undefined,
     scope: sandboxEventScope(),

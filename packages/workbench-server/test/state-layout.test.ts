@@ -14,7 +14,7 @@ test("workbench state initializes v1 and rejects incompatible layouts", async ()
       JSON.parse(await readFile(path.join(empty, "VERSION"), "utf8")),
       {
         format: "nerve-workbench-state",
-        version: 1,
+        version: 2,
       },
     );
     await mkdir(path.join(empty, "proc", "proc_legacy"), {

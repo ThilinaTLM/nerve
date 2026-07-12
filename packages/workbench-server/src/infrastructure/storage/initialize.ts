@@ -80,7 +80,7 @@ async function ensureStateLayout(home: string): Promise<void> {
         format?: unknown;
         version?: unknown;
       };
-      if (marker.format === "nerve-workbench-state" && marker.version === 1) {
+      if (marker.format === "nerve-workbench-state" && marker.version === 2) {
         const retiredProcesses = join(home, "proc");
         if (
           (await pathExists(retiredProcesses)) &&
@@ -103,7 +103,7 @@ async function ensureStateLayout(home: string): Promise<void> {
   }
   await writeTextFileIfMissing(
     markerPath,
-    `${JSON.stringify({ format: "nerve-workbench-state", version: 1 }, null, 2)}\n`,
+    `${JSON.stringify({ format: "nerve-workbench-state", version: 2 }, null, 2)}\n`,
     0o600,
   );
 }

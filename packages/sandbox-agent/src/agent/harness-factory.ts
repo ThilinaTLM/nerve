@@ -3,7 +3,10 @@ import path from "node:path";
 import {
   type AgentCustomModel,
   AgentHarness,
+  HostHarnessFactory,
   type AgentMessage,
+  type AnyModel,
+  type ThinkingLevel,
   type AgentTool,
   type AgentToolResult,
   Conversation,
@@ -61,13 +64,98 @@ export type HarnessCreateOptions = {
   steeringMode?: "one-at-a-time";
 };
 
+type SandboxHarnessCredentials = (provider: string) => Promise<
+  | {
+      apiKey: string;
+      headers?: Record<string, string>;
+      env?: Record<string, string>;
+    }
+  | undefined
+>;
+
+type SandboxResolvedHarnessModel = {
+  model: AnyModel;
+  thinkingLevel: ThinkingLevel;
+  provider: string;
+};
+
+type SandboxHarnessPolicy = {
+  tools: AgentTool[];
+  activeToolNames: string[];
+};
+
 export class HarnessFactory {
   private readonly redactor: Redactor;
+  private readonly sharedFactory: HostHarnessFactory<
+    SandboxHarnessRunScope,
+    HarnessCreateOptions,
+    SandboxResolvedHarnessModel,
+    SandboxHarnessCredentials,
+    SandboxHarnessPolicy,
+    AgentHarness
+  >;
+
   constructor(
     private readonly config: SandboxConfigV1,
     private readonly options: HarnessFactoryOptions,
   ) {
     this.redactor = options.redactor ?? new Redactor({ secrets: [] });
+    this.sharedFactory = new HostHarnessFactory({
+      resolveModel: async (_scope, createOptions) => {
+        const selection =
+          createOptions.modelSelection ??
+          this.options.configStore?.effective(this.config).model ??
+          this.config.agent.defaultModel;
+        const customModels = this.customModels();
+        return {
+          model: resolveAgentModel(
+            { provider: selection.provider, modelId: selection.model },
+            customModels,
+          ),
+          thinkingLevel: clampAgentThinkingLevel(
+            { provider: selection.provider, modelId: selection.model },
+            selection.thinkingLevel,
+            customModels,
+          ),
+          provider: selection.provider,
+        };
+      },
+      resolveCredentials: async () => (provider: string) =>
+        this.getApiKeyAndHeaders(provider),
+      resolvePolicy: async (scope, createOptions) => {
+        const tools = this.buildTools(scope, createOptions);
+        return {
+          tools,
+          activeToolNames:
+            createOptions.activeToolNames ?? tools.map((tool) => tool.name),
+        };
+      },
+      create: async ({ scope, context, environment }) => {
+        const env = new NodeExecutionEnv({ cwd: this.options.workspaceDir });
+        const conversation = await this.openOrCreateConversation(
+          scope.conversationId,
+          scope.agentId,
+        );
+        return new AgentHarness({
+          env,
+          conversation,
+          model: environment.model.model,
+          thinkingLevel: environment.model.thinkingLevel,
+          tools: environment.policy.tools,
+          activeToolNames: environment.policy.activeToolNames,
+          resources: { skills: this.skills() },
+          systemPrompt: () =>
+            this.systemPrompt(
+              environment.policy.tools,
+              context.systemPromptAmendment,
+            ),
+          getApiKeyAndHeaders: async (requestModel) =>
+            environment.credentials(requestModel.provider),
+          followUpMode: context.followUpMode ?? "one-at-a-time",
+          steeringMode: context.steeringMode ?? "one-at-a-time",
+        });
+      },
+    });
   }
 
   conversationPath(conversationId: string, agentId: string): string {
@@ -119,42 +207,7 @@ export class HarnessFactory {
     scope: SandboxHarnessRunScope,
     options: HarnessCreateOptions = {},
   ): Promise<AgentHarness> {
-    const selection =
-      options.modelSelection ??
-      this.options.configStore?.effective(this.config).model ??
-      this.config.agent.defaultModel;
-    const customModels = this.customModels();
-    const model = resolveAgentModel(
-      { provider: selection.provider, modelId: selection.model },
-      customModels,
-    );
-    const thinkingLevel = clampAgentThinkingLevel(
-      { provider: selection.provider, modelId: selection.model },
-      selection.thinkingLevel,
-      customModels,
-    );
-    const env = new NodeExecutionEnv({ cwd: this.options.workspaceDir });
-    const conversation = await this.openOrCreateConversation(
-      scope.conversationId,
-      scope.agentId,
-    );
-    const tools = this.buildTools(scope, options);
-    return new AgentHarness({
-      env,
-      conversation,
-      model,
-      thinkingLevel,
-      tools,
-      activeToolNames:
-        options.activeToolNames ?? tools.map((tool) => tool.name),
-      resources: { skills: this.skills() },
-      systemPrompt: () =>
-        this.systemPrompt(tools, options.systemPromptAmendment),
-      getApiKeyAndHeaders: async (requestModel) =>
-        this.getApiKeyAndHeaders(requestModel.provider),
-      followUpMode: options.followUpMode ?? "one-at-a-time",
-      steeringMode: options.steeringMode ?? "one-at-a-time",
-    });
+    return this.sharedFactory.create({ scope, context: options });
   }
 
   describe(

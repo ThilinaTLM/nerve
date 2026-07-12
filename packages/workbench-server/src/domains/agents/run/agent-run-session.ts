@@ -4,6 +4,7 @@ import {
   buildConversationContext,
   Conversation,
   convertToLlm,
+  HostHarnessFactory,
   isAgentToolSuspension,
   NodeExecutionEnv,
   resolveAgentModel,
@@ -129,27 +130,41 @@ export async function runAgentPromptSession(
       getLiveMessageId: () => currentLiveMessageId,
     });
     let currentProviderForResponse: string | undefined;
-    const harness = new AgentHarness({
-      env,
-      conversation: harnessConversation,
-      resources: { skills: resources.skills },
-      tools: createAgentToolsForAgent(agent, this.deps.tools, {
-        runId,
-        resolveToolAnchor: (providerToolCallId) =>
-          this.deps.state.conversationRuntime.resolveToolAnchor(
-            runId,
-            providerToolCallId,
-          ),
-      }),
-      activeToolNames,
-      model,
-      thinkingLevel: agent.thinkingLevel,
-      getApiKeyAndHeaders: async (requestModel) => {
-        if (requestModel.provider === "nerve-faux") return undefined;
-        const apiKey = await this.deps.auth.getApiKey(requestModel.provider);
+    const harnessFactory = new HostHarnessFactory({
+      resolveModel: async () => model,
+      resolveCredentials: async () => async (provider: string) => {
+        if (provider === "nerve-faux") return undefined;
+        const apiKey = await this.deps.auth.getApiKey(provider);
         return apiKey ? { apiKey } : undefined;
       },
-      systemPrompt: composeLatestSystemPrompt,
+      resolvePolicy: async () => ({
+        tools: createAgentToolsForAgent(agent, this.deps.tools, {
+          runId,
+          resolveToolAnchor: (providerToolCallId) =>
+            this.deps.state.conversationRuntime.resolveToolAnchor(
+              runId,
+              providerToolCallId,
+            ),
+        }),
+        activeToolNames,
+      }),
+      create: async ({ environment }) =>
+        new AgentHarness({
+          env,
+          conversation: harnessConversation,
+          resources: { skills: resources.skills },
+          tools: environment.policy.tools,
+          activeToolNames: environment.policy.activeToolNames,
+          model: environment.model,
+          thinkingLevel: agent.thinkingLevel,
+          getApiKeyAndHeaders: async (requestModel) =>
+            environment.credentials(requestModel.provider),
+          systemPrompt: composeLatestSystemPrompt,
+        }),
+    });
+    const harness = await harnessFactory.create({
+      scope: { conversationId: conversation.id, agentId: agent.id, runId },
+      context: undefined,
     });
     harness.subscribe(async (event) => {
       if (event.type === "before_provider_request") {

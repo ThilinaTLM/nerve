@@ -31,6 +31,21 @@ export class EventOutbox {
       ts?: string;
     },
   ): Promise<SandboxOutboxRecord> {
+    if (input.id) {
+      const existing = [...this.records, ...this.transientRecords].find(
+        (record) => record.id === input.id,
+      );
+      if (existing) {
+        if (
+          existing.type !== input.type ||
+          existing.durability !== input.durability ||
+          JSON.stringify(existing.data) !== JSON.stringify(input.data)
+        ) {
+          throw new Error(`Conflicting event intent id: ${input.id}`);
+        }
+        return existing;
+      }
+    }
     const definition = publicEventDefinition(input.type);
     if (!definition) throw new Error(`Unknown public event: ${input.type}`);
     if (input.durability !== definition.durability) {

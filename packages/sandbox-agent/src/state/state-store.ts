@@ -57,7 +57,7 @@ export async function initializeSandboxState(
     const now = new Date().toISOString();
     await atomicWriteFile(
       path.join(paths.stateDir, "VERSION"),
-      `${JSON.stringify({ format: "nerve-sandbox-agent-state", version: 3, initializedAt: now })}\n`,
+      `${JSON.stringify({ format: "nerve-sandbox-agent-state", version: 4, initializedAt: now })}\n`,
     );
     await atomicWriteFile(
       path.join(paths.configDir, "sanitized.json"),
@@ -109,7 +109,7 @@ async function assertCompatibleStateLayout(
       format?: unknown;
       version?: unknown;
     };
-    if (marker.format !== "nerve-sandbox-agent-state" || marker.version !== 3) {
+    if (marker.format !== "nerve-sandbox-agent-state" || marker.version !== 4) {
       throw new Error("incompatible marker");
     }
     return;

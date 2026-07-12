@@ -78,6 +78,29 @@ describe("EventBus", () => {
     assert.equal(restored.latestDurableSeq, durable.seq);
   });
 
+  it("publishes deterministic durable event ids idempotently across restart", async () => {
+    const home = await tempHome();
+    const firstBus = new EventBus(home);
+    const data = projectCreatedData("proj_idempotent");
+    const first = await firstBus.publishWithId(
+      "evt_deterministic",
+      "project.created",
+      data,
+    );
+
+    const restored = new EventBus(home);
+    await restored.hydrate();
+    const duplicate = await restored.publishWithId(
+      "evt_deterministic",
+      "project.created",
+      data,
+    );
+
+    assert.equal(duplicate.id, first.id);
+    assert.equal(duplicate.seq, first.seq);
+    assert.equal(restored.replaySince(0).length, 1);
+  });
+
   it("exposes the in-memory buffer floor for cheap reconnect replay", async () => {
     const home = await tempHome();
     const bus = new EventBus(home);

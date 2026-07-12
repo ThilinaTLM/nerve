@@ -1,4 +1,6 @@
 export * from "./git-mutation-publisher.js";
+export * from "./run-coordinator.js";
+export * from "./run-unit-of-work.js";
 export * from "./task-service.js";
 
 export interface ClockPort {

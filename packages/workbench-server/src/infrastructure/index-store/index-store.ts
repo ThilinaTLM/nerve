@@ -447,6 +447,15 @@ export class IndexStore {
     });
   }
 
+  eventById(id: string): EventEnvelope | undefined {
+    return this.guard(() => {
+      const row = this.db
+        .prepare("SELECT json FROM events_index WHERE id = ? LIMIT 1")
+        .get(id) as { json: string } | undefined;
+      return row ? (JSON.parse(row.json) as EventEnvelope) : undefined;
+    });
+  }
+
   /**
    * Newest persisted event sequence, or 0 when the index holds no events.
    */

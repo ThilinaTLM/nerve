@@ -120,7 +120,8 @@ describe("sandbox agent image durable state foundations", () => {
         path.join(dir, "ack.json"),
       );
       await outbox.load();
-      await outbox.append({
+      const durableEvent = await outbox.append({
+        id: "evt_deterministic",
         type: "run.started",
         durability: "durable",
         data: {
@@ -143,6 +144,13 @@ describe("sandbox agent image durable state foundations", () => {
           text: "working",
         },
       });
+      const duplicateEvent = await outbox.append({
+        id: "evt_deterministic",
+        type: "run.started",
+        durability: "durable",
+        data: durableEvent.data,
+      });
+      assert.equal(duplicateEvent.seq, durableEvent.seq);
       assert.equal(outbox.all().length, 2);
       let transientDeliveries = 0;
       const unsubscribe = outbox.subscribe((record) => {
@@ -183,7 +191,7 @@ describe("sandbox agent image durable state foundations", () => {
     }
   });
 
-  it("initializes the v3 state layout and fails closed on corrupt event journals", async () => {
+  it("initializes the v4 state layout and fails closed on corrupt event journals", async () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-sandbox-agent-recover-"),
     );

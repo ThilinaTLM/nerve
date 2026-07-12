@@ -172,10 +172,34 @@ export class EventBus {
     return task;
   }
 
+  publishWithId<T>(
+    id: string,
+    type: string,
+    data: T,
+    options: PublishEventOptions = {},
+  ): Promise<EventEnvelope<T>> {
+    const task = this.#publishTail.then(async () => {
+      const existing = await this.findDurableEventById(id);
+      if (existing) {
+        if (
+          existing.type !== type ||
+          JSON.stringify(existing.data) !== JSON.stringify(data)
+        ) {
+          throw new Error(`Conflicting event intent id: ${id}`);
+        }
+        return existing as EventEnvelope<T>;
+      }
+      return this.publishNow(type, data, options, id);
+    });
+    this.#publishTail = task.catch(() => undefined);
+    return task;
+  }
+
   private async publishNow<T>(
     type: string,
     data: T,
     options: PublishEventOptions,
+    id?: string,
   ): Promise<EventEnvelope<T>> {
     const definition = publicEventDefinition(type);
     if (!definition) throw new Error(`Unknown public event: ${type}`);
@@ -183,7 +207,7 @@ export class EventBus {
     const event = parsePublicEventEnvelope(
       {
         seq: this.#seq + 1,
-        id: createId("evt"),
+        id: id ?? createId("evt"),
         ts: new Date().toISOString(),
         type,
         durability,
@@ -211,6 +235,30 @@ export class EventBus {
       }
     }
     return event;
+  }
+
+  private async findDurableEventById(
+    id: string,
+  ): Promise<EventEnvelope | undefined> {
+    const buffered = this.#events.find((event) => event.id === id);
+    if (buffered) return buffered;
+    if (this.index?.isHealthy) {
+      const indexed = this.index.eventById(id);
+      if (indexed) return indexed;
+    }
+    let found: EventEnvelope | undefined;
+    for (const path of [
+      `${this.globalEventsPath()}.1`,
+      this.globalEventsPath(),
+    ]) {
+      await forEachJsonLine<unknown>(path, (raw) => {
+        if (found) return;
+        const parsed = eventEnvelopeSchema.safeParse(raw);
+        if (parsed.success && parsed.data.id === id) found = parsed.data;
+      }).catch(() => undefined);
+      if (found) return found;
+    }
+    return undefined;
   }
 
   get latestSeq(): number {
