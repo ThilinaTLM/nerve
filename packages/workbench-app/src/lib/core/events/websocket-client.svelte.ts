@@ -140,7 +140,7 @@ function connectWebsocket(wsUrl: string): void {
         snapshotRecovery: {
           async load() {
             // loadWorkspaceState applies the complete snapshot before returning its cursor.
-            const cursor = await loadWorkspaceState();
+            const cursor = await loadWorkspaceState({ fresh: true });
             return { snapshot: undefined, cursors: cursor.streams };
           },
         },

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Shared lifecycle integration scenarios use common protocol fixtures. */
 import type { NerveMessage, ProtocolV1Message } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -55,6 +56,48 @@ test("server rejects disallowed peer roles before welcome", async () => {
   assert.equal(host.state, "closed");
   assert.equal(outbound[0]?.kind, "error");
   assert.equal(outbound[0]?.data.code, "AUTH_FORBIDDEN");
+});
+
+test("server buffers live durable events until ready", async () => {
+  const outbound: NerveMessage[] = [];
+  const host = new ProtocolServerSession({
+    acceptingPeer: server,
+    allowedPeerRoles: ["ui"],
+    createMessage: serverMessages,
+    streams: () => [
+      {
+        stream: "manager",
+        latestSeq: 1,
+        durableSeq: 1,
+        replayAvailableFromSeq: 0,
+      },
+    ],
+    limits,
+    heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+    sessionId: () => "session_buffered",
+    send: (message) => outbound.push(message),
+  });
+  await host.receive(
+    clientMessages("hello", {
+      requestedVersion: 1,
+      capabilities: [],
+      encodings: ["json"],
+    }) as never,
+  );
+  await host.publish("manager", event(1));
+  assert.deepEqual(
+    outbound.map((message) => message.kind),
+    ["welcome"],
+  );
+
+  await host.receive(
+    clientMessages("ready", { sessionId: "session_buffered" }) as never,
+  );
+  assert.deepEqual(
+    outbound.map((message) => message.kind),
+    ["welcome", "event.batch"],
+  );
+  assert.equal((outbound[1]?.data as { events: unknown[] }).events.length, 1);
 });
 
 test("snapshot recovery installs every cursor before requesting deltas", async () => {

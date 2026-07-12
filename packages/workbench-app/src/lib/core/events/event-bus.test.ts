@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import type { WorkbenchEvent } from "./event-bus";
 import {
+  applyEventAndFlush,
   clearEventHandlers,
   dispatchEvent,
   enqueueEvent,
@@ -98,6 +99,42 @@ describe("event bus", () => {
 
     assert.deepEqual(seen, [1, 2]);
     assert.deepEqual(flushed, [[1, 2]]);
+  });
+
+  it("awaits reducers before notifying durable flush observers", async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    onEvent("project.created", async () => {
+      order.push("reducer:start");
+      await gate;
+      order.push("reducer:end");
+    });
+    onEventsFlushed(() => order.push("flushed"));
+
+    const applying = applyEventAndFlush(event("project.created"));
+    await Promise.resolve();
+    assert.deepEqual(order, ["reducer:start"]);
+    release();
+    await applying;
+    assert.deepEqual(order, ["reducer:start", "reducer:end", "flushed"]);
+  });
+
+  it("propagates reducer failure without notifying flush observers", async () => {
+    let flushed = false;
+    onEvent("project.created", () => {
+      throw new Error("reducer failed");
+    });
+    onEventsFlushed(() => {
+      flushed = true;
+    });
+    await assert.rejects(
+      applyEventAndFlush(event("project.created")),
+      /reducer failed/,
+    );
+    assert.equal(flushed, false);
   });
 
   it("clearEventHandlers removes buffered events", () => {

@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { GitWorkflowError } from "@nervekit/host-runtime/tools";
 import {
   type NerveErrorCode,
@@ -9,13 +10,13 @@ import {
   protocolRequestMessageSchema,
 } from "@nervekit/contracts";
 import {
-  MemoryIdempotencyStore,
   type OperationHandlerRegistry,
   RpcDispatcher,
 } from "@nervekit/protocol";
 import { ZodError } from "zod";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { HttpError } from "../http/errors.js";
+import { FileIdempotencyStore } from "./file-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import {
   handleProtocolMethod,
@@ -173,7 +174,9 @@ export function workbenchRpcDispatcher(
   if (existing) return existing;
   const dispatcher = new RpcDispatcher({
     handlers: workbenchOperationHandlers(state),
-    idempotency: new MemoryIdempotencyStore(),
+    idempotency: new FileIdempotencyStore(
+      join(state.storage.paths.home, "protocol", "idempotency-v1.json"),
+    ),
     acceptedCapabilities: workbenchCapabilities,
     translateError,
   });

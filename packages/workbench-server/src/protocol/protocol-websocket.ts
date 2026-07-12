@@ -28,6 +28,7 @@ import { orchestratorSource } from "./messages.js";
 
 /** Host binding for the shared server lifecycle. */
 export interface LocalProtocolSession {
+  dispose(): void;
   shutdown(message?: string): Promise<void>;
 }
 
@@ -62,8 +63,12 @@ export function installProtocolWebSocketUpgrade(
     webSockets.handleUpgrade(request, socket, head, (ws) => {
       const binding = createLocalSession(ws, state);
       sessions.add(binding);
-      ws.on("close", () => sessions.delete(binding));
-      ws.on("error", () => sessions.delete(binding));
+      const dispose = () => {
+        binding.dispose();
+        sessions.delete(binding);
+      };
+      ws.on("close", dispose);
+      ws.on("error", dispose);
     });
   });
   return sessions;
@@ -89,7 +94,7 @@ function createLocalSession(
         stream: GLOBAL_STREAM,
         latestSeq: state.events.latestSeq,
         durableSeq: state.events.latestDurableSeq,
-        replayAvailableFromSeq: 1,
+        replayAvailableFromSeq: 0,
       },
     ],
     limits: PROTOCOL_LIMITS,
@@ -100,20 +105,24 @@ function createLocalSession(
     },
     rpcDispatcher: () => workbenchRpcDispatcher(state),
     replaySource: localReplaySource(state),
-    resume: (hello) => {
+    resume: async (hello) => {
       const cursor = hello.resume?.streams?.find(
         (item) => item.stream === GLOBAL_STREAM,
       );
       if (!cursor) return { accepted: false, mode: "fresh" as const };
-      if (cursor.processedSeq > state.events.latestDurableSeq)
+      if (cursor.processedSeq === state.events.latestDurableSeq)
+        return { accepted: true, mode: "live" as const };
+      const replay = await state.events.canReplayDurableRange(
+        cursor.processedSeq,
+        state.events.latestDurableSeq,
+      );
+      if (!replay.available)
         return {
           accepted: false,
           mode: "snapshot_required" as const,
-          reason: "Client cursor is ahead of server durable cursor",
+          reason: `Durable replay unavailable: ${replay.reason ?? "retention_gap"}`,
         };
-      if (cursor.processedSeq < state.events.latestDurableSeq)
-        return { accepted: true, mode: "replay" as const };
-      return { accepted: true, mode: "live" as const };
+      return { accepted: true, mode: "replay" as const };
     },
   });
   const connection: ProtocolConnection = new ProtocolConnection({
@@ -121,19 +130,47 @@ function createLocalSession(
     onMessage: async (message): Promise<void> => session.receive(message),
     onProtocolError: () =>
       session.shutdown("protocol_error", "Invalid protocol frame"),
-    onError: () =>
-      session.shutdown("protocol_error", "WebSocket transport failed"),
+    onError: (error) => {
+      state.logger.warn("Protocol WebSocket session failed", {
+        error: boundedError(error),
+      });
+      dispose();
+    },
   });
+  let disposed = false;
   const unsubscribe = state.events.subscribe((event) => {
-    if (session.state === "ready") void session.publish(GLOBAL_STREAM, event);
+    session.publish(GLOBAL_STREAM, event).catch((error: unknown) => {
+      if (disposed) return;
+      state.logger.warn("Protocol event publication failed", {
+        error: boundedError(error),
+      });
+      dispose();
+    });
   });
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    unsubscribe();
+    session.dispose();
+    connection.dispose();
+  };
   return {
+    dispose,
     async shutdown(message = "Daemon shutting down") {
+      if (disposed) return;
       unsubscribe();
-      await session.shutdown("server_shutdown", message);
-      await connection.close(1001, message);
+      try {
+        await session.shutdown("server_shutdown", message);
+        await connection.close(1001, message);
+      } finally {
+        dispose();
+      }
     },
   };
+}
+
+function boundedError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 512);
 }
 
 function localReplaySource(state: OrchestratorState): ReplaySource {
@@ -144,7 +181,7 @@ function localReplaySource(state: OrchestratorState): ReplaySource {
           stream: GLOBAL_STREAM,
           latestSeq: state.events.latestSeq,
           durableSeq: state.events.latestDurableSeq,
-          replayAvailableFromSeq: 1,
+          replayAvailableFromSeq: 0,
         },
       ];
     },

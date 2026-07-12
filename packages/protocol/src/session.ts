@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Server lifecycle keeps handshake, replay, flow, and disposal state transitions together. */
 import type {
   EventEnvelope,
   HelloData,
@@ -50,6 +51,7 @@ export class ProtocolServerSession {
   #handshakeTimeout?: unknown;
   #lastReceivedAt = 0;
   #flushing = false;
+  #liveDeliveryEnabled = false;
 
   constructor(options: ServerSessionOptions) {
     this.#options = options;
@@ -209,6 +211,8 @@ export class ProtocolServerSession {
           );
         }
       }
+      this.#liveDeliveryEnabled = true;
+      await this.#flush();
       return;
     }
     if (this.state !== "ready") {
@@ -500,7 +504,7 @@ export class ProtocolServerSession {
         replayIds?.delete(message.data.replayId);
         if (replayIds?.size === 0) this.#replaying.delete(range.stream);
       }
-      void this.#flush();
+      await this.#flush();
     }
   }
 
@@ -508,8 +512,8 @@ export class ProtocolServerSession {
     stream: string,
     events: EventEnvelope | readonly EventEnvelope[],
   ): Promise<void> {
-    if (this.state !== "ready")
-      throw new SessionStateError("Live events require a ready session");
+    if (this.state === "closing" || this.state === "closed")
+      throw new SessionStateError("Live events require an open session");
     const queue = this.#queues.get(stream) ?? new ProtocolSessionQueue();
     this.#queues.set(stream, queue);
     for (const event of Array.isArray(events) ? events : [events])
@@ -545,6 +549,18 @@ export class ProtocolServerSession {
     await this.#flush();
   }
 
+  dispose(): void {
+    if (this.state === "closed") return;
+    this.state = "closed";
+    this.#liveDeliveryEnabled = false;
+    this.#stopHeartbeat();
+    if (this.#handshakeTimeout !== undefined)
+      this.#timers.clearTimeout(this.#handshakeTimeout);
+    this.#handshakeTimeout = undefined;
+    for (const queue of this.#queues.values()) queue.clear();
+    this.#sender.close();
+  }
+
   async shutdown(
     reason:
       | "server_shutdown"
@@ -555,6 +571,7 @@ export class ProtocolServerSession {
   ): Promise<void> {
     if (this.state === "closed") return;
     this.state = "closing";
+    this.#liveDeliveryEnabled = false;
     this.#stopHeartbeat();
     if (this.#handshakeTimeout !== undefined)
       this.#timers.clearTimeout(this.#handshakeTimeout);
@@ -572,7 +589,8 @@ export class ProtocolServerSession {
   }
 
   async #flush(): Promise<void> {
-    if (this.#flushing || this.state !== "ready") return;
+    if (this.#flushing || this.state !== "ready" || !this.#liveDeliveryEnabled)
+      return;
     this.#flushing = true;
     try {
       for (const [stream, queue] of this.#queues) {

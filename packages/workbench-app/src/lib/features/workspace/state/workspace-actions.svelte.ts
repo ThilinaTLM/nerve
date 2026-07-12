@@ -28,10 +28,11 @@ import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
-export async function loadWorkspaceState() {
+export async function loadWorkspaceState(options: { fresh?: boolean } = {}) {
   const snapshot = await queryClient.fetchQuery({
     queryKey: queryKeys.workspace,
     queryFn: getWorkspaceSnapshot,
+    staleTime: options.fresh ? 0 : undefined,
   });
   const agents = mergeAgentsByUpdatedAt(
     snapshot.snapshot.agents,

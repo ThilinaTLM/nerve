@@ -321,7 +321,10 @@ export class EventBus {
       };
     }
     const stats = await this.durableStatsBetween(fromSeq, toSeq);
-    if (stats.count === 0) return { available: true, stats };
+    if (stats.count === 0)
+      return toSeq > fromSeq
+        ? { available: false, reason: "storage_unavailable", stats }
+        : { available: true, stats };
     const previous = await this.previousDurableSeqBefore(
       stats.firstSeq ?? toSeq + 1,
     );

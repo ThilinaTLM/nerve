@@ -116,9 +116,9 @@ let runtimeMonitor: DaemonRuntimeMonitor | undefined;
 async function main() {
   prepareEnterpriseNetworkEnvironment();
   const dataDir = resolveDataDir();
+  const storage = await initializeStorage(dataDir);
   installNodeDiagnosticReports(dataDir);
   runtimeMonitor = installDaemonRuntimeMonitor(dataDir);
-  const storage = await initializeStorage(dataDir);
   const host =
     readArg("--host") ?? process.env.NERVE_HOST ?? storage.settings.server.host;
   const allowRemote =
