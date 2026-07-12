@@ -158,6 +158,42 @@ test("client readiness gate and peer-owned event ACK use shared sessions", async
   host.dispose();
 });
 
+test("client binds welcome and post-handshake envelopes to negotiated peers", async () => {
+  const outbound: NerveMessage[] = [];
+  const applied: string[] = [];
+  const client = new ProtocolClientSession({
+    createMessage: clientMessages,
+    send: (message) => outbound.push(message),
+    applyEvent: (_stream, event) => applied.push(event.id),
+  });
+  await client.start();
+  await client.receive(
+    serverMessages("welcome", {
+      sessionId: "session_client_bound",
+      acceptingPeer: server,
+      acceptedVersion: 1,
+      capabilities: [],
+      encoding: "json",
+      streams: [],
+      limits,
+      heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+      resume: { accepted: true, mode: "live" },
+    }) as never,
+  );
+  await assert.rejects(
+    client.receive(
+      serverMessages(
+        "heartbeat",
+        { sessionId: "session_client_bound", sentAt: new Date().toISOString() },
+        { source: { role: "workbench_server", id: "forged" } },
+      ) as never,
+    ),
+    /negotiated client session/,
+  );
+  assert.deepEqual(applied, []);
+  client.disconnect();
+});
+
 test("server binds post-handshake envelopes to negotiated peers", async () => {
   const outbound: NerveMessage[] = [];
   const host = new ProtocolServerSession({

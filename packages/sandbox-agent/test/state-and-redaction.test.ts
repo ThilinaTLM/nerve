@@ -144,6 +144,28 @@ describe("sandbox agent image durable state foundations", () => {
         },
       });
       assert.equal(outbox.all().length, 2);
+      let transientDeliveries = 0;
+      const unsubscribe = outbox.subscribe((record) => {
+        if (record.durability === "transient") transientDeliveries += 1;
+      });
+      for (let index = 0; index < 1_000; index += 1) {
+        await outbox.append({
+          type: "run.delta",
+          durability: "transient",
+          data: {
+            conversationId: "conv_1",
+            agentId: "agent_1",
+            runId: "run_1",
+            deltaId: `delta_bulk_${index}`,
+            role: "assistant",
+            text: "working",
+          },
+        });
+      }
+      unsubscribe();
+      assert.equal(transientDeliveries, 1_000);
+      assert.equal(outbox.all().length, 257);
+      assert.equal(outbox.unacked(0).length, 1);
       assert.equal(outbox.unacked(0).length, 1);
       const ack = await outbox.ack("sandbox", 1);
       assert.equal(ack.streams[0]?.processedSeq, 1);

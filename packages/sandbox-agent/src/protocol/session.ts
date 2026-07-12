@@ -272,23 +272,25 @@ export class ProtocolSession {
     const processedSeq =
       ack.streams.find((item) => item.stream === stream)?.processedSeq ?? 0;
     const unacked = this.stores.events.unacked(processedSeq);
-    for (let index = 0; index < unacked.length; index += 100) {
-      const batch = unacked.slice(index, index + 100);
+    const durableBatches = chunkOutboxRecords(unacked, processedSeq);
+    for (const { records: batch, previousDurableSeq } of durableBatches) {
       await session.publishEventBatch(
         buildEventBatch(batch.map(toProtocolEvent), {
           stream,
           reason: replay ? "replay" : "live",
-          previousDurableSeq: processedSeq,
+          previousDurableSeq,
         }),
       );
     }
+    const previousDurableSeq =
+      durableBatches.at(-1)?.records.at(-1)?.seq ?? processedSeq;
     while (this.transientQueue.length > 0 && session.state === "ready") {
       const batch = this.transientQueue.splice(0, 100);
       await session.publishEventBatch(
         buildEventBatch(batch.map(toProtocolEvent), {
           stream,
           reason: "live",
-          previousDurableSeq: processedSeq,
+          previousDurableSeq,
         }),
       );
     }
@@ -348,6 +350,27 @@ export class ProtocolSession {
       ...extra,
     });
   }
+}
+
+export function chunkOutboxRecords(
+  records: readonly SandboxOutboxRecord[],
+  initialPreviousDurableSeq: number,
+  size = 100,
+): Array<{
+  records: SandboxOutboxRecord[];
+  previousDurableSeq: number;
+}> {
+  const batches: Array<{
+    records: SandboxOutboxRecord[];
+    previousDurableSeq: number;
+  }> = [];
+  let previousDurableSeq = initialPreviousDurableSeq;
+  for (let index = 0; index < records.length; index += size) {
+    const batch = records.slice(index, index + size);
+    batches.push({ records: batch, previousDurableSeq });
+    previousDurableSeq = batch.at(-1)?.seq ?? previousDurableSeq;
+  }
+  return batches;
 }
 
 function sandboxOperationHandlers(

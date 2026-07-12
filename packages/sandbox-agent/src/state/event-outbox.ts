@@ -13,6 +13,7 @@ export class EventOutbox {
   private readonly outbox: JsonlStore<SandboxOutboxRecord>;
   private readonly ackStore: JsonStore<SandboxAckState>;
   private records: SandboxOutboxRecord[] = [];
+  private transientRecords: SandboxOutboxRecord[] = [];
   private nextSeq = 1;
   private listeners = new Set<(record: SandboxOutboxRecord) => void>();
   constructor(outboxPath: string, ackPath: string) {
@@ -21,6 +22,7 @@ export class EventOutbox {
   }
   async load(): Promise<void> {
     this.records = await this.outbox.readAll();
+    this.transientRecords = [];
     this.nextSeq = Math.max(0, ...this.records.map((record) => record.seq)) + 1;
   }
   async append(
@@ -41,8 +43,13 @@ export class EventOutbox {
       id: input.id ?? `evt_${Date.now()}_${this.nextSeq}`,
       ts: input.ts ?? new Date().toISOString(),
     };
-    if (record.durability === "durable") await this.outbox.append(record);
-    this.records.push(record);
+    if (record.durability === "durable") {
+      await this.outbox.append(record);
+      this.records.push(record);
+    } else {
+      if (this.transientRecords.length >= 256) this.transientRecords.shift();
+      this.transientRecords.push(record);
+    }
     for (const listener of this.listeners) listener(record);
     return record;
   }
@@ -79,6 +86,8 @@ export class EventOutbox {
     );
   }
   all(): SandboxOutboxRecord[] {
-    return [...this.records];
+    return [...this.records, ...this.transientRecords].sort(
+      (left, right) => left.seq - right.seq,
+    );
   }
 }

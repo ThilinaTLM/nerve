@@ -100,6 +100,8 @@ export class ProtocolClientSession {
   #heartbeatWatchdog?: unknown;
   #lastReceivedAt = 0;
   #acceptingPeer?: PeerDescriptor;
+  #localPeer?: PeerDescriptor;
+  #addressedPeer?: PeerDescriptor;
 
   constructor(options: ClientSessionOptions) {
     this.#options = options;
@@ -143,8 +145,11 @@ export class ProtocolClientSession {
             }
           : undefined,
     };
+    const hello = this.#options.createMessage("hello", data);
+    this.#localPeer = hello.source;
+    this.#addressedPeer = hello.target;
     this.state = "hello_sent";
-    await this.#options.send(this.#options.createMessage("hello", data));
+    await this.#options.send(hello);
   }
 
   async receive(message: ProtocolV1Message): Promise<void> {
@@ -161,6 +166,18 @@ export class ProtocolClientSession {
         );
       }
       const welcome = message.data;
+      if (
+        !this.#localPeer ||
+        !this.#addressedPeer ||
+        !samePeer(message.target, this.#localPeer) ||
+        !samePeer(message.source, welcome.acceptingPeer) ||
+        message.source.role !== this.#addressedPeer.role
+      ) {
+        this.state = "closed";
+        throw new SessionStateError(
+          "Welcome peers do not match the addressed client session",
+        );
+      }
       const missing = (this.#options.requiredCapabilities ?? []).filter(
         (capability) => !welcome.capabilities.includes(capability),
       );
@@ -200,6 +217,15 @@ export class ProtocolClientSession {
         `Cannot receive ${message.kind} while ${this.state}`,
       );
     }
+    if (
+      !this.#acceptingPeer ||
+      !this.#localPeer ||
+      !samePeer(message.source, this.#acceptingPeer) ||
+      !samePeer(message.target, this.#localPeer)
+    )
+      throw new SessionStateError(
+        "Server message peers do not match the negotiated client session",
+      );
     const rpcHandled = this.#rpc.handle(message);
     if (message.kind === "request" && this.#options.rpcDispatcher) {
       const result = await this.#options.rpcDispatcher.dispatch(message);
@@ -497,6 +523,15 @@ export class ProtocolClientSession {
     this.#rpc.close();
     this.state = "closed";
   }
+}
+
+function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {
+  return (
+    left.role === right.role &&
+    left.id === right.id &&
+    left.instanceId === right.instanceId &&
+    left.name === right.name
+  );
 }
 
 export class SessionStateError extends Error {

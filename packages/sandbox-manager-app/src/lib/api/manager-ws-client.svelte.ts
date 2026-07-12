@@ -12,6 +12,7 @@ import {
   protocolClientId,
   protocolInstanceId,
   type ProtocolClientConnectionState,
+  type TransportFactory,
 } from "@nervekit/protocol";
 
 export type ManagerWsConnectionState =
@@ -55,6 +56,12 @@ export type ManagerWsHandlers = {
   ) => readonly StreamCursor[] | void | Promise<readonly StreamCursor[] | void>;
 };
 
+export type ManagerWsClientOptions = {
+  transportFactory?: () => TransportFactory;
+  storage?: Pick<Storage, "getItem" | "setItem" | "removeItem">;
+  source?: () => PeerDescriptor;
+};
+
 type PersistedProtocolState = {
   epoch: typeof STATE_EPOCH;
   cursors: StreamCursor[];
@@ -68,7 +75,10 @@ export class ManagerWsClient {
   private wasReady = false;
   private generation = 0;
 
-  constructor(private readonly handlers: ManagerWsHandlers) {
+  constructor(
+    private readonly handlers: ManagerWsHandlers,
+    private readonly options: ManagerWsClientOptions = {},
+  ) {
     this.restore();
     if (!this.cursors.has(MANAGER_STREAM)) this.cursors.set(MANAGER_STREAM, 0);
   }
@@ -82,32 +92,48 @@ export class ManagerWsClient {
   close(): void {
     this.closedByCaller = true;
     ++this.generation;
-    void this.connection?.close();
+    void this.connection?.close().catch(() => undefined);
     this.connection = undefined;
     this.handlers.onConnectionChange("closed");
   }
 
-  subscribeStream(sandboxId: string): void {
+  suspendSelection(): void {
+    this.selectedStream = undefined;
+    ++this.generation;
+    const previous = this.connection;
+    this.connection = undefined;
+    void previous?.close().catch(() => undefined);
+  }
+
+  activateManager(cursors: readonly StreamCursor[] = []): void {
+    this.selectedStream = undefined;
+    if (cursors.length > 0) this.replaceCursors(cursors);
+    const generation = ++this.generation;
+    this.open(generation);
+  }
+
+  activateSelection(sandboxId: string, cursors: readonly StreamCursor[]): void {
     const stream = sandboxStreamId(sandboxId);
-    if (this.selectedStream === stream) return;
     this.selectedStream = stream;
+    this.replaceCursors(cursors);
     if (!this.cursors.has(stream)) this.cursors.set(stream, 0);
-    // Stream subscription is expressed by the resume cursor set. Restarting the
-    // shared connection atomically replaces the old selection/generation.
     const generation = ++this.generation;
     const previous = this.connection;
     this.connection = undefined;
     if (previous) {
-      void previous.close().finally(() => {
-        if (!this.closedByCaller && generation === this.generation)
-          this.open(generation);
-      });
+      void previous
+        .close()
+        .catch(() => undefined)
+        .finally(() => {
+          if (!this.closedByCaller && generation === this.generation)
+            this.open(generation);
+        });
     } else if (!this.closedByCaller) this.open(generation);
   }
 
   private open(generation: number): void {
     if (generation !== this.generation || this.closedByCaller) return;
-    const source: PeerDescriptor = {
+    const source: PeerDescriptor = this.options.source?.() ?? {
       role: "ui",
       id: protocolClientId(),
       instanceId: protocolInstanceId(),
@@ -118,7 +144,9 @@ export class ManagerWsClient {
       target: { role: "sandbox_manager", id: "sandbox-manager" },
     });
     const connection = new ProtocolClientConnection({
-      transport: browserWebSocketTransportFactory(this.wsUrl()),
+      transport:
+        this.options.transportFactory?.() ??
+        browserWebSocketTransportFactory(this.wsUrl()),
       onStateChange: (state) => {
         if (generation === this.generation) this.onConnectionState(state);
       },
@@ -159,8 +187,12 @@ export class ManagerWsClient {
           },
           snapshotRecovery: {
             load: async ({ streams }) => {
+              if (generation !== this.generation)
+                throw new Error("Stale manager UI snapshot generation");
               const recovered =
                 await this.handlers.onSnapshotRecovery?.(streams);
+              if (generation !== this.generation)
+                throw new Error("Stale manager UI snapshot generation");
               return {
                 snapshot: undefined,
                 cursors: recovered?.length ? recovered : this.currentCursors(),
@@ -168,11 +200,15 @@ export class ManagerWsClient {
               };
             },
           },
-          installSnapshot: (_snapshot, cursors) => this.replaceCursors(cursors),
+          installSnapshot: (_snapshot, cursors) => {
+            if (generation !== this.generation)
+              throw new Error("Stale manager UI snapshot generation");
+            this.replaceCursors(cursors);
+          },
         }),
     });
     if (generation !== this.generation || this.closedByCaller) {
-      void connection.close();
+      void connection.close().catch(() => undefined);
       return;
     }
     this.connection = connection;
@@ -205,7 +241,7 @@ export class ManagerWsClient {
 
   private persistCursors(): void {
     try {
-      localStorage.setItem(
+      this.storage().setItem(
         STATE_KEY,
         JSON.stringify({
           epoch: STATE_EPOCH,
@@ -222,11 +258,11 @@ export class ManagerWsClient {
 
   private restore(): void {
     try {
-      const raw = localStorage.getItem(STATE_KEY);
+      const raw = this.storage().getItem(STATE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as Partial<PersistedProtocolState>;
       if (parsed.epoch !== STATE_EPOCH || !Array.isArray(parsed.cursors)) {
-        localStorage.removeItem(STATE_KEY);
+        this.storage().removeItem(STATE_KEY);
         return;
       }
       for (const cursor of parsed.cursors) {
@@ -239,11 +275,15 @@ export class ManagerWsClient {
       }
     } catch {
       try {
-        localStorage.removeItem(STATE_KEY);
+        this.storage().removeItem(STATE_KEY);
       } catch {
         /* optional */
       }
     }
+  }
+
+  private storage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> {
+    return this.options.storage ?? localStorage;
   }
 
   private onConnectionState(state: ProtocolClientConnectionState): void {

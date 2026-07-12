@@ -172,7 +172,7 @@ export class SandboxManagerStore {
     ReturnType<typeof setTimeout>
   >();
   private disposed = false;
-
+  private selectionGeneration = 0;
   constructor() {
     this.ws = new ManagerWsClient({
       onEvent: (envelope) => this.handleEvent(envelope),
@@ -180,42 +180,8 @@ export class SandboxManagerStore {
         this.connection = state;
         this.connectionError = error;
       },
-      onReconnected: () => {
-        void this.refreshFleet();
-        if (this.selectedSandboxId)
-          void this.loadDetail(this.selectedSandboxId);
-      },
-      onSnapshotRecovery: async () => {
-        const sandboxId = this.selectedSandboxId;
-        const detail = sandboxId ? this.detail(sandboxId) : undefined;
-        const { result } = await protocolRequest(
-          "sandbox.manager.recovery.get",
-          {
-            sandboxId,
-            conversationId: detail?.selectedConversationId,
-            agentId: detail?.selectedAgentId,
-            runId: detail?.selectedRunId,
-          },
-          { target: { role: "sandbox_manager" } },
-        );
-        this.sandboxes = result.sandboxes.map((item) => {
-          const record = { ...item };
-          Reflect.deleteProperty(record, "activity");
-          return record;
-        });
-        if (sandboxId && detail && result.selectedSandbox)
-          applySnapshot(detail, result.selectedSandbox);
-        if (sandboxId && detail && result.selectedConversation) {
-          const renderState = fromSandboxConversationViewSnapshot(
-            result.selectedConversation,
-          );
-          const key =
-            renderState.conversationId ??
-            result.selectedConversation.conversationId;
-          if (key) detail.conversationViewsById[key] = renderState;
-        }
-        return result.cursors;
-      },
+      onSnapshotRecovery: () =>
+        this.recoverProtocolSnapshot(this.selectedSandboxId),
     });
   }
 
@@ -297,13 +263,63 @@ export class SandboxManagerStore {
   }
 
   async selectSandbox(sandboxId: string | undefined): Promise<void> {
+    const generation = ++this.selectionGeneration;
     this.selectedSandboxId = sandboxId;
-    if (!sandboxId) return;
+    this.ws.suspendSelection();
+    if (!sandboxId) {
+      const cursors = await this.recoverProtocolSnapshot(undefined);
+      if (generation === this.selectionGeneration)
+        this.ws.activateManager(cursors);
+      return;
+    }
     this.detail(sandboxId);
-    this.ws.subscribeStream(sandboxId);
     await this.loadDetail(sandboxId);
+    if (
+      generation !== this.selectionGeneration ||
+      this.selectedSandboxId !== sandboxId
+    )
+      return;
+    const cursors = await this.recoverProtocolSnapshot(sandboxId);
+    if (
+      generation === this.selectionGeneration &&
+      this.selectedSandboxId === sandboxId
+    )
+      this.ws.activateSelection(sandboxId, cursors);
   }
 
+  private async recoverProtocolSnapshot(
+    sandboxId: string | undefined,
+  ): Promise<readonly { stream: string; processedSeq: number }[]> {
+    const detail = sandboxId ? this.detail(sandboxId) : undefined;
+    const { result } = await protocolRequest(
+      "sandbox.manager.recovery.get",
+      {
+        sandboxId,
+        conversationId: detail?.selectedConversationId,
+        agentId: detail?.selectedAgentId,
+        runId: detail?.selectedRunId,
+      },
+      { target: { role: "sandbox_manager" } },
+    );
+    if (this.selectedSandboxId !== sandboxId) return [];
+    this.sandboxes = result.sandboxes.map((item) => {
+      const record = { ...item };
+      Reflect.deleteProperty(record, "activity");
+      return record;
+    });
+    if (sandboxId && detail && result.selectedSandbox)
+      applySnapshot(detail, result.selectedSandbox);
+    if (sandboxId && detail && result.selectedConversation) {
+      const renderState = fromSandboxConversationViewSnapshot(
+        result.selectedConversation,
+      );
+      const key =
+        renderState.conversationId ??
+        result.selectedConversation.conversationId;
+      if (key) detail.conversationViewsById[key] = renderState;
+    }
+    return result.cursors;
+  }
   async loadDetail(sandboxId: string): Promise<void> {
     const detail = this.detail(sandboxId);
     detail.loading = true;
