@@ -1,7 +1,9 @@
 import type {
   AgentRecord,
   ContextUsage,
+  ConversationEntry,
   PromptRequest,
+  ToolCallTranscriptRecord,
   ToolName,
 } from "@nervekit/contracts";
 import type { RunCoordinator } from "@nervekit/host-runtime";
@@ -35,6 +37,33 @@ export class WorkbenchRunService {
     private readonly unitOfWork: WorkbenchRunUnitOfWork,
     private readonly features: WorkbenchRunFeatureMechanics,
   ) {}
+
+  async listQueuedPrompts(agentId: string) {
+    this.requireAgent(agentId);
+    const states = await this.unitOfWork.list();
+    return states
+      .flatMap((state) => state.prompts)
+      .filter(
+        (prompt) =>
+          prompt.agentId === agentId &&
+          (prompt.status === "queued" || prompt.status === "accepted"),
+      )
+      .sort((a, b) => a.ordinal - b.ordinal);
+  }
+
+  async cancelQueuedPrompt(agentId: string, promptId: string) {
+    this.requireAgent(agentId);
+    const states = await this.unitOfWork.list();
+    const state = states.find((candidate) =>
+      candidate.prompts.some(
+        (prompt) => prompt.id === promptId && prompt.agentId === agentId,
+      ),
+    );
+    if (!state) {
+      throw new HttpError(404, "QUEUED_PROMPT_NOT_FOUND", "Queued prompt not found.");
+    }
+    return this.coordinator.cancelPrompt(state.run.runId, promptId);
+  }
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.requireAgent(agentId);
@@ -79,8 +108,50 @@ export class WorkbenchRunService {
   }
 
   async abortAgent(agentId: string): Promise<void> {
-    const state = await this.requireCurrentRun(agentId);
+    const agent = this.requireAgent(agentId);
+    const state = await this.unitOfWork.findActive(this.scopeId(agent));
+    if (!state) return;
     await this.coordinator.cancel(state.run.runId, "user requested abort");
+  }
+
+  async resolveInteractionForToolCall(input: {
+    toolCallId: string;
+    resolutionRequestId: string;
+    resolution: Record<string, unknown>;
+    entries?: readonly ConversationEntry[];
+    toolCalls?: readonly ToolCallTranscriptRecord[];
+    continueRun: boolean;
+  }): Promise<void> {
+    const states = await this.unitOfWork.list();
+    const state = states.find((candidate) =>
+      candidate.interactions.some(
+        (interaction) => interaction.toolCallId === input.toolCallId,
+      ),
+    );
+    const interaction = state?.interactions.find(
+      (candidate) => candidate.toolCallId === input.toolCallId,
+    );
+    if (!state || !interaction) {
+      throw new HttpError(
+        409,
+        "RUN_INTERACTION_NOT_FOUND",
+        "The pending run interaction was not found.",
+      );
+    }
+    if (input.toolCalls?.length) {
+      await this.coordinator.upsertToolCalls(state.run.runId, input.toolCalls);
+    }
+    if (input.entries?.length) {
+      await this.coordinator.appendEntries(state.run.runId, input.entries);
+    }
+    await this.coordinator.resolveInteraction(state.run.runId, {
+      interactionId: interaction.id,
+      resolutionRequestId: input.resolutionRequestId,
+      resolution: input.resolution,
+    });
+    if (input.continueRun) {
+      await this.coordinator.continue(state.run.runId);
+    }
   }
 
   getContextUsage(conversationId: string): Promise<ContextUsage> {

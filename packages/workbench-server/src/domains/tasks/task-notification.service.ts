@@ -15,7 +15,8 @@ import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { AppendEntryInput } from "../../runtime/types.js";
-import type { AgentRunStateMap } from "../agents/run/run-state.js";
+import type { WorkbenchLiveExecutions } from "../runs/run-live-executions.js";
+import type { WorkbenchRunUnitOfWork } from "../runs/run-transition.repository.js";
 import type { HarnessManager } from "../conversations/harness-manager.js";
 import type { WorkbenchTaskService } from "./workbench-task-service.js";
 import {
@@ -27,7 +28,8 @@ import {
 export interface TaskNotificationServiceDeps {
   tasks: WorkbenchTaskService;
   events: EventBus;
-  runs: AgentRunStateMap;
+  liveRuns: WorkbenchLiveExecutions;
+  runUnitOfWork: WorkbenchRunUnitOfWork;
   appendEntry(
     input: AppendEntryInput,
     options?: { mirrorToHarness?: boolean },
@@ -227,8 +229,9 @@ export class TaskNotificationService {
         timestamp,
       );
 
-      const activeRun = task.agentId
-        ? this.deps.runs.get(task.agentId)
+      const activeRunId = await this.activeRunId(task);
+      const activeRun = activeRunId
+        ? this.deps.liveRuns.get(activeRunId)
         : undefined;
       if (activeRun?.enqueueHarnessMessage) {
         try {
@@ -270,11 +273,10 @@ export class TaskNotificationService {
     if (slotForEvent(event) !== "terminal") return;
     if (task.completion?.inject !== true) return;
     if (!task.agentId) return;
-    if (this.deps.runs.get(task.agentId)) return;
+    const activeRunId = await this.activeRunId(task);
+    if (!activeRunId || this.deps.liveRuns.get(activeRunId)) return;
     const continueAgent = this.deps.continueAgent;
     if (!continueAgent) return;
-    const agent = this.deps.getAgent(task.agentId);
-    if (agent.status !== "idle") return;
     await continueAgent(task.agentId).catch((error) =>
       this.deps.logger?.warn("Awaited task continuation failed", {
         taskId: task.id,
@@ -283,6 +285,17 @@ export class TaskNotificationService {
         error,
       }),
     );
+  }
+
+  private async activeRunId(task: TaskRecord): Promise<string | undefined> {
+    if (task.origin.kind === "agent_tool" && task.origin.runId) {
+      return task.origin.runId;
+    }
+    if (!task.agentId || !task.conversationId) return undefined;
+    const state = await this.deps.runUnitOfWork.findActive(
+      `${task.conversationId}:${task.agentId}`,
+    );
+    return state?.run.runId;
   }
 
   private shouldDeliver(task: TaskRecord, event: HarnessTaskEvent): boolean {

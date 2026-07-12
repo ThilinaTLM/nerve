@@ -532,14 +532,11 @@ export class RuntimeRegistry {
   }
 
   async listQueuedPrompts(agentId: string) {
-    return this.services.queuedPrompts.listQueuedPrompts(agentId);
+    return this.workbenchRun.listQueuedPrompts(agentId);
   }
 
   async cancelQueuedPrompt(agentId: string, queuedPromptId: string) {
-    return this.services.queuedPrompts.cancelQueuedPrompt(
-      agentId,
-      queuedPromptId,
-    );
+    return this.workbenchRun.cancelQueuedPrompt(agentId, queuedPromptId);
   }
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
@@ -554,10 +551,7 @@ export class RuntimeRegistry {
     agentId: string,
     statusEntryId: string,
   ): Promise<void> {
-    await this.services.retryContinuation.continueFromFailedTurn(
-      agentId,
-      statusEntryId,
-    );
+    await this.workbenchRun.continueFromFailedTurn(agentId, statusEntryId);
   }
 
   private async setAgentStatus(

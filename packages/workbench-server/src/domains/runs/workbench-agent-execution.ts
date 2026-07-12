@@ -2,11 +2,11 @@ import type { RunPromptRecord, RunRecord } from "@nervekit/contracts";
 import type {
   CheckpointCommand,
   RunExecution,
-  RunExecutionControl,
   RunExecutionSink,
 } from "@nervekit/host-runtime";
 import type { AgentRunner } from "../agents/run/agent-runner.js";
 import type { WorkbenchRunExecutionAdapter } from "./run-execution.js";
+import type { WorkbenchLiveExecutionControl } from "./run-live-executions.js";
 import type { WorkbenchRunReferences } from "./run-references.js";
 
 /**
@@ -23,14 +23,14 @@ export class WorkbenchAgentExecutionAdapter
   ) {}
 
   async create(run: RunRecord, sink: RunExecutionSink): Promise<RunExecution> {
-    let installed: RunExecutionControl | undefined;
+    let installed: WorkbenchLiveExecutionControl | undefined;
     let cancelled = false;
     const pending: Array<{
       method: "steer" | "followUp";
       prompt: RunPromptRecord;
     }> = [];
 
-    const installControl = (control: RunExecutionControl) => {
+    const installControl = (control: WorkbenchLiveExecutionControl) => {
       installed = control;
       if (cancelled) void control.cancel("run cancelled before harness start");
       for (const queued of pending.splice(0)) {
@@ -38,7 +38,7 @@ export class WorkbenchAgentExecutionAdapter
       }
     };
 
-    const control: RunExecutionControl = {
+    const control: WorkbenchLiveExecutionControl = {
       steer: async (prompt) => {
         if (installed) return installed.steer(prompt);
         pending.push({ method: "steer", prompt });
@@ -53,6 +53,13 @@ export class WorkbenchAgentExecutionAdapter
         pending.length = 0;
         await installed?.cancel(reason);
       },
+      removeQueuedPrompt: (promptId) => installed?.removeQueuedPrompt?.(promptId),
+      updateAgentRuntimeConfig: async (agent) =>
+        installed?.updateAgentRuntimeConfig?.(agent),
+      appendExternalMessage: async (input) =>
+        installed?.appendExternalMessage?.(input),
+      enqueueHarnessMessage: async (input) =>
+        installed?.enqueueHarnessMessage?.(input),
     };
 
     return {

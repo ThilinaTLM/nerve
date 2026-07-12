@@ -19,7 +19,6 @@ import type {
 } from "@nervekit/contracts";
 import type {
   CheckpointCommand,
-  RunExecutionControl,
   RunExecutionOutcome,
   RunExecutionSink,
   WaitCommand,
@@ -38,6 +37,7 @@ import {
   toolPromptMetadata,
 } from "../../tools/agent-tool-adapter.js";
 import { toToolCallTranscriptRecord } from "../../tools/tool-call-transcript-preview.js";
+import type { WorkbenchLiveExecutionControl } from "../../runs/run-live-executions.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 import type { AgentRunner } from "./agent-runner.js";
 import {
@@ -67,7 +67,7 @@ interface CoordinatorExecutionOptions {
   command: "start" | "continue";
   prompt?: string;
   signal: AbortSignal;
-  installControl(control: RunExecutionControl): void;
+  installControl(control: WorkbenchLiveExecutionControl): void;
   checkpointCommand(
     boundary: CheckpointCommand["boundary"],
     interactionId?: string,
@@ -611,6 +611,16 @@ export async function runAgentPromptSession(
         followUp: (prompt) => harness.followUp(prompt.text, { id: prompt.id }),
         continue: async () => undefined,
         cancel: abort,
+        removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
+        updateAgentRuntimeConfig,
+        appendExternalMessage: (input) => harness.appendExternalMessage(input),
+        enqueueHarnessMessage: (input) =>
+          harness.enqueueHarnessMessage({
+            id: input.id,
+            message: input.message,
+            timestamp: input.timestamp,
+            delivery: input.delivery,
+          }),
       });
     } else {
       this.deps.state.runs.set(agent.id, {

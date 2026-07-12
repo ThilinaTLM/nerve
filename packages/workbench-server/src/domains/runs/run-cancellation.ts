@@ -1,15 +1,28 @@
 import type { RunRecord } from "@nervekit/contracts";
 import type { RunCancellationPort } from "@nervekit/host-runtime";
+import type { RuntimeState } from "../../runtime/runtime-state.js";
+import { isActiveTaskStatus } from "../tasks/index.js";
+import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import type { ToolService } from "../tools/tool-service.js";
 import type { WorkbenchLiveExecutions } from "./run-live-executions.js";
+import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 
 type Evidence = "confirmed" | "not_running";
 
 export class WorkbenchRunCancellation implements RunCancellationPort {
+  private cancelRun?: (runId: string, reason?: string) => Promise<unknown>;
+
   constructor(
     private readonly live: WorkbenchLiveExecutions,
     private readonly tools: ToolService,
+    private readonly tasks: WorkbenchTaskService,
+    private readonly state: RuntimeState,
+    private readonly unitOfWork: WorkbenchRunUnitOfWork,
   ) {}
+
+  bindCancelRun(cancelRun: (runId: string, reason?: string) => Promise<unknown>) {
+    this.cancelRun = cancelRun;
+  }
 
   async cancelModel(run: RunRecord): Promise<Evidence> {
     const control = this.live.get(run.runId);
@@ -19,27 +32,82 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
   }
 
   async cancelTools(run: RunRecord): Promise<Evidence> {
+    const active = this.tools
+      .listToolCalls()
+      .filter(
+        (toolCall) =>
+          toolCall.runId === run.runId &&
+          !["completed", "error", "denied"].includes(
+            toolCall.status,
+          ),
+      );
+    if (active.length === 0) return "not_running";
     await this.tools.terminateNonTerminalToolCallsForRun(
       run.runId,
       "Tool execution was interrupted because the run was cancelled.",
     );
+    const remaining = this.tools
+      .listToolCalls()
+      .some(
+        (toolCall) =>
+          toolCall.runId === run.runId &&
+          !["completed", "error", "denied"].includes(
+            toolCall.status,
+          ),
+      );
+    if (remaining) throw new Error("Tool cancellation was not confirmed");
     return "confirmed";
   }
 
   async cancelTasks(run: RunRecord): Promise<Evidence> {
-    void run;
-    // Task cancellation is supplied by the execution adapter once task origin
-    // lookup is moved off AgentRunState.
-    return "not_running";
+    const active = this.tasks
+      .listTasks({ includeForeground: true })
+      .filter(
+        (task) =>
+          task.origin.kind === "agent_tool" &&
+          task.origin.runId === run.runId &&
+          isActiveTaskStatus(task.status),
+      );
+    if (active.length === 0) return "not_running";
+    for (const task of active) {
+      await this.tasks.cancelTask(task.id, { timeoutMs: 5000 });
+      if (isActiveTaskStatus(this.tasks.getTask(task.id).status)) {
+        throw new Error(`Task ${task.id} did not produce process-exit evidence`);
+      }
+    }
+    return "confirmed";
   }
 
   async cancelSubagents(run: RunRecord): Promise<Evidence> {
-    void run;
-    return "not_running";
+    const childIds = [...this.state.agents.values()]
+      .filter((agent) => agent.parentAgentId === run.agentId)
+      .map((agent) => agent.id);
+    if (childIds.length === 0) return "not_running";
+    const states = await this.unitOfWork.list();
+    const children = states.filter(
+      (candidate) =>
+        childIds.includes(candidate.run.agentId) &&
+        !["completed", "failed", "cancelled"].includes(candidate.run.status),
+    );
+    if (children.length === 0) return "not_running";
+    if (!this.cancelRun) throw new Error("Child run cancellation is unavailable");
+    for (const child of children) {
+      await this.cancelRun(child.run.runId, `parent run ${run.runId} cancelled`);
+    }
+    return "confirmed";
   }
 
   async cancelInteraction(run: RunRecord): Promise<Evidence> {
-    void run;
-    return "not_running";
+    const state = await this.unitOfWork.load(run.runId);
+    if (!state) return "not_running";
+    const interaction = state.interactions.find(
+      (candidate) => candidate.id === state.run.activeInteractionId,
+    );
+    if (!interaction) return "not_running";
+    if (interaction.status !== "cancelled") {
+      throw new Error("Pending interaction cancellation was not committed");
+    }
+    await this.live.get(run.runId)?.cancel("interaction cancelled");
+    return "confirmed";
   }
 }

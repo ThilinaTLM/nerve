@@ -57,6 +57,11 @@ export class AgentLifecycleService {
       conversation: ReturnType<RuntimeState["getConversation"]>,
     ) => Promise<void>,
     private readonly abortAgent: (agentId: string) => Promise<void>,
+    private readonly activeRunId: (agent: AgentRecord) => Promise<string | undefined>,
+    private readonly updateLiveAgent: (
+      runId: string,
+      agent: AgentRecord,
+    ) => Promise<void>,
   ) {}
 
   async createAgent(
@@ -157,7 +162,8 @@ export class AgentLifecycleService {
 
   async removeAgentInternal(agentId: string): Promise<void> {
     if (!this.state.agents.has(agentId)) return;
-    if (this.state.runs.has(agentId)) await this.abortAgent(agentId);
+    const agent = this.state.agents.get(agentId);
+    if (agent && (await this.activeRunId(agent))) await this.abortAgent(agentId);
     for (const child of [...this.state.agents.values()].filter(
       (candidate) => candidate.parentAgentId === agentId,
     )) {
@@ -165,7 +171,6 @@ export class AgentLifecycleService {
     }
     this.state.agents.delete(agentId);
     this.conversationService.deleteAgent(agentId);
-    this.state.runs.delete(agentId);
     this.index.removeAgent(agentId);
     await this.agentRepository.remove(agentId);
   }
@@ -175,7 +180,8 @@ export class AgentLifecycleService {
     request: UpdateAgentRequest,
   ): Promise<AgentRecord> {
     const agent = this.getAgent(agentId);
-    if (this.state.runs.has(agent.id)) {
+    const activeRunId = await this.activeRunId(agent);
+    if (activeRunId) {
       if (isModeOnlyUpdate(request)) {
         return this.setAgentModeInternal(
           agent.id,
@@ -202,9 +208,7 @@ export class AgentLifecycleService {
           updatedAt: new Date().toISOString(),
         };
         await this.updateAgent(updated);
-        await this.state.runs
-          .get(agent.id)
-          ?.updateAgentRuntimeConfig?.(updated);
+        await this.updateLiveAgent(activeRunId, updated);
         await this.events.publish("agent.configured", { agent: updated });
         return updated;
       }
@@ -245,7 +249,8 @@ export class AgentLifecycleService {
       updatedAt: new Date().toISOString(),
     };
     await this.updateAgent(updated);
-    await this.state.runs.get(agentId)?.updateAgentRuntimeConfig?.(updated);
+    const activeRunId = await this.activeRunId(agent);
+    if (activeRunId) await this.updateLiveAgent(activeRunId, updated);
     await this.events.publish("agent.mode_changed", {
       agent: updated,
       previousMode: agent.mode,

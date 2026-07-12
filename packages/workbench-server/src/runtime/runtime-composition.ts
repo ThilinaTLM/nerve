@@ -314,6 +314,14 @@ export function composeRuntime(
     services.conversationService,
     updateConversation,
     (agentId) => services.workbenchRun.abortAgent(agentId),
+    async (agent) =>
+      (
+        await services.runRuntime.unitOfWork.findActive(
+          `${agent.conversationId}:${agent.id}`,
+        )
+      )?.run.runId,
+    async (runId, agent) =>
+      services.runRuntime.live.get(runId)?.updateAgentRuntimeConfig?.(agent),
   );
   services.plans = new PlanService(
     storage,
@@ -385,6 +393,7 @@ export function composeRuntime(
     state,
     events,
     tools: services.tools,
+    tasks: services.tasks,
     harnessManager: services.harnessManager,
     execution: (references) =>
       new WorkbenchAgentExecutionAdapter(services.agentRunner, references),
@@ -406,7 +415,8 @@ export function composeRuntime(
   services.taskNotifications = new TaskNotificationService({
     tasks: services.tasks,
     events,
-    runs: state.runs,
+    liveRuns: services.runRuntime.live,
+    runUnitOfWork: services.runRuntime.unitOfWork,
     appendEntry,
     harnessManager: services.harnessManager,
     getAgent,
@@ -420,7 +430,7 @@ export function composeRuntime(
     events,
     tools: services.tools,
     plans: services.plans,
-    suspensions: services.suspensions,
+    runs: services.workbenchRun,
     continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
     createConversation,
     createAgent,

@@ -9,6 +9,7 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.j
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { HarnessManager } from "../conversations/harness-manager.js";
 import type { ToolService } from "../tools/tool-service.js";
+import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import { WorkbenchRunCancellation } from "./run-cancellation.js";
 import {
   WorkbenchRunEventPublisher,
@@ -36,6 +37,7 @@ export function createWorkbenchRunRuntime(input: {
   state: RuntimeState;
   events: EventBus;
   tools: ToolService;
+  tasks: WorkbenchTaskService;
   harnessManager: HarnessManager;
   execution:
     | WorkbenchRunExecutionAdapter
@@ -55,7 +57,13 @@ export function createWorkbenchRunRuntime(input: {
     input.state,
   );
   const live = new WorkbenchLiveExecutions();
-  const cancellation = new WorkbenchRunCancellation(live, input.tools);
+  const cancellation = new WorkbenchRunCancellation(
+    live,
+    input.tools,
+    input.tasks,
+    input.state,
+    unitOfWork,
+  );
   const adapter =
     typeof input.execution === "function"
       ? input.execution(references)
@@ -77,6 +85,9 @@ export function createWorkbenchRunRuntime(input: {
     },
     diagnostics: diagnostics(input.logger),
   });
+  cancellation.bindCancelRun((runId, reason) =>
+    coordinator.cancel(runId, reason),
+  );
   return { coordinator, unitOfWork, references, live, delivery };
 }
 

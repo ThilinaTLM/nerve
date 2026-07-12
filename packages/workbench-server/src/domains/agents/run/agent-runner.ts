@@ -10,7 +10,6 @@ import {
 } from "@nervekit/host-runtime/harness";
 import type { ToolExecutionResult } from "@nervekit/host-runtime/tools";
 import type {
-  RunExecutionControl,
   RunExecutionOutcome,
   RunExecutionSink,
 } from "@nervekit/host-runtime";
@@ -55,6 +54,7 @@ import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
+import type { WorkbenchLiveExecutionControl } from "../../runs/run-live-executions.js";
 
 export interface AgentRunnerDeps {
   storage: InitializedStorage;
@@ -375,7 +375,7 @@ export class AgentRunner {
     command: "start" | "continue";
     prompt?: string;
     signal: AbortSignal;
-    installControl(control: RunExecutionControl): void;
+    installControl(control: WorkbenchLiveExecutionControl): void;
     checkpointCommand(
       boundary: "after_provider_response" | "suspension",
       interactionId?: string,

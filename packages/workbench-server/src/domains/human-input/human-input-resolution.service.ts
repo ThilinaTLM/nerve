@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@nervekit/host-runtime/harness";
 import type {
@@ -18,12 +19,13 @@ import type {
   AppendEntryInput,
   AppendEntryOptions,
 } from "../../runtime/types.js";
-import type { AgentSuspensionService } from "../agents/agent-suspension.service.js";
+import type { WorkbenchRunService } from "../runs/workbench-run.service.js";
 import { agentMessageText } from "../agents/run/index.js";
 import type { HarnessManager } from "../conversations/harness-manager.js";
 import type { PlanService } from "../plans/plan-service.js";
 import { completedToolResult } from "../tools/agent-tool-adapter.js";
 import type { ToolService } from "../tools/tool-service.js";
+import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
 
 export type AcceptPlanReviewInNewChatResult = {
   planReview: PlanReviewRecord;
@@ -35,7 +37,7 @@ export interface HumanInputResolutionDeps {
   events: EventBus;
   tools: ToolService;
   plans: PlanService;
-  suspensions: AgentSuspensionService;
+  runs: WorkbenchRunService;
   continueAgent(agentId: string): Promise<void>;
   createConversation(
     request: CreateConversationRequest,
@@ -328,67 +330,36 @@ export class HumanInputResolutionService {
     },
   ): Promise<void> {
     const toolCall = this.deps.tools.getToolCall(toolCallId);
-    const suspension =
-      this.deps.suspensions.pendingForToolCall(toolCallId) ??
-      (toolCall.runId
-        ? await this.waitForSuspensionForToolCall(toolCallId, 1500)
-        : undefined);
-    if (!suspension) {
-      if (toolCall.status === "waiting_for_user") {
-        await this.deps.tools.completeToolCall(toolCallId, result);
-      }
-      return;
-    }
-    await this.deps.suspensions.updateSuspension(suspension.id, {
-      status: "resuming",
-    });
-    const completed = await this.deps.tools.completeToolCall(
-      toolCallId,
-      result,
-    );
-    const toolResultEntry = await this.appendToolResultForToolCall(
-      completed,
-      false,
-    );
-    await this.publishConversationEntryAppended(toolResultEntry);
-    for (const remaining of suspension.remainingToolCalls) {
-      const skippedEntry = await this.appendSkippedToolResult(
-        suspension.agentId,
-        remaining,
-      );
-      await this.publishConversationEntryAppended(skippedEntry);
-    }
+    const completed = await this.deps.tools.completeToolCall(toolCallId, result);
+    const entries = [await this.appendToolResultForToolCall(completed, false)];
     if (options.followUpUserMessage) {
-      const instructionEntry = await this.appendUserInstructionForAgent(
-        suspension.agentId,
-        options.followUpUserMessage,
-        { runId: suspension.runId, turnId: suspension.turnId },
+      entries.push(
+        await this.appendUserInstructionForAgent(
+          completed.agentId,
+          options.followUpUserMessage,
+          { runId: completed.runId, turnId: completed.turnId },
+        ),
       );
-      await this.publishConversationEntryAppended(instructionEntry);
     }
-    await this.deps.suspensions.updateSuspension(suspension.id, {
-      status: options.finalSuspensionStatus,
-      resolvedAt: new Date().toISOString(),
+    for (const entry of entries) {
+      await this.publishConversationEntryAppended(entry);
+    }
+    const resolution =
+      result && typeof result === "object" && !Array.isArray(result)
+        ? (result as Record<string, unknown>)
+        : { result };
+    const resolutionRequestId = `resolution_${createHash("sha256")
+      .update(`${toolCallId}:${JSON.stringify(resolution)}`)
+      .digest("hex")
+      .slice(0, 24)}`;
+    await this.deps.runs.resolveInteractionForToolCall({
+      toolCallId,
+      resolutionRequestId,
+      resolution,
+      entries,
+      toolCalls: [toToolCallTranscriptRecord(completed)],
+      continueRun: options.continueAgent,
     });
-    if (options.continueAgent) {
-      await this.deps.continueAgent(suspension.agentId);
-      return;
-    }
-    const latest = this.safeGetAgent(suspension.agentId);
-    if (latest) await this.deps.setAgentStatus(latest, "idle");
-  }
-
-  private async waitForSuspensionForToolCall(
-    toolCallId: string,
-    timeoutMs: number,
-  ) {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const suspension = this.deps.suspensions.pendingForToolCall(toolCallId);
-      if (suspension) return suspension;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    return this.deps.suspensions.pendingForToolCall(toolCallId);
   }
 
   private async appendUserInstructionForAgent(

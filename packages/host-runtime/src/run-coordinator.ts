@@ -129,6 +129,32 @@ export class RunCoordinator {
     return this.queuePrompt(runId, "follow-up", text);
   }
 
+  async cancelPrompt(
+    runId: string,
+    promptId: string,
+  ): Promise<RunPromptRecord> {
+    return this.exclusive(`run:${runId}`, async () => {
+      const state = await this.require(runId);
+      const prompt = state.prompts.find((item) => item.id === promptId);
+      if (!prompt || !["queued", "accepted"].includes(prompt.status)) {
+        throw new InvalidRunStateError("Queued prompt was not found");
+      }
+      const now = this.now();
+      const cancelled: RunPromptRecord = {
+        ...prompt,
+        status: "cancelled",
+        updatedAt: now,
+      };
+      await this.commit(
+        state,
+        revise(state.run, {}, now),
+        "prompt_cancelled",
+        { prompts: [cancelled] },
+      );
+      return cancelled;
+    });
+  }
+
   async continue(runId: string): Promise<RunRecord> {
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
@@ -254,6 +280,24 @@ export class RunCoordinator {
     });
   }
 
+  async appendEntries(
+    runId: string,
+    entries: readonly import("@nervekit/contracts").ConversationEntry[],
+  ): Promise<void> {
+    await this.appendDurable(runId, "entries_appended", {
+      entries: [...entries],
+    });
+  }
+
+  async upsertToolCalls(
+    runId: string,
+    toolCalls: readonly import("@nervekit/contracts").ToolCallTranscriptRecord[],
+  ): Promise<void> {
+    await this.appendDurable(runId, "tool_calls_upserted", {
+      toolCalls: [...toolCalls],
+    });
+  }
+
   async resolveInteraction(
     runId: string,
     command: ResolveInteractionCommand,
@@ -339,8 +383,16 @@ export class RunCoordinator {
           status: "cancelled" as const,
           updatedAt: now,
         }));
+      const cancelledInteractions = state.interactions
+        .filter((interaction) => interaction.status === "pending")
+        .map((interaction) => ({
+          ...interaction,
+          status: "cancelled" as const,
+          resolvedAt: now,
+        }));
       await this.commit(state, requested, "cancellation_requested", {
         prompts: cancelledPrompts,
+        interactions: cancelledInteractions,
       });
       this.live.get(runId)?.abort.abort(reason);
       const evidence = [];
