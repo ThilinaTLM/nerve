@@ -8,7 +8,6 @@ import {
   sandboxSnapshotResultSchema,
   sandboxStatusGetResultSchema,
 } from "@nervekit/contracts";
-import { SandboxCommandError } from "../src/daemon/errors.js";
 import { SandboxDaemon } from "../src/daemon/sandbox-daemon.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
 
@@ -22,7 +21,7 @@ const baseConfig = {
   },
 } as const;
 
-describe("sandbox daemon command semantics", () => {
+describe("sandbox daemon operation semantics", () => {
   it("returns UI-ready status and snapshot contracts", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-daemon-status-"));
     try {
@@ -50,52 +49,6 @@ describe("sandbox daemon command semantics", () => {
     }
   });
 
-  it("replays duplicate completed command IDs and rejects conflicting params", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-command-idem-"));
-    try {
-      const stores = new SandboxStateStores(dir);
-      await stores.load();
-      const daemon = new SandboxDaemon(
-        {
-          ...baseConfig,
-          agent: {
-            defaultModel: { provider: "nerve-faux", model: "faux-fast" },
-          },
-        } as never,
-        "sha256:test",
-        "inst_1",
-        stores,
-        { workspaceDir: process.cwd() },
-      );
-      daemon.start();
-      const first = (await daemon.router.dispatch(
-        "run.start",
-        { text: "hello" },
-        { idempotencyKey: "cmd_idem_start" },
-      )) as { runId: string };
-      const duplicate = (await daemon.router.dispatch(
-        "run.start",
-        { text: "hello" },
-        { idempotencyKey: "cmd_idem_start" },
-      )) as { runId: string };
-      assert.equal(duplicate.runId, first.runId);
-      await assert.rejects(
-        () =>
-          daemon.router.dispatch(
-            "run.start",
-            { text: "different" },
-            { idempotencyKey: "cmd_idem_start" },
-          ),
-        (error) =>
-          error instanceof SandboxCommandError &&
-          error.code === "IDEMPOTENCY_CONFLICT",
-      );
-      await waitForRun(daemon, first.runId, "completed");
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
   it("returns the full conversation transcript when a snapshot targets the latest run", async () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-conversation-snapshot-"),
@@ -117,12 +70,12 @@ describe("sandbox daemon command semantics", () => {
       );
       daemon.start();
       const first = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_snapshot_first",
+        requestId: "cmd_snapshot_first",
         text: "first prompt",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, first.runId, "completed");
       const second = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_snapshot_second",
+        requestId: "cmd_snapshot_second",
         conversationId: first.conversationId,
         agentId: first.agentId,
         behavior: "follow_up",
@@ -183,7 +136,7 @@ describe("sandbox daemon command semantics", () => {
       );
       daemon.start();
       const run = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_rich_bash",
+        requestId: "cmd_rich_bash",
         text: "Run the scripted bash tool",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, run.runId, "completed");
@@ -255,7 +208,7 @@ describe("sandbox daemon command semantics", () => {
       );
       daemon.start();
       const run = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_inline_only",
+        requestId: "cmd_inline_only",
         text: "!printf 'sandbox command only\\n'",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, run.runId, "completed");
@@ -319,7 +272,7 @@ describe("sandbox daemon command semantics", () => {
       );
       daemon.start();
       const run = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_block_expand",
+        requestId: "cmd_block_expand",
         text: [
           "Summarize this command output:",
           "```!!!",
@@ -372,7 +325,7 @@ describe("sandbox daemon command semantics", () => {
       );
       daemon.start();
       const run = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_details",
+        requestId: "cmd_details",
         text: "think then answer",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, run.runId, "completed");

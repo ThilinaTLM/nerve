@@ -24,7 +24,7 @@ import { toolResultPreview } from "./tool-result-preview.js";
 
 export type HarnessRunContext = RunScope & {
   executionId: string;
-  commandId?: string;
+  requestId?: string;
 };
 
 type LiveRunState = {

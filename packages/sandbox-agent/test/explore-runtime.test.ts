@@ -67,7 +67,7 @@ describe("explore runtime", () => {
       );
       daemon.start();
       const start = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_explore",
+        requestId: "cmd_explore",
         text: "Please explore",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRun(daemon, start.runId, "completed");
@@ -158,13 +158,13 @@ describe("explore runtime", () => {
       );
       daemon.start();
       const start = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_explore_cancel",
+        requestId: "cmd_explore_cancel",
         text: "Please explore and wait",
       })) as { conversationId: string; agentId: string; runId: string };
       await waitForRelationship(dir, start.conversationId, start.agentId);
       await daemon.router.dispatch("run.cancel", {
         ...start,
-        commandId: "cmd_cancel_explore",
+        requestId: "cmd_cancel_explore",
         reason: "test cancellation",
       });
       await waitForRun(daemon, start.runId, "cancelled");

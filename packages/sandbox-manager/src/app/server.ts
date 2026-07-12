@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- HTTP route table intentionally centralizes the sandbox-manager API surface. */
 import { readFile } from "node:fs/promises";
 import {
   createServer,
@@ -16,7 +15,6 @@ import {
 } from "@nervekit/contracts";
 import { parse as parseYaml } from "yaml";
 import {
-  commandRequestSchema,
   createSandboxRequestSchema,
   credentialProfileWriteSchema,
   oauthRespondSchema,
@@ -40,7 +38,6 @@ import { readJsonBody } from "../http/body.js";
 import { errorResponse, HttpError } from "../http/errors.js";
 import { withIdempotency } from "../http/idempotency.js";
 import {
-  lifecycleReadyForCommands,
   lifecycleSummary,
   transitionSandboxLifecycle,
 } from "../lifecycle/lifecycle-state.js";
@@ -306,17 +303,13 @@ async function handle(
           body.auth,
         );
         await recordManagerLifecycleEvent(state, {
-          type: "manager.sandbox.created",
+          type: "sandbox.lifecycle.changed",
           sandboxId: record.sandboxId,
           payload: {
             sandboxId: record.sandboxId,
-            instanceId: record.instanceId,
-            name: record.name,
-            backend: record.backend,
-            image: record.image,
-            desiredState: record.desiredState,
-            observedState: record.observedState,
-            lifecycleState: record.lifecycleState,
+            current: record.lifecycleState,
+            changedAt: record.lifecycleUpdatedAt,
+            reason: "created",
           },
         });
         try {
@@ -364,12 +357,13 @@ async function handle(
       if (body.removeVolumes)
         await state.volumeProvider.remove?.(sandboxMatch[1], body);
       await recordManagerLifecycleEvent(state, {
-        type: "manager.sandbox.deleted",
+        type: "sandbox.lifecycle.changed",
         sandboxId: sandboxMatch[1],
         payload: {
           sandboxId: sandboxMatch[1],
-          removeVolumes: body.removeVolumes,
-          force: body.force,
+          current: "removed",
+          changedAt: new Date().toISOString(),
+          reason: "deleted",
         },
       });
       return publicSandboxRecord(removed);
@@ -472,41 +466,6 @@ async function handle(
           state,
           secretMatch[1],
           body as { key: string; version?: string },
-        ),
-      ),
-    );
-  }
-  const commandMatch = path.match(/^\/api\/sandboxes\/([^/]+)\/commands$/);
-  if (req.method === "POST" && commandMatch) {
-    const body = commandRequestSchema.parse(await readJsonBody(req));
-    const prepared = prepareForwardedCommand(req, body);
-    const session = controller.getSession(commandMatch[1]);
-    if (!session)
-      throw new HttpError(
-        503,
-        "Sandbox command forwarding requires a connected controller session",
-        "UNAVAILABLE",
-      );
-    const record = await state.sandboxes.get(commandMatch[1]);
-    if (
-      !isReadOnlyForwardedMethod(prepared.method) &&
-      !lifecycleReadyForCommands(record)
-    ) {
-      throw new HttpError(
-        409,
-        "Sandbox is still booting; mutating commands are disabled until ready",
-        "BOOTING",
-      );
-    }
-    return json(
-      res,
-      200,
-      ok(
-        await session.forwarder.send(
-          session.socket,
-          prepared.method,
-          prepared.params,
-          prepared.requestId,
         ),
       ),
     );
@@ -784,44 +743,6 @@ function sessionSummary(
     closeReason: session.closeReason?.trim() || undefined,
     acceptedCapabilities: session.capabilities,
   };
-}
-
-function isReadOnlyForwardedMethod(method: string): boolean {
-  return [
-    "sandbox.status.get",
-    "sandbox.snapshot.get",
-    "sandbox.conversation.snapshot.get",
-  ].includes(method);
-}
-
-function prepareForwardedCommand(
-  req: IncomingMessage,
-  body: { method: string; params: unknown; idempotencyKey?: string },
-): { method: string; params: unknown; requestId: string } {
-  const idempotencyKey = String(
-    req.headers["idempotency-key"] ?? body.idempotencyKey ?? "",
-  );
-  const mutating = !isReadOnlyForwardedMethod(body.method);
-  if (!mutating) {
-    return {
-      method: body.method,
-      params: body.params,
-      requestId: idempotencyKey || `req_${Date.now()}`,
-    };
-  }
-  const params = isObjectRecord(body.params) ? { ...body.params } : {};
-  const commandId =
-    typeof params.commandId === "string" && params.commandId.trim()
-      ? params.commandId
-      : idempotencyKey;
-  if (!commandId)
-    throw new HttpError(
-      400,
-      "Mutating sandbox commands require params.commandId or Idempotency-Key",
-      "VALIDATION_FAILED",
-    );
-  params.commandId = commandId;
-  return { method: body.method, params, requestId: commandId };
 }
 
 async function recoverStartupFailureFromAgentState(

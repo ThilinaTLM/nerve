@@ -1,4 +1,8 @@
-import type { EventEnvelope, NerveMessage } from "@nervekit/contracts";
+import {
+  publicEventDefinition,
+  type EventEnvelope,
+  type NerveMessage,
+} from "@nervekit/contracts";
 
 export type QueuePriority = "control" | "replay" | "durable" | "transient";
 
@@ -191,69 +195,14 @@ function coalescingStrategy(
   if (event.durability !== "transient") return undefined;
   const data = event.data;
   if (!isRecord(data)) return undefined;
-
-  if (event.type === "usage.subscription.updated") {
-    return {
-      key: `${event.type}:${stringField(data, "provider") ?? stringField(recordField(data, "usage"), "provider") ?? "global"}`,
-      mode: "latest",
-    };
-  }
-
-  if (
-    event.type === "conversation.live.content.delta" ||
-    event.type === "conversation.live.tool_draft.delta"
-  ) {
-    const key = eventKey(data, [
-      "conversationId",
-      "runId",
-      "turnId",
-      "liveMessageId",
-      "contentBlockId",
-      "contentIndex",
-      "kind",
-      "toolName",
-      "providerToolCallId",
-    ]);
-    return key
-      ? { key: `${event.type}:${key}`, mode: "concat_delta" }
-      : undefined;
-  }
-
-  if (event.type === "conversation.live.tool_output.delta") {
-    const key = eventKey(data, [
-      "conversationId",
-      "toolCallId",
-      "stream",
-      "runId",
-      "turnId",
-      "liveMessageId",
-      "contentIndex",
-    ]);
-    return key
-      ? { key: `${event.type}:${key}`, mode: "concat_delta" }
-      : undefined;
-  }
-
-  if (
-    event.type.endsWith(".progress") ||
-    event.type.endsWith(".updated") ||
-    event.type.endsWith(".retrying") ||
-    event.type === "conversation.compaction.started" ||
-    event.type === "conversation.live.tool_draft.progress"
-  ) {
-    const key = eventKey(data, [
-      "conversationId",
-      "agentId",
-      "runId",
-      "taskId",
-      "toolCallId",
-      "projectId",
-      "contentBlockId",
-    ]);
-    if (key) return { key: `${event.type}:${key}`, mode: "latest" };
-  }
-
-  return undefined;
+  const definition = publicEventDefinition(event.type);
+  if (!definition?.coalescing) return undefined;
+  const key = eventKey(data, definition.scope);
+  if (!key) return undefined;
+  return {
+    key: `${event.type}:${key}`,
+    mode: definition.coalescing === "concat_delta" ? "concat_delta" : "latest",
+  };
 }
 
 function mergeDeltaEvents(
@@ -285,10 +234,10 @@ function mergeDeltaEvents(
 
 function eventKey(
   data: Record<string, unknown>,
-  fields: string[],
+  fields: readonly string[],
 ): string | undefined {
   const parts = fields
-    .map((field) => data[field])
+    .map((field) => valueAtPath(data, field))
     .filter((value) => value !== undefined && value !== null)
     .map(String);
   return parts.length > 0 ? parts.join(":") : undefined;
@@ -312,12 +261,13 @@ function numberField(
     : undefined;
 }
 
-function recordField(
-  data: Record<string, unknown>,
-  field: string,
-): Record<string, unknown> | undefined {
-  const value = data[field];
-  return isRecord(value) ? value : undefined;
+function valueAtPath(data: Record<string, unknown>, path: string): unknown {
+  let value: unknown = data;
+  for (const segment of path.split(".")) {
+    if (!isRecord(value)) return undefined;
+    value = value[segment];
+  }
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

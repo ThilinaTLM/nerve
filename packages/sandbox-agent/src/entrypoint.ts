@@ -358,9 +358,7 @@ export async function runSandboxEntrypoint(
       await emitStartup("sandbox.ready", {
         status,
         readyAt: new Date().toISOString(),
-        recovered:
-          recoveredState.commands.length > 0 ||
-          recoveredState.unackedEvents.length > 0,
+        recovered: recoveredState.unackedEvents.length > 0,
         daemonStatus: daemon.status.status,
         cursor: { streams: (await stateStores.events.ackState()).streams },
       });

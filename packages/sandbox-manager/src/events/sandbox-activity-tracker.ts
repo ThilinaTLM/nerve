@@ -155,8 +155,7 @@ export class SandboxActivityTracker {
         summary.title = title;
         return true;
       }
-      case "run.waiting_for_input":
-      case "run.waiting_for_approval":
+      case "run.waiting":
         summary.runStatus = "waiting";
         summary.needsAttention = true;
         markImmediate();

@@ -28,7 +28,7 @@ describe("SandboxActivityTracker", () => {
   it("emits immediately on attention and terminal transitions", () => {
     const { emitted, tracker } = collector();
     tracker.observe("sbx1", {
-      type: "run.waiting_for_approval",
+      type: "run.waiting",
       payload: { approvalId: "a1" },
     });
     assert.equal(emitted.at(-1)?.needsAttention, true);

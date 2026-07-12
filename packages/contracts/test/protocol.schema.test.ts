@@ -18,6 +18,8 @@ import {
   operationResultSchema,
   parseOperationParams,
   parseOperationResult,
+  parsePublicEventBatch,
+  parsePublicEventEnvelope,
   parseProtocolRequestData,
   parseProtocolResponseData,
   replayCompleteMessageSchema,
@@ -304,6 +306,53 @@ describe("Protocol v1 shared schemas", () => {
         retired,
       );
     }
+  });
+
+  it("validates public envelopes and batches against catalog metadata", () => {
+    const event = {
+      seq: 1,
+      id: "evt_git_1",
+      ts,
+      type: "git.repository.changed",
+      durability: "durable",
+      data: { repo: ".", reason: "commit" },
+    };
+    assert.equal(
+      parsePublicEventEnvelope(event, "workbench_server").type,
+      "git.repository.changed",
+    );
+    assert.throws(
+      () => parsePublicEventEnvelope(event, "sandbox_manager"),
+      /cannot be emitted/,
+    );
+    assert.throws(
+      () =>
+        parsePublicEventEnvelope(
+          { ...event, durability: "transient" },
+          "workbench_server",
+        ),
+      /must use durable/,
+    );
+    const batch = {
+      stream: "local",
+      batchId: "batch_1",
+      reason: "live",
+      events: [event],
+      range: {
+        firstSeq: 1,
+        lastSeq: 1,
+        durableFirstSeq: 1,
+        durableLastSeq: 1,
+        durableCount: 1,
+        transientCount: 0,
+        previousDurableSeq: 0,
+        durableCompleteThroughSeq: 1,
+      },
+    };
+    assert.equal(
+      parsePublicEventBatch(batch, "workbench_server").events.length,
+      1,
+    );
   });
 
   it("bounds and redacts every public event definition", () => {

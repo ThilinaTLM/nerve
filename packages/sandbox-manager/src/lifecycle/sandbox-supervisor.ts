@@ -31,7 +31,7 @@ export class SandboxSupervisor {
       updatedAt: now,
     };
     await this.store.put(next);
-    await this.emit("manager.sandbox.created", next, {
+    await this.emit("created", next, {
       desiredState: next.desiredState,
       observedState: next.observedState,
       lifecycleState: next.lifecycleState,
@@ -54,7 +54,7 @@ export class SandboxSupervisor {
         force: true,
       },
     );
-    await this.emit("manager.sandbox.start_requested", record, {
+    await this.emit("start_requested", record, {
       desiredState: "running",
       observedState: "starting",
       lifecycleState: "container_creating",
@@ -83,7 +83,7 @@ export class SandboxSupervisor {
           force: true,
         },
       );
-      await this.emit("manager.sandbox.container_created", record, {
+      await this.emit("container_created", record, {
         desiredState: record.desiredState,
         observedState: record.observedState,
         lifecycleState: record.lifecycleState,
@@ -117,13 +117,13 @@ export class SandboxSupervisor {
           force: true,
         },
       );
-      await this.emit("manager.sandbox.container_started", started, {
+      await this.emit("container_started", started, {
         desiredState: started.desiredState,
         observedState: started.observedState,
         lifecycleState: started.lifecycleState,
         containerRef: started.containerRef,
       });
-      await this.emit("manager.sandbox.started", started, {
+      await this.emit("started", started, {
         desiredState: started.desiredState,
         observedState: started.observedState,
         lifecycleState: started.lifecycleState,
@@ -145,7 +145,7 @@ export class SandboxSupervisor {
           force: true,
         },
       );
-      await this.emit("manager.sandbox.start_failed", failed, {
+      await this.emit("start_failed", failed, {
         desiredState: failed.desiredState,
         observedState: failed.observedState,
         lifecycleState: failed.lifecycleState,
@@ -165,7 +165,7 @@ export class SandboxSupervisor {
       "stopping",
       { desiredState: "stopped", observedState: "stopping", force: true },
     );
-    await this.emit("manager.sandbox.stop_requested", record, {
+    await this.emit("stop_requested", record, {
       desiredState: "stopped",
       observedState: "stopping",
       lifecycleState: "stopping",
@@ -183,7 +183,7 @@ export class SandboxSupervisor {
         force: true,
       },
     );
-    await this.emit("manager.sandbox.stopped", record, {
+    await this.emit("stopped", record, {
       desiredState: record.desiredState,
       observedState: record.observedState,
       lifecycleState: record.lifecycleState,
@@ -204,7 +204,7 @@ export class SandboxSupervisor {
       "removed",
       { desiredState: "removed", observedState: "removed", force: true },
     );
-    await this.emit("manager.sandbox.removed", removed, {
+    await this.emit("removed", removed, {
       desiredState: removed.desiredState,
       observedState: removed.observedState,
       lifecycleState: removed.lifecycleState,
@@ -217,17 +217,28 @@ export class SandboxSupervisor {
     record: ManagedSandboxRecord,
     payload: Record<string, unknown>,
   ): Promise<void> {
+    const containerEvent = type.includes("container");
     await this.recordEvent?.({
-      type,
+      type: containerEvent
+        ? "container.lifecycle.changed"
+        : "sandbox.lifecycle.changed",
       sandboxId: record.sandboxId,
-      payload: {
-        ...payload,
-        sandboxId: record.sandboxId,
-        instanceId: record.instanceId,
-        backend: record.backend,
-        image: record.image,
-      },
+      payload: containerEvent
+        ? {
+            sandboxId: record.sandboxId,
+            container: record.containerRef,
+            current: record.observedState,
+            changedAt: record.updatedAt,
+            reason: type,
+          }
+        : {
+            sandboxId: record.sandboxId,
+            current: record.lifecycleState,
+            changedAt: record.lifecycleUpdatedAt,
+            reason: type,
+          },
     });
+    void payload;
   }
 
   private async requireRecord(

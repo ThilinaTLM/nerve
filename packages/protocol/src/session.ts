@@ -6,6 +6,7 @@ import type {
   OperationParams,
   OperationResult,
   ProtocolRequestData,
+  ReplayUnavailableData,
   PeerDescriptor,
   ProtocolLimits,
   ProtocolV1Message,
@@ -13,7 +14,9 @@ import type {
   StreamState,
   WelcomeData,
 } from "@nervekit/contracts";
+import { buildEventBatch } from "./event-batch.js";
 import type { MessageFactory } from "./messages.js";
+import type { ReplaySource } from "./ports.js";
 import { ProcessedAckTracker } from "./ack-tracker.js";
 import {
   applyEventBatch,
@@ -59,6 +62,11 @@ export class ProtocolClientSession {
   readonly #streams = new Map<string, ClientEventStreamState>();
   readonly #acks: ProcessedAckTracker;
   readonly #rpc: RpcClient;
+  readonly #replaying = new Set<string>();
+  readonly #liveDuringReplay = new Map<
+    string,
+    Array<ProtocolV1Message & { kind: "event.batch" }>
+  >();
 
   constructor(options: ClientSessionOptions) {
     this.#options = options;
@@ -144,8 +152,34 @@ export class ProtocolClientSession {
       );
     }
     if (this.#rpc.handle(message)) return;
+    if (message.kind === "replay.started") {
+      for (const stream of message.data.streams) {
+        this.#replaying.add(stream.stream);
+      }
+      await this.#options.onMessage?.(message);
+      return;
+    }
     if (message.kind === "event.batch") {
+      if (
+        message.data.reason === "live" &&
+        this.#replaying.has(message.data.stream)
+      ) {
+        const buffered = this.#liveDuringReplay.get(message.data.stream) ?? [];
+        buffered.push(message);
+        this.#liveDuringReplay.set(message.data.stream, buffered);
+        return;
+      }
       await this.#receiveEventBatch(message);
+      return;
+    }
+    if (message.kind === "replay.complete") {
+      for (const stream of message.data.streams) {
+        this.#replaying.delete(stream.stream);
+        const buffered = this.#liveDuringReplay.get(stream.stream) ?? [];
+        this.#liveDuringReplay.delete(stream.stream);
+        for (const batch of buffered) await this.#receiveEventBatch(batch);
+      }
+      await this.#options.onMessage?.(message);
       return;
     }
     if (message.kind === "replay.unavailable") {
@@ -200,6 +234,8 @@ export class ProtocolClientSession {
       this.#streams.set(cursor.stream, state);
     }
     this.#acks.reset(cursors);
+    this.#replaying.clear();
+    this.#liveDuringReplay.clear();
   }
 
   async #receiveEventBatch(
@@ -300,6 +336,7 @@ export interface ServerSessionOptions {
   readonly onAck?: (
     message: ProtocolV1Message & { kind: "event.ack" },
   ) => void | Promise<void>;
+  readonly replaySource?: ReplaySource;
   readonly onReplayRequest?: (
     message: ProtocolV1Message & { kind: "replay.request" },
   ) => void | Promise<void>;
@@ -414,7 +451,8 @@ export class ProtocolServerSession {
       return;
     }
     if (message.kind === "replay.request") {
-      await this.#options.onReplayRequest?.(message);
+      if (this.#options.replaySource) await this.#replay(message);
+      else await this.#options.onReplayRequest?.(message);
       return;
     }
     if (message.kind === "heartbeat") {
@@ -432,6 +470,159 @@ export class ProtocolServerSession {
       return;
     }
     await this.#options.onMessage?.(message);
+  }
+
+  async #replay(
+    message: ProtocolV1Message & { kind: "replay.request" },
+  ): Promise<void> {
+    const source = this.#options.replaySource;
+    if (!source || !this.sessionId) return;
+    const states = await source.streams();
+    const stateByName = new Map(states.map((state) => [state.stream, state]));
+    const unavailable: ReplayUnavailableData["streams"] = [];
+    for (const request of message.data.streams) {
+      const state = stateByName.get(request.stream);
+      if (!state) {
+        unavailable.push({
+          stream: request.stream,
+          requestedFromSeq: request.fromSeq,
+          latestSeq: 0,
+          reason: "stream_not_found",
+        });
+        continue;
+      }
+      const earliest = state.replayAvailableFromSeq ?? 1;
+      if (request.fromSeq < earliest) {
+        unavailable.push({
+          stream: request.stream,
+          requestedFromSeq: request.fromSeq,
+          earliestAvailableSeq: earliest,
+          latestSeq: state.latestSeq,
+          reason: "cursor_too_old",
+        });
+      } else if (request.fromSeq > state.latestSeq + 1) {
+        unavailable.push({
+          stream: request.stream,
+          requestedFromSeq: request.fromSeq,
+          earliestAvailableSeq: earliest,
+          latestSeq: state.latestSeq,
+          reason: "cursor_ahead_of_server",
+        });
+      }
+    }
+    if (unavailable.length > 0) {
+      await this.#options.send(
+        this.#options.createMessage(
+          "replay.unavailable",
+          {
+            sessionId: this.sessionId,
+            replayId: message.data.replayId,
+            streams: unavailable,
+            recovery: { action: "load_snapshot" },
+          },
+          { target: message.source },
+        ),
+      );
+      return;
+    }
+
+    const ranges = message.data.streams.map((request) => {
+      const state = stateByName.get(request.stream) as StreamState;
+      return {
+        stream: request.stream,
+        fromSeq: request.fromSeq,
+        toSeq: request.toSeq ?? state.latestSeq,
+        latestSeq: state.latestSeq,
+        source: "log" as const,
+      };
+    });
+    await this.#options.send(
+      this.#options.createMessage(
+        "replay.started",
+        {
+          sessionId: this.sessionId,
+          replayId: message.data.replayId,
+          streams: ranges,
+        },
+        { target: message.source },
+      ),
+    );
+
+    const completed = [];
+    for (const range of ranges) {
+      const read = await source.read({
+        stream: range.stream,
+        fromSeq: range.fromSeq,
+        toSeq: range.toSeq,
+        limit: this.#options.limits.maxBatchEvents,
+      });
+      const events = [...read.events];
+      if (!read.complete) {
+        await this.#options.send(
+          this.#options.createMessage(
+            "replay.unavailable",
+            {
+              sessionId: this.sessionId,
+              replayId: message.data.replayId,
+              streams: [
+                {
+                  stream: range.stream,
+                  requestedFromSeq: range.fromSeq,
+                  latestSeq: range.latestSeq,
+                  reason: "range_too_large",
+                },
+              ],
+              recovery: { action: "load_snapshot" },
+            },
+            { target: message.source },
+          ),
+        );
+        return;
+      }
+      if (events.length > 0) {
+        await this.#options.send(
+          this.#options.createMessage(
+            "event.batch",
+            buildEventBatch(events, {
+              stream: range.stream,
+              reason: "replay",
+              previousDurableSeq: Math.max(0, range.fromSeq - 1),
+              replay: {
+                replayId: message.data.replayId,
+                fromSeq: range.fromSeq,
+                toSeq: range.toSeq,
+                complete: true,
+              },
+            }),
+            { target: message.source },
+          ),
+        );
+      }
+      const durable = events.filter((event) => event.durability === "durable");
+      completed.push({
+        stream: range.stream,
+        fromSeq: range.fromSeq,
+        toSeq: range.toSeq,
+        latestSeq: range.latestSeq,
+        durableCompleteThroughSeq:
+          durable.at(-1)?.seq ?? Math.max(0, range.fromSeq - 1),
+        sentEvents: events.length,
+        sentDurableEvents: durable.length,
+        sentTransientEvents: events.length - durable.length,
+      });
+    }
+    await this.#options.send(
+      this.#options.createMessage(
+        "replay.complete",
+        {
+          sessionId: this.sessionId,
+          replayId: message.data.replayId,
+          streams: completed,
+          liveDelivery: "resuming",
+        },
+        { target: message.source },
+      ),
+    );
   }
 
   async fail(

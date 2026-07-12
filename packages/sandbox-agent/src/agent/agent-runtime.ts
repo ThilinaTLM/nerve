@@ -279,7 +279,7 @@ export class SandboxAgentRuntime {
       agentId: run.agentId,
       runId: run.runId,
       executionId,
-      commandId: typeof run.commandId === "string" ? run.commandId : undefined,
+      requestId: typeof run.requestId === "string" ? run.requestId : undefined,
     };
     const active: ActiveHarnessRun = {
       ...scope,
@@ -388,7 +388,7 @@ export class SandboxAgentRuntime {
       agentId: run.agentId,
       runId: run.runId,
       executionId,
-      commandId: typeof run.commandId === "string" ? run.commandId : undefined,
+      requestId: typeof run.requestId === "string" ? run.requestId : undefined,
     };
     const active: ActiveHarnessRun = {
       ...scope,

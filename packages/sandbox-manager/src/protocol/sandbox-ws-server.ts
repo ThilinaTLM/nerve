@@ -20,7 +20,7 @@ import {
 import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
 import { extractSandboxToken, timingSafeTokenEquals } from "../http/auth.js";
 import { transitionSandboxLifecycle } from "../lifecycle/lifecycle-state.js";
-import { CommandForwarder } from "./command-forwarder.js";
+import { RpcForwarder } from "./rpc-forwarder.js";
 import { managerEventBatch } from "./manager-protocol-event-batch.js";
 import {
   createUiProtocolSession,
@@ -50,7 +50,6 @@ const CONTROLLER_CAPABILITIES = new Set([
   "event.ack.processed",
   "flow.backpressure",
   "sandbox.runtime.v1",
-  "sandbox.commands.v1",
   "sandbox.events.v1",
   "sandbox.snapshots.v1",
   "sandbox.models.pi_ai.v1",
@@ -400,7 +399,7 @@ export class SandboxWsServer {
         const sessionId = `sess_${randomUUID()}`;
         const now = new Date().toISOString();
         const capabilities = acceptedCapabilities(hello.data.capabilities);
-        const forwarder = new CommandForwarder(sandboxId, {
+        const forwarder = new RpcForwarder(sandboxId, {
           logger: this.state.logger.child({ sandboxId, sessionId }),
         });
         session = {
@@ -655,7 +654,7 @@ export class SandboxWsServer {
       sessionId: session.sessionId,
       closeCode,
       closeReason: closeReason?.trim() || undefined,
-      pendingCommands: pending,
+      pendingOperations: pending,
       current: removedCurrent,
     });
     if (!removedCurrent) return;

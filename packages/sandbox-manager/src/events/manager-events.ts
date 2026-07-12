@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  publicEventDefinition,
+  validatePublicEvent,
+} from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { redactManagerEvent } from "./redaction.js";
 
@@ -22,14 +26,6 @@ export async function recordManagerLifecycleEvent(
     MANAGER_EVENT_STREAM,
     event,
   );
-  if (event.sandboxId) {
-    await appendAndPublish(
-      state,
-      event.sandboxId,
-      `sandbox:${event.sandboxId}`,
-      event,
-    );
-  }
 }
 
 async function appendAndPublish(
@@ -40,17 +36,27 @@ async function appendAndPublish(
 ): Promise<void> {
   const ts = new Date().toISOString();
   const seq = nextSeq(await state.events.list(storeId));
-  const payload = redactManagerEvent({
-    ...(isObject(event.payload) ? event.payload : { value: event.payload }),
-    sandboxId: event.sandboxId,
-  });
+  const payload = validatePublicEvent(
+    event.type,
+    redactManagerEvent({
+      ...(isObject(event.payload) ? event.payload : { value: event.payload }),
+      sandboxId: event.sandboxId,
+    }),
+    "sandbox_manager",
+  );
+  const definition = publicEventDefinition(event.type);
+  if (!definition) throw new Error(`Unknown manager event: ${event.type}`);
+  const durability = event.durability ?? definition.durability;
+  if (durability !== definition.durability) {
+    throw new Error(`Event ${event.type} must use ${definition.durability}`);
+  }
   const stored = {
     sandboxId: storeId,
-    id: `mevt_${randomUUID()}`,
+    id: `evt_${randomUUID()}`,
     seq,
     type: event.type,
     ts,
-    durability: event.durability ?? ("durable" as const),
+    durability,
     payload,
   };
   if (await state.events.append(stored)) {

@@ -188,16 +188,14 @@ export function applySandboxEvent(
     case "run.transcript.appended":
       applyTranscriptAppended(detail, data);
       return;
-    case "run.waiting_for_input":
-      applyWaitingForInput(detail, event, data);
+    case "run.waiting":
+      if (data.waitKind === "approval")
+        applyWaitingForApproval(detail, event, data);
+      else if (data.waitKind === "plan_review")
+        applyWaitingForPlanReview(detail, event, data);
+      else applyWaitingForInput(detail, event, data);
       return;
-    case "run.waiting_for_approval":
-      applyWaitingForApproval(detail, event, data);
-      return;
-    case "run.waiting_for_plan_review":
-      applyWaitingForPlanReview(detail, event, data);
-      return;
-    case "planReview.resolved":
+    case "planReview.updated":
       applyPlanReviewResolved(detail, data);
       return;
     case "run.completed":

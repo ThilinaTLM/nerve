@@ -48,7 +48,7 @@ export class InputWaiter {
     agentId?: string;
     runId?: string;
     text: string;
-    commandId?: string;
+    resolutionRequestId?: string;
     toolResultEntryId?: string;
     checkpointId?: string;
   }): Promise<SandboxInputWaitRecord> {
@@ -76,7 +76,7 @@ export class InputWaiter {
       ...current,
       status: "submitted",
       resolvedAt: new Date().toISOString(),
-      resumeCommandId: input.commandId,
+      resumeRequestId: input.resolutionRequestId,
       toolResultEntryId: input.toolResultEntryId,
       checkpointId: input.checkpointId,
       response: { text: input.text },

@@ -351,7 +351,7 @@ export class ToolService {
         approvalId: approval.id,
       });
       await this.publishToolCallUpdated(pending);
-      await this.events.publish("approval.requested", {
+      await this.events.publish("approval.updated", {
         approval,
         toolCall: pending,
       });
@@ -534,7 +534,7 @@ export class ToolService {
       resolvedAt: new Date().toISOString(),
     };
     await this.upsertApproval(granted);
-    await this.events.publish("approval.granted", { approval: granted, note });
+    await this.events.publish("approval.updated", { approval: granted, note });
     const toolCall = this.getToolCall(granted.toolCallId);
     return this.executor.executeAllowedTool(toolCall.id);
   }
@@ -554,7 +554,7 @@ export class ToolService {
       status: "denied",
       error: note ?? "Denied by user.",
     });
-    await this.events.publish("approval.denied", {
+    await this.events.publish("approval.updated", {
       approval: deniedApproval,
       note,
     });

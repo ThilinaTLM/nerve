@@ -94,7 +94,7 @@ describeWithPostgres("sandbox manager websocket protocol", async () => {
       true,
     );
     await recordManagerLifecycleEvent(state, {
-      type: "manager.sandbox.started",
+      type: "sandbox.lifecycle.changed",
       sandboxId: record.sandboxId,
       payload: {
         sandboxId: record.sandboxId,
@@ -263,7 +263,6 @@ describeWithPostgres("sandbox manager websocket protocol", async () => {
           "event.ack.processed",
           "flow.backpressure",
           "sandbox.runtime.v1",
-          "sandbox.commands.v1",
           "sandbox.events.v1",
           "sandbox.snapshots.v1",
           "unsupported.future",
@@ -282,7 +281,6 @@ describeWithPostgres("sandbox manager websocket protocol", async () => {
         "event.replay",
         "event.ack.processed",
         "sandbox.runtime.v1",
-        "sandbox.commands.v1",
         "sandbox.events.v1",
         "sandbox.snapshots.v1",
       ],
@@ -379,28 +377,6 @@ describeWithPostgres("sandbox manager websocket protocol", async () => {
       ]),
       [[3, "run.completed"]],
     );
-
-    const command = fetch(
-      `http://127.0.0.1:${address.port}/api/sandboxes/${record.sandboxId}/commands`,
-      {
-        method: "POST",
-        body: JSON.stringify({ method: "sandbox.status.get", params: {} }),
-      },
-    ).then(async (response) => response.json() as Promise<{ data: unknown }>);
-    const request = await onceJson(ws);
-    assert.equal(request.type, "request");
-    ws.send(
-      JSON.stringify({
-        type: "response",
-        id: request.id,
-        result: { instanceId: record.instanceId, status: "ready" },
-      }),
-    );
-    const response = await command;
-    assert.deepEqual(response.data, {
-      instanceId: record.instanceId,
-      status: "ready",
-    });
   });
 });
 

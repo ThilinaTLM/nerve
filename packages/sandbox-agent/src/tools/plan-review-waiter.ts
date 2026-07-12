@@ -125,7 +125,7 @@ export class PlanReviewWaiter {
     feedback?: string;
     implementationModel?: ModelSelection;
     implementationThinkingLevel?: ThinkingLevel;
-    commandId?: string;
+    resolutionRequestId?: string;
     toolResultEntryId?: string;
   }): Promise<SandboxPlanReviewWaitRecord> {
     const current = this.require(input.reviewId);
@@ -158,7 +158,7 @@ export class PlanReviewWaiter {
       feedback: input.feedback,
       implementationModel: input.implementationModel,
       implementationThinkingLevel: input.implementationThinkingLevel,
-      commandId: input.commandId,
+      resolutionRequestId: input.resolutionRequestId,
       toolResultEntryId: input.toolResultEntryId,
       resolvedAt: now,
     });

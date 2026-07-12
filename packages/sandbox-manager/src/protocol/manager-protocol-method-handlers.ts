@@ -16,7 +16,7 @@ import {
 import type { ManagerState } from "../app/manager-state.js";
 import { HttpError } from "../http/errors.js";
 import {
-  lifecycleReadyForCommands,
+  lifecycleReadyForOperations,
   lifecycleSummary,
 } from "../lifecycle/lifecycle-state.js";
 import { projectConversationSnapshotFromEvents } from "./conversation-event-projection.js";
@@ -307,7 +307,7 @@ async function forwardSandboxOperation(
     );
   }
   const record = await state.sandboxes.get(sandboxId);
-  if (!lifecycleReadyForCommands(record)) {
+  if (!lifecycleReadyForOperations(record)) {
     throw protocolHttpError(
       409,
       "Sandbox is still booting; commands are disabled until ready",

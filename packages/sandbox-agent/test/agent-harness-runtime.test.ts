@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { sandboxEventPayloadSchemas } from "@nervekit/contracts";
-import { SandboxCommandError } from "../src/daemon/errors.js";
+import { SandboxOperationError } from "../src/daemon/errors.js";
 import { SandboxDaemon } from "../src/daemon/sandbox-daemon.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
 
@@ -35,7 +35,7 @@ describe("sandbox live AgentHarness runtime", () => {
       );
       daemon.start();
       const result = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_live_1",
+        requestId: "cmd_live_1",
         text: "Say hello from the live harness",
       })) as { runId: string; status: string };
       assert.equal(result.status, "queued");
@@ -82,11 +82,12 @@ describe("sandbox live AgentHarness runtime", () => {
       await assert.rejects(
         () =>
           daemon.router.dispatch("run.start", {
-            commandId: "cmd_no_auth",
+            requestId: "cmd_no_auth",
             text: "hello",
           }),
         (error) =>
-          error instanceof SandboxCommandError && error.code === "UNAVAILABLE",
+          error instanceof SandboxOperationError &&
+          error.code === "UNAVAILABLE",
       );
     } finally {
       await rm(dir, { recursive: true, force: true });

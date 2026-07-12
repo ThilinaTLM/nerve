@@ -43,8 +43,8 @@ export type ManagerConfig = {
   daemonConnectTimeoutMs: number;
   bootReadyTimeoutMs: number;
   bootStallTimeoutMs: number;
-  maxPendingCommands: number;
-  maxCommandBytes: number;
+  maxPendingOperations: number;
+  maxOperationBytes: number;
   serveWebUi: boolean;
   webDist?: string;
   awsRegion?: string;
@@ -140,10 +140,10 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
     bootStallTimeoutMs: Number(
       env.NERVE_SANDBOX_MANAGER_BOOT_STALL_TIMEOUT_MS ?? 120_000,
     ),
-    maxPendingCommands: Number(
+    maxPendingOperations: Number(
       env.NERVE_SANDBOX_MANAGER_MAX_PENDING_COMMANDS ?? 256,
     ),
-    maxCommandBytes: Number(
+    maxOperationBytes: Number(
       env.NERVE_SANDBOX_MANAGER_MAX_COMMAND_BYTES ?? 1_000_000,
     ),
     serveWebUi:

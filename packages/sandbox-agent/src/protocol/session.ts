@@ -1,14 +1,22 @@
 import {
+  allOperationDefinitions,
   createLogger,
   type NerveMessage,
+  type ProtocolErrorData,
+  type ProtocolRequestData,
   type ProtocolV1Message,
   type SandboxConfigV1,
   type SandboxOutboxRecord,
   type StructuredLogger,
 } from "@nervekit/contracts";
-import { buildEventBatch, createMessageFactory } from "@nervekit/protocol";
+import {
+  buildEventBatch,
+  createMessageFactory,
+  RpcDispatcher,
+  type OperationHandlerRegistry,
+} from "@nervekit/protocol";
 import { SecretResolver } from "../credentials/secret-resolver.js";
-import { SandboxCommandError } from "../daemon/errors.js";
+import { SandboxOperationError } from "../daemon/errors.js";
 import type { SandboxDaemon } from "../daemon/sandbox-daemon.js";
 import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
@@ -27,7 +35,6 @@ const REQUIRED_CAPABILITIES = [
   "event.ack.processed",
   "flow.backpressure",
   "sandbox.runtime.v1",
-  "sandbox.commands.v1",
   "sandbox.events.v1",
   "sandbox.snapshots.v1",
 ] as const;
@@ -85,6 +92,7 @@ export class ProtocolSession {
   private unsubscribeOutbox?: () => void;
   private readonly logger: StructuredLogger;
   private readonly identity: SandboxRuntimeIdentity;
+  private readonly rpcDispatcher: RpcDispatcher;
 
   constructor(
     private readonly config: SandboxConfigV1,
@@ -99,6 +107,12 @@ export class ProtocolSession {
       typeof identity === "string"
         ? { sandboxId: "unknown", instanceId: identity }
         : identity;
+    this.rpcDispatcher = new RpcDispatcher({
+      handlers: sandboxOperationHandlers(daemon),
+      idempotency: stores.idempotency,
+      acceptedCapabilities: () => this.acceptedCapabilities,
+      translateError: operationError,
+    });
     this.logger =
       logger ??
       createLogger({
@@ -306,44 +320,114 @@ export class ProtocolSession {
     }
     if (message.kind === "request") {
       const startedAt = Date.now();
+      if (!isPrivateProjection(message.data.method)) {
+        const dispatched = await this.rpcDispatcher.dispatch(message);
+        this.client?.send(
+          dispatched.ok
+            ? this.message(
+                "response",
+                {
+                  ok: true,
+                  method: message.data.method,
+                  result: dispatched.result,
+                },
+                { replyTo: message.id, correlationId: message.id },
+              )
+            : this.message("error", dispatched.error, {
+                replyTo: message.id,
+                correlationId: message.id,
+              }),
+        );
+        if (dispatched.ok) {
+          this.logger.debug("operation completed", {
+            method: message.data.method,
+            requestId: message.id,
+            durationMs: Date.now() - startedAt,
+          });
+          await this.flushUnacked();
+        }
+        return;
+      }
+      let params: unknown;
       try {
-        const result = await this.daemon.router.dispatch(
+        params = this.daemon.router.parseParams(
           message.data.method,
           message.data.params,
-          {
-            idempotencyKey: message.data.idempotencyKey,
-            requestId: message.id,
-          },
         );
+      } catch (error) {
         this.client?.send(
-          this.message(
-            "response",
-            { ok: true, method: message.data.method, result },
-            { replyTo: message.id, correlationId: message.id },
-          ),
+          this.message("error", operationError(error), {
+            replyTo: message.id,
+            correlationId: message.id,
+          }),
         );
+        return;
+      }
+      const invoke = async () => {
+        try {
+          return {
+            status: "success" as const,
+            result: await this.daemon.router.dispatch(
+              message.data.method,
+              params,
+              {
+                idempotencyKey: message.data.idempotencyKey,
+                requestId: message.id,
+              },
+            ),
+          };
+        } catch (error) {
+          return {
+            status: "error" as const,
+            error: operationError(error),
+          };
+        }
+      };
+      const execution = message.data.idempotencyKey
+        ? await this.stores.idempotency.execute(
+            `${message.source.role}:${message.source.id ?? message.source.instanceId ?? "anonymous"}`,
+            message.data.idempotencyKey,
+            message.data.method,
+            params,
+            invoke,
+          )
+        : { status: "executed" as const, outcome: await invoke() };
+      const outcome =
+        execution.status === "conflict"
+          ? {
+              status: "error" as const,
+              error: {
+                code: "IDEMPOTENCY_CONFLICT" as const,
+                message:
+                  "Idempotency key was already used for different parameters",
+                retryable: false,
+              },
+            }
+          : execution.outcome;
+      this.client?.send(
+        outcome.status === "success"
+          ? this.message(
+              "response",
+              {
+                ok: true,
+                method: message.data.method,
+                result: outcome.result,
+              },
+              { replyTo: message.id, correlationId: message.id },
+            )
+          : this.message("error", outcome.error, {
+              replyTo: message.id,
+              correlationId: message.id,
+            }),
+      );
+      if (outcome.status === "success") {
         this.logger.debug("operation completed", {
           method: message.data.method,
           requestId: message.id,
           durationMs: Date.now() - startedAt,
+          replayed: execution.status === "replayed",
         });
         await this.flushUnacked();
-      } catch (error) {
-        const commandError =
-          error instanceof SandboxCommandError ? error : undefined;
-        this.client?.send(
-          this.message(
-            "error",
-            {
-              code: commandError
-                ? "DOMAIN_VALIDATION_FAILED"
-                : "INTERNAL_ERROR",
-              message: error instanceof Error ? error.message : String(error),
-              retryable: false,
-            },
-            { replyTo: message.id, correlationId: message.id },
-          ),
-        );
       }
       return;
     }
@@ -545,6 +629,50 @@ export class ProtocolSession {
     const max = reconnect?.maxDelayMs ?? 30_000;
     return Math.min(max, min * 2 ** Math.min(this.reconnectAttempts, 6));
   }
+}
+
+const privateProjectionMethods = new Set([
+  "sandbox.status.get",
+  "sandbox.snapshot.get",
+  "sandbox.conversation.snapshot.get",
+]);
+
+function isPrivateProjection(method: string): boolean {
+  return privateProjectionMethods.has(method);
+}
+
+function sandboxOperationHandlers(
+  daemon: SandboxDaemon,
+): Partial<OperationHandlerRegistry> {
+  const handlers: Record<
+    string,
+    (
+      params: never,
+      request: NerveMessage<ProtocolRequestData>,
+    ) => Promise<unknown>
+  > = {};
+  for (const definition of allOperationDefinitions()) {
+    if (isPrivateProjection(definition.method)) continue;
+    handlers[definition.method] = (params, request) =>
+      daemon.router.dispatch(definition.method, params, {
+        idempotencyKey: request.data.idempotencyKey,
+        requestId: request.id,
+      });
+  }
+  return handlers as Partial<OperationHandlerRegistry>;
+}
+
+function operationError(error: unknown): ProtocolErrorData {
+  const domainError =
+    error instanceof SandboxOperationError ? error : undefined;
+  return {
+    code: domainError ? "DOMAIN_VALIDATION_FAILED" : "INTERNAL_ERROR",
+    message: (error instanceof Error ? error.message : String(error)).slice(
+      0,
+      2_000,
+    ),
+    retryable: false,
+  };
 }
 
 function safeWebSocketUrl(value: string): string {

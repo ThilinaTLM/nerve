@@ -1,12 +1,12 @@
 import { withGitMutationEvents } from "@nervekit/host-runtime";
 import { GitService, GitWorkflowError } from "@nervekit/host-runtime/tools";
-import type { SandboxCommandRouter } from "./command-router.js";
-import { SandboxCommandError } from "./errors.js";
+import type { SandboxOperationRouter } from "./operation-router.js";
+import { SandboxOperationError } from "./errors.js";
 
 const SANDBOX_PROJECT_ID = "sandbox_workspace";
 
 export function registerSandboxGitHandlers(
-  router: SandboxCommandRouter,
+  router: SandboxOperationRouter,
   workspaceDir = "/workspace",
   publish?: (event: {
     type: "git.repository.changed";
@@ -28,7 +28,7 @@ export function registerSandboxGitHandlers(
       return await fn();
     } catch (error) {
       if (error instanceof GitWorkflowError) {
-        throw new SandboxCommandError(error.code, error.message);
+        throw new SandboxOperationError(error.code, error.message);
       }
       throw error;
     }

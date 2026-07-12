@@ -5,7 +5,6 @@ export const sandboxInstanceIdSchema = z.string().min(1);
 export const sandboxConversationIdSchema = z.string().min(1);
 export const sandboxAgentIdSchema = z.string().min(1);
 export const sandboxRunIdSchema = z.string().min(1);
-export const sandboxCommandIdSchema = z.string().min(1);
 export const isoDateTimeSchema = z.string().datetime();
 
 export const sandboxRunStatusSchema = z.enum([
@@ -195,7 +194,7 @@ export type NetworkPolicyStatus = z.infer<typeof networkPolicyStatusSchema>;
 
 export const sandboxEventCommonSchema = z.object({
   sandboxId: sandboxIdSchema.optional(),
-  instanceId: sandboxInstanceIdSchema,
+  instanceId: sandboxInstanceIdSchema.optional(),
   configDigest: z.string().min(1).optional(),
 });
 export type SandboxEventCommon = z.infer<typeof sandboxEventCommonSchema>;

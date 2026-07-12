@@ -2,7 +2,6 @@
 import type {
   CreatePinnedCommandRequest,
   EventEnvelope,
-  ManagedSandboxLifecycleState,
   ManagedSandboxRecord,
   ModelInfo,
   ModelSelection,
@@ -13,7 +12,6 @@ import type {
   SandboxConversationSnapshot,
   SandboxCreateRequest,
   SandboxManagerCredentialProfile,
-  SandboxManagerEventEnvelope,
   SandboxManagerSecretMetadata,
   SandboxManagerStatus,
   SandboxPinnedCommand,
@@ -39,6 +37,7 @@ import * as api from "../api/manager-client";
 import { protocolRequest } from "../api/manager-protocol-client";
 import {
   ManagerWsClient,
+  type ManagerStreamEventEnvelope,
   type ManagerWsConnectionState,
 } from "../api/manager-ws-client.svelte";
 import {
@@ -174,10 +173,6 @@ export class SandboxManagerStore {
     string,
     ReturnType<typeof setTimeout>
   >();
-  private readonly runSnapshotTimers = new SvelteMap<
-    string,
-    ReturnType<typeof setInterval>
-  >();
   private readonly operationCleanupTimers = new SvelteSet<
     ReturnType<typeof setTimeout>
   >();
@@ -221,7 +216,6 @@ export class SandboxManagerStore {
     this.disposed = true;
     if (this.fleetRefreshTimer) clearTimeout(this.fleetRefreshTimer);
     this.stopStatusPolling();
-    this.stopAllRunSnapshotRefresh();
     for (const timer of this.operationCleanupTimers) clearTimeout(timer);
     this.operationCleanupTimers.clear();
     this.ws.close();
@@ -288,7 +282,6 @@ export class SandboxManagerStore {
 
   async selectSandbox(sandboxId: string | undefined): Promise<void> {
     this.stopStatusPolling();
-    this.stopAllRunSnapshotRefresh();
     this.selectedSandboxId = sandboxId;
     if (!sandboxId) return;
     this.detail(sandboxId);
@@ -434,6 +427,7 @@ export class SandboxManagerStore {
         agentId: detail.selectedAgentId,
         runId: detail.selectedRunId,
       },
+      { target: { role: "sandbox_manager" } },
     );
     const renderState = fromSandboxConversationViewSnapshot(result);
     const key = renderState.conversationId ?? result.conversationId;
@@ -991,7 +985,7 @@ export class SandboxManagerStore {
     try {
       const behavior =
         conversationId && detail.selectedRunId ? "follow_up" : "start";
-      const raw = await this.sendCommand(
+      const raw = await this.sendOperation(
         sandboxId,
         behavior === "follow_up" ? "run.followUp" : "run.start",
         () => ({
@@ -1029,7 +1023,6 @@ export class SandboxManagerStore {
       setActiveComposerText(detail, "");
       // Start snapshot polling immediately — we know a run is starting, so do not
       // wait for a `run.started` event (which can be dropped by live delivery).
-      this.startRunSnapshotRefresh(sandboxId, result.conversationId);
     } finally {
       if (pendingId && detail.pendingConversationsById[pendingId])
         detail.pendingConversationsById[pendingId].sending = false;
@@ -1041,7 +1034,7 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
     if (!detail.selectedRunId) return;
-    await this.sendCommand(sandboxId, "run.cancel", () => ({
+    await this.sendOperation(sandboxId, "run.cancel", () => ({
       conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
@@ -1052,7 +1045,7 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
     if (!detail.selectedRunId) return;
-    await this.sendCommand(sandboxId, "run.continue", () => ({
+    await this.sendOperation(sandboxId, "run.continue", () => ({
       conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
       runId: detail.selectedRunId,
@@ -1067,7 +1060,7 @@ export class SandboxManagerStore {
   ): Promise<void> {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
-    await this.sendCommand(sandboxId, "userQuestion.answer", () => ({
+    await this.sendOperation(sandboxId, "userQuestion.answer", () => ({
       questionId: waitId,
       answer: text,
     }));
@@ -1093,7 +1086,7 @@ export class SandboxManagerStore {
         : decision === "request_changes"
           ? "planReview.requestChanges"
           : "planReview.discard";
-    await this.sendCommand(sandboxId, method, () => ({
+    await this.sendOperation(sandboxId, method, () => ({
       reviewId,
       ...options,
     }));
@@ -1132,7 +1125,7 @@ export class SandboxManagerStore {
   ): Promise<void> {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
-    await this.sendCommand(
+    await this.sendOperation(
       sandboxId,
       decision === "grant" ? "approval.grant" : "approval.deny",
       () => ({ approvalId: waitId }),
@@ -1163,7 +1156,7 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId, false)) return;
     if (!detail.selectedAgentId) return;
-    await this.sendCommand(sandboxId, "agent.configure", () => ({
+    await this.sendOperation(sandboxId, "agent.configure", () => ({
       agentId: detail.selectedAgentId,
       model: patch.model
         ? { provider: patch.model.provider, modelId: patch.model.model }
@@ -1189,13 +1182,13 @@ export class SandboxManagerStore {
     return false;
   }
 
-  private async sendCommand(
+  private async sendOperation(
     sandboxId: string,
     method: OperationName,
     buildParams: (key: string) => Record<string, unknown>,
   ): Promise<unknown> {
     return this.runOperation("command", sandboxId, method, (key) =>
-      api.sendSandboxCommand(sandboxId, method, buildParams(key), key),
+      api.sendSandboxOperation(sandboxId, method, buildParams(key), key),
     );
   }
 
@@ -1277,68 +1270,7 @@ export class SandboxManagerStore {
     if (detail) detail.record = record;
   }
 
-  private applyManagerLifecycleEvent(
-    sandboxId: string,
-    envelope: SandboxManagerEventEnvelope,
-  ): void {
-    const data = isRecord(envelope.data) ? envelope.data : {};
-    const lifecycleState =
-      typeof data.lifecycleState === "string"
-        ? (data.lifecycleState as ManagedSandboxLifecycleState)
-        : undefined;
-    const patch: Partial<ManagedSandboxRecord> = {};
-    if (typeof data.instanceId === "string") patch.instanceId = data.instanceId;
-    if (typeof data.desiredState === "string")
-      patch.desiredState =
-        data.desiredState as ManagedSandboxRecord["desiredState"];
-    if (typeof data.observedState === "string")
-      patch.observedState =
-        data.observedState as ManagedSandboxRecord["observedState"];
-    if (lifecycleState) patch.lifecycleState = lifecycleState;
-    if (typeof data.lifecycleUpdatedAt === "string")
-      patch.lifecycleUpdatedAt = data.lifecycleUpdatedAt;
-    if (isRecord(data.error)) {
-      const message = data.error.message;
-      const code = data.error.code;
-      if (typeof code === "string" && typeof message === "string")
-        patch.lastError = { code, message };
-    }
-    if (Object.keys(patch).length > 0) {
-      const current = recordForDetail(this, sandboxId);
-      if (current) this.patchRecord({ ...current, ...patch });
-    }
-    const detail = this.details[sandboxId];
-    if (detail?.status && lifecycleState) {
-      detail.status.lifecycle = {
-        state: lifecycleState,
-        updatedAt:
-          typeof data.lifecycleUpdatedAt === "string"
-            ? data.lifecycleUpdatedAt
-            : envelope.ts,
-      };
-      if (lifecycleState === "ready" || lifecycleState === "degraded")
-        detail.status.connected = true;
-      if (lifecycleState === "reconnecting") detail.status.connected = false;
-    }
-    if (detail?.snapshot && lifecycleState) {
-      detail.snapshot.lifecycle = {
-        state: lifecycleState,
-        updatedAt:
-          typeof data.lifecycleUpdatedAt === "string"
-            ? data.lifecycleUpdatedAt
-            : envelope.ts,
-      };
-    }
-    if (lifecycleState === "reconnecting") this.ensureStatusPolling(sandboxId);
-    if (
-      lifecycleState === "daemon_connected" ||
-      lifecycleState === "ready" ||
-      lifecycleState === "degraded"
-    )
-      void this.loadDetail(sandboxId);
-  }
-
-  private handleEvent(envelope: SandboxManagerEventEnvelope): void {
+  private handleEvent(envelope: ManagerStreamEventEnvelope): void {
     if (envelope.stream === "manager") {
       if (envelope.type === "sandbox.activity.changed") {
         const parsed = sandboxActivitySummarySchema.safeParse(envelope.data);
@@ -1356,12 +1288,6 @@ export class SandboxManagerStore {
     if (!sandboxId) return;
     const detail = this.details[sandboxId];
     if (!detail) return;
-    if (envelope.type.startsWith("manager.sandbox.")) {
-      this.applyManagerLifecycleEvent(sandboxId, envelope);
-      if (envelope.type === "manager.sandbox.ready")
-        void this.flushQueuedPrompt(sandboxId);
-      return;
-    }
     const uiEvent = {
       stream: envelope.stream,
       seq: envelope.seq,
@@ -1387,85 +1313,6 @@ export class SandboxManagerStore {
       void this.flushQueuedPrompt(sandboxId);
       void this.loadDetail(sandboxId);
     }
-    this.trackRunActivity(sandboxId, envelope.type);
-  }
-
-  /**
-   * While a run is active, periodically refresh the conversation snapshot so the
-   * transcript stays current even if a live event batch is dropped (the daemon
-   * snapshot includes in-progress streaming content). Guarantees the user sees
-   * the agent's response/processing without needing a manual refresh.
-   */
-  private trackRunActivity(sandboxId: string, type: string): void {
-    // A live run event is a hint to (re)start polling; the poll self-terminates
-    // when the snapshot shows no active run. We do not stop on terminal events
-    // because those can be dropped too — idle detection handles it.
-    if (type !== "run.started" && type !== "run.started") return;
-    const detail = this.details[sandboxId];
-    const event = detail?.events.at(-1);
-    const data = isRecord(event?.data) ? event.data : {};
-    const conversationId =
-      typeof data.conversationId === "string"
-        ? data.conversationId
-        : detail?.selectedConversationId;
-    this.startRunSnapshotRefresh(sandboxId, conversationId);
-  }
-
-  private runSnapshotKey(sandboxId: string, conversationId: string): string {
-    return `${sandboxId}:${conversationId}`;
-  }
-
-  private startRunSnapshotRefresh(
-    sandboxId: string,
-    conversationId = this.details[sandboxId]?.selectedConversationId,
-  ): void {
-    if (!conversationId || isPendingConversationId(conversationId)) return;
-    const key = this.runSnapshotKey(sandboxId, conversationId);
-    if (this.runSnapshotTimers.has(key)) return;
-    if (this.selectedSandboxId !== sandboxId) return;
-    let ticks = 0;
-    let idle = 0;
-    const timer = setInterval(() => {
-      ticks += 1;
-      if (
-        this.disposed ||
-        this.selectedSandboxId !== sandboxId ||
-        ticks > 300
-      ) {
-        this.stopRunSnapshotRefresh(sandboxId, conversationId);
-        return;
-      }
-      void this.recoverConversationSnapshot(sandboxId, conversationId)
-        .then(() => {
-          const detail = this.details[sandboxId];
-          const view = detail?.conversationViewsById[conversationId];
-          // `activeRun` is only present while a run is in progress
-          // (running/retrying/aborting); it clears once the run finishes.
-          const active = Boolean(view?.activeRun);
-          idle = active ? 0 : idle + 1;
-          // A few idle refreshes after the run finishes guarantee the final
-          // committed transcript is rendered before we stop polling.
-          if (idle >= 3) this.stopRunSnapshotRefresh(sandboxId, conversationId);
-        })
-        .catch(() => undefined);
-    }, 1200);
-    if (typeof timer.unref === "function") timer.unref();
-    this.runSnapshotTimers.set(key, timer);
-  }
-
-  private stopRunSnapshotRefresh(
-    sandboxId: string,
-    conversationId: string,
-  ): void {
-    const key = this.runSnapshotKey(sandboxId, conversationId);
-    const timer = this.runSnapshotTimers.get(key);
-    if (timer) clearInterval(timer);
-    this.runSnapshotTimers.delete(key);
-  }
-
-  private stopAllRunSnapshotRefresh(): void {
-    for (const timer of this.runSnapshotTimers.values()) clearInterval(timer);
-    this.runSnapshotTimers.clear();
   }
 
   private applyConversationUiEvent(

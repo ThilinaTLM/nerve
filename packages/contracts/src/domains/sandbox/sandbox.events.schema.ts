@@ -219,7 +219,7 @@ export const sandboxSecurityDeniedEventSchema = sandboxEventCommonSchema.extend(
 export const runStartedEventSchema = sandboxEventCommonSchema
   .merge(sandboxRunScopeSchema)
   .extend({
-    commandId: z.string().min(1),
+    requestId: z.string().min(1),
     status: z.enum(["queued", "running"]),
     promptSummary: z.string().min(1).optional(),
     mode: z.enum(["coding", "planning"]).optional(),
@@ -255,6 +255,7 @@ export const runTranscriptAppendedEventSchema = sandboxEventCommonSchema
 export const runWaitingForInputEventSchema = sandboxEventCommonSchema
   .merge(sandboxRunScopeSchema)
   .extend({
+    waitKind: z.literal("input"),
     requestId: z.string().min(1),
     question: boundedTextSchema,
     placeholder: z.string().optional(),
@@ -265,6 +266,7 @@ export const runWaitingForInputEventSchema = sandboxEventCommonSchema
 export const runWaitingForApprovalEventSchema = sandboxEventCommonSchema
   .merge(sandboxRunScopeSchema)
   .extend({
+    waitKind: z.literal("approval"),
     approvalId: z.string().min(1),
     toolCallId: z.string().min(1),
     risk: z.array(z.string().min(1)),
@@ -279,6 +281,7 @@ export const runWaitingForApprovalEventSchema = sandboxEventCommonSchema
 export const runWaitingForPlanReviewEventSchema = sandboxEventCommonSchema
   .merge(sandboxRunScopeSchema)
   .extend({
+    waitKind: z.literal("plan_review"),
     reviewId: z.string().startsWith("plan_review_"),
     toolCallId: z.string().min(1),
     planReview: planReviewRecordSchema,
@@ -293,6 +296,18 @@ export const planReviewResolvedEventSchema = sandboxEventCommonSchema
     planReview: planReviewRecordSchema,
     resolvedAt: isoDateTimeSchema,
   });
+
+export const planReviewUpdatedEventSchema = z.union([
+  planReviewResolvedEventSchema,
+  z.object({ planReview: planReviewRecordSchema }),
+  z.object({
+    status: z.literal("force_exited"),
+    agentId: z.string().startsWith("agent_"),
+    conversationId: z.string().startsWith("conv_"),
+    projectId: z.string().startsWith("proj_"),
+    reason: z.string().min(1).max(4_096),
+  }),
+]);
 
 export const runCheckpointedEventSchema = sandboxEventCommonSchema
   .merge(sandboxRunScopeSchema)
@@ -367,10 +382,12 @@ export const sandboxOperationalEventPayloadSchemas = {
   "run.started": runStartedEventSchema,
   "run.delta": runDeltaEventSchema,
   "run.transcript.appended": runTranscriptAppendedEventSchema,
-  "run.waiting_for_input": runWaitingForInputEventSchema,
-  "run.waiting_for_approval": runWaitingForApprovalEventSchema,
-  "run.waiting_for_plan_review": runWaitingForPlanReviewEventSchema,
-  "planReview.resolved": planReviewResolvedEventSchema,
+  "run.waiting": z.union([
+    runWaitingForInputEventSchema,
+    runWaitingForApprovalEventSchema,
+    runWaitingForPlanReviewEventSchema,
+  ]),
+  "planReview.updated": planReviewUpdatedEventSchema,
   "run.checkpointed": runCheckpointedEventSchema,
   "run.completed": runTerminalEventSchema,
   "run.failed": runFailedEventSchema,

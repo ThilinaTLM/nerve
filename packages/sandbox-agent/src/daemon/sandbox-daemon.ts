@@ -42,11 +42,11 @@ import {
 import { TaskSupervisor } from "../tools/task-supervisor.js";
 
 import { SandboxToolRuntime } from "../tools/tool-runtime.js";
-import { mapRuntimeError, mapWaitError } from "./command-errors.js";
-import { SandboxCommandRouter } from "./command-router.js";
+import { mapRuntimeError, mapWaitError } from "./operation-errors.js";
+import { SandboxOperationRouter } from "./operation-router.js";
 import { buildConversationSnapshot } from "./conversation-snapshot.js";
 import { DaemonStatusMachine } from "./daemon-status.js";
-import { SandboxCommandError } from "./errors.js";
+import { SandboxOperationError } from "./errors.js";
 import {
   summarizeAgents,
   summarizeConversations,
@@ -69,7 +69,7 @@ export type SandboxDaemonRecoveredState = {
 
 export class SandboxDaemon {
   readonly status = new DaemonStatusMachine();
-  readonly router = new SandboxCommandRouter();
+  readonly router = new SandboxOperationRouter();
   readonly startedAt = new Date().toISOString();
   private runs?: RunManager;
   private inputWaiter?: InputWaiter;
@@ -392,7 +392,7 @@ export class SandboxDaemon {
     this.router.register("agent.configure", async (params) => {
       await this.requireReady();
       if (!this.agentConfigStore)
-        throw new SandboxCommandError(
+        throw new SandboxOperationError(
           "UNAVAILABLE",
           "Runtime configuration store is unavailable",
         );
@@ -451,7 +451,7 @@ export class SandboxDaemon {
         .latestByToolCallId(input);
       const toolCall = records?.get(input.toolCallId);
       if (!toolCall)
-        throw new SandboxCommandError("UNKNOWN_RUN", "Tool call not found");
+        throw new SandboxOperationError("UNKNOWN_RUN", "Tool call not found");
       return {
         toolCall,
         argsPreview: toolCall.displayArgs,
@@ -463,27 +463,26 @@ export class SandboxDaemon {
     this.router.register("run.start", async (params, context) => {
       await this.requireReady();
       const parsed = runStartParamsSchema.parse(params ?? {});
-      const accepted = await this.acceptCommand(
+      const accepted = await this.acceptRequest(
         "run.start",
         params,
         context.idempotencyKey,
         context.requestId,
       );
-      if (accepted.result) return accepted.result.result;
       const prompt = parsed.text;
       if (!prompt)
-        throw new SandboxCommandError(
+        throw new SandboxOperationError(
           "VALIDATION_FAILED",
           "run.start requires text",
         );
       const inlineCommand = parseInlineCommandPrompt(prompt);
       if (!inlineCommand && this.recovered.modelRuntime?.degraded)
-        throw new SandboxCommandError(
+        throw new SandboxOperationError(
           "UNAVAILABLE",
           "No usable model provider is available for this sandbox",
         );
       if (inlineCommand && !this.agentRuntime)
-        throw new SandboxCommandError(
+        throw new SandboxOperationError(
           "UNAVAILABLE",
           "Inline command execution is unavailable in this sandbox",
         );
@@ -494,43 +493,36 @@ export class SandboxDaemon {
               ...(params as Record<string, unknown>),
               prompt,
               command: inlineCommand.command,
-              commandId: accepted.commandId,
+              requestId: accepted.requestId,
             })
           : await (this.agentRuntime
               ? this.agentRuntime.startRun({
                   ...(params as Record<string, unknown>),
                   prompt,
-                  commandId: accepted.commandId,
+                  requestId: accepted.requestId,
                 })
               : this.runs?.start({
                   ...(params as Record<string, unknown>),
                   prompt,
-                  commandId: accepted.commandId,
+                  requestId: accepted.requestId,
                 }));
       } catch (error) {
         const mapped = mapRuntimeError(error);
-        await this.state?.commands
-          .fail(accepted.commandId, mapped)
-          .catch(() => undefined);
         throw mapped;
       }
       const result = {
         accepted: true,
-        commandId: accepted.commandId,
         conversationId: run?.conversationId ?? "conv_unknown",
         agentId: run?.agentId ?? "agent_main",
         runId: run?.runId ?? `run_${Date.now()}`,
         status: run?.status ?? "queued",
       };
-      await this.state?.commands
-        .complete(accepted.commandId, result)
-        .catch(() => undefined);
       return result;
     });
     this.router.register("run.followUp", (params, context) =>
       this.router.dispatch("run.start", params, context),
     );
-    this.router.register("run.steer", async (params, context) => {
+    this.router.register("run.steer", async (params) => {
       await this.requireReady();
       const input = params as {
         conversationId?: string;
@@ -539,17 +531,10 @@ export class SandboxDaemon {
         text: string;
       };
       if (!input.conversationId || !input.runId)
-        throw new SandboxCommandError(
+        throw new SandboxOperationError(
           "VALIDATION_FAILED",
           "run.steer requires conversationId and runId",
         );
-      const accepted = await this.acceptCommand(
-        "run.steer",
-        params,
-        context.idempotencyKey,
-        context.requestId,
-      );
-      if (accepted.result) return accepted.result.result;
       await this.agentRuntime?.steerRun(
         {
           conversationId: input.conversationId,
@@ -559,41 +544,26 @@ export class SandboxDaemon {
         input.text,
       );
       const result = { accepted: true, ...input, status: "running" as const };
-      await this.state?.commands.complete(accepted.commandId, result);
       return result;
     });
-    this.router.register("run.continue", async (params, context) => {
+    this.router.register("run.continue", async (params) => {
       await this.requireReady();
-      const accepted = await this.acceptCommand(
-        "run.continue",
-        params,
-        context.idempotencyKey,
-        context.requestId,
-      );
-      if (accepted.result) return accepted.result.result;
       try {
         await this.agentRuntime?.continueRun(
           params as { conversationId: string; agentId: string; runId: string },
         );
       } catch (error) {
         const mapped = mapRuntimeError(error);
-        await this.state?.commands
-          .fail(accepted.commandId, mapped)
-          .catch(() => undefined);
         throw mapped;
       }
       const result = {
         accepted: true,
-        commandId: accepted.commandId,
         ...(params as object),
         status: "queued",
       };
-      await this.state?.commands
-        .complete(accepted.commandId, result)
-        .catch(() => undefined);
       return result;
     });
-    this.router.register("run.cancel", async (params, context) => {
+    this.router.register("run.cancel", async (params) => {
       await this.requireReady();
       const input = params as {
         conversationId: string;
@@ -601,13 +571,6 @@ export class SandboxDaemon {
         runId: string;
         reason?: string;
       };
-      const accepted = await this.acceptCommand(
-        "run.cancel",
-        params,
-        context.idempotencyKey,
-        context.requestId,
-      );
-      if (accepted.result) return accepted.result.result;
       let run: RunState | undefined;
       try {
         run = this.agentRuntime
@@ -618,33 +581,25 @@ export class SandboxDaemon {
         await this.approvalWaiter?.cancelRun(input);
       } catch (error) {
         const mapped = mapRuntimeError(error);
-        await this.state?.commands
-          .fail(accepted.commandId, mapped)
-          .catch(() => undefined);
         throw mapped;
       }
       const result = {
         accepted: true,
-        commandId: accepted.commandId,
         ...input,
         status: run?.status ?? "cancelled",
         cancellationRequested: true,
       };
-      await this.state?.commands
-        .complete(accepted.commandId, result)
-        .catch(() => undefined);
       return result;
     });
     this.router.register("userQuestion.answer", async (params, context) => {
       await this.requireReady();
       const input = params as { questionId: string; answer: string };
-      const accepted = await this.acceptCommand(
+      const accepted = await this.acceptRequest(
         "userQuestion.answer",
         params,
         context.idempotencyKey,
         context.requestId,
       );
-      if (accepted.result) return accepted.result.result;
       try {
         const wait = this.inputWaiter?.get(input.questionId);
         if (!wait)
@@ -684,7 +639,7 @@ export class SandboxDaemon {
           {
             status: "waiting_for_input",
             waitId: input.questionId,
-            resolutionId: accepted.commandId,
+            resolutionId: accepted.requestId,
             transcriptEntryId: entryId,
             summary: { text: "user input submitted" },
           },
@@ -693,7 +648,7 @@ export class SandboxDaemon {
           ...scope,
           requestId: input.questionId,
           text: input.answer,
-          commandId: accepted.commandId,
+          resolutionRequestId: accepted.requestId,
           toolResultEntryId: entryId,
           checkpointId: checkpoint?.checkpointId,
         });
@@ -710,11 +665,8 @@ export class SandboxDaemon {
             reason: "input_submitted",
           });
       } catch (error) {
-        if (error instanceof SandboxCommandError) throw error;
+        if (error instanceof SandboxOperationError) throw error;
         const mapped = mapWaitError(error, "UNKNOWN_INPUT_REQUEST");
-        await this.state?.commands
-          .fail(accepted.commandId, mapped)
-          .catch(() => undefined);
         throw mapped;
       }
       const result = {
@@ -722,13 +674,11 @@ export class SandboxDaemon {
         interactionId: input.questionId,
         status: "answered" as const,
       };
-      await this.state?.commands.complete(accepted.commandId, result);
       return result;
     });
     this.router.register("planReview.accept", async (params, context) => {
       await this.requireReady();
       const input = params as {
-        commandId?: string;
         conversationId?: string;
         agentId?: string;
         runId?: string;
@@ -751,13 +701,12 @@ export class SandboxDaemon {
           : context.requestedMethod === "planReview.discard"
             ? "discard"
             : "accept";
-      const accepted = await this.acceptCommand(
+      const accepted = await this.acceptRequest(
         context.requestedMethod ?? "planReview.accept",
         params,
         context.idempotencyKey,
         context.requestId,
       );
-      if (accepted.result) return accepted.result.result;
       try {
         const pending = this.planReviewWaiter?.get(input.reviewId);
         if (!pending) throw new Error(`Unknown plan review: ${input.reviewId}`);
@@ -792,7 +741,7 @@ export class SandboxDaemon {
           ...input,
           ...scope,
           decision,
-          commandId: accepted.commandId,
+          resolutionRequestId: accepted.requestId,
           toolResultEntryId: entryId,
         });
         if (!resolved)
@@ -820,7 +769,7 @@ export class SandboxDaemon {
           result,
         );
         await this.state?.events.append({
-          type: "planReview.resolved",
+          type: "planReview.updated",
           durability: "durable",
           conversationId: scope.conversationId,
           agentId: scope.agentId,
@@ -850,7 +799,6 @@ export class SandboxDaemon {
         }
         const resultEnvelope = {
           accepted: true,
-          commandId: accepted.commandId,
           ...scope,
           reviewId: input.reviewId,
           interactionId: input.reviewId,
@@ -861,15 +809,9 @@ export class SandboxDaemon {
                 ? "changes_requested"
                 : "discarded",
         };
-        await this.state?.commands
-          .complete(accepted.commandId, resultEnvelope)
-          .catch(() => undefined);
         return resultEnvelope;
       } catch (error) {
         const mapped = mapWaitError(error, "UNKNOWN_PLAN_REVIEW");
-        await this.state?.commands
-          .fail(accepted.commandId, mapped)
-          .catch(() => undefined);
         throw mapped;
       }
     });
@@ -882,7 +824,6 @@ export class SandboxDaemon {
     this.router.register("approval.grant", async (params, context) => {
       await this.requireReady();
       const input = params as {
-        commandId?: string;
         conversationId?: string;
         agentId?: string;
         runId?: string;
@@ -893,13 +834,12 @@ export class SandboxDaemon {
       };
       const decision =
         context.requestedMethod === "approval.deny" ? "deny" : "grant";
-      const accepted = await this.acceptCommand(
+      const accepted = await this.acceptRequest(
         context.requestedMethod ?? "approval.grant",
         params,
         context.idempotencyKey,
         context.requestId,
       );
-      if (accepted.result) return accepted.result.result;
       try {
         const pending = this.approvalWaiter
           ?.list()
@@ -915,7 +855,7 @@ export class SandboxDaemon {
           ? await this.runs?.writeCheckpoint(scope, "approval_resolution", {
               status: "waiting_for_approval",
               waitId: input.approvalId,
-              resolutionId: accepted.commandId,
+              resolutionId: accepted.requestId,
               summary: { text: `approval ${decision}` },
             })
           : undefined;
@@ -925,7 +865,7 @@ export class SandboxDaemon {
           input.note,
           {
             selectedScope: input.selectedScope,
-            commandId: accepted.commandId,
+            resolutionRequestId: accepted.requestId,
             checkpointId: checkpoint?.checkpointId,
           },
         );
@@ -935,22 +875,15 @@ export class SandboxDaemon {
             reason: "approval_resolved",
           });
       } catch (error) {
-        if (error instanceof SandboxCommandError) throw error;
+        if (error instanceof SandboxOperationError) throw error;
         const mapped = mapWaitError(error, "UNKNOWN_APPROVAL");
-        await this.state?.commands
-          .fail(accepted.commandId, mapped)
-          .catch(() => undefined);
         throw mapped;
       }
       const result = {
         accepted: true,
-        commandId: accepted.commandId,
         interactionId: input.approvalId,
         status: decision === "grant" ? "granted" : "denied",
       };
-      await this.state?.commands
-        .complete(accepted.commandId, result)
-        .catch(() => undefined);
       return result;
     });
     this.router.register("approval.deny", (params, context) =>
@@ -960,7 +893,7 @@ export class SandboxDaemon {
 
   private async requireReady(): Promise<void> {
     if (!this.runtimeReady || this.status.status === "booting") {
-      throw new SandboxCommandError(
+      throw new SandboxOperationError(
         "BOOTING",
         "Sandbox daemon is still booting; try again after it is ready",
       );
@@ -994,38 +927,13 @@ export class SandboxDaemon {
     }));
   }
 
-  private async acceptCommand(
-    method: string,
-    params: unknown,
+  private async acceptRequest(
+    _method: string,
+    _params: unknown,
     idempotencyKey?: string,
     requestId?: string,
-  ): Promise<{
-    commandId: string;
-    duplicate: boolean;
-    result?: { result?: unknown };
-  }> {
-    const id = idempotencyKey ?? `cmd_${Date.now()}`;
-    try {
-      const accepted = await this.state?.commands.accept({
-        commandId: id,
-        messageId: requestId ?? `msg_${Date.now()}`,
-        method,
-        params,
-        conversationId: (params as { conversationId?: string }).conversationId,
-        agentId: (params as { agentId?: string }).agentId,
-        runId: (params as { runId?: string }).runId,
-      });
-      return {
-        commandId: id,
-        duplicate: Boolean(accepted?.duplicate),
-        result: accepted?.result,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.startsWith("IDEMPOTENCY_CONFLICT"))
-        throw new SandboxCommandError("IDEMPOTENCY_CONFLICT", message);
-      throw error;
-    }
+  ): Promise<{ requestId: string }> {
+    return { requestId: requestId ?? idempotencyKey ?? `req_${Date.now()}` };
   }
 }
 

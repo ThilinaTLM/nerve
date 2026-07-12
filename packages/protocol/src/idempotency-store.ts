@@ -1,16 +1,27 @@
-import type { IdempotencyLookup, IdempotencyStorePort } from "./rpc.js";
+import type {
+  IdempotencyExecution,
+  IdempotencyOutcome,
+  IdempotencyStorePort,
+} from "./rpc.js";
 
 export interface IdempotencyEntry {
   readonly scope: string;
   readonly key: string;
   readonly method: string;
   readonly paramsHash: string;
-  readonly result: unknown;
+  readonly outcome: IdempotencyOutcome;
   readonly expiresAt: number;
 }
 
+type PendingEntry = {
+  readonly method: string;
+  readonly paramsHash: string;
+  readonly outcome: Promise<IdempotencyOutcome>;
+};
+
 export class MemoryIdempotencyStore implements IdempotencyStorePort {
   readonly #entries = new Map<string, IdempotencyEntry>();
+  readonly #pending = new Map<string, PendingEntry>();
 
   constructor(
     private readonly ttlMs = 10 * 60_000,
@@ -18,37 +29,50 @@ export class MemoryIdempotencyStore implements IdempotencyStorePort {
     private readonly now = () => Date.now(),
   ) {}
 
-  lookup(
+  async execute(
     scope: string,
     key: string,
     method: string,
     params: unknown,
-  ): IdempotencyLookup {
+    operation: () => Promise<IdempotencyOutcome>,
+  ): Promise<IdempotencyExecution> {
     this.prune();
-    const entry = this.#entries.get(this.cacheKey(scope, key));
-    if (!entry || entry.expiresAt <= this.now()) return { status: "miss" };
-    if (entry.method !== method || entry.paramsHash !== hashParams(params)) {
-      return { status: "conflict" };
+    const cacheKey = this.cacheKey(scope, key);
+    const paramsHash = hashParams(params);
+    const entry = this.#entries.get(cacheKey);
+    if (entry && entry.expiresAt > this.now()) {
+      if (entry.method !== method || entry.paramsHash !== paramsHash)
+        return { status: "conflict" };
+      return { status: "replayed", outcome: entry.outcome };
     }
-    return { status: "hit", result: entry.result };
-  }
+    const pending = this.#pending.get(cacheKey);
+    if (pending) {
+      if (pending.method !== method || pending.paramsHash !== paramsHash)
+        return { status: "conflict" };
+      return { status: "replayed", outcome: await pending.outcome };
+    }
 
-  store(
-    scope: string,
-    key: string,
-    method: string,
-    params: unknown,
-    result: unknown,
-  ): void {
-    this.prune();
-    this.#entries.set(this.cacheKey(scope, key), {
-      scope,
-      key,
+    const outcomePromise = operation();
+    this.#pending.set(cacheKey, {
       method,
-      paramsHash: hashParams(params),
-      result,
-      expiresAt: this.now() + this.ttlMs,
+      paramsHash,
+      outcome: outcomePromise,
     });
+    try {
+      const outcome = await outcomePromise;
+      this.#entries.set(cacheKey, {
+        scope,
+        key,
+        method,
+        paramsHash,
+        outcome,
+        expiresAt: this.now() + this.ttlMs,
+      });
+      this.prune();
+      return { status: "executed", outcome };
+    } finally {
+      this.#pending.delete(cacheKey);
+    }
   }
 
   private prune(): void {

@@ -1,16 +1,17 @@
 import path from "node:path";
-import { CommandInbox } from "./command-inbox.js";
 import { EventOutbox } from "./event-outbox.js";
+import { FileRpcIdempotencyStore } from "./rpc-idempotency-store.js";
 import { JsonStore } from "./json-store.js";
 
 export class SandboxStateStores {
-  readonly commands: CommandInbox;
+  readonly idempotency: FileRpcIdempotencyStore;
   readonly events: EventOutbox;
   readonly status: JsonStore<Record<string, unknown>>;
   readonly connectivity: JsonStore<Record<string, unknown>>;
   constructor(readonly stateDir: string) {
-    this.commands = new CommandInbox(
-      path.join(stateDir, "commands", "inbox.jsonl"),
+    this.idempotency = new FileRpcIdempotencyStore(
+      path.join(stateDir, "controller", "idempotency", "records.jsonl"),
+      path.join(stateDir, "controller", "idempotency", "conflicts.jsonl"),
     );
     this.events = new EventOutbox(
       path.join(stateDir, "events", "outbox.jsonl"),
@@ -22,6 +23,6 @@ export class SandboxStateStores {
     );
   }
   async load(): Promise<void> {
-    await Promise.all([this.commands.load(), this.events.load()]);
+    await Promise.all([this.idempotency.load(), this.events.load()]);
   }
 }

@@ -11,7 +11,6 @@ export type SandboxRuntimePaths = {
   credentialsGpgDir: string;
   secretsDir: string;
   setupDir: string;
-  commandsDir: string;
   eventsDir: string;
   conversationsDir: string;
   skillsDir: string;
@@ -46,7 +45,6 @@ export function resolveSandboxRuntimePaths(
     credentialsGpgDir: path.join(credentialsDir, "gpg"),
     secretsDir: path.join(stateDir, "secrets"),
     setupDir: path.join(stateDir, "setup"),
-    commandsDir: path.join(stateDir, "commands"),
     eventsDir: path.join(stateDir, "events"),
     conversationsDir: path.join(stateDir, "conversations"),
     skillsDir: path.join(stateDir, "skills"),
@@ -72,7 +70,6 @@ export function stateSubdirectories(paths: SandboxRuntimePaths): string[] {
     paths.credentialsGpgDir,
     paths.secretsDir,
     paths.setupDir,
-    paths.commandsDir,
     paths.eventsDir,
     paths.conversationsDir,
     paths.skillsDir,
@@ -102,8 +99,8 @@ export function initialStateFiles(paths: SandboxRuntimePaths): string[] {
     path.join(paths.secretsDir, "status.json"),
     path.join(paths.setupDir, "git.json"),
     path.join(paths.setupDir, "github.json"),
-    path.join(paths.commandsDir, "inbox.jsonl"),
-    path.join(paths.commandsDir, "decisions.jsonl"),
+    path.join(paths.controllerDir, "idempotency", "records.jsonl"),
+    path.join(paths.controllerDir, "idempotency", "conflicts.jsonl"),
     path.join(paths.eventsDir, "outbox.jsonl"),
     path.join(paths.eventsDir, "ack.json"),
     path.join(paths.skillsDir, "context-files.json"),

@@ -36,7 +36,7 @@ const terminalStates = new Set<ManagedSandboxLifecycleState>([
   "removed",
 ]);
 
-export function lifecycleReadyForCommands(
+export function lifecycleReadyForOperations(
   record: Pick<ManagedSandboxRecord, "lifecycleState"> | undefined,
 ): boolean {
   return (
@@ -100,14 +100,10 @@ export async function transitionSandboxLifecycle(
     sandboxId,
     payload: {
       sandboxId,
-      instanceId: next.instanceId,
-      previousState: current.lifecycleState,
-      lifecycleState: next.lifecycleState,
-      lifecycleUpdatedAt: next.lifecycleUpdatedAt,
+      previous: current.lifecycleState,
+      current: next.lifecycleState,
+      changedAt: next.lifecycleUpdatedAt,
       reason: details.reason,
-      error: next.lastError,
-      daemon: next.daemon,
-      ...(details.extra ?? {}),
     },
   });
   return next;

@@ -3,7 +3,6 @@ import path from "node:path";
 import {
   type SandboxAckState,
   type SandboxAgentState,
-  type SandboxCommandRecord,
   type SandboxControllerConnectivityRecord,
   type SandboxCredentialStatusFile,
   type SandboxOutboxRecord,
@@ -15,7 +14,6 @@ import {
   type SandboxStateLayoutVersion,
   sandboxAckStateSchema,
   sandboxAgentStateSchema,
-  sandboxCommandRecordSchema,
   sandboxControllerConnectivityRecordSchema,
   sandboxCredentialStatusFileSchema,
   sandboxOutboxRecordSchema,
@@ -42,7 +40,6 @@ export type RecoveredSandboxState = {
   configDigest: string;
   priorConfigDigest?: string;
   configChanged: boolean;
-  commands: SandboxCommandRecord[];
   ack: SandboxAckState;
   unackedEvents: SandboxOutboxRecord[];
   connectivity?: SandboxControllerConnectivityRecord;
@@ -67,10 +64,6 @@ export async function recoverSandboxState(
   );
   const priorConfigDigest = await readTextOptional(
     path.join(paths.configDir, "digest.txt"),
-  );
-  const commands = await readJsonlStrict(
-    path.join(paths.commandsDir, "inbox.jsonl"),
-    sandboxCommandRecordSchema,
   );
   const events = await readJsonlStrict(
     path.join(paths.eventsDir, "outbox.jsonl"),
@@ -117,7 +110,6 @@ export async function recoverSandboxState(
     configDigest,
     priorConfigDigest: priorConfigDigest?.trim() || undefined,
     configChanged: (priorConfigDigest?.trim() || configDigest) !== configDigest,
-    commands,
     ack,
     unackedEvents,
     connectivity,

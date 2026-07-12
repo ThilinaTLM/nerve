@@ -10,6 +10,7 @@ export * from "./ids.js";
 export * from "./in-memory-transport.js";
 export * from "./messages.js";
 export * from "./reconnect.js";
+export * from "./ports.js";
 export * from "./rpc.js";
 export * from "./session-queue.js";
 export * from "./session.js";

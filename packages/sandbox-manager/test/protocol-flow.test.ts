@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { CommandForwarder } from "../src/protocol/command-forwarder.js";
+import { RpcForwarder } from "../src/protocol/rpc-forwarder.js";
 
 describe("sandbox manager protocol flow control", () => {
   it("rejects commands when pending queue is full", async () => {
-    const forwarder = new CommandForwarder("sandbox_test", { maxPending: 1 });
+    const forwarder = new RpcForwarder("sandbox_test", { maxPending: 1 });
     const socket: { sent?: string; send(data: string): void } = {
       send(data) {
         this.sent = data;

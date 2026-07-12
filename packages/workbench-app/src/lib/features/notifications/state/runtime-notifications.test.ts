@@ -60,13 +60,14 @@ describe("notificationForRuntimeEvent", () => {
 
   it("builds rich approval notifications", () => {
     const notification = notificationForRuntimeEvent(
-      event("approval.requested", {
+      event("approval.updated", {
         approval: {
           id: "approval_01H00000000000000000000000",
           conversationId: "conv_01H00000000000000000000000",
           projectId: "proj_01H00000000000000000000000",
           risk: "network",
           reason: "Need to fetch release notes from the web.",
+          status: "pending",
         },
         toolCall: { toolName: "web_fetch" },
       }),
@@ -84,7 +85,7 @@ describe("notificationForRuntimeEvent", () => {
 
   it("builds rich user-question notifications", () => {
     const notification = notificationForRuntimeEvent(
-      event("userQuestion.requested", {
+      event("userQuestion.updated", {
         question: {
           id: "question_01H00000000000000000000000",
           conversationId: "conv_01H00000000000000000000000",
@@ -92,6 +93,7 @@ describe("notificationForRuntimeEvent", () => {
           question: "Should I deploy now?",
           context: "Staging is green.",
           recommendation: "Deploy during the maintenance window.",
+          status: "pending",
         },
       }),
       context,
@@ -107,7 +109,7 @@ describe("notificationForRuntimeEvent", () => {
 
   it("builds rich plan-review notifications", () => {
     const notification = notificationForRuntimeEvent(
-      event("planReview.requested", {
+      event("planReview.updated", {
         planReview: {
           id: "plan_review_01H00000000000000000000000",
           conversationId: "conv_01H00000000000000000000000",
@@ -115,6 +117,7 @@ describe("notificationForRuntimeEvent", () => {
           title: "Notification cleanup",
           summary: "Reduce noise and keep action-required alerts.",
           planPath: "/home/user/.nerve/plans/notification-cleanup.md",
+          status: "pending",
         },
       }),
       context,

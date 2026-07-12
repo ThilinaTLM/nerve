@@ -5,11 +5,11 @@ import {
   taskRecordFromSupervisedTask,
 } from "../tools/task-record-adapter.js";
 import type { TaskSupervisor } from "../tools/task-supervisor.js";
-import type { SandboxCommandRouter } from "./command-router.js";
-import { SandboxCommandError } from "./errors.js";
+import type { SandboxOperationRouter } from "./operation-router.js";
+import { SandboxOperationError } from "./errors.js";
 
 export function registerSandboxTaskHandlers(
-  router: SandboxCommandRouter,
+  router: SandboxOperationRouter,
   supervisor: TaskSupervisor | (() => TaskSupervisor | undefined) | undefined,
   workspaceDir = "/workspace",
 ): void {
@@ -17,7 +17,7 @@ export function registerSandboxTaskHandlers(
     const resolved =
       typeof supervisor === "function" ? supervisor() : supervisor;
     if (!resolved)
-      throw new SandboxCommandError(
+      throw new SandboxOperationError(
         "UNAVAILABLE",
         "Task supervisor is unavailable in this sandbox",
       );
@@ -72,8 +72,8 @@ export function registerSandboxTaskHandlers(
       if (!removed) throw unknownTask(id);
       return { removed: true };
     } catch (error) {
-      if (error instanceof SandboxCommandError) throw error;
-      throw new SandboxCommandError(
+      if (error instanceof SandboxOperationError) throw error;
+      throw new SandboxOperationError(
         "INVALID_RUN_STATE",
         error instanceof Error ? error.message : String(error),
       );
@@ -94,7 +94,7 @@ function resolveWorkspaceCwd(workspaceDir: string, cwd: string): string {
   const root = resolve(workspaceDir);
   const target = resolve(root, isAbsolute(cwd) ? cwd : cwd);
   if (target !== root && !target.startsWith(`${root}${sep}`)) {
-    throw new SandboxCommandError(
+    throw new SandboxOperationError(
       "VALIDATION_FAILED",
       "Task cwd must stay within /workspace",
     );
@@ -106,8 +106,8 @@ function taskId(params: unknown): string {
   return String(record(params).taskId ?? "");
 }
 
-function unknownTask(id: string): SandboxCommandError {
-  return new SandboxCommandError("UNKNOWN_RUN", `Unknown task: ${id}`);
+function unknownTask(id: string): SandboxOperationError {
+  return new SandboxOperationError("UNKNOWN_RUN", `Unknown task: ${id}`);
 }
 
 function record(params: unknown): Record<string, unknown> {

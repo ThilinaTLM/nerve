@@ -10,7 +10,6 @@ import {
   networkPolicyStatusSchema,
   redactedErrorSchema,
   sandboxAgentIdSchema,
-  sandboxCommandIdSchema,
   sandboxConversationIdSchema,
   sandboxRunIdSchema,
   sandboxRunStatusSchema,
@@ -34,72 +33,6 @@ export const sandboxOutboxRecordSchema = z.object({
   ackedAt: isoDateTimeSchema.optional(),
 });
 export type SandboxOutboxRecord = z.infer<typeof sandboxOutboxRecordSchema>;
-
-export const sandboxCommandRecordSchema = z.object({
-  commandId: sandboxCommandIdSchema,
-  messageId: z.string().min(1),
-  method: z.string().min(1),
-  paramsHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
-  params: z.unknown(),
-  acceptedAt: isoDateTimeSchema,
-  status: z.enum([
-    "accepted",
-    "queued",
-    "running",
-    "completed",
-    "failed",
-    "cancelled",
-  ]),
-  recoveryStatus: z
-    .enum(["not_needed", "requeued", "marked_failed", "marked_cancelled"])
-    .optional(),
-  conversationId: sandboxConversationIdSchema.optional(),
-  agentId: sandboxAgentIdSchema.optional(),
-  runId: sandboxRunIdSchema.optional(),
-});
-export type SandboxCommandRecord = z.infer<typeof sandboxCommandRecordSchema>;
-
-export const sandboxCommandDecisionRecordSchema = z.object({
-  commandId: sandboxCommandIdSchema,
-  method: z.string().min(1).optional(),
-  paramsHash: z
-    .string()
-    .regex(/^sha256:[a-f0-9]{64}$/)
-    .optional(),
-  decision: z.enum([
-    "accepted",
-    "duplicate",
-    "conflict",
-    "rejected",
-    "completed",
-    "failed",
-    "cancelled",
-    "recovered",
-  ]),
-  reason: z.string().min(1).optional(),
-  resultRef: z.string().min(1).optional(),
-  decidedAt: isoDateTimeSchema,
-  error: redactedErrorSchema.optional(),
-});
-export type SandboxCommandDecisionRecord = z.infer<
-  typeof sandboxCommandDecisionRecordSchema
->;
-
-export const sandboxCommandResultRecordSchema = z.object({
-  commandId: sandboxCommandIdSchema,
-  method: z.string().min(1),
-  status: z.enum(["completed", "failed", "cancelled"]),
-  result: z.unknown().optional(),
-  error: redactedErrorSchema.optional(),
-  completedAt: isoDateTimeSchema,
-  responseHash: z
-    .string()
-    .regex(/^sha256:[a-f0-9]{64}$/)
-    .optional(),
-});
-export type SandboxCommandResultRecord = z.infer<
-  typeof sandboxCommandResultRecordSchema
->;
 
 export const sandboxConversationStateSchema = z.object({
   conversationId: sandboxConversationIdSchema,
@@ -128,7 +61,7 @@ export const sandboxRunStateRecordSchema = z.object({
   conversationId: sandboxConversationIdSchema,
   agentId: sandboxAgentIdSchema,
   runId: sandboxRunIdSchema,
-  commandId: sandboxCommandIdSchema.optional(),
+  requestId: z.string().min(1).optional(),
   status: sandboxRunStatusSchema,
   promptSummary: z.string().min(1).optional(),
   createdAt: isoDateTimeSchema,
@@ -226,7 +159,7 @@ export const sandboxWaitResolutionRecordSchema = z.object({
   conversationId: sandboxConversationIdSchema,
   agentId: sandboxAgentIdSchema,
   runId: sandboxRunIdSchema,
-  commandId: sandboxCommandIdSchema.optional(),
+  resolutionRequestId: z.string().min(1).optional(),
   decisionHash: z
     .string()
     .regex(/^sha256:[a-f0-9]{64}$/)
@@ -267,7 +200,7 @@ export const sandboxPlanReviewWaitRecordSchema = z.object({
   feedback: z.string().optional(),
   implementationModel: modelSelectionSchema.optional(),
   implementationThinkingLevel: thinkingLevelSchema.optional(),
-  commandId: sandboxCommandIdSchema.optional(),
+  resolutionRequestId: z.string().min(1).optional(),
   checkpointId: z.string().min(1).optional(),
   toolResultEntryId: z.string().min(1).optional(),
   createdAt: isoDateTimeSchema,
@@ -292,7 +225,7 @@ export const sandboxInputWaitRecordSchema = z.object({
   expiresAt: isoDateTimeSchema.optional(),
   resolvedAt: isoDateTimeSchema.optional(),
   cancelledAt: isoDateTimeSchema.optional(),
-  resumeCommandId: sandboxCommandIdSchema.optional(),
+  resumeRequestId: z.string().min(1).optional(),
   toolResultEntryId: z.string().min(1).optional(),
   checkpointId: z.string().min(1).optional(),
   redactedDisplay: boundedTextSchema.optional(),
@@ -316,7 +249,7 @@ export const sandboxApprovalWaitRecordSchema = z.object({
   selectedScope: z
     .enum(["single_call", "same_tool_same_args", "run"])
     .optional(),
-  resolutionCommandId: sandboxCommandIdSchema.optional(),
+  resolutionRequestId: z.string().min(1).optional(),
   resolutionReason: z.string().min(1).optional(),
   appliesTo: z.array(z.string().min(1)).optional(),
   checkpointId: z.string().min(1).optional(),
@@ -553,7 +486,7 @@ export type SandboxProtectedStateSummary = z.infer<
 
 export const sandboxStateLayoutVersionSchema = z.object({
   format: z.literal("nerve-sandbox-agent-state"),
-  version: z.literal(1),
+  version: z.literal(2),
   initializedAt: isoDateTimeSchema,
 });
 export type SandboxStateLayoutVersion = z.infer<

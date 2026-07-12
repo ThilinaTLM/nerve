@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { sandboxConfigDigest } from "../src/config/digest.js";
 import { Redactor } from "../src/security/redaction.js";
-import { CommandInbox } from "../src/state/command-inbox.js";
+import { FileRpcIdempotencyStore } from "../src/state/rpc-idempotency-store.js";
 import { SandboxStateCorruptionError } from "../src/state/corruption.js";
 import { EventOutbox } from "../src/state/event-outbox.js";
 import { StateLock } from "../src/state/file-lock.js";
@@ -30,53 +30,90 @@ describe("sandbox agent image durable state foundations", () => {
     }
   });
 
-  it("persists command idempotency and event ack state", async () => {
+  it("persists RPC idempotency outcomes and event ack state", async () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-sandbox-agent-state-"),
     );
     try {
-      const inbox = new CommandInbox(path.join(dir, "commands.jsonl"));
-      await inbox.load();
-      const first = await inbox.accept({
-        commandId: "cmd_1",
-        messageId: "msg_1",
-        method: "run.start",
-        params: { commandId: "cmd_1", prompt: "hi" },
-      });
-      assert.equal(first.duplicate, false);
-      assert.match(first.record.paramsHash, /^sha256:[a-f0-9]{64}$/);
-      const duplicate = await inbox.accept({
-        commandId: "cmd_1",
-        messageId: "msg_2",
-        method: "run.start",
-        params: { prompt: "hi", commandId: "cmd_1" },
-      });
-      assert.equal(duplicate.duplicate, true);
-      await assert.rejects(
-        () =>
-          inbox.accept({
-            commandId: "cmd_1",
-            messageId: "msg_3",
-            method: "run.start",
-            params: { commandId: "cmd_1", prompt: "different" },
-          }),
-        /IDEMPOTENCY_CONFLICT/,
+      const records = path.join(dir, "idempotency", "records.jsonl");
+      const conflicts = path.join(dir, "idempotency", "conflicts.jsonl");
+      const store = new FileRpcIdempotencyStore(records, conflicts);
+      await store.load();
+      let executions = 0;
+      const first = await store.execute(
+        "sandbox_manager:manager-1",
+        "key-1",
+        "run.start",
+        { text: "hi" },
+        async () => {
+          executions += 1;
+          return { status: "success", result: { accepted: true } };
+        },
       );
+      assert.equal(first.status, "executed");
+      const duplicate = await store.execute(
+        "sandbox_manager:manager-1",
+        "key-1",
+        "run.start",
+        { text: "hi" },
+        async () => {
+          executions += 1;
+          return { status: "success", result: { accepted: false } };
+        },
+      );
+      assert.equal(duplicate.status, "replayed");
+      assert.equal(executions, 1);
+      const conflict = await store.execute(
+        "sandbox_manager:manager-1",
+        "key-1",
+        "run.start",
+        { text: "different" },
+        async () => ({ status: "success", result: {} }),
+      );
+      assert.equal(conflict.status, "conflict");
 
-      const completed = await inbox.complete("cmd_1", { ok: true });
-      assert.match(completed.responseHash ?? "", /^sha256:[a-f0-9]{64}$/);
-      const duplicateWithResult = await inbox.accept({
-        commandId: "cmd_1",
-        messageId: "msg_4",
-        method: "run.start",
-        params: { prompt: "hi", commandId: "cmd_1" },
-      });
-      assert.equal(duplicateWithResult.result?.status, "completed");
-
-      const reloaded = new CommandInbox(path.join(dir, "commands.jsonl"));
+      const reloaded = new FileRpcIdempotencyStore(records, conflicts);
       await reloaded.load();
-      assert.equal(reloaded.get("cmd_1")?.paramsHash, first.record.paramsHash);
-      assert.equal(reloaded.getResult("cmd_1")?.status, "completed");
+      const afterRestart = await reloaded.execute(
+        "sandbox_manager:manager-1",
+        "key-1",
+        "run.start",
+        { text: "hi" },
+        async () => ({ status: "success", result: { accepted: false } }),
+      );
+      assert.equal(afterRestart.status, "replayed");
+
+      let failedExecutions = 0;
+      const failed = await reloaded.execute(
+        "sandbox_manager:manager-1",
+        "key-error",
+        "run.continue",
+        { runId: "run_1" },
+        async () => {
+          failedExecutions += 1;
+          return {
+            status: "error",
+            error: {
+              code: "INTERNAL_ERROR",
+              message: "bounded failure",
+              retryable: true,
+            },
+          };
+        },
+      );
+      assert.equal(failed.status, "executed");
+      const failedRetry = await reloaded.execute(
+        "sandbox_manager:manager-1",
+        "key-error",
+        "run.continue",
+        { runId: "run_1" },
+        async () => {
+          failedExecutions += 1;
+          return { status: "success", result: {} };
+        },
+      );
+      assert.equal(failedRetry.status, "replayed");
+      assert.equal(failedExecutions, 1);
 
       const outbox = new EventOutbox(
         path.join(dir, "outbox.jsonl"),
@@ -86,7 +123,15 @@ describe("sandbox agent image durable state foundations", () => {
       await outbox.append({
         type: "run.started",
         durability: "durable",
-        data: {},
+        data: {
+          conversationId: "conv_1",
+          agentId: "agent_1",
+          runId: "run_1",
+          requestId: "req_1",
+          status: "queued",
+          model: { provider: "test", model: "test" },
+          startedAt: new Date().toISOString(),
+        },
       });
       assert.equal(outbox.unacked(0).length, 1);
       const ack = await outbox.ack("sandbox", 1);
@@ -98,7 +143,7 @@ describe("sandbox agent image durable state foundations", () => {
     }
   });
 
-  it("initializes the v1 state layout and fails closed on corrupt command journals", async () => {
+  it("initializes the v2 state layout and fails closed on corrupt event journals", async () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-sandbox-agent-recover-"),
     );
@@ -142,7 +187,7 @@ describe("sandbox agent image durable state foundations", () => {
       if (process.platform !== "win32")
         assert.equal((await stat(paths.credentialsDir)).mode & 0o777, 0o700);
 
-      await writeFile(path.join(paths.commandsDir, "inbox.jsonl"), "{bad\n");
+      await writeFile(path.join(paths.eventsDir, "outbox.jsonl"), "{bad\n");
       await assert.rejects(
         () => recoverSandboxState(digest, paths),
         (error) =>
@@ -188,8 +233,8 @@ describe("sandbox agent image durable state foundations", () => {
         (error) =>
           error instanceof SandboxStateError &&
           error.exitCode === 11 &&
-          error.message.includes(`Reset this directory`) &&
-          error.message.includes(paths.stateDir),
+          error.message ===
+            `Incompatible sandbox agent state at ${paths.stateDir}. Reset this directory before starting Nerve Protocol v1.`,
       );
     } finally {
       await rm(dir, { recursive: true, force: true });

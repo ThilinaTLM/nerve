@@ -3,13 +3,19 @@ import {
   createId,
   type NerveErrorCode,
   type NerveMessage,
+  type PeerDescriptor,
+  type ProtocolRequestData,
   nerveErrorCodeSchema,
   protocolRequestMessageSchema,
 } from "@nervekit/contracts";
+import {
+  type OperationHandlerRegistry,
+  RpcDispatcher,
+} from "@nervekit/protocol";
 import type { ManagerState } from "../app/manager-state.js";
 import { readJsonBody } from "../http/body.js";
 import { HttpError } from "../http/errors.js";
-import { ForwardedCommandError } from "./command-forwarder.js";
+import { ForwardedRpcError } from "./rpc-forwarder.js";
 import { handleManagerProtocolMethod } from "./manager-protocol-method-handlers.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
@@ -24,6 +30,7 @@ export async function handleManagerProtocolHttpRequest(
   const startedAt = Date.now();
   let method: string | undefined;
   let sandboxId: unknown;
+  let request: NerveMessage<ProtocolRequestData> | undefined;
   try {
     if (req.method !== "POST") {
       writeProtocolJson(
@@ -34,7 +41,9 @@ export async function handleManagerProtocolHttpRequest(
       return;
     }
     const raw = await readJsonBody(req);
-    const request = protocolRequestMessageSchema.parse(raw);
+    request = protocolRequestMessageSchema.parse(
+      raw,
+    ) as NerveMessage<ProtocolRequestData>;
     method = request.data.method;
     sandboxId =
       request.data.params &&
@@ -42,16 +51,38 @@ export async function handleManagerProtocolHttpRequest(
       "sandboxId" in request.data.params
         ? (request.data.params as { sandboxId?: unknown }).sandboxId
         : undefined;
-    const result = await handleManagerProtocolMethod(
-      {
-        state,
-        controller,
-        target: request.target,
-        idempotencyKey: request.data.idempotencyKey,
+    const context = {
+      state,
+      controller,
+      target: request.target,
+      idempotencyKey: request.data.idempotencyKey,
+    };
+    const dispatcher = new RpcDispatcher({
+      handlers: managerOperationHandlers(context, request.data.method),
+      translateError: (error) => {
+        const normalized = normalizeProtocolError(error);
+        return {
+          code: normalized.code,
+          message: normalized.message,
+          retryable: normalized.status >= 500,
+        };
       },
-      request.data.method,
-      request.data.params,
-    );
+    });
+    const dispatched = await dispatcher.dispatch(request);
+    if (!dispatched.ok) {
+      writeProtocolJson(
+        res,
+        protocolStatus(dispatched.error.code),
+        errorMessage(
+          request.id,
+          dispatched.error.code,
+          dispatched.error.message,
+          request.source,
+        ),
+      );
+      return;
+    }
+    const result = dispatched.result;
     state.logger.debug("protocol method handled", {
       method,
       sandboxId,
@@ -83,14 +114,29 @@ export async function handleManagerProtocolHttpRequest(
       durationMs: Date.now() - startedAt,
       err: error,
     });
-    writeProtocolJson(res, status, errorMessage(undefined, code, message));
+    writeProtocolJson(
+      res,
+      status,
+      errorMessage(request?.id, code, message, request?.source),
+    );
   }
+}
+
+function managerOperationHandlers(
+  context: Parameters<typeof handleManagerProtocolMethod>[0],
+  method: ProtocolRequestData["method"],
+): Partial<OperationHandlerRegistry> {
+  return {
+    [method]: (params: never) =>
+      handleManagerProtocolMethod(context, method, params),
+  } as Partial<OperationHandlerRegistry>;
 }
 
 function errorMessage(
   replyTo: string | undefined,
   code: NerveErrorCode,
   message: string,
+  target: PeerDescriptor = { role: "ui" },
 ): NerveMessage {
   return {
     protocol: "nerve",
@@ -99,7 +145,7 @@ function errorMessage(
     kind: "error",
     ts: new Date().toISOString(),
     source: { role: "sandbox_manager", name: "Nerve Sandbox Manager" },
-    target: { role: "ui" },
+    target,
     replyTo,
     data: {
       code,
@@ -125,10 +171,10 @@ function normalizeProtocolError(error: unknown): {
       message: error.message,
     };
   }
-  if (error instanceof ForwardedCommandError) {
+  if (error instanceof ForwardedRpcError) {
     return {
       status: error.status,
-      code: forwardedCommandProtocolCode(error),
+      code: forwardedRpcProtocolCode(error),
       message: error.message,
     };
   }
@@ -146,9 +192,7 @@ function normalizeProtocolError(error: unknown): {
   };
 }
 
-function forwardedCommandProtocolCode(
-  error: ForwardedCommandError,
-): NerveErrorCode {
+function forwardedRpcProtocolCode(error: ForwardedRpcError): NerveErrorCode {
   if (error.code === "OPERATION_TIMEOUT") return "OPERATION_TIMEOUT";
   if (error.status === 503) return "SERVICE_UNAVAILABLE";
   if (error.status === 404) return "RESOURCE_NOT_FOUND";
@@ -171,6 +215,35 @@ function httpCodeToProtocolCode(code: string): NerveErrorCode {
       return "SERVICE_UNAVAILABLE";
     default:
       return "INTERNAL_ERROR";
+  }
+}
+
+function protocolStatus(code: NerveErrorCode): number {
+  switch (code) {
+    case "AUTH_REQUIRED":
+    case "AUTH_INVALID":
+      return 401;
+    case "AUTH_FORBIDDEN":
+    case "POLICY_DENIED":
+    case "CAPABILITY_REQUIRED":
+      return 403;
+    case "METHOD_NOT_FOUND":
+    case "RESOURCE_NOT_FOUND":
+      return 404;
+    case "CONFLICT":
+    case "IDEMPOTENCY_CONFLICT":
+      return 409;
+    case "DOMAIN_VALIDATION_FAILED":
+      return 422;
+    case "OPERATION_TIMEOUT":
+      return 504;
+    case "SERVICE_UNAVAILABLE":
+    case "BOOTING":
+      return 503;
+    case "INTERNAL_ERROR":
+      return 500;
+    default:
+      return 400;
   }
 }
 

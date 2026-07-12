@@ -62,7 +62,7 @@ describe("sandbox plan-mode HIL", () => {
       );
       daemon.start();
       const start = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_plan_start",
+        requestId: "cmd_plan_start",
         text: "Prepare and present the plan",
       })) as { conversationId: string; agentId: string; runId: string };
       const first = await waitForPlanReview(daemon, start.runId, "plan_1");
@@ -78,7 +78,7 @@ describe("sandbox plan-mode HIL", () => {
       );
       recovered.start();
       await recovered.router.dispatch("planReview.requestChanges", {
-        commandId: "cmd_plan_changes",
+        requestId: "cmd_plan_changes",
         conversationId: start.conversationId,
         agentId: start.agentId,
         runId: start.runId,
@@ -87,7 +87,7 @@ describe("sandbox plan-mode HIL", () => {
       });
       const second = await waitForPlanReview(recovered, start.runId, "plan_2");
       await recovered.router.dispatch("planReview.accept", {
-        commandId: "cmd_plan_accept",
+        requestId: "cmd_plan_accept",
         conversationId: start.conversationId,
         agentId: start.agentId,
         runId: start.runId,
@@ -96,14 +96,11 @@ describe("sandbox plan-mode HIL", () => {
       });
       await waitForRun(recovered, start.runId, "completed");
 
-      const status = (await recovered.router.dispatch(
-        "sandbox.status.get",
-        {},
-      )) as {
-        agentConfig?: { mode?: string; model?: { thinkingLevel?: string } };
-      };
-      assert.equal(status.agentConfig?.mode, "coding");
-      assert.equal(status.agentConfig?.model?.thinkingLevel, "high");
+      const agentConfig = JSON.parse(
+        await readFile(path.join(dir, "agent", "config.json"), "utf8"),
+      ) as { mode?: string; model?: { thinkingLevel?: string } };
+      assert.equal(agentConfig.mode, "coding");
+      assert.equal(agentConfig.model?.thinkingLevel, "high");
 
       const conversation = await readFile(
         path.join(
@@ -191,7 +188,7 @@ describe("sandbox plan-mode HIL", () => {
       );
       daemon.start();
       const start = (await daemon.router.dispatch("run.start", {
-        commandId: "cmd_plan_outside",
+        requestId: "cmd_plan_outside",
         text: "Present outside plan",
       })) as { runId: string };
       await waitForRun(daemon, start.runId, "completed");

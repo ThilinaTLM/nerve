@@ -59,7 +59,7 @@ export class RunManager {
   }
 
   async createRun(input: {
-    commandId?: string;
+    requestId?: string;
     conversationId?: string;
     agentId?: string;
     prompt?: string;
@@ -81,7 +81,7 @@ export class RunManager {
       conversationId,
       agentId,
       runId,
-      commandId: input.commandId,
+      requestId: input.requestId,
       status: "queued",
       createdAt: now,
       updatedAt: now,
@@ -117,7 +117,7 @@ export class RunManager {
   }
 
   async markRunning(
-    scope: RunScope & { executionId: string; commandId?: string },
+    scope: RunScope & { executionId: string; requestId?: string },
     model: { provider: string; model: string; thinkingLevel?: string },
   ): Promise<RunState> {
     const now = new Date().toISOString();
@@ -152,8 +152,8 @@ export class RunManager {
         conversationId: scope.conversationId,
         agentId: scope.agentId,
         runId: scope.runId,
-        commandId:
-          scope.commandId ?? String(current.commandId ?? "cmd_unknown"),
+        requestId:
+          scope.requestId ?? String(current.requestId ?? "cmd_unknown"),
         status: "running",
         promptSummary:
           typeof current.prompt === "string"
@@ -210,12 +210,7 @@ export class RunManager {
       });
     }
     await this.events?.append({
-      type:
-        kind === "input"
-          ? "run.waiting_for_input"
-          : kind === "plan_review"
-            ? "run.waiting_for_plan_review"
-            : "run.waiting_for_approval",
+      type: "run.waiting",
       durability: "durable",
       conversationId: scope.conversationId,
       agentId: scope.agentId,
@@ -225,6 +220,7 @@ export class RunManager {
         conversationId: scope.conversationId,
         agentId: scope.agentId,
         runId: scope.runId,
+        waitKind: kind,
         ...data,
       },
     });

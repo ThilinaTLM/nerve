@@ -405,12 +405,7 @@ export function projectSandboxSummariesFromEvents(input: {
       }
       runs.set(runId, run);
       conversation.activeRunIds.add(runId);
-    } else if (
-      (event.type === "run.waiting_for_input" ||
-        event.type === "run.waiting_for_approval") &&
-      runId &&
-      agentId
-    ) {
+    } else if (event.type === "run.waiting" && runId && agentId) {
       const run = runs.get(runId) ?? {
         conversationId,
         agentId,
@@ -419,9 +414,9 @@ export function projectSandboxSummariesFromEvents(input: {
         createdAt: ts,
       };
       run.status =
-        event.type === "run.waiting_for_input"
-          ? "waiting_for_input"
-          : "waiting_for_approval";
+        stringField(payload, "waitKind") === "approval"
+          ? "waiting_for_approval"
+          : "waiting_for_input";
       run.updatedAt = ts;
       runs.set(runId, run);
       conversation.activeRunIds.add(runId);

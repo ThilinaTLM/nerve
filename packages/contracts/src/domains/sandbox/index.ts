@@ -4,6 +4,8 @@ export * from "./sandbox.config.schema.js";
 export * from "./sandbox.events.schema.js";
 export * from "./sandbox.hash.js";
 export * from "./sandbox.manager.schema.js";
+export * from "./sandbox-manager.events.schema.js";
+export * from "./sandbox-runtime.events.schema.js";
 export * from "./sandbox.startup.js";
 export * from "./sandbox.runtime-state.schema.js";
 export * from "./sandbox.snapshot.schema.js";

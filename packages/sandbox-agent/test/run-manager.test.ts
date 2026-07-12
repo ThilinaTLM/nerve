@@ -19,7 +19,7 @@ describe("sandbox run manager persistence", () => {
       await events.load();
       const manager = new RunManager(new RunStateStore(dir), dir, events);
       const run = await manager.start({
-        commandId: "cmd_1",
+        requestId: "cmd_1",
         prompt: "hello sk-abcdefghijklmnopqrstuvwxyz",
       });
       assert.equal(run.status, "queued");

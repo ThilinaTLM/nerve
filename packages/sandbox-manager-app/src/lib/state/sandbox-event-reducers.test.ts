@@ -30,7 +30,7 @@ describe("applySandboxEvent", () => {
       detail,
       event(1, "run.started", {
         ...scope,
-        commandId: "cmd_1",
+        requestId: "cmd_1",
         status: "running",
         model: { provider: "anthropic", model: "claude" },
         startedAt: ts,
@@ -99,7 +99,7 @@ describe("applySandboxEvent", () => {
       detail,
       event(1, "run.started", {
         ...scope,
-        commandId: "cmd_1",
+        requestId: "cmd_1",
         status: "running",
         startedAt: ts,
       }),
@@ -143,7 +143,7 @@ describe("applySandboxEvent", () => {
       detail,
       event(1, "run.started", {
         ...scope,
-        commandId: "cmd_1",
+        requestId: "cmd_1",
         status: "running",
         startedAt: ts,
       }),
@@ -165,8 +165,9 @@ describe("applySandboxEvent", () => {
     });
     applySandboxEvent(
       detail,
-      event(4, "run.waiting_for_input", {
+      event(4, "run.waiting", {
         ...scope,
+        waitKind: "input",
         requestId: "wait_input",
         question: { text: "Proceed?" },
         required: true,
@@ -175,8 +176,9 @@ describe("applySandboxEvent", () => {
     );
     applySandboxEvent(
       detail,
-      event(5, "run.waiting_for_approval", {
+      event(5, "run.waiting", {
         ...scope,
+        waitKind: "approval",
         approvalId: "wait_appr",
         toolCallId: "tool_1",
         risk: ["shell"],
@@ -220,8 +222,9 @@ describe("applySandboxEvent", () => {
     };
     applySandboxEvent(
       detail,
-      event(2, "run.waiting_for_plan_review", {
+      event(2, "run.waiting", {
         ...scope,
+        waitKind: "plan_review",
         reviewId: planReview.id,
         toolCallId: "plan_raw_1",
         planReview,
@@ -232,7 +235,7 @@ describe("applySandboxEvent", () => {
     assert.equal(detail.toolCallsById.plan_raw_1.status, "waiting_for_input");
     applySandboxEvent(
       detail,
-      event(3, "planReview.resolved", {
+      event(3, "planReview.updated", {
         ...scope,
         reviewId: planReview.id,
         decision: "accept",

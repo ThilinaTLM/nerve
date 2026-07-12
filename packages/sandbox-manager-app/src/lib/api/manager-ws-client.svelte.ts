@@ -1,12 +1,8 @@
-import type {
-  EventEnvelope,
-  SandboxManagerEventEnvelope,
-} from "@nervekit/contracts";
+import type { EventEnvelope } from "@nervekit/contracts";
 import {
   eventBatchMessageSchema,
   replayStartedMessageSchema,
   replayUnavailableMessageSchema,
-  sandboxManagerEventEnvelopeSchema,
   welcomeMessageSchema,
 } from "@nervekit/contracts";
 import {
@@ -45,8 +41,15 @@ export function sandboxStreamId(sandboxId: string): string {
   return `sandbox:${sandboxId}`;
 }
 
+export type ManagerStreamEventEnvelope = EventEnvelope<
+  Record<string, unknown>
+> & {
+  stream: string;
+  sandboxId?: string;
+};
+
 export type ManagerWsHandlers = {
-  onEvent: (envelope: SandboxManagerEventEnvelope) => void;
+  onEvent: (envelope: ManagerStreamEventEnvelope) => void;
   onConnectionChange: (state: ManagerWsConnectionState, error?: string) => void;
   onReconnected?: () => void;
   onReplayUnavailable?: (streams: string[]) => void;
@@ -264,18 +267,11 @@ export class ManagerWsClient {
     stream: string,
     event: EventEnvelope<Record<string, unknown>>,
   ): void {
-    this.handlers.onEvent(
-      sandboxManagerEventEnvelopeSchema.parse({
-        stream,
-        sandboxId: streamSandboxId(stream),
-        seq: event.seq,
-        id: event.id,
-        ts: event.ts,
-        type: event.type,
-        durability: event.durability,
-        data: event.data,
-      }),
-    );
+    this.handlers.onEvent({
+      ...event,
+      stream,
+      sandboxId: streamSandboxId(stream),
+    });
   }
 
   private requestReplay(stream: string, fromSeq?: number): void {

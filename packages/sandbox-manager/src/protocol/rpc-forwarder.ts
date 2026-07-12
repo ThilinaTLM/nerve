@@ -6,20 +6,20 @@ import type {
 } from "@nervekit/contracts";
 import { createMessageFactory } from "@nervekit/protocol";
 
-export type CommandSocket = { send(data: string): void };
+export type RpcSocket = { send(data: string): void };
 
-export class ForwardedCommandError extends Error {
+export class ForwardedRpcError extends Error {
   constructor(
     readonly code: string,
     message: string,
-    readonly status = forwardedCommandStatus(code),
+    readonly status = forwardedRpcStatus(code),
   ) {
     super(message);
-    this.name = "ForwardedCommandError";
+    this.name = "ForwardedRpcError";
   }
 }
 
-function forwardedCommandStatus(code: string): number {
+function forwardedRpcStatus(code: string): number {
   if (code === "VALIDATION_FAILED") return 400;
   if (code === "RESOURCE_NOT_FOUND") return 404;
   if (code === "OPERATION_TIMEOUT") return 504;
@@ -36,7 +36,7 @@ type Pending = {
   startedAt: number;
 };
 
-export class CommandForwarder {
+export class RpcForwarder {
   private readonly pending = new Map<string, Pending>();
   private readonly maxPending: number;
   private readonly logger?: StructuredLogger;
@@ -53,7 +53,7 @@ export class CommandForwarder {
   }
 
   send(
-    socket: CommandSocket,
+    socket: RpcSocket,
     method: string,
     params: unknown,
     idempotencyKey?: string,
@@ -61,9 +61,9 @@ export class CommandForwarder {
   ): Promise<unknown> {
     if (this.pending.size >= this.maxPending) {
       return Promise.reject(
-        new ForwardedCommandError(
+        new ForwardedRpcError(
           "SERVICE_UNAVAILABLE",
-          "Sandbox command queue is full",
+          "Sandbox RPC queue is full",
           503,
         ),
       );
@@ -83,7 +83,7 @@ export class CommandForwarder {
       const timeout = setTimeout(() => {
         this.pending.delete(request.id);
         reject(
-          new ForwardedCommandError(
+          new ForwardedRpcError(
             "OPERATION_TIMEOUT",
             `Sandbox operation timed out: ${request.id}`,
             504,
@@ -114,7 +114,7 @@ export class CommandForwarder {
     clearTimeout(pending.timeout);
     this.pending.delete(id);
     pending.reject(
-      new ForwardedCommandError(message.data.code, message.data.message),
+      new ForwardedRpcError(message.data.code, message.data.message),
     );
   }
 

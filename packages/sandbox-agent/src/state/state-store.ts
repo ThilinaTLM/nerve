@@ -57,7 +57,7 @@ export async function initializeSandboxState(
     const now = new Date().toISOString();
     await atomicWriteFile(
       path.join(paths.stateDir, "VERSION"),
-      `${JSON.stringify({ format: "nerve-sandbox-agent-state", version: 1, initializedAt: now })}\n`,
+      `${JSON.stringify({ format: "nerve-sandbox-agent-state", version: 2, initializedAt: now })}\n`,
     );
     await atomicWriteFile(
       path.join(paths.configDir, "sanitized.json"),
@@ -109,21 +109,20 @@ async function assertCompatibleStateLayout(
       format?: unknown;
       version?: unknown;
     };
-    if (marker.format !== "nerve-sandbox-agent-state" || marker.version !== 1) {
+    if (marker.format !== "nerve-sandbox-agent-state" || marker.version !== 2) {
       throw new Error("incompatible marker");
     }
     return;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       throw new SandboxStateError(
-        `Incompatible sandbox state at ${paths.stateDir}. Reset this directory before starting Nerve Protocol v1.`,
+        `Incompatible sandbox agent state at ${paths.stateDir}. Reset this directory before starting Nerve Protocol v1.`,
         11,
         error,
       );
     }
   }
   const legacyFiles = [
-    path.join(paths.commandsDir, "inbox.jsonl"),
     path.join(paths.eventsDir, "outbox.jsonl"),
     path.join(paths.eventsDir, "ack.json"),
     path.join(paths.controllerDir, "session.json"),
@@ -137,7 +136,7 @@ async function assertCompatibleStateLayout(
       throw error;
     }
     throw new SandboxStateError(
-      `Incompatible sandbox state at ${paths.stateDir}. Reset this directory before starting Nerve Protocol v1.`,
+      `Incompatible sandbox agent state at ${paths.stateDir}. Reset this directory before starting Nerve Protocol v1.`,
       11,
     );
   }
@@ -202,9 +201,12 @@ async function writeInitialStateFiles(
         data: `${JSON.stringify({ configured: false, status: "skipped", updatedAt: now }, null, 2)}\n`,
       },
     ],
-    [path.join(paths.commandsDir, "inbox.jsonl"), { data: "", mode: 0o600 }],
     [
-      path.join(paths.commandsDir, "decisions.jsonl"),
+      path.join(paths.controllerDir, "idempotency", "records.jsonl"),
+      { data: "", mode: 0o600 },
+    ],
+    [
+      path.join(paths.controllerDir, "idempotency", "conflicts.jsonl"),
       { data: "", mode: 0o600 },
     ],
     [path.join(paths.eventsDir, "outbox.jsonl"), { data: "" }],

@@ -7,7 +7,6 @@ import {
   managedContainerCreateSpecSchema,
   managedContainerRefSchema,
   managedSandboxRecordSchema,
-  managerOutboundCommandRecordSchema,
   operationDefinition,
   operationParamsSchema,
   runtimeDriverResourceOptionsSchema,
@@ -20,8 +19,6 @@ import {
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
   sandboxEventPayloadSchemas,
-  sandboxManagerEventEnvelopeSchema,
-  sandboxManagerLifecycleEventTypeSchema,
   sandboxPlanReviewWaitRecordSchema,
   streamCursorSchema,
   sandboxEventEnvelopeSchema,
@@ -92,13 +89,14 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventPayloadSchemas["run.waiting_for_plan_review"].safeParse({
+      sandboxEventPayloadSchemas["run.waiting"].safeParse({
         sandboxId: "sbx_1",
         instanceId: "inst_1",
         configDigest: "sha256:test",
         conversationId: "conv_1",
         agentId: "agent_1",
         runId: "run_1",
+        waitKind: "plan_review",
         reviewId: "plan_review_1",
         toolCallId: "provider_plan_1",
         planReview: review,
@@ -438,42 +436,6 @@ describe("Sandbox shared schemas", () => {
     );
   });
 
-  it("validates manager lifecycle event types and UI event envelopes", () => {
-    assert.equal(
-      sandboxManagerLifecycleEventTypeSchema.safeParse(
-        "sandbox.daemon.connection_changed",
-      ).success,
-      true,
-    );
-    assert.equal(
-      sandboxManagerLifecycleEventTypeSchema.safeParse("manager.sandbox.nope")
-        .success,
-      false,
-    );
-    assert.equal(
-      sandboxManagerEventEnvelopeSchema.safeParse({
-        stream: "manager",
-        seq: 4,
-        ts,
-        type: "manager.sandbox.started",
-        durability: "durable",
-        data: { sandboxId: "sbx_1" },
-      }).success,
-      true,
-    );
-    assert.equal(
-      sandboxManagerEventEnvelopeSchema.safeParse({
-        stream: "sandbox:sbx_1",
-        sandboxId: "sbx_1",
-        seq: 1,
-        ts,
-        type: "sandbox.ready",
-        data: { arbitrary: true },
-      }).success,
-      true,
-    );
-  });
-
   it("validates canonical sandbox-targeted operation definitions", () => {
     assert.equal(
       operationParamsSchema("agent.configure").safeParse({
@@ -806,7 +768,7 @@ describe("Sandbox shared schemas", () => {
         conversationId: "conv_1",
         agentId: "agent_1",
         runId: "run_1",
-        commandId: "cmd_2",
+        requestId: "req_2",
         status: "submitted",
         resolvedAt: ts,
       }).success,
@@ -831,18 +793,6 @@ describe("Sandbox shared schemas", () => {
         status: "running",
         createdAt: ts,
         updatedAt: ts,
-      }).success,
-      true,
-    );
-    assert.equal(
-      managerOutboundCommandRecordSchema.safeParse({
-        requestId: "req_1",
-        sandboxId: "sbx_1",
-        method: "sandbox.status.get",
-        paramsHash: `sha256:${"b".repeat(64)}`,
-        status: "sent",
-        createdAt: ts,
-        sentAt: ts,
       }).success,
       true,
     );
@@ -938,8 +888,9 @@ describe("Sandbox shared schemas", () => {
       );
     }
     assert.equal(
-      sandboxEventPayloadSchemas["run.waiting_for_input"].safeParse({
+      sandboxEventPayloadSchemas["run.waiting"].safeParse({
         ...scope,
+        waitKind: "input",
         requestId: "tool_ask",
         question: { text: "Proceed?" },
         required: true,
@@ -948,8 +899,9 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventPayloadSchemas["run.waiting_for_approval"].safeParse({
+      sandboxEventPayloadSchemas["run.waiting"].safeParse({
         ...scope,
+        waitKind: "approval",
         approvalId: "approval_1",
         toolCallId: "tool_1",
         risk: ["shell"],

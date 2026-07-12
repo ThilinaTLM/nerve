@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import type { CommandForwarder } from "./command-forwarder.js";
+import type { RpcForwarder } from "./rpc-forwarder.js";
 
 export type ConnectedSandboxSession = {
   sandboxId: string;
@@ -10,7 +10,7 @@ export type ConnectedSandboxSession = {
   readyAt?: string;
   agentStatus?: "booting" | "ready" | "degraded" | "failed";
   socket: WebSocket;
-  forwarder: CommandForwarder;
+  forwarder: RpcForwarder;
   heartbeat?: NodeJS.Timeout;
 };
 

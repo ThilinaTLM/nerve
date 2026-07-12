@@ -58,7 +58,7 @@ export class InteractionSessionService {
       status: "waiting_for_user",
     });
     await this.deps.publishToolCallUpdated(waitingToolCall);
-    await this.deps.events.publish("userQuestion.requested", {
+    await this.deps.events.publish("userQuestion.updated", {
       question,
       toolCall: waitingToolCall,
     });
@@ -84,7 +84,7 @@ export class InteractionSessionService {
       updatedAt: new Date().toISOString(),
     };
     await this.deps.userQuestionRepository.upsert(updated);
-    await this.deps.events.publish("userQuestion.answered", {
+    await this.deps.events.publish("userQuestion.updated", {
       question: updated,
     });
     this.notifyUserQuestionWaiters(updated);
@@ -104,7 +104,7 @@ export class InteractionSessionService {
       updatedAt: new Date().toISOString(),
     };
     await this.deps.userQuestionRepository.upsert(updated);
-    await this.deps.events.publish("userQuestion.dismissed", {
+    await this.deps.events.publish("userQuestion.updated", {
       question: updated,
     });
     this.notifyUserQuestionWaiters(updated);

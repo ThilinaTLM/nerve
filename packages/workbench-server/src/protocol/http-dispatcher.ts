@@ -1,16 +1,20 @@
 import { GitWorkflowError } from "@nervekit/host-runtime/tools";
 import {
+  allOperationDefinitions,
   type NerveErrorCode,
   type NerveMessage,
+  type ProtocolErrorData,
   type ProtocolRequestData,
-  operationDefinition,
-  operationNameSchema,
   protocolRequestMessageSchema,
 } from "@nervekit/contracts";
+import {
+  MemoryIdempotencyStore,
+  type OperationHandlerRegistry,
+  RpcDispatcher,
+} from "@nervekit/protocol";
 import { ZodError } from "zod";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { HttpError } from "../http/errors.js";
-import { IdempotencyStore } from "./idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import { handleProtocolMethod } from "./method-handlers.js";
 import { protocolErrorData, redactProtocolValue } from "./protocol-errors.js";
@@ -20,9 +24,18 @@ export const PROTOCOL_HTTP_CONTENT_TYPE =
 const MAX_PROTOCOL_HTTP_BODY_BYTES = 4 * 1024 * 1024;
 
 export class ProtocolHttpDispatcher {
-  readonly idempotency = new IdempotencyStore();
+  readonly #dispatcher: RpcDispatcher;
 
-  constructor(private readonly state: OrchestratorState) {}
+  constructor(private readonly state: OrchestratorState) {
+    this.#dispatcher = new RpcDispatcher({
+      handlers: workbenchOperationHandlers(state),
+      idempotency: new MemoryIdempotencyStore(),
+      acceptedCapabilities: allOperationDefinitions()
+        .map((definition) => definition.requiredCapability)
+        .filter((capability): capability is string => Boolean(capability)),
+      translateError,
+    });
+  }
 
   async dispatch(request: Request): Promise<Response> {
     const contentLength = Number(request.headers.get("content-length") ?? 0);
@@ -70,66 +83,29 @@ export class ProtocolHttpDispatcher {
       );
     }
     const message = parsed.data as NerveMessage<ProtocolRequestData>;
-    const methodName = operationNameSchema.safeParse(message.data.method);
-    if (!methodName.success) {
+    const dispatched = await this.#dispatcher.dispatch(message);
+    if (!dispatched.ok) {
       return this.error(
         message.id,
-        "METHOD_NOT_FOUND",
-        "Protocol method was not found",
-        404,
-      );
-    }
-    const definition = operationDefinition(methodName.data);
-    const paramsResult = definition.paramsSchema.safeParse(message.data.params);
-    if (!paramsResult.success) {
-      return this.error(
-        message.id,
-        "VALIDATION_FAILED",
-        "Protocol method params are invalid",
-        422,
-        false,
-        paramsResult.error.flatten(),
+        dispatched.error.code,
+        dispatched.error.message,
+        protocolStatus(dispatched.error.code),
+        dispatched.error.close,
+        dispatched.error.details,
       );
     }
 
-    const scope = message.source?.id ?? "anonymous";
-    const key = message.data.idempotencyKey;
-    if (key && definition.idempotency !== "none") {
-      const cached = this.idempotency.lookup(
-        scope,
-        key,
-        definition.method,
-        paramsResult.data,
-      );
-      if (cached.status === "hit") return protocolJson(cached.message);
-      if (cached.status === "conflict") {
-        return this.error(
-          message.id,
-          "IDEMPOTENCY_CONFLICT",
-          "Idempotency key was reused with different params",
-          409,
-        );
-      }
-    }
-
-    try {
-      const result = await handleProtocolMethod(
-        this.state,
-        definition.method,
-        paramsResult.data,
-      );
-      const resultParsed = definition.resultSchema.parse(result);
-      const response = createProtocolMessage(
+    const result = dispatched.result;
+    return protocolJson(
+      createProtocolMessage(
         "response",
         {
           ok: true,
-          method: definition.method,
-          result: resultParsed,
+          method: message.data.method,
+          result,
           cursor:
-            resultParsed &&
-            typeof resultParsed === "object" &&
-            "cursor" in resultParsed
-              ? (resultParsed as { cursor?: unknown }).cursor
+            result && typeof result === "object" && "cursor" in result
+              ? (result as { cursor?: unknown }).cursor
               : undefined,
         },
         {
@@ -137,60 +113,7 @@ export class ProtocolHttpDispatcher {
           replyTo: message.id,
           correlationId: message.id,
         },
-      );
-      if (key && definition.idempotency !== "none") {
-        this.idempotency.store(
-          scope,
-          key,
-          definition.method,
-          paramsResult.data,
-          response,
-        );
-      }
-      return protocolJson(response);
-    } catch (error) {
-      const response = this.errorFromException(message.id, error);
-      if (key && definition.idempotency !== "none") {
-        const envelope = (await response.clone().json()) as NerveMessage;
-        this.idempotency.store(
-          scope,
-          key,
-          definition.method,
-          paramsResult.data,
-          envelope,
-        );
-      }
-      return response;
-    }
-  }
-
-  private errorFromException(
-    replyTo: string | undefined,
-    error: unknown,
-  ): Response {
-    if (error instanceof HttpError) {
-      const code = mapHttpCode(error.code);
-      return this.error(replyTo, code, error.message, error.status);
-    }
-    if (error instanceof GitWorkflowError) {
-      const code = mapHttpCode(error.code);
-      return this.error(replyTo, code, error.message, error.status);
-    }
-    if (error instanceof ZodError) {
-      return this.error(
-        replyTo,
-        "VALIDATION_FAILED",
-        "Protocol response validation failed",
-        500,
-        false,
-        error.flatten(),
-      );
-    }
-    return this.error(
-      replyTo,
-      "INTERNAL_ERROR",
-      error instanceof Error ? error.message : String(error),
-      500,
+      ),
     );
   }
 
@@ -225,6 +148,47 @@ export class ProtocolHttpDispatcher {
   }
 }
 
+function workbenchOperationHandlers(
+  state: OrchestratorState,
+): Partial<OperationHandlerRegistry> {
+  const handlers: Record<string, (params: never) => Promise<unknown>> = {};
+  for (const definition of allOperationDefinitions()) {
+    handlers[definition.method] = (params) =>
+      handleProtocolMethod(state, definition.method, params);
+  }
+  return handlers as Partial<OperationHandlerRegistry>;
+}
+
+function translateError(error: unknown): ProtocolErrorData {
+  if (error instanceof HttpError) {
+    return {
+      code: mapHttpCode(error.code),
+      message: error.message,
+      retryable: error.status === 429 || error.status >= 500,
+    };
+  }
+  if (error instanceof GitWorkflowError) {
+    return {
+      code: mapHttpCode(error.code),
+      message: error.message,
+      retryable: error.status === 429 || error.status >= 500,
+    };
+  }
+  if (error instanceof ZodError) {
+    return {
+      code: "VALIDATION_FAILED",
+      message: "Protocol response validation failed",
+      retryable: false,
+      details: redactProtocolValue(error.flatten()) as Record<string, unknown>,
+    };
+  }
+  return {
+    code: "INTERNAL_ERROR",
+    message: error instanceof Error ? error.message : "Operation failed",
+    retryable: true,
+  };
+}
+
 function protocolJson(message: NerveMessage, status = 200): Response {
   return Response.json(message, {
     status,
@@ -243,4 +207,33 @@ function mapHttpCode(code: string): NerveErrorCode {
   if (code.includes("POLICY")) return "POLICY_DENIED";
   if (code.includes("CONFLICT")) return "CONFLICT";
   return "INTERNAL_ERROR";
+}
+
+function protocolStatus(code: NerveErrorCode): number {
+  switch (code) {
+    case "AUTH_REQUIRED":
+    case "AUTH_INVALID":
+      return 401;
+    case "AUTH_FORBIDDEN":
+    case "POLICY_DENIED":
+    case "CAPABILITY_REQUIRED":
+      return 403;
+    case "METHOD_NOT_FOUND":
+    case "RESOURCE_NOT_FOUND":
+      return 404;
+    case "CONFLICT":
+    case "IDEMPOTENCY_CONFLICT":
+      return 409;
+    case "DOMAIN_VALIDATION_FAILED":
+      return 422;
+    case "OPERATION_TIMEOUT":
+      return 504;
+    case "SERVICE_UNAVAILABLE":
+    case "BOOTING":
+      return 503;
+    case "INTERNAL_ERROR":
+      return 500;
+    default:
+      return 400;
+  }
 }

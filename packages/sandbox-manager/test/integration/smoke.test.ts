@@ -101,16 +101,28 @@ describe("guarded local container sandbox smoke", () => {
       sandboxId = record.sandboxId;
       assert.equal(record.controller?.token, "[REDACTED]");
       await waitForConnectedStatus(base, sandboxId, 60_000);
-      const command = await fetch(
-        `${base}/api/sandboxes/${sandboxId}/commands`,
-        {
-          method: "POST",
-          body: JSON.stringify({ method: "sandbox.status.get", params: {} }),
+      const snapshot = await fetch(`${base}/api/protocol/v1`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/vnd.nerve.protocol.v1+json",
         },
-      );
-      assert.equal(command.status, 200);
-      const commandPayload = await command.json();
-      assert.equal(JSON.stringify(commandPayload).includes("ntok_"), false);
+        body: JSON.stringify({
+          protocol: "nerve",
+          version: 1,
+          id: "msg_smoke_snapshot",
+          kind: "request",
+          ts: new Date().toISOString(),
+          source: { role: "ui", id: "smoke-ui" },
+          target: { role: "sandbox_manager" },
+          data: {
+            method: "sandbox.snapshot.get",
+            params: { sandboxId },
+          },
+        }),
+      });
+      assert.equal(snapshot.status, 200);
+      const snapshotPayload = await snapshot.json();
+      assert.equal(JSON.stringify(snapshotPayload).includes("ntok_"), false);
     } finally {
       if (sandboxId) {
         await fetch(

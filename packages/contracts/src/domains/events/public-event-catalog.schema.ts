@@ -1,146 +1,27 @@
 import { z } from "zod";
-import { sandboxEventPayloadSchemas } from "../sandbox/sandbox.events.schema.js";
-import {
-  managedContainerRefSchema,
-  managedSandboxLifecycleStateSchema,
-  managedSandboxObservedStateSchema,
-  sandboxActivitySummarySchema,
-} from "../sandbox/sandbox.manager.schema.js";
-import { taskRecordSchema } from "../tasks/index.js";
 import type { PeerRole } from "../protocol/envelope.schema.js";
+import { eventBatchDataSchema } from "../protocol/event-stream.schema.js";
+import { gitEventDefinitions } from "../git/git.events.schema.js";
+import { sandboxManagerEventDefinitions } from "../sandbox/sandbox-manager.events.schema.js";
+import { sandboxRuntimeEventDefinitions } from "../sandbox/sandbox-runtime.events.schema.js";
+import { taskEventDefinitions } from "../tasks/task.events.schema.js";
 import { boundedPublicObjectSchema } from "./bounded-public-data.schema.js";
+import {
+  definePublicEvent,
+  type PublicEventDefinition,
+} from "./event-definition.schema.js";
+import { eventEnvelopeSchema } from "./envelope.schema.js";
 
-export type EventCoalescing = "latest_by_scope" | "concat_delta";
-
-export interface PublicEventDefinition {
-  readonly name: string;
-  readonly payloadSchema: z.ZodType;
-  readonly durability: "durable" | "transient";
-  readonly allowedSourceRoles: readonly PeerRole[];
-  readonly coalescing?: EventCoalescing;
-  readonly scope: readonly string[];
-}
-
-const hostRoles = ["workbench_server", "sandbox_agent"] as const;
-const managerRoles = ["sandbox_manager"] as const;
-const taskPayloadSchema = z.object({ task: taskRecordSchema }).passthrough();
-
-function definition(
-  name: string,
-  payloadSchema: z.ZodType,
-  options: Partial<Omit<PublicEventDefinition, "name" | "payloadSchema">> = {},
-): PublicEventDefinition {
-  return {
-    name,
-    payloadSchema,
-    durability: options.durability ?? "durable",
-    allowedSourceRoles: options.allowedSourceRoles ?? hostRoles,
-    coalescing: options.coalescing,
-    scope: options.scope ?? [],
-  };
-}
+export type {
+  EventCoalescing,
+  PublicEventDefinition,
+} from "./event-definition.schema.js";
 
 const definitions: PublicEventDefinition[] = [
-  ...Object.entries(sandboxEventPayloadSchemas).map(([name, payloadSchema]) =>
-    definition(name, payloadSchema, {
-      durability:
-        name === "run.delta" ||
-        name === "conversation.context.updated" ||
-        name.startsWith("conversation.live.")
-          ? "transient"
-          : "durable",
-      coalescing: name.endsWith(".delta")
-        ? "concat_delta"
-        : name === "conversation.context.updated"
-          ? "latest_by_scope"
-          : undefined,
-      scope: ["sandboxId", "projectId", "conversationId", "runId"],
-    }),
-  ),
-  ...[
-    "task.created",
-    "task.started",
-    "task.ready",
-    "task.stop_requested",
-    "task.completed",
-    "task.failed",
-    "task.timed_out",
-    "task.readiness_failed",
-    "task.cancelled",
-    "task.orphaned",
-  ].map((name) => definition(name, taskPayloadSchema, { scope: ["task.id"] })),
-  definition(
-    "task.removed",
-    z.object({ taskId: z.string().startsWith("task_") }),
-    { scope: ["taskId"] },
-  ),
-  definition(
-    "task.output",
-    z.object({
-      taskId: z.string().startsWith("task_"),
-      stream: z.enum(["stdout", "stderr", "combined"]),
-      text: z.string().max(16_384),
-    }),
-    {
-      durability: "transient",
-      coalescing: "concat_delta",
-      scope: ["taskId", "stream"],
-    },
-  ),
-  definition(
-    "git.repository.changed",
-    z.object({
-      projectId: z.string().startsWith("proj_").optional(),
-      repo: z.string().min(1).max(1_024),
-      reason: z.string().min(1).max(128),
-      head: z
-        .object({
-          branch: z.string().max(256).optional(),
-          oid: z.string().max(128).optional(),
-        })
-        .optional(),
-    }),
-    { scope: ["projectId", "repo"] },
-  ),
-  definition(
-    "sandbox.lifecycle.changed",
-    z.object({
-      sandboxId: z.string().min(1),
-      previous: managedSandboxLifecycleStateSchema.optional(),
-      current: managedSandboxLifecycleStateSchema,
-      changedAt: z.string().datetime(),
-      reason: z.string().max(1_024).optional(),
-    }),
-    { allowedSourceRoles: managerRoles, scope: ["sandboxId"] },
-  ),
-  definition(
-    "container.lifecycle.changed",
-    z.object({
-      sandboxId: z.string().min(1),
-      container: managedContainerRefSchema.optional(),
-      previous: managedSandboxObservedStateSchema.optional(),
-      current: managedSandboxObservedStateSchema,
-      changedAt: z.string().datetime(),
-      reason: z.string().max(1_024).optional(),
-    }),
-    { allowedSourceRoles: managerRoles, scope: ["sandboxId"] },
-  ),
-  definition(
-    "sandbox.daemon.connection_changed",
-    z.object({
-      sandboxId: z.string().min(1),
-      previous: z.enum(["connected", "disconnected"]).optional(),
-      current: z.enum(["connected", "disconnected"]),
-      changedAt: z.string().datetime(),
-      reason: z.string().max(1_024).optional(),
-    }),
-    { allowedSourceRoles: managerRoles, scope: ["sandboxId"] },
-  ),
-  definition("sandbox.activity.changed", sandboxActivitySummarySchema, {
-    allowedSourceRoles: managerRoles,
-    coalescing: "latest_by_scope",
-    scope: ["sandboxId"],
-  }),
+  ...sandboxRuntimeEventDefinitions,
+  ...taskEventDefinitions,
+  ...gitEventDefinitions,
+  ...sandboxManagerEventDefinitions,
   ...[
     "conversation.created",
     "conversation.updated",
@@ -158,19 +39,8 @@ const definitions: PublicEventDefinition[] = [
     "agent.explore_completed",
     "agent.subagent_started",
     "agent.subagent_completed",
-    "approval.requested",
-    "approval.granted",
-    "approval.denied",
-    "userQuestion.requested",
-    "userQuestion.answered",
-    "userQuestion.dismissed",
-    "planReview.requested",
-    "planReview.accepted",
-    "planReview.accepted_in_new_chat",
-    "planReview.changes_requested",
-    "planReview.rejected",
-    "planReview.discarded",
-    "planReview.force_exited",
+    "approval.updated",
+    "userQuestion.updated",
     "project.created",
     "project.deleted",
     "project.conversations.pruned",
@@ -192,13 +62,13 @@ const definitions: PublicEventDefinition[] = [
     "task.runtime_updated",
     "task.orphan_cleanup_succeeded",
     "task.cleanup_failed",
-  ].map((name) => definition(name, boundedPublicObjectSchema)),
-  definition("storage.cleanup.updated", boundedPublicObjectSchema, {
+  ].map((name) => definePublicEvent(name, boundedPublicObjectSchema)),
+  definePublicEvent("storage.cleanup.updated", boundedPublicObjectSchema, {
     durability: "transient",
     coalescing: "latest_by_scope",
     scope: ["operation.id"],
   }),
-  definition("usage.subscription.updated", boundedPublicObjectSchema, {
+  definePublicEvent("usage.subscription.updated", boundedPublicObjectSchema, {
     durability: "transient",
     coalescing: "latest_by_scope",
     scope: ["provider"],
@@ -235,6 +105,56 @@ export function validatePublicEvent(
     throw new Error(`Event ${name} cannot be emitted by ${sourceRole}`);
   }
   return item.payloadSchema.parse(payload);
+}
+
+export function parsePublicEventEnvelope(
+  input: unknown,
+  sourceRole: PeerRole,
+): import("./envelope.schema.js").EventEnvelope {
+  const envelope = requireEventEnvelope(input);
+  const item = definitionMap.get(envelope.type);
+  if (!item) throw new Error(`Unknown public event: ${envelope.type}`);
+  if (!item.allowedSourceRoles.includes(sourceRole)) {
+    throw new Error(
+      `Event ${envelope.type} cannot be emitted by ${sourceRole}`,
+    );
+  }
+  if (envelope.durability !== item.durability) {
+    throw new Error(
+      `Event ${envelope.type} must use ${item.durability} durability`,
+    );
+  }
+  return {
+    ...envelope,
+    data: item.payloadSchema.parse(envelope.data),
+  };
+}
+
+export function parsePublicEventBatch(
+  input: unknown,
+  sourceRole: PeerRole,
+): import("../protocol/event-stream.schema.js").EventBatchData {
+  const batch = requireEventBatch(input);
+  return {
+    ...batch,
+    events: batch.events.map((event) =>
+      parsePublicEventEnvelope(event, sourceRole),
+    ),
+  };
+}
+
+function requireEventEnvelope(
+  input: unknown,
+): import("./envelope.schema.js").EventEnvelope {
+  // Kept as a local import boundary so the generic envelope remains
+  // transport-neutral while public publication is catalog-authoritative.
+  return eventEnvelopeSchema.parse(input);
+}
+
+function requireEventBatch(
+  input: unknown,
+): import("../protocol/event-stream.schema.js").EventBatchData {
+  return eventBatchDataSchema.parse(input);
 }
 
 export function allPublicEventDefinitions(): PublicEventDefinition[] {

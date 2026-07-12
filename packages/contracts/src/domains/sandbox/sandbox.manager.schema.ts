@@ -1,6 +1,5 @@
 /* eslint-disable max-lines -- Manager schemas intentionally centralize sandbox manager API and storage contracts. */
 import { z } from "zod";
-import { sandboxEventTypeSchema } from "./sandbox.events.schema.js";
 import {
   createPinnedCommandRequestSchema,
   updatePinnedCommandRequestSchema,
@@ -321,32 +320,6 @@ export type ManagedSandboxListItem = z.infer<
   typeof managedSandboxListItemSchema
 >;
 
-export const managerOutboundCommandRecordSchema = z.object({
-  requestId: z.string().min(1),
-  sandboxId: z.string().min(1),
-  sessionId: z.string().min(1).optional(),
-  method: z.string().min(1),
-  paramsHash: z.string().regex(/^sha256:[a-f0-9]{64}$/),
-  paramsSummary: z.unknown().optional(),
-  status: z.enum([
-    "queued",
-    "sent",
-    "completed",
-    "failed",
-    "timed_out",
-    "cancelled",
-  ]),
-  createdAt: isoDateTimeSchema,
-  sentAt: isoDateTimeSchema.optional(),
-  timeoutAt: isoDateTimeSchema.optional(),
-  completedAt: isoDateTimeSchema.optional(),
-  resultRef: z.string().min(1).optional(),
-  error: redactedErrorSchema.optional(),
-});
-export type ManagerOutboundCommandRecord = z.infer<
-  typeof managerOutboundCommandRecordSchema
->;
-
 export const managerLifecycleRequestRecordSchema = z.object({
   requestId: z.string().min(1),
   sandboxId: z.string().min(1).optional(),
@@ -594,48 +567,6 @@ export const sandboxWorkspaceFileResponseSchema = z.object({
 });
 export type SandboxWorkspaceFileResponse = z.infer<
   typeof sandboxWorkspaceFileResponseSchema
->;
-
-export const sandboxManagerLifecycleEventTypeSchema = z.enum([
-  "manager.sandbox.created",
-  "manager.sandbox.deleted",
-  "manager.sandbox.start_requested",
-  "manager.sandbox.started",
-  "manager.sandbox.start_failed",
-  "manager.sandbox.stop_requested",
-  "manager.sandbox.stopped",
-  "manager.sandbox.removed",
-  "sandbox.lifecycle.changed",
-  "container.lifecycle.changed",
-  "sandbox.activity.changed",
-  "manager.sandbox.container_created",
-  "manager.sandbox.container_started",
-  "sandbox.daemon.connection_changed",
-  "manager.sandbox.ready",
-  "manager.sandbox.boot_timeout",
-]);
-export type SandboxManagerLifecycleEventType = z.infer<
-  typeof sandboxManagerLifecycleEventTypeSchema
->;
-
-/** UI-consumed, JSON-safe event envelope streamed over the manager UI WebSocket. */
-export const sandboxManagerEventEnvelopeSchema = z
-  .object({
-    stream: z.string().min(1),
-    sandboxId: z.string().min(1).optional(),
-    seq: z.number().int().nonnegative().safe(),
-    id: z.string().min(1).optional(),
-    ts: isoDateTimeSchema,
-    type: z.union([
-      sandboxManagerLifecycleEventTypeSchema,
-      sandboxEventTypeSchema,
-    ]),
-    durability: z.enum(["durable", "transient"]).optional(),
-    data: z.json().optional(),
-  })
-  .passthrough();
-export type SandboxManagerEventEnvelope = z.infer<
-  typeof sandboxManagerEventEnvelopeSchema
 >;
 
 export const sandboxConfigYamlSourceSchema = z.enum([

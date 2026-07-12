@@ -1,8 +1,10 @@
 import {
   type SandboxAckState,
   type SandboxOutboxRecord,
+  publicEventDefinition,
   sandboxAckStateSchema,
   sandboxOutboxRecordSchema,
+  validatePublicEvent,
 } from "@nervekit/contracts";
 import { JsonStore } from "./json-store.js";
 import { JsonlStore } from "./jsonl-store.js";
@@ -27,8 +29,14 @@ export class EventOutbox {
       ts?: string;
     },
   ): Promise<SandboxOutboxRecord> {
+    const definition = publicEventDefinition(input.type);
+    if (!definition) throw new Error(`Unknown public event: ${input.type}`);
+    if (input.durability !== definition.durability) {
+      throw new Error(`Event ${input.type} must use ${definition.durability}`);
+    }
     const record: SandboxOutboxRecord = {
       ...input,
+      data: validatePublicEvent(input.type, input.data, "sandbox_agent"),
       seq: this.nextSeq++,
       id: input.id ?? `evt_${Date.now()}_${this.nextSeq}`,
       ts: input.ts ?? new Date().toISOString(),

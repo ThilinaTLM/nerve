@@ -24,14 +24,10 @@ export interface RpcClientOptions {
   readonly createMessage: MessageFactory;
   readonly send: (message: NerveMessage) => void | Promise<void>;
   readonly defaultTimeoutMs?: number;
-  readonly operation?: (
-    method: OperationName,
-  ) => RpcOperationDefinition | undefined;
 }
 
 type PendingRequest = {
   readonly method: OperationName;
-  readonly resultSchema?: RpcOperationDefinition["resultSchema"];
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: unknown) => void;
   readonly timeout: ReturnType<typeof setTimeout>;
@@ -53,11 +49,8 @@ export class RpcClient {
       "idempotencyKey" | "timeoutMs" | "expect"
     > = {},
   ): Promise<OperationResult<M>> {
-    const customOperation = this.#options.operation?.(method);
-    const operation = customOperation ?? operationDefinition(method);
-    const validatedParams = customOperation
-      ? customOperation.paramsSchema.parse(params)
-      : parseOperationParams(method, params);
+    const operation = operationDefinition(method);
+    const validatedParams = parseOperationParams(method, params);
     if (operation.idempotency === "none" && options.idempotencyKey)
       throw new RpcError({
         code: "VALIDATION_FAILED",
@@ -91,7 +84,6 @@ export class RpcClient {
       }, timeoutMs);
       this.#pending.set(message.id, {
         method,
-        resultSchema: operation.resultSchema,
         resolve: resolve as (value: unknown) => void,
         reject,
         timeout,
@@ -128,10 +120,7 @@ export class RpcClient {
         return true;
       }
       try {
-        pending.resolve(
-          pending.resultSchema?.parse(response.result) ??
-            parseOperationResult(pending.method, response.result),
-        );
+        pending.resolve(parseOperationResult(pending.method, response.result));
       } catch {
         pending.reject(
           new RpcError({
@@ -158,46 +147,41 @@ export class RpcClient {
   }
 }
 
-export interface RpcOperationDefinition {
-  readonly paramsSchema: { parse(input: unknown): unknown };
-  readonly resultSchema: { parse(input: unknown): unknown };
-  readonly idempotency: "none" | "recommended" | "required";
-  readonly allowedTargetRoles?: readonly string[];
-  readonly requiredCapability?: string;
-}
+export type OperationHandler<M extends OperationName> = (
+  params: OperationParams<M>,
+  request: NerveMessage<ProtocolRequestData>,
+) => OperationResult<M> | Promise<OperationResult<M>>;
+
+export type OperationHandlerRegistry = {
+  readonly [M in OperationName]: OperationHandler<M>;
+};
 
 export interface RpcDispatcherOptions {
-  readonly operation: (
-    method: OperationName,
-  ) => RpcOperationDefinition | undefined;
-  readonly handle: (
-    method: OperationName,
-    params: unknown,
-    request: NerveMessage<ProtocolRequestData>,
-  ) => unknown | Promise<unknown>;
+  readonly handlers: Partial<OperationHandlerRegistry>;
   readonly idempotency?: IdempotencyStorePort;
-  readonly acceptedCapabilities?: readonly string[];
+  readonly acceptedCapabilities?: readonly string[] | (() => readonly string[]);
+  readonly translateError?: (error: unknown) => ProtocolErrorData;
 }
+
+export type IdempotencyOutcome =
+  | { readonly status: "success"; readonly result: unknown }
+  | { readonly status: "error"; readonly error: ProtocolErrorData };
 
 export interface IdempotencyStorePort {
-  lookup(
+  execute(
     scope: string,
     key: string,
     method: string,
     params: unknown,
-  ): Promise<IdempotencyLookup> | IdempotencyLookup;
-  store(
-    scope: string,
-    key: string,
-    method: string,
-    params: unknown,
-    result: unknown,
-  ): Promise<void> | void;
+    operation: () => Promise<IdempotencyOutcome>,
+  ): Promise<IdempotencyExecution>;
 }
 
-export type IdempotencyLookup =
-  | { readonly status: "miss" }
-  | { readonly status: "hit"; readonly result: unknown }
+export type IdempotencyExecution =
+  | {
+      readonly status: "executed" | "replayed";
+      readonly outcome: IdempotencyOutcome;
+    }
   | { readonly status: "conflict" };
 
 export type RpcDispatchResult =
@@ -214,9 +198,7 @@ export class RpcDispatcher {
     if (!parsedRequest.success)
       return failure("VALIDATION_FAILED", "Invalid request data");
     const { method, params, idempotencyKey } = parsedRequest.data;
-    const operation = this.options.operation(method);
-    if (!operation)
-      return failure("METHOD_NOT_FOUND", `Unknown operation: ${method}`);
+    const operation = operationDefinition(method);
     if (request.target.role === "sandbox_agent" && !request.target.id) {
       return failure(
         "VALIDATION_FAILED",
@@ -235,7 +217,11 @@ export class RpcDispatcher {
     if (
       operation.requiredCapability &&
       this.options.acceptedCapabilities &&
-      !this.options.acceptedCapabilities.includes(operation.requiredCapability)
+      !(
+        typeof this.options.acceptedCapabilities === "function"
+          ? this.options.acceptedCapabilities()
+          : this.options.acceptedCapabilities
+      ).includes(operation.requiredCapability)
     ) {
       return failure(
         "CAPABILITY_REQUIRED",
@@ -264,47 +250,63 @@ export class RpcDispatcher {
       );
     }
 
-    const scope = `${request.source.role}:${request.source.id ?? request.source.instanceId ?? "anonymous"}`;
+    const invoke = async (): Promise<IdempotencyOutcome> => {
+      try {
+        const handler = this.options.handlers[method] as
+          | OperationHandler<typeof method>
+          | undefined;
+        if (!handler)
+          return {
+            status: "error",
+            error: {
+              code: "METHOD_NOT_FOUND",
+              message: `No handler registered for ${method}`,
+              retryable: false,
+            },
+          };
+        const rawResult = await handler(
+          validatedParams as OperationParams<typeof method>,
+          request,
+        );
+        return {
+          status: "success",
+          result: operation.resultSchema.parse(rawResult),
+        };
+      } catch (error) {
+        return {
+          status: "error",
+          error: this.options.translateError?.(error) ?? {
+            code: "INTERNAL_ERROR",
+            message:
+              error instanceof Error ? error.message : "Operation failed",
+            retryable: true,
+          },
+        };
+      }
+    };
+    let outcome: IdempotencyOutcome;
     if (idempotencyKey && this.options.idempotency) {
-      const lookup = await this.options.idempotency.lookup(
+      const scope = `${request.source.role}:${request.source.id ?? request.source.instanceId ?? "anonymous"}`;
+      const execution = await this.options.idempotency.execute(
         scope,
         idempotencyKey,
         method,
         validatedParams,
+        invoke,
       );
-      if (lookup.status === "hit") return { ok: true, result: lookup.result };
-      if (lookup.status === "conflict") {
+      if (execution.status === "conflict") {
         return failure(
           "IDEMPOTENCY_CONFLICT",
           "Idempotency key was already used for different parameters",
         );
       }
+      outcome = execution.outcome;
+    } else {
+      outcome = await invoke();
     }
-
-    try {
-      const rawResult = await this.options.handle(
-        method,
-        validatedParams,
-        request,
-      );
-      const result = operation.resultSchema.parse(rawResult);
-      if (idempotencyKey && this.options.idempotency) {
-        await this.options.idempotency.store(
-          scope,
-          idempotencyKey,
-          method,
-          validatedParams,
-          result,
-        );
-      }
-      return { ok: true, result };
-    } catch (error) {
-      return failure(
-        "INTERNAL_ERROR",
-        error instanceof Error ? error.message : "Operation failed",
-        true,
-      );
-    }
+    return outcome.status === "success"
+      ? { ok: true, result: outcome.result }
+      : { ok: false, error: outcome.error };
   }
 }
 

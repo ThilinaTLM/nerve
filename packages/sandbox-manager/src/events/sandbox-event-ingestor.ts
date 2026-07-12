@@ -1,3 +1,7 @@
+import {
+  publicEventDefinition,
+  validatePublicEvent,
+} from "@nervekit/contracts";
 import type { SandboxEventStore } from "../state/event-store.js";
 import type { ManagerEventBus } from "./manager-event-bus.js";
 import { redactManagerEvent } from "./redaction.js";
@@ -22,9 +26,14 @@ export class SandboxEventIngestor {
     let processedSeq = 0;
     let accepted = 0;
     for (const event of events) {
-      const durability =
-        event.durability ??
-        (event.type === "run.delta" ? "transient" : ("durable" as const));
+      const definition = publicEventDefinition(event.type);
+      if (!definition) throw new Error(`Unknown public event: ${event.type}`);
+      const durability = event.durability ?? definition.durability;
+      if (durability !== definition.durability) {
+        throw new Error(
+          `Event ${event.type} must use ${definition.durability}`,
+        );
+      }
       if (durability === "durable") {
         processedSeq = Math.max(processedSeq, event.seq ?? 0);
       }
@@ -35,7 +44,11 @@ export class SandboxEventIngestor {
         type: event.type,
         ts: event.ts,
         durability,
-        payload: redactManagerEvent(event.data ?? event),
+        payload: validatePublicEvent(
+          event.type,
+          redactManagerEvent(event.data ?? event),
+          "sandbox_agent",
+        ),
       };
       if (await this.store.append(stored)) {
         accepted += 1;

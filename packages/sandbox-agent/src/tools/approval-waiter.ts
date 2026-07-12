@@ -73,7 +73,7 @@ export class ApprovalWaiter {
     note?: string,
     options: {
       selectedScope?: ApprovalScope;
-      commandId?: string;
+      resolutionRequestId?: string;
       checkpointId?: string;
     } = {},
   ): Promise<ApprovalRequest> {
@@ -96,7 +96,7 @@ export class ApprovalWaiter {
       ...current,
       status,
       selectedScope,
-      resolutionCommandId: options.commandId,
+      resolutionRequestId: options.resolutionRequestId,
       resolutionReason: note,
       checkpointId: options.checkpointId,
       appliesTo: appliesTo(current, selectedScope),
@@ -227,7 +227,7 @@ function normalizeApproval(
     displayArgs: input.displayArgs,
     status: input.status ?? "waiting",
     selectedScope: input.selectedScope,
-    resolutionCommandId: input.resolutionCommandId,
+    resolutionRequestId: input.resolutionRequestId,
     resolutionReason: input.resolutionReason,
     appliesTo: input.appliesTo,
     checkpointId: input.checkpointId,

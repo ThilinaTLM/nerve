@@ -166,7 +166,7 @@ export class PlanService {
       updatedAt: now,
     };
     await this.upsertPlanReview(review);
-    await this.events.publish("planReview.requested", {
+    await this.events.publish("planReview.updated", {
       planReview: planReviewPreview(review),
     });
     return review;
@@ -213,7 +213,7 @@ export class PlanService {
     const review = this.getPendingPlanReview(reviewId);
     await this.setAgentMode(review.agentId, "coding", "Plan accepted by user.");
     const updated = await this.resolvePlanReview(review, "accepted", feedback);
-    await this.events.publish("planReview.accepted", {
+    await this.events.publish("planReview.updated", {
       planReview: planReviewPreview(updated),
     });
     return updated;
@@ -229,7 +229,7 @@ export class PlanService {
       "accepted_in_new_chat",
       feedback,
     );
-    await this.events.publish("planReview.accepted_in_new_chat", {
+    await this.events.publish("planReview.updated", {
       planReview: planReviewPreview(updated),
     });
     return updated;
@@ -245,7 +245,7 @@ export class PlanService {
       "changes_requested",
       feedback,
     );
-    await this.events.publish("planReview.changes_requested", {
+    await this.events.publish("planReview.updated", {
       planReview: planReviewPreview(updated),
     });
     return updated;
@@ -261,7 +261,7 @@ export class PlanService {
       "changes_requested",
       feedback ?? "Plan rejected by user.",
     );
-    await this.events.publish("planReview.rejected", {
+    await this.events.publish("planReview.updated", {
       planReview: planReviewPreview(updated),
     });
     return updated;
@@ -273,7 +273,7 @@ export class PlanService {
   ): Promise<PlanReviewRecord> {
     const review = this.getPendingPlanReview(reviewId);
     const updated = await this.resolvePlanReview(review, "discarded", feedback);
-    await this.events.publish("planReview.discarded", {
+    await this.events.publish("planReview.updated", {
       planReview: planReviewPreview(updated),
     });
     return updated;
@@ -284,7 +284,8 @@ export class PlanService {
     reason: string,
   ): Promise<AgentRecord> {
     const updated = await this.setAgentMode(agentId, "coding", reason);
-    await this.events.publish("planReview.force_exited", {
+    await this.events.publish("planReview.updated", {
+      status: "force_exited",
       agentId,
       conversationId: updated.conversationId,
       projectId: updated.projectId,

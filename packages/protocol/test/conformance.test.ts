@@ -1,4 +1,4 @@
-import { operationDefinition, type NerveMessage } from "@nervekit/contracts";
+import type { NerveMessage } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -104,27 +104,86 @@ test("server rejects a non-hello first message", async () => {
   );
 });
 
+test("server session serves bounded replay and rejects stale cursors", async () => {
+  const outbound: NerveMessage[] = [];
+  const event = {
+    seq: 2,
+    id: "evt_server_replay_2",
+    ts: new Date().toISOString(),
+    type: "project.created",
+    durability: "durable" as const,
+    data: {},
+  };
+  const host = new ProtocolServerSession({
+    acceptingPeer: server,
+    createMessage: serverMessages,
+    streams: () => [
+      {
+        stream: "local",
+        latestSeq: 2,
+        durableSeq: 2,
+        replayAvailableFromSeq: 2,
+      },
+    ],
+    replaySource: {
+      streams: () => [
+        {
+          stream: "local",
+          latestSeq: 2,
+          durableSeq: 2,
+          replayAvailableFromSeq: 2,
+        },
+      ],
+      read: () => ({ events: [event], complete: true }),
+    },
+    limits,
+    heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+    sessionId: () => "session_server_replay",
+    send: (message) => outbound.push(message),
+  });
+  await host.receive(clientMessages("hello", helloData()) as never);
+  await host.receive(
+    clientMessages("ready", { sessionId: "session_server_replay" }) as never,
+  );
+  outbound.length = 0;
+  await host.receive(
+    clientMessages("replay.request", {
+      sessionId: "session_server_replay",
+      replayId: "rpl_server",
+      streams: [{ stream: "local", fromSeq: 2 }],
+      reason: "gap",
+    }) as never,
+  );
+  assert.deepEqual(
+    outbound.map((message) => message.kind),
+    ["replay.started", "event.batch", "replay.complete"],
+  );
+  outbound.length = 0;
+  await host.receive(
+    clientMessages("replay.request", {
+      sessionId: "session_server_replay",
+      replayId: "rpl_stale",
+      streams: [{ stream: "local", fromSeq: 1 }],
+      reason: "retention_gap",
+    }) as never,
+  );
+  assert.equal(outbound[0]?.kind, "replay.unavailable");
+  assert.equal(
+    (outbound[0]?.data as { streams: Array<{ reason: string }> }).streams[0]
+      ?.reason,
+    "cursor_too_old",
+  );
+});
+
 test("RPC correlates responses, validates targets, and replays idempotent results", async () => {
   const dispatcher = new RpcDispatcher({
-    operation: (method) =>
-      method === "settings.get"
-        ? {
-            paramsSchema: { parse: (input: unknown) => input },
-            resultSchema: { parse: (input: unknown) => input },
-            idempotency: "recommended",
-            allowedTargetRoles: ["workbench_server"],
-          }
-        : undefined,
-    handle: (_method, params) => ({ params }),
+    handlers: {
+      "applicationLog.prune": () => ({ pruned: 1, remaining: 2 }),
+    },
     idempotency: new MemoryIdempotencyStore(),
   });
   const rpc = new RpcClient({
     createMessage: clientMessages,
-    operation: () => ({
-      paramsSchema: { parse: (input: unknown) => input },
-      resultSchema: { parse: (input: unknown) => input },
-      idempotency: "recommended",
-    }),
     send: async (request) => {
       const first = await dispatcher.dispatch(request as never);
       assert.equal(first.ok, true);
@@ -135,7 +194,7 @@ test("RPC correlates responses, validates targets, and replays idempotent result
           "response",
           {
             ok: true,
-            method: "settings.get",
+            method: "applicationLog.prune",
             result: first.ok ? first.result : undefined,
           },
           { replyTo: request.id, correlationId: request.id },
@@ -144,15 +203,14 @@ test("RPC correlates responses, validates targets, and replays idempotent result
     },
   });
   assert.deepEqual(
-    await rpc.request("settings.get", { value: 1 }, { idempotencyKey: "same" }),
-    { params: { value: 1 } },
+    await rpc.request("applicationLog.prune", {}, { idempotencyKey: "same" }),
+    { pruned: 1, remaining: 2 },
   );
 });
 
 test("RPC enforces catalog idempotency and sandbox target identity", async () => {
   const dispatcher = new RpcDispatcher({
-    operation: (method) => operationDefinition(method),
-    handle: () => ({ tasks: [] }),
+    handlers: { "task.list": () => ({ tasks: [] }) },
   });
   const missingTarget = clientMessages(
     "request",
@@ -276,6 +334,95 @@ test("client session applies durable events before ACK and requests replay on ga
   assert.deepEqual(outbound.at(-1).data.streams, [
     { stream: "manager", fromSeq: 2 },
   ]);
+});
+
+test("client buffers live events until replay completes", async () => {
+  const applied: number[] = [];
+  const client = new ProtocolClientSession({
+    createMessage: clientMessages,
+    cursors: () => [{ stream: "manager", processedSeq: 0 }],
+    applyEvent: async (_stream, event) => applied.push(event.seq),
+    send: () => undefined,
+  });
+  await client.start();
+  await client.receive(
+    serverMessages("welcome", {
+      sessionId: "session_replay",
+      acceptingPeer: server,
+      acceptedVersion: 1,
+      capabilities: [],
+      encoding: "json",
+      streams: [{ stream: "manager", latestSeq: 2 }],
+      limits,
+      heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+      resume: { accepted: true, mode: "replay" },
+    }) as never,
+  );
+  await client.receive(
+    serverMessages("replay.started", {
+      sessionId: "session_replay",
+      replayId: "rpl_1",
+      streams: [
+        {
+          stream: "manager",
+          fromSeq: 1,
+          toSeq: 1,
+          latestSeq: 2,
+          source: "log",
+        },
+      ],
+    }) as never,
+  );
+  const event = (seq: number) => ({
+    seq,
+    id: `evt_replay_${seq}`,
+    ts: new Date().toISOString(),
+    type: "project.created",
+    durability: "durable" as const,
+    data: {},
+  });
+  await client.receive(
+    serverMessages(
+      "event.batch",
+      buildEventBatch([event(2)], {
+        stream: "manager",
+        reason: "live",
+        previousDurableSeq: 1,
+      }),
+    ) as never,
+  );
+  assert.deepEqual(applied, []);
+  await client.receive(
+    serverMessages(
+      "event.batch",
+      buildEventBatch([event(1)], {
+        stream: "manager",
+        reason: "replay",
+        previousDurableSeq: 0,
+      }),
+    ) as never,
+  );
+  assert.deepEqual(applied, [1]);
+  await client.receive(
+    serverMessages("replay.complete", {
+      sessionId: "session_replay",
+      replayId: "rpl_1",
+      streams: [
+        {
+          stream: "manager",
+          fromSeq: 1,
+          toSeq: 1,
+          latestSeq: 2,
+          durableCompleteThroughSeq: 1,
+          sentEvents: 1,
+          sentDurableEvents: 1,
+          sentTransientEvents: 0,
+        },
+      ],
+      liveDelivery: "resuming",
+    }) as never,
+  );
+  assert.deepEqual(applied, [1, 2]);
 });
 
 test("client does not ACK when reducer application fails", async () => {

@@ -24,12 +24,18 @@ export function notificationForRuntimeEvent(
   context: RuntimeNotificationContext,
 ): RuntimeNotification | undefined {
   switch (event.type) {
-    case "approval.requested":
-      return approvalNotification(event, context);
-    case "userQuestion.requested":
-      return userQuestionNotification(event, context);
-    case "planReview.requested":
-      return planReviewNotification(event, context);
+    case "approval.updated":
+      return recordValue(event.data.approval)?.status === "pending"
+        ? approvalNotification(event, context)
+        : undefined;
+    case "userQuestion.updated":
+      return recordValue(event.data.question)?.status === "pending"
+        ? userQuestionNotification(event, context)
+        : undefined;
+    case "planReview.updated":
+      return recordValue(event.data.planReview)?.status === "pending"
+        ? planReviewNotification(event, context)
+        : undefined;
     case "run.completed":
       return runCompletedNotification(event, context);
     case "run.failed":

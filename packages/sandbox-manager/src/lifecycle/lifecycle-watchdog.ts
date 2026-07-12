@@ -106,15 +106,5 @@ export class SandboxLifecycleWatchdog {
         force: true,
       },
     );
-    await recordManagerLifecycleEvent(this.state, {
-      type: "manager.sandbox.boot_timeout",
-      sandboxId: record.sandboxId,
-      payload: {
-        sandboxId: record.sandboxId,
-        lifecycleState: record.lifecycleState,
-        code,
-        message,
-      },
-    });
   }
 }

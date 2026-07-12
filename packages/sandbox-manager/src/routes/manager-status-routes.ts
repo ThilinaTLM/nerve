@@ -44,8 +44,8 @@ export async function managerStatus(state: ManagerState): Promise<unknown> {
       daemonConnectTimeoutMs: state.config.daemonConnectTimeoutMs,
       bootReadyTimeoutMs: state.config.bootReadyTimeoutMs,
       bootStallTimeoutMs: state.config.bootStallTimeoutMs,
-      maxPendingCommands: state.config.maxPendingCommands ?? 256,
-      maxCommandBytes: state.config.maxCommandBytes ?? 1_000_000,
+      maxPendingOperations: state.config.maxPendingOperations ?? 256,
+      maxOperationBytes: state.config.maxOperationBytes ?? 1_000_000,
     },
     updatedAt: new Date().toISOString(),
   });

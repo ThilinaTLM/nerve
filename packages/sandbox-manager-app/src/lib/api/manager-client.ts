@@ -348,7 +348,7 @@ export async function getLatestSession(
   );
 }
 
-export async function sendSandboxCommand<M extends OperationName>(
+export async function sendSandboxOperation<M extends OperationName>(
   sandboxId: string,
   method: M,
   params: OperationParams<M>,
