@@ -376,15 +376,19 @@ export class SandboxDaemon {
           agentId?: string;
           runId?: string;
         };
+        // TODO(cutover): rebuild the full conversation tree from coordinator
+        // projections + harness storage. For now snapshot falls back to summary
+        // views derived from canonical projections.
         const snapshot = await buildConversationSnapshot({
           config: this.config,
           sandboxId: this.identity.sandboxId,
           instanceId: this.identity.instanceId,
-          runs: this.runs,
-          bridge: this.bridge,
+          runs: undefined,
+          bridge: undefined,
           cursorSeq: this.state?.events.all().at(-1)?.seq ?? 0,
           ...input,
         });
+        const runLikes = (await this.runRuntime?.query.runLikes()) ?? [];
         return {
           sandboxId: this.identity.sandboxId,
           instanceId: this.identity.instanceId,
@@ -400,13 +404,8 @@ export class SandboxDaemon {
           fallback: snapshot
             ? undefined
             : {
-                conversations: summarizeConversations(
-                  (await this.runs?.list()) ?? [],
-                ),
-                agents: summarizeAgents(
-                  (await this.runs?.list()) ?? [],
-                  this.modelSummaries()[0],
-                ),
+                conversations: summarizeConversations(runLikes),
+                agents: summarizeAgents(runLikes, this.modelSummaries()[0]),
                 runs: [],
                 readOnly: true,
                 reason: "no sandbox conversation transcript is available",
