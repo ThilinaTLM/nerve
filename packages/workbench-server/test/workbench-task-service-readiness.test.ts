@@ -11,7 +11,7 @@ import {
   listen,
   startFakeTask,
   waitForTaskEvent,
-} from "./helpers/task-manager.js";
+} from "./helpers/workbench-task-service.js";
 
 describe("task manager log buffering and readiness", () => {
   it("keeps readiness checks off unless a readiness signal is configured", async () => {
@@ -29,7 +29,7 @@ describe("task manager log buffering and readiness", () => {
   it("marks explicit readiness timeout without stopping the task", async () => {
     const { supervisor } = fakeSupervisor({ child: fakeChild() });
     const { manager, storage, events } = await createManager(supervisor);
-    const timeoutEvent = waitForTaskEvent(events, "task.timed_out");
+    const timeoutEvent = waitForTaskEvent(events, "task.readiness_failed");
 
     const task = await startFakeTask(manager, storage, undefined, {
       readyPattern: "never ready",
@@ -165,7 +165,7 @@ describe("task manager log buffering and readiness", () => {
     );
   });
 
-  it("flushes buffered output during force-finalized stop", async () => {
+  it("flushes buffered output while stop awaits exit evidence", async () => {
     const child = fakeChild();
     const { supervisor } = fakeSupervisor({ child });
     const { manager, storage } = await createManager(supervisor);
@@ -175,7 +175,7 @@ describe("task manager log buffering and readiness", () => {
     const stopped = await manager.cancelTask(task.id, { timeoutMs: 20 });
 
     const logs = await manager.queryLogs(task.id);
-    assert.equal(stopped.status, "cancelled");
+    assert.equal(stopped.status, "stopping");
     assert.deepEqual(
       logs.events.map((event) => event.line),
       ["stopping output"],
@@ -203,7 +203,6 @@ describe("task manager runtime timeout", () => {
     assert.equal(timedOut.id, task.id);
     assert.equal(timedOut.status, "timed_out");
     assert.equal(timedOut.signal, "SIGTERM");
-    assert.match(timedOut.error ?? "", /maximum runtime/);
     assert.deepEqual(terminateSignals, ["SIGTERM"]);
   });
 });

@@ -46,7 +46,7 @@ export * from "./state/sandbox-state.js";
 export * from "./state/state-layout.js";
 export * from "./state/state-store.js";
 export * from "./tools/approval-waiter.js";
-export * from "./tools/task-supervisor.js";
+export * from "./tools/sandbox-task-service.js";
 export * from "./tools/tool-groups.js";
 export * from "./tools/tool-policy.js";
 export * from "./tools/tool-runtime.js";

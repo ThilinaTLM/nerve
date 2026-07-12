@@ -1,4 +1,4 @@
-import type { TaskManager } from "../tasks/task-manager.js";
+import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 
 export function stringArg(args: Record<string, unknown>, name: string): string {
   const value = args[name];
@@ -60,7 +60,7 @@ export function optionalBoundedIntegerArg(
 
 export function taskIdArg(
   args: Record<string, unknown>,
-  tasks: TaskManager,
+  tasks: WorkbenchTaskService,
   projectId: string,
 ): string {
   const taskId = typeof args.taskId === "string" ? args.taskId.trim() : "";

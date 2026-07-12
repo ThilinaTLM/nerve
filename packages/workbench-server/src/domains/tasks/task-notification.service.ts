@@ -17,7 +17,7 @@ import type { EventBus } from "../../infrastructure/events/index.js";
 import type { AppendEntryInput } from "../../runtime/types.js";
 import type { AgentRunStateMap } from "../agents/run/run-state.js";
 import type { HarnessManager } from "../conversations/harness-manager.js";
-import type { TaskManager } from "./task-manager.js";
+import type { WorkbenchTaskService } from "./workbench-task-service.js";
 import {
   formatTaskEventSummary,
   relevantFailureLogs,
@@ -25,7 +25,7 @@ import {
 } from "./task-summary-format.js";
 
 export interface TaskNotificationServiceDeps {
-  tasks: TaskManager;
+  tasks: WorkbenchTaskService;
   events: EventBus;
   runs: AgentRunStateMap;
   appendEntry(

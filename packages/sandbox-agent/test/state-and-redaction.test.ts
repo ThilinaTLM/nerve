@@ -183,7 +183,7 @@ describe("sandbox agent image durable state foundations", () => {
     }
   });
 
-  it("initializes the v2 state layout and fails closed on corrupt event journals", async () => {
+  it("initializes the v3 state layout and fails closed on corrupt event journals", async () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-sandbox-agent-recover-"),
     );

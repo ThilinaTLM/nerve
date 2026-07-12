@@ -41,7 +41,7 @@ describe("RuntimeRegistry conversation pruning", () => {
         projectId: project.id,
         conversationId: oldConversation.id,
         agentId: oldAgent.id,
-        status: "exited",
+        status: "completed",
       });
 
       const result = await state.registry.pruneProjectConversations(

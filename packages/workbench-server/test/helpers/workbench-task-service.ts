@@ -15,7 +15,7 @@ import {
   type TaskRuntime,
 } from "@nervekit/contracts";
 import type { TaskLaunchConfigStore } from "../../src/domains/tasks/task-launch-config.store.js";
-import { TaskManager } from "../../src/domains/tasks/task-manager.js";
+import { WorkbenchTaskService } from "../../src/domains/tasks/workbench-task-service.js";
 import type {
   SpawnManagedTaskOptions,
   TaskSupervisor,
@@ -85,7 +85,7 @@ export async function createManager(
   supervisor: TaskSupervisor,
   launchConfigs = new MemoryTaskLaunchConfigStore(),
 ): Promise<{
-  manager: TaskManager;
+  manager: WorkbenchTaskService;
   storage: InitializedStorage;
   events: EventBus;
   index: IndexStore;
@@ -97,7 +97,7 @@ export async function createManager(
   indexes.push(index);
   const events = new EventBus(storage.paths.home, index);
   return {
-    manager: new TaskManager(storage, events, index, undefined, {
+    manager: new WorkbenchTaskService(storage, events, index, undefined, {
       supervisor,
       launchConfigs,
     }),
@@ -246,7 +246,7 @@ export function waitForTaskEvent(
 }
 
 export async function startFakeTask(
-  manager: TaskManager,
+  manager: WorkbenchTaskService,
   storage: InitializedStorage,
   env?: Record<string, string>,
   patch: Partial<Omit<StartTaskRequest, "cwd" | "command" | "env">> = {},

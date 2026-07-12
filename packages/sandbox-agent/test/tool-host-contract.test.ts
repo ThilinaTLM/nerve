@@ -4,8 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { after, describe, it } from "node:test";
 import { isAgentToolSuspension } from "@nervekit/host-runtime/harness";
+import { SandboxStateStores } from "../src/state/sandbox-state.js";
 import { InputWaiter } from "../src/tools/input-waiter.js";
-import { TaskSupervisor } from "../src/tools/task-supervisor.js";
+import { SandboxTaskService } from "../src/tools/sandbox-task-service.js";
 import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 
 const roots: string[] = [];
@@ -82,11 +83,19 @@ describe("sandbox shared tool host contract", () => {
   it("returns normalized task records for batches, groups, selectors, and logs", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "nerve-host-task-"));
     roots.push(root);
-    const supervisor = new TaskSupervisor({ stateDir: root, maxTasks: 8 });
+    const stores = new SandboxStateStores(root);
+    await stores.load();
+    const taskService = new SandboxTaskService({
+      stateDir: root,
+      workspaceDir: process.cwd(),
+      events: stores.events,
+      maxTasks: 8,
+    });
+    await taskService.load();
     const runtime = new SandboxToolRuntime(config(), {
       workspaceDir: process.cwd(),
       stateDir: root,
-      taskSupervisor: supervisor,
+      taskService,
     });
     const scope = {
       conversationId: "conv_tasks",
@@ -119,7 +128,7 @@ describe("sandbox shared tool host contract", () => {
       { ...scope, toolCallId: "tool_status" },
     );
     assert.equal((status.details as { tasks: unknown[] }).tasks.length, 2);
-    await supervisor.drain();
+    await taskService.drain();
 
     const logs = await runtime.execute(
       "task_logs",
@@ -127,5 +136,24 @@ describe("sandbox shared tool host contract", () => {
       { ...scope, toolCallId: "tool_logs" },
     );
     assert.match(logs.content ?? "", /first/);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const taskEvents = stores.events
+      .all()
+      .filter((event) => event.type.startsWith("task."));
+    assert.equal(
+      taskEvents.filter((event) => event.type === "task.created").length,
+      2,
+    );
+    assert.equal(
+      taskEvents.filter((event) => event.type === "task.started").length,
+      2,
+    );
+    assert.ok(taskEvents.some((event) => event.type === "task.completed"));
+    assert.ok(
+      taskEvents.some(
+        (event) =>
+          event.type === "task.output" && event.durability === "transient",
+      ),
+    );
   });
 });

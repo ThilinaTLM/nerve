@@ -15,8 +15,9 @@ import {
   SecretResolver,
 } from "../src/credentials/secret-resolver.js";
 import { SecretStoreRegistry } from "../src/secret-stores/secret-store-registry.js";
+import { SandboxStateStores } from "../src/state/sandbox-state.js";
 import { ApprovalWaiter } from "../src/tools/approval-waiter.js";
-import { TaskSupervisor } from "../src/tools/task-supervisor.js";
+import { SandboxTaskService } from "../src/tools/sandbox-task-service.js";
 import { enforceToolPolicy } from "../src/tools/tool-policy.js";
 import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 
@@ -170,17 +171,23 @@ describe("sandbox tool policy", () => {
 
   it("dispatches supervised task restart through the tool runtime", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-task-runtime-"));
-    let supervisor: TaskSupervisor | undefined;
+    let taskService: SandboxTaskService | undefined;
     try {
       const workspace = path.join(dir, "workspace");
       const state = path.join(dir, "state");
       await mkdir(workspace);
       await mkdir(state);
-      supervisor = new TaskSupervisor({ stateDir: state });
+      const stores = new SandboxStateStores(state);
+      await stores.load();
+      taskService = new SandboxTaskService({
+        stateDir: state,
+        workspaceDir: workspace,
+        events: stores.events,
+      });
       const runtime = new SandboxToolRuntime(config, {
         workspaceDir: workspace,
         stateDir: state,
-        taskSupervisor: supervisor,
+        taskService,
       });
       const started = await runtime.execute("task_start", {
         command: "printf restart-ok",
@@ -192,17 +199,19 @@ describe("sandbox tool policy", () => {
       const second = (restarted.details as { task: { id: string } }).task;
       assert.notEqual(second.id, first.id);
       await runtime.execute("task_cancel", { taskId: second.id });
-      await supervisor.drain();
+      await taskService.drain();
       const persisted = JSON.parse(
         await readFile(
           path.join(state, "tasks", second.id, "state.json"),
           "utf8",
         ),
-      ) as { restartedFromTaskId?: string; restartGeneration?: number };
-      assert.equal(persisted.restartedFromTaskId, first.id);
-      assert.equal(persisted.restartGeneration, 1);
+      ) as {
+        task: { restartedFromTaskId?: string; restartGeneration?: number };
+      };
+      assert.equal(persisted.task.restartedFromTaskId, first.id);
+      assert.equal(persisted.task.restartGeneration, 1);
     } finally {
-      await supervisor?.drain().catch(() => undefined);
+      await taskService?.drain().catch(() => undefined);
       await rm(dir, { recursive: true, force: true });
     }
   });

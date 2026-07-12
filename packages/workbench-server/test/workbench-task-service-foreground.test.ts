@@ -7,7 +7,7 @@ import {
   runtimeMetadata,
   seedTaskRecord,
   waitForTaskEvent,
-} from "./helpers/task-manager.js";
+} from "./helpers/workbench-task-service.js";
 
 describe("task manager foreground bash auto-promotion", () => {
   it("promotes a still-running foreground bash task with agent scope", async () => {
@@ -46,7 +46,7 @@ describe("task manager foreground bash auto-promotion", () => {
     assert.match(result.result.content ?? "", /promoted it to background task/);
     assert.deepEqual(
       updates.map((update) => [update.stream, update.chunk]),
-      [["stdout", "still running"]],
+      [["stdout", "still running\n"]],
     );
 
     const logs = await manager.queryLogs(result.task.id);

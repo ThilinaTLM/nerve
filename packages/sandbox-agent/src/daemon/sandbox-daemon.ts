@@ -39,7 +39,7 @@ import {
   PlanReviewWaiter,
   sandboxProjectId,
 } from "../tools/plan-review-waiter.js";
-import { TaskSupervisor } from "../tools/task-supervisor.js";
+import { SandboxTaskService } from "../tools/sandbox-task-service.js";
 
 import { SandboxToolRuntime } from "../tools/tool-runtime.js";
 import { mapRuntimeError, mapWaitError } from "./operation-errors.js";
@@ -76,7 +76,7 @@ export class SandboxDaemon {
   private planReviewWaiter?: PlanReviewWaiter;
   private approvalWaiter?: ApprovalWaiter;
   private agentRuntime?: SandboxAgentRuntime;
-  private taskSupervisor?: TaskSupervisor;
+  private taskService?: SandboxTaskService;
   private toolRuntime?: SandboxToolRuntime;
   private bridge?: HarnessEventBridge;
   private harnessFactory?: HarnessFactory;
@@ -174,12 +174,14 @@ export class SandboxDaemon {
     this.agentConfigStore = new AgentConfigStore(state.stateDir);
     loadPromises.push(this.agentConfigStore.load());
     const taskConfig = this.config.tools?.groups?.taskManagement;
-    this.taskSupervisor = new TaskSupervisor({
+    this.taskService = new SandboxTaskService({
       stateDir: state.stateDir,
+      workspaceDir: this.workspaceDir,
+      events: state.events,
       maxTasks: taskConfig?.maxTasks,
       maxTaskRuntimeMs: taskConfig?.maxTaskRuntimeMs,
     });
-    loadPromises.push(this.taskSupervisor.load());
+    loadPromises.push(this.taskService.load());
     const eventCommonData = {
       instanceId: this.identity.instanceId,
       configDigest: this.configDigest,
@@ -200,7 +202,7 @@ export class SandboxDaemon {
       inputWaiter: this.inputWaiter,
       planReviewWaiter: this.planReviewWaiter,
       configStore: this.agentConfigStore,
-      taskSupervisor: this.taskSupervisor,
+      taskService: this.taskService,
       toolCallStore: this.runs.toolCallStore(),
     });
     const factory = new HarnessFactory(this.config, {
@@ -263,7 +265,7 @@ export class SandboxDaemon {
     );
     registerSandboxTaskHandlers(
       this.router,
-      () => this.taskSupervisor,
+      () => this.taskService,
       this.workspaceDir,
     );
     this.router.register("sandbox.status.get", async () => {

@@ -31,7 +31,10 @@ export function createTaskLogCursor(logSeq = 0): TaskLogCursor {
 }
 
 export class TaskLogService {
-  constructor(private readonly events: EventBus) {}
+  constructor(
+    private readonly events: EventBus,
+    private readonly options: { publishOutputEvents?: boolean } = {},
+  ) {}
 
   async queryLogs(
     task: TaskRecord,
@@ -202,11 +205,13 @@ export class TaskLogService {
       line: cleaned,
     };
     await appendJsonLine(record.logsPath, event, 0o600);
-    await this.events.publish("task.output", {
-      taskId: record.id,
-      stream,
-      text: cleaned.slice(-16_384),
-    });
+    if (this.options.publishOutputEvents !== false) {
+      await this.events.publish("task.output", {
+        taskId: record.id,
+        stream,
+        text: cleaned.slice(-16_384),
+      });
+    }
     await onLog(event);
   }
 }

@@ -4,7 +4,7 @@ import type {
   TaskRecord,
   TaskRuntime,
 } from "@nervekit/contracts";
-import type { TaskManager } from "./task-manager.js";
+import type { WorkbenchTaskService } from "./workbench-task-service.js";
 import {
   dedupeListeningPorts,
   formatListeningPort,
@@ -16,7 +16,7 @@ function delay(ms: number): Promise<void> {
 }
 
 export function markHydratedRecordOrphaned(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   record: TaskRecord,
 ): TaskRecord {
   const now = new Date().toISOString();
@@ -51,7 +51,7 @@ export function markHydratedRecordOrphaned(
 }
 
 export function orphanedHydrateMessage(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   runtime: TaskRuntime | undefined,
 ): string {
   if (runtime?.childPid) {
@@ -64,7 +64,7 @@ export function orphanedHydrateMessage(
 }
 
 export async function cleanupOrphanedTask(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   taskId: string,
   request: CancelTaskRequest,
 ): Promise<TaskRecord> {
@@ -179,7 +179,7 @@ export async function cleanupOrphanedTask(
 }
 
 export function orphanCleanupValidationError(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   runtime: TaskRuntime | undefined,
 ): string | undefined {
   if (!runtime) {
@@ -202,7 +202,7 @@ export function orphanCleanupValidationError(
 }
 
 export async function terminateRuntimeForCleanup(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   record: TaskRecord,
   runtime: TaskRuntime,
   signal: NodeJS.Signals,
@@ -227,7 +227,7 @@ export async function terminateRuntimeForCleanup(
 }
 
 export async function waitForRuntimeTargetExit(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   runtime: TaskRuntime,
   timeoutMs: number,
 ): Promise<boolean> {
@@ -241,7 +241,7 @@ export async function waitForRuntimeTargetExit(
 }
 
 export async function isRuntimeTargetAlive(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   runtime: TaskRuntime,
 ): Promise<boolean> {
   try {
@@ -256,7 +256,7 @@ export async function isRuntimeTargetAlive(
 }
 
 export async function listeningPortsForOrphanCleanup(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   record: TaskRecord,
   runtime: TaskRuntime,
 ): Promise<TaskListeningPort[]> {
@@ -279,7 +279,7 @@ export async function listeningPortsForOrphanCleanup(
 }
 
 export async function releaseOrphanedListeningPorts(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   record: TaskRecord,
   cleanupPorts: TaskListeningPort[],
 ): Promise<TaskListeningPort[]> {
@@ -344,7 +344,7 @@ function sameEndpoint(
 }
 
 export async function inspectPortListenersForCleanup(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   record: TaskRecord,
   cleanupPorts: TaskListeningPort[],
 ): Promise<TaskListeningPort[]> {
@@ -364,7 +364,7 @@ export async function inspectPortListenersForCleanup(
 }
 
 export async function finalizeOrphanCleanup(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   taskId: string,
   finalSignal: NodeJS.Signals,
   runtime: TaskRuntime,
@@ -412,7 +412,7 @@ export async function finalizeOrphanCleanup(
 }
 
 export async function failOrphanCleanup(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   record: TaskRecord,
   message: string,
   context: Record<string, unknown> = {},
@@ -442,7 +442,7 @@ function taskListeningPortsFromContext(value: unknown): TaskListeningPort[] {
 }
 
 export function runtimeLogContext(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   runtime: TaskRuntime | undefined,
   extra: Record<string, unknown> = {},
 ): Record<string, unknown> {
@@ -458,6 +458,9 @@ export function runtimeLogContext(
   };
 }
 
-export function errorMessage(this: TaskManager, error: unknown): string {
+export function errorMessage(
+  this: WorkbenchTaskService,
+  error: unknown,
+): string {
   return error instanceof Error ? error.message : String(error);
 }

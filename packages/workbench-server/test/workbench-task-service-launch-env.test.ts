@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { TaskManager } from "../src/domains/tasks/task-manager.js";
+import { WorkbenchTaskService } from "../src/domains/tasks/workbench-task-service.js";
 import { EventBus } from "../src/infrastructure/events/index.js";
 import { readJsonFile } from "../src/infrastructure/storage/index.js";
 import {
@@ -10,7 +10,7 @@ import {
   fakeSupervisor,
   runtimeMetadata,
   startFakeTask,
-} from "./helpers/task-manager.js";
+} from "./helpers/workbench-task-service.js";
 
 describe("task manager launch env", () => {
   it("stores env config-side and exposes only redacted envInfo", async () => {
@@ -40,7 +40,7 @@ describe("task manager launch env", () => {
     );
   });
 
-  it("restarts an active supervised task in place with stored env", async () => {
+  it("restarts an active supervised task with stored env and lineage", async () => {
     const env = { PORT: "4321", API_TOKEN: "secret" };
     const firstChild = fakeChild(1234);
     const secondChild = fakeChild(5678);
@@ -63,7 +63,7 @@ describe("task manager launch env", () => {
 
     const restarted = await manager.restartTask(task.id);
 
-    assert.equal(restarted.id, task.id);
+    assert.notEqual(restarted.id, task.id);
     assert.equal(restarted.name, "web-dev");
     assert.equal(restarted.status, "running");
     assert.equal(restarted.restartRootTaskId, task.id);
@@ -72,11 +72,11 @@ describe("task manager launch env", () => {
     assert.equal(spawnCalls.length, 2);
     assert.deepEqual(spawnCalls[1]?.options.env, env);
     assert.deepEqual(terminateSignals, ["SIGTERM"]);
-    assert.equal(manager.listTasks().length, 1);
-    assert.equal(manager.listTasks()[0]?.id, task.id);
+    assert.equal(manager.listTasks().length, 2);
+    assert.equal(restarted.restartedFromTaskId, task.id);
     assert.equal(
       events.replaySince(0).some((event) => event.type === "task.cancelled"),
-      false,
+      true,
     );
   });
 
@@ -161,7 +161,7 @@ describe("task manager launch env", () => {
       runtime,
       isRuntimeTargetAlive: () => false,
     });
-    const hydrated = new TaskManager(
+    const hydrated = new WorkbenchTaskService(
       storage,
       new EventBus(storage.paths.home, index),
       index,
@@ -226,7 +226,7 @@ describe("task manager launch env", () => {
       await createManager(supervisor);
     const task = await startFakeTask(manager, storage, env);
 
-    const hydrated = new TaskManager(
+    const hydrated = new WorkbenchTaskService(
       storage,
       new EventBus(storage.paths.home, index),
       index,
@@ -265,7 +265,7 @@ describe("task manager launch env", () => {
       runtime: replacementRuntime,
       isRuntimeTargetAlive: () => false,
     });
-    const hydrated = new TaskManager(
+    const hydrated = new WorkbenchTaskService(
       storage,
       new EventBus(storage.paths.home, index),
       index,

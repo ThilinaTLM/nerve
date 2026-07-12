@@ -51,7 +51,7 @@ import {
   SecretTaskLaunchConfigStore,
   TaskNotificationService,
 } from "../domains/tasks/index.js";
-import { TaskManager } from "../domains/tasks/task-manager.js";
+import { WorkbenchTaskService } from "../domains/tasks/workbench-task-service.js";
 import { ToolService } from "../domains/tools/tool-service.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
@@ -74,7 +74,7 @@ export interface RuntimeDeps {
 }
 
 export interface RuntimeServices {
-  tasks: TaskManager;
+  tasks: WorkbenchTaskService;
   taskNotifications: TaskNotificationService;
   pythonRuntime: PythonRuntimeService;
   workers: WorkerManager;
@@ -258,7 +258,7 @@ export function composeRuntime(
     events,
   });
   const taskLaunchConfigs = new SecretTaskLaunchConfigStore(secrets);
-  services.tasks = new TaskManager(
+  services.tasks = new WorkbenchTaskService(
     storage,
     events,
     index,

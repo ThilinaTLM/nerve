@@ -4,10 +4,12 @@ import {
   isAgentToolSuspension,
 } from "@nervekit/host-runtime/harness";
 import type {
+  HostToolFactory,
   ToolExecutionContext,
   ToolExecutionResult,
   ToolHandlerRegistry,
 } from "@nervekit/host-runtime/tools";
+import { createHostToolFactory } from "@nervekit/host-runtime/tools";
 import {
   toolDefinitionByName,
   toolManifest,
@@ -31,8 +33,7 @@ import type { ApprovalWaiter } from "./approval-waiter.js";
 import type { InputWaiter } from "./input-waiter.js";
 import type { PlanReviewWaiter } from "./plan-review-waiter.js";
 import { createSandboxOrchestrationHandlers } from "./sandbox-orchestration-handlers.js";
-import { executeSandboxTool } from "./sandbox-tool-host.js";
-import type { TaskSupervisor } from "./task-supervisor.js";
+import type { SandboxTaskService } from "./sandbox-task-service.js";
 import { TodoStore } from "./todo-store.js";
 import { computeToolGroupStatus } from "./tool-groups.js";
 import {
@@ -54,10 +55,17 @@ export type SandboxToolRuntimeOptions = {
   inputWaiter?: InputWaiter;
   planReviewWaiter?: PlanReviewWaiter;
   configStore?: AgentConfigStore;
-  taskSupervisor?: TaskSupervisor;
+  taskService?: SandboxTaskService;
   todoStore?: TodoStore;
   exploreRuntime?: ExploreRuntime;
   toolCallStore?: ToolCallStore;
+};
+
+type SandboxHostToolExecution = {
+  toolName: ToolName;
+  context: ToolExecutionContext;
+  hostHandlers: ToolHandlerRegistry;
+  identity?: unknown;
 };
 
 type ActiveToolExecution = ToolCallScope & {
@@ -74,6 +82,7 @@ export class SandboxToolRuntime {
   private readonly records: JsonlStore<Record<string, unknown>>;
   private readonly redactor: Redactor;
   private readonly todoStore: TodoStore;
+  private readonly hostTools: HostToolFactory<SandboxHostToolExecution>;
   private orchestrationHandlers: ToolHandlerRegistry;
   private readonly active = new Map<string, ActiveToolExecution>();
   private policyOverride: {
@@ -92,6 +101,10 @@ export class SandboxToolRuntime {
     );
     this.redactor = options.redactor ?? new Redactor({ secrets: [] });
     this.todoStore = options.todoStore ?? new TodoStore(options.stateDir);
+    this.hostTools = createHostToolFactory<SandboxHostToolExecution>({
+      execution: { context: (request) => request.context },
+      handlers: { forExecution: (request) => request.hostHandlers },
+    });
     this.orchestrationHandlers = this.createOrchestrationHandlers();
   }
 
@@ -107,7 +120,7 @@ export class SandboxToolRuntime {
       inputWaiter: this.options.inputWaiter,
       planReviewWaiter: this.options.planReviewWaiter,
       configStore: this.options.configStore,
-      taskSupervisor: this.options.taskSupervisor,
+      taskService: this.options.taskService,
       todoStore: this.todoStore,
       exploreRuntime: this.options.exploreRuntime,
       record: (entry, context) => this.record(entry, context),
@@ -388,9 +401,8 @@ export class SandboxToolRuntime {
         ? this.registerActive(tool, toolCallId, context, 1)
         : undefined;
       try {
-        const result = await executeSandboxTool({
+        const request: SandboxHostToolExecution = {
           toolName: tool as ToolName,
-          args,
           context: {
             cwd: this.options.workspaceDir,
             ...context,
@@ -408,7 +420,8 @@ export class SandboxToolRuntime {
               ? (cancel: () => Promise<void> | void) => (active.cancel = cancel)
               : undefined,
           },
-        });
+        };
+        const result = await this.hostTools.execute(request, args);
         if (active?.latestStatus !== "cancelled") {
           await this.record(
             {
@@ -469,9 +482,8 @@ export class SandboxToolRuntime {
     active.latestStatus = "started";
     active.lifecycleSeq = 2;
     try {
-      const result = await executeSandboxTool({
+      const request: SandboxHostToolExecution = {
         toolName: tool as ToolName,
-        args: this.redactor.redact(args) as Record<string, unknown>,
         context: {
           cwd: this.options.workspaceDir,
           dataDir:
@@ -484,7 +496,11 @@ export class SandboxToolRuntime {
         },
         hostHandlers: this.orchestrationHandlers,
         identity: context,
-      });
+      };
+      const result = await this.hostTools.execute(
+        request,
+        this.redactor.redact(args) as Record<string, unknown>,
+      );
       if (!isActiveCancelled(active)) {
         await this.record(
           {
@@ -543,12 +559,12 @@ export class SandboxToolRuntime {
         scope,
       );
     }
-    for (const task of (await this.options.taskSupervisor?.cancelRun(scope)) ??
+    for (const task of (await this.options.taskService?.cancelRun(scope)) ??
       []) {
-      if (!task.toolCallId) continue;
+      if (task.origin.kind !== "agent_tool") continue;
       await this.record(
         {
-          toolCallId: task.toolCallId,
+          toolCallId: task.origin.toolCallId,
           toolName: "task_start",
           status: "cancelled",
           lifecycleSeq: 3,

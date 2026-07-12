@@ -5,7 +5,7 @@ import {
   fakeSupervisor,
   runtimeMetadata,
   seedTaskRecord,
-} from "./helpers/task-manager.js";
+} from "./helpers/workbench-task-service.js";
 
 describe("task manager orphan cleanup", () => {
   it("cleans up an orphaned record with runtime metadata", async () => {

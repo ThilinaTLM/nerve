@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import type { TaskRecord } from "@nervekit/contracts";
-import { TaskManager } from "../src/domains/tasks/task-manager.js";
+import { WorkbenchTaskService } from "../src/domains/tasks/workbench-task-service.js";
 import { EventBus } from "../src/infrastructure/events/index.js";
 import { readJsonFile } from "../src/infrastructure/storage/index.js";
 import {
@@ -12,10 +12,10 @@ import {
   fakeSupervisor,
   runtimeMetadata,
   startFakeTask,
-} from "./helpers/task-manager.js";
+} from "./helpers/workbench-task-service.js";
 
 describe("task manager cancel lifecycle", () => {
-  it("returns after timeout when the child never closes", async () => {
+  it("does not terminalize when the child never closes", async () => {
     const child = fakeChild();
     const { supervisor, terminateSignals } = fakeSupervisor({ child });
     const { manager, storage } = await createManager(supervisor);
@@ -25,13 +25,13 @@ describe("task manager cancel lifecycle", () => {
     const stopped = await manager.cancelTask(task.id, { timeoutMs: 20 });
 
     assert.ok(Date.now() - startedAt < 500);
-    assert.equal(stopped.status, "cancelled");
-    assert.equal(stopped.exitCode, null);
-    assert.equal(stopped.signal, "SIGKILL");
+    assert.equal(stopped.status, "stopping");
+    assert.equal(stopped.exitCode, undefined);
+    assert.equal(stopped.signal, undefined);
     assert.deepEqual(terminateSignals, ["SIGTERM", "SIGKILL"]);
   });
 
-  it("does not let a late close overwrite a force-finalized cancelled record", async () => {
+  it("uses late close evidence to finalize a pending cancellation", async () => {
     const child = fakeChild();
     const { supervisor } = fakeSupervisor({ child });
     const { manager, storage } = await createManager(supervisor);
@@ -43,8 +43,8 @@ describe("task manager cancel lifecycle", () => {
 
     const stored = manager.getTask(stopped.id);
     assert.equal(stored.status, "cancelled");
-    assert.equal(stored.exitCode, null);
-    assert.equal(stored.signal, "SIGKILL");
+    assert.equal(stored.exitCode, 1);
+    assert.equal(stored.signal, null);
   });
 
   it("returns a cancelled record when the child closes normally", async () => {
@@ -66,7 +66,7 @@ describe("task manager cancel lifecycle", () => {
     assert.deepEqual(terminateSignals, ["SIGTERM"]);
   });
 
-  it("is idempotent for terminal records", async () => {
+  it("is idempotent while cancellation is awaiting exit evidence", async () => {
     const child = fakeChild();
     const { supervisor, terminateSignals } = fakeSupervisor({ child });
     const { manager, storage } = await createManager(supervisor);
@@ -76,13 +76,13 @@ describe("task manager cancel lifecycle", () => {
     const again = await manager.cancelTask(task.id, { timeoutMs: 20 });
 
     assert.equal(again.id, stopped.id);
-    assert.equal(again.status, "cancelled");
+    assert.equal(again.status, "stopping");
     assert.deepEqual(terminateSignals, ["SIGTERM", "SIGKILL"]);
   });
 });
 
 describe("task manager active restart lifecycle", () => {
-  it("ignores a late close from the old run after an in-place restart", async () => {
+  it("creates restart lineage and keeps the replacement independent", async () => {
     const firstChild = fakeChild(1234);
     const secondChild = fakeChild(5678);
     const replacementRuntime = runtimeMetadata({
@@ -107,12 +107,12 @@ describe("task manager active restart lifecycle", () => {
     firstChild.emitClose(1, null);
     await delay(0);
 
-    const current = manager.getTask(task.id);
-    assert.equal(restarted.id, task.id);
+    const current = manager.getTask(restarted.id);
+    assert.notEqual(restarted.id, task.id);
     assert.equal(current.status, "running");
     assert.deepEqual(current.runtime, replacementRuntime);
-    assert.equal(current.exitCode, undefined);
-    assert.equal(current.signal, undefined);
+    assert.equal(current.restartedFromTaskId, task.id);
+    assert.equal(current.restartRootTaskId, task.id);
   });
 });
 
@@ -138,7 +138,7 @@ describe("task manager runtime metadata", () => {
       await createManager(supervisor);
     const task = await startFakeTask(manager, storage);
 
-    const hydrated = new TaskManager(
+    const hydrated = new WorkbenchTaskService(
       storage,
       new EventBus(storage.paths.home, index),
       index,

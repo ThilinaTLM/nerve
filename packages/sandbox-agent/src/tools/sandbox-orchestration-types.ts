@@ -7,7 +7,7 @@ import type { ExploreRuntime } from "../agent/explore-runtime.js";
 import type { Redactor } from "../security/redaction.js";
 import type { InputWaiter } from "./input-waiter.js";
 import type { PlanReviewWaiter } from "./plan-review-waiter.js";
-import type { TaskSupervisor } from "./task-supervisor.js";
+import type { SandboxTaskService } from "./sandbox-task-service.js";
 import type { TodoStore } from "./todo-store.js";
 import type { ToolRuntimeScope } from "./tool-scope.js";
 
@@ -24,7 +24,7 @@ export type SandboxOrchestrationHandlerOptions = {
   inputWaiter?: InputWaiter;
   planReviewWaiter?: PlanReviewWaiter;
   configStore?: AgentConfigStore;
-  taskSupervisor?: TaskSupervisor;
+  taskService?: SandboxTaskService;
   todoStore: TodoStore;
   exploreRuntime?: ExploreRuntime;
   record: (

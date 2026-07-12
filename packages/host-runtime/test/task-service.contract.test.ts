@@ -100,6 +100,49 @@ test("readiness timeout records failure without pretending process exit", async 
   );
 });
 
+test("terminal callbacks are idempotent across repeated exit and cancellation races", async () => {
+  const { service, events, callbacks, records } = fixture({
+    waitForExit: {
+      exitedAt: "2026-07-11T00:00:01.000Z",
+      exitCode: 0,
+    },
+  });
+  await service.start({ cwd: "/workspace", command: "sleep 60" });
+  const cancellation = service.cancel("task_contract");
+  await callbacks()?.onExit?.({
+    exitedAt: "2026-07-11T00:00:01.000Z",
+    exitCode: 0,
+  });
+  await callbacks()?.onExit?.({
+    exitedAt: "2026-07-11T00:00:02.000Z",
+    exitCode: 1,
+  });
+  await cancellation;
+  assert.equal(records.get("task_contract")?.status, "cancelled");
+  assert.equal(
+    events.filter((event) => event.type === "task.cancelled").length,
+    1,
+  );
+  assert.equal(
+    events.some((event) => event.type === "task.completed"),
+    false,
+  );
+});
+
+test("workspace containment normalizes POSIX and Windows paths", async () => {
+  const { assertWorkspacePath } = await import("../src/index.js");
+  assert.doesNotThrow(() =>
+    assertWorkspacePath("/workspace/a/..", "/workspace"),
+  );
+  assert.throws(() => assertWorkspacePath("/workspace-other", "/workspace"));
+  assert.doesNotThrow(() =>
+    assertWorkspacePath("C:\\workspace\\project", "C:\\workspace"),
+  );
+  assert.throws(() =>
+    assertWorkspacePath("C:\\workspace-other", "C:\\workspace"),
+  );
+});
+
 test("process output is bounded, transient, and delegated to durable logs", async () => {
   const { service, events, callbacks } = fixture();
   await service.start({ cwd: "/workspace", command: "echo hello" });

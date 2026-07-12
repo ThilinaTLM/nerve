@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import { RunManager } from "../src/agent/run-manager.js";
 import { RunStateStore } from "../src/agent/run-state-store.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
-import { TaskSupervisor } from "../src/tools/task-supervisor.js";
+import { SandboxTaskService } from "../src/tools/sandbox-task-service.js";
 import { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 
 function config() {
@@ -25,13 +25,13 @@ function config() {
 }
 
 async function waitForTaskStatus(
-  supervisor: TaskSupervisor,
+  taskService: SandboxTaskService,
   id: string,
   status: "running" | "completed" | "failed" | "cancelled" | "orphaned",
 ): Promise<void> {
   const deadline = Date.now() + 1000;
   while (Date.now() < deadline) {
-    if (supervisor.get(id)?.status === status) return;
+    if ((await taskService.get(id))?.status === status) return;
     await delay(10);
   }
   assert.fail(`task ${id} did not reach status ${status}`);
@@ -107,28 +107,42 @@ describe("tool lifecycle cancellation", () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-task-spawn-error-"),
     );
-    let supervisor: TaskSupervisor | undefined;
+    let taskService: SandboxTaskService | undefined;
     try {
-      supervisor = new TaskSupervisor({ stateDir: dir, maxTasks: 1 });
-      const task = supervisor.start("true", path.join(dir, "missing-cwd"));
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      taskService = new SandboxTaskService({
+        stateDir: dir,
+        workspaceDir: dir,
+        events: stores.events,
+        maxTasks: 1,
+      });
+      const task = await taskService.start({
+        command: "true",
+        cwd: path.join(dir, "missing-cwd"),
+      });
 
-      await waitForTaskStatus(supervisor, task.id, "failed");
+      await waitForTaskStatus(taskService, task.id, "failed");
       await delay(50);
-      await supervisor.drain();
+      await taskService.drain();
 
-      const finalTask = supervisor.get(task.id);
+      const finalTask = await taskService.get(task.id);
       assert.equal(finalTask?.status, "failed");
       assert.equal(finalTask?.exitCode, 127);
-      assert.match(finalTask?.logs ?? "", /ENOENT|no such file/i);
+      const logs = await taskService.logs(task.id, {});
+      assert.match(
+        logs.events.map((event) => event.line).join("\n"),
+        /ENOENT|no such file/i,
+      );
     } finally {
-      await supervisor?.drain().catch(() => undefined);
+      await taskService?.drain().catch(() => undefined);
       await rm(dir, { recursive: true, force: true });
     }
   });
 
   it("cancels supervised tasks for a run and persists cancelled tool records", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-tool-cancel-"));
-    let supervisor: TaskSupervisor | undefined;
+    let taskService: SandboxTaskService | undefined;
     try {
       const stores = new SandboxStateStores(dir);
       await stores.load();
@@ -137,12 +151,17 @@ describe("tool lifecycle cancellation", () => {
         dir,
         stores.events,
       );
-      supervisor = new TaskSupervisor({ stateDir: dir, maxTasks: 4 });
-      await supervisor.load();
+      taskService = new SandboxTaskService({
+        stateDir: dir,
+        workspaceDir: process.cwd(),
+        events: stores.events,
+        maxTasks: 4,
+      });
+      await taskService.load();
       const runtime = new SandboxToolRuntime(config(), {
         workspaceDir: process.cwd(),
         stateDir: dir,
-        taskSupervisor: supervisor,
+        taskService,
         toolCallStore: manager.toolCallStore(),
       });
       const scope = {
@@ -153,13 +172,13 @@ describe("tool lifecycle cancellation", () => {
       const result = await runtime.execute(
         "task_start",
         { command: "sleep 30", name: "slow" },
-        { ...scope, toolCallId: "task_tool_1" },
+        { ...scope, toolCallId: "tool_task_1" },
       );
       const task = (result.details as { task: { id: string } }).task;
-      assert.equal(supervisor.get(task.id)?.status, "running");
+      assert.equal((await taskService.get(task.id))?.status, "running");
 
       await runtime.cancelRun(scope);
-      assert.equal(supervisor.get(task.id)?.status, "cancelled");
+      assert.equal((await taskService.get(task.id))?.status, "cancelled");
 
       const toolFile = path.join(
         dir,
@@ -174,10 +193,10 @@ describe("tool lifecycle cancellation", () => {
       );
       const toolJsonl = await readFile(toolFile, "utf8");
       assert.match(toolJsonl, /"status":"cancelled"/);
-      assert.match(toolJsonl, /"toolCallId":"task_tool_1"/);
-      await supervisor.drain();
+      assert.match(toolJsonl, /"toolCallId":"tool_task_1"/);
+      await taskService.drain();
     } finally {
-      await supervisor?.drain().catch(() => undefined);
+      await taskService?.drain().catch(() => undefined);
       await rm(dir, { recursive: true, force: true });
     }
   });

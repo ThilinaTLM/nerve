@@ -2,6 +2,8 @@ import { isAbsolute, resolve } from "node:path";
 import {
   buildProcessTextResult,
   createExploreHandlers,
+  createHostToolFactory,
+  type HostToolFactory,
   createInteractionHandlers,
   createPlanHandlers,
   createTaskHandlers,
@@ -20,13 +22,14 @@ import {
   type TaskLogEvent,
   type TaskRecord,
   type ToolCallRecord,
+  type ToolName,
 } from "@nervekit/contracts";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
 import { isActiveTaskStatus } from "../tasks/index.js";
-import type { TaskManager } from "../tasks/task-manager.js";
+import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import {
   formatTaskListSummary,
   formatTaskStartSummary,
@@ -49,7 +52,6 @@ import {
   taskLogsFromTool as taskLogsFromToolImpl,
   tasksInScope as tasksInScopeImpl,
 } from "./orchestration-tool-dispatcher-handlers.js";
-import { executeOrchestratorTool } from "./orchestrator-tool-host.js";
 import type { TodoStateService } from "./todo-state.service.js";
 import {
   optionalBoundedIntegerArg,
@@ -71,7 +73,7 @@ const MAX_BASH_TIMEOUT_MS = 86_400_000;
 export interface OrchestrationToolDispatcherDeps {
   storage: InitializedStorage;
   events: EventBus;
-  tasks: TaskManager;
+  tasks: WorkbenchTaskService;
   pythonRuntime: PythonRuntimeService;
   startTask: TaskStarter;
   getAgent(agentId: string): AgentRecord;
@@ -93,15 +95,58 @@ export interface OrchestrationToolDispatcherDeps {
   publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void>;
 }
 
+type WorkbenchToolExecution = {
+  toolName: ToolName;
+  toolCall: ToolCallRecord;
+  options: ToolRequestOptions;
+  identity: ToolCallRecord;
+};
+
 export class OrchestrationToolDispatcher {
-  constructor(readonly deps: OrchestrationToolDispatcherDeps) {}
+  private readonly hostTools: HostToolFactory<WorkbenchToolExecution>;
+
+  constructor(readonly deps: OrchestrationToolDispatcherDeps) {
+    this.hostTools = createHostToolFactory<WorkbenchToolExecution>({
+      execution: {
+        context: (request) =>
+          this.executionContext(request.toolCall, request.options),
+      },
+      handlers: {
+        forExecution: (request) =>
+          this.hostHandlers(request.toolCall, request.options),
+      },
+      overrides: {
+        forExecution: (request) => {
+          const localOverride = async (
+            args: Record<string, unknown>,
+            context: ToolExecutionContext,
+          ) =>
+            (await this.executeLocalOverride(
+              request.toolCall,
+              args,
+              request.options,
+              context,
+            )) as ToolExecutionResult;
+          return { bash: localOverride, python: localOverride };
+        },
+      },
+    });
+  }
 
   async execute(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
     options: ToolRequestOptions = {},
   ): Promise<unknown> {
-    return executeOrchestratorTool(this, toolCall, args, options);
+    return this.hostTools.execute(
+      {
+        toolName: toolCall.toolName as ToolName,
+        toolCall,
+        options,
+        identity: toolCall,
+      },
+      args,
+    );
   }
 
   hostHandlers(

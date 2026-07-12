@@ -24,7 +24,7 @@ import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
-import type { TaskManager } from "../tasks/task-manager.js";
+import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import {
   ApprovalRepository,
   evaluateToolPolicy,
@@ -146,7 +146,7 @@ export class ToolService {
     private readonly storage: InitializedStorage,
     private readonly events: EventBus,
     index: IndexStore,
-    private readonly tasks: TaskManager,
+    private readonly tasks: WorkbenchTaskService,
     private readonly pythonRuntime: PythonRuntimeService,
     private readonly startTask: TaskStarter,
     private readonly getAgent: (agentId: string) => AgentRecord,

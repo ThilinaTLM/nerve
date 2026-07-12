@@ -8,12 +8,12 @@ import { isActiveTaskStatus } from "./index.js";
 import type {
   ForegroundBashPromotionInput,
   ForegroundBashPromotionResult,
-  TaskManager,
-} from "./task-manager.js";
-import { foregroundPromotionDelayMs } from "./task-manager-utils.js";
+  WorkbenchTaskService,
+} from "./workbench-task-service.js";
+import { foregroundPromotionDelayMs } from "./workbench-task-service-utils.js";
 
 export async function buildForegroundBashResult(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   taskId: string,
 ): Promise<ToolExecutionResult> {
   const task = this.getTask(taskId);
@@ -46,7 +46,7 @@ export async function buildForegroundBashResult(
 }
 
 export async function runForegroundBashWithPromotion(
-  this: TaskManager,
+  this: WorkbenchTaskService,
   input: ForegroundBashPromotionInput,
 ): Promise<ForegroundBashPromotionResult> {
   if (input.signal?.aborted) throw new Error("Command aborted.");

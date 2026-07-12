@@ -486,7 +486,7 @@ export type SandboxProtectedStateSummary = z.infer<
 
 export const sandboxStateLayoutVersionSchema = z.object({
   format: z.literal("nerve-sandbox-agent-state"),
-  version: z.literal(2),
+  version: z.literal(3),
   initializedAt: isoDateTimeSchema,
 });
 export type SandboxStateLayoutVersion = z.infer<

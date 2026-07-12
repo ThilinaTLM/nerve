@@ -296,14 +296,16 @@ async function readTasks(
   for (const entry of entries) {
     try {
       const file = path.join(root, entry, "state.json");
-      const task = JSON.parse(await readFile(file, "utf8")) as Record<
+      const stored = JSON.parse(await readFile(file, "utf8")) as Record<
         string,
         unknown
       >;
+      const task = (stored.task ?? stored) as Record<string, unknown>;
+      const origin = task.origin as Record<string, unknown> | undefined;
       if (
         task.conversationId !== scope.conversationId ||
         task.agentId !== scope.agentId ||
-        task.runId !== scope.runId
+        origin?.runId !== scope.runId
       )
         continue;
       const logPath = path.join(root, entry, "logs.txt");
@@ -321,11 +323,11 @@ async function readTasks(
         startedAt:
           typeof task.startedAt === "string" ? task.startedAt : undefined,
         completedAt:
-          typeof task.completedAt === "string" ? task.completedAt : undefined,
+          typeof task.finishedAt === "string" ? task.finishedAt : undefined,
         exitCode: typeof task.exitCode === "number" ? task.exitCode : undefined,
-        logRef: typeof task.outputRef === "string" ? task.outputRef : undefined,
+        logRef: typeof stored.logRef === "string" ? stored.logRef : undefined,
         logBytes,
-        truncated: task.truncated === true ? true : undefined,
+        truncated: stored.truncated === true ? true : undefined,
       });
     } catch {
       // Ignore corrupt task summaries.

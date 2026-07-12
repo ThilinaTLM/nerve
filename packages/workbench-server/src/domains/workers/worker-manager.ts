@@ -15,7 +15,7 @@ import {
   listChildDirs,
   readJsonFile,
 } from "../../infrastructure/storage/index.js";
-import type { TaskManager } from "../tasks/task-manager.js";
+import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import {
   type AgentProcessHandlers,
   type AgentProcessInput,
@@ -116,7 +116,7 @@ export class WorkerManager {
 
   startTask(
     workerId: string | undefined,
-    taskManager: TaskManager,
+    taskManager: WorkbenchTaskService,
     request: StartTaskRequest,
   ): Promise<TaskRecord> {
     const worker = this.requireWorker(workerId ?? request.workerId, "task");
