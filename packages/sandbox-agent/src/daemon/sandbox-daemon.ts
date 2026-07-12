@@ -47,6 +47,7 @@ import { mapRuntimeError, mapWaitError } from "./operation-errors.js";
 import { SandboxOperationRouter } from "./operation-router.js";
 import {
   createSandboxRunRuntime,
+  mapRunStatusToSandbox,
   type SandboxRunRuntime,
 } from "../run/index.js";
 import { buildConversationSnapshot } from "./conversation-snapshot.js";
@@ -295,14 +296,10 @@ export class SandboxDaemon {
       this.workspaceDir,
     );
     this.router.register("sandbox.status.get", async () => {
-      const runs = (await this.runs?.list()) ?? [];
+      const runs = (await this.runRuntime?.query.runLikes()) ?? [];
       const ack = await this.state?.events.ackState();
       const modelSummaries = this.modelSummaries();
-      const waits = [
-        ...(this.inputWaiter?.list() ?? []),
-        ...(this.planReviewWaiter?.list() ?? []),
-        ...(this.approvalWaiter?.list() ?? []),
-      ];
+      const waits: never[] = [];
       const startup = summarizeSandboxStartupEvents(
         this.state?.events.all() ?? [],
       );
@@ -324,7 +321,12 @@ export class SandboxDaemon {
         connectivity: { state: "connected", connectedAt: this.startedAt },
         conversations: summarizeConversations(runs),
         agents: summarizeAgents(runs, modelSummaries[0]),
-        runs: await summarizeRuns(runs, waits, this.runs, this.state?.stateDir),
+        runs: await summarizeRuns(
+          runs,
+          waits,
+          undefined,
+          this.state?.stateDir,
+        ),
         agentConfig: sanitizeEffectiveAgentConfig(
           this.config,
           this.agentConfigStore,
@@ -532,7 +534,7 @@ export class SandboxDaemon {
             conversationId: run.conversationId,
             agentId: run.agentId,
             runId: run.runId,
-            status: mapSandboxStatus(run.status),
+            status: mapRunStatusToSandbox(run.status),
             queuedPromptId: queued.id,
           };
         }
@@ -551,7 +553,7 @@ export class SandboxDaemon {
         conversationId: run.conversationId,
         agentId: run.agentId,
         runId: run.runId,
-        status: mapSandboxStatus(run.status),
+        status: mapRunStatusToSandbox(run.status),
       };
     });
     this.router.register("run.followUp", (params, context) =>
@@ -610,7 +612,7 @@ export class SandboxDaemon {
       const result = {
         accepted: true,
         ...input,
-        status: mapSandboxStatus(run.status),
+        status: mapRunStatusToSandbox(run.status),
         cancellationRequested: true,
       };
       return result;
@@ -920,25 +922,4 @@ function toolResultEntryId(runId: string, toolCallId: string): string {
   return `msg_tool_result_${sandboxSha256Digest(`${runId}:${toolCallId}`).slice(7, 23)}`;
 }
 
-function mapSandboxStatus(status: string): SandboxRunStatus {
-  switch (status) {
-    case "starting":
-      return "queued";
-    case "running":
-    case "cancellation_requested":
-    case "suspended":
-      return "running";
-    case "waiting":
-      return "waiting_for_input";
-    case "retrying":
-    case "interrupted":
-    case "cancellation_failed":
-      return "recoverable_failed";
-    case "completed":
-      return "completed";
-    case "cancelled":
-      return "cancelled";
-    default:
-      return "failed";
-  }
-}
+

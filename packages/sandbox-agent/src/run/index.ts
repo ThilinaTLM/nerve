@@ -6,4 +6,6 @@ export * from "./run-composition.js";
 export * from "./run-event-publisher.js";
 export * from "./run-execution.js";
 export * from "./run-integrity.js";
+export * from "./run-query.js";
 export * from "./run-references.js";
+export * from "./run-status.js";

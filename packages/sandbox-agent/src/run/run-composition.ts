@@ -23,6 +23,7 @@ import {
 } from "./run-event-publisher.js";
 import { SandboxRunExecutionFactory } from "./run-execution.js";
 import { SandboxRunIntegrity } from "./run-integrity.js";
+import { SandboxRunQueryAdapter } from "./run-query.js";
 import { SandboxRunReferences } from "./run-references.js";
 
 export interface SandboxRunRuntimeDeps {
@@ -46,6 +47,7 @@ export interface SandboxRunRuntime {
   live: SandboxLiveHarnessRegistry;
   delivery: RunEventDeliveryService;
   interactions: SandboxInteractionPort;
+  query: SandboxRunQueryAdapter;
 }
 
 /**
@@ -106,6 +108,7 @@ export function createSandboxRunRuntime(
         : undefined;
     },
   };
+  const query = new SandboxRunQueryAdapter(unitOfWork);
   return {
     coordinator,
     unitOfWork,
@@ -115,6 +118,7 @@ export function createSandboxRunRuntime(
     live,
     delivery,
     interactions,
+    query,
   };
 }
 
