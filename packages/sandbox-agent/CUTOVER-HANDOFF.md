@@ -8,6 +8,9 @@ Intermediate green/atomicity relaxed by the user; final validation gate unchange
 - `c4519f3a` Phase 1 (host-runtime) — DONE, green.
 - `f8eda742` wip: sandbox run execution adapters (new `packages/sandbox-agent/src/run/*`).
 - `5a2d4c2a` wip: route core run ops (start/followUp/steer/continue/cancel) through RunCoordinator; boot recovery via `coordinator.recover()`. Sandbox package type-checks.
+- `ec9e677c` docs: this handoff.
+- `fbc69ec5` wip: SandboxInteractionPort wired; ask_user + approval record pending detail and read coordinator resolution; `enterWait` uses interactionId == toolCallId.
+- `ae351f13` wip: `userQuestion.answer` migrated to `resolveInteraction` + `continue` (ask_user end-to-end on coordinator). Type-checks pass.
 
 ## Architecture in place (sandbox)
 
@@ -24,12 +27,10 @@ Daemon (`daemon/sandbox-daemon.ts`): constructs `this.runRuntime = createSandbox
 
 ## NOT yet migrated (remaining sandbox work)
 
-1. **Interaction resolution path** (biggest). Currently `userQuestion.answer`, `planReview.*`, `approval.*` still use `this.inputWaiter/planReviewWaiter/approvalWaiter` + `this.runs.writeCheckpoint` + `this.agentRuntime.continueRun`. Migrate to:
-   - Look up the coordinator interaction by id (use `references.interaction(id)` -> runId).
-   - Append the toolResult message to the harness conversation (`harnessFactory.appendConversationMessage`) so `harness.continue()` sees the answer.
-   - `coordinator.resolveInteraction(runId, { interactionId, resolutionRequestId, resolution })` then `coordinator.continue(runId)`.
-   - Make `SandboxRunExecution.enterWait` set `interactionId: toolCallId` in the wait command (stable id == provider toolCallId) so client resolve ids line up.
-2. **Tool-handler interaction wiring**. `tools/sandbox-interaction-handlers.ts` and `tools/tool-runtime.ts` (approval branch) must, before throwing `AgentToolSuspension`, populate `runRuntime.pending` with the interaction detail (question/approval/plan_review). The `resolve`/approval-check callbacks must read the resolved coordinator interaction (by toolCallId) instead of the disk waiters. Thread `pending` + a `resolvedInteraction(toolCallId)` lookup through `createSandboxRunRuntime` -> tool-runtime -> orchestration handler options (`sandbox-orchestration-types.ts`).
+1. **Remaining interaction resolution ops.** `ask_user`/`userQuestion.answer` are DONE. Still to migrate (same pattern: `references.interaction(id)` -> runId, `coordinator.resolveInteraction` + `coordinator.continue`, NO manual transcript append):
+   - `approval.grant`/`approval.deny`: pass `resolution: { decision: "allow"|"deny", scope? }`. AND rewire the tool-runtime approval GATE (the `resolution = this.options.approvalWaiter.resolutionForToolCallOrScope(...)` block in `execute`) to prefer `this.interactions?.resolved(toolCallId)` -> `{decision}` so the re-run tool sees the grant/deny instead of re-suspending. Approval pending detail is already recorded.
+   - `planReview.accept/requestChanges/discard`: rewire the plan-review `present` handler `resolve`/existing-check in `tools/sandbox-interaction-handlers.ts` to read `options.interactions.resolved(toolCallId)` and record pending `{kind:"plan_review", planReview, prompt}`; keep the config-update side effects (mode switch, implementation model) in the op.
+2. **Tool-handler interaction wiring** — ask_user + approval DONE via `SandboxInteractionPort`. Plan-review handler still uses `planReviewWaiter`.
 3. **Query/snapshot layer**. `daemon/run-summaries.ts` (`summarizeRuns/Conversations/Agents`) and `daemon/conversation-snapshot.ts` read `RunManager` stores. Build `SandboxRunQueryAdapter` deriving summaries/snapshots from `unitOfWork.list()` projections + harness conversation. Rewire `sandbox.status.get` and `sandbox.conversation.snapshot.get`.
 4. **Delete incumbents**: `agent/run-manager.ts`, `agent/agent-runtime.ts` (lifecycle), `agent/harness-event-bridge.ts`, `tools/{input,approval,plan-review}-waiter.ts`, `agent/{run-state-store,run-execution-store,checkpoint-store,transcript-store,tool-call-store}.ts` (retire readers once query adapter covers them). Remove daemon fields `runs/agentRuntime/bridge/inputWaiter/planReviewWaiter/approvalWaiter` and their construction.
 5. **Tests**: rewrite `agent-harness-runtime.test.ts`, `run-manager.test.ts`, `run-summaries.test.ts`, `harness-bridge-logging.test.ts`, tool/interaction tests, daemon protocol tests against the coordinator.
