@@ -684,12 +684,16 @@ export class SandboxDaemon {
         context.requestId,
       );
       try {
-        const pending = this.planReviewWaiter?.get(input.reviewId);
-        if (!pending) throw new Error(`Unknown plan review: ${input.reviewId}`);
+        const coordinator = this.requireCoordinator();
+        const interaction = await this.runRuntime!.references.interaction(
+          input.reviewId,
+        );
+        if (!interaction || interaction.kind !== "plan_review")
+          throw new Error(`Unknown plan review: ${input.reviewId}`);
         const scope = {
-          conversationId: input.conversationId ?? pending.conversationId,
-          agentId: input.agentId ?? pending.agentId,
-          runId: input.runId ?? pending.runId,
+          conversationId: interaction.conversationId,
+          agentId: interaction.agentId,
+          runId: interaction.runId,
         };
         if (decision === "accept") {
           await this.agentConfigStore?.update({
@@ -709,41 +713,13 @@ export class SandboxDaemon {
         } else {
           await this.agentConfigStore?.update({ mode: "coding" });
         }
-        const entryId = toolResultEntryId(
-          scope.runId,
-          pending.providerToolCallId,
-        );
-        const resolved = await this.planReviewWaiter?.resolve({
-          ...input,
-          ...scope,
-          decision,
-          resolutionRequestId: accepted.requestId,
-          toolResultEntryId: entryId,
-        });
-        if (!resolved)
-          throw new Error(`Unknown plan review: ${input.reviewId}`);
-        const result = planReviewToolResult(resolved.review);
-        const message: AgentMessage = {
-          role: "toolResult",
-          toolCallId: resolved.providerToolCallId,
-          toolName: "plan_mode_present",
-          content: [{ type: "text", text: String(result.content) }],
-          details: result,
-          isError: false,
-          timestamp: Date.now(),
-        };
-        await this.harnessFactory?.appendConversationMessage(
-          scope.conversationId,
-          scope.agentId,
-          entryId,
-          message,
-        );
-        await this.bridge?.completeSuspendedTool(
-          scope,
-          resolved.providerToolCallId,
-          "plan_mode_present",
-          result,
-        );
+        const resolvedAt = new Date().toISOString();
+        const reviewStatus =
+          decision === "accept"
+            ? "accepted"
+            : decision === "request_changes"
+              ? "changes_requested"
+              : "discarded";
         await this.state?.events.append({
           type: "planReview.updated",
           durability: "durable",
@@ -755,24 +731,24 @@ export class SandboxDaemon {
             instanceId: this.identity.instanceId,
             configDigest: this.configDigest,
             ...scope,
-            reviewId: resolved.review.id,
+            reviewId: interaction.planReview.id,
             decision,
-            planReview: resolved.review,
-            resolvedAt: resolved.resolvedAt,
+            planReview: {
+              ...interaction.planReview,
+              status: reviewStatus,
+              updatedAt: resolvedAt,
+            },
+            resolvedAt,
           },
         });
-        const run = await this.runs?.read(scope);
-        if (decision === "discard") {
-          if (run?.status === "waiting_for_input") {
-            await this.runs?.markCompleted(scope);
-            await this.bridge?.completeRun(scope);
-          }
-        } else if (run?.status === "waiting_for_input") {
-          await this.agentRuntime?.continueRun({
-            ...scope,
-            reason: "plan_review_resolved",
-          });
-        }
+        // Resolve the durable interaction and resume from its checkpoint; the
+        // harness re-runs plan_mode_present, which returns the review result.
+        await coordinator.resolveInteraction(interaction.runId, {
+          interactionId: input.reviewId,
+          resolutionRequestId: accepted.requestId,
+          resolution: { decision, feedback: input.feedback },
+        });
+        await coordinator.continue(interaction.runId);
         const resultEnvelope = {
           accepted: true,
           ...scope,

@@ -91,4 +91,21 @@ export class SandboxRunReferences implements RunCheckpointReferencePort {
     }
     return undefined;
   }
+
+  /**
+   * Finds an interaction by its provider toolCallId (the id a re-running tool
+   * knows). Works for every wait kind since the interaction record carries the
+   * originating toolCallId regardless of its own id.
+   */
+  async interactionByToolCall(
+    toolCallId: string,
+  ): Promise<RunInteractionRecord | undefined> {
+    let latest: RunInteractionRecord | undefined;
+    for (const state of await this.unitOfWork.list()) {
+      for (const item of state.interactions) {
+        if (item.toolCallId === toolCallId) latest = item;
+      }
+    }
+    return latest;
+  }
 }

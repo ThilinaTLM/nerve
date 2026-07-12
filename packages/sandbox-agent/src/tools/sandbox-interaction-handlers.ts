@@ -112,23 +112,44 @@ export function createSandboxInteractionHandlers(
         if (!waiter) {
           throw new Error("UNAVAILABLE: plan review waiter is not configured");
         }
-        const existing = waiter.byProviderToolCallId(current.toolCallId);
-        if (existing && existing.status !== "pending") {
-          return planReviewResult(existing.review);
-        }
-        if (existing) {
-          throw new AgentToolSuspension({
-            toolCallId: current.toolCallId,
-            toolName: "plan_mode_present",
-            reason: `WAITING_FOR_PLAN_REVIEW: ${existing.review.id}`,
-          });
-        }
+        // The waiter validates the plan file and builds the record (idempotent
+        // by providerToolCallId); it is a plan-file helper, not run authority.
         const review = await waiter.request({
           providerToolCallId: current.toolCallId,
           ...current.scope,
           cwd: options.workspaceDir,
           ...request,
         });
+        if (options.interactions) {
+          const resolution = await options.interactions.resolved(
+            current.toolCallId,
+          );
+          if (resolution) return planReviewResult(review.review);
+          options.interactions.setPending(current.toolCallId, {
+            kind: "plan_review",
+            interactionId: review.review.id,
+            prompt: review.review.title ?? "Review the plan",
+            planReview: review.review,
+          });
+          await options.record(
+            {
+              toolCallId: current.toolCallId,
+              toolName: "plan_mode_present",
+              status: "waiting_for_input",
+              lifecycleSeq: 2,
+              result: planReviewPayload(review.review),
+            },
+            { ...current.context, ...current.scope },
+          );
+          throw new AgentToolSuspension({
+            toolCallId: current.toolCallId,
+            toolName: "plan_mode_present",
+            reason: `WAITING_FOR_PLAN_REVIEW: ${review.review.id}`,
+          });
+        }
+        if (review.status !== "pending") {
+          return planReviewResult(review.review);
+        }
         await options.record(
           {
             toolCallId: current.toolCallId,

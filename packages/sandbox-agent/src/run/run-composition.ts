@@ -100,7 +100,7 @@ export function createSandboxRunRuntime(
   const interactions: SandboxInteractionPort = {
     setPending: (toolCallId, detail) => pending.set(toolCallId, detail),
     resolved: async (toolCallId) => {
-      const record = await references.interaction(toolCallId);
+      const record = await references.interactionByToolCall(toolCallId);
       return record?.status === "resolved"
         ? (record.resolution ?? {})
         : undefined;

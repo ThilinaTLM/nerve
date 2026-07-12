@@ -1,27 +1,32 @@
 import type { PlanReviewRecord } from "@nervekit/contracts";
 
+interface PendingInteractionBase {
+  /**
+   * Explicit durable interaction id. Defaults to the provider toolCallId when
+   * omitted; plan review sets it to the plan review record id so client
+   * resolution ids line up.
+   */
+  interactionId?: string;
+  prompt: string;
+  context?: string;
+}
+
 export type PendingInteractionDetail =
-  | {
+  | (PendingInteractionBase & {
       kind: "question";
-      prompt: string;
-      context?: string;
       placeholder?: string;
       required?: boolean;
-    }
-  | {
+    })
+  | (PendingInteractionBase & {
       kind: "approval";
-      prompt: string;
-      context?: string;
       risk: string[];
       normalizedArgs: Record<string, unknown>;
       offeredScopes: Array<"single_call" | "same_tool_same_args" | "run">;
-    }
-  | {
+    })
+  | (PendingInteractionBase & {
       kind: "plan_review";
-      prompt: string;
-      context?: string;
       planReview: PlanReviewRecord;
-    };
+    });
 
 /**
  * Live, in-memory bridge from a tool handler that is about to raise a durable

@@ -189,14 +189,16 @@ class SandboxRunExecution implements RunExecution {
 
   private async enterWait(toolCallId: string, toolName: string): Promise<void> {
     const command = this.deps.pending.take(toolCallId);
-    const checkpoint = await this.checkpointCommand("suspension", toolCallId);
-    // The interaction id is the provider toolCallId so client resolution ids,
-    // the durable interaction, and the tool's resume lookup all line up.
+    // The interaction id defaults to the provider toolCallId so client
+    // resolution ids, the durable interaction, and the tool's resume lookup
+    // align; plan review overrides it with the review record id.
+    const interactionId = command?.interactionId ?? toolCallId;
+    const checkpoint = await this.checkpointCommand("suspension", interactionId);
     const wait: WaitCommand = command
-      ? { ...command, interactionId: toolCallId, toolCallId, checkpoint }
+      ? { ...command, interactionId, toolCallId, checkpoint }
       : {
           kind: "question",
-          interactionId: toolCallId,
+          interactionId,
           toolCallId,
           prompt: `Waiting on ${toolName}`,
           required: true,
