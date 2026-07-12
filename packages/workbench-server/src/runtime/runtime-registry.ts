@@ -101,8 +101,8 @@ export class RuntimeRegistry {
     return this.services.editors;
   }
 
-  private get agentRunner() {
-    return this.services.agentRunner;
+  private get workbenchRun() {
+    return this.services.workbenchRun;
   }
 
   constructor(
@@ -143,6 +143,9 @@ export class RuntimeRegistry {
     await this.loadConversations();
     await this.loadAgents();
     await this.rebuildConversations();
+    await this.services.runRuntime.delivery.flush();
+    await this.services.runRuntime.coordinator.recover();
+    await this.services.runRuntime.delivery.flush();
     await this.services.taskNotifications.recoverPendingNotifications();
   }
 
@@ -301,7 +304,7 @@ export class RuntimeRegistry {
   }
 
   async getContextUsage(conversationId: string): Promise<ContextUsage> {
-    return this.services.agentRunner.getContextUsage(conversationId);
+    return this.workbenchRun.getContextUsage(conversationId);
   }
 
   async getConversationSnapshot(
@@ -540,11 +543,11 @@ export class RuntimeRegistry {
   }
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
-    return this.services.agentRunner.promptAgent(agentId, request);
+    return this.workbenchRun.promptAgent(agentId, request);
   }
 
   async abortAgent(agentId: string): Promise<void> {
-    return this.services.agentRunner.abortAgent(agentId);
+    return this.workbenchRun.abortAgent(agentId);
   }
 
   async continueFromFailedTurn(

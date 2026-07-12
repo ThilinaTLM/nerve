@@ -1,4 +1,9 @@
-import type { AgentRecord, PromptRequest, ToolName } from "@nervekit/contracts";
+import type {
+  AgentRecord,
+  ContextUsage,
+  PromptRequest,
+  ToolName,
+} from "@nervekit/contracts";
 import type { RunCoordinator } from "@nervekit/host-runtime";
 import { HttpError } from "../../http/errors.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
@@ -7,7 +12,7 @@ import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 
 export interface WorkbenchRunFeatureMechanics {
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
-  getContextUsage(conversationId: string): unknown;
+  getContextUsage(conversationId: string): Promise<ContextUsage>;
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
@@ -78,7 +83,7 @@ export class WorkbenchRunService {
     await this.coordinator.cancel(state.run.runId, "user requested abort");
   }
 
-  getContextUsage(conversationId: string): unknown {
+  getContextUsage(conversationId: string): Promise<ContextUsage> {
     return this.features.getContextUsage(conversationId);
   }
 

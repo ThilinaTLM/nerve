@@ -53,6 +53,12 @@ import {
 } from "../domains/tasks/index.js";
 import { WorkbenchTaskService } from "../domains/tasks/workbench-task-service.js";
 import { ToolService } from "../domains/tools/tool-service.js";
+import {
+  createWorkbenchRunRuntime,
+  type WorkbenchRunRuntime,
+} from "../domains/runs/run-composition.js";
+import { WorkbenchAgentExecutionAdapter } from "../domains/runs/workbench-agent-execution.js";
+import { WorkbenchRunService } from "../domains/runs/workbench-run.service.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
@@ -92,6 +98,8 @@ export interface RuntimeServices {
   importService: ImportService;
   messageMirror: MessageMirror;
   agentRunner: AgentRunner;
+  runRuntime: WorkbenchRunRuntime;
+  workbenchRun: WorkbenchRunService;
   editors: ProjectEditorService;
   projectLifecycle: ProjectLifecycleService;
   conversationLifecycle: ConversationLifecycleService;
@@ -293,7 +301,7 @@ export function composeRuntime(
     getConversationTree: (conversationId) =>
       services.conversationLifecycle.getConversationTree(conversationId),
     getContextUsage: (conversationId) =>
-      services.agentRunner.getContextUsage(conversationId),
+      services.workbenchRun.getContextUsage(conversationId),
     listToolCalls: () => services.tools.listToolCalls(),
   });
   services.agentLifecycle = new AgentLifecycleService(
@@ -305,7 +313,7 @@ export function composeRuntime(
     services.workers,
     services.conversationService,
     updateConversation,
-    (agentId) => services.agentRunner.abortAgent(agentId),
+    (agentId) => services.workbenchRun.abortAgent(agentId),
   );
   services.plans = new PlanService(
     storage,
@@ -340,9 +348,9 @@ export function composeRuntime(
       services.workers.startTask(request.workerId, services.tasks, request),
     getAgent,
     // Tool execution can spawn explore agents; the closure is only invoked after
-    // composition completes, so reading services.agentRunner here is safe.
+    // composition completes, so reading services.workbenchRun here is safe.
     (parent, args, options) =>
-      services.agentRunner.runExplore(parent, args, options),
+      services.workbenchRun.runExplore(parent, args, options),
     (provider) => auth.getApiKey(provider),
     services.plans,
     (agentId, mode, reason) =>
@@ -372,6 +380,29 @@ export function composeRuntime(
     logger: logger.child({ component: "agent-runner" }),
     promptQueue: promptQueueRepository,
   });
+  services.runRuntime = createWorkbenchRunRuntime({
+    home: storage.paths.home,
+    state,
+    events,
+    tools: services.tools,
+    harnessManager: services.harnessManager,
+    execution: (references) =>
+      new WorkbenchAgentExecutionAdapter(services.agentRunner, references),
+    logger: logger.child({ component: "run-coordinator" }),
+  });
+  services.workbenchRun = new WorkbenchRunService(
+    state,
+    services.runRuntime.coordinator,
+    services.runRuntime.unitOfWork,
+    {
+      activeToolNamesFor: (agent) =>
+        services.agentRunner.activeToolNamesFor(agent),
+      getContextUsage: (conversationId) =>
+        services.agentRunner.getContextUsage(conversationId),
+      runExplore: (parent, args, options) =>
+        services.agentRunner.runExplore(parent, args, options),
+    },
+  );
   services.taskNotifications = new TaskNotificationService({
     tasks: services.tasks,
     events,
@@ -381,7 +412,7 @@ export function composeRuntime(
     getAgent,
     getConversationEntries: (conversationId) =>
       state.getConversationEntries(conversationId),
-    continueAgent: (agentId) => services.agentRunner.continueAgent(agentId),
+    continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
     logger: logger.child({ component: "task-notification" }),
   });
   services.taskNotifications.start();
@@ -390,7 +421,7 @@ export function composeRuntime(
     tools: services.tools,
     plans: services.plans,
     suspensions: services.suspensions,
-    continueAgent: (agentId) => services.agentRunner.continueAgent(agentId),
+    continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
     createConversation,
     createAgent,
     getAgent,
@@ -411,8 +442,8 @@ export function composeRuntime(
     getConversationEntries: (conversationId) =>
       services.conversationLifecycle.getConversationEntries(conversationId),
     continueFromFailedTurn: (agentId, failedEntryId) =>
-      services.agentRunner.continueFromFailedTurn(agentId, failedEntryId),
-    resumeRun: (agentId) => services.agentRunner.resumeRun(agentId),
+      services.workbenchRun.continueFromFailedTurn(agentId, failedEntryId),
+    resumeRun: (agentId) => services.workbenchRun.resumeRun(agentId),
   });
   services.pruneConversations = new PruneProjectConversationsService({
     getProject,
