@@ -314,15 +314,12 @@ export class SandboxDaemon {
           agentId?: string;
           runId?: string;
         };
-        // TODO(cutover): rebuild the full conversation tree from coordinator
-        // projections + harness storage. For now snapshot falls back to summary
-        // views derived from canonical projections.
+        const states = (await this.runRuntime?.query.states()) ?? [];
         const snapshot = await buildConversationSnapshot({
           config: this.config,
           sandboxId: this.identity.sandboxId,
           instanceId: this.identity.instanceId,
-          runs: undefined,
-          bridge: undefined,
+          states,
           cursorSeq: this.state?.events.all().at(-1)?.seq ?? 0,
           ...input,
         });

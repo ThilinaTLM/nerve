@@ -11,6 +11,7 @@ import {
   deriveConversationTitle,
   toolNameSchema,
 } from "@nervekit/contracts";
+import type { RunHydratedState } from "@nervekit/host-runtime";
 import type { HarnessEventBridge } from "../agent/harness-event-bridge.js";
 import type { RunManager } from "../agent/run-manager.js";
 import type { RunState } from "../agent/run-state-store.js";
@@ -23,11 +24,13 @@ export async function buildConversationSnapshot(input: {
   instanceId: string;
   runs?: RunManager;
   bridge?: HarnessEventBridge;
+  states?: readonly RunHydratedState[];
   cursorSeq?: number;
   conversationId?: string;
   agentId?: string;
   runId?: string;
 }): Promise<ConversationSnapshot | undefined> {
+  if (input.states) return buildProjectionSnapshot(input, input.states);
   const runs = (await input.runs?.list()) ?? [];
   const selectionRuns = runs.filter((run) => {
     if (input.conversationId && run.conversationId !== input.conversationId)
@@ -80,6 +83,92 @@ export async function buildConversationSnapshot(input: {
     tree: linearTree(selected.conversationId, entries, activeEntryId),
     toolCalls,
     activeRun: input.bridge?.activeRunSnapshot(selected.conversationId),
+    contextUsage: undefined,
+    cursorSeq: input.cursorSeq ?? 0,
+    generatedAt: new Date().toISOString(),
+  });
+}
+
+function buildProjectionSnapshot(
+  input: {
+    config: SandboxConfigV1;
+    sandboxId?: string;
+    instanceId: string;
+    cursorSeq?: number;
+    conversationId?: string;
+    agentId?: string;
+    runId?: string;
+  },
+  states: readonly RunHydratedState[],
+): ConversationSnapshot | undefined {
+  const selectedStates = states.filter((state) => {
+    const run = state.run;
+    if (input.conversationId && run.conversationId !== input.conversationId)
+      return false;
+    if (input.agentId && run.agentId !== input.agentId) return false;
+    if (input.runId && run.runId !== input.runId) return false;
+    return true;
+  });
+  const selected = [...selectedStates]
+    .sort((left, right) =>
+      left.run.updatedAt.localeCompare(right.run.updatedAt),
+    )
+    .at(-1);
+  if (!selected) return undefined;
+  const conversationStates = states.filter(
+    (state) =>
+      state.run.conversationId === selected.run.conversationId &&
+      (!input.agentId || state.run.agentId === input.agentId),
+  );
+  const entries = conversationStates
+    .flatMap((state) =>
+      state.transitions.flatMap((transition) => transition.entries),
+    )
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+    .slice(-200)
+    .map((entry, index, all) => ({
+      ...entry,
+      parentEntryId: index > 0 ? all[index - 1]?.id : undefined,
+    }));
+  const tools = new Map<string, ToolCallTranscriptRecord>();
+  for (const state of conversationStates) {
+    for (const transition of state.transitions) {
+      for (const toolCall of transition.toolCalls) {
+        tools.set(toolCall.id, toolCall);
+      }
+    }
+  }
+  const activeEntryId = entries.at(-1)?.id;
+  const createdAt = conversationStates
+    .map((state) => state.run.createdAt)
+    .sort()[0]!;
+  const updatedAt = conversationStates
+    .map((state) => state.run.updatedAt)
+    .sort()
+    .at(-1)!;
+  const firstUser = entries.find((entry) => entry.role === "user")?.text;
+  return conversationSnapshotSchema.parse({
+    conversation: {
+      id: selected.run.conversationId,
+      projectId: selected.run.projectId,
+      title: firstUser ? deriveConversationTitle(firstUser) : "New conversation",
+      mode:
+        input.config.agent.defaultMode === "planning" ? "planning" : "coding",
+      permissionLevel:
+        input.config.agent.defaultPermissionLevel ?? "autonomous",
+      approvalPolicy: { autoApproveReadOnly: true },
+      activeAgentId: selected.run.agentId,
+      activeEntryId,
+      createdAt,
+      updatedAt,
+      lastUserMessageAt: entries.filter((entry) => entry.role === "user").at(-1)
+        ?.createdAt,
+    },
+    entries,
+    activeEntryIds: activeEntryId ? [activeEntryId] : [],
+    tree: linearTree(selected.run.conversationId, entries, activeEntryId),
+    toolCalls: [...tools.values()],
+    activeRun: undefined,
     contextUsage: undefined,
     cursorSeq: input.cursorSeq ?? 0,
     generatedAt: new Date().toISOString(),

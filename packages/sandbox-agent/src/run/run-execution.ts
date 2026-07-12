@@ -3,7 +3,12 @@ import {
   type AgentMessage,
   isAgentToolSuspension,
 } from "@nervekit/host-runtime/harness";
-import type { RunPromptRecord, RunRecord } from "@nervekit/contracts";
+import {
+  toolNameSchema,
+  type RunPromptRecord,
+  type RunRecord,
+  type ToolCallTranscriptRecord,
+} from "@nervekit/contracts";
 import type {
   CheckpointCommand,
   RunExecution,
@@ -23,6 +28,7 @@ import {
 } from "@nervekit/contracts";
 import type { AgentConfigStore } from "../agent/agent-config-store.js";
 import type { HarnessFactory } from "../agent/harness-factory.js";
+import { sandboxSha256Digest } from "../state/hash.js";
 import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
 import type { SandboxInteractionChannel } from "./interaction-channel.js";
 import type { SandboxLiveHarnessRegistry } from "./live-registry.js";
@@ -59,6 +65,7 @@ export class SandboxRunExecutionFactory implements RunExecutionFactoryPort {
 class SandboxRunExecution implements RunExecution {
   private harness?: AgentHarness;
   private readonly abort = new AbortController();
+  private readonly toolCalls = new Map<string, ToolCallTranscriptRecord>();
 
   constructor(
     private readonly run: RunRecord,
@@ -131,6 +138,15 @@ class SandboxRunExecution implements RunExecution {
         await this.enterWait(error.data.toolCallId, error.data.toolName);
         return { status: "suspended" };
       }
+      const serialized = this.serializedSuspension(error);
+      if (serialized) {
+        await this.enterWait(
+          serialized.toolCallId,
+          serialized.toolName,
+          serialized.detail,
+        );
+        return { status: "suspended" };
+      }
       if (this.abort.signal.aborted) {
         return { status: "interrupted", message: "aborted" };
       }
@@ -187,8 +203,37 @@ class SandboxRunExecution implements RunExecution {
     }
   }
 
-  private async enterWait(toolCallId: string, toolName: string): Promise<void> {
-    const command = this.deps.pending.take(toolCallId);
+  private serializedSuspension(error: unknown):
+    | {
+        toolCallId: string;
+        toolName: string;
+        detail: import("./pending-interactions.js").PendingInteractionDetail;
+      }
+    | undefined {
+    const message = error instanceof Error ? error.message : String(error);
+    const match = /WAITING_FOR_(INPUT|APPROVAL|PLAN_REVIEW):\s*(\S+)/.exec(
+      message,
+    );
+    if (!match) return undefined;
+    const pending = this.deps.pending.takeForSignal(match[2]!);
+    if (!pending) return undefined;
+    return {
+      ...pending,
+      toolName:
+        match[1] === "INPUT"
+          ? "ask_user"
+          : match[1] === "PLAN_REVIEW"
+            ? "plan_mode_present"
+            : "tool",
+    };
+  }
+
+  private async enterWait(
+    toolCallId: string,
+    toolName: string,
+    knownDetail?: import("./pending-interactions.js").PendingInteractionDetail,
+  ): Promise<void> {
+    const command = knownDetail ?? this.deps.pending.take(toolCallId);
     // The interaction id defaults to the provider toolCallId so client
     // resolution ids, the durable interaction, and the tool's resume lookup
     // align; plan review overrides it with the review record id.
@@ -204,6 +249,17 @@ class SandboxRunExecution implements RunExecution {
           required: true,
           checkpoint,
         };
+    const currentTool = this.toolCalls.get(toolCallId);
+    if (currentTool) {
+      const updated: ToolCallTranscriptRecord = {
+        ...currentTool,
+        status:
+          wait.kind === "approval" ? "pending_approval" : "waiting_for_user",
+        updatedAt: new Date().toISOString(),
+      };
+      this.toolCalls.set(toolCallId, updated);
+      await this.sink.upsertToolCalls([updated]);
+    }
     await this.sink.wait(wait);
   }
 
@@ -232,7 +288,39 @@ class SandboxRunExecution implements RunExecution {
     message?: AgentMessage;
     toolCallId?: string;
     toolName?: string;
+    args?: unknown;
+    result?: unknown;
+    isError?: boolean;
   }): Promise<void> {
+    if (
+      event.type === "tool_execution_start" &&
+      event.toolCallId &&
+      event.toolName
+    ) {
+      const record = this.toolCallRecord(
+        event.toolCallId,
+        event.toolName,
+        "running",
+        event.args,
+      );
+      if (record) await this.sink.upsertToolCalls([record]);
+      return;
+    }
+    if (
+      event.type === "tool_execution_end" &&
+      event.toolCallId &&
+      event.toolName
+    ) {
+      const record = this.toolCallRecord(
+        event.toolCallId,
+        event.toolName,
+        event.isError ? "error" : "completed",
+        undefined,
+        event.result,
+      );
+      if (record) await this.sink.upsertToolCalls([record]);
+      return;
+    }
     if (event.type === "message_update") {
       this.sink.progress({
         type: "conversation.live.updated",
@@ -262,6 +350,38 @@ class SandboxRunExecution implements RunExecution {
       ]);
     }
   }
+
+  private toolCallRecord(
+    providerToolCallId: string,
+    toolName: string,
+    status: ToolCallTranscriptRecord["status"],
+    args?: unknown,
+    result?: unknown,
+  ): ToolCallTranscriptRecord | undefined {
+    const parsedName = toolNameSchema.safeParse(toolName);
+    if (!parsedName.success) return undefined;
+    const now = new Date().toISOString();
+    const id = `tool_${sandboxSha256Digest(providerToolCallId).slice(7, 23)}`;
+    const previous = this.toolCalls.get(providerToolCallId);
+    const record: ToolCallTranscriptRecord = {
+      id,
+      agentId: this.run.agentId,
+      conversationId: this.run.conversationId,
+      projectId: this.run.projectId,
+      runId: this.run.runId,
+      toolName: parsedName.data,
+      providerToolCallId,
+      risk: toolRisk(parsedName.data),
+      cwd: this.deps.config.agent.workspaceRoot ?? process.cwd(),
+      status,
+      argsPreview: args ?? previous?.argsPreview,
+      resultPreview: result,
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+    };
+    this.toolCalls.set(providerToolCallId, record);
+    return record;
+  }
 }
 
 function messageText(message: AgentMessage): string {
@@ -275,6 +395,17 @@ function messageText(message: AgentMessage): string {
         : "",
     )
     .join("");
+}
+
+function toolRisk(
+  toolName: string,
+): ToolCallTranscriptRecord["risk"] {
+  if (["ask_user", "plan_mode_present", "plan_mode_enter"].includes(toolName))
+    return "interaction";
+  if (toolName === "bash") return "command";
+  if (["write", "edit"].includes(toolName)) return "workspace_write";
+  if (["explore", "task_start"].includes(toolName)) return "agent_spawn";
+  return "read";
 }
 
 function normalizeFailure(error: unknown): {

@@ -485,7 +485,13 @@ export class RunCoordinator {
         throw invalid(state.run, kind);
       }
       const next = revise(state.run, {}, this.now());
-      await this.commit(state, next, kind, changes);
+      const events = changes.toolCalls?.map((toolCall) =>
+        this.events.toolCallUpdated(next, toolCall),
+      );
+      await this.commit(state, next, kind, {
+        ...changes,
+        events: [...(changes.events ?? []), ...(events ?? [])],
+      });
     });
   }
 
@@ -518,10 +524,20 @@ export class RunCoordinator {
         }
       } catch (error) {
         if (!abort.signal.aborted) {
-          await this.fail(
-            run.runId,
-            failure("RUN_EXECUTION_FAILED", error, true),
-          );
+          try {
+            await this.fail(
+              run.runId,
+              failure("RUN_EXECUTION_FAILED", error, true),
+            );
+          } catch (settlementError) {
+            // A host can be torn down while an async execution is settling.
+            // Never leak a fire-and-forget rejection; canonical state remains
+            // authoritative and recovery will reconcile if it still exists.
+            this.ports.diagnostics?.error("run failure settlement failed", {
+              runId: run.runId,
+              error: errorMessage(settlementError),
+            });
+          }
         }
       } finally {
         this.live.delete(run.runId);

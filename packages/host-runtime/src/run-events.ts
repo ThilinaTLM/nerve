@@ -168,6 +168,23 @@ export class RunEventFactory {
     });
   }
 
+  toolCallUpdated(
+    run: RunRecord,
+    toolCall: import("@nervekit/contracts").ToolCallTranscriptRecord,
+  ): RunPublicEventIntent {
+    return this.intent(run, "toolCall.updated", toolCall.updatedAt, {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      projectId: run.projectId,
+      runId: run.runId,
+      turnId: toolCall.turnId,
+      liveMessageId: toolCall.liveMessageId,
+      contentIndex: toolCall.contentIndex,
+      providerToolCallId: toolCall.providerToolCallId,
+      toolCall,
+    });
+  }
+
   cancelled(run: RunRecord, now: string): RunPublicEventIntent {
     return this.intent(run, "run.cancelled", now, {
       conversationId: run.conversationId,

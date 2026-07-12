@@ -22,6 +22,10 @@ export type RunLike = {
   prompt?: unknown;
   error?: unknown;
   lastCheckpointId?: unknown;
+  transcript?: any[];
+  toolCalls?: any[];
+  checkpoints?: any[];
+  executions?: any[];
 };
 
 export function summarizeConversations(runs: RunLike[]) {
@@ -120,22 +124,29 @@ export async function summarizeRuns(
         ? await manager?.executionStore().list(scope)
         : undefined;
       const transcript = scope
-        ? ((await manager?.transcriptStore().read(scope)) ?? [])
-            .slice(-20)
-            .map((entry) => summarizeTranscriptEntry(entry))
+        ? manager
+          ? ((await manager.transcriptStore().read(scope)) ?? [])
+              .slice(-20)
+              .map((entry) => summarizeTranscriptEntry(entry))
+          : run.transcript?.slice(-20)
         : undefined;
       const toolCalls = scope
-        ? Array.from(
-            (
-              (await manager?.toolCallStore().latestByToolCallId(scope)) ??
-              new Map()
-            ).values(),
-          ).slice(-50)
+        ? manager
+          ? Array.from(
+              (
+                (await manager.toolCallStore().latestByToolCallId(scope)) ??
+                new Map()
+              ).values(),
+            ).slice(-50)
+          : run.toolCalls?.slice(-50)
         : undefined;
       const checkpoints = scope
-        ? ((await manager?.checkpointStore().list(scope)) ?? []).slice(-20)
+        ? manager
+          ? ((await manager.checkpointStore().list(scope)) ?? []).slice(-20)
+          : run.checkpoints?.slice(-20)
         : undefined;
-      const latestExecution = executions?.at(-1);
+      const projectionExecutions = executions ?? run.executions;
+      const latestExecution = projectionExecutions?.at(-1) as any;
       const childAgents = scope
         ? await readChildAgents(stateDir, scope).then((entries) =>
             entries.slice(-20),
@@ -186,7 +197,7 @@ export async function summarizeRuns(
           createdAt: checkpoint.createdAt,
           summary: checkpoint.summary,
         })),
-        executions: executions?.map((execution) => ({
+        executions: projectionExecutions?.map((execution: any) => ({
           executionId: execution.executionId,
           attempt: execution.attempt,
           status: execution.status,
