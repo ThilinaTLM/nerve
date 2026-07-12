@@ -17,7 +17,12 @@ describe("SandboxActivityTracker", () => {
     tracker.observe("sbx1", { type: "run.started", payload: { runId: "r1" } });
     tracker.observe("sbx1", {
       type: "toolCall.updated",
-      payload: { toolName: "Edit", displayArgs: { path: "src/auth.ts" } },
+      payload: {
+        toolCall: {
+          toolName: "Edit",
+          argsPreview: { path: "src/auth.ts" },
+        },
+      },
     });
 
     const summary = tracker.get("sbx1");
@@ -63,19 +68,6 @@ describe("SandboxActivityTracker", () => {
       payload: { role: "user", content: { text: "do the thing" } },
     });
     assert.equal(tracker.get("sbx1")?.title, undefined);
-  });
-
-  it("reads model/provider from the run.started payload", () => {
-    const { tracker } = collector();
-    tracker.observe("sbx1", {
-      type: "run.started",
-      payload: {
-        runId: "r1",
-        model: { provider: "anthropic", model: "claude-sonnet-4-5" },
-      },
-    });
-    assert.equal(tracker.get("sbx1")?.model, "claude-sonnet-4-5");
-    assert.equal(tracker.get("sbx1")?.provider, "anthropic");
   });
 
   it("derives context usage percentage from a contextUsage payload", () => {

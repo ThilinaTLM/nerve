@@ -1,6 +1,6 @@
 import {
+  parsePublicEventEnvelope,
   publicEventDefinition,
-  validatePublicEvent,
 } from "@nervekit/contracts";
 import type { SandboxEventStore } from "../state/event-store.js";
 import type { ManagerEventBus } from "./manager-event-bus.js";
@@ -34,21 +34,28 @@ export class SandboxEventIngestor {
           `Event ${event.type} must use ${definition.durability}`,
         );
       }
-      if (durability === "durable") {
-        processedSeq = Math.max(processedSeq, event.seq ?? 0);
+      const envelope = parsePublicEventEnvelope(
+        {
+          id: event.id ?? `evt_${sandboxId}_${event.seq ?? 0}`,
+          seq: event.seq ?? 1,
+          type: event.type,
+          ts: event.ts ?? new Date().toISOString(),
+          durability,
+          data: redactManagerEvent(event.data ?? event),
+        },
+        "sandbox_agent",
+      );
+      if (envelope.durability === "durable") {
+        processedSeq = Math.max(processedSeq, envelope.seq);
       }
       const stored = {
         sandboxId,
-        id: event.id,
-        seq: event.seq,
-        type: event.type,
-        ts: event.ts,
-        durability,
-        payload: validatePublicEvent(
-          event.type,
-          redactManagerEvent(event.data ?? event),
-          "sandbox_agent",
-        ),
+        id: envelope.id,
+        seq: envelope.seq,
+        type: envelope.type,
+        ts: envelope.ts,
+        durability: envelope.durability,
+        payload: envelope.data,
       };
       if (await this.store.append(stored)) {
         accepted += 1;

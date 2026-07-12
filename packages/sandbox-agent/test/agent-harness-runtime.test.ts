@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { sandboxEventPayloadSchemas } from "@nervekit/contracts";
+import { publicEventDefinition } from "@nervekit/contracts";
 import { SandboxOperationError } from "../src/daemon/errors.js";
 import { SandboxDaemon } from "../src/daemon/sandbox-daemon.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
@@ -49,12 +49,9 @@ describe("sandbox live AgentHarness runtime", () => {
       );
       assert.ok(events.some((event) => event.type === "run.completed"));
       for (const event of events) {
-        const schema =
-          sandboxEventPayloadSchemas[
-            event.type as keyof typeof sandboxEventPayloadSchemas
-          ];
-        if (schema)
-          assert.equal(schema.safeParse(event.data).success, true, event.type);
+        const schema = publicEventDefinition(event.type)?.payloadSchema;
+        assert.ok(schema, event.type);
+        assert.equal(schema.safeParse(event.data).success, true, event.type);
       }
     } finally {
       await rm(dir, { recursive: true, force: true });

@@ -126,10 +126,8 @@ describe("sandbox agent image durable state foundations", () => {
         data: {
           conversationId: "conv_1",
           agentId: "agent_1",
+          projectId: "proj_1",
           runId: "run_1",
-          requestId: "req_1",
-          status: "queued",
-          model: { provider: "test", model: "test" },
           startedAt: new Date().toISOString(),
         },
       });

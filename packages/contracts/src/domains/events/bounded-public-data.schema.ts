@@ -8,28 +8,35 @@ const maximumDepth = 8;
 const maximumEntries = 256;
 const maximumStringLength = 16_384;
 
+function boundedPublicJson() {
+  return z
+    .preprocess(stripUndefined, z.json())
+    .superRefine((value, context) => {
+      let bytes: number;
+      try {
+        bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
+      } catch {
+        context.addIssue({
+          code: "custom",
+          message: "public data must be JSON-safe",
+        });
+        return;
+      }
+      if (bytes > maximumBytes) {
+        context.addIssue({
+          code: "custom",
+          message: `public data may not exceed ${maximumBytes} bytes`,
+        });
+      }
+      validateValue(value, context, [], 0);
+    });
+}
+
+/** Safety guard composed before every concrete public event payload schema. */
+export const publicEventDataGuardSchema = boundedPublicJson();
+
 /** Bounded JSON for provider/domain values whose shape is intentionally opaque. */
-export const boundedPublicJsonSchema = z
-  .preprocess(stripUndefined, z.json())
-  .superRefine((value, context) => {
-    let bytes: number;
-    try {
-      bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
-    } catch {
-      context.addIssue({
-        code: "custom",
-        message: "public data must be JSON-safe",
-      });
-      return;
-    }
-    if (bytes > maximumBytes) {
-      context.addIssue({
-        code: "custom",
-        message: `public data may not exceed ${maximumBytes} bytes`,
-      });
-    }
-    validateValue(value, context, [], 0);
-  });
+export const boundedPublicJsonSchema = boundedPublicJson();
 
 export const boundedPublicObjectSchema = z
   .preprocess(

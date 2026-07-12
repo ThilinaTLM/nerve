@@ -115,21 +115,26 @@ describe("applySandboxEvent", () => {
       detail,
       event(1, "toolCall.updated", {
         ...scope,
-        toolCallId: "tool_1",
-        toolName: "read",
-        status: "requested",
-        displayArgs: { path: "README.md" },
-        requestedAt: ts,
+        toolCall: {
+          id: "tool_1",
+          toolName: "read",
+          status: "requested",
+          argsPreview: { path: "README.md" },
+          createdAt: ts,
+          updatedAt: ts,
+        },
       }),
     );
     applySandboxEvent(
       detail,
       event(2, "toolCall.updated", {
         ...scope,
-        toolCallId: "tool_1",
-        toolName: "read",
-        status: "completed",
-        completedAt: ts,
+        toolCall: {
+          id: "tool_1",
+          toolName: "read",
+          status: "completed",
+          updatedAt: ts,
+        },
       }),
     );
     const toolCall = detail.toolCallsById.tool_1;

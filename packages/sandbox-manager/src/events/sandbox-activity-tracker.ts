@@ -41,9 +41,10 @@ function firstStringArg(value: unknown): string | undefined {
 }
 
 function describeTool(payload: Record<string, unknown>): string | undefined {
+  const toolCall = asRecord(payload.toolCall);
   const toolName =
-    typeof payload.toolName === "string" ? payload.toolName : "tool";
-  const arg = firstStringArg(payload.displayArgs);
+    typeof toolCall.toolName === "string" ? toolCall.toolName : "tool";
+  const arg = firstStringArg(toolCall.argsPreview);
   return truncate(arg ? `${toolName}: ${arg}` : toolName);
 }
 
@@ -133,11 +134,6 @@ export class SandboxActivityTracker {
       case "run.started": {
         summary.runStatus = "running";
         summary.needsAttention = undefined;
-        // The sandbox controller includes the model in use on run.started.
-        const model = asRecord(payload.model);
-        if (typeof model.model === "string") summary.model = model.model;
-        if (typeof model.provider === "string")
-          summary.provider = model.provider;
         applyContextUsage(summary, payload);
         return true;
       }

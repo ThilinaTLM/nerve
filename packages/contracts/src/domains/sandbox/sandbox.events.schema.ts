@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { conversationEventPayloadSchemas } from "../conversations/index.js";
+import {
+  boundedPublicJsonSchema,
+  boundedPublicObjectSchema,
+} from "../events/bounded-public-data.schema.js";
 import { planReviewRecordSchema } from "../plans/index.js";
 import {
   artifactRefSchema,
@@ -44,7 +47,7 @@ export const sandboxStartupStageCompletedEventSchema =
 export const sandboxConfigLoadedEventSchema = sandboxEventCommonSchema.extend({
   status: z.enum(["loaded", "degraded"]),
   configDigest: z.string().min(1),
-  effectiveDefaults: z.record(z.string(), z.unknown()).optional(),
+  effectiveDefaults: boundedPublicObjectSchema.optional(),
   models: z.array(
     z.object({
       provider: z.string().min(1),
@@ -96,7 +99,7 @@ export const sandboxSetupCompletedEventSchema = sandboxEventCommonSchema.extend(
     status: z.enum(["completed", "failed", "degraded", "skipped"]),
     startedAt: isoDateTimeSchema.optional(),
     completedAt: isoDateTimeSchema,
-    summary: z.record(z.string(), z.unknown()).optional(),
+    summary: boundedPublicObjectSchema.optional(),
     limitations: z.array(z.string().min(1)).optional(),
     error: redactedErrorSchema.optional(),
   },
@@ -248,7 +251,7 @@ export const runTranscriptAppendedEventSchema = sandboxEventCommonSchema
     index: z.number().int().nonnegative().safe(),
     role: z.enum(["user", "assistant", "tool", "system"]),
     content: z.union([boundedTextSchema, artifactRefSchema]),
-    details: z.unknown().optional(),
+    details: boundedPublicJsonSchema.optional(),
     createdAt: isoDateTimeSchema,
   });
 
@@ -271,7 +274,7 @@ export const runWaitingForApprovalEventSchema = sandboxEventCommonSchema
     toolCallId: z.string().min(1),
     risk: z.array(z.string().min(1)),
     reason: z.string().min(1),
-    normalizedArgs: z.unknown(),
+    normalizedArgs: boundedPublicJsonSchema,
     offeredScopes: z
       .array(z.enum(["single_call", "same_tool_same_args", "run"]))
       .optional(),
@@ -287,27 +290,6 @@ export const runWaitingForPlanReviewEventSchema = sandboxEventCommonSchema
     planReview: planReviewRecordSchema,
     createdAt: isoDateTimeSchema,
   });
-
-export const planReviewResolvedEventSchema = sandboxEventCommonSchema
-  .merge(sandboxRunScopeSchema)
-  .extend({
-    reviewId: z.string().startsWith("plan_review_"),
-    decision: z.enum(["accept", "request_changes", "discard"]),
-    planReview: planReviewRecordSchema,
-    resolvedAt: isoDateTimeSchema,
-  });
-
-export const planReviewUpdatedEventSchema = z.union([
-  planReviewResolvedEventSchema,
-  z.object({ planReview: planReviewRecordSchema }),
-  z.object({
-    status: z.literal("force_exited"),
-    agentId: z.string().startsWith("agent_"),
-    conversationId: z.string().startsWith("conv_"),
-    projectId: z.string().startsWith("proj_"),
-    reason: z.string().min(1).max(4_096),
-  }),
-]);
 
 export const runCheckpointedEventSchema = sandboxEventCommonSchema
   .merge(sandboxRunScopeSchema)
@@ -347,12 +329,12 @@ export const toolCallEventSchema = sandboxEventCommonSchema
       "failed",
       "cancelled",
     ]),
-    args: z.unknown().optional(),
-    displayArgs: z.unknown().optional(),
+    args: boundedPublicJsonSchema.optional(),
+    displayArgs: boundedPublicJsonSchema.optional(),
     approvalId: z.string().min(1).optional(),
     artifactRefs: z.array(artifactRefSchema).optional(),
     lifecycleSeq: z.number().int().nonnegative().safe().optional(),
-    result: z.unknown().optional(),
+    result: boundedPublicJsonSchema.optional(),
     error: redactedErrorSchema.optional(),
     requestedAt: isoDateTimeSchema.optional(),
     startedAt: isoDateTimeSchema.optional(),
@@ -379,7 +361,6 @@ export const sandboxOperationalEventPayloadSchemas = {
   "sandbox.shutdown.scheduled": sandboxShutdownEventSchema,
   "sandbox.shutdown.started": sandboxShutdownEventSchema,
   "sandbox.security.denied": sandboxSecurityDeniedEventSchema,
-  "run.started": runStartedEventSchema,
   "run.delta": runDeltaEventSchema,
   "run.transcript.appended": runTranscriptAppendedEventSchema,
   "run.waiting": z.union([
@@ -387,38 +368,15 @@ export const sandboxOperationalEventPayloadSchemas = {
     runWaitingForApprovalEventSchema,
     runWaitingForPlanReviewEventSchema,
   ]),
-  "planReview.updated": planReviewUpdatedEventSchema,
   "run.checkpointed": runCheckpointedEventSchema,
-  "run.completed": runTerminalEventSchema,
-  "run.failed": runFailedEventSchema,
   "run.cancelled": runTerminalEventSchema,
-  "toolCall.updated": toolCallEventSchema,
 } as const;
 
-export const sandboxEventPayloadSchemas = {
-  ...sandboxOperationalEventPayloadSchemas,
-  ...conversationEventPayloadSchemas,
-  "run.started": z.union([
-    runStartedEventSchema,
-    conversationEventPayloadSchemas["run.started"],
-  ]),
-  "run.completed": z.union([
-    runTerminalEventSchema,
-    conversationEventPayloadSchemas["run.completed"],
-  ]),
-  "run.failed": z.union([
-    runFailedEventSchema,
-    conversationEventPayloadSchemas["run.failed"],
-  ]),
-  "toolCall.updated": z.union([
-    toolCallEventSchema,
-    conversationEventPayloadSchemas["toolCall.updated"],
-  ]),
-} as const;
-
-const sandboxEventNames = Object.keys(sandboxEventPayloadSchemas) as [
-  keyof typeof sandboxEventPayloadSchemas,
-  ...(keyof typeof sandboxEventPayloadSchemas)[],
+const sandboxEventNames = Object.keys(
+  sandboxOperationalEventPayloadSchemas,
+) as [
+  keyof typeof sandboxOperationalEventPayloadSchemas,
+  ...(keyof typeof sandboxOperationalEventPayloadSchemas)[],
 ];
 export const sandboxEventTypeSchema = z.enum(sandboxEventNames);
 export type SandboxEventType = z.infer<typeof sandboxEventTypeSchema>;
@@ -430,12 +388,12 @@ export const sandboxEventEnvelopeSchema = z
     type: z.string().min(1),
     ts: isoDateTimeSchema,
     durability: z.enum(["durable", "transient"]).default("durable"),
-    data: z.unknown(),
+    data: boundedPublicJsonSchema,
   })
   .superRefine((event, context) => {
     const schema =
-      sandboxEventPayloadSchemas[
-        event.type as keyof typeof sandboxEventPayloadSchemas
+      sandboxOperationalEventPayloadSchemas[
+        event.type as keyof typeof sandboxOperationalEventPayloadSchemas
       ];
     const parsed = schema?.safeParse(event.data);
     if (!parsed?.success) {

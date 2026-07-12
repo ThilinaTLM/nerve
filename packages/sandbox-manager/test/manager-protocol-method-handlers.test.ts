@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import {
+  allOperationDefinitions,
+  type NerveMessage,
+  operationNameSchema,
+  type ProtocolRequestData,
+} from "@nervekit/contracts";
 import type { ManagerState } from "../src/app/manager-state.js";
 import { HttpError } from "../src/http/errors.js";
-import { handleManagerProtocolMethod } from "../src/protocol/manager-protocol-method-handlers.js";
+import { createManagerOperationHandlers } from "../src/protocol/manager-protocol-method-handlers.js";
 import type { SandboxWsServer } from "../src/protocol/sandbox-ws-server.js";
 
 const record = {
@@ -25,8 +31,19 @@ const record = {
 };
 
 describe("manager protocol method handlers", () => {
+  it("registers every manager-target operation", () => {
+    const handlers = createManagerOperationHandlers(context());
+    for (const definition of allOperationDefinitions()) {
+      if (!definition.allowedTargetRoles.includes("sandbox_manager")) continue;
+      assert.equal(
+        typeof handlers[definition.method],
+        "function",
+        definition.method,
+      );
+    }
+  });
   it("returns a manager-derived sandbox snapshot when disconnected", async () => {
-    const result = await handleManagerProtocolMethod(
+    const result = await invokeManagerOperation(
       context(),
       "sandbox.snapshot.get",
       { sandboxId: "sbx_1" },
@@ -37,7 +54,7 @@ describe("manager protocol method handlers", () => {
   });
 
   it("marks stopped containers offline in manager-derived snapshots", async () => {
-    const result = (await handleManagerProtocolMethod(
+    const result = (await invokeManagerOperation(
       context({
         record: {
           ...record,
@@ -89,7 +106,7 @@ describe("manager protocol method handlers", () => {
       target: { role: "sandbox_agent", id: "sbx_1" },
       idempotencyKey: "request_1",
     });
-    const result = await handleManagerProtocolMethod(ctx, "task.list", {});
+    const result = await invokeManagerOperation(ctx, "task.list", {});
     assert.deepEqual(result, { tasks: [] });
     assert.deepEqual(sent, [
       {
@@ -101,7 +118,7 @@ describe("manager protocol method handlers", () => {
   });
 
   it("reconstructs the conversation transcript from durable events when disconnected", async () => {
-    const result = (await handleManagerProtocolMethod(
+    const result = (await invokeManagerOperation(
       context({ events: transcriptEvents() }),
       "sandbox.conversation.snapshot.get",
       { sandboxId: "sbx_1", conversationId: "conv_1", agentId: "agent_main" },
@@ -123,7 +140,7 @@ describe("manager protocol method handlers", () => {
   });
 
   it("merges sparse tool-call lifecycle updates when projecting durable events", async () => {
-    const result = (await handleManagerProtocolMethod(
+    const result = (await invokeManagerOperation(
       context({ events: toolCallProjectionEvents() }),
       "sandbox.conversation.snapshot.get",
       { sandboxId: "sbx_1", conversationId: "conv_1", agentId: "agent_main" },
@@ -146,7 +163,7 @@ describe("manager protocol method handlers", () => {
   });
 
   it("preserves transcript entry details when projecting durable events", async () => {
-    const result = (await handleManagerProtocolMethod(
+    const result = (await invokeManagerOperation(
       context({ events: transcriptEventsWithDetails() }),
       "sandbox.conversation.snapshot.get",
       { sandboxId: "sbx_1", conversationId: "conv_1", agentId: "agent_main" },
@@ -159,7 +176,7 @@ describe("manager protocol method handlers", () => {
   });
 
   it("keeps prior messages when projecting a conversation snapshot for a specific run", async () => {
-    const result = (await handleManagerProtocolMethod(
+    const result = (await invokeManagerOperation(
       context({ events: multiRunTranscriptEvents() }),
       "sandbox.conversation.snapshot.get",
       {
@@ -194,7 +211,7 @@ describe("manager protocol method handlers", () => {
         },
       },
     });
-    const result = (await handleManagerProtocolMethod(
+    const result = (await invokeManagerOperation(
       ctx,
       "sandbox.conversation.snapshot.get",
       { sandboxId: "sbx_1", conversationId: "conv_1" },
@@ -210,13 +227,13 @@ describe("manager protocol method handlers", () => {
 
   it("rejects unknown methods and unavailable sandboxes", async () => {
     await assert.rejects(
-      () => handleManagerProtocolMethod(context(), "sandbox.nope", {}),
+      () => invokeManagerOperation(context(), "sandbox.nope", {}),
       (error) =>
         error instanceof HttpError && error.code === "METHOD_NOT_FOUND",
     );
     await assert.rejects(
       () =>
-        handleManagerProtocolMethod(
+        invokeManagerOperation(
           context({ target: { role: "sandbox_agent", id: "sbx_1" } }),
           "task.list",
           {},
@@ -226,6 +243,34 @@ describe("manager protocol method handlers", () => {
     );
   });
 });
+
+async function invokeManagerOperation(
+  ctx: ReturnType<typeof context>,
+  methodInput: string,
+  params: unknown,
+): Promise<unknown> {
+  const parsedMethod = operationNameSchema.safeParse(methodInput);
+  if (!parsedMethod.success)
+    throw new HttpError(404, "Method not found", "METHOD_NOT_FOUND");
+  const handler = createManagerOperationHandlers(ctx)[parsedMethod.data];
+  if (!handler)
+    throw new HttpError(404, "Method not found", "METHOD_NOT_FOUND");
+  const request: NerveMessage<ProtocolRequestData> = {
+    protocol: "nerve",
+    version: 1,
+    id: "msg_test",
+    kind: "request",
+    ts: "2026-06-26T12:00:00.000Z",
+    source: { role: "ui", id: "ui_test" },
+    target: ctx.target,
+    data: {
+      method: parsedMethod.data,
+      params,
+      idempotencyKey: ctx.idempotencyKey,
+    },
+  };
+  return handler(params as never, request);
+}
 
 function context(
   options: {

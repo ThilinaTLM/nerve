@@ -1,8 +1,9 @@
 import { GitWorkflowError } from "@nervekit/host-runtime/tools";
 import {
-  allOperationDefinitions,
   type NerveErrorCode,
   type NerveMessage,
+  operationDefinition,
+  operationNameSchema,
   type ProtocolErrorData,
   type ProtocolRequestData,
   protocolRequestMessageSchema,
@@ -16,25 +17,26 @@ import { ZodError } from "zod";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { HttpError } from "../http/errors.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
-import { handleProtocolMethod } from "./method-handlers.js";
+import {
+  handleProtocolMethod,
+  WORKBENCH_OPERATION_METHODS,
+} from "./method-handlers.js";
 import { protocolErrorData, redactProtocolValue } from "./protocol-errors.js";
 
 export const PROTOCOL_HTTP_CONTENT_TYPE =
   "application/vnd.nerve.protocol.v1+json";
 const MAX_PROTOCOL_HTTP_BODY_BYTES = 4 * 1024 * 1024;
+const workbenchDispatchers = new WeakMap<OrchestratorState, RpcDispatcher>();
+const workbenchMethods = new Set<string>(WORKBENCH_OPERATION_METHODS);
+const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
+  (method) => operationDefinition(method).requiredCapability,
+).filter((capability): capability is string => Boolean(capability));
 
 export class ProtocolHttpDispatcher {
   readonly #dispatcher: RpcDispatcher;
 
   constructor(private readonly state: OrchestratorState) {
-    this.#dispatcher = new RpcDispatcher({
-      handlers: workbenchOperationHandlers(state),
-      idempotency: new MemoryIdempotencyStore(),
-      acceptedCapabilities: allOperationDefinitions()
-        .map((definition) => definition.requiredCapability)
-        .filter((capability): capability is string => Boolean(capability)),
-      translateError,
-    });
+    this.#dispatcher = workbenchRpcDispatcher(state);
   }
 
   async dispatch(request: Request): Promise<Response> {
@@ -148,15 +150,35 @@ export class ProtocolHttpDispatcher {
   }
 }
 
-function workbenchOperationHandlers(
+export function workbenchOperationHandlers(
   state: OrchestratorState,
 ): Partial<OperationHandlerRegistry> {
-  const handlers: Record<string, (params: never) => Promise<unknown>> = {};
-  for (const definition of allOperationDefinitions()) {
-    handlers[definition.method] = (params) =>
-      handleProtocolMethod(state, definition.method, params);
-  }
-  return handlers as Partial<OperationHandlerRegistry>;
+  return new Proxy<Partial<OperationHandlerRegistry>>(
+    {},
+    {
+      get(_target, property) {
+        if (typeof property !== "string" || !workbenchMethods.has(property))
+          return undefined;
+        const method = operationNameSchema.parse(property);
+        return (params: unknown) => handleProtocolMethod(state, method, params);
+      },
+    },
+  );
+}
+
+export function workbenchRpcDispatcher(
+  state: OrchestratorState,
+): RpcDispatcher {
+  const existing = workbenchDispatchers.get(state);
+  if (existing) return existing;
+  const dispatcher = new RpcDispatcher({
+    handlers: workbenchOperationHandlers(state),
+    idempotency: new MemoryIdempotencyStore(),
+    acceptedCapabilities: workbenchCapabilities,
+    translateError,
+  });
+  workbenchDispatchers.set(state, dispatcher);
+  return dispatcher;
 }
 
 function translateError(error: unknown): ProtocolErrorData {

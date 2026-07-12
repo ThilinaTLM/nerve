@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
+  parsePublicEventEnvelope,
   publicEventDefinition,
-  validatePublicEvent,
 } from "@nervekit/contracts";
 import type { ManagerState } from "../app/manager-state.js";
 import { redactManagerEvent } from "./redaction.js";
@@ -36,39 +36,41 @@ async function appendAndPublish(
 ): Promise<void> {
   const ts = new Date().toISOString();
   const seq = nextSeq(await state.events.list(storeId));
-  const payload = validatePublicEvent(
-    event.type,
-    redactManagerEvent({
-      ...(isObject(event.payload) ? event.payload : { value: event.payload }),
-      sandboxId: event.sandboxId,
-    }),
-    "sandbox_manager",
-  );
   const definition = publicEventDefinition(event.type);
   if (!definition) throw new Error(`Unknown manager event: ${event.type}`);
-  const durability = event.durability ?? definition.durability;
-  if (durability !== definition.durability) {
-    throw new Error(`Event ${event.type} must use ${definition.durability}`);
-  }
+  const envelope = parsePublicEventEnvelope(
+    {
+      id: `evt_${randomUUID()}`,
+      seq,
+      type: event.type,
+      ts,
+      durability: event.durability ?? definition.durability,
+      data: redactManagerEvent({
+        ...(isObject(event.payload) ? event.payload : { value: event.payload }),
+        sandboxId: event.sandboxId,
+      }),
+    },
+    "sandbox_manager",
+  );
   const stored = {
     sandboxId: storeId,
-    id: `evt_${randomUUID()}`,
-    seq,
-    type: event.type,
-    ts,
-    durability,
-    payload,
+    id: envelope.id,
+    seq: envelope.seq,
+    type: envelope.type,
+    ts: envelope.ts,
+    durability: envelope.durability,
+    payload: envelope.data,
   };
   if (await state.events.append(stored)) {
     state.eventBus.publish({
       type: stored.type,
       stream,
       sandboxId: event.sandboxId,
-      seq,
+      seq: stored.seq,
       id: stored.id,
       durability: stored.durability,
-      payload,
-      ts,
+      payload: stored.payload,
+      ts: stored.ts,
     });
   }
 }

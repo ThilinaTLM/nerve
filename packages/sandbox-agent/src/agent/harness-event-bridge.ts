@@ -307,24 +307,6 @@ export class HarnessEventBridge {
       createdAt: requestedAt,
       updatedAt: requestedAt,
     });
-    await this.events?.append({
-      type: "toolCall.updated",
-      durability: "durable",
-      conversationId: context.conversationId,
-      agentId: context.agentId,
-      runId: context.runId,
-      data: {
-        ...this.commonData,
-        ...scopeData(context),
-        toolCallId: toolCall.toolCallId,
-        toolName: toolCall.toolName,
-        status: "requested",
-        displayArgs: toolCall.args,
-        ...placement,
-        lifecycleSeq: 1,
-        requestedAt,
-      },
-    });
   }
 
   private async publishSuspension(
@@ -409,24 +391,6 @@ export class HarnessEventBridge {
       completedAt,
       result,
     });
-    await this.events?.append({
-      type: "toolCall.updated",
-      durability: "durable",
-      conversationId: context.conversationId,
-      agentId: context.agentId,
-      runId: context.runId,
-      data: {
-        ...this.commonData,
-        ...scopeData(context),
-        toolCallId,
-        toolName,
-        status: "completed",
-        lifecycleSeq: 3,
-        result,
-        requestedAt: existing?.requestedAt ?? completedAt,
-        completedAt,
-      },
-    });
     await this.publishToolCallUpdated(context, {
       toolCallId,
       toolName,
@@ -452,26 +416,6 @@ export class HarnessEventBridge {
         role: "assistant",
         text: bound(text),
       },
-    });
-  }
-
-  async terminal(
-    run: RunState,
-    status: "completed" | "failed" | "cancelled",
-    data: Record<string, unknown> = {},
-  ): Promise<void> {
-    await this.events?.append({
-      type:
-        status === "completed"
-          ? "run.completed"
-          : status === "cancelled"
-            ? "run.cancelled"
-            : "run.failed",
-      durability: "durable",
-      conversationId: run.conversationId,
-      agentId: run.agentId,
-      runId: run.runId,
-      data: { ...this.commonData, ...scopeData(run), status, ...data },
     });
   }
 
@@ -618,24 +562,6 @@ export class HarnessEventBridge {
         createdAt: startedAt,
         updatedAt: startedAt,
       });
-      await this.events?.append({
-        type: "toolCall.updated",
-        durability: "durable",
-        conversationId: context.conversationId,
-        agentId: context.agentId,
-        runId: context.runId,
-        data: {
-          ...this.commonData,
-          ...scopeData(context),
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          status: "started",
-          displayArgs: event.args,
-          ...placement,
-          lifecycleSeq: 2,
-          startedAt,
-        },
-      });
       this.log(context).debug("tool started", {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -735,26 +661,6 @@ export class HarnessEventBridge {
         errorDetails: error,
         createdAt: completedAt,
         updatedAt: completedAt,
-      });
-      await this.events?.append({
-        type: event.isError ? "toolCall.updated" : "toolCall.updated",
-        durability: "durable",
-        conversationId: context.conversationId,
-        agentId: context.agentId,
-        runId: context.runId,
-        data: {
-          ...this.commonData,
-          ...scopeData(context),
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          status,
-          ...placement,
-          lifecycleSeq: 3,
-          result: event.isError ? undefined : event.result,
-          error,
-          artifactRefs: artifactRefs.length ? artifactRefs : undefined,
-          completedAt,
-        },
       });
       const toolKey = `${context.runId}:${event.toolCallId}`;
       const toolStartedAt = this.toolStartedAt.get(toolKey);

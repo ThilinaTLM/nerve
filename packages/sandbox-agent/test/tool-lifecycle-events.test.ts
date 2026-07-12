@@ -126,7 +126,7 @@ describe("tool lifecycle cancellation", () => {
     }
   });
 
-  it("cancels supervised tasks for a run and emits durable cancelled tool records", async () => {
+  it("cancels supervised tasks for a run and persists cancelled tool records", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-tool-cancel-"));
     let supervisor: TaskSupervisor | undefined;
     try {
@@ -144,7 +144,6 @@ describe("tool lifecycle cancellation", () => {
         stateDir: dir,
         taskSupervisor: supervisor,
         toolCallStore: manager.toolCallStore(),
-        events: stores.events,
       });
       const scope = {
         conversationId: "conv_task",
@@ -176,17 +175,6 @@ describe("tool lifecycle cancellation", () => {
       const toolJsonl = await readFile(toolFile, "utf8");
       assert.match(toolJsonl, /"status":"cancelled"/);
       assert.match(toolJsonl, /"toolCallId":"task_tool_1"/);
-      assert.ok(
-        stores.events
-          .all()
-          .some(
-            (event) =>
-              event.type === "toolCall.updated" &&
-              event.runId === scope.runId &&
-              (event.data as { toolCallId?: string }).toolCallId ===
-                "task_tool_1",
-          ),
-      );
       await supervisor.drain();
     } finally {
       await supervisor?.drain().catch(() => undefined);

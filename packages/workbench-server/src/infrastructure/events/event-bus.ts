@@ -5,8 +5,8 @@ import {
   type EventDurability,
   type EventEnvelope,
   eventEnvelopeSchema,
+  parsePublicEventEnvelope,
   publicEventDefinition,
-  validatePublicEvent,
 } from "@nervekit/contracts";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
@@ -175,20 +175,19 @@ export class EventBus {
   ): Promise<EventEnvelope<T>> {
     const definition = publicEventDefinition(type);
     if (!definition) throw new Error(`Unknown public event: ${type}`);
-    const validated = validatePublicEvent(type, data, "workbench_server") as T;
     const durability = options.durability ?? definition.durability;
-    if (durability !== definition.durability) {
-      throw new Error(`Event ${type} must be ${definition.durability}`);
-    }
-    this.#seq += 1;
-    const event: EventEnvelope<T> = {
-      seq: this.#seq,
-      id: createId("evt"),
-      ts: new Date().toISOString(),
-      type,
-      durability,
-      data: validated,
-    };
+    const event = parsePublicEventEnvelope(
+      {
+        seq: this.#seq + 1,
+        id: createId("evt"),
+        ts: new Date().toISOString(),
+        type,
+        durability,
+        data,
+      },
+      "workbench_server",
+    ) as EventEnvelope<T>;
+    this.#seq = event.seq;
     this.#events.push(event as EventEnvelope);
     if (this.#events.length > this.maxBufferedEvents) this.#events.shift();
     if (durability === "durable") {

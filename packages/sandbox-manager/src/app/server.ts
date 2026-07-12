@@ -1,19 +1,12 @@
-import { readFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
 import {
-  type ManagedSandboxRecord,
-  type SandboxConfigV1,
-  sandboxConfigDigestStable,
-  sandboxContainerLogsResultSchema,
   sandboxSnapshotResultSchema,
-  sandboxStatusGetResultSchema,
   sandboxWorkspaceFileQuerySchema,
 } from "@nervekit/contracts";
-import { parse as parseYaml } from "yaml";
 import {
   createSandboxRequestSchema,
   credentialProfileWriteSchema,
@@ -22,14 +15,7 @@ import {
   secretWriteSchema,
 } from "../api/request-schemas.js";
 import { ok } from "../api/responses.js";
-import {
-  materializeSandboxConfig,
-  parseSandboxConfigInput,
-} from "../config/materialize-sandbox-config.js";
-import { buildSandboxLaunchSpec } from "../config/sandbox-launch-spec.js";
 import { listSandboxManagerModels } from "../credentials/model-catalog.js";
-import { dbTables } from "../db/tables.js";
-import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import {
   authorizedManagerRequest,
   requireSandboxControllerToken,
@@ -37,32 +23,32 @@ import {
 import { readJsonBody } from "../http/body.js";
 import { errorResponse, HttpError } from "../http/errors.js";
 import { withIdempotency } from "../http/idempotency.js";
-import {
-  lifecycleSummary,
-  transitionSandboxLifecycle,
-} from "../lifecycle/lifecycle-state.js";
-import { LogCollector } from "../lifecycle/log-collector.js";
-import { refreshSandboxObservedState } from "../lifecycle/reconciler.js";
+import { lifecycleSummary } from "../lifecycle/lifecycle-state.js";
 import {
   deriveSandboxContainerStatus,
   managerDerivedSandboxView,
 } from "../protocol/manager-derived-sandbox-view.js";
 import { handleManagerProtocolHttpRequest } from "../protocol/manager-protocol-http-dispatcher.js";
+import {
+  createManagedSandbox,
+  getManagedSandbox,
+  listManagedSandboxes,
+  managedContainerLogs,
+  managedSandboxStatus,
+  removeManagedSandbox,
+  restartManagedSandbox,
+  startManagedSandbox,
+  stopManagedSandbox,
+} from "../protocol/manager-sandbox-operations.js";
 import { SandboxWsServer } from "../protocol/sandbox-ws-server.js";
 import { tailManagerLogs } from "../routes/manager-logs-routes.js";
 import { managerStatus } from "../routes/manager-status-routes.js";
 import {
-  createSandboxRecord,
   getSandboxConfigYaml,
   previewSandboxConfigYaml,
 } from "../routes/sandbox-routes.js";
 import { getSandboxWorkspaceFile } from "../routes/sandbox-workspace-file-routes.js";
 import { resolveSandboxSecret } from "../routes/secrets-routes.js";
-import {
-  readAgentStateSummary,
-  setupSummaryFailure,
-} from "../state/agent-state-summary.js";
-
 import { createLoggedRequestListener } from "./http-logging.js";
 import type { ManagerState } from "./manager-state.js";
 import { sandboxManagerVersion } from "./version.js";
@@ -263,30 +249,8 @@ async function handle(
       ),
     );
   }
-  if (req.method === "GET" && path === "/api/sandboxes") {
-    const records = await Promise.all(
-      (await state.sandboxes.list()).map(async (record) =>
-        recoverStartupFailureFromAgentState(
-          state,
-          await refreshSandboxObservedState(
-            state.sandboxes,
-            state.driver,
-            record,
-          ),
-        ),
-      ),
-    );
-    return json(
-      res,
-      200,
-      ok(
-        records.map((record) => ({
-          ...publicSandboxRecord(record),
-          activity: state.activity.get(record.sandboxId),
-        })),
-      ),
-    );
-  }
+  if (req.method === "GET" && path === "/api/sandboxes")
+    return json(res, 200, ok(await listManagedSandboxes(state)));
   if (req.method === "POST" && path === "/api/sandboxes") {
     const rawBody = await readJsonBody(req);
     const body = createSandboxRequestSchema.parse(rawBody);
@@ -296,51 +260,14 @@ async function handle(
       path,
       rawBody,
       async () => {
-        const record = await createSandboxRecord(
-          state,
-          body.config,
-          body.launch,
-          body.auth,
-        );
-        await recordManagerLifecycleEvent(state, {
-          type: "sandbox.lifecycle.changed",
-          sandboxId: record.sandboxId,
-          payload: {
-            sandboxId: record.sandboxId,
-            current: record.lifecycleState,
-            changedAt: record.lifecycleUpdatedAt,
-            reason: "created",
-          },
-        });
-        try {
-          return await startSandbox(state, record.sandboxId);
-        } catch (error) {
-          const failed = await state.sandboxes.get(record.sandboxId);
-          if (failed?.lifecycleState !== "failed") throw error;
-          return publicSandboxRecord(failed);
-        }
+        return createManagedSandbox(state, body);
       },
     );
     return json(res, result.replayed ? 200 : 201, ok(result.value));
   }
   const sandboxMatch = path.match(/^\/api\/sandboxes\/([^/]+)$/);
   if (req.method === "GET" && sandboxMatch) {
-    const record = await state.sandboxes.get(sandboxMatch[1]);
-    const refreshed = record
-      ? await recoverStartupFailureFromAgentState(
-          state,
-          await refreshSandboxObservedState(
-            state.sandboxes,
-            state.driver,
-            record,
-          ),
-        )
-      : undefined;
-    return json(
-      res,
-      200,
-      ok(refreshed ? publicSandboxRecord(refreshed) : undefined),
-    );
+    return json(res, 200, ok(await getManagedSandbox(state, sandboxMatch[1])));
   }
   if (req.method === "DELETE" && sandboxMatch) {
     const body = {
@@ -352,21 +279,10 @@ async function handle(
         url.searchParams.get("removeVolumes") === "true",
     };
     const result = await withIdempotency(state, req, path, body, async () => {
-      const removed = await state.supervisor.remove(sandboxMatch[1], body);
-      await state.sandboxes.delete(sandboxMatch[1]);
-      if (body.removeVolumes)
-        await state.volumeProvider.remove?.(sandboxMatch[1], body);
-      await recordManagerLifecycleEvent(state, {
-        type: "sandbox.lifecycle.changed",
+      return removeManagedSandbox(state, {
         sandboxId: sandboxMatch[1],
-        payload: {
-          sandboxId: sandboxMatch[1],
-          current: "removed",
-          changedAt: new Date().toISOString(),
-          reason: "deleted",
-        },
+        ...body,
       });
-      return publicSandboxRecord(removed);
     });
     return json(res, 200, ok(result.value));
   }
@@ -409,32 +325,43 @@ async function handle(
     if (req.method === "POST" && action === "start") {
       const body = await readJsonBody(req);
       const result = await withIdempotency(state, req, path, body, () =>
-        startSandbox(state, sandboxId),
+        startManagedSandbox(state, sandboxId),
       );
       return json(res, 200, ok(result.value));
     }
     if (req.method === "POST" && action === "stop") {
       const body = await readJsonBody(req);
       const result = await withIdempotency(state, req, path, body, async () =>
-        publicSandboxRecord(await state.supervisor.stop(sandboxId)),
+        stopManagedSandbox(state, sandboxId),
       );
       return json(res, 200, ok(result.value));
     }
     if (req.method === "POST" && action === "restart") {
       const body = await readJsonBody(req);
       const result = await withIdempotency(state, req, path, body, async () => {
-        await state.supervisor.stop(sandboxId).catch(() => undefined);
-        return startSandbox(state, sandboxId);
+        return restartManagedSandbox(state, sandboxId);
       });
       return json(res, 200, ok(result.value));
     }
     if (req.method === "GET" && action === "logs")
-      return json(res, 200, ok(await collectLogs(state, sandboxId, url)));
+      return json(
+        res,
+        200,
+        ok(
+          await managedContainerLogs(state, {
+            sandboxId,
+            tail: url.searchParams.get("tail")
+              ? Number(url.searchParams.get("tail"))
+              : undefined,
+            since: url.searchParams.get("since") ?? undefined,
+          }),
+        ),
+      );
     if (req.method === "GET" && action === "status")
       return json(
         res,
         200,
-        ok(await sandboxStatus(state, controller, sandboxId)),
+        ok(await managedSandboxStatus(state, controller, sandboxId)),
       );
     if (req.method === "GET" && action === "snapshot")
       return json(
@@ -472,196 +399,6 @@ async function handle(
   }
   throw new HttpError(404, "Not found", "NOT_FOUND");
 }
-async function loadSandboxConfigForStart(
-  state: ManagerState,
-  record: ManagedSandboxRecord,
-): Promise<SandboxConfigV1> {
-  if (record.configRef?.source) {
-    try {
-      const config = parseSandboxConfigInput(
-        parseYaml(await readFile(record.configRef.source, "utf8")),
-      );
-      const digest = sandboxConfigDigestStable(config);
-      if (digest === record.configDigest) return config;
-      await rematerializeSandboxConfig(state, record, config);
-      return config;
-    } catch {
-      // Fall through and regenerate runtime materialization from PostgreSQL.
-    }
-  }
-  const result = await state.pool.query<{ materialized_config: unknown }>(
-    `select materialized_config from ${dbTables.sandboxes} where sandbox_id = $1`,
-    [record.sandboxId],
-  );
-  const config = parseSandboxConfigInput(result.rows[0]?.materialized_config);
-  await rematerializeSandboxConfig(state, record, config);
-  return config;
-}
-
-async function rematerializeSandboxConfig(
-  state: ManagerState,
-  record: ManagedSandboxRecord,
-  config: SandboxConfigV1,
-): Promise<void> {
-  await state.pool.query(
-    `update ${dbTables.sandboxes} set materialized_config = $2::jsonb where sandbox_id = $1`,
-    [record.sandboxId, JSON.stringify(config)],
-  );
-  const materialized = await state.volumeProvider.materialize?.(
-    record.sandboxId,
-    {
-      configYaml: materializeSandboxConfig(config),
-      controllerToken: record.controller?.token ?? "",
-    },
-  );
-  if (!materialized) return;
-  const next = {
-    ...record,
-    workspaceRef: materialized.workspace,
-    stateRef: materialized.state,
-    secretMountRefs: [materialized.secrets],
-    configDigest: sandboxConfigDigestStable(config),
-    configRef: materialized.config,
-  };
-  await state.volumeStore.put(
-    record.sandboxId,
-    state.volumeProvider.kind,
-    materialized,
-  );
-  await state.sandboxes.put(next);
-}
-
-async function startSandbox(
-  state: ManagerState,
-  sandboxId: string,
-): Promise<unknown> {
-  const record = await state.sandboxes.get(sandboxId);
-  if (!record) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
-  const config = await loadSandboxConfigForStart(state, record);
-  const refreshed = (await state.sandboxes.get(sandboxId)) ?? record;
-  const runtimeVolumes = (await state.volumeStore.get(sandboxId)) ?? {
-    workspace: refreshed.workspaceRef,
-    state: refreshed.stateRef,
-    secrets: refreshed.secretMountRefs?.[0],
-    config: refreshed.configRef,
-    tmp: undefined,
-  };
-  if (!runtimeVolumes.secrets || !runtimeVolumes.config)
-    throw new HttpError(
-      409,
-      "Sandbox runtime volumes are not materialized for this container backend",
-      "INVALID_STATE",
-    );
-  const spec = buildSandboxLaunchSpec(config, {
-    image: refreshed.image.reference,
-    sandboxId,
-    managerBaseUrl: refreshed.controller?.url ?? "",
-    runtimeMounts: {
-      workspace: runtimeVolumes.workspace,
-      state: runtimeVolumes.state,
-      config: runtimeVolumes.config,
-      secrets: runtimeVolumes.secrets,
-      tmp: runtimeVolumes.tmp,
-    },
-    backend: refreshed.backend,
-    labels: refreshed.labels,
-    resources: refreshed.resources,
-    logLevel: state.config.logLevel,
-  });
-  const stableInstanceId = record.instanceId ?? spec.instanceId;
-  const stableSpec = {
-    ...spec,
-    instanceId: stableInstanceId,
-    env: {
-      ...spec.env,
-      NERVE_SANDBOX_AGENT_INSTANCE_ID: stableInstanceId,
-    },
-    labels: {
-      ...spec.labels,
-      "org.nerve.sandbox.instance": stableInstanceId,
-    },
-  };
-  return publicSandboxRecord(
-    await state.supervisor.start(sandboxId, stableSpec),
-  );
-}
-async function collectLogs(
-  state: ManagerState,
-  sandboxId: string,
-  url: URL,
-): Promise<unknown> {
-  const record = await state.sandboxes.get(sandboxId);
-  if (!record?.containerRef)
-    return sandboxContainerLogsResultSchema.parse({
-      chunks: [],
-      truncated: false,
-      available: false,
-      limitations: ["No container has been created for this sandbox"],
-    });
-  const collector = new LogCollector(state.driver);
-  const chunks: Array<{ stream: string; chunk: string; ts?: string }> = [];
-  let bytes = 0;
-  let truncated = false;
-  const maxBytes = Math.min(
-    Number(url.searchParams.get("maxBytes") ?? 256 * 1024),
-    1024 * 1024,
-  );
-  const tail = url.searchParams.get("tail");
-  const since = url.searchParams.get("since") ?? undefined;
-  try {
-    for await (const chunk of collector.logs(record.containerRef, {
-      tail: tail ? Number(tail) : undefined,
-      since,
-    })) {
-      const redacted = redactText(chunk.chunk);
-      bytes += Buffer.byteLength(redacted);
-      if (bytes > maxBytes) {
-        truncated = true;
-        break;
-      }
-      chunks.push({ ...chunk, chunk: redacted });
-    }
-  } catch (error) {
-    return sandboxContainerLogsResultSchema.parse({
-      chunks,
-      truncated,
-      available: false,
-      limitations: [
-        redactText(error instanceof Error ? error.message : String(error)),
-      ],
-    });
-  }
-  return sandboxContainerLogsResultSchema.parse({
-    chunks,
-    truncated,
-    available: true,
-  });
-}
-async function sandboxStatus(
-  state: ManagerState,
-  controller: SandboxWsServer,
-  sandboxId: string,
-): Promise<unknown> {
-  const session = controller.getSession(sandboxId);
-  if (session) {
-    const result = await session.forwarder.send(
-      session.socket,
-      "sandbox.status.get",
-      {},
-    );
-    const container = await connectedContainerStatus(state, sandboxId);
-    return sandboxStatusGetResultSchema.parse({
-      connected: true,
-      stale: false,
-      lifecycle: await connectedLifecycle(state, sandboxId),
-      container,
-      ...(isObjectRecord(result) ? result : {}),
-    });
-  }
-  return sandboxStatusGetResultSchema.parse(
-    await managerDerivedStatus(state, sandboxId),
-  );
-}
 async function sandboxSnapshot(
   state: ManagerState,
   controller: SandboxWsServer,
@@ -686,15 +423,6 @@ async function sandboxSnapshot(
   return sandboxSnapshotResultSchema.parse(
     await managerDerivedSnapshot(state, sandboxId),
   );
-}
-
-async function managerDerivedStatus(
-  state: ManagerState,
-  sandboxId: string,
-): Promise<Record<string, unknown>> {
-  const view = await managerDerivedSandboxView(state, sandboxId);
-  if (!view) throw new HttpError(404, "Sandbox not found", "NOT_FOUND");
-  return view.status;
 }
 
 async function managerDerivedSnapshot(
@@ -745,39 +473,6 @@ function sessionSummary(
   };
 }
 
-async function recoverStartupFailureFromAgentState(
-  state: ManagerState,
-  record: ManagedSandboxRecord,
-): Promise<ManagedSandboxRecord> {
-  if (record.lifecycleState === "failed") return record;
-  const summary = await readAgentStateSummary(record);
-  const failure =
-    summary?.startupFailure?.error ?? setupSummaryFailure(summary?.setup);
-  if (!failure) return record;
-  return transitionSandboxLifecycle(
-    {
-      store: state.sandboxes,
-      recordEvent: (event) => recordManagerLifecycleEvent(state, event),
-    },
-    record.sandboxId,
-    "failed",
-    {
-      observedState: "failed",
-      lastError: { code: failure.code, message: failure.message },
-      reason: failure.code,
-      force: true,
-    },
-  );
-}
-
-function publicSandboxRecord(
-  record: ManagedSandboxRecord,
-): ManagedSandboxRecord {
-  return record.controller
-    ? { ...record, controller: { ...record.controller, token: "[REDACTED]" } }
-    : record;
-}
-
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -785,10 +480,4 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(`${JSON.stringify(body)}\n`);
-}
-function redactText(value: string): string {
-  return value.replace(
-    /(token|secret|password|api[_-]?key)=\S+/gi,
-    "$1=[REDACTED]",
-  );
 }

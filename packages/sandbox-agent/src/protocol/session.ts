@@ -2,6 +2,7 @@ import {
   allOperationDefinitions,
   createLogger,
   type NerveMessage,
+  operationNameSchema,
   type ProtocolErrorData,
   type ProtocolRequestData,
   type ProtocolV1Message,
@@ -644,22 +645,30 @@ function isPrivateProjection(method: string): boolean {
 function sandboxOperationHandlers(
   daemon: SandboxDaemon,
 ): Partial<OperationHandlerRegistry> {
-  const handlers: Record<
-    string,
-    (
-      params: never,
-      request: NerveMessage<ProtocolRequestData>,
-    ) => Promise<unknown>
-  > = {};
-  for (const definition of allOperationDefinitions()) {
-    if (isPrivateProjection(definition.method)) continue;
-    handlers[definition.method] = (params, request) =>
-      daemon.router.dispatch(definition.method, params, {
-        idempotencyKey: request.data.idempotencyKey,
-        requestId: request.id,
-      });
-  }
-  return handlers as Partial<OperationHandlerRegistry>;
+  const publicMethods = new Set<string>(
+    allOperationDefinitions()
+      .filter(
+        (definition) =>
+          definition.allowedTargetRoles.includes("sandbox_agent") &&
+          !isPrivateProjection(definition.method),
+      )
+      .map((definition) => definition.method),
+  );
+  return new Proxy<Partial<OperationHandlerRegistry>>(
+    {},
+    {
+      get(_target, property) {
+        if (typeof property !== "string" || !publicMethods.has(property))
+          return undefined;
+        const method = operationNameSchema.parse(property);
+        return (params: unknown, request: NerveMessage<ProtocolRequestData>) =>
+          daemon.router.dispatch(method, params, {
+            idempotencyKey: request.data.idempotencyKey,
+            requestId: request.id,
+          });
+      },
+    },
+  );
 }
 
 function operationError(error: unknown): ProtocolErrorData {

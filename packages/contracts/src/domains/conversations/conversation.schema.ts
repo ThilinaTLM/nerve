@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- Conversation schema centralizes snapshot and live event payload contracts. */
 import { z } from "zod";
+import { boundedPublicObjectSchema } from "../events/bounded-public-data.schema.js";
 import {
   type QueuedPromptRecord,
   queuedPromptRecordSchema,
@@ -479,7 +480,7 @@ export const conversationLiveToolDraftBlockSnapshotSchema = z.object({
   providerToolCallId: z.string().min(1).optional(),
   toolName: z.string().min(1).optional(),
   argsText: z.string(),
-  args: z.record(z.string(), z.unknown()).optional(),
+  args: boundedPublicObjectSchema.optional(),
   progress: conversationLiveToolDraftProgressSnapshotSchema.optional(),
   done: z.boolean(),
 });
@@ -766,7 +767,7 @@ const conversationLiveToolDraftDoneDataSchema =
   conversationLiveContentBaseDataSchema.extend({
     providerToolCallId: z.string().min(1),
     toolName: z.string().min(1),
-    args: z.record(z.string(), z.unknown()),
+    args: boundedPublicObjectSchema,
   });
 
 const conversationLiveToolDraftProgressDataSchema =

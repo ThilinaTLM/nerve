@@ -542,39 +542,45 @@ function applyToolCall(
   detail: SandboxDetailState,
   data: Record<string, unknown>,
 ): void {
-  const toolCallId = String(data.toolCallId ?? "");
+  const toolCall =
+    data.toolCall && typeof data.toolCall === "object"
+      ? (data.toolCall as Record<string, unknown>)
+      : data;
+  const toolCallId = String(toolCall.id ?? toolCall.toolCallId ?? "");
   if (!toolCallId) return;
   const existing = detail.toolCallsById[toolCallId];
   const summary: SandboxToolCallSummary = {
     toolCallId,
-    toolName: String(data.toolName ?? existing?.toolName ?? "tool"),
+    toolName: String(toolCall.toolName ?? existing?.toolName ?? "tool"),
     status:
-      (data.status as SandboxToolCallSummary["status"]) ??
+      (toolCall.status as SandboxToolCallSummary["status"]) ??
       existing?.status ??
       "requested",
-    displayArgs: data.displayArgs ?? existing?.displayArgs,
+    displayArgs: toolCall.argsPreview ?? existing?.displayArgs,
     artifactRefs:
-      (data.artifactRefs as SandboxToolCallSummary["artifactRefs"]) ??
+      (toolCall.artifactRefs as SandboxToolCallSummary["artifactRefs"]) ??
       existing?.artifactRefs,
-    turnId: typeof data.turnId === "string" ? data.turnId : existing?.turnId,
+    turnId:
+      typeof toolCall.turnId === "string" ? toolCall.turnId : existing?.turnId,
     liveMessageId:
-      typeof data.liveMessageId === "string"
-        ? data.liveMessageId
+      typeof toolCall.liveMessageId === "string"
+        ? toolCall.liveMessageId
         : existing?.liveMessageId,
     contentIndex:
-      typeof data.contentIndex === "number"
-        ? data.contentIndex
+      typeof toolCall.contentIndex === "number"
+        ? toolCall.contentIndex
         : existing?.contentIndex,
-    error: (data.error as SandboxToolCallSummary["error"]) ?? existing?.error,
+    error:
+      (toolCall.error as SandboxToolCallSummary["error"]) ?? existing?.error,
     requestedAt:
-      typeof data.requestedAt === "string"
-        ? data.requestedAt
+      typeof toolCall.createdAt === "string"
+        ? toolCall.createdAt
         : existing?.requestedAt,
-    startedAt:
-      typeof data.startedAt === "string" ? data.startedAt : existing?.startedAt,
+    startedAt: existing?.startedAt,
     completedAt:
-      typeof data.completedAt === "string"
-        ? data.completedAt
+      typeof toolCall.updatedAt === "string" &&
+      (toolCall.status === "completed" || toolCall.status === "error")
+        ? toolCall.updatedAt
         : existing?.completedAt,
   };
   detail.toolCallsById[toolCallId] = summary;

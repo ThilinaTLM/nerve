@@ -1,4 +1,6 @@
 export * from "./conversation.schema.js";
+export * from "./conversation.events.schema.js";
+export * from "./conversation-runtime.events.schema.js";
 export * from "./conversation-events.js";
 export * from "./conversation-runtime.js";
 export * from "./title.js";

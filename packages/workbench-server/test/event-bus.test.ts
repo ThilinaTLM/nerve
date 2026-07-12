@@ -26,13 +26,42 @@ function makeIndex(home: string): IndexStore {
   return index;
 }
 
+function projectCreatedData(id: string) {
+  const now = new Date().toISOString();
+  return {
+    project: {
+      id,
+      name: id,
+      dir: `/tmp/${id}`,
+      createdAt: now,
+      updatedAt: now,
+    },
+  };
+}
+
+function conversationUpdatedData(id: string) {
+  const now = new Date().toISOString();
+  return {
+    conversation: {
+      id,
+      projectId: "proj_eventbus",
+      title: id,
+      mode: "coding" as const,
+      permissionLevel: "supervised" as const,
+      createdAt: now,
+      updatedAt: now,
+    },
+  };
+}
+
 describe("EventBus", () => {
   it("returns persisted events when hydrating", async () => {
     const home = await tempHome();
     const bus = new EventBus(home);
-    const durable = await bus.publish("project.created", {
-      projectId: "proj_eventbus",
-    });
+    const durable = await bus.publish(
+      "project.created",
+      projectCreatedData("proj_eventbus"),
+    );
     await bus.publish(
       "task.output",
       { taskId: "task_eventbus", stream: "stdout", text: "live" },
@@ -54,9 +83,14 @@ describe("EventBus", () => {
     const bus = new EventBus(home);
     assert.equal(bus.bufferedFloorSeq(), 0);
 
-    const first = await bus.publish("project.created", { projectId: "p1" });
-    const second = await bus.publish("project.created", { projectId: "p2" });
-
+    const first = await bus.publish(
+      "project.created",
+      projectCreatedData("proj_p1"),
+    );
+    const second = await bus.publish(
+      "project.created",
+      projectCreatedData("proj_p2"),
+    );
     assert.equal(bus.bufferedFloorSeq(), first.seq);
     assert.deepEqual(
       bus.replaySince(first.seq).map((event) => event.seq),
@@ -68,8 +102,14 @@ describe("EventBus", () => {
     const home = await tempHome();
     const index = makeIndex(home);
     const bus = new EventBus(home, index);
-    const first = await bus.publish("project.created", { projectId: "p1" });
-    const second = await bus.publish("project.created", { projectId: "p2" });
+    const first = await bus.publish(
+      "project.created",
+      projectCreatedData("proj_p1"),
+    );
+    const second = await bus.publish(
+      "project.created",
+      projectCreatedData("proj_p2"),
+    );
     await bus.publish(
       "task.output",
       { taskId: "task_x", stream: "stdout", text: "live" },
@@ -96,14 +136,19 @@ describe("EventBus", () => {
     const home = await tempHome();
     const index = makeIndex(home);
     const bus = new EventBus(home, index);
-    const first = await bus.publish("project.created", { projectId: "p1" });
+    const first = await bus.publish(
+      "project.created",
+      projectCreatedData("proj_p1"),
+    );
     await bus.publish(
       "task.output",
       { taskId: "task_x", stream: "stdout", text: "live" },
       { durability: "transient" },
     );
-    const second = await bus.publish("project.created", { projectId: "p2" });
-
+    const second = await bus.publish(
+      "project.created",
+      projectCreatedData("proj_p2"),
+    );
     assert.equal(await bus.previousDurableSeqBefore(second.seq), first.seq);
     assert.deepEqual(await bus.durableStatsBetween(first.seq, second.seq), {
       firstSeq: second.seq,
@@ -119,7 +164,10 @@ describe("EventBus", () => {
   it("serves protocol replay from memory with transient events when available", async () => {
     const home = await tempHome();
     const bus = new EventBus(home);
-    const durable = await bus.publish("project.created", { projectId: "p1" });
+    const durable = await bus.publish(
+      "project.created",
+      projectCreatedData("proj_p1"),
+    );
     const transient = await bus.publish(
       "task.output",
       { taskId: "task_x", stream: "stdout", text: "live" },
@@ -141,8 +189,7 @@ describe("EventBus", () => {
     const home = await tempHome();
     const index = makeIndex(home);
     const bus = new EventBus(home, index);
-    await bus.publish("project.created", { projectId: "p1" });
-
+    await bus.publish("project.created", projectCreatedData("proj_p1"));
     // Simulate a crash between log append and index insert: append a durable
     // event straight to the log with a seq beyond the index high-water mark.
     await mkdir(join(home, "logs"), { recursive: true });
@@ -152,7 +199,7 @@ describe("EventBus", () => {
       ts: new Date().toISOString(),
       type: "project.created",
       durability: "durable",
-      data: { projectId: "p2" },
+      data: projectCreatedData("proj_p2"),
     };
     await appendFile(
       join(home, "logs", "events.jsonl"),
@@ -180,13 +227,14 @@ describe("EventBus", () => {
     const home = await tempHome();
     const index = makeIndex(home);
     const bus = new EventBus(home, index);
-    const keep = await bus.publish("conversation.updated", {
-      conversationId: "conv_keep",
-    });
-    await bus.publish("conversation.updated", {
-      conversationId: "conv_drop",
-    });
-
+    const keep = await bus.publish(
+      "conversation.updated",
+      conversationUpdatedData("conv_keep"),
+    );
+    await bus.publish(
+      "conversation.updated",
+      conversationUpdatedData("conv_drop"),
+    );
     await bus.removeEventsForConversations(["conv_drop"]);
 
     const remaining = await bus.replayPersistedSince(0);

@@ -1,15 +1,24 @@
 import { z } from "zod";
+import { agentEventDefinitions } from "../agents/agent.events.schema.js";
+import { authEventDefinitions } from "../auth/auth.events.schema.js";
+import { conversationLifecycleEventDefinitions } from "../conversations/conversation.events.schema.js";
+import { conversationRuntimeEventDefinitions } from "../conversations/conversation-runtime.events.schema.js";
+import { gitEventDefinitions } from "../git/git.events.schema.js";
+import { planEventDefinitions } from "../plans/plan.events.schema.js";
+import { promptSuggestionEventDefinitions } from "../prompt-suggestions/prompt-suggestion.events.schema.js";
+import { projectEventDefinitions } from "../projects/project.events.schema.js";
 import type { PeerRole } from "../protocol/envelope.schema.js";
 import { eventBatchDataSchema } from "../protocol/event-stream.schema.js";
-import { gitEventDefinitions } from "../git/git.events.schema.js";
 import { sandboxManagerEventDefinitions } from "../sandbox/sandbox-manager.events.schema.js";
 import { sandboxRuntimeEventDefinitions } from "../sandbox/sandbox-runtime.events.schema.js";
+import { settingsEventDefinitions } from "../settings/settings.events.schema.js";
+import { daemonEventDefinitions } from "../status/daemon.events.schema.js";
+import { storageEventDefinitions } from "../storage/storage.events.schema.js";
 import { taskEventDefinitions } from "../tasks/task.events.schema.js";
-import { boundedPublicObjectSchema } from "./bounded-public-data.schema.js";
-import {
-  definePublicEvent,
-  type PublicEventDefinition,
-} from "./event-definition.schema.js";
+import { toolEventDefinitions } from "../tools/tool.events.schema.js";
+import { usageEventDefinitions } from "../usage/usage.events.schema.js";
+import { workerEventDefinitions } from "../workers/worker.events.schema.js";
+import type { PublicEventDefinition } from "./event-definition.schema.js";
 import { eventEnvelopeSchema } from "./envelope.schema.js";
 
 export type {
@@ -22,57 +31,19 @@ const definitions: PublicEventDefinition[] = [
   ...taskEventDefinitions,
   ...gitEventDefinitions,
   ...sandboxManagerEventDefinitions,
-  ...[
-    "conversation.created",
-    "conversation.updated",
-    "conversation.deleted",
-    "conversation.navigated",
-    "conversation.branch_summarized",
-    "conversation.imported",
-    "agent.created",
-    "agent.configured",
-    "agent.status_changed",
-    "agent.mode_changed",
-    "agent.abort_requested",
-    "agent.suspension.created",
-    "agent.suspension.updated",
-    "agent.explore_completed",
-    "agent.subagent_started",
-    "agent.subagent_completed",
-    "approval.updated",
-    "userQuestion.updated",
-    "project.created",
-    "project.deleted",
-    "project.conversations.pruned",
-    "settings.updated",
-    "providers.catalog_changed",
-    "auth.providers_changed",
-    "auth.oauth_login_succeeded",
-    "auth.oauth_login_failed",
-    "auth.oauth_flow_updated",
-    "auth.credential_deleted",
-    "worker.created",
-    "worker.agent_started",
-    "policy.evaluated",
-    "daemon.started",
-    "prompt_suggestions.trust_updated",
-    "secrets.provider_key_set",
-    "secrets.provider_key_deleted",
-    "task.promoted",
-    "task.runtime_updated",
-    "task.orphan_cleanup_succeeded",
-    "task.cleanup_failed",
-  ].map((name) => definePublicEvent(name, boundedPublicObjectSchema)),
-  definePublicEvent("storage.cleanup.updated", boundedPublicObjectSchema, {
-    durability: "transient",
-    coalescing: "latest_by_scope",
-    scope: ["operation.id"],
-  }),
-  definePublicEvent("usage.subscription.updated", boundedPublicObjectSchema, {
-    durability: "transient",
-    coalescing: "latest_by_scope",
-    scope: ["provider"],
-  }),
+  ...conversationLifecycleEventDefinitions,
+  ...conversationRuntimeEventDefinitions,
+  ...agentEventDefinitions,
+  ...toolEventDefinitions,
+  ...planEventDefinitions,
+  ...projectEventDefinitions,
+  ...settingsEventDefinitions,
+  ...authEventDefinitions,
+  ...workerEventDefinitions,
+  ...daemonEventDefinitions,
+  ...promptSuggestionEventDefinitions,
+  ...storageEventDefinitions,
+  ...usageEventDefinitions,
 ];
 
 const definitionMap = new Map<string, PublicEventDefinition>();

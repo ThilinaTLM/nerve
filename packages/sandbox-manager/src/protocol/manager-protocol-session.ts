@@ -69,7 +69,11 @@ export function updateUiSessionAck(
 export function makeManagerMessage<TData>(
   kind: string,
   data: TData,
-  options: { target?: PeerDescriptor; correlationId?: string } = {},
+  options: {
+    target?: PeerDescriptor;
+    correlationId?: string;
+    replyTo?: string;
+  } = {},
 ): NerveMessage<TData> {
   return {
     protocol: "nerve",
@@ -80,6 +84,7 @@ export function makeManagerMessage<TData>(
     source: MANAGER_PEER,
     target: options.target ?? { role: "ui" },
     correlationId: options.correlationId,
+    replyTo: options.replyTo,
     data,
   };
 }

@@ -191,8 +191,6 @@ export class SandboxDaemon {
       readOnly: true,
       secretResolver: recovered.secretResolver,
       toolCallStore: this.runs.toolCallStore(),
-      events: state.events,
-      eventCommonData,
     });
     this.toolRuntime = new SandboxToolRuntime(this.config, {
       workspaceDir: this.workspaceDir,
@@ -204,8 +202,6 @@ export class SandboxDaemon {
       configStore: this.agentConfigStore,
       taskSupervisor: this.taskSupervisor,
       toolCallStore: this.runs.toolCallStore(),
-      events: state.events,
-      eventCommonData,
     });
     const factory = new HarnessFactory(this.config, {
       workspaceDir: this.workspaceDir,

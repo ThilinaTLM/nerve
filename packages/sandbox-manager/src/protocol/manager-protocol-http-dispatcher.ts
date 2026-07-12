@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  allOperationDefinitions,
   createId,
   type NerveErrorCode,
   type NerveMessage,
@@ -8,18 +9,24 @@ import {
   nerveErrorCodeSchema,
   protocolRequestMessageSchema,
 } from "@nervekit/contracts";
-import {
-  type OperationHandlerRegistry,
-  RpcDispatcher,
-} from "@nervekit/protocol";
+import { MemoryIdempotencyStore, RpcDispatcher } from "@nervekit/protocol";
 import type { ManagerState } from "../app/manager-state.js";
 import { readJsonBody } from "../http/body.js";
 import { HttpError } from "../http/errors.js";
 import { ForwardedRpcError } from "./rpc-forwarder.js";
-import { handleManagerProtocolMethod } from "./manager-protocol-method-handlers.js";
+import { createManagerOperationHandlers } from "./manager-protocol-method-handlers.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
 const PROTOCOL_MEDIA_TYPE = "application/vnd.nerve.protocol.v1+json";
+const managerDispatchers = new WeakMap<ManagerState, RpcDispatcher>();
+const managerAcceptedCapabilities = allOperationDefinitions()
+  .filter(
+    (definition) =>
+      definition.allowedTargetRoles.includes("sandbox_manager") ||
+      definition.allowedTargetRoles.includes("sandbox_agent"),
+  )
+  .map((definition) => definition.requiredCapability)
+  .filter((capability): capability is string => Boolean(capability));
 
 export async function handleManagerProtocolHttpRequest(
   state: ManagerState,
@@ -51,24 +58,9 @@ export async function handleManagerProtocolHttpRequest(
       "sandboxId" in request.data.params
         ? (request.data.params as { sandboxId?: unknown }).sandboxId
         : undefined;
-    const context = {
-      state,
-      controller,
-      target: request.target,
-      idempotencyKey: request.data.idempotencyKey,
-    };
-    const dispatcher = new RpcDispatcher({
-      handlers: managerOperationHandlers(context, request.data.method),
-      translateError: (error) => {
-        const normalized = normalizeProtocolError(error);
-        return {
-          code: normalized.code,
-          message: normalized.message,
-          retryable: normalized.status >= 500,
-        };
-      },
-    });
-    const dispatched = await dispatcher.dispatch(request);
+    const dispatched = await managerRpcDispatcher(state, controller).dispatch(
+      request,
+    );
     if (!dispatched.ok) {
       writeProtocolJson(
         res,
@@ -122,14 +114,27 @@ export async function handleManagerProtocolHttpRequest(
   }
 }
 
-function managerOperationHandlers(
-  context: Parameters<typeof handleManagerProtocolMethod>[0],
-  method: ProtocolRequestData["method"],
-): Partial<OperationHandlerRegistry> {
-  return {
-    [method]: (params: never) =>
-      handleManagerProtocolMethod(context, method, params),
-  } as Partial<OperationHandlerRegistry>;
+export function managerRpcDispatcher(
+  state: ManagerState,
+  controller: SandboxWsServer,
+): RpcDispatcher {
+  const existing = managerDispatchers.get(state);
+  if (existing) return existing;
+  const dispatcher = new RpcDispatcher({
+    handlers: createManagerOperationHandlers({ state, controller }),
+    idempotency: new MemoryIdempotencyStore(),
+    acceptedCapabilities: managerAcceptedCapabilities,
+    translateError: (error) => {
+      const normalized = normalizeProtocolError(error);
+      return {
+        code: normalized.code,
+        message: normalized.message,
+        retryable: normalized.status >= 500,
+      };
+    },
+  });
+  managerDispatchers.set(state, dispatcher);
+  return dispatcher;
 }
 
 function errorMessage(

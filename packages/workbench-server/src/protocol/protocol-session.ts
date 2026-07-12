@@ -16,6 +16,7 @@ import {
   nerveMessageSchema,
   type ProtocolErrorData,
   protocolErrorMessageSchema,
+  protocolRequestMessageSchema,
   type ReplayRequestData,
   readyMessageSchema,
   replayRequestMessageSchema,
@@ -34,6 +35,7 @@ import {
 } from "./constants.js";
 import { buildEventBatch, chunkEvents } from "./event-batch.js";
 import { decideFlow } from "./flow-control.js";
+import { workbenchRpcDispatcher } from "./http-dispatcher.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import { protocolErrorData } from "./protocol-errors.js";
 import { planReplay, replayUnavailableData } from "./replay-coordinator.js";
@@ -229,6 +231,9 @@ export class ProtocolSession {
       case "flow.update":
         flowUpdateMessageSchema.parse(message);
         break;
+      case "request":
+        await this.handleRpcRequest(message);
+        break;
       default:
         this.sendError(
           "UNKNOWN_MESSAGE_KIND",
@@ -238,6 +243,52 @@ export class ProtocolSession {
           },
         );
     }
+  }
+
+  private async handleRpcRequest(message: NerveMessage): Promise<void> {
+    if (this.#phase !== "live" && this.#phase !== "replaying") {
+      this.sendError("SESSION_REJECTED", "RPC requires a ready session", {
+        replyTo: message.id,
+      });
+      return;
+    }
+    const parsed = protocolRequestMessageSchema.safeParse(message);
+    if (!parsed.success) {
+      this.sendError("INVALID_MESSAGE", "RPC request is invalid", {
+        replyTo: message.id,
+      });
+      return;
+    }
+    const request = parsed.data;
+    const dispatched = await workbenchRpcDispatcher(this.state).dispatch(
+      request,
+    );
+    if (!dispatched.ok) {
+      this.sendMessage(
+        protocolErrorMessageSchema.parse(
+          createProtocolMessage("error", dispatched.error, {
+            source: orchestratorSource(this.state.daemonId),
+            target: request.source,
+            replyTo: request.id,
+            correlationId: request.correlationId ?? request.id,
+          }),
+        ),
+      );
+      return;
+    }
+    this.send(
+      "response",
+      {
+        ok: true as const,
+        method: request.data.method,
+        result: dispatched.result,
+      },
+      {
+        target: request.source,
+        replyTo: request.id,
+        correlationId: request.correlationId ?? request.id,
+      },
+    );
   }
 
   private handleHello(message: NerveMessage): void {

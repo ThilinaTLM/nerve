@@ -8,6 +8,7 @@ import {
   helloMessageSchema,
   type NerveMessage,
   nerveMessageSchema,
+  protocolRequestMessageSchema,
   readyMessageSchema,
   replayRequestMessageSchema,
 } from "@nervekit/contracts";
@@ -20,6 +21,7 @@ import {
 import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
 import { extractSandboxToken, timingSafeTokenEquals } from "../http/auth.js";
 import { transitionSandboxLifecycle } from "../lifecycle/lifecycle-state.js";
+import { managerRpcDispatcher } from "./manager-protocol-http-dispatcher.js";
 import { RpcForwarder } from "./rpc-forwarder.js";
 import { managerEventBatch } from "./manager-protocol-event-batch.js";
 import {
@@ -322,6 +324,30 @@ export class SandboxWsServer {
     if (message.kind === "replay.request") {
       const request = replayRequestMessageSchema.parse(message);
       await handleUiReplayRequest(this.state, session, request.data, send);
+      return;
+    }
+    if (message.kind === "request") {
+      const request = protocolRequestMessageSchema.parse(message);
+      const dispatched = await managerRpcDispatcher(this.state, this).dispatch(
+        request,
+      );
+      send(
+        makeManagerMessage(
+          dispatched.ok ? "response" : "error",
+          dispatched.ok
+            ? {
+                ok: true as const,
+                method: request.data.method,
+                result: dispatched.result,
+              }
+            : dispatched.error,
+          {
+            target: request.source,
+            correlationId: request.correlationId ?? request.id,
+            replyTo: request.id,
+          },
+        ),
+      );
       return;
     }
     send(

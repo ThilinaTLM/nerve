@@ -1,6 +1,19 @@
 import { z } from "zod";
 import { definePublicEvent } from "../events/event-definition.schema.js";
-import { taskRecordSchema, taskRuntimeSchema } from "./task.schema.js";
+import {
+  taskListeningPortSchema,
+  taskRecordSchema,
+  taskRuntimeSchema,
+} from "./task.schema.js";
+
+const workbenchRoles = ["workbench_server"] as const;
+const cleanupMethodSchema = z.enum([
+  "process-group",
+  "direct-child",
+  "taskkill",
+  "none",
+]);
+const taskSignalSchema = z.enum(["SIGTERM", "SIGINT", "SIGKILL"]);
 
 const taskPayloadSchema = z.object({
   task: taskRecordSchema,
@@ -44,5 +57,33 @@ export const taskEventDefinitions = [
       coalescing: "concat_delta",
       scope: ["taskId", "stream"],
     },
+  ),
+  ...["task.promoted", "task.runtime_updated"].map((name) =>
+    definePublicEvent(name, z.object({ task: taskRecordSchema }), {
+      allowedSourceRoles: workbenchRoles,
+      scope: ["task.id"],
+    }),
+  ),
+  definePublicEvent(
+    "task.orphan_cleanup_succeeded",
+    z.object({
+      task: taskRecordSchema,
+      runtime: taskRuntimeSchema,
+      signal: taskSignalSchema,
+      method: cleanupMethodSchema.optional(),
+      releasedPorts: z.array(taskListeningPortSchema).max(256).optional(),
+    }),
+    { allowedSourceRoles: workbenchRoles, scope: ["task.id"] },
+  ),
+  definePublicEvent(
+    "task.cleanup_failed",
+    z.object({
+      task: taskRecordSchema,
+      error: z.string().min(1).max(4_096),
+      orphaned: z.literal(true),
+      method: cleanupMethodSchema.optional(),
+      signal: taskSignalSchema.optional(),
+    }),
+    { allowedSourceRoles: workbenchRoles, scope: ["task.id"] },
   ),
 ];

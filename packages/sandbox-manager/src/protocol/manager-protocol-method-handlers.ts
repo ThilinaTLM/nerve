@@ -1,18 +1,17 @@
-import { createHash } from "node:crypto";
 import {
   type NerveErrorCode,
+  type NerveMessage,
   type OperationName,
-  type PeerDescriptor,
-  operationDefinition,
+  type OperationResult,
+  type ProtocolRequestData,
   operationNameSchema,
-  operationParamsSchema,
-  operationResultSchema,
   sandboxConversationSnapshotGetParamsSchema,
   sandboxConversationViewSnapshotSchema,
   sandboxIdSchema,
   sandboxSnapshotGetParamsSchema,
   sandboxSnapshotResultSchema,
 } from "@nervekit/contracts";
+import type { OperationHandlerRegistry } from "@nervekit/protocol";
 import type { ManagerState } from "../app/manager-state.js";
 import { HttpError } from "../http/errors.js";
 import {
@@ -24,98 +23,104 @@ import {
   deriveSandboxContainerStatus,
   managerDerivedSandboxView,
 } from "./manager-derived-sandbox-view.js";
+import {
+  createManagedSandbox,
+  getManagedSandbox,
+  listManagedSandboxes,
+  managedContainerLogs,
+  managedContainerStatus,
+  managedSandboxConfig,
+  managedSandboxStatus,
+  removeManagedSandbox,
+  restartManagedSandbox,
+  startManagedSandbox,
+  stopManagedSandbox,
+} from "./manager-sandbox-operations.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
-type ProtocolHandlerContext = {
+export type ProtocolHandlerContext = {
   state: ManagerState;
   controller: SandboxWsServer;
-  target: PeerDescriptor;
-  idempotencyKey?: string;
 };
 
-export async function handleManagerProtocolMethod(
+export function createManagerOperationHandlers(
   context: ProtocolHandlerContext,
-  methodInput: string,
-  paramsInput: unknown,
-): Promise<unknown> {
-  const method = parseProtocolMethod(methodInput);
-  const definition = operationDefinition(method);
-  if (!definition.allowedTargetRoles.includes(context.target.role)) {
-    throw protocolHttpError(
-      400,
-      `Method ${method} cannot target ${context.target.role}`,
-      "VALIDATION_FAILED",
-    );
-  }
-  const params = operationParamsSchema(method).parse(paramsInput ?? {});
-  const idempotencyKey = context.idempotencyKey;
-  if (definition.idempotency === "required" && !idempotencyKey) {
-    throw protocolHttpError(
-      400,
-      "Idempotency key is required for this method",
-      "VALIDATION_FAILED",
-    );
-  }
-  const run = async () => {
-    const result = await dispatchSandboxMethod(context, method, params);
-    return operationResultSchema(method).parse(result);
-  };
-  if (!idempotencyKey || definition.idempotency === "none") return run();
-  const hash = createHash("sha256")
-    .update(JSON.stringify({ method, params, target: context.target }))
-    .digest("hex");
-  const stored = await context.state.idempotency.get<unknown>(idempotencyKey);
-  if (stored) {
-    if (stored.hash !== hash)
-      throw protocolHttpError(
-        409,
-        "Idempotency key reused with different request",
-        "IDEMPOTENCY_CONFLICT",
+): Partial<OperationHandlerRegistry> {
+  const managerHandlers = {
+    "sandbox.create": async (params) => ({
+      sandbox: await createManagedSandbox(context.state, params),
+    }),
+    "sandbox.list": async () => ({
+      sandboxes: await listManagedSandboxes(context.state),
+    }),
+    "sandbox.get": async (params) => ({
+      sandbox: await getManagedSandbox(context.state, params.sandboxId),
+    }),
+    "sandbox.start": async (params) => ({
+      sandbox: await startManagedSandbox(context.state, params.sandboxId),
+    }),
+    "sandbox.stop": async (params) => ({
+      sandbox: await stopManagedSandbox(context.state, params.sandboxId),
+    }),
+    "sandbox.restart": async (params) => ({
+      sandbox: await restartManagedSandbox(context.state, params.sandboxId),
+    }),
+    "sandbox.remove": async (params) => ({
+      sandbox: await removeManagedSandbox(context.state, params),
+    }),
+    "sandbox.config.get": (params) =>
+      managedSandboxConfig(context.state, params.sandboxId),
+    "sandbox.status.get": (params) =>
+      managedSandboxStatus(context.state, context.controller, params.sandboxId),
+    "sandbox.container.status.get": (params) =>
+      managedContainerStatus(context.state, params.sandboxId),
+    "sandbox.container.logs.get": (params) =>
+      managedContainerLogs(context.state, params),
+    "sandbox.snapshot.get": (params) => sandboxSnapshot(context, params),
+    "sandbox.conversation.snapshot.get": (params) =>
+      sandboxConversationSnapshot(context, params),
+    "pinnedCommand.list": async (params) => ({
+      commands: await context.state.pinnedCommands.list(
+        managerPinnedSandboxId(params),
+      ),
+    }),
+    "pinnedCommand.create": async (params) => ({
+      command: await context.state.pinnedCommands.create(
+        managerPinnedSandboxId(params),
+        { command: params.command, label: params.label, cwd: params.cwd },
+      ),
+    }),
+    "pinnedCommand.update": async (params) => ({
+      command: await context.state.pinnedCommands.update(
+        managerPinnedSandboxId(params),
+        params.commandId,
+        { command: params.command, label: params.label, cwd: params.cwd },
+      ),
+    }),
+    "pinnedCommand.delete": async (params) => {
+      await context.state.pinnedCommands.delete(
+        managerPinnedSandboxId(params),
+        params.commandId,
       );
-    return stored.value;
-  }
-  const value = await run();
-  await context.state.idempotency.put(idempotencyKey, hash, value);
-  return value;
-}
+      return { ok: true as const };
+    },
+  } satisfies Partial<OperationHandlerRegistry>;
 
-async function dispatchSandboxMethod(
-  context: ProtocolHandlerContext,
-  method: OperationName,
-  params: unknown,
-): Promise<unknown> {
-  if (context.target.role === "sandbox_agent") {
-    return forwardSandboxOperation(context, method, params);
-  }
-  if (context.target.role !== "sandbox_manager") {
-    throw protocolHttpError(
-      400,
-      "Unsupported protocol target",
-      "VALIDATION_FAILED",
-    );
-  }
-  switch (method) {
-    case "sandbox.snapshot.get":
-      return sandboxSnapshot(context, params);
-    case "sandbox.conversation.snapshot.get":
-      return sandboxConversationSnapshot(context, params);
-    case "pinnedCommand.list":
-      return sandboxPinnedCommandList(context, params);
-    case "pinnedCommand.create":
-      return sandboxPinnedCommandCreate(context, params);
-    case "pinnedCommand.update":
-      return sandboxPinnedCommandUpdate(context, params);
-    case "pinnedCommand.delete":
-      return sandboxPinnedCommandDelete(context, params);
-    default:
-      throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");
-  }
+  return new Proxy(managerHandlers, {
+    get(target, property, receiver) {
+      const own = Reflect.get(target, property, receiver);
+      if (own !== undefined || typeof property !== "string") return own;
+      const method = operationNameSchema.parse(property);
+      return (params: unknown, request: NerveMessage<ProtocolRequestData>) =>
+        forwardSandboxOperation(context, method, params, request);
+    },
+  });
 }
 
 async function sandboxSnapshot(
   { state, controller }: ProtocolHandlerContext,
   paramsInput: unknown,
-): Promise<unknown> {
+): Promise<OperationResult<"sandbox.snapshot.get">> {
   const { sandboxId, ...params } = sandboxSnapshotGetParamsSchema
     .extend({ sandboxId: sandboxIdParamSchema })
     .parse(paramsInput);
@@ -145,7 +150,7 @@ async function sandboxSnapshot(
 async function sandboxConversationSnapshot(
   context: ProtocolHandlerContext,
   paramsInput: unknown,
-): Promise<unknown> {
+): Promise<OperationResult<"sandbox.conversation.snapshot.get">> {
   const { sandboxId, ...params } = sandboxConversationSnapshotGetParamsSchema
     .extend({ sandboxId: sandboxIdParamSchema })
     .parse(paramsInput);
@@ -194,7 +199,7 @@ async function derivedConversationView(
     runId?: string;
   },
   options: { connected: boolean; reason: string },
-): Promise<unknown> {
+): Promise<OperationResult<"sandbox.conversation.snapshot.get">> {
   const base = await managerDerivedSnapshot(state, sandboxId);
   const events = await state.events.list(sandboxId);
   const snapshot = projectConversationSnapshotFromEvents({
@@ -229,76 +234,13 @@ async function derivedConversationView(
   });
 }
 
-async function sandboxPinnedCommandList(
-  { state }: ProtocolHandlerContext,
-  paramsInput: unknown,
-): Promise<unknown> {
-  const { sandboxId } = sandboxIdOnlyParams(paramsInput);
-  return { commands: await state.pinnedCommands.list(sandboxId) };
-}
-
-async function sandboxPinnedCommandCreate(
-  { state }: ProtocolHandlerContext,
-  paramsInput: unknown,
-): Promise<unknown> {
-  const params = paramsInput as {
-    sandboxId: string;
-    command: string;
-    label?: string;
-    cwd?: string;
-  };
-  return {
-    command: await state.pinnedCommands.create(params.sandboxId, {
-      command: params.command,
-      label: params.label,
-      cwd: params.cwd,
-    }),
-  };
-}
-
-async function sandboxPinnedCommandUpdate(
-  { state }: ProtocolHandlerContext,
-  paramsInput: unknown,
-): Promise<unknown> {
-  const params = paramsInput as {
-    sandboxId: string;
-    commandId: string;
-    command: string;
-    label?: string;
-    cwd?: string;
-  };
-  return {
-    command: await state.pinnedCommands.update(
-      params.sandboxId,
-      params.commandId,
-      {
-        command: params.command,
-        label: params.label,
-        cwd: params.cwd,
-      },
-    ),
-  };
-}
-
-async function sandboxPinnedCommandDelete(
-  { state }: ProtocolHandlerContext,
-  paramsInput: unknown,
-): Promise<unknown> {
-  const params = paramsInput as { sandboxId: string; commandId: string };
-  await state.pinnedCommands.delete(params.sandboxId, params.commandId);
-  return { ok: true };
-}
-
-function sandboxIdOnlyParams(paramsInput: unknown): { sandboxId: string } {
-  return { sandboxId: sandboxIdFromParams(paramsInput) };
-}
-
 async function forwardSandboxOperation(
-  { state, controller, target, idempotencyKey }: ProtocolHandlerContext,
+  { state, controller }: ProtocolHandlerContext,
   method: OperationName,
   params: unknown,
+  request: NerveMessage<ProtocolRequestData>,
 ): Promise<unknown> {
-  const sandboxId = target.id;
+  const sandboxId = request.target.id;
   if (!sandboxId) {
     throw protocolHttpError(
       400,
@@ -321,7 +263,12 @@ async function forwardSandboxOperation(
       "Sandbox command forwarding requires a connected controller session",
       "SERVICE_UNAVAILABLE",
     );
-  return session.forwarder.send(session.socket, method, params, idempotencyKey);
+  return session.forwarder.send(
+    session.socket,
+    method,
+    params,
+    request.data.idempotencyKey,
+  );
 }
 
 async function managerDerivedSnapshot(
@@ -351,18 +298,15 @@ async function connectedLifecycle(
   return record ? lifecycleSummary(record) : undefined;
 }
 
-function parseProtocolMethod(method: string): OperationName {
-  const result = operationNameSchema.safeParse(method);
-  if (!result.success)
-    throw protocolHttpError(404, "Method not found", "METHOD_NOT_FOUND");
-  return result.data;
-}
-
-function sandboxIdFromParams(params: unknown): string {
-  if (isRecord(params) && typeof params.sandboxId === "string") {
-    return params.sandboxId;
-  }
-  throw protocolHttpError(400, "sandboxId is required", "VALIDATION_FAILED");
+function managerPinnedSandboxId(
+  params: { sandboxId: string } | { projectId: string },
+): string {
+  if ("sandboxId" in params) return params.sandboxId;
+  throw protocolHttpError(
+    400,
+    "Sandbox manager pinned commands require sandboxId",
+    "VALIDATION_FAILED",
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { PeerRole } from "../protocol/envelope.schema.js";
+import { publicEventDataGuardSchema } from "./bounded-public-data.schema.js";
 
 export type EventCoalescing = "latest_by_scope" | "concat_delta";
 
@@ -21,7 +22,9 @@ export function definePublicEvent(
 ): PublicEventDefinition {
   return {
     name,
-    payloadSchema,
+    payloadSchema: publicEventDataGuardSchema.transform((value) =>
+      payloadSchema.parse(value),
+    ),
     durability: options.durability ?? "durable",
     allowedSourceRoles: options.allowedSourceRoles ?? hostRoles,
     coalescing: options.coalescing,

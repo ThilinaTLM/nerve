@@ -18,7 +18,9 @@ import {
   sandboxConversationViewSnapshotSchema,
   sandboxCreateConfigInputSchema,
   sandboxCreateRequestSchema,
-  sandboxEventPayloadSchemas,
+  conversationEventPayloadSchemas,
+  parsePublicEventEnvelope,
+  sandboxOperationalEventPayloadSchemas,
   sandboxPlanReviewWaitRecordSchema,
   streamCursorSchema,
   sandboxEventEnvelopeSchema,
@@ -35,6 +37,19 @@ import {
 } from "../src/index.js";
 
 const ts = "2026-06-26T12:00:00.000Z";
+
+const publicEventEnvelopeSchema = {
+  safeParse(input: unknown) {
+    try {
+      return {
+        success: true as const,
+        data: parsePublicEventEnvelope(input, "sandbox_agent"),
+      };
+    } catch (error) {
+      return { success: false as const, error };
+    }
+  },
+};
 
 function containsSensitiveValue(value: unknown): boolean {
   if (typeof value === "string")
@@ -89,7 +104,7 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventPayloadSchemas["run.waiting"].safeParse({
+      sandboxOperationalEventPayloadSchemas["run.waiting"].safeParse({
         sandboxId: "sbx_1",
         instanceId: "inst_1",
         configDigest: "sha256:test",
@@ -843,7 +858,7 @@ describe("Sandbox shared schemas", () => {
       runId: "run_1",
     };
     assert.equal(
-      sandboxEventPayloadSchemas["run.delta"].safeParse({
+      sandboxOperationalEventPayloadSchemas["run.delta"].safeParse({
         ...scope,
         deltaId: "delta_1",
         role: "assistant",
@@ -852,7 +867,9 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventPayloadSchemas["run.transcript.appended"].safeParse({
+      sandboxOperationalEventPayloadSchemas[
+        "run.transcript.appended"
+      ].safeParse({
         ...scope,
         entryId: "entry_1",
         index: 0,
@@ -862,33 +879,29 @@ describe("Sandbox shared schemas", () => {
       }).success,
       true,
     );
-    for (const [type, status] of [
-      ["toolCall.updated", "requested"],
-      ["toolCall.updated", "started"],
-      ["toolCall.updated", "completed"],
-      ["toolCall.updated", "failed"],
-      ["toolCall.updated", "cancelled"],
-    ] as const) {
-      assert.equal(
-        sandboxEventPayloadSchemas[type].safeParse({
-          ...scope,
-          toolCallId: "tool_1",
-          toolName: "read",
-          status,
-          displayArgs: { path: "README.md" },
-          lifecycleSeq: 1,
-          error:
-            status === "failed"
-              ? { code: "TOOL_FAILED", message: "redacted" }
-              : undefined,
-          cancelledAt: status === "cancelled" ? ts : undefined,
-        }).success,
-        true,
-        type,
-      );
-    }
     assert.equal(
-      sandboxEventPayloadSchemas["run.waiting"].safeParse({
+      conversationEventPayloadSchemas["toolCall.updated"].safeParse({
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        projectId: "proj_1",
+        runId: "run_1",
+        toolCall: {
+          id: "tool_1",
+          agentId: "agent_1",
+          conversationId: "conv_1",
+          projectId: "proj_1",
+          toolName: "read",
+          risk: "read",
+          cwd: "/workspace",
+          status: "completed",
+          createdAt: ts,
+          updatedAt: ts,
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      sandboxOperationalEventPayloadSchemas["run.waiting"].safeParse({
         ...scope,
         waitKind: "input",
         requestId: "tool_ask",
@@ -899,7 +912,7 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventPayloadSchemas["run.waiting"].safeParse({
+      sandboxOperationalEventPayloadSchemas["run.waiting"].safeParse({
         ...scope,
         waitKind: "approval",
         approvalId: "approval_1",
@@ -912,15 +925,14 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventPayloadSchemas["run.failed"].safeParse({
-        ...scope,
-        status: "failed",
+      conversationEventPayloadSchemas["run.failed"].safeParse({
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        projectId: "proj_1",
+        runId: "run_1",
+        message: "temporarily unavailable",
+        aborted: false,
         failedAt: ts,
-        error: {
-          code: "PROVIDER_FAILED",
-          message: "temporarily unavailable",
-          retryable: true,
-        },
       }).success,
       true,
     );
@@ -938,7 +950,7 @@ describe("Sandbox shared schemas", () => {
       contentIndex: 0,
     };
     assert.equal(
-      sandboxEventEnvelopeSchema.safeParse({
+      publicEventEnvelopeSchema.safeParse({
         id: "evt_test",
         seq: 2,
         ts,
@@ -954,7 +966,7 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventEnvelopeSchema.safeParse({
+      publicEventEnvelopeSchema.safeParse({
         id: "evt_test",
         seq: 3,
         ts,
@@ -969,11 +981,12 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventEnvelopeSchema.safeParse({
+      publicEventEnvelopeSchema.safeParse({
         id: "evt_test",
         seq: 4,
         ts,
         type: "conversation.live.tool_draft.delta",
+        durability: "transient",
         data: {
           ...liveScope,
           providerToolCallId: "call_1",
@@ -985,11 +998,12 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventEnvelopeSchema.safeParse({
+      publicEventEnvelopeSchema.safeParse({
         id: "evt_test",
         seq: 5,
         ts,
         type: "conversation.live.tool_draft.done",
+        durability: "transient",
         data: {
           ...liveScope,
           providerToolCallId: "call_1",
@@ -1000,7 +1014,7 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
-      sandboxEventEnvelopeSchema.safeParse({
+      publicEventEnvelopeSchema.safeParse({
         id: "evt_test",
         seq: 6,
         ts,
@@ -1021,11 +1035,12 @@ describe("Sandbox shared schemas", () => {
       cursor: { streams: [{ stream: "sandbox", processedSeq: 0 }] },
     };
     assert.equal(
-      sandboxEventPayloadSchemas["sandbox.ready"].safeParse(ready).success,
+      sandboxOperationalEventPayloadSchemas["sandbox.ready"].safeParse(ready)
+        .success,
       true,
     );
     assert.equal(
-      sandboxEventPayloadSchemas["sandbox.ready"].safeParse({
+      sandboxOperationalEventPayloadSchemas["sandbox.ready"].safeParse({
         ...ready,
         daemonStatus: "sleeping",
       }).success,

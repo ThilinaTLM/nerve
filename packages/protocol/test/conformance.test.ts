@@ -1,4 +1,7 @@
-import type { NerveMessage } from "@nervekit/contracts";
+import {
+  allOperationDefinitions,
+  type NerveMessage,
+} from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -233,6 +236,79 @@ test("RPC enforces catalog idempotency and sandbox target identity", async () =>
   const result = await dispatcher.dispatch(forbiddenKey as never);
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.error.code, "VALIDATION_FAILED");
+});
+
+test("every catalog operation enforces role, capability, and idempotency metadata", async () => {
+  for (const definition of allOperationDefinitions()) {
+    const dispatcher = new RpcDispatcher({
+      handlers: {},
+      acceptedCapabilities: [],
+    });
+    const forbidden = clientMessages(
+      "request",
+      { method: definition.method, params: {} },
+      { target: { role: "ui" } },
+    );
+    const forbiddenResult = await dispatcher.dispatch(forbidden as never);
+    assert.equal(forbiddenResult.ok, false, definition.method);
+    if (!forbiddenResult.ok)
+      assert.equal(
+        forbiddenResult.error.code,
+        "AUTH_FORBIDDEN",
+        definition.method,
+      );
+
+    const role = definition.allowedTargetRoles[0];
+    const target =
+      role === "sandbox_agent"
+        ? { role, id: "sbx_test" }
+        : { role, id: `${role}_test` };
+    const capabilityResult = await dispatcher.dispatch(
+      clientMessages(
+        "request",
+        { method: definition.method, params: {} },
+        { target },
+      ) as never,
+    );
+    assert.equal(capabilityResult.ok, false, definition.method);
+    if (!capabilityResult.ok)
+      assert.equal(
+        capabilityResult.error.code,
+        "CAPABILITY_REQUIRED",
+        definition.method,
+      );
+
+    const idempotencyDispatcher = new RpcDispatcher({
+      handlers: {},
+      acceptedCapabilities: [definition.requiredCapability],
+    });
+    if (definition.idempotency === "none") {
+      const result = await idempotencyDispatcher.dispatch(
+        clientMessages(
+          "request",
+          {
+            method: definition.method,
+            params: {},
+            idempotencyKey: "forbidden",
+          },
+          { target },
+        ) as never,
+      );
+      assert.equal(result.ok, false, definition.method);
+      if (!result.ok) assert.equal(result.error.code, "VALIDATION_FAILED");
+    }
+    if (definition.idempotency === "required") {
+      const result = await idempotencyDispatcher.dispatch(
+        clientMessages(
+          "request",
+          { method: definition.method, params: {} },
+          { target },
+        ) as never,
+      );
+      assert.equal(result.ok, false, definition.method);
+      if (!result.ok) assert.equal(result.error.code, "VALIDATION_FAILED");
+    }
+  }
 });
 
 test("event continuity and processed ACKs are independent per stream", () => {

@@ -25,7 +25,6 @@ import type { ExploreRuntime } from "../agent/explore-runtime.js";
 import type { ToolCallScope, ToolCallStore } from "../agent/tool-call-store.js";
 import type { SecretResolver } from "../credentials/secret-resolver.js";
 import { Redactor } from "../security/redaction.js";
-import type { EventOutbox } from "../state/event-outbox.js";
 import { sandboxSha256Digest } from "../state/hash.js";
 import { JsonlStore } from "../state/jsonl-store.js";
 import type { ApprovalWaiter } from "./approval-waiter.js";
@@ -59,8 +58,6 @@ export type SandboxToolRuntimeOptions = {
   todoStore?: TodoStore;
   exploreRuntime?: ExploreRuntime;
   toolCallStore?: ToolCallStore;
-  events?: EventOutbox;
-  eventCommonData?: Record<string, unknown>;
 };
 
 type ActiveToolExecution = ToolCallScope & {
@@ -545,22 +542,6 @@ export class SandboxToolRuntime {
         },
         scope,
       );
-      await this.options.events?.append({
-        type: "toolCall.updated",
-        durability: "durable",
-        conversationId: scope.conversationId,
-        agentId: scope.agentId,
-        runId: scope.runId,
-        data: {
-          ...(this.options.eventCommonData ?? {}),
-          ...scope,
-          toolCallId: entry.toolCallId,
-          toolName: entry.toolName,
-          status: "cancelled",
-          lifecycleSeq: entry.lifecycleSeq,
-          cancelledAt: new Date().toISOString(),
-        },
-      });
     }
     for (const task of (await this.options.taskSupervisor?.cancelRun(scope)) ??
       []) {
@@ -574,23 +555,6 @@ export class SandboxToolRuntime {
         },
         scope,
       );
-      await this.options.events?.append({
-        type: "toolCall.updated",
-        durability: "durable",
-        conversationId: scope.conversationId,
-        agentId: scope.agentId,
-        runId: scope.runId,
-        data: {
-          ...(this.options.eventCommonData ?? {}),
-          ...scope,
-          toolCallId: task.toolCallId,
-          toolName: "task_start",
-          status: "cancelled",
-          lifecycleSeq: 3,
-          taskId: task.id,
-          cancelledAt: new Date().toISOString(),
-        },
-      });
     }
   }
 

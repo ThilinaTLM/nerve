@@ -4,6 +4,8 @@ import {
   ackMessageSchema,
   allOperationDefinitions,
   allPublicEventDefinitions,
+  boundedPublicJsonSchema,
+  boundedPublicObjectSchema,
   type EventBatchData,
   type EventEnvelope,
   eventBatchDataSchema,
@@ -286,6 +288,14 @@ describe("Protocol v1 shared schemas", () => {
         ["none", "recommended", "required"].includes(definition.idempotency),
       );
       assert.equal(operationDefinition(definition.method), definition);
+      assert.equal(
+        definition.paramsSchema.safeParse(Symbol("params")).success,
+        false,
+      );
+      assert.equal(
+        definition.resultSchema.safeParse(Symbol("result")).success,
+        false,
+      );
     }
 
     for (const retired of [
@@ -355,7 +365,7 @@ describe("Protocol v1 shared schemas", () => {
     );
   });
 
-  it("bounds and redacts every public event definition", () => {
+  it("owns every public event with concrete bounded metadata", () => {
     const definitions = allPublicEventDefinitions();
     assert.equal(
       new Set(definitions.map((definition) => definition.name)).size,
@@ -365,7 +375,25 @@ describe("Protocol v1 shared schemas", () => {
       assert.ok(definition.allowedSourceRoles.length > 0);
       assert.ok(["durable", "transient"].includes(definition.durability));
       assert.ok(Array.isArray(definition.scope));
+      assert.notEqual(definition.payloadSchema, boundedPublicObjectSchema);
+      assert.equal(
+        definition.payloadSchema.safeParse(Symbol("payload")).success,
+        false,
+      );
+      assert.equal(definition.allowedSourceRoles.includes("ui"), false);
+      if (definition.coalescing) assert.ok(definition.scope.length > 0);
     }
+    assert.equal(
+      boundedPublicJsonSchema.safeParse({ authorization_token: "secret" })
+        .success,
+      false,
+    );
+    assert.equal(
+      boundedPublicJsonSchema.safeParse({
+        endpoint: "https://user:password@example.test",
+      }).success,
+      false,
+    );
     assert.throws(
       () =>
         validatePublicEvent(
@@ -374,15 +402,6 @@ describe("Protocol v1 shared schemas", () => {
           "workbench_server",
         ),
       /secret-like/,
-    );
-    assert.throws(
-      () =>
-        validatePublicEvent(
-          "settings.updated",
-          { endpoint: "https://user:password@example.test" },
-          "workbench_server",
-        ),
-      /credential-bearing URL/,
     );
     assert.throws(
       () =>
@@ -397,6 +416,24 @@ describe("Protocol v1 shared schemas", () => {
         ),
       /cannot be emitted/,
     );
+    for (const retired of [
+      "manager.sandbox.created",
+      "manager.sandbox.updated",
+      "approval.requested",
+      "approval.granted",
+      "approval.denied",
+      "userQuestion.requested",
+      "userQuestion.resolved",
+      "run.waiting_for_input",
+      "run.waiting_for_approval",
+      "run.waiting_for_plan_review",
+    ]) {
+      assert.throws(
+        () => validatePublicEvent(retired, {}, "sandbox_manager"),
+        /Unknown public event/,
+        retired,
+      );
+    }
   });
 
   it("validates replay, ack, flow, and error messages", () => {

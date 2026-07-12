@@ -8,7 +8,6 @@ import {
   sandboxConfigYamlResultSchema,
   sandboxContainerLogsResultSchema,
   sandboxCreateRequestSchema,
-  sandboxManagerStatusSchema,
   sandboxRuntimeContainerStatusSchema,
   stopOptionsSchema,
 } from "./sandbox.manager.schema.js";
@@ -19,6 +18,7 @@ import {
 import {
   sandboxSnapshotGetParamsSchema,
   sandboxSnapshotResultSchema,
+  sandboxStatusGetResultSchema,
 } from "./sandbox.snapshot.schema.js";
 
 const sandboxIdSchema = z.string().min(1);
@@ -113,7 +113,7 @@ export const sandboxOperationDefinitions = [
   defineOperation(
     "sandbox.status.get",
     sandboxIdParamsSchema,
-    sandboxManagerStatusSchema,
+    sandboxStatusGetResultSchema,
     "read",
     "none",
     managerRole,

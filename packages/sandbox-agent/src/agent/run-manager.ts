@@ -141,29 +141,6 @@ export class RunManager {
       startedAt: String(current.createdAt ?? now),
       lastDeltaAt: now,
     });
-    await this.events?.append({
-      type: "run.started",
-      durability: "durable",
-      conversationId: scope.conversationId,
-      agentId: scope.agentId,
-      runId: scope.runId,
-      data: {
-        ...this.commonData,
-        conversationId: scope.conversationId,
-        agentId: scope.agentId,
-        runId: scope.runId,
-        requestId:
-          scope.requestId ?? String(current.requestId ?? "cmd_unknown"),
-        status: "running",
-        promptSummary:
-          typeof current.prompt === "string"
-            ? current.prompt.slice(0, 120)
-            : undefined,
-        mode: current.mode,
-        model,
-        startedAt: now,
-      },
-    });
     this.runLog(scope).debug("run running", {
       provider: model.provider,
       model: model.model,
@@ -260,21 +237,6 @@ export class RunManager {
         startedAt: String(current.createdAt ?? now),
         completedAt: now,
       });
-    await this.events?.append({
-      type: "run.completed",
-      durability: "durable",
-      conversationId: scope.conversationId,
-      agentId: scope.agentId,
-      runId: scope.runId,
-      data: {
-        ...this.commonData,
-        conversationId: scope.conversationId,
-        agentId: scope.agentId,
-        runId: scope.runId,
-        status: "completed",
-        completedAt: now,
-      },
-    });
     await this.store.write(next);
     this.runLog(scope).info("run completed", {});
     return next;
@@ -317,22 +279,6 @@ export class RunManager {
         completedAt: now,
         error,
       });
-    await this.events?.append({
-      type: "run.failed",
-      durability: "durable",
-      conversationId: scope.conversationId,
-      agentId: scope.agentId,
-      runId: scope.runId,
-      data: {
-        ...this.commonData,
-        conversationId: scope.conversationId,
-        agentId: scope.agentId,
-        runId: scope.runId,
-        status: "failed",
-        failedAt: now,
-        error,
-      },
-    });
     await this.store.write(next);
     this.runLog(scope).warn("run failed", {
       code: error.code,
