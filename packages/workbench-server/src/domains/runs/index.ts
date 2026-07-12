@@ -6,3 +6,4 @@ export * from "./run-integrity.js";
 export * from "./run-live-executions.js";
 export * from "./run-references.js";
 export * from "./run-transition.repository.js";
+export * from "./workbench-run.service.js";

@@ -26,17 +26,20 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
     return "confirmed";
   }
 
-  async cancelTasks(_run: RunRecord): Promise<Evidence> {
+  async cancelTasks(run: RunRecord): Promise<Evidence> {
+    void run;
     // Task cancellation is supplied by the execution adapter once task origin
     // lookup is moved off AgentRunState.
     return "not_running";
   }
 
-  async cancelSubagents(_run: RunRecord): Promise<Evidence> {
+  async cancelSubagents(run: RunRecord): Promise<Evidence> {
+    void run;
     return "not_running";
   }
 
-  async cancelInteraction(_run: RunRecord): Promise<Evidence> {
+  async cancelInteraction(run: RunRecord): Promise<Evidence> {
+    void run;
     return "not_running";
   }
 }

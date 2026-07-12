@@ -6,9 +6,7 @@ import type {
 } from "@nervekit/host-runtime";
 import type { EventBus } from "../../infrastructure/events/index.js";
 
-export class WorkbenchRunEventPublisher
-  implements IdempotentRunEventPublisherPort
-{
+export class WorkbenchRunEventPublisher implements IdempotentRunEventPublisherPort {
   constructor(private readonly events: EventBus) {}
 
   async publish(
