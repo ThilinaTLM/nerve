@@ -11,6 +11,10 @@ Intermediate green/atomicity relaxed by the user; final validation gate unchange
 - `ec9e677c` docs: this handoff.
 - `fbc69ec5` wip: SandboxInteractionPort wired; ask_user + approval record pending detail and read coordinator resolution; `enterWait` uses interactionId == toolCallId.
 - `ae351f13` wip: `userQuestion.answer` migrated to `resolveInteraction` + `continue` (ask_user end-to-end on coordinator). Type-checks pass.
+- `6be20300` docs: handoff refresh.
+- `5626bdf8` wip: approval end-to-end on coordinator (tool-runtime `resolveApproval` reads coordinator resolution; `approval.grant`/`approval.deny` migrated). Type-checks pass.
+
+Whole `packages/sandbox-agent` type-checks at every commit (`npx tsc -b packages/sandbox-agent`).
 
 ## Architecture in place (sandbox)
 
@@ -27,10 +31,8 @@ Daemon (`daemon/sandbox-daemon.ts`): constructs `this.runRuntime = createSandbox
 
 ## NOT yet migrated (remaining sandbox work)
 
-1. **Remaining interaction resolution ops.** `ask_user`/`userQuestion.answer` are DONE. Still to migrate (same pattern: `references.interaction(id)` -> runId, `coordinator.resolveInteraction` + `coordinator.continue`, NO manual transcript append):
-   - `approval.grant`/`approval.deny`: pass `resolution: { decision: "allow"|"deny", scope? }`. AND rewire the tool-runtime approval GATE (the `resolution = this.options.approvalWaiter.resolutionForToolCallOrScope(...)` block in `execute`) to prefer `this.interactions?.resolved(toolCallId)` -> `{decision}` so the re-run tool sees the grant/deny instead of re-suspending. Approval pending detail is already recorded.
-   - `planReview.accept/requestChanges/discard`: rewire the plan-review `present` handler `resolve`/existing-check in `tools/sandbox-interaction-handlers.ts` to read `options.interactions.resolved(toolCallId)` and record pending `{kind:"plan_review", planReview, prompt}`; keep the config-update side effects (mode switch, implementation model) in the op.
-2. **Tool-handler interaction wiring** — ask_user + approval DONE via `SandboxInteractionPort`. Plan-review handler still uses `planReviewWaiter`.
+1. **Remaining interaction resolution op: plan_review.** ask_user + approval are DONE. Migrate `planReview.accept/requestChanges/discard` (daemon ~lines 700-800) with the same pattern (`references.interaction(reviewId)` -> runId, `resolveInteraction` + `continue`, keep config side effects: mode switch, implementation model). Rewire `tools/sandbox-interaction-handlers.ts` `present` handler to, when `options.interactions` is set: build the `PlanReviewRecord` inline (see `PlanReviewWaiter.request` in `tools/plan-review-waiter.ts` for the fields), `options.interactions.setPending(toolCallId, {kind:"plan_review", planReview, prompt})`, and on re-run read `options.interactions.resolved(toolCallId)` -> return `planReviewResult` instead of consulting `planReviewWaiter`.
+2. **Tool-handler interaction wiring** — ask_user + approval DONE via `SandboxInteractionPort`. Only plan-review `present` remains on `planReviewWaiter`.
 3. **Query/snapshot layer**. `daemon/run-summaries.ts` (`summarizeRuns/Conversations/Agents`) and `daemon/conversation-snapshot.ts` read `RunManager` stores. Build `SandboxRunQueryAdapter` deriving summaries/snapshots from `unitOfWork.list()` projections + harness conversation. Rewire `sandbox.status.get` and `sandbox.conversation.snapshot.get`.
 4. **Delete incumbents**: `agent/run-manager.ts`, `agent/agent-runtime.ts` (lifecycle), `agent/harness-event-bridge.ts`, `tools/{input,approval,plan-review}-waiter.ts`, `agent/{run-state-store,run-execution-store,checkpoint-store,transcript-store,tool-call-store}.ts` (retire readers once query adapter covers them). Remove daemon fields `runs/agentRuntime/bridge/inputWaiter/planReviewWaiter/approvalWaiter` and their construction.
 5. **Tests**: rewrite `agent-harness-runtime.test.ts`, `run-manager.test.ts`, `run-summaries.test.ts`, `harness-bridge-logging.test.ts`, tool/interaction tests, daemon protocol tests against the coordinator.
