@@ -57,6 +57,13 @@ describe("sandbox TaskService adapter", () => {
     });
     const descendantPid = await waitForLoggedPid(service, task.id);
     assert.equal(runtimeAlive(descendantPid), true);
+    if (process.platform === "linux") {
+      assert.ok(task.runtime?.childPid);
+      assert.equal(
+        linuxProcessGroup(task.runtime.childPid),
+        task.runtime.processGroupId,
+      );
+    }
 
     const cancelled = await service.cancel(task.id);
     assert.equal(cancelled.status, "cancelled");
@@ -183,6 +190,17 @@ async function waitForTerminal(
     await delay(10);
   }
   throw new Error(`Timed out waiting for terminal task ${taskId}`);
+}
+
+function linuxProcessGroup(pid: number): number | undefined {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    const close = stat.lastIndexOf(")");
+    if (close < 0) return undefined;
+    return Number(stat.slice(close + 2).split(" ")[2]);
+  } catch {
+    return undefined;
+  }
 }
 
 function runtimeAlive(pid: number): boolean {

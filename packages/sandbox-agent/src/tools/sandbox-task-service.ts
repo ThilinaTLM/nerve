@@ -228,9 +228,11 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
         `maximum supervised task count exceeded: ${this.options.maxTasks ?? 32}`,
       );
     const [shell, args] = shellCommand(input.command);
+    const detached = process.platform !== "win32";
     const child = spawn(shell, args, {
       cwd: input.cwd,
       env: input.env ? { ...process.env, ...input.env } : process.env,
+      detached,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let settle!: (exit: TaskProcessExit) => void;
@@ -240,8 +242,8 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
     const runtime: NonNullable<TaskRecord["runtime"]> = {
       platform: process.platform,
       childPid: child.pid,
-      processGroupId: process.platform === "win32" ? undefined : child.pid,
-      detached: process.platform !== "win32",
+      processGroupId: detached ? child.pid : undefined,
+      detached,
       shell: true,
       spawnedAt: new Date().toISOString(),
     };
