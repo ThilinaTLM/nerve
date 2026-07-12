@@ -4,6 +4,7 @@ import type {
   ContextFileStatus,
   PlanReviewRecord,
   SandboxConfigV1,
+  SandboxRunStatus,
   SkillStatus,
   StartupSetupStatus,
   StructuredLogger,
@@ -44,6 +45,10 @@ import { SandboxTaskService } from "../tools/sandbox-task-service.js";
 import { SandboxToolRuntime } from "../tools/tool-runtime.js";
 import { mapRuntimeError, mapWaitError } from "./operation-errors.js";
 import { SandboxOperationRouter } from "./operation-router.js";
+import {
+  createSandboxRunRuntime,
+  type SandboxRunRuntime,
+} from "../run/index.js";
 import { buildConversationSnapshot } from "./conversation-snapshot.js";
 import { DaemonStatusMachine } from "./daemon-status.js";
 import { SandboxOperationError } from "./errors.js";
@@ -76,6 +81,7 @@ export class SandboxDaemon {
   private planReviewWaiter?: PlanReviewWaiter;
   private approvalWaiter?: ApprovalWaiter;
   private agentRuntime?: SandboxAgentRuntime;
+  private runRuntime?: SandboxRunRuntime;
   private taskService?: SandboxTaskService;
   private toolRuntime?: SandboxToolRuntime;
   private bridge?: HarnessEventBridge;
@@ -224,6 +230,18 @@ export class SandboxDaemon {
     });
     readOnlyToolRuntime.setExploreRuntime(this.exploreRuntime);
     this.toolRuntime.setExploreRuntime(this.exploreRuntime);
+    // Shared RunCoordinator is the sole authority for run lifecycle.
+    this.runRuntime = createSandboxRunRuntime({
+      config: this.config,
+      stateDir: state.stateDir,
+      outbox: state.events,
+      harnessFactory: factory,
+      toolRuntime: this.toolRuntime,
+      taskService: this.taskService,
+      exploreRuntime: this.exploreRuntime,
+      configStore: this.agentConfigStore,
+      logger: logger.child({ component: "run-coordinator" }),
+    });
     this.bridge = new HarnessEventBridge(
       state.events,
       this.runs,
@@ -248,8 +266,14 @@ export class SandboxDaemon {
       configStore: this.agentConfigStore,
       logger: logger.child({ component: "agent-runtime" }),
     });
-    loadPromises.push(this.agentRuntime.recoverActiveRuns());
     await Promise.all(loadPromises);
+    // Recover runs through the coordinator: flush any pending event intents,
+    // reconcile interrupted/waiting runs from checkpoints, then materialize.
+    if (this.runRuntime) {
+      await this.runRuntime.delivery.flush().catch(() => undefined);
+      await this.runRuntime.coordinator.recover().catch(() => undefined);
+      await this.runRuntime.delivery.flush().catch(() => undefined);
+    }
     const effective = this.agentConfigStore.effective(this.config);
     this.toolRuntime.updatePolicy({
       permissionLevel: effective.permissionLevel,
@@ -485,41 +509,56 @@ export class SandboxDaemon {
           "UNAVAILABLE",
           "Inline command execution is unavailable in this sandbox",
         );
-      let run: RunState | undefined;
+      const p = (params as Record<string, unknown>) ?? {};
+      const behavior = p.behavior === "follow_up" ? "follow-up" : undefined;
+      let run;
       try {
-        run = inlineCommand
-          ? await this.agentRuntime?.runInlineCommandPrompt({
-              ...(params as Record<string, unknown>),
-              prompt,
-              command: inlineCommand.command,
-              requestId: accepted.requestId,
-            })
-          : await (this.agentRuntime
-              ? this.agentRuntime.startRun({
-                  ...(params as Record<string, unknown>),
-                  prompt,
-                  requestId: accepted.requestId,
-                })
-              : this.runs?.start({
-                  ...(params as Record<string, unknown>),
-                  prompt,
-                  requestId: accepted.requestId,
-                }));
+        const coordinator = this.requireCoordinator();
+        const scope = this.runScope(p);
+        if (behavior === "follow-up") {
+          const active = await this.runRuntime!.unitOfWork.findActive(
+            scope.scopeId,
+          );
+          if (!active)
+            throw new SandboxOperationError(
+              "INVALID_RUN_STATE",
+              "no active run for follow-up",
+            );
+          const queued = await coordinator.followUp(active.run.runId, prompt);
+          run = { ...active.run };
+          return {
+            accepted: true,
+            conversationId: run.conversationId,
+            agentId: run.agentId,
+            runId: run.runId,
+            status: mapSandboxStatus(run.status),
+            queuedPromptId: queued.id,
+          };
+        }
+        run = await coordinator.start({
+          conversationId: scope.conversationId,
+          agentId: scope.agentId,
+          projectId: scope.projectId,
+          scopeId: scope.scopeId,
+          prompt,
+        });
       } catch (error) {
-        const mapped = mapRuntimeError(error);
-        throw mapped;
+        throw mapRuntimeError(error);
       }
-      const result = {
+      return {
         accepted: true,
-        conversationId: run?.conversationId ?? "conv_unknown",
-        agentId: run?.agentId ?? "agent_main",
-        runId: run?.runId ?? `run_${Date.now()}`,
-        status: run?.status ?? "queued",
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        runId: run.runId,
+        status: mapSandboxStatus(run.status),
       };
-      return result;
     });
     this.router.register("run.followUp", (params, context) =>
-      this.router.dispatch("run.start", params, context),
+      this.router.dispatch(
+        "run.start",
+        { ...(params as object), behavior: "follow_up" },
+        context,
+      ),
     );
     this.router.register("run.steer", async (params) => {
       await this.requireReady();
@@ -534,26 +573,17 @@ export class SandboxDaemon {
           "VALIDATION_FAILED",
           "run.steer requires conversationId and runId",
         );
-      await this.agentRuntime?.steerRun(
-        {
-          conversationId: input.conversationId,
-          agentId: input.agentId,
-          runId: input.runId,
-        },
-        input.text,
-      );
+      await this.requireCoordinator().steer(input.runId, input.text);
       const result = { accepted: true, ...input, status: "running" as const };
       return result;
     });
     this.router.register("run.continue", async (params) => {
       await this.requireReady();
+      const input = params as { runId: string };
       try {
-        await this.agentRuntime?.continueRun(
-          params as { conversationId: string; agentId: string; runId: string },
-        );
+        await this.requireCoordinator().continue(input.runId);
       } catch (error) {
-        const mapped = mapRuntimeError(error);
-        throw mapped;
+        throw mapRuntimeError(error);
       }
       const result = {
         accepted: true,
@@ -570,22 +600,16 @@ export class SandboxDaemon {
         runId: string;
         reason?: string;
       };
-      let run: RunState | undefined;
+      let run;
       try {
-        run = this.agentRuntime
-          ? await this.agentRuntime.cancelRun(input)
-          : await this.runs?.cancel(input);
-        await this.inputWaiter?.cancelRun(input);
-        await this.planReviewWaiter?.cancelRun(input);
-        await this.approvalWaiter?.cancelRun(input);
+        run = await this.requireCoordinator().cancel(input.runId, input.reason);
       } catch (error) {
-        const mapped = mapRuntimeError(error);
-        throw mapped;
+        throw mapRuntimeError(error);
       }
       const result = {
         accepted: true,
         ...input,
-        status: run?.status ?? "cancelled",
+        status: mapSandboxStatus(run.status),
         cancellationRequested: true,
       };
       return result;
@@ -900,6 +924,32 @@ export class SandboxDaemon {
     await this.ready;
   }
 
+  private requireCoordinator() {
+    if (!this.runRuntime)
+      throw new SandboxOperationError(
+        "UNAVAILABLE",
+        "run coordinator is not configured",
+      );
+    return this.runRuntime.coordinator;
+  }
+
+  private runScope(p: Record<string, unknown>) {
+    const conversationId =
+      typeof p.conversationId === "string" && p.conversationId.startsWith("conv_")
+        ? p.conversationId
+        : `conv_${Date.now()}`;
+    const agentId =
+      typeof p.agentId === "string" && p.agentId.startsWith("agent_")
+        ? p.agentId
+        : "agent_main";
+    return {
+      conversationId,
+      agentId,
+      projectId: sandboxProjectId(this.identity.sandboxId),
+      scopeId: `${conversationId}:${agentId}`,
+    };
+  }
+
   private modelSummaries(): Array<{
     provider: string;
     model?: string;
@@ -957,4 +1007,27 @@ function planReviewToolResult(
 
 function toolResultEntryId(runId: string, toolCallId: string): string {
   return `msg_tool_result_${sandboxSha256Digest(`${runId}:${toolCallId}`).slice(7, 23)}`;
+}
+
+function mapSandboxStatus(status: string): SandboxRunStatus {
+  switch (status) {
+    case "starting":
+      return "queued";
+    case "running":
+    case "cancellation_requested":
+    case "suspended":
+      return "running";
+    case "waiting":
+      return "waiting_for_input";
+    case "retrying":
+    case "interrupted":
+    case "cancellation_failed":
+      return "recoverable_failed";
+    case "completed":
+      return "completed";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "failed";
+  }
 }

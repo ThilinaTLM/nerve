@@ -3,6 +3,7 @@ import {
   type AgentMessage,
   isAgentToolSuspension,
 } from "@nervekit/host-runtime/harness";
+import type { RunPromptRecord, RunRecord } from "@nervekit/contracts";
 import type {
   CheckpointCommand,
   RunExecution,
@@ -10,8 +11,6 @@ import type {
   RunExecutionFactoryPort,
   RunExecutionOutcome,
   RunExecutionSink,
-  RunPromptRecord,
-  RunRecord,
   WaitCommand,
 } from "@nervekit/host-runtime";
 import {

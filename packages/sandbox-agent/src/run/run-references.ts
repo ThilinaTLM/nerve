@@ -1,8 +1,5 @@
-import {
-  type RunCheckpointReferencePort,
-  RUN_STATE_EPOCH,
-  type RunInteractionRecord,
-} from "@nervekit/host-runtime";
+import { RUN_STATE_EPOCH, type RunInteractionRecord } from "@nervekit/contracts";
+import type { RunCheckpointReferencePort } from "@nervekit/host-runtime";
 import type { SandboxRunUnitOfWork } from "../agent/run-transition-store.js";
 import type { HarnessFactory } from "../agent/harness-factory.js";
 

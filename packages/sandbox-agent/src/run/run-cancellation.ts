@@ -1,4 +1,5 @@
-import type { RunCancellationPort, RunRecord } from "@nervekit/host-runtime";
+import type { RunRecord } from "@nervekit/contracts";
+import type { RunCancellationPort } from "@nervekit/host-runtime";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
 import type { SandboxTaskService } from "../tools/sandbox-task-service.js";
 import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
