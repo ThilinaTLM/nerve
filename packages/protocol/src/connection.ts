@@ -2,10 +2,18 @@ import type { ProtocolV1Message } from "@nervekit/contracts";
 import { ProtocolCodec, ProtocolDecodeError } from "./codec.js";
 import type { TransportConnection } from "./transport.js";
 
+export interface ProtocolReceiveContext {
+  readonly generation: number;
+  readonly signal: AbortSignal;
+}
+
 export interface ProtocolConnectionOptions {
   readonly transport: TransportConnection;
   readonly codec?: ProtocolCodec;
-  readonly onMessage: (message: ProtocolV1Message) => void | Promise<void>;
+  readonly onMessage: (
+    message: ProtocolV1Message,
+    context: ProtocolReceiveContext,
+  ) => void | Promise<void>;
   readonly onProtocolError?: (
     error: ProtocolDecodeError,
   ) => void | Promise<void>;
@@ -16,6 +24,7 @@ export class ProtocolConnection {
   readonly #transport: TransportConnection;
   readonly #codec: ProtocolCodec;
   readonly #dispose: Array<() => void>;
+  readonly #abort = new AbortController();
   #receiveTail: Promise<void> = Promise.resolve();
   #generation = 0;
   #disposed = false;
@@ -36,13 +45,19 @@ export class ProtocolConnection {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#abort.abort();
     this.#generation += 1;
     for (const dispose of this.#dispose.splice(0)) dispose();
   }
 
-  close(code?: number, reason?: string): void | Promise<void> {
+  async drain(): Promise<void> {
+    await this.#receiveTail;
+  }
+
+  async close(code?: number, reason?: string): Promise<void> {
     this.dispose();
-    return this.#transport.close(code, reason);
+    await this.#transport.close(code, reason);
+    await this.drain();
   }
 
   #enqueue(frame: string): void {
@@ -65,7 +80,10 @@ export class ProtocolConnection {
     try {
       const message = this.#codec.decode(frame);
       if (this.#disposed || generation !== this.#generation) return;
-      await this.options.onMessage(message);
+      await this.options.onMessage(message, {
+        generation,
+        signal: this.#abort.signal,
+      });
     } catch (error) {
       if (this.#disposed || generation !== this.#generation) return;
       if (error instanceof ProtocolDecodeError) {

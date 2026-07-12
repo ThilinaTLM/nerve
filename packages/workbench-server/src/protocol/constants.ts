@@ -34,6 +34,14 @@ export const PROTOCOL_LIMITS = {
   malformedMessageStrikes: 3,
 } as const;
 
+export const PROTOCOL_SESSION_LIMITS = {
+  maxMessageBytes: PROTOCOL_LIMITS.maxMessageBytes,
+  maxBatchEvents: PROTOCOL_LIMITS.maxBatchEvents,
+  maxBatchBytes: PROTOCOL_LIMITS.maxBatchBytes,
+  maxInflightBatches: PROTOCOL_LIMITS.maxInflightBatches,
+  maxUnackedDurableEvents: PROTOCOL_LIMITS.maxUnackedDurableEvents,
+} as const;
+
 export const PROTOCOL_HEARTBEAT = {
   intervalMs: 30_000,
   timeoutMs: 70_000,

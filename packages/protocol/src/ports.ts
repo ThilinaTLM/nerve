@@ -2,6 +2,7 @@ import type {
   EventEnvelope,
   PeerDescriptor,
   ProtocolErrorData,
+  ReplayUnavailableData,
   StreamCursor,
   StreamState,
 } from "@nervekit/contracts";
@@ -14,13 +15,22 @@ export interface ReplayReadRequest {
   readonly limit: number;
 }
 
-export interface ReplayReadResult {
-  readonly events: readonly EventEnvelope[];
-  /** Durable cursor immediately before the first returned event. */
-  readonly previousDurableSeq?: number;
-  readonly complete: boolean;
-  readonly nextSeq?: number;
-}
+export type ReplayReadResult =
+  | {
+      readonly available: true;
+      readonly events: readonly EventEnvelope[];
+      /** Durable cursor immediately before the first returned event. */
+      readonly previousDurableSeq?: number;
+      readonly complete: boolean;
+      readonly nextSeq?: number;
+    }
+  | {
+      readonly available: false;
+      readonly reason: ReplayUnavailableData["streams"][number]["reason"];
+      readonly earliestAvailableSeq?: number;
+      readonly latestSeq: number;
+      readonly recovery?: ReplayUnavailableData["recovery"];
+    };
 
 export interface ReplaySource {
   streams(): readonly StreamState[] | Promise<readonly StreamState[]>;

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -81,6 +81,45 @@ test("file idempotency persists bounded redacted errors without request params",
   const persisted = await readFile(path, "utf8");
   assert.doesNotMatch(persisted, /raw-secret-value|Bearer/);
   assert.match(persisted, /\[REDACTED\]/);
+});
+
+test("file idempotency refuses unsafe successful outcomes", async () => {
+  const unsafeResults: unknown[] = [
+    { accessToken: "secret" },
+    { url: "https://user:password@example.com/path" },
+    { value: "x".repeat(70 * 1024) },
+    new Uint8Array([1, 2, 3]),
+  ];
+  const cyclic: { self?: unknown } = {};
+  cyclic.self = cyclic;
+  unsafeResults.push(cyclic);
+
+  for (const [index, result] of unsafeResults.entries()) {
+    const path = await fixture();
+    const execution = await new FileIdempotencyStore(path).execute(
+      "ui",
+      `key-unsafe-${index}`,
+      "project.create",
+      {},
+      async () => ({ status: "success", result }),
+    );
+    assert.equal(execution.outcome.status, "error");
+    const persisted = await readFile(path, "utf8");
+    assert.doesNotMatch(persisted, /secret|user:password/);
+  }
+});
+
+test("file idempotency writes private bounded state", async () => {
+  const path = await fixture();
+  await new FileIdempotencyStore(path).execute(
+    "ui",
+    "key-mode",
+    "project.create",
+    {},
+    async () => success,
+  );
+  assert.equal((await stat(path)).mode & 0o777, 0o600);
+  assert((await readFile(path)).byteLength < 4 * 1024 * 1024);
 });
 
 test("file idempotency quarantines malformed state and starts clean", async () => {

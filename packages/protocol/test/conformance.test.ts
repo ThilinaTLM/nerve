@@ -137,7 +137,7 @@ test("server session serves bounded replay and rejects stale cursors", async () 
           replayAvailableFromSeq: 2,
         },
       ],
-      read: () => ({ events: [event], complete: true }),
+      read: () => ({ available: true, events: [event], complete: true }),
     },
     limits,
     heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },

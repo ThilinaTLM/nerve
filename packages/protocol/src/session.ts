@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- Server lifecycle keeps handshake, replay, flow, and disposal state transitions together. */
 import type {
   EventEnvelope,
   HelloData,
@@ -10,11 +9,7 @@ import type {
   StreamState,
 } from "@nervekit/contracts";
 import { buildEventBatch, chunkEvents } from "./event-batch.js";
-import type {
-  ProtocolClock,
-  ProtocolIdSource,
-  ProtocolTimers,
-} from "./ports.js";
+import type { ProtocolIdSource, ProtocolTimers } from "./ports.js";
 import type { RpcDispatcher } from "./rpc.js";
 import {
   systemProtocolClock,
@@ -22,7 +17,9 @@ import {
   systemProtocolTimers,
 } from "./runtime.js";
 import { PrioritizedMessageSender } from "./priority-sender.js";
+import { sendReplayUnavailable } from "./replay-unavailable.js";
 import { ProtocolSessionQueue } from "./session-queue.js";
+import { ServerHeartbeat } from "./server-heartbeat.js";
 import { SessionStateError } from "./client-session.js";
 import type {
   ServerSessionOptions,
@@ -34,7 +31,7 @@ export class ProtocolServerSession {
   sessionId?: string;
   peer?: PeerDescriptor;
   readonly #options: ServerSessionOptions;
-  readonly #clock: ProtocolClock;
+  readonly #heartbeat: ServerHeartbeat;
   readonly #timers: ProtocolTimers;
   readonly #ids: ProtocolIdSource;
   readonly #sender: PrioritizedMessageSender;
@@ -46,19 +43,41 @@ export class ProtocolServerSession {
   #hello?: HelloData;
   #resumeDecision?: SessionResumeDecision;
   #rpcDispatcher?: RpcDispatcher;
-  #heartbeatInterval?: unknown;
-  #heartbeatWatchdog?: unknown;
   #handshakeTimeout?: unknown;
-  #lastReceivedAt = 0;
   #flushing = false;
   #liveDeliveryEnabled = false;
 
   constructor(options: ServerSessionOptions) {
     this.#options = options;
-    this.#clock = options.clock ?? systemProtocolClock;
+    const clock = options.clock ?? systemProtocolClock;
     this.#timers = options.timers ?? systemProtocolTimers;
     this.#ids = options.ids ?? systemProtocolIds;
     this.#sender = new PrioritizedMessageSender(options.send);
+    this.#heartbeat = new ServerHeartbeat({
+      clock,
+      timers: this.#timers,
+      intervalMs: options.heartbeat.intervalMs,
+      timeoutMs: options.heartbeat.timeoutMs,
+      isReady: () => this.state === "ready",
+      send: () =>
+        this.#sendControl(
+          options.createMessage(
+            "heartbeat",
+            {
+              sessionId: this.sessionId,
+              sentAt: clock.isoNow(),
+              processed: [...this.#processedSeq].map(
+                ([stream, processedSeq]) => ({ stream, processedSeq }),
+              ),
+            },
+            { target: this.peer },
+          ),
+        ),
+      timeout: async () => {
+        await options.diagnostics?.publish({ type: "heartbeat" });
+        await this.shutdown("idle_timeout", "Protocol heartbeat timed out");
+      },
+    });
     this.#handshakeTimeout = this.#timers.setTimeout(() => {
       if (this.state === "awaiting_hello" || this.state === "awaiting_ready")
         void this.shutdown("idle_timeout", "Protocol handshake timed out");
@@ -66,7 +85,7 @@ export class ProtocolServerSession {
   }
 
   async receive(message: ProtocolV1Message): Promise<void> {
-    this.#lastReceivedAt = this.#clock.now();
+    this.#heartbeat.received();
     if (this.state === "awaiting_hello") {
       if (message.kind !== "hello") {
         throw new SessionStateError("hello must be the first client message");
@@ -178,7 +197,7 @@ export class ProtocolServerSession {
       if (this.#handshakeTimeout !== undefined)
         this.#timers.clearTimeout(this.#handshakeTimeout);
       this.#handshakeTimeout = undefined;
-      this.#startHeartbeat();
+      this.#heartbeat.start();
       await this.#options.onReady?.(message);
       if (
         this.#resumeDecision?.mode === "replay" &&
@@ -225,7 +244,7 @@ export class ProtocolServerSession {
         await this.fail("INVALID_MESSAGE", "Goodbye session id mismatch");
         return;
       }
-      this.#stopHeartbeat();
+      this.#heartbeat.stop();
       this.state = "closed";
       return;
     }
@@ -400,6 +419,17 @@ export class ProtocolServerSession {
             toSeq: range.toSeq,
             limit: this.#options.limits.maxBatchEvents,
           });
+          if (!read.available) {
+            await this.#sendReplayUnavailable(
+              message,
+              range,
+              read.reason,
+              read.earliestAvailableSeq,
+              read.latestSeq,
+              read.recovery,
+            );
+            return;
+          }
           const events = [...read.events];
           if (
             events.some(
@@ -553,7 +583,7 @@ export class ProtocolServerSession {
     if (this.state === "closed") return;
     this.state = "closed";
     this.#liveDeliveryEnabled = false;
-    this.#stopHeartbeat();
+    this.#heartbeat.stop();
     if (this.#handshakeTimeout !== undefined)
       this.#timers.clearTimeout(this.#handshakeTimeout);
     this.#handshakeTimeout = undefined;
@@ -572,7 +602,7 @@ export class ProtocolServerSession {
     if (this.state === "closed") return;
     this.state = "closing";
     this.#liveDeliveryEnabled = false;
-    this.#stopHeartbeat();
+    this.#heartbeat.stop();
     if (this.#handshakeTimeout !== undefined)
       this.#timers.clearTimeout(this.#handshakeTimeout);
     this.#handshakeTimeout = undefined;
@@ -720,78 +750,29 @@ export class ProtocolServerSession {
   async #sendReplayUnavailable(
     message: ProtocolV1Message & { kind: "replay.request" },
     range: { stream: string; fromSeq: number; latestSeq: number },
-    reason: "storage_unavailable" | "range_too_large",
+    reason: ReplayUnavailableData["streams"][number]["reason"],
+    earliestAvailableSeq?: number,
+    latestSeq = range.latestSeq,
+    recovery: ReplayUnavailableData["recovery"] = {
+      action: "load_snapshot",
+    },
   ): Promise<void> {
-    await this.#sendReplay(
-      this.#options.createMessage(
-        "replay.unavailable",
-        {
-          sessionId: this.sessionId as string,
-          replayId: message.data.replayId,
-          streams: [
-            {
-              stream: range.stream,
-              requestedFromSeq: range.fromSeq,
-              latestSeq: range.latestSeq,
-              reason,
-            },
-          ],
-          recovery: { action: "load_snapshot" },
-        },
-        { target: message.source },
-      ),
-    );
-  }
-
-  #startHeartbeat(): void {
-    this.#stopHeartbeat();
-    this.#lastReceivedAt = this.#clock.now();
-    this.#heartbeatInterval = this.#timers.setInterval(() => {
-      if (this.state !== "ready") return;
-      void this.#sendControl(
-        this.#options.createMessage(
-          "heartbeat",
-          {
-            sessionId: this.sessionId,
-            sentAt: this.#clock.isoNow(),
-            processed: [...this.#processedSeq].map(
-              ([stream, processedSeq]) => ({ stream, processedSeq }),
-            ),
-          },
-          { target: this.peer },
-        ),
-      );
-    }, this.#options.heartbeat.intervalMs);
-    this.#heartbeatWatchdog = this.#timers.setInterval(
-      () => {
-        if (
-          this.state === "ready" &&
-          this.#clock.now() - this.#lastReceivedAt >
-            this.#options.heartbeat.timeoutMs
-        ) {
-          void this.#options.diagnostics?.publish({ type: "heartbeat" });
-          void this.shutdown("idle_timeout", "Protocol heartbeat timed out");
-        }
-      },
-      Math.min(
-        this.#options.heartbeat.intervalMs,
-        this.#options.heartbeat.timeoutMs,
-      ),
-    );
-  }
-
-  #stopHeartbeat(): void {
-    if (this.#heartbeatInterval !== undefined)
-      this.#timers.clearInterval(this.#heartbeatInterval);
-    if (this.#heartbeatWatchdog !== undefined)
-      this.#timers.clearInterval(this.#heartbeatWatchdog);
-    this.#heartbeatInterval = undefined;
-    this.#heartbeatWatchdog = undefined;
+    await sendReplayUnavailable({
+      createMessage: this.#options.createMessage,
+      send: (outbound) => this.#sendReplay(outbound),
+      sessionId: this.sessionId as string,
+      request: message,
+      range,
+      reason,
+      earliestAvailableSeq,
+      latestSeq,
+      recovery,
+    });
   }
 
   async fail(code: ProtocolErrorData["code"], message: string): Promise<void> {
     this.state = "closing";
-    this.#stopHeartbeat();
+    this.#heartbeat.stop();
     if (this.#handshakeTimeout !== undefined)
       this.#timers.clearTimeout(this.#handshakeTimeout);
     this.#handshakeTimeout = undefined;

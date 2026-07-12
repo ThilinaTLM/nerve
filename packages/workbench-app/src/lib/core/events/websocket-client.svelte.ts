@@ -31,6 +31,7 @@ import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
 import {
   loadSlashCommands,
   loadWorkspaceState,
+  recoverWorkspaceSnapshotFromNetwork,
 } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 
@@ -140,7 +141,7 @@ function connectWebsocket(wsUrl: string): void {
         snapshotRecovery: {
           async load() {
             // loadWorkspaceState applies the complete snapshot before returning its cursor.
-            const cursor = await loadWorkspaceState({ fresh: true });
+            const cursor = await recoverWorkspaceSnapshotFromNetwork();
             return { snapshot: undefined, cursors: cursor.streams };
           },
         },

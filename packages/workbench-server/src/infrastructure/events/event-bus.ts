@@ -50,6 +50,7 @@ export interface DurableContinuityInfo {
 export class EventBus {
   #seq = 0;
   #latestDurableSeq = 0;
+  #replayAvailableFromSeq = 1;
   #events: EventEnvelope[] = [];
   #listeners = new Set<(event: EventEnvelope) => void>();
   #publishTail: Promise<unknown> = Promise.resolve();
@@ -76,6 +77,7 @@ export class EventBus {
         const latest = this.index.latestEventSeq();
         this.#events = this.index.recentEvents(this.maxBufferedEvents);
         this.#latestDurableSeq = latest;
+        this.#replayAvailableFromSeq = 1;
         this.#seq = latest;
         return;
       } catch {
@@ -93,6 +95,8 @@ export class EventBus {
       .sort((a, b) => a.seq - b.seq);
     this.#events = parsed;
     this.#latestDurableSeq = parsed.at(-1)?.seq ?? 0;
+    this.#replayAvailableFromSeq =
+      parsed.find((event) => event.durability === "durable")?.seq ?? 1;
     this.#seq = this.#latestDurableSeq;
   }
 
@@ -215,6 +219,10 @@ export class EventBus {
 
   get latestDurableSeq(): number {
     return this.#latestDurableSeq;
+  }
+
+  get replayAvailableFromSeq(): number {
+    return this.#replayAvailableFromSeq;
   }
 
   /**
@@ -413,6 +421,9 @@ export class EventBus {
       0o600,
     );
     this.index?.deleteEventsForConversations(conversations);
+    // Deletion can create holes anywhere in history. Conservatively require
+    // cursors at the current durable head to avoid advertising missing data.
+    this.#replayAvailableFromSeq = Math.max(1, this.#latestDurableSeq);
   }
 
   subscribe(listener: (event: EventEnvelope) => void): () => void {

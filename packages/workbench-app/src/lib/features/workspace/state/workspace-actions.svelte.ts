@@ -18,6 +18,7 @@ import {
   pruneProjectConversations,
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/core/query";
+import { recoverSnapshotFromNetwork } from "$lib/core/events/snapshot-recovery";
 import {
   openPendingConversation,
   removeConversationTabs,
@@ -28,12 +29,26 @@ import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
-export async function loadWorkspaceState(options: { fresh?: boolean } = {}) {
+export async function loadWorkspaceState() {
   const snapshot = await queryClient.fetchQuery({
     queryKey: queryKeys.workspace,
     queryFn: getWorkspaceSnapshot,
-    staleTime: options.fresh ? 0 : undefined,
   });
+  return applyWorkspaceSnapshot(snapshot);
+}
+
+export async function recoverWorkspaceSnapshotFromNetwork() {
+  return recoverSnapshotFromNetwork({
+    fetch: getWorkspaceSnapshot,
+    apply: applyWorkspaceSnapshot,
+    cache: (snapshot) =>
+      queryClient.setQueryData(queryKeys.workspace, snapshot),
+  });
+}
+
+async function applyWorkspaceSnapshot(
+  snapshot: Awaited<ReturnType<typeof getWorkspaceSnapshot>>,
+) {
   const agents = mergeAgentsByUpdatedAt(
     snapshot.snapshot.agents,
     workspaceState.agents,

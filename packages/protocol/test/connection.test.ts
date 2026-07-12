@@ -74,6 +74,35 @@ test("handler failure is reported and does not poison the inbound queue", async 
   assert.deepEqual(handled, [good.id]);
 });
 
+test("disposal aborts and drains an in-flight application before later work", async () => {
+  const transport = new ManualTransport();
+  const gate = deferred();
+  const commits: string[] = [];
+  let observedAbort = false;
+  const first = hello();
+  const connection = new ProtocolConnection({
+    transport,
+    onMessage: async (message, context) => {
+      await gate.promise;
+      observedAbort = context.signal.aborted;
+      if (!context.signal.aborted) commits.push(message.id);
+    },
+  });
+  void transport.emit(first);
+  await tick();
+  connection.dispose();
+  let drained = false;
+  const draining = connection.drain().then(() => {
+    drained = true;
+  });
+  await tick();
+  assert.equal(drained, false);
+  gate.resolve();
+  await draining;
+  assert.equal(observedAbort, true);
+  assert.deepEqual(commits, []);
+});
+
 test("disposal prevents stale queued frames from applying", async () => {
   const transport = new ManualTransport();
   const gate = deferred();
