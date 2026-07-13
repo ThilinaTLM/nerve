@@ -24,10 +24,22 @@ const options = {
   image: "nerve-sandbox-agent:dev",
   sandboxId: "sbx_1",
   managerBaseUrl: "http://127.0.0.1:7869",
-  workspaceSource: "/w",
-  stateSource: "/s",
-  configSource: "/c/sandbox.yaml",
-  secretsSource: "/sec",
+  runtimeMounts: {
+    workspace: { kind: "bind" as const, source: "/w", target: "/workspace" },
+    state: { kind: "bind" as const, source: "/s", target: "/state" },
+    config: {
+      kind: "bind" as const,
+      source: "/c/sandbox.yaml",
+      target: "/etc/nerve/sandbox.yaml",
+      readonly: true,
+    },
+    secrets: {
+      kind: "bind" as const,
+      source: "/sec",
+      target: "/secrets",
+      readonly: true,
+    },
+  },
 };
 
 describe("buildSandboxLaunchSpec log level propagation", () => {

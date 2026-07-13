@@ -19,7 +19,7 @@ export * from "./healthcheck.js";
 export * from "./models/model-catalog.js";
 export * from "./models/model-runtime.js";
 export * from "./models/provider-credentials.js";
-export * from "./protocol/session.js";
+export * from "./protocol/sandbox-protocol-client.js";
 export * from "./runtime/status.js";
 export * from "./secret-stores/http-kv-client.js";
 export * from "./secret-stores/secret-store-registry.js";

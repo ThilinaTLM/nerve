@@ -10,7 +10,7 @@ import {
 import { SecretResolver } from "./credentials/secret-resolver.js";
 import { SandboxDaemon } from "./daemon/sandbox-daemon.js";
 import { resolveModelRuntime } from "./models/model-runtime.js";
-import { ProtocolSession } from "./protocol/session.js";
+import { SandboxProtocolClient } from "./protocol/sandbox-protocol-client.js";
 import { resolveSandboxRuntimeIdentity } from "./runtime/identity.js";
 import { StartupReporter } from "./runtime/startup-reporter.js";
 import { HttpKvSecretStoreClient } from "./secret-stores/http-kv-client.js";
@@ -37,7 +37,7 @@ import { computeToolGroupStatus } from "./tools/tool-groups.js";
 
 export type SandboxEntrypointResult = PersistedConfigState & {
   status: "ready" | "degraded";
-  session: ProtocolSession;
+  session: SandboxProtocolClient;
 };
 
 export class SandboxStartupError extends Error {
@@ -147,7 +147,7 @@ export async function runSandboxEntrypoint(
       bootOnly: true,
     },
   );
-  const session = new ProtocolSession(
+  const session = new SandboxProtocolClient(
     config,
     daemon,
     stateStores,

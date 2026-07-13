@@ -454,7 +454,6 @@ export const sandboxSkillsConfigSchema = z.object({
     .optional(),
   searchPaths: z.array(z.string().min(1)).optional(),
   allowWorkspaceSkills: z.boolean().optional(),
-  legacyNervePaths: z.boolean().optional(),
   maxSkillBytes: z.number().int().positive().safe().optional(),
   maxSkillCount: z.number().int().positive().safe().optional(),
 });

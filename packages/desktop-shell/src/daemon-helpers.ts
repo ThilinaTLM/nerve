@@ -95,7 +95,7 @@ export function resolveReadinessTimeoutMs(): number {
   return Math.max(1, Math.trunc(value));
 }
 
-export function resolveOrchestratorMainPath(): string {
+export function resolveWorkbenchServerMainPath(): string {
   const resolvedUrl = import.meta.resolve("@nervekit/workbench-server/main");
   return fileURLToPath(resolvedUrl);
 }

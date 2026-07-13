@@ -22,11 +22,7 @@ export type SandboxLaunchOptions = {
   image: string;
   sandboxId?: string;
   managerBaseUrl: string;
-  runtimeMounts?: SandboxRuntimeMountRefs;
-  workspaceSource?: string;
-  stateSource?: string;
-  configSource?: string;
-  secretsSource?: string;
+  runtimeMounts: SandboxRuntimeMountRefs;
   backend?: ContainerBackend | SandboxContainerBackend | string;
   labels?: SandboxLaunchLabels;
   resources?: SandboxLaunchResourceSpec;
@@ -94,7 +90,7 @@ function runtimeMounts(
   options: SandboxLaunchOptions,
   isEcs: boolean,
 ): VolumeRef[] {
-  const refs = options.runtimeMounts ?? legacyRuntimeMounts(options);
+  const refs = options.runtimeMounts;
   return [
     refs.workspace,
     refs.state,
@@ -106,35 +102,6 @@ function runtimeMounts(
         ? []
         : [{ kind: "tmpfs", target: "/tmp" }]),
   ];
-}
-
-function legacyRuntimeMounts(
-  options: SandboxLaunchOptions,
-): SandboxRuntimeMountRefs {
-  return {
-    workspace: {
-      kind: "bind",
-      source: options.workspaceSource ?? "",
-      target: "/workspace",
-    },
-    state: {
-      kind: "bind",
-      source: options.stateSource ?? "",
-      target: "/state",
-    },
-    config: {
-      kind: "bind",
-      source: options.configSource ?? "",
-      target: "/etc/nerve/sandbox.yaml",
-      readonly: true,
-    },
-    secrets: {
-      kind: "bind",
-      source: options.secretsSource ?? "",
-      target: "/secrets",
-      readonly: true,
-    },
-  };
 }
 
 function hasEfsMounts(refs: SandboxRuntimeMountRefs | undefined): boolean {

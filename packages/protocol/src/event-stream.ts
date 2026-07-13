@@ -44,8 +44,6 @@ export function processedSeqFromCursor(
   );
 }
 
-export const globalProcessedSeqFromCursor = processedSeqFromCursor;
-
 export function resetClientEventStreamStateFromCursor(
   state: ClientEventStreamState,
   cursor: { streams: Array<{ stream: string; processedSeq: number }> },

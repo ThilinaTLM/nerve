@@ -14,7 +14,7 @@ import {
   isLoopbackHost,
   normalizeRemoteDaemonUrl,
   resolveDaemonPaths,
-  resolveOrchestratorMainPath,
+  resolveWorkbenchServerMainPath,
   resolveReadinessTimeoutMs,
   type ShareUrls,
   wantsLanAccess,
@@ -164,10 +164,10 @@ async function ensureLocalDaemon(
     return supervisor.initMonitorOnly(existing);
   }
 
-  const orchestratorMain = resolveOrchestratorMainPath();
-  await access(orchestratorMain).catch(() => {
+  const serverMain = resolveWorkbenchServerMainPath();
+  await access(serverMain).catch(() => {
     throw new Error(
-      `Nerve orchestrator build was not found at ${orchestratorMain}. Run pnpm --filter @nervekit/workbench-server build first.`,
+      `Nerve workbench server build was not found at ${serverMain}. Run pnpm --filter @nervekit/workbench-server build first.`,
     );
   });
 
@@ -176,7 +176,7 @@ async function ensureLocalDaemon(
     owned: true,
     options,
     paths,
-    orchestratorMain,
+    serverMain,
     readinessTimeoutMs,
   });
   return supervisor.startOwned();
@@ -188,13 +188,13 @@ interface SupervisorConfig {
   options: EnsureDaemonOptions;
   readinessTimeoutMs: number;
   paths?: DaemonPaths;
-  orchestratorMain?: string;
+  serverMain?: string;
 }
 
 /**
  * Supervises the lifecycle of the connected daemon.
  *
- * For owned local daemons it spawns the orchestrator child, watches for crashes
+ * For owned local daemons it spawns the workbench server child, watches for crashes
  * and unhealthy states, and restarts with exponential backoff. For existing
  * local daemons and remote daemons it only health-monitors and reports
  * `restarting`/`ready` transitions so the desktop window overlay and tray stay
@@ -225,7 +225,7 @@ class DaemonSupervisor {
 
   constructor(private readonly config: SupervisorConfig) {}
 
-  /** Spawn the owned orchestrator child, wait until healthy, then monitor. */
+  /** Spawn the owned workbench server child, wait until healthy, then monitor. */
   async startOwned(): Promise<ManagedDaemon> {
     const healthy = await this.spawnAndWait();
     this.applyHealthy(healthy);
@@ -335,18 +335,18 @@ class DaemonSupervisor {
   }
 
   private async spawnAndWait(): Promise<HealthyDaemon> {
-    const { paths, orchestratorMain, options, readinessTimeoutMs } =
+    const { paths, serverMain, options, readinessTimeoutMs } =
       this.requireOwnedConfig();
     const output = new OutputBuffer();
     this.childOutput = output;
     void desktopLog("info", "daemon", "Starting owned local daemon", {
       context: {
-        orchestratorMain,
+        serverMain,
         dataDir: paths.home,
         readinessTimeoutMs,
       },
     });
-    const child = spawn(process.execPath, [orchestratorMain], {
+    const child = spawn(process.execPath, [serverMain], {
       env: buildOrchestratorEnv(options),
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
@@ -382,7 +382,7 @@ class DaemonSupervisor {
           {
             error: spawnError,
             output,
-            context: { orchestratorMain, readinessTimeoutMs },
+            context: { serverMain, readinessTimeoutMs },
           },
         );
         throw daemonStartupError(
@@ -399,7 +399,7 @@ class DaemonSupervisor {
           {
             exit: childExit,
             output,
-            context: { orchestratorMain, readinessTimeoutMs },
+            context: { serverMain, readinessTimeoutMs },
           },
         );
         throw daemonStartupError(message, output, {
@@ -424,7 +424,7 @@ class DaemonSupervisor {
       `Nerve daemon did not become ready within ${readinessTimeoutMs}ms.`,
       {
         output,
-        context: { orchestratorMain, readinessTimeoutMs },
+        context: { serverMain, readinessTimeoutMs },
       },
     );
     const error = daemonStartupError(
@@ -621,18 +621,18 @@ class DaemonSupervisor {
 
   private requireOwnedConfig(): {
     paths: DaemonPaths;
-    orchestratorMain: string;
+    serverMain: string;
     options: EnsureDaemonOptions;
     readinessTimeoutMs: number;
   } {
-    if (!this.config.paths || !this.config.orchestratorMain) {
+    if (!this.config.paths || !this.config.serverMain) {
       throw new Error(
         "Owned daemon supervisor is missing spawn configuration.",
       );
     }
     return {
       paths: this.config.paths,
-      orchestratorMain: this.config.orchestratorMain,
+      serverMain: this.config.serverMain,
       options: this.config.options,
       readinessTimeoutMs: this.config.readinessTimeoutMs,
     };

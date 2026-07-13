@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SandboxOutboxRecord } from "@nervekit/contracts";
-import { chunkOutboxRecords } from "../src/protocol/session.js";
+import { chunkOutboxRecords } from "../src/protocol/sandbox-protocol-client.js";
 
 test("durable replay batches advance their predecessor", () => {
   const records = Array.from(

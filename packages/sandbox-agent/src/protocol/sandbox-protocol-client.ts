@@ -29,7 +29,7 @@ import type { SandboxDaemon } from "../daemon/sandbox-daemon.js";
 import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
 
-export type ProtocolSessionState =
+export type SandboxProtocolClientState =
   | "disconnected"
   | "connecting"
   | "connected"
@@ -68,8 +68,8 @@ export function sandboxDaemonCapabilities(config: SandboxConfigV1): string[] {
   return [...capabilities].sort();
 }
 
-export class ProtocolSession {
-  state: ProtocolSessionState = "disconnected";
+export class SandboxProtocolClient {
+  state: SandboxProtocolClientState = "disconnected";
   sessionId?: string;
   connectedAt?: string;
   disconnectedAt?: string;

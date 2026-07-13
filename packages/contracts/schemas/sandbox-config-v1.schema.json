@@ -8013,9 +8013,6 @@
         "allowWorkspaceSkills": {
           "type": "boolean"
         },
-        "legacyNervePaths": {
-          "type": "boolean"
-        },
         "maxSkillBytes": {
           "type": "integer",
           "exclusiveMinimum": 0,
