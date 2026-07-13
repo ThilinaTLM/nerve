@@ -277,7 +277,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
             onclick={() => void onFetch(selectedRepo)}
           >
             {#if fetching}
-              <Spinner />
+              <Spinner class="size-3" />
             {:else}
               <CloudDownload />
             {/if}
@@ -296,7 +296,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
               onclick={() => void onPull(selectedRepo)}
             >
               {#if pulling}
-                <Spinner />
+                <Spinner class="size-3" />
               {:else}
                 <ArrowDown />
               {/if}
@@ -317,7 +317,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
               onclick={() => void onPush(selectedRepo)}
             >
               {#if pushing}
-                <Spinner />
+                <Spinner class="size-3" />
               {:else}
                 <ArrowUp />
               {/if}
@@ -341,7 +341,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
             onclick={() => void onSync(selectedRepo)}
           >
             {#if syncing}
-              <Spinner />
+              <Spinner class="size-3" />
             {:else}
               <RefreshCw />
             {/if}
@@ -360,7 +360,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
               onclick={() => void onSwitchBaseAndPull(selectedRepo)}
             >
               {#if switchingBaseAndPulling}
-                <Spinner />
+                <Spinner class="size-3" />
               {:else}
                 <GitCompareArrows />
               {/if}
