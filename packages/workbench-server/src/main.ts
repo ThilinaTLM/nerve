@@ -303,6 +303,7 @@ async function main() {
     await state.logger
       .info("Daemon file removed", { durationMs: Date.now() - startedAt })
       .catch(() => undefined);
+    state.registry.shutdown();
     state.subscriptionUsage.stop();
     await state.storageCleanup.shutdown().catch(() => undefined);
     await Promise.all(

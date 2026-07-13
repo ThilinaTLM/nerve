@@ -7,6 +7,7 @@ import {
   runRealHostCompletionScenario,
   type RealHostRunScenarioFixture,
 } from "@nervekit/host-runtime/test-support";
+import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
 import type { EventEnvelope } from "@nervekit/contracts";
 import { createOrchestratorState } from "../src/app/orchestrator-state.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
@@ -17,6 +18,16 @@ describe("workbench real-host run parity", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-parity-"));
     const storage = await initializeStorage(root);
     const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    let registration = registerAgentScriptedProvider({
+      provider: "nerve-scripted-parity",
+      steps: [
+        { type: "assistantText", text: "Parity response. ".repeat(400) },
+        ...Array.from({ length: 5 }, () => ({
+          type: "assistantText" as const,
+          text: "Parity response.",
+        })),
+      ],
+    });
     const events: EventEnvelope[] = [];
     const unsubscribe = orchestrator.events.subscribe((event) =>
       events.push(event),
@@ -30,12 +41,18 @@ describe("workbench real-host run parity", () => {
       const agent = await orchestrator.registry.createAgent({
         projectId: project.id,
         conversationId: conversation.id,
-        model: { provider: "nerve-faux", modelId: "faux-fast" },
+        model: {
+          provider: "nerve-scripted-parity",
+          modelId: "scripted-fast",
+        },
       });
       const unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home);
       const fixture: RealHostRunScenarioFixture = {
-        start: async (prompt) => {
-          await orchestrator.registry.promptAgent(agent.id, { text: prompt });
+        start: async (prompt, images) => {
+          await orchestrator.registry.promptAgent(agent.id, {
+            text: prompt,
+            images,
+          });
           const started = [...events]
             .reverse()
             .find((event) => event.type === "run.started");
@@ -44,15 +61,17 @@ describe("workbench real-host run parity", () => {
           if (!runId) throw new Error("Workbench did not publish run.started");
           return runId;
         },
-        steer: async (_runId, text) => {
+        steer: async (_runId, text, images) => {
           await orchestrator.registry.promptAgent(agent.id, {
             text,
+            images,
             behavior: "steer",
           });
         },
-        followUp: async (_runId, text) => {
+        followUp: async (_runId, text, images) => {
           await orchestrator.registry.promptAgent(agent.id, {
             text,
+            images,
             behavior: "follow-up",
           });
         },
@@ -91,6 +110,13 @@ describe("workbench real-host run parity", () => {
               })),
           };
         },
+        prepareCancellation: async () => {
+          registration.unregister();
+          registration = registerAgentScriptedProvider({
+            provider: "nerve-scripted-parity",
+            steps: [{ type: "waitForAbort" }],
+          });
+        },
         durableEventTypes: async (runId) => {
           await waitFor(async () =>
             events.some(
@@ -113,7 +139,9 @@ describe("workbench real-host run parity", () => {
       assert.deepEqual(result.promptOrder, ["steer", "follow-up"]);
       assert.equal(result.cancellationStatus, "cancelled");
     } finally {
+      registration.unregister();
       unsubscribe();
+      orchestrator.registry.shutdown();
       orchestrator.index.close();
       await rm(root, {
         recursive: true,

@@ -9,7 +9,9 @@ import type {
 import {
   createNoopLogger,
   parseInlineCommandPrompt,
+  runFollowUpParamsSchema,
   runStartParamsSchema,
+  runSteerParamsSchema,
   summarizeSandboxStartupEvents,
 } from "@nervekit/contracts";
 import {
@@ -433,7 +435,11 @@ export class SandboxDaemon {
               "INVALID_RUN_STATE",
               "no active run for follow-up",
             );
-          const queued = await coordinator.followUp(active.run.runId, prompt);
+          const queued = await coordinator.followUp(
+            active.run.runId,
+            prompt,
+            parsed.images,
+          );
           run = { ...active.run };
           return {
             accepted: true,
@@ -450,6 +456,7 @@ export class SandboxDaemon {
           projectId: scope.projectId,
           scopeId: scope.scopeId,
           prompt,
+          images: parsed.images,
         });
         if (run.status === "failed" && run.failure) {
           throw new SandboxOperationError(
@@ -472,35 +479,33 @@ export class SandboxDaemon {
     });
     this.router.register("run.followUp", async (params) => {
       await this.requireReady();
-      const input = params as {
-        conversationId?: string;
-        agentId: string;
-        runId?: string;
-        text: string;
-      };
+      const input = runFollowUpParamsSchema.parse(params ?? {});
       if (!input.conversationId || !input.runId) {
         throw new SandboxOperationError(
           "VALIDATION_FAILED",
           "run.followUp requires conversationId and runId",
         );
       }
-      await this.requireCoordinator().followUp(input.runId, input.text);
+      await this.requireCoordinator().followUp(
+        input.runId,
+        input.text,
+        input.images,
+      );
       return { accepted: true, ...input, status: "running" as const };
     });
     this.router.register("run.steer", async (params) => {
       await this.requireReady();
-      const input = params as {
-        conversationId?: string;
-        agentId: string;
-        runId?: string;
-        text: string;
-      };
+      const input = runSteerParamsSchema.parse(params ?? {});
       if (!input.conversationId || !input.runId)
         throw new SandboxOperationError(
           "VALIDATION_FAILED",
           "run.steer requires conversationId and runId",
         );
-      await this.requireCoordinator().steer(input.runId, input.text);
+      await this.requireCoordinator().steer(
+        input.runId,
+        input.text,
+        input.images,
+      );
       const result = { accepted: true, ...input, status: "running" as const };
       return result;
     });

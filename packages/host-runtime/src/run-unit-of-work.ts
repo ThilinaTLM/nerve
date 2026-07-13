@@ -37,6 +37,11 @@ export interface RunUnitOfWorkPort {
   materialize(runId: string): Promise<void>;
 }
 
+export interface RunTransitionObserverPort {
+  /** Called only after the authoritative transition commit succeeds. */
+  committed(transition: RunTransitionRecord): Promise<void>;
+}
+
 export interface IdempotentRunEventPublisherPort {
   publish(intent: RunPublicEventIntent): Promise<{
     eventId: string;

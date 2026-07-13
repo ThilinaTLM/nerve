@@ -114,6 +114,11 @@ export class RuntimeRegistry {
     });
   }
 
+  shutdown(): void {
+    this.services.runCompletion.stop();
+    this.services.taskNotifications.stop();
+  }
+
   /** Current subscription usage snapshots (Anthropic / Codex). */
   async getSubscriptionUsage() {
     return this.subscriptionUsage.getSnapshots({ refresh: true });
@@ -132,6 +137,9 @@ export class RuntimeRegistry {
     await this.rebuildConversations();
     await this.services.runRuntime.delivery.flush();
     await this.services.runRuntime.coordinator.recover();
+    await this.services.runRuntime.statusProjector.rebuild(
+      await this.services.runRuntime.unitOfWork.list(),
+    );
     await this.services.runRuntime.delivery.flush();
     await this.services.taskNotifications.recoverPendingNotifications();
   }

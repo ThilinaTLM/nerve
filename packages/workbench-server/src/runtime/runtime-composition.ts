@@ -59,6 +59,7 @@ import {
 import { WorkbenchAgentExecutionAdapter } from "../domains/runs/workbench-agent-execution.js";
 import { WorkbenchRunService } from "../domains/runs/workbench-run.service.js";
 import { WorkbenchRunQuery } from "../domains/runs/workbench-run-query.js";
+import { WorkbenchRunCompletionService } from "../domains/runs/workbench-run-completion.service.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
@@ -100,6 +101,7 @@ export interface RuntimeServices {
   runRuntime: WorkbenchRunRuntime;
   runQuery: WorkbenchRunQuery;
   workbenchRun: WorkbenchRunService;
+  runCompletion: WorkbenchRunCompletionService;
   editors: ProjectEditorService;
   projectLifecycle: ProjectLifecycleService;
   conversationLifecycle: ConversationLifecycleService;
@@ -383,7 +385,15 @@ export function composeRuntime(
     messageMirror: services.messageMirror,
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
-    continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
+    startAutomaticRun: async (agent, prompt) => {
+      await services.runRuntime.coordinator.start({
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        projectId: agent.projectId,
+        scopeId: `${agent.conversationId}:${agent.id}`,
+        prompt,
+      });
+    },
     runChild: async ({ agent, prompt, signal }) => {
       const run = await services.runRuntime.coordinator.start({
         conversationId: agent.conversationId,
@@ -429,6 +439,19 @@ export function composeRuntime(
     harnessStorage: services.harnessStorage,
     execution: (references) =>
       new WorkbenchAgentExecutionAdapter(services.agentMechanics, references),
+    retryPolicy: {
+      get enabled() {
+        return storage.settings.retry.enabled;
+      },
+      get maxRetries() {
+        return storage.settings.retry.maxRetries;
+      },
+      get baseDelayMs() {
+        return storage.settings.retry.baseDelayMs;
+      },
+    },
+    setAgentStatus: (agent, status) =>
+      services.agentLifecycle.setAgentStatus(agent, status),
     logger: logger.child({ component: "run-coordinator" }),
   });
   services.runQuery = new WorkbenchRunQuery(
@@ -444,10 +467,19 @@ export function composeRuntime(
         services.agentMechanics.activeToolNamesFor(agent),
       getContextUsage: (conversationId) =>
         services.agentMechanics.getContextUsage(conversationId),
+      resetAutoContinuationCount: (conversationId) =>
+        services.agentMechanics.resetAutoContinuationCount(conversationId),
       runExplore: (parent, args, options) =>
         services.agentMechanics.runExplore(parent, args, options),
     },
   );
+  services.runCompletion = new WorkbenchRunCompletionService(
+    events,
+    (conversationId, agentId, runId) =>
+      services.agentMechanics.maybeAutoCompact(conversationId, agentId, runId),
+    logger.child({ component: "run-completion" }),
+  );
+  services.runCompletion.start();
   services.taskNotifications = new TaskNotificationService({
     tasks: services.tasks,
     events,

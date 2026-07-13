@@ -4,6 +4,7 @@ import {
   RunCoordinator,
   RunEventDeliveryService,
 } from "@nervekit/host-runtime";
+import type { AgentRecord } from "@nervekit/contracts";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
@@ -23,6 +24,7 @@ import { WorkbenchRunIntegrity } from "./run-integrity.js";
 import { WorkbenchLiveExecutions } from "./run-live-executions.js";
 import { WorkbenchRunReferences } from "./run-references.js";
 import { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
+import { WorkbenchRunStatusProjector } from "./workbench-run-status-projector.js";
 
 export interface WorkbenchRunRuntime {
   coordinator: RunCoordinator;
@@ -30,6 +32,7 @@ export interface WorkbenchRunRuntime {
   references: WorkbenchRunReferences;
   live: WorkbenchLiveExecutions;
   delivery: RunEventDeliveryService;
+  statusProjector: WorkbenchRunStatusProjector;
 }
 
 export function createWorkbenchRunRuntime(input: {
@@ -43,6 +46,15 @@ export function createWorkbenchRunRuntime(input: {
     | WorkbenchRunExecutionAdapter
     | ((references: WorkbenchRunReferences) => WorkbenchRunExecutionAdapter);
   logger?: ApplicationLogger;
+  retryPolicy: {
+    readonly enabled: boolean;
+    readonly maxRetries: number;
+    readonly baseDelayMs: number;
+  };
+  setAgentStatus(
+    agent: AgentRecord,
+    status: AgentRecord["status"],
+  ): Promise<void>;
 }): WorkbenchRunRuntime {
   const unitOfWork = new WorkbenchRunUnitOfWork(input.home);
   const integrity = new WorkbenchRunIntegrity();
@@ -69,6 +81,10 @@ export function createWorkbenchRunRuntime(input: {
       ? input.execution(references)
       : input.execution;
   const execution = new WorkbenchRunExecutionFactory(adapter, live);
+  const statusProjector = new WorkbenchRunStatusProjector(
+    input.state,
+    input.setAgentStatus,
+  );
   const coordinator = new RunCoordinator({
     sourceRole: "workbench_server",
     unitOfWork,
@@ -79,6 +95,8 @@ export function createWorkbenchRunRuntime(input: {
     ids: { next: () => randomUUID() },
     integrity,
     transient,
+    retryPolicy: input.retryPolicy,
+    transitionObserver: statusProjector,
     flushEvents: async () => {
       await delivery.flush();
       await transient.flush();
@@ -88,7 +106,14 @@ export function createWorkbenchRunRuntime(input: {
   cancellation.bindCancelRun((runId, reason) =>
     coordinator.cancel(runId, reason),
   );
-  return { coordinator, unitOfWork, references, live, delivery };
+  return {
+    coordinator,
+    unitOfWork,
+    references,
+    live,
+    delivery,
+    statusProjector,
+  };
 }
 
 function diagnostics(logger?: ApplicationLogger): DiagnosticPort {

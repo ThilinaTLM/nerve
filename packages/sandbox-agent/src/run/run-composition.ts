@@ -3,6 +3,7 @@ import {
   type DiagnosticPort,
   RunCoordinator,
   RunEventDeliveryService,
+  type RunRetryPolicyPort,
 } from "@nervekit/host-runtime";
 import type { StructuredLogger, SandboxConfigV1 } from "@nervekit/contracts";
 import { SandboxRunUnitOfWork } from "../agent/run-transition-store.js";
@@ -36,6 +37,7 @@ export interface SandboxRunRuntimeDeps {
   exploreRuntime?: ExploreRuntime;
   configStore?: AgentConfigStore;
   logger?: StructuredLogger;
+  retryPolicy?: RunRetryPolicyPort;
 }
 
 export interface SandboxRunRuntime {
@@ -95,6 +97,7 @@ export function createSandboxRunRuntime(
     clock: { now: () => new Date() },
     ids: { next: () => randomUUID() },
     integrity,
+    retryPolicy: deps.retryPolicy,
     flushEvents: async () => {
       await delivery.flush();
       await transient.flush();

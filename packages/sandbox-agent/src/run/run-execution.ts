@@ -5,6 +5,7 @@ import {
 } from "@nervekit/host-runtime/harness";
 import {
   toolNameSchema,
+  type PromptImage,
   type RunPromptRecord,
   type RunRecord,
   type ToolCallTranscriptRecord,
@@ -104,6 +105,7 @@ class SandboxRunExecution implements RunExecution {
     run: RunRecord;
     command: "start" | "continue";
     prompt?: string;
+    images?: PromptImage[];
     signal: AbortSignal;
   }): Promise<RunExecutionOutcome> {
     const log = (this.deps.logger ?? NOOP_LOGGER).child({
@@ -116,7 +118,7 @@ class SandboxRunExecution implements RunExecution {
       once: true,
     });
     if (input.command === "continue") {
-      await this.prepareResolvedPlanReview();
+      await this.prepareResolvedInteraction();
     }
     if (input.command === "start") {
       const prompt = input.prompt ?? "";
@@ -137,16 +139,27 @@ class SandboxRunExecution implements RunExecution {
         .catch((error) => log.warn("run projection failed", { err: error }));
     });
     try {
-      if (input.command === "continue") {
-        await harness.continue();
-      } else {
-        const prompt = await this.resolvePrompt(input.prompt ?? "");
-        await this.appendUserEntry(prompt);
-        await harness.prompt(prompt);
-      }
+      const assistant =
+        input.command === "continue"
+          ? await harness.continue()
+          : await (async () => {
+              const prompt = await this.resolvePrompt(input.prompt ?? "");
+              await this.appendUserEntry(prompt);
+              return harness.prompt(prompt, { images: input.images });
+            })();
       await this.projectionTail;
-      if (this.abort.signal.aborted) {
+      if (this.abort.signal.aborted || assistant.stopReason === "aborted") {
         return { status: "interrupted", message: "aborted" };
+      }
+      if (assistant.stopReason === "error") {
+        const failed = assistantFailure(assistant.errorMessage);
+        if (failed.retryable) {
+          await this.rewindRetryableAssistant();
+          await this.sink.checkpoint(
+            await this.checkpointCommand("before_provider_request"),
+          );
+        }
+        return { status: "failed", failure: failed };
       }
       await this.sink.checkpoint(
         await this.checkpointCommand("after_provider_response"),
@@ -169,37 +182,46 @@ class SandboxRunExecution implements RunExecution {
       if (this.abort.signal.aborted) {
         return { status: "interrupted", message: "aborted" };
       }
-      return { status: "failed", failure: normalizeFailure(error) };
+      const normalized = normalizeFailure(error);
+      if (normalized.retryable) {
+        await this.sink
+          .checkpoint(await this.checkpointCommand("before_provider_request"))
+          .catch(() => undefined);
+      }
+      return { status: "failed", failure: normalized };
     } finally {
       dispose();
       this.deps.live.delete(this.run.runId);
     }
   }
 
-  private async prepareResolvedPlanReview(): Promise<void> {
+  private async rewindRetryableAssistant(): Promise<void> {
+    const conversation =
+      await this.deps.harnessFactory.openOrCreateConversation(
+        this.run.conversationId,
+        this.run.agentId,
+      );
+    const leafId = await conversation.getLeafId();
+    const leaf = leafId ? await conversation.getEntry(leafId) : undefined;
+    if (
+      leaf?.type === "message" &&
+      leaf.message.role === "assistant" &&
+      leaf.parentId !== undefined
+    ) {
+      await conversation.moveTo(leaf.parentId);
+    }
+  }
+
+  private async prepareResolvedInteraction(): Promise<void> {
     const state = await this.deps.references.loadRun(this.run.runId);
     const interaction = [...(state?.interactions ?? [])]
       .reverse()
       .find(
-        (item) => item.kind === "plan_review" && item.status === "resolved",
+        (item) =>
+          item.status === "resolved" &&
+          (item.kind === "question" || item.kind === "plan_review"),
       );
-    if (!interaction || interaction.kind !== "plan_review") return;
-    const decision = String(interaction.resolution?.decision ?? "accept");
-    const feedback =
-      typeof interaction.resolution?.feedback === "string"
-        ? interaction.resolution.feedback
-        : undefined;
-    const resolvedPlanReview =
-      interaction.resolution?.planReview &&
-      typeof interaction.resolution.planReview === "object"
-        ? interaction.resolution.planReview
-        : interaction.planReview;
-    const content = [
-      `Plan review decision: ${decision}.`,
-      feedback ? `Feedback: ${feedback}` : undefined,
-    ]
-      .filter(Boolean)
-      .join(" ");
+    if (!interaction) return;
     const entryId = `entry_${sandboxSha256Digest(`${interaction.id}:${interaction.resolutionRequestId ?? "resolved"}`).slice(7, 23)}`;
     const conversation =
       await this.deps.harnessFactory.openOrCreateConversation(
@@ -207,6 +229,19 @@ class SandboxRunExecution implements RunExecution {
         interaction.agentId,
       );
     if (await conversation.getEntry(entryId)) return;
+    const resolution = interaction.resolution ?? {};
+    const plan = interaction.kind === "plan_review";
+    const decision = String(resolution.decision ?? "accept");
+    const feedback =
+      typeof resolution.feedback === "string" ? resolution.feedback : undefined;
+    const content = plan
+      ? [
+          `Plan review decision: ${decision}.`,
+          feedback ? `Feedback: ${feedback}` : undefined,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : String(resolution.text ?? resolution.answer ?? "");
     await this.deps.harnessFactory.appendConversationMessage(
       interaction.conversationId,
       interaction.agentId,
@@ -214,13 +249,19 @@ class SandboxRunExecution implements RunExecution {
       {
         role: "toolResult",
         toolCallId: interaction.toolCallId,
-        toolName: "plan_mode_present",
+        toolName: plan ? "plan_mode_present" : "ask_user",
         content: [{ type: "text", text: content }],
-        details: {
-          decision,
-          feedback,
-          planReview: resolvedPlanReview,
-        },
+        details: plan
+          ? {
+              decision,
+              feedback,
+              planReview:
+                resolution.planReview &&
+                typeof resolution.planReview === "object"
+                  ? resolution.planReview
+                  : interaction.planReview,
+            }
+          : resolution,
         isError: false,
         timestamp: Date.now(),
       },
@@ -335,7 +376,10 @@ class SandboxRunExecution implements RunExecution {
       this.pendingPrompts.push({ behavior: "steer", prompt });
       return;
     }
-    await this.harness?.steer(prompt.text, { id: prompt.id });
+    await this.harness?.steer(prompt.text, {
+      id: prompt.id,
+      images: prompt.images,
+    });
   }
 
   private async followUp(prompt: RunPromptRecord): Promise<void> {
@@ -343,17 +387,24 @@ class SandboxRunExecution implements RunExecution {
       this.pendingPrompts.push({ behavior: "follow-up", prompt });
       return;
     }
-    await this.harness?.followUp(prompt.text, { id: prompt.id });
+    await this.harness?.followUp(prompt.text, {
+      id: prompt.id,
+      images: prompt.images,
+    });
   }
 
   private async deliverPendingPrompts(): Promise<void> {
     this.harnessReady = true;
     for (const queued of this.pendingPrompts.splice(0)) {
       if (queued.behavior === "steer") {
-        await this.harness?.steer(queued.prompt.text, { id: queued.prompt.id });
+        await this.harness?.steer(queued.prompt.text, {
+          id: queued.prompt.id,
+          images: queued.prompt.images,
+        });
       } else {
         await this.harness?.followUp(queued.prompt.text, {
           id: queued.prompt.id,
+          images: queued.prompt.images,
         });
       }
     }
@@ -601,6 +652,27 @@ function toolRisk(toolName: string): ToolCallTranscriptRecord["risk"] {
   if (["write", "edit"].includes(toolName)) return "workspace_write";
   if (["explore", "task_start"].includes(toolName)) return "agent_spawn";
   return "read";
+}
+
+function assistantFailure(message?: string): {
+  code: string;
+  message: string;
+  retryable: boolean;
+} {
+  const error = message ?? "Provider request failed";
+  const permanent =
+    /NON_RETRYABLE|usage limit|insufficient_quota|out of budget|billing|context.?length|context.?window|maximum context|too many tokens/i.test(
+      error,
+    );
+  const transient =
+    /RETRYABLE|overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|network.?error|connection.?error|fetch failed|socket hang up|timed? out|timeout/i.test(
+      error,
+    );
+  return {
+    code: "MODEL_REQUEST_FAILED",
+    message: error.slice(0, 2_000),
+    retryable: !permanent && transient,
+  };
 }
 
 function normalizeFailure(error: unknown): {

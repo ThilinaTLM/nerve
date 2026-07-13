@@ -197,6 +197,7 @@ export function registerAgentScriptedProvider(options: {
         return fauxAssistantMessage("aborted");
       }
       return fauxAssistantMessage("", {
+        stopReason: "error",
         errorMessage: `${step.retryable === false ? "NON_RETRYABLE" : "RETRYABLE"}: ${step.message}`,
       });
     }),

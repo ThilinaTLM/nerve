@@ -110,7 +110,7 @@ export type QueuedPromptBehavior = Exclude<PromptBehavior, "reject-if-busy">;
 
 export const promptRequestSchema = z.object({
   text: z.string().min(1),
-  images: z.array(promptImageSchema).optional(),
+  images: z.array(promptImageSchema).max(16).optional(),
   behavior: promptBehaviorSchema.optional(),
 });
 export type PromptRequest = z.infer<typeof promptRequestSchema>;
@@ -139,7 +139,7 @@ export const queuedPromptRecordSchema = z.object({
   runId: z.string().startsWith("run_").optional(),
   behavior: z.enum(["steer", "follow-up"]),
   text: z.string().min(1),
-  images: z.array(promptImageSchema).optional(),
+  images: z.array(promptImageSchema).max(16).optional(),
   status: queuedPromptStatusSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

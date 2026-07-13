@@ -174,6 +174,10 @@ describe("sandbox plan-mode HIL", () => {
           name: "plan_mode_present",
           args: { file_path: outside },
         },
+        {
+          type: "assistantText",
+          text: "The plan could not be presented from that path.",
+        },
       ],
     });
     try {

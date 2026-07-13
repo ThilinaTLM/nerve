@@ -1,3 +1,4 @@
+import type { PromptImage } from "@nervekit/contracts";
 import type { RunHydratedState } from "../run-unit-of-work.js";
 
 export interface NormalizedHostRunSnapshot {
@@ -8,14 +9,15 @@ export interface NormalizedHostRunSnapshot {
 }
 
 export interface RealHostRunScenarioFixture {
-  start(prompt: string): Promise<string>;
-  steer(runId: string, text: string): Promise<void>;
-  followUp(runId: string, text: string): Promise<void>;
+  start(prompt: string, images?: PromptImage[]): Promise<string>;
+  steer(runId: string, text: string, images?: PromptImage[]): Promise<void>;
+  followUp(runId: string, text: string, images?: PromptImage[]): Promise<void>;
   cancel(runId: string): Promise<void>;
   waitForTerminal(runId: string): Promise<void>;
   load(runId: string): Promise<RunHydratedState | undefined>;
   snapshot(runId: string): Promise<NormalizedHostRunSnapshot>;
   durableEventTypes(runId: string): Promise<string[]>;
+  prepareCancellation?(): Promise<void>;
 }
 
 export interface RealHostRunScenarioResult {
@@ -34,13 +36,23 @@ export interface RealHostRunScenarioResult {
 export async function runRealHostCompletionScenario(
   fixture: RealHostRunScenarioFixture,
 ): Promise<RealHostRunScenarioResult> {
-  const runId = await fixture.start("Reply with a short parity greeting.");
-  await fixture.steer(runId, "Include the word steer.");
-  await fixture.followUp(runId, "Then include the word follow-up.");
+  const image: PromptImage = {
+    type: "image",
+    data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    mimeType: "image/png",
+  };
+  const runId = await fixture.start("Reply with a short parity greeting.", [
+    image,
+  ]);
+  await fixture.steer(runId, "Include the word steer.", [image]);
+  await fixture.followUp(runId, "Then include the word follow-up.", [image]);
   await fixture.waitForTerminal(runId);
   const state = await fixture.load(runId);
   invariant(state, `Run ${runId} was not durably stored`);
-  invariant(state.run.status === "completed", `Run ${runId} did not complete`);
+  invariant(
+    state.run.status === "completed",
+    `Run ${runId} did not complete: ${state.run.status} ${state.run.failure?.message ?? ""}`,
+  );
   const transitionKinds = state.transitions.map((item) => item.kind);
   invariant(transitionKinds.includes("started"), "Missing started transition");
   invariant(
@@ -56,6 +68,15 @@ export async function runRealHostCompletionScenario(
   invariant(
     prompts[0]?.behavior === "steer" && prompts[1]?.behavior === "follow-up",
     "Prompt ordinal order diverged",
+  );
+  invariant(
+    prompts.every(
+      (prompt) =>
+        prompt.images?.length === 1 &&
+        prompt.images[0]?.data === image.data &&
+        prompt.images[0]?.mimeType === image.mimeType,
+    ),
+    "Prompt images diverged",
   );
   const entries = state.transitions.flatMap((item) => item.entries);
   invariant(
@@ -75,6 +96,7 @@ export async function runRealHostCompletionScenario(
     snapshot.entries.some((entry) => entry.role === "assistant"),
     "Snapshot is missing the assistant entry",
   );
+  await fixture.prepareCancellation?.();
   const cancelledRunId = await fixture.start(
     "Keep running until this parity cancellation arrives.",
   );

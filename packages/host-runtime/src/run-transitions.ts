@@ -1,6 +1,7 @@
 import type {
   ConversationEntry,
   PlanReviewRecord,
+  PromptImage,
   RunCheckpointRecord,
   RunExecutionRecord,
   RunFailureRecord,
@@ -37,6 +38,7 @@ export interface StartRunCommand {
   agentId: string;
   projectId: string;
   prompt: string;
+  images?: PromptImage[];
   runId?: string;
   scopeId?: string;
 }

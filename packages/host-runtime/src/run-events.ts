@@ -41,10 +41,14 @@ export class RunEventFactory {
     type: string,
     occurredAt: string,
     data: Record<string, unknown>,
+    identity?: string,
   ): RunPublicEventIntent {
     validatePublicEvent(type, data, this.sourceRole);
+    const suffix = identity
+      ? `_${identity.replaceAll(/[^a-zA-Z0-9_-]/g, "_")}`
+      : "";
     return {
-      id: `evt_${run.runId.slice(4)}_${run.revision}_${type.replaceAll(".", "_")}`,
+      id: `evt_${run.runId.slice(4)}_${run.revision}_${type.replaceAll(".", "_")}${suffix}`,
       type,
       durability: "durable",
       occurredAt,
@@ -89,16 +93,20 @@ export class RunEventFactory {
     });
   }
 
-  retrying(run: RunRecord, now: string): RunPublicEventIntent {
+  retrying(
+    run: RunRecord,
+    now: string,
+    retry: { maxRetries: number; delayMs: number },
+  ): RunPublicEventIntent {
     return this.intent(run, "run.retrying", now, {
       conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
       runId: run.runId,
       attempt: run.attempt,
-      maxRetries: Math.max(run.attempt, 3),
-      delayMs: 0,
-      retryAt: now,
+      maxRetries: retry.maxRetries,
+      delayMs: retry.delayMs,
+      retryAt: new Date(Date.parse(now) + retry.delayMs).toISOString(),
       errorMessage: run.failure?.message,
     });
   }
@@ -111,6 +119,45 @@ export class RunEventFactory {
       runId: run.runId,
       queuedPrompt: prompt satisfies QueuedPromptRecord,
     });
+  }
+
+  dequeuedPrompt(
+    run: RunRecord,
+    prompt: RunPromptRecord,
+  ): RunPublicEventIntent {
+    return this.intent(
+      run,
+      "conversation.prompt.dequeued",
+      prompt.updatedAt,
+      {
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        projectId: run.projectId,
+        runId: run.runId,
+        queuedPrompt: prompt satisfies QueuedPromptRecord,
+        entryId: prompt.deliveredEntryId,
+      },
+      prompt.id,
+    );
+  }
+
+  cancelledPrompt(
+    run: RunRecord,
+    prompt: RunPromptRecord,
+  ): RunPublicEventIntent {
+    return this.intent(
+      run,
+      "conversation.prompt.cancelled",
+      prompt.updatedAt,
+      {
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        projectId: run.projectId,
+        runId: run.runId,
+        queuedPrompt: prompt satisfies QueuedPromptRecord,
+      },
+      prompt.id,
+    );
   }
 
   checkpointed(
@@ -172,17 +219,23 @@ export class RunEventFactory {
     run: RunRecord,
     toolCall: import("@nervekit/contracts").ToolCallTranscriptRecord,
   ): RunPublicEventIntent {
-    return this.intent(run, "toolCall.updated", toolCall.updatedAt, {
-      conversationId: run.conversationId,
-      agentId: run.agentId,
-      projectId: run.projectId,
-      runId: run.runId,
-      turnId: toolCall.turnId,
-      liveMessageId: toolCall.liveMessageId,
-      contentIndex: toolCall.contentIndex,
-      providerToolCallId: toolCall.providerToolCallId,
-      toolCall,
-    });
+    return this.intent(
+      run,
+      "toolCall.updated",
+      toolCall.updatedAt,
+      {
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        projectId: run.projectId,
+        runId: run.runId,
+        turnId: toolCall.turnId,
+        liveMessageId: toolCall.liveMessageId,
+        contentIndex: toolCall.contentIndex,
+        providerToolCallId: toolCall.providerToolCallId,
+        toolCall,
+      },
+      `${toolCall.id}_${toolCall.updatedAt}`,
+    );
   }
 
   cancelled(run: RunRecord, now: string): RunPublicEventIntent {

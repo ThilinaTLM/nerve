@@ -1,16 +1,11 @@
 import {
-  type AgentMessage,
   buildConversationContext,
   computeContextUsage,
   deriveAutoCompactionPolicy,
   getModelContextWindow,
   shouldAutoCompact,
 } from "@nervekit/host-runtime/harness";
-import type {
-  AgentRecord,
-  ContextUsage,
-  ConversationEntry,
-} from "@nervekit/contracts";
+import type { AgentRecord, ContextUsage } from "@nervekit/contracts";
 import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
 
 /** Max consecutive auto-continuations per conversation before stopping. */
@@ -24,7 +19,10 @@ export class AutoCompactionRunner {
   constructor(
     readonly deps: WorkbenchAgentMechanicsDeps,
     readonly autoContinuationCounts: Map<string, number>,
-    readonly continueAgent: (agentId: string) => Promise<void>,
+    readonly startAutomaticRun: (
+      agent: AgentRecord,
+      prompt: string,
+    ) => Promise<void>,
   ) {}
 
   /** Compute compaction-aware context-window usage for a conversation. */
@@ -117,42 +115,10 @@ export class AutoCompactionRunner {
     const count = this.autoContinuationCounts.get(agent.conversationId) ?? 0;
     if (count >= MAX_AUTO_CONTINUATIONS) return;
     this.autoContinuationCounts.set(agent.conversationId, count + 1);
-    const entry = await this.appendAutoContinueMessage(
-      agent,
-      AUTO_CONTINUE_MESSAGE,
-    );
-    await this.deps.events.publish("conversation.entry.appended", {
-      conversationId: entry.conversationId,
-      agentId: entry.agentId,
-      runId: entry.runId,
-      entry,
-    });
-    void this.continueAgent(agent.id).catch(() => undefined);
+    await this.startAutomaticRun(agent, AUTO_CONTINUE_MESSAGE);
   }
 
-  async appendAutoContinueMessage(
-    agent: AgentRecord,
-    text: string,
-  ): Promise<ConversationEntry> {
-    const message: AgentMessage = {
-      role: "user",
-      content: text,
-      timestamp: Date.now(),
-    };
-    const appended = await this.deps.harnessStorage.appendAgentMessage(
-      agent,
-      message,
-    );
-    return this.deps.appendEntry(
-      {
-        id: appended.id,
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        role: "user",
-        text,
-        createdAt: appended.timestamp,
-      },
-      { mirrorToHarness: false },
-    );
+  resetContinuationCount(conversationId: string): void {
+    this.autoContinuationCounts.delete(conversationId);
   }
 }

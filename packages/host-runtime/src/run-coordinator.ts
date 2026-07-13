@@ -1,5 +1,6 @@
 import type {
   PeerRole,
+  PromptImage,
   RunCheckpointRecord,
   RunFailureRecord,
   RunInteractionRecord,
@@ -10,6 +11,7 @@ import type { ClockPort, DiagnosticPort, IdPort } from "./index.js";
 import { assertCheckpoint, checkpointValid } from "./run-checkpoints.js";
 import {
   CANCELLATION_TARGETS,
+  cancelRunTarget,
   finishCancellation,
   requestCancellation,
 } from "./run-cancellation.js";
@@ -19,7 +21,20 @@ import {
   RunConflictError,
   type ResolveInteractionCommand,
 } from "./run-errors.js";
+import { KeyedSerialLock } from "./run-locks.js";
+import { RunPromptCoordinator } from "./run-prompts.js";
 import { decideRunRecovery } from "./run-recovery.js";
+import {
+  completeExecution,
+  completeResolvedInteraction as settleResolvedInteraction,
+} from "./run-settlement.js";
+import {
+  cancellableRetryDelay,
+  decideRunRetry,
+  DEFAULT_RUN_RETRY_POLICY,
+  isRetryAbort,
+  type RunRetryPolicyPort,
+} from "./run-retries.js";
 import {
   LiveExecutionRegistry,
   type RunCancellationPort,
@@ -33,6 +48,7 @@ import {
   buildTransition,
   checkpointRecord,
   type CheckpointCommand,
+  errorMessage,
   executionRecord,
   failure,
   interactionRecord,
@@ -47,6 +63,7 @@ import {
 import type {
   RunCheckpointReferencePort,
   RunHydratedState,
+  RunTransitionObserverPort,
   RunUnitOfWorkPort,
 } from "./run-unit-of-work.js";
 
@@ -62,15 +79,29 @@ export interface RunCoordinatorPorts {
   flushEvents(): Promise<void>;
   transient?: RunTransientEventPort;
   diagnostics?: DiagnosticPort;
+  retryPolicy?: RunRetryPolicyPort;
+  retryDelay?(delayMs: number, signal: AbortSignal): Promise<void>;
+  transitionObserver?: RunTransitionObserverPort;
 }
 
 export class RunCoordinator {
-  private readonly locks = new Map<string, Promise<void>>();
+  private readonly locks = new KeyedSerialLock();
   private readonly live = new LiveExecutionRegistry();
   private readonly events: RunEventFactory;
+  private readonly prompts: RunPromptCoordinator;
 
   constructor(private readonly ports: RunCoordinatorPorts) {
     this.events = new RunEventFactory(ports.sourceRole);
+    this.prompts = new RunPromptCoordinator({
+      ids: ports.ids,
+      events: this.events,
+      now: () => this.now(),
+      load: (runId) => this.require(runId),
+      live: (runId) => this.live.get(runId)?.execution,
+      exclusive: (key, action) => this.exclusive(key, action),
+      commit: (previous, run, kind, changes) =>
+        this.commit(previous, run, kind, changes),
+    });
   }
 
   async start(command: StartRunCommand): Promise<RunRecord> {
@@ -114,40 +145,32 @@ export class RunCoordinator {
         execution: executionRecord(running, "streaming", now),
         events: [this.events.started(running, now)],
       });
-      this.launch(running, execution, "start", command.prompt);
+      this.launch(running, execution, "start", command.prompt, command.images);
       return running;
     });
   }
 
-  async steer(runId: string, text: string): Promise<RunPromptRecord> {
-    return this.queuePrompt(runId, "steer", text);
+  async steer(
+    runId: string,
+    text: string,
+    images?: readonly PromptImage[],
+  ): Promise<RunPromptRecord> {
+    return this.prompts.queue(runId, "steer", text, images);
   }
 
-  async followUp(runId: string, text: string): Promise<RunPromptRecord> {
-    return this.queuePrompt(runId, "follow-up", text);
+  async followUp(
+    runId: string,
+    text: string,
+    images?: readonly PromptImage[],
+  ): Promise<RunPromptRecord> {
+    return this.prompts.queue(runId, "follow-up", text, images);
   }
 
   async cancelPrompt(
     runId: string,
     promptId: string,
   ): Promise<RunPromptRecord> {
-    return this.exclusive(`run:${runId}`, async () => {
-      const state = await this.require(runId);
-      const prompt = state.prompts.find((item) => item.id === promptId);
-      if (!prompt || !["queued", "accepted"].includes(prompt.status)) {
-        throw new InvalidRunStateError("Queued prompt was not found");
-      }
-      const now = this.now();
-      const cancelled: RunPromptRecord = {
-        ...prompt,
-        status: "cancelled",
-        updatedAt: now,
-      };
-      await this.commit(state, revise(state.run, {}, now), "prompt_cancelled", {
-        prompts: [cancelled],
-      });
-      return cancelled;
-    });
+    return this.prompts.cancel(runId, promptId);
   }
 
   async continue(runId: string): Promise<RunRecord> {
@@ -191,7 +214,12 @@ export class RunCoordinator {
       );
       await this.commit(state, next, "retrying", {
         execution: executionRecord(next, "starting", now),
-        events: [this.events.retrying(next, now)],
+        events: [
+          this.events.retrying(next, now, {
+            maxRetries: Math.max(1, next.attempt - 1),
+            delayMs: 0,
+          }),
+        ],
       });
       this.launch(next, execution, "continue");
       return next;
@@ -345,18 +373,42 @@ export class RunCoordinator {
     return resolved;
   }
 
+  async completeResolvedInteraction(
+    runId: string,
+    interactionId: string,
+    result: Readonly<Record<string, unknown>> = {},
+  ): Promise<RunRecord> {
+    return this.exclusive(`run:${runId}`, async () => {
+      const state = await this.require(runId);
+      const settled = settleResolvedInteraction(
+        state,
+        interactionId,
+        result,
+        this.now(),
+        this.events,
+      );
+      await this.commit(
+        state,
+        settled.run,
+        "resolved_interaction_completed",
+        settled.changes,
+      );
+      return settled.run;
+    });
+  }
+
   async cancel(runId: string, reason?: string): Promise<RunRecord> {
     const targets = CANCELLATION_TARGETS;
     const requested = await this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
       if (TERMINAL_STATUSES.has(state.run.status)) return state.run;
       const request = requestCancellation(state, this.now());
-      await this.commit(
-        state,
-        request.run,
-        "cancellation_requested",
-        request.changes,
-      );
+      await this.commit(state, request.run, "cancellation_requested", {
+        ...request.changes,
+        events: request.changes.prompts?.map((prompt) =>
+          this.events.cancelledPrompt(request.run, prompt),
+        ),
+      });
       return request.run;
     });
     if (TERMINAL_STATUSES.has(requested.status)) return requested;
@@ -364,7 +416,13 @@ export class RunCoordinator {
     const evidence: RunRecord["cancellationEvidence"] = [];
     for (const target of targets) {
       try {
-        const status = await this.cancelTarget(target, requested, reason);
+        const status = await cancelRunTarget(
+          target,
+          requested,
+          this.ports.cancellation,
+          this.live.get(runId)?.execution,
+          reason,
+        );
         evidence.push({ target, status, checkedAt: this.now() });
       } catch (error) {
         evidence.push({
@@ -474,34 +532,48 @@ export class RunCoordinator {
     execution: RunExecution,
     command: "start" | "continue",
     prompt?: string,
+    images?: PromptImage[],
   ): void {
     const abort = new AbortController();
     const promise = (async () => {
       try {
-        await this.drainPrompts(run.runId, execution);
+        await this.prompts.drain(run.runId, execution);
         const outcome = await execution.execute({
           run,
           command,
           prompt,
+          images,
           signal: abort.signal,
         });
         if (outcome.status === "completed") {
-          await this.complete(run.runId, outcome.result);
+          await this.complete(run.runId, run.executionId, outcome.result);
         } else if (outcome.status === "failed") {
-          await this.fail(run.runId, outcome.failure);
+          await this.fail(
+            run.runId,
+            run.executionId,
+            outcome.failure,
+            abort.signal,
+          );
         } else if (outcome.status === "interrupted") {
-          await this.fail(run.runId, {
-            code: "RUN_INTERRUPTED",
-            message: outcome.message,
-            retryable: true,
-          });
+          await this.fail(
+            run.runId,
+            run.executionId,
+            {
+              code: "RUN_INTERRUPTED",
+              message: outcome.message,
+              retryable: true,
+            },
+            abort.signal,
+          );
         }
       } catch (error) {
         if (!abort.signal.aborted) {
           try {
             await this.fail(
               run.runId,
+              run.executionId,
               failure("RUN_EXECUTION_FAILED", error, true),
+              abort.signal,
             );
           } catch (settlementError) {
             // A host can be torn down while an async execution is settling.
@@ -514,7 +586,7 @@ export class RunCoordinator {
           }
         }
       } finally {
-        this.live.delete(run.runId);
+        this.live.delete(run.runId, execution);
       }
     })();
     this.live.set(run.runId, { execution, abort, promise });
@@ -522,154 +594,141 @@ export class RunCoordinator {
 
   private async complete(
     runId: string,
+    executionId: string,
     result: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
-      if (TERMINAL_STATUSES.has(state.run.status)) return;
-      const now = this.now();
-      const next = revise(
-        state.run,
-        {
-          status: "completed",
-          recoverability: "not_needed",
-          result: { ...result },
-          terminalAt: now,
-        },
-        now,
+      const settled = completeExecution(
+        state,
+        executionId,
+        result,
+        this.now(),
+        this.events,
       );
-      await this.commit(state, next, "completed", {
-        execution: executionRecord(next, "completed", now),
-        events: [this.events.completed(next, now)],
-      });
+      if (settled) {
+        await this.commit(state, settled.run, "completed", settled.changes);
+      }
     });
   }
 
-  private async fail(runId: string, value: RunFailureRecord): Promise<void> {
-    await this.exclusive(`run:${runId}`, async () => {
+  private async fail(
+    runId: string,
+    executionId: string,
+    value: RunFailureRecord,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const retryRun = await this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
       if (
         TERMINAL_STATUSES.has(state.run.status) ||
-        state.run.status === "cancellation_requested"
-      )
-        return;
-      const isValid =
+        state.run.status === "cancellation_requested" ||
+        state.run.executionId !== executionId
+      ) {
+        return undefined;
+      }
+      const validCheckpoint =
         value.retryable &&
         (await checkpointValid(
           state,
           this.ports.references,
           this.ports.integrity,
         ));
+      const policy = this.ports.retryPolicy ?? DEFAULT_RUN_RETRY_POLICY;
+      const decision = decideRunRetry(state.run, policy);
       const now = this.now();
+      if (validCheckpoint && decision.retry) {
+        const retrying = revise(
+          state.run,
+          {
+            status: "retrying",
+            recoverability: "checkpoint",
+            attempt: decision.retryAttempt,
+            executionId: prefixed("exec", this.ports.ids.next()),
+            failure: value,
+            terminalAt: undefined,
+          },
+          now,
+        );
+        await this.commit(state, retrying, "retrying", {
+          execution: executionRecord(retrying, "starting", now),
+          events: [
+            this.events.retrying(retrying, now, {
+              maxRetries: decision.maxRetries,
+              delayMs: decision.delayMs,
+            }),
+          ],
+        });
+        return { run: retrying, delayMs: decision.delayMs };
+      }
       const next = revise(
         state.run,
         {
-          status: isValid ? "interrupted" : "failed",
-          recoverability: isValid
+          status: validCheckpoint ? "interrupted" : "failed",
+          recoverability: validCheckpoint
             ? "checkpoint"
             : value.retryable
               ? "retryable"
               : "none",
           failure: value,
-          terminalAt: isValid ? undefined : now,
+          terminalAt: validCheckpoint ? undefined : now,
         },
         now,
       );
-      await this.commit(state, next, isValid ? "interrupted" : "failed", {
-        execution: executionRecord(next, "failed", now),
-        events: [this.events.failed(next, now, isValid)],
-      });
+      await this.commit(
+        state,
+        next,
+        validCheckpoint ? "retry_exhausted" : "failed",
+        {
+          execution: executionRecord(next, "failed", now),
+          events: [this.events.failed(next, now, validCheckpoint)],
+        },
+      );
+      return undefined;
     });
-  }
-
-  private async queuePrompt(
-    runId: string,
-    behavior: "steer" | "follow-up",
-    text: string,
-  ): Promise<RunPromptRecord> {
-    const prompt = await this.exclusive(`run:${runId}`, async () => {
-      const state = await this.require(runId);
-      if (!ACTIVE_STATUSES.has(state.run.status)) {
-        throw invalid(state.run, behavior);
-      }
-      const now = this.now();
-      const record: RunPromptRecord = {
-        id: prefixed("promptq", this.ports.ids.next()),
-        agentId: state.run.agentId,
-        conversationId: state.run.conversationId,
-        projectId: state.run.projectId,
-        runId,
-        behavior,
-        text,
-        status: "queued",
-        ordinal: state.prompts.length,
-        deliveryAttempts: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
-      const next = revise(state.run, {}, now);
-      await this.commit(state, next, "prompt_queued", {
-        prompts: [record],
-        events: [this.events.queuedPrompt(next, record)],
-      });
-      return record;
-    });
-    const execution = this.live.get(runId)?.execution;
-    if (execution) await this.drainPrompts(runId, execution);
-    return prompt;
-  }
-
-  private async drainPrompts(
-    runId: string,
-    execution: RunExecution,
-  ): Promise<void> {
-    const initial = await this.require(runId);
-    for (const prompt of initial.prompts.filter(
-      (item) => item.status === "queued",
-    )) {
-      try {
-        if (prompt.behavior === "steer") await execution.control.steer(prompt);
-        else await execution.control.followUp(prompt);
-        await this.exclusive(`run:${runId}`, async () => {
-          const current = await this.require(runId);
-          const now = this.now();
-          const delivered: RunPromptRecord = {
-            ...prompt,
-            status: "delivered",
-            deliveryAttempts: prompt.deliveryAttempts + 1,
-            updatedAt: now,
-          };
-          await this.commit(
-            current,
-            revise(current.run, {}, now),
-            "prompt_delivered",
-            { prompts: [delivered] },
-          );
-        });
-      } catch (error) {
-        await this.exclusive(`run:${runId}`, async () => {
-          const current = await this.require(runId);
-          const now = this.now();
-          await this.commit(
-            current,
-            revise(current.run, {}, now),
-            "prompt_failed",
-            {
-              prompts: [
-                {
-                  ...prompt,
-                  status: "failed",
-                  error: errorMessage(error).slice(0, 1_000),
-                  deliveryAttempts: prompt.deliveryAttempts + 1,
-                  updatedAt: now,
-                },
-              ],
-            },
-          );
-        });
-        throw error;
-      }
+    if (!retryRun) return;
+    try {
+      await (this.ports.retryDelay ?? cancellableRetryDelay)(
+        retryRun.delayMs,
+        signal,
+      );
+    } catch (error) {
+      if (signal.aborted || isRetryAbort(error)) return;
+      throw error;
     }
+    const current = await this.require(runId);
+    if (
+      current.run.status !== "retrying" ||
+      current.run.executionId !== retryRun.run.executionId
+    ) {
+      return;
+    }
+    let execution: RunExecution;
+    try {
+      execution = await this.ports.execution.create(
+        retryRun.run,
+        this.sink(runId),
+      );
+    } catch (error) {
+      await this.fail(
+        runId,
+        retryRun.run.executionId,
+        failure("RUN_CONSTRUCTION_FAILED", error, true),
+        signal,
+      );
+      return;
+    }
+    const launchable = await this.require(runId);
+    if (
+      launchable.run.status !== "retrying" ||
+      launchable.run.executionId !== retryRun.run.executionId
+    ) {
+      await execution.control
+        .cancel("retry was superseded")
+        .catch(() => undefined);
+      return;
+    }
+    this.launch(retryRun.run, execution, "continue");
   }
 
   private async commit(
@@ -688,6 +747,15 @@ export class RunCoordinator {
       this.ports.integrity,
     );
     await this.ports.unitOfWork.commit(expectedRevision, transition);
+    try {
+      await this.ports.transitionObserver?.committed(transition);
+    } catch (error) {
+      this.ports.diagnostics?.error("run transition observer failed", {
+        runId: run.runId,
+        revision: transition.revision,
+        error: errorMessage(error),
+      });
+    }
     try {
       await this.ports.unitOfWork.materialize(run.runId);
     } catch (error) {
@@ -708,24 +776,6 @@ export class RunCoordinator {
     }
   }
 
-  private async cancelTarget(
-    target: RunRecord["cancellationEvidence"][number]["target"],
-    run: RunRecord,
-    reason?: string,
-  ): Promise<"confirmed" | "not_running"> {
-    if (target === "model") {
-      const live = this.live.get(run.runId);
-      if (live) await live.execution.control.cancel(reason);
-      return this.ports.cancellation.cancelModel(run);
-    }
-    if (target === "tool") return this.ports.cancellation.cancelTools(run);
-    if (target === "task") return this.ports.cancellation.cancelTasks(run);
-    if (target === "subagent") {
-      return this.ports.cancellation.cancelSubagents(run);
-    }
-    return this.ports.cancellation.cancelInteraction(run);
-  }
-
   private async require(runId: string): Promise<RunHydratedState> {
     const state = await this.ports.unitOfWork.load(runId);
     if (!state) throw new InvalidRunStateError(`Unknown run: ${runId}`);
@@ -736,24 +786,8 @@ export class RunCoordinator {
     return this.ports.clock.now().toISOString();
   }
 
-  private async exclusive<T>(
-    key: string,
-    action: () => Promise<T>,
-  ): Promise<T> {
-    const previous = this.locks.get(key) ?? Promise.resolve();
-    let release!: () => void;
-    const current = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const tail = previous.then(() => current);
-    this.locks.set(key, tail);
-    await previous;
-    try {
-      return await action();
-    } finally {
-      release();
-      if (this.locks.get(key) === tail) this.locks.delete(key);
-    }
+  private exclusive<T>(key: string, action: () => Promise<T>): Promise<T> {
+    return this.locks.exclusive(key, action);
   }
 }
 
@@ -761,8 +795,4 @@ function invalid(run: RunRecord, command: string): InvalidRunStateError {
   return new InvalidRunStateError(
     `Cannot ${command} run ${run.runId} while ${run.status}`,
   );
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

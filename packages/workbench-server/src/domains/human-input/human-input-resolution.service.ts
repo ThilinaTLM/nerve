@@ -126,12 +126,6 @@ export class HumanInputResolutionService {
         implementation?.implementationThinkingLevel ??
         sourceAgent.thinkingLevel,
     });
-    const instructionEntry = await this.appendUserInstructionForAgent(
-      agent.id,
-      acceptedPlanInNewChatInstruction(pendingReview.planPath),
-    );
-    await this.publishConversationEntryAppended(instructionEntry);
-
     let review: PlanReviewRecord;
     try {
       review = await this.deps.plans.acceptPlanReviewInNewChat(
@@ -150,10 +144,13 @@ export class HumanInputResolutionService {
       this.deps.plans.planReviewResult(review),
       {
         continueAgent: false,
+        completeRun: true,
         finalSuspensionStatus: "cancelled",
       },
     );
-    await this.deps.continueAgent(agent.id);
+    await this.deps.runs.promptAgent(agent.id, {
+      text: acceptedPlanInNewChatInstruction(pendingReview.planPath),
+    });
     return { planReview: review, conversation, agent };
   }
 
@@ -172,6 +169,7 @@ export class HumanInputResolutionService {
         this.deps.plans.planReviewResult(review),
         {
           continueAgent: false,
+          completeRun: true,
           finalSuspensionStatus: "cancelled",
         },
       );
@@ -417,6 +415,7 @@ export class HumanInputResolutionService {
     result: unknown,
     options: {
       continueAgent: boolean;
+      completeRun?: boolean;
       followUpUserMessage?: string;
       finalSuspensionStatus: "resumed" | "cancelled";
     },
@@ -458,6 +457,7 @@ export class HumanInputResolutionService {
       entries,
       toolCalls: [toToolCallTranscriptRecord(completed)],
       continueRun: options.continueAgent,
+      completeRun: options.completeRun,
     });
   }
 

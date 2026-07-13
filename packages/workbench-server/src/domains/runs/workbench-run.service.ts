@@ -16,6 +16,7 @@ import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 export interface WorkbenchRunFeatureMechanics {
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
   getContextUsage(conversationId: string): Promise<ContextUsage>;
+  resetAutoContinuationCount(conversationId: string): void;
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
@@ -83,18 +84,28 @@ export class WorkbenchRunService {
         throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
       }
       if (behavior === "follow-up") {
-        await this.coordinator.followUp(active.run.runId, request.text);
+        await this.coordinator.followUp(
+          active.run.runId,
+          request.text,
+          request.images,
+        );
       } else {
-        await this.coordinator.steer(active.run.runId, request.text);
+        await this.coordinator.steer(
+          active.run.runId,
+          request.text,
+          request.images,
+        );
       }
       return;
     }
+    this.features.resetAutoContinuationCount(agent.conversationId);
     await this.coordinator.start({
       conversationId: agent.conversationId,
       agentId: agent.id,
       projectId: agent.projectId,
       scopeId,
       prompt: request.text,
+      images: request.images,
     });
   }
 
@@ -143,6 +154,7 @@ export class WorkbenchRunService {
     entries?: readonly ConversationEntry[];
     toolCalls?: readonly ToolCallTranscriptRecord[];
     continueRun: boolean;
+    completeRun?: boolean;
   }): Promise<void> {
     const states = await this.unitOfWork.list();
     const state = states.find((candidate) =>
@@ -171,7 +183,12 @@ export class WorkbenchRunService {
       resolutionRequestId: input.resolutionRequestId,
       resolution: input.resolution,
     });
-    if (input.continueRun) {
+    if (input.completeRun) {
+      await this.coordinator.completeResolvedInteraction(
+        state.run.runId,
+        interaction.id,
+      );
+    } else if (input.continueRun) {
       await this.coordinator.continue(state.run.runId);
     }
   }

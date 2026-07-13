@@ -1,5 +1,6 @@
 import type {
   ConversationEntry,
+  PromptImage,
   RunCheckpointRecord,
   RunFailureRecord,
   RunInteractionRecord,
@@ -51,6 +52,7 @@ export interface RunExecution {
     run: RunRecord;
     command: "start" | "continue";
     prompt?: string;
+    images?: PromptImage[];
     signal: AbortSignal;
   }): Promise<RunExecutionOutcome>;
 }
@@ -98,7 +100,9 @@ export class LiveExecutionRegistry {
     return this.executions.get(runId);
   }
 
-  delete(runId: string): void {
+  delete(runId: string, execution?: RunExecution): void {
+    if (execution && this.executions.get(runId)?.execution !== execution)
+      return;
     this.executions.delete(runId);
   }
 }

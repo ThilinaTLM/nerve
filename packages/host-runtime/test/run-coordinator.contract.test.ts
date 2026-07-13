@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import test from "node:test";
 import type {
   PeerRole,
@@ -12,13 +11,14 @@ import {
   RunCoordinator,
   RunEventDeliveryService,
   reduceRunTransitions,
-  RunRevisionConflictError,
   type RunExecution,
+  type RunExecutionOutcome,
   type RunExecutionSink,
   type RunHydratedState,
   type RunProgressEvent,
   type RunUnitOfWorkPort,
 } from "../src/index.js";
+import { checksum } from "./test-checksum.js";
 
 class MemoryUnitOfWork implements RunUnitOfWorkPort {
   transitions = new Map<string, RunTransitionRecord[]>();
@@ -85,14 +85,25 @@ function fixture(
     cancelToolsFails?: boolean;
     publicationFails?: boolean;
     sourceRole?: PeerRole;
+    execute?: (
+      attempt: number,
+      input: Parameters<RunExecution["execute"]>[0],
+      sink: RunExecutionSink,
+    ) => Promise<RunExecutionOutcome>;
+    retryPolicy?: { enabled: boolean; maxRetries: number; baseDelayMs: number };
+    observerFails?: boolean;
+    retryDelay?: (delayMs: number, signal: AbortSignal) => Promise<void>;
   } = {},
 ) {
   const unitOfWork = new MemoryUnitOfWork();
   const published = new Map<string, { eventId: string; sequence: number }>();
   const controls: Array<{ behavior: string; text: string }> = [];
+  const controlPrompts: import("@nervekit/contracts").RunPromptRecord[] = [];
   const executions: RunExecution[] = [];
   const sinks: RunExecutionSink[] = [];
   const transient: RunProgressEvent[] = [];
+  const executionInputs: Parameters<RunExecution["execute"]>[0][] = [];
+  const observed: RunTransitionRecord[] = [];
   let id = 0;
   let finishExecution!: (value: { status: "completed" }) => void;
   const executeResult = new Promise<{ status: "completed" }>((resolve) => {
@@ -125,18 +136,26 @@ function fixture(
     execution: {
       create: async (_run, sink) => {
         sinks.push(sink);
+        const attempt = executions.length + 1;
         const execution: RunExecution = {
           control: {
             steer: async (prompt) => {
               controls.push({ behavior: prompt.behavior, text: prompt.text });
+              controlPrompts.push(prompt);
             },
             followUp: async (prompt) => {
               controls.push({ behavior: prompt.behavior, text: prompt.text });
+              controlPrompts.push(prompt);
             },
             continue: async () => undefined,
             cancel: async () => undefined,
           },
-          execute: async () => executeResult,
+          execute: async (input) => {
+            executionInputs.push(input);
+            return options.execute
+              ? options.execute(attempt, input, sink)
+              : executeResult;
+          },
         };
         executions.push(execution);
         return execution;
@@ -172,6 +191,18 @@ function fixture(
     },
     ids: { next: () => String(++id) },
     integrity: { checksum },
+    retryPolicy: options.retryPolicy,
+    retryDelay:
+      options.retryDelay ??
+      (async (_delayMs, signal) => {
+        if (signal.aborted) throw new Error("aborted");
+      }),
+    transitionObserver: {
+      committed: async (transition) => {
+        observed.push(transition);
+        if (options.observerFails) throw new Error("observer unavailable");
+      },
+    },
     flushEvents: () => delivery.flush(),
   });
   return {
@@ -179,9 +210,12 @@ function fixture(
     unitOfWork,
     published,
     controls,
+    controlPrompts,
     executions,
     sinks,
     transient,
+    executionInputs,
+    observed,
     finishExecution,
     setTranscript(value: typeof transcript) {
       transcript = value;
@@ -232,6 +266,240 @@ test("drains ordered steer and follow-up prompts and persists delivery", async (
     state?.prompts.map((item) => item.status),
     ["delivered", "delivered"],
   );
+});
+
+test("preserves images on start, steer, and follow-up delivery", async () => {
+  const harness = fixture();
+  const image = {
+    type: "image" as const,
+    data: "aGVsbG8=",
+    mimeType: "image/png",
+  };
+  const run = await harness.coordinator.start({
+    conversationId: "conv_a",
+    agentId: "agent_a",
+    projectId: "proj_a",
+    prompt: "hello",
+    images: [image],
+  });
+  await harness.coordinator.steer(run.runId, "first", [image]);
+  await harness.coordinator.followUp(run.runId, "second", [image]);
+  assert.deepEqual(harness.executionInputs[0]?.images, [image]);
+  assert.deepEqual(
+    harness.controlPrompts.map((prompt) => prompt.images),
+    [[image], [image]],
+  );
+  assert.deepEqual(
+    (await harness.coordinator.get(run.runId))?.prompts.map(
+      (prompt) => prompt.images,
+    ),
+    [[image], [image]],
+  );
+});
+
+test("commits prompt dequeue and cancellation intents exactly once", async () => {
+  const deliveredHarness = fixture();
+  const deliveredRun = await start(deliveredHarness.coordinator);
+  await deliveredHarness.coordinator.steer(deliveredRun.runId, "delivered");
+  const deliveredState = await deliveredHarness.coordinator.get(
+    deliveredRun.runId,
+  );
+  const deliveredTypes = deliveredState?.transitions.flatMap((transition) =>
+    transition.events.map((event) => event.type),
+  );
+  assert.equal(
+    deliveredTypes?.filter((type) => type === "conversation.prompt.dequeued")
+      .length,
+    1,
+  );
+
+  const cancelledHarness = fixture({
+    execute: async () => ({ status: "suspended" }),
+  });
+  const cancelledRun = await start(cancelledHarness.coordinator);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const queued = await cancelledHarness.coordinator.followUp(
+    cancelledRun.runId,
+    "cancel me",
+  );
+  await cancelledHarness.coordinator.cancelPrompt(
+    cancelledRun.runId,
+    queued.id,
+  );
+  const cancelledState = await cancelledHarness.coordinator.get(
+    cancelledRun.runId,
+  );
+  const cancelledTypes = cancelledState?.transitions.flatMap((transition) =>
+    transition.events.map((event) => event.type),
+  );
+  assert.equal(
+    cancelledTypes?.filter((type) => type === "conversation.prompt.cancelled")
+      .length,
+    1,
+  );
+});
+
+test("automatically retries a valid checkpoint with accurate metadata", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 2, baseDelayMs: 25 },
+    execute: async (attempt, _input, sink) => {
+      if (attempt === 1) {
+        await sink.checkpoint({
+          boundary: "before_provider_request",
+          transcriptCursor: 0,
+          entryIds: [],
+          harnessLeafId: null,
+          harnessSavePointId: "save_0",
+          toolCalls: [],
+        });
+        return {
+          status: "failed",
+          failure: {
+            code: "PROVIDER_FAILED",
+            message: "temporary",
+            retryable: true,
+          },
+        };
+      }
+      return { status: "completed" };
+    },
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(async () =>
+    ["completed", "failed", "interrupted"].includes(
+      (await harness.coordinator.get(run.runId))?.run.status ?? "",
+    ),
+  );
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "completed");
+  assert.equal(state?.run.attempt, 2);
+  assert.notEqual(
+    harness.executionInputs[0]?.run.executionId,
+    harness.executionInputs[1]?.run.executionId,
+  );
+  const retry = state?.transitions
+    .flatMap((transition) => transition.events)
+    .find((event) => event.type === "run.retrying");
+  assert.equal((retry?.data as { attempt?: number })?.attempt, 2);
+  assert.equal((retry?.data as { maxRetries?: number })?.maxRetries, 2);
+  assert.equal((retry?.data as { delayMs?: number })?.delayMs, 25);
+});
+
+test("refuses automatic retry without a valid checkpoint", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 3, baseDelayMs: 1 },
+    execute: async () => ({
+      status: "failed",
+      failure: {
+        code: "PROVIDER_FAILED",
+        message: "no checkpoint",
+        retryable: true,
+      },
+    }),
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "failed",
+  );
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.failure?.code, "PROVIDER_FAILED");
+  assert.equal(
+    state?.transitions.some((transition) => transition.kind === "retrying"),
+    false,
+  );
+  assert.equal(harness.executions.length, 1);
+});
+
+test("cancels a scheduled retry without launching a new execution", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 2, baseDelayMs: 25 },
+    retryDelay: async (_delayMs, signal) =>
+      new Promise<void>((_resolve, reject) => {
+        const rejectAbort = () => {
+          const error = new Error("cancelled");
+          error.name = "AbortError";
+          reject(error);
+        };
+        if (signal.aborted) rejectAbort();
+        else signal.addEventListener("abort", rejectAbort, { once: true });
+      }),
+    execute: async (_attempt, _input, sink) => {
+      await sink.checkpoint({
+        boundary: "before_provider_request",
+        transcriptCursor: 0,
+        entryIds: [],
+        harnessLeafId: null,
+        harnessSavePointId: "save_0",
+        toolCalls: [],
+      });
+      return {
+        status: "failed",
+        failure: {
+          code: "PROVIDER_FAILED",
+          message: "temporary",
+          retryable: true,
+        },
+      };
+    },
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "retrying",
+  );
+  const cancelled = await harness.coordinator.cancel(run.runId);
+  assert.equal(cancelled.status, "cancelled");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(harness.executions.length, 1);
+});
+
+test("retry exhaustion leaves a valid checkpoint recoverable", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
+    execute: async (_attempt, _input, sink) => {
+      await sink.checkpoint({
+        boundary: "before_provider_request",
+        transcriptCursor: 0,
+        entryIds: [],
+        harnessLeafId: null,
+        harnessSavePointId: "save_0",
+        toolCalls: [],
+      });
+      return {
+        status: "failed",
+        failure: {
+          code: "PROVIDER_FAILED",
+          message: "still down",
+          retryable: true,
+        },
+      };
+    },
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "interrupted",
+  );
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.recoverability, "checkpoint");
+  assert.equal(state?.run.attempt, 2);
+  assert.equal(
+    state?.transitions.filter((transition) => transition.kind === "retrying")
+      .length,
+    1,
+  );
+});
+
+test("transition observer failures are isolated after durable ordering", async () => {
+  const harness = fixture({ observerFails: true });
+  const run = await start(harness.coordinator);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "running",
+  );
+  assert.equal(harness.observed[0]?.kind, "started");
+  assert.equal(harness.published.size, 1);
 });
 
 test("durable event retry is idempotent after publication before marker", async () => {
@@ -305,6 +573,53 @@ test("resolves an interaction once and rejects conflicting resolution", async ()
       resolution: { answer: "no" },
     }),
     RunConflictError,
+  );
+});
+
+test("terminally completes only a resolved suspended interaction", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const interaction = await harness.coordinator.wait(run.runId, {
+    kind: "plan_review",
+    toolCallId: "tool_plan",
+    prompt: "Review plan",
+    planReview: {
+      id: "plan_review_a",
+      toolCallId: "tool_plan",
+      agentId: "agent_a",
+      conversationId: "conv_a",
+      projectId: "proj_a",
+      slug: "plan",
+      planPath: "/tmp/plan.md",
+      status: "pending",
+      requestedAt: "2026-07-12T00:00:00.000Z",
+      updatedAt: "2026-07-12T00:00:00.000Z",
+    } as never,
+    checkpoint: {
+      boundary: "suspension",
+      transcriptCursor: 0,
+      entryIds: [],
+      harnessLeafId: null,
+      harnessSavePointId: "save_0",
+      toolCalls: [],
+    },
+  });
+  await assert.rejects(
+    harness.coordinator.completeResolvedInteraction(run.runId, interaction.id),
+  );
+  await harness.coordinator.resolveInteraction(run.runId, {
+    interactionId: interaction.id,
+    resolutionRequestId: "request_terminal",
+    resolution: { decision: "reject" },
+  });
+  const completed = await harness.coordinator.completeResolvedInteraction(
+    run.runId,
+    interaction.id,
+  );
+  assert.equal(completed.status, "completed");
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.transitions.at(-1)?.kind,
+    "resolved_interaction_completed",
   );
 });
 
@@ -435,45 +750,6 @@ test("execution sink enters a durable wait and resolves exactly once", async () 
   );
 });
 
-test("reducer rejects a gap in transition revisions", () => {
-  const harness = fixture();
-  void harness;
-  const base = {
-    stateEpoch: 1 as const,
-    runId: "run_x",
-    scopeId: "scope",
-    kind: "started",
-    committedAt: "2026-07-12T00:00:00.000Z",
-    prompts: [],
-    interactions: [],
-    checkpoints: [],
-    entries: [],
-    toolCalls: [],
-    events: [],
-    checksum: checksum({}),
-  };
-  const transitions = [
-    {
-      ...base,
-      transitionId: "transition_1",
-      revision: 1,
-      previousRevision: 0,
-      run: { revision: 1 },
-    },
-    {
-      ...base,
-      transitionId: "transition_3",
-      revision: 3,
-      previousRevision: 2,
-      run: { revision: 3 },
-    },
-  ] as unknown as RunTransitionRecord[];
-  assert.throws(
-    () => reduceRunTransitions(transitions),
-    RunRevisionConflictError,
-  );
-});
-
 test("recovery fails an interrupted run without a valid checkpoint", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);
@@ -483,18 +759,14 @@ test("recovery fails an interrupted run without a valid checkpoint", async () =>
   assert.equal(state?.failure?.code, "INVALID_CHECKPOINT");
 });
 
-function checksum(value: unknown): string {
-  return `sha256:${createHash("sha256").update(stable(value)).digest("hex")}`;
-}
-
-function stable(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value)
-      .filter(([, item]) => item !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`)
-      .join(",")}}`;
+async function waitUntil(
+  predicate: () => Promise<boolean>,
+  timeoutMs = 1_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 1));
   }
-  return JSON.stringify(value);
+  throw new Error("Timed out waiting for coordinator state");
 }

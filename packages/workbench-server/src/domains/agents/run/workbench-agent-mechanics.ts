@@ -42,10 +42,6 @@ import type {
 } from "../../tools/tool-service.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
-import {
-  delay,
-  isRetryableAssistantError,
-} from "./harness-execution-shared.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
@@ -76,7 +72,7 @@ export interface WorkbenchAgentMechanicsDeps {
   messageMirror: MessageMirror;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
-  continueAgent(agentId: string): Promise<void>;
+  startAutomaticRun(agent: AgentRecord, prompt: string): Promise<void>;
   runChild(input: {
     agent: AgentRecord;
     prompt: string;
@@ -109,7 +105,7 @@ export class WorkbenchAgentMechanics {
     this.autoCompaction = new AutoCompactionRunner(
       deps,
       this.autoContinuationCounts,
-      deps.continueAgent,
+      deps.startAutomaticRun,
     );
   }
 
@@ -169,6 +165,7 @@ export class WorkbenchAgentMechanics {
     sink: RunExecutionSink;
     command: "start" | "continue";
     prompt?: string;
+    images?: PromptRequest["images"];
     signal: AbortSignal;
     installControl(control: WorkbenchLiveExecutionControl): void;
     checkpointCommand(
@@ -193,7 +190,7 @@ export class WorkbenchAgentMechanics {
     return (await executeWorkbenchHarness.call(
       this,
       agent,
-      { text: input.prompt ?? "" },
+      { text: input.prompt ?? "", images: input.images },
       {
         continue: input.command === "continue",
         coordinator: input,
@@ -201,7 +198,7 @@ export class WorkbenchAgentMechanics {
     )) as RunExecutionOutcome;
   }
 
-  async runHarnessWithRetries(input: {
+  async runHarnessAttempt(input: {
     harness: AgentHarness;
     conversation: Conversation;
     request: PromptRequest;
@@ -209,68 +206,26 @@ export class WorkbenchAgentMechanics {
     runId: string;
     agent: AgentRecord;
   }): Promise<AssistantMessage> {
-    const settings = this.deps.storage.settings.retry;
     const latestAgent = () =>
       this.deps.state.agents.get(input.agent.id) ?? input.agent;
-    const latestContextWindow = () =>
-      getModelContextWindow(latestAgent().model);
-    let attempt = 0;
-    let continueRun = input.continue;
-    let overflowCompactionAttempted = false;
-    while (true) {
-      const assistant = continueRun
-        ? await input.harness.continue()
-        : await input.harness.prompt(input.request.text, {
-            images: input.request.images,
-          });
-      const contextWindow = latestContextWindow();
-      if (
-        this.deps.storage.settings.compaction.auto &&
-        !overflowCompactionAttempted &&
-        isContextOverflowAssistantMessage(assistant, contextWindow)
-      ) {
-        overflowCompactionAttempted = true;
-        const recovered = await this.tryOverflowCompactionRecovery(
-          input,
-          assistant,
-          contextWindow,
-        );
-        if (recovered) {
-          continueRun = true;
-          continue;
-        }
-        return assistant;
-      }
-      if (
-        assistant.stopReason !== "error" ||
-        !isRetryableAssistantError(assistant) ||
-        !settings.enabled ||
-        attempt >= settings.maxRetries
-      ) {
-        return assistant;
-      }
-      attempt += 1;
-      const delayMs = settings.baseDelayMs * 2 ** (attempt - 1);
-      const leafId = await input.conversation.getLeafId();
-      const leaf = leafId
-        ? await input.conversation.getEntry(leafId)
-        : undefined;
-      await this.deps.logger.warn("Retrying transient agent error", {
-        agentId: input.agent.id,
-        conversationId: input.agent.conversationId,
-        projectId: input.agent.projectId,
-        runId: input.runId,
-        context: {
-          attempt,
-          maxRetries: settings.maxRetries,
-          errorMessage: assistant.errorMessage,
-        },
-      });
-      if (leaf?.parentId !== undefined)
-        await input.conversation.moveTo(leaf.parentId);
-      await delay(delayMs);
-      continueRun = true;
+    let assistant = input.continue
+      ? await input.harness.continue()
+      : await input.harness.prompt(input.request.text, {
+          images: input.request.images,
+        });
+    const contextWindow = getModelContextWindow(latestAgent().model);
+    if (
+      this.deps.storage.settings.compaction.auto &&
+      isContextOverflowAssistantMessage(assistant, contextWindow)
+    ) {
+      const recovered = await this.tryOverflowCompactionRecovery(
+        input,
+        assistant,
+        contextWindow,
+      );
+      if (recovered) assistant = await input.harness.continue();
     }
+    return assistant;
   }
 
   async tryOverflowCompactionRecovery(
@@ -392,10 +347,7 @@ export class WorkbenchAgentMechanics {
     return this.autoCompaction.continueAfterAutoCompaction(agent);
   }
 
-  async appendAutoContinueMessage(
-    agent: AgentRecord,
-    text: string,
-  ): Promise<ConversationEntry> {
-    return this.autoCompaction.appendAutoContinueMessage(agent, text);
+  resetAutoContinuationCount(conversationId: string): void {
+    this.autoCompaction.resetContinuationCount(conversationId);
   }
 }

@@ -1,4 +1,5 @@
 import type { RunRecord } from "@nervekit/contracts";
+import type { RunCancellationPort, RunExecution } from "./run-execution.js";
 import { revise, type TransitionChanges } from "./run-transitions.js";
 import type { RunHydratedState } from "./run-unit-of-work.js";
 
@@ -45,6 +46,23 @@ export function requestCancellation(
         })),
     },
   };
+}
+
+export async function cancelRunTarget(
+  target: RunRecord["cancellationEvidence"][number]["target"],
+  run: RunRecord,
+  cancellation: RunCancellationPort,
+  execution?: RunExecution,
+  reason?: string,
+): Promise<"confirmed" | "not_running"> {
+  if (target === "model") {
+    if (execution) await execution.control.cancel(reason);
+    return cancellation.cancelModel(run);
+  }
+  if (target === "tool") return cancellation.cancelTools(run);
+  if (target === "task") return cancellation.cancelTasks(run);
+  if (target === "subagent") return cancellation.cancelSubagents(run);
+  return cancellation.cancelInteraction(run);
 }
 
 export function finishCancellation(

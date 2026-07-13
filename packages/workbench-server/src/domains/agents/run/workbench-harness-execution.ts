@@ -43,6 +43,7 @@ import {
   errorTextFromToolResult,
   recordFromUnknown,
   sameStringList,
+  isRetryableAssistantError,
 } from "./harness-execution-shared.js";
 import { inlineCommandExecutionResultText } from "./inline-command-results.js";
 import {
@@ -63,6 +64,7 @@ interface CoordinatorExecutionOptions {
   sink: RunExecutionSink;
   command: "start" | "continue";
   prompt?: string;
+  images?: PromptRequest["images"];
   signal: AbortSignal;
   installControl(control: WorkbenchLiveExecutionControl): void;
   checkpointCommand(
@@ -81,11 +83,6 @@ export async function executeWorkbenchHarness(
   },
 ): Promise<RunExecutionOutcome> {
   const coordinator = options.coordinator;
-  // A fresh (non-continuation) prompt resets the auto-continuation budget so
-  // the runaway guard only counts back-to-back automatic continuations.
-  if (!options.continue) {
-    this.autoContinuationCounts.delete(agent.conversationId);
-  }
   const runId = coordinator.run.runId;
   let abortRequested = false;
   const runAbortController = new AbortController();
@@ -579,8 +576,13 @@ export async function executeWorkbenchHarness(
       }
     };
     const liveControl: WorkbenchLiveExecutionControl = {
-      steer: (prompt) => harness.steer(prompt.text, { id: prompt.id }),
-      followUp: (prompt) => harness.followUp(prompt.text, { id: prompt.id }),
+      steer: (prompt) =>
+        harness.steer(prompt.text, { id: prompt.id, images: prompt.images }),
+      followUp: (prompt) =>
+        harness.followUp(prompt.text, {
+          id: prompt.id,
+          images: prompt.images,
+        }),
       continue: async () => undefined,
       cancel: abort,
       removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
@@ -601,7 +603,7 @@ export async function executeWorkbenchHarness(
       request,
       runAbortController.signal,
     );
-    const runAssistant = await this.runHarnessWithRetries({
+    const runAssistant = await this.runHarnessAttempt({
       harness,
       conversation: harnessConversation,
       request: promptRequest,
@@ -621,6 +623,19 @@ export async function executeWorkbenchHarness(
       runAssistant.stopReason === "aborted"
     ) {
       const aborted = runAssistant.stopReason === "aborted" || abortRequested;
+      const retryable = !aborted && isRetryableAssistantError(runAssistant);
+      if (retryable) {
+        const leafId = await harnessConversation.getLeafId();
+        const leaf = leafId
+          ? await harnessConversation.getEntry(leafId)
+          : undefined;
+        if (leaf?.parentId !== undefined) {
+          await harnessConversation.moveTo(leaf.parentId);
+        }
+        await coordinator.sink.checkpoint(
+          await coordinator.checkpointCommand("before_provider_request"),
+        );
+      }
       return {
         status: aborted ? "interrupted" : "failed",
         ...(aborted
@@ -629,7 +644,7 @@ export async function executeWorkbenchHarness(
               failure: {
                 code: "MODEL_REQUEST_FAILED",
                 message: runAssistant.errorMessage ?? "Agent run failed.",
-                retryable: true,
+                retryable,
               },
             }),
       } as RunExecutionOutcome;
