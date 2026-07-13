@@ -16,6 +16,8 @@ import {
 } from "$lib/app/layout/layout-state.svelte";
 import {
   applyEventAndFlush,
+  enqueueEvent,
+  flushEvents,
   pendingEventCount,
 } from "$lib/core/events/event-bus";
 import {
@@ -122,16 +124,24 @@ function connectWebsocket(wsUrl: string): void {
             workspaceState.protocolFlowMode = message.data.mode;
         },
         applyEvent: async (_stream, event) => {
-          await applyEventAndFlush(event);
-          workspaceState.receivedEventSeq = Math.max(
-            workspaceState.receivedEventSeq,
-            event.seq,
-          );
-          if (event.durability === "durable")
+          if (event.durability === "durable") {
+            // Preserve FIFO order: apply all buffered transient events first,
+            // then apply the durable event and wait for every reducer so the
+            // session's processed-cursor ack reflects real application.
+            flushEvents();
+            await applyEventAndFlush(event);
             workspaceState.processedEventSeq = Math.max(
               workspaceState.processedEventSeq,
               event.seq,
             );
+          } else {
+            // High-frequency transient events (live deltas) coalesce per frame.
+            enqueueEvent(event);
+          }
+          workspaceState.receivedEventSeq = Math.max(
+            workspaceState.receivedEventSeq,
+            event.seq,
+          );
         },
         processedEvents: {
           persist(cursors) {
@@ -232,6 +242,8 @@ function stopSubscriptionUsagePolling(): void {
 export function disconnectWorkbench(): void {
   intentionallyDisconnected = true;
   stopSubscriptionUsagePolling();
+  // Apply any buffered transient events deterministically before teardown.
+  flushEvents();
   void connection?.close();
   connection = undefined;
   workspaceState.protocolSessionId = undefined;

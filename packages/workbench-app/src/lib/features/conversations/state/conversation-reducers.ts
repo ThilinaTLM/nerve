@@ -16,6 +16,7 @@ import {
   handleCompactionFailed,
   handleCompactionStarted,
 } from "./conversation-compaction-reducers";
+import { conversationIdFromEvent } from "./conversation-event-routing";
 import {
   clearContextUsageRefresh,
   scheduleContextUsageRefresh,
@@ -46,34 +47,6 @@ import {
 export { clearLiveCompaction } from "./conversation-compaction-reducers";
 export { refreshContextUsage } from "./conversation-context-usage";
 export { isOpenConversation } from "./conversation-reducer-shared";
-
-export function isConversationRuntimeEvent(type: string): boolean {
-  return (
-    type === "conversation.entry.appended" ||
-    type === "conversation.compaction.started" ||
-    type === "conversation.compaction.failed" ||
-    type === "conversation.context.updated" ||
-    type === "toolCall.updated" ||
-    type.startsWith("conversation.prompt.") ||
-    type.startsWith("conversation.run.") ||
-    type.startsWith("conversation.live.")
-  );
-}
-
-export function conversationIdFromEvent(
-  event: EventEnvelope<Record<string, unknown>>,
-): string | undefined {
-  const conversationId = event.data?.conversationId;
-  if (typeof conversationId === "string") return conversationId;
-  const entry = event.data?.entry as { conversationId?: unknown } | undefined;
-  if (typeof entry?.conversationId === "string") return entry.conversationId;
-  const toolCall = event.data?.toolCall as
-    | { conversationId?: unknown }
-    | undefined;
-  if (typeof toolCall?.conversationId === "string")
-    return toolCall.conversationId;
-  return undefined;
-}
 
 export function handleConversationEvent(
   event: EventEnvelope<Record<string, unknown>>,

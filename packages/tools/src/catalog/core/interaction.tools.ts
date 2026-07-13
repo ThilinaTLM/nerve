@@ -65,7 +65,7 @@ export const interactionToolDefinitions = [
     name: "todos_set",
     group: "todos",
     baseRisk: "interaction",
-    traits: ["write_capable"],
+    traits: [],
     executionKind: "host",
     label: "Set Todos",
     description: "Set or replace the todo list for the current task.",

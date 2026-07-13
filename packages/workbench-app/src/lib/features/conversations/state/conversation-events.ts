@@ -2,10 +2,12 @@ import type { EventEnvelope } from "$lib/api";
 import { onAnyEvent } from "$lib/core/events/event-bus";
 import { refreshConversationView } from "$lib/features/conversations/state/conversation-flow.svelte";
 import {
-  clearLiveCompaction,
   conversationIdFromEvent,
-  handleConversationEvent,
   isConversationRuntimeEvent,
+} from "./conversation-event-routing";
+import {
+  clearLiveCompaction,
+  handleConversationEvent,
   isOpenConversation,
   refreshContextUsage,
 } from "./conversation-reducers";

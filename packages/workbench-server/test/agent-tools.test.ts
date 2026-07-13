@@ -180,10 +180,12 @@ describe("agent tool definitions", () => {
       "find",
       "ls",
       "ask_user",
+      "todos_set",
       "todos_get",
       "task_status",
       "task_logs",
       "task_list",
+      "plan_mode_enter",
     ]);
     assert.deepEqual(
       activeToolNamesForAgent({ ...agent("read_only"), mode: "planning" }),
@@ -193,11 +195,14 @@ describe("agent tool definitions", () => {
         "find",
         "ls",
         "ask_user",
+        "todos_set",
         "todos_get",
         "task_status",
         "task_logs",
         "task_list",
+        "plan_mode_enter",
         "plan_mode_present",
+        "plan_mode_force_exit",
       ],
     );
   });

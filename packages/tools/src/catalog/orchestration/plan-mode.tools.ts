@@ -42,7 +42,7 @@ export const planModeToolDefinitions = [
     name: "plan_mode_enter",
     group: "planMode",
     baseRisk: "interaction",
-    traits: ["write_capable"],
+    traits: [],
     executionKind: "host",
     label: "plan_mode_enter",
     description:
@@ -68,7 +68,7 @@ export const planModeToolDefinitions = [
     name: "plan_mode_force_exit",
     group: "planMode",
     baseRisk: "interaction",
-    traits: ["write_capable"],
+    traits: [],
     executionKind: "host",
     label: "plan_mode_force_exit",
     description: "Exit plan mode without an accepted plan, recording a reason.",

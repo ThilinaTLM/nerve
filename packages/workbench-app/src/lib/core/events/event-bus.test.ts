@@ -137,6 +137,34 @@ describe("event bus", () => {
     assert.equal(flushed, false);
   });
 
+  it("applies buffered transient events before a durable event (websocket routing)", async () => {
+    // Mirrors the protocol client's applyEvent path: transient events are
+    // enqueued for frame-coalesced delivery, while a durable event first
+    // drains the queue synchronously and then applies itself, so durable
+    // acks always reflect a fully ordered application.
+    const seen: string[] = [];
+    onAnyEvent((candidate) => {
+      seen.push(`${candidate.type}:${candidate.seq}`);
+    });
+
+    enqueueEvent(event("conversation.live.content.delta", 1));
+    enqueueEvent(event("conversation.live.content.delta", 2));
+    assert.deepEqual(seen, []);
+
+    const durable: WorkbenchEvent = {
+      ...event("run.completed", 3),
+      durability: "durable",
+    };
+    flushEvents();
+    await applyEventAndFlush(durable);
+
+    assert.deepEqual(seen, [
+      "conversation.live.content.delta:1",
+      "conversation.live.content.delta:2",
+      "run.completed:3",
+    ]);
+  });
+
   it("clearEventHandlers removes buffered events", () => {
     const seen: number[] = [];
     onAnyEvent((candidate) => {
