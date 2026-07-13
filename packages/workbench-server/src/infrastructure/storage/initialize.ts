@@ -96,7 +96,13 @@ async function ensureStateLayout(home: string): Promise<void> {
       `Incompatible Nerve state at ${home}. Reset this directory before starting Nerve Protocol v1.`,
     );
   }
-  if ((await readdir(home)).length > 0) {
+  const entries = await readdir(home, { withFileTypes: true });
+  const desktopBootstrapDirectories = new Set(["crashes", "logs"]);
+  const containsOnlyDesktopBootstrapDiagnostics = entries.every(
+    (entry) =>
+      entry.isDirectory() && desktopBootstrapDirectories.has(entry.name),
+  );
+  if (entries.length > 0 && !containsOnlyDesktopBootstrapDiagnostics) {
     throw new Error(
       `Incompatible Nerve state at ${home}. Reset this directory before starting Nerve Protocol v1.`,
     );
