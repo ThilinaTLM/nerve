@@ -17,6 +17,45 @@ export function usageTone(
   return "neutral";
 }
 
+export type UsageWindowDisplay = {
+  label: string;
+  abbreviation: string;
+};
+
+const USAGE_WINDOW_PERIODS = [
+  { minutes: 5 * 60, label: "Session", abbreviation: "S" },
+  { minutes: 24 * 60, label: "Daily", abbreviation: "D" },
+  { minutes: 7 * 24 * 60, label: "Weekly", abbreviation: "W" },
+  { minutes: 30 * 24 * 60, label: "Monthly", abbreviation: "M" },
+  { minutes: 365 * 24 * 60, label: "Annual", abbreviation: "A" },
+] as const;
+
+/**
+ * Resolve display metadata for a rate-limit window from its duration.
+ *
+ * Providers may move a duration between their primary and secondary slots, so
+ * the duration takes precedence over the caller's semantic fallback. A 5%
+ * tolerance matches Codex's own usage-window labeling behavior.
+ */
+export function usageWindowDisplay(
+  windowMinutes: number | null | undefined,
+  fallback: UsageWindowDisplay,
+): UsageWindowDisplay {
+  if (windowMinutes == null || !Number.isFinite(windowMinutes)) return fallback;
+
+  for (const period of USAGE_WINDOW_PERIODS) {
+    if (isApproximateDuration(windowMinutes, period.minutes)) {
+      return { label: period.label, abbreviation: period.abbreviation };
+    }
+  }
+
+  return fallback;
+}
+
+function isApproximateDuration(value: number, expected: number): boolean {
+  return value >= expected * 0.95 && value <= expected * 1.05;
+}
+
 /** Format a duration in minutes as compact days, hours, and minutes. */
 export function formatDurationMinutes(
   totalMinutes: number | null | undefined,

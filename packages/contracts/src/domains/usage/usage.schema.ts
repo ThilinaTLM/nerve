@@ -26,8 +26,10 @@ export type SubscriptionWindow = z.infer<typeof subscriptionWindowSchema>;
 /**
  * Normalized subscription usage for a provider.
  *
- * `session` maps to Anthropic's 5-hour window / Codex's primary window.
- * `weekly` maps to Anthropic's 7-day window / Codex's secondary window.
+ * `session` is the provider's short usage window (typically 5 hours).
+ * `weekly` is its 7-day window. Codex raw primary/secondary windows are
+ * classified by duration when available because either position may carry the
+ * weekly limit.
  */
 export const subscriptionUsageSchema = z.object({
   provider: subscriptionUsageProviderSchema,

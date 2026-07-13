@@ -123,6 +123,29 @@ describe("subscription usage parsing", () => {
     assert.equal(usage?.weekly?.windowMinutes, 10_080);
   });
 
+  it("maps a single seven-day Codex primary window to weekly usage", () => {
+    const usage = parseCodexUsageResponse(
+      {
+        plan_type: "prolite",
+        rate_limit: {
+          primary_window: {
+            used_percent: 28,
+            reset_after_seconds: 553_330,
+            limit_window_seconds: 604_800,
+          },
+        },
+      },
+      Date.UTC(2026, 6, 13),
+    );
+
+    assert.equal(usage?.provider, "openai-codex");
+    assert.equal(usage?.planType, "prolite");
+    assert.equal(usage?.session, null);
+    assert.equal(usage?.weekly?.usedPercent, 28);
+    assert.equal(usage?.weekly?.windowMinutes, 10_080);
+    assert.equal(subscriptionUsageSchema.safeParse(usage).success, true);
+  });
+
   it("parses Codex header-derived updates", () => {
     const usage = parseCodexUsageHeaders({
       "x-codex-primary-used-percent": "81",
@@ -137,6 +160,19 @@ describe("subscription usage parsing", () => {
     assert.equal(usage?.session?.usedPercent, 81);
     assert.equal(usage?.session?.resetAfterSeconds, 60);
     assert.equal(usage?.weekly?.usedPercent, 22);
+    assert.equal(usage?.weekly?.windowMinutes, 10_080);
+  });
+
+  it("maps a single seven-day Codex primary header to weekly usage", () => {
+    const usage = parseCodexUsageHeaders({
+      "x-codex-primary-used-percent": "28",
+      "x-codex-primary-reset-after-seconds": "553330",
+      "x-codex-primary-window-minutes": "10080",
+      "x-codex-plan-type": "prolite",
+    });
+
+    assert.equal(usage?.session, null);
+    assert.equal(usage?.weekly?.usedPercent, 28);
     assert.equal(usage?.weekly?.windowMinutes, 10_080);
   });
 
@@ -160,6 +196,27 @@ describe("subscription usage parsing", () => {
     assert.equal(merged.session?.resetAfterSeconds, 30);
     assert.equal(merged.weekly?.usedPercent, 20);
     assert.equal(merged.planType, "plus");
+  });
+
+  it("normalizes a legacy weekly-in-session snapshot while merging", () => {
+    const legacy = testUsage("openai-codex", 28);
+    legacy.session = {
+      usedPercent: 28,
+      resetsAt: null,
+      resetAfterSeconds: 553_330,
+      windowMinutes: 10_080,
+    };
+    const update = parseCodexUsageHeaders({
+      "x-codex-primary-used-percent": "31",
+      "x-codex-primary-reset-after-seconds": "500000",
+    });
+
+    assert.ok(update);
+    const merged = mergeCodexUsage(legacy, update);
+    assert.equal(merged.session, null);
+    assert.equal(merged.weekly?.usedPercent, 31);
+    assert.equal(merged.weekly?.windowMinutes, 10_080);
+    assert.equal(merged.weekly?.resetAfterSeconds, 500_000);
   });
 });
 

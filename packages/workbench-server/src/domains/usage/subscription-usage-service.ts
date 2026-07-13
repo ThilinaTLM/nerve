@@ -35,8 +35,8 @@ export interface SubscriptionUsageServiceDeps {
 }
 
 /**
- * Manages provider subscription usage (Anthropic 5h/7d, Codex
- * primary/secondary) for globally supported OAuth providers.
+ * Manages provider subscription usage (Anthropic 5h/7d and duration-classified
+ * Codex windows) for globally supported OAuth providers.
  *
  * Refreshing is request-driven: callers ask for fresh snapshots and the service
  * debounces upstream provider calls to at most one attempt per provider every

@@ -1,8 +1,9 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type {
-  SubscriptionUsage,
-  SubscriptionWindow,
+import {
+  subscriptionUsageSchema,
+  type SubscriptionUsage,
+  type SubscriptionWindow,
 } from "@nervekit/contracts";
 
 const API_URL = "https://chatgpt.com/backend-api/wham/usage";
@@ -32,8 +33,12 @@ async function readCacheFile(cacheDir: string): Promise<{
 } | null> {
   const path = cacheFile(cacheDir);
   try {
+    const parsed = subscriptionUsageSchema.safeParse(
+      JSON.parse(await readFile(path, "utf8")),
+    );
+    if (!parsed.success || parsed.data.provider !== "openai-codex") return null;
     return {
-      data: JSON.parse(await readFile(path, "utf8")) as SubscriptionUsage,
+      data: normalizeCodexSnapshot(parsed.data),
       time: (await stat(path)).mtimeMs,
     };
   } catch {
@@ -153,6 +158,83 @@ function parseApiWindow(
   return { usedPercent, resetsAt: null, resetAfterSeconds, windowMinutes };
 }
 
+const SESSION_WINDOW_MINUTES = 5 * 60;
+const WEEKLY_WINDOW_MINUTES = 7 * 24 * 60;
+
+function isApproximateWindow(
+  windowMinutes: number | null,
+  expectedMinutes: number,
+): boolean {
+  return (
+    windowMinutes != null &&
+    windowMinutes >= expectedMinutes * 0.95 &&
+    windowMinutes <= expectedMinutes * 1.05
+  );
+}
+
+type CodexWindowSlot = "session" | "weekly";
+
+function durationSlot(window: SubscriptionWindow): CodexWindowSlot | null {
+  if (isApproximateWindow(window.windowMinutes, SESSION_WINDOW_MINUTES)) {
+    return "session";
+  }
+  if (isApproximateWindow(window.windowMinutes, WEEKLY_WINDOW_MINUTES)) {
+    return "weekly";
+  }
+  return null;
+}
+
+/** Classify Codex windows by duration before falling back to provider position. */
+function classifyCodexWindows(
+  primary: SubscriptionWindow | null,
+  secondary: SubscriptionWindow | null,
+): Pick<SubscriptionUsage, "session" | "weekly"> {
+  let session: SubscriptionWindow | null = null;
+  let weekly: SubscriptionWindow | null = null;
+  const unassigned: Array<{
+    window: SubscriptionWindow;
+    fallback: CodexWindowSlot;
+  }> = [];
+
+  for (const candidate of [
+    { window: primary, fallback: "session" as const },
+    { window: secondary, fallback: "weekly" as const },
+  ]) {
+    if (!candidate.window) continue;
+    const slot = durationSlot(candidate.window);
+    if (slot === "session" && !session) session = candidate.window;
+    else if (slot === "weekly" && !weekly) weekly = candidate.window;
+    else
+      unassigned.push({
+        window: candidate.window,
+        fallback: candidate.fallback,
+      });
+  }
+
+  for (const candidate of unassigned) {
+    if (candidate.fallback === "session" && !session) {
+      session = candidate.window;
+    } else if (candidate.fallback === "weekly" && !weekly) {
+      weekly = candidate.window;
+    } else if (!session) {
+      session = candidate.window;
+    } else if (!weekly) {
+      weekly = candidate.window;
+    }
+  }
+
+  return { session, weekly };
+}
+
+function normalizeCodexSnapshot(
+  snapshot: SubscriptionUsage,
+): SubscriptionUsage {
+  return {
+    ...snapshot,
+    ...classifyCodexWindows(snapshot.session, snapshot.weekly),
+  };
+}
+
 /** Parse a Codex usage JSON payload into a normalized snapshot. */
 export function parseCodexUsageResponse(
   payload: unknown,
@@ -175,15 +257,16 @@ export function parseCodexUsageResponse(
       secondaryWindow?: ApiWindow;
     } | null;
   };
-  const session = parseApiWindow(
+  const primary = parseApiWindow(
     api.rate_limit?.primary_window ?? api.rate_limit?.primaryWindow,
     nowMs,
   );
-  const weekly = parseApiWindow(
+  const secondary = parseApiWindow(
     api.rate_limit?.secondary_window ?? api.rate_limit?.secondaryWindow,
     nowMs,
   );
-  if (!session && !weekly) return null;
+  if (!primary && !secondary) return null;
+  const { session, weekly } = classifyCodexWindows(primary, secondary);
   return {
     provider: "openai-codex",
     session,
@@ -236,9 +319,10 @@ export function parseCodexUsageHeaders(
   headers: HeaderLike,
   nowMs = Date.now(),
 ): SubscriptionUsage | null {
-  const session = headerWindow(headers, "primary", nowMs);
-  const weekly = headerWindow(headers, "secondary", nowMs);
-  if (!session && !weekly) return null;
+  const primary = headerWindow(headers, "primary", nowMs);
+  const secondary = headerWindow(headers, "secondary", nowMs);
+  if (!primary && !secondary) return null;
+  const { session, weekly } = classifyCodexWindows(primary, secondary);
   return {
     provider: "openai-codex",
     session,
@@ -248,18 +332,50 @@ export function parseCodexUsageHeaders(
   };
 }
 
+function mergeWindow(
+  base: SubscriptionWindow | null,
+  update: SubscriptionWindow | null,
+): SubscriptionWindow | null {
+  if (!base) return update;
+  if (!update) return base;
+  return {
+    usedPercent: update.usedPercent ?? base.usedPercent,
+    resetsAt: update.resetsAt ?? base.resetsAt,
+    resetAfterSeconds: update.resetAfterSeconds ?? base.resetAfterSeconds,
+    windowMinutes: update.windowMinutes ?? base.windowMinutes,
+  };
+}
+
 /** Merge a newer snapshot over a base, preferring defined fields. */
 export function mergeCodexUsage(
   base: SubscriptionUsage | null,
   update: SubscriptionUsage,
 ): SubscriptionUsage {
-  if (!base) return update;
+  const normalizedUpdate = normalizeCodexSnapshot(update);
+  if (!base) return normalizedUpdate;
+
+  const normalizedBase = normalizeCodexSnapshot(base);
+  let updateSession = normalizedUpdate.session;
+  let updateWeekly = normalizedUpdate.weekly;
+
+  // Rolling headers can omit window duration. Preserve the known slot from the
+  // full snapshot when there is only one active Codex window.
+  if (
+    updateSession?.windowMinutes == null &&
+    !updateWeekly &&
+    !normalizedBase.session &&
+    normalizedBase.weekly
+  ) {
+    updateWeekly = updateSession;
+    updateSession = null;
+  }
+
   return {
     provider: "openai-codex",
-    session: update.session ?? base.session,
-    weekly: update.weekly ?? base.weekly,
-    planType: update.planType ?? base.planType,
-    updatedAt: update.updatedAt,
+    session: mergeWindow(normalizedBase.session, updateSession),
+    weekly: mergeWindow(normalizedBase.weekly, updateWeekly),
+    planType: normalizedUpdate.planType ?? normalizedBase.planType,
+    updatedAt: normalizedUpdate.updatedAt,
   };
 }
 

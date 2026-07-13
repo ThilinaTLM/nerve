@@ -1,10 +1,11 @@
 <script lang="ts">
-import type { SubscriptionWindow } from "$lib/api";
+import type { SubscriptionUsage, SubscriptionWindow } from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage/state/usage-selectors.svelte";
 import {
   formatResetAfterSeconds,
   formatResetAt,
   usageTone,
+  usageWindowDisplay,
 } from "@nervekit/ui-kit/core/utils/usage";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -43,6 +44,43 @@ function providerLabel(provider: string): string {
   return provider;
 }
 
+type DisplayWindow = {
+  slot: "session" | "weekly";
+  window: SubscriptionWindow;
+  label: string;
+  abbreviation: string;
+};
+
+function displayWindows(
+  usage: SubscriptionUsage | null | undefined,
+): DisplayWindow[] {
+  if (!usage) return [];
+  const windows: DisplayWindow[] = [];
+
+  if (usage.session) {
+    windows.push({
+      slot: "session",
+      window: usage.session,
+      ...usageWindowDisplay(usage.session.windowMinutes, {
+        label: "Session",
+        abbreviation: "S",
+      }),
+    });
+  }
+  if (usage.weekly) {
+    windows.push({
+      slot: "weekly",
+      window: usage.weekly,
+      ...usageWindowDisplay(usage.weekly.windowMinutes, {
+        label: "Weekly",
+        abbreviation: "W",
+      }),
+    });
+  }
+
+  return windows;
+}
+
 /** Tailwind text color for a usage percent (neutral inherits the surrounding tone). */
 function toneTextClass(percent: number | null | undefined): string {
   const tone = usageTone(percent);
@@ -74,22 +112,21 @@ function updatedLabel(value: string | undefined): string | null {
 }
 
 const entries = $derived(usages);
-const hasData = $derived(entries.some((entry) => entry.usage));
+const hasData = $derived(
+  entries.some((entry) => displayWindows(entry.usage).length > 0),
+);
 
 // Trigger reflects the active model's provider, falling back to any with data.
 const triggerEntry = $derived(
-  entries.find((entry) => entry.active && entry.usage) ??
-    entries.find((entry) => entry.usage),
+  entries.find(
+    (entry) => entry.active && displayWindows(entry.usage).length > 0,
+  ) ?? entries.find((entry) => displayWindows(entry.usage).length > 0),
 );
-const triggerSessionPercent = $derived(
-  triggerEntry?.usage?.session?.usedPercent ?? null,
-);
-const triggerSessionReset = $derived(windowReset(triggerEntry?.usage?.session));
-const triggerWeeklyPercent = $derived(
-  triggerEntry?.usage?.weekly?.usedPercent ?? null,
-);
+const triggerWindows = $derived(displayWindows(triggerEntry?.usage));
 const triggerTone = $derived(
-  dotTone(Math.max(triggerSessionPercent ?? 0, triggerWeeklyPercent ?? 0)),
+  dotTone(
+    Math.max(0, ...triggerWindows.map((item) => item.window.usedPercent ?? 0)),
+  ),
 );
 
 const lastUpdated = $derived.by(() => {
@@ -103,26 +140,26 @@ const lastUpdated = $derived.by(() => {
 const title = $derived.by(() => {
   const lines: string[] = [];
   for (const entry of entries) {
-    if (!entry.usage) continue;
-    const session = percentLabel(entry.usage.session?.usedPercent);
-    const weekly = percentLabel(entry.usage.weekly?.usedPercent);
-    lines.push(
-      `${providerLabel(entry.provider)} — session ${session} / weekly ${weekly}`,
-    );
+    const windows = displayWindows(entry.usage);
+    if (windows.length === 0) continue;
+    const details = windows
+      .map(
+        (item) =>
+          `${item.label.toLowerCase()} ${percentLabel(item.window.usedPercent)}`,
+      )
+      .join(" / ");
+    lines.push(`${providerLabel(entry.provider)} — ${details}`);
   }
   return lines.join("\n");
 });
 </script>
 
-{#snippet usageRow(
-  label: string,
-  window: SubscriptionWindow | null | undefined,
-)}
-  {@const percent = window?.usedPercent ?? null}
-  {@const reset = windowReset(window)}
+{#snippet usageRow(item: DisplayWindow)}
+  {@const percent = item.window.usedPercent ?? null}
+  {@const reset = windowReset(item.window)}
   <div class="flex flex-col gap-1">
     <div class="flex items-center justify-between gap-2 text-xs">
-      <span class="text-muted-foreground">{label}</span>
+      <span class="text-muted-foreground">{item.label}</span>
       <span class={cn("font-medium tabular-nums", toneTextClass(percent))}
         >{percentLabel(percent)}</span
       >
@@ -154,18 +191,15 @@ const title = $derived.by(() => {
           pulse={triggerTone !== "good"}
           size="xs"
         />
-        <span class={cn("trigger-part", toneTextClass(triggerSessionPercent))}>
-          S:{percentLabel(
-            triggerSessionPercent,
-          )}{#if triggerSessionReset != null}
-            <span class="trigger-muted">({triggerSessionReset})</span>{/if}
-        </span>
-        {#if triggerWeeklyPercent != null}
-          <span class="trigger-muted">/</span>
-          <span class={cn("trigger-part", toneTextClass(triggerWeeklyPercent))}>
-            W:{percentLabel(triggerWeeklyPercent)}
+        {#each triggerWindows as item, index (item.slot)}
+          {@const percent = item.window.usedPercent}
+          {@const reset = index === 0 ? windowReset(item.window) : null}
+          {#if index > 0}<span class="trigger-muted">/</span>{/if}
+          <span class={cn("trigger-part", toneTextClass(percent))}>
+            {item.abbreviation}:{percentLabel(percent)}{#if reset != null}
+              <span class="trigger-muted">({reset})</span>{/if}
           </span>
-        {/if}
+        {/each}
       </span>
     {/snippet}
 
@@ -204,8 +238,14 @@ const title = $derived.by(() => {
             </div>
 
             {#if entry.usage}
-              {@render usageRow("Session", entry.usage.session)}
-              {@render usageRow("Weekly", entry.usage.weekly)}
+              {@const windows = displayWindows(entry.usage)}
+              {#if windows.length > 0}
+                {#each windows as item (item.slot)}
+                  {@render usageRow(item)}
+                {/each}
+              {:else}
+                <span class="text-xs text-muted-foreground">No data</span>
+              {/if}
             {:else}
               <span class="text-xs text-muted-foreground">No data</span>
             {/if}
