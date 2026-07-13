@@ -68,6 +68,9 @@ export class HumanInputResolutionService {
     implementation?: PlanImplementationSelection,
   ): Promise<PlanReviewRecord> {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
+    await this.deps.runs.assertPendingInteractionForToolCall(
+      pendingReview.toolCallId,
+    );
     await this.applyImplementationSelectionToSourceAgent(
       pendingReview.agentId,
       implementation,
@@ -100,6 +103,9 @@ export class HumanInputResolutionService {
     implementation?: PlanImplementationSelection,
   ): Promise<AcceptPlanReviewInNewChatResult> {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
+    await this.deps.runs.assertPendingInteractionForToolCall(
+      pendingReview.toolCallId,
+    );
     const sourceAgent = this.deps.getAgent(pendingReview.agentId);
     const conversation = await this.deps.createConversation({
       projectId: pendingReview.projectId,
@@ -155,6 +161,10 @@ export class HumanInputResolutionService {
     reviewId: string,
     feedback?: string,
   ): Promise<PlanReviewRecord> {
+    const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
+    await this.deps.runs.assertPendingInteractionForToolCall(
+      pendingReview.toolCallId,
+    );
     try {
       const review = await this.deps.plans.rejectPlanReview(reviewId, feedback);
       await this.resolveSuspensionForToolCall(
@@ -179,6 +189,10 @@ export class HumanInputResolutionService {
     reviewId: string,
     feedback?: string,
   ): Promise<PlanReviewRecord> {
+    const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
+    await this.deps.runs.assertPendingInteractionForToolCall(
+      pendingReview.toolCallId,
+    );
     try {
       const review = await this.deps.plans.requestPlanChanges(
         reviewId,
@@ -203,6 +217,10 @@ export class HumanInputResolutionService {
     reviewId: string,
     feedback?: string,
   ): Promise<PlanReviewRecord> {
+    const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
+    await this.deps.runs.assertPendingInteractionForToolCall(
+      pendingReview.toolCallId,
+    );
     try {
       const review = await this.deps.plans.discardPlanReview(
         reviewId,
@@ -223,10 +241,61 @@ export class HumanInputResolutionService {
     }
   }
 
+  async resolveApproval(
+    approvalId: string,
+    decision: "allow" | "deny",
+    note?: string,
+  ): Promise<ToolCallRecord> {
+    const approval = this.deps.tools
+      .listApprovals()
+      .find((candidate) => candidate.id === approvalId);
+    if (!approval || approval.status !== "pending") {
+      throw new HttpError(
+        404,
+        "APPROVAL_NOT_FOUND",
+        "Approval is not pending.",
+      );
+    }
+    const pendingToolCall = this.deps.tools.getToolCall(approval.toolCallId);
+    if (pendingToolCall.runId) {
+      await this.deps.runs.assertPendingInteractionForToolCall(
+        pendingToolCall.id,
+      );
+    }
+    const toolCall =
+      decision === "allow"
+        ? await this.deps.tools.grantApproval(approvalId, note)
+        : await this.deps.tools.denyApproval(approvalId, note);
+    if (!toolCall.runId) return toolCall;
+    const entry = await this.appendToolResultForToolCall(
+      toolCall,
+      toolCall.status !== "completed",
+    );
+    await this.publishConversationEntryAppended(entry);
+    await this.deps.runs.resolveInteractionForToolCall({
+      toolCallId: toolCall.id,
+      resolutionRequestId: `resolution_${createHash("sha256")
+        .update(`${approvalId}:${decision}:${note ?? ""}`)
+        .digest("hex")
+        .slice(0, 24)}`,
+      resolution: { decision, note },
+      entries: [entry],
+      toolCalls: [toToolCallTranscriptRecord(toolCall)],
+      continueRun: true,
+    });
+    return toolCall;
+  }
+
   async answerUserQuestion(
     questionId: string,
     answer: string,
   ): Promise<UserQuestionRecord> {
+    const pendingQuestion = this.pendingQuestion(questionId);
+    if (pendingQuestion.runId) {
+      await this.deps.runs.assertPendingInteractionForToolCall(
+        pendingQuestion.toolCallId,
+      );
+    }
     try {
       const question = await this.deps.tools.answerUserQuestion(
         questionId,
@@ -251,6 +320,12 @@ export class HumanInputResolutionService {
     questionId: string,
     reason?: string,
   ): Promise<UserQuestionRecord> {
+    const pendingQuestion = this.pendingQuestion(questionId);
+    if (pendingQuestion.runId) {
+      await this.deps.runs.assertPendingInteractionForToolCall(
+        pendingQuestion.toolCallId,
+      );
+    }
     try {
       const question = await this.deps.tools.dismissUserQuestion(
         questionId,
@@ -269,6 +344,23 @@ export class HumanInputResolutionService {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  private pendingQuestion(questionId: string): UserQuestionRecord & {
+    runId?: string;
+  } {
+    const question = this.deps.tools
+      .listUserQuestions()
+      .find((candidate) => candidate.id === questionId);
+    if (!question || question.status !== "pending") {
+      throw new HttpError(
+        404,
+        "USER_QUESTION_NOT_FOUND",
+        "User question is not pending.",
+      );
+    }
+    const toolCall = this.deps.tools.getToolCall(question.toolCallId);
+    return { ...question, runId: toolCall.runId };
   }
 
   private getPendingPlanReviewOrThrow(reviewId: string): PlanReviewRecord {

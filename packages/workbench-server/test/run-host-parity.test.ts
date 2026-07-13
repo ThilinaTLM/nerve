@@ -91,14 +91,22 @@ describe("workbench real-host run parity", () => {
               })),
           };
         },
-        durableEventTypes: async (runId) =>
-          events
+        durableEventTypes: async (runId) => {
+          await waitFor(async () =>
+            events.some(
+              (event) =>
+                event.type === "run.completed" &&
+                (event.data as { runId?: string } | undefined)?.runId === runId,
+            ),
+          );
+          return events
             .filter(
               (event) =>
                 event.durability === "durable" &&
                 (event.data as { runId?: string } | undefined)?.runId === runId,
             )
-            .map((event) => event.type),
+            .map((event) => event.type);
+        },
       };
       const result = await runRealHostCompletionScenario(fixture);
       assert.equal(result.transitionKinds[0], "started");

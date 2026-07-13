@@ -77,6 +77,15 @@ export interface WorkbenchAgentMechanicsDeps {
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   continueAgent(agentId: string): Promise<void>;
+  runChild(input: {
+    agent: AgentRecord;
+    prompt: string;
+    signal?: AbortSignal;
+  }): Promise<{
+    status: "completed" | "failed" | "cancelled";
+    entries: ConversationEntry[];
+    failureMessage?: string;
+  }>;
 }
 
 export class WorkbenchAgentMechanics {
@@ -89,18 +98,12 @@ export class WorkbenchAgentMechanics {
     this.subagents = new SubagentRunner({
       storage: deps.storage,
       events: deps.events,
-      auth: deps.auth,
-      tools: deps.tools,
-      harnessStorage: deps.harnessStorage,
-      state: deps.state,
       createAgent: deps.createAgent,
-      setAgentStatus: deps.setAgentStatus,
-      appendEntry: deps.appendEntry,
       getConversation: (conversationId) =>
         deps.state.getConversation(conversationId),
       updateConversation: deps.updateConversation,
-      subscriptionUsage: deps.subscriptionUsage,
       logger: deps.logger.child({ component: "subagent-runner" }),
+      runChild: deps.runChild,
     });
     this.inlineCommands = new InlineCommandRunner(deps);
     this.autoCompaction = new AutoCompactionRunner(

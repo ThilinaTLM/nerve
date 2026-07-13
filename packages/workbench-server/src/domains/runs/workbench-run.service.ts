@@ -122,6 +122,20 @@ export class WorkbenchRunService {
     await this.coordinator.cancel(state.run.runId, "user requested abort");
   }
 
+  async assertPendingInteractionForToolCall(toolCallId: string): Promise<void> {
+    const states = await this.unitOfWork.list();
+    const interaction = states
+      .flatMap((state) => state.interactions)
+      .find((candidate) => candidate.toolCallId === toolCallId);
+    if (!interaction || interaction.status !== "pending") {
+      throw new HttpError(
+        409,
+        "RUN_INTERACTION_NOT_PENDING",
+        "The run interaction is not pending.",
+      );
+    }
+  }
+
   async resolveInteractionForToolCall(input: {
     toolCallId: string;
     resolutionRequestId: string;

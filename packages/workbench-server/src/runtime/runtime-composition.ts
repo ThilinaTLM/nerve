@@ -384,6 +384,41 @@ export function composeRuntime(
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
     continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
+    runChild: async ({ agent, prompt, signal }) => {
+      const run = await services.runRuntime.coordinator.start({
+        conversationId: agent.conversationId,
+        agentId: agent.id,
+        projectId: agent.projectId,
+        scopeId: `${agent.conversationId}:${agent.id}`,
+        prompt,
+      });
+      const cancel = () => {
+        void services.runRuntime.coordinator.cancel(
+          run.runId,
+          "parent explore run cancelled",
+        );
+      };
+      if (signal?.aborted) cancel();
+      signal?.addEventListener("abort", cancel, { once: true });
+      try {
+        while (true) {
+          const state = await services.runRuntime.unitOfWork.load(run.runId);
+          if (!state) throw new Error(`Child run ${run.runId} was not stored.`);
+          if (["completed", "failed", "cancelled"].includes(state.run.status)) {
+            return {
+              status: state.run.status as "completed" | "failed" | "cancelled",
+              entries: state.transitions.flatMap(
+                (transition) => transition.entries,
+              ),
+              failureMessage: state.run.failure?.message,
+            };
+          }
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+      } finally {
+        signal?.removeEventListener("abort", cancel);
+      }
+    },
   });
   services.runRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,

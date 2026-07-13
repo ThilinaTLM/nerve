@@ -356,8 +356,13 @@ export class RuntimeRegistry {
 
   async grantApproval(approvalId: string, note?: string) {
     try {
-      return await this.tools.grantApproval(approvalId, note);
+      return await this.services.humanInput.resolveApproval(
+        approvalId,
+        "allow",
+        note,
+      );
     } catch (error) {
+      if (error instanceof HttpError) throw error;
       throw new HttpError(
         404,
         "APPROVAL_NOT_FOUND",
@@ -368,8 +373,13 @@ export class RuntimeRegistry {
 
   async denyApproval(approvalId: string, note?: string) {
     try {
-      return await this.tools.denyApproval(approvalId, note);
+      return await this.services.humanInput.resolveApproval(
+        approvalId,
+        "deny",
+        note,
+      );
     } catch (error) {
+      if (error instanceof HttpError) throw error;
       throw new HttpError(
         404,
         "APPROVAL_NOT_FOUND",

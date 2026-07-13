@@ -59,8 +59,9 @@ export function createAgentToolsForAgent(
       });
       if (toolCall.status === "completed") return completedToolResult(toolCall);
       if (
-        toolCall.status === "waiting_for_user" &&
-        (toolName === "ask_user" || toolName === "plan_mode_present")
+        toolCall.status === "pending_approval" ||
+        (toolCall.status === "waiting_for_user" &&
+          (toolName === "ask_user" || toolName === "plan_mode_present"))
       ) {
         throw new AgentToolSuspension({
           toolCallId: toolCall.id,
