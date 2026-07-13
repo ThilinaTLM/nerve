@@ -199,13 +199,33 @@ Global Nerve resources live under `<NERVE_HOME>/agent/` (`~/.nerve/agent/` by de
 
 Legacy `.pi` directories are not loaded. Move old resources to `.nerve/` for Nerve-specific files or `.agents/skills/` for portable skills.
 
-## Packages
+## Architecture and packages
 
-- `packages/desktop-shell` — Electron desktop shell.
-- `packages/workbench-server` — local HTTP/WebSocket daemon, auth, conversations, tools, and agent lifecycle.
-- `packages/workbench-app` — Svelte Web UI.
-- `packages/harness` — agent harness and conversation runtime.
-- `packages/tools` and `packages/contracts` — coding tools and shared schemas.
+Nerve Protocol v1 connects the local workbench UI to `workbench_server`, the sandbox manager UI to `sandbox_manager`, and each `sandbox_agent` to its manager. All three links share strict envelopes, catalog RPC/events, session lifecycle, replay/processed ACK, flow control, and snapshot recovery. The local event stream is `local`; manager lifecycle is `manager`; each sandbox writes `sandbox:<id>`.
+
+Shared foundations:
+
+- `packages/contracts` — transport-neutral API, operation, event, policy, and storage schemas.
+- `packages/protocol` — protocol codec, HTTP mapping, client/server sessions, replay, ACK, and queues.
+- `packages/harness` — model conversation and agent execution harness.
+- `packages/tools` — coding tools and policy enforcement.
+- `packages/host-runtime` — environment-neutral Git, task, tool, and run composition.
+- `packages/ui-kit` — contract-free shadcn-svelte primitives, theme, and generic renderers.
+- `packages/workbench-ui` — app-neutral workbench, conversation, Git, and task feature hosts.
+
+Local workbench:
+
+- `packages/workbench-server` — local HTTP/WebSocket server, persistence, auth, and built web assets.
+- `packages/workbench-app` — Svelte browser host and thin shared-feature adapters.
+- `packages/desktop-shell` — Electron launcher and local-server owner.
+
+Sandbox system:
+
+- `packages/sandbox-manager` — PostgreSQL-backed manager, runtime drivers, protocol routing, and static UI host.
+- `packages/sandbox-manager-app` — Svelte manager browser host and thin shared-feature adapters.
+- `packages/sandbox-agent` — isolated daemon with file-first `/state`, tools, tasks, Git, and runs.
+
+See `docs/nerve-protocol/v1/`, `docs/nerve-sandbox/v1/`, and `docs/release.md`.
 
 ## License
 

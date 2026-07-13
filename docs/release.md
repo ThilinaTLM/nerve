@@ -1,157 +1,71 @@
 # Release checklist
 
-Nerve's public release path publishes selected `@nervekit/*` packages to npmjs.com. The desktop app is distributed as the runnable `@nervekit/desktop-shell` npm package.
+Nerve publishes exactly seven npm packages and builds two private runtime images. The npm desktop distribution is the runnable `@nervekit/desktop-shell`; signed native installers are not part of this release path.
 
 ## Requirements
 
-- Node.js 24 (the workspace `engines.node` is `>=24.0.0`).
-- pnpm 11.8.0.
+- Node.js 24+
+- pnpm 11.8.0
+- Docker or Podman for the required image gate
+- PostgreSQL for manager integration/image smoke
 
-## Versioning
+## Public npm packages
 
-1. Update the root and workspace package versions together.
-2. Use a matching Git tag: `v<package version>`; for example, `v0.1.0`.
-3. Verify locally before pushing:
+Publish in dependency order:
 
-```sh
-pnpm release:verify-tag -- v0.1.0
-```
+1. `@nervekit/contracts`
+2. `@nervekit/protocol`
+3. `@nervekit/harness`
+4. `@nervekit/tools`
+5. `@nervekit/host-runtime`
+6. `@nervekit/workbench-server`
+7. `@nervekit/desktop-shell`
 
-## Packages
+The root, UI packages, sandbox packages, and apps are private. Workbench-server embeds the built workbench web assets. Sandbox-manager embeds the manager web assets in its image rather than an npm publication.
 
-Published publicly to npmjs.com under the `@nervekit` scope:
+## Version and validation
 
-- `@nervekit/contracts`
-- `@nervekit/tools`
-- `@nervekit/harness`
-- `@nervekit/workbench-server` — embeds the static Web UI for the desktop and daemon.
-- `@nervekit/desktop-shell` — runnable via `npx` or `pnpm dlx`.
-
-Private (never published):
-
-- the root `nerve` monorepo package;
-- `@nervekit/workbench-app` and `@nervekit/workbench-ui`;
-- `@nervekit/sandbox-agent`, `@nervekit/sandbox-manager`, and
-  `@nervekit/sandbox-manager-app`.
-
-## Local validation
+Keep the root and workspace versions aligned and tag `v<version>`.
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
+pnpm release:verify-tag -- v0.7.0
 pnpm fix
 pnpm check
 pnpm test
-pnpm release:verify-tag -- v0.1.0
+pnpm build
 pnpm release:build
-```
-
-For npm package inspection:
-
-```sh
 node scripts/pack-npm.mjs
-ls release/npm           # expect 7 tarballs
-npm publish release/npm/*.tgz --dry-run --access public
+pnpm build-image:sandbox-agent
+NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES=false pnpm build-image:sandbox-manager
 ```
 
-Desktop launcher smoke test:
+`release/npm` is generated and must not be committed. Packing stages `LICENSE`/`NOTICE` only for the duration of the command. Inspect all seven tarballs and run the release smoke commands documented by the scripts before publishing.
+
+Select a container runtime explicitly when needed:
 
 ```sh
-node packages/desktop-shell/dist/bin.js --version
-node packages/desktop-shell/dist/bin.js --help
-node packages/desktop-shell/dist/bin.js     # launches the desktop app
+NERVE_CONTAINER_CLI=docker pnpm build-image:sandbox-agent
+NERVE_CONTAINER_CLI=podman pnpm build-image:sandbox-manager
 ```
 
-## Running the desktop app from npm
+## State reset before testing an incompatible development store
 
-```sh
-npx @nervekit/desktop-shell
-pnpm dlx @nervekit/desktop-shell
-```
+Stop all Nerve processes and containers first.
 
-Notes:
+- Workbench: remove the complete `NERVE_HOME` (default `~/.nerve`). Its marker is `nerve-workbench-state` version 2.
+- Sandbox daemon: recreate the complete `/state` volume. Its marker is `nerve-sandbox-agent-state` version 4.
+- Sandbox manager: reset both its configured storage directory (`nerve-sandbox-manager-state` version 1) and its PostgreSQL database.
+- Browsers: clear site local and session storage, including `nerve.protocol.clientId`, `nerve.protocol.instanceId`, and manager record `nerve.protocol.v1.sandbox-manager-ui` (epoch `protocol-v1`).
 
-- The npm/unpackaged desktop launcher can run on Linux, Windows, and macOS.
-- The `electron` npm dependency downloads the platform binary on first install/run
-  (~100–200 MB), then it is cached by npm or pnpm.
-- This is an unpackaged Electron launch, not a signed app bundle or native
-  installer.
-- Release packaging currently targets Linux only. Signed/notarized macOS `.app`
-  or DMG packaging is future work and is not required for source development or
-  the npm launcher.
+The deterministic errors are `Incompatible Nerve state at <path>...`, `Incompatible sandbox agent state at <path>...`, and `Incompatible sandbox manager state at <path>...`, each ending with `Reset this directory before starting Nerve Protocol v1.` No migration reader is provided.
 
-## Protocol v1 development-state reset
+## First publication and OIDC
 
-Protocol v1 does not read pre-v1 sandbox event, command, cursor, session, or
-idempotency layouts. Before upgrading an early development environment, stop
-all Nerve processes and reset the affected disposable state:
+The first version of each package may need a manual npm bootstrap before Trusted Publishing can be configured. After full validation, publish the seven tarballs in the order above with `--access public`, then configure npm Trusted Publishers for `.github/workflows/release.yml` in `ThilinaTLM/nerve`.
 
-- local workbench: remove `~/.nerve` (or the configured `NERVE_HOME`);
-- sandbox agent: recreate the `/state` volume;
-- sandbox manager: reset its development database and configured storage
-  directory;
-- browser apps: clear site storage so old session and cursor keys are removed.
+Subsequent tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The workflow must not publish until checks, tests, cross-platform package verification, Linux built-artifact smokes, manager-agent smoke, and both image smokes pass. An already-published matching version may be skipped only after the expected local tarball is verified.
 
-A sandbox agent that finds an absent or incompatible v1 `VERSION` marker next
-to legacy protocol files fails with the exact `/state` reset path instead of
-silently parsing or migrating those files.
+## Scope and cleanup
 
-## First public release: npm bootstrap
-
-npm Trusted Publishing (OIDC) cannot publish a package that does not yet exist,
-so the very first `@nervekit/*` publish is done manually. One time only:
-
-1. Create the `nervekit` npm organization/scope and confirm the package names are
-   available.
-2. Enable 2FA on the publishing npm account.
-3. Run full local validation and pack the tarballs:
-
-   ```sh
-   pnpm release:build
-   node scripts/pack-npm.mjs
-   ls release/npm           # expect 7 tarballs
-   ```
-
-4. Publish the seven tarballs in dependency-friendly order:
-
-   ```sh
-   for pkg in contracts protocol harness tools host-runtime workbench-server desktop-shell; do
-     npm publish release/npm/nervekit-${pkg}-0.1.0.tgz --access public
-   done
-   ```
-
-5. On npmjs.com, configure a Trusted Publisher for each package:
-   - Publisher: GitHub Actions
-   - Organization/user: `ThilinaTLM`
-   - Repository: `nerve`
-   - Workflow filename: `release.yml`
-   - Allowed action: `npm publish`
-
-6. Tag and push `v0.1.0` (see below). The release workflow skips package versions
-   that are already published, so re-publishing the bootstrapped `0.1.0` is a no-op.
-
-## GitHub Actions release automation
-
-Pushing a tag matching `v*` runs `.github/workflows/release.yml`.
-
-The workflow:
-
-1. uses Node 24 and pnpm 11.8.0;
-2. verifies the tag matches the package version;
-3. runs `pnpm check` and `pnpm test`;
-4. runs a cross-platform npm/bin smoke job on Linux, Windows, and macOS;
-5. publishes any unpublished `@nervekit/*` versions to npmjs.com via npm
-   Trusted Publishing (OIDC) with provenance (no stored npm token).
-
-Create a release by pushing the tag:
-
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-## Subsequent releases
-
-1. Bump the root and all workspace versions consistently.
-2. Run local validation.
-3. Push the matching `vX.Y.Z` tag.
-4. CI publishes the new package versions via OIDC. No manual npm publish is needed once Trusted Publishers are configured.
+The npm launcher supports Linux, Windows, and macOS. Signed/notarized app bundles and native installers remain explicit non-goals. Every smoke must use temporary homes/state/databases/workspaces and random loopback ports, terminate child processes/containers, and remove temporary install projects, volumes, and test images it promises to clean.
