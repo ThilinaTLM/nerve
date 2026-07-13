@@ -9,7 +9,6 @@ import {
   toDaemonFile,
 } from "./app/orchestrator-state.js";
 import { createApp } from "./app/server.js";
-import { recoverInterruptedRuns } from "./domains/agents/run/interrupted-run-recovery.js";
 import {
   type DaemonRuntimeMonitor,
   installDaemonRuntimeMonitor,
@@ -182,14 +181,6 @@ async function main() {
     durationMs: Date.now() - indexRebuildStartedAt,
     context: { ...state.index.counts() },
   });
-  await recoverInterruptedRuns(state.events.replaySince(0), {
-    events: state.events,
-    logger: state.logger,
-    tools: state.registry.tools,
-    appendEntry: state.registry.appendConversationEntry,
-  }).catch((error) =>
-    state.logger.warn("Interrupted run recovery failed", { error }),
-  );
   state.subscriptionUsage.start();
   const mobileTls = mobileHttpsEnabled
     ? await ensureMobileHttpsTlsMaterial(

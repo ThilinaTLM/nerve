@@ -403,7 +403,7 @@ describe("agent tool definitions", () => {
         "The abort route and child lifecycle are independent areas, and two agents are sufficient for this investigation.",
       tasks: [
         {
-          task: "Map parent abort routing and AgentRunner abort behavior.",
+          task: "Map parent abort routing and WorkbenchAgentMechanics abort behavior.",
           label: "parent abort",
         },
         {
@@ -472,7 +472,9 @@ describe("agent tool definitions", () => {
       () =>
         exploreRunPlanArg({
           tasks: [
-            { task: "Map parent abort routing and AgentRunner behavior." },
+            {
+              task: "Map parent abort routing and WorkbenchAgentMechanics behavior.",
+            },
             { task: "Map child lifecycle cleanup and run registration." },
           ],
           context,
@@ -483,7 +485,9 @@ describe("agent tool definitions", () => {
       () =>
         exploreRunPlanArg({
           tasks: [
-            { task: "Map parent abort routing and AgentRunner behavior." },
+            {
+              task: "Map parent abort routing and WorkbenchAgentMechanics behavior.",
+            },
             { task: "Map child lifecycle cleanup and run registration." },
           ],
           context,
@@ -495,8 +499,12 @@ describe("agent tool definitions", () => {
       () =>
         exploreRunPlanArg({
           tasks: [
-            { task: "Map parent abort routing and AgentRunner behavior." },
-            { task: "map   parent abort routing and agEntrunner behavior." },
+            {
+              task: "Map parent abort routing and WorkbenchAgentMechanics behavior.",
+            },
+            {
+              task: "map   parent abort routing and workbenchagentmechanics behavior.",
+            },
           ],
           context,
           split_rationale,

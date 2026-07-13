@@ -24,10 +24,7 @@ export interface WorkbenchLiveExecutionControl extends RunExecutionControl {
 
 /** Non-authoritative live controls; canonical state is always transition-backed. */
 export class WorkbenchLiveExecutions {
-  private readonly controls = new Map<
-    string,
-    WorkbenchLiveExecutionControl
-  >();
+  private readonly controls = new Map<string, WorkbenchLiveExecutionControl>();
 
   set(runId: string, control: WorkbenchLiveExecutionControl): void {
     this.controls.set(runId, control);

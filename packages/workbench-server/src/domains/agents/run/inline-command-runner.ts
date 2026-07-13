@@ -1,20 +1,18 @@
 import {
-  buildConversationContext,
-  convertToLlm,
-} from "@nervekit/host-runtime/harness";
-import {
   executeBash,
   type ToolExecutionResult,
 } from "@nervekit/host-runtime/tools";
+import type {
+  RunExecutionOutcome,
+  RunExecutionSink,
+} from "@nervekit/host-runtime";
 import {
   type AgentRecord,
-  type ConversationEntry,
   createId,
-  deriveConversationTitle,
   type ToolCallRecord,
 } from "@nervekit/contracts";
-import { HttpError } from "../../../http/errors.js";
-import type { AgentRunnerDeps } from "./agent-runner.js";
+import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
+import { toToolCallTranscriptRecord } from "../../tools/tool-call-transcript-preview.js";
 import {
   bashExecutionMessageForToolCall,
   inlineCommandDisplayText,
@@ -22,13 +20,7 @@ import {
 } from "./inline-command-results.js";
 
 export class InlineCommandRunner {
-  constructor(
-    readonly deps: AgentRunnerDeps,
-    readonly terminateRunToolCalls: (
-      runId: string,
-      message?: string,
-    ) => Promise<void>,
-  ) {}
+  constructor(readonly deps: WorkbenchAgentMechanicsDeps) {}
 
   async executeBashCommand(
     agent: AgentRecord,
@@ -71,61 +63,29 @@ export class InlineCommandRunner {
     );
   }
 
-  async runPrompt(
-    agent: AgentRecord,
-    command: string,
-  ): Promise<ConversationEntry> {
-    if (this.deps.state.runs.has(agent.id)) {
-      throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
-    }
-
-    const runId = createId("run");
-    const entryId = createId("entry");
-    const abortController = new AbortController();
-    let abortRequested = false;
-    const startedAt = new Date().toISOString();
-    const runStartedAt = performance.now();
-
+  async runCoordinatorPrompt(input: {
+    agent: AgentRecord;
+    command: string;
+    runId: string;
+    sink: RunExecutionSink;
+    signal: AbortSignal;
+  }): Promise<RunExecutionOutcome> {
     try {
-      const conversation = this.deps.state.getConversation(
-        agent.conversationId,
-      );
-      const project = this.deps.state.getProject(agent.projectId);
-      this.deps.state.conversationRuntime.startRun({
-        agentId: agent.id,
-        projectId: agent.projectId,
-        conversationId: agent.conversationId,
-        runId,
-        startedAt,
-      });
-      await this.deps.events.publish("run.started", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        conversationId: agent.conversationId,
-        runId,
-        parentEntryId: conversation.activeEntryId,
-        startedAt,
-      });
-      this.deps.state.runs.set(agent.id, {
-        runId,
-        abort: () => {
-          abortRequested = true;
-          this.deps.state.conversationRuntime.markAborting(runId);
-          abortController.abort();
+      const toolCall = await this.executeBashCommand(
+        input.agent,
+        input.command,
+        {
+          runId: input.runId,
+          signal: input.signal,
+          continueAfterPromotedTask: false,
+          useForegroundBash: false,
         },
-        messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
-      });
-      await this.deps.setAgentStatus(agent, "running");
-
-      const toolCall = await this.executeBashCommand(agent, command, {
-        runId,
-        signal: abortController.signal,
-        continueAfterPromotedTask: false,
-        useForegroundBash: false,
-      });
+      );
+      await input.sink.upsertToolCalls([toToolCallTranscriptRecord(toolCall)]);
+      const entryId = createId("entry");
       const createdAt = new Date().toISOString();
-      await this.deps.harnessManager.appendAgentMessageWithId(
-        agent,
+      await this.deps.harnessStorage.appendAgentMessageWithId(
+        input.agent,
         entryId,
         bashExecutionMessageForToolCall(toolCall, createdAt),
         createdAt,
@@ -133,9 +93,9 @@ export class InlineCommandRunner {
       const entry = await this.deps.appendEntry(
         {
           id: entryId,
-          conversationId: agent.conversationId,
-          agentId: agent.id,
-          runId,
+          conversationId: input.agent.conversationId,
+          agentId: input.agent.id,
+          runId: input.runId,
           role: "system",
           kind: "message",
           text: inlineCommandDisplayText(toolCall),
@@ -144,96 +104,20 @@ export class InlineCommandRunner {
         },
         { mirrorToHarness: false },
       );
-      await this.deps.events.publish("conversation.entry.appended", {
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        runId,
-        entry,
-      });
-
-      if (
-        this.deps.state.getConversationEntries(agent.conversationId).length ===
-        1
-      ) {
-        const title = deriveConversationTitle(`! ${command}`);
-        if (title) {
-          const latestConversation = this.deps.state.getConversation(
-            agent.conversationId,
-          );
-          await this.deps.updateConversation({
-            ...latestConversation,
-            title,
-            updatedAt: createdAt,
-          });
-          await this.deps.events.publish("conversation.updated", {
-            conversation: this.deps.state.conversations.get(
-              agent.conversationId,
-            ),
-          });
-        }
-      }
-
-      const storage = await this.deps.harnessManager.openStorage(
-        conversation,
-        project.dir,
-      );
-      const branch = await storage.getPathToRoot(await storage.getLeafId());
-      const messages = convertToLlm(buildConversationContext(branch).messages);
-      this.deps.conversationService.setForAgent(agent.id, messages);
-
-      const latest = this.deps.state.agents.get(agent.id);
-      if (latest) await this.deps.setAgentStatus(latest, "idle");
-      this.deps.state.runs.delete(agent.id);
-      this.deps.state.conversationRuntime.completeRun(runId);
-      const completedAt = new Date().toISOString();
-      await this.deps.events.publish("run.completed", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId,
-        conversationId: agent.conversationId,
-        finalEntryId: entry.id,
-        completedAt,
-      });
-      await this.deps.logger.info("Inline command run completed", {
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        durationMs: Math.round(performance.now() - runStartedAt),
-        context: { finalEntryId: entry.id },
-      });
-      return entry;
+      await input.sink.appendEntries([entry]);
+      return { status: "completed", result: { finalEntryId: entry.id } };
     } catch (error) {
-      this.deps.state.runs.delete(agent.id);
-      const aborted = abortRequested || abortController.signal.aborted;
-      const latest = this.deps.state.agents.get(agent.id);
-      if (latest)
-        await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
-      this.deps.state.conversationRuntime.failRun(runId);
-      await this.terminateRunToolCalls(runId);
-      const message = error instanceof Error ? error.message : String(error);
-      await this.deps.events.publish("run.failed", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId,
-        conversationId: agent.conversationId,
-        message,
-        aborted,
-        failedAt: new Date().toISOString(),
-      });
-      await this.deps.logger[aborted ? "warn" : "error"](
-        aborted ? "Inline command run aborted" : "Inline command run failed",
-        {
-          agentId: agent.id,
-          conversationId: agent.conversationId,
-          projectId: agent.projectId,
-          runId,
-          durationMs: Math.round(performance.now() - runStartedAt),
-          context: { aborted },
-          error,
+      if (input.signal.aborted) {
+        return { status: "interrupted", message: "Command execution aborted." };
+      }
+      return {
+        status: "failed",
+        failure: {
+          code: "INLINE_COMMAND_FAILED",
+          message: error instanceof Error ? error.message : String(error),
+          retryable: false,
         },
-      );
-      throw error;
+      };
     }
   }
 }

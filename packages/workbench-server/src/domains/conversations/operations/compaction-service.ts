@@ -16,7 +16,7 @@ import type {
 } from "@nervekit/contracts";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
-import type { HarnessManager } from "../harness-manager.js";
+import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
 import { buildExtractiveSummary } from "./summary.js";
 
 export interface AppendConversationEntryInput {
@@ -78,7 +78,7 @@ export class CompactionService {
     ) => ConversationRecord,
     private readonly getProject: (projectId: string) => ProjectRecord,
     private readonly appendEntry: AppendConversationEntry,
-    private readonly harnessManager: HarnessManager,
+    private readonly harnessStorage: ConversationHarnessStorage,
     private readonly rebuildConversations: () => Promise<void>,
     private readonly events: EventBus,
     private readonly summarize?: CompactionSummarizer,
@@ -92,7 +92,7 @@ export class CompactionService {
     const reason = options.reason ?? "manual";
     const conversation = this.getConversation(conversationId);
     const project = this.getProject(conversation.projectId);
-    const storage = await this.harnessManager.openStorage(
+    const storage = await this.harnessStorage.openStorage(
       conversation,
       project.dir,
     );

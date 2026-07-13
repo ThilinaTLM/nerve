@@ -3,7 +3,7 @@ import type { ConversationRuntime } from "@nervekit/contracts";
 import {
   type AssistantToolCallSnapshot,
   assistantToolCallSnapshots,
-} from "./agent-runner-shared.js";
+} from "./harness-execution-shared.js";
 
 export interface LiveToolDraftState {
   contentIndex: number;

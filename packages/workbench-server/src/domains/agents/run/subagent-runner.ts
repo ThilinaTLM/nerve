@@ -29,7 +29,7 @@ import {
 } from "../../../infrastructure/storage/index.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import type { AuthManager } from "../../auth/index.js";
-import type { HarnessManager } from "../../conversations/harness-manager.js";
+import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
 import {
   activeToolNamesForExploreAgent,
   createAgentToolsForAgent,
@@ -141,7 +141,7 @@ export interface SubagentRunnerDeps {
   events: EventBus;
   auth: AuthManager;
   tools: ToolService;
-  harnessManager: HarnessManager;
+  harnessStorage: ConversationHarnessStorage;
   state: RuntimeState;
   createAgent: (
     request: CreateAgentRequest,
@@ -159,6 +159,11 @@ export interface SubagentRunnerDeps {
 }
 
 export class SubagentRunner {
+  private readonly live = new Map<
+    string,
+    { runId: string; abort: () => Promise<void> }
+  >();
+
   constructor(private readonly deps: SubagentRunnerDeps) {}
 
   async runExplore(
@@ -401,7 +406,7 @@ export class SubagentRunner {
         removeSignalListener = () =>
           spec.signal?.removeEventListener("abort", onSignalAbort);
       }
-      this.deps.state.runs.set(child.id, {
+      this.live.set(child.id, {
         runId,
         abort: async () => {
           try {
@@ -410,7 +415,6 @@ export class SubagentRunner {
             await stopped;
           }
         },
-        messages: [],
       });
       throwIfAborted(spec.signal);
       const assistant = await harness.prompt(spec.prompt);
@@ -494,8 +498,8 @@ export class SubagentRunner {
       };
     } finally {
       removeSignalListener?.();
-      const currentRun = this.deps.state.runs.get(child.id);
-      if (currentRun?.runId === runId) this.deps.state.runs.delete(child.id);
+      const currentRun = this.live.get(child.id);
+      if (currentRun?.runId === runId) this.live.delete(child.id);
       try {
         await this.deps.updateConversation({
           ...this.deps.getConversation(spec.parent.conversationId),
@@ -551,7 +555,7 @@ export class SubagentRunner {
       shellPath: this.deps.storage.settings.runtime.shellPath,
     });
     if (historyMode === "copy_parent") {
-      const parentPath = this.deps.harnessManager.conversationPath(
+      const parentPath = this.deps.harnessStorage.conversationPath(
         child.conversationId,
       );
       if ((await pathExists(parentPath)) && !(await pathExists(childPath))) {
@@ -563,7 +567,7 @@ export class SubagentRunner {
       return JsonlConversationStorage.create(env, childPath, {
         cwd: child.projectDir,
         conversationId: child.conversationId,
-        parentConversationPath: this.deps.harnessManager.conversationPath(
+        parentConversationPath: this.deps.harnessStorage.conversationPath(
           child.conversationId,
         ),
       });

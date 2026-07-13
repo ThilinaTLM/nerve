@@ -5,18 +5,17 @@ import {
 } from "@nervekit/host-runtime/harness";
 import { withGitMutationEvents } from "@nervekit/host-runtime";
 import { GitService } from "@nervekit/host-runtime/tools";
-import { AgentSuspensionService } from "../domains/agents/agent-suspension.service.js";
 import {
   AgentLifecycleService,
   AgentRepository,
-  PromptQueueRepository,
-  QueuedPromptService,
-  RetryContinuationService,
 } from "../domains/agents/index.js";
-import { AgentRunner, MessageMirror } from "../domains/agents/run/index.js";
+import {
+  WorkbenchAgentMechanics,
+  MessageMirror,
+} from "../domains/agents/run/index.js";
 import type { AuthManager } from "../domains/auth/index.js";
 import { ConversationService } from "../domains/conversations/conversation-service.js";
-import { HarnessManager } from "../domains/conversations/harness-manager.js";
+import { ConversationHarnessStorage } from "../domains/conversations/conversation-harness-storage.js";
 import {
   ConversationLifecycleService,
   ConversationQueryService,
@@ -59,6 +58,7 @@ import {
 } from "../domains/runs/run-composition.js";
 import { WorkbenchAgentExecutionAdapter } from "../domains/runs/workbench-agent-execution.js";
 import { WorkbenchRunService } from "../domains/runs/workbench-run.service.js";
+import { WorkbenchRunQuery } from "../domains/runs/workbench-run-query.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
@@ -85,20 +85,20 @@ export interface RuntimeServices {
   pythonRuntime: PythonRuntimeService;
   workers: WorkerManager;
   plans: PlanService;
-  suspensions: AgentSuspensionService;
   tools: ToolService;
   git: GitService;
   promptSuggestions: PromptSuggestionService;
   pinnedCommands: PinnedCommandService;
-  harnessManager: HarnessManager;
+  harnessStorage: ConversationHarnessStorage;
   conversationService: ConversationService;
   compactionService: CompactionService;
   navigationService: NavigationService;
   exportService: ExportService;
   importService: ImportService;
   messageMirror: MessageMirror;
-  agentRunner: AgentRunner;
+  agentMechanics: WorkbenchAgentMechanics;
   runRuntime: WorkbenchRunRuntime;
+  runQuery: WorkbenchRunQuery;
   workbenchRun: WorkbenchRunService;
   editors: ProjectEditorService;
   projectLifecycle: ProjectLifecycleService;
@@ -106,8 +106,6 @@ export interface RuntimeServices {
   conversationQuery: ConversationQueryService;
   agentLifecycle: AgentLifecycleService;
   humanInput: HumanInputResolutionService;
-  queuedPrompts: QueuedPromptService;
-  retryContinuation: RetryContinuationService;
   pruneConversations: PruneProjectConversationsService;
 }
 
@@ -181,14 +179,13 @@ export function composeRuntime(
   const conversationRepository = new ConversationRepository(storage);
   const agentRepository = new AgentRepository(storage);
   const entryRepository = new EntryRepository(storage);
-  const promptQueueRepository = new PromptQueueRepository(storage);
-  services.harnessManager = new HarnessManager(
+  services.harnessStorage = new ConversationHarnessStorage(
     conversationRepository,
     getConversation,
     getProject,
   );
   services.conversationService = new ConversationService(
-    services.harnessManager,
+    services.harnessStorage,
     entryRepository,
   );
   state.useAgentConversationMessages(
@@ -229,7 +226,7 @@ export function composeRuntime(
     getConversation,
     getProject,
     appendEntry,
-    services.harnessManager,
+    services.harnessStorage,
     rebuildConversations,
     events,
     compactionSummarizer,
@@ -240,7 +237,7 @@ export function composeRuntime(
     state.entries,
     updateConversation,
     appendEntry,
-    services.harnessManager,
+    services.harnessStorage,
     rebuildConversations,
     events,
   );
@@ -290,7 +287,7 @@ export function composeRuntime(
     state,
     conversationRepository,
     entryRepository,
-    services.harnessManager,
+    services.harnessStorage,
     removeAgentInternal,
   );
   services.conversationQuery = new ConversationQueryService({
@@ -303,6 +300,8 @@ export function composeRuntime(
     getContextUsage: (conversationId) =>
       services.workbenchRun.getContextUsage(conversationId),
     listToolCalls: () => services.tools.listToolCalls(),
+    getActiveRun: (conversationId) =>
+      services.runQuery.activeForConversation(conversationId),
   });
   services.agentLifecycle = new AgentLifecycleService(
     storage,
@@ -330,7 +329,6 @@ export function composeRuntime(
     (agentId, mode, reason) =>
       services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
   );
-  services.suspensions = new AgentSuspensionService(storage, events);
   services.git = withGitMutationEvents(new GitService(getProject), events);
   const promptSuggestionTrustRepository = new PromptSuggestionTrustRepository(
     storage,
@@ -366,15 +364,14 @@ export function composeRuntime(
     state.conversationRuntime,
     logger.child({ component: "tool" }),
   );
-  services.agentRunner = new AgentRunner({
+  services.agentMechanics = new WorkbenchAgentMechanics({
     storage,
     events,
     auth,
     tools: services.tools,
     pythonRuntime: services.pythonRuntime,
-    suspensions: services.suspensions,
     plans: services.plans,
-    harnessManager: services.harnessManager,
+    harnessStorage: services.harnessStorage,
     conversationService: services.conversationService,
     compactionService: services.compactionService,
     state,
@@ -385,8 +382,8 @@ export function composeRuntime(
     updateConversation,
     messageMirror: services.messageMirror,
     subscriptionUsage,
-    logger: logger.child({ component: "agent-runner" }),
-    promptQueue: promptQueueRepository,
+    logger: logger.child({ component: "workbench-agent-execution" }),
+    continueAgent: (agentId) => services.workbenchRun.continueAgent(agentId),
   });
   services.runRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
@@ -394,22 +391,26 @@ export function composeRuntime(
     events,
     tools: services.tools,
     tasks: services.tasks,
-    harnessManager: services.harnessManager,
+    harnessStorage: services.harnessStorage,
     execution: (references) =>
-      new WorkbenchAgentExecutionAdapter(services.agentRunner, references),
+      new WorkbenchAgentExecutionAdapter(services.agentMechanics, references),
     logger: logger.child({ component: "run-coordinator" }),
   });
+  services.runQuery = new WorkbenchRunQuery(
+    services.runRuntime.unitOfWork,
+    state,
+  );
   services.workbenchRun = new WorkbenchRunService(
     state,
     services.runRuntime.coordinator,
     services.runRuntime.unitOfWork,
     {
       activeToolNamesFor: (agent) =>
-        services.agentRunner.activeToolNamesFor(agent),
+        services.agentMechanics.activeToolNamesFor(agent),
       getContextUsage: (conversationId) =>
-        services.agentRunner.getContextUsage(conversationId),
+        services.agentMechanics.getContextUsage(conversationId),
       runExplore: (parent, args, options) =>
-        services.agentRunner.runExplore(parent, args, options),
+        services.agentMechanics.runExplore(parent, args, options),
     },
   );
   services.taskNotifications = new TaskNotificationService({
@@ -418,7 +419,7 @@ export function composeRuntime(
     liveRuns: services.runRuntime.live,
     runUnitOfWork: services.runRuntime.unitOfWork,
     appendEntry,
-    harnessManager: services.harnessManager,
+    harnessStorage: services.harnessStorage,
     getAgent,
     getConversationEntries: (conversationId) =>
       state.getConversationEntries(conversationId),
@@ -440,20 +441,7 @@ export function composeRuntime(
     setAgentStatus: (agent, status) =>
       services.agentLifecycle.setAgentStatus(agent, status),
     appendEntry,
-    harnessManager: services.harnessManager,
-  });
-  services.queuedPrompts = new QueuedPromptService({
-    promptQueueRepository,
-    state,
-    events,
-  });
-  services.retryContinuation = new RetryContinuationService({
-    state,
-    getConversationEntries: (conversationId) =>
-      services.conversationLifecycle.getConversationEntries(conversationId),
-    continueFromFailedTurn: (agentId, failedEntryId) =>
-      services.workbenchRun.continueFromFailedTurn(agentId, failedEntryId),
-    resumeRun: (agentId) => services.workbenchRun.resumeRun(agentId),
+    harnessStorage: services.harnessStorage,
   });
   services.pruneConversations = new PruneProjectConversationsService({
     getProject,
@@ -462,7 +450,6 @@ export function composeRuntime(
     tasks: services.tasks,
     tools: services.tools,
     plans: services.plans,
-    suspensions: services.suspensions,
     conversationRepository,
     removeConversation,
     rebuildIndex,

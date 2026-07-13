@@ -1,5 +1,6 @@
 import type {
   ContextUsage,
+  ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationSnapshot,
   ConversationTree,
@@ -46,6 +47,9 @@ export interface ConversationQueryServiceDeps {
   getConversationTree: (conversationId: string) => ConversationTree;
   getContextUsage: (conversationId: string) => Promise<ContextUsage>;
   listToolCalls: () => ToolCallRecord[];
+  getActiveRun: (
+    conversationId: string,
+  ) => Promise<ConversationActiveRunSnapshot | undefined>;
 }
 
 export class ConversationQueryService {
@@ -60,10 +64,7 @@ export class ConversationQueryService {
       .catch(() => undefined);
     const entries = this.deps.getConversationEntries(conversationId);
     const activeEntryIds = entries.map((entry) => entry.id);
-    const activeRun =
-      this.deps.state.conversationRuntime.snapshotForConversation(
-        conversationId,
-      );
+    const activeRun = await this.deps.getActiveRun(conversationId);
     return {
       conversation: this.deps.state.getConversation(conversationId),
       entries,

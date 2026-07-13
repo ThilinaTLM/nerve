@@ -166,11 +166,7 @@ describe("inline command prompts", () => {
   it("rejects command-mode prompts while the agent is already running", async () => {
     const { state, agent } = await createProjectConversationAgent();
     try {
-      state.registry.runs.set(agent.id, {
-        runId: "run_01HN0000000000000000000000",
-        abort: () => undefined,
-        messages: [],
-      });
+      await state.registry.promptAgent(agent.id, { text: "Keep working." });
 
       await assert.rejects(
         () => state.registry.promptAgent(agent.id, { text: "!pwd" }),

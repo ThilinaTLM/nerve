@@ -6,6 +6,7 @@ import type {
   ToolCallTranscriptRecord,
   ToolName,
 } from "@nervekit/contracts";
+import { parseInlineCommandPrompt } from "@nervekit/contracts";
 import type { RunCoordinator } from "@nervekit/host-runtime";
 import { HttpError } from "../../http/errors.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
@@ -60,7 +61,11 @@ export class WorkbenchRunService {
       ),
     );
     if (!state) {
-      throw new HttpError(404, "QUEUED_PROMPT_NOT_FOUND", "Queued prompt not found.");
+      throw new HttpError(
+        404,
+        "QUEUED_PROMPT_NOT_FOUND",
+        "Queued prompt not found.",
+      );
     }
     return this.coordinator.cancelPrompt(state.run.runId, promptId);
   }
@@ -70,6 +75,9 @@ export class WorkbenchRunService {
     const scopeId = this.scopeId(agent);
     const active = await this.unitOfWork.findActive(scopeId);
     if (active) {
+      if (parseInlineCommandPrompt(request.text)) {
+        throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+      }
       const behavior = request.behavior ?? "steer";
       if (behavior === "reject-if-busy") {
         throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");

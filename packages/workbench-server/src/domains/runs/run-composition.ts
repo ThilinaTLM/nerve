@@ -7,7 +7,7 @@ import {
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../infrastructure/events/index.js";
-import type { HarnessManager } from "../conversations/harness-manager.js";
+import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { ToolService } from "../tools/tool-service.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import { WorkbenchRunCancellation } from "./run-cancellation.js";
@@ -38,7 +38,7 @@ export function createWorkbenchRunRuntime(input: {
   events: EventBus;
   tools: ToolService;
   tasks: WorkbenchTaskService;
-  harnessManager: HarnessManager;
+  harnessStorage: ConversationHarnessStorage;
   execution:
     | WorkbenchRunExecutionAdapter
     | ((references: WorkbenchRunReferences) => WorkbenchRunExecutionAdapter);
@@ -53,7 +53,7 @@ export function createWorkbenchRunRuntime(input: {
   );
   const references = new WorkbenchRunReferences(
     unitOfWork,
-    input.harnessManager,
+    input.harnessStorage,
     input.state,
   );
   const live = new WorkbenchLiveExecutions();

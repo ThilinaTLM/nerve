@@ -9,14 +9,14 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "@nervekit/contracts";
-import type { HarnessManager } from "./harness-manager.js";
+import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";
 import type { EntryRepository } from "./index.js";
 
 export class ConversationService {
   readonly agentConversationCache = new Map<string, Message[]>();
 
   constructor(
-    private readonly harnessManager: HarnessManager,
+    private readonly harnessStorage: ConversationHarnessStorage,
     private readonly entryRepository: EntryRepository,
   ) {}
 
@@ -71,14 +71,14 @@ export class ConversationService {
     entriesByConversationId: Map<string, ConversationEntry[]>,
   ): Promise<Message[]> {
     try {
-      const storage = await this.harnessManager.openStorage(
+      const storage = await this.harnessStorage.openStorage(
         conversation,
         projectDir,
       );
       const branch = await storage.getPathToRoot(await storage.getLeafId());
       return convertToLlm(buildConversationContext(branch).messages);
     } catch (error) {
-      this.harnessManager.warnMirror(error);
+      this.harnessStorage.warnMirror(error);
       return this.entryRepository
         .activeBranchEntries(entriesByConversationId, conversation)
         .filter((entry) => entry.role === "user" || entry.role === "assistant")

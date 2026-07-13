@@ -21,7 +21,7 @@ import type {
 } from "../../runtime/types.js";
 import type { WorkbenchRunService } from "../runs/workbench-run.service.js";
 import { agentMessageText } from "../agents/run/index.js";
-import type { HarnessManager } from "../conversations/harness-manager.js";
+import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { PlanService } from "../plans/plan-service.js";
 import { completedToolResult } from "../tools/agent-tool-adapter.js";
 import type { ToolService } from "../tools/tool-service.js";
@@ -56,7 +56,7 @@ export interface HumanInputResolutionDeps {
     input: AppendEntryInput,
     options?: AppendEntryOptions,
   ): Promise<ConversationEntry>;
-  harnessManager: HarnessManager;
+  harnessStorage: ConversationHarnessStorage;
 }
 
 export class HumanInputResolutionService {
@@ -330,7 +330,14 @@ export class HumanInputResolutionService {
     },
   ): Promise<void> {
     const toolCall = this.deps.tools.getToolCall(toolCallId);
-    const completed = await this.deps.tools.completeToolCall(toolCallId, result);
+    if (!toolCall.runId) {
+      await this.deps.tools.completeToolCall(toolCallId, result);
+      return;
+    }
+    const completed = await this.deps.tools.completeToolCall(
+      toolCallId,
+      result,
+    );
     const entries = [await this.appendToolResultForToolCall(completed, false)];
     if (options.followUpUserMessage) {
       entries.push(
@@ -373,7 +380,7 @@ export class HumanInputResolutionService {
       content: text,
       timestamp: Date.now(),
     };
-    const appended = await this.deps.harnessManager.appendAgentMessage(
+    const appended = await this.deps.harnessStorage.appendAgentMessage(
       agent,
       message,
     );
@@ -409,7 +416,7 @@ export class HumanInputResolutionService {
       isError,
       timestamp: Date.now(),
     };
-    const appended = await this.deps.harnessManager.appendAgentMessage(
+    const appended = await this.deps.harnessStorage.appendAgentMessage(
       agent,
       message,
     );
@@ -454,7 +461,7 @@ export class HumanInputResolutionService {
       isError: true,
       timestamp: Date.now(),
     };
-    const appended = await this.deps.harnessManager.appendAgentMessage(
+    const appended = await this.deps.harnessStorage.appendAgentMessage(
       agent,
       message,
     );

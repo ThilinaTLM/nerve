@@ -7,7 +7,7 @@ import type {
 } from "@nervekit/contracts";
 import { HttpError } from "../../../http/errors.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
-import type { HarnessManager } from "../harness-manager.js";
+import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
 import type { AppendConversationEntry } from "./compaction-service.js";
 import { buildExtractiveSummary } from "./summary.js";
 
@@ -22,7 +22,7 @@ export class NavigationService {
       conversation: ConversationRecord,
     ) => Promise<void>,
     private readonly appendEntry: AppendConversationEntry,
-    private readonly harnessManager: HarnessManager,
+    private readonly harnessStorage: ConversationHarnessStorage,
     private readonly rebuildConversations: () => Promise<void>,
     private readonly events: EventBus,
   ) {}
@@ -58,7 +58,7 @@ export class NavigationService {
       updatedAt: new Date().toISOString(),
     };
     await this.updateConversation(updated);
-    await this.harnessManager.setLeaf(updated, nextActiveEntryId);
+    await this.harnessStorage.setLeaf(updated, nextActiveEntryId);
     await this.rebuildConversations();
     await this.events.publish("conversation.navigated", {
       conversationId: conversation.id,
@@ -75,7 +75,7 @@ export class NavigationService {
     instructions?: string,
   ): Promise<ConversationEntry | undefined> {
     const project = this.getProject(conversation.projectId);
-    const storage = await this.harnessManager.openStorage(
+    const storage = await this.harnessStorage.openStorage(
       conversation,
       project.dir,
     );

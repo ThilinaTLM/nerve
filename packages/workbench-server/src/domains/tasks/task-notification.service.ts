@@ -17,7 +17,7 @@ import type { EventBus } from "../../infrastructure/events/index.js";
 import type { AppendEntryInput } from "../../runtime/types.js";
 import type { WorkbenchLiveExecutions } from "../runs/run-live-executions.js";
 import type { WorkbenchRunUnitOfWork } from "../runs/run-transition.repository.js";
-import type { HarnessManager } from "../conversations/harness-manager.js";
+import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { WorkbenchTaskService } from "./workbench-task-service.js";
 import {
   formatTaskEventSummary,
@@ -34,7 +34,7 @@ export interface TaskNotificationServiceDeps {
     input: AppendEntryInput,
     options?: { mirrorToHarness?: boolean },
   ): Promise<ConversationEntry>;
-  harnessManager: HarnessManager;
+  harnessStorage: ConversationHarnessStorage;
   getAgent(agentId: string): AgentRecord;
   getConversationEntries(conversationId: string): ConversationEntry[];
   continueAgent?: (agentId: string) => Promise<void>;
@@ -394,7 +394,7 @@ export class TaskNotificationService {
     timestamp: string,
   ): Promise<void> {
     const agent = this.deps.getAgent(task.agentId as string);
-    await this.deps.harnessManager.appendHarnessMessageWithId(
+    await this.deps.harnessStorage.appendHarnessMessageWithId(
       agent,
       entryId,
       message,

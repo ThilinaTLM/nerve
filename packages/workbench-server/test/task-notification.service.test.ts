@@ -9,7 +9,6 @@ import type {
   TaskLogEvent,
   TaskRecord,
 } from "@nervekit/contracts";
-import type { AgentRunStateMap } from "../src/domains/agents/run/run-state.js";
 import {
   TaskNotificationService,
   type TaskNotificationServiceDeps,
@@ -143,19 +142,11 @@ describe("TaskNotificationService awaited task continuation", () => {
       task: taskRecord({
         completion: { inject: true, outputTailLineCount: 80 },
       }),
-      runs: new Map([
-        [
-          "agent_test",
-          {
-            runId: "run_test",
-            abort: () => undefined,
-            messages: [],
-            enqueueHarnessMessage: async (input) => {
-              enqueued.push(input.message);
-            },
-          },
-        ],
-      ]),
+      liveControl: {
+        enqueueHarnessMessage: async (input) => {
+          enqueued.push(input.message);
+        },
+      },
     });
     context.service.start();
 
@@ -171,7 +162,9 @@ describe("TaskNotificationService awaited task continuation", () => {
 
 function createNotificationContext(options: {
   task: TaskRecord;
-  runs?: AgentRunStateMap;
+  liveControl?: {
+    enqueueHarnessMessage(input: { message: AgentMessage }): Promise<void>;
+  };
   agent?: AgentRecord;
 }) {
   const events = new TestEvents();
@@ -188,7 +181,13 @@ function createNotificationContext(options: {
   const deps: TaskNotificationServiceDeps = {
     tasks: tasks as unknown as TaskNotificationServiceDeps["tasks"],
     events: events as unknown as TaskNotificationServiceDeps["events"],
-    runs: options.runs ?? new Map(),
+    liveRuns: {
+      get: (runId: string) =>
+        runId === "run_test" ? options.liveControl : undefined,
+    } as unknown as TaskNotificationServiceDeps["liveRuns"],
+    runUnitOfWork: {
+      findActive: async () => ({ run: { runId: "run_test" } }),
+    } as unknown as TaskNotificationServiceDeps["runUnitOfWork"],
     appendEntry: async (input) => {
       const entry = {
         id: input.id ?? `entry_test_${entries.length + 1}`,
@@ -212,11 +211,11 @@ function createNotificationContext(options: {
       entries.push(entry);
       return entry;
     },
-    harnessManager: {
+    harnessStorage: {
       appendHarnessMessageWithId: async (_agent, id, message, timestamp) => {
         harnessMessages.push({ id, message, timestamp });
       },
-    } as unknown as TaskNotificationServiceDeps["harnessManager"],
+    } as unknown as TaskNotificationServiceDeps["harnessStorage"],
     getAgent: () => agent,
     getConversationEntries: () => entries,
     continueAgent: async (agentId) => {
@@ -254,7 +253,11 @@ function taskRecord(overrides: Partial<TaskRecord> = {}): TaskRecord {
     updatedAt: now,
     finishedAt: now,
     exitCode: 0,
-    origin: { kind: "agent_tool", toolCallId: "tool_test" },
+    origin: {
+      kind: "agent_tool",
+      toolCallId: "tool_test",
+      runId: "run_test",
+    },
     notifications: {
       enabled: true,
       ready: true,

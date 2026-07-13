@@ -27,10 +27,6 @@ export interface PruneConversationsToolPort {
 export interface PruneConversationsPlanPort {
   removeReviewsForConversations(conversationIds: string[]): Promise<void>;
 }
-export interface PruneConversationsSuspensionPort {
-  removeSuspensionsForConversations(conversationIds: string[]): Promise<void>;
-}
-
 export interface PruneProjectConversationsServiceDeps {
   getProject: (projectId: string) => ProjectRecord;
   listConversations: () => ConversationRecord[];
@@ -38,7 +34,6 @@ export interface PruneProjectConversationsServiceDeps {
   tasks: PruneConversationsTaskPort;
   tools: PruneConversationsToolPort;
   plans: PruneConversationsPlanPort;
-  suspensions: PruneConversationsSuspensionPort;
   conversationRepository: ConversationRepository;
   removeConversation: (conversationId: string) => Promise<void>;
   rebuildIndex: () => Promise<void>;
@@ -128,7 +123,6 @@ export class PruneProjectConversationsService {
       prunedAgentIds,
     );
     await this.deps.plans.removeReviewsForConversations(prunedIds);
-    await this.deps.suspensions.removeSuspensionsForConversations(prunedIds);
     for (const conversation of pruned)
       await this.deps.removeConversation(conversation.id);
     // removeConversation publishes a deletion event into the per-conversation

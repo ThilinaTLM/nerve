@@ -16,7 +16,7 @@ import type {
 } from "../../runtime/types.js";
 import type { ConversationRepository } from "./conversation.repository.js";
 import type { EntryRepository } from "./entry.repository.js";
-import type { HarnessManager } from "./harness-manager.js";
+import type { ConversationHarnessStorage } from "./conversation-harness-storage.js";
 
 export class ConversationLifecycleService {
   constructor(
@@ -26,7 +26,7 @@ export class ConversationLifecycleService {
     private readonly state: RuntimeState,
     private readonly conversationRepository: ConversationRepository,
     private readonly entryRepository: EntryRepository,
-    private readonly harnessManager: HarnessManager,
+    private readonly harnessStorage: ConversationHarnessStorage,
     private readonly removeAgent: (agentId: string) => Promise<void>,
   ) {}
 
@@ -60,7 +60,7 @@ export class ConversationLifecycleService {
     this.index.upsertConversation(conversation);
     this.state.entries.set(conversation.id, []);
     await this.writeConversation(conversation);
-    await this.harnessManager.createConversation(conversation, project.dir);
+    await this.harnessStorage.createConversation(conversation, project.dir);
     await this.events.publish("conversation.created", { conversation });
     return conversation;
   }
@@ -164,7 +164,7 @@ export class ConversationLifecycleService {
       lastUserMessageAt,
     });
     if (options.mirrorToHarness !== false)
-      await this.harnessManager.appendEntry(entry);
+      await this.harnessStorage.appendEntry(entry);
     return entry;
   }
 

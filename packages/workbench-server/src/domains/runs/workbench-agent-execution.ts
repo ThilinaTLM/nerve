@@ -4,7 +4,7 @@ import type {
   RunExecution,
   RunExecutionSink,
 } from "@nervekit/host-runtime";
-import type { AgentRunner } from "../agents/run/agent-runner.js";
+import type { WorkbenchAgentMechanics } from "../agents/run/workbench-agent-mechanics.js";
 import type { WorkbenchRunExecutionAdapter } from "./run-execution.js";
 import type { WorkbenchLiveExecutionControl } from "./run-live-executions.js";
 import type { WorkbenchRunReferences } from "./run-references.js";
@@ -14,11 +14,9 @@ import type { WorkbenchRunReferences } from "./run-references.js";
  * boundary. The mutable control reference is live-only; all durable effects
  * are reported through the supplied sink.
  */
-export class WorkbenchAgentExecutionAdapter
-  implements WorkbenchRunExecutionAdapter
-{
+export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdapter {
   constructor(
-    private readonly runner: AgentRunner,
+    private readonly runner: WorkbenchAgentMechanics,
     private readonly references: WorkbenchRunReferences,
   ) {}
 
@@ -53,7 +51,8 @@ export class WorkbenchAgentExecutionAdapter
         pending.length = 0;
         await installed?.cancel(reason);
       },
-      removeQueuedPrompt: (promptId) => installed?.removeQueuedPrompt?.(promptId),
+      removeQueuedPrompt: (promptId) =>
+        installed?.removeQueuedPrompt?.(promptId),
       updateAgentRuntimeConfig: async (agent) =>
         installed?.updateAgentRuntimeConfig?.(agent),
       appendExternalMessage: async (input) =>

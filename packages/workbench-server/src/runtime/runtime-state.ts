@@ -6,7 +6,6 @@ import {
   ConversationRuntime,
   type ProjectRecord,
 } from "@nervekit/contracts";
-import type { AgentRunState } from "../domains/agents/run/index.js";
 import { HttpError } from "../http/errors.js";
 
 export class RuntimeState {
@@ -14,7 +13,6 @@ export class RuntimeState {
   readonly conversations = new Map<string, ConversationRecord>();
   readonly agents = new Map<string, AgentRecord>();
   readonly entries = new Map<string, ConversationEntry[]>();
-  readonly runs = new Map<string, AgentRunState>();
   readonly conversationRuntime = new ConversationRuntime();
   agentConversationMessages = new Map<string, Message[]>();
 
@@ -94,7 +92,6 @@ export class RuntimeState {
 
   removeAgent(agentId: string): void {
     this.agents.delete(agentId);
-    this.runs.delete(agentId);
   }
 
   rebuildConversations(conversations: ConversationRecord[]): void {

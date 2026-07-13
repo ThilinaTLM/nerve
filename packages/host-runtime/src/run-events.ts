@@ -44,7 +44,7 @@ export class RunEventFactory {
   ): RunPublicEventIntent {
     validatePublicEvent(type, data, this.sourceRole);
     return {
-      id: `${run.runId}/${run.revision}/${type}`,
+      id: `evt_${run.runId.slice(4)}_${run.revision}_${type.replaceAll(".", "_")}`,
       type,
       durability: "durable",
       occurredAt,

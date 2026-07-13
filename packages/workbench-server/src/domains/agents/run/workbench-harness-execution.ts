@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- AgentRunSession coordinates the complete agent run lifecycle and suspension flow. */
 import {
   AgentHarness,
   buildConversationContext,
@@ -24,12 +23,10 @@ import type {
   WaitCommand,
 } from "@nervekit/host-runtime";
 import {
-  createId,
   findExecutableCommandBlocks,
   replaceExecutableCommandBlocks,
   toolNameSchema,
 } from "@nervekit/contracts";
-import { HttpError } from "../../../http/errors.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {
   activeToolNamesForAgent,
@@ -39,14 +36,14 @@ import {
 import { toToolCallTranscriptRecord } from "../../tools/tool-call-transcript-preview.js";
 import type { WorkbenchLiveExecutionControl } from "../../runs/run-live-executions.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
-import type { AgentRunner } from "./agent-runner.js";
+import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import {
   assistantContentRedacted,
   assistantToolCallDraft,
   errorTextFromToolResult,
   recordFromUnknown,
   sameStringList,
-} from "./agent-runner-shared.js";
+} from "./harness-execution-shared.js";
 import { inlineCommandExecutionResultText } from "./inline-command-results.js";
 import {
   LiveToolDraftReconciler,
@@ -74,36 +71,30 @@ interface CoordinatorExecutionOptions {
   ): Promise<CheckpointCommand>;
 }
 
-export async function runAgentPromptSession(
-  this: AgentRunner,
+export async function executeWorkbenchHarness(
+  this: WorkbenchAgentMechanics,
   agent: AgentRecord,
   request: PromptRequest,
   options: {
     continue?: boolean;
-    coordinator?: CoordinatorExecutionOptions;
-  } = {},
-): Promise<ConversationEntry | RunExecutionOutcome> {
+    coordinator: CoordinatorExecutionOptions;
+  },
+): Promise<RunExecutionOutcome> {
   const coordinator = options.coordinator;
-  if (!coordinator && this.deps.state.runs.has(agent.id)) {
-    throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
-  }
   // A fresh (non-continuation) prompt resets the auto-continuation budget so
   // the runaway guard only counts back-to-back automatic continuations.
   if (!options.continue) {
     this.autoContinuationCounts.delete(agent.conversationId);
   }
-  const runId = coordinator?.run.runId ?? createId("run");
-  const runStartedAt = performance.now();
+  const runId = coordinator.run.runId;
   let abortRequested = false;
   const runAbortController = new AbortController();
-  if (coordinator) {
-    if (coordinator.signal.aborted) runAbortController.abort();
-    coordinator.signal.addEventListener(
-      "abort",
-      () => runAbortController.abort(),
-      { once: true },
-    );
-  }
+  if (coordinator.signal.aborted) runAbortController.abort();
+  coordinator.signal.addEventListener(
+    "abort",
+    () => runAbortController.abort(),
+    { once: true },
+  );
   let lastAssistantEntry: ConversationEntry | undefined;
   let currentTurnId: string | undefined;
   let currentLiveMessageId: string | undefined;
@@ -124,7 +115,7 @@ export async function runAgentPromptSession(
     });
     const conversation = this.deps.state.getConversation(agent.conversationId);
     const project = this.deps.state.getProject(agent.projectId);
-    const storage = await this.deps.harnessManager.openStorage(
+    const storage = await this.deps.harnessStorage.openStorage(
       conversation,
       project.dir,
     );
@@ -237,7 +228,7 @@ export async function runAgentPromptSession(
         pendingProviderToolCalls.delete(event.toolCallId);
         const existingToolCall =
           this.deps.tools.findToolCallByProviderToolCallId(event.toolCallId);
-        if (coordinator && existingToolCall) {
+        if (existingToolCall) {
           await coordinator.sink.upsertToolCalls([
             toToolCallTranscriptRecord(existingToolCall),
           ]);
@@ -511,20 +502,11 @@ export async function runAgentPromptSession(
           },
         );
         let shouldPublishContextUsage = false;
-        if (coordinator && mirrored.length > 0) {
+        if (mirrored.length > 0) {
           await coordinator.sink.appendEntries(mirrored);
         }
         for (const entry of mirrored) {
-          if (!coordinator) await this.deps.events.publish("conversation.entry.appended", {
-            conversationId: agent.conversationId,
-            agentId: agent.id,
-            runId,
-            turnId: entry.turnId ?? currentTurnId,
-            liveMessageId: entry.liveMessageId,
-            entry,
-          });
           if (entry.role === "user") {
-            await this.maybeMarkQueuedPromptDelivered(agent, runId, entry);
             await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
               conversation.id,
               entry.text,
@@ -560,16 +542,6 @@ export async function runAgentPromptSession(
       runId,
       startedAt,
     });
-    if (!coordinator) {
-      await this.deps.events.publish("run.started", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        conversationId: agent.conversationId,
-        runId,
-        parentEntryId: conversation.activeEntryId,
-        startedAt,
-      });
-    }
     await this.deps.logger.info("Agent run started", {
       agentId: agent.id,
       conversationId: agent.conversationId,
@@ -605,51 +577,22 @@ export async function runAgentPromptSession(
         await harness.setThinkingLevel(updatedAgent.thinkingLevel);
       }
     };
-    if (coordinator) {
-      coordinator.installControl({
-        steer: (prompt) => harness.steer(prompt.text, { id: prompt.id }),
-        followUp: (prompt) => harness.followUp(prompt.text, { id: prompt.id }),
-        continue: async () => undefined,
-        cancel: abort,
-        removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
-        updateAgentRuntimeConfig,
-        appendExternalMessage: (input) => harness.appendExternalMessage(input),
-        enqueueHarnessMessage: (input) =>
-          harness.enqueueHarnessMessage({
-            id: input.id,
-            message: input.message,
-            timestamp: input.timestamp,
-            delivery: input.delivery,
-          }),
-      });
-    } else {
-      this.deps.state.runs.set(agent.id, {
-        runId,
-        abort,
-        messages: this.deps.conversationService.getForAgent(agent.id) ?? [],
-        steer: (text, promptOptions, queuedPromptId) =>
-          harness.steer(text, {
-            images: promptOptions?.images,
-            id: queuedPromptId,
-          }),
-        followUp: (text, promptOptions, queuedPromptId) =>
-          harness.followUp(text, {
-            images: promptOptions?.images,
-            id: queuedPromptId,
-          }),
-        removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
-        updateAgentRuntimeConfig,
-        appendExternalMessage: (input) => harness.appendExternalMessage(input),
-        enqueueHarnessMessage: (input) =>
-          harness.enqueueHarnessMessage({
-            id: input.id,
-            message: input.message,
-            timestamp: input.timestamp,
-            delivery: input.delivery,
-          }),
-      });
-      await this.deps.setAgentStatus(agent, "running");
-    }
+    coordinator.installControl({
+      steer: (prompt) => harness.steer(prompt.text, { id: prompt.id }),
+      followUp: (prompt) => harness.followUp(prompt.text, { id: prompt.id }),
+      continue: async () => undefined,
+      cancel: abort,
+      removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
+      updateAgentRuntimeConfig,
+      appendExternalMessage: (input) => harness.appendExternalMessage(input),
+      enqueueHarnessMessage: (input) =>
+        harness.enqueueHarnessMessage({
+          id: input.id,
+          message: input.message,
+          timestamp: input.timestamp,
+          delivery: input.delivery,
+        }),
+    });
 
     const promptRequest = await expandExecutablePromptBlocks(
       this,
@@ -665,8 +608,6 @@ export async function runAgentPromptSession(
       runId,
       agent,
     });
-    const latest = this.deps.state.agents.get(agent.id);
-    if (!coordinator) this.deps.state.runs.delete(agent.id);
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const messages = convertToLlm(buildConversationContext(branch).messages);
     this.deps.conversationService.setForAgent(agent.id, messages);
@@ -679,243 +620,66 @@ export async function runAgentPromptSession(
       runAssistant.stopReason === "aborted"
     ) {
       const aborted = runAssistant.stopReason === "aborted" || abortRequested;
-      if (coordinator) {
-        return {
-          status: aborted ? "interrupted" : "failed",
-          ...(aborted
-            ? { message: "Agent run aborted." }
-            : {
-                failure: {
-                  code: "MODEL_REQUEST_FAILED",
-                  message: runAssistant.errorMessage ?? "Agent run failed.",
-                  retryable: true,
-                },
-              }),
-        } as RunExecutionOutcome;
-      }
-      if (latest)
-        await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
-      const retryExhausted = !aborted
-        ? await this.appendRunFailureStatus(
-            agent,
-            runId,
-            assistantEntry,
-            runAssistant,
-          )
-        : undefined;
-      this.deps.state.conversationRuntime.failRun(runId);
-      await this.terminateRunToolCalls(runId);
-      await this.deps.events.publish("run.failed", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId,
-        conversationId: agent.conversationId,
-        message: runAssistant.errorMessage ?? "Agent run failed.",
-        aborted,
-        failedAt: new Date().toISOString(),
-        retryExhausted,
-      });
-      await this.deps.logger.warn("Agent run failed", {
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        durationMs: Math.round(performance.now() - runStartedAt),
-        context: {
-          finalEntryId: assistantEntry.id,
-          stopReason: runAssistant.stopReason,
-          errorMessage: runAssistant.errorMessage,
-        },
-      });
-      return assistantEntry;
-    }
-    if (coordinator) {
-      await coordinator.sink.checkpoint(
-        await coordinator.checkpointCommand("after_provider_response"),
-      );
       return {
-        status: "completed",
-        result: { finalEntryId: assistantEntry.id },
-      };
+        status: aborted ? "interrupted" : "failed",
+        ...(aborted
+          ? { message: "Agent run aborted." }
+          : {
+              failure: {
+                code: "MODEL_REQUEST_FAILED",
+                message: runAssistant.errorMessage ?? "Agent run failed.",
+                retryable: true,
+              },
+            }),
+      } as RunExecutionOutcome;
     }
-    if (latest) await this.deps.setAgentStatus(latest, "idle");
-    const completedAt = new Date().toISOString();
-    this.deps.state.conversationRuntime.completeRun(runId);
-    await this.deps.events.publish("run.completed", {
-      agentId: agent.id,
-      projectId: agent.projectId,
-      runId,
-      conversationId: agent.conversationId,
-      finalEntryId: assistantEntry.id,
-      completedAt,
-    });
-    await this.deps.logger.info("Agent run completed", {
-      agentId: agent.id,
-      conversationId: agent.conversationId,
-      projectId: agent.projectId,
-      runId,
-      durationMs: Math.round(performance.now() - runStartedAt),
-      context: { finalEntryId: assistantEntry.id },
-    });
-    await this.maybeAutoCompact(agent.conversationId, agent.id, runId).catch(
-      (error) => {
-        process.emitWarning(
-          `Auto-compaction failed for ${agent.conversationId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      },
+    await coordinator.sink.checkpoint(
+      await coordinator.checkpointCommand("after_provider_response"),
     );
-    await this.publishContextUsage(agent.conversationId, agent.id, runId).catch(
-      (error) => {
-        process.emitWarning(
-          `Context-usage publish failed for ${agent.conversationId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      },
-    );
-    return assistantEntry;
+    return {
+      status: "completed",
+      result: { finalEntryId: assistantEntry.id },
+    };
   } catch (error) {
     const suspensionError = isAgentToolSuspension(error)
       ? error
       : this.suspensionFromWaitingToolCall(agent, runId, error);
     if (suspensionError) {
-      if (!coordinator) this.deps.state.runs.delete(agent.id);
-      const latest = this.deps.state.agents.get(agent.id);
       const toolCall = this.deps.tools.getToolCall(
         suspensionError.data.toolCallId,
       );
-      const providerToolCallId =
-        toolCall.providerToolCallId ??
-        toolCall.sourceToolCallId ??
-        suspensionError.data.toolCall?.id ??
-        suspensionError.data.toolCallId;
-      if (coordinator) {
-        const interactionId =
-          this.deps.tools.listUserQuestions().find(
-            (question) => question.toolCallId === toolCall.id,
-          )?.id ??
-          this.deps.plans.listPlanReviews().find(
-            (review) => review.toolCallId === toolCall.id,
-          )?.id ??
-          toolCall.id;
-        const checkpoint = await coordinator.checkpointCommand(
-          "suspension",
-          interactionId,
-        );
-        const wait = canonicalWaitCommand(
-          interactionId,
-          toolCall,
-          checkpoint,
-          suspensionError.data.reason,
-          this.deps,
-        );
-        await coordinator.sink.wait(wait);
-        return { status: "suspended" };
-      }
-      const suspension = await this.deps.suspensions.createSuspension({
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        turnId: currentTurnId,
-        liveMessageId: currentLiveMessageId,
-        assistantEntryId: lastAssistantEntry?.id,
-        toolCallId: toolCall.id,
-        providerToolCallId,
-        toolName: toolCall.toolName as "ask_user" | "plan_mode_present",
-        remainingToolCalls: (suspensionError.data.remainingToolCalls ?? []).map(
-          (remaining) => ({
-            id: remaining.id,
-            name: remaining.name,
-            arguments: remaining.arguments,
-          }),
-        ),
-        reason: suspensionError.data.reason,
-      });
-      if (latest) await this.deps.setAgentStatus(latest, "awaiting_user");
-      const suspendedAt = new Date().toISOString();
-      this.deps.state.conversationRuntime.completeRun(runId);
-      await this.deps.events.publish("run.suspended", {
-        agentId: agent.id,
-        projectId: agent.projectId,
-        runId,
-        conversationId: agent.conversationId,
-        suspensionId: suspension.id,
-        toolCallId: toolCall.id,
-        suspendedAt,
-        reason: suspensionError.data.reason,
-      });
-      await this.deps.logger.info("Agent run suspended", {
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        toolCallId: toolCall.id,
-        durationMs: Math.round(performance.now() - runStartedAt),
-        context: {
-          suspensionId: suspension.id,
-          reason: suspensionError.data.reason,
-        },
-      });
-      if (lastAssistantEntry) return lastAssistantEntry;
-      throw new Error("Agent run suspended without an assistant entry.", {
-        cause: error,
-      });
+      const interactionId =
+        this.deps.tools
+          .listUserQuestions()
+          .find((question) => question.toolCallId === toolCall.id)?.id ??
+        this.deps.plans
+          .listPlanReviews()
+          .find((review) => review.toolCallId === toolCall.id)?.id ??
+        toolCall.id;
+      const checkpoint = await coordinator.checkpointCommand(
+        "suspension",
+        interactionId,
+      );
+      const wait = canonicalWaitCommand(
+        interactionId,
+        toolCall,
+        checkpoint,
+        suspensionError.data.reason,
+        this.deps,
+      );
+      await coordinator.sink.wait(wait);
+      return { status: "suspended" };
     }
-    if (!coordinator) this.deps.state.runs.delete(agent.id);
-    const aborted = abortRequested;
-    const latest = this.deps.state.agents.get(agent.id);
-    if (coordinator) {
-      return aborted
-        ? { status: "interrupted", message: "Agent run aborted." }
-        : {
-            status: "failed",
-            failure: {
-              code: "EXECUTION_FAILED",
-              message: error instanceof Error ? error.message : String(error),
-              retryable: true,
-            },
-          };
-    }
-    if (latest)
-      await this.deps.setAgentStatus(latest, aborted ? "aborted" : "error");
-    const failureMessage =
-      error instanceof Error ? error.message : String(error);
-    const errorStatus =
-      !aborted &&
-      (await this.appendRunErrorStatus(
-        agent,
-        runId,
-        failureMessage,
-        lastAssistantEntry,
-      ).catch(() => undefined));
-    this.deps.state.conversationRuntime.failRun(runId);
-    await this.terminateRunToolCalls(runId);
-    await this.deps.events.publish("run.failed", {
-      agentId: agent.id,
-      projectId: agent.projectId,
-      runId,
-      conversationId: agent.conversationId,
-      message: failureMessage,
-      aborted,
-      failedAt: new Date().toISOString(),
-      retryExhausted: errorStatus || undefined,
-    });
-    await this.deps.logger[aborted ? "warn" : "error"](
-      aborted ? "Agent run aborted" : "Agent run failed",
-      {
-        agentId: agent.id,
-        conversationId: agent.conversationId,
-        projectId: agent.projectId,
-        runId,
-        durationMs: Math.round(performance.now() - runStartedAt),
-        context: { aborted },
-        error,
-      },
-    );
-    throw error;
+    return abortRequested
+      ? { status: "interrupted", message: "Agent run aborted." }
+      : {
+          status: "failed",
+          failure: {
+            code: "EXECUTION_FAILED",
+            message: error instanceof Error ? error.message : String(error),
+            retryable: true,
+          },
+        };
   }
 }
 function canonicalWaitCommand(
@@ -923,14 +687,16 @@ function canonicalWaitCommand(
   toolCall: ToolCallRecord,
   checkpoint: CheckpointCommand,
   reason: string,
-  deps: AgentRunner["deps"],
+  deps: WorkbenchAgentMechanics["deps"],
 ): WaitCommand {
   if (toolCall.toolName === "plan_mode_present") {
     const review = deps.plans
       .listPlanReviews()
       .find((candidate) => candidate.toolCallId === toolCall.id);
     if (!review) {
-      throw new Error(`Plan review for tool call ${toolCall.id} was not found.`);
+      throw new Error(
+        `Plan review for tool call ${toolCall.id} was not found.`,
+      );
     }
     return {
       kind: "plan_review",
@@ -978,7 +744,7 @@ function canonicalWaitCommand(
 }
 
 async function expandExecutablePromptBlocks(
-  runner: AgentRunner,
+  runner: WorkbenchAgentMechanics,
   agent: AgentRecord,
   request: PromptRequest,
   signal: AbortSignal,

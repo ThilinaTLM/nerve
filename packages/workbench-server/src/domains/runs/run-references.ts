@@ -4,13 +4,13 @@ import {
 } from "@nervekit/contracts";
 import type { RunCheckpointReferencePort } from "@nervekit/host-runtime";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
-import type { HarnessManager } from "../conversations/harness-manager.js";
+import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 
 export class WorkbenchRunReferences implements RunCheckpointReferencePort {
   constructor(
     private readonly unitOfWork: WorkbenchRunUnitOfWork,
-    private readonly harnessManager: HarnessManager,
+    private readonly harnessStorage: ConversationHarnessStorage,
     private readonly state: RuntimeState,
   ) {}
 
@@ -35,7 +35,7 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
     const run = runState.run;
     const conversation = this.state.getConversation(run.conversationId);
     const project = this.state.getProject(run.projectId);
-    const storage = await this.harnessManager.openStorage(
+    const storage = await this.harnessStorage.openStorage(
       conversation,
       project.dir,
     );

@@ -10,6 +10,12 @@ import type { ClockPort, DiagnosticPort, IdPort } from "./index.js";
 import { assertCheckpoint, checkpointValid } from "./run-checkpoints.js";
 import { RunEventFactory, type RunTransientEventPort } from "./run-events.js";
 import {
+  InvalidRunStateError,
+  RunConflictError,
+  type ResolveInteractionCommand,
+} from "./run-errors.js";
+import { decideRunRecovery } from "./run-recovery.js";
+import {
   LiveExecutionRegistry,
   type RunCancellationPort,
   type RunExecution,
@@ -51,19 +57,6 @@ export interface RunCoordinatorPorts {
   flushEvents(): Promise<void>;
   transient?: RunTransientEventPort;
   diagnostics?: DiagnosticPort;
-}
-
-export interface ResolveInteractionCommand {
-  interactionId: string;
-  resolutionRequestId: string;
-  resolution: Record<string, unknown>;
-}
-
-export class RunConflictError extends Error {
-  readonly code = "RUN_CONFLICT";
-}
-export class InvalidRunStateError extends Error {
-  readonly code = "INVALID_RUN_STATE";
 }
 
 export class RunCoordinator {
@@ -145,12 +138,9 @@ export class RunCoordinator {
         status: "cancelled",
         updatedAt: now,
       };
-      await this.commit(
-        state,
-        revise(state.run, {}, now),
-        "prompt_cancelled",
-        { prompts: [cancelled] },
-      );
+      await this.commit(state, revise(state.run, {}, now), "prompt_cancelled", {
+        prompts: [cancelled],
+      });
       return cancelled;
     });
   }
@@ -451,57 +441,24 @@ export class RunCoordinator {
   async recover(): Promise<readonly RunRecord[]> {
     const recovered: RunRecord[] = [];
     for (const state of await this.ports.unitOfWork.list()) {
-      if (
-        state.run.status === "waiting" ||
-        state.run.status === "suspended" ||
-        TERMINAL_STATUSES.has(state.run.status)
-      ) {
-        recovered.push(state.run);
-        continue;
-      }
-      try {
-        await assertCheckpoint(
-          state,
-          this.ports.references,
-          this.ports.integrity,
-        );
-        const next = revise(
-          state.run,
-          {
-            status: "interrupted",
-            recoverability: "checkpoint",
-            failure: {
-              code: "RUN_INTERRUPTED",
-              message: "Host restarted during active execution",
-              retryable: true,
-            },
-          },
-          this.now(),
-        );
-        await this.commit(state, next, "interrupted", {
-          events: [this.events.failed(next, next.updatedAt, true)],
+      const decision = await decideRunRecovery(
+        state,
+        this.ports.references,
+        this.ports.integrity,
+        () => this.now(),
+      );
+      if (decision.transitionKind) {
+        await this.commit(state, decision.run, decision.transitionKind, {
+          events: [
+            this.events.failed(
+              decision.run,
+              decision.run.updatedAt,
+              decision.interrupted,
+            ),
+          ],
         });
-        recovered.push(next);
-      } catch {
-        const next = revise(
-          state.run,
-          {
-            status: "failed",
-            recoverability: "none",
-            terminalAt: this.now(),
-            failure: {
-              code: "INVALID_CHECKPOINT",
-              message: "Run was interrupted without a valid durable checkpoint",
-              retryable: true,
-            },
-          },
-          this.now(),
-        );
-        await this.commit(state, next, "interrupted_without_checkpoint", {
-          events: [this.events.failed(next, next.updatedAt, true)],
-        });
-        recovered.push(next);
       }
+      recovered.push(decision.run);
     }
     return recovered;
   }

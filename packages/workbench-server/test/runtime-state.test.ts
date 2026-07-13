@@ -100,21 +100,18 @@ describe("RuntimeState", () => {
     assert.deepEqual(state.listConversations(), [first]);
   });
 
-  it("adds, gets, lists, and removes agent records and run state", () => {
+  it("adds, gets, lists, and removes agent records", () => {
     const state = new RuntimeState();
     const first = agent("agent_a", later);
     const second = agent("agent_b", now);
 
     state.setAgent(first);
     state.setAgent(second);
-    state.runs.set(first.id, {} as never);
-
     assert.equal(state.getAgent(first.id), first);
     assert.deepEqual(state.listAgents(), [second, first]);
 
     state.removeAgent(first.id);
     assert.throws(() => state.getAgent(first.id), /Agent not found/);
-    assert.equal(state.runs.has(first.id), false);
   });
 
   it("replaces the agent conversation message cache reference", () => {

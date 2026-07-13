@@ -20,7 +20,9 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
     private readonly unitOfWork: WorkbenchRunUnitOfWork,
   ) {}
 
-  bindCancelRun(cancelRun: (runId: string, reason?: string) => Promise<unknown>) {
+  bindCancelRun(
+    cancelRun: (runId: string, reason?: string) => Promise<unknown>,
+  ) {
     this.cancelRun = cancelRun;
   }
 
@@ -37,9 +39,7 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
       .filter(
         (toolCall) =>
           toolCall.runId === run.runId &&
-          !["completed", "error", "denied"].includes(
-            toolCall.status,
-          ),
+          !["completed", "error", "denied"].includes(toolCall.status),
       );
     if (active.length === 0) return "not_running";
     await this.tools.terminateNonTerminalToolCallsForRun(
@@ -51,9 +51,7 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
       .some(
         (toolCall) =>
           toolCall.runId === run.runId &&
-          !["completed", "error", "denied"].includes(
-            toolCall.status,
-          ),
+          !["completed", "error", "denied"].includes(toolCall.status),
       );
     if (remaining) throw new Error("Tool cancellation was not confirmed");
     return "confirmed";
@@ -72,7 +70,9 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
     for (const task of active) {
       await this.tasks.cancelTask(task.id, { timeoutMs: 5000 });
       if (isActiveTaskStatus(this.tasks.getTask(task.id).status)) {
-        throw new Error(`Task ${task.id} did not produce process-exit evidence`);
+        throw new Error(
+          `Task ${task.id} did not produce process-exit evidence`,
+        );
       }
     }
     return "confirmed";
@@ -90,9 +90,13 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
         !["completed", "failed", "cancelled"].includes(candidate.run.status),
     );
     if (children.length === 0) return "not_running";
-    if (!this.cancelRun) throw new Error("Child run cancellation is unavailable");
+    if (!this.cancelRun)
+      throw new Error("Child run cancellation is unavailable");
     for (const child of children) {
-      await this.cancelRun(child.run.runId, `parent run ${run.runId} cancelled`);
+      await this.cancelRun(
+        child.run.runId,
+        `parent run ${run.runId} cancelled`,
+      );
     }
     return "confirmed";
   }

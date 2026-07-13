@@ -8,7 +8,7 @@ import type { WorkbenchLiveExecutions } from "./run-live-executions.js";
 
 /**
  * Host execution mechanics boundary. The cutover moves the harness/tool/message
- * mechanics currently in AgentRunSession behind this port; lifecycle ownership
+ * mechanics in the workbench harness execution adapter behind this port; lifecycle ownership
  * remains exclusively in RunCoordinator.
  */
 export interface WorkbenchRunExecutionAdapter {

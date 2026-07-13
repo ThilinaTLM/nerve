@@ -51,7 +51,6 @@ export class RuntimeRegistry {
   readonly agents = this.state.agents;
   readonly entries = this.state.entries;
   readonly conversationRuntime = this.state.conversationRuntime;
-  readonly runs = this.state.runs;
 
   get agentConversationMessages(): Map<string, Message[]> {
     return this.state.agentConversationMessages;
@@ -74,19 +73,8 @@ export class RuntimeRegistry {
     return this.services.plans;
   }
 
-  get suspensions() {
-    return this.services.suspensions;
-  }
-
   get tools() {
     return this.services.tools;
-  }
-
-  /** Append a conversation entry (used by startup interrupted-run recovery). */
-  get appendConversationEntry() {
-    return this.services.conversationLifecycle.appendEntry.bind(
-      this.services.conversationLifecycle,
-    );
   }
 
   get git() {
@@ -138,7 +126,6 @@ export class RuntimeRegistry {
     await this.tasks.hydrate();
     await this.tools.hydrate();
     await this.plans.hydrate();
-    await this.suspensions.hydrate();
     await this.loadProjects();
     await this.loadConversations();
     await this.loadAgents();

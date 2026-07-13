@@ -57,7 +57,9 @@ export class AgentLifecycleService {
       conversation: ReturnType<RuntimeState["getConversation"]>,
     ) => Promise<void>,
     private readonly abortAgent: (agentId: string) => Promise<void>,
-    private readonly activeRunId: (agent: AgentRecord) => Promise<string | undefined>,
+    private readonly activeRunId: (
+      agent: AgentRecord,
+    ) => Promise<string | undefined>,
     private readonly updateLiveAgent: (
       runId: string,
       agent: AgentRecord,
@@ -163,7 +165,8 @@ export class AgentLifecycleService {
   async removeAgentInternal(agentId: string): Promise<void> {
     if (!this.state.agents.has(agentId)) return;
     const agent = this.state.agents.get(agentId);
-    if (agent && (await this.activeRunId(agent))) await this.abortAgent(agentId);
+    if (agent && (await this.activeRunId(agent)))
+      await this.abortAgent(agentId);
     for (const child of [...this.state.agents.values()].filter(
       (candidate) => candidate.parentAgentId === agentId,
     )) {

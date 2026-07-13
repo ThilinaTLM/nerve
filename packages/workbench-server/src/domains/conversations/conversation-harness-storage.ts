@@ -14,7 +14,7 @@ import type {
 import { pathExists } from "../../infrastructure/storage/index.js";
 import type { ConversationRepository } from "./index.js";
 
-export class HarnessManager {
+export class ConversationHarnessStorage {
   constructor(
     private readonly conversationRepository: ConversationRepository,
     private readonly getConversation: (

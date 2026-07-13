@@ -11,7 +11,7 @@ import type {
   ContextUsage,
   ConversationEntry,
 } from "@nervekit/contracts";
-import type { AgentRunnerDeps } from "./agent-runner.js";
+import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
 
 /** Max consecutive auto-continuations per conversation before stopping. */
 const MAX_AUTO_CONTINUATIONS = 3;
@@ -22,7 +22,7 @@ const AUTO_CONTINUE_MESSAGE =
 
 export class AutoCompactionRunner {
   constructor(
-    readonly deps: AgentRunnerDeps,
+    readonly deps: WorkbenchAgentMechanicsDeps,
     readonly autoContinuationCounts: Map<string, number>,
     readonly continueAgent: (agentId: string) => Promise<void>,
   ) {}
@@ -31,7 +31,7 @@ export class AutoCompactionRunner {
   async getContextUsage(conversationId: string): Promise<ContextUsage> {
     const conversation = this.deps.state.getConversation(conversationId);
     const project = this.deps.state.getProject(conversation.projectId);
-    const storage = await this.deps.harnessManager.openStorage(
+    const storage = await this.deps.harnessStorage.openStorage(
       conversation,
       project.dir,
     );
@@ -73,7 +73,7 @@ export class AutoCompactionRunner {
     if (contextWindow <= 0) return;
 
     const project = this.deps.state.getProject(conversation.projectId);
-    const storage = await this.deps.harnessManager.openStorage(
+    const storage = await this.deps.harnessStorage.openStorage(
       conversation,
       project.dir,
     );
@@ -139,7 +139,7 @@ export class AutoCompactionRunner {
       content: text,
       timestamp: Date.now(),
     };
-    const appended = await this.deps.harnessManager.appendAgentMessage(
+    const appended = await this.deps.harnessStorage.appendAgentMessage(
       agent,
       message,
     );
