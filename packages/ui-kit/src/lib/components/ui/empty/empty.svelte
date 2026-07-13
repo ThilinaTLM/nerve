@@ -12,9 +12,9 @@ let {
 
 <div
   bind:this={ref}
-  data-slot="card-footer"
+  data-slot="empty"
   class={cn(
-    "rounded-b-xl px-(--card-spacing) [.border-t]:pt-(--card-spacing) flex items-center",
+    "gap-4 rounded-lg border-dashed p-12 flex w-full min-w-0 flex-1 flex-col items-center justify-center text-center text-balance",
     className,
   )}
   {...restProps}

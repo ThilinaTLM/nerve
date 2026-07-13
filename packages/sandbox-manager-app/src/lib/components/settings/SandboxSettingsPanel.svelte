@@ -1,9 +1,9 @@
 <script lang="ts">
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import {
   CheckCircle2,
   ExternalLink,
   KeyRound,
-  LoaderCircle,
   Plus,
   RefreshCw,
   TriangleAlert,
@@ -764,7 +764,7 @@ async function refreshProfile(profileId: string): Promise<void> {
                   onclick={() => void startBrowserOAuth()}
                 >
                   {#if oauthFlow.busy}
-                    <LoaderCircle class="spin size-4" /> Starting…
+                    <Spinner /> Starting…
                   {:else}
                     <ExternalLink class="size-4" /> Login with browser
                   {/if}
@@ -888,7 +888,7 @@ async function refreshProfile(profileId: string): Promise<void> {
                   <p
                     class="flex items-center gap-2 text-sm text-muted-foreground"
                   >
-                    <LoaderCircle class="spin size-4" /> Working…
+                    <Spinner /> Working…
                   </p>
                 {/if}
               </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts";
 import { uploadClipboardImage } from "$lib/api";
@@ -396,7 +396,7 @@ function handleMicContextMenu(event: MouseEvent) {
       title={micTitle}
     >
       {#if transcribing}
-        <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
+        <Spinner class="size-3.5" />
       {:else}
         <Mic size={14} strokeWidth={2.4} />
       {/if}

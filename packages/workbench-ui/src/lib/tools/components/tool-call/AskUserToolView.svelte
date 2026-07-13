@@ -1,6 +1,6 @@
 <script lang="ts">
 import { onDestroy, tick } from "svelte";
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import Send from "@lucide/svelte/icons/send";
 import X from "@lucide/svelte/icons/x";
@@ -250,7 +250,7 @@ function handleMicContextMenu(event: MouseEvent) {
       {#each QUICK_REPLIES as phrase (phrase)}
         <button
           type="button"
-          class="quick-reply"
+          class="quick-reply rounded-full"
           onclick={() => submitQuickReply(phrase)}
         >
           {phrase}
@@ -306,7 +306,7 @@ function handleMicContextMenu(event: MouseEvent) {
               title={micTitle}
             >
               {#if transcribing}
-                <LoaderCircle size={14} strokeWidth={2.4} class="spin" />
+                <Spinner class="size-3.5" />
               {:else}
                 <Mic size={14} strokeWidth={2.4} />
               {/if}
@@ -387,7 +387,6 @@ function handleMicContextMenu(event: MouseEvent) {
 
 .quick-reply {
   border: 1px solid var(--border);
-  border-radius: 999px;
   background: var(--sidebar);
   color: var(--muted-foreground);
   padding: 0.1rem 0.6rem;

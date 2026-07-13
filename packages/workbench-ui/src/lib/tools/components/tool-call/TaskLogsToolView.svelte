@@ -22,7 +22,7 @@ const visible = $derived(
   <p class="m-0 text-xs text-muted-foreground">No log events.</p>
 {:else}
   <div
-    class="terminal-output rounded-sm border bg-sidebar px-2.5 py-1.5 font-mono text-xs leading-[1.22] text-sidebar-foreground"
+    class="terminal-output rounded-sm border bg-sidebar px-2.5 py-1.5 font-mono text-xs text-sidebar-foreground"
   >
     {#each visible as event (event.seq)}
       <div

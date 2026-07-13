@@ -42,7 +42,7 @@ let {
 
     {#if showScrollButton && composerHeight > 0}
       <div
-        class="scroll-bottom-button-wrap"
+        class="scroll-bottom-button-wrap rounded-full"
         style={`bottom: ${composerHeight + 8}px;`}
       >
         <Button
@@ -90,7 +90,6 @@ let {
   position: absolute;
   right: 1.15rem;
   z-index: 4;
-  border-radius: 999px;
   box-shadow: 0 0.35rem 1rem
     color-mix(in oklab, var(--background) 45%, transparent);
 }

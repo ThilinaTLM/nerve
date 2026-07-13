@@ -27,7 +27,7 @@ const icons: Record<GitSuggestion["id"], Component> = {
       {@const Icon = icons[suggestion.id]}
       <button
         type="button"
-        class="git-suggestion-chip"
+        class="git-suggestion-chip rounded-full"
         {disabled}
         title={`Click to send. Right-click to insert into composer.\n\n${suggestion.prompt}`}
         aria-label={`${suggestion.label}. Click to send. Right-click to insert into composer.`}
@@ -64,7 +64,6 @@ const icons: Record<GitSuggestion["id"], Component> = {
   height: 1.7rem;
   padding: 0 0.7rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
   background: var(--card);
   color: var(--muted-foreground);
   font-size: var(--text-xs);

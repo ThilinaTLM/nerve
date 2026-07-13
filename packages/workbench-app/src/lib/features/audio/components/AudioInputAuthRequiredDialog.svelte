@@ -30,7 +30,7 @@ function openProviderSettings() {
 >
   <div class="audio-auth-body">
     <div class="audio-auth-summary">
-      <span class="audio-auth-icon" aria-hidden="true">
+      <span class="audio-auth-icon rounded-full" aria-hidden="true">
         <Mic size={18} strokeWidth={2.2} />
       </span>
       <div>
@@ -94,7 +94,6 @@ function openProviderSettings() {
   height: 2.25rem;
   place-items: center;
   border: 1px solid color-mix(in oklab, var(--primary) 26%, var(--border));
-  border-radius: 999px;
   background: color-mix(in oklab, var(--primary) 10%, transparent);
   color: var(--primary);
 }

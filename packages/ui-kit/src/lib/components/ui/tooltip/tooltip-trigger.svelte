@@ -1,7 +1,7 @@
-<script lang="ts">
+<script lang="ts" generics="T = never">
 import { Tooltip as TooltipPrimitive } from "bits-ui";
 
-let { ref = $bindable(null), ...restProps }: TooltipPrimitive.TriggerProps =
+let { ref = $bindable(null), ...restProps }: TooltipPrimitive.TriggerProps<T> =
   $props();
 </script>
 

@@ -48,7 +48,7 @@ const windowLabel = $derived(
     {title}
     aria-label={`${title}. ${percentLabel} of context window.`}
   >
-    <span class="ctx-ring" aria-hidden="true">
+    <span class="ctx-ring rounded-full" aria-hidden="true">
       <span class="ctx-ring-core"></span>
     </span>
     <span class="ctx-percent">{percentLabel}</span>
@@ -68,7 +68,6 @@ const windowLabel = $derived(
   width: 0.8rem;
   height: 0.8rem;
   place-items: center;
-  border-radius: 999px;
   background: conic-gradient(
     var(--ctx-color) var(--ctx-fill),
     color-mix(in oklab, var(--border) 82%, transparent) 0

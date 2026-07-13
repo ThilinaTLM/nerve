@@ -2,7 +2,7 @@
 import Copy from "@lucide/svelte/icons/copy";
 import Folder from "@lucide/svelte/icons/folder";
 import KeyRound from "@lucide/svelte/icons/key-round";
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Logs from "@lucide/svelte/icons/logs";
 import Minus from "@lucide/svelte/icons/minus";
 import Settings from "@lucide/svelte/icons/settings";
@@ -152,7 +152,7 @@ let {
           onclick={() => onClose?.()}
         >
           {#if quitting}
-            <LoaderCircle class="animate-spin" size={16} strokeWidth={2.1} />
+            <Spinner />
           {:else}
             <X size={16} strokeWidth={2.1} />
           {/if}

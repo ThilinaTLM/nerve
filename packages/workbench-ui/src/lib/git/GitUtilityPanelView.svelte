@@ -1,5 +1,5 @@
 <script lang="ts">
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Card } from "@nervekit/ui-kit/components/ui/card";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import GitChangesSection from "./GitChangesSection.svelte";
@@ -106,7 +106,7 @@ $effect(() => {
     <div
       class="flex items-center justify-center gap-2 px-1 py-6 text-xs text-muted-foreground"
     >
-      <LoaderCircle size={13} class="animate-spin" /> Loading Git repositories…
+      <Spinner class="size-3.5" /> Loading Git repositories…
     </div>
   {:else if model.repositories.length === 0}
     <p class="px-1 py-6 text-center text-xs text-muted-foreground">

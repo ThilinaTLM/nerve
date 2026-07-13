@@ -2,7 +2,7 @@
 import Check from "@lucide/svelte/icons/check";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import X from "@lucide/svelte/icons/x";
 import type {
@@ -146,7 +146,7 @@ let {
                 {:else if pr.checks.status === "failing"}
                   <X size={11} />
                 {:else if pr.checks.status === "pending"}
-                  <LoaderCircle size={11} class="animate-spin" />
+                  <Spinner class="size-3" />
                 {/if}
                 {pr.checks.status === "none"
                   ? "no checks"

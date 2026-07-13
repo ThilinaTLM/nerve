@@ -1,7 +1,7 @@
 <script lang="ts">
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import KeyRound from "@lucide/svelte/icons/key-round";
-import Loader from "@lucide/svelte/icons/loader-circle";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { AuthProviderMetadata } from "$lib/api";
@@ -230,13 +230,13 @@ function handleOpenChange(next: boolean) {
             </p>
           {:else}
             <p class="oauth-progress">
-              <Loader class="spin" size={16} strokeWidth={2} />
+              <Spinner />
               Working…
             </p>
           {/if}
         {:else}
           <p class="oauth-progress">
-            <Loader class="spin" size={16} strokeWidth={2} />
+            <Spinner />
             Starting login…
           </p>
         {/if}

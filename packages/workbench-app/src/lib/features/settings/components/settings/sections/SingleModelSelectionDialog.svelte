@@ -250,7 +250,7 @@ function save() {
         {#each thinkingItems as item (item.value)}
           <button
             type="button"
-            class="single-model-thinking-chip"
+            class="single-model-thinking-chip rounded-full"
             class:active={thinkingLevel === item.value}
             aria-pressed={thinkingLevel === item.value}
             onclick={() => (thinkingLevel = item.value)}
@@ -416,7 +416,6 @@ function save() {
 
 .single-model-thinking-chip {
   border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-  border-radius: 999px;
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;

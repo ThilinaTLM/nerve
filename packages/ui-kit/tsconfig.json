@@ -11,6 +11,7 @@
     "paths": {
       "@nervekit/ui-kit/core/utils": ["./src/lib/core/utils.ts"],
       "@nervekit/ui-kit/core/*": ["./src/lib/core/*"],
+      "@nervekit/ui-kit/components/ui": ["./src/lib/components/ui"],
       "@nervekit/ui-kit/components/ui/*": ["./src/lib/components/ui/*/index.ts"]
     }
   },

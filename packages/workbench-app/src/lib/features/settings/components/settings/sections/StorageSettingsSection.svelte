@@ -3,7 +3,7 @@ import { onMount } from "svelte";
 import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import Database from "@lucide/svelte/icons/database";
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -265,7 +265,7 @@ onMount(() => {
 
   {#if loading && !usage}
     <div class="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-      <LoaderCircle class="spin size-4" /> Calculating local storage…
+      <Spinner /> Calculating local storage…
     </div>
   {:else if usage}
     <div class="grid gap-4">
@@ -310,9 +310,7 @@ onMount(() => {
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="flex min-w-0 items-start gap-3">
               {#if active}
-                <LoaderCircle
-                  class="spin mt-0.5 size-5 shrink-0 text-primary"
-                />
+                <Spinner class="mt-0.5 size-5 shrink-0 text-primary" />
               {:else if operation.status === "succeeded" && !completedWithIssues}
                 <CheckCircle2 class="mt-0.5 size-5 shrink-0 text-success" />
               {:else}

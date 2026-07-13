@@ -19,7 +19,8 @@ that maps cleanly to utilities. Convert it to Tier 1.
 ### Allowed escape-hatch list (Tier 2)
 
 1. `@keyframes` / `animation` — but the keyframe itself must live in
-   `src/styles/animation.css` (never define `@keyframes` in a component).
+   `packages/ui-kit/src/styles/animation.css` (never define `@keyframes` in a
+   component).
 2. `::-webkit-scrollbar*` / `scrollbar-*` theming.
 3. Styling **rendered HTML** you don't author per-element: markdown
    (`Markdown.svelte`), shiki syntax highlighting (`var(--shiki-light/dark)`),
@@ -40,26 +41,35 @@ that maps cleanly to utilities. Convert it to Tier 1.
 
 ## Global CSS lives only in `src/styles/`
 
+Shared theme tokens, base resets, animations, and cross-app component partials
+live in `@nervekit/ui-kit` (`packages/ui-kit/src/styles/`, entry `app.css`).
+This package only layers app-specific globals on top:
+
 ```
 src/styles/
-  app.css          # ENTRY (imported once by main.ts). @import order matters.
-  theme.css        # tokens (:root/.dark) + @custom-variant + @theme inline
-  base.css         # @layer base: resets, shell sizing, scrollbars, reduced-motion
-  animation.css    # ALL @keyframes + animation utilities (.spin, .status-pulse)
-  components.css    # aggregates components/* partials
-  components/       # shared cross-component classes (app-helpers, composer,
-                    #   tooltips, layout-shell, settings, center-tab,
-                    #   utility-panel, directory-picker)
+  app.css          # ENTRY (imported once by main.ts). Imports
+                   #   @nervekit/ui-kit/styles/app.css (theme/base/animation/
+                   #   shared partials), then ./components.css, then Tailwind
+                   #   @source hints for workbench-ui and this app.
+  components.css   # aggregates app-specific components/* partials
+  components/      # workbench-app-only cross-component classes
+                   #   (settings, directory-picker)
 ```
 
+- Design tokens (`:root`/`.dark` + `@theme inline`) live ONLY in
+  `packages/ui-kit/src/styles/theme.css`; never redefine them here.
+- Keyframes belong in `packages/ui-kit/src/styles/animation.css` (never in a
+  component).
 - **Never `import "./x.css"` from a component.** The only stylesheet import in
   the app is `src/styles/app.css` in `main.ts`.
 - A class used across **multiple components** (e.g. passed to a child via
   `triggerClass`, or shared by sibling components) belongs in a
-  `src/styles/components/*` partial, not in a component `<style>`.
-- `app-helpers.css` is layered (`@layer components`) so utilities win. The other
-  partials are intentionally **unlayered** so they can override shadcn utility
-  classes via `[data-slot]` selectors — keep new shared partials unlayered too.
+  `src/styles/components/*` partial (or ui-kit's if shared across apps), not in
+  a component `<style>`.
+- ui-kit's `app-helpers.css` is layered (`@layer components`) so utilities win.
+  The other partials are intentionally **unlayered** so they can override shadcn
+  utility classes via `[data-slot]` selectors — keep new shared partials
+  unlayered too.
 
 ## `:global()` policy
 
@@ -79,7 +89,9 @@ src/styles/
 
 ## Misc
 
-- Icons: `@lucide/svelte`, sized/colored via `class` on the icon.
+- Icons: `@lucide/svelte`, sized/colored via `class` on the icon. Loading
+  spinners use the shared `Spinner` component
+  (`@nervekit/ui-kit/components/ui/spinner`), not ad-hoc spinning loader icons.
 - Monospace (`font-mono`) is for code, logs, and paths only.
 - Validate with `pnpm check`; verify visuals (light + dark) with the
   `agent-browser` skill.

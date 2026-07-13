@@ -18,7 +18,7 @@ function lineClass(event: TaskLogQueryResponse["events"][number]): string {
 </script>
 
 <div
-  class="log-terminal terminal-output h-full min-h-0 overflow-auto bg-sidebar p-3 font-mono text-xs leading-[1.22]"
+  class="log-terminal terminal-output h-full min-h-0 overflow-auto bg-sidebar p-3 font-mono text-xs"
   role="log"
   aria-label="Task output"
   aria-live="polite"

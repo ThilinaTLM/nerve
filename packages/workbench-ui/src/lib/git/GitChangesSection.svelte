@@ -2,7 +2,7 @@
 import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import FilePen from "@lucide/svelte/icons/file-pen";
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import X from "@lucide/svelte/icons/x";
 import type { GitFileChange } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -90,7 +90,7 @@ let {
           onclick={() => onMutateFile(selectedRepo, file, "unstage")}
         >
           {#if busy && fileMutation?.action === "unstage"}
-            <LoaderCircle class="animate-spin" />
+            <Spinner />
           {:else}
             <ArrowDownToLine />
           {/if}
@@ -106,7 +106,7 @@ let {
           onclick={() => onMutateFile(selectedRepo, file, "stage")}
         >
           {#if busy && fileMutation?.action === "stage"}
-            <LoaderCircle class="animate-spin" />
+            <Spinner />
           {:else}
             <ArrowUpFromLine />
           {/if}
@@ -122,7 +122,7 @@ let {
         onclick={() => onRequestDiscard(file)}
       >
         {#if busy && fileMutation?.action === "discard"}
-          <LoaderCircle class="animate-spin" />
+          <Spinner />
         {:else}
           <X />
         {/if}
@@ -170,7 +170,7 @@ let {
                 onclick={() => onBulkStage(selectedRepo, "unstage-all")}
               >
                 {#if bulkMutation === "unstage-all"}
-                  <LoaderCircle class="animate-spin" />
+                  <Spinner />
                 {:else}
                   <ArrowDownToLine />
                 {/if}
@@ -200,7 +200,7 @@ let {
                 onclick={() => onBulkStage(selectedRepo, "stage-all")}
               >
                 {#if bulkMutation === "stage-all"}
-                  <LoaderCircle class="animate-spin" />
+                  <Spinner />
                 {:else}
                   <ArrowUpFromLine />
                 {/if}

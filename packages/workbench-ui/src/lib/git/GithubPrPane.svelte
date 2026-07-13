@@ -4,7 +4,7 @@ import Check from "@lucide/svelte/icons/check";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
@@ -104,7 +104,7 @@ $effect(() => {
             {:else if detail.checks.status === "failing"}
               <X size={11} />
             {:else if detail.checks.status === "pending"}
-              <LoaderCircle class="spin" size={11} />
+              <Spinner class="size-3" />
             {/if}
             {detail.checks.status === "none"
               ? "no checks"

@@ -1,4 +1,6 @@
 .terminal-output {
+  /* Canonical dense line height for terminal/log text. */
+  line-height: 1.22;
   --terminal-fg-black: color-mix(
     in oklab,
     var(--foreground) 28%,

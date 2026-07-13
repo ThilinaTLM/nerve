@@ -6,7 +6,7 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Search from "@lucide/svelte/icons/search";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts";
@@ -107,7 +107,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
       aria-label="Refreshing Git status"
       title="Refreshing Git status"
     >
-      <LoaderCircle size={12} class="animate-spin" />
+      <Spinner class="size-3" />
     </span>
   {/if}
 {/snippet}
@@ -202,7 +202,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
               <div
                 class="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
               >
-                <LoaderCircle size={13} class="animate-spin" /> Loading branches…
+                <Spinner class="size-3.5" /> Loading branches…
               </div>
             {:else if filteredBranches.length === 0}
               <div class="px-3 py-2 text-xs text-muted-foreground">
@@ -217,10 +217,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
                   onclick={() => void onSwitchBranch(selectedRepo, branch)}
                 >
                   {#if switchingBranch === branch.name}
-                    <LoaderCircle
-                      size={13}
-                      class="animate-spin text-muted-foreground"
-                    />
+                    <Spinner class="text-muted-foreground size-3.5" />
                   {:else if branch.current}
                     <Check size={13} class="text-success" />
                   {:else}
@@ -255,7 +252,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
                 onclick={() => void onCreateBranch(selectedRepo)}
               >
                 {#if creatingBranch}
-                  <LoaderCircle class="animate-spin" />
+                  <Spinner />
                 {:else}
                   <GitBranch />
                 {/if}
@@ -280,7 +277,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
             onclick={() => void onFetch(selectedRepo)}
           >
             {#if fetching}
-              <LoaderCircle class="animate-spin" />
+              <Spinner />
             {:else}
               <CloudDownload />
             {/if}
@@ -299,7 +296,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
               onclick={() => void onPull(selectedRepo)}
             >
               {#if pulling}
-                <LoaderCircle class="animate-spin" />
+                <Spinner />
               {:else}
                 <ArrowDown />
               {/if}
@@ -320,7 +317,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
               onclick={() => void onPush(selectedRepo)}
             >
               {#if pushing}
-                <LoaderCircle class="animate-spin" />
+                <Spinner />
               {:else}
                 <ArrowUp />
               {/if}
@@ -344,7 +341,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
             onclick={() => void onSync(selectedRepo)}
           >
             {#if syncing}
-              <LoaderCircle class="animate-spin" />
+              <Spinner />
             {:else}
               <RefreshCw />
             {/if}
@@ -363,7 +360,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
               onclick={() => void onSwitchBaseAndPull(selectedRepo)}
             >
               {#if switchingBaseAndPulling}
-                <LoaderCircle class="animate-spin" />
+                <Spinner />
               {:else}
                 <GitCompareArrows />
               {/if}

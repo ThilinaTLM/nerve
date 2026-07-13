@@ -178,7 +178,7 @@ $effect(() => {
             {@const active = level === thinkingLevel}
             <button
               type="button"
-              class="thinking-chip"
+              class="thinking-chip rounded-full"
               class:active
               aria-pressed={active}
               title={thinkingLevelDetails[level]}
@@ -326,7 +326,6 @@ $effect(() => {
 
 .thinking-chip {
   border: 1px solid var(--border);
-  border-radius: 999px;
   background: var(--input);
   color: var(--muted-foreground);
   padding: 0.2rem 0.6rem;

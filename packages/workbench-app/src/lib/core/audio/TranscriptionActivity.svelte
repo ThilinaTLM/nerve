@@ -51,7 +51,7 @@ function formatElapsed(ms: number): string {
 
 {#if visible}
   <div
-    class={`transcription-activity ${className}`}
+    class={`transcription-activity rounded-full ${className}`}
     data-state={recording ? "recording" : "transcribing"}
     data-near-limit={nearLimit ? "true" : undefined}
     aria-live="polite"
@@ -71,7 +71,6 @@ function formatElapsed(ms: number): string {
   max-width: 9rem;
   border: 1px solid
     color-mix(in oklab, var(--activity-accent) 28%, var(--border));
-  border-radius: 999px;
   background: color-mix(in oklab, var(--activity-accent) 10%, var(--card));
   color: var(--activity-accent);
   padding: 0 0.52rem;

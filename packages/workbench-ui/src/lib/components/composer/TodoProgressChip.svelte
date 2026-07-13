@@ -33,7 +33,7 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
         class:complete={allDone}
         style={`--todo-fill: ${percent}%;`}
       >
-        <span class="todo-ring" aria-hidden="true"
+        <span class="todo-ring rounded-full" aria-hidden="true"
           ><span class="todo-ring-core"></span></span
         >
         <ListChecks size={13} strokeWidth={2.2} aria-hidden="true" />
@@ -65,7 +65,6 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
   width: 0.8rem;
   height: 0.8rem;
   place-items: center;
-  border-radius: 999px;
   background: conic-gradient(
     var(--todo-color) var(--todo-fill),
     color-mix(in oklab, var(--border) 82%, transparent) 0

@@ -1,7 +1,7 @@
 <script lang="ts">
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import KeyRound from "@lucide/svelte/icons/key-round";
-import Loader from "@lucide/svelte/icons/loader-circle";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Wrench from "@lucide/svelte/icons/wrench";
 import type {
@@ -384,7 +384,7 @@ async function removeToken() {
         {/if}
         <Button type="submit" disabled={busy}>
           {#if busy}
-            <Loader size={14} strokeWidth={2} class="animate-spin" />
+            <Spinner class="size-3.5" />
           {/if}
           Save
         </Button>
