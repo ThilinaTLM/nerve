@@ -22,8 +22,9 @@ export function loadingHtml(statusText = "Starting local daemon…"): string {
 </html>`;
 }
 
-export function errorHtml(error: unknown): string {
+export function errorHtml(error: unknown, dataDir = "~/.nerve"): string {
   const message = error instanceof Error ? error.message : String(error);
+  const escapedDataDir = escapeHtml(dataDir);
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -35,7 +36,7 @@ export function errorHtml(error: unknown): string {
   <body>
     <main class="error">
       <h1 class="error-title">Daemon unavailable</h1>
-      <p class="status">Could not start or load the local daemon. Use the Nerve tray menu → “Restart Daemon” to try again. Logs are in ~/.nerve/logs/desktop-YYYY-MM-DD.jsonl and crash reports are in ~/.nerve/crashes. In corporate proxy environments, ensure Electron was rebuilt through the proxy and NO_PROXY includes localhost,127.0.0.1,::1.</p>
+      <p class="status">Could not start or load the local daemon. Use the Nerve tray menu → “Restart Daemon” to try again. Logs are in ${escapedDataDir}/logs and crash reports are in ${escapedDataDir}/crashes. In corporate proxy environments, ensure Electron was rebuilt through the proxy and NO_PROXY includes localhost,127.0.0.1,::1.</p>
       <pre>${escapeHtml(message)}</pre>
     </main>
   </body>

@@ -1,6 +1,8 @@
 - This is an early foundation project: prefer clean direct designs over compatibility shims.
+- The main-branch reference worktree is `/home/tlm/Projects/nerve`; this v2 worktree is `/home/tlm/Projects/nerve-v2`. Use the main worktree for comparison and keep v2 changes in this worktree unless explicitly asked otherwise.
+- The main desktop app uses `~/.nerve` and ports `3747`/`3748`. The v2 desktop development launcher is isolated at `~/.nerve-v2` (including its Electron profile under `~/.nerve-v2/desktop`) and ports `3757`/`3758`.
+- Use file-first storage under the active `NERVE_HOME`; SQLite is only a rebuildable index/cache.
 - Keep shared API, event, policy, and storage schemas in `packages/contracts`; keep protocol types transport-neutral.
-- Use file-first storage under `~/.nerve`; SQLite is only a rebuildable index/cache.
 - Use `pnpm fix` to apply formatting and lint fixes. Validate with `pnpm check`; run `pnpm test` when relevant.
 - Use the official shadcn-svelte components in `packages/workbench-app/src/lib/components/ui`; style only with shadcn theme tokens and Tailwind token utilities (+ `success`/`warning`/`info`) for colors, typography, spacing, radius, and shadows. Avoid hard-coded colors, font sizes, spacing, and one-off visual constants unless there is a documented exception. Use `@lucide/svelte` for icons and keep mono for code/logs/paths only. Global CSS lives in `packages/workbench-app/src/styles/` (entry `app.css`); see `packages/workbench-app/AGENTS.md` for the full styling conventions (two-tier model, escape-hatch list, `:global` policy).
 - Keep the codebase clean and maintainable.

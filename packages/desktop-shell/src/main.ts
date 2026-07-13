@@ -36,6 +36,7 @@ import {
 } from "./window/preload-paths.js";
 
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
+const desktopDataDir = process.env.NERVE_HOME?.trim() || "~/.nerve";
 const electronOzonePlatform = parseElectronOzonePlatform(
   process.env.NERVE_ELECTRON_OZONE_PLATFORM,
 );
@@ -282,7 +283,7 @@ async function openMainWindow(): Promise<void> {
     });
     console.error(error);
     if (!window.isDestroyed())
-      await window.loadURL(createDataUrl(errorHtml(error)));
+      await window.loadURL(createDataUrl(errorHtml(error, desktopDataDir)));
   }
 }
 
@@ -347,6 +348,7 @@ async function handleDaemonStatusChange(
             new Error(
               info?.error ?? "The Nerve daemon stopped and could not restart.",
             ),
+            desktopDataDir,
           ),
         ),
       );

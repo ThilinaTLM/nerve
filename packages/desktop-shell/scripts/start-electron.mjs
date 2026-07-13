@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   formatElectronDownloadFailure,
@@ -14,21 +16,31 @@ const proxyPreparation = prepareElectronDownloadEnv(process.env);
 logProxyPreparation(proxyPreparation);
 const electronPath = resolveElectronPath();
 
-const env = { ...process.env };
+const nerveHome =
+  process.env.NERVE_HOME?.trim() || join(homedir(), ".nerve-v2");
+const env = {
+  ...process.env,
+  NERVE_HOME: nerveHome,
+  NERVE_PORT: process.env.NERVE_PORT?.trim() || "3757",
+  NERVE_HTTPS_PORT: process.env.NERVE_HTTPS_PORT?.trim() || "3758",
+};
 delete env.ELECTRON_RUN_AS_NODE;
 
 const forwardedArgs = process.argv.slice(2);
 const ozonePlatform = parseElectronOzonePlatform(
   process.env.NERVE_ELECTRON_OZONE_PLATFORM,
 );
+const commonSwitches = [`--user-data-dir=${join(nerveHome, "desktop")}`];
 const linuxSwitches = [
-  "--class=nerve",
+  "--class=nerve-v2",
   ...(ozonePlatform ? [`--ozone-platform=${ozonePlatform}`] : []),
 ];
-const electronArgs =
-  process.platform === "linux"
-    ? [...linuxSwitches, ".", ...forwardedArgs]
-    : [".", ...forwardedArgs];
+const electronArgs = [
+  ...commonSwitches,
+  ...(process.platform === "linux" ? linuxSwitches : []),
+  ".",
+  ...forwardedArgs,
+];
 
 function logProxyPreparation(preparation) {
   if (process.env.NERVE_DEBUG_PROXY !== "1") return;

@@ -30,12 +30,17 @@ test("workbench state initializes v2 and rejects incompatible layouts", async ()
 
     await mkdir(path.join(desktopBootstrap, "logs"));
     await mkdir(path.join(desktopBootstrap, "crashes"));
+    await mkdir(path.join(desktopBootstrap, "desktop"));
     await writeFile(
       path.join(desktopBootstrap, "logs", "desktop-2026-07-13.jsonl"),
       "{}\n",
     );
     await writeFile(
       path.join(desktopBootstrap, "crashes", "startup.json"),
+      "{}\n",
+    );
+    await writeFile(
+      path.join(desktopBootstrap, "desktop", "Preferences"),
       "{}\n",
     );
     await initializeStorage(desktopBootstrap);
