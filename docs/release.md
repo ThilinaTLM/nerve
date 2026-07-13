@@ -40,7 +40,20 @@ pnpm build-image:sandbox-agent
 NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES=false pnpm build-image:sandbox-manager
 ```
 
-`release/npm` is generated and must not be committed. Packing stages `LICENSE`/`NOTICE` only for the duration of the command. Inspect all seven tarballs and run the release smoke commands documented by the scripts before publishing.
+`release/npm` is generated and must not be committed. Packing stages `LICENSE`/`NOTICE` only for the duration of the command. `node scripts/pack-npm.mjs` verifies exact names/versions/contents and runs an isolated install that resolves package roots, published subpaths, the workbench server entry, and the desktop launcher.
+
+Run the finite built-artifact and image smokes after `pnpm release:build`:
+
+```sh
+pnpm release:verify-npm            # inspect packed tarballs and isolated install
+pnpm release:smoke:workbench       # built workbench server HTTP/WS parity
+pnpm release:smoke:desktop         # desktop --version/--help and server resolution
+pnpm release:smoke:sandbox         # manager UI + manager-agent replay/ACK/resume
+pnpm release:smoke:image:sandbox-agent    # after build-image:sandbox-agent
+pnpm release:smoke:image:sandbox-manager  # after build-image:sandbox-manager
+```
+
+The sandbox and manager-image smokes need PostgreSQL. They use `NERVE_TEST_POSTGRES_URL` when set and otherwise start a disposable `postgres:16-alpine` container through the selected `NERVE_CONTAINER_CLI`. `pnpm build-image:sandbox-agent` and `pnpm build-image:sandbox-manager` run their image smoke automatically after building.
 
 Select a container runtime explicitly when needed:
 
