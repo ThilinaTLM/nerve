@@ -29,7 +29,7 @@ export class ToolExecutorService {
     const toolCall = await this.deps.updateToolCall(toolCallId, {
       status: "running",
     });
-    await this.deps.publishToolCallUpdated(toolCall);
+    await this.emitLifecycle(toolCall, options);
     const started = performance.now();
     await this.deps.logger?.info("Tool execution started", {
       toolCallId: toolCall.id,
@@ -58,7 +58,7 @@ export class ToolExecutorService {
         error: undefined,
         errorDetails: undefined,
       });
-      await this.deps.publishToolCallUpdated(completed);
+      await this.emitLifecycle(completed, options);
       await this.deps.logger?.info("Tool execution completed", {
         toolCallId: completed.id,
         agentId: completed.agentId,
@@ -80,7 +80,9 @@ export class ToolExecutorService {
           durationMs: Math.round(performance.now() - started),
           context: { toolName: toolCall.toolName },
         });
-        return this.deps.getToolCall(toolCall.id);
+        const suspended = this.deps.getToolCall(toolCall.id);
+        await this.emitLifecycle(suspended, options);
+        return suspended;
       }
       const details = toolErrorDetails(error);
       const failed = await this.deps.updateToolCall(toolCall.id, {
@@ -88,7 +90,7 @@ export class ToolExecutorService {
         error: details.message,
         errorDetails: details,
       });
-      await this.deps.publishToolCallUpdated(failed);
+      await this.emitLifecycle(failed, options);
       await this.deps.logger?.error("Tool execution failed", {
         toolCallId: failed.id,
         agentId: failed.agentId,
@@ -101,5 +103,21 @@ export class ToolExecutorService {
       });
       return failed;
     }
+  }
+
+  /**
+   * Route one lifecycle update to the run execution sink when the run owns the
+   * tool (the RunCoordinator commits and publishes the durable event), else
+   * publish it directly for non-run tool calls.
+   */
+  private async emitLifecycle(
+    toolCall: ToolCallRecord,
+    options: ToolRequestOptions,
+  ): Promise<void> {
+    if (options.onLifecycle) {
+      await options.onLifecycle(toolCall);
+      return;
+    }
+    await this.deps.publishToolCallUpdated(toolCall);
   }
 }

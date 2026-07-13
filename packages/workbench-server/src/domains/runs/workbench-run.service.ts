@@ -172,6 +172,10 @@ export class WorkbenchRunService {
         "The pending run interaction was not found.",
       );
     }
+    // Commit the resolved tool result and entries before resolving the
+    // interaction. Checkpoint validation for a resolved interaction accepts a
+    // forward-only transcript (see run-checkpoints), so the continue below
+    // resumes from the suspension checkpoint idempotently.
     if (input.toolCalls?.length) {
       await this.coordinator.upsertToolCalls(state.run.runId, input.toolCalls);
     }

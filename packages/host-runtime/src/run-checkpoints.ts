@@ -37,26 +37,40 @@ export async function checkpointValid(
   }
   const latest = state.checkpoints.at(-1);
   if (latest?.checkpointId !== checkpoint.checkpointId) return false;
-  const transcript = await references.transcript(state.run.runId);
+  const interaction = checkpoint.interactionId
+    ? await references.interaction(checkpoint.interactionId)
+    : undefined;
   if (
-    transcript.cursor !== checkpoint.transcriptCursor ||
-    transcript.harnessLeafId !== checkpoint.harnessLeafId ||
-    transcript.harnessSavePointId !== checkpoint.harnessSavePointId ||
-    !sameStrings(transcript.entryIds, checkpoint.entryIds)
+    checkpoint.interactionId &&
+    (!interaction || interaction.runId !== state.run.runId)
   ) {
     return false;
   }
+  const resolvingInteraction = interaction?.status === "resolved";
+  const transcript = await references.transcript(state.run.runId);
+  const transcriptMatches = resolvingInteraction
+    ? transcript.cursor >= checkpoint.transcriptCursor &&
+      sameStrings(
+        transcript.entryIds.slice(0, checkpoint.entryIds.length),
+        checkpoint.entryIds,
+      )
+    : transcript.cursor === checkpoint.transcriptCursor &&
+      transcript.harnessLeafId === checkpoint.harnessLeafId &&
+      transcript.harnessSavePointId === checkpoint.harnessSavePointId &&
+      sameStrings(transcript.entryIds, checkpoint.entryIds);
+  if (!transcriptMatches) return false;
   const tools = await references.toolCalls(state.run.runId);
   for (const reference of checkpoint.toolCalls) {
     const tool = tools.find((item) => item.toolCallId === reference.toolCallId);
-    if (!tool || tool.lifecycleRevision !== reference.lifecycleRevision) {
+    if (
+      !tool ||
+      (resolvingInteraction
+        ? tool.lifecycleRevision < reference.lifecycleRevision
+        : tool.lifecycleRevision !== reference.lifecycleRevision)
+    ) {
       return false;
     }
     if (["requested", "running"].includes(tool.status)) return false;
-  }
-  if (checkpoint.interactionId) {
-    const interaction = await references.interaction(checkpoint.interactionId);
-    if (!interaction || interaction.runId !== state.run.runId) return false;
   }
   return true;
 }

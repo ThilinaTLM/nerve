@@ -34,12 +34,16 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
   }
 
   async cancelTools(run: RunRecord): Promise<Evidence> {
+    // Only actively-executing tool calls are this target's responsibility.
+    // Suspended tool calls (waiting_for_user/pending_approval) belong to the
+    // interaction target, which the coordinator cancels durably.
+    const isRunning = (status: string) =>
+      status === "running" || status === "requested";
     const active = this.tools
       .listToolCalls()
       .filter(
         (toolCall) =>
-          toolCall.runId === run.runId &&
-          !["completed", "error", "denied"].includes(toolCall.status),
+          toolCall.runId === run.runId && isRunning(toolCall.status),
       );
     if (active.length === 0) return "not_running";
     await this.tools.terminateNonTerminalToolCallsForRun(
@@ -50,8 +54,7 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
       .listToolCalls()
       .some(
         (toolCall) =>
-          toolCall.runId === run.runId &&
-          !["completed", "error", "denied"].includes(toolCall.status),
+          toolCall.runId === run.runId && isRunning(toolCall.status),
       );
     if (remaining) throw new Error("Tool cancellation was not confirmed");
     return "confirmed";

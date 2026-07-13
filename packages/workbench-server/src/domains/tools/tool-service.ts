@@ -55,6 +55,7 @@ export type ToolRequestOptions = {
   hidden?: boolean;
   continueAfterPromotedTask?: boolean;
   useForegroundBash?: boolean;
+  onLifecycle?: (toolCall: ToolCallRecord) => Promise<void>;
 };
 
 export type ExploreProgressUpdate = {
@@ -291,7 +292,7 @@ export class ToolService {
       updatedAt: now,
     };
     await this.upsertToolCall(toolCall);
-    await this.publishToolCallUpdated(toolCall);
+    await this.emitToolCallLifecycle(toolCall, options);
     await this.events.publish("policy.evaluated", {
       toolCallId: toolCall.id,
       agentId: agent.id,
@@ -321,7 +322,7 @@ export class ToolService {
         status: "denied",
         error: evaluation.reason,
       });
-      await this.publishToolCallUpdated(denied);
+      await this.emitToolCallLifecycle(denied, options);
       await this.logger?.warn("Tool denied by policy", {
         toolCallId: denied.id,
         agentId: denied.agentId,
@@ -350,7 +351,7 @@ export class ToolService {
         status: "pending_approval",
         approvalId: approval.id,
       });
-      await this.publishToolCallUpdated(pending);
+      await this.emitToolCallLifecycle(pending, options);
       await this.events.publish("approval.updated", {
         approval,
         toolCall: pending,
@@ -381,6 +382,7 @@ export class ToolService {
     if (isTerminalToolCall(response.toolCall)) return response.toolCall;
     if (response.toolCall.status !== "pending_approval")
       return response.toolCall;
+    if (options.durableSuspend) return response.toolCall;
     if (options.signal?.aborted) throw new Error("Tool execution aborted.");
 
     return new Promise<ToolCallRecord>((resolve, reject) => {
@@ -614,6 +616,24 @@ export class ToolService {
     await this.upsertToolCall(updated);
     if (isTerminalToolCall(updated)) this.notifyWaiters(updated);
     return updated;
+  }
+
+  /**
+   * Emit one tool-call lifecycle update. When a run execution owns the tool
+   * (an `onLifecycle` sink is provided) the RunCoordinator commits and
+   * publishes the durable `toolCall.updated` event; publishing here as well
+   * would duplicate it outside canonical run ordering. Non-run tool calls
+   * (no sink) publish directly.
+   */
+  private async emitToolCallLifecycle(
+    toolCall: ToolCallRecord,
+    options: ToolRequestOptions,
+  ): Promise<void> {
+    if (options.onLifecycle) {
+      await options.onLifecycle(toolCall);
+      return;
+    }
+    await this.publishToolCallUpdated(toolCall);
   }
 
   private async publishToolCallUpdated(

@@ -207,9 +207,9 @@ export class SandboxDaemon {
     // Recover runs through the coordinator: flush any pending event intents,
     // reconcile interrupted/waiting runs from checkpoints, then materialize.
     if (this.runRuntime) {
-      await this.runRuntime.delivery.flush().catch(() => undefined);
-      await this.runRuntime.coordinator.recover().catch(() => undefined);
-      await this.runRuntime.delivery.flush().catch(() => undefined);
+      await this.runRuntime.delivery.flush();
+      await this.runRuntime.coordinator.recover();
+      await this.runRuntime.delivery.flush();
     }
     const effective = this.agentConfigStore.effective(this.config);
     this.toolRuntime.updatePolicy({
@@ -382,6 +382,27 @@ export class SandboxDaemon {
         agentId: parsed.agentId,
         effectiveAt: nextRunOnly ? "next_run" : "immediate",
       };
+    });
+    this.router.register("agent.promptQueue.cancel", async (params) => {
+      await this.requireReady();
+      const input = params as { agentId: string; queuedPromptId: string };
+      const state = (await this.runRuntime?.unitOfWork.list())?.find(
+        (candidate) =>
+          candidate.run.agentId === input.agentId &&
+          candidate.prompts.some(
+            (prompt) => prompt.id === input.queuedPromptId,
+          ),
+      );
+      if (!state)
+        throw new SandboxOperationError(
+          "INVALID_RUN_STATE",
+          "Queued prompt was not found",
+        );
+      const queuedPrompt = await this.requireCoordinator().cancelPrompt(
+        state.run.runId,
+        input.queuedPromptId,
+      );
+      return { queuedPrompt };
     });
     this.router.register("toolCall.get", async (params) => {
       await this.requireReady();
@@ -582,6 +603,41 @@ export class SandboxDaemon {
         status: "answered" as const,
       };
       return result;
+    });
+    this.router.register("userQuestion.dismiss", async (params, context) => {
+      await this.requireReady();
+      const input = params as { questionId: string; reason?: string };
+      const accepted = await this.acceptRequest(
+        "userQuestion.dismiss",
+        params,
+        context.idempotencyKey,
+        context.requestId,
+      );
+      try {
+        const coordinator = this.requireCoordinator();
+        const interaction = await this.runRuntime!.references.interaction(
+          input.questionId,
+        );
+        if (!interaction || interaction.kind !== "question")
+          throw new Error(`Unknown input request: ${input.questionId}`);
+        await coordinator.resolveInteraction(interaction.runId, {
+          interactionId: input.questionId,
+          resolutionRequestId: accepted.requestId,
+          resolution: {
+            dismissed: true,
+            dismissedReason: input.reason ?? "Dismissed by user.",
+          },
+        });
+        await coordinator.continue(interaction.runId);
+      } catch (error) {
+        if (error instanceof SandboxOperationError) throw error;
+        throw mapWaitError(error, "UNKNOWN_INPUT_REQUEST");
+      }
+      return {
+        accepted: true,
+        interactionId: input.questionId,
+        status: "dismissed" as const,
+      };
     });
     this.router.register("planReview.accept", async (params, context) => {
       await this.requireReady();

@@ -168,6 +168,10 @@ export async function executeWorkbenchHarness(
               runId,
               providerToolCallId,
             ),
+          onLifecycle: (toolCall) =>
+            coordinator.sink.upsertToolCalls([
+              toToolCallTranscriptRecord(toolCall),
+            ]),
         }),
         activeToolNames,
       }),
@@ -226,11 +230,6 @@ export async function executeWorkbenchHarness(
         pendingProviderToolCalls.delete(event.toolCallId);
         const existingToolCall =
           this.deps.tools.findToolCallByProviderToolCallId(event.toolCallId);
-        if (existingToolCall) {
-          await coordinator.sink.upsertToolCalls([
-            toToolCallTranscriptRecord(existingToolCall),
-          ]);
-        }
         if (!event.isError) return;
         if (existingToolCall) return;
         const parsedToolName = toolNameSchema.safeParse(event.toolName);

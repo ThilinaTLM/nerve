@@ -38,6 +38,7 @@ export function createAgentToolsForAgent(
     resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
     hidden?: boolean;
     allowedToolNames?: ToolName[];
+    onLifecycle?: (toolCall: ToolCallRecord) => Promise<void>;
   } = {},
 ): AgentTool[] {
   const allowed = options.allowedToolNames
@@ -56,6 +57,7 @@ export function createAgentToolsForAgent(
         anchor: options.resolveToolAnchor?.(sourceToolCallId),
         durableSuspend: true,
         hidden: options.hidden === true ? true : undefined,
+        onLifecycle: options.onLifecycle,
       });
       if (toolCall.status === "completed") return completedToolResult(toolCall);
       if (

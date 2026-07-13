@@ -7,6 +7,7 @@ import {
   eventEnvelopeSchema,
   parsePublicEventEnvelope,
   publicEventDefinition,
+  validatePublicEvent,
 } from "@nervekit/contracts";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
@@ -181,9 +182,13 @@ export class EventBus {
     const task = this.#publishTail.then(async () => {
       const existing = await this.findDurableEventById(id);
       if (existing) {
+        // Normalize the incoming payload through the catalog schema so an
+        // idempotent redelivery compares against the same shape the durable
+        // event was persisted with (schema parsing may add/normalize fields).
+        const normalized = validatePublicEvent(type, data, "workbench_server");
         if (
           existing.type !== type ||
-          JSON.stringify(existing.data) !== JSON.stringify(data)
+          JSON.stringify(existing.data) !== JSON.stringify(normalized)
         ) {
           throw new Error(`Conflicting event intent id: ${id}`);
         }

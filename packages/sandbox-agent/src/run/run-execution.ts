@@ -216,11 +216,7 @@ class SandboxRunExecution implements RunExecution {
     const state = await this.deps.references.loadRun(this.run.runId);
     const interaction = [...(state?.interactions ?? [])]
       .reverse()
-      .find(
-        (item) =>
-          item.status === "resolved" &&
-          (item.kind === "question" || item.kind === "plan_review"),
-      );
+      .find((item) => item.status === "resolved");
     if (!interaction) return;
     const entryId = `entry_${sandboxSha256Digest(`${interaction.id}:${interaction.resolutionRequestId ?? "resolved"}`).slice(7, 23)}`;
     const conversation =
@@ -231,10 +227,13 @@ class SandboxRunExecution implements RunExecution {
     if (await conversation.getEntry(entryId)) return;
     const resolution = interaction.resolution ?? {};
     const plan = interaction.kind === "plan_review";
-    const decision = String(resolution.decision ?? "accept");
+    const approval = interaction.kind === "approval";
+    const decision = String(resolution.decision ?? (plan ? "accept" : "allow"));
     const feedback =
       typeof resolution.feedback === "string" ? resolution.feedback : undefined;
-    const content = plan
+    let toolName = plan ? "plan_mode_present" : "ask_user";
+    let details: unknown = resolution;
+    let content = plan
       ? [
           `Plan review decision: ${decision}.`,
           feedback ? `Feedback: ${feedback}` : undefined,
@@ -242,6 +241,48 @@ class SandboxRunExecution implements RunExecution {
           .filter(Boolean)
           .join(" ")
       : String(resolution.text ?? resolution.answer ?? "");
+    if (approval) {
+      const previous = state?.transitions
+        .flatMap((transition) => transition.toolCalls)
+        .reverse()
+        .find(
+          (tool) =>
+            tool.providerToolCallId === interaction.toolCallId ||
+            tool.id === interaction.toolCallId,
+        );
+      toolName = previous?.toolName ?? "bash";
+      if (decision === "allow") {
+        const result = await this.deps.toolRuntime?.execute(
+          toolName,
+          interaction.normalizedArgs,
+          {
+            ...this.scope,
+            toolCallId: interaction.toolCallId,
+            signal: this.abort.signal,
+          },
+        );
+        details = result;
+        content = result?.content ?? "Approved tool call completed.";
+        const completed = this.toolCallRecord(
+          interaction.toolCallId,
+          toolName,
+          "completed",
+          interaction.normalizedArgs,
+          result,
+        );
+        if (completed) await this.sink.upsertToolCalls([completed]);
+      } else {
+        content = "User denied the requested tool call.";
+        const denied = this.toolCallRecord(
+          interaction.toolCallId,
+          toolName,
+          "denied",
+          interaction.normalizedArgs,
+          { decision: "deny" },
+        );
+        if (denied) await this.sink.upsertToolCalls([denied]);
+      }
+    }
     await this.deps.harnessFactory.appendConversationMessage(
       interaction.conversationId,
       interaction.agentId,
@@ -249,7 +290,7 @@ class SandboxRunExecution implements RunExecution {
       {
         role: "toolResult",
         toolCallId: interaction.toolCallId,
-        toolName: plan ? "plan_mode_present" : "ask_user",
+        toolName,
         content: [{ type: "text", text: content }],
         details: plan
           ? {
@@ -261,7 +302,7 @@ class SandboxRunExecution implements RunExecution {
                   ? resolution.planReview
                   : interaction.planReview,
             }
-          : resolution,
+          : details,
         isError: false,
         timestamp: Date.now(),
       },

@@ -31,6 +31,12 @@ export class EventOutbox {
       ts?: string;
     },
   ): Promise<SandboxOutboxRecord> {
+    const definition = publicEventDefinition(input.type);
+    if (!definition) throw new Error(`Unknown public event: ${input.type}`);
+    if (input.durability !== definition.durability) {
+      throw new Error(`Event ${input.type} must use ${definition.durability}`);
+    }
+    const data = validatePublicEvent(input.type, input.data, "sandbox_agent");
     if (input.id) {
       const existing = [...this.records, ...this.transientRecords].find(
         (record) => record.id === input.id,
@@ -39,21 +45,16 @@ export class EventOutbox {
         if (
           existing.type !== input.type ||
           existing.durability !== input.durability ||
-          JSON.stringify(existing.data) !== JSON.stringify(input.data)
+          JSON.stringify(existing.data) !== JSON.stringify(data)
         ) {
           throw new Error(`Conflicting event intent id: ${input.id}`);
         }
         return existing;
       }
     }
-    const definition = publicEventDefinition(input.type);
-    if (!definition) throw new Error(`Unknown public event: ${input.type}`);
-    if (input.durability !== definition.durability) {
-      throw new Error(`Event ${input.type} must use ${definition.durability}`);
-    }
     const record: SandboxOutboxRecord = {
       ...input,
-      data: validatePublicEvent(input.type, input.data, "sandbox_agent"),
+      data,
       seq: this.nextSeq++,
       id: input.id ?? `evt_${Date.now()}_${this.nextSeq}`,
       ts: input.ts ?? new Date().toISOString(),

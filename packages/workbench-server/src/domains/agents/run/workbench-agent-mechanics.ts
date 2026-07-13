@@ -305,9 +305,10 @@ export class WorkbenchAgentMechanics {
         (candidate) =>
           candidate.agentId === agent.id &&
           candidate.runId === runId &&
-          candidate.status === "waiting_for_user" &&
-          (candidate.toolName === "ask_user" ||
-            candidate.toolName === "plan_mode_present"),
+          (candidate.status === "pending_approval" ||
+            (candidate.status === "waiting_for_user" &&
+              (candidate.toolName === "ask_user" ||
+                candidate.toolName === "plan_mode_present"))),
       );
     if (!toolCall) return undefined;
     return new AgentToolSuspension({
