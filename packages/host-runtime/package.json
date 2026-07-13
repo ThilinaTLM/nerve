@@ -35,6 +35,10 @@
     "./tools": {
       "types": "./dist/tools.d.ts",
       "import": "./dist/tools.js"
+    },
+    "./test-support": {
+      "types": "./dist/test-support.d.ts",
+      "import": "./dist/test-support.js"
     }
   },
   "scripts": {

@@ -68,6 +68,11 @@ class SandboxRunExecution implements RunExecution {
   private harness?: AgentHarness;
   private readonly abort = new AbortController();
   private readonly toolCalls = new Map<string, ToolCallTranscriptRecord>();
+  private readonly pendingPrompts: Array<{
+    behavior: "steer" | "follow-up";
+    prompt: RunPromptRecord;
+  }> = [];
+  private harnessReady = false;
   private projectionTail: Promise<void> = Promise.resolve();
 
   constructor(
@@ -326,11 +331,32 @@ class SandboxRunExecution implements RunExecution {
   }
 
   private async steer(prompt: RunPromptRecord): Promise<void> {
+    if (!this.harnessReady) {
+      this.pendingPrompts.push({ behavior: "steer", prompt });
+      return;
+    }
     await this.harness?.steer(prompt.text, { id: prompt.id });
   }
 
   private async followUp(prompt: RunPromptRecord): Promise<void> {
+    if (!this.harnessReady) {
+      this.pendingPrompts.push({ behavior: "follow-up", prompt });
+      return;
+    }
     await this.harness?.followUp(prompt.text, { id: prompt.id });
+  }
+
+  private async deliverPendingPrompts(): Promise<void> {
+    this.harnessReady = true;
+    for (const queued of this.pendingPrompts.splice(0)) {
+      if (queued.behavior === "steer") {
+        await this.harness?.steer(queued.prompt.text, { id: queued.prompt.id });
+      } else {
+        await this.harness?.followUp(queued.prompt.text, {
+          id: queued.prompt.id,
+        });
+      }
+    }
   }
 
   /**
@@ -439,6 +465,10 @@ class SandboxRunExecution implements RunExecution {
     result?: unknown;
     isError?: boolean;
   }): Promise<void> {
+    if (event.type === "turn_start") {
+      await this.deliverPendingPrompts();
+      return;
+    }
     if (
       event.type === "tool_execution_start" &&
       event.toolCallId &&

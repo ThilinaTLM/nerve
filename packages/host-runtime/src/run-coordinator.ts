@@ -8,6 +8,11 @@ import type {
 } from "@nervekit/contracts";
 import type { ClockPort, DiagnosticPort, IdPort } from "./index.js";
 import { assertCheckpoint, checkpointValid } from "./run-checkpoints.js";
+import {
+  CANCELLATION_TARGETS,
+  finishCancellation,
+  requestCancellation,
+} from "./run-cancellation.js";
 import { RunEventFactory, type RunTransientEventPort } from "./run-events.js";
 import {
   InvalidRunStateError,
@@ -341,86 +346,46 @@ export class RunCoordinator {
   }
 
   async cancel(runId: string, reason?: string): Promise<RunRecord> {
+    const targets = CANCELLATION_TARGETS;
+    const requested = await this.exclusive(`run:${runId}`, async () => {
+      const state = await this.require(runId);
+      if (TERMINAL_STATUSES.has(state.run.status)) return state.run;
+      const request = requestCancellation(state, this.now());
+      await this.commit(
+        state,
+        request.run,
+        "cancellation_requested",
+        request.changes,
+      );
+      return request.run;
+    });
+    if (TERMINAL_STATUSES.has(requested.status)) return requested;
+    this.live.get(runId)?.abort.abort(reason);
+    const evidence: RunRecord["cancellationEvidence"] = [];
+    for (const target of targets) {
+      try {
+        const status = await this.cancelTarget(target, requested, reason);
+        evidence.push({ target, status, checkedAt: this.now() });
+      } catch (error) {
+        evidence.push({
+          target,
+          status: "failed" as const,
+          checkedAt: this.now(),
+          message: errorMessage(error).slice(0, 500),
+        });
+      }
+    }
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
       if (TERMINAL_STATUSES.has(state.run.status)) return state.run;
-      const now = this.now();
-      const targets = [
-        "model",
-        "tool",
-        "task",
-        "subagent",
-        "interaction",
-      ] as const;
-      const requested = revise(
-        state.run,
-        {
-          status: "cancellation_requested",
-          cancellationEvidence: targets.map((target) => ({
-            target,
-            status: "pending" as const,
-            checkedAt: now,
-          })),
-        },
-        now,
-      );
-      const cancelledPrompts = state.prompts
-        .filter(
-          (item) => item.status === "queued" || item.status === "accepted",
-        )
-        .map((item) => ({
-          ...item,
-          status: "cancelled" as const,
-          updatedAt: now,
-        }));
-      const cancelledInteractions = state.interactions
-        .filter((interaction) => interaction.status === "pending")
-        .map((interaction) => ({
-          ...interaction,
-          status: "cancelled" as const,
-          resolvedAt: now,
-        }));
-      await this.commit(state, requested, "cancellation_requested", {
-        prompts: cancelledPrompts,
-        interactions: cancelledInteractions,
-      });
-      this.live.get(runId)?.abort.abort(reason);
-      const evidence = [];
-      for (const target of targets) {
-        try {
-          const status = await this.cancelTarget(target, requested, reason);
-          evidence.push({ target, status, checkedAt: this.now() });
-        } catch (error) {
-          evidence.push({
-            target,
-            status: "failed" as const,
-            checkedAt: this.now(),
-            message: errorMessage(error).slice(0, 500),
-          });
-        }
-      }
-      const afterRequest = await this.require(runId);
-      const failed = evidence.some((item) => item.status === "failed");
       const terminalAt = this.now();
-      const next = revise(
-        afterRequest.run,
-        {
-          status: failed ? "cancellation_failed" : "cancelled",
-          recoverability: failed ? "manual" : "none",
-          cancellationEvidence: evidence,
-          terminalAt: failed ? undefined : terminalAt,
-          failure: failed
-            ? {
-                code: "CANCELLATION_UNCONFIRMED",
-                message: "One or more cancellation targets remain unconfirmed",
-                retryable: true,
-              }
-            : undefined,
-        },
+      const { run: next, failed } = finishCancellation(
+        state.run,
+        evidence,
         terminalAt,
       );
       await this.commit(
-        afterRequest,
+        state,
         next,
         failed ? "cancellation_failed" : "cancelled",
         {
@@ -583,7 +548,11 @@ export class RunCoordinator {
   private async fail(runId: string, value: RunFailureRecord): Promise<void> {
     await this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
-      if (TERMINAL_STATUSES.has(state.run.status)) return;
+      if (
+        TERMINAL_STATUSES.has(state.run.status) ||
+        state.run.status === "cancellation_requested"
+      )
+        return;
       const isValid =
         value.retryable &&
         (await checkpointValid(
@@ -654,47 +623,50 @@ export class RunCoordinator {
     runId: string,
     execution: RunExecution,
   ): Promise<void> {
-    let state = await this.require(runId);
-    for (const prompt of state.prompts.filter(
+    const initial = await this.require(runId);
+    for (const prompt of initial.prompts.filter(
       (item) => item.status === "queued",
     )) {
       try {
         if (prompt.behavior === "steer") await execution.control.steer(prompt);
         else await execution.control.followUp(prompt);
-        const current = await this.require(runId);
-        const now = this.now();
-        const delivered: RunPromptRecord = {
-          ...prompt,
-          status: "delivered",
-          deliveryAttempts: prompt.deliveryAttempts + 1,
-          updatedAt: now,
-        };
-        await this.commit(
-          current,
-          revise(current.run, {}, now),
-          "prompt_delivered",
-          { prompts: [delivered] },
-        );
-        state = await this.require(runId);
+        await this.exclusive(`run:${runId}`, async () => {
+          const current = await this.require(runId);
+          const now = this.now();
+          const delivered: RunPromptRecord = {
+            ...prompt,
+            status: "delivered",
+            deliveryAttempts: prompt.deliveryAttempts + 1,
+            updatedAt: now,
+          };
+          await this.commit(
+            current,
+            revise(current.run, {}, now),
+            "prompt_delivered",
+            { prompts: [delivered] },
+          );
+        });
       } catch (error) {
-        const current = await this.require(runId);
-        const now = this.now();
-        await this.commit(
-          current,
-          revise(current.run, {}, now),
-          "prompt_failed",
-          {
-            prompts: [
-              {
-                ...prompt,
-                status: "failed",
-                error: errorMessage(error).slice(0, 1_000),
-                deliveryAttempts: prompt.deliveryAttempts + 1,
-                updatedAt: now,
-              },
-            ],
-          },
-        );
+        await this.exclusive(`run:${runId}`, async () => {
+          const current = await this.require(runId);
+          const now = this.now();
+          await this.commit(
+            current,
+            revise(current.run, {}, now),
+            "prompt_failed",
+            {
+              prompts: [
+                {
+                  ...prompt,
+                  status: "failed",
+                  error: errorMessage(error).slice(0, 1_000),
+                  deliveryAttempts: prompt.deliveryAttempts + 1,
+                  updatedAt: now,
+                },
+              ],
+            },
+          );
+        });
         throw error;
       }
     }

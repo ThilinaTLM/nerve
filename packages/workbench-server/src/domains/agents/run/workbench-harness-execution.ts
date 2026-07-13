@@ -207,6 +207,7 @@ export async function executeWorkbenchHarness(
         return;
       }
       if (event.type === "turn_start") {
+        coordinator.installControl(liveControl);
         const turn = this.deps.state.conversationRuntime.startTurn(runId);
         currentTurnId = turn.turnId;
         currentLiveMessageId = undefined;
@@ -577,7 +578,7 @@ export async function executeWorkbenchHarness(
         await harness.setThinkingLevel(updatedAgent.thinkingLevel);
       }
     };
-    coordinator.installControl({
+    const liveControl: WorkbenchLiveExecutionControl = {
       steer: (prompt) => harness.steer(prompt.text, { id: prompt.id }),
       followUp: (prompt) => harness.followUp(prompt.text, { id: prompt.id }),
       continue: async () => undefined,
@@ -592,7 +593,7 @@ export async function executeWorkbenchHarness(
           timestamp: input.timestamp,
           delivery: input.delivery,
         }),
-    });
+    };
 
     const promptRequest = await expandExecutablePromptBlocks(
       this,

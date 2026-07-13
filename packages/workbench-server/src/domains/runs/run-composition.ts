@@ -93,8 +93,8 @@ export function createWorkbenchRunRuntime(input: {
 
 function diagnostics(logger?: ApplicationLogger): DiagnosticPort {
   return {
-    debug: (message, data) => void logger?.debug(message, data),
-    warn: (message, data) => void logger?.warn(message, data),
-    error: (message, data) => void logger?.error(message, data),
+    debug: (message, data) => void logger?.debug(message, { context: data }),
+    warn: (message, data) => void logger?.warn(message, { context: data }),
+    error: (message, data) => void logger?.error(message, { context: data }),
   };
 }

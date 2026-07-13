@@ -470,13 +470,23 @@ export class SandboxDaemon {
         status: mapRunStatusToSandbox(run.status),
       };
     });
-    this.router.register("run.followUp", (params, context) =>
-      this.router.dispatch(
-        "run.start",
-        { ...(params as object), behavior: "follow_up" },
-        context,
-      ),
-    );
+    this.router.register("run.followUp", async (params) => {
+      await this.requireReady();
+      const input = params as {
+        conversationId?: string;
+        agentId: string;
+        runId?: string;
+        text: string;
+      };
+      if (!input.conversationId || !input.runId) {
+        throw new SandboxOperationError(
+          "VALIDATION_FAILED",
+          "run.followUp requires conversationId and runId",
+        );
+      }
+      await this.requireCoordinator().followUp(input.runId, input.text);
+      return { accepted: true, ...input, status: "running" as const };
+    });
     this.router.register("run.steer", async (params) => {
       await this.requireReady();
       const input = params as {
