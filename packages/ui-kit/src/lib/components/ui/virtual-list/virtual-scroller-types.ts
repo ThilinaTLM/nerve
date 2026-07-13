@@ -27,7 +27,10 @@ export type VirtualScrollerController = {
 export type VirtualScrollerProps<T> = {
   /** Source items. Identity is tracked via {@link getKey}. */
   items: T[];
-  /** Stable identity for an item (used as the virtualizer item key). */
+  /**
+   * Stable item identity used by the virtualizer and Svelte component tree.
+   * Keep this independent of mutable content and status fields.
+   */
   getKey: (item: T, index: number) => string | number;
   /** Estimated row height in px before measurement. Defaults to 64. */
   estimateSize?: (index: number) => number;
@@ -39,11 +42,10 @@ export type VirtualScrollerProps<T> = {
    */
   heightCacheKey?: string;
   /**
-   * Reactive value that forces all currently rendered rows to be measured on
-   * the next animation frame. Use when row content can change without its item
-   * identity changing (for example, an inline HIL card resolving in place).
+   * Per-row content revision. A changed revision requests remeasurement when a
+   * row's rendered body changes in place; it does not own component identity.
    */
-  measurementVersion?: unknown;
+  getMeasurementVersion?: (item: T, index: number) => unknown;
   /** Extra rows rendered above/below the viewport. Defaults to 8. */
   overscan?: number;
   /**

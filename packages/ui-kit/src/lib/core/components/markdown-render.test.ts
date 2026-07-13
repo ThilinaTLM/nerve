@@ -1,7 +1,9 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
+  decorateMarkdownHtml,
   getHighlightedMarkdownSync,
+  renderBestAvailableMarkdown,
   renderDecoratedMarkdown,
   renderHighlightedMarkdown,
   renderMarkdown,
@@ -43,6 +45,27 @@ describe("markdown-render caching", () => {
       Object.is(untrimmed, untrimmed2),
       "trim=false cached independently",
     );
+  });
+
+  it("returns decorated content before highlight and cached highlight after", async () => {
+    const source = `best available ${Math.random()}\n\n\`\`\`ts\nconst x = 1;\n\`\`\``;
+    assert.equal(getHighlightedMarkdownSync(source, true), undefined);
+
+    const decorated = renderDecoratedMarkdown(source, true);
+    assert.equal(renderBestAvailableMarkdown(source, true), decorated);
+
+    const highlighted = await renderHighlightedMarkdown(source, true);
+    assert.equal(renderBestAvailableMarkdown(source, true), highlighted);
+  });
+
+  it("keeps streaming cache bypass output equivalent to finalized decoration", () => {
+    const source = `streaming ${Math.random()} with **markdown**`;
+    const streaming = decorateMarkdownHtml(
+      renderMarkdown(source, { cache: false }),
+      true,
+    );
+    const finalized = renderDecoratedMarkdown(source, true);
+    assert.equal(streaming, finalized);
   });
 
   it("de-duplicates concurrent highlight calls and caches the result", async () => {

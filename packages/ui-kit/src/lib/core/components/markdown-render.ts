@@ -211,6 +211,20 @@ export function getHighlightedMarkdownSync(
 }
 
 /**
+ * Synchronously return the best finalized render product currently available.
+ * This lets virtual rows paint at their real cached height before measurement.
+ */
+export function renderBestAvailableMarkdown(
+  source: string,
+  trimCodeBlocks: boolean,
+): string {
+  return (
+    getHighlightedMarkdownSync(source, trimCodeBlocks) ??
+    renderDecoratedMarkdown(source, trimCodeBlocks)
+  );
+}
+
+/**
  * Cached async highlight + table wrapping. De-dupes concurrent calls for the
  * same (source, trim) so repeated mounts share a single shiki pass.
  */

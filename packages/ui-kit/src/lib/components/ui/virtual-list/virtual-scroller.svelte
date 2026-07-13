@@ -1,9 +1,17 @@
 <script lang="ts" generics="T">
-import { SvelteMap } from "svelte/reactivity";
 import { createVirtualizer } from "@tanstack/svelte-virtual";
+import { SvelteSet } from "svelte/reactivity";
 import { get } from "svelte/store";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { getRowHeightCache } from "./row-height-cache";
+import {
+  captureItemKeySnapshot,
+  createItemKeyAccessor,
+  deriveVirtualDomIdentities,
+  itemKeySnapshotsEqual,
+  measurementTargetIsCurrent,
+  type VirtualScrollerItemKey,
+} from "./virtual-scroller-identity";
 import type {
   VirtualScrollBehavior,
   VirtualScrollerController,
@@ -16,7 +24,7 @@ let {
   getKey,
   estimateSize,
   heightCacheKey,
-  measurementVersion,
+  getMeasurementVersion,
   contentVisibility = false,
   overscan = 8,
   anchor = "start",
@@ -44,24 +52,22 @@ const heightCache = $derived(
   heightCacheKey ? getRowHeightCache(heightCacheKey) : undefined,
 );
 
-function itemKeyForIndex(index: number): string | number {
-  const item = items[index];
-  return item === undefined ? `__missing__:${index}` : getKey(item, index);
-}
+let itemKeySnapshot: readonly VirtualScrollerItemKey[] = Object.freeze([]);
 
 function resolveEstimate(index: number): number {
-  const cached = heightCache?.get(itemKeyForIndex(index));
+  const key = itemKeySnapshot[index];
+  const cached = key === undefined ? undefined : heightCache?.get(key);
   if (cached !== undefined) return cached;
   return estimateSize?.(index) ?? DEFAULT_ESTIMATE;
 }
 
-// Created once per component instance. `getItemKey`/`estimateSize` read the
-// latest props by closure; everything else is reconciled via `setOptions`.
+// Created once per component instance. Structural reconciliation replaces the
+// immutable key accessor whenever any key in the sequence changes.
 const virtualizer = createVirtualizer<HTMLDivElement, HTMLElement>({
   count: 0,
   getScrollElement: () => viewportEl,
   estimateSize: (index) => resolveEstimate(index),
-  getItemKey: itemKeyForIndex,
+  getItemKey: createItemKeyAccessor(itemKeySnapshot),
 });
 
 // Stable instance reference (also ensures the adapter has attached its wrapped
@@ -73,11 +79,18 @@ const instance = get(virtualizer);
 
 let virtualItems = $state(instance.getVirtualItems());
 let totalSize = $state(instance.getTotalSize());
-const renderedVirtualItems = $derived(
-  virtualItems.filter(
+const renderedVirtualRows = $derived.by(() => {
+  const inRange = virtualItems.filter(
     (virtualRow) => virtualRow.index >= 0 && virtualRow.index < items.length,
-  ),
-);
+  );
+  const identities = deriveVirtualDomIdentities(
+    inRange.map((virtualRow) => virtualRow.key as VirtualScrollerItemKey),
+  );
+  return inRange.map((virtualRow, index) => ({
+    virtualRow,
+    ...identities[index],
+  }));
+});
 
 const FOLLOW_SETTLE_FRAMES = 8;
 let followFrame: number | undefined;
@@ -133,21 +146,23 @@ $effect(() => {
   return unsubscribe;
 });
 
-let itemEdgeSignature = "";
-
 // Reconcile dynamic options without recreating the virtualizer (preserves
 // scroll/measurement state). Touching `viewportEl` re-runs this once the
 // scroll element binds so `_willUpdate` can attach scroll listeners.
 $effect(() => {
   void viewportEl;
-  const nextEdgeSignature =
-    items.length === 0
-      ? "0"
-      : `${items.length}\0${String(itemKeyForIndex(0))}\0${String(
-          itemKeyForIndex(items.length - 1),
-        )}`;
-  const edgeChanged = nextEdgeSignature !== itemEdgeSignature;
-  itemEdgeSignature = nextEdgeSignature;
+  const nextKeySnapshot = captureItemKeySnapshot(items, getKey);
+  const structuralKeysChanged = !itemKeySnapshotsEqual(
+    itemKeySnapshot,
+    nextKeySnapshot,
+  );
+  // End-follow is deliberately independent of full structural detection: an
+  // interior draft-to-tool replacement must refresh identity without pulling
+  // a manually scrolled viewport back to the tail.
+  const endChanged =
+    nextKeySnapshot.length !== itemKeySnapshot.length ||
+    !Object.is(nextKeySnapshot.at(-1), itemKeySnapshot.at(-1));
+  itemKeySnapshot = nextKeySnapshot;
 
   instance.setOptions({
     count: items.length,
@@ -156,6 +171,9 @@ $effect(() => {
     followOnAppend: followOutput,
     paddingStart,
     paddingEnd,
+    ...(structuralKeysChanged
+      ? { getItemKey: createItemKeyAccessor(nextKeySnapshot) }
+      : {}),
     ...(scrollEndThreshold !== undefined ? { scrollEndThreshold } : {}),
     ...(gap !== undefined ? { gap } : {}),
   });
@@ -163,7 +181,7 @@ $effect(() => {
   if (!shouldFollowEnd()) {
     cancelFollowFrame();
     followSettleFrames = 0;
-  } else if (edgeChanged) {
+  } else if (endChanged) {
     scheduleFollowToEnd();
   }
 });
@@ -182,61 +200,84 @@ $effect(() => {
     isAtEnd: (threshold) => instance.isAtEnd(threshold ?? scrollEndThreshold),
     getDistanceFromEnd: () => instance.getDistanceFromEnd(),
     getViewportElement: () => viewportEl,
-    measureAll: () => instance.measure(),
+    measureAll: enqueueAllMeasurements,
   } satisfies VirtualScrollerController;
 });
 
-// Batched measurement: bursty row mounts (tab switch, conversation open) used
-// to interleave layout reads (`offsetHeight`) with writes (`resizeItem`),
-// forcing one reflow per row. Instead, collect nodes for one frame, READ all
-// heights first, then WRITE all sizes — a single reflow per frame.
-const pendingMeasure = new SvelteMap<number, HTMLElement>();
+// Every mount, ResizeObserver notification, explicit revision, and imperative
+// measure request enters this one node-keyed batch. Numeric indexes are read
+// only at flush time and validated against the current immutable key snapshot.
+const registeredMeasureNodes = new SvelteSet<HTMLElement>();
+const pendingMeasureNodes = new SvelteSet<HTMLElement>();
 let measureFrame: number | undefined;
+let resizeObserver: ResizeObserver | undefined;
 
-function isMeasurable(node: HTMLElement): boolean {
-  // Kept-mounted conversation panes are hidden with `display:none` when
-  // inactive. Reading layout there returns 0 and would poison the virtualizer
-  // + persisted row-height cache. Skip those hidden measurements; the
-  // previous measured height remains valid and ResizeObserver/update paths
-  // will measure again when the pane becomes visible.
-  return node.getClientRects().length > 0;
+function sharedResizeObserver(): ResizeObserver | undefined {
+  if (resizeObserver || typeof ResizeObserver === "undefined")
+    return resizeObserver;
+  resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) queueMeasure(entry.target as HTMLElement);
+  });
+  return resizeObserver;
 }
 
 function measurableHeight(node: HTMLElement): number | undefined {
-  if (!isMeasurable(node)) return undefined;
+  // Kept-mounted panes use display:none while inactive. Never let a hidden
+  // zero overwrite either TanStack geometry or the persisted height cache.
+  if (!node.isConnected || node.getClientRects().length === 0) return undefined;
   return node.offsetHeight;
 }
 
 function flushMeasurements() {
   measureFrame = undefined;
-  if (pendingMeasure.size === 0) return;
-  // Phase 1: read every height before mutating anything.
-  const heights: Array<[number, number]> = [];
-  for (const [index, node] of pendingMeasure) {
+  if (pendingMeasureNodes.size === 0) return;
+
+  // Phase 1: validate identity and read all heights before any virtualizer
+  // write can trigger layout/scroll reconciliation.
+  const measurements: Array<{
+    index: number;
+    key: VirtualScrollerItemKey;
+    height: number;
+  }> = [];
+  for (const node of pendingMeasureNodes) {
+    if (
+      !registeredMeasureNodes.has(node) ||
+      !measurementTargetIsCurrent(
+        itemKeySnapshot,
+        node.dataset.index,
+        node.dataset.itemKey,
+      )
+    ) {
+      continue;
+    }
     const height = measurableHeight(node);
-    if (height !== undefined) heights.push([index, height]);
+    const index = Number(node.dataset.index);
+    const key = itemKeySnapshot[index];
+    if (height !== undefined && key !== undefined) {
+      measurements.push({ index, key, height });
+    }
   }
-  pendingMeasure.clear();
-  // Phase 2: apply sizes. `resizeItem` keeps virtual-core's scroll-anchor
-  // logic intact; batching just removes the read/write interleaving.
+  pendingMeasureNodes.clear();
+
+  // Phase 2: resize only the index/key pairs proven current above.
   const cache = heightCache;
-  for (const [index, height] of heights) {
+  for (const { index, key, height } of measurements) {
     instance.resizeItem(index, height);
-    cache?.set(itemKeyForIndex(index), height);
+    cache?.set(key, height);
   }
-  scheduleFollowToEnd(3);
+  if (measurements.length > 0) scheduleFollowToEnd(3);
 }
 
 function queueMeasure(node: HTMLElement) {
-  if (!isMeasurable(node)) return;
-  // Register the node for future resizes (async highlight, image/font load,
-  // re-wrapping). The internal ResizeObserver also fires once on observe.
-  instance.measureElement(node);
-  const index = Number(node.dataset.index);
-  if (!Number.isNaN(index)) pendingMeasure.set(index, node);
+  if (!registeredMeasureNodes.has(node)) return;
+  pendingMeasureNodes.add(node);
   if (measureFrame === undefined) {
     measureFrame = requestAnimationFrame(flushMeasurements);
   }
+}
+
+function enqueueAllMeasurements() {
+  for (const node of registeredMeasureNodes) queueMeasure(node);
 }
 
 function cancelMeasureFrame() {
@@ -246,33 +287,22 @@ function cancelMeasureFrame() {
 }
 
 function measure(node: HTMLElement, measurementVersion: unknown) {
-  void measurementVersion;
-  let lastHeight = measurableHeight(node) ?? 0;
-  let observer: ResizeObserver | undefined;
-
+  let currentMeasurementVersion = measurementVersion;
+  registeredMeasureNodes.add(node);
+  sharedResizeObserver()?.observe(node);
   queueMeasure(node);
-
-  if (typeof ResizeObserver !== "undefined") {
-    observer = new ResizeObserver(() => {
-      const nextHeight = measurableHeight(node);
-      if (nextHeight === undefined || nextHeight === lastHeight) return;
-      lastHeight = nextHeight;
-      queueMeasure(node);
-    });
-    observer.observe(node);
-  }
 
   return {
     update(nextMeasurementVersion: unknown) {
-      void nextMeasurementVersion;
+      if (Object.is(nextMeasurementVersion, currentMeasurementVersion)) return;
+      currentMeasurementVersion = nextMeasurementVersion;
       queueMeasure(node);
     },
     destroy() {
-      observer?.disconnect();
-      const index = Number(node.dataset.index);
-      if (!Number.isNaN(index)) pendingMeasure.delete(index);
-      if (pendingMeasure.size === 0) cancelMeasureFrame();
-      queueMicrotask(() => instance.measureElement(null));
+      resizeObserver?.unobserve(node);
+      registeredMeasureNodes.delete(node);
+      pendingMeasureNodes.delete(node);
+      if (pendingMeasureNodes.size === 0) cancelMeasureFrame();
     },
   };
 }
@@ -281,6 +311,10 @@ $effect(() => {
   return () => {
     cancelFollowFrame();
     cancelMeasureFrame();
+    resizeObserver?.disconnect();
+    resizeObserver = undefined;
+    registeredMeasureNodes.clear();
+    pendingMeasureNodes.clear();
   };
 });
 </script>
@@ -294,14 +328,16 @@ $effect(() => {
     class={cn("virtual-scroller-spacer", className)}
     style:height={`${totalSize}px`}
   >
-    {#each renderedVirtualItems as virtualRow (virtualRow.key)}
+    {#each renderedVirtualRows as rendered (rendered.domKey)}
+      {@const virtualRow = rendered.virtualRow}
       {@const item = items[virtualRow.index]}
       {#if item !== undefined}
         <div
           class="virtual-scroller-row"
           class:cv-auto={contentVisibility}
           data-index={virtualRow.index}
-          use:measure={measurementVersion}
+          data-item-key={rendered.encodedItemKey}
+          use:measure={getMeasurementVersion?.(item, virtualRow.index)}
           style:transform={`translateY(${virtualRow.start}px)`}
           style:contain-intrinsic-size={contentVisibility
             ? `auto ${Math.max(1, Math.round(virtualRow.size))}px`

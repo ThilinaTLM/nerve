@@ -141,35 +141,54 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
   return result;
 });
 
-// Tool/HIL rows can replace their body in place while retaining the same
-// timeline key. Give the virtualizer an explicit revision so it remeasures
-// rendered rows after Svelte commits the new card content; relying only on
-// ResizeObserver can leave one stale frame when content-visibility is active.
-const measurementVersion = $derived.by(() => {
-  const timelineRevision = timeline
-    .map((node) => {
-      if (node.kind === "tool")
-        return `${node.key}:${node.toolCall.status}:${node.toolCall.updatedAt}`;
-      if (node.kind === "message")
-        return `${node.key}:${node.item.text.length}:${node.item.done}`;
-      return node.key;
-    })
-    .join("|");
-  const approvalRevision = approvals
-    .map((approval) => `${approval.id}:${approval.status}`)
-    .join("|");
-  return [
-    timelineRevision,
-    approvalRevision,
-    pendingUserQuestion
-      ? `${pendingUserQuestion.id}:${pendingUserQuestion.status}`
-      : "no-question",
-    pendingPlanReview
-      ? `${pendingPlanReview.id}:${pendingPlanReview.status}`
-      : "no-plan",
-    sending ? "sending" : "idle",
-  ].join("\0");
-});
+// Content revisions request measurement without changing component identity.
+// Keep each revision scoped to the row whose rendered body can actually change
+// so one streaming tool/message does not remeasure every visible transcript row.
+function measurementVersionForRow(row: TranscriptRowItem): string {
+  if (row.kind === "waiting") return "waiting";
+  if (row.kind === "queued") {
+    return `${row.prompt.status}:${row.prompt.updatedAt}`;
+  }
+
+  const node = row.node;
+  if (node.kind === "message") {
+    const item = node.item;
+    return [
+      item.text.length,
+      item.live ? "live" : "stored",
+      item.done ? "done" : "open",
+      item.optimistic ? "optimistic" : "settled",
+      item.stopReason ?? "ok",
+      item.errorMessage?.length ?? 0,
+    ].join(":");
+  }
+  if (node.kind === "tool") {
+    const toolCallId = node.toolCall.id;
+    const approval = approvals.find(
+      (candidate) => candidate.toolCallId === toolCallId,
+    );
+    const question =
+      pendingUserQuestion?.toolCallId === toolCallId
+        ? pendingUserQuestion
+        : undefined;
+    const plan =
+      pendingPlanReview?.toolCallId === toolCallId
+        ? pendingPlanReview
+        : undefined;
+    return [
+      node.toolCall.status,
+      node.toolCall.updatedAt,
+      node.liveOutput?.updatedAt ?? "no-output",
+      approval ? `${approval.id}:${approval.status}` : "no-approval",
+      question ? `${question.id}:${question.status}` : "no-question",
+      plan ? `${plan.id}:${plan.status}` : "no-plan",
+    ].join(":");
+  }
+  if (node.kind === "tool_draft") {
+    return `${node.draft.updatedAt}:${node.draft.argsText.length}:${node.draft.done ? "done" : "open"}`;
+  }
+  return node.key;
+}
 
 const showEmptyRun = $derived(
   timeline.length === 0 && !streamingText && !sending,
@@ -208,7 +227,7 @@ const showEmptyRun = $derived(
     items={rows}
     getKey={(row) => row.key}
     {heightCacheKey}
-    {measurementVersion}
+    getMeasurementVersion={measurementVersionForRow}
     {contentVisibility}
     estimateSize={() => 120}
     overscan={10}

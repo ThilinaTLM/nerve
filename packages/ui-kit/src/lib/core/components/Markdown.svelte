@@ -1,8 +1,10 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import { writeClipboardText } from "@nervekit/ui-kit/core/clipboard";
 import {
   decorateMarkdownHtml,
   getHighlightedMarkdownSync,
+  renderBestAvailableMarkdown,
   renderDecoratedMarkdown,
   renderHighlightedMarkdown,
   renderMarkdown,
@@ -35,7 +37,18 @@ let {
   onOpenFile,
   onCopy,
 }: Props = $props();
-let html = $state("");
+
+const initialRender = untrack(() => ({
+  html: streaming
+    ? decorateMarkdownHtml(
+        renderMarkdown(text, { cache: false }),
+        trimCodeBlocks,
+      )
+    : renderBestAvailableMarkdown(text, trimCodeBlocks),
+  source: signatureFor(text, trimCodeBlocks),
+}));
+let html = $state(initialRender.html);
+let htmlSource: string | undefined = initialRender.source;
 
 async function handleClick(event: MouseEvent) {
   const target = event.target;
@@ -78,7 +91,6 @@ function copyButtonHandler(node: HTMLDivElement) {
   };
 }
 
-let htmlSource: string | undefined;
 let frame: number | undefined;
 let highlightToken = 0;
 

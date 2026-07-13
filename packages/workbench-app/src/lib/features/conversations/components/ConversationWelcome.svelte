@@ -15,7 +15,7 @@ const newChatShortcut = getShortcutLabel("conversation.new");
   message="Open a project and begin a conversation to explore, plan, and build."
 >
   {#snippet footer()}
-    <Button class="shadow-sm" size="lg" onclick={onNewChat}>
+    <Button onclick={onNewChat}>
       <Plus aria-hidden="true" />
       New chat
     </Button>
