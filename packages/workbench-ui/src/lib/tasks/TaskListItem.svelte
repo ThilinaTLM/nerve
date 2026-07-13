@@ -16,10 +16,12 @@ import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
 import { dateTimeLabel } from "@nervekit/ui-kit/core/utils/time";
+import type { TaskPanelCapabilities } from "./task-panel-types";
 
 type Props = {
   task: TaskRecord;
   selected?: boolean;
+  capabilities: TaskPanelCapabilities;
   onOpenTaskOutput?: (id: string) => void;
   onCancelTask?: (id: string) => void;
   onRestartTask?: (id: string) => void;
@@ -31,6 +33,7 @@ type Props = {
 let {
   task,
   selected = false,
+  capabilities,
   onOpenTaskOutput,
   onCancelTask,
   onRestartTask,
@@ -54,58 +57,86 @@ const envKeys = $derived(task.envInfo?.keys.join(", "));
 function statusItems(): ContextMenuItem[] {
   if (isActive) {
     return [
-      {
-        label: "Restart task",
-        icon: RotateCw,
-        onSelect: () => onRestartTask?.(task.id),
-      },
-      {
-        label: "Cancel task",
-        icon: Square,
-        destructive: true,
-        onSelect: () => onCancelTask?.(task.id),
-      },
+      ...(capabilities.restart.enabled
+        ? [
+            {
+              label: "Restart task",
+              icon: RotateCw,
+              onSelect: () => onRestartTask?.(task.id),
+            } satisfies ContextMenuItem,
+          ]
+        : []),
+      ...(capabilities.cancel.enabled
+        ? [
+            {
+              label: "Cancel task",
+              icon: Square,
+              destructive: true,
+              onSelect: () => onCancelTask?.(task.id),
+            } satisfies ContextMenuItem,
+          ]
+        : []),
     ];
   }
   if (task.status === "orphaned") {
     return [
-      {
-        label: "Clean up orphan",
-        icon: TriangleAlert,
-        destructive: true,
-        onSelect: () => onCancelTask?.(task.id),
-      },
-      {
-        label: "Restart task",
-        icon: RotateCw,
-        onSelect: () => onRestartTask?.(task.id),
-      },
-      {
-        label: "Forget record",
-        icon: Trash2,
-        destructive: true,
-        onSelect: () => onRemoveTask?.(task.id),
-      },
+      ...(capabilities.cancel.enabled
+        ? [
+            {
+              label: "Clean up orphan",
+              icon: TriangleAlert,
+              destructive: true,
+              onSelect: () => onCancelTask?.(task.id),
+            } satisfies ContextMenuItem,
+          ]
+        : []),
+      ...(capabilities.restart.enabled
+        ? [
+            {
+              label: "Restart task",
+              icon: RotateCw,
+              onSelect: () => onRestartTask?.(task.id),
+            } satisfies ContextMenuItem,
+          ]
+        : []),
+      ...(capabilities.remove.enabled
+        ? [
+            {
+              label: "Forget record",
+              icon: Trash2,
+              destructive: true,
+              onSelect: () => onRemoveTask?.(task.id),
+            } satisfies ContextMenuItem,
+          ]
+        : []),
     ];
   }
   return [
-    {
-      label: "Restart task",
-      icon: RotateCw,
-      onSelect: () => onRestartTask?.(task.id),
-    },
-    {
-      label: "Remove task",
-      icon: Trash2,
-      destructive: true,
-      onSelect: () => onRemoveTask?.(task.id),
-    },
+    ...(capabilities.restart.enabled
+      ? [
+          {
+            label: "Restart task",
+            icon: RotateCw,
+            onSelect: () => onRestartTask?.(task.id),
+          } satisfies ContextMenuItem,
+        ]
+      : []),
+    ...(capabilities.remove.enabled
+      ? [
+          {
+            label: "Remove task",
+            icon: Trash2,
+            destructive: true,
+            onSelect: () => onRemoveTask?.(task.id),
+          } satisfies ContextMenuItem,
+        ]
+      : []),
   ];
 }
 
 function taskMenu(): ContextMenuItem[] {
-  return [
-    ...(isActive
+  const commands: ContextMenuItem[] = [
+    ...(isActive && capabilities.logs.enabled
       ? [
           {
             label: "Open output",
@@ -114,14 +145,32 @@ function taskMenu(): ContextMenuItem[] {
           } satisfies ContextMenuItem,
         ]
       : []),
-    { label: "Pin command", icon: Pin, onSelect: () => onPinTask?.(task) },
-    {
-      label: "Copy command",
-      icon: Copy,
-      onSelect: () => onCopyCommand?.(task.command),
-    },
-    { type: "separator" },
-    ...statusItems(),
+    ...(capabilities.pin.enabled
+      ? [
+          {
+            label: "Pin command",
+            icon: Pin,
+            onSelect: () => onPinTask?.(task),
+          } satisfies ContextMenuItem,
+        ]
+      : []),
+    ...(capabilities.copy.enabled
+      ? [
+          {
+            label: "Copy command",
+            icon: Copy,
+            onSelect: () => onCopyCommand?.(task.command),
+          } satisfies ContextMenuItem,
+        ]
+      : []),
+  ];
+  const statuses = statusItems();
+  return [
+    ...commands,
+    ...(commands.length > 0 && statuses.length > 0
+      ? [{ type: "separator" } satisfies ContextMenuItem]
+      : []),
+    ...statuses,
   ];
 }
 
@@ -142,6 +191,10 @@ function stopPropagation(event: MouseEvent) {
             {...props}
             class="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-2 text-left"
             type="button"
+            disabled={isActive && !capabilities.logs.enabled}
+            title={isActive && !capabilities.logs.enabled
+              ? capabilities.logs.reason
+              : undefined}
             onclick={() => {
               if (isActive) onOpenTaskOutput?.(task.id);
             }}
@@ -239,7 +292,10 @@ function stopPropagation(event: MouseEvent) {
           size="icon-xs"
           variant="ghost"
           ariaLabel="Restart task"
-          title="Restart task"
+          title={capabilities.restart.enabled
+            ? "Restart task"
+            : capabilities.restart.reason}
+          disabled={!capabilities.restart.enabled}
           class="text-muted-foreground hover:text-foreground"
           onclick={(event) => {
             stopPropagation(event);
@@ -250,7 +306,10 @@ function stopPropagation(event: MouseEvent) {
           size="icon-xs"
           variant="ghost"
           ariaLabel="Cancel task"
-          title="Cancel task"
+          title={capabilities.cancel.enabled
+            ? "Cancel task"
+            : capabilities.cancel.reason}
+          disabled={!capabilities.cancel.enabled}
           class="text-muted-foreground hover:text-destructive"
           onclick={(event) => {
             stopPropagation(event);
@@ -262,7 +321,10 @@ function stopPropagation(event: MouseEvent) {
           size="icon-xs"
           variant="ghost"
           ariaLabel="Clean up orphaned task"
-          title="Clean up orphan"
+          title={capabilities.cancel.enabled
+            ? "Clean up orphan"
+            : capabilities.cancel.reason}
+          disabled={!capabilities.cancel.enabled}
           class="text-muted-foreground hover:text-destructive"
           onclick={(event) => {
             stopPropagation(event);
@@ -273,7 +335,10 @@ function stopPropagation(event: MouseEvent) {
           size="icon-xs"
           variant="ghost"
           ariaLabel="Restart task"
-          title="Restart task"
+          title={capabilities.restart.enabled
+            ? "Restart task"
+            : capabilities.restart.reason}
+          disabled={!capabilities.restart.enabled}
           class="text-muted-foreground hover:text-foreground"
           onclick={(event) => {
             stopPropagation(event);
@@ -284,7 +349,10 @@ function stopPropagation(event: MouseEvent) {
           size="icon-xs"
           variant="ghost"
           ariaLabel="Forget task record"
-          title="Forget record"
+          title={capabilities.remove.enabled
+            ? "Forget record"
+            : capabilities.remove.reason}
+          disabled={!capabilities.remove.enabled}
           class="text-muted-foreground hover:text-destructive"
           onclick={(event) => {
             stopPropagation(event);
@@ -296,7 +364,10 @@ function stopPropagation(event: MouseEvent) {
           size="icon-xs"
           variant="ghost"
           ariaLabel="Restart task"
-          title="Restart task"
+          title={capabilities.restart.enabled
+            ? "Restart task"
+            : capabilities.restart.reason}
+          disabled={!capabilities.restart.enabled}
           class="text-muted-foreground hover:text-foreground"
           onclick={(event) => {
             stopPropagation(event);
@@ -307,7 +378,10 @@ function stopPropagation(event: MouseEvent) {
           size="icon-xs"
           variant="ghost"
           ariaLabel="Remove task"
-          title="Remove task"
+          title={capabilities.remove.enabled
+            ? "Remove task"
+            : capabilities.remove.reason}
+          disabled={!capabilities.remove.enabled}
           class="text-muted-foreground hover:text-destructive"
           onclick={(event) => {
             stopPropagation(event);

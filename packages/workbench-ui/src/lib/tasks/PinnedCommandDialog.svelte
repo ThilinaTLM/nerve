@@ -1,8 +1,6 @@
 <script lang="ts">
 import type {
   CreatePinnedCommandRequest,
-  PinnedCommand,
-  SandboxPinnedCommand,
   UpdatePinnedCommandRequest,
 } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -10,10 +8,11 @@ import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
+import type { NormalizedPinnedCommand } from "./task-panel-types";
 
 type Props = {
   open?: boolean;
-  command?: PinnedCommand | SandboxPinnedCommand;
+  command?: NormalizedPinnedCommand;
   projectCwd?: string;
   saving?: boolean;
   onSave?: (

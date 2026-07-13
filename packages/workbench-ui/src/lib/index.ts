@@ -38,10 +38,11 @@ export type {
   WithoutChildrenOrChild,
 } from "@nervekit/ui-kit/core/utils";
 export { cn } from "@nervekit/ui-kit/core/utils";
-export type { GitPanelActions, GitPanelModel } from "./git/git-panel-types.js";
-export type {
-  TaskPanelActions,
-  TaskPanelModel,
-} from "./tasks/task-panel-types.js";
+export { default as GitUtilityPanelView } from "./git/GitUtilityPanelView.svelte";
+export * from "./git/git-panel-controller.js";
+export * from "./git/git-panel-types.js";
+export { default as TaskUtilityPanelView } from "./tasks/TaskUtilityPanelView.svelte";
+export * from "./tasks/task-panel-controller.js";
+export * from "./tasks/task-panel-types.js";
 export * from "./state/index.js";
 export { default as ToolCallCard } from "./tools/components/ToolCallCard.svelte";

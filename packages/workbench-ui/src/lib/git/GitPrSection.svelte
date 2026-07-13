@@ -15,6 +15,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import { checksTone } from "./git-change-format";
+import type { GitPanelCapabilities } from "./git-panel-types";
 
 type Props = {
   sortedPrs: GithubPr[];
@@ -24,8 +25,10 @@ type Props = {
   selectedRepoHasGithubRemote: boolean;
   loadingPrs: boolean;
   currentBranchName: string | null;
+  capabilities: GitPanelCapabilities;
   expandedPr?: number;
   open?: boolean;
+  onExpandedPrChange?: (number: number | undefined) => void;
   onRefreshPrs: () => void;
   onOpenPr: (prNumber: number) => void;
 };
@@ -38,8 +41,10 @@ let {
   selectedRepoHasGithubRemote,
   loadingPrs,
   currentBranchName,
+  capabilities,
   expandedPr = $bindable(undefined),
   open = $bindable(true),
+  onExpandedPrChange,
   onRefreshPrs,
   onOpenPr,
 }: Props = $props();
@@ -53,7 +58,7 @@ let {
         variant="ghost"
         ariaLabel="Refresh PRs"
         title={`Refresh PRs · signed in as ${github.login ?? "unknown"}`}
-        disabled={loadingPrs}
+        disabled={!capabilities.refresh.enabled || loadingPrs}
         onclick={() => onRefreshPrs()}
       >
         <RefreshCw class={loadingPrs ? "animate-spin" : ""} />
@@ -99,7 +104,11 @@ let {
           <div class="flex items-center gap-1.5">
             <button
               type="button"
-              class="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-foreground hover:underline"
+              class="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-foreground hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
+              disabled={!capabilities.openPullRequest.enabled}
+              title={capabilities.openPullRequest.enabled
+                ? "Open pull request details"
+                : capabilities.openPullRequest.reason}
               onclick={() => onOpenPr(pr.number)}
             >
               <span class="font-mono text-muted-foreground">#{pr.number}</span>
@@ -126,8 +135,10 @@ let {
             <button
               type="button"
               title="Toggle check details"
-              onclick={() =>
-                (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
+              onclick={() => {
+                expandedPr = expandedPr === pr.number ? undefined : pr.number;
+                onExpandedPrChange?.(expandedPr);
+              }}
             >
               <Badge tone={checksTone(pr.checks)} size="xs">
                 {#if pr.checks.status === "passing"}

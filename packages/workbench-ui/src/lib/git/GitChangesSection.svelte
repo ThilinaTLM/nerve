@@ -8,7 +8,7 @@ import type { GitFileChange } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
-import type { FileMutation } from "./git-panel-types";
+import type { FileMutation, GitPanelCapabilities } from "./git-panel-types";
 import {
   fileStatusLabel,
   fileTone,
@@ -18,7 +18,7 @@ import {
 } from "./git-change-format";
 
 type ChangesState = {
-  files: GitFileChange[];
+  files: readonly GitFileChange[];
   stagedCount: number;
   unstagedCount: number;
   untrackedCount: number;
@@ -32,6 +32,7 @@ type Props = {
   bulkMutation?: string;
   selectedRepo: string;
   loadingOverview: boolean;
+  capabilities: GitPanelCapabilities;
   open?: boolean;
   onMutateFile: (
     repo: string,
@@ -50,6 +51,7 @@ let {
   bulkMutation,
   selectedRepo,
   loadingOverview,
+  capabilities,
   open = $bindable(true),
   onMutateFile,
   onBulkStage,
@@ -84,7 +86,7 @@ let {
           variant="ghost"
           ariaLabel={`Unstage ${file.path}`}
           title="Unstage"
-          disabled={busy}
+          disabled={!capabilities.mutateFiles.enabled || busy}
           onclick={() => onMutateFile(selectedRepo, file, "unstage")}
         >
           {#if busy && fileMutation?.action === "unstage"}
@@ -100,7 +102,7 @@ let {
           variant="ghost"
           ariaLabel={`Stage ${file.path}`}
           title="Stage"
-          disabled={busy}
+          disabled={!capabilities.mutateFiles.enabled || busy}
           onclick={() => onMutateFile(selectedRepo, file, "stage")}
         >
           {#if busy && fileMutation?.action === "stage"}
@@ -116,7 +118,7 @@ let {
         variant="ghost"
         ariaLabel={`Discard ${file.path}`}
         title="Discard"
-        disabled={busy}
+        disabled={!capabilities.mutateFiles.enabled || busy}
         onclick={() => onRequestDiscard(file)}
       >
         {#if busy && fileMutation?.action === "discard"}
@@ -162,7 +164,9 @@ let {
                 variant="ghost"
                 ariaLabel="Unstage all"
                 title="Unstage all"
-                disabled={Boolean(bulkMutation) || Boolean(fileMutation)}
+                disabled={!capabilities.bulkMutateFiles.enabled ||
+                  Boolean(bulkMutation) ||
+                  Boolean(fileMutation)}
                 onclick={() => onBulkStage(selectedRepo, "unstage-all")}
               >
                 {#if bulkMutation === "unstage-all"}
@@ -190,7 +194,9 @@ let {
                 variant="ghost"
                 ariaLabel="Stage all"
                 title="Stage all"
-                disabled={Boolean(bulkMutation) || Boolean(fileMutation)}
+                disabled={!capabilities.bulkMutateFiles.enabled ||
+                  Boolean(bulkMutation) ||
+                  Boolean(fileMutation)}
                 onclick={() => onBulkStage(selectedRepo, "stage-all")}
               >
                 {#if bulkMutation === "stage-all"}

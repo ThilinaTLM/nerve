@@ -1,6 +1,6 @@
 # Web styling conventions (`packages/workbench-app`)
 
-Inherits the root `AGENTS.md`. These rules govern all CSS/Tailwind in this package.
+Inherits the root `AGENTS.md`. These rules govern all CSS/Tailwind in this package. Git and task utility wrappers must remain thin adapters around the canonical feature hosts in `@nervekit/workbench-ui`; app state, protocol calls, polling, navigation, notifications, and clipboard effects stay here.
 
 ## Two authoring tiers
 

@@ -2,27 +2,28 @@
 import Pencil from "@lucide/svelte/icons/pencil";
 import Play from "@lucide/svelte/icons/play";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import type { PinnedCommand, SandboxPinnedCommand } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import type { FeatureCapability } from "../git/git-panel-types";
+import type { NormalizedPinnedCommand } from "./task-panel-types";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 
-type AnyPinnedCommand = PinnedCommand | SandboxPinnedCommand;
-
 type Props = {
-  command: AnyPinnedCommand;
+  command: NormalizedPinnedCommand;
   cwd?: string;
   running?: boolean;
-  disabled?: boolean;
-  onRun?: (command: AnyPinnedCommand) => void;
-  onEdit?: (command: AnyPinnedCommand) => void;
-  onRemove?: (command: AnyPinnedCommand) => void;
+  runCapability: FeatureCapability;
+  manageCapability: FeatureCapability;
+  onRun?: (command: NormalizedPinnedCommand) => void;
+  onEdit?: (command: NormalizedPinnedCommand) => void;
+  onRemove?: (command: NormalizedPinnedCommand) => void;
 };
 
 let {
   command,
   cwd = "",
   running = false,
-  disabled = false,
+  runCapability,
+  manageCapability,
   onRun,
   onEdit,
   onRemove,
@@ -71,9 +72,9 @@ function stopPropagation(event: MouseEvent) {
       size="icon-xs"
       variant="ghost"
       ariaLabel="Run pinned task"
-      title="Run pinned task"
+      title={runCapability.enabled ? "Run pinned task" : runCapability.reason}
       class="text-muted-foreground hover:text-foreground"
-      disabled={running || disabled}
+      disabled={running || !runCapability.enabled}
       onclick={(event) => {
         stopPropagation(event);
         onRun?.(command);
@@ -85,8 +86,11 @@ function stopPropagation(event: MouseEvent) {
       size="icon-xs"
       variant="ghost"
       ariaLabel="Edit pinned task"
-      title="Edit pinned task"
+      title={manageCapability.enabled
+        ? "Edit pinned task"
+        : manageCapability.reason}
       class="text-muted-foreground hover:text-foreground"
+      disabled={!manageCapability.enabled}
       onclick={(event) => {
         stopPropagation(event);
         onEdit?.(command);
@@ -98,8 +102,11 @@ function stopPropagation(event: MouseEvent) {
       size="icon-xs"
       variant="ghost"
       ariaLabel="Delete pinned task"
-      title="Delete pinned task"
+      title={manageCapability.enabled
+        ? "Delete pinned task"
+        : manageCapability.reason}
       class="text-muted-foreground hover:text-destructive"
+      disabled={!manageCapability.enabled}
       onclick={(event) => {
         stopPropagation(event);
         onRemove?.(command);

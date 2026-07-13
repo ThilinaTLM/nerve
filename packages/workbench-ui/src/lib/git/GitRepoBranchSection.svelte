@@ -30,6 +30,7 @@ import {
   showPush,
   syncDisabled,
 } from "./git-remote-actions";
+import type { GitPanelCapabilities } from "./git-panel-types";
 
 type Props = {
   repoSummary?: GitRepoSummary;
@@ -45,6 +46,7 @@ type Props = {
   syncing: boolean;
   switchingBaseAndPulling: boolean;
   refreshing: boolean;
+  capabilities: GitPanelCapabilities;
   branchFilter?: string;
   newBranchName?: string;
   branchPopoverOpen?: boolean;
@@ -73,6 +75,7 @@ let {
   syncing,
   switchingBaseAndPulling,
   refreshing,
+  capabilities,
   branchFilter = $bindable(""),
   newBranchName = $bindable(""),
   branchPopoverOpen = $bindable(false),
@@ -134,6 +137,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
             {#each repos as candidate (candidate.relativePath)}
               <ToggleGroupItem
                 value={candidate.relativePath}
+                disabled={!capabilities.selectRepository.enabled}
                 aria-label={`Switch to ${repoPathLabel(candidate)}`}
                 title={repoPathLabel(candidate)}
                 class="h-6 max-w-28 min-w-0 rounded-md px-2 text-xs data-[state=on]:border-primary/40 data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
@@ -149,6 +153,10 @@ function showBasePull(repo: GitRepoSummary): boolean {
 
       <Popover.Root bind:open={branchPopoverOpen}>
         <Popover.Trigger
+          disabled={!capabilities.branches.enabled}
+          title={capabilities.branches.enabled
+            ? "Switch or create a branch"
+            : capabilities.branches.reason}
           class={cn(
             "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
             repo.detached && "text-muted-foreground",
@@ -241,7 +249,9 @@ function showBasePull(repo: GitRepoSummary): boolean {
               />
               <Button
                 size="sm"
-                disabled={creatingBranch || newBranchName.trim().length === 0}
+                disabled={!capabilities.branches.enabled ||
+                  creatingBranch ||
+                  newBranchName.trim().length === 0}
                 onclick={() => void onCreateBranch(selectedRepo)}
               >
                 {#if creatingBranch}
@@ -265,7 +275,8 @@ function showBasePull(repo: GitRepoSummary): boolean {
             title={repo.hasRemote
               ? "Fetch from remote and prune deleted refs"
               : "Add a remote before fetching"}
-            disabled={remoteActionDisabled(repo, remoteActionInProgress)}
+            disabled={!capabilities.remote.fetch.enabled ||
+              remoteActionDisabled(repo, remoteActionInProgress)}
             onclick={() => void onFetch(selectedRepo)}
           >
             {#if fetching}
@@ -283,7 +294,8 @@ function showBasePull(repo: GitRepoSummary): boolean {
               title={repo.dirty
                 ? "Commit or stash changes before pulling"
                 : "Pull current branch with fast-forward only"}
-              disabled={pullDisabled(repo, remoteActionInProgress)}
+              disabled={!capabilities.remote.pull.enabled ||
+                pullDisabled(repo, remoteActionInProgress)}
               onclick={() => void onPull(selectedRepo)}
             >
               {#if pulling}
@@ -303,7 +315,8 @@ function showBasePull(repo: GitRepoSummary): boolean {
               variant="outline"
               ariaLabel="Push current branch"
               title="Push current branch"
-              disabled={pushDisabled(repo, remoteActionInProgress)}
+              disabled={!capabilities.remote.push.enabled ||
+                pushDisabled(repo, remoteActionInProgress)}
               onclick={() => void onPush(selectedRepo)}
             >
               {#if pushing}
@@ -326,7 +339,8 @@ function showBasePull(repo: GitRepoSummary): boolean {
               : repo.detached
                 ? "Check out a branch before syncing"
                 : "Fetch, then pull and push the current branch when needed"}
-            disabled={syncDisabled(repo, remoteActionInProgress)}
+            disabled={!capabilities.remote.sync.enabled ||
+              syncDisabled(repo, remoteActionInProgress)}
             onclick={() => void onSync(selectedRepo)}
           >
             {#if syncing}
@@ -344,7 +358,8 @@ function showBasePull(repo: GitRepoSummary): boolean {
               title={repo.dirty
                 ? "Commit or stash changes before switching branches"
                 : `Switch to ${repo.baseBranch} and pull with fast-forward only`}
-              disabled={basePullDisabled(repo, remoteActionInProgress)}
+              disabled={!capabilities.remote["switch-base-and-pull"].enabled ||
+                basePullDisabled(repo, remoteActionInProgress)}
               onclick={() => void onSwitchBaseAndPull(selectedRepo)}
             >
               {#if switchingBaseAndPulling}

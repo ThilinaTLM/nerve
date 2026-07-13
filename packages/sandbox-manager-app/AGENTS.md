@@ -3,7 +3,7 @@
 Inherits the root `AGENTS.md`. This package is the dedicated Svelte app for the sandbox manager web UI.
 
 - Keep sandbox manager UI state, API clients, and components here.
-- Import shared primitives/styles from `@nervekit/workbench-ui`; do not add shadcn components under this package unless they are app-specific wrappers.
+- Import shared primitives/styles from `@nervekit/workbench-ui`; do not add shadcn components under this package unless they are app-specific wrappers. Git and task tabs must project manager state through the app adapters into the shared `GitUtilityPanelView` and `TaskUtilityPanelView`; keep sandbox setup diagnostics adjacent to, not embedded in, the shared host.
 - Do not import workbench/desktop/orchestrator code from `packages/workbench-app`.
 - Do not register a service worker in this app.
 - Reuse shared chat/composer/navigator/workbench components from `@nervekit/workbench-ui` (`TranscriptList`, `ConversationPaneLayout`, `ComposerShell`/`ComposerToolbar`/`ComposerEditor`, `NavigatorPanel`/`NavigatorItem`, `WorkbenchTabStrip`); feed chat by projecting `ConversationRenderState` through `state/sandbox-chat-render.ts`. Do not fork transcript/tool-call/composer/navigator rendering.
