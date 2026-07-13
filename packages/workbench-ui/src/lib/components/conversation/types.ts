@@ -95,6 +95,7 @@ export type ConversationPaneModel = {
   emptyTitle?: string;
   emptyMessage?: string;
   transcriptHeightCacheKey?: string;
+  transcriptLabel?: string;
   composer: ConversationComposerModel;
 };
 

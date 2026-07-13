@@ -24,9 +24,12 @@ import CompactionCard from "./CompactionCard.svelte";
 import TaskEventCard from "./TaskEventCard.svelte";
 import RunStatusCard from "./RunStatusCard.svelte";
 import ThinkingBlock from "./ThinkingBlock.svelte";
+import type { ActivityStackPosition } from "./transcript-presentation";
 
 type Props = {
   node: TimelineItem;
+  activityPosition?: ActivityStackPosition;
+  needsAttention?: boolean;
   sending: boolean;
   activeProject?: ProjectRecord;
   approvals?: ApprovalWithToolCall[];
@@ -61,6 +64,8 @@ type Props = {
 
 let {
   node,
+  activityPosition,
+  needsAttention = false,
   sending,
   activeProject,
   approvals = [],
@@ -87,6 +92,10 @@ let {
 // Lifecycle for normal message rows. `running` while a live assistant message
 // streams, `complete` once the same live message is done, `static` for
 // persisted/non-live rows and user/system rows.
+const messageMenuItems = $derived(
+  node.kind === "message" ? messageMenu(node.item) : [],
+);
+
 const messageState = $derived.by<"running" | "complete" | "static">(() => {
   if (node.kind !== "message") return "static";
   const item = node.item;
@@ -116,36 +125,53 @@ $effect(() => {
 </script>
 
 {#if node.kind === "tool"}
-  <ContextMenu
-    items={toolMenu(node.anchorEntryId, node.toolCall)}
-    triggerClass="block min-w-0"
+  <div
+    class="activity-row"
+    class:activity-stacked={Boolean(
+      activityPosition && activityPosition !== "single",
+    )}
+    data-activity-position={activityPosition}
   >
-    <ToolCallCard
-      toolCall={node.toolCall}
-      liveOutput={node.liveOutput}
-      pendingApproval={approvals.find(
-        (approval) =>
-          approval.toolCallId === node.toolCall.id &&
-          approval.status === "pending",
-      )}
-      {pendingUserQuestion}
-      hydrateBody={hydrateToolBodies}
-      {pendingPlanReview}
-      {onOpenFile}
-      {planReviewModels}
-      {planReviewModelKey}
-      {planReviewThinkingLevel}
-      {onAnswerUserQuestion}
-      {onDismissUserQuestion}
-      {onGrantApproval}
-      {onDenyApproval}
-      {onAcceptPlanReview}
-      {onAcceptPlanReviewInNewChat}
-      {onRejectPlanReview}
-    />
-  </ContextMenu>
+    <ContextMenu
+      items={toolMenu(node.anchorEntryId, node.toolCall)}
+      triggerClass="block min-w-0"
+    >
+      <ToolCallCard
+        toolCall={node.toolCall}
+        liveOutput={node.liveOutput}
+        pendingApproval={approvals.find(
+          (approval) =>
+            approval.toolCallId === node.toolCall.id &&
+            approval.status === "pending",
+        )}
+        {pendingUserQuestion}
+        hydrateBody={hydrateToolBodies}
+        {pendingPlanReview}
+        {onOpenFile}
+        {planReviewModels}
+        {planReviewModelKey}
+        {planReviewThinkingLevel}
+        {onAnswerUserQuestion}
+        {onDismissUserQuestion}
+        {onGrantApproval}
+        {onDenyApproval}
+        {onAcceptPlanReview}
+        {onAcceptPlanReviewInNewChat}
+        {onRejectPlanReview}
+        {needsAttention}
+      />
+    </ContextMenu>
+  </div>
 {:else if node.kind === "tool_draft"}
-  <ToolDraftCard draft={node.draft} cwd={activeProject?.dir} />
+  <div
+    class="activity-row"
+    class:activity-stacked={Boolean(
+      activityPosition && activityPosition !== "single",
+    )}
+    data-activity-position={activityPosition}
+  >
+    <ToolDraftCard draft={node.draft} cwd={activeProject?.dir} />
+  </div>
 {:else if node.kind === "tool_result_error"}
   <ToolResultErrorCard toolName={node.toolName} error={node.error} />
 {:else if node.kind === "run_status"}
@@ -161,7 +187,7 @@ $effect(() => {
   <TaskEventCard notice={node.notice} />
 {:else}
   <ContextMenu
-    items={messageMenu(node.item)}
+    items={messageMenuItems}
     triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}
   >
     <article
@@ -204,6 +230,38 @@ $effect(() => {
 {/if}
 
 <style>
+.activity-row {
+  position: relative;
+  min-width: 0;
+}
+
+.activity-row.activity-stacked {
+  padding-left: 0.55rem;
+}
+
+.activity-row.activity-stacked::before {
+  position: absolute;
+  left: 0.15rem;
+  width: 1px;
+  background: color-mix(in oklab, var(--primary) 28%, var(--border));
+  content: "";
+}
+
+.activity-row[data-activity-position="start"]::before {
+  top: 50%;
+  bottom: 0;
+}
+
+.activity-row[data-activity-position="middle"]::before {
+  top: 0;
+  bottom: 0;
+}
+
+.activity-row[data-activity-position="end"]::before {
+  top: 0;
+  bottom: 50%;
+}
+
 .transcript-entry {
   position: relative;
   width: 100%;
@@ -226,6 +284,12 @@ $effect(() => {
   border-bottom-right-radius: var(--radius-sm);
   background: color-mix(in oklab, var(--primary) 12%, var(--card));
   padding: 0.55rem 0.8rem;
+}
+
+@container (max-width: 40rem) {
+  .transcript-entry.user {
+    max-width: 88%;
+  }
 }
 
 .message-body {

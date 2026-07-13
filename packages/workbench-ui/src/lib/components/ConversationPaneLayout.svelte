@@ -13,7 +13,7 @@ type Props = {
   transcript: Snippet;
   composer: Snippet;
   empty: Snippet;
-  transcriptLabel?: string;
+  announcer?: Snippet;
 };
 
 let {
@@ -25,38 +25,37 @@ let {
   transcript,
   composer,
   empty,
-  transcriptLabel = "Conversation transcript",
+  announcer,
 }: Props = $props();
 </script>
 
 <section class="conversation-pane">
   {#if open}
-    <div
-      class="transcript"
-      role="log"
-      aria-label={transcriptLabel}
-      aria-live="polite"
-    >
+    <div class="transcript">
       {@render transcript()}
     </div>
 
-    {#if showScrollButton && composerHeight > 0}
-      <div
-        class="scroll-bottom-button-wrap rounded-full"
-        style={`bottom: ${composerHeight + 8}px;`}
+    {#if announcer}{@render announcer()}{/if}
+
+    <div
+      class="scroll-bottom-button-wrap rounded-full"
+      class:is-visible={showScrollButton && composerHeight > 0}
+      style={`bottom: ${composerHeight + 8}px;`}
+      aria-hidden={!showScrollButton || composerHeight <= 0}
+    >
+      <Button
+        class="rounded-full shadow-sm"
+        variant="secondary"
+        size="sm"
+        ariaLabel="Scroll to latest"
+        title="Scroll to latest"
+        tabindex={showScrollButton && composerHeight > 0 ? undefined : -1}
+        onclick={() => onJumpToBottom?.()}
       >
-        <Button
-          class="rounded-full"
-          variant="secondary"
-          size="icon-sm"
-          ariaLabel="Scroll to latest"
-          title="Scroll to latest"
-          onclick={() => onJumpToBottom?.()}
-        >
-          <ArrowDown size={16} strokeWidth={2.4} />
-        </Button>
-      </div>
-    {/if}
+        <span>Latest</span>
+        <ArrowDown size={15} strokeWidth={2.4} aria-hidden="true" />
+      </Button>
+    </div>
 
     <div bind:this={composerWrapRef} class="composer-wrap">
       {@render composer()}
@@ -92,5 +91,17 @@ let {
   z-index: 4;
   box-shadow: 0 0.35rem 1rem
     color-mix(in oklab, var(--background) 45%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.25rem);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.scroll-bottom-button-wrap.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 </style>

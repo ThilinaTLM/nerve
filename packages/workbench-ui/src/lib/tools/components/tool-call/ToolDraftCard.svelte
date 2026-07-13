@@ -110,7 +110,7 @@ $effect(() => {
         fixedRows={DRAFT_PREVIEW_LINES}
       />
     {:else}
-      <div class="draft-progress" aria-live="polite">
+      <div class="draft-progress">
         <span>Waiting for generated lines…</span>
       </div>
     {/if}
@@ -127,7 +127,7 @@ $effect(() => {
         fixedRows={DRAFT_PREVIEW_LINES}
       />
     {:else if !summary.inlineInput}
-      <div class="draft-progress" aria-live="polite">
+      <div class="draft-progress">
         <span>{summary.statusText}</span>
         {#if !summary.done}<span class="progress-caret" aria-hidden="true"
           ></span>{/if}
@@ -166,7 +166,7 @@ $effect(() => {
       fixedRows={DRAFT_PREVIEW_LINES}
     />
   {:else}
-    <div class="draft-progress" aria-live="polite">
+    <div class="draft-progress">
       <span>Waiting for arguments…</span>
       {#if !summary.done}<span class="progress-caret" aria-hidden="true"
         ></span>{/if}

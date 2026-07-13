@@ -21,9 +21,21 @@ import type { TimelineItem } from "../../state/timeline";
 import ConversationSignal from "../conversation/conversation-signal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
+import {
+  activityStackPositions,
+  isRoutineActivityNode,
+  toolNodeNeedsAttention,
+  type ActivityStackPosition,
+} from "./transcript-presentation";
 
 type TranscriptRowItem =
-  | { kind: "timeline"; key: string; node: TimelineItem }
+  | {
+      kind: "timeline";
+      key: string;
+      node: TimelineItem;
+      activityPosition?: ActivityStackPosition;
+      needsAttention: boolean;
+    }
   | { kind: "waiting"; key: string }
   | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
 
@@ -33,6 +45,7 @@ type Props = {
   paddingEnd?: number;
   heightCacheKey?: string;
   contentVisibility?: boolean;
+  transcriptLabel?: string;
   timeline: TimelineItem[];
   streamingText: string;
   sending: boolean;
@@ -94,6 +107,7 @@ let {
   // content-visibility here can leave a row reporting its stale intrinsic
   // height while its newly rendered body paints over the following row.
   contentVisibility = false,
+  transcriptLabel = "Conversation transcript",
   timeline,
   streamingText,
   sending,
@@ -127,10 +141,25 @@ let {
 
 const rows = $derived.by<TranscriptRowItem[]>(() => {
   const seenKeys = new Map<string, number>();
-  const result: TranscriptRowItem[] = timeline.map((node) => ({
+  const attention = timeline.map((node) =>
+    toolNodeNeedsAttention(
+      node,
+      approvals,
+      pendingUserQuestion,
+      pendingPlanReview,
+    ),
+  );
+  const activityPositions = activityStackPositions(
+    timeline.map((node, index) =>
+      isRoutineActivityNode(node, attention[index] ?? false),
+    ),
+  );
+  const result: TranscriptRowItem[] = timeline.map((node, index) => ({
     kind: "timeline",
     key: uniqueRowKey(node.key, seenKeys),
     node,
+    activityPosition: activityPositions[index],
+    needsAttention: attention[index] ?? false,
   }));
   if (sending && !hasLiveTimelineNodes) {
     result.push({ kind: "waiting", key: "__waiting__" });
@@ -237,12 +266,16 @@ const showEmptyRun = $derived(
     paddingStart={12}
     {paddingEnd}
     gap={2}
+    viewportTabIndex={0}
+    viewportAriaLabel={transcriptLabel}
     viewportClass="transcript-viewport"
   >
     {#snippet row({ item })}
       {#if item.kind === "timeline"}
         <TranscriptRow
           node={item.node}
+          activityPosition={item.activityPosition}
+          needsAttention={item.needsAttention}
           {sending}
           hydrateToolBodies={active}
           {activeProject}
@@ -267,10 +300,9 @@ const showEmptyRun = $derived(
         />
       {:else if item.kind === "waiting"}
         <article class="transcript-entry assistant streaming waiting-entry">
-          <div class="message-body">
-            <div class="message-content streaming-content">
-              <span class="stream-caret" aria-hidden="true"></span>
-            </div>
+          <div class="streaming-content">
+            <span class="activity-dot" aria-hidden="true"></span>
+            <span>Thinking…</span>
           </div>
         </article>
       {:else}
@@ -286,6 +318,7 @@ const showEmptyRun = $derived(
 
 <style>
 :global(.transcript-viewport) {
+  container-type: inline-size;
   height: 100%;
   padding: 0 0.75rem;
 }
@@ -295,16 +328,9 @@ const showEmptyRun = $derived(
   width: 100%;
   min-width: 0;
   padding: 0.75rem;
-  /* Bottom-only reveal: this surface only exists while sending before live
-     * timeline nodes arrive, so the enter never replays during scrolling.
-     * Neutralized by the global prefers-reduced-motion rule in base.css. */
-  animation: transcript-live-enter 180ms ease-out;
-}
-
-.waiting-entry .message-body {
-  position: relative;
-  min-width: 0;
-  overflow: hidden;
+  /* Delay avoids flashing the activity line for responses that begin almost
+     * immediately. The row still owns a stable one-line virtual height. */
+  animation: transcript-live-enter 180ms ease-out 120ms both;
 }
 
 .streaming-content {
@@ -317,13 +343,12 @@ const showEmptyRun = $derived(
   font-size: var(--text-sm);
 }
 
-.stream-caret {
+.activity-dot {
   display: inline-block;
   width: 0.42rem;
-  height: 1em;
-  margin-left: 0.15rem;
-  margin-top: 0.18rem;
+  height: 0.42rem;
+  border-radius: 9999px;
   background: var(--primary);
-  animation: pulse 1s steps(2, start) infinite;
+  animation: pulse 1s ease-in-out infinite;
 }
 </style>

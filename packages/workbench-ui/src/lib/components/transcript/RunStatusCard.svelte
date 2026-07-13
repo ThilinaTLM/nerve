@@ -98,7 +98,7 @@ function continueFromFailure() {
 }
 </script>
 
-<article class={`run-status-line state-${notice.state}`} aria-live="polite">
+<article class={`run-status-line state-${notice.state}`}>
   <div class="run-status-header">
     <StatusDot
       tone={dotTone}

@@ -72,6 +72,10 @@ export type VirtualScrollerProps<T> = {
   controller?: VirtualScrollerController;
   /** Bindable reactive flag: is the viewport currently at the end. */
   atEnd?: boolean;
+  /** Optional tab index for keyboard-scrollable viewport use cases. */
+  viewportTabIndex?: number;
+  /** Accessible label applied to the actual scrolling viewport. */
+  viewportAriaLabel?: string;
   /** Class applied to the scrolling viewport element. */
   viewportClass?: string;
   /** Class applied to the inner sized spacer element. */

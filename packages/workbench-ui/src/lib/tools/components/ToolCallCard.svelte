@@ -25,6 +25,7 @@ type Props = {
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;
   hydrateBody?: boolean;
+  needsAttention?: boolean;
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
@@ -50,6 +51,7 @@ let {
   pendingUserQuestion,
   pendingPlanReview,
   hydrateBody = true,
+  needsAttention = false,
   planReviewModels = [],
   planReviewModelKey = "",
   planReviewThinkingLevel = "off",
@@ -139,6 +141,7 @@ function handleDetailsOpenChange(open: boolean) {
   {toolCall}
   {presentation}
   {bodyMode}
+  {needsAttention}
   {onOpenFile}
   onOpenDetails={openDetails}
 >

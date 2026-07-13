@@ -21,6 +21,7 @@ type Props = {
    * the body so chips and buttons share one line.
    */
   footer?: boolean;
+  needsAttention?: boolean;
   onOpenFile?: (path: string, line?: number) => void;
   children?: Snippet;
 };
@@ -34,6 +35,7 @@ let {
   meta = [],
   detailsAction,
   footer = true,
+  needsAttention = false,
   onOpenFile,
   children,
 }: Props = $props();
@@ -80,6 +82,7 @@ $effect(() => {
 <article
   class="tool-card"
   class:state-settling={settling}
+  class:needs-attention={needsAttention}
   data-state={lifecycle}
   onanimationend={(event) => {
     if (event.target === event.currentTarget) settling = false;
@@ -126,6 +129,9 @@ $effect(() => {
           title={arg.text}>{arg.text}</span
         >
       {/if}
+    {/if}
+    {#if needsAttention}
+      <span class="attention-label">Needs your input</span>
     {/if}
   </div>
 
@@ -190,6 +196,18 @@ $effect(() => {
 
 .arg.link:hover {
   text-decoration: underline;
+}
+
+.attention-label {
+  display: inline-flex;
+  margin-left: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--warning) 14%, transparent);
+  color: var(--warning);
+  padding: 0.1rem 0.35rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .tool-body {

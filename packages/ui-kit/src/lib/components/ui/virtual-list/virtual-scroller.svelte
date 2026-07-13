@@ -35,6 +35,8 @@ let {
   gap,
   controller = $bindable(),
   atEnd = $bindable(true),
+  viewportTabIndex,
+  viewportAriaLabel,
   viewportClass,
   class: className,
   row,
@@ -319,9 +321,15 @@ $effect(() => {
 });
 </script>
 
+<!-- A labelled region is intentionally focusable so native keyboard scrolling
+     reaches the actual viewport rather than its non-scrolling wrapper. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   bind:this={viewportEl}
   class={cn("virtual-scroller-viewport", viewportClass)}
+  role={viewportAriaLabel ? "region" : undefined}
+  tabindex={viewportTabIndex}
+  aria-label={viewportAriaLabel}
   onscroll={handleScroll}
 >
   <div

@@ -2,6 +2,7 @@
 import Folder from "@lucide/svelte/icons/folder";
 import type { Snippet } from "svelte";
 import ConversationPaneLayout from "../ConversationPaneLayout.svelte";
+import TranscriptAnnouncer from "../transcript/TranscriptAnnouncer.svelte";
 import TranscriptList from "../transcript/TranscriptList.svelte";
 import { createConversationScrollController } from "../transcript/conversation-scroll.svelte.js";
 import AgentComposer from "./agent-composer.svelte";
@@ -30,6 +31,9 @@ let {
 
 const active = $derived(model.active ?? true);
 const lastTimelineKey = $derived(model.timeline.at(-1)?.key);
+const pendingApprovalId = $derived(
+  model.approvals?.find((approval) => approval.status === "pending")?.id,
+);
 const scroll = createConversationScrollController({
   active: () => active,
   conversationOpen: () => model.open,
@@ -45,6 +49,19 @@ const scroll = createConversationScrollController({
   onJumpToBottom={() => scroll.jumpToBottom()}
   bind:composerWrapRef={scroll.composerWrapEl}
 >
+  {#snippet announcer()}
+    <TranscriptAnnouncer
+      {active}
+      sending={model.sending}
+      {pendingApprovalId}
+      pendingQuestionId={model.pendingUserQuestion?.status === "pending"
+        ? model.pendingUserQuestion.id
+        : undefined}
+      pendingPlanReviewId={model.pendingPlanReview?.status === "pending"
+        ? model.pendingPlanReview.id
+        : undefined}
+    />
+  {/snippet}
   {#snippet transcript()}
     <div class="flex h-full min-h-0 flex-col">
       {#if model.banner}
@@ -83,6 +100,7 @@ const scroll = createConversationScrollController({
             paddingEnd={18}
             heightCacheKey={model.transcriptHeightCacheKey ??
               model.conversationId}
+            transcriptLabel={model.transcriptLabel}
             timeline={model.timeline}
             streamingText={model.streamingText}
             sending={model.sending}
