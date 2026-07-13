@@ -18,7 +18,8 @@ RUN rm -rf /manager/dist/web && mkdir -p /manager/dist/web && cp -R packages/san
 FROM node:24-bookworm-slim
 ARG INSTALL_LOCAL_RUNTIMES=true
 ARG NERVE_VERSION
-LABEL org.nerve.sandbox-manager.version="${NERVE_VERSION}"
+LABEL org.nerve.sandbox.spec="v1" \
+  org.nerve.sandbox-manager.version="${NERVE_VERSION}"
 
 RUN set -eux; \
   apt-get update; \

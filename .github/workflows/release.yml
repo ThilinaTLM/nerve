@@ -43,6 +43,9 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Build all packages
+        run: pnpm build
+
   npm-smoke:
     name: npm package smoke (${{ matrix.os }})
     strategy:
@@ -75,8 +78,80 @@ jobs:
       - name: Pack npm tarballs
         run: node scripts/pack-npm.mjs
 
-      - name: Verify desktop bin launcher
-        run: node packages/desktop-shell/dist/bin.js --version
+      - name: Verify built desktop runtime
+        run: pnpm release:smoke:desktop
+
+  built-artifact-smoke:
+    name: Built workbench and sandbox protocol smoke
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.8.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build release artifacts
+        run: pnpm release:build
+
+      - name: Smoke built workbench HTTP and WebSocket parity
+        run: pnpm release:smoke:workbench
+
+      - name: Smoke desktop resolution and CLI
+        run: pnpm release:smoke:desktop
+
+      - name: Smoke manager UI and manager-agent protocol
+        run: pnpm release:smoke:sandbox
+
+  image-smoke:
+    name: Sandbox ${{ matrix.image }} image build and smoke
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [sandbox-agent, sandbox-manager]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.8.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and smoke sandbox agent image
+        if: matrix.image == 'sandbox-agent'
+        run: pnpm build-image:sandbox-agent
+
+      - name: Build and smoke portable sandbox manager image
+        if: matrix.image == 'sandbox-manager'
+        env:
+          NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES: "false"
+        run: pnpm build-image:sandbox-manager
 
   publish-npm:
     name: Publish to npmjs.com
@@ -84,6 +159,8 @@ jobs:
     needs:
       - validate
       - npm-smoke
+      - built-artifact-smoke
+      - image-smoke
     permissions:
       contents: read
       id-token: write

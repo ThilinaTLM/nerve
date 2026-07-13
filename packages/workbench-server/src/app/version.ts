@@ -8,6 +8,7 @@ function readPackageVersion(): string {
   const packageJsonPath = join(
     dirname(fileURLToPath(import.meta.url)),
     "..",
+    "..",
     "package.json",
   );
 

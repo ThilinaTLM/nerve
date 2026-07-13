@@ -23,6 +23,12 @@
     "desktop:remote-enabled": "pnpm desktop -- --host 0.0.0.0 --allow-remote --mobile-https",
     "release:build": "pnpm --filter @nervekit/contracts build && pnpm --filter @nervekit/protocol build && pnpm --filter @nervekit/harness build && pnpm --filter @nervekit/tools build && pnpm --filter @nervekit/host-runtime build && pnpm --filter @nervekit/ui-kit build && pnpm --filter @nervekit/workbench-ui build && pnpm --filter @nervekit/sandbox-manager-app build && pnpm --filter @nervekit/sandbox-manager build && node scripts/copy-sandbox-manager-app-dist-to-manager.mjs && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/workbench-server build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs && pnpm --filter @nervekit/desktop-shell build",
     "release:verify-tag": "node scripts/verify-release-tag.mjs",
+    "release:verify-npm": "node scripts/verify-npm-tarballs.mjs",
+    "release:smoke:workbench": "node scripts/smoke-workbench-release.mjs",
+    "release:smoke:desktop": "node scripts/smoke-desktop-release.mjs",
+    "release:smoke:sandbox": "node scripts/smoke-sandbox-release.mjs",
+    "release:smoke:image:sandbox-agent": "node scripts/smoke-sandbox-agent-image.mjs",
+    "release:smoke:image:sandbox-manager": "node scripts/smoke-sandbox-manager-image.mjs",
     "check:boundaries": "node scripts/check-package-boundaries.mjs"
   },
   "dependencies": {

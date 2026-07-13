@@ -111,7 +111,10 @@ export class ProtocolServerSession {
   ): Promise<OperationResult<M>> {
     if (this.state !== "ready")
       throw new SessionStateError("RPC requests require a ready session");
-    return this.#rpc.request(method, params, options);
+    return this.#rpc.request(method, params, {
+      ...options,
+      target: this.peer,
+    });
   }
 
   async receive(message: ProtocolV1Message): Promise<void> {

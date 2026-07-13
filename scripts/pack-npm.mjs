@@ -1,7 +1,16 @@
 import { spawnSync } from "node:child_process";
-import { access, copyFile, mkdir, readdir, rm, unlink } from "node:fs/promises";
+import {
+  access,
+  copyFile,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  unlink,
+} from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyNpmTarballs } from "./verify-npm-tarballs.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packDir = join(repoRoot, "release", "npm");
@@ -59,11 +68,18 @@ try {
   console.log(`Packed ${packed.length} npm tarballs into ${packDir}:`);
   for (const filename of packed) console.log(`  ${filename}`);
 
-  if (packed.length !== publishPackages.length) {
+  const rootVersion = JSON.parse(
+    await readFile(join(repoRoot, "package.json"), "utf8"),
+  ).version;
+  const expected = publishPackages
+    .map(([name]) => `${name.slice(1).replace("/", "-")}-${rootVersion}.tgz`)
+    .sort();
+  if (JSON.stringify(packed) !== JSON.stringify(expected)) {
     throw new Error(
-      `Expected ${publishPackages.length} npm tarballs but found ${packed.length} in ${packDir}.`,
+      `Expected tarballs ${expected.join(", ")} but found ${packed.join(", ")}.`,
     );
   }
+  await verifyNpmTarballs(packDir);
 } finally {
   await Promise.all(
     createdLegalFiles.map((path) => unlink(path).catch(() => undefined)),

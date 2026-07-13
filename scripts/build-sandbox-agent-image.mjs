@@ -23,6 +23,7 @@ run(cli, [
   imageTag,
   ".",
 ]);
+run("node", ["scripts/smoke-sandbox-agent-image.mjs"]);
 
 function selectContainerCli() {
   const configured = process.env.NERVE_CONTAINER_CLI?.trim();

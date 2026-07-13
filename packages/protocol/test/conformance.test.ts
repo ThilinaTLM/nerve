@@ -91,6 +91,60 @@ test("client and server negotiate hello, welcome, and ready", async () => {
   assert.equal(client.sessionId, "session_test");
 });
 
+test("server RPC targets the complete negotiated peer identity", async () => {
+  const agent = {
+    role: "sandbox_agent" as const,
+    id: "sbx_test",
+    instanceId: "inst_test",
+    name: "Sandbox test",
+  };
+  const manager = {
+    role: "sandbox_manager" as const,
+    id: "sandbox-manager",
+  };
+  const agentMessages = createMessageFactory({
+    source: agent,
+    target: manager,
+  });
+  const managerMessages = createMessageFactory({
+    source: manager,
+    target: agent,
+  });
+  const clientOutbound: NerveMessage[] = [];
+  const serverOutbound: NerveMessage[] = [];
+  const client = new ProtocolClientSession({
+    createMessage: agentMessages,
+    capabilities: ["operation.task.list"],
+    send: (message) => clientOutbound.push(message),
+    rpcDispatcher: new RpcDispatcher({
+      handlers: { "task.list": () => ({ tasks: [] }) },
+      acceptedCapabilities: ["operation.task.list"],
+    }),
+  });
+  const host = new ProtocolServerSession({
+    acceptingPeer: manager,
+    allowedPeerRoles: ["sandbox_agent"],
+    createMessage: managerMessages,
+    capabilities: ["operation.task.list"],
+    streams: () => [],
+    limits,
+    heartbeat: { intervalMs: 10_000, timeoutMs: 30_000 },
+    sessionId: () => "session_server_rpc_target",
+    send: (message) => serverOutbound.push(message),
+  });
+  await client.start();
+  await host.receive(clientOutbound.shift() as never);
+  await client.receive(serverOutbound.shift() as never);
+  await host.receive(clientOutbound.shift() as never);
+
+  const requested = host.request("task.list", {});
+  const request = serverOutbound.shift();
+  assert.deepEqual(request?.target, agent);
+  await client.receive(request as never);
+  await host.receive(clientOutbound.shift() as never);
+  assert.deepEqual(await requested, { tasks: [] });
+});
+
 test("client readiness gate and peer-owned event ACK use shared sessions", async () => {
   const clientOutbound: NerveMessage[] = [];
   const serverOutbound: NerveMessage[] = [];

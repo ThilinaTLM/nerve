@@ -34,6 +34,7 @@ run(cli, [
   imageTag,
   ".",
 ]);
+run("node", ["scripts/smoke-sandbox-manager-image.mjs"]);
 
 function selectContainerCli() {
   const configured = process.env.NERVE_CONTAINER_CLI?.trim();

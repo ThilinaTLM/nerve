@@ -3,6 +3,7 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
   operationNameSchema,
+  type ManagedSandboxRecord,
   type ProtocolV1Message,
 } from "@nervekit/contracts";
 import {
@@ -16,6 +17,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../app/manager-state.js";
 import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
+import type { StoredSandboxEvent } from "../state/event-store.js";
 import { extractSandboxToken, timingSafeTokenEquals } from "../http/auth.js";
 import { transitionSandboxLifecycle } from "../lifecycle/lifecycle-state.js";
 import { createManagerUiSharedSession } from "./manager-ui-shared-session.js";
@@ -104,8 +106,26 @@ export class SandboxWsServer {
         )
       )
         return rejectUpgrade(socket, 401, "Unauthorized");
+      // Finish durable session lookup before completing the WebSocket upgrade.
+      // A protocol client sends hello immediately after open; awaiting storage
+      // after upgrade would leave a window where that first frame is lost.
+      const persistedEvents = await this.state.events.list(sandboxId);
       this.wss.handleUpgrade(req, socket, head, (ws) => {
-        void this.acceptAgentConnection(sandboxId, ws);
+        void this.acceptAgentConnection(
+          sandboxId,
+          ws,
+          record,
+          persistedEvents,
+        ).catch((error) => {
+          this.state.logger.warn("Sandbox protocol connection setup failed", {
+            sandboxId,
+            error: (error instanceof Error
+              ? error.message
+              : String(error)
+            ).slice(0, 512),
+          });
+          ws.close(1011, "session_setup_failed");
+        });
       });
     } catch {
       rejectUpgrade(socket, 500, "Upgrade failed");
@@ -115,8 +135,14 @@ export class SandboxWsServer {
   private async handleUiConnection(ws: WebSocket): Promise<void> {
     await createManagerUiSharedSession(ws, this.state, this);
   }
-  async acceptAgentConnection(sandboxId: string, ws: WebSocket): Promise<void> {
-    const record = await this.state.sandboxes.get(sandboxId);
+  async acceptAgentConnection(
+    sandboxId: string,
+    ws: WebSocket,
+    preparedRecord?: ManagedSandboxRecord,
+    preparedEvents?: readonly StoredSandboxEvent[],
+  ): Promise<void> {
+    const record =
+      preparedRecord ?? (await this.state.sandboxes.get(sandboxId));
     if (!record?.controller) {
       ws.close(1008, "unknown_sandbox");
       return;
@@ -129,7 +155,8 @@ export class SandboxWsServer {
     const transport = websocketTransport(ws as unknown as WebSocketLike);
     let connected: ConnectedSandboxSession | undefined;
     let disposed = false;
-    const persistedEvents = await this.state.events.list(sandboxId);
+    const persistedEvents =
+      preparedEvents ?? (await this.state.events.list(sandboxId));
     const managerProcessedSeq = Math.max(
       0,
       ...persistedEvents

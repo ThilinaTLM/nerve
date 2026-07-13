@@ -1,3 +1,12 @@
+import { allOperationDefinitions } from "@nervekit/contracts";
+
+const WORKBENCH_OPERATION_CAPABILITIES = allOperationDefinitions()
+  .filter((definition) =>
+    definition.allowedTargetRoles.includes("workbench_server"),
+  )
+  .map((definition) => definition.requiredCapability)
+  .filter((capability): capability is string => Boolean(capability));
+
 export const PROTOCOL_CAPABILITIES = [
   "encoding.json",
   "event.batch",
@@ -6,6 +15,7 @@ export const PROTOCOL_CAPABILITIES = [
   "flow.backpressure",
   "snapshot.workspace",
   "operation.snapshot.workspace.get",
+  ...WORKBENCH_OPERATION_CAPABILITIES,
 ] as const;
 
 export const REQUIRED_PROTOCOL_CAPABILITIES = [
