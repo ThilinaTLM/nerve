@@ -5,6 +5,9 @@
 @import "tw-animate-css";
 @import "shadcn-svelte/tailwind.css";
 
+/* Include utility classes authored by ui-kit components in every consuming app. */
+@source "../lib/**/*.{svelte,ts}";
+
 @import "@fontsource/outfit/400.css";
 @import "@fontsource/outfit/500.css";
 @import "@fontsource/outfit/600.css";
