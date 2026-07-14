@@ -571,23 +571,60 @@ export function assistantMessageText(message: AssistantMessage): string {
     .join("\n");
 }
 
+export function exploreReportEventSummary(report: ExploreReport) {
+  return {
+    agentId: report.agentId,
+    task: truncateInline(report.task, 2_048),
+    label: report.label ? truncateInline(report.label, 256) : undefined,
+    status: report.status,
+    reportPath: report.reportPath
+      ? truncateInline(report.reportPath, 4_096)
+      : undefined,
+    summaryPreview: report.summaryPreview
+      ? truncateInline(report.summaryPreview, 1_024)
+      : undefined,
+    usage: report.usage,
+    model: report.model ? truncateInline(report.model, 256) : undefined,
+    thinkingLevel: report.thinkingLevel,
+    stopReason: report.stopReason
+      ? truncateInline(report.stopReason, 128)
+      : undefined,
+    errorMessage: report.errorMessage
+      ? truncateInline(report.errorMessage, 2_048)
+      : undefined,
+  };
+}
+
 export function formatExploreReports(reports: ExploreReport[]): string {
-  if (reports.length === 1) {
-    const report = reports[0];
-    return [`Explore report from ${report.agentId}`, "", report.report].join(
-      "\n",
-    );
-  }
-  return reports
-    .map((report, index) =>
+  const index = [
+    "# Explore report index",
+    "",
+    ...reports.map((report, reportIndex) =>
       [
-        `# Explore report ${index + 1}: ${report.label ?? report.task}`,
+        `${reportIndex + 1}. ${truncateInline(report.label ?? report.task, 160)}`,
+        `status=${report.status}`,
+        `agent=${report.agentId}`,
+        report.summaryPreview ? `summary=${report.summaryPreview}` : undefined,
+        report.reportPath ? `report=${report.reportPath}` : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    ),
+  ].join("\n");
+  const excerpts = reports
+    .map((report, reportIndex) =>
+      [
+        `# Explore report ${reportIndex + 1}: ${truncateInline(report.label ?? report.task, 160)}`,
         "",
         `Child agent: ${report.agentId}`,
         `Status: ${report.status}`,
+        report.reportPath ? `Full report: ${report.reportPath}` : undefined,
         "",
         report.report,
-      ].join("\n"),
+      ]
+        .filter((line) => line !== undefined)
+        .join("\n"),
     )
     .join("\n\n---\n\n");
+  return `${index}\n\n${excerpts}`;
 }

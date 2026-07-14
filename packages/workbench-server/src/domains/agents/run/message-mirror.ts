@@ -216,9 +216,10 @@ function entryDetails(message: AgentMessage): unknown {
     return {
       toolCallId: message.toolCallId,
       toolName: message.toolName,
+      status: message.isError ? "error" : "completed",
       isError: message.isError,
       toolRecordId: toolRecordIdFromDetails(message.details),
-      details: message.details,
+      outputOmitted: message.isError ? undefined : true,
     };
   }
   if (message.role === "harness") {
@@ -301,11 +302,13 @@ export function agentMessageText(message: AgentMessage): string {
     return toolCalls.length > 0 ? `[Tool call: ${toolCalls.join(", ")}]` : "";
   }
   if (message.role === "toolResult") {
+    if (!message.isError) return `[Tool result: ${message.toolName}]`;
     const text = message.content
       .filter((part) => part.type === "text")
       .map((part) => part.text)
       .join("\n");
-    return text || `[Tool result: ${message.toolName}]`;
+    const preview = text.slice(0, 2_048);
+    return preview || `[Tool error: ${message.toolName}]`;
   }
   return "";
 }

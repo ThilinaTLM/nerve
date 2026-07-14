@@ -2,7 +2,7 @@ import { z } from "zod";
 import { definePublicEvent } from "../events/event-definition.schema.js";
 import { modeSchema } from "../settings/settings.schema.js";
 import { agentSuspensionRecordSchema } from "../suspensions/suspension.schema.js";
-import { exploreReportSchema } from "../tools/tool-results.schema.js";
+import { exploreReportSummarySchema } from "../tools/tool-results.schema.js";
 import { agentRecordSchema, agentStatusSchema } from "./agent.schema.js";
 
 const workbenchRoles = ["workbench_server"] as const;
@@ -60,7 +60,7 @@ export const agentEventDefinitions = [
     "agent.explore_completed",
     z.object({
       parentAgentId: agentIdSchema,
-      reports: z.array(exploreReportSchema).max(64),
+      reports: z.array(exploreReportSummarySchema).max(64),
     }),
     { allowedSourceRoles: workbenchRoles, scope: ["parentAgentId"] },
   ),

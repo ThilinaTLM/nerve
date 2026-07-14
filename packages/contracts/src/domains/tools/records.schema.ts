@@ -1,4 +1,16 @@
 import { z } from "zod";
+import {
+  boundedPublicJsonSchema,
+  boundedPublicObjectSchema,
+} from "../events/bounded-public-data.schema.js";
+
+const toolCallTranscriptPreviewSchema = boundedPublicJsonSchema.transform(
+  (value): unknown => value,
+);
+const toolCallTranscriptErrorDetailsSchema =
+  boundedPublicObjectSchema.transform(
+    (value): Record<string, unknown> => value,
+  );
 
 export const toolRiskSchema = z.enum([
   "read",
@@ -174,10 +186,19 @@ export type ToolCallPreviewOverflow = z.infer<
  * /api/tool-calls/:toolCallId.
  */
 export const toolCallTranscriptRecordSchema = toolCallRecordSchema
-  .omit({ args: true, result: true })
+  .omit({ args: true, result: true, error: true, errorDetails: true })
   .extend({
-    argsPreview: z.unknown().optional(),
-    resultPreview: z.unknown().optional(),
+    argsPreview: toolCallTranscriptPreviewSchema.optional(),
+    resultPreview: toolCallTranscriptPreviewSchema.optional(),
+    error: z.string().max(2_048).optional(),
+    errorDetails: z
+      .object({
+        code: z.string().min(1).max(128),
+        message: z.string().min(1).max(2_048),
+        retryable: z.boolean().optional(),
+        details: toolCallTranscriptErrorDetailsSchema.optional(),
+      })
+      .optional(),
     previewOverflow: toolCallPreviewOverflowSchema.optional(),
   });
 export type ToolCallTranscriptRecord = z.infer<

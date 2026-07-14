@@ -108,6 +108,15 @@ export type ExploreRunResult = {
     }>;
   }>;
   contentBlocks?: Array<{ type: "text"; text: string }>;
+  details?: {
+    outputLimits?: {
+      artifacts?: Array<{
+        kind: "transcript";
+        path: string;
+        label?: string;
+      }>;
+    };
+  };
 };
 
 export type ExploreRunner = (

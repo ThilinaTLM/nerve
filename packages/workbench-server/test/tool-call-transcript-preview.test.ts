@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ToolCallRecord } from "@nervekit/contracts";
+import { type ToolCallRecord, validatePublicEvent } from "@nervekit/contracts";
 import { toToolCallTranscriptRecord } from "../src/domains/tools/tool-call-transcript-preview.js";
 
 function toolCall(overrides: Partial<ToolCallRecord>): ToolCallRecord {
@@ -90,7 +90,7 @@ describe("toToolCallTranscriptRecord", () => {
     assert.equal(preview.previewOverflow?.direction, "head");
   });
 
-  it("keeps the full todo list in todos_set previews without truncation", () => {
+  it("caps todo collections at ten items", () => {
     const todos = Array.from({ length: 14 }, (_, index) => ({
       todo: `task ${index + 1}`,
       done: index % 2 === 0,
@@ -106,14 +106,14 @@ describe("toToolCallTranscriptRecord", () => {
 
     assert.deepEqual(
       (preview.argsPreview as { todos: unknown[] }).todos,
-      todos,
+      todos.slice(0, 10),
     );
     assert.deepEqual(
       (preview.resultPreview as { details: { todos: unknown[] } }).details
         .todos,
-      todos,
+      todos.slice(0, 10),
     );
-    assert.equal(preview.previewOverflow, undefined);
+    assert.equal(preview.previewOverflow?.noun, "items");
   });
 
   it("omits image data from read transcript previews", () => {
@@ -150,9 +150,58 @@ describe("toToolCallTranscriptRecord", () => {
     );
 
     const result = preview.resultPreview as { content: string };
-    assert.equal(result.content.length, 8 * 1024);
+    assert.ok(result.content.length < 8 * 1024);
+    assert.ok(
+      Buffer.byteLength(
+        JSON.stringify({
+          args: preview.argsPreview,
+          result: preview.resultPreview,
+        }),
+        "utf8",
+      ) <
+        9 * 1024,
+    );
     assert.equal(preview.previewOverflow?.noun, "characters");
-    assert.equal(preview.previewOverflow?.hidden, 9000 - 8 * 1024);
+    assert.ok((preview.previewOverflow?.hidden ?? 0) >= 9000 - 8 * 1024);
+  });
+
+  it("projects large grep results without duplicate raw text and validates the event", () => {
+    const matches = Array.from({ length: 200 }, (_, index) => ({
+      path: `src/file-${index}.ts`,
+      line: index + 1,
+      text: `match ${index + 1}`,
+    }));
+    const duplicate = "duplicate raw grep output\n".repeat(900);
+    const call = toolCall({
+      toolName: "grep",
+      risk: "read",
+      args: { pattern: "match", path: "src" },
+      result: {
+        path: "src",
+        matches,
+        content: duplicate,
+        contentBlocks: [{ type: "text", text: duplicate }],
+      },
+    });
+    const preview = toToolCallTranscriptRecord(call);
+    const result = preview.resultPreview as Record<string, unknown>;
+
+    assert.equal((result.matches as unknown[]).length, 10);
+    assert.equal("content" in result, false);
+    assert.equal("contentBlocks" in result, false);
+    assert.ok(Buffer.byteLength(JSON.stringify(preview), "utf8") < 16 * 1024);
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "toolCall.updated",
+        {
+          conversationId: call.conversationId,
+          agentId: call.agentId,
+          projectId: call.projectId,
+          toolCall: preview,
+        },
+        "workbench_server",
+      ),
+    );
   });
 
   it("previews presented plan content from the head without marker text", () => {

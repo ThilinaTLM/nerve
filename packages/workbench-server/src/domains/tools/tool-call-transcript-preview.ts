@@ -1,8 +1,9 @@
-import type {
-  GrepMatch,
-  TaskLogEvent,
-  ToolCallRecord,
-  ToolCallTranscriptRecord,
+import {
+  toolCallTranscriptRecordSchema,
+  type GrepMatch,
+  type TaskLogEvent,
+  type ToolCallRecord,
+  type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 
 const PREVIEW_COUNT = 10;
@@ -176,9 +177,11 @@ function withTextContent(
   delete next.stderr;
   const blocks = arrayField<Record<string, unknown>>(next.contentBlocks);
   if (blocks) {
-    next.contentBlocks = blocks.map((block) =>
-      block.type === "text" ? { ...block, text } : sanitizePreviewValue(block),
-    );
+    const imageBlocks = blocks
+      .filter((block) => block.type === "image")
+      .map((block) => imagePlaceholder(block));
+    if (imageBlocks.length > 0) next.contentBlocks = imageBlocks;
+    else delete next.contentBlocks;
   }
   return next;
 }
@@ -231,16 +234,24 @@ function previewContentBlocks(result: Record<string, unknown>): {
   };
 }
 
-function sanitizePreviewValue(value: unknown): unknown {
+function sanitizePreviewValue(value: unknown, depth = 0): unknown {
   if (!value || typeof value !== "object") return value;
+  if (depth >= MAX_PUBLIC_PREVIEW_DEPTH) {
+    return "[Nested preview omitted; open details.]";
+  }
   if (Array.isArray(value)) {
-    return value.map((item) => sanitizePreviewValue(item));
+    return value
+      .slice(0, PREVIEW_COUNT)
+      .map((item) => sanitizePreviewValue(item, depth + 1));
   }
   const recordValue = value as Record<string, unknown>;
   if (recordValue.type === "image") return imagePlaceholder(recordValue);
   const next: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(recordValue)) {
-    next[key] = sanitizePreviewValue(nested);
+  for (const [key, nested] of Object.entries(recordValue).slice(
+    0,
+    PREVIEW_COUNT,
+  )) {
+    next[key] = sanitizePreviewValue(nested, depth + 1);
   }
   return next;
 }
@@ -252,7 +263,15 @@ function assignPathArgs(
   return next;
 }
 
-function previewUnknown(value: unknown): UnknownPreview {
+function previewUnknown(value: unknown, depth = 0): UnknownPreview {
+  if (depth >= MAX_PUBLIC_PREVIEW_DEPTH) {
+    return {
+      value: "[Nested preview omitted; open details.]",
+      hiddenLines: 0,
+      hiddenChars: 0,
+      hiddenItems: 1,
+    };
+  }
   if (typeof value === "string") {
     const preview = firstLines(value);
     return {
@@ -267,7 +286,7 @@ function previewUnknown(value: unknown): UnknownPreview {
     let hiddenLines = 0;
     let hiddenChars = 0;
     const previewItems = items.value?.map((item) => {
-      const preview = previewUnknown(item);
+      const preview = previewUnknown(item, depth + 1);
       hiddenLines += preview.hiddenLines;
       hiddenChars += preview.hiddenChars;
       return preview.value;
@@ -295,13 +314,17 @@ function previewUnknown(value: unknown): UnknownPreview {
   let hiddenChars = 0;
   let hiddenItems = 0;
   const next: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(recordValue)) {
-    const preview = previewUnknown(nested);
+  for (const [key, nested] of Object.entries(recordValue).slice(
+    0,
+    PREVIEW_COUNT,
+  )) {
+    const preview = previewUnknown(nested, depth + 1);
     next[key] = preview.value;
     hiddenLines += preview.hiddenLines;
     hiddenChars += preview.hiddenChars;
     hiddenItems += preview.hiddenItems;
   }
+  hiddenItems += Math.max(0, Object.keys(recordValue).length - PREVIEW_COUNT);
   return { value: next, hiddenLines, hiddenChars, hiddenItems };
 }
 
@@ -360,6 +383,168 @@ function sortEntries(
   });
 }
 
+function exploreReportPreview(
+  report: Record<string, unknown>,
+): Record<string, unknown> {
+  const summary = { ...report };
+  delete summary.report;
+  delete summary.steps;
+  return summary;
+}
+
+const SECRET_LIKE_KEY =
+  /(?:^|[_-])(authorization|cookie|credential|password|passwd|secret|token|api[_-]?key|private[_-]?key)(?:$|[_-])/i;
+const CREDENTIAL_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/\s]*@/i;
+const MAX_PUBLIC_PREVIEW_DEPTH = 6;
+const MAX_PUBLIC_PREVIEW_ENTRIES = 128;
+
+type PublicPreviewState = {
+  textBytes: number;
+  entries: number;
+  hiddenChars: number;
+  hiddenItems: number;
+};
+
+function finalizePublicPreview(
+  argsPreview: unknown,
+  resultPreview: unknown,
+): {
+  argsPreview: unknown;
+  resultPreview: unknown;
+  hiddenChars: number;
+  hiddenItems: number;
+  state: PublicPreviewState;
+} {
+  const state: PublicPreviewState = {
+    textBytes: 0,
+    entries: 0,
+    hiddenChars: 0,
+    hiddenItems: 0,
+  };
+  return {
+    argsPreview: projectPublicValue(argsPreview, state, 0),
+    resultPreview: projectPublicValue(resultPreview, state, 0),
+    hiddenChars: state.hiddenChars,
+    hiddenItems: state.hiddenItems,
+    state,
+  };
+}
+
+function projectPublicValue(
+  value: unknown,
+  state: PublicPreviewState,
+  depth: number,
+): unknown {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    if (CREDENTIAL_URL.test(value)) {
+      state.hiddenChars += value.length;
+      return "[Credential-bearing URL omitted; open details.]";
+    }
+    const remaining = Math.max(0, MAX_PREVIEW_CHARS - state.textBytes);
+    const projected = truncateUtf8(value, remaining);
+    state.textBytes += Buffer.byteLength(projected, "utf8");
+    state.hiddenChars += value.length - projected.length;
+    return projected;
+  }
+  if (typeof value !== "object") {
+    return projectPublicValue(String(value), state, depth);
+  }
+  if (depth >= MAX_PUBLIC_PREVIEW_DEPTH) {
+    state.hiddenItems += 1;
+    return "[Nested preview omitted; open details.]";
+  }
+  if (Array.isArray(value)) {
+    const available = Math.max(0, MAX_PUBLIC_PREVIEW_ENTRIES - state.entries);
+    const selected = value.slice(0, Math.min(PREVIEW_COUNT, available));
+    state.entries += selected.length;
+    state.hiddenItems += value.length - selected.length;
+    return selected.map(
+      (item) => projectPublicValue(item, state, depth + 1) ?? null,
+    );
+  }
+  const recordValue = value as Record<string, unknown>;
+  if (recordValue.type === "image") return imagePlaceholder(recordValue);
+  const output: Record<string, unknown> = {};
+  const entries = Object.entries(recordValue);
+  for (const [key, nested] of entries) {
+    if (
+      state.entries >= MAX_PUBLIC_PREVIEW_ENTRIES ||
+      Object.keys(output).length >= PREVIEW_COUNT
+    ) {
+      state.hiddenItems += 1;
+      continue;
+    }
+    if (SECRET_LIKE_KEY.test(key) || key.length > 128) {
+      state.hiddenItems += 1;
+      continue;
+    }
+    const projected = projectPublicValue(nested, state, depth + 1);
+    if (projected === undefined) continue;
+    state.entries += 1;
+    output[key] = projected;
+  }
+  return output;
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  if (maxBytes <= 0) return "";
+  if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(value.slice(0, middle), "utf8") <= maxBytes) {
+      low = middle;
+    } else {
+      high = middle - 1;
+    }
+  }
+  if (low > 0 && /[\uD800-\uDBFF]/.test(value[low - 1] ?? "")) low -= 1;
+  return value.slice(0, low);
+}
+
+function boundedError(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (CREDENTIAL_URL.test(value)) {
+    return "[Credential-bearing error text omitted; open details.]";
+  }
+  return value.slice(0, 2_048);
+}
+
+function metadataOnlyFallback(
+  toolCall: ToolCallRecord,
+): ToolCallTranscriptRecord {
+  return {
+    id: toolCall.id,
+    agentId: toolCall.agentId,
+    conversationId: toolCall.conversationId,
+    projectId: toolCall.projectId,
+    toolName: toolCall.toolName,
+    risk: toolCall.risk,
+    cwd: CREDENTIAL_URL.test(toolCall.cwd || "")
+      ? "."
+      : (toolCall.cwd || ".").slice(0, 2_048),
+    status: toolCall.status,
+    hidden: toolCall.hidden,
+    approvalId: toolCall.approvalId,
+    suspensionId: toolCall.suspensionId,
+    error: boundedError(toolCall.error),
+    errorDetails: toolCall.errorDetails
+      ? {
+          code: toolCall.errorDetails.code.slice(0, 128),
+          message:
+            boundedError(toolCall.errorDetails.message) ?? "Tool failed.",
+          retryable: toolCall.errorDetails.retryable,
+        }
+      : undefined,
+    createdAt: toolCall.createdAt,
+    updatedAt: toolCall.updatedAt,
+  };
+}
+
 export function toToolCallTranscriptRecord(
   toolCall: ToolCallRecord,
 ): ToolCallTranscriptRecord {
@@ -370,7 +555,7 @@ export function toToolCallTranscriptRecord(
   let resultPreview: unknown = result;
   let hidden = 0;
   let noun = "lines";
-  let direction: Overflow["direction"] = "head";
+  let direction: Overflow["direction"];
 
   switch (toolCall.toolName) {
     case "read": {
@@ -394,7 +579,11 @@ export function toToolCallTranscriptRecord(
 
     case "find": {
       const entries = firstItems(arrayField(resultRecord.entries));
-      resultPreview = { ...resultRecord, entries: entries.value };
+      resultPreview = {
+        path: resultRecord.path,
+        entries: entries.value,
+        details: resultRecord.details,
+      };
       hidden = entries.hidden;
       noun = "files";
       direction = "head";
@@ -403,7 +592,11 @@ export function toToolCallTranscriptRecord(
 
     case "grep": {
       const matches = firstItems(arrayField<GrepMatch>(resultRecord.matches));
-      resultPreview = { ...resultRecord, matches: matches.value };
+      resultPreview = {
+        path: resultRecord.path,
+        matches: matches.value,
+        details: resultRecord.details,
+      };
       hidden = matches.hidden;
       noun = "matches";
       direction = "head";
@@ -413,7 +606,11 @@ export function toToolCallTranscriptRecord(
     case "ls": {
       const sorted = sortEntries(arrayField(resultRecord.entries) ?? []);
       const entries = firstItems(sorted);
-      resultPreview = { ...resultRecord, entries: entries.value };
+      resultPreview = {
+        path: resultRecord.path,
+        entries: entries.value,
+        details: resultRecord.details,
+      };
       hidden = entries.hidden;
       noun = "entries";
       direction = "head";
@@ -466,21 +663,44 @@ export function toToolCallTranscriptRecord(
 
     case "edit": {
       const diff = lastLines(stringField(record(resultRecord.details).diff));
+      const output = lastLines(outputText(resultRecord));
+      const textResult = withTextContent(resultRecord, output.value);
       resultPreview = {
-        ...resultRecord,
+        ...textResult,
         details:
           diff.value === undefined
             ? resultRecord.details
             : { ...record(resultRecord.details), diff: diff.value },
       };
-      ({ hidden, noun } = textOverflowStats([diff]));
+      ({ hidden, noun } = textOverflowStats([diff, output]));
       direction = "tail";
+      break;
+    }
+
+    case "explore": {
+      const reports = firstItems(
+        arrayField<Record<string, unknown>>(resultRecord.reports),
+      );
+      resultPreview = {
+        reports: reports.value?.map(exploreReportPreview),
+        details: resultRecord.details,
+      };
+      hidden = reports.hidden;
+      noun = "reports";
+      direction = "head";
       break;
     }
 
     case "task_logs": {
       const events = lastItems(arrayField<TaskLogEvent>(resultRecord.events));
-      resultPreview = { ...resultRecord, events: events.value };
+      resultPreview = {
+        task: resultRecord.task,
+        events: events.value,
+        nextCursor: resultRecord.nextCursor,
+        mode: resultRecord.mode,
+        previewPath: resultRecord.previewPath,
+        truncated: resultRecord.truncated,
+      };
       hidden = events.hidden;
       noun = "events";
       direction = "tail";
@@ -504,9 +724,12 @@ export function toToolCallTranscriptRecord(
 
     case "todos_set":
     case "todos_get": {
-      // Todo lists are short, presentational checklists. Keep the full list in
-      // both previews so the timeline card and the composer todo chip can
-      // reflect every item and an accurate completed/total count.
+      const argsBound = previewUnknown(args);
+      const resultBound = previewUnknown(result);
+      argsPreview = argsBound.value;
+      resultPreview = resultBound.value;
+      ({ hidden, noun } = unknownOverflowStats([argsBound, resultBound]));
+      direction = "head";
       break;
     }
 
@@ -520,10 +743,37 @@ export function toToolCallTranscriptRecord(
     }
   }
 
-  return {
+  const finalized = finalizePublicPreview(argsPreview, resultPreview);
+  if (finalized.hiddenItems > 0) {
+    hidden += finalized.hiddenItems;
+    noun = "items";
+  } else if (finalized.hiddenChars > 0) {
+    hidden += finalized.hiddenChars;
+    noun = "characters";
+  }
+  const projectedErrorDetails = base.errorDetails
+    ? {
+        code: base.errorDetails.code.slice(0, 128),
+        message: base.errorDetails.message.slice(0, 2_048),
+        retryable: base.errorDetails.retryable,
+        details: projectPublicValue(
+          base.errorDetails.details,
+          finalized.state,
+          0,
+        ),
+      }
+    : undefined;
+  const candidate = {
     ...base,
-    argsPreview,
-    resultPreview,
+    error: boundedError(base.error),
+    errorDetails: projectedErrorDetails,
+    argsPreview: finalized.argsPreview,
+    resultPreview: finalized.resultPreview,
     previewOverflow: overflow(hidden, noun, direction),
   };
+  const parsed = toolCallTranscriptRecordSchema.safeParse(candidate);
+  if (parsed.success) return parsed.data;
+  const fallback = metadataOnlyFallback(toolCall);
+  const parsedFallback = toolCallTranscriptRecordSchema.safeParse(fallback);
+  return parsedFallback.success ? parsedFallback.data : fallback;
 }

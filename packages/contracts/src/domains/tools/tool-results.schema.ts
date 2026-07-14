@@ -670,9 +670,31 @@ export const exploreReportSchema = z.object({
 });
 export type ExploreReportPayload = z.infer<typeof exploreReportSchema>;
 
+/** Compact public lifecycle projection. Unknown legacy full-report fields are stripped. */
+export const exploreReportSummarySchema = z.object({
+  agentId: z.string().startsWith("agent_"),
+  task: z.string().max(2_048),
+  label: z.string().max(256).optional(),
+  status: z.enum(["completed", "failed", "aborted"]).default("completed"),
+  reportPath: z.string().min(1).max(4_096).optional(),
+  summaryPreview: z.string().max(1_024).optional(),
+  usage: exploreUsageStatsSchema.optional(),
+  model: z.string().max(256).optional(),
+  thinkingLevel: thinkingLevelSchema.optional(),
+  stopReason: z.string().max(128).optional(),
+  errorMessage: z.string().max(2_048).optional(),
+});
+export type ExploreReportSummaryPayload = z.infer<
+  typeof exploreReportSummarySchema
+>;
+
 export const exploreResultSchema = z.object({
   reports: z.array(exploreReportSchema),
   contentBlocks: z.array(toolContentBlockSchema).optional(),
+  details: z
+    .object({ outputLimits: toolOutputLimitsSchema.optional() })
+    .passthrough()
+    .optional(),
 });
 export type ExploreResultPayload = z.infer<typeof exploreResultSchema>;
 

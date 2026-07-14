@@ -3,8 +3,7 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.j
 import type { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js";
 import { toolErrorDetails } from "./tool-errors.js";
 import { isToolExecutionSuspended } from "./tool-execution-suspension.js";
-import { boundToolResultForStorage } from "./tool-result-bounds.js";
-import { annotateToolResultModelLimits } from "./tool-result-model-limits.js";
+import { prepareToolResult } from "./tool-result-bounds.js";
 import type { ToolRequestOptions } from "./tool-service.js";
 
 export interface ToolExecutorDeps {
@@ -39,6 +38,9 @@ export class ToolExecutorService {
       runId: toolCall.runId,
       context: { toolName: toolCall.toolName, risk: toolCall.risk },
     });
+    let terminal: ToolCallRecord;
+    let executionError: unknown;
+    let suspended = false;
     try {
       const args = { ...(toolCall.args as Record<string, unknown>) };
       const result = await this.deps.dispatcher.execute(
@@ -46,63 +48,66 @@ export class ToolExecutorService {
         args,
         options,
       );
-      const boundedResult = annotateToolResultModelLimits(
-        await boundToolResultForStorage(result, {
-          toolCallId: toolCall.id,
-          storageHome: this.deps.storageHome,
-        }),
-      );
-      const completed = await this.deps.updateToolCall(toolCall.id, {
+      const preparedResult = await prepareToolResult(result, {
+        toolCallId: toolCall.id,
+        storageHome: this.deps.storageHome,
+      });
+      terminal = await this.deps.updateToolCall(toolCall.id, {
         status: "completed",
-        result: boundedResult,
+        result: preparedResult,
         error: undefined,
         errorDetails: undefined,
       });
-      await this.emitLifecycle(completed, options);
-      await this.deps.logger?.info("Tool execution completed", {
-        toolCallId: completed.id,
-        agentId: completed.agentId,
-        conversationId: completed.conversationId,
-        projectId: completed.projectId,
-        runId: completed.runId,
-        durationMs: Math.round(performance.now() - started),
-        context: { toolName: completed.toolName },
-      });
-      return completed;
     } catch (error) {
+      executionError = error;
       if (isToolExecutionSuspended(error)) {
-        await this.deps.logger?.info("Tool execution suspended", {
-          toolCallId: toolCall.id,
-          agentId: toolCall.agentId,
-          conversationId: toolCall.conversationId,
-          projectId: toolCall.projectId,
-          runId: toolCall.runId,
-          durationMs: Math.round(performance.now() - started),
-          context: { toolName: toolCall.toolName },
+        suspended = true;
+        terminal = this.deps.getToolCall(toolCall.id);
+      } else {
+        const details = toolErrorDetails(error);
+        terminal = await this.deps.updateToolCall(toolCall.id, {
+          status: "error",
+          error: details.message,
+          errorDetails: details,
         });
-        const suspended = this.deps.getToolCall(toolCall.id);
-        await this.emitLifecycle(suspended, options);
-        return suspended;
       }
-      const details = toolErrorDetails(error);
-      const failed = await this.deps.updateToolCall(toolCall.id, {
-        status: "error",
-        error: details.message,
-        errorDetails: details,
-      });
-      await this.emitLifecycle(failed, options);
-      await this.deps.logger?.error("Tool execution failed", {
-        toolCallId: failed.id,
-        agentId: failed.agentId,
-        conversationId: failed.conversationId,
-        projectId: failed.projectId,
-        runId: failed.runId,
-        durationMs: Math.round(performance.now() - started),
-        context: { toolName: failed.toolName },
-        error,
-      });
-      return failed;
     }
+
+    await this.emitLifecycle(terminal, options);
+    const durationMs = Math.round(performance.now() - started);
+    if (suspended) {
+      await this.deps.logger?.info("Tool execution suspended", {
+        toolCallId: terminal.id,
+        agentId: terminal.agentId,
+        conversationId: terminal.conversationId,
+        projectId: terminal.projectId,
+        runId: terminal.runId,
+        durationMs,
+        context: { toolName: terminal.toolName },
+      });
+    } else if (terminal.status === "completed") {
+      await this.deps.logger?.info("Tool execution completed", {
+        toolCallId: terminal.id,
+        agentId: terminal.agentId,
+        conversationId: terminal.conversationId,
+        projectId: terminal.projectId,
+        runId: terminal.runId,
+        durationMs,
+        context: { toolName: terminal.toolName },
+      });
+    } else {
+      await this.deps.logger?.error("Tool execution failed", {
+        toolCallId: terminal.id,
+        agentId: terminal.agentId,
+        conversationId: terminal.conversationId,
+        projectId: terminal.projectId,
+        runId: terminal.runId,
+        durationMs,
+        context: { toolName: terminal.toolName },
+        error: executionError,
+      });
+    }
+    return terminal;
   }
 
   /**

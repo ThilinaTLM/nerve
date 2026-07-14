@@ -502,6 +502,10 @@ export class AgentHarness<
           this.phase = "idle";
           throw error;
         }
+        if (error instanceof AgentHarnessError && error.code === "hook") {
+          this.phase = "idle";
+          throw error;
+        }
         try {
           return await this.emitRunFailure(
             activeTurnState.model,

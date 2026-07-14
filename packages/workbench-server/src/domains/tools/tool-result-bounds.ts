@@ -5,6 +5,11 @@ import {
   boundText,
 } from "@nervekit/host-runtime/tools";
 import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
+import {
+  annotateToolResultModelLimits,
+  hasRecoveryRoute,
+  resultTruncatesForModel,
+} from "./tool-result-model-limits.js";
 
 const STORAGE_TEXT_MAX_BYTES = 256 * 1024;
 const STORAGE_TEXT_MAX_LINES = 5000;
@@ -27,19 +32,33 @@ type BoundValueResult = {
   summary: BoundSummary;
 };
 
-export async function boundToolResultForStorage(
+export async function prepareToolResult(
   result: unknown,
   input: { toolCallId: string; storageHome: string },
 ): Promise<unknown> {
   const bounded = boundValue(result, []);
-  if (!bounded.summary.truncated) return result;
+  let prepared = bounded.value;
+  let rawResultPath: string | undefined;
 
-  const rawResultPath = await writeRawResult({
-    storageHome: input.storageHome,
-    toolCallId: input.toolCallId,
-    result,
-  });
-  return attachRawResultDetails(bounded.value, rawResultPath, bounded.summary);
+  if (bounded.summary.truncated) {
+    rawResultPath = await writeRawResult({
+      storageHome: input.storageHome,
+      toolCallId: input.toolCallId,
+      result,
+    });
+    prepared = attachRawResultDetails(prepared, rawResultPath, bounded.summary);
+  }
+
+  if (resultTruncatesForModel(prepared) && !hasRecoveryRoute(prepared)) {
+    rawResultPath ??= await writeRawResult({
+      storageHome: input.storageHome,
+      toolCallId: input.toolCallId,
+      result,
+    });
+    prepared = attachRawResultDetails(prepared, rawResultPath);
+  }
+
+  return annotateToolResultModelLimits(prepared);
 }
 
 function boundValue(value: unknown, path: string[]): BoundValueResult {
@@ -96,55 +115,71 @@ function boundValue(value: unknown, path: string[]): BoundValueResult {
 function attachRawResultDetails(
   value: unknown,
   rawResultPath: string,
-  summary: BoundSummary,
+  summary?: BoundSummary,
 ): unknown {
-  const storageLimit = {
-    truncated: true,
-    omittedLines: summary.omittedLines,
-    omittedBytes: summary.omittedBytes,
-    omittedChars: summary.omittedChars,
-    truncatedLines: summary.truncatedLines,
-    maxBytes: summary.maxBytes,
-    maxLines: summary.maxLines,
-    maxLineChars: summary.maxLineChars,
-    rawResultPath,
-  };
-  const details = {
-    rawResultPath,
-    outputLimits: {
-      ...summary,
-      rawResultPath,
-      truncation: storageLimit,
-      storage: storageLimit,
-      artifacts: [
-        {
-          kind: "raw_result" as const,
-          path: rawResultPath,
-          label: "Raw result",
-        },
-      ],
-    } satisfies ToolOutputLimitsPayload & Record<string, unknown>,
-  };
-
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const record = { ...(value as Record<string, unknown>) };
-    const existingDetails =
-      record.details &&
-      typeof record.details === "object" &&
-      !Array.isArray(record.details)
-        ? (record.details as Record<string, unknown>)
-        : {};
-    record.details = { ...existingDetails, ...details };
-    return record;
+  const storageLimit = summary
+    ? {
+        truncated: true,
+        omittedLines: summary.omittedLines,
+        omittedBytes: summary.omittedBytes,
+        omittedChars: summary.omittedChars,
+        truncatedLines: summary.truncatedLines,
+        maxBytes: summary.maxBytes,
+        maxLines: summary.maxLines,
+        maxLineChars: summary.maxLineChars,
+        rawResultPath,
+      }
+    : undefined;
+  const record: Record<string, unknown> =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? { ...(value as Record<string, unknown>) }
+      : {
+          content:
+            typeof value === "string" ? value : JSON.stringify(value, null, 2),
+          contentBlocks: [
+            {
+              type: "text",
+              text:
+                typeof value === "string"
+                  ? value
+                  : JSON.stringify(value, null, 2),
+            },
+          ],
+        };
+  const existingDetails =
+    record.details &&
+    typeof record.details === "object" &&
+    !Array.isArray(record.details)
+      ? { ...(record.details as Record<string, unknown>) }
+      : {};
+  const existingLimits =
+    existingDetails.outputLimits &&
+    typeof existingDetails.outputLimits === "object" &&
+    !Array.isArray(existingDetails.outputLimits)
+      ? (existingDetails.outputLimits as ToolOutputLimitsPayload)
+      : undefined;
+  const artifacts = [...(existingLimits?.artifacts ?? [])];
+  if (!artifacts.some((artifact) => artifact.path === rawResultPath)) {
+    artifacts.push({
+      kind: "raw_result",
+      path: rawResultPath,
+      label: "Raw result",
+    });
   }
-
-  const text =
-    typeof value === "string" ? value : JSON.stringify(value, null, 2);
-  return {
-    content: text,
-    contentBlocks: [{ type: "text", text }],
-    details,
+  const outputLimits: ToolOutputLimitsPayload & Record<string, unknown> = {
+    ...(existingLimits ?? {}),
+    ...(summary ?? {}),
+    ...(storageLimit
+      ? { rawResultPath, truncation: storageLimit, storage: storageLimit }
+      : {}),
+    artifacts,
   };
+  record.details = {
+    ...existingDetails,
+    rawResultPath,
+    outputLimits,
+  };
+  return record;
 }
 
 async function writeRawResult({

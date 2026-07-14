@@ -51,6 +51,7 @@ import {
   exploreAssistantMetadata,
   exploreModelLabel,
   exploreProgressFromHarnessEvent,
+  exploreReportEventSummary,
   exploreRunPlanArg,
   exploreSystemPrompt,
   exploreUserPrompt,
@@ -167,6 +168,15 @@ export class SubagentRunner {
   ): Promise<{
     reports: ExploreReport[];
     contentBlocks: [{ type: "text"; text: string }];
+    details: {
+      outputLimits: {
+        artifacts: Array<{
+          kind: "transcript";
+          path: string;
+          label: string;
+        }>;
+      };
+    };
   }> {
     const plan = exploreRunPlanArg(args);
     const tasks = plan.tasks;
@@ -261,11 +271,26 @@ export class SubagentRunner {
     const summary = formatExploreReports(reports);
     await this.deps.events.publish("agent.explore_completed", {
       parentAgentId: parent.id,
-      reports,
+      reports: reports.map(exploreReportEventSummary),
     });
     return {
       reports,
       contentBlocks: [{ type: "text", text: summary }],
+      details: {
+        outputLimits: {
+          artifacts: reports.flatMap((report, index) =>
+            report.reportPath
+              ? [
+                  {
+                    kind: "transcript" as const,
+                    path: report.reportPath,
+                    label: `Explore report ${index + 1}: ${report.label ?? report.task}`,
+                  },
+                ]
+              : [],
+          ),
+        },
+      },
     };
   }
 
@@ -413,7 +438,7 @@ export class SubagentRunner {
         parentAgentId: spec.parent.id,
         childAgentId: child.id,
         kind: spec.kind,
-        summary: report,
+        summary: summaryPreview(report),
       });
       return {
         agent: child,

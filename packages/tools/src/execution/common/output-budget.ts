@@ -9,7 +9,7 @@ import {
   truncateLine,
 } from "./truncate.js";
 
-export const MODEL_TEXT_MAX_BYTES = 48 * 1024;
+export const MODEL_TOOL_RESULT_MAX_BYTES = 24_000;
 export const MODEL_TEXT_MAX_LINES = 1000;
 export const MODEL_TEXT_MAX_LINE_CHARS = 4096;
 
@@ -201,24 +201,89 @@ export function boundContentBlocks<T extends ContentBlockLike>(
   budget: TextBudget = {},
   options: { recoveryHint?: string } = {},
 ): BoundedContentBlocksResult<T> {
-  const truncations: TextBoundaryDetails[] = [];
-  const contentBlocks = blocks.map((block) => {
-    if (block.type !== "text") return block;
-    const bounded = boundText(block.text, budget);
-    if (!bounded.truncated) return block;
-    truncations.push(textBoundaryDetails(bounded));
-    return {
-      ...block,
-      text: appendBoundedTextNotice(bounded, {
-        label: "tool result text block",
-        recoveryHint: options.recoveryHint,
-      }),
-    };
+  const textBlocks = blocks.filter(
+    (block): block is T & TextContentBlockLike => block.type === "text",
+  );
+  if (textBlocks.length === 0) {
+    return { contentBlocks: [...blocks], truncated: false, truncations: [] };
+  }
+
+  const maxBytes = sanitizePositiveInteger(
+    budget.maxBytes,
+    MODEL_TOOL_RESULT_MAX_BYTES,
+  );
+  const maxLines = sanitizePositiveInteger(
+    budget.maxLines,
+    MODEL_TEXT_MAX_LINES,
+  );
+  const maxLineChars = sanitizePositiveInteger(
+    budget.maxLineChars,
+    MODEL_TEXT_MAX_LINE_CHARS,
+  );
+  const aggregate = boundText(
+    textBlocks.map((block) => block.text).join("\n"),
+    { maxBytes, maxLines, maxLineChars },
+  );
+  if (!aggregate.truncated) {
+    return { contentBlocks: [...blocks], truncated: false, truncations: [] };
+  }
+
+  const rawNotice = formatBoundedTextNotice(aggregate, {
+    label: "tool result",
+    recoveryHint: options.recoveryHint,
   });
+  const notice = boundText(rawNotice, {
+    maxBytes,
+    maxLines: 1,
+    maxLineChars: Math.min(maxLineChars, maxBytes),
+  }).text;
+  const noticeBytes = byteLength(notice);
+  const separatorBytes = Math.max(0, textBlocks.length - 1);
+  const canShowContent =
+    maxBytes > noticeBytes + separatorBytes + 2 && maxLines > 2;
+  let remainingBytes = canShowContent
+    ? maxBytes - noticeBytes - separatorBytes - 2
+    : 0;
+  let remainingLines = canShowContent ? maxLines - 2 : 0;
+  let exhausted = !canShowContent;
+  let lastVisibleBlock = -1;
+  const contentBlocks = blocks.map((block, blockIndex) => {
+    if (block.type !== "text") return block;
+    if (exhausted || remainingBytes <= 0 || remainingLines <= 0) {
+      exhausted = true;
+      return { ...block, text: "" };
+    }
+    const bounded = boundText(block.text, {
+      maxBytes: remainingBytes,
+      maxLines: remainingLines,
+      maxLineChars,
+    });
+    remainingBytes = Math.max(0, remainingBytes - bounded.displayedBytes);
+    remainingLines = Math.max(0, remainingLines - bounded.displayedLines);
+    if (bounded.text.length > 0) lastVisibleBlock = blockIndex;
+    if (bounded.truncated) exhausted = true;
+    return { ...block, text: bounded.text };
+  }) as T[];
+
+  const noticeBlockIndex =
+    lastVisibleBlock >= 0
+      ? lastVisibleBlock
+      : contentBlocks.findIndex((block) => block.type === "text");
+  const noticeBlock = contentBlocks[noticeBlockIndex];
+  if (noticeBlock?.type === "text") {
+    contentBlocks[noticeBlockIndex] = {
+      ...noticeBlock,
+      text:
+        noticeBlock.text.length > 0
+          ? `${noticeBlock.text}\n\n${notice}`
+          : notice,
+    } as T;
+  }
+
   return {
     contentBlocks,
-    truncated: truncations.length > 0,
-    truncations,
+    truncated: true,
+    truncations: [textBoundaryDetails(aggregate)],
   };
 }
 

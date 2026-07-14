@@ -29,6 +29,7 @@ function createExecutor(input: {
   execute: () => Promise<unknown>;
   onUpdate?: (record: ToolCallRecord) => void;
   storageHome?: string;
+  publish?: (record: ToolCallRecord) => Promise<void>;
 }): ToolExecutorService {
   let record = input.record;
   return new ToolExecutorService({
@@ -38,7 +39,7 @@ function createExecutor(input: {
       input.onUpdate?.(record);
       return record;
     },
-    publishToolCallUpdated: async () => undefined,
+    publishToolCallUpdated: input.publish ?? (async () => undefined),
     storageHome: input.storageHome ?? "/tmp/nerve-test",
     dispatcher: { execute: input.execute },
   } as never);
@@ -89,7 +90,94 @@ describe("ToolExecutorService structured errors", () => {
     assert.equal(completed.status, "completed");
     assert.equal(completed.error, undefined);
     assert.equal(completed.errorDetails, undefined);
-    assert.deepEqual(completed.result, { ok: true });
+    assert.equal((completed.result as { ok?: boolean }).ok, true);
+    assert.equal(
+      (
+        completed.result as {
+          details?: { outputLimits?: { model?: { truncated?: boolean } } };
+        }
+      ).details?.outputLimits?.model?.truncated,
+      false,
+    );
+  });
+
+  it("writes a recovery sidecar when only the model boundary truncates", async () => {
+    const storageHome = await mkdtemp(join(tmpdir(), "nerve-tool-result-"));
+    let record = toolCall();
+    const rawText = Array.from({ length: 300 }, () => "x".repeat(100)).join(
+      "\n",
+    );
+    const executor = createExecutor({
+      record,
+      storageHome,
+      onUpdate: (updated) => {
+        record = updated;
+      },
+      execute: async () => ({
+        content: rawText,
+        contentBlocks: [{ type: "text", text: rawText }],
+      }),
+    });
+
+    const completed = await executor.executeAllowedTool(record.id);
+    const result = completed.result as {
+      content?: string;
+      details?: {
+        rawResultPath?: string;
+        outputLimits?: {
+          model?: { truncated?: boolean; maxBytes?: number };
+          artifacts?: Array<{ path: string }>;
+        };
+      };
+    };
+
+    assert.equal(completed.status, "completed");
+    assert.equal(result.content, rawText);
+    assert.equal(result.details?.outputLimits?.model?.truncated, true);
+    assert.equal(result.details?.outputLimits?.model?.maxBytes, 24_000);
+    assert.ok(result.details?.rawResultPath);
+    assert.equal(
+      result.details?.outputLimits?.artifacts?.[0]?.path,
+      result.details?.rawResultPath,
+    );
+    assert.match(
+      await readFile(result.details?.rawResultPath ?? "", "utf8"),
+      /"content": "xxx/,
+    );
+  });
+
+  it("reuses continuation metadata instead of writing a generic sidecar", async () => {
+    const storageHome = await mkdtemp(join(tmpdir(), "nerve-tool-result-"));
+    let record = toolCall();
+    const rawText = Array.from({ length: 300 }, () => "x".repeat(100)).join(
+      "\n",
+    );
+    const executor = createExecutor({
+      record,
+      storageHome,
+      onUpdate: (updated) => {
+        record = updated;
+      },
+      execute: async () => ({
+        content: rawText,
+        contentBlocks: [{ type: "text", text: rawText }],
+        details: {
+          outputLimits: { continuation: { nextOffset: 301 } },
+        },
+      }),
+    });
+
+    const completed = await executor.executeAllowedTool(record.id);
+    const details = (
+      completed.result as {
+        details?: {
+          rawResultPath?: string;
+          outputLimits?: { model?: { truncated?: boolean } };
+        };
+      }
+    ).details;
+    assert.equal(details?.outputLimits?.model?.truncated, true);
+    assert.equal(details?.rawResultPath, undefined);
   });
 
   it("stores a bounded result with raw-result path for extreme strings", async () => {
@@ -119,5 +207,27 @@ describe("ToolExecutorService structured errors", () => {
     assert.ok(result.details?.rawResultPath);
     const raw = await readFile(result.details.rawResultPath, "utf8");
     assert.match(raw, new RegExp(`"content": "${"x".repeat(100)}`));
+  });
+
+  it("keeps the completed record when lifecycle publication fails", async () => {
+    let record = toolCall();
+    const executor = createExecutor({
+      record,
+      onUpdate: (updated) => {
+        record = updated;
+      },
+      execute: async () => ({ content: "done" }),
+      publish: async (updated) => {
+        if (updated.status === "completed")
+          throw new Error("projection failed");
+      },
+    });
+
+    await assert.rejects(
+      executor.executeAllowedTool(record.id),
+      /projection failed/,
+    );
+    assert.equal(record.status, "completed");
+    assert.equal(record.error, undefined);
   });
 });

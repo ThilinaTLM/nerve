@@ -7,11 +7,6 @@ import {
 } from "@nervekit/host-runtime/harness";
 import {
   allToolDefinitions,
-  appendBoundedTextNotice,
-  boundContentBlocks,
-  boundText,
-  MODEL_TEXT_MAX_LINE_CHARS,
-  MODEL_TEXT_MAX_LINES,
   resolveToolAvailability,
   toolDefinitionsByGroup,
 } from "@nervekit/host-runtime/tools";
@@ -23,6 +18,10 @@ import type {
   UserConfigurableToolName,
 } from "@nervekit/contracts";
 import type { ToolService } from "./tool-service.js";
+import {
+  boundModelContentBlocks,
+  boundModelText,
+} from "./tool-result-model-limits.js";
 
 export type AgentToolPromptMetadata = {
   activeToolNames: string[];
@@ -207,19 +206,7 @@ export function contentBlocksFromResult(
     }
     return undefined;
   }
-  const bounded = boundContentBlocks(
-    blocks,
-    {
-      maxBytes: 24_000,
-      maxLines: MODEL_TEXT_MAX_LINES,
-      maxLineChars: MODEL_TEXT_MAX_LINE_CHARS,
-    },
-    {
-      recoveryHint:
-        "Full result remains in the tool call record; use tool-specific continuation arguments, transcripts, or raw result paths when available.",
-    },
-  );
-  return bounded.contentBlocks;
+  return boundModelContentBlocks(blocks, result);
 }
 
 export function formatToolResultForModel(toolCall: ToolCallRecord): string {
@@ -242,7 +229,7 @@ export function formatToolResultForModel(toolCall: ToolCallRecord): string {
       return `User replied:\n${record.response}`;
     }
   }
-  if (typeof result === "string") return truncate(result, 24_000);
+  if (typeof result === "string") return boundModelText(result, result);
   if (result && typeof result === "object") {
     const record = result as Record<string, unknown>;
     const parts: string[] = [];
@@ -269,20 +256,7 @@ export function formatToolResultForModel(toolCall: ToolCallRecord): string {
           .join("\n")}`,
       );
     }
-    if (parts.length > 0) return truncate(parts.join("\n\n"), 24_000);
+    if (parts.length > 0) return boundModelText(parts.join("\n\n"), result);
   }
-  return truncate(JSON.stringify(result, null, 2), 24_000);
-}
-
-function truncate(text: string, maxChars: number): string {
-  const bounded = boundText(text, {
-    maxBytes: maxChars,
-    maxLines: MODEL_TEXT_MAX_LINES,
-    maxLineChars: MODEL_TEXT_MAX_LINE_CHARS,
-  });
-  return appendBoundedTextNotice(bounded, {
-    label: "tool result",
-    recoveryHint:
-      "Full result remains in the tool call record; use tool-specific continuation arguments, transcripts, or raw result paths when available.",
-  });
+  return boundModelText(JSON.stringify(result, null, 2), result);
 }

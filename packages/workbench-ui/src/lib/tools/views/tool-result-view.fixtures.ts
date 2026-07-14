@@ -46,8 +46,8 @@ export function toolCall(
 
 export function transcriptToolCall(
   toolName: ToolCallRecord["toolName"],
-  argsPreview: unknown,
-  resultPreview: unknown,
+  argsPreview: ToolCallTranscriptRecord["argsPreview"],
+  resultPreview: ToolCallTranscriptRecord["resultPreview"],
   overrides: Partial<ToolCallTranscriptRecord> = {},
 ): ToolCallTranscriptRecord {
   return {
@@ -79,8 +79,8 @@ export function present(
 
 export function presentTranscript(
   toolName: ToolCallRecord["toolName"],
-  argsPreview: unknown,
-  resultPreview: unknown,
+  argsPreview: ToolCallTranscriptRecord["argsPreview"],
+  resultPreview: ToolCallTranscriptRecord["resultPreview"],
   overrides: Partial<ToolCallTranscriptRecord> = {},
 ) {
   const tc = transcriptToolCall(

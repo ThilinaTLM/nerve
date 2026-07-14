@@ -8,6 +8,7 @@ import {
   coreToolDefinitionByName,
   coreToolDefinitions,
   coreToolDescriptors,
+  MODEL_TOOL_RESULT_MAX_BYTES,
 } from "@nervekit/host-runtime/tools";
 import type { AgentRecord, ToolCallRecord } from "@nervekit/contracts";
 import { coreToolNameSchema, defaultSettings } from "@nervekit/contracts";
@@ -356,14 +357,24 @@ describe("agent tool definitions", () => {
     );
   });
 
-  it("bounds model-facing text content blocks generically", () => {
+  it("bounds model-facing text content blocks with one aggregate budget", () => {
     const blocks = contentBlocksFromResult({
-      contentBlocks: [{ type: "text", text: "x".repeat(30_000) }],
+      contentBlocks: [
+        { type: "text", text: "x".repeat(15_000) },
+        { type: "text", text: "y".repeat(15_000) },
+      ],
+      details: {
+        outputLimits: { continuation: { nextOffset: 1000 } },
+      },
     });
+    const text = (blocks ?? [])
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n");
 
-    assert.equal(blocks?.[0]?.type, "text");
-    assert.ok(((blocks?.[0] as { text?: string })?.text ?? "").length < 26_000);
-    assert.match((blocks?.[0] as { text?: string })?.text ?? "", /truncated/);
+    assert.ok(Buffer.byteLength(text, "utf8") <= MODEL_TOOL_RESULT_MAX_BYTES);
+    assert.equal(text.match(/tool result truncated/g)?.length, 1);
+    assert.match(text, /Continue with offset 1000/);
   });
 
   it("uses a restricted tool allowlist for explore child agents", () => {

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentRecord, ConversationEntry } from "@nervekit/contracts";
+import {
+  type AgentRecord,
+  type ConversationEntry,
+  validatePublicEvent,
+} from "@nervekit/contracts";
 import type { JsonlConversationStorage } from "@nervekit/host-runtime/harness";
 import type { EventBus } from "../src/infrastructure/events/index.js";
 import type { RuntimeState } from "../src/runtime/runtime-state.js";
@@ -29,7 +33,10 @@ function assistantStorageEntry(id: string, text: string) {
   };
 }
 
-function toolResultStorageEntry(id: string) {
+function toolResultStorageEntry(
+  id: string,
+  options: { text?: string; isError?: boolean; toolName?: string } = {},
+) {
   return {
     type: "message" as const,
     id,
@@ -38,9 +45,9 @@ function toolResultStorageEntry(id: string) {
     message: {
       role: "toolResult",
       toolCallId: "call_1",
-      toolName: "bash",
-      isError: false,
-      content: [{ type: "text", text: "ok" }],
+      toolName: options.toolName ?? "bash",
+      isError: options.isError ?? false,
+      content: [{ type: "text", text: options.text ?? "ok" }],
     },
   };
 }
@@ -63,6 +70,7 @@ function createMirror(storageEntries: unknown[]) {
         turnId: input.turnId,
         liveMessageId: input.liveMessageId,
         messageOrdinal: input.messageOrdinal,
+        details: input.details,
         createdAt: input.createdAt ?? "2026-01-01T00:00:00.000Z",
       } as ConversationEntry;
     },
@@ -133,6 +141,56 @@ describe("MessageMirror assistant message correlation", () => {
     assert.equal(toolResult?.messageOrdinal, undefined);
     assert.equal(toolResult?.turnId, "turn_1");
     assert.equal(metaQueue.length, 0);
+  });
+
+  it("mirrors successful large tool results as small public anchors", async () => {
+    const { mirror, storage, appended } = createMirror([
+      toolResultStorageEntry("entry_large", {
+        text: "explore report ".repeat(1_300),
+        toolName: "explore",
+      }),
+    ]);
+
+    const mirrored = await mirror.mirrorNewHarnessEntries(
+      agent,
+      storage,
+      new Set(),
+      { runId: "run_1", turnId: "turn_1" },
+    );
+    const entry = appended[0];
+    assert.equal(entry?.text, "[Tool result: explore]");
+    assert.ok((entry?.text.length ?? 0) < 128);
+    assert.equal((entry?.details as { status?: string })?.status, "completed");
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "conversation.entry.appended",
+        {
+          conversationId: agent.conversationId,
+          agentId: agent.id,
+          runId: "run_1",
+          turnId: "turn_1",
+          entry: mirrored[0],
+        },
+        "workbench_server",
+      ),
+    );
+  });
+
+  it("retains a bounded useful preview for tool errors", async () => {
+    const { mirror, storage, appended } = createMirror([
+      toolResultStorageEntry("entry_error", {
+        text: `failure details: ${"x".repeat(20_000)}`,
+        isError: true,
+      }),
+    ]);
+
+    await mirror.mirrorNewHarnessEntries(agent, storage, new Set());
+    assert.match(appended[0]?.text ?? "", /^failure details:/);
+    assert.ok((appended[0]?.text.length ?? 0) <= 2_048);
+    assert.equal(
+      (appended[0]?.details as { status?: string })?.status,
+      "error",
+    );
   });
 
   it("keeps unconsumed metas for assistant entries that surface later", async () => {
