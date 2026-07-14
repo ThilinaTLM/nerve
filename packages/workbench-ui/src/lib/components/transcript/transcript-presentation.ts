@@ -9,7 +9,7 @@ export type ActivityStackPosition = "single" | "start" | "middle" | "end";
 
 export type TimelineMessageItem = Extract<TimelineItem, { kind: "message" }>;
 
-/** Consecutive assistant thinking messages rendered as one expandable row. */
+/** Consecutive assistant thinking messages rendered as one flat reasoning row. */
 export type ThinkingGroupNode = {
   kind: "thinking_group";
   key: string;
@@ -28,8 +28,8 @@ function isThinkingNode(node: TimelineItem): node is TimelineMessageItem {
 
 /**
  * Collapse consecutive assistant thinking messages into single
- * `thinking_group` nodes so a burst of reasoning renders as one expandable
- * row. The group key is the first member's key, keeping row identity stable
+ * `thinking_group` nodes so a burst of reasoning renders as one flat row.
+ * The group key is the first member's key, keeping row identity stable
  * as later blocks stream in and join the group.
  */
 export function groupConsecutiveThinking(

@@ -22,7 +22,6 @@ const allRedactedEmpty = $derived(
 const label = $derived(
   allRedactedEmpty ? "Reasoning unavailable" : "Reasoning",
 );
-
 </script>
 
 <div class="thinking-group" class:live>
