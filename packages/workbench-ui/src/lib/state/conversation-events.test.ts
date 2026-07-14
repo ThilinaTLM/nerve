@@ -310,6 +310,60 @@ describe("conversation event reducer", () => {
     assert.equal(render.timeline[0]?.key, "run-status:run_test");
   });
 
+  it("resumes a HITL continuation without rendering retry status", () => {
+    let state = applyConversationEvent(
+      emptyConversationRenderState("conv_test"),
+      startRun(),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(
+        2,
+        "run.retrying",
+        {
+          conversationId: "conv_test",
+          agentId: "agent_test",
+          projectId: "proj_test",
+          runId: "run_test",
+          attempt: 1,
+          maxRetries: 3,
+          delayMs: 100,
+          retryAt: ts,
+          errorMessage: "rate limited",
+        },
+        "durable",
+      ),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(
+        3,
+        "run.resumed",
+        {
+          conversationId: "conv_test",
+          agentId: "agent_test",
+          projectId: "proj_test",
+          runId: "run_test",
+          attempt: 2,
+          resumeKind: "interaction",
+          resumedAt: ts,
+        },
+        "durable",
+      ),
+    );
+
+    assert.equal(state.activeRun?.status, "running");
+    assert.equal(state.activeRun?.retry, undefined);
+    assert.equal(state.live?.runStatus, undefined);
+    assert.equal(state.sending, true);
+    assert.equal(
+      buildConversationRenderProjection(state).timeline.some(
+        (item) => item.kind === "run_status",
+      ),
+      false,
+    );
+  });
+
   it("ignores stale durable events without rewinding state", () => {
     const state = emptyConversationRenderState("conv_test");
     state.cursorSeq = 5;

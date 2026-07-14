@@ -28,3 +28,9 @@ crash.log
 # Python
 __pycache__/
 *.pyc
+
+# Generated brand assets
+assets/brand/*
+!assets/brand/nerve-mark.svg
+!assets/brand/nerve-mark-small.svg
+!assets/brand/nerve-app-icon.svg

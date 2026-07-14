@@ -21,6 +21,7 @@ import {
   ConversationPromptQueuedData,
   ConversationRunCompletedData,
   ConversationRunFailedData,
+  ConversationRunResumedData,
   ConversationRunRetryingData,
   ConversationRunStartedData,
   ConversationRunSuspendedData,
@@ -139,6 +140,9 @@ export function applyConversationEvent(
       break;
     case "toolCall.updated":
       applyToolCallUpdated(next, event.data as ConversationToolCallUpdatedData);
+      break;
+    case "run.resumed":
+      applyRunResumed(next, event.data as ConversationRunResumedData);
       break;
     case "run.retrying":
       applyRunRetrying(
@@ -484,6 +488,23 @@ function applyToolCallUpdated(
     toolCall.sourceToolCallId,
   ].filter((value): value is string => Boolean(value));
   removeLiveDraftsForProviderIds(state, providerToolCallIds);
+}
+
+function applyRunResumed(
+  state: ConversationRenderState,
+  data: ConversationRunResumedData,
+): void {
+  state.conversationId = data.conversationId;
+  const live = ensureLiveState(state, data.runId);
+  live.runStatus = undefined;
+  const activeRun = ensureActiveRun(state, {
+    ...data,
+    startedAt: data.resumedAt,
+  });
+  activeRun.status = "running";
+  activeRun.retry = undefined;
+  state.sending = true;
+  state.error = undefined;
 }
 
 function applyRunRetrying(

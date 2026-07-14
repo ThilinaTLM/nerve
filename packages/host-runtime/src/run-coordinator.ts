@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Coordinator keeps the canonical run lifecycle in one auditable use case. */
 import type {
   PeerRole,
   PromptImage,
@@ -30,6 +31,7 @@ import {
 } from "./run-settlement.js";
 import {
   cancellableRetryDelay,
+  countAutomaticRetries,
   decideRunRetry,
   DEFAULT_RUN_RETRY_POLICY,
   isRetryAbort,
@@ -197,10 +199,12 @@ export class RunCoordinator {
         this.ports.integrity,
       );
       const now = this.now();
+      const resumeKind =
+        state.run.status === "interrupted" ? "manual" : "interaction";
       const next: RunRecord = {
         ...state.run,
         revision: state.run.revision + 1,
-        status: "retrying",
+        status: "running",
         recoverability: "checkpoint",
         attempt: state.run.attempt + 1,
         executionId: prefixed("exec", this.ports.ids.next()),
@@ -212,14 +216,9 @@ export class RunCoordinator {
         next,
         this.sink(next.runId),
       );
-      await this.commit(state, next, "retrying", {
+      await this.commit(state, next, "resumed", {
         execution: executionRecord(next, "starting", now),
-        events: [
-          this.events.retrying(next, now, {
-            maxRetries: Math.max(1, next.attempt - 1),
-            delayMs: 0,
-          }),
-        ],
+        events: [this.events.resumed(next, now, resumeKind)],
       });
       this.launch(next, execution, "continue");
       return next;
@@ -637,7 +636,11 @@ export class RunCoordinator {
           this.ports.integrity,
         ));
       const policy = this.ports.retryPolicy ?? DEFAULT_RUN_RETRY_POLICY;
-      const decision = decideRunRetry(state.run, policy);
+      const decision = decideRunRetry(
+        state.run,
+        policy,
+        countAutomaticRetries(state.transitions),
+      );
       const now = this.now();
       if (validCheckpoint && decision.retry) {
         const retrying = revise(
@@ -645,7 +648,7 @@ export class RunCoordinator {
           {
             status: "retrying",
             recoverability: "checkpoint",
-            attempt: decision.retryAttempt,
+            attempt: decision.executionAttempt,
             executionId: prefixed("exec", this.ports.ids.next()),
             failure: value,
             terminalAt: undefined,
@@ -656,6 +659,7 @@ export class RunCoordinator {
           execution: executionRecord(retrying, "starting", now),
           events: [
             this.events.retrying(retrying, now, {
+              attempt: decision.retryAttempt,
               maxRetries: decision.maxRetries,
               delayMs: decision.delayMs,
             }),

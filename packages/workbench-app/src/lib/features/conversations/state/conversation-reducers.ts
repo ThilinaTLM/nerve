@@ -64,6 +64,22 @@ export function handleConversationEvent(
       view.queuedPrompts = [];
       view.error = undefined;
       break;
+    case "run.resumed": {
+      const runId = String(event.data?.runId ?? "");
+      const live = ensureLiveState(view, runId);
+      live.runStatus = undefined;
+      removeLiveRunStatusTranscriptItem(view, runId);
+      if (view.activeRun?.runId === runId) {
+        view.activeRun = {
+          ...view.activeRun,
+          status: "running",
+          retry: undefined,
+        };
+      }
+      view.sending = true;
+      view.error = undefined;
+      break;
+    }
     case "conversation.entry.appended":
       if (
         !handleEntryAppended(

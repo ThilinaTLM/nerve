@@ -8,6 +8,7 @@ import type {
 import { AutoCompactionRunner } from "../src/domains/agents/run/auto-compaction-runner.js";
 import { RuntimeState } from "../src/runtime/runtime-state.js";
 import { HumanInputResolutionService } from "../src/domains/human-input/human-input-resolution.service.js";
+import { WorkbenchRunQuery } from "../src/domains/runs/workbench-run-query.js";
 import {
   agentStatusForRun,
   WorkbenchRunStatusProjector,
@@ -53,6 +54,71 @@ describe("workbench coordinator behavior regressions", () => {
     ]);
     assert.deepEqual(projected, ["running", "awaiting_user", "idle"]);
     assert.equal(state.agents.get(agent.id)?.status, "idle");
+  });
+
+  it("projects HITL resumes as running and real retries from durable metadata", async () => {
+    const runtime = new RuntimeState();
+    const legacyResume = {
+      run: {
+        ...runRecord("retrying", 4),
+        attempt: 4,
+        failure: undefined,
+      },
+      transitions: [],
+      prompts: [],
+      interactions: [],
+      checkpoints: [],
+      deliveries: [],
+    };
+    let states = [legacyResume];
+    const query = new WorkbenchRunQuery(
+      { list: async () => states } as never,
+      runtime,
+    );
+
+    const resumed = await query.activeForConversation("conv_regression");
+    assert.equal(resumed?.status, "running");
+    assert.equal(resumed?.retry, undefined);
+
+    const retrying = {
+      ...legacyResume,
+      run: {
+        ...legacyResume.run,
+        failure: {
+          code: "MODEL_REQUEST_FAILED",
+          message: "rate limited",
+          retryable: true,
+        },
+      },
+      transitions: [
+        {
+          events: [
+            {
+              type: "run.retrying",
+              data: {
+                attempt: 1,
+                maxRetries: 3,
+                delayMs: 2_000,
+                retryAt: "2026-07-13T00:00:06.000Z",
+                errorMessage: "rate limited",
+              },
+            },
+          ],
+        },
+      ],
+    };
+    states = [retrying] as never;
+
+    const retry = await query.activeForConversation("conv_regression");
+    assert.equal(retry?.status, "retrying");
+    assert.deepEqual(retry?.retry, {
+      attempt: 1,
+      maxRetries: 3,
+      delayMs: 2_000,
+      retryAt: "2026-07-13T00:00:06.000Z",
+      errorMessage: "rate limited",
+      failedEntryId: undefined,
+    });
   });
 
   it("terminalizes a new-chat plan source and starts the selected implementation agent", async () => {

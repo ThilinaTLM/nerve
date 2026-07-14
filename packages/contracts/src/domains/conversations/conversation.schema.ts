@@ -77,11 +77,22 @@ export interface ConversationRunSuspendedData {
   reason: string;
 }
 
+export interface ConversationRunResumedData {
+  conversationId: string;
+  agentId: string;
+  runId: string;
+  projectId: string;
+  attempt: number;
+  resumeKind: "interaction" | "manual";
+  resumedAt: string;
+}
+
 export interface ConversationRunRetryingData {
   conversationId: string;
   agentId: string;
   runId: string;
   projectId: string;
+  /** One-based retry ordinal, excluding the initial provider attempt. */
   attempt: number;
   maxRetries: number;
   delayMs: number;
@@ -333,6 +344,7 @@ export type ConversationEventData =
   | ConversationRunCompletedData
   | ConversationRunFailedData
   | ConversationRunSuspendedData
+  | ConversationRunResumedData
   | ConversationRunRetryingData
   | ConversationPromptQueuedData
   | ConversationPromptDequeuedData
@@ -620,6 +632,16 @@ const conversationRunSuspendedDataSchema = z.object({
   reason: z.string(),
 });
 
+const conversationRunResumedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  runId: runIdSchema,
+  projectId: z.string().startsWith("proj_"),
+  attempt: z.number().int().positive(),
+  resumeKind: z.enum(["interaction", "manual"]),
+  resumedAt: z.string().datetime(),
+});
+
 const conversationRunRetryingDataSchema = z.object({
   conversationId: z.string().startsWith("conv_"),
   agentId: z.string().startsWith("agent_"),
@@ -801,6 +823,7 @@ export const conversationEventPayloadSchemas = {
   "run.completed": conversationRunCompletedDataSchema,
   "run.failed": conversationRunFailedDataSchema,
   "run.suspended": conversationRunSuspendedDataSchema,
+  "run.resumed": conversationRunResumedDataSchema,
   "run.retrying": conversationRunRetryingDataSchema,
   "conversation.prompt.queued": conversationPromptQueuedDataSchema,
   "conversation.prompt.dequeued": conversationPromptDequeuedDataSchema,
@@ -839,6 +862,7 @@ export const conversationEventTypes = [
   "run.completed",
   "run.failed",
   "run.suspended",
+  "run.resumed",
   "run.retrying",
   "conversation.prompt.queued",
   "conversation.prompt.dequeued",

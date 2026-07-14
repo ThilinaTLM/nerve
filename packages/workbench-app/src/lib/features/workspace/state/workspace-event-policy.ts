@@ -6,6 +6,7 @@ export function runtimeAgentStatusFromEvent(
 ): AgentRecord["status"] | undefined {
   switch (type) {
     case "run.started":
+    case "run.resumed":
     case "run.retrying":
       return "running";
     case "run.waiting":
@@ -42,6 +43,7 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type === "agent.mode_changed" ||
     type === "toolCall.updated" ||
     type === "run.started" ||
+    type === "run.resumed" ||
     type === "run.retrying" ||
     type === "run.waiting" ||
     type === "run.completed" ||

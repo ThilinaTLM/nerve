@@ -1,10 +1,4 @@
 <svg width="512" height="512" viewBox="120 120 272 272" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="nerve-mark-title nerve-mark-desc">
-  <style>
-    :root { color: #0c0a09; }
-    @media (prefers-color-scheme: dark) {
-      :root { color: #fbfaf9; }
-    }
-  </style>
   <title id="nerve-mark-title">Nerve</title>
   <desc id="nerve-mark-desc">An abstract N whose diagonal carries a nerve impulse.</desc>
   <g id="nerve-mark" stroke="currentColor" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">

@@ -62,9 +62,9 @@ const failureText = $derived(
 
 const attemptText = $derived(
   typeof notice.attempt === "number" && typeof notice.maxRetries === "number"
-    ? `attempt ${notice.attempt}/${notice.maxRetries}`
+    ? `retry ${notice.attempt}/${notice.maxRetries}`
     : typeof notice.attempt === "number"
-      ? `attempt ${notice.attempt}`
+      ? `retry ${notice.attempt}`
       : undefined,
 );
 

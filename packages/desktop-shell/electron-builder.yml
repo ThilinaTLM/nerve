@@ -23,6 +23,19 @@ extraResources:
   - from: ../../NOTICE
     to: NOTICE
 
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.developer-tools
+  icon: build/icon.svg
+  darkModeSupport: true
+
+win:
+  target:
+    - nsis
+  icon: build/icon.svg
+
 linux:
   target:
     - AppImage
@@ -38,5 +51,4 @@ linux:
       Name: Nerve
       GenericName: AI coding harness
       Comment: UI-first personal AI coding harness
-      StartupWMClass: nerve
       Keywords: AI;Coding;Agent;Developer;Nerve;

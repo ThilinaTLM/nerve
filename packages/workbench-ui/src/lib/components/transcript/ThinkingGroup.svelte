@@ -14,7 +14,6 @@ type Props = {
 };
 
 let { items }: Props = $props();
-
 </script>
 
 <div class="thinking-group">

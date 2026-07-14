@@ -9,6 +9,7 @@ describe("workspace run lifecycle events", () => {
   it("maps canonical wait and resume events to agent status", () => {
     assert.equal(runtimeAgentStatusFromEvent("run.started"), "running");
     assert.equal(runtimeAgentStatusFromEvent("run.waiting"), "awaiting_user");
+    assert.equal(runtimeAgentStatusFromEvent("run.resumed"), "running");
     assert.equal(runtimeAgentStatusFromEvent("run.retrying"), "running");
     assert.equal(runtimeAgentStatusFromEvent("run.completed"), "idle");
   });
@@ -24,7 +25,7 @@ describe("workspace run lifecycle events", () => {
   });
 
   it("refreshes workspace state across the answer continuation sequence", () => {
-    for (const type of ["run.waiting", "run.retrying", "run.completed"]) {
+    for (const type of ["run.waiting", "run.resumed", "run.completed"]) {
       assert.equal(shouldRefreshWorkspace(type), true, type);
     }
   });

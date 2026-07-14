@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Coordinator contract scenarios share one deterministic in-memory fixture. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {
@@ -384,9 +385,89 @@ test("automatically retries a valid checkpoint with accurate metadata", async ()
   const retry = state?.transitions
     .flatMap((transition) => transition.events)
     .find((event) => event.type === "run.retrying");
-  assert.equal((retry?.data as { attempt?: number })?.attempt, 2);
+  assert.equal((retry?.data as { attempt?: number })?.attempt, 1);
   assert.equal((retry?.data as { maxRetries?: number })?.maxRetries, 2);
   assert.equal((retry?.data as { delayMs?: number })?.delayMs, 25);
+});
+
+test("HITL resumes do not consume the automatic retry budget", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
+    execute: async (attempt, _input, sink) => {
+      if (attempt === 1) {
+        await sink.wait({
+          kind: "question",
+          toolCallId: "tool_retry_budget_question",
+          prompt: "Continue?",
+          required: true,
+          checkpoint: {
+            boundary: "suspension",
+            transcriptCursor: 0,
+            entryIds: [],
+            harnessLeafId: null,
+            harnessSavePointId: "save_0",
+            toolCalls: [],
+          },
+        });
+        return { status: "suspended" };
+      }
+      if (attempt === 2) {
+        await sink.checkpoint({
+          boundary: "before_provider_request",
+          transcriptCursor: 0,
+          entryIds: [],
+          harnessLeafId: null,
+          harnessSavePointId: "save_0",
+          toolCalls: [],
+        });
+        return {
+          status: "failed",
+          failure: {
+            code: "PROVIDER_FAILED",
+            message: "temporary after HITL",
+            retryable: true,
+          },
+        };
+      }
+      return { status: "completed" };
+    },
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "waiting",
+  );
+  const waiting = await harness.coordinator.get(run.runId);
+  const interaction = waiting?.interactions.find(
+    (candidate) => candidate.status === "pending",
+  );
+  assert.ok(interaction);
+  await harness.coordinator.resolveInteraction(run.runId, {
+    interactionId: interaction.id,
+    resolutionRequestId: "request_retry_budget",
+    resolution: { answer: "yes" },
+  });
+  await harness.coordinator.continue(run.runId);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "completed",
+  );
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.attempt, 3);
+  assert.equal(
+    state?.transitions.filter((transition) => transition.kind === "resumed")
+      .length,
+    1,
+  );
+  assert.equal(
+    state?.transitions.filter((transition) => transition.kind === "retrying")
+      .length,
+    1,
+  );
+  const retry = state?.transitions
+    .flatMap((transition) => transition.events)
+    .find((event) => event.type === "run.retrying");
+  assert.equal((retry?.data as { attempt?: number })?.attempt, 1);
 });
 
 test("refuses automatic retry without a valid checkpoint", async () => {
@@ -578,6 +659,14 @@ test("resolves an interaction once and rejects conflicting resolution", async ()
     }),
     RunConflictError,
   );
+  const resumed = await harness.coordinator.continue(run.runId);
+  assert.equal(resumed.status, "running");
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.transitions.at(-1)?.kind, "resumed");
+  assert.deepEqual(
+    state?.transitions.at(-1)?.events.map((event) => event.type),
+    ["run.resumed"],
+  );
 });
 
 test("terminally completes only a resolved suspended interaction", async () => {
@@ -649,7 +738,21 @@ test("continues only from a checkpoint whose complete references match", async (
   assert.equal(interrupted?.run.lastCheckpointId, checkpoint.checkpointId);
   assert.equal(interrupted?.run.status, "interrupted");
   const continued = await harness.coordinator.continue(run.runId);
-  assert.equal(continued.status, "retrying");
+  assert.equal(continued.status, "running");
+  const continuedState = await harness.coordinator.get(run.runId);
+  assert.equal(continuedState?.transitions.at(-1)?.kind, "resumed");
+  assert.equal(
+    continuedState?.transitions.at(-1)?.events[0]?.type,
+    "run.resumed",
+  );
+  assert.equal(
+    (
+      continuedState?.transitions.at(-1)?.events[0]?.data as
+        | { resumeKind?: string }
+        | undefined
+    )?.resumeKind,
+    "manual",
+  );
 });
 
 test("partial cancellation is persisted truthfully and is not called cancelled", async () => {

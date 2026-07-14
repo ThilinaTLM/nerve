@@ -1,6 +1,6 @@
 <script lang="ts">
-import Activity from "@lucide/svelte/icons/activity";
 import type { Snippet } from "svelte";
+import NerveMark from "../brand/NerveMark.svelte";
 
 let {
   label = "Nerve is ready",
@@ -34,7 +34,7 @@ let {
       <div
         class="relative grid size-14 place-items-center rounded-xl border border-primary/30 bg-card shadow-sm"
       >
-        <Activity class="size-7 text-primary" strokeWidth={1.8} />
+        <NerveMark class="size-7 text-primary" />
       </div>
     </div>
 

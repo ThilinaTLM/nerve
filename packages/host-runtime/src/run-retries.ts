@@ -22,23 +22,39 @@ export const DEFAULT_RUN_RETRY_POLICY: RunRetryPolicy = {
 
 export interface RunRetryDecision {
   readonly retry: boolean;
+  readonly executionAttempt: number;
+  /** One-based retry ordinal, excluding the initial provider attempt. */
   readonly retryAttempt: number;
   readonly delayMs: number;
   readonly maxRetries: number;
 }
 
+export function countAutomaticRetries(
+  transitions: readonly {
+    kind: string;
+    run: Pick<RunRecord, "failure">;
+  }[],
+): number {
+  return transitions.filter(
+    (transition) =>
+      transition.kind === "retrying" && transition.run.failure !== undefined,
+  ).length;
+}
+
 export function decideRunRetry(
   run: RunRecord,
   policy: RunRetryPolicy,
+  retriesUsed: number,
 ): RunRetryDecision {
   const maxRetries = Math.max(0, Math.trunc(policy.maxRetries));
-  const retriesUsed = Math.max(0, run.attempt - 1);
-  const retry = policy.enabled && retriesUsed < maxRetries;
+  const normalizedRetriesUsed = Math.max(0, Math.trunc(retriesUsed));
+  const retry = policy.enabled && normalizedRetriesUsed < maxRetries;
   return {
     retry,
-    retryAttempt: run.attempt + 1,
+    executionAttempt: run.attempt + 1,
+    retryAttempt: normalizedRetriesUsed + 1,
     delayMs: retry
-      ? Math.max(0, Math.trunc(policy.baseDelayMs)) * 2 ** retriesUsed
+      ? Math.max(0, Math.trunc(policy.baseDelayMs)) * 2 ** normalizedRetriesUsed
       : 0,
     maxRetries,
   };

@@ -1,15 +1,15 @@
-<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="nerve-favicon-title">
-  <title id="nerve-favicon-title">Nerve</title>
+<svg width="512" height="512" viewBox="120 120 272 272" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="nerve-mark-title nerve-mark-desc">
   <style>
-    .mark-line { stroke: #0c0a09; }
-    .mark-dot { fill: #0c0a09; }
+    :root { color: #0c0a09; }
     @media (prefers-color-scheme: dark) {
-      .mark-line { stroke: #fbfaf9; }
-      .mark-dot { fill: #fbfaf9; }
+      :root { color: #fbfaf9; }
     }
   </style>
-  <path class="mark-line" d="M4 5v14" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" />
-  <path class="mark-line" d="M4 5l6 7-6 7" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" />
-  <path class="mark-line" d="M14 5l6 7-6 7" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" />
-  <circle class="mark-dot" cx="20" cy="12" r="1.125" />
+  <title id="nerve-mark-title">Nerve</title>
+  <desc id="nerve-mark-desc">An abstract N whose diagonal carries a nerve impulse.</desc>
+  <g id="nerve-mark" stroke="currentColor" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 350V162" />
+    <path d="M362 350V162" />
+    <path d="M150 162L222 226L246 194L272 300L296 262L362 350" />
+  </g>
 </svg>

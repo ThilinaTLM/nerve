@@ -15,7 +15,7 @@
     "directory": "packages/desktop-shell"
   },
   "homepage": "https://github.com/ThilinaTLM/nerve#readme",
-  "desktopName": "nerve-desktop",
+  "desktopName": "io.github.thilinatlm.nerve.desktop",
   "main": "dist/main.js",
   "bin": {
     "nerve-desktop": "./dist/bin.js"
@@ -28,7 +28,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "icons": "node scripts/generate-icons.mjs",
+    "icons": "node ../../scripts/generate-brand-assets.mjs --desktop",
     "build": "pnpm run icons && tsc -b && node scripts/copy-preload.mjs",
     "check": "tsc -b --pretty false",
     "test": "tsx --test \"test/**/*.test.ts\"",
@@ -36,17 +36,20 @@
     "build:deps": "pnpm --filter @nervekit/contracts --filter @nervekit/harness --filter @nervekit/tools build",
     "dev": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/workbench-server build && node ../../scripts/copy-workbench-app-dist-to-workbench-server.mjs && pnpm --filter @nervekit/desktop-shell build && node scripts/start-electron.mjs",
     "build:package": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/workbench-server build && node ../../scripts/copy-workbench-app-dist-to-workbench-server.mjs && pnpm --filter @nervekit/desktop-shell build && electron-builder --publish never",
+    "package:dir": "electron-builder --dir --publish never",
     "package:linux": "pnpm run build:deps && pnpm --filter @nervekit/workbench-app build && pnpm --filter @nervekit/workbench-server build && node ../../scripts/copy-workbench-app-dist-to-workbench-server.mjs && pnpm --filter @nervekit/desktop-shell build && electron-builder --linux AppImage deb rpm --publish never"
   },
   "dependencies": {
-    "@nervekit/workbench-server": "workspace:*",
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/workbench-server": "workspace:*"
+  },
+  "peerDependencies": {
     "electron": "^42.0.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "electron": "^42.0.0",
     "electron-builder": "^26.15.0",
-    "sharp": "^0.34.5",
     "tsx": "4.22.4",
     "typescript": "5.9.3"
   },

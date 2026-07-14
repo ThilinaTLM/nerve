@@ -1,3 +1,4 @@
+export { default as NerveMark } from "./components/brand/NerveMark.svelte";
 export { default as ConversationPaneLayout } from "./components/ConversationPaneLayout.svelte";
 export { default as ComposerEditor } from "./components/composer/ComposerEditor.svelte";
 export { default as ComposerModelPicker } from "./components/composer/ComposerModelPicker.svelte";

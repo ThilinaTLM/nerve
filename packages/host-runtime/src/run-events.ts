@@ -94,17 +94,33 @@ export class RunEventFactory {
     });
   }
 
+  resumed(
+    run: RunRecord,
+    now: string,
+    resumeKind: "interaction" | "manual",
+  ): RunPublicEventIntent {
+    return this.intent(run, "run.resumed", now, {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      projectId: run.projectId,
+      runId: run.runId,
+      attempt: run.attempt,
+      resumeKind,
+      resumedAt: now,
+    });
+  }
+
   retrying(
     run: RunRecord,
     now: string,
-    retry: { maxRetries: number; delayMs: number },
+    retry: { attempt: number; maxRetries: number; delayMs: number },
   ): RunPublicEventIntent {
     return this.intent(run, "run.retrying", now, {
       conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
       runId: run.runId,
-      attempt: run.attempt,
+      attempt: retry.attempt,
       maxRetries: retry.maxRetries,
       delayMs: retry.delayMs,
       retryAt: new Date(Date.parse(now) + retry.delayMs).toISOString(),

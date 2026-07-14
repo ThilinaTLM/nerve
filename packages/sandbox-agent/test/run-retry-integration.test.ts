@@ -73,7 +73,7 @@ describe("sandbox coordinator-owned provider retry", () => {
       const retry = state?.transitions
         .flatMap((transition) => transition.events)
         .find((event) => event.type === "run.retrying");
-      assert.equal((retry?.data as { attempt?: number }).attempt, 2);
+      assert.equal((retry?.data as { attempt?: number }).attempt, 1);
       assert.equal((retry?.data as { maxRetries?: number }).maxRetries, 3);
       assert.equal((retry?.data as { delayMs?: number }).delayMs, 2_000);
     } finally {

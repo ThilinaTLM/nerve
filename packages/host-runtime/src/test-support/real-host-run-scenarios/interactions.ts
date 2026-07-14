@@ -120,11 +120,17 @@ export async function runInteractionScenarios(
         "Plan interaction resolution/checkpoint ownership diverged",
       );
       invariant(
-        completed.transitions.filter((item) => item.kind === "retrying")
+        completed.transitions.filter((item) => item.kind === "resumed")
           .length === 2,
-        "Plan review did not continue exactly twice",
+        "Plan review did not resume exactly twice",
       );
-      assertions += 6;
+      invariant(
+        !completed.transitions
+          .flatMap((transition) => transition.events)
+          .some((event) => event.type === "run.retrying"),
+        "Plan review emitted a false retry event",
+      );
+      assertions += 7;
     },
   );
 
@@ -186,8 +192,14 @@ function assertResolvedContinuation(
     `${kind} resolution was not unique or checkpoint-owned`,
   );
   invariant(
-    state.transitions.filter((item) => item.kind === "retrying").length === 1,
-    `${kind} resolution did not continue exactly once`,
+    state.transitions.filter((item) => item.kind === "resumed").length === 1,
+    `${kind} resolution did not resume exactly once`,
+  );
+  invariant(
+    !state.transitions
+      .flatMap((transition) => transition.events)
+      .some((event) => event.type === "run.retrying"),
+    `${kind} resolution emitted a false retry event`,
   );
 }
 

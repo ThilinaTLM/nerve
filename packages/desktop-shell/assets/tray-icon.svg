@@ -1,9 +1,0 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="nerve-tray-icon-title">
-  <title id="nerve-tray-icon-title">Nerve</title>
-  <g transform="scale(2.6666667)" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M4 5v14" />
-    <path d="M4 5l6 7-6 7" />
-    <path d="M14 5l6 7-6 7" />
-    <circle cx="20" cy="12" r="1.125" fill="currentColor" stroke="none" />
-  </g>
-</svg>

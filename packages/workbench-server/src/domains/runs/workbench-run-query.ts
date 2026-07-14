@@ -1,4 +1,7 @@
-import type { ConversationActiveRunSnapshot } from "@nervekit/contracts";
+import type {
+  ConversationActiveRunSnapshot,
+  ConversationRunRetrySnapshot,
+} from "@nervekit/contracts";
 import { ACTIVE_STATUSES, type RunHydratedState } from "@nervekit/host-runtime";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
@@ -27,15 +30,16 @@ export class WorkbenchRunQuery {
     if (!canonical) return undefined;
     const transient =
       this.state.conversationRuntime.snapshotForConversation(conversationId);
+    const retry = retrySnapshot(canonical);
     return {
       runId: canonical.run.runId,
       agentId: canonical.run.agentId,
       projectId: canonical.run.projectId,
       conversationId: canonical.run.conversationId,
-      status:
-        canonical.run.status === "retrying" ||
-        canonical.run.status === "interrupted" ||
-        canonical.run.status === "cancellation_failed"
+      status: retry
+        ? "retrying"
+        : canonical.run.status === "interrupted" ||
+            canonical.run.status === "cancellation_failed"
           ? "retrying"
           : canonical.run.status === "cancellation_requested"
             ? "aborting"
@@ -46,16 +50,43 @@ export class WorkbenchRunQuery {
       queuedPrompts: canonical.prompts.filter(
         (prompt) => prompt.status === "queued" || prompt.status === "accepted",
       ),
-      retry:
-        canonical.run.status === "retrying"
-          ? {
-              attempt: canonical.run.attempt,
-              maxRetries: Math.max(canonical.run.attempt, 3),
-              delayMs: 0,
-              retryAt: canonical.run.updatedAt,
-              errorMessage: canonical.run.failure?.message,
-            }
-          : undefined,
+      retry,
     };
   }
+}
+
+function retrySnapshot(
+  state: RunHydratedState,
+): ConversationRunRetrySnapshot | undefined {
+  if (state.run.status !== "retrying" || !state.run.failure) return undefined;
+  const events = state.transitions.flatMap((transition) => transition.events);
+  let event: (typeof events)[number] | undefined;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (events[index]?.type === "run.retrying") {
+      event = events[index];
+      break;
+    }
+  }
+  if (!event || !event.data || typeof event.data !== "object") return undefined;
+  const data = event.data as Record<string, unknown>;
+  if (
+    typeof data.attempt !== "number" ||
+    typeof data.maxRetries !== "number" ||
+    typeof data.delayMs !== "number" ||
+    typeof data.retryAt !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    attempt: data.attempt,
+    maxRetries: data.maxRetries,
+    delayMs: data.delayMs,
+    retryAt: data.retryAt,
+    errorMessage:
+      typeof data.errorMessage === "string"
+        ? data.errorMessage
+        : state.run.failure.message,
+    failedEntryId:
+      typeof data.failedEntryId === "string" ? data.failedEntryId : undefined,
+  };
 }

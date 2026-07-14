@@ -148,12 +148,20 @@
 .brand-mark {
   display: inline-flex;
   flex: none;
-  color: var(--foreground);
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-sm);
+  color: var(--background);
+  background: var(--foreground);
 }
 
 .brand-mark svg {
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 0.625rem;
+  height: 0.625rem;
+  /* Compensate for the mark's top-left visual weight at titlebar size. */
+  transform: translate(5%, 5%);
 }
 
 .divider,

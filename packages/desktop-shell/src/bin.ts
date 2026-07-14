@@ -7,6 +7,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { DESKTOP_APP_ID } from "./desktop-identity.js";
 import {
   formatElectronDownloadFailure,
   formatProxyPreparationForLog,
@@ -103,7 +104,7 @@ const fontRenderHinting = resolveElectronFontRenderHinting(
   process.env.NERVE_ELECTRON_FONT_RENDER_HINTING,
 );
 const linuxSwitches = [
-  "--class=nerve",
+  `--class=${DESKTOP_APP_ID}`,
   ...(ozonePlatform ? [`--ozone-platform=${ozonePlatform}`] : []),
   ...(fontRenderHinting && fontRenderHinting !== "system"
     ? [`--font-render-hinting=${fontRenderHinting}`]

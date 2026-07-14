@@ -6,8 +6,15 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const desktopPackageDir = join(repoRoot, "packages", "desktop");
+const desktopPackageDir = join(repoRoot, "packages", "desktop-shell");
 const iconBuildDir = join(desktopPackageDir, "build", "icons");
+const windowsAppIconPath = join(
+  desktopPackageDir,
+  "build",
+  "windows",
+  "app.ico",
+);
+const developmentDesktopId = "io.github.thilinatlm.nerve-v2";
 const iconSizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 
 const options = parseArgs(process.argv.slice(2));
@@ -72,7 +79,7 @@ exec ${shellQuote(options.pnpm)} desktop
     await mkdir(iconDir, { recursive: true });
     await copyFile(
       join(iconBuildDir, `${size}x${size}.png`),
-      join(iconDir, "nerve.png"),
+      join(iconDir, `${developmentDesktopId}.png`),
     );
   }
 
@@ -81,16 +88,16 @@ exec ${shellQuote(options.pnpm)} desktop
     `[Desktop Entry]
 Version=1.0
 Type=Application
-Name=Nerve
-GenericName=AI coding harness
-Comment=UI-first personal AI coding harness.
+Name=Nerve v2
+GenericName=AI coding harness development launcher
+Comment=Isolated Nerve v2 desktop development launcher.
 Exec=${desktopExecQuote(paths.launcherPath)}
 TryExec=${desktopStringValue(paths.launcherPath)}
-Icon=nerve
+Icon=${developmentDesktopId}
 Terminal=false
 Categories=Development;
 StartupNotify=true
-StartupWMClass=nerve
+StartupWMClass=${developmentDesktopId}
 Keywords=AI;Coding;Agent;Developer;Nerve;
 `,
   );
@@ -110,9 +117,15 @@ async function uninstallLinux() {
   await rm(paths.launcherPath, { force: true });
 
   for (const size of iconSizes) {
-    await rm(join(paths.hicolorDir, `${size}x${size}`, "apps", "nerve.png"), {
-      force: true,
-    });
+    await rm(
+      join(
+        paths.hicolorDir,
+        `${size}x${size}`,
+        "apps",
+        `${developmentDesktopId}.png`,
+      ),
+      { force: true },
+    );
   }
 
   await removeLegacyLinuxDevInstall(paths);
@@ -125,6 +138,7 @@ async function uninstallLinux() {
 
 async function installWindows() {
   const paths = windowsPaths();
+  ensureGeneratedIcons();
 
   await mkdir(paths.installDir, { recursive: true });
   await mkdir(paths.startMenuDir, { recursive: true });
@@ -222,9 +236,9 @@ function linuxPaths() {
   return {
     applicationsDir,
     binHome,
-    desktopPath: join(applicationsDir, "nerve.desktop"),
+    desktopPath: join(applicationsDir, `${developmentDesktopId}.desktop`),
     hicolorDir,
-    launcherPath: join(binHome, "nerve-desktop"),
+    launcherPath: join(binHome, "nerve-desktop-v2"),
     legacyDesktopPath: join(applicationsDir, "nerve-dev.desktop"),
     legacyLauncherPath: join(binHome, "nerve-desktop-dev"),
   };
@@ -233,7 +247,7 @@ function linuxPaths() {
 function windowsPaths() {
   const localAppData = windowsUserPath("LOCALAPPDATA", "Local");
   const appData = windowsUserPath("APPDATA", "Roaming");
-  const installDir = join(localAppData, "Nerve");
+  const installDir = join(localAppData, "Nerve-v2");
   const startMenuDir = join(
     appData,
     "Microsoft",
@@ -244,8 +258,8 @@ function windowsPaths() {
 
   return {
     installDir,
-    launcherPath: join(installDir, "nerve-desktop.cmd"),
-    shortcutPath: join(startMenuDir, "Nerve.lnk"),
+    launcherPath: join(installDir, "nerve-desktop-v2.cmd"),
+    shortcutPath: join(startMenuDir, "Nerve v2.lnk"),
     startMenuDir,
   };
 }
@@ -271,6 +285,12 @@ function ensureGeneratedIcons() {
       );
     }
   }
+
+  if (!existsSync(windowsAppIconPath)) {
+    throw new Error(
+      `Missing generated icon ${windowsAppIconPath}. Run pnpm --filter @nervekit/desktop-shell icons first.`,
+    );
+  }
 }
 
 function createWindowsShortcut(paths) {
@@ -278,12 +298,14 @@ function createWindowsShortcut(paths) {
 $shortcutPath = ${psQuote(paths.shortcutPath)}
 $targetPath = ${psQuote(paths.launcherPath)}
 $workingDirectory = ${psQuote(repoRoot)}
-$description = 'Nerve desktop development launcher'
+$description = 'Nerve v2 desktop development launcher'
+$iconPath = ${psQuote(windowsAppIconPath)}
 $wsh = New-Object -ComObject WScript.Shell
 $shortcut = $wsh.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $targetPath
 $shortcut.WorkingDirectory = $workingDirectory
 $shortcut.Description = $description
+$shortcut.IconLocation = $iconPath
 $shortcut.Save()
 `;
   const encodedScript = Buffer.from(script, "utf16le").toString("base64");

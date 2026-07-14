@@ -75,6 +75,12 @@ jobs:
       - name: Build release artifacts
         run: pnpm release:build
 
+      - name: Package unpacked desktop bundle
+        run: pnpm --filter @nervekit/desktop-shell package:dir
+
+      - name: Smoke packaged desktop identity and assets
+        run: pnpm release:smoke:desktop-package
+
       - name: Pack npm tarballs
         run: node scripts/pack-npm.mjs
 

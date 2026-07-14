@@ -1,8 +1,8 @@
 <script lang="ts">
-import Boxes from "@lucide/svelte/icons/boxes";
 import Plus from "@lucide/svelte/icons/plus";
 import Settings from "@lucide/svelte/icons/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { NerveMark } from "@nervekit/workbench-ui";
 import { WorkbenchTitlebar } from "@nervekit/workbench-ui/components/workbench";
 import { useSandboxCenter } from "../../state/sandbox-center.svelte";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
@@ -17,7 +17,7 @@ const settingsActive = $derived(center.mode === "settings");
 <WorkbenchTitlebar>
   {#snippet left()}
     <span class="brand">
-      <Boxes size={19} strokeWidth={2.1} aria-hidden="true" />
+      <span class="brand-mark"><NerveMark compact /></span>
       <span class="project-button-label">Sandbox</span>
     </span>
     <span class="divider" aria-hidden="true"></span>

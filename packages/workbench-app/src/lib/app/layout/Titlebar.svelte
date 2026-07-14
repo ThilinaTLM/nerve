@@ -9,10 +9,10 @@ import Settings from "@lucide/svelte/icons/settings";
 import Square from "@lucide/svelte/icons/square";
 import X from "@lucide/svelte/icons/x";
 import { Toolbar } from "bits-ui";
+import { NerveMark } from "@nervekit/workbench-ui";
 import { WorkbenchTitlebar } from "@nervekit/workbench-ui/components/workbench";
 import type { ProjectRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import nerveMark from "$lib/assets/nerve-mark.svg?raw";
 
 type Props = {
   activeProject?: ProjectRecord;
@@ -54,8 +54,7 @@ let {
 <WorkbenchTitlebar {desktop}>
   {#snippet left()}
     <span class="brand">
-      <!-- eslint-disable-next-line svelte/no-at-html-tags -- Bundled local SVG asset; no user or API content is rendered. -->
-      <span class="brand-mark" aria-hidden="true">{@html nerveMark}</span>
+      <span class="brand-mark"><NerveMark compact /></span>
     </span>
     <span class="divider" aria-hidden="true"></span>
     <Button

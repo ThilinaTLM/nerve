@@ -11,6 +11,7 @@ import {
   ensureDaemon,
   type ManagedDaemon,
 } from "./daemon.js";
+import { DESKTOP_APP_ID, DESKTOP_APP_NAME } from "./desktop-identity.js";
 import type { BrowserWindowType } from "./electron.js";
 import { app, BrowserWindow, nativeTheme, session } from "./electron.js";
 import { chromiumLoopbackProxyBypassRules } from "./electron-download-env.js";
@@ -74,8 +75,8 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
-  app.setName("Nerve");
-  app.setAppUserModelId("io.github.thilinatlm.nerve");
+  app.setName(DESKTOP_APP_NAME);
+  app.setAppUserModelId(DESKTOP_APP_ID);
   registerDesktopIpc({
     getCloseToTray: () => closeToTray,
     setCloseToTray: (value) => {
@@ -369,7 +370,7 @@ function createMainWindow(): BrowserWindowType {
     minHeight: 640,
     autoHideMenuBar: true,
     frame: false,
-    title: "Nerve",
+    title: DESKTOP_APP_NAME,
     ...(process.platform === "darwin" ? {} : { icon: resolveAppIconPath() }),
     webPreferences: {
       contextIsolation: true,

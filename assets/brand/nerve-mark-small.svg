@@ -1,0 +1,9 @@
+<svg width="512" height="512" viewBox="120 120 272 272" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="nerve-mark-small-title nerve-mark-small-desc">
+  <title id="nerve-mark-small-title">Nerve</title>
+  <desc id="nerve-mark-small-desc">A simplified Nerve impulse mark optimized for small sizes.</desc>
+  <g id="nerve-mark-small" stroke="currentColor" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 350V162" />
+    <path d="M362 350V162" />
+    <path d="M150 162L232 235L258 208L284 288L362 350" />
+  </g>
+</svg>

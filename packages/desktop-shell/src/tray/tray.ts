@@ -1,4 +1,5 @@
 import type { ManagedDaemon } from "../daemon.js";
+import { DESKTOP_APP_NAME, MACOS_TRAY_GUID } from "../desktop-identity.js";
 import type { BrowserWindowType, NativeImage, TrayType } from "../electron.js";
 import {
   clipboard,
@@ -34,8 +35,12 @@ export function createTrayController(
 
   function ensureTray(): void {
     if (tray) return;
-    tray = new Tray(createTrayIcon());
-    tray.setToolTip("Nerve");
+    const image = createTrayIcon();
+    tray =
+      process.platform === "darwin"
+        ? new Tray(image, MACOS_TRAY_GUID)
+        : new Tray(image);
+    tray.setToolTip(DESKTOP_APP_NAME);
     tray.on("click", () => {
       void dependencies.showMainWindow();
     });

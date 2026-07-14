@@ -32,7 +32,7 @@ const ozonePlatform = parseElectronOzonePlatform(
 );
 const commonSwitches = [`--user-data-dir=${join(nerveHome, "desktop")}`];
 const linuxSwitches = [
-  "--class=nerve-v2",
+  "--class=io.github.thilinatlm.nerve-v2",
   ...(ozonePlatform ? [`--ozone-platform=${ozonePlatform}`] : []),
 ];
 const electronArgs = [

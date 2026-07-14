@@ -2,6 +2,10 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, nativeTheme } from "../electron.js";
+import {
+  appIconAssetSegments,
+  trayIconAssetSegments,
+} from "./desktop-asset-names.js";
 
 export function resolvePreloadPath(): string {
   return join(dirname(fileURLToPath(import.meta.url)), "..", "preload.cjs");
@@ -13,17 +17,13 @@ export function resolvePackagedWebDistPath(): string | undefined {
 }
 
 export function resolveAppIconPath(): string {
-  return resolveDesktopAssetPath("build", "icons", "512x512.png");
+  return resolveDesktopAssetPath(...appIconAssetSegments(process.platform));
 }
 
 export function resolveTrayIconPath(): string {
-  const name =
-    process.platform === "darwin"
-      ? "tray-template.png"
-      : nativeTheme.shouldUseDarkColors
-        ? "tray-dark.png"
-        : "tray-light.png";
-  return resolveDesktopAssetPath("build", "tray", name);
+  return resolveDesktopAssetPath(
+    ...trayIconAssetSegments(process.platform, nativeTheme.shouldUseDarkColors),
+  );
 }
 
 function resolveDesktopAssetPath(...segments: string[]): string {
