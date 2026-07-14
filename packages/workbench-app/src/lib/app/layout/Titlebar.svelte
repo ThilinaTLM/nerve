@@ -1,7 +1,7 @@
 <script lang="ts">
 import Copy from "@lucide/svelte/icons/copy";
 import Folder from "@lucide/svelte/icons/folder";
-import KeyRound from "@lucide/svelte/icons/key-round";
+import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Logs from "@lucide/svelte/icons/logs";
 import Minus from "@lucide/svelte/icons/minus";
@@ -93,7 +93,7 @@ let {
         pressed={authActive}
         onclick={() => onOpenAuth?.()}
       >
-        <KeyRound size={16} strokeWidth={2.1} />
+        <CloudCog size={16} strokeWidth={2.1} />
       </Button>
       <Button
         variant="ghost"

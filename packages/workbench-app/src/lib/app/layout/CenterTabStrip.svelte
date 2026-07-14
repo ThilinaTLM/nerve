@@ -4,7 +4,7 @@ import Code2 from "@lucide/svelte/icons/code-2";
 import Copy from "@lucide/svelte/icons/copy";
 import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-import KeyRound from "@lucide/svelte/icons/key-round";
+import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import Logs from "@lucide/svelte/icons/logs";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Settings from "@lucide/svelte/icons/settings";
@@ -121,7 +121,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
     }
   } else if (tab.kind === "pr") model.icon = GitPullRequest;
   else if (tab.kind === "settings") model.icon = Settings;
-  else if (tab.kind === "auth") model.icon = KeyRound;
+  else if (tab.kind === "auth") model.icon = CloudCog;
   else if (tab.kind === "logs") model.icon = Logs;
 
   return model;
