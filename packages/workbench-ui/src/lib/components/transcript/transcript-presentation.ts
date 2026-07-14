@@ -1,8 +1,3 @@
-import type {
-  ApprovalWithToolCall,
-  PlanReviewRecord,
-  UserQuestionRecord,
-} from "../../state/tool-types";
 import type { TimelineItem } from "../../state/timeline";
 
 export type TimelineMessageItem = Extract<TimelineItem, { kind: "message" }>;
@@ -48,25 +43,3 @@ export function groupConsecutiveThinking(
   }
   return result;
 }
-
-export function toolNodeNeedsAttention(
-  node: TranscriptDisplayNode,
-  approvals: readonly ApprovalWithToolCall[],
-  pendingUserQuestion: UserQuestionRecord | undefined,
-  pendingPlanReview: PlanReviewRecord | undefined,
-): boolean {
-  if (node.kind !== "tool") return false;
-  const id = node.toolCall.id;
-  return (
-    (node.toolCall.status === "pending_approval" &&
-      approvals.some(
-        (approval) =>
-          approval.toolCallId === id && approval.status === "pending",
-      )) ||
-    (pendingUserQuestion?.toolCallId === id &&
-      pendingUserQuestion.status === "pending") ||
-    (pendingPlanReview?.toolCallId === id &&
-      pendingPlanReview.status === "pending")
-  );
-}
-

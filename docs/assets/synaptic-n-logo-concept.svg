@@ -1,0 +1,16 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Nerve — Synaptic N logo concept</title>
+  <desc id="desc">A monochrome rounded-square icon containing an abstract N made from a routed signal path interrupted by a central synapse.</desc>
+
+  <!-- App-icon backplate -->
+  <rect x="32" y="32" width="448" height="448" rx="120" fill="#0C0A09" />
+
+  <!-- A balanced routed signal with compact, optically matched shoulders. -->
+  <g stroke="#FAFAF9" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M146 352V176Q146 144 176 160L237 237" />
+    <path d="M275 275L336 352Q366 368 366 336V160" />
+  </g>
+
+  <!-- The rounded routing node joins both signal segments into one intentional path. -->
+  <rect x="236" y="236" width="40" height="40" rx="11" fill="#FAFAF9" />
+</svg>

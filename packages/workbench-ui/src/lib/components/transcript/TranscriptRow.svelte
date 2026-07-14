@@ -27,7 +27,6 @@ import type { TranscriptDisplayNode } from "./transcript-presentation";
 
 type Props = {
   node: TranscriptDisplayNode;
-  needsAttention?: boolean;
   sending: boolean;
   activeProject?: ProjectRecord;
   approvals?: ApprovalWithToolCall[];
@@ -62,7 +61,6 @@ type Props = {
 
 let {
   node,
-  needsAttention = false,
   sending,
   activeProject,
   approvals = [],
@@ -159,7 +157,6 @@ $effect(() => {
         {onAcceptPlanReview}
         {onAcceptPlanReviewInNewChat}
         {onRejectPlanReview}
-        {needsAttention}
       />
     </ContextMenu>
   </div>

@@ -1,0 +1,12 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Nerve — Impulse N concept</title>
+  <desc id="desc">The diagonal of the N carries a nerve impulse spike, fusing the letterform with a signal.</desc>
+
+  <rect x="32" y="32" width="448" height="448" rx="120" fill="#0C0A09" />
+
+  <g stroke="#FAFAF9" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 350V162" />
+    <path d="M362 350V162" />
+    <path d="M150 162L222 226L246 194L272 300L296 262L362 350" />
+  </g>
+</svg>

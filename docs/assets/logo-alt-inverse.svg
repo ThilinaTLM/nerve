@@ -1,0 +1,12 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Nerve — Inverse N concept</title>
+  <desc id="desc">A light tile with the routed synaptic N carved in dark, inverting the weight of the identity.</desc>
+
+  <rect x="32" y="32" width="448" height="448" rx="120" fill="#FAFAF9" />
+
+  <g stroke="#0C0A09" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M146 352V176Q146 144 176 160L237 237" />
+    <path d="M275 275L336 352Q366 368 366 336V160" />
+  </g>
+  <rect x="236" y="236" width="40" height="40" rx="11" fill="#0C0A09" />
+</svg>

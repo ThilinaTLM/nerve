@@ -1,11 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { TimelineItem } from "../../state/timeline";
-import type { ApprovalWithToolCall } from "../../state/tool-types";
-import {
-  groupConsecutiveThinking,
-  toolNodeNeedsAttention,
-} from "./transcript-presentation";
+import { groupConsecutiveThinking } from "./transcript-presentation";
 
 function thinkingNode(key: string, text: string, live = false): TimelineItem {
   return {
@@ -31,26 +27,6 @@ function messageNode(key: string, text: string): TimelineItem {
 }
 
 describe("transcript presentation", () => {
-  it("identifies tool calls that need attention", () => {
-    const attentionTool = {
-      kind: "tool",
-      key: "tool_1",
-      toolCall: {
-        id: "tool_1",
-        status: "pending_approval",
-      },
-    } as TimelineItem;
-    const approval = {
-      id: "approval_1",
-      toolCallId: "tool_1",
-      status: "pending",
-    } as ApprovalWithToolCall;
-    assert.equal(
-      toolNodeNeedsAttention(attentionTool, [approval], undefined, undefined),
-      true,
-    );
-  });
-
   it("groups consecutive thinking messages into one display node", () => {
     const toolNode = { kind: "tool", key: "tool_1" } as TimelineItem;
     const grouped = groupConsecutiveThinking([

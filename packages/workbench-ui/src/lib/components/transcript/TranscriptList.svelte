@@ -23,7 +23,6 @@ import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
 import {
   groupConsecutiveThinking,
-  toolNodeNeedsAttention,
   type TranscriptDisplayNode,
 } from "./transcript-presentation";
 
@@ -32,7 +31,6 @@ type TranscriptRowItem =
       kind: "timeline";
       key: string;
       node: TranscriptDisplayNode;
-      needsAttention: boolean;
     }
   | { kind: "waiting"; key: string }
   | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
@@ -140,19 +138,10 @@ let {
 const rows = $derived.by<TranscriptRowItem[]>(() => {
   const seenKeys = new Map<string, number>();
   const displayNodes = groupConsecutiveThinking(timeline);
-  const attention = displayNodes.map((node) =>
-    toolNodeNeedsAttention(
-      node,
-      approvals,
-      pendingUserQuestion,
-      pendingPlanReview,
-    ),
-  );
-  const result: TranscriptRowItem[] = displayNodes.map((node, index) => ({
+  const result: TranscriptRowItem[] = displayNodes.map((node) => ({
     kind: "timeline",
     key: uniqueRowKey(node.key, seenKeys),
     node,
-    needsAttention: attention[index] ?? false,
   }));
   if (sending && !hasLiveTimelineNodes) {
     result.push({ kind: "waiting", key: "__waiting__" });
@@ -275,7 +264,6 @@ const showEmptyRun = $derived(
       {#if item.kind === "timeline"}
         <TranscriptRow
           node={item.node}
-          needsAttention={item.needsAttention}
           {sending}
           hydrateToolBodies={active}
           {activeProject}

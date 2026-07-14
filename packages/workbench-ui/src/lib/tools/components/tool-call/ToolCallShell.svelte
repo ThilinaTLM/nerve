@@ -9,7 +9,6 @@ type Props = {
   toolCall: ToolCallDisplayRecord;
   presentation: ToolPresentation;
   bodyMode?: "output" | "interactive";
-  needsAttention?: boolean;
   onOpenDetails?: () => void;
   onOpenFile?: (path: string, line?: number) => void;
   children?: Snippet;
@@ -18,7 +17,6 @@ let {
   toolCall,
   presentation,
   bodyMode = "output",
-  needsAttention = false,
   onOpenDetails,
   onOpenFile,
   children,
@@ -52,7 +50,6 @@ const errorPreview = $derived(
   error={errorPreview}
   meta={presentation.meta}
   footer={bodyMode !== "interactive"}
-  {needsAttention}
   {detailsAction}
   {onOpenFile}
 >
