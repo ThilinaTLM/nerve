@@ -33,6 +33,29 @@ function assistantStorageEntry(id: string, text: string) {
   };
 }
 
+function assistantToolStorageEntry(
+  id: string,
+  toolCalls: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  }>,
+) {
+  return {
+    type: "message" as const,
+    id,
+    parentId: null,
+    timestamp: "2026-01-01T00:00:01.000Z",
+    message: {
+      role: "assistant",
+      content: toolCalls.map((toolCall) => ({
+        type: "toolCall" as const,
+        ...toolCall,
+      })),
+    },
+  };
+}
+
 function toolResultStorageEntry(
   id: string,
   options: { text?: string; isError?: boolean; toolName?: string } = {},
@@ -141,6 +164,58 @@ describe("MessageMirror assistant message correlation", () => {
     assert.equal(toolResult?.messageOrdinal, undefined);
     assert.equal(toolResult?.turnId, "turn_1");
     assert.equal(metaQueue.length, 0);
+  });
+
+  it("mirrors oversized tool calls as names-only public placeholders", async () => {
+    const path = "/home/test/.nerve-v2/plans/oversized-plan.md";
+    const content = "x".repeat(24_000);
+    const { mirror, storage, appended } = createMirror([
+      assistantToolStorageEntry("entry_large_call", [
+        { id: "call_large", name: "write", arguments: { path, content } },
+      ]),
+    ]);
+
+    const mirrored = await mirror.mirrorNewHarnessEntries(
+      agent,
+      storage,
+      new Set(),
+      { runId: "run_1", turnId: "turn_1" },
+    );
+    const entry = appended[0];
+    assert.equal(entry?.text, "[Tool call: write()]");
+    assert.doesNotMatch(entry?.text ?? "", /oversized-plan|x{100}/);
+    assert.equal(entry?.text.includes(path), false);
+    assert.equal(entry?.text.includes(content), false);
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "conversation.entry.appended",
+        {
+          conversationId: agent.conversationId,
+          agentId: agent.id,
+          runId: "run_1",
+          turnId: "turn_1",
+          entry: mirrored[0],
+        },
+        "workbench_server",
+      ),
+    );
+  });
+
+  it("normalizes unknown tool names to a bounded delimiter-safe fallback", async () => {
+    const maliciousName = `bad_tool)]${"x".repeat(24_000)}`;
+    const { mirror, storage, appended } = createMirror([
+      assistantToolStorageEntry("entry_unknown_call", [
+        { id: "call_read", name: "read", arguments: { path: "/tmp/a" } },
+        { id: "call_bad_1", name: maliciousName, arguments: {} },
+        { id: "call_bad_2", name: maliciousName, arguments: {} },
+      ]),
+    ]);
+
+    await mirror.mirrorNewHarnessEntries(agent, storage, new Set());
+
+    assert.equal(appended[0]?.text, "[Tool call: read(), unknown_tool()]");
+    assert.ok((appended[0]?.text.length ?? 0) < 128);
+    assert.equal(appended[0]?.text.includes(maliciousName), false);
   });
 
   it("mirrors successful large tool results as small public anchors", async () => {

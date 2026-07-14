@@ -117,6 +117,36 @@ describe("LiveToolDraftReconciler", () => {
     }
   });
 
+  it("projects oversized final arguments before publishing a done event", async () => {
+    const fx = setup();
+    const draft = fx.startDraft(0, "call_large", "write");
+
+    await fx.reconciler.reconcile(
+      assistant([
+        {
+          type: "toolCall",
+          id: "call_large",
+          name: "write",
+          arguments: {
+            path: "/tmp/large-plan.md",
+            content: "x".repeat(20_000),
+          },
+        },
+      ]),
+      [draft],
+    );
+
+    const data = fx.published.at(0)?.data as {
+      args?: { content?: string };
+    };
+    assert.ok((data.args?.content?.length ?? 0) <= 8 * 1024);
+    const block = fx.blocks().at(0);
+    assert.equal(block?.kind, "tool_call_draft");
+    if (block?.kind === "tool_call_draft") {
+      assert.ok(String(block.args?.content).length <= 8 * 1024);
+    }
+  });
+
   it("skips drafts already ended via toolcall_end", async () => {
     const fx = setup();
     const draft = fx.startDraft(0, "call_done", "read");

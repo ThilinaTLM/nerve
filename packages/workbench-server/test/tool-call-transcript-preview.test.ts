@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { type ToolCallRecord, validatePublicEvent } from "@nervekit/contracts";
-import { toToolCallTranscriptRecord } from "../src/domains/tools/tool-call-transcript-preview.js";
+import {
+  toPublicToolCallArgsPreview,
+  toToolCallTranscriptRecord,
+} from "../src/domains/tools/tool-call-transcript-preview.js";
 
 function toolCall(overrides: Partial<ToolCallRecord>): ToolCallRecord {
   return {
@@ -28,6 +31,34 @@ function lines(prefix: string, count: number): string {
 }
 
 describe("toToolCallTranscriptRecord", () => {
+  it("bounds large live write arguments before public event validation", () => {
+    const args = toPublicToolCallArgsPreview({
+      path: "/tmp/large-plan.md",
+      content: "x".repeat(20_000),
+    });
+
+    assert.ok(String(args.content).length <= 8 * 1024);
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "conversation.live.tool_draft.done",
+        {
+          conversationId: "conv_test",
+          agentId: "agent_test",
+          projectId: "proj_test",
+          runId: "run_test",
+          turnId: "turn_test",
+          liveMessageId: "msg_test",
+          contentBlockId: "block_test",
+          contentIndex: 0,
+          providerToolCallId: "call_test",
+          toolName: "write",
+          args,
+        },
+        "workbench_server",
+      ),
+    );
+  });
+
   it("omits full args/result and previews bash input head plus output tail", () => {
     const preview = toToolCallTranscriptRecord(
       toolCall({

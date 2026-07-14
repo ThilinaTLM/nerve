@@ -800,6 +800,7 @@ function applyToolDraftDone(
   ts: string,
 ): void {
   upsertToolDraft(state, data, ts, {
+    argsText: "",
     args: data.args,
     done: true,
     providerToolCallId: data.providerToolCallId,
@@ -807,6 +808,7 @@ function applyToolDraftDone(
   });
   const block = ensureActiveToolDraftBlock(state, data, ts);
   if (block) {
+    block.argsText = "";
     block.args = data.args;
     block.done = true;
     block.providerToolCallId = data.providerToolCallId;

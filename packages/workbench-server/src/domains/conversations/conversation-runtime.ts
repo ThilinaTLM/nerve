@@ -336,6 +336,7 @@ export class ConversationRuntime {
     block.toolName = input.toolName;
     block.args = input.args;
     block.done = true;
+    block.argsText = "";
     this.rememberToolAnchor(input, input.providerToolCallId);
     return {
       conversationId: run.conversationId,

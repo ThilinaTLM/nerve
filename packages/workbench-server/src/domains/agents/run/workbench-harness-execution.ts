@@ -33,7 +33,10 @@ import {
   createAgentToolsForAgent,
   toolPromptMetadata,
 } from "../../tools/agent-tool-adapter.js";
-import { toToolCallTranscriptRecord } from "../../tools/tool-call-transcript-preview.js";
+import {
+  toPublicToolCallArgsPreview,
+  toToolCallTranscriptRecord,
+} from "../../tools/tool-call-transcript-preview.js";
 import type { WorkbenchLiveExecutionControl } from "../../runs/run-live-executions.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
@@ -473,7 +476,7 @@ export async function executeWorkbenchHarness(
             contentIndex: update.contentIndex,
             providerToolCallId: update.toolCall.id,
             toolName: update.toolCall.name,
-            args: update.toolCall.arguments,
+            args: toPublicToolCallArgsPreview(update.toolCall.arguments),
           });
           await this.deps.events.publish(
             "conversation.live.tool_draft.done",

@@ -117,6 +117,13 @@ describe("ConversationRuntime", () => {
 
     assert.equal(delta.offset, 0);
     assert.equal(done.contentBlockId, started.contentBlockId);
+    const finishedBlock =
+      runtime.snapshotForConversation("conv_test")?.turns[0]?.messages[0]
+        ?.blocks[0];
+    assert.equal(finishedBlock?.kind, "tool_call_draft");
+    if (finishedBlock?.kind === "tool_call_draft") {
+      assert.equal(finishedBlock.argsText, "");
+    }
     assert.deepEqual(runtime.resolveToolAnchor(run.runId, "provider_tool_1"), {
       runId: run.runId,
       turnId: message.turnId,

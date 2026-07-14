@@ -5,7 +5,11 @@ import type {
   ConversationTreeNode,
   ToolCallTranscriptRecord,
 } from "$lib/api";
-import { buildHistoryGraph, classifyHistoryEntry } from "./history-graph";
+import {
+  buildHistoryGraph,
+  classifyHistoryEntry,
+  parseToolCallNames,
+} from "./history-graph";
 
 function entry(
   id: string,
@@ -120,23 +124,34 @@ describe("classifyHistoryEntry", () => {
     assert.equal(d.badges.length, 1);
   });
 
-  it("classifies a tool call placeholder", () => {
+  it("parses new names-only and historical argument-bearing placeholders", () => {
+    assert.deepEqual(parseToolCallNames("[Tool call: read(), ask_user()]"), [
+      "read",
+      "ask_user",
+    ]);
+    assert.deepEqual(
+      parseToolCallNames('[Tool call: bash({"command":"ls"})]'),
+      ["bash"],
+    );
+  });
+
+  it("classifies a names-only tool call placeholder", () => {
     const d = classifyHistoryEntry(
       entry("a", {
         role: "assistant",
-        text: '[Tool call: bash({"command":"ls"})]',
+        text: "[Tool call: write()]",
       }),
       noTools,
     );
     assert.equal(d.type, "tool_call");
-    assert.equal(d.label, "bash");
+    assert.equal(d.label, "write");
   });
 
-  it("flags interaction tool calls as human-in-the-loop", () => {
+  it("flags names-only interaction tool calls as human-in-the-loop", () => {
     const d = classifyHistoryEntry(
       entry("a", {
         role: "assistant",
-        text: '[Tool call: ask_user({"question":"ok?"})]',
+        text: "[Tool call: ask_user()]",
       }),
       noTools,
     );

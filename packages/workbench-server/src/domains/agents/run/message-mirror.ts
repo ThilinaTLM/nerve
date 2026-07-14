@@ -3,11 +3,12 @@ import type {
   ConversationTreeEntry,
   JsonlConversationStorage,
 } from "@nervekit/host-runtime/harness";
-import type {
-  AgentRecord,
-  ConversationEntry,
-  ConversationEntryUsage,
-  ConversationRecord,
+import {
+  type AgentRecord,
+  type ConversationEntry,
+  type ConversationEntryUsage,
+  type ConversationRecord,
+  toolNameSchema,
 } from "@nervekit/contracts";
 import type { EventBus } from "../../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
@@ -281,6 +282,22 @@ function entryKind(message: AgentMessage): ConversationEntry["kind"] {
   return "message";
 }
 
+const UNKNOWN_TOOL_PLACEHOLDER_NAME = "unknown_tool";
+
+function toolCallPlaceholder(rawNames: readonly unknown[]): string {
+  const names = [
+    ...new Set(
+      rawNames.map((name) => {
+        const parsed = toolNameSchema.safeParse(name);
+        return parsed.success ? parsed.data : UNKNOWN_TOOL_PLACEHOLDER_NAME;
+      }),
+    ),
+  ];
+  return names.length > 0
+    ? `[Tool call: ${names.map((name) => `${name}()`).join(", ")}]`
+    : "";
+}
+
 export function agentMessageText(message: AgentMessage): string {
   if (message.role === "harness") return message.content;
   if (message.role === "user") {
@@ -296,10 +313,10 @@ export function agentMessageText(message: AgentMessage): string {
       .map((part) => part.text)
       .join("\n");
     if (text.trim()) return text;
-    const toolCalls = message.content
+    const toolCallNames = message.content
       .filter((part) => part.type === "toolCall")
-      .map((part) => `${part.name}(${JSON.stringify(part.arguments)})`);
-    return toolCalls.length > 0 ? `[Tool call: ${toolCalls.join(", ")}]` : "";
+      .map((part) => part.name);
+    return toolCallPlaceholder(toolCallNames);
   }
   if (message.role === "toolResult") {
     if (!message.isError) return `[Tool result: ${message.toolName}]`;

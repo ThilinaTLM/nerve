@@ -545,6 +545,16 @@ function metadataOnlyFallback(
   };
 }
 
+/**
+ * Project raw provider tool arguments into the bounded, secret-safe shape used
+ * by public live-draft events. Full arguments remain in the durable tool record.
+ */
+export function toPublicToolCallArgsPreview(
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  return record(finalizePublicPreview(args, undefined).argsPreview);
+}
+
 export function toToolCallTranscriptRecord(
   toolCall: ToolCallRecord,
 ): ToolCallTranscriptRecord {

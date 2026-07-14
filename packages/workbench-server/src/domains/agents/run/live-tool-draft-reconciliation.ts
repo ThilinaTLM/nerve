@@ -1,5 +1,6 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ConversationRuntime } from "@nervekit/contracts";
+import { toPublicToolCallArgsPreview } from "../../tools/tool-call-transcript-preview.js";
 import {
   type AssistantToolCallSnapshot,
   assistantToolCallSnapshots,
@@ -79,7 +80,7 @@ export class LiveToolDraftReconciler {
       contentIndex: draft.contentIndex,
       providerToolCallId,
       toolName,
-      args: finalToolCall.arguments,
+      args: toPublicToolCallArgsPreview(finalToolCall.arguments),
     });
     await this.deps.publish("conversation.live.tool_draft.done", data);
   }
