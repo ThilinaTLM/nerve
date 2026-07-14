@@ -16,7 +16,6 @@ import type {
 import {
   type AgentRecord,
   type ContextUsage,
-  type ConversationEntry,
   type ConversationRecord,
   type CreateAgentRequest,
   type PromptRequest,
@@ -73,15 +72,6 @@ export interface WorkbenchAgentMechanicsDeps {
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   startAutomaticRun(agent: AgentRecord, prompt: string): Promise<void>;
-  runChild(input: {
-    agent: AgentRecord;
-    prompt: string;
-    signal?: AbortSignal;
-  }): Promise<{
-    status: "completed" | "failed" | "cancelled";
-    entries: ConversationEntry[];
-    failureMessage?: string;
-  }>;
 }
 
 export class WorkbenchAgentMechanics {
@@ -94,12 +84,16 @@ export class WorkbenchAgentMechanics {
     this.subagents = new SubagentRunner({
       storage: deps.storage,
       events: deps.events,
+      auth: deps.auth,
+      tools: deps.tools,
+      harnessStorage: deps.harnessStorage,
       createAgent: deps.createAgent,
+      setAgentStatus: deps.setAgentStatus,
       getConversation: (conversationId) =>
         deps.state.getConversation(conversationId),
       updateConversation: deps.updateConversation,
+      subscriptionUsage: deps.subscriptionUsage,
       logger: deps.logger.child({ component: "subagent-runner" }),
-      runChild: deps.runChild,
     });
     this.inlineCommands = new InlineCommandRunner(deps);
     this.autoCompaction = new AutoCompactionRunner(

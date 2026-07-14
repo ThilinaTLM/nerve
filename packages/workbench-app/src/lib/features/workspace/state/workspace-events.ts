@@ -7,6 +7,10 @@ import {
   upsertAgentRecordFresh,
 } from "./entity-reducers";
 import { loadWorkspaceState } from "./workspace-actions.svelte";
+import {
+  runtimeAgentStatusFromEvent,
+  shouldRefreshWorkspace,
+} from "./workspace-event-policy";
 
 const WORKSPACE_REFRESH_DEBOUNCE_MS = 150;
 let workspaceRefreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -59,62 +63,7 @@ function agentRecordFromEvent(value: unknown): AgentRecord | undefined {
 }
 
 function patchRuntimeAgentStatus(event: WorkbenchEvent): void {
-  const agentId = stringValue(event.data?.agentId);
-  switch (event.type) {
-    case "run.started":
-      patchKnownAgentStatus(agentId, "running", event.ts);
-      break;
-    case "run.suspended":
-      patchKnownAgentStatus(agentId, "awaiting_user", event.ts);
-      break;
-    case "run.completed":
-      patchKnownAgentStatus(agentId, "idle", event.ts);
-      break;
-    case "run.failed":
-      patchKnownAgentStatus(
-        agentId,
-        event.data?.aborted ? "aborted" : "error",
-        event.ts,
-      );
-      break;
-  }
-}
-
-export function shouldRefreshWorkspace(type: string): boolean {
-  return (
-    type === "conversation.created" ||
-    type === "conversation.updated" ||
-    type === "conversation.deleted" ||
-    type === "conversation.compacted" ||
-    type === "conversation.branch_summarized" ||
-    type === "conversation.navigated" ||
-    type === "project.deleted" ||
-    type === "agent.created" ||
-    type === "agent.configured" ||
-    type === "agent.status_changed" ||
-    type.startsWith("agent.subagent_") ||
-    type.startsWith("agent.explore_") ||
-    type === "project.created" ||
-    type.startsWith("approval.") ||
-    type.startsWith("userQuestion.") ||
-    type.startsWith("planReview.") ||
-    type === "plan.written" ||
-    type === "agent.mode_changed" ||
-    type === "toolCall.updated" ||
-    type === "run.started" ||
-    type === "run.completed" ||
-    type === "run.failed" ||
-    type === "run.suspended" ||
-    type.startsWith("task.") ||
-    shouldRefreshSettings(type)
-  );
-}
-
-export function shouldRefreshSettings(type: string): boolean {
-  return (
-    type.startsWith("settings.") ||
-    type.startsWith("secrets.") ||
-    type.startsWith("auth.") ||
-    type.startsWith("providers.")
-  );
+  const status = runtimeAgentStatusFromEvent(event.type, event.data);
+  if (!status) return;
+  patchKnownAgentStatus(stringValue(event.data?.agentId), status, event.ts);
 }

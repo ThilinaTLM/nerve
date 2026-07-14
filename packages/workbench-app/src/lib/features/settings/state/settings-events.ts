@@ -1,5 +1,5 @@
 import { onAnyEvent, type WorkbenchEvent } from "$lib/core/events/event-bus";
-import { shouldRefreshSettings } from "$lib/features/workspace/state/workspace-events";
+import { shouldRefreshSettings } from "$lib/features/workspace/state/workspace-event-policy";
 import {
   hasPendingSettingsSave,
   loadSettingsPanel,

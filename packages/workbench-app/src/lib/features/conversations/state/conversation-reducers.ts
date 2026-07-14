@@ -172,6 +172,7 @@ export function handleConversationEvent(
         : String(event.data?.message ?? "Agent error");
       break;
     }
+    case "run.waiting":
     case "run.suspended":
       removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = false;

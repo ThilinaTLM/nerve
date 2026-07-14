@@ -26,6 +26,7 @@ describe("conversation event routing", () => {
       "run.started",
       "run.completed",
       "run.failed",
+      "run.waiting",
       "run.suspended",
       "run.retrying",
       "toolCall.updated",

@@ -1,7 +1,4 @@
 <script lang="ts">
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
-import ChevronRight from "@lucide/svelte/icons/chevron-right";
-import { untrack } from "svelte";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import type { TranscriptItem } from "../../state/transcript-types";
@@ -26,67 +23,41 @@ const label = $derived(
   allRedactedEmpty ? "Reasoning unavailable" : "Reasoning",
 );
 
-// Historical groups mount collapsed. Live groups are forced open, then fold
-// as soon as generation completes; completed groups remain user-toggleable.
-let expanded = $state(
-  untrack(() => items.some((item) => item.live && !item.done)),
-);
-let previousLive = untrack(() => items.some((item) => item.live && !item.done));
-
-$effect(() => {
-  const currentLive = live;
-  if (currentLive) expanded = true;
-  else if (previousLive) expanded = false;
-  previousLive = currentLive;
-});
 </script>
 
 <div class="thinking-group" class:live>
-  <button
-    class="thinking-toggle"
-    type="button"
-    aria-expanded={expanded}
-    disabled={live}
-    onclick={() => (expanded = !expanded)}
-  >
-    {#if expanded}
-      <ChevronDown size={14} strokeWidth={2.2} aria-hidden="true" />
-    {:else}
-      <ChevronRight size={14} strokeWidth={2.2} aria-hidden="true" />
-    {/if}
+  <div class="thinking-label">
     <span>{label}</span>
     {#if items.length > 1}
       <span class="step-count">· {items.length} steps</span>
     {/if}
     {#if live}<span class="live-label">Thinking…</span>{/if}
-  </button>
+  </div>
 
-  {#if expanded}
-    <div class="thinking-content">
-      {#each items as item, index (item.id ?? index)}
-        {@const itemLive = Boolean(item.live && !item.done)}
-        <div class="thinking-step" class:step-live={itemLive}>
-          {#if item.redacted && !item.text}
-            <p class="redacted" class:live-caret={itemLive}>
-              Provider returned redacted thinking.
-            </p>
-          {:else}
-            <div class="step-markdown" class:live-caret={itemLive}>
-              <Markdown
-                text={item.text}
-                streaming={itemLive}
-                onCopy={notifyCopyResult}
-              />
-              {#if itemLive && !item.text}<span
-                  class="stream-caret"
-                  aria-hidden="true"
-                ></span>{/if}
-            </div>
-          {/if}
-        </div>
-      {/each}
-    </div>
-  {/if}
+  <div class="thinking-content">
+    {#each items as item, index (item.id ?? index)}
+      {@const itemLive = Boolean(item.live && !item.done)}
+      <div class="thinking-step" class:step-live={itemLive}>
+        {#if item.redacted && !item.text}
+          <p class="redacted" class:live-caret={itemLive}>
+            Provider returned redacted thinking.
+          </p>
+        {:else}
+          <div class="step-markdown" class:live-caret={itemLive}>
+            <Markdown
+              text={item.text}
+              streaming={itemLive}
+              onCopy={notifyCopyResult}
+            />
+            {#if itemLive && !item.text}<span
+                class="stream-caret"
+                aria-hidden="true"
+              ></span>{/if}
+          </div>
+        {/if}
+      </div>
+    {/each}
+  </div>
 </div>
 
 <style>
@@ -97,33 +68,14 @@ $effect(() => {
   line-height: 1.55;
 }
 
-.thinking-toggle {
+.thinking-label {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
   color: var(--muted-foreground);
   padding: 0.2rem 0.3rem;
   font-size: var(--text-xs);
   font-weight: 600;
-  cursor: pointer;
-}
-
-.thinking-toggle:disabled {
-  cursor: default;
-}
-
-.thinking-toggle:not(:disabled):hover,
-.thinking-toggle:focus-visible {
-  background: var(--muted);
-  color: var(--foreground);
-  outline: none;
-}
-
-.thinking-toggle:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 45%, transparent);
 }
 
 .step-count {

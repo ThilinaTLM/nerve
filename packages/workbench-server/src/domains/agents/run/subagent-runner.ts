@@ -1,8 +1,15 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import {
+  AgentHarness,
+  Conversation,
+  JsonlConversationStorage,
+  NodeExecutionEnv,
+  resolveAgentModel,
+} from "@nervekit/host-runtime/harness";
 import type {
   AgentRecord,
-  ConversationEntry,
   ConversationRecord,
   CreateAgentRequest,
   ExploreStepPayload,
@@ -16,24 +23,47 @@ import type {
 import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { EventBus } from "../../../infrastructure/events/index.js";
-import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
-import type { ExploreProgressUpdate } from "../../tools/tool-service.js";
+import {
+  type InitializedStorage,
+  pathExists,
+} from "../../../infrastructure/storage/index.js";
+import type { AuthManager } from "../../auth/index.js";
+import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
+import {
+  activeToolNamesForExploreAgent,
+  createAgentToolsForAgent,
+} from "../../tools/agent-tool-adapter.js";
+import type {
+  ExploreProgressUpdate,
+  ToolService,
+} from "../../tools/tool-service.js";
+import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
+import { loadHarnessResources } from "../prompting/resource-loader.js";
 
 export { exploreRunPlanArg, exploreSystemPrompt } from "./explore-helpers.js";
 
 import {
   abortError,
+  addExploreUsage,
+  asRecord,
+  assistantMessageText,
+  emptyExploreUsage,
+  exploreAssistantMetadata,
   exploreModelLabel,
+  exploreProgressFromHarnessEvent,
   exploreRunPlanArg,
   exploreSystemPrompt,
   exploreUserPrompt,
   formatExploreFailureReport,
   formatExploreReportFile,
   formatExploreReports,
+  messageRole,
   publishExploreProgress,
+  pushExploreStep,
   safeReportFileName,
   summaryPreview,
   throwIfAborted,
+  toolNameFromHarnessEvent,
 } from "./explore-helpers.js";
 
 export type SubagentHistoryMode = "fresh" | "copy_parent";
@@ -107,22 +137,21 @@ export interface ExploreReport {
 export interface SubagentRunnerDeps {
   storage: InitializedStorage;
   events: EventBus;
+  auth: AuthManager;
+  tools: ToolService;
+  harnessStorage: ConversationHarnessStorage;
   createAgent: (
     request: CreateAgentRequest,
     options?: { allowChildAuthorityExceed?: boolean },
   ) => Promise<AgentRecord>;
+  setAgentStatus: (
+    agent: AgentRecord,
+    status: AgentRecord["status"],
+  ) => Promise<void>;
   getConversation: (conversationId: string) => ConversationRecord;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
+  subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
-  runChild(input: {
-    agent: AgentRecord;
-    prompt: string;
-    signal?: AbortSignal;
-  }): Promise<{
-    status: "completed" | "failed" | "cancelled";
-    entries: ConversationEntry[];
-    failureMessage?: string;
-  }>;
 }
 
 export class SubagentRunner {
@@ -274,25 +303,112 @@ export class SubagentRunner {
       phase: "started",
       message: `Agent ${child.id} started.`,
     });
+
+    const runId = createId("run");
+    const steps: ExploreStepPayload[] = [];
+    let usage = emptyExploreUsage();
+    let modelId: string | undefined;
+    let stopReason: string | undefined;
+    let errorMessage: string | undefined;
+    let abortRequested = false;
+    let removeSignalListener: (() => void) | undefined;
     try {
       throwIfAborted(spec.signal);
-      const result = await this.deps.runChild({
-        agent: child,
-        prompt: spec.prompt,
-        signal: spec.signal,
+      await this.deps.setAgentStatus(child, "running");
+      const storage = await this.openChildStorage(child, spec.historyMode);
+      const conversation = new Conversation(storage);
+      const model = resolveAgentModel(child.model);
+      this.deps.subscriptionUsage.touchProvider(model.provider);
+      const env = new NodeExecutionEnv({
+        cwd: child.projectDir,
+        shellPath: this.deps.storage.settings.runtime.shellPath,
       });
-      const assistant = [...result.entries]
-        .reverse()
-        .find((entry) => entry.role === "assistant");
-      const report = assistant?.text.trim() ?? "";
-      if (result.status !== "completed" || !report) {
-        if (result.status === "cancelled" || spec.signal?.aborted) {
-          throw abortError();
+      const resources = await loadHarnessResources(child.projectDir);
+      const activeToolNames = activeToolNamesForExploreAgent();
+      const harness = new AgentHarness({
+        env,
+        conversation,
+        resources: { skills: resources.skills },
+        tools: createAgentToolsForAgent(child, this.deps.tools, {
+          runId,
+          hidden: true,
+          allowedToolNames: activeToolNames,
+        }),
+        activeToolNames,
+        model,
+        thinkingLevel: child.thinkingLevel,
+        getApiKeyAndHeaders: async (requestModel) => {
+          if (requestModel.provider === "nerve-faux") return undefined;
+          const apiKey = await this.deps.auth.getApiKey(requestModel.provider);
+          return apiKey ? { apiKey } : undefined;
+        },
+        systemPrompt: () => spec.systemPrompt,
+      });
+      harness.subscribe((event) => {
+        const update = exploreProgressFromHarnessEvent(event, child, spec);
+        if (update) {
+          publishExploreProgress(spec.onProgress, update);
+          if (
+            update.phase === "tool_call" ||
+            update.phase === "tool_result" ||
+            update.phase === "assistant"
+          ) {
+            pushExploreStep(steps, {
+              type: update.phase === "assistant" ? "assistant" : update.phase,
+              toolName: toolNameFromHarnessEvent(event),
+              message: update.message,
+              timestamp: new Date().toISOString(),
+            });
+          }
         }
+        const record = asRecord(event);
+        if (
+          record?.type === "message_end" &&
+          messageRole(record.message) === "assistant"
+        ) {
+          const metadata = exploreAssistantMetadata(
+            record.message as AssistantMessage,
+          );
+          if (metadata.usage) usage = addExploreUsage(usage, metadata.usage);
+          if (metadata.model) modelId = metadata.model;
+          if (metadata.stopReason) stopReason = metadata.stopReason;
+          if (metadata.errorMessage) errorMessage = metadata.errorMessage;
+        }
+      });
+      let abortPromise: Promise<unknown> | undefined;
+      const abortRun = async () => {
+        abortRequested = true;
+        abortPromise ??= harness.abort();
+        await abortPromise;
+      };
+      const onSignalAbort = () => {
+        void abortRun();
+      };
+      if (spec.signal) {
+        spec.signal.addEventListener("abort", onSignalAbort, { once: true });
+        removeSignalListener = () =>
+          spec.signal?.removeEventListener("abort", onSignalAbort);
+      }
+      throwIfAborted(spec.signal);
+      const assistant = await harness.prompt(spec.prompt);
+      if (usage.turns === 0) {
+        const metadata = exploreAssistantMetadata(assistant);
+        if (metadata.usage) usage = addExploreUsage(usage, metadata.usage);
+        if (metadata.model) modelId = metadata.model;
+        if (metadata.stopReason) stopReason = metadata.stopReason;
+        if (metadata.errorMessage) errorMessage = metadata.errorMessage;
+      }
+      if (abortRequested || assistant.stopReason === "aborted") {
+        throw abortError();
+      }
+      const report = assistantMessageText(assistant).trim();
+      if (assistant.stopReason === "error") {
         throw new Error(
-          result.failureMessage || "Explore agent completed without a report.",
+          errorMessage ?? report ?? "Explore agent stopped with an error.",
         );
       }
+      if (!report) throw new Error("Explore agent completed without a report.");
+      await this.deps.setAgentStatus(child, "idle");
       await this.deps.events.publish("agent.subagent_completed", {
         parentAgentId: spec.parent.id,
         childAgentId: child.id,
@@ -303,21 +419,18 @@ export class SubagentRunner {
         agent: child,
         status: "completed",
         report,
-        usage: assistant?.usage ? { ...assistant.usage, turns: 1 } : undefined,
-        model: exploreModelLabel(child.model),
+        usage: usage.turns > 0 ? usage : undefined,
+        model: modelId ?? exploreModelLabel(child.model),
         thinkingLevel: child.thinkingLevel,
-        stopReason: "stop",
-        steps: [
-          {
-            type: "assistant",
-            message: summaryPreview(report),
-            timestamp: assistant?.createdAt,
-          },
-        ],
+        stopReason,
+        errorMessage,
+        steps,
       };
     } catch (error) {
-      if (spec.signal?.aborted) throw abortError();
-      const message = error instanceof Error ? error.message : String(error);
+      const aborted = abortRequested || spec.signal?.aborted === true;
+      await this.deps
+        .setAgentStatus(child, aborted ? "aborted" : "error")
+        .catch(() => undefined);
       publishExploreProgress(spec.onProgress, {
         agentId: child.id,
         taskIndex: spec.taskIndex,
@@ -325,23 +438,35 @@ export class SubagentRunner {
         label: spec.label,
         thinkingLevel: child.thinkingLevel,
         phase: "failed",
-        message,
+        message: aborted
+          ? "Agent run aborted."
+          : error instanceof Error
+            ? error.message
+            : String(error),
       });
       await this.deps.logger.warn("Subagent run failed", {
         agentId: child.id,
         conversationId: child.conversationId,
         projectId: child.projectId,
+        runId,
+        context: { kind: spec.kind, aborted },
         error,
       });
+      if (aborted) throw abortError();
+      const message = error instanceof Error ? error.message : String(error);
       return {
         agent: child,
         status: "failed",
         report: formatExploreFailureReport(message),
-        model: exploreModelLabel(child.model),
+        usage: usage.turns > 0 ? usage : undefined,
+        model: modelId ?? exploreModelLabel(child.model),
         thinkingLevel: child.thinkingLevel,
-        errorMessage: message,
+        stopReason,
+        errorMessage: errorMessage ?? message,
+        steps,
       };
     } finally {
+      removeSignalListener?.();
       await this.deps.updateConversation({
         ...this.deps.getConversation(spec.parent.conversationId),
         activeAgentId: spec.parent.id,
@@ -349,6 +474,38 @@ export class SubagentRunner {
       });
     }
   }
+  private async openChildStorage(
+    child: AgentRecord,
+    historyMode: SubagentHistoryMode,
+  ): Promise<JsonlConversationStorage> {
+    const childDir = join(this.deps.storage.paths.home, "agents", child.id);
+    await mkdir(childDir, { recursive: true, mode: 0o700 });
+    const childPath = join(childDir, "conversation.jsonl");
+    const env = new NodeExecutionEnv({
+      cwd: child.projectDir,
+      shellPath: this.deps.storage.settings.runtime.shellPath,
+    });
+    if (historyMode === "copy_parent") {
+      const parentPath = this.deps.harnessStorage.conversationPath(
+        child.conversationId,
+      );
+      if ((await pathExists(parentPath)) && !(await pathExists(childPath))) {
+        await copyFile(parentPath, childPath);
+        return JsonlConversationStorage.open(env, childPath);
+      }
+    }
+    if (!(await pathExists(childPath))) {
+      return JsonlConversationStorage.create(env, childPath, {
+        cwd: child.projectDir,
+        conversationId: child.conversationId,
+        parentConversationPath: this.deps.harnessStorage.conversationPath(
+          child.conversationId,
+        ),
+      });
+    }
+    return JsonlConversationStorage.open(env, childPath);
+  }
+
   private async writeExploreReport(input: {
     batchId: string;
     task: ExploreTask;
