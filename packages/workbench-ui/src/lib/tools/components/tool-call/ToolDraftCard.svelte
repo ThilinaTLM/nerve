@@ -187,7 +187,7 @@ $effect(() => {
   display: grid;
   gap: 0.4rem;
   width: 100%;
-  padding: 0.6rem 0.75rem;
+  padding: 0.6rem 0;
   background: color-mix(in oklab, var(--background) 94%, var(--sidebar));
 }
 

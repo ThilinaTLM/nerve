@@ -15,24 +15,9 @@ type Props = {
 
 let { items }: Props = $props();
 
-const live = $derived(items.some((item) => item.live && !item.done));
-const allRedactedEmpty = $derived(
-  items.length > 0 && items.every((item) => item.redacted && !item.text),
-);
-const label = $derived(
-  allRedactedEmpty ? "Reasoning unavailable" : "Reasoning",
-);
 </script>
 
-<div class="thinking-group" class:live>
-  <div class="thinking-label">
-    <span>{label}</span>
-    {#if items.length > 1}
-      <span class="step-count">· {items.length} steps</span>
-    {/if}
-    {#if live}<span class="live-label">Thinking…</span>{/if}
-  </div>
-
+<div class="thinking-group">
   <div class="thinking-content">
     {#each items as item, index (item.id ?? index)}
       {@const itemLive = Boolean(item.live && !item.done)}
@@ -67,29 +52,7 @@ const label = $derived(
   line-height: 1.55;
 }
 
-.thinking-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  color: var(--muted-foreground);
-  padding: 0.2rem 0.3rem;
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.step-count {
-  color: var(--muted-foreground);
-  font-weight: 500;
-}
-
-.live-label {
-  color: var(--primary);
-  font-weight: 500;
-}
-
 .thinking-content {
-  margin-top: 0.35rem;
-  padding-left: 0.35rem;
   font-style: italic;
 }
 
