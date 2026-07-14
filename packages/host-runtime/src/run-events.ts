@@ -1,4 +1,5 @@
 import type {
+  ConversationEntry,
   PeerRole,
   QueuedPromptRecord,
   RunCheckpointRecord,
@@ -213,6 +214,26 @@ export class RunEventFactory {
       toolCallId: interaction.toolCallId,
       planReview: interaction.planReview,
     });
+  }
+
+  entryAppended(
+    run: RunRecord,
+    entry: ConversationEntry,
+  ): RunPublicEventIntent {
+    return this.intent(
+      run,
+      "conversation.entry.appended",
+      entry.createdAt,
+      {
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        runId: run.runId,
+        turnId: entry.turnId,
+        liveMessageId: entry.liveMessageId,
+        entry,
+      },
+      entry.id,
+    );
   }
 
   toolCallUpdated(

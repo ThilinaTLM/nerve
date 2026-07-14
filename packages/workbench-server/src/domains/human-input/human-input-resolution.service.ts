@@ -14,7 +14,6 @@ import type {
   UserQuestionRecord,
 } from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
@@ -34,7 +33,6 @@ export type AcceptPlanReviewInNewChatResult = {
 };
 
 export interface HumanInputResolutionDeps {
-  events: EventBus;
   tools: ToolService;
   plans: PlanService;
   runs: WorkbenchRunService;
@@ -269,7 +267,6 @@ export class HumanInputResolutionService {
       toolCall,
       toolCall.status !== "completed",
     );
-    await this.publishConversationEntryAppended(entry);
     await this.deps.runs.resolveInteractionForToolCall({
       toolCallId: toolCall.id,
       resolutionRequestId: `resolution_${createHash("sha256")
@@ -439,9 +436,6 @@ export class HumanInputResolutionService {
         ),
       );
     }
-    for (const entry of entries) {
-      await this.publishConversationEntryAppended(entry);
-    }
     const resolution =
       result && typeof result === "object" && !Array.isArray(result)
         ? (result as Record<string, unknown>)
@@ -574,19 +568,6 @@ export class HumanInputResolutionService {
       },
       { mirrorToHarness: false },
     );
-  }
-
-  private async publishConversationEntryAppended(
-    entry: ConversationEntry,
-  ): Promise<void> {
-    await this.deps.events.publish("conversation.entry.appended", {
-      conversationId: entry.conversationId,
-      agentId: entry.agentId,
-      runId: entry.runId,
-      turnId: entry.turnId,
-      liveMessageId: entry.liveMessageId,
-      entry,
-    });
   }
 
   private safeGetAgent(agentId: string): AgentRecord | undefined {

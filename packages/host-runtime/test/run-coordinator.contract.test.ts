@@ -97,6 +97,7 @@ function fixture(
 ) {
   const unitOfWork = new MemoryUnitOfWork();
   const published = new Map<string, { eventId: string; sequence: number }>();
+  const publicationAttempts: RunPublicEventIntent[] = [];
   const controls: Array<{ behavior: string; text: string }> = [];
   const controlPrompts: import("@nervekit/contracts").RunPromptRecord[] = [];
   const executions: RunExecution[] = [];
@@ -119,6 +120,7 @@ function fixture(
     unitOfWork,
     {
       publish: async (intent) => {
+        publicationAttempts.push(intent);
         if (options.publicationFails) throw new Error("journal unavailable");
         const existing = published.get(intent.id);
         if (existing) return existing;
@@ -209,6 +211,7 @@ function fixture(
     coordinator,
     unitOfWork,
     published,
+    publicationAttempts,
     controls,
     controlPrompts,
     executions,
@@ -217,6 +220,7 @@ function fixture(
     executionInputs,
     observed,
     finishExecution,
+    flushEvents: () => delivery.flush(),
     setTranscript(value: typeof transcript) {
       transcript = value;
     },
@@ -664,38 +668,59 @@ test("partial cancellation is persisted truthfully and is not called cancelled",
   );
 });
 
-test("validates durable events against each host producer role", async () => {
+test("execution sink journals and publishes durable entry events once", async () => {
   for (const sourceRole of [
     "sandbox_agent",
     "workbench_server",
   ] satisfies PeerRole[]) {
     const harness = fixture({ sourceRole });
-    const run = await start(harness.coordinator, `conv_a:agent_${sourceRole}`);
-    const state = await harness.coordinator.get(run.runId);
-    assert.equal(state?.transitions[0]?.events[0]?.type, "run.started");
-    assert.equal(harness.published.size, 1);
-  }
-});
-
-test("execution sink appends durable entries and tool calls under revision", async () => {
-  const harness = fixture();
-  const run = await start(harness.coordinator);
-  const sink = harness.sinks[0]!;
-  await sink.appendEntries([
-    {
-      id: "entry_a",
-      parentId: null,
-      role: "assistant",
+    const run = await start(harness.coordinator);
+    const entry = {
+      id: `entry_${sourceRole}`,
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      runId: run.runId,
+      turnId: `turn_${sourceRole}`,
+      liveMessageId: `msg_${sourceRole}`,
+      messageOrdinal: 2,
+      role: "assistant" as const,
+      kind: "message" as const,
+      text: "I should inspect the project.",
       createdAt: "2026-07-12T00:00:10.000Z",
-      content: [{ type: "text", text: "hi" }],
-    } as never,
-  ]);
-  const state = await harness.coordinator.get(run.runId);
-  const appended = state?.transitions.find(
-    (item) => item.kind === "entries_appended",
-  );
-  assert.equal(appended?.entries[0]?.id, "entry_a");
-  assert.equal(appended?.run.revision, state?.run.revision);
+    };
+
+    await harness.sinks[0]!.appendEntries([entry]);
+
+    const state = await harness.coordinator.get(run.runId);
+    const appended = state?.transitions.find(
+      (item) => item.kind === "entries_appended",
+    );
+    const entryEvents =
+      appended?.events.filter(
+        (event) => event.type === "conversation.entry.appended",
+      ) ?? [];
+    assert.equal(appended?.entries[0]?.id, entry.id);
+    assert.equal(appended?.run.revision, state?.run.revision);
+    assert.equal(entryEvents.length, 1);
+    assert.equal(entryEvents[0]?.occurredAt, entry.createdAt);
+    assert.match(entryEvents[0]?.id ?? "", new RegExp(`_${entry.id}$`));
+    assert.deepEqual(entryEvents[0]?.data, {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      runId: run.runId,
+      turnId: entry.turnId,
+      liveMessageId: entry.liveMessageId,
+      entry,
+    });
+    const publicationCount = () =>
+      harness.publicationAttempts.filter(
+        (event) => event.type === "conversation.entry.appended",
+      ).length;
+    assert.equal(publicationCount(), 1);
+
+    await harness.flushEvents();
+    assert.equal(publicationCount(), 1);
+  }
 });
 
 test("execution sink publishes bounded transient progress off the durable path", async () => {

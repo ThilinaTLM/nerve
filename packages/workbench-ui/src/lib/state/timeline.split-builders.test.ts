@@ -42,6 +42,79 @@ describe("buildConversationTimeline split builders", () => {
     );
   });
 
+  it("keeps active-run reasoning immediately before each completed tool", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Inspect the project" },
+    ];
+    const toolCalls = [
+      toolCall(
+        "tool_first",
+        "2026-01-01T00:00:01.000Z",
+        "read",
+        "provider_first",
+        {
+          runId: "run_active",
+          liveMessageId: "msg_first",
+          contentIndex: 1,
+          status: "completed",
+        },
+      ),
+      toolCall(
+        "tool_second",
+        "2026-01-01T00:00:03.000Z",
+        "bash",
+        "provider_second",
+        {
+          runId: "run_active",
+          liveMessageId: "msg_second",
+          contentIndex: 1,
+          status: "completed",
+        },
+      ),
+    ];
+    const live = liveState({
+      runId: "run_active",
+      messages: [
+        {
+          id: "live:msg_first:thinking:0",
+          role: "assistant",
+          displayKind: "thinking",
+          text: "I should inspect the file first.",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          contentIndex: 0,
+          live: false,
+          done: true,
+        },
+        {
+          id: "live:msg_second:thinking:0",
+          role: "assistant",
+          displayKind: "thinking",
+          text: "Now I should run the focused check.",
+          createdAt: "2026-01-01T00:00:02.000Z",
+          contentIndex: 0,
+          live: false,
+          done: true,
+        },
+      ],
+    });
+
+    const committed = buildCommittedTimeline(transcript, toolCalls, {
+      includeUnanchoredTerminalToolCalls: false,
+    });
+    const timeline = [
+      ...selectVisibleCommitted(committed.items, live),
+      ...buildLiveTimeline(live, committed.context),
+    ];
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "live:msg_first:thinking:0",
+      "tool_first",
+      "live:msg_second:thinking:0",
+      "tool_second",
+    ]);
+  });
+
   it("keeps the committed pass independent of live state", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Go" },

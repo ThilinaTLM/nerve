@@ -97,7 +97,9 @@ const activeProjectLabel = $derived(
 // identity changes (i.e. not during pure text streaming), so streaming tokens
 // only re-run the small live tail.
 const committed = $derived.by(() =>
-  buildCommittedTimeline(transcript, toolCalls),
+  buildCommittedTimeline(transcript, toolCalls, {
+    includeUnanchoredTerminalToolCalls: !liveState?.runId,
+  }),
 );
 const liveItems = $derived.by(() =>
   buildLiveTimeline(liveState, committed.context),

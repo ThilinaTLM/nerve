@@ -495,7 +495,6 @@ export function composeRuntime(
   });
   services.taskNotifications.start();
   services.humanInput = new HumanInputResolutionService({
-    events,
     tools: services.tools,
     plans: services.plans,
     runs: services.workbenchRun,

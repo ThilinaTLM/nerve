@@ -73,6 +73,10 @@ export async function runCompletionScenario(
       events.some((event) => event.type === "run.completed"),
       "Missing durable run.completed event",
     );
+    invariant(
+      events.some((event) => event.type === "conversation.entry.appended"),
+      "Missing durable conversation.entry.appended event",
+    );
     const snapshot = await session.snapshot(runId);
     invariant(snapshot.runId === runId, "Snapshot run identity mismatch");
     invariant(
@@ -80,7 +84,7 @@ export async function runCompletionScenario(
         JSON.stringify(durable),
       "Normalized snapshot diverged from the durable run journal",
     );
-    return { name: session.name, runs: 1, assertions: 10 };
+    return { name: session.name, runs: 1, assertions: 11 };
   } finally {
     await session.dispose();
   }

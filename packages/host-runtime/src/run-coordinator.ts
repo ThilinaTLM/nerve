@@ -513,16 +513,20 @@ export class RunCoordinator {
   ): Promise<void> {
     await this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
-      if (TERMINAL_STATUSES.has(state.run.status)) {
+      if (TERMINAL_STATUSES.has(state.run.status))
         throw invalid(state.run, kind);
-      }
       const next = revise(state.run, {}, this.now());
-      const events = changes.toolCalls?.map((toolCall) =>
-        this.events.toolCallUpdated(next, toolCall),
-      );
       await this.commit(state, next, kind, {
         ...changes,
-        events: [...(changes.events ?? []), ...(events ?? [])],
+        events: [
+          ...(changes.events ?? []),
+          ...(changes.entries ?? []).map((entry) =>
+            this.events.entryAppended(next, entry),
+          ),
+          ...(changes.toolCalls ?? []).map((toolCall) =>
+            this.events.toolCallUpdated(next, toolCall),
+          ),
+        ],
       });
     });
   }
@@ -576,9 +580,7 @@ export class RunCoordinator {
               abort.signal,
             );
           } catch (settlementError) {
-            // A host can be torn down while an async execution is settling.
-            // Never leak a fire-and-forget rejection; canonical state remains
-            // authoritative and recovery will reconcile if it still exists.
+            // Avoid leaking rejection during teardown; recovery reconciles state.
             this.ports.diagnostics?.error("run failure settlement failed", {
               runId: run.runId,
               error: errorMessage(settlementError),

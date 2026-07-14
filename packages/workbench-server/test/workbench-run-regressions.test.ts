@@ -67,7 +67,6 @@ describe("workbench coordinator behavior regressions", () => {
     const resolutions: Array<Record<string, unknown>> = [];
     const starts: Array<{ agentId: string; text: string }> = [];
     const service = new HumanInputResolutionService({
-      events: { publish: async () => ({}) },
       plans: {
         listPlanReviews: () => [review],
         acceptPlanReviewInNewChat: async () => ({
