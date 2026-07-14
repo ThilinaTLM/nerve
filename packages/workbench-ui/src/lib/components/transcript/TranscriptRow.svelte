@@ -132,7 +132,7 @@ $effect(() => {
 </script>
 
 {#if node.kind === "tool"}
-  <div class="activity-row">
+  <div class="relative min-w-0 px-3">
     <ContextMenu
       items={toolMenu(node.anchorEntryId, node.toolCall)}
       triggerClass="block min-w-0"
@@ -164,11 +164,13 @@ $effect(() => {
     </ContextMenu>
   </div>
 {:else if node.kind === "tool_draft"}
-  <div class="activity-row">
+  <div class="relative min-w-0 px-3">
     <ToolDraftCard draft={node.draft} cwd={activeProject?.dir} />
   </div>
 {:else if node.kind === "tool_result_error"}
-  <ToolResultErrorCard toolName={node.toolName} error={node.error} />
+  <div class="relative min-w-0 px-3">
+    <ToolResultErrorCard toolName={node.toolName} error={node.error} />
+  </div>
 {:else if node.kind === "run_status"}
   <RunStatusCard
     notice={node.notice}
@@ -231,11 +233,6 @@ $effect(() => {
 {/if}
 
 <style>
-.activity-row {
-  position: relative;
-  min-width: 0;
-}
-
 .transcript-entry {
   position: relative;
   width: 100%;
