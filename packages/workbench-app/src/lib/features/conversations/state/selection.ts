@@ -3,6 +3,7 @@ import {
   activeRunToLegacyLive,
   entriesToTranscript,
   liveTextFromLegacyLive,
+  materializedLiveMessagesFromEntries,
 } from "@nervekit/workbench-ui/state";
 import {
   type AgentRecord,
@@ -86,15 +87,8 @@ export async function refreshConversationView(conversationId: string) {
       (candidate) =>
         candidate.id === conversationId ? snapshot.conversation : candidate,
     );
-    const persistedLiveMessageIds = new Set(
-      snapshot.entries.flatMap((entry) =>
-        entry.role === "assistant" && entry.liveMessageId
-          ? [entry.liveMessageId]
-          : [],
-      ),
-    );
     view.live = activeRunToLegacyLive(snapshot.activeRun, {
-      excludeLiveMessageIds: persistedLiveMessageIds,
+      materialized: materializedLiveMessagesFromEntries(snapshot.entries),
     });
     view.streamingText = liveTextFromLegacyLive(view.live);
     view.sending = Boolean(snapshot.activeRun);

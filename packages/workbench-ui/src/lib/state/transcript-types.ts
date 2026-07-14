@@ -80,6 +80,9 @@ export type TranscriptItem = {
   done?: boolean;
   redacted?: boolean;
   contentIndex?: number;
+  /** Live coordinates (streaming items only); used for materialized draining. */
+  turnId?: string;
+  messageOrdinal?: number;
   toolCallId?: string;
   toolRecordId?: string;
   toolName?: string;
@@ -98,6 +101,9 @@ export type LiveToolCallDraft = {
   runId?: string;
   conversationId: string;
   contentIndex: number;
+  /** Live coordinates (streaming drafts only); used for materialized draining. */
+  turnId?: string;
+  messageOrdinal?: number;
   providerToolCallId?: string;
   toolName?: string;
   argsText: string;
@@ -132,6 +138,11 @@ export type LiveToolOutput = {
   };
 };
 
+export type LiveMessageMeta = {
+  turnId: string;
+  messageOrdinal: number;
+};
+
 export type ConversationLiveState = {
   runId?: string;
   messages: TranscriptItem[];
@@ -140,6 +151,12 @@ export type ConversationLiveState = {
   runStatus?: RunStatusNotice;
   compaction?: CompactionNotice;
   hiddenEntryIds?: string[];
+  /**
+   * Live coordinates by `liveMessageId`, recorded from
+   * `conversation.live.message.started`. Lets `entry.appended` drain stale
+   * blocks by per-turn ordinal watermark when id correlation misses.
+   */
+  messageMeta?: Record<string, LiveMessageMeta>;
 };
 
 export function emptyLiveState(runId?: string): ConversationLiveState {

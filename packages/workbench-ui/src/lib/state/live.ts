@@ -1,9 +1,127 @@
-import type { ConversationActiveRunSnapshot } from "@nervekit/contracts";
-import type { ConversationLiveState } from "./transcript-types";
+import type {
+  ConversationActiveRunSnapshot,
+  ConversationEntry,
+} from "@nervekit/contracts";
+import type {
+  ConversationLiveState,
+  LiveMessageMeta,
+  LiveToolCallDraft,
+  TranscriptItem,
+} from "./transcript-types";
+
+/**
+ * Live messages that have already been persisted as conversation entries.
+ * `liveMessageIds` covers exact-id correlation; `turnWatermarks` maps each
+ * `turnId` to the highest materialized `messageOrdinal`, so stale live blocks
+ * are drained structurally even when id correlation misses (messages within a
+ * turn always materialize in stream order).
+ */
+export type MaterializedLiveMessages = {
+  liveMessageIds: Set<string>;
+  turnWatermarks: Map<string, number>;
+};
 
 export type ActiveRunLiveOptions = {
-  excludeLiveMessageIds?: Iterable<string>;
+  materialized?: MaterializedLiveMessages;
 };
+
+export function emptyMaterializedLiveMessages(): MaterializedLiveMessages {
+  return { liveMessageIds: new Set(), turnWatermarks: new Map() };
+}
+
+/** Collect materialized live-message coordinates from persisted entries. */
+export function materializedLiveMessagesFromEntries(
+  entries: Iterable<
+    Pick<
+      ConversationEntry,
+      "role" | "turnId" | "liveMessageId" | "messageOrdinal"
+    >
+  >,
+): MaterializedLiveMessages {
+  const materialized = emptyMaterializedLiveMessages();
+  for (const entry of entries) {
+    if (entry.role !== "assistant") continue;
+    if (entry.liveMessageId)
+      materialized.liveMessageIds.add(entry.liveMessageId);
+    if (entry.turnId && typeof entry.messageOrdinal === "number") {
+      const current = materialized.turnWatermarks.get(entry.turnId);
+      if (current === undefined || entry.messageOrdinal > current) {
+        materialized.turnWatermarks.set(entry.turnId, entry.messageOrdinal);
+      }
+    }
+  }
+  return materialized;
+}
+
+function isMaterializedMessage(
+  materialized: MaterializedLiveMessages | undefined,
+  message: { liveMessageId?: string; turnId?: string; messageOrdinal?: number },
+): boolean {
+  if (!materialized) return false;
+  if (
+    message.liveMessageId &&
+    materialized.liveMessageIds.has(message.liveMessageId)
+  ) {
+    return true;
+  }
+  if (message.turnId && typeof message.messageOrdinal === "number") {
+    const watermark = materialized.turnWatermarks.get(message.turnId);
+    return watermark !== undefined && message.messageOrdinal <= watermark;
+  }
+  return false;
+}
+
+function metaFor(
+  live: ConversationLiveState,
+  liveMessageId: string | undefined,
+): LiveMessageMeta | undefined {
+  return liveMessageId ? live.messageMeta?.[liveMessageId] : undefined;
+}
+
+function liveMessageIdFromKey(key: string | undefined): string | undefined {
+  return key?.match(/^live:([^:]+):/)?.[1];
+}
+
+/**
+ * Drain live blocks that the given persisted entry materializes: exact
+ * `liveMessageId` match plus everything in the entry's turn at or below the
+ * entry's `messageOrdinal`. Keyed structurally so a missed or mislabelled id
+ * cannot strand thinking blocks in the live tail.
+ */
+export function drainMaterializedLiveMessages(
+  live: ConversationLiveState,
+  entry: Pick<
+    ConversationEntry,
+    "role" | "turnId" | "liveMessageId" | "messageOrdinal"
+  >,
+): void {
+  if (entry.role !== "assistant") return;
+  const materialized = materializedLiveMessagesFromEntries([entry]);
+  if (
+    materialized.liveMessageIds.size === 0 &&
+    materialized.turnWatermarks.size === 0
+  ) {
+    return;
+  }
+
+  const itemMaterialized = (item: {
+    id?: string;
+    key?: string;
+    turnId?: string;
+    messageOrdinal?: number;
+  }): boolean => {
+    const liveMessageId = liveMessageIdFromKey(item.id ?? item.key);
+    const meta = metaFor(live, liveMessageId);
+    return isMaterializedMessage(materialized, {
+      liveMessageId,
+      turnId: item.turnId ?? meta?.turnId,
+      messageOrdinal: item.messageOrdinal ?? meta?.messageOrdinal,
+    });
+  };
+
+  live.messages = live.messages.filter((item) => !itemMaterialized(item));
+  live.toolDrafts = live.toolDrafts.filter((draft) => !itemMaterialized(draft));
+}
 
 /**
  * Convert an active-run snapshot into the legacy live state used by the
@@ -19,15 +137,30 @@ export function activeRunToLegacyLive(
     return { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
   }
 
-  const excludedLiveMessageIds = new Set(options.excludeLiveMessageIds ?? []);
+  const materialized = options.materialized;
   const liveTurns = activeRun.turns.map((turn) => ({
     ...turn,
     messages: turn.messages.filter(
-      (message) => !excludedLiveMessageIds.has(message.liveMessageId),
+      (message) =>
+        !isMaterializedMessage(materialized, {
+          liveMessageId: message.liveMessageId,
+          turnId: turn.turnId,
+          messageOrdinal: message.messageOrdinal,
+        }),
     ),
   }));
 
-  const messages = liveTurns.flatMap((turn) =>
+  const messageMeta: Record<string, LiveMessageMeta> = {};
+  for (const turn of activeRun.turns) {
+    for (const message of turn.messages) {
+      messageMeta[message.liveMessageId] = {
+        turnId: turn.turnId,
+        messageOrdinal: message.messageOrdinal,
+      };
+    }
+  }
+
+  const messages: TranscriptItem[] = liveTurns.flatMap((turn) =>
     turn.messages.flatMap((message) =>
       message.blocks.flatMap((block) => {
         if (block.kind === "tool_call_draft") return [];
@@ -42,6 +175,8 @@ export function activeRunToLegacyLive(
             text: block.text,
             createdAt: message.startedAt,
             contentIndex: block.contentIndex,
+            turnId: turn.turnId,
+            messageOrdinal: message.messageOrdinal,
             live: !block.done,
             done: block.done,
             redacted: block.redacted,
@@ -50,7 +185,7 @@ export function activeRunToLegacyLive(
       }),
     ),
   );
-  const toolDrafts = liveTurns.flatMap((turn) =>
+  const toolDrafts: LiveToolCallDraft[] = liveTurns.flatMap((turn) =>
     turn.messages.flatMap((message) =>
       message.blocks.flatMap((block) => {
         if (block.kind !== "tool_call_draft") return [];
@@ -61,6 +196,8 @@ export function activeRunToLegacyLive(
             runId: activeRun.runId,
             conversationId: activeRun.conversationId,
             contentIndex: block.contentIndex,
+            turnId: turn.turnId,
+            messageOrdinal: message.messageOrdinal,
             providerToolCallId: block.providerToolCallId,
             toolName: block.toolName,
             argsText: block.argsText,
@@ -79,6 +216,7 @@ export function activeRunToLegacyLive(
     messages,
     toolDrafts,
     toolOutputByToolCallId: activeRun.toolOutputsByToolCallId,
+    messageMeta,
     runStatus: activeRun.retry
       ? {
           conversationId: activeRun.conversationId,

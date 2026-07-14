@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { EventEnvelope } from "@nervekit/contracts";
 import {
   applyConversationEvent,
+  buildConversationRenderProjection,
+  type ConversationRenderState,
   emptyConversationRenderState,
 } from "./index.js";
 
@@ -162,5 +165,131 @@ describe("shared conversation adapters", () => {
     });
     assert.equal(state.entries[0]?.id, "entry_test");
     assert.equal(state.cursorSeq, 4);
+  });
+
+  it("drains stale thinking by ordinal watermark when liveMessageId misses", () => {
+    // Regression: reasoning blocks used to strand in the live tail (below all
+    // newer committed content) whenever the persisted entry's liveMessageId
+    // failed to correlate with the streamed message.
+    let seq = 0;
+    let state = emptyConversationRenderState("conv_test");
+    const base = {
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      projectId: "proj_test",
+      runId: "run_test",
+    };
+    const apply = (
+      type: string,
+      data: Record<string, unknown>,
+      durability: "durable" | "transient" = "transient",
+    ) => {
+      seq += 1;
+      state = applyConversationEvent(state, {
+        id: `evt_${seq}`,
+        seq,
+        ts: `2026-01-01T00:00:${String(seq).padStart(2, "0")}.000Z`,
+        type,
+        durability,
+        data,
+      } as EventEnvelope);
+    };
+    const streamMessage = (
+      liveMessageId: string,
+      messageOrdinal: number,
+      thinking: string,
+    ) => {
+      apply("conversation.live.message.started", {
+        ...base,
+        turnId: "turn_test",
+        liveMessageId,
+        messageOrdinal,
+        startedAt: `2026-01-01T00:00:${String(seq + 1).padStart(2, "0")}.000Z`,
+      });
+      apply("conversation.live.content.delta", {
+        ...base,
+        turnId: "turn_test",
+        liveMessageId,
+        contentBlockId: `block_${liveMessageId}`,
+        contentIndex: 0,
+        kind: "thinking",
+        offset: 0,
+        delta: thinking,
+      });
+      apply("conversation.live.content.done", {
+        ...base,
+        turnId: "turn_test",
+        liveMessageId,
+        contentBlockId: `block_${liveMessageId}`,
+        contentIndex: 0,
+        kind: "thinking",
+        finalText: thinking,
+      });
+    };
+
+    apply(
+      "run.started",
+      { ...base, startedAt: "2026-01-01T00:00:00.000Z" },
+      "durable",
+    );
+
+    streamMessage("msg_1", 0, "thinking about A");
+    // Entry materializes msg_1 but without its liveMessageId (correlation
+    // miss); only turnId + messageOrdinal identify the message.
+    apply(
+      "conversation.entry.appended",
+      {
+        conversationId: "conv_test",
+        entry: {
+          id: "entry_a1",
+          conversationId: "conv_test",
+          agentId: "agent_test",
+          runId: "run_test",
+          turnId: "turn_test",
+          messageOrdinal: 0,
+          role: "assistant",
+          kind: "message",
+          text: "Answer A",
+          details: { thinkingBlocks: [{ text: "thinking about A" }] },
+          createdAt: "2026-01-01T00:00:04.000Z",
+        },
+      },
+      "durable",
+    );
+
+    streamMessage("msg_2", 1, "thinking about B");
+
+    const projection = buildConversationRenderProjection(
+      state as ConversationRenderState,
+    );
+    const rendered = projection.timeline.map((node) =>
+      node.kind === "message"
+        ? `${node.item.displayKind}:${node.item.text}`
+        : node.kind,
+    );
+    // The stale copy of "thinking about A" must not trail the timeline; only
+    // msg_2's live thinking may follow the committed entry.
+    assert.deepEqual(rendered, [
+      "thinking:thinking about A",
+      "message:Answer A",
+      "thinking:thinking about B",
+    ]);
+
+    // A snapshot-style rebuild (live state dropped) must not resurrect it
+    // either: the active-run mirror was drained by the same watermark.
+    const rebuilt = buildConversationRenderProjection({
+      ...(state as ConversationRenderState),
+      live: undefined,
+    });
+    const rebuiltRendered = rebuilt.timeline.map((node) =>
+      node.kind === "message"
+        ? `${node.item.displayKind}:${node.item.text}`
+        : node.kind,
+    );
+    assert.deepEqual(rebuiltRendered, [
+      "thinking:thinking about A",
+      "message:Answer A",
+      "thinking:thinking about B",
+    ]);
   });
 });

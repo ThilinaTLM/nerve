@@ -1,5 +1,8 @@
 import { toolCallTranscriptRecordSchema } from "@nervekit/contracts";
-import { entryToTranscriptItems } from "@nervekit/workbench-ui/state";
+import {
+  drainMaterializedLiveMessages,
+  entryToTranscriptItems,
+} from "@nervekit/workbench-ui/state";
 import type {
   ConversationEntry,
   EventEnvelope,
@@ -20,6 +23,7 @@ import {
   draftKey,
   ensureLiveState,
   entryBelongsToActiveBranch,
+  liveMessageCoordinates,
   liveRunStatusId,
   liveTextId,
   MAX_LIVE_TOOL_OUTPUT_CHARS,
@@ -66,6 +70,13 @@ export function handleEntryAppended(
   entry: ConversationEntry | undefined,
 ): boolean {
   if (!entry) return true;
+  // Drain live blocks this entry materializes before any early return: the
+  // drain is branch-independent, and skipping it strands thinking blocks in
+  // the live tail (they would render below all newer committed content).
+  if (entry.role === "assistant") {
+    drainMaterializedLiveMessages(view.live, entry);
+    view.streamingText = liveTextFromLegacyLive(view.live);
+  }
   if (!entryBelongsToActiveBranch(view, entry)) return false;
 
   updateActiveBranchPath(view, entry);
@@ -96,16 +107,6 @@ export function handleEntryAppended(
     );
   });
   handleToolCallUpdated(view, toolCallFromEntry(entry));
-  if (entry.role === "assistant" && entry.liveMessageId) {
-    const livePrefix = `live:${entry.liveMessageId}:`;
-    view.live.messages = view.live.messages.filter(
-      (item) => !item.id?.startsWith(livePrefix),
-    );
-    view.live.toolDrafts = view.live.toolDrafts.filter(
-      (draft) => !draft.key.startsWith(livePrefix),
-    );
-    view.streamingText = liveTextFromLegacyLive(view.live);
-  }
   return true;
 }
 
@@ -178,6 +179,7 @@ export function handleContentDelta(
     text: `${current?.text ?? ""}${delta}`,
     createdAt: current?.createdAt ?? new Date().toISOString(),
     contentIndex: Number(event.data?.contentIndex ?? 0),
+    ...liveMessageCoordinates(view, event.data),
     live: true,
     done: false,
     redacted: current?.redacted,
@@ -206,6 +208,7 @@ export function handleContentDone(
         : (current?.text ?? ""),
     createdAt: current?.createdAt ?? new Date().toISOString(),
     contentIndex: Number(event.data?.contentIndex ?? 0),
+    ...liveMessageCoordinates(view, event.data),
     live: false,
     done: true,
     redacted: kind === "thinking" ? Boolean(event.data?.redacted) : undefined,
@@ -229,6 +232,7 @@ function upsertToolDraft(
     contentIndex: Number(
       event.data?.contentIndex ?? current?.contentIndex ?? 0,
     ),
+    ...liveMessageCoordinates(view, event.data),
     providerToolCallId:
       typeof event.data?.providerToolCallId === "string"
         ? event.data.providerToolCallId

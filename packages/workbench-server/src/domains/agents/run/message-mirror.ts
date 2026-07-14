@@ -20,6 +20,7 @@ export interface AppendEntryInput {
   runId?: string;
   turnId?: string;
   liveMessageId?: string;
+  messageOrdinal?: number;
   parentEntryId?: string | null;
   role: ConversationEntry["role"];
   kind?: ConversationEntry["kind"];
@@ -45,6 +46,39 @@ export interface MessageMirrorDeps {
   events: EventBus;
 }
 
+/**
+ * Live coordinates of an ended assistant message awaiting materialization.
+ * Assistant messages end and mirror strictly in order, so consuming these
+ * FIFO assigns each mirrored assistant entry its own message — even when a
+ * batch contains several assistant entries or the entry surfaces during a
+ * later (non-assistant) `message_end`.
+ */
+export interface AssistantMessageMeta {
+  turnId: string;
+  liveMessageId: string;
+  messageOrdinal: number;
+}
+
+/** Tracks the streaming assistant message and queues its coordinates FIFO. */
+export class AssistantEntryMetaQueue {
+  readonly queue: AssistantMessageMeta[] = [];
+  private current: AssistantMessageMeta | undefined;
+
+  onMessageStarted(meta: AssistantMessageMeta): void {
+    this.current = {
+      turnId: meta.turnId,
+      liveMessageId: meta.liveMessageId,
+      messageOrdinal: meta.messageOrdinal,
+    };
+  }
+
+  onMessageEnded(role: string): void {
+    if (role !== "assistant" || !this.current) return;
+    this.queue.push(this.current);
+    this.current = undefined;
+  }
+}
+
 export class MessageMirror {
   constructor(private readonly deps: MessageMirrorDeps) {}
 
@@ -52,7 +86,12 @@ export class MessageMirror {
     agent: AgentRecord,
     storage: JsonlConversationStorage,
     knownEntryIds: Set<string>,
-    metadata: { runId?: string; turnId?: string; liveMessageId?: string } = {},
+    metadata: {
+      runId?: string;
+      turnId?: string;
+      /** FIFO of ended-but-unmaterialized assistant messages; consumed here. */
+      assistantMessageMeta?: AssistantMessageMeta[];
+    } = {},
   ): Promise<ConversationEntry[]> {
     const mirrored: ConversationEntry[] = [];
     const storageEntries = await storage.getEntries();
@@ -77,15 +116,19 @@ export class MessageMirror {
         entry.message.role === "toolResult" || entry.message.role === "harness"
           ? "system"
           : entry.message.role;
+      const messageMeta =
+        role === "assistant"
+          ? metadata.assistantMessageMeta?.shift()
+          : undefined;
       const uiEntry = await this.deps.appendEntry(
         {
           id: entry.id,
           conversationId: agent.conversationId,
           agentId: agent.id,
           runId: metadata.runId,
-          turnId: metadata.turnId,
-          liveMessageId:
-            role === "assistant" ? metadata.liveMessageId : undefined,
+          turnId: messageMeta?.turnId ?? metadata.turnId,
+          liveMessageId: messageMeta?.liveMessageId,
+          messageOrdinal: messageMeta?.messageOrdinal,
           parentEntryId: resolveVisibleParentId(
             entry.parentId,
             storageEntries,
@@ -126,6 +169,29 @@ export class MessageMirror {
     await this.deps.events.publish("conversation.updated", {
       conversation: this.deps.state.conversations.get(conversation.id),
     });
+  }
+}
+
+/**
+ * Drop mirrored assistant entries' live messages from future active-run
+ * snapshots. Once the entry is durable, a snapshot refresh must not
+ * resurrect the live copy at the bottom of the transcript.
+ */
+export function markMirroredEntriesMaterialized(
+  runtime: {
+    markMessageMaterialized(
+      runId: string,
+      turnId: string,
+      liveMessageId: string,
+    ): void;
+  },
+  runId: string,
+  entries: ConversationEntry[],
+): void {
+  for (const entry of entries) {
+    if (entry.role === "assistant" && entry.turnId && entry.liveMessageId) {
+      runtime.markMessageMaterialized(runId, entry.turnId, entry.liveMessageId);
+    }
   }
 }
 

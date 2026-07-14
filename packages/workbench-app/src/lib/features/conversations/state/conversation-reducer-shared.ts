@@ -56,6 +56,38 @@ export function liveMessageId(data: Record<string, unknown>): string {
     : String(data.runId ?? "unknown");
 }
 
+/** Record live message coordinates from `conversation.live.message.started`. */
+export function recordLiveMessageMeta(
+  view: ConversationViewState,
+  data: Record<string, unknown> | undefined,
+): void {
+  const turnId = typeof data?.turnId === "string" ? data.turnId : undefined;
+  const messageId =
+    typeof data?.liveMessageId === "string" ? data.liveMessageId : undefined;
+  const messageOrdinal =
+    typeof data?.messageOrdinal === "number" ? data.messageOrdinal : undefined;
+  if (!turnId || !messageId || messageOrdinal === undefined) return;
+  view.live.messageMeta = {
+    ...view.live.messageMeta,
+    [messageId]: { turnId, messageOrdinal },
+  };
+}
+
+/** Live coordinates for a streaming block, resolved via recorded meta. */
+export function liveMessageCoordinates(
+  view: ConversationViewState,
+  data: Record<string, unknown> | undefined,
+): { turnId?: string; messageOrdinal?: number } {
+  const turnId = typeof data?.turnId === "string" ? data.turnId : undefined;
+  const messageId =
+    typeof data?.liveMessageId === "string" ? data.liveMessageId : undefined;
+  const meta = messageId ? view.live.messageMeta?.[messageId] : undefined;
+  return {
+    turnId: turnId ?? meta?.turnId,
+    messageOrdinal: meta?.messageOrdinal,
+  };
+}
+
 export function liveTextId(data: Record<string, unknown>): string {
   return `live:${liveMessageId(data)}:${String(data.kind ?? "text")}:${Number(data.contentIndex ?? 0)}`;
 }

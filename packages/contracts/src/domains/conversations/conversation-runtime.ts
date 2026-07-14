@@ -50,6 +50,12 @@ interface MutableMessage extends ConversationLiveMessageSnapshot {
   blocks: Array<
     ConversationLiveTextBlockSnapshot | ConversationLiveToolDraftBlockSnapshot
   >;
+  /**
+   * True once the message has been persisted as a conversation entry. Kept in
+   * the mutable structure (for stable ordinals and event handling) but
+   * excluded from snapshots so refreshes can never resurrect it in the UI.
+   */
+  materialized?: boolean;
 }
 
 const MAX_LIVE_TOOL_OUTPUT_CHARS = 32_000;
@@ -168,6 +174,25 @@ export class ConversationRuntime {
     };
     run.turns.push(turn);
     return cloneTurn(turn);
+  }
+
+  /**
+   * Mark a live assistant message as materialized (persisted as an entry).
+   * The message stays in the mutable run so message ordinals remain unique,
+   * but it is dropped from all future snapshots. Silent no-op when the run,
+   * turn, or message no longer exists (e.g. the run already completed).
+   */
+  markMessageMaterialized(
+    runId: string,
+    turnId: string,
+    liveMessageId: string,
+  ): void {
+    const run = this.runsByRunId.get(runId);
+    const turn = run?.turns.find((candidate) => candidate.turnId === turnId);
+    const message = turn?.messages.find(
+      (candidate) => candidate.liveMessageId === liveMessageId,
+    );
+    if (message) message.materialized = true;
   }
 
   currentTurn(runId: string): ConversationLiveTurnSnapshot | undefined {
@@ -597,17 +622,21 @@ function cloneRun(run: MutableRun): ConversationActiveRunSnapshot {
 function cloneTurn(turn: MutableTurn): ConversationLiveTurnSnapshot {
   return {
     ...turn,
-    messages: turn.messages.map((message) => ({
-      ...message,
-      blocks: message.blocks.map((block) =>
-        block.kind === "tool_call_draft"
-          ? {
-              ...block,
-              progress: block.progress ? { ...block.progress } : undefined,
-            }
-          : { ...block },
-      ),
-    })),
+    messages: turn.messages
+      .filter((message) => !message.materialized)
+      .map((message) => ({
+        liveMessageId: message.liveMessageId,
+        messageOrdinal: message.messageOrdinal,
+        startedAt: message.startedAt,
+        blocks: message.blocks.map((block) =>
+          block.kind === "tool_call_draft"
+            ? {
+                ...block,
+                progress: block.progress ? { ...block.progress } : undefined,
+              }
+            : { ...block },
+        ),
+      })),
   };
 }
 

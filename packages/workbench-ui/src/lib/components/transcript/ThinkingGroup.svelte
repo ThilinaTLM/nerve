@@ -4,22 +4,34 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { untrack } from "svelte";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
+import type { TranscriptItem } from "../../state/transcript-types";
 
-type ThinkingBlockItem = {
-  text: string;
-  redacted?: boolean;
-};
+type ThinkingGroupItem = Pick<
+  TranscriptItem,
+  "id" | "text" | "redacted" | "live" | "done"
+>;
 
 type Props = {
-  block: ThinkingBlockItem;
-  live?: boolean;
+  /** One or more consecutive thinking blocks rendered as a single group. */
+  items: ThinkingGroupItem[];
 };
 
-let { block, live = false }: Props = $props();
-// Historical blocks mount collapsed. Live blocks are forced open, then fold
-// as soon as generation completes; completed blocks remain user-toggleable.
-let expanded = $state(untrack(() => live));
-let previousLive = untrack(() => live);
+let { items }: Props = $props();
+
+const live = $derived(items.some((item) => item.live && !item.done));
+const allRedactedEmpty = $derived(
+  items.length > 0 && items.every((item) => item.redacted && !item.text),
+);
+const label = $derived(
+  allRedactedEmpty ? "Reasoning unavailable" : "Reasoning",
+);
+
+// Historical groups mount collapsed. Live groups are forced open, then fold
+// as soon as generation completes; completed groups remain user-toggleable.
+let expanded = $state(
+  untrack(() => items.some((item) => item.live && !item.done)),
+);
+let previousLive = untrack(() => items.some((item) => item.live && !item.done));
 
 $effect(() => {
   const currentLive = live;
@@ -29,7 +41,7 @@ $effect(() => {
 });
 </script>
 
-<div class="thinking-block" class:live>
+<div class="thinking-group" class:live>
   <button
     class="thinking-toggle"
     type="button"
@@ -42,33 +54,43 @@ $effect(() => {
     {:else}
       <ChevronRight size={14} strokeWidth={2.2} aria-hidden="true" />
     {/if}
-    <span
-      >{block.redacted && !block.text
-        ? "Reasoning unavailable"
-        : "Reasoning"}</span
-    >
+    <span>{label}</span>
+    {#if items.length > 1}
+      <span class="step-count">· {items.length} steps</span>
+    {/if}
     {#if live}<span class="live-label">Thinking…</span>{/if}
   </button>
 
   {#if expanded}
     <div class="thinking-content">
-      {#if block.redacted && !block.text}
-        <p class="redacted">Provider returned redacted thinking.</p>
-      {:else}
-        <Markdown
-          text={block.text}
-          streaming={live}
-          onCopy={notifyCopyResult}
-        />
-        {#if live && !block.text}<span class="stream-caret" aria-hidden="true"
-          ></span>{/if}
-      {/if}
+      {#each items as item, index (item.id ?? index)}
+        {@const itemLive = Boolean(item.live && !item.done)}
+        <div class="thinking-step" class:step-live={itemLive}>
+          {#if item.redacted && !item.text}
+            <p class="redacted" class:live-caret={itemLive}>
+              Provider returned redacted thinking.
+            </p>
+          {:else}
+            <div class="step-markdown" class:live-caret={itemLive}>
+              <Markdown
+                text={item.text}
+                streaming={itemLive}
+                onCopy={notifyCopyResult}
+              />
+              {#if itemLive && !item.text}<span
+                  class="stream-caret"
+                  aria-hidden="true"
+                ></span>{/if}
+            </div>
+          {/if}
+        </div>
+      {/each}
     </div>
   {/if}
 </div>
 
 <style>
-.thinking-block {
+.thinking-group {
   margin: 0;
   color: var(--muted-foreground);
   font-size: var(--text-sm);
@@ -104,6 +126,11 @@ $effect(() => {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 45%, transparent);
 }
 
+.step-count {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
 .live-label {
   color: var(--primary);
   font-weight: 500;
@@ -113,6 +140,12 @@ $effect(() => {
   margin-top: 0.35rem;
   padding-left: 0.35rem;
   font-style: italic;
+}
+
+.thinking-step + .thinking-step {
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
 }
 
 .thinking-content :global(.markdown) {
@@ -130,8 +163,8 @@ $effect(() => {
   font-weight: inherit;
 }
 
-.thinking-block.live .thinking-content :global(.markdown > :last-child)::after,
-.thinking-block.live .redacted::after,
+.step-markdown.live-caret :global(.markdown > :last-child)::after,
+.redacted.live-caret::after,
 .stream-caret {
   content: "";
   display: inline-block;

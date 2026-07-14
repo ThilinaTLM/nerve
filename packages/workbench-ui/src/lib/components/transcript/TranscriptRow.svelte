@@ -19,15 +19,17 @@ import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import PlainText from "@nervekit/ui-kit/core/components/PlainText.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import type { TranscriptItem } from "../../state/transcript-types";
-import type { TimelineItem } from "../../state/timeline";
 import CompactionCard from "./CompactionCard.svelte";
 import TaskEventCard from "./TaskEventCard.svelte";
 import RunStatusCard from "./RunStatusCard.svelte";
-import ThinkingBlock from "./ThinkingBlock.svelte";
-import type { ActivityStackPosition } from "./transcript-presentation";
+import ThinkingGroup from "./ThinkingGroup.svelte";
+import type {
+  ActivityStackPosition,
+  TranscriptDisplayNode,
+} from "./transcript-presentation";
 
 type Props = {
-  node: TimelineItem;
+  node: TranscriptDisplayNode;
   activityPosition?: ActivityStackPosition;
   needsAttention?: boolean;
   sending: boolean;
@@ -92,9 +94,19 @@ let {
 // Lifecycle for normal message rows. `running` while a live assistant message
 // streams, `complete` once the same live message is done, `static` for
 // persisted/non-live rows and user/system rows.
-const messageMenuItems = $derived(
-  node.kind === "message" ? messageMenu(node.item) : [],
-);
+const messageMenuItems = $derived.by(() => {
+  if (node.kind === "message") return messageMenu(node.item);
+  if (node.kind === "thinking_group") {
+    const first = node.items[0]?.item;
+    if (!first) return [];
+    // Menu actions (copy, etc.) should act on the whole reasoning group.
+    return messageMenu({
+      ...first,
+      text: node.items.map((member) => member.item.text).join("\n\n"),
+    });
+  }
+  return [];
+});
 
 const messageState = $derived.by<"running" | "complete" | "static">(() => {
   if (node.kind !== "message") return "static";
@@ -185,13 +197,24 @@ $effect(() => {
   <CompactionCard notice={node.notice} />
 {:else if node.kind === "task_event"}
   <TaskEventCard notice={node.notice} />
+{:else if node.kind === "thinking_group"}
+  <ContextMenu items={messageMenuItems} triggerClass="select-text">
+    <article
+      class="transcript-entry assistant thinking-entry"
+      data-state="static"
+    >
+      <div class="message-body">
+        <ThinkingGroup items={node.items.map((member) => member.item)} />
+      </div>
+    </article>
+  </ContextMenu>
 {:else}
   <ContextMenu
     items={messageMenuItems}
     triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}
   >
     <article
-      class={`transcript-entry ${node.item.role} ${node.item.displayKind === "thinking" ? "thinking-entry" : ""} ${node.item.live ? "streaming" : ""}`}
+      class={`transcript-entry ${node.item.role} ${node.item.live ? "streaming" : ""}`}
       class:state-settling={settling}
       data-state={messageState}
       onanimationend={(event) => {
@@ -199,12 +222,7 @@ $effect(() => {
       }}
     >
       <div class="message-body">
-        {#if node.item.displayKind === "thinking"}
-          <ThinkingBlock
-            block={{ text: node.item.text, redacted: node.item.redacted }}
-            live={node.item.live && !node.item.done}
-          />
-        {:else if node.item.text}
+        {#if node.item.text}
           <div class="message-content">
             {#if node.item.role === "user"}
               <PlainText text={node.item.text} />

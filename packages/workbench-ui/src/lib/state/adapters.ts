@@ -31,7 +31,11 @@ import {
   SandboxConversationViewSnapshot,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
-import { activeRunToLegacyLive } from "./live.js";
+import {
+  activeRunToLegacyLive,
+  drainMaterializedLiveMessages,
+  materializedLiveMessagesFromEntries,
+} from "./live.js";
 import {
   type CompactionNotice,
   type ConversationLiveState,
@@ -301,6 +305,7 @@ function cloneLiveState(
     runStatus: live.runStatus ? { ...live.runStatus } : undefined,
     compaction: live.compaction ? { ...live.compaction } : undefined,
     hiddenEntryIds: live.hiddenEntryIds ? [...live.hiddenEntryIds] : undefined,
+    messageMeta: live.messageMeta ? { ...live.messageMeta } : undefined,
   };
 }
 
@@ -344,7 +349,7 @@ function applyEntryAppended(
   state.activeEntryIds = nextActiveEntryIds(state.activeEntryIds, entry);
   const liveMessageId = data.liveMessageId ?? entry.liveMessageId;
   if (liveMessageId) removeLiveMessageById(state, liveMessageId);
-  removeDuplicateLivePlaceholders(state, entry);
+  drainMaterializedEntry(state, entry);
 }
 
 function nextActiveEntryIds(
@@ -386,17 +391,30 @@ function removeLiveMessageById(
   }
 }
 
-function removeDuplicateLivePlaceholders(
+/**
+ * Structural drain: remove live blocks materialized by this entry from both
+ * the legacy live state and the active-run mirror. Uses the per-turn
+ * `messageOrdinal` watermark so a missed `liveMessageId` correlation cannot
+ * strand thinking blocks at the bottom of the timeline.
+ */
+function drainMaterializedEntry(
   state: ConversationRenderState,
   entry: ConversationEntry,
 ): void {
-  if (!state.live || entry.role !== "assistant" || !entry.text.trim()) return;
-  state.live.messages = state.live.messages.filter(
-    (message) =>
-      message.role !== "assistant" ||
-      message.displayKind === "thinking" ||
-      message.text.trim() !== entry.text.trim(),
-  );
+  if (entry.role !== "assistant") return;
+  if (state.live) drainMaterializedLiveMessages(state.live, entry);
+  if (
+    state.activeRun &&
+    entry.turnId &&
+    typeof entry.messageOrdinal === "number"
+  ) {
+    for (const turn of state.activeRun.turns) {
+      if (turn.turnId !== entry.turnId) continue;
+      turn.messages = turn.messages.filter(
+        (message) => message.messageOrdinal > (entry.messageOrdinal as number),
+      );
+    }
+  }
 }
 
 function applyPromptQueued(
@@ -640,10 +658,17 @@ function applyLiveMessageStarted(
   state: ConversationRenderState,
   data: ConversationLiveMessageStartedData,
 ): void {
-  ensureLiveState(state, data.runId);
+  const live = ensureLiveState(state, data.runId);
   ensureActiveRun(state, data);
   ensureActiveMessage(state, data, data.startedAt);
-  if (state.live) state.live.runStatus = undefined;
+  live.messageMeta = {
+    ...live.messageMeta,
+    [data.liveMessageId]: {
+      turnId: data.turnId,
+      messageOrdinal: data.messageOrdinal,
+    },
+  };
+  live.runStatus = undefined;
   state.sending = true;
 }
 
@@ -672,6 +697,8 @@ function applyLiveContentDelta(
     text,
     createdAt: current?.createdAt ?? activeMessageStartedAt(state, data) ?? ts,
     contentIndex: data.contentIndex,
+    turnId: data.turnId,
+    messageOrdinal: liveMessageOrdinal(state, data),
     live: true,
     done: false,
     redacted: current?.redacted,
@@ -706,6 +733,8 @@ function applyLiveContentDone(
     text,
     createdAt: current?.createdAt ?? activeMessageStartedAt(state, data) ?? ts,
     contentIndex: data.contentIndex,
+    turnId: data.turnId,
+    messageOrdinal: liveMessageOrdinal(state, data),
     live: false,
     done: true,
     redacted: data.kind === "thinking" ? data.redacted : undefined,
@@ -855,7 +884,7 @@ function ensureLiveState(
     state.live =
       state.activeRun && (!runId || state.activeRun.runId === runId)
         ? activeRunToLegacyLive(state.activeRun, {
-            excludeLiveMessageIds: durableLiveMessageIds(state),
+            materialized: materializedLiveMessagesFromEntries(state.entries),
           })
         : emptyLiveState(runId);
     return state.live;
@@ -1041,6 +1070,8 @@ function upsertToolDraft(
     runId: data.runId,
     conversationId: data.conversationId,
     contentIndex: data.contentIndex,
+    turnId: data.turnId,
+    messageOrdinal: liveMessageOrdinal(state, data),
     providerToolCallId:
       patch.providerToolCallId ??
       data.providerToolCallId ??
@@ -1096,12 +1127,13 @@ function removeLiveDraftsForProviderIds(
   }
 }
 
-function durableLiveMessageIds(state: ConversationRenderState): Set<string> {
-  const ids = new Set<string>();
-  for (const entry of state.entries) {
-    if (entry.liveMessageId) ids.add(entry.liveMessageId);
-  }
-  return ids;
+function liveMessageOrdinal(
+  state: ConversationRenderState,
+  data: { turnId: string; liveMessageId: string },
+): number | undefined {
+  const meta = state.live?.messageMeta?.[data.liveMessageId];
+  if (meta) return meta.messageOrdinal;
+  return activeMessage(state, data.turnId, data.liveMessageId)?.messageOrdinal;
 }
 
 function liveTextId(

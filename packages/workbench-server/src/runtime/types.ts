@@ -11,6 +11,7 @@ export type AppendEntryInput = {
   runId?: string;
   turnId?: string;
   liveMessageId?: string;
+  messageOrdinal?: number;
   parentEntryId?: string | null;
   role: ConversationEntry["role"];
   kind?: ConversationEntry["kind"];

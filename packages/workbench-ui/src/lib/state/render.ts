@@ -1,5 +1,9 @@
 import type { QueuedPromptRecord } from "@nervekit/contracts";
-import { activeRunToLegacyLive, liveTextFromLegacyLive } from "./live.js";
+import {
+  activeRunToLegacyLive,
+  liveTextFromLegacyLive,
+  materializedLiveMessagesFromEntries,
+} from "./live.js";
 import {
   buildCommittedTimeline,
   buildLiveTimeline,
@@ -15,14 +19,6 @@ export type ConversationRenderProjection = {
   hasLiveTimelineNodes: boolean;
   queuedPrompts: QueuedPromptRecord[];
 };
-
-function durableLiveMessageIds(state: ConversationRenderState): Set<string> {
-  const ids = new Set<string>();
-  for (const entry of state.entries) {
-    if (entry.liveMessageId) ids.add(entry.liveMessageId);
-  }
-  return ids;
-}
 
 /**
  * Project a transport-neutral conversation render state into the shared
@@ -46,7 +42,7 @@ export function buildConversationRenderProjection(
   const live =
     state.live ??
     activeRunToLegacyLive(state.activeRun, {
-      excludeLiveMessageIds: durableLiveMessageIds(state),
+      materialized: materializedLiveMessagesFromEntries(state.entries),
     });
   const committed = buildCommittedTimeline(transcript, toolCalls, {
     includeUnanchoredTerminalToolCalls: !live.runId,

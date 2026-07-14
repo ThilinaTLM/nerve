@@ -39,6 +39,7 @@ import {
   emptyLiveState,
   ensureLiveState,
   isOpenConversation,
+  recordLiveMessageMeta,
   removeLiveRunStatusTranscriptItem,
   stringValue,
   syncActiveView,
@@ -110,6 +111,7 @@ export function handleConversationEvent(
       break;
     case "conversation.live.message.started":
       ensureLiveState(view, String(event.data?.runId ?? ""));
+      recordLiveMessageMeta(view, event.data);
       view.live.runStatus = undefined;
       removeLiveRunStatusTranscriptItem(view, String(event.data?.runId ?? ""));
       view.sending = true;

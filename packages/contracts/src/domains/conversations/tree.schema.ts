@@ -109,6 +109,12 @@ export const conversationEntrySchema = z.object({
   runId: z.string().startsWith("run_").optional(),
   turnId: z.string().startsWith("turn_").optional(),
   liveMessageId: z.string().startsWith("msg_").optional(),
+  /**
+   * Ordinal of the live assistant message (per turn) this entry materializes.
+   * Lets clients drain stale live blocks by watermark even when
+   * `liveMessageId` correlation misses.
+   */
+  messageOrdinal: z.number().int().nonnegative().optional(),
   parentEntryId: z.string().startsWith("entry_").optional(),
   role: z.enum(["user", "assistant", "system"]),
   kind: conversationEntryKindSchema.default("message"),

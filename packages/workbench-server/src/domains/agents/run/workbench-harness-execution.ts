@@ -50,6 +50,10 @@ import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,
 } from "./live-tool-draft-reconciliation.js";
+import {
+  AssistantEntryMetaQueue,
+  markMirroredEntriesMaterialized,
+} from "./message-mirror.js";
 import { composeAgentSystemPrompt } from "./system-prompt-builder.js";
 import {
   createToolDraftProgressAccumulator,
@@ -95,6 +99,7 @@ export async function executeWorkbenchHarness(
   let lastAssistantEntry: ConversationEntry | undefined;
   let currentTurnId: string | undefined;
   let currentLiveMessageId: string | undefined;
+  const assistantEntryMeta = new AssistantEntryMetaQueue();
   const liveToolDraftNames = new Map<number, string | undefined>();
   const liveToolDraftProgress = new Map<number, ToolDraftProgressAccumulator>();
   const liveToolDrafts = new Map<number, LiveToolDraftState>();
@@ -280,6 +285,7 @@ export async function executeWorkbenchHarness(
             currentTurnId,
           );
         currentLiveMessageId = started.liveMessageId;
+        assistantEntryMeta.onMessageStarted(started);
         liveToolDraftNames.clear();
         liveToolDraftProgress.clear();
         liveToolDrafts.clear();
@@ -486,8 +492,7 @@ export async function executeWorkbenchHarness(
           liveToolDraftNames.clear();
           liveToolDraftProgress.clear();
         }
-        const liveMessageId =
-          event.message.role === "assistant" ? currentLiveMessageId : undefined;
+        assistantEntryMeta.onMessageEnded(event.message.role);
         const mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
           agent,
           storage,
@@ -495,13 +500,18 @@ export async function executeWorkbenchHarness(
           {
             runId,
             turnId: currentTurnId,
-            liveMessageId,
+            assistantMessageMeta: assistantEntryMeta.queue,
           },
         );
         let shouldPublishContextUsage = false;
         if (mirrored.length > 0) {
           await coordinator.sink.appendEntries(mirrored);
         }
+        markMirroredEntriesMaterialized(
+          this.deps.state.conversationRuntime,
+          runId,
+          mirrored,
+        );
         for (const entry of mirrored) {
           if (entry.role === "user") {
             await this.deps.messageMirror.maybeDeriveInitialConversationTitle(

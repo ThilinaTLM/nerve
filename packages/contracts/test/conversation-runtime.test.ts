@@ -152,6 +152,61 @@ describe("ConversationRuntime", () => {
     assert.equal(output?.outputLimits?.omittedChars, 8_000);
   });
 
+  it("hides materialized messages from snapshots while keeping ordinals stable", () => {
+    const runtime = new ConversationRuntime();
+    const { run, turn, message } = start(runtime);
+    runtime.applyContentDelta({
+      runId: run.runId,
+      turnId: turn.turnId,
+      liveMessageId: message.liveMessageId,
+      contentIndex: 0,
+      kind: "thinking",
+      delta: "first thought",
+    });
+
+    runtime.markMessageMaterialized(
+      run.runId,
+      turn.turnId,
+      message.liveMessageId,
+    );
+
+    const snapshot = runtime.snapshotForConversation("conv_test");
+    assert.deepEqual(snapshot?.turns[0]?.messages, []);
+
+    // Ordinals keep counting past materialized messages.
+    const next = runtime.startAssistantMessage(run.runId, turn.turnId);
+    assert.equal(next.messageOrdinal, message.messageOrdinal + 1);
+    const refreshed = runtime.snapshotForConversation("conv_test");
+    assert.deepEqual(
+      refreshed?.turns[0]?.messages.map((entry) => entry.liveMessageId),
+      [next.liveMessageId],
+    );
+    assert.equal(
+      "materialized" in (refreshed?.turns[0]?.messages[0] ?? {}),
+      false,
+    );
+  });
+
+  it("ignores materialization for unknown runs, turns, and messages", () => {
+    const runtime = new ConversationRuntime();
+    const { run, turn, message } = start(runtime);
+
+    runtime.markMessageMaterialized(
+      "run_other",
+      turn.turnId,
+      message.liveMessageId,
+    );
+    runtime.markMessageMaterialized(
+      run.runId,
+      "turn_other",
+      message.liveMessageId,
+    );
+    runtime.markMessageMaterialized(run.runId, turn.turnId, "msg_other");
+
+    const snapshot = runtime.snapshotForConversation("conv_test");
+    assert.equal(snapshot?.turns[0]?.messages.length, 1);
+  });
+
   it("removes active run state on completion", () => {
     const runtime = new ConversationRuntime();
     const { run } = start(runtime);

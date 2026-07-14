@@ -23,16 +23,18 @@ import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
 import {
   activityStackPositions,
+  groupConsecutiveThinking,
   isRoutineActivityNode,
   toolNodeNeedsAttention,
   type ActivityStackPosition,
+  type TranscriptDisplayNode,
 } from "./transcript-presentation";
 
 type TranscriptRowItem =
   | {
       kind: "timeline";
       key: string;
-      node: TimelineItem;
+      node: TranscriptDisplayNode;
       activityPosition?: ActivityStackPosition;
       needsAttention: boolean;
     }
@@ -141,7 +143,8 @@ let {
 
 const rows = $derived.by<TranscriptRowItem[]>(() => {
   const seenKeys = new Map<string, number>();
-  const attention = timeline.map((node) =>
+  const displayNodes = groupConsecutiveThinking(timeline);
+  const attention = displayNodes.map((node) =>
     toolNodeNeedsAttention(
       node,
       approvals,
@@ -150,11 +153,11 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
     ),
   );
   const activityPositions = activityStackPositions(
-    timeline.map((node, index) =>
+    displayNodes.map((node, index) =>
       isRoutineActivityNode(node, attention[index] ?? false),
     ),
   );
-  const result: TranscriptRowItem[] = timeline.map((node, index) => ({
+  const result: TranscriptRowItem[] = displayNodes.map((node, index) => ({
     kind: "timeline",
     key: uniqueRowKey(node.key, seenKeys),
     node,
@@ -180,6 +183,14 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
   }
 
   const node = row.node;
+  if (node.kind === "thinking_group") {
+    return node.items
+      .map(
+        (member) =>
+          `${member.item.text.length}:${member.item.live ? "live" : "stored"}:${member.item.done ? "done" : "open"}`,
+      )
+      .join("|");
+  }
   if (node.kind === "message") {
     const item = node.item;
     return [

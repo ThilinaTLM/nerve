@@ -132,6 +132,7 @@ export class ConversationLifecycleService {
       runId: input.runId,
       turnId: input.turnId,
       liveMessageId: input.liveMessageId,
+      messageOrdinal: input.messageOrdinal,
       parentEntryId:
         "parentEntryId" in input
           ? (input.parentEntryId ?? undefined)
