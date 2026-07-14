@@ -22,11 +22,8 @@ import ConversationSignal from "../conversation/conversation-signal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
 import {
-  activityStackPositions,
   groupConsecutiveThinking,
-  isRoutineActivityNode,
   toolNodeNeedsAttention,
-  type ActivityStackPosition,
   type TranscriptDisplayNode,
 } from "./transcript-presentation";
 
@@ -35,7 +32,6 @@ type TranscriptRowItem =
       kind: "timeline";
       key: string;
       node: TranscriptDisplayNode;
-      activityPosition?: ActivityStackPosition;
       needsAttention: boolean;
     }
   | { kind: "waiting"; key: string }
@@ -152,16 +148,10 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
       pendingPlanReview,
     ),
   );
-  const activityPositions = activityStackPositions(
-    displayNodes.map((node, index) =>
-      isRoutineActivityNode(node, attention[index] ?? false),
-    ),
-  );
   const result: TranscriptRowItem[] = displayNodes.map((node, index) => ({
     kind: "timeline",
     key: uniqueRowKey(node.key, seenKeys),
     node,
-    activityPosition: activityPositions[index],
     needsAttention: attention[index] ?? false,
   }));
   if (sending && !hasLiveTimelineNodes) {
@@ -285,7 +275,6 @@ const showEmptyRun = $derived(
       {#if item.kind === "timeline"}
         <TranscriptRow
           node={item.node}
-          activityPosition={item.activityPosition}
           needsAttention={item.needsAttention}
           {sending}
           hydrateToolBodies={active}

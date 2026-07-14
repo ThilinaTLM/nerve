@@ -3,9 +3,7 @@ import { describe, it } from "node:test";
 import type { TimelineItem } from "../../state/timeline";
 import type { ApprovalWithToolCall } from "../../state/tool-types";
 import {
-  activityStackPositions,
   groupConsecutiveThinking,
-  isRoutineActivityNode,
   toolNodeNeedsAttention,
 } from "./transcript-presentation";
 
@@ -33,21 +31,7 @@ function messageNode(key: string, text: string): TimelineItem {
 }
 
 describe("transcript presentation", () => {
-  it("classifies contiguous activity stack positions", () => {
-    assert.deepEqual(activityStackPositions([true, true, true]), [
-      "start",
-      "middle",
-      "end",
-    ]);
-    assert.deepEqual(activityStackPositions([true]), ["single"]);
-  });
-
-  it("breaks stacks at prose, errors, and attention boundaries", () => {
-    assert.deepEqual(
-      activityStackPositions([true, true, false, true, false, true, true]),
-      ["start", "end", undefined, "single", undefined, "start", "end"],
-    );
-
+  it("identifies tool calls that need attention", () => {
     const attentionTool = {
       kind: "tool",
       key: "tool_1",
@@ -65,7 +49,6 @@ describe("transcript presentation", () => {
       toolNodeNeedsAttention(attentionTool, [approval], undefined, undefined),
       true,
     );
-    assert.equal(isRoutineActivityNode(attentionTool, true), false);
   });
 
   it("groups consecutive thinking messages into one display node", () => {

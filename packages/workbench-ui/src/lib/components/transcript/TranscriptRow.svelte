@@ -23,14 +23,10 @@ import CompactionCard from "./CompactionCard.svelte";
 import TaskEventCard from "./TaskEventCard.svelte";
 import RunStatusCard from "./RunStatusCard.svelte";
 import ThinkingGroup from "./ThinkingGroup.svelte";
-import type {
-  ActivityStackPosition,
-  TranscriptDisplayNode,
-} from "./transcript-presentation";
+import type { TranscriptDisplayNode } from "./transcript-presentation";
 
 type Props = {
   node: TranscriptDisplayNode;
-  activityPosition?: ActivityStackPosition;
   needsAttention?: boolean;
   sending: boolean;
   activeProject?: ProjectRecord;
@@ -66,7 +62,6 @@ type Props = {
 
 let {
   node,
-  activityPosition,
   needsAttention = false,
   sending,
   activeProject,
@@ -137,13 +132,7 @@ $effect(() => {
 </script>
 
 {#if node.kind === "tool"}
-  <div
-    class="activity-row"
-    class:activity-stacked={Boolean(
-      activityPosition && activityPosition !== "single",
-    )}
-    data-activity-position={activityPosition}
-  >
+  <div class="activity-row">
     <ContextMenu
       items={toolMenu(node.anchorEntryId, node.toolCall)}
       triggerClass="block min-w-0"
@@ -175,13 +164,7 @@ $effect(() => {
     </ContextMenu>
   </div>
 {:else if node.kind === "tool_draft"}
-  <div
-    class="activity-row"
-    class:activity-stacked={Boolean(
-      activityPosition && activityPosition !== "single",
-    )}
-    data-activity-position={activityPosition}
-  >
+  <div class="activity-row">
     <ToolDraftCard draft={node.draft} cwd={activeProject?.dir} />
   </div>
 {:else if node.kind === "tool_result_error"}
@@ -251,33 +234,6 @@ $effect(() => {
 .activity-row {
   position: relative;
   min-width: 0;
-}
-
-.activity-row.activity-stacked {
-  padding-left: 0.55rem;
-}
-
-.activity-row.activity-stacked::before {
-  position: absolute;
-  left: 0.15rem;
-  width: 1px;
-  background: color-mix(in oklab, var(--primary) 28%, var(--border));
-  content: "";
-}
-
-.activity-row[data-activity-position="start"]::before {
-  top: 50%;
-  bottom: 0;
-}
-
-.activity-row[data-activity-position="middle"]::before {
-  top: 0;
-  bottom: 0;
-}
-
-.activity-row[data-activity-position="end"]::before {
-  top: 0;
-  bottom: 50%;
 }
 
 .transcript-entry {

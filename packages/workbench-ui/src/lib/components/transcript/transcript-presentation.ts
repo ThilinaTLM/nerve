@@ -5,8 +5,6 @@ import type {
 } from "../../state/tool-types";
 import type { TimelineItem } from "../../state/timeline";
 
-export type ActivityStackPosition = "single" | "start" | "middle" | "end";
-
 export type TimelineMessageItem = Extract<TimelineItem, { kind: "message" }>;
 
 /** Consecutive assistant thinking messages rendered as one flat reasoning row. */
@@ -72,29 +70,3 @@ export function toolNodeNeedsAttention(
   );
 }
 
-export function isRoutineActivityNode(
-  node: TranscriptDisplayNode,
-  needsAttention: boolean,
-): boolean {
-  if (needsAttention) return false;
-  if (node.kind === "tool_draft") return true;
-  return (
-    node.kind === "tool" &&
-    node.toolCall.status !== "error" &&
-    node.toolCall.status !== "denied"
-  );
-}
-
-export function activityStackPositions(
-  stackable: readonly boolean[],
-): Array<ActivityStackPosition | undefined> {
-  return stackable.map((current, index) => {
-    if (!current) return undefined;
-    const previous = stackable[index - 1] ?? false;
-    const next = stackable[index + 1] ?? false;
-    if (previous && next) return "middle";
-    if (previous) return "end";
-    if (next) return "start";
-    return "single";
-  });
-}
