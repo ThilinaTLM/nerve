@@ -698,6 +698,14 @@ export const exploreResultSchema = z.object({
 });
 export type ExploreResultPayload = z.infer<typeof exploreResultSchema>;
 
+/** Compact Explore result used by bounded transcript previews. */
+export const exploreResultPreviewSchema = exploreResultSchema.extend({
+  reports: z.array(exploreReportSummarySchema),
+});
+export type ExploreResultPreviewPayload = z.infer<
+  typeof exploreResultPreviewSchema
+>;
+
 /** Result of ask_user (resolved question). */
 export const askUserResultSchema = z.object({
   question: z.string(),

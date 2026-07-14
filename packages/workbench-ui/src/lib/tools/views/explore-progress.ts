@@ -1,4 +1,3 @@
-import type { ExploreStepPayload } from "@nervekit/contracts";
 import { asRecord, stringField } from "./tool-view-helpers";
 import type {
   ExploreProgressView,
@@ -86,20 +85,6 @@ function friendlyExploreAction(
   }
 }
 
-function reportStepAction(
-  step: ExploreStepPayload,
-): ExploreTaskAction | undefined {
-  if (EXPLORE_NOISE_MESSAGES.has(step.message)) return undefined;
-  if (step.type === "assistant") return undefined;
-  if (
-    step.type === "tool_result" &&
-    isLowSignalToolResultMessage(step.message)
-  ) {
-    return undefined;
-  }
-  return { text: step.message, mono: true };
-}
-
 function recentTaskMessages(
   input: Pick<ExploreTaskState, "status" | "report" | "error"> & {
     updates: ExploreProgressView[];
@@ -109,11 +94,6 @@ function recentTaskMessages(
     .map(friendlyExploreAction)
     .filter((action): action is ExploreTaskAction => action !== undefined);
   if (liveMessages.length > 0) return liveMessages.slice(-3);
-
-  const stepMessages = input.report?.steps
-    ?.map(reportStepAction)
-    .filter((action): action is ExploreTaskAction => action !== undefined);
-  if (stepMessages && stepMessages.length > 0) return stepMessages.slice(-3);
 
   if (input.status === "failed" && input.error) {
     return [{ text: input.error, mono: false }];

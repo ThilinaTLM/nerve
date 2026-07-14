@@ -10,6 +10,7 @@ import {
   type EventEnvelope,
   eventBatchDataSchema,
   eventBatchMessageSchema,
+  exploreResultPreviewSchema,
   flowUpdateMessageSchema,
   helloMessageSchema,
   nerveMessageSchema,
@@ -82,8 +83,46 @@ function batch(overrides: Partial<EventBatchData> = {}): EventBatchData {
   };
 }
 
-describe("compact explore completion events", () => {
-  it("strips legacy full report fields while retaining recovery metadata", () => {
+describe("compact explore payloads", () => {
+  it("accepts compact result previews without full report fields", () => {
+    const parsed = exploreResultPreviewSchema.parse({
+      reports: [
+        {
+          agentId: "agent_02H00000000000000000000000",
+          task: "Inspect the tool output boundary",
+          status: "completed",
+          reportPath: "/tmp/explore/report.md",
+          summaryPreview: "Boundary summary",
+        },
+      ],
+    });
+
+    assert.equal(parsed.reports[0]?.reportPath, "/tmp/explore/report.md");
+    assert.equal(parsed.reports[0]?.summaryPreview, "Boundary summary");
+  });
+
+  it("projects full result reports to compact preview metadata", () => {
+    const parsed = exploreResultPreviewSchema.parse({
+      reports: [
+        {
+          agentId: "agent_02H00000000000000000000000",
+          task: "Inspect the tool output boundary",
+          status: "completed",
+          report: "full report text",
+          steps: [{ type: "assistant", message: "full report received" }],
+          reportPath: "/tmp/explore/report.md",
+          summaryPreview: "Boundary summary",
+        },
+      ],
+    }) as { reports: Array<Record<string, unknown>> };
+
+    assert.equal(parsed.reports[0]?.report, undefined);
+    assert.equal(parsed.reports[0]?.steps, undefined);
+    assert.equal(parsed.reports[0]?.reportPath, "/tmp/explore/report.md");
+    assert.equal(parsed.reports[0]?.summaryPreview, "Boundary summary");
+  });
+
+  it("strips legacy full report fields from completion events", () => {
     const parsed = validatePublicEvent(
       "agent.explore_completed",
       {

@@ -2,7 +2,7 @@ import {
   askUserResultSchema,
   bashResultDetailsSchema,
   editOperationResultDetailsSchema,
-  exploreResultSchema,
+  exploreResultPreviewSchema,
   pythonResultDetailsSchema,
   taskActionResultSchema,
   taskListResultSchema,
@@ -549,7 +549,7 @@ export function parseToolView(
     }
 
     case "explore": {
-      const parsed = exploreResultSchema.safeParse(rawResult);
+      const parsed = exploreResultPreviewSchema.safeParse(rawResult);
       const data = parsed.success ? parsed.data : undefined;
       const task = stringField(args.task);
       const liveProgress = parseExploreProgressLog(liveOutput?.text);

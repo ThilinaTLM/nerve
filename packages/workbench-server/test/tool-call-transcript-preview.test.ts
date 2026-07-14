@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { type ToolCallRecord, validatePublicEvent } from "@nervekit/contracts";
+import {
+  exploreResultPreviewSchema,
+  type ToolCallRecord,
+  validatePublicEvent,
+} from "@nervekit/contracts";
 import {
   toPublicToolCallArgsPreview,
   toToolCallTranscriptRecord,
@@ -221,6 +225,59 @@ describe("toToolCallTranscriptRecord", () => {
     assert.equal("content" in result, false);
     assert.equal("contentBlocks" in result, false);
     assert.ok(Buffer.byteLength(JSON.stringify(preview), "utf8") < 16 * 1024);
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "toolCall.updated",
+        {
+          conversationId: call.conversationId,
+          agentId: call.agentId,
+          projectId: call.projectId,
+          toolCall: preview,
+        },
+        "workbench_server",
+      ),
+    );
+  });
+
+  it("projects explore results to compact report summaries", () => {
+    const call = toolCall({
+      toolName: "explore",
+      risk: "agent_spawn",
+      args: {
+        task: "Inspect the transcript preview boundary",
+        context:
+          "Confirm compact Explore results remain renderable after reload.",
+      },
+      result: {
+        reports: [
+          {
+            agentId: "agent_02H00000000000000000000000",
+            task: "Inspect the transcript preview boundary",
+            label: "preview",
+            status: "completed",
+            report: "Full child-agent report text.",
+            steps: [
+              {
+                type: "tool_call",
+                toolName: "grep",
+                message: "grep transcript preview",
+              },
+            ],
+            reportPath: "/tmp/nerve/explore/report.md",
+            summaryPreview: "The compact projection is valid.",
+          },
+        ],
+      },
+    });
+
+    const preview = toToolCallTranscriptRecord(call);
+    const parsed = exploreResultPreviewSchema.parse(preview.resultPreview);
+    const report = parsed.reports[0] as Record<string, unknown>;
+
+    assert.equal(report.report, undefined);
+    assert.equal(report.steps, undefined);
+    assert.equal(report.reportPath, "/tmp/nerve/explore/report.md");
+    assert.equal(report.summaryPreview, "The compact projection is valid.");
     assert.doesNotThrow(() =>
       validatePublicEvent(
         "toolCall.updated",

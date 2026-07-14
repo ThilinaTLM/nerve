@@ -4,7 +4,7 @@ import type {
   ConfluencePageSummaryPayload,
   ConfluencePublishOutcomePayload,
   ConfluenceSpaceSummaryPayload,
-  ExploreReportPayload,
+  ExploreReportSummaryPayload,
   FileEntry,
   GrepMatch,
   JiraFieldSummaryPayload,
@@ -102,7 +102,7 @@ export type ExploreTaskState = {
   recentMessages: ExploreTaskAction[];
   /** Count of tool_call updates seen (activity meter). */
   actionCount: number;
-  report?: ExploreReportPayload;
+  report?: ExploreReportSummaryPayload;
   error?: string;
 };
 
@@ -243,7 +243,7 @@ export type ToolView =
   | {
       kind: "explore";
       task?: string;
-      reports: ExploreReportPayload[];
+      reports: ExploreReportSummaryPayload[];
       liveUpdates: ExploreProgressView[];
       liveLog?: string;
     }

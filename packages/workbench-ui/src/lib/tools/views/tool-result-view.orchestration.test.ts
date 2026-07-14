@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { exploreResultSchema } from "@nervekit/contracts";
 import { aggregateExploreTasks, parseToolView } from "./tool-result-view";
-import { CWD, exploreUpdate, toolCall } from "./tool-result-view.fixtures";
+import {
+  CWD,
+  exploreUpdate,
+  toolCall,
+  transcriptToolCall,
+} from "./tool-result-view.fixtures";
 
 describe("parseToolView ask_user/todos/task/explore", () => {
   it("parses an answered ask_user result", () => {
@@ -182,7 +187,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     );
     assert.equal(view.kind, "explore");
     if (view.kind !== "explore") return;
-    assert.equal(view.reports[0]?.report, "Found the off-by-one.");
+    assert.equal("report" in (view.reports[0] ?? {}), false);
     assert.equal(view.reports[0]?.agentId, "agent_02H00000000000000000000000");
     assert.equal(
       view.reports[0]?.reportPath,
@@ -193,7 +198,55 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(view.reports[0]?.usage?.input, 10);
     assert.equal(view.reports[0]?.model, "anthropic/claude-sonnet-4");
     assert.equal(view.reports[0]?.stopReason, "stop");
-    assert.equal(view.reports[0]?.steps?.[0]?.toolName, "grep");
+    assert.equal("steps" in (view.reports[0] ?? {}), false);
+  });
+
+  it("parses compact explore transcript previews", () => {
+    const view = parseToolView(
+      transcriptToolCall(
+        "explore",
+        { task: "Investigate the bug" },
+        {
+          reports: [
+            {
+              agentId: "agent_02H00000000000000000000000",
+              task: "Investigate the bug",
+              label: "parser",
+              status: "completed",
+              reportPath: "/home/me/.nerve/explore-reports/report.md",
+              summaryPreview: "Found the off-by-one.",
+              usage: {
+                input: 10,
+                output: 20,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 30,
+                cost: 0.001,
+                turns: 1,
+              },
+              model: "anthropic/claude-sonnet-4",
+            },
+          ],
+        },
+      ),
+    );
+
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    assert.equal(view.reports.length, 1);
+    const { tasks, summary } = aggregateExploreTasks(view);
+    assert.equal(summary.total, 1);
+    assert.equal(summary.completed, 1);
+    assert.equal(summary.done, true);
+    assert.equal(tasks[0]?.label, "parser");
+    assert.equal(tasks[0]?.status, "completed");
+    assert.equal(
+      tasks[0]?.report?.reportPath,
+      "/home/me/.nerve/explore-reports/report.md",
+    );
+    assert.deepEqual(tasks[0]?.recentMessages, [
+      { text: "Found the off-by-one.", mono: false },
+    ]);
   });
 
   it("accepts enriched explore result payloads", () => {
@@ -561,8 +614,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(tasks[0]?.model, "openai/gpt-5.5");
     assert.equal(tasks[0]?.thinkingLevel, "high");
     assert.deepEqual(tasks[0]?.recentMessages, [
-      { text: "grep card", mono: true },
-      { text: "read card.ts", mono: true },
+      { text: "Summary A", mono: false },
     ]);
     assert.equal(tasks[1]?.status, "failed");
     assert.equal(tasks[1]?.error, "boom");
