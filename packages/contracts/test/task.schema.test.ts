@@ -12,6 +12,7 @@ import {
   taskStartToolResultSchema,
   taskStatusToolResultSchema,
   toolCallRecordSchema,
+  toolNameSchema,
 } from "../src/index.js";
 
 function record(overrides: Partial<TaskRecord> = {}): TaskRecord {
@@ -253,6 +254,25 @@ describe("tool task result metadata", () => {
     });
 
     assert.equal(parsed.success, true);
+  });
+
+  it("keeps records for removed tools readable without making them active", () => {
+    const parsed = toolCallRecordSchema.safeParse({
+      id: "tool_legacy",
+      agentId: "agent_test",
+      conversationId: "conv_test",
+      projectId: "proj_test",
+      toolName: "task_list",
+      risk: "read",
+      args: { activeOnly: true },
+      cwd: "/tmp/project",
+      status: "completed",
+      createdAt: "2026-01-02T03:04:05.000Z",
+      updatedAt: "2026-01-02T03:04:06.000Z",
+    });
+
+    assert.equal(parsed.success, true);
+    assert.equal(toolNameSchema.safeParse("task_list").success, false);
   });
 });
 

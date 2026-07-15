@@ -114,6 +114,12 @@ export const toolNameSchema = z.enum([
 ]);
 export type ToolName = z.infer<typeof toolNameSchema>;
 
+// Tool-call records outlive the manifest that produced them. Keep persisted and
+// transcript records readable after tools are renamed or removed while the
+// active descriptor/dispatch schemas remain restricted to ToolName.
+export const recordedToolNameSchema = z.string().min(1).max(128);
+export type RecordedToolName = z.infer<typeof recordedToolNameSchema>;
+
 export const toolDescriptorSchema = z.object({
   name: toolNameSchema,
   risk: toolRiskSchema,
@@ -148,7 +154,7 @@ export const toolCallRecordSchema = z.object({
   agentId: z.string().startsWith("agent_"),
   conversationId: z.string().startsWith("conv_"),
   projectId: z.string().startsWith("proj_"),
-  toolName: toolNameSchema,
+  toolName: recordedToolNameSchema,
   sourceToolCallId: z.string().min(1).optional(),
   providerToolCallId: z.string().min(1).optional(),
   runId: z.string().startsWith("run_").optional(),
