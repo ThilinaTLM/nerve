@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, readdir } from "node:fs/promises";
+import { chmod, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type DaemonFile,
@@ -14,6 +14,7 @@ import {
   writeTextFileIfMissing,
 } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
+import { ensureStateLayout } from "./state-layout.js";
 
 const dataSubdirs = [
   "auth",
@@ -70,48 +71,6 @@ export async function initializeStorage(
   const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
 
   return { paths, settings, localToken };
-}
-
-async function ensureStateLayout(home: string): Promise<void> {
-  const markerPath = join(home, "VERSION");
-  if (await pathExists(markerPath)) {
-    try {
-      const marker = JSON.parse(await readFile(markerPath, "utf8")) as {
-        format?: unknown;
-        version?: unknown;
-      };
-      if (marker.format === "nerve-workbench-state" && marker.version === 2) {
-        const retiredProcesses = join(home, "proc");
-        if (
-          (await pathExists(retiredProcesses)) &&
-          (await readdir(retiredProcesses)).length > 0
-        )
-          throw new Error("retired process state");
-        return;
-      }
-    } catch {
-      // Report one deterministic reset instruction below.
-    }
-    throw new Error(
-      `Incompatible Nerve state at ${home}. Reset this directory before starting Nerve Protocol v1.`,
-    );
-  }
-  const entries = await readdir(home, { withFileTypes: true });
-  const desktopBootstrapDirectories = new Set(["crashes", "desktop", "logs"]);
-  const containsOnlyDesktopBootstrapData = entries.every(
-    (entry) =>
-      entry.isDirectory() && desktopBootstrapDirectories.has(entry.name),
-  );
-  if (entries.length > 0 && !containsOnlyDesktopBootstrapData) {
-    throw new Error(
-      `Incompatible Nerve state at ${home}. Reset this directory before starting Nerve Protocol v1.`,
-    );
-  }
-  await writeTextFileIfMissing(
-    markerPath,
-    `${JSON.stringify({ format: "nerve-workbench-state", version: 2 }, null, 2)}\n`,
-    0o600,
-  );
 }
 
 export async function writeSettings(

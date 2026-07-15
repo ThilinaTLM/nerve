@@ -76,6 +76,21 @@ NERVE_DEBUG_PROXY=1 pnpm desktop
 Desktop logs are written to `~/.nerve/logs/desktop-YYYY-MM-DD.jsonl`; crash
 reports are written to `~/.nerve/crashes`.
 
+### Upgrading a legacy desktop data directory
+
+When the desktop finds an unversioned legacy `~/.nerve`, it asks before making
+changes. If accepted, Nerve renames the complete directory to a retained,
+timestamped backup such as `~/.nerve-bk-20260716-013229`, initializes a fresh
+current data directory, and restores only encrypted provider and tool
+authentication when it can be read. Conversations, projects, history, custom
+provider definitions, settings, and all other state are not imported; review
+your settings after the upgrade.
+
+If legacy credentials cannot be decrypted, startup continues with the complete
+backup intact and asks you to authenticate again. Nerve never deletes these
+backups automatically. Unknown, malformed, or future versioned stores are not
+reset automatically, and remote desktop connections never run this local-home migration.
+
 Source development via `pnpm desktop` is supported on macOS. A signed/notarized
 macOS `.app` or DMG release package is not configured yet.
 

@@ -1,3 +1,4 @@
+import { resolveDataDir } from "@nervekit/workbench-server";
 import {
   applyElectronFontRenderHinting,
   applyElectronOzonePlatform,
@@ -5,6 +6,7 @@ import {
   parseElectronOzonePlatform,
   resolveElectronFontRenderHinting,
 } from "./app/cli-options.js";
+import { prepareDesktopDataDirectory } from "./app/data-directory-migration.js";
 import {
   type DaemonStatus,
   type DaemonStatusInfo,
@@ -13,7 +15,13 @@ import {
 } from "./daemon.js";
 import { DESKTOP_APP_ID, DESKTOP_APP_NAME } from "./desktop-identity.js";
 import type { BrowserWindowType } from "./electron.js";
-import { app, BrowserWindow, nativeTheme, session } from "./electron.js";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  nativeTheme,
+  session,
+} from "./electron.js";
 import { chromiumLoopbackProxyBypassRules } from "./electron-download-env.js";
 import { showDesktopNotification } from "./ipc/notifications-ipc.js";
 import { registerDesktopIpc, windowState } from "./ipc/window-ipc.js";
@@ -37,7 +45,7 @@ import {
 } from "./window/preload-paths.js";
 
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
-const desktopDataDir = process.env.NERVE_HOME?.trim() || "~/.nerve";
+const desktopDataDir = resolveDataDir();
 const electronOzonePlatform = parseElectronOzonePlatform(
   process.env.NERVE_ELECTRON_OZONE_PLATFORM,
 );
@@ -100,6 +108,16 @@ if (!gotSingleInstanceLock) {
   app
     .whenReady()
     .then(async () => {
+      const preparation = await prepareDesktopDataDirectory(
+        { home: desktopDataDir, mode: desktopOptions.mode },
+        { showMessageBox: (options) => dialog.showMessageBox(options) },
+      );
+      if (preparation.status === "quit") {
+        appQuitting = true;
+        app.quit();
+        return;
+      }
+
       void desktopLog("info", "app", "Electron app ready", {
         context: {
           platform: process.platform,
@@ -108,6 +126,21 @@ if (!gotSingleInstanceLock) {
           chrome: process.versions.chrome,
         },
       });
+      if (preparation.migration) {
+        void desktopLog(
+          "info",
+          "storage",
+          "Legacy data directory backed up and replaced",
+          {
+            context: {
+              backupPath: preparation.migration.backupPath,
+              credentialStatus: preparation.migration.credentialStatus,
+              importedCredentialCount:
+                preparation.migration.importedCredentialCount,
+            },
+          },
+        );
+      }
       await configureDesktopNetworkSession();
       trayController.ensureTray();
       nativeTheme.on("updated", trayController.updateTrayIcon);

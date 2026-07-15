@@ -63,7 +63,7 @@ Stop all Nerve processes and containers first.
 - Sandbox manager: reset both its configured storage directory (`nerve-sandbox-manager-state` version 1) and its PostgreSQL database.
 - Browsers: clear site local and session storage, including `nerve.protocol.clientId`, `nerve.protocol.instanceId`, and manager record `nerve.protocol.v1.sandbox-manager-ui` (epoch `protocol-v1`).
 
-The deterministic errors are `Incompatible Nerve state at <path>...`, `Incompatible sandbox agent state at <path>...`, and `Incompatible sandbox manager state at <path>...`, each ending with `Reset this directory before starting Nerve Protocol v1.` No migration reader is provided.
+The deterministic errors are `Incompatible Nerve state at <path>...`, `Incompatible sandbox agent state at <path>...`, and `Incompatible sandbox manager state at <path>...`, each ending with `Reset this directory before starting Nerve Protocol v1.` Headless workbench and sandbox startup provide no general migration reader. The desktop has one narrow upgrade path for an unversioned legacy workbench home: after confirmation it retains a timestamped whole-home backup, initializes version 2, and selectively re-encrypts provider/tool authentication. It never downgrades or automatically resets malformed, unknown, or future versioned stores.
 
 ## npm publication, migration, and OIDC
 

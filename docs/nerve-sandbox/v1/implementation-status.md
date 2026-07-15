@@ -16,4 +16,4 @@ Incompatible stores fail with deterministic instructions:
 - `Incompatible sandbox agent state at <path>. Reset this directory before starting Nerve Protocol v1.`
 - `Incompatible sandbox manager state at <path>. Reset this directory before starting Nerve Protocol v1.`
 
-Stop processes first. Reset the whole affected workbench home, sandbox `/state`, or both manager storage directory and PostgreSQL database. Clear browser site local/session storage. Partial deletion and migration are not supported.
+Stop processes first. Headless workbench startup still requires resetting the whole affected workbench home. Desktop startup has one confirmed exception for an unversioned legacy workbench home: it renames the complete home to a retained timestamped backup, starts version 2 fresh, and selectively re-encrypts provider/tool authentication. It does not import other state or handle unknown/future version markers. Reset the whole sandbox `/state`, or both manager storage directory and PostgreSQL database, and clear browser site local/session storage. Partial deletion and sandbox-state migration are not supported.

@@ -4,6 +4,48 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { initializeStorage } from "../src/infrastructure/storage/initialize.js";
+import { inspectWorkbenchHome } from "../src/infrastructure/storage/state-layout.js";
+
+test("workbench state inspection classifies supported and incompatible layouts", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "nerve-layout-inspect-"));
+  const missing = path.join(root, "missing");
+  const empty = path.join(root, "empty");
+  const bootstrap = path.join(root, "bootstrap");
+  const legacy = path.join(root, "legacy");
+  const malformed = path.join(root, "malformed");
+  const future = path.join(root, "future");
+  try {
+    await mkdir(empty);
+    await mkdir(path.join(bootstrap, "logs"), { recursive: true });
+    await mkdir(path.join(bootstrap, "desktop"));
+    await mkdir(legacy);
+    await writeFile(path.join(legacy, "config.json"), "{}\n");
+    await mkdir(malformed);
+    await writeFile(path.join(malformed, "VERSION"), "not-json\n");
+    await mkdir(future);
+    await writeFile(
+      path.join(future, "VERSION"),
+      `${JSON.stringify({ format: "nerve-workbench-state", version: 3 })}\n`,
+    );
+
+    assert.equal((await inspectWorkbenchHome(missing)).kind, "missing");
+    assert.equal((await inspectWorkbenchHome(empty)).kind, "empty");
+    assert.equal(
+      (await inspectWorkbenchHome(bootstrap)).kind,
+      "desktop-bootstrap",
+    );
+    assert.equal((await inspectWorkbenchHome(legacy)).kind, "legacy");
+    assert.equal((await inspectWorkbenchHome(malformed)).kind, "unsupported");
+    assert.equal((await inspectWorkbenchHome(future)).kind, "unsupported");
+
+    await initializeStorage(empty);
+    assert.equal((await inspectWorkbenchHome(empty)).kind, "current");
+    await mkdir(path.join(empty, "proc", "proc_legacy"), { recursive: true });
+    assert.equal((await inspectWorkbenchHome(empty)).kind, "unsupported");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("workbench state initializes v2 and rejects incompatible layouts", async () => {
   const empty = await mkdtemp(path.join(os.tmpdir(), "nerve-layout-v2-"));
