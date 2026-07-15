@@ -13,6 +13,7 @@ import {
   runStartParamsSchema,
   runSteerParamsSchema,
   summarizeSandboxStartupEvents,
+  toPlanReviewPreview,
 } from "@nervekit/contracts";
 import {
   AgentConfigStore,
@@ -729,11 +730,13 @@ export class SandboxDaemon {
             ...scope,
             reviewId: interaction.planReview.id,
             decision,
-            planReview: planRecord?.review ?? {
-              ...interaction.planReview,
-              status: reviewStatus,
-              updatedAt: resolvedAt,
-            },
+            planReview: toPlanReviewPreview(
+              planRecord?.review ?? {
+                ...interaction.planReview,
+                status: reviewStatus,
+                updatedAt: resolvedAt,
+              },
+            ),
             resolvedAt,
           },
         });

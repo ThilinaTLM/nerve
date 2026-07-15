@@ -122,7 +122,7 @@ export type ConversationPaneActions = {
     id: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void;
+  onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (statusEntryId: string) => void;
   onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
   onMoveQueuedPromptToComposer?: (

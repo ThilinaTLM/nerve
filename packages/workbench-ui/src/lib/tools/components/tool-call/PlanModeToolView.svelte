@@ -37,7 +37,7 @@ type Props = {
     id: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void;
+  onRejectPlanReview?: (id: string) => void | Promise<void>;
 };
 let {
   toolCall,
@@ -55,6 +55,8 @@ let {
 
 let implementationDialog = $state<PlanAcceptTarget | undefined>();
 let accepting = $state<PlanAcceptTarget | undefined>();
+let rejecting = $state(false);
+let actionError = $state<string | undefined>();
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"
@@ -123,7 +125,9 @@ const preview = $derived(
 const showPlanCard = $derived(
   toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),
 );
-const actionsDisabled = $derived(!pendingReview || Boolean(accepting));
+const actionsDisabled = $derived(
+  !pendingReview || Boolean(accepting) || rejecting,
+);
 const acceptVariant = $derived<"success" | "default">(
   accepted || acceptedInNewChat ? "success" : "default",
 );
@@ -138,10 +142,21 @@ const statusMeta = $derived<MetaItem[]>(
 );
 
 async function acceptSame(options?: PlanReviewResolveOptions) {
-  if (!planReview || !pendingReview || accepting || !onAcceptPlanReview) return;
+  if (
+    !planReview ||
+    !pendingReview ||
+    accepting ||
+    rejecting ||
+    !onAcceptPlanReview
+  ) {
+    return;
+  }
   accepting = "same";
+  actionError = undefined;
   try {
     await onAcceptPlanReview(planReview.id, options);
+  } catch (error) {
+    actionError = errorMessage(error, "Could not accept the plan.");
   } finally {
     accepting = undefined;
   }
@@ -152,31 +167,57 @@ async function acceptNewChat(options?: PlanReviewResolveOptions) {
     !planReview ||
     !pendingReview ||
     accepting ||
+    rejecting ||
     !onAcceptPlanReviewInNewChat
   ) {
     return;
   }
   accepting = "new-chat";
+  actionError = undefined;
   try {
     await onAcceptPlanReviewInNewChat(planReview.id, options);
+  } catch (error) {
+    actionError = errorMessage(error, "Could not accept the plan.");
   } finally {
     accepting = undefined;
   }
 }
 
 function openSameModelDialog() {
-  if (!pendingReview || accepting) return;
+  if (!pendingReview || accepting || rejecting) return;
   implementationDialog = "same";
 }
 
 function openNewChatModelDialog() {
-  if (!pendingReview || accepting) return;
+  if (!pendingReview || accepting || rejecting) return;
   implementationDialog = "new-chat";
 }
 
-function rejectPlan() {
-  if (!planReview || !pendingReview || accepting) return;
-  onRejectPlanReview?.(planReview.id);
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : fallback;
+}
+
+async function rejectPlan() {
+  if (
+    !planReview ||
+    !pendingReview ||
+    accepting ||
+    rejecting ||
+    !onRejectPlanReview
+  ) {
+    return;
+  }
+  rejecting = true;
+  actionError = undefined;
+  try {
+    await onRejectPlanReview(planReview.id);
+  } catch (error) {
+    actionError = errorMessage(error, "Could not reject the plan.");
+  } finally {
+    rejecting = false;
+  }
 }
 </script>
 
@@ -243,10 +284,14 @@ function rejectPlan() {
           onclick={rejectPlan}
         >
           {#if rejected}<Check class="size-3.5" strokeWidth={2.4} />{/if}
-          Reject Plan
+          {rejecting ? "Rejecting…" : "Reject Plan"}
         </Button>
       {/snippet}
     </ToolFooter>
+
+    {#if actionError}
+      <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
+    {/if}
 
     <PlanImplementationModelDialog
       open={implementationDialog === "same"}

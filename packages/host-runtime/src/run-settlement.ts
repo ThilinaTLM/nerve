@@ -31,28 +31,32 @@ export function completeExecution(
   return completed(state.run, result, now, events);
 }
 
-export function completeResolvedInteraction(
+export function completeInteractionResolution(
   state: RunHydratedState,
-  interactionId: string,
+  interaction: RunHydratedState["interactions"][number],
   result: Readonly<Record<string, unknown>>,
   now: string,
   events: RunEventFactory,
 ): RunSettlement {
-  const interaction = state.interactions.find(
-    (candidate) => candidate.id === interactionId,
-  );
   if (
-    state.run.status !== "suspended" ||
-    state.run.activeInteractionId !== interactionId ||
-    interaction?.status !== "resolved"
+    state.run.status !== "waiting" ||
+    state.run.activeInteractionId !== interaction.id ||
+    interaction.status !== "resolved"
   ) {
     throw new InvalidRunStateError(
-      "Only a resolved suspended interaction can complete its run",
+      "Only an active waiting interaction can terminally resolve its run",
     );
   }
-  return completed(state.run, { ...result }, now, events, {
+  const settlement = completed(state.run, { ...result }, now, events, {
     activeInteractionId: undefined,
   });
+  return {
+    run: settlement.run,
+    changes: {
+      ...settlement.changes,
+      interactions: [interaction],
+    },
+  };
 }
 
 function completed(

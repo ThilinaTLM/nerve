@@ -37,7 +37,7 @@ type Props = {
     id: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void;
+  onRejectPlanReview?: (id: string) => void | Promise<void>;
   onRetry?: () => void | Promise<void>;
   onOpenChange?: (open: boolean) => void;
 };

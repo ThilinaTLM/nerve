@@ -8,7 +8,7 @@ import type {
   RunPublicEventIntent,
   RunRecord,
 } from "@nervekit/contracts";
-import { validatePublicEvent } from "@nervekit/contracts";
+import { toPlanReviewPreview, validatePublicEvent } from "@nervekit/contracts";
 
 /**
  * Bounded, non-authoritative transient progress/delta emitted by a live
@@ -228,7 +228,7 @@ export class RunEventFactory {
       waitKind: "plan_review",
       reviewId: interaction.planReview.id,
       toolCallId: interaction.toolCallId,
-      planReview: interaction.planReview,
+      planReview: toPlanReviewPreview(interaction.planReview),
     });
   }
 

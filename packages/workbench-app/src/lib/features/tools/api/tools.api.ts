@@ -125,8 +125,12 @@ export async function rejectPlanReview(
   reviewId: string,
   feedback?: string,
 ): Promise<PlanReviewRecord> {
-  return (await protocolRequest("planReview.reject", { reviewId, feedback }))
-    .result.planReview;
+  const result = (
+    await protocolRequest("planReview.reject", { reviewId, feedback })
+  ).result;
+  if (!("planReview" in result))
+    throw unexpectedAsyncResult("planReview.reject");
+  return planReviewRecordSchema.parse(result.planReview);
 }
 
 export async function requestPlanChanges(

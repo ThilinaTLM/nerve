@@ -430,7 +430,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   onAcceptPlanReview={(id, options) => acceptPendingPlanReview(id, options)}
   onAcceptPlanReviewInNewChat={(id, options) =>
     acceptPendingPlanReviewInNewChat(id, options)}
-  onRejectPlanReview={(id) => void rejectPendingPlanReview(id)}
+  onRejectPlanReview={rejectPendingPlanReview}
   onContinueFromFailure={(id) => {
     void runActivePaneAction(() => continueFromFailure(id));
   }}

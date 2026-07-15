@@ -41,7 +41,7 @@ type Props = {
     id: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void;
+  onRejectPlanReview?: (id: string) => void | Promise<void>;
 };
 let {
   toolCall,

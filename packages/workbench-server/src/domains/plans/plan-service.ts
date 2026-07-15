@@ -7,6 +7,7 @@ import {
   type PlanReviewRecord,
   type PlanReviewStatus,
   planReviewRecordSchema,
+  toPlanReviewPreview,
   type ToolCallRecord,
 } from "@nervekit/contracts";
 import type { EventBus } from "../../infrastructure/events/index.js";
@@ -34,21 +35,7 @@ export type PlanReviewResult = {
 
 const UNRESOLVED_PLAN_MARKER = /\[!(QUESTION|DECISION)\]/i;
 
-const PLAN_REVIEW_CONTENT_PREVIEW_LINES = 10;
-
-function firstLines(text: string, count: number): string {
-  const lines = text.split("\n");
-  return lines.length > count ? lines.slice(0, count).join("\n") : text;
-}
-
-export function planReviewPreview(review: PlanReviewRecord): PlanReviewRecord {
-  return review.content === undefined
-    ? review
-    : {
-        ...review,
-        content: firstLines(review.content, PLAN_REVIEW_CONTENT_PREVIEW_LINES),
-      };
-}
+export const planReviewPreview = toPlanReviewPreview;
 
 export type SetAgentMode = (
   agentId: string,
@@ -255,6 +242,8 @@ export class PlanService {
     reviewId: string,
     feedback?: string,
   ): Promise<PlanReviewRecord> {
+    const existing = this.planReviews.get(reviewId);
+    if (existing?.status === "changes_requested") return existing;
     const review = this.getPendingPlanReview(reviewId);
     const updated = await this.resolvePlanReview(
       review,

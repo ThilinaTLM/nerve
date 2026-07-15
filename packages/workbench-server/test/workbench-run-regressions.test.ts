@@ -225,6 +225,47 @@ describe("workbench coordinator behavior regressions", () => {
     assert.match(starts[0]?.text ?? "", /implement it in this new chat/i);
   });
 
+  it("rejects a pending plan by terminally resolving without continuation", async () => {
+    const fixture = rejectionFixture("pending");
+
+    const rejected = await fixture.service.rejectPlanReview(
+      fixture.review.id,
+      "Needs more work.",
+    );
+
+    assert.equal(rejected.status, "changes_requested");
+    assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.resolutions[0]?.continueRun, false);
+    assert.equal(fixture.resolutions[0]?.completeRun, true);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 1);
+  });
+
+  it("reconciles when the source run becomes terminal during rejection", async () => {
+    const fixture = rejectionFixture("terminal_race");
+
+    const rejected = await fixture.service.rejectPlanReview(fixture.review.id);
+
+    assert.equal(rejected.status, "changes_requested");
+    assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 1);
+  });
+
+  it("reconciles an orphaned plan review whose source run is terminal", async () => {
+    const fixture = rejectionFixture("terminal");
+
+    const rejected = await fixture.service.rejectPlanReview(
+      fixture.review.id,
+      "Stop here.",
+    );
+
+    assert.equal(rejected.status, "changes_requested");
+    assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 1);
+  });
+
   it("bounds automatic fresh-run handovers at three and resets only externally", async () => {
     const starts: string[] = [];
     const counts = new Map<string, number>();
@@ -270,6 +311,100 @@ function agentRecord(): AgentRecord {
     createdAt: "2026-07-13T00:00:00.000Z",
     updatedAt: "2026-07-13T00:00:00.000Z",
   } as AgentRecord;
+}
+
+function rejectionFixture(
+  sourceState: "pending" | "terminal" | "terminal_race",
+) {
+  const source = { ...agentRecord(), mode: "planning" as const };
+  const review = planReview();
+  const resolutions: Array<Record<string, unknown>> = [];
+  const completedToolCalls: unknown[] = [];
+  const appendedEntries: unknown[] = [];
+  const pendingToolCall = {
+    id: review.toolCallId,
+    agentId: source.id,
+    conversationId: source.conversationId,
+    projectId: source.projectId,
+    runId: "run_source",
+    turnId: "turn_source",
+    providerToolCallId: "provider_plan",
+    toolName: "plan_mode_present",
+    status: "waiting_for_user",
+  };
+  let currentToolCall = pendingToolCall;
+  let stateChecks = 0;
+  const planResult = {
+    review: { ...review, status: "changes_requested" },
+    outcome: "changes_requested",
+    mode: "planning",
+    contentBlocks: [{ type: "text", text: "Plan rejected." }],
+  };
+  const service = new HumanInputResolutionService({
+    plans: {
+      listPlanReviews: () => [review],
+      rejectPlanReview: async (_id: string, feedback?: string) => ({
+        ...review,
+        status: "changes_requested",
+        feedback,
+      }),
+      planReviewResult: () => planResult,
+    },
+    tools: {
+      getToolCall: () => currentToolCall,
+      completeToolCall: async () => {
+        currentToolCall = {
+          ...currentToolCall,
+          status: "completed",
+          result: planResult,
+        };
+        completedToolCalls.push(currentToolCall);
+        return currentToolCall;
+      },
+    },
+    runs: {
+      interactionResolutionStateForToolCall: async () => {
+        stateChecks += 1;
+        if (sourceState === "terminal_race") {
+          return stateChecks === 1 ? "pending" : "terminal";
+        }
+        return sourceState;
+      },
+      resolveInteractionForToolCall: async (input: Record<string, unknown>) => {
+        resolutions.push(input);
+        if (sourceState === "terminal_race") {
+          throw new Error("run became terminal");
+        }
+      },
+    },
+    getAgent: () => source,
+    configureAgent: async () => source,
+    setAgentStatus: async () => undefined,
+    continueAgent: async () => undefined,
+    createConversation: async () => {
+      throw new Error("not used");
+    },
+    createAgent: async () => {
+      throw new Error("not used");
+    },
+    appendEntry: async (input: Record<string, unknown>) => {
+      appendedEntries.push(input);
+      return { ...input, id: String(input.id) };
+    },
+    harnessStorage: {
+      appendAgentMessage: async () => ({
+        id: "entry_plan_rejected",
+        timestamp: "2026-07-13T00:00:01.000Z",
+      }),
+    },
+  } as never);
+  return {
+    service,
+    review,
+    resolutions,
+    completedToolCalls,
+    appendedEntries,
+  };
 }
 
 function planReview(): PlanReviewRecord {

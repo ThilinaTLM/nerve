@@ -7,7 +7,7 @@ import type {
   ToolName,
 } from "@nervekit/contracts";
 import { parseInlineCommandPrompt } from "@nervekit/contracts";
-import type { RunCoordinator } from "@nervekit/host-runtime";
+import { TERMINAL_STATUSES, type RunCoordinator } from "@nervekit/host-runtime";
 import { HttpError } from "../../http/errors.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ExploreReport } from "../agents/run/subagent-runner.js";
@@ -133,6 +133,30 @@ export class WorkbenchRunService {
     await this.coordinator.cancel(state.run.runId, "user requested abort");
   }
 
+  async interactionResolutionStateForToolCall(
+    toolCallId: string,
+    runId: string,
+  ): Promise<"pending" | "terminal"> {
+    const state = await this.unitOfWork.load(runId);
+    if (!state) {
+      throw new HttpError(
+        409,
+        "RUN_NOT_FOUND",
+        "The source run was not found.",
+      );
+    }
+    const interaction = state.interactions.find(
+      (candidate) => candidate.toolCallId === toolCallId,
+    );
+    if (TERMINAL_STATUSES.has(state.run.status)) return "terminal";
+    if (interaction?.status === "pending") return "pending";
+    throw new HttpError(
+      409,
+      "RUN_INTERACTION_NOT_PENDING",
+      "The run interaction is not pending.",
+    );
+  }
+
   async assertPendingInteractionForToolCall(toolCallId: string): Promise<void> {
     const states = await this.unitOfWork.list();
     const interaction = states
@@ -182,19 +206,20 @@ export class WorkbenchRunService {
     if (input.entries?.length) {
       await this.coordinator.appendEntries(state.run.runId, input.entries);
     }
-    await this.coordinator.resolveInteraction(state.run.runId, {
+    const command = {
       interactionId: interaction.id,
       resolutionRequestId: input.resolutionRequestId,
       resolution: input.resolution,
-    });
+    };
     if (input.completeRun) {
-      await this.coordinator.completeResolvedInteraction(
+      await this.coordinator.resolveAndCompleteInteraction(
         state.run.runId,
-        interaction.id,
+        command,
       );
-    } else if (input.continueRun) {
-      await this.coordinator.continue(state.run.runId);
+      return;
     }
+    await this.coordinator.resolveInteraction(state.run.runId, command);
+    if (input.continueRun) await this.coordinator.continue(state.run.runId);
   }
 
   getContextUsage(conversationId: string): Promise<ContextUsage> {

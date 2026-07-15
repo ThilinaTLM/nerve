@@ -101,6 +101,8 @@ function fixture(
   const publicationAttempts: RunPublicEventIntent[] = [];
   const controls: Array<{ behavior: string; text: string }> = [];
   const controlPrompts: import("@nervekit/contracts").RunPromptRecord[] = [];
+  const controlContinues: number[] = [];
+  const controlCancels: Array<string | undefined> = [];
   const executions: RunExecution[] = [];
   const sinks: RunExecutionSink[] = [];
   const transient: RunProgressEvent[] = [];
@@ -150,8 +152,12 @@ function fixture(
               controls.push({ behavior: prompt.behavior, text: prompt.text });
               controlPrompts.push(prompt);
             },
-            continue: async () => undefined,
-            cancel: async () => undefined,
+            continue: async () => {
+              controlContinues.push(attempt);
+            },
+            cancel: async (reason) => {
+              controlCancels.push(reason);
+            },
           },
           execute: async (input) => {
             executionInputs.push(input);
@@ -215,6 +221,8 @@ function fixture(
     publicationAttempts,
     controls,
     controlPrompts,
+    controlContinues,
+    controlCancels,
     executions,
     sinks,
     transient,
@@ -225,6 +233,17 @@ function fixture(
     setTranscript(value: typeof transcript) {
       transcript = value;
     },
+  };
+}
+
+function suspensionCheckpoint() {
+  return {
+    boundary: "suspension" as const,
+    transcriptCursor: 0,
+    entryIds: [],
+    harnessLeafId: null,
+    harnessSavePointId: "save_0",
+    toolCalls: [],
   };
 }
 
@@ -669,7 +688,45 @@ test("resolves an interaction once and rejects conflicting resolution", async ()
   );
 });
 
-test("terminally completes only a resolved suspended interaction", async () => {
+test("publishes a bounded plan preview while retaining the full interaction", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const content = "long plan line\n".repeat(2_000);
+  const interaction = await harness.coordinator.wait(run.runId, {
+    kind: "plan_review",
+    toolCallId: "tool_plan_long",
+    prompt: "Review long plan",
+    planReview: {
+      id: "plan_review_long",
+      toolCallId: "tool_plan_long",
+      agentId: "agent_a",
+      conversationId: "conv_a",
+      projectId: "proj_a",
+      slug: "long-plan",
+      planPath: "/tmp/long-plan.md",
+      content,
+      status: "pending",
+      requestedAt: "2026-07-12T00:00:00.000Z",
+      updatedAt: "2026-07-12T00:00:00.000Z",
+    },
+    checkpoint: suspensionCheckpoint(),
+  });
+
+  assert.equal(interaction.planReview.content, content);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "waiting",
+  );
+  const waiting = harness.publicationAttempts.find(
+    (intent) => intent.type === "run.waiting",
+  );
+  assert.ok(waiting);
+  const publicReview = waiting.data.planReview as { content?: string };
+  assert.ok((publicReview.content?.length ?? 0) < content.length);
+  assert.equal(publicReview.content?.split("\n").length, 10);
+});
+
+test("atomically resolves and completes an interaction without waking execution", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);
   const interaction = await harness.coordinator.wait(run.runId, {
@@ -687,32 +744,50 @@ test("terminally completes only a resolved suspended interaction", async () => {
       status: "pending",
       requestedAt: "2026-07-12T00:00:00.000Z",
       updatedAt: "2026-07-12T00:00:00.000Z",
-    } as never,
-    checkpoint: {
-      boundary: "suspension",
-      transcriptCursor: 0,
-      entryIds: [],
-      harnessLeafId: null,
-      harnessSavePointId: "save_0",
-      toolCalls: [],
     },
+    checkpoint: suspensionCheckpoint(),
   });
-  await assert.rejects(
-    harness.coordinator.completeResolvedInteraction(run.runId, interaction.id),
-  );
-  await harness.coordinator.resolveInteraction(run.runId, {
+  const command = {
     interactionId: interaction.id,
     resolutionRequestId: "request_terminal",
     resolution: { decision: "reject" },
-  });
-  const completed = await harness.coordinator.completeResolvedInteraction(
+  };
+
+  const completed = await harness.coordinator.resolveAndCompleteInteraction(
     run.runId,
-    interaction.id,
+    command,
   );
   assert.equal(completed.status, "completed");
+  assert.deepEqual(harness.controlContinues, []);
+  assert.deepEqual(harness.controlCancels, ["interaction terminally resolved"]);
+  let state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.interactions[0]?.status, "resolved");
   assert.equal(
-    (await harness.coordinator.get(run.runId))?.transitions.at(-1)?.kind,
-    "resolved_interaction_completed",
+    state?.transitions.at(-1)?.kind,
+    "interaction_resolved_completed",
+  );
+
+  const duplicate = await harness.coordinator.resolveAndCompleteInteraction(
+    run.runId,
+    command,
+  );
+  assert.equal(duplicate.status, "completed");
+  await assert.rejects(
+    harness.coordinator.resolveAndCompleteInteraction(run.runId, {
+      ...command,
+      resolutionRequestId: "request_conflict",
+      resolution: { decision: "accept" },
+    }),
+    RunConflictError,
+  );
+
+  harness.finishExecution({ status: "completed" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "completed");
+  assert.equal(
+    state?.transitions.at(-1)?.kind,
+    "interaction_resolved_completed",
   );
 });
 

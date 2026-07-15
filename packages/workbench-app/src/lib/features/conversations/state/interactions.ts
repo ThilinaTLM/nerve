@@ -56,12 +56,29 @@ export async function acceptPendingPlanReviewInNewChat(
 }
 
 export async function rejectPendingPlanReview(reviewId: string) {
-  await rejectPlanReview(reviewId, "Rejected from UI.");
-  workspaceState.planReviews = await getPendingPlanReviews();
-  await loadWorkspaceState();
-  if (selection.conversationId)
-    await refreshConversationView(selection.conversationId);
+  try {
+    await rejectPlanReview(reviewId, "Rejected from UI.");
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    notify.error("Could not reject plan", { description: message });
+    throw caught;
+  }
+
+  workspaceState.planReviews = workspaceState.planReviews.filter(
+    (review) => review.id !== reviewId,
+  );
   notify.message("Plan rejected");
+
+  try {
+    await loadWorkspaceState();
+    if (selection.conversationId)
+      await refreshConversationView(selection.conversationId);
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    notify.message("Plan rejected; refresh pending", {
+      description: message,
+    });
+  }
 }
 
 export async function requestPendingPlanChanges(

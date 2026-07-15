@@ -27,7 +27,7 @@ import { RunPromptCoordinator } from "./run-prompts.js";
 import { decideRunRecovery } from "./run-recovery.js";
 import {
   completeExecution,
-  completeResolvedInteraction as settleResolvedInteraction,
+  completeInteractionResolution as settleInteractionResolution,
 } from "./run-settlement.js";
 import {
   cancellableRetryDelay,
@@ -372,28 +372,75 @@ export class RunCoordinator {
     return resolved;
   }
 
-  async completeResolvedInteraction(
+  async resolveAndCompleteInteraction(
     runId: string,
-    interactionId: string,
+    command: ResolveInteractionCommand,
     result: Readonly<Record<string, unknown>> = {},
   ): Promise<RunRecord> {
-    return this.exclusive(`run:${runId}`, async () => {
-      const state = await this.require(runId);
-      const settled = settleResolvedInteraction(
-        state,
-        interactionId,
-        result,
-        this.now(),
-        this.events,
-      );
-      await this.commit(
-        state,
-        settled.run,
-        "resolved_interaction_completed",
-        settled.changes,
-      );
-      return settled.run;
-    });
+    const { run: completed, cleanupLive } = await this.exclusive(
+      `run:${runId}`,
+      async () => {
+        const state = await this.require(runId);
+        const current = state.interactions.find(
+          (item) => item.id === command.interactionId,
+        );
+        if (!current || current.runId !== runId) {
+          throw new InvalidRunStateError("Interaction does not belong to run");
+        }
+        const resolutionHash = this.ports.integrity.checksum(
+          command.resolution,
+        );
+        if (current.status === "resolved") {
+          if (current.resolutionHash !== resolutionHash) {
+            throw new RunConflictError("Conflicting interaction resolution");
+          }
+          if (state.run.status === "completed") {
+            return { run: state.run, cleanupLive: false };
+          }
+          throw invalid(state.run, "terminally resolve interaction");
+        }
+        if (current.status !== "pending") {
+          throw invalid(state.run, "terminally resolve interaction");
+        }
+        const now = this.now();
+        const resolved: RunInteractionRecord = {
+          ...current,
+          status: "resolved",
+          resolutionRequestId: command.resolutionRequestId,
+          resolutionHash,
+          resolution: command.resolution,
+          resolvedAt: now,
+        };
+        const settled = settleInteractionResolution(
+          state,
+          resolved,
+          result,
+          now,
+          this.events,
+        );
+        await this.commit(
+          state,
+          settled.run,
+          "interaction_resolved_completed",
+          settled.changes,
+        );
+        return { run: settled.run, cleanupLive: true };
+      },
+    );
+
+    const live = cleanupLive ? this.live.get(runId) : undefined;
+    if (live) {
+      live.abort.abort("interaction terminally resolved");
+      try {
+        await live.execution.control.cancel("interaction terminally resolved");
+      } catch (error) {
+        this.ports.diagnostics?.warn(
+          "terminal interaction live execution cleanup failed",
+          { runId, error: errorMessage(error) },
+        );
+      }
+    }
+    return completed;
   }
 
   async cancel(runId: string, reason?: string): Promise<RunRecord> {

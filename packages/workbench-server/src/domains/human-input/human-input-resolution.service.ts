@@ -156,12 +156,20 @@ export class HumanInputResolutionService {
     reviewId: string,
     feedback?: string,
   ): Promise<PlanReviewRecord> {
-    const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
-    await this.deps.runs.assertPendingInteractionForToolCall(
-      pendingReview.toolCallId,
-    );
+    const rejectableReview = this.getRejectablePlanReviewOrThrow(reviewId);
+    let review: PlanReviewRecord;
     try {
-      const review = await this.deps.plans.rejectPlanReview(reviewId, feedback);
+      review = await this.deps.plans.rejectPlanReview(reviewId, feedback);
+    } catch (error) {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
+    const toolCall = this.deps.tools.getToolCall(rejectableReview.toolCallId);
+    if (!toolCall.runId) {
       await this.resolveSuspensionForToolCall(
         review.toolCallId,
         this.deps.plans.planReviewResult(review),
@@ -172,13 +180,38 @@ export class HumanInputResolutionService {
         },
       );
       return review;
-    } catch (error) {
-      throw new HttpError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
     }
+
+    const sourceState =
+      await this.deps.runs.interactionResolutionStateForToolCall(
+        toolCall.id,
+        toolCall.runId,
+      );
+    if (sourceState === "terminal") {
+      await this.reconcileTerminalPlanRejection(review);
+      return review;
+    }
+
+    try {
+      await this.resolveSuspensionForToolCall(
+        review.toolCallId,
+        this.deps.plans.planReviewResult(review),
+        {
+          continueAgent: false,
+          completeRun: true,
+          finalSuspensionStatus: "cancelled",
+        },
+      );
+    } catch (error) {
+      const latestState =
+        await this.deps.runs.interactionResolutionStateForToolCall(
+          toolCall.id,
+          toolCall.runId,
+        );
+      if (latestState !== "terminal") throw error;
+      await this.reconcileTerminalPlanRejection(review);
+    }
+    return review;
   }
 
   async requestPlanChanges(
@@ -359,6 +392,30 @@ export class HumanInputResolutionService {
   }
 
   private getPendingPlanReviewOrThrow(reviewId: string): PlanReviewRecord {
+    const review = this.getPlanReviewOrThrow(reviewId);
+    if (review.status !== "pending") {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        "Plan review is already resolved.",
+      );
+    }
+    return review;
+  }
+
+  private getRejectablePlanReviewOrThrow(reviewId: string): PlanReviewRecord {
+    const review = this.getPlanReviewOrThrow(reviewId);
+    if (review.status !== "pending" && review.status !== "changes_requested") {
+      throw new HttpError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        "Plan review is already resolved.",
+      );
+    }
+    return review;
+  }
+
+  private getPlanReviewOrThrow(reviewId: string): PlanReviewRecord {
     const review = this.deps.plans
       .listPlanReviews()
       .find((candidate) => candidate.id === reviewId);
@@ -367,13 +424,6 @@ export class HumanInputResolutionService {
         404,
         "PLAN_REVIEW_NOT_FOUND",
         "Plan review not found.",
-      );
-    }
-    if (review.status !== "pending") {
-      throw new HttpError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        "Plan review is already resolved.",
       );
     }
     return review;
@@ -405,6 +455,18 @@ export class HumanInputResolutionService {
     await this.deps.configureAgent(agentId, {
       thinkingLevel: implementationThinkingLevel,
     });
+  }
+
+  private async reconcileTerminalPlanRejection(
+    review: PlanReviewRecord,
+  ): Promise<void> {
+    const toolCall = this.deps.tools.getToolCall(review.toolCallId);
+    if (toolCall.status === "completed") return;
+    const completed = await this.deps.tools.completeToolCall(
+      review.toolCallId,
+      this.deps.plans.planReviewResult(review),
+    );
+    await this.appendToolResultForToolCall(completed, false);
   }
 
   private async resolveSuspensionForToolCall(
