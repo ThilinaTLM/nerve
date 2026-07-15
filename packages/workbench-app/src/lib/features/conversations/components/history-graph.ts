@@ -87,7 +87,6 @@ const TOOL_ICONS: Record<string, HistoryIconName> = {
   task_logs: "cpu",
   task_cancel: "cpu",
   task_restart: "cpu",
-  task_list: "cpu",
   explore: "search",
   ask_user: "message-circle-question",
   plan_mode_enter: "clipboard-list",

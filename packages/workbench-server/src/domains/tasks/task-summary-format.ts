@@ -77,46 +77,22 @@ export function formatLogEvent(event: TaskLogEvent): string {
   return `[${event.seq} ${event.stream} ${event.level}] ${truncateTaskText(event.line, MAX_LOG_LINE)}`;
 }
 
-export function formatTaskStartSummary(input: {
-  tasks: TaskRecord[];
-  groupId?: string;
-  groupName?: string;
-}): string {
-  if (input.tasks.length === 0) return "No tasks started.";
-  const lines = [
-    `Started ${input.tasks.length} background ${input.tasks.length === 1 ? "task" : "tasks"}${input.groupId ? ` (group ${input.groupId})` : ""}.`,
+export function formatTaskStartSummary(task: TaskRecord): string {
+  const readiness = formatReadiness(task);
+  const bits = [
+    `Started background task ${task.name ?? taskCommandPreview(task)}: ${task.id} — ${task.status}`,
   ];
-  for (const task of input.tasks) {
-    const readiness = formatReadiness(task);
-    const bits = [
-      `- ${task.name ?? taskCommandPreview(task)}: ${task.id} — ${task.status}`,
-    ];
-    if (readiness) bits.push(readiness);
-    if (task.readiness.readyUrl)
-      bits.push(`readyUrl=${task.readiness.readyUrl}`);
-    const ports = formatTaskPorts(task);
-    if (ports) bits.push(`ports=${ports}`);
-    lines.push(bits.join("; "));
-  }
-  lines.push(
-    "Task updates may arrive asynchronously. Use task_status/task_logs only if you need to inspect or debug.",
-  );
-  return lines.join("\n");
+  if (readiness) bits.push(readiness);
+  if (task.readiness.readyUrl) bits.push(`readyUrl=${task.readiness.readyUrl}`);
+  const ports = formatTaskPorts(task);
+  if (ports) bits.push(`ports=${ports}`);
+  return `${bits.join("; ")}\nA terminal update will arrive asynchronously. Do not poll; use task_status or task_logs only for on-demand diagnostics.`;
 }
 
-export function formatTaskStatusSummary(
-  rows: Array<{ task: TaskRecord; logs?: TaskLogEvent[]; nextCursor?: number }>,
-): string {
-  if (rows.length === 0) return "No tasks found.";
-  const lines = [`${rows.length} ${rows.length === 1 ? "task" : "tasks"}`];
-  for (const row of rows) {
-    lines.push(
-      `- ${oneLineTaskSummary(row.task, { nextCursor: row.nextCursor })}`,
-    );
-    if (row.logs && row.logs.length > 0) {
-      for (const event of row.logs) lines.push(`  ${formatLogEvent(event)}`);
-    }
-  }
+export function formatTaskStatusSummary(tasks: TaskRecord[]): string {
+  if (tasks.length === 0) return "No tasks found.";
+  const lines = [`${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`];
+  for (const task of tasks) lines.push(`- ${oneLineTaskSummary(task)}`);
   return lines.join("\n");
 }
 
@@ -127,20 +103,14 @@ export function formatTaskCancelSummary(
   return results.map((result) => `- ${result.message}`).join("\n");
 }
 
-export function formatTaskListSummary(tasks: TaskRecord[]): string {
-  if (tasks.length === 0) return "No tasks found.";
-  return tasks.map((task) => oneLineTaskSummary(task)).join("\n");
-}
-
 export function formatTaskLogsSummary(input: {
   task: TaskRecord;
   events: TaskLogEvent[];
   nextCursor: number;
   mode: string;
-  autoSelected?: boolean;
 }): string {
   const lines = [
-    `${input.autoSelected ? "Auto-selected logs for" : "Logs for"} ${taskLabel(input.task)} (${input.task.status}); mode=${input.mode}; cursor=${input.nextCursor}`,
+    `Logs for ${taskLabel(input.task)} (${input.task.status}); mode=${input.mode}; cursor=${input.nextCursor}`,
   ];
   if (input.events.length === 0) {
     lines.push("No matching log events.");

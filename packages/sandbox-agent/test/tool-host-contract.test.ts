@@ -81,7 +81,7 @@ describe("sandbox shared tool host contract", () => {
     assert.equal(result.content, "Proceed.");
   });
 
-  it("returns normalized task records for batches, groups, selectors, and logs", async () => {
+  it("returns exact task payloads for single starts, selectors, and logs", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "nerve-host-task-"));
     roots.push(root);
     const stores = new SandboxStateStores(root);
@@ -104,28 +104,24 @@ describe("sandbox shared tool host contract", () => {
       runId: "run_tasks",
       toolCallId: "tool_batch",
     };
-    const started = await runtime.execute(
+    const firstStart = await runtime.execute(
       "task_start",
-      {
-        name: "contract batch",
-        tasks: [
-          { name: "first", command: "printf 'first\\n'" },
-          { name: "second", command: "printf 'second\\n'" },
-        ],
-      },
+      { name: "first", command: "printf 'first\\n'" },
       scope,
     );
-    const details = started.details as {
-      groupId: string;
-      tasks: Array<{ id: string; groupId?: string; status: string }>;
-    };
-    assert.match(details.groupId, /^taskgrp_/);
-    assert.equal(details.tasks.length, 2);
-    assert.ok(details.tasks.every((task) => task.groupId === details.groupId));
+    const secondStart = await runtime.execute(
+      "task_start",
+      { name: "second", command: "printf 'second\\n'" },
+      { ...scope, toolCallId: "tool_second" },
+    );
+    const first = (firstStart.details as { task: { id: string } }).task;
+    const second = (secondStart.details as { task: { id: string } }).task;
+    assert.ok(first.id.startsWith("task_"));
+    assert.ok(second.id.startsWith("task_"));
 
     const status = await runtime.execute(
       "task_status",
-      { groupId: details.groupId },
+      { taskIds: [first.id, second.id] },
       { ...scope, toolCallId: "tool_status" },
     );
     assert.equal((status.details as { tasks: unknown[] }).tasks.length, 2);
@@ -133,7 +129,7 @@ describe("sandbox shared tool host contract", () => {
 
     const logs = await runtime.execute(
       "task_logs",
-      { taskId: details.tasks[0]?.id, mode: "recent" },
+      { taskId: first.id, mode: "recent" },
       { ...scope, toolCallId: "tool_logs" },
     );
     assert.match(logs.content ?? "", /first/);

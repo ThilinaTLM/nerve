@@ -101,7 +101,6 @@ export const orchestrationToolNameSchema = z.enum([
   "task_logs",
   "task_cancel",
   "task_restart",
-  "task_list",
   "explore",
   "plan_mode_enter",
   "plan_mode_present",

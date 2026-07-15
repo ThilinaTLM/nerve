@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  bashResultDetailsSchema,
   startTaskRequestSchema,
   type TaskRecord,
-  taskActionResultSchema,
+  taskCancelToolResultSchema,
   taskEnvInfoSchema,
   taskLaunchConfigSchema,
   taskRecordSchema,
+  taskRestartToolResultSchema,
+  taskStartToolResultSchema,
+  taskStatusToolResultSchema,
   toolCallRecordSchema,
 } from "../src/index.js";
 
@@ -143,13 +147,26 @@ describe("taskRecordSchema task ergonomics metadata", () => {
 });
 
 describe("tool task result metadata", () => {
-  it("accepts restart and cancellation action metadata", () => {
-    const parsed = taskActionResultSchema.safeParse({
-      task: record({ id: "task_new" }),
-      tasks: [record({ id: "task_new" })],
-      restartedFromTaskId: "task_old",
-      newTaskId: "task_new",
-      restartRootTaskId: "task_root",
+  it("accepts exact start, status, restart, and cancellation payloads", () => {
+    assert.equal(
+      taskStartToolResultSchema.safeParse({ task: record() }).success,
+      true,
+    );
+    assert.equal(
+      taskStatusToolResultSchema.safeParse({ tasks: [record()] }).success,
+      true,
+    );
+    assert.equal(
+      taskRestartToolResultSchema.safeParse({
+        task: record({ id: "task_new" }),
+        restartedFromTaskId: "task_old",
+        newTaskId: "task_new",
+        restartRootTaskId: "task_root",
+      }).success,
+      true,
+    );
+    const cancellation = taskCancelToolResultSchema.safeParse({
+      tasks: [record({ id: "task_old", status: "cancelled" })],
       cancelResults: [
         {
           taskId: "task_old",
@@ -170,8 +187,48 @@ describe("tool task result metadata", () => {
         },
       ],
     });
+    assert.equal(cancellation.success, true);
+  });
 
-    assert.equal(parsed.success, true);
+  it("rejects missing required task-tool payload fields", () => {
+    assert.equal(taskStartToolResultSchema.safeParse({}).success, false);
+    assert.equal(
+      taskStartToolResultSchema.safeParse({
+        task: record(),
+        tasks: [record()],
+      }).success,
+      false,
+    );
+    assert.equal(taskStatusToolResultSchema.safeParse({}).success, false);
+    assert.equal(
+      taskCancelToolResultSchema.safeParse({ tasks: [] }).success,
+      false,
+    );
+    assert.equal(
+      taskRestartToolResultSchema.safeParse({ task: record() }).success,
+      false,
+    );
+  });
+
+  it("accepts completed and backgrounded bash execution dispositions", () => {
+    assert.equal(
+      bashResultDetailsSchema.safeParse({
+        execution: { disposition: "completed" },
+      }).success,
+      true,
+    );
+    assert.equal(
+      bashResultDetailsSchema.safeParse({
+        execution: {
+          disposition: "backgrounded",
+          taskId: "task_background",
+          status: "running",
+          elapsedMs: 60_001,
+          terminalUpdate: "automatic",
+        },
+      }).success,
+      true,
+    );
   });
 
   it("accepts structured tool error metadata", () => {

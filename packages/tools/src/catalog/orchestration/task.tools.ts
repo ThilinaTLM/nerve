@@ -3,13 +3,14 @@ import { Type } from "typebox";
 import { hasDangerousCommandPattern } from "../../safety/command-policy.js";
 import type { CoreToolDefinition } from "../types.js";
 
-const taskStartItemParameters = Type.Object(
+const taskStartParameters = Type.Object(
   {
     name: Type.Optional(Type.String({ description: "Stable task name" })),
     cwd: Type.Optional(
       Type.String({ description: "Working directory relative to the project" }),
     ),
     command: Type.String({
+      minLength: 1,
       description: "Bash-compatible command to start and supervise",
     }),
     env: Type.Optional(
@@ -53,119 +54,35 @@ const taskStartItemParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const taskStartParameters = Type.Object(
-  {
-    name: Type.Optional(Type.String({ description: "Stable task name" })),
-    cwd: Type.Optional(
-      Type.String({ description: "Working directory relative to the project" }),
-    ),
-    command: Type.Optional(
-      Type.String({
-        description: "Bash-compatible command to start and supervise",
-      }),
-    ),
-    env: Type.Optional(
-      Type.Record(Type.String(), Type.String(), {
-        description:
-          "Extra environment variables. Values are stored encrypted for restart and shown only as redacted keys.",
-      }),
-    ),
-    readyUrl: Type.Optional(
-      Type.String({ description: "Explicit URL to poll until reachable" }),
-    ),
-    readyOnUrl: Type.Optional(
-      Type.Boolean({ description: "Treat first detected URL as ready" }),
-    ),
-    readyPattern: Type.Optional(
-      Type.String({ description: "Regex line that marks the task ready" }),
-    ),
-    readyTimeoutMs: Type.Optional(
-      Type.Number({
-        description:
-          "Readiness wait timeout in milliseconds. Only applies when readyUrl, readyOnUrl, or readyPattern is provided; it does not stop the process.",
-        minimum: 0,
-        maximum: 60_000,
-      }),
-    ),
-    timeoutMs: Type.Optional(
-      Type.Number({
-        description: "Maximum task runtime in milliseconds",
-        minimum: 1,
-        maximum: 86_400_000,
-      }),
-    ),
-    notify: Type.Optional(
-      Type.Boolean({
-        description:
-          "Send concise asynchronous task updates to the agent. Defaults to true for agent task tools; set false to opt out.",
-        default: true,
-      }),
-    ),
-    tasks: Type.Optional(
-      Type.Array(taskStartItemParameters, {
-        maxItems: 8,
-        description: "Small batch of tasks to start in the background",
-      }),
-    ),
-  },
-  { additionalProperties: false },
-);
-
-const taskTargetParameters = Type.Object(
-  {
-    taskId: Type.Optional(
-      Type.String({ description: "Task id or stable task name" }),
-    ),
-    groupId: Type.Optional(Type.String({ description: "Task group id" })),
-    signal: Type.Optional(
-      Type.Union([
-        Type.Literal("SIGTERM"),
-        Type.Literal("SIGINT"),
-        Type.Literal("SIGKILL"),
-      ]),
-    ),
-    timeoutMs: Type.Optional(
-      Type.Number({
-        description: "Cancel timeout in milliseconds",
-        minimum: 1,
-        maximum: 30_000,
-      }),
-    ),
-    reason: Type.Optional(Type.String({ description: "Cancellation reason" })),
-  },
-  { additionalProperties: false },
-);
-
-const taskRestartParameters = Type.Object(
-  {
-    taskId: Type.String({ description: "Task id or stable task name" }),
-  },
-  { additionalProperties: false },
-);
-
 const taskStatusParameters = Type.Object(
   {
     taskId: Type.Optional(
-      Type.String({ description: "Task id or stable task name" }),
+      Type.String({ description: "Task ID or stable name" }),
     ),
     taskIds: Type.Optional(
-      Type.Array(Type.String({ description: "Task id or stable task name" }), {
+      Type.Array(Type.String({ description: "Task ID or stable name" }), {
+        minItems: 1,
         maxItems: 20,
       }),
     ),
-    groupId: Type.Optional(Type.String({ description: "Task group id" })),
-    activeOnly: Type.Optional(
-      Type.Boolean({ description: "Only active tasks" }),
-    ),
-    includeLogs: Type.Optional(
-      Type.Boolean({ description: "Include a short relevant log tail" }),
-    ),
-    logLimit: Type.Optional(
-      Type.Number({
-        description: "Maximum log events to include per task",
-        minimum: 1,
-        maximum: 50,
-      }),
+    groupId: Type.Optional(Type.String({ description: "Task group ID" })),
+    status: Type.Optional(
+      Type.Union(
+        [
+          Type.Literal("active"),
+          Type.Literal("all"),
+          Type.Literal("starting"),
+          Type.Literal("running"),
+          Type.Literal("ready"),
+          Type.Literal("stopping"),
+          Type.Literal("completed"),
+          Type.Literal("failed"),
+          Type.Literal("timed_out"),
+          Type.Literal("cancelled"),
+          Type.Literal("orphaned"),
+        ],
+        { description: "Task state filter" },
+      ),
     ),
     limit: Type.Optional(
       Type.Number({ description: "Maximum tasks", minimum: 1, maximum: 50 }),
@@ -174,42 +91,29 @@ const taskStatusParameters = Type.Object(
   { additionalProperties: false },
 );
 
-const taskListParameters = Type.Object(
-  {
-    status: Type.Optional(Type.String({ description: "Task status filter" })),
-    activeOnly: Type.Optional(
-      Type.Boolean({ description: "Only active tasks" }),
-    ),
-    projectId: Type.Optional(Type.String({ description: "Project id filter" })),
-    conversationId: Type.Optional(
-      Type.String({ description: "Conversation id filter" }),
-    ),
-    agentId: Type.Optional(Type.String({ description: "Agent id filter" })),
-    groupId: Type.Optional(
-      Type.String({ description: "Task group id filter" }),
-    ),
-    limit: Type.Optional(Type.Number({ description: "Maximum tasks" })),
-  },
-  { additionalProperties: false },
-);
-
 const taskLogsParameters = Type.Object(
   {
-    taskId: Type.Optional(
-      Type.String({ description: "Task id or stable task name" }),
-    ),
-    groupId: Type.Optional(Type.String({ description: "Task group id" })),
+    taskId: Type.String({ description: "Task ID or stable name" }),
     mode: Type.Optional(
-      Type.Union([
-        Type.Literal("recent"),
-        Type.Literal("errors"),
-        Type.Literal("warnings"),
-        Type.Literal("since_cursor"),
-        Type.Literal("first_failure"),
-      ]),
+      Type.Union(
+        [
+          Type.Literal("recent"),
+          Type.Literal("errors"),
+          Type.Literal("warnings"),
+          Type.Literal("since_cursor"),
+          Type.Literal("first_failure"),
+        ],
+        {
+          description:
+            "Log query mode. first_failure returns diagnostic context around the first failure; since_cursor returns incremental output after sinceSeq.",
+        },
+      ),
     ),
     sinceSeq: Type.Optional(
-      Type.Number({ description: "Cursor sequence", minimum: 0 }),
+      Type.Number({
+        description: "Sequence cursor used by since_cursor",
+        minimum: 0,
+      }),
     ),
     contains: Type.Optional(Type.String({ description: "Substring filter" })),
     regex: Type.Optional(Type.String({ description: "Regex filter" })),
@@ -223,18 +127,49 @@ const taskLogsParameters = Type.Object(
   { additionalProperties: false },
 );
 
+const taskCancelParameters = Type.Object(
+  {
+    taskId: Type.Optional(
+      Type.String({ description: "Task ID or stable name" }),
+    ),
+    taskIds: Type.Optional(
+      Type.Array(Type.String({ description: "Task ID or stable name" }), {
+        minItems: 1,
+        maxItems: 20,
+      }),
+    ),
+    groupId: Type.Optional(Type.String({ description: "Task group ID" })),
+    signal: Type.Optional(
+      Type.Union([
+        Type.Literal("SIGTERM"),
+        Type.Literal("SIGINT"),
+        Type.Literal("SIGKILL"),
+      ]),
+    ),
+    timeoutMs: Type.Optional(
+      Type.Number({
+        description: "Cancellation timeout in milliseconds",
+        minimum: 1,
+        maximum: 30_000,
+      }),
+    ),
+    reason: Type.Optional(Type.String({ description: "Cancellation reason" })),
+  },
+  { additionalProperties: false },
+);
+
+const taskRestartParameters = Type.Object(
+  {
+    taskId: Type.String({ description: "Task ID or stable name" }),
+  },
+  { additionalProperties: false },
+);
+
 function classifyTaskStartRisk(args: Record<string, unknown>): ToolRisk {
-  const commands: string[] = [];
-  if (typeof args.command === "string") commands.push(args.command);
-  if (Array.isArray(args.tasks)) {
-    for (const item of args.tasks) {
-      if (item && typeof item === "object") {
-        const command = (item as Record<string, unknown>).command;
-        if (typeof command === "string") commands.push(command);
-      }
-    }
-  }
-  return commands.some(hasDangerousCommandPattern) ? "destructive" : "command";
+  return typeof args.command === "string" &&
+    hasDangerousCommandPattern(args.command)
+    ? "destructive"
+    : "command";
 }
 
 export const taskToolDefinitions = [
@@ -247,11 +182,10 @@ export const taskToolDefinitions = [
     classifyRisk: classifyTaskStartRisk,
     label: "task_start",
     description:
-      "Start supervised background tasks for servers, watchers, and other long-lived Bash-compatible commands.",
-    promptSnippet:
-      "Start detached background processes for long-lived commands and servers",
+      "Start one supervised background process for a server, watcher, or other long-lived Bash-compatible command.",
+    promptSnippet: "Start one supervised long-lived background process",
     promptGuidelines: [
-      "Use task_start for servers, watchers, and other long-lived processes. Commands run in the same Bash-compatible shell runtime as bash.",
+      "Use task_start for servers, watchers, and other known long-lived processes; use bash for finite commands. Rely on asynchronous terminal updates and do not poll task_status or task_logs.",
     ],
     parameters: taskStartParameters,
     executionMode: "sequential",
@@ -264,11 +198,8 @@ export const taskToolDefinitions = [
     executionKind: "host",
     label: "task_status",
     description:
-      "Inspect task state once for diagnostics; not a wait mechanism.",
-    promptSnippet: "Inspect current task status",
-    promptGuidelines: [
-      "Do not poll task_status/task_logs; inspect once when current task state matters.",
-    ],
+      "Discover tasks or inspect task state once. Defaults to active tasks in the current scope; explicit selectors include terminal tasks.",
+    promptSnippet: "Discover tasks and inspect current task state",
     parameters: taskStatusParameters,
     executionMode: "parallel",
   },
@@ -280,8 +211,8 @@ export const taskToolDefinitions = [
     executionKind: "host",
     label: "task_logs",
     description:
-      "Inspect captured task logs for recent output, errors, warnings, or first-failure context.",
-    promptSnippet: "Inspect logs from background tasks",
+      "Inspect one explicitly selected task's captured output for recent logs, diagnostics, warnings, or incremental output.",
+    promptSnippet: "Inspect logs for one selected background task",
     parameters: taskLogsParameters,
     executionMode: "parallel",
   },
@@ -293,10 +224,9 @@ export const taskToolDefinitions = [
     executionKind: "host",
     label: "task_cancel",
     description:
-      "Terminate a running or orphaned task by task ID/name or group.",
-    promptSnippet:
-      "Cancel supervised background tasks or clean up orphaned task records",
-    parameters: taskTargetParameters,
+      "Cancel explicitly selected tasks by ID/name, ID/name array, or group.",
+    promptSnippet: "Cancel explicitly selected supervised tasks",
+    parameters: taskCancelParameters,
     executionMode: "sequential",
   },
   {
@@ -307,23 +237,10 @@ export const taskToolDefinitions = [
     executionKind: "host",
     label: "task_restart",
     description:
-      "Restart a task by ID or stable name, preserving stored launch settings.",
+      "Restart one task by ID or stable name while preserving stored launch settings and environment.",
     promptSnippet:
-      "Restart supervised background tasks while preserving stored env overrides",
+      "Restart one supervised task with its stored launch settings",
     parameters: taskRestartParameters,
     executionMode: "sequential",
   },
-  {
-    name: "task_list",
-    group: "taskManagement",
-    baseRisk: "read",
-    traits: [],
-    executionKind: "host",
-    label: "task_list",
-    description:
-      "List known background tasks in the current working directory and its descendants.",
-    promptSnippet: "List background tasks",
-    parameters: taskListParameters,
-    executionMode: "parallel",
-  },
-] satisfies CoreToolDefinition[];
+] as const satisfies readonly CoreToolDefinition[];

@@ -12,7 +12,7 @@ import LsToolView from "../components/tool-call/LsToolView.svelte";
 import PlanModeToolView from "../components/tool-call/PlanModeToolView.svelte";
 import PythonToolView from "../components/tool-call/PythonToolView.svelte";
 import ReadToolView from "../components/tool-call/ReadToolView.svelte";
-import TaskListToolView from "../components/tool-call/TaskListToolView.svelte";
+import TaskStatusToolView from "../components/tool-call/TaskStatusToolView.svelte";
 import TaskLogsToolView from "../components/tool-call/TaskLogsToolView.svelte";
 import TaskToolView from "../components/tool-call/TaskToolView.svelte";
 import TodoToolView from "../components/tool-call/TodoToolView.svelte";
@@ -36,7 +36,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   ask_user: AskUserToolView,
   todos: TodoToolView,
   task_action: TaskToolView,
-  task_list: TaskListToolView,
+  task_status: TaskStatusToolView,
   task_logs: TaskLogsToolView,
   explore: ExploreToolView,
   plan_mode: PlanModeToolView,

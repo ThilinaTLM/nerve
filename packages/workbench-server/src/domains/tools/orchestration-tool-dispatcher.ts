@@ -17,10 +17,12 @@ import {
 import {
   type AgentRecord,
   type ConversationRuntime,
-  createId,
   type Mode,
-  type TaskLogEvent,
+  taskRestartToolResultSchema,
+  taskStartToolResultSchema,
+  taskStatusToolResultSchema,
   type TaskRecord,
+  type TaskStatus,
   type ToolCallRecord,
   type ToolName,
 } from "@nervekit/contracts";
@@ -31,13 +33,11 @@ import type { PythonRuntimeService } from "../runtime/python-runtime-service.js"
 import { isActiveTaskStatus } from "../tasks/index.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import {
-  formatTaskListSummary,
   formatTaskStartSummary,
   formatTaskStatusSummary,
 } from "../tasks/task-summary-format.js";
 import type { InteractionSessionService } from "./interaction-session.service.js";
 import {
-  defaultStatusTasks as defaultStatusTasksImpl,
   enterPlanMode as enterPlanModeImpl,
   forceExitPlanMode as forceExitPlanModeImpl,
   logModeArg as logModeArgImpl,
@@ -46,8 +46,6 @@ import {
   requestPlanReview as requestPlanReviewImpl,
   resolveNameMatches as resolveNameMatchesImpl,
   resolveTaskReference as resolveTaskReferenceImpl,
-  selectTaskForLogs as selectTaskForLogsImpl,
-  statusLogs as statusLogsImpl,
   taskCancelFromTool as taskCancelFromToolImpl,
   taskLogsFromTool as taskLogsFromToolImpl,
   tasksInScope as tasksInScopeImpl,
@@ -194,7 +192,6 @@ export class OrchestrationToolDispatcher {
         logs: (args) => result(this.taskLogsFromTool(toolCall, args)),
         cancel: (args) => result(this.taskCancelFromTool(toolCall, args)),
         restart: (args) => result(this.restartTaskFromTool(toolCall, args)),
-        list: (args) => result(this.taskListFromTool(toolCall, args)),
       }),
       ...createExploreHandlers({
         run: (request, _identity, signal) =>
@@ -299,184 +296,128 @@ export class OrchestrationToolDispatcher {
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    const batch = Array.isArray(args.tasks) ? args.tasks : undefined;
-    if (batch && typeof args.command === "string") {
+    if (args.tasks !== undefined) {
       throw new CodedToolError(
         "TASK_ARGUMENT_INVALID",
-        "Provide either 'command' or 'tasks', not both.",
+        "task_start starts exactly one task and does not accept 'tasks'.",
       );
     }
-    if (batch && batch.length > 8) {
-      throw new CodedToolError(
-        "TASK_BATCH_LIMIT_EXCEEDED",
-        "task_start supports at most 8 tasks in one batch.",
-        { maxItems: 8, received: batch.length },
-      );
-    }
-    const inputs = batch
-      ? batch.map((task) => {
-          if (!task || typeof task !== "object") {
-            throw new CodedToolError(
-              "TASK_ARGUMENT_INVALID",
-              "Each task_start batch item must be an object.",
-            );
-          }
-          return task as Record<string, unknown>;
-        })
-      : [args];
-    if (!batch && typeof args.command !== "string") {
-      throw new CodedToolError(
-        "TASK_ARGUMENT_INVALID",
-        "Tool argument 'command' or 'tasks' is required.",
-      );
-    }
-
-    const tasks: TaskRecord[] = [];
-    const groupId = createId("taskgrp");
-    const groupName = optionalStringArg(args.name);
+    const command = stringArg(args, "command");
     const agent = this.deps.getAgent(toolCall.agentId);
-    for (const input of inputs) {
-      const command = stringArg(input, "command");
-      const rawCwd =
-        typeof input.cwd === "string" && input.cwd.trim().length > 0
-          ? input.cwd
-          : undefined;
-      const cwd = rawCwd
-        ? isAbsolute(rawCwd)
-          ? rawCwd
-          : resolve(agent.projectDir, rawCwd)
-        : toolCall.cwd;
-      tasks.push(
-        await this.deps.startTask({
-          name: typeof input.name === "string" ? input.name : undefined,
-          groupId,
-          groupName,
-          workerId: agent.workerId,
-          projectId: toolCall.projectId,
-          conversationId: toolCall.conversationId,
-          agentId: toolCall.agentId,
-          cwd,
-          command,
-          env: stringRecordArg(input.env),
-          readyUrl: optionalStringArg(input.readyUrl),
-          readyOnUrl: Boolean(input.readyOnUrl),
-          readyPattern: optionalStringArg(input.readyPattern),
-          readyTimeoutMs: optionalBoundedIntegerArg(
-            input.readyTimeoutMs,
-            "readyTimeoutMs",
-            { min: 0, max: 60_000 },
-          ),
-          timeoutMs: optionalBoundedIntegerArg(input.timeoutMs, "timeoutMs", {
-            min: 1,
-            max: 86_400_000,
-          }),
-          notify: typeof input.notify === "boolean" ? input.notify : true,
-          origin: {
-            kind: "agent_tool",
-            toolCallId: toolCall.id,
-            providerToolCallId: toolCall.providerToolCallId,
-            runId: toolCall.runId,
-            turnId: toolCall.turnId,
-            liveMessageId: toolCall.liveMessageId,
-            contentIndex: toolCall.contentIndex,
-          },
-        }),
-      );
-    }
-
+    const rawCwd = optionalStringArg(args.cwd);
+    const cwd = rawCwd
+      ? isAbsolute(rawCwd)
+        ? rawCwd
+        : resolve(agent.projectDir, rawCwd)
+      : toolCall.cwd;
+    const task = await this.deps.startTask({
+      name: optionalStringArg(args.name),
+      workerId: agent.workerId,
+      projectId: toolCall.projectId,
+      conversationId: toolCall.conversationId,
+      agentId: toolCall.agentId,
+      cwd,
+      command,
+      env: stringRecordArg(args.env),
+      readyUrl: optionalStringArg(args.readyUrl),
+      readyOnUrl: Boolean(args.readyOnUrl),
+      readyPattern: optionalStringArg(args.readyPattern),
+      readyTimeoutMs: optionalBoundedIntegerArg(
+        args.readyTimeoutMs,
+        "readyTimeoutMs",
+        { min: 0, max: 60_000 },
+      ),
+      timeoutMs: optionalBoundedIntegerArg(args.timeoutMs, "timeoutMs", {
+        min: 1,
+        max: 86_400_000,
+      }),
+      notify: typeof args.notify === "boolean" ? args.notify : true,
+      origin: {
+        kind: "agent_tool",
+        toolCallId: toolCall.id,
+        providerToolCallId: toolCall.providerToolCallId,
+        runId: toolCall.runId,
+        turnId: toolCall.turnId,
+        liveMessageId: toolCall.liveMessageId,
+        contentIndex: toolCall.contentIndex,
+      },
+    });
     const bounded = await buildProcessTextResult({
-      text: formatTaskStartSummary({ tasks, groupId, groupName }),
+      text: formatTaskStartSummary(task),
       outputFilePrefix: "nerve-task-start",
       exitMessagePrefix: "Task start",
       dataDir: this.deps.storage.paths.home,
-      details: { groupId, groupName },
     });
-    return {
-      tasks,
-      groupId,
-      groupName,
+    return taskStartToolResultSchema.parse({
+      task,
       contentBlocks: bounded.contentBlocks,
-    };
+    });
   }
 
   async taskStatusFromTool(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    const singleTask = optionalStringArg(args.taskId);
+    const taskId = optionalStringArg(args.taskId);
     const taskIds = Array.isArray(args.taskIds)
-      ? args.taskIds.filter(
-          (value): value is string => typeof value === "string",
-        )
+      ? args.taskIds.map((value) => {
+          if (typeof value !== "string" || !value.trim()) {
+            throw new CodedToolError(
+              "TASK_ARGUMENT_INVALID",
+              "Every taskIds entry must be a non-empty string.",
+            );
+          }
+          return value.trim();
+        })
       : undefined;
     const groupId = optionalStringArg(args.groupId);
-    const selectorCount =
-      (singleTask ? 1 : 0) + (taskIds ? 1 : 0) + (groupId ? 1 : 0);
-    if (selectorCount > 1) {
+    const selectorCount = [taskId, taskIds, groupId].filter(Boolean).length;
+    if (selectorCount > 1 || (taskIds && taskIds.length === 0)) {
       throw new CodedToolError(
         "TASK_ARGUMENT_INVALID",
-        "Provide at most one of 'taskId', 'taskIds', or 'groupId'.",
+        "Provide at most one non-empty selector: taskId, taskIds, or groupId.",
       );
     }
     if (taskIds && taskIds.length > 20) {
       throw new CodedToolError(
         "TASK_ARGUMENT_INVALID",
         "task_status supports at most 20 task IDs.",
-        { maxItems: 20, received: taskIds.length },
       );
     }
     const limit =
-      optionalBoundedIntegerArg(args.limit, "limit", { min: 1, max: 50 }) ?? 5;
-    const includeLogs = args.includeLogs === true;
-    const logLimit =
-      optionalBoundedIntegerArg(args.logLimit, "logLimit", {
-        min: 1,
-        max: 50,
-      }) ?? 5;
-    const activeOnly = args.activeOnly === true;
+      optionalBoundedIntegerArg(args.limit, "limit", { min: 1, max: 50 }) ?? 20;
+    const status = optionalStringArg(args.status) as
+      | TaskStatus
+      | "active"
+      | "all"
+      | undefined;
+    let tasks = taskId
+      ? [this.resolveTaskReference(taskId, toolCall)]
+      : taskIds
+        ? taskIds.map((ref) => this.resolveTaskReference(ref, toolCall))
+        : groupId
+          ? this.tasksInScope(toolCall).filter(
+              (task) => task.groupId === groupId,
+            )
+          : this.tasksInScope(toolCall);
 
-    let selected: TaskRecord[];
-    if (singleTask) {
-      selected = [this.resolveTaskReference(singleTask, toolCall)];
-    } else if (taskIds) {
-      selected = taskIds.map((ref) => this.resolveTaskReference(ref, toolCall));
-    } else if (groupId) {
-      selected = this.tasksInScope(toolCall).filter(
-        (task) =>
-          task.groupId === groupId &&
-          (!activeOnly || isActiveTaskStatus(task.status)),
-      );
-    } else {
-      selected = this.defaultStatusTasks(toolCall, activeOnly, limit);
+    if (status === "active" || (!status && selectorCount === 0)) {
+      tasks = tasks.filter((task) => isActiveTaskStatus(task.status));
+    } else if (status && status !== "all") {
+      tasks = tasks.filter((task) => task.status === status);
     }
-    selected = selected.slice(0, limit);
-
-    const rows: Array<{
-      task: TaskRecord;
-      logs?: TaskLogEvent[];
-      nextCursor?: number;
-    }> = [];
-    for (const task of selected) {
-      if (!includeLogs) {
-        const cursor = await this.deps.tasks.queryLogs(task.id, {
-          mode: "recent",
-          limit: 1,
-        });
-        rows.push({ task, nextCursor: cursor.nextCursor });
-        continue;
-      }
-      const logs = await this.statusLogs(task, logLimit);
-      rows.push({ task, logs: logs.events, nextCursor: logs.nextCursor });
-    }
+    tasks = tasks.slice(0, limit);
     const bounded = await buildProcessTextResult({
-      text: formatTaskStatusSummary(rows),
+      text: formatTaskStatusSummary(tasks),
       outputFilePrefix: "nerve-task-status",
       exitMessagePrefix: "Task status",
       dataDir: this.deps.storage.paths.home,
     });
-    return { tasks: rows, contentBlocks: bounded.contentBlocks };
+    return taskStatusToolResultSchema.parse({
+      tasks,
+      contentBlocks: bounded.contentBlocks,
+    });
   }
-
   async restartTaskFromTool(
     toolCall: ToolCallRecord,
     args: Record<string, unknown>,
@@ -488,19 +429,18 @@ export class OrchestrationToolDispatcher {
     const task =
       await this.restartTaskWithStructuredErrors(restartedFromTaskId);
     const label = task.name ? `${task.name} (${task.id})` : task.id;
-    return {
+    return taskRestartToolResultSchema.parse({
       task,
-      tasks: [task],
       restartedFromTaskId,
       newTaskId: task.id,
-      restartRootTaskId: task.restartRootTaskId,
+      restartRootTaskId: task.restartRootTaskId ?? restartedFromTaskId,
       contentBlocks: [
         {
           type: "text",
           text: `Restarted ${restartedFromTaskId} as ${label}. Use task_status/task_logs with taskId "${task.id}".`,
         },
       ],
-    };
+    });
   }
 
   async restartTaskWithStructuredErrors(taskId: string): Promise<TaskRecord> {
@@ -515,39 +455,6 @@ export class OrchestrationToolDispatcher {
       }
       throw error;
     }
-  }
-
-  async taskListFromTool(
-    toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
-    const status = optionalStringArg(args.status);
-    const activeOnly = args.activeOnly === true;
-    const limit =
-      optionalBoundedIntegerArg(args.limit, "limit", { min: 1, max: 500 }) ??
-      20;
-    const projectId = optionalStringArg(args.projectId);
-    const conversationId = optionalStringArg(args.conversationId);
-    const agentId = optionalStringArg(args.agentId);
-    const groupId = optionalStringArg(args.groupId);
-    let tasks = this.tasksInScope(toolCall);
-    if (projectId) tasks = tasks.filter((task) => task.projectId === projectId);
-    if (conversationId) {
-      tasks = tasks.filter((task) => task.conversationId === conversationId);
-    }
-    if (agentId) tasks = tasks.filter((task) => task.agentId === agentId);
-    if (groupId) tasks = tasks.filter((task) => task.groupId === groupId);
-    if (status) tasks = tasks.filter((task) => task.status === status);
-    if (activeOnly)
-      tasks = tasks.filter((task) => isActiveTaskStatus(task.status));
-    tasks = tasks.slice(0, limit);
-    const bounded = await buildProcessTextResult({
-      text: formatTaskListSummary(tasks),
-      outputFilePrefix: "nerve-task-list",
-      exitMessagePrefix: "Task list",
-      dataDir: this.deps.storage.paths.home,
-    });
-    return { tasks, groupId, contentBlocks: bounded.contentBlocks };
   }
 
   async taskCancelFromTool(
@@ -565,13 +472,6 @@ export class OrchestrationToolDispatcher {
   tasksInScope(toolCall: ToolCallRecord): TaskRecord[] {
     return tasksInScopeImpl.call(this, toolCall);
   }
-  defaultStatusTasks(
-    toolCall: ToolCallRecord,
-    activeOnly: boolean,
-    limit: number,
-  ): TaskRecord[] {
-    return defaultStatusTasksImpl.call(this, toolCall, activeOnly, limit);
-  }
   resolveTaskReference(ref: string, toolCall: ToolCallRecord): TaskRecord {
     return resolveTaskReferenceImpl.call(this, ref, toolCall);
   }
@@ -581,20 +481,6 @@ export class OrchestrationToolDispatcher {
   ): TaskRecord | undefined {
     return resolveNameMatchesImpl.call(this, _ref, matches);
   }
-  async statusLogs(
-    task: TaskRecord,
-    limit: number,
-  ): Promise<{ events: TaskLogEvent[]; nextCursor: number }> {
-    return await statusLogsImpl.call(this, task, limit);
-  }
-
-  selectTaskForLogs(
-    toolCall: ToolCallRecord,
-    args: Record<string, unknown>,
-  ): { task?: TaskRecord; autoSelected: boolean } {
-    return selectTaskForLogsImpl.call(this, toolCall, args);
-  }
-
   logModeArg(
     value: unknown,
   ):

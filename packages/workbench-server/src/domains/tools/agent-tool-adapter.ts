@@ -78,15 +78,7 @@ export function createAgentToolsForAgent(
 export function activeToolNamesForExploreAgent(): ToolName[] {
   return resolveToolAvailability({
     permissionLevel: "read_only",
-    enabledNames: [
-      "read",
-      "grep",
-      "find",
-      "ls",
-      "task_status",
-      "task_logs",
-      "task_list",
-    ],
+    enabledNames: ["read", "grep", "find", "ls", "task_status", "task_logs"],
   }).activeToolNames;
 }
 

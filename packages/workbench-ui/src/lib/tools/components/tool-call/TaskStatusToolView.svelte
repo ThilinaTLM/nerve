@@ -5,7 +5,7 @@ import TaskRow from "./TaskRow.svelte";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
-  view: Extract<ToolView, { kind: "task_list" }>;
+  view: Extract<ToolView, { kind: "task_status" }>;
 };
 let { view }: Props = $props();
 </script>

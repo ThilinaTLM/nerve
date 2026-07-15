@@ -41,9 +41,11 @@ export const runRecoverabilitySchema = z.enum([
 ]);
 export type RunRecoverability = z.infer<typeof runRecoverabilitySchema>;
 
+export const RUN_FAILURE_MESSAGE_MAX_LENGTH = 2_000;
+
 export const runFailureSchema = z.object({
   code: z.string().min(1).max(128),
-  message: z.string().min(1).max(2_000),
+  message: z.string().min(1).max(RUN_FAILURE_MESSAGE_MAX_LENGTH),
   retryable: z.boolean(),
 });
 export type RunFailureRecord = z.infer<typeof runFailureSchema>;

@@ -70,9 +70,9 @@ describe("orchestration task tools", () => {
       ...outOfScopeTasks,
     ]);
 
-    const result = (await dispatcher.execute(toolCall("task_list"), {
-      activeOnly: true,
-    })) as { tasks: TaskRecord[] };
+    const result = (await dispatcher.execute(toolCall("task_status"), {})) as {
+      tasks: TaskRecord[];
+    };
 
     assert.deepEqual(
       result.tasks.map((item) => item.id),
@@ -98,17 +98,17 @@ describe("orchestration task tools", () => {
     });
     const dispatcher = await createDispatcher([nestedTask, siblingTask]);
 
-    const result = (await dispatcher.execute(toolCall("task_status"), {
-      activeOnly: true,
-    })) as { tasks: Array<{ task: TaskRecord }> };
+    const result = (await dispatcher.execute(toolCall("task_status"), {})) as {
+      tasks: TaskRecord[];
+    };
 
     assert.deepEqual(
-      result.tasks.map((item) => item.task.id),
+      result.tasks.map((item) => item.id),
       [nestedTask.id],
     );
   });
 
-  it("applies project filters only within the cwd scope", async () => {
+  it("returns terminal history with status all only within the cwd scope", async () => {
     const inScope = task({
       id: "task_other_project_nested",
       projectId: "proj_other",
@@ -121,8 +121,8 @@ describe("orchestration task tools", () => {
     });
     const dispatcher = await createDispatcher([inScope, outOfScope]);
 
-    const result = (await dispatcher.execute(toolCall("task_list"), {
-      projectId: "proj_other",
+    const result = (await dispatcher.execute(toolCall("task_status"), {
+      status: "all",
     })) as { tasks: TaskRecord[] };
 
     assert.deepEqual(
@@ -145,13 +145,13 @@ describe("orchestration task tools", () => {
 
     const byId = (await dispatcher.execute(toolCall("task_status"), {
       taskId: userTask.id,
-    })) as { tasks: Array<{ task: TaskRecord }> };
+    })) as { tasks: TaskRecord[] };
     const byName = (await dispatcher.execute(toolCall("task_status"), {
       taskId: userTask.name,
-    })) as { tasks: Array<{ task: TaskRecord }> };
+    })) as { tasks: TaskRecord[] };
 
-    assert.equal(byId.tasks[0]?.task.id, userTask.id);
-    assert.equal(byName.tasks[0]?.task.id, userTask.id);
+    assert.equal(byId.tasks[0]?.id, userTask.id);
+    assert.equal(byName.tasks[0]?.id, userTask.id);
   });
 
   it("rejects direct references to tasks outside the cwd scope", async () => {
@@ -193,8 +193,8 @@ describe("orchestration task tools", () => {
     ]);
 
     const result = (await dispatcher.execute(
-      { ...toolCall("task_list"), cwd: "C:\\repo" },
-      {},
+      { ...toolCall("task_status"), cwd: "C:\\repo" },
+      { status: "all" },
     )) as { tasks: TaskRecord[] };
 
     assert.deepEqual(
@@ -223,9 +223,9 @@ describe("orchestration task tools", () => {
 
     const result = (await dispatcher.execute(toolCall("task_status"), {
       taskId: "dev",
-    })) as { tasks: Array<{ task: TaskRecord }> };
+    })) as { tasks: TaskRecord[] };
 
-    assert.equal(result.tasks[0]?.task.id, restarted.id);
+    assert.equal(result.tasks[0]?.id, restarted.id);
   });
 
   it("keeps unrelated same-name tasks ambiguous with structured details", async () => {
@@ -308,6 +308,60 @@ describe("orchestration task tools", () => {
     assert.equal(captured?.conversationId, "conv_test");
     assert.equal(captured?.agentId, "agent_test");
     assert.equal(captured?.workerId, "worker_test");
+  });
+
+  it("filters task_status by a concrete terminal status", async () => {
+    const completed = task({ id: "task_completed", status: "completed" });
+    const failed = task({ id: "task_failed", status: "failed" });
+    const running = task({ id: "task_running", status: "running" });
+    const dispatcher = await createDispatcher([completed, failed, running]);
+
+    const result = (await dispatcher.execute(toolCall("task_status"), {
+      status: "failed",
+    })) as { tasks: TaskRecord[] };
+
+    assert.deepEqual(
+      result.tasks.map((item) => item.id),
+      [failed.id],
+    );
+  });
+
+  it("requires explicit log and cancellation targets", async () => {
+    const dispatcher = await createDispatcher([]);
+    await assert.rejects(
+      () => dispatcher.execute(toolCall("task_logs"), {}),
+      /taskId/,
+    );
+    await assert.rejects(
+      () => dispatcher.execute(toolCall("task_cancel"), {}),
+      /required/,
+    );
+  });
+
+  it("deduplicates bulk cancellation while preserving first-seen order", async () => {
+    const first = task({ id: "task_first", status: "running" });
+    const second = task({ id: "task_second", status: "running" });
+    const calls: string[] = [];
+    const dispatcher = await createDispatcher([first, second], {
+      cancelTask: async (taskId) => {
+        calls.push(taskId);
+        return task({
+          ...(taskId === first.id ? first : second),
+          status: "cancelled",
+          signal: "SIGTERM",
+        });
+      },
+    });
+
+    const result = (await dispatcher.execute(toolCall("task_cancel"), {
+      taskIds: [second.id, first.id, second.id],
+    })) as { tasks: TaskRecord[] };
+
+    assert.deepEqual(calls, [second.id, first.id]);
+    assert.deepEqual(
+      result.tasks.map((item) => item.id),
+      [second.id, first.id],
+    );
   });
 
   it("returns cancellation outcome metadata for terminal targets", async () => {

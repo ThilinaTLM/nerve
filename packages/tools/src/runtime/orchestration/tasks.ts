@@ -17,7 +17,6 @@ export type TaskToolPort = {
   logs: TaskPortHandler;
   cancel: TaskPortHandler;
   restart: TaskPortHandler;
-  list: TaskPortHandler;
 };
 
 function validateTaskArgs(
@@ -25,34 +24,42 @@ function validateTaskArgs(
   args: Record<string, unknown>,
 ): Record<string, unknown> {
   if (name === "task_start") {
-    const hasCommand =
-      typeof args.command === "string" && args.command.trim().length > 0;
-    const hasTasks = Array.isArray(args.tasks) && args.tasks.length > 0;
-    if (hasCommand === hasTasks) {
-      throw new ToolValidationError(
-        "task_start requires exactly one command or a non-empty tasks batch.",
-      );
+    requiredString(args.command, "command");
+    if (args.tasks !== undefined) {
+      throw new ToolValidationError("task_start does not accept tasks[].");
     }
-    if (Array.isArray(args.tasks) && args.tasks.length > 8) {
-      throw new ToolValidationError("task_start accepts at most 8 tasks.");
-    }
-  } else if (name === "task_restart") {
+  } else if (name === "task_restart" || name === "task_logs") {
     requiredString(args.taskId, "taskId");
-  } else if (name === "task_cancel" || name === "task_logs") {
-    parseTaskSelector(args, false);
-  } else if (name === "task_status") {
-    const selectors = [
-      typeof args.taskId === "string" && args.taskId.trim().length > 0,
-      Array.isArray(args.taskIds),
-      typeof args.groupId === "string" && args.groupId.trim().length > 0,
-    ].filter(Boolean).length;
-    if (selectors > 1) {
-      throw new ToolValidationError(
-        "task_status accepts at most one of taskId, taskIds, or groupId.",
-      );
+    if (args.groupId !== undefined || args.taskIds !== undefined) {
+      throw new ToolValidationError(`${name} accepts only taskId.`);
     }
-    if (Array.isArray(args.taskIds) && args.taskIds.length > 20) {
-      throw new ToolValidationError("task_status accepts at most 20 task IDs.");
+  } else if (name === "task_cancel") {
+    parseTaskSelector(args, {
+      required: true,
+      allowTaskIds: true,
+      maxTaskIds: 20,
+    });
+  } else if (name === "task_status") {
+    parseTaskSelector(args, {
+      required: false,
+      allowTaskIds: true,
+      maxTaskIds: 20,
+    });
+    const statuses = new Set([
+      "active",
+      "all",
+      "starting",
+      "running",
+      "ready",
+      "stopping",
+      "completed",
+      "failed",
+      "timed_out",
+      "cancelled",
+      "orphaned",
+    ]);
+    if (args.status !== undefined && !statuses.has(args.status as string)) {
+      throw new ToolValidationError("task_status received an invalid status.");
     }
   }
   return args;
@@ -73,6 +80,5 @@ export function createTaskHandlers(port: TaskToolPort): ToolHandlerRegistry {
     task_logs: handler("task_logs", port.logs),
     task_cancel: handler("task_cancel", port.cancel),
     task_restart: handler("task_restart", port.restart),
-    task_list: handler("task_list", port.list),
   };
 }

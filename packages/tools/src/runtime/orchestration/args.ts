@@ -69,17 +69,41 @@ export function parseExploreRequest(args: Record<string, unknown>) {
 
 export function parseTaskSelector(
   args: Record<string, unknown>,
-  required = true,
+  options: {
+    required?: boolean;
+    allowTaskIds?: boolean;
+    maxTaskIds?: number;
+  } = {},
 ) {
+  const required = options.required ?? true;
   const taskId = optionalString(args.taskId);
   const groupId = optionalString(args.groupId);
-  if (taskId && groupId) {
-    throw new ToolValidationError("Provide only one of taskId or groupId.");
+  let taskIds: string[] | undefined;
+  if (args.taskIds !== undefined) {
+    if (!options.allowTaskIds || !Array.isArray(args.taskIds)) {
+      throw new ToolValidationError("taskIds is not supported here.");
+    }
+    if (args.taskIds.length === 0) {
+      throw new ToolValidationError("taskIds must not be empty.");
+    }
+    const max = options.maxTaskIds ?? 20;
+    if (args.taskIds.length > max) {
+      throw new ToolValidationError(`taskIds accepts at most ${max} entries.`);
+    }
+    taskIds = args.taskIds.map((value, index) =>
+      requiredString(value, `taskIds[${index}]`),
+    );
   }
-  if (required && !taskId && !groupId) {
-    throw new ToolValidationError("A taskId or groupId is required.");
+  const selectorCount = [taskId, taskIds, groupId].filter(Boolean).length;
+  if (selectorCount > 1) {
+    throw new ToolValidationError(
+      "Provide only one of taskId, taskIds, or groupId.",
+    );
   }
-  return { taskId, groupId };
+  if (required && selectorCount === 0) {
+    throw new ToolValidationError("A taskId, taskIds, or groupId is required.");
+  }
+  return { taskId, taskIds, groupId };
 }
 
 export function requiredString(value: unknown, name: string): string {

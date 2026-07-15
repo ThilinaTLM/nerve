@@ -41,7 +41,7 @@ export async function buildForegroundBashResult(
     timedOut,
     timeoutKilled: timedOut,
     timeoutMessage: task.error,
-    details: { foregroundTaskId: task.id },
+    details: { execution: { disposition: "completed" } },
   });
 }
 
@@ -148,16 +148,16 @@ export async function runForegroundBashWithPromotion(
     )
     .join("\n");
   const text = [
-    `Command is still running after ${Math.round(elapsedMs / 1000)}s, so Nerve promoted it to background task ${promoted.id}.`,
+    `Command was backgrounded after ${Math.round(elapsedMs / 1000)}s as task ${promoted.id}.`,
     `Command: ${promoted.command}`,
     `Elapsed: ${Math.round(elapsedMs / 1000)}s`,
     "",
     "Recent output:",
     recentOutput || "(no captured log lines yet)",
     "",
-    "Nerve will send an async task update when it finishes.",
-    `Inspect: task_status({ taskId: "${promoted.id}", includeLogs: true }) or task_logs({ taskId: "${promoted.id}" }).`,
-    `Cancel: task_cancel({ taskId: "${promoted.id}" }).`,
+    "A terminal status and output update will arrive automatically. Do not poll.",
+    `Use task_status({ taskId: "${promoted.id}" }) or task_logs({ taskId: "${promoted.id}" }) only for on-demand diagnostics.`,
+    `Use task_cancel({ taskId: "${promoted.id}" }) to stop it explicitly.`,
   ].join("\n");
   const result = await buildProcessTextResult({
     text,
@@ -165,9 +165,13 @@ export async function runForegroundBashWithPromotion(
     exitMessagePrefix: "Command promotion",
     dataDir: this.taskRepository.storageHome,
     details: {
-      promotedToTask: true,
-      task: promoted,
-      elapsedMs,
+      execution: {
+        disposition: "backgrounded",
+        taskId: promoted.id,
+        status: promoted.status,
+        elapsedMs,
+        terminalUpdate: "automatic",
+      },
     },
   });
   return { kind: "promoted", task: promoted, result, elapsedMs };

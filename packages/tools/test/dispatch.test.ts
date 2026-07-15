@@ -706,7 +706,6 @@ describe("executeTool dispatch", () => {
       "task_logs",
       "task_cancel",
       "task_restart",
-      "task_list",
     ] as ToolName[];
 
     for (const name of taskTools) {

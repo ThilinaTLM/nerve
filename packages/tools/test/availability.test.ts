@@ -20,7 +20,6 @@ describe("read-only tool availability and permissions", () => {
       "plan_mode_force_exit",
       "task_status",
       "task_logs",
-      "task_list",
     ] as const;
     for (const name of expectedActive) {
       assert.ok(activeToolNames.includes(name), `expected active: ${name}`);

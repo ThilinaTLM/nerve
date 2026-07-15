@@ -1,11 +1,12 @@
 /* eslint-disable max-lines -- Coordinator contract scenarios share one deterministic in-memory fixture. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  PeerRole,
-  RunEventDeliveryRecord,
-  RunPublicEventIntent,
-  RunTransitionRecord,
+import {
+  RUN_FAILURE_MESSAGE_MAX_LENGTH,
+  type PeerRole,
+  type RunEventDeliveryRecord,
+  type RunPublicEventIntent,
+  type RunTransitionRecord,
 } from "@nervekit/contracts";
 import {
   RunConflictError,
@@ -407,6 +408,70 @@ test("automatically retries a valid checkpoint with accurate metadata", async ()
   assert.equal((retry?.data as { attempt?: number })?.attempt, 1);
   assert.equal((retry?.data as { maxRetries?: number })?.maxRetries, 2);
   assert.equal((retry?.data as { delayMs?: number })?.delayMs, 25);
+});
+
+test("bounds execution failure messages before persisting a retry", async () => {
+  const oversizedMessage = `provider returned error 503: ${"x".repeat(
+    RUN_FAILURE_MESSAGE_MAX_LENGTH,
+  )}`;
+  const expectedMessage = oversizedMessage.slice(
+    0,
+    RUN_FAILURE_MESSAGE_MAX_LENGTH,
+  );
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
+    execute: async (attempt, _input, sink) => {
+      if (attempt === 1) {
+        await sink.checkpoint({
+          boundary: "before_provider_request",
+          transcriptCursor: 0,
+          entryIds: [],
+          harnessLeafId: null,
+          harnessSavePointId: "save_0",
+          toolCalls: [],
+        });
+        return {
+          status: "failed",
+          failure: {
+            code: "MODEL_REQUEST_FAILED",
+            message: oversizedMessage,
+            retryable: true,
+          },
+        };
+      }
+      return { status: "completed" };
+    },
+  });
+
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "completed",
+  );
+
+  const state = await harness.coordinator.get(run.runId);
+  const retry = state?.transitions.find(
+    (transition) => transition.kind === "retrying",
+  );
+  assert.equal(state?.run.attempt, 2);
+  assert.equal(
+    state?.transitions.filter((transition) => transition.kind === "retrying")
+      .length,
+    1,
+  );
+  assert.deepEqual(retry?.run.failure, {
+    code: "MODEL_REQUEST_FAILED",
+    message: expectedMessage,
+    retryable: true,
+  });
+  assert.deepEqual(retry?.execution?.failure, retry?.run.failure);
+  const retryEvent = retry?.events.find(
+    (event) => event.type === "run.retrying",
+  );
+  assert.equal(
+    (retryEvent?.data as { errorMessage?: string })?.errorMessage,
+    expectedMessage,
+  );
 });
 
 test("HITL resumes do not consume the automatic retry budget", async () => {

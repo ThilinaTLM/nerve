@@ -18,7 +18,7 @@ test("shared host tool factory composes context, handlers, policy, overrides, an
     execution: { context: (request) => ({ cwd: request.cwd }) },
     handlers: {
       forExecution: () => ({
-        task_list: async (_args, context) => ({
+        task_status: async (_args, context) => ({
           content: `${context.cwd}:${String(
             (context.identity as Request["identity"]).conversationId,
           )}`,
@@ -42,7 +42,7 @@ test("shared host tool factory composes context, handlers, policy, overrides, an
     },
   });
   const request: Request = {
-    toolName: "task_list",
+    toolName: "task_status",
     cwd: "/workspace",
     identity: { conversationId: "conv_contract", agentId: "agent_main" },
   };

@@ -175,13 +175,32 @@ describe("shared tool runtime contract", () => {
       logs: async () => ({ content: "logs" }),
       cancel: async () => ({ content: "cancelled" }),
       restart: async () => ({ content: "restarted" }),
-      list: async () => ({ content: "listed" }),
     });
     await tasks.task_start?.(
       { command: "pnpm check" },
       { ...context, toolName: "task_start" },
     );
-    await tasks.task_cancel?.({}, { ...context, toolName: "task_cancel" });
+    await assert.rejects(
+      tasks.task_start?.(
+        { tasks: [{ command: "pnpm check" }] },
+        { ...context, toolName: "task_start" },
+      ) ?? Promise.resolve(),
+      /command|tasks\[\]/,
+    );
+    await assert.rejects(
+      tasks.task_logs?.({}, { ...context, toolName: "task_logs" }) ??
+        Promise.resolve(),
+      /taskId/,
+    );
+    await tasks.task_cancel?.(
+      { taskId: "task_one" },
+      { ...context, toolName: "task_cancel" },
+    );
+    await assert.rejects(
+      tasks.task_cancel?.({}, { ...context, toolName: "task_cancel" }) ??
+        Promise.resolve(),
+      /required/,
+    );
     await assert.rejects(
       tasks.task_cancel?.(
         { taskId: "task_one", groupId: "taskgrp_one" },

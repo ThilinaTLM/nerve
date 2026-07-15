@@ -4,6 +4,7 @@ import {
   isAgentToolSuspension,
 } from "@nervekit/host-runtime/harness";
 import {
+  RUN_FAILURE_MESSAGE_MAX_LENGTH,
   toolNameSchema,
   type PromptImage,
   type RunPromptRecord,
@@ -714,7 +715,7 @@ function assistantFailure(message?: string): {
     );
   return {
     code: "MODEL_REQUEST_FAILED",
-    message: error.slice(0, 2_000),
+    message: error.slice(0, RUN_FAILURE_MESSAGE_MAX_LENGTH),
     retryable: !permanent && transient,
   };
 }
@@ -727,7 +728,7 @@ function normalizeFailure(error: unknown): {
   const message = error instanceof Error ? error.message : String(error);
   return {
     code: message.startsWith("UNAVAILABLE") ? "UNAVAILABLE" : "PROVIDER_FAILED",
-    message: message.slice(0, 2_000),
+    message: message.slice(0, RUN_FAILURE_MESSAGE_MAX_LENGTH),
     retryable: true,
   };
 }

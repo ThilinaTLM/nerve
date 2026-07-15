@@ -6,9 +6,15 @@ import {
   ToolValidationError,
 } from "@nervekit/host-runtime/tools";
 import {
-  createId,
+  type TaskCancelResultPayload,
+  taskCancelToolResultSchema,
   type TaskLogQuery,
+  taskLogsToolResultSchema,
   type TaskRecord,
+  type TaskStatus,
+  taskRestartToolResultSchema,
+  taskStartToolResultSchema,
+  taskStatusToolResultSchema,
 } from "@nervekit/contracts";
 import {
   type SandboxOrchestrationHandlerOptions,
@@ -29,122 +35,99 @@ export function createSandboxTaskHandlers(
   return createTaskHandlers({
     start: async (args, value) => {
       const current = sandboxOrchestrationIdentity(value);
-      const inputs = Array.isArray(args.tasks)
-        ? (args.tasks as Record<string, unknown>[])
-        : [args];
-      assertSupportedTaskStart(inputs);
-      const groupId = createId("taskgrp");
-      const groupName = optionalString(args.name);
-      const tasks = await Promise.all(
-        inputs.map((input) =>
-          service().start({
-            command: requiredString(input.command, "command"),
-            cwd: resolveTaskCwd(
-              options.workspaceDir,
-              optionalString(input.cwd),
-            ),
-            timeoutMs: optionalNumber(input.timeoutMs),
-            name: optionalString(input.name),
-            groupId,
-            groupName,
-            env: stringRecord(input.env),
-            conversationId: current.scope.conversationId,
-            agentId: current.scope.agentId,
-            origin: {
-              kind: "agent_tool",
-              toolCallId: current.toolCallId,
-              runId: current.scope.runId,
-            },
-          }),
-        ),
-      );
-      return taskResult(
-        `Started ${tasks.length} task${tasks.length === 1 ? "" : "s"} in group ${groupId}.`,
-        { tasks, task: tasks[0], groupId, groupName },
-      );
+      assertSupportedTaskStart(args);
+      const task = await service().start({
+        command: requiredString(args.command, "command"),
+        cwd: resolveTaskCwd(options.workspaceDir, optionalString(args.cwd)),
+        timeoutMs: optionalNumber(args.timeoutMs),
+        name: optionalString(args.name),
+        env: stringRecord(args.env),
+        notify: typeof args.notify === "boolean" ? args.notify : true,
+        conversationId: current.scope.conversationId,
+        agentId: current.scope.agentId,
+        origin: {
+          kind: "agent_tool",
+          toolCallId: current.toolCallId,
+          runId: current.scope.runId,
+        },
+      });
+      const details = taskStartToolResultSchema.parse({ task });
+      return taskResult(`Started background task ${task.id}.`, details);
     },
     status: async (args, value) => {
-      const tasks = await selectStatusTasks(
+      const tasks = selectStatusTasks(
         await service().list(),
         sandboxOrchestrationIdentity(value).scope,
         args,
       );
-      return taskResult(boundedSummary(JSON.stringify(tasks, null, 2)), {
-        tasks,
-      });
+      const details = taskStatusToolResultSchema.parse({ tasks });
+      return taskResult(
+        boundedSummary(JSON.stringify(tasks, null, 2)),
+        details,
+      );
     },
     logs: async (args, value) => {
       const current = sandboxOrchestrationIdentity(value);
-      const task = selectSingleTask(
-        await service().list(),
-        current.scope,
-        optionalString(args.taskId),
-        optionalString(args.groupId),
-      );
-      if (!task) return taskResult("No matching tasks found.", { events: [] });
-      const result = await service().logs(task.id, taskLogQuery(args));
-      const content = result.events.map((event) => event.line).join("\n");
-      return taskResult(content || "No matching task logs.", result);
+      const ref = requiredString(args.taskId, "taskId");
+      const task = resolveTask(await service().list(), current.scope, ref);
+      if (!task) throw new ToolValidationError(`Unknown task: ${ref}`);
+      const response = await service().logs(task.id, taskLogQuery(args));
+      const details = taskLogsToolResultSchema.parse(response);
+      const content = response.events.map((event) => event.line).join("\n");
+      return taskResult(content || "No matching task logs.", details);
     },
     cancel: async (args, value) => {
       const current = sandboxOrchestrationIdentity(value);
-      const taskId = optionalString(args.taskId);
-      const groupId = optionalString(args.groupId);
-      const targets = selectTaskTargets(
-        await service().list(),
-        current.scope,
-        taskId,
-        groupId,
-        true,
-      );
-      if (!taskId && !groupId && targets.length > 1) {
-        return taskResult(
-          `Multiple active tasks found (${targets.length}); no tasks cancelled. Provide taskId/name or groupId.`,
-          { tasks: targets },
-        );
+      const all = await service().list();
+      const targets = resolveCancelTargets(all, current.scope, args);
+      const signal = taskSignal(args.signal);
+      if (targets.length === 0) {
+        const cancelResults: TaskCancelResultPayload[] = [
+          {
+            requestedSignal: signal,
+            outcome: "no_matching_active_task",
+            message: "No matching tasks to cancel.",
+          },
+        ];
+        const details = taskCancelToolResultSchema.parse({
+          tasks: [],
+          cancelResults,
+        });
+        return taskResult("No matching tasks to cancel.", details);
       }
-      const cancelled = await Promise.all(
-        targets.map((task) =>
-          service().cancel(task.id, taskSignal(args.signal)),
-        ),
+      const outcomes = await Promise.all(
+        targets.map(async (before) => {
+          const after = await service().cancel(before.id, signal);
+          return {
+            task: after,
+            result: cancelResult(before, after, signal),
+          };
+        }),
       );
+      const tasks = outcomes.map((outcome) => outcome.task);
+      const cancelResults = outcomes.map((outcome) => outcome.result);
+      const details = taskCancelToolResultSchema.parse({
+        tasks,
+        cancelResults,
+      });
       return taskResult(
-        cancelled.length
-          ? `Cancelled ${cancelled.map((task) => task.id).join(", ")}`
-          : "No active matching tasks to cancel.",
-        { tasks: cancelled, task: cancelled[0] },
+        cancelResults.map((result) => result.message).join("\n"),
+        details,
       );
     },
     restart: async (args, value) => {
       const current = sandboxOrchestrationIdentity(value);
-      const original = selectSingleTask(
-        await service().list(),
-        current.scope,
-        requiredString(args.taskId, "taskId"),
-      );
-      if (!original) throw new Error(`Unknown task: ${String(args.taskId)}`);
+      const ref = requiredString(args.taskId, "taskId");
+      const original = resolveTask(await service().list(), current.scope, ref);
+      if (!original) throw new ToolValidationError(`Unknown task: ${ref}`);
       const task = await service().restart(original.id);
-      return taskResult(`Restarted ${original.id} as ${task.id}`, {
+      const details = taskRestartToolResultSchema.parse({
         task,
-        tasks: [task],
         restartedFromTaskId: original.id,
         newTaskId: task.id,
+        restartRootTaskId: task.restartRootTaskId ?? original.id,
       });
-    },
-    list: async (args, value) => {
-      const current = sandboxOrchestrationIdentity(value);
-      let tasks = tasksInScope(await service().list(), current.scope);
-      const status = optionalString(args.status);
-      const groupId = optionalString(args.groupId);
-      if (status) tasks = tasks.filter((task) => task.status === status);
-      if (groupId) tasks = tasks.filter((task) => task.groupId === groupId);
-      if (args.activeOnly === true) tasks = tasks.filter(isActiveTask);
-      const limit = optionalNumber(args.limit) ?? 20;
-      tasks = tasks.slice(0, limit);
-      return taskResult(boundedSummary(JSON.stringify(tasks, null, 2)), {
-        tasks,
-        groupId,
-      });
+      return taskResult(`Restarted ${original.id} as ${task.id}.`, details);
     },
   });
 }
@@ -167,67 +150,82 @@ function selectStatusTasks(
 ): TaskRecord[] {
   const taskId = optionalString(args.taskId);
   const taskIds = Array.isArray(args.taskIds)
-    ? args.taskIds.map((value) => requiredString(value, "taskId"))
+    ? args.taskIds.map((value, index) =>
+        requiredString(value, `taskIds[${index}]`),
+      )
     : undefined;
   const groupId = optionalString(args.groupId);
-  let tasks: TaskRecord[];
-  if (taskId) {
-    const selected = selectSingleTask(all, scope, taskId);
-    tasks = selected ? [selected] : [];
-  } else if (taskIds) {
-    tasks = taskIds.map((id) => {
-      const selected = selectSingleTask(all, scope, id);
-      if (!selected) throw new Error(`Unknown task: ${id}`);
-      return selected;
-    });
-  } else if (groupId) {
-    tasks = tasksInScope(all, scope).filter((task) => task.groupId === groupId);
-  } else {
-    const scoped = tasksInScope(all, scope);
-    const active = scoped.filter(isActiveTask);
-    tasks = active.length ? active : scoped;
-  }
-  if (args.activeOnly === true) tasks = tasks.filter(isActiveTask);
-  return tasks.slice(0, optionalNumber(args.limit) ?? 5);
-}
-
-function selectTaskTargets(
-  all: TaskRecord[],
-  scope: ToolRuntimeScope,
-  taskId?: string,
-  groupId?: string,
-  activeOnly = false,
-): TaskRecord[] {
-  if (taskId) {
-    const selected = selectSingleTask(
-      all,
-      scope,
-      taskId,
-      undefined,
-      activeOnly,
+  const selectorCount = [taskId, taskIds, groupId].filter(Boolean).length;
+  if (selectorCount > 1 || (taskIds && taskIds.length === 0)) {
+    throw new ToolValidationError(
+      "Provide at most one non-empty selector: taskId, taskIds, or groupId.",
     );
-    return selected ? [selected] : [];
   }
-  let tasks = tasksInScope(all, scope);
-  if (groupId) tasks = tasks.filter((task) => task.groupId === groupId);
-  return activeOnly ? tasks.filter(isActiveTask) : tasks;
+  let tasks = taskId
+    ? [requiredResolvedTask(all, scope, taskId)]
+    : taskIds
+      ? taskIds.map((ref) => requiredResolvedTask(all, scope, ref))
+      : groupId
+        ? tasksInScope(all, scope).filter((task) => task.groupId === groupId)
+        : tasksInScope(all, scope);
+  const status = optionalString(args.status) as
+    | TaskStatus
+    | "active"
+    | "all"
+    | undefined;
+  if (status === "active" || (!status && selectorCount === 0)) {
+    tasks = tasks.filter(isActiveTask);
+  } else if (status && status !== "all") {
+    tasks = tasks.filter((task) => task.status === status);
+  }
+  return tasks.slice(0, optionalNumber(args.limit) ?? 20);
 }
 
-function selectSingleTask(
+function resolveCancelTargets(
   all: TaskRecord[],
   scope: ToolRuntimeScope,
-  taskId?: string,
-  groupId?: string,
-  activeOnly = false,
+  args: Record<string, unknown>,
+): TaskRecord[] {
+  const taskId = optionalString(args.taskId);
+  const taskIds = Array.isArray(args.taskIds)
+    ? args.taskIds.map((value, index) =>
+        requiredString(value, `taskIds[${index}]`),
+      )
+    : undefined;
+  const groupId = optionalString(args.groupId);
+  const selectorCount = [taskId, taskIds, groupId].filter(Boolean).length;
+  if (selectorCount !== 1 || (taskIds && taskIds.length === 0)) {
+    throw new ToolValidationError(
+      "Provide exactly one non-empty selector: taskId, taskIds, or groupId.",
+    );
+  }
+  const resolved = taskId
+    ? [requiredResolvedTask(all, scope, taskId)]
+    : taskIds
+      ? taskIds.map((ref) => requiredResolvedTask(all, scope, ref))
+      : tasksInScope(all, scope).filter((task) => task.groupId === groupId);
+  return [...new Map(resolved.map((task) => [task.id, task])).values()];
+}
+
+function requiredResolvedTask(
+  all: TaskRecord[],
+  scope: ToolRuntimeScope,
+  ref: string,
+): TaskRecord {
+  const task = resolveTask(all, scope, ref);
+  if (!task) throw new ToolValidationError(`Unknown task: ${ref}`);
+  return task;
+}
+
+function resolveTask(
+  all: TaskRecord[],
+  scope: ToolRuntimeScope,
+  ref: string,
 ): TaskRecord | undefined {
-  let candidates = tasksInScope(all, scope);
-  if (groupId)
-    candidates = candidates.filter((task) => task.groupId === groupId);
-  if (activeOnly) candidates = candidates.filter(isActiveTask);
-  if (!taskId) return candidates.find(isActiveTask) ?? candidates[0];
-  const exact = candidates.find((task) => task.id === taskId);
+  const candidates = tasksInScope(all, scope);
+  const exact = candidates.find((task) => task.id === ref);
   if (exact) return exact;
-  const named = candidates.filter((task) => task.name === taskId);
+  const named = candidates.filter((task) => task.name === ref);
   if (named.length === 1) return named[0];
   const activeNamed = named.filter(isActiveTask);
   if (activeNamed.length === 1) return activeNamed[0];
@@ -235,9 +233,13 @@ function selectSingleTask(
     const lineages = new Set(
       named.map((task) => task.restartRootTaskId ?? task.id),
     );
-    if (lineages.size === 1) return named[0];
+    if (lineages.size === 1) {
+      return [...named].sort((a, b) =>
+        b.startedAt.localeCompare(a.startedAt),
+      )[0];
+    }
     throw new ToolValidationError(
-      `Task name '${taskId}' is ambiguous. Use a task ID or groupId.`,
+      `Task name '${ref}' is ambiguous. Use a task ID.`,
     );
   }
   return undefined;
@@ -272,28 +274,74 @@ function taskSignal(value: unknown): "SIGTERM" | "SIGINT" | "SIGKILL" {
   return value === "SIGINT" || value === "SIGKILL" ? value : "SIGTERM";
 }
 
-function assertSupportedTaskStart(inputs: Record<string, unknown>[]): void {
-  for (const input of inputs) {
-    if (input.readyUrl || input.readyOnUrl || input.readyPattern)
-      throw new ToolValidationError(
-        "Sandbox tasks do not support readiness probes yet.",
-      );
+function cancelResult(
+  before: TaskRecord,
+  after: TaskRecord,
+  requestedSignal: "SIGTERM" | "SIGINT" | "SIGKILL",
+): TaskCancelResultPayload {
+  const label = after.name ? `${after.name} (${after.id})` : after.id;
+  if (!isActiveTask(before) && before.status !== "orphaned") {
+    return {
+      taskId: after.id,
+      taskName: after.name,
+      requestedSignal,
+      outcome: "already_terminal",
+      status: after.status,
+      message: `${label} was already ${before.status}; no signal was sent.`,
+    };
+  }
+  if (!isActiveTask(after)) {
+    return {
+      taskId: after.id,
+      taskName: after.name,
+      requestedSignal,
+      outcome:
+        after.status === "cancelled"
+          ? "cancelled"
+          : "became_terminal_before_cancel",
+      status: after.status,
+      message:
+        after.status === "cancelled"
+          ? `${label} cancelled with ${after.signal ?? requestedSignal}.`
+          : `${label} became ${after.status} before cancellation completed.`,
+    };
+  }
+  return {
+    taskId: after.id,
+    taskName: after.name,
+    requestedSignal,
+    outcome: "no_matching_active_task",
+    status: after.status,
+    message: `${label} is still ${after.status}.`,
+  };
+}
+
+function assertSupportedTaskStart(args: Record<string, unknown>): void {
+  if (args.tasks !== undefined) {
+    throw new ToolValidationError("task_start does not accept tasks[].");
+  }
+  if (args.readyUrl || args.readyOnUrl || args.readyPattern) {
+    throw new ToolValidationError(
+      "Sandbox tasks do not support readiness probes yet.",
+    );
   }
 }
 
 function resolveTaskCwd(workspaceDir: string, value?: string): string {
   const resolved = path.resolve(workspaceDir, value ?? ".");
   const relative = path.relative(path.resolve(workspaceDir), resolved);
-  if (relative.startsWith("..") || path.isAbsolute(relative))
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new ToolValidationError(
       "Task cwd must be inside the sandbox workspace.",
     );
+  }
   return resolved;
 }
 
 function requiredString(value: unknown, name: string): string {
-  if (typeof value !== "string" || !value.trim())
+  if (typeof value !== "string" || !value.trim()) {
     throw new ToolValidationError(`${name} must be a non-empty string.`);
+  }
   return value.trim();
 }
 
@@ -308,8 +356,9 @@ function optionalNumber(value: unknown): number | undefined {
 }
 
 function stringRecord(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value))
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
+  }
   return Object.fromEntries(
     Object.entries(value).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",

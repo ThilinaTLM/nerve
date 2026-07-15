@@ -217,11 +217,9 @@ function summarizeToolCall(
     case "ls":
       return `ls ${stringValue(args.path) ?? "."}`;
     case "task_status":
-      return `task_status ${taskScopeLabel(args)}`;
+      return `task_status ${taskStatusScopeLabel(args)}`;
     case "task_logs":
       return `task_logs ${taskScopeLabel(args)}${modeSuffix(args)}`;
-    case "task_list":
-      return `task_list ${taskListScopeLabel(args)}`;
     default:
       return `ran ${toolName}`;
   }
@@ -406,22 +404,17 @@ function taskScopeLabel(args: Record<string, unknown>): string {
   if (groupId) return `group ${groupId}`;
   const name = stringValue(args.name);
   if (name) return name;
-  return booleanValue(args.activeOnly) === true ? "active" : "current";
+  return "current";
 }
 
-function taskListScopeLabel(args: Record<string, unknown>): string {
-  const parts = [booleanValue(args.activeOnly) === true ? "active" : "all"];
-  const projectId = stringValue(args.projectId);
-  const agentId = stringValue(args.agentId);
-  const groupId = stringValue(args.groupId);
-  if (projectId) parts.push(`project ${projectId}`);
-  if (agentId) parts.push(`agent ${agentId}`);
-  if (groupId) parts.push(`group ${groupId}`);
-  return parts.join(" · ");
-}
-
-function booleanValue(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
+function taskStatusScopeLabel(args: Record<string, unknown>): string {
+  const scope = taskScopeLabel(args);
+  const hasSelector =
+    Boolean(stringValue(args.taskId)) ||
+    Array.isArray(args.taskIds) ||
+    Boolean(stringValue(args.groupId));
+  const status = stringValue(args.status) ?? (hasSelector ? "all" : "active");
+  return `${scope} · ${status}`;
 }
 
 export function messageRole(message: unknown): string | undefined {

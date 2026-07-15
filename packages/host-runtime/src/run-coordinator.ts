@@ -47,6 +47,7 @@ import {
 } from "./run-execution.js";
 import {
   ACTIVE_STATUSES,
+  boundedFailure,
   buildTransition,
   checkpointRecord,
   type CheckpointCommand,
@@ -663,9 +664,10 @@ export class RunCoordinator {
   private async fail(
     runId: string,
     executionId: string,
-    value: RunFailureRecord,
+    input: RunFailureRecord,
     signal: AbortSignal,
   ): Promise<void> {
+    const value = boundedFailure(input);
     const retryRun = await this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
       if (

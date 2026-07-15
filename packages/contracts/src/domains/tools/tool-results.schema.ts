@@ -233,12 +233,30 @@ export type EditOperationResultDetails = z.infer<
   typeof editOperationResultDetailsSchema
 >;
 
+export const bashExecutionDispositionSchema = z.discriminatedUnion(
+  "disposition",
+  [
+    z.object({ disposition: z.literal("completed") }),
+    z.object({
+      disposition: z.literal("backgrounded"),
+      taskId: z.string().startsWith("task_"),
+      status: taskStatusSchema,
+      elapsedMs: z.number().nonnegative(),
+      terminalUpdate: z.literal("automatic"),
+    }),
+  ],
+);
+export type BashExecutionDisposition = z.infer<
+  typeof bashExecutionDispositionSchema
+>;
+
 export const bashResultDetailsSchema = z
   .object({
     truncation: truncationDetailsSchema.optional(),
     fullOutputPath: z.string().optional(),
     rawResultPath: z.string().optional(),
     signal: z.string().nullable().optional(),
+    execution: bashExecutionDispositionSchema.optional(),
   })
   .passthrough();
 export type BashResultDetails = z.infer<typeof bashResultDetailsSchema>;
@@ -605,33 +623,53 @@ export const taskCancelResultSchema = z.object({
 });
 export type TaskCancelResultPayload = z.infer<typeof taskCancelResultSchema>;
 
-/** Result of task_start / task_cancel / task_restart. */
-export const taskActionResultSchema = z.object({
-  task: taskRecordSchema.optional(),
-  tasks: z.array(taskRecordSchema).optional(),
-  groupId: z.string().startsWith("taskgrp_").optional(),
-  groupName: z.string().optional(),
-  restartedFromTaskId: z.string().startsWith("task_").optional(),
-  newTaskId: z.string().startsWith("task_").optional(),
-  restartRootTaskId: z.string().startsWith("task_").optional(),
-  cancelResults: z.array(taskCancelResultSchema).optional(),
-  contentBlocks: z.array(toolContentBlockSchema).optional(),
-});
-export type TaskActionResult = z.infer<typeof taskActionResultSchema>;
+/** Exact result of task_start. */
+export const taskStartToolResultSchema = z
+  .object({
+    task: taskRecordSchema,
+    contentBlocks: z.array(toolContentBlockSchema).optional(),
+  })
+  .strict();
+export type TaskStartToolResult = z.infer<typeof taskStartToolResultSchema>;
 
-/** Result of task_list. */
-export const taskListResultSchema = z.object({
-  tasks: z.array(taskRecordSchema),
-  groupId: z.string().startsWith("taskgrp_").optional(),
-  contentBlocks: z.array(toolContentBlockSchema).optional(),
-});
-export type TaskListResult = z.infer<typeof taskListResultSchema>;
+/** Exact result of task_status. */
+export const taskStatusToolResultSchema = z
+  .object({
+    tasks: z.array(taskRecordSchema),
+    contentBlocks: z.array(toolContentBlockSchema).optional(),
+  })
+  .strict();
+export type TaskStatusToolResult = z.infer<typeof taskStatusToolResultSchema>;
 
-/** Result of task_logs (re-export of the existing query response shape). */
-export const taskLogsResultSchema = taskLogQueryResponseSchema.extend({
-  contentBlocks: z.array(toolContentBlockSchema).optional(),
-});
-export type TaskLogsResult = z.infer<typeof taskLogsResultSchema>;
+/** Exact result of task_cancel. */
+export const taskCancelToolResultSchema = z
+  .object({
+    tasks: z.array(taskRecordSchema),
+    cancelResults: z.array(taskCancelResultSchema),
+    contentBlocks: z.array(toolContentBlockSchema).optional(),
+  })
+  .strict();
+export type TaskCancelToolResult = z.infer<typeof taskCancelToolResultSchema>;
+
+/** Exact result of task_restart. */
+export const taskRestartToolResultSchema = z
+  .object({
+    task: taskRecordSchema,
+    restartedFromTaskId: z.string().startsWith("task_"),
+    newTaskId: z.string().startsWith("task_"),
+    restartRootTaskId: z.string().startsWith("task_"),
+    contentBlocks: z.array(toolContentBlockSchema).optional(),
+  })
+  .strict();
+export type TaskRestartToolResult = z.infer<typeof taskRestartToolResultSchema>;
+
+/** Exact result of task_logs. */
+export const taskLogsToolResultSchema = taskLogQueryResponseSchema
+  .extend({
+    contentBlocks: z.array(toolContentBlockSchema).optional(),
+  })
+  .strict();
+export type TaskLogsToolResult = z.infer<typeof taskLogsToolResultSchema>;
 
 /** Result of explore. */
 export const exploreUsageStatsSchema = z.object({

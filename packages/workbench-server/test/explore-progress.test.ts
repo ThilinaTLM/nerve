@@ -70,22 +70,21 @@ describe("explore progress formatting", () => {
   it("formats task tool calls as concise one-liners", () => {
     assert.equal(
       toolCallMessage("task_status", { taskIds: ["dev", "test"] }),
-      "task_status 2 tasks",
+      "task_status 2 tasks · all",
     );
     assert.equal(
       toolCallMessage("task_logs", {
-        groupId: "taskgrp_01H00000000000000000000000",
+        taskId: "dev",
         mode: "errors",
       }),
-      "task_logs group taskgrp_01H00000000000000000000000 (errors)",
+      "task_logs dev (errors)",
     );
     assert.equal(
-      toolCallMessage("task_list", {
-        activeOnly: true,
-        projectId: "proj_01H00000000000000000000000",
-        agentId: "agent_02H00000000000000000000000",
+      toolCallMessage("task_status", {
+        groupId: "taskgrp_01H00000000000000000000000",
+        status: "completed",
       }),
-      "task_list active · project proj_01H00000000000000000000000 · agent agent_02H00000000000000000000000",
+      "task_status group taskgrp_01H00000000000000000000000 · completed",
     );
   });
 

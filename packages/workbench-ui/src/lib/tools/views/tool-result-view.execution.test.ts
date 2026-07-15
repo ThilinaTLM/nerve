@@ -31,6 +31,35 @@ describe("parseToolView bash/python execution", () => {
     assert.equal(view.truncated, true);
   });
 
+  it("parses a backgrounded bash task disposition", () => {
+    const view = parseToolView(
+      toolCall(
+        "bash",
+        { command: "pnpm check" },
+        {
+          content: "Command was backgrounded.",
+          details: {
+            execution: {
+              disposition: "backgrounded",
+              taskId: "task_01H00000000000000000000000",
+              status: "running",
+              elapsedMs: 60_001,
+              terminalUpdate: "automatic",
+            },
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "bash");
+    if (view.kind !== "bash") return;
+    assert.deepEqual(view.backgroundTask, {
+      taskId: "task_01H00000000000000000000000",
+      status: "running",
+      elapsedMs: 60_001,
+      terminalUpdate: "automatic",
+    });
+  });
+
   it("normalizes agent-tool-result content arrays for bash previews", () => {
     const view = parseToolView(
       toolCall(

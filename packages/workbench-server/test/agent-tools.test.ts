@@ -128,7 +128,6 @@ describe("agent tool definitions", () => {
       "task_logs",
       "task_cancel",
       "task_restart",
-      "task_list",
       "explore",
       "plan_mode_enter",
     ];
@@ -147,7 +146,6 @@ describe("agent tool definitions", () => {
       "web_fetch",
       "task_status",
       "task_logs",
-      "task_list",
       "explore",
       "plan_mode_enter",
       "plan_mode_present",
@@ -180,7 +178,6 @@ describe("agent tool definitions", () => {
       "todos_get",
       "task_status",
       "task_logs",
-      "task_list",
       "plan_mode_enter",
     ]);
     assert.deepEqual(
@@ -195,7 +192,6 @@ describe("agent tool definitions", () => {
         "todos_get",
         "task_status",
         "task_logs",
-        "task_list",
         "plan_mode_enter",
         "plan_mode_present",
         "plan_mode_force_exit",
@@ -298,7 +294,6 @@ describe("agent tool definitions", () => {
         "task_logs",
         "task_cancel",
         "task_restart",
-        "task_list",
         "explore",
         "plan_mode_enter",
         "plan_mode_present",
@@ -327,7 +322,7 @@ describe("agent tool definitions", () => {
       ),
     );
     assert.doesNotMatch(bash.promptSnippet ?? "", /ls, grep, find/);
-    assert.match(taskStart.description, /supervised background tasks/);
+    assert.match(taskStart.description, /supervised background process/);
     assert.ok(
       taskStart.promptGuidelines?.some((line) =>
         line.includes("long-lived processes"),
@@ -380,7 +375,6 @@ describe("agent tool definitions", () => {
       "ls",
       "task_status",
       "task_logs",
-      "task_list",
     ]);
   });
 

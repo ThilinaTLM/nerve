@@ -232,6 +232,14 @@ export function toolPresentation(
       }
       if (view.signal)
         meta.push({ text: `signal ${view.signal}`, tone: "warning" });
+      if (view.backgroundTask) {
+        meta.push({
+          text: `background ${view.backgroundTask.taskId}`,
+          tone: "warning",
+          mono: true,
+        });
+        meta.push({ text: view.backgroundTask.status });
+      }
       if (lines > 0) meta.push({ text: plural(lines, "line") });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
       meta.push(...outputMeta(view));
@@ -657,7 +665,7 @@ export function toolPresentation(
       };
     }
 
-    case "task_list":
+    case "task_status":
       return {
         ...base,
         meta: [{ text: plural(view.tasks.length, "task", "s") }],

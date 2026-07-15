@@ -12,7 +12,10 @@ import type {
   RunRecord,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
-import { RUN_STATE_EPOCH } from "@nervekit/contracts";
+import {
+  RUN_FAILURE_MESSAGE_MAX_LENGTH,
+  RUN_STATE_EPOCH,
+} from "@nervekit/contracts";
 import type { IdPort } from "./index.js";
 import type { RunHydratedState } from "./run-unit-of-work.js";
 
@@ -270,12 +273,19 @@ export function interactionRecord(
   };
 }
 
+export function boundedFailure(value: RunFailureRecord): RunFailureRecord {
+  return {
+    ...value,
+    message: value.message.slice(0, RUN_FAILURE_MESSAGE_MAX_LENGTH),
+  };
+}
+
 export function failure(
   code: string,
   error: unknown,
   retryable: boolean,
 ): RunFailureRecord {
-  return { code, message: errorMessage(error).slice(0, 2_000), retryable };
+  return boundedFailure({ code, message: errorMessage(error), retryable });
 }
 
 export function prefixed(prefix: string, value: string): string {

@@ -75,7 +75,7 @@ describe("canonical tool manifest", () => {
     );
     assert.equal(
       classifyToolRisk("task_start", {
-        tasks: [{ command: "pnpm dev" }, { command: "rm -rf dist" }],
+        command: "rm -rf dist",
       }),
       "destructive",
     );

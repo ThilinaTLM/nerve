@@ -109,6 +109,34 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(view.task?.readiness.matched, "http://localhost:3000");
   });
 
+  it("parses flat task_status results", () => {
+    const view = parseToolView(
+      toolCall(
+        "task_status",
+        {},
+        {
+          tasks: [
+            {
+              id: "task_01H00000000000000000000000",
+              cwd: CWD,
+              command: "npm run dev",
+              status: "running",
+              readiness: { outcome: "none" },
+              stdoutPath: "/x/out",
+              stderrPath: "/x/err",
+              logsPath: "/x/log",
+              startedAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        },
+      ),
+    );
+    assert.equal(view.kind, "task_status");
+    if (view.kind !== "task_status") return;
+    assert.equal(view.tasks[0]?.status, "running");
+  });
+
   it("parses task_logs events", () => {
     const events = Array.from({ length: 20 }, (_, index) => ({
       seq: index + 1,

@@ -114,7 +114,7 @@ const taskTools: ToolSummary[] = [
   },
   {
     name: "task_status",
-    description: "Inspect supervised background task state.",
+    description: "Discover background tasks and inspect their current state.",
   },
   {
     name: "task_logs",
@@ -127,10 +127,6 @@ const taskTools: ToolSummary[] = [
   {
     name: "task_restart",
     description: "Restart a task with its saved launch settings.",
-  },
-  {
-    name: "task_list",
-    description: "List known background tasks for the project.",
   },
 ];
 const shellTools: ToolSummary[] = [

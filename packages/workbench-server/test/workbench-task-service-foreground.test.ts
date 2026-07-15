@@ -43,7 +43,21 @@ describe("task manager foreground bash auto-promotion", () => {
     assert.equal(result.task.notifications?.enabled, true);
     assert.equal(result.task.notifications?.terminal, true);
     assert.equal(result.task.completion?.inject, true);
-    assert.match(result.result.content ?? "", /promoted it to background task/);
+    assert.match(result.result.content ?? "", /was backgrounded/);
+    assert.deepEqual(
+      (result.result.details as { execution?: unknown }).execution,
+      {
+        disposition: "backgrounded",
+        taskId: result.task.id,
+        status: "running",
+        elapsedMs: result.elapsedMs,
+        terminalUpdate: "automatic",
+      },
+    );
+    assert.equal(
+      "task" in (result.result.details as Record<string, unknown>),
+      false,
+    );
     assert.deepEqual(
       updates.map((update) => [update.stream, update.chunk]),
       [["stdout", "still running\n"]],
@@ -111,6 +125,10 @@ describe("task manager foreground bash auto-promotion", () => {
     const result = await run;
 
     assert.equal(result.kind, "completed_foreground");
+    assert.deepEqual(
+      (result.result.details as { execution?: unknown }).execution,
+      { disposition: "completed" },
+    );
     assert.equal(result.result.stdout, "out 1\nout 2");
     assert.equal(result.result.stderr, "err 1");
     assert.equal(result.result.content, "out 1\nerr 1\nout 2\n");

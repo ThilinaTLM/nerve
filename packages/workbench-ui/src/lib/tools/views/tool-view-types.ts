@@ -132,6 +132,12 @@ export type ToolView =
       command?: string;
       exitCode?: number;
       signal?: string | null;
+      backgroundTask?: {
+        taskId: string;
+        status: TaskRecord["status"];
+        elapsedMs: number;
+        terminalUpdate: "automatic";
+      };
       output: string;
       outputLineCount: number;
       savedTo?: string;
@@ -232,7 +238,7 @@ export type ToolView =
       task?: TaskRecord;
       tasks?: TaskRecord[];
     }
-  | { kind: "task_list"; tasks: TaskRecord[] }
+  | { kind: "task_status"; tasks: TaskRecord[] }
   | {
       kind: "task_logs";
       task?: TaskRecord;

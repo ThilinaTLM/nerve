@@ -4,10 +4,11 @@ import {
   editOperationResultDetailsSchema,
   exploreResultPreviewSchema,
   pythonResultDetailsSchema,
-  taskActionResultSchema,
-  taskListResultSchema,
-  taskLogsResultSchema,
-  taskRecordSchema,
+  taskCancelToolResultSchema,
+  taskLogsToolResultSchema,
+  taskRestartToolResultSchema,
+  taskStartToolResultSchema,
+  taskStatusToolResultSchema,
   todosResultSchema,
   webFetchResultDetailsSchema,
   webSearchResultDetailsSchema,
@@ -268,6 +269,16 @@ export function parseToolView(
         signal: details.success
           ? (details.data.signal ?? undefined)
           : undefined,
+        backgroundTask:
+          details.success &&
+          details.data.execution?.disposition === "backgrounded"
+            ? {
+                taskId: details.data.execution.taskId,
+                status: details.data.execution.status,
+                elapsedMs: details.data.execution.elapsedMs,
+                terminalUpdate: details.data.execution.terminalUpdate,
+              }
+            : undefined,
         output,
         outputLineCount,
         savedTo: details.success ? details.data.fullOutputPath : undefined,
@@ -487,51 +498,45 @@ export function parseToolView(
       };
     }
 
-    case "task_start":
-    case "task_cancel":
-    case "task_restart": {
-      const action = toolCall.toolName.replace("task_", "") as
-        | "start"
-        | "cancel"
-        | "restart";
-      const parsed = taskActionResultSchema.safeParse(rawResult);
-      const task = parsed.success ? parsed.data.task : undefined;
+    case "task_start": {
+      const parsed = taskStartToolResultSchema.safeParse(rawResult);
+      return {
+        kind: "task_action",
+        action: "start",
+        task: parsed.success ? parsed.data.task : undefined,
+      };
+    }
+
+    case "task_cancel": {
+      const parsed = taskCancelToolResultSchema.safeParse(rawResult);
       const tasks = parsed.success ? parsed.data.tasks : undefined;
       return {
         kind: "task_action",
-        action,
-        task,
+        action: "cancel",
+        task: tasks?.[0],
         tasks,
+      };
+    }
+
+    case "task_restart": {
+      const parsed = taskRestartToolResultSchema.safeParse(rawResult);
+      return {
+        kind: "task_action",
+        action: "restart",
+        task: parsed.success ? parsed.data.task : undefined,
       };
     }
 
     case "task_status": {
-      const result = asRecord(rawResult);
-      const rows = Array.isArray(result.tasks) ? result.tasks : [];
-      const tasks = rows
-        .map((row) => {
-          const record = asRecord(row);
-          return taskRecordSchema.safeParse(record.task ?? record);
-        })
-        .filter((parsed) => parsed.success)
-        .map((parsed) => parsed.data);
+      const parsed = taskStatusToolResultSchema.safeParse(rawResult);
       return {
-        kind: "task_list",
-        tasks,
-      };
-    }
-
-    case "task_list": {
-      const parsed = taskListResultSchema.safeParse(rawResult);
-      const tasks = parsed.success ? parsed.data.tasks : [];
-      return {
-        kind: "task_list",
-        tasks,
+        kind: "task_status",
+        tasks: parsed.success ? parsed.data.tasks : [],
       };
     }
 
     case "task_logs": {
-      const parsed = taskLogsResultSchema.safeParse(rawResult);
+      const parsed = taskLogsToolResultSchema.safeParse(rawResult);
       const data = parsed.success ? parsed.data : undefined;
       const events = data?.events ?? [];
       return {
