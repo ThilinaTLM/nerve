@@ -317,9 +317,17 @@ function verifyBundledLockEntries(lock, version) {
     const [path, metadata] = entries[0];
     if (
       typeof metadata.resolved === "string" &&
-      metadata.resolved.includes("registry.npmjs.org")
+      isNpmRegistryUrl(metadata.resolved)
     )
       throw new Error(`${path} was resolved from the npm registry.`);
+  }
+}
+
+function isNpmRegistryUrl(value) {
+  try {
+    return new URL(value).hostname === "registry.npmjs.org";
+  } catch {
+    return false;
   }
 }
 
