@@ -29,6 +29,7 @@ type DeriveToolActivityStateInput = {
   draft?: ConversationLiveToolDraftBlockSnapshot;
   toolCall?: Pick<ToolCallTranscriptRecord, "status" | "error">;
   hasMeaningfulDraftBody?: boolean;
+  hasDurableBodyContent?: boolean;
   bodyHydrated?: boolean;
   hasApproval?: boolean;
   hasInteraction?: boolean;
@@ -80,6 +81,17 @@ export function deriveToolActivityState(
     bodyMode = "approval";
   } else if (input.hasInteraction) {
     bodyMode = "interaction";
+  } else if (
+    input.hasMeaningfulDraftBody &&
+    !input.hasDurableBodyContent &&
+    (input.toolCall.status === "requested" ||
+      input.toolCall.status === "pending_approval" ||
+      input.toolCall.status === "running")
+  ) {
+    // Keep the already-visible draft preview mounted until the durable view
+    // has real result/output content. The durable record still owns the
+    // header and status during this short handoff.
+    bodyMode = "draft-preview";
   } else {
     bodyMode = "tool-output";
   }

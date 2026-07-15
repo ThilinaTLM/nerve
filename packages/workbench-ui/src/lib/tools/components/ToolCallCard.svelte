@@ -123,6 +123,9 @@ const meaningfulDraftBody = $derived(
     ? hasMeaningfulToolDraftBody(draftSummary, atlassianDraftSummary)
     : false,
 );
+const hasDurableBodyContent = $derived(
+  Boolean(liveOutput?.text.length || toolCall?.resultPreview !== undefined),
+);
 const toolApproval = $derived(
   toolCall &&
     pendingApproval?.toolCallId === toolCall.id &&
@@ -149,6 +152,7 @@ const activityState = $derived.by(() =>
     draft: draft?.block,
     toolCall,
     hasMeaningfulDraftBody: meaningfulDraftBody,
+    hasDurableBodyContent,
     bodyHydrated: shouldHydrateBody,
     hasApproval: Boolean(toolApproval),
     hasInteraction: hilInteractive,
@@ -174,10 +178,10 @@ const badge = $derived(
     "tool",
 );
 const primaryArg = $derived(presentation?.primaryArg ?? draftArg);
-const dotTone = $derived(
-  presentation?.dotTone ?? (draftSummary?.done ? "good" : "running"),
-);
-const dotPulse = $derived(presentation?.dotPulse ?? !draftSummary?.done);
+// A prepared draft only means argument generation finished; execution has not.
+// Keep it visibly in-flight until a durable terminal status takes ownership.
+const dotTone = $derived(presentation?.dotTone ?? "running");
+const dotPulse = $derived(presentation?.dotPulse ?? true);
 const meta = $derived(presentation?.meta ?? draftSummary?.meta ?? []);
 const detailsAction = $derived(
   toolCall

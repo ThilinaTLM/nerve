@@ -100,6 +100,29 @@ describe("deriveToolActivityState", () => {
     );
   });
 
+  it("keeps a meaningful draft body until durable output is available", () => {
+    const handoff = deriveToolActivityState({
+      draft: draft(true),
+      toolCall: toolCall("running"),
+      hasMeaningfulDraftBody: true,
+      hasDurableBodyContent: false,
+      bodyHydrated: true,
+    });
+    assert.equal(handoff.phase, "running");
+    assert.equal(handoff.bodyMode, "draft-preview");
+    assert.equal(handoff.bodyVisible, true);
+
+    const output = deriveToolActivityState({
+      draft: draft(true),
+      toolCall: toolCall("running"),
+      hasMeaningfulDraftBody: true,
+      hasDurableBodyContent: true,
+      bodyHydrated: true,
+    });
+    assert.equal(output.bodyMode, "tool-output");
+    assert.notEqual(handoff.structuralRevision, output.structuralRevision);
+  });
+
   it("tracks body hydration without changing for streamed content", () => {
     const hidden = deriveToolActivityState({
       toolCall: toolCall("running"),
