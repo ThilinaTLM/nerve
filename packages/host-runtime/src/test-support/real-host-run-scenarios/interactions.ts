@@ -103,7 +103,22 @@ export async function runInteractionScenarios(
         second && second.interactionId !== first.interactionId,
         "Revised plan did not create a new review",
       );
-      await session.resolvePlan(second.externalId, "accept");
+      await session.restart();
+      const recovered = await session.pendingInteraction(runId, "plan_review");
+      invariant(recovered, "Revised plan was not hydrated after restart");
+      invariant(
+        recovered.interactionId === second.interactionId &&
+          recovered.checkpointId === second.checkpointId,
+        "Restart changed the durable plan interaction checkpoint",
+      );
+      const recoveredState = await session.load(runId);
+      invariant(
+        recoveredState?.checkpoints.some(
+          (checkpoint) => checkpoint.checkpointId === recovered.checkpointId,
+        ),
+        "Restart did not hydrate the plan suspension checkpoint",
+      );
+      await session.resolvePlan(recovered.externalId, "accept");
       const completed = await session.waitForStatus(runId, ["completed"]);
       assertStatus(completed, "completed");
       const projections = normalizedInteractionProjection(completed).filter(
@@ -130,7 +145,7 @@ export async function runInteractionScenarios(
           .some((event) => event.type === "run.retrying"),
         "Plan review emitted a false retry event",
       );
-      assertions += 7;
+      assertions += 10;
     },
   );
 

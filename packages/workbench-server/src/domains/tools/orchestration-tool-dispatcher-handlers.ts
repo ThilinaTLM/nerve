@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   buildProcessTextResult,
   type ToolExecutionOutputUpdate,
@@ -173,7 +174,24 @@ export function tasksInScope(
 ): TaskRecord[] {
   return this.deps.tasks
     .listTasks()
-    .filter((task) => task.projectId === toolCall.projectId);
+    .filter((task) => isPathInDirectoryTree(toolCall.cwd, task.cwd));
+}
+
+export function isPathInDirectoryTree(
+  root: string,
+  candidate: string,
+): boolean {
+  const flavor = /^[A-Za-z]:[\\/]/.test(root) ? path.win32 : path;
+  const relative = flavor.relative(
+    flavor.resolve(root),
+    flavor.resolve(candidate),
+  );
+  return (
+    relative === "" ||
+    (relative !== ".." &&
+      !relative.startsWith(`..${flavor.sep}`) &&
+      !flavor.isAbsolute(relative))
+  );
 }
 
 export function defaultStatusTasks(
@@ -206,34 +224,32 @@ export function resolveTaskReference(
         { ref: trimmed, taskId: trimmed },
       );
     }
-    if (task.projectId !== toolCall.projectId) {
+    if (!isPathInDirectoryTree(toolCall.cwd, task.cwd)) {
       throw new CodedToolError(
         "TASK_OUT_OF_SCOPE",
-        "Task is outside this agent's project scope.",
+        "Task is outside this agent's working-directory scope.",
         {
           ref: trimmed,
           taskId: task.id,
-          projectId: task.projectId,
-          currentProjectId: toolCall.projectId,
+          taskCwd: task.cwd,
+          scopeCwd: toolCall.cwd,
         },
       );
     }
     return task;
   }
-  const projectMatches = this.deps.tasks
-    .listTasks()
-    .filter(
-      (task) => task.projectId === toolCall.projectId && task.name === trimmed,
-    );
-  const conversationMatches = projectMatches.filter(
+  const scopedMatches = this.tasksInScope(toolCall).filter(
+    (task) => task.name === trimmed,
+  );
+  const conversationMatches = scopedMatches.filter(
     (task) => task.conversationId === toolCall.conversationId,
   );
   const matches =
-    conversationMatches.length > 0 ? conversationMatches : projectMatches;
+    conversationMatches.length > 0 ? conversationMatches : scopedMatches;
   if (matches.length === 0) {
     throw new CodedToolError("TASK_NOT_FOUND", `Task '${trimmed}' not found.`, {
       ref: trimmed,
-      projectId: toolCall.projectId,
+      scopeCwd: toolCall.cwd,
       conversationId: toolCall.conversationId,
     });
   }
@@ -241,7 +257,7 @@ export function resolveTaskReference(
   if (resolved) return resolved;
   const details = {
     ref: trimmed,
-    projectId: toolCall.projectId,
+    scopeCwd: toolCall.cwd,
     conversationId: toolCall.conversationId,
     matches: matches.slice(0, 20).map(taskReferenceDetails),
   };

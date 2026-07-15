@@ -21,22 +21,54 @@ after(async () => {
 });
 
 describe("orchestration task tools", () => {
-  it("lists active project tasks without a conversation by default", async () => {
-    const projectTask = task({
-      id: "task_project_scoped",
-      name: "web-dev",
+  it("lists user-started tasks in the current cwd tree regardless of lineage", async () => {
+    const rootTask = task({
+      id: "task_user_root",
+      name: "root-dev",
       status: "running",
+      projectId: undefined,
       conversationId: undefined,
       agentId: undefined,
+      origin: { kind: "api" },
     });
-    const otherProjectTask = task({
-      id: "task_other_project",
+    const nestedTask = task({
+      id: "task_user_nested",
+      name: "nested-dev",
       status: "running",
       projectId: "proj_other",
       conversationId: undefined,
       agentId: undefined,
+      cwd: "/tmp/project/apps/web",
+      origin: { kind: "api" },
     });
-    const dispatcher = await createDispatcher([projectTask, otherProjectTask]);
+    const dotPrefixedNestedTask = task({
+      id: "task_dot_prefixed_nested",
+      status: "running",
+      cwd: "/tmp/project/..cache",
+    });
+    const outOfScopeTasks = [
+      task({
+        id: "task_parent",
+        status: "running",
+        cwd: "/tmp",
+      }),
+      task({
+        id: "task_sibling",
+        status: "running",
+        cwd: "/tmp/sibling",
+      }),
+      task({
+        id: "task_prefix_collision",
+        status: "running",
+        cwd: "/tmp/project-other",
+      }),
+    ];
+    const dispatcher = await createDispatcher([
+      rootTask,
+      nestedTask,
+      dotPrefixedNestedTask,
+      ...outOfScopeTasks,
+    ]);
 
     const result = (await dispatcher.execute(toolCall("task_list"), {
       activeOnly: true,
@@ -44,26 +76,27 @@ describe("orchestration task tools", () => {
 
     assert.deepEqual(
       result.tasks.map((item) => item.id),
-      [projectTask.id],
+      [rootTask.id, nestedTask.id, dotPrefixedNestedTask.id],
     );
   });
 
-  it("inspects active project tasks without a conversation by default", async () => {
-    const projectTask = task({
-      id: "task_project_scoped",
+  it("inspects user-started tasks in nested cwd directories by default", async () => {
+    const nestedTask = task({
+      id: "task_user_nested",
       name: "web-dev",
       status: "running",
+      projectId: undefined,
       conversationId: undefined,
       agentId: undefined,
+      cwd: "/tmp/project/apps/web",
+      origin: { kind: "api" },
     });
-    const otherProjectTask = task({
-      id: "task_other_project",
+    const siblingTask = task({
+      id: "task_sibling",
       status: "running",
-      projectId: "proj_other",
-      conversationId: undefined,
-      agentId: undefined,
+      cwd: "/tmp/project-sibling",
     });
-    const dispatcher = await createDispatcher([projectTask, otherProjectTask]);
+    const dispatcher = await createDispatcher([nestedTask, siblingTask]);
 
     const result = (await dispatcher.execute(toolCall("task_status"), {
       activeOnly: true,
@@ -71,7 +104,102 @@ describe("orchestration task tools", () => {
 
     assert.deepEqual(
       result.tasks.map((item) => item.task.id),
-      [projectTask.id],
+      [nestedTask.id],
+    );
+  });
+
+  it("applies project filters only within the cwd scope", async () => {
+    const inScope = task({
+      id: "task_other_project_nested",
+      projectId: "proj_other",
+      cwd: "/tmp/project/packages/app",
+    });
+    const outOfScope = task({
+      id: "task_other_project_sibling",
+      projectId: "proj_other",
+      cwd: "/tmp/project-sibling",
+    });
+    const dispatcher = await createDispatcher([inScope, outOfScope]);
+
+    const result = (await dispatcher.execute(toolCall("task_list"), {
+      projectId: "proj_other",
+    })) as { tasks: TaskRecord[] };
+
+    assert.deepEqual(
+      result.tasks.map((item) => item.id),
+      [inScope.id],
+    );
+  });
+
+  it("resolves in-scope user tasks by id and name", async () => {
+    const userTask = task({
+      id: "task_user_nested",
+      name: "user-dev",
+      projectId: undefined,
+      conversationId: undefined,
+      agentId: undefined,
+      cwd: "/tmp/project/apps/web",
+      origin: { kind: "api" },
+    });
+    const dispatcher = await createDispatcher([userTask]);
+
+    const byId = (await dispatcher.execute(toolCall("task_status"), {
+      taskId: userTask.id,
+    })) as { tasks: Array<{ task: TaskRecord }> };
+    const byName = (await dispatcher.execute(toolCall("task_status"), {
+      taskId: userTask.name,
+    })) as { tasks: Array<{ task: TaskRecord }> };
+
+    assert.equal(byId.tasks[0]?.task.id, userTask.id);
+    assert.equal(byName.tasks[0]?.task.id, userTask.id);
+  });
+
+  it("rejects direct references to tasks outside the cwd scope", async () => {
+    const outOfScope = task({
+      id: "task_same_project_sibling",
+      cwd: "/tmp/project-sibling",
+    });
+    const dispatcher = await createDispatcher([outOfScope]);
+
+    await assert.rejects(
+      () =>
+        dispatcher.execute(toolCall("task_status"), {
+          taskId: outOfScope.id,
+        }),
+      (error) => {
+        assert.ok(error instanceof CodedToolError);
+        assert.equal(error.code, "TASK_OUT_OF_SCOPE");
+        assert.equal(error.details.scopeCwd, "/tmp/project");
+        assert.equal(error.details.taskCwd, outOfScope.cwd);
+        return true;
+      },
+    );
+  });
+
+  it("scopes Windows task paths independently of the server host OS", async () => {
+    const rootTask = task({ id: "task_windows_root", cwd: "C:\\repo" });
+    const nestedTask = task({
+      id: "task_windows_nested",
+      cwd: "C:\\repo\\packages\\app",
+    });
+    const siblingTask = task({
+      id: "task_windows_sibling",
+      cwd: "C:\\repo-other",
+    });
+    const dispatcher = await createDispatcher([
+      rootTask,
+      nestedTask,
+      siblingTask,
+    ]);
+
+    const result = (await dispatcher.execute(
+      { ...toolCall("task_list"), cwd: "C:\\repo" },
+      {},
+    )) as { tasks: TaskRecord[] };
+
+    assert.deepEqual(
+      result.tasks.map((item) => item.id),
+      [rootTask.id, nestedTask.id],
     );
   });
 

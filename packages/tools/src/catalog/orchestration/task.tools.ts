@@ -320,7 +320,8 @@ export const taskToolDefinitions = [
     traits: [],
     executionKind: "host",
     label: "task_list",
-    description: "List known background tasks for the current project.",
+    description:
+      "List known background tasks in the current working directory and its descendants.",
     promptSnippet: "List background tasks",
     parameters: taskListParameters,
     executionMode: "parallel",

@@ -526,13 +526,12 @@ export class OrchestrationToolDispatcher {
     const limit =
       optionalBoundedIntegerArg(args.limit, "limit", { min: 1, max: 500 }) ??
       20;
-    const projectId = optionalStringArg(args.projectId) ?? toolCall.projectId;
+    const projectId = optionalStringArg(args.projectId);
     const conversationId = optionalStringArg(args.conversationId);
     const agentId = optionalStringArg(args.agentId);
     const groupId = optionalStringArg(args.groupId);
-    let tasks = this.deps.tasks
-      .listTasks()
-      .filter((task) => task.projectId === projectId);
+    let tasks = this.tasksInScope(toolCall);
+    if (projectId) tasks = tasks.filter((task) => task.projectId === projectId);
     if (conversationId) {
       tasks = tasks.filter((task) => task.conversationId === conversationId);
     }

@@ -1,4 +1,4 @@
-- This is an early foundation project: prefer clean direct designs over compatibility shims.
+- This is an early foundation project: prefer clean direct designs and architecturally sounds solutions over compatibility and workaround shims.
 - The main-branch reference worktree is `/home/tlm/Projects/nerve`; this v2 worktree is `/home/tlm/Projects/nerve-v2`. Use the main worktree for comparison and keep v2 changes in this worktree unless explicitly asked otherwise.
 - The main desktop app uses `~/.nerve` and ports `3747`/`3748`. The v2 desktop development launcher is isolated at `~/.nerve-v2` (including its Electron profile under `~/.nerve-v2/desktop`) and ports `3757`/`3758`.
 - Use file-first storage under the active `NERVE_HOME`; SQLite is only a rebuildable index/cache.

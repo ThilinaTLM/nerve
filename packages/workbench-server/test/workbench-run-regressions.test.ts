@@ -121,6 +121,61 @@ describe("workbench coordinator behavior regressions", () => {
     });
   });
 
+  it("continues a valid pending plan interaction without starting a replacement run", async () => {
+    const fixture = acceptanceFixture("pending");
+
+    const accepted = await fixture.service.acceptPlanReview(fixture.review.id);
+
+    assert.equal(accepted.status, "accepted");
+    assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.resolutions[0]?.continueRun, true);
+    assert.equal(fixture.starts.length, 0);
+  });
+
+  it("starts accepted terminal-orphan plans in the same conversation", async () => {
+    const fixture = acceptanceFixture("terminal");
+
+    const accepted = await fixture.service.acceptPlanReview(fixture.review.id);
+
+    assert.equal(accepted.status, "accepted");
+    assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 1);
+    assert.equal(fixture.starts.length, 1);
+    assert.equal(fixture.starts[0]?.agentId, fixture.review.agentId);
+    assert.match(fixture.starts[0]?.text ?? "", /source of truth/i);
+  });
+
+  it("falls back to a same-conversation run when acceptance races terminal state", async () => {
+    const fixture = acceptanceFixture("terminal_race");
+
+    const accepted = await fixture.service.acceptPlanReview(fixture.review.id);
+
+    assert.equal(accepted.status, "accepted");
+    assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 2);
+    assert.equal(fixture.starts.length, 1);
+  });
+
+  it("accepts a terminal-orphan plan into a new chat", async () => {
+    const fixture = acceptanceFixture("terminal");
+
+    const accepted = await fixture.service.acceptPlanReviewInNewChat(
+      fixture.review.id,
+    );
+
+    assert.equal(accepted.planReview.status, "accepted_in_new_chat");
+    assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 1);
+    assert.equal(fixture.starts[0]?.agentId, fixture.createdAgent.id);
+    assert.match(
+      fixture.starts[0]?.text ?? "",
+      /implement it in this new chat/i,
+    );
+  });
+
   it("terminalizes a new-chat plan source and starts the selected implementation agent", async () => {
     const source = agentRecord();
     const created = {
@@ -137,7 +192,7 @@ describe("workbench coordinator behavior regressions", () => {
         listPlanReviews: () => [review],
         acceptPlanReviewInNewChat: async () => ({
           ...review,
-          status: "accepted_new_chat",
+          status: "accepted_in_new_chat",
         }),
         planReviewResult: () => ({ decision: "accept_new_chat" }),
       },
@@ -164,7 +219,7 @@ describe("workbench coordinator behavior regressions", () => {
         }),
       },
       runs: {
-        assertPendingInteractionForToolCall: async () => undefined,
+        interactionResolutionStateForToolCall: async () => "pending",
         resolveInteractionForToolCall: async (
           input: Record<string, unknown>,
         ) => {
@@ -311,6 +366,115 @@ function agentRecord(): AgentRecord {
     createdAt: "2026-07-13T00:00:00.000Z",
     updatedAt: "2026-07-13T00:00:00.000Z",
   } as AgentRecord;
+}
+
+function acceptanceFixture(
+  sourceState: "pending" | "terminal" | "terminal_race",
+) {
+  const source = { ...agentRecord(), mode: "planning" as const };
+  const review = planReview();
+  const createdAgent = {
+    ...agentRecord(),
+    id: "agent_implementation",
+    conversationId: "conv_implementation",
+    mode: "coding" as const,
+  };
+  const resolutions: Array<Record<string, unknown>> = [];
+  const starts: Array<{ agentId: string; text: string }> = [];
+  const completedToolCalls: unknown[] = [];
+  const appendedEntries: unknown[] = [];
+  let currentReview = review;
+  let currentToolCall = {
+    id: review.toolCallId,
+    agentId: source.id,
+    conversationId: source.conversationId,
+    projectId: source.projectId,
+    runId: "run_source",
+    turnId: "turn_source",
+    providerToolCallId: "provider_plan",
+    toolName: "plan_mode_present",
+    status: "waiting_for_user",
+  };
+  let stateChecks = 0;
+  const planResult = () => ({
+    review: currentReview,
+    outcome: currentReview.status,
+    mode: currentReview.status === "accepted" ? "coding" : "planning",
+    contentBlocks: [{ type: "text", text: "Plan accepted." }],
+  });
+  const service = new HumanInputResolutionService({
+    plans: {
+      listPlanReviews: () => [currentReview],
+      acceptPlanReview: async () => {
+        currentReview = { ...currentReview, status: "accepted" };
+        return currentReview;
+      },
+      acceptPlanReviewInNewChat: async () => {
+        currentReview = { ...currentReview, status: "accepted_in_new_chat" };
+        return currentReview;
+      },
+      planReviewResult: planResult,
+    },
+    tools: {
+      getToolCall: () => currentToolCall,
+      completeToolCall: async () => {
+        currentToolCall = {
+          ...currentToolCall,
+          status: "completed",
+          result: planResult(),
+        };
+        completedToolCalls.push(currentToolCall);
+        return currentToolCall;
+      },
+    },
+    runs: {
+      interactionResolutionStateForToolCall: async () => {
+        stateChecks += 1;
+        if (sourceState === "terminal_race") {
+          return stateChecks === 1 ? "pending" : "terminal";
+        }
+        return sourceState;
+      },
+      resolveInteractionForToolCall: async (input: Record<string, unknown>) => {
+        resolutions.push(input);
+        if (sourceState === "terminal_race") {
+          throw new Error("run became terminal");
+        }
+      },
+      promptAgent: async (agentId: string, request: { text: string }) => {
+        starts.push({ agentId, text: request.text });
+      },
+    },
+    getAgent: (agentId: string) =>
+      agentId === createdAgent.id ? createdAgent : source,
+    configureAgent: async () => source,
+    setAgentStatus: async () => undefined,
+    continueAgent: async () => undefined,
+    createConversation: async () => ({
+      id: createdAgent.conversationId,
+      projectId: source.projectId,
+    }),
+    createAgent: async () => createdAgent,
+    appendEntry: async (input: Record<string, unknown>) => {
+      appendedEntries.push(input);
+      return { ...input, id: String(input.id) };
+    },
+    harnessStorage: {
+      appendAgentMessage: async () => ({
+        id: "entry_plan_accepted",
+        timestamp: "2026-07-13T00:00:01.000Z",
+      }),
+    },
+  } as never);
+  return {
+    service,
+    review,
+    createdAgent,
+    resolutions,
+    starts,
+    completedToolCalls,
+    appendedEntries,
+  };
 }
 
 function rejectionFixture(

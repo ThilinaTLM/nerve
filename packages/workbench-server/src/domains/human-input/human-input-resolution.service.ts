@@ -66,16 +66,26 @@ export class HumanInputResolutionService {
     implementation?: PlanImplementationSelection,
   ): Promise<PlanReviewRecord> {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
-    await this.deps.runs.assertPendingInteractionForToolCall(
-      pendingReview.toolCallId,
-    );
+    const source = await this.planReviewSource(pendingReview);
     await this.applyImplementationSelectionToSourceAgent(
       pendingReview.agentId,
       implementation,
     );
 
+    let review: PlanReviewRecord;
     try {
-      const review = await this.deps.plans.acceptPlanReview(reviewId, feedback);
+      review = await this.deps.plans.acceptPlanReview(reviewId, feedback);
+    } catch (error) {
+      throw this.planReviewNotFound(error);
+    }
+
+    if (source.state === "terminal") {
+      await this.reconcileTerminalPlanReview(review);
+      await this.startAcceptedPlanImplementation(review);
+      return review;
+    }
+
+    try {
       await this.resolveSuspensionForToolCall(
         review.toolCallId,
         this.deps.plans.planReviewResult(review),
@@ -85,14 +95,14 @@ export class HumanInputResolutionService {
           finalSuspensionStatus: "resumed",
         },
       );
-      return review;
     } catch (error) {
-      throw new HttpError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
+      if (source.state === "detached") throw error;
+      const latest = await this.planReviewSource(review);
+      if (latest.state !== "terminal") throw error;
+      await this.reconcileTerminalPlanReview(review);
+      await this.startAcceptedPlanImplementation(review);
     }
+    return review;
   }
 
   async acceptPlanReviewInNewChat(
@@ -101,9 +111,7 @@ export class HumanInputResolutionService {
     implementation?: PlanImplementationSelection,
   ): Promise<AcceptPlanReviewInNewChatResult> {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
-    await this.deps.runs.assertPendingInteractionForToolCall(
-      pendingReview.toolCallId,
-    );
+    const source = await this.planReviewSource(pendingReview);
     const sourceAgent = this.deps.getAgent(pendingReview.agentId);
     const conversation = await this.deps.createConversation({
       projectId: pendingReview.projectId,
@@ -131,21 +139,28 @@ export class HumanInputResolutionService {
         feedback,
       );
     } catch (error) {
-      throw new HttpError(
-        404,
-        "PLAN_REVIEW_NOT_FOUND",
-        error instanceof Error ? error.message : String(error),
-      );
+      throw this.planReviewNotFound(error);
     }
-    await this.resolveSuspensionForToolCall(
-      review.toolCallId,
-      this.deps.plans.planReviewResult(review),
-      {
-        continueAgent: false,
-        completeRun: true,
-        finalSuspensionStatus: "cancelled",
-      },
-    );
+    if (source.state === "terminal") {
+      await this.reconcileTerminalPlanReview(review);
+    } else {
+      try {
+        await this.resolveSuspensionForToolCall(
+          review.toolCallId,
+          this.deps.plans.planReviewResult(review),
+          {
+            continueAgent: false,
+            completeRun: true,
+            finalSuspensionStatus: "cancelled",
+          },
+        );
+      } catch (error) {
+        if (source.state === "detached") throw error;
+        const latest = await this.planReviewSource(review);
+        if (latest.state !== "terminal") throw error;
+        await this.reconcileTerminalPlanReview(review);
+      }
+    }
     await this.deps.runs.promptAgent(agent.id, {
       text: acceptedPlanInNewChatInstruction(pendingReview.planPath),
     });
@@ -168,8 +183,8 @@ export class HumanInputResolutionService {
       );
     }
 
-    const toolCall = this.deps.tools.getToolCall(rejectableReview.toolCallId);
-    if (!toolCall.runId) {
+    const source = await this.planReviewSource(rejectableReview);
+    if (source.state === "detached") {
       await this.resolveSuspensionForToolCall(
         review.toolCallId,
         this.deps.plans.planReviewResult(review),
@@ -182,13 +197,8 @@ export class HumanInputResolutionService {
       return review;
     }
 
-    const sourceState =
-      await this.deps.runs.interactionResolutionStateForToolCall(
-        toolCall.id,
-        toolCall.runId,
-      );
-    if (sourceState === "terminal") {
-      await this.reconcileTerminalPlanRejection(review);
+    if (source.state === "terminal") {
+      await this.reconcileTerminalPlanReview(review);
       return review;
     }
 
@@ -203,13 +213,9 @@ export class HumanInputResolutionService {
         },
       );
     } catch (error) {
-      const latestState =
-        await this.deps.runs.interactionResolutionStateForToolCall(
-          toolCall.id,
-          toolCall.runId,
-        );
-      if (latestState !== "terminal") throw error;
-      await this.reconcileTerminalPlanRejection(review);
+      const latest = await this.planReviewSource(review);
+      if (latest.state !== "terminal") throw error;
+      await this.reconcileTerminalPlanReview(review);
     }
     return review;
   }
@@ -429,6 +435,27 @@ export class HumanInputResolutionService {
     return review;
   }
 
+  private async planReviewSource(review: PlanReviewRecord): Promise<{
+    state: "detached" | "pending" | "terminal";
+    toolCall: ToolCallRecord;
+  }> {
+    const toolCall = this.deps.tools.getToolCall(review.toolCallId);
+    if (!toolCall.runId) return { state: "detached", toolCall };
+    const state = await this.deps.runs.interactionResolutionStateForToolCall(
+      toolCall.id,
+      toolCall.runId,
+    );
+    return { state, toolCall };
+  }
+
+  private planReviewNotFound(error: unknown): HttpError {
+    return new HttpError(
+      404,
+      "PLAN_REVIEW_NOT_FOUND",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
   private async applyImplementationSelectionToSourceAgent(
     agentId: string,
     implementation?: PlanImplementationSelection,
@@ -457,7 +484,15 @@ export class HumanInputResolutionService {
     });
   }
 
-  private async reconcileTerminalPlanRejection(
+  private async startAcceptedPlanImplementation(
+    review: PlanReviewRecord,
+  ): Promise<void> {
+    await this.deps.runs.promptAgent(review.agentId, {
+      text: acceptedPlanFollowUp(review.planPath),
+    });
+  }
+
+  private async reconcileTerminalPlanReview(
     review: PlanReviewRecord,
   ): Promise<void> {
     const toolCall = this.deps.tools.getToolCall(review.toolCallId);
