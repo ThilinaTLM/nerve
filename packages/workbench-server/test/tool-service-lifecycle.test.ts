@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -123,6 +123,70 @@ describe("tool service lifecycle", () => {
       "utf8",
     );
     assert.match(rawLog, /Validation failed for tool edit/);
+  });
+
+  it("reconciles interrupted executable states during hydration without events", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-hydrate-"));
+    const testAgent = agent("autonomous");
+    const records = [
+      toolRecord({ id: "tool_requested", status: "requested" }),
+      toolRecord({ id: "tool_running", status: "running" }),
+      toolRecord({ id: "tool_pending", status: "pending_approval" }),
+      toolRecord({ id: "tool_waiting", status: "waiting_for_user" }),
+      toolRecord({ id: "tool_completed", status: "completed" }),
+    ];
+    await mkdir(join(home, "logs"), { recursive: true });
+    await writeFile(
+      join(home, "logs", "tool-calls.jsonl"),
+      `${records.map((record) => JSON.stringify(record)).join("\n")}\n`,
+      "utf8",
+    );
+
+    const first = buildToolService(home, testAgent);
+    await first.service.hydrate();
+    assert.deepEqual(first.events, []);
+    for (const id of ["tool_requested", "tool_running"]) {
+      const repaired = first.service.getToolCall(id);
+      assert.equal(repaired.status, "error");
+      assert.equal(
+        repaired.error,
+        "Tool execution was interrupted because the host restarted.",
+      );
+      assert.equal(
+        (repaired.result as { content?: string }).content,
+        repaired.error,
+      );
+    }
+    assert.equal(
+      first.service.getToolCall("tool_pending").status,
+      "pending_approval",
+    );
+    assert.equal(
+      first.service.getToolCall("tool_waiting").status,
+      "waiting_for_user",
+    );
+    assert.equal(
+      first.service.getToolCall("tool_completed").status,
+      "completed",
+    );
+
+    const persisted = (
+      await readFile(join(home, "logs", "tool-calls.jsonl"), "utf8")
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as ToolCallRecord);
+    assert.equal(persisted.length, records.length + 2);
+    const second = buildToolService(home, testAgent);
+    await second.service.hydrate();
+    assert.equal(second.service.getToolCall("tool_running").status, "error");
+    assert.deepEqual(second.events, []);
+    const afterSecondHydrate = (
+      await readFile(join(home, "logs", "tool-calls.jsonl"), "utf8")
+    )
+      .trim()
+      .split("\n");
+    assert.equal(afterSecondHydrate.length, records.length + 2);
   });
 
   it("terminalizes lingering running/requested tool calls when a run ends", async () => {

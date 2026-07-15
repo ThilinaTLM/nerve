@@ -26,14 +26,18 @@ export async function executeFind(
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {
     throw new Error("Tool argument 'pattern' must be a non-empty string.");
   }
-  const input = args.path ?? ".";
+  const input =
+    typeof args.path === "string" && args.path.trim().length === 0
+      ? "."
+      : (args.path ?? ".");
   const root = resolveToolPath(context.cwd, input);
-  await stat(root).catch((error: unknown) => {
+  const info = await stat(root).catch((error: unknown) => {
     if (isErrnoException(error) && error.code === "ENOENT") {
       throw new Error(pathNotFoundMessage("find", input, root));
     }
     throw error;
   });
+  if (!info.isDirectory()) throw new Error("find path is not a directory.");
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
   const fd = await runFd(args.pattern, root, limit).catch(() => undefined);
   const paths = fd ?? (await fallbackFind(root, args.pattern, limit));

@@ -344,7 +344,10 @@ describe("toolPresentation", () => {
   it("shows the explore agent count instead of the input prompt", () => {
     const p = present(
       "explore",
-      { task: "Investigate the web UI" },
+      {
+        tasks: [{ task: "Investigate the web UI" }],
+        context: "Parent lookup identified the web UI flow for investigation.",
+      },
       {
         reports: [
           {
@@ -364,7 +367,10 @@ describe("toolPresentation", () => {
   it("shows live explore progress count beside the tool name", () => {
     const tc = toolCall(
       "explore",
-      { task: "Investigate the web UI" },
+      {
+        tasks: [{ task: "Investigate the web UI" }],
+        context: "Parent lookup identified the web UI flow for investigation.",
+      },
       { reports: [] },
       { status: "running" },
     );

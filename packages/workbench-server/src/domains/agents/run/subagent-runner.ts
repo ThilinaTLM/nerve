@@ -110,6 +110,7 @@ export type ExploreMode = "single" | "parallel";
 export interface ExploreTask {
   task: string;
   label?: string;
+  context?: string;
 }
 
 export interface ExploreRunPlan {
@@ -209,7 +210,7 @@ export class SubagentRunner {
           mode: "coding",
           permissionLevel: "read_only",
           prompt: exploreUserPrompt(task, plan),
-          systemPrompt: exploreSystemPrompt(),
+          systemPrompt: exploreSystemPrompt(parent.projectDir),
           historyMode: "fresh",
           model: this.deps.storage.settings.exploreAgent.model,
           thinkingLevel: this.deps.storage.settings.exploreAgent.thinkingLevel,

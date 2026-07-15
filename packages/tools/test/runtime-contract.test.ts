@@ -213,13 +213,29 @@ describe("shared tool runtime contract", () => {
       run: async (request, value, signal) => {
         assert.equal(value, identity);
         assert.equal(signal, context.signal);
-        calls.push(`explore:${request.task}`);
+        calls.push(`explore:${request.tasks[0]?.task}`);
         return { content: "report" };
       },
     });
     await explore.explore?.(
-      { task: " inspect adapters " },
+      {
+        tasks: [{ task: " inspect adapters " }],
+        context:
+          "Parent inspected the orchestration adapters and needs focused follow-up evidence.",
+      },
       { ...context, toolName: "explore" },
+    );
+    assert.throws(
+      () =>
+        explore.explore?.(
+          {
+            task: "The old top-level task request is no longer supported.",
+            context:
+              "Parent inspected the orchestration adapters and needs focused follow-up evidence.",
+          },
+          { ...context, toolName: "explore" },
+        ),
+      /tasks array/,
     );
 
     assert.deepEqual(calls, [

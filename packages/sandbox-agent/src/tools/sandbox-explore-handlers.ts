@@ -19,33 +19,24 @@ export function createSandboxExploreHandlers(
         throw new Error("UNAVAILABLE: explore runtime is not configured");
       }
       current.setCancel?.(() => explore.cancelRun(current.scope));
-      if (Array.isArray(request.tasks)) {
-        const children = await Promise.all(
-          request.tasks.map((item) => {
-            const child = item as Record<string, unknown>;
-            return explore.execute({
-              ...current.scope,
-              task: requiredString(child.task, "task"),
-              context: request.context,
-              label: optionalString(child.label),
-              depth: request.depth,
-              signal,
-            });
+      const children = await Promise.all(
+        request.tasks.map((child) =>
+          explore.execute({
+            ...current.scope,
+            task: requiredString(child.task, "task"),
+            context: child.context
+              ? `${request.context}\n\nTask-specific context:\n${child.context}`
+              : request.context,
+            label: optionalString(child.label),
+            depth: request.depth,
+            signal,
           }),
-        );
-        return {
-          content: children.map((child) => child.content).join("\n\n---\n\n"),
-          details: { children: children.map((child) => child.details) },
-        };
-      }
-      return explore.execute({
-        ...current.scope,
-        task: requiredString(request.task, "task"),
-        context: request.context,
-        label: request.label,
-        depth: request.depth,
-        signal,
-      });
+        ),
+      );
+      return {
+        content: children.map((child) => child.content).join("\n\n---\n\n"),
+        details: { children: children.map((child) => child.details) },
+      };
     },
   });
 }

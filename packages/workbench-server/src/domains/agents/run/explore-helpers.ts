@@ -24,10 +24,18 @@ const EXPLORE_MAX_RECORDED_STEPS = 50;
 export function exploreRunPlanArg(
   args: Record<string, unknown>,
 ): ExploreRunPlan {
-  const hasTask = typeof args.task === "string" && args.task.trim().length > 0;
-  const hasTasks = Array.isArray(args.tasks);
-  if (hasTask === hasTasks) {
-    throw new Error("Explore requires exactly one of 'task' or 'tasks'.");
+  if (!Array.isArray(args.tasks)) {
+    throw new Error(
+      "Explore requires a 'tasks' array containing 1 to 5 items.",
+    );
+  }
+  if (args.tasks.length < 1) {
+    throw new Error("Explore requires at least 1 task.");
+  }
+  if (args.tasks.length > EXPLORE_MAX_PARALLEL_TASKS) {
+    throw new Error(
+      `Explore supports at most ${EXPLORE_MAX_PARALLEL_TASKS} tasks.`,
+    );
   }
 
   const context = optionalString(args.context);
@@ -37,39 +45,7 @@ export function exploreRunPlanArg(
     );
   }
 
-  if (hasTask) {
-    const task = String(args.task).trim();
-    validateExploreTask(task, "Task");
-    return {
-      mode: "single",
-      context,
-      tasks: [{ task, label: optionalString(args.label) }],
-    };
-  }
-
-  const tasks = args.tasks as unknown[];
-  if (tasks.length < 2) {
-    throw new Error(
-      "Parallel explore requires at least 2 tasks. Use 'task' for single-agent exploration.",
-    );
-  }
-  if (tasks.length > EXPLORE_MAX_PARALLEL_TASKS) {
-    throw new Error(
-      `Explore supports at most ${EXPLORE_MAX_PARALLEL_TASKS} parallel tasks.`,
-    );
-  }
-
-  const splitRationale = optionalString(args.split_rationale);
-  if (
-    !splitRationale ||
-    splitRationale.length < EXPLORE_SPLIT_RATIONALE_MIN_LENGTH
-  ) {
-    throw new Error(
-      "Parallel explore requires split_rationale explaining why the tasks are independent and why this is the right number of sub-agents.",
-    );
-  }
-
-  const normalized = tasks.map((item, index) => {
+  const tasks = args.tasks.map((item, index) => {
     if (!item || typeof item !== "object") {
       throw new Error(`Explore task ${index + 1} must be an object.`);
     }
@@ -77,23 +53,56 @@ export function exploreRunPlanArg(
     const task = optionalString(record.task);
     if (!task) throw new Error(`Explore task ${index + 1} requires 'task'.`);
     validateExploreTask(task, `Task ${index + 1}`);
-    return { task, label: optionalString(record.label) };
+    return {
+      task,
+      label: optionalString(record.label),
+      context: optionalExploreTaskContext(record.context, index),
+    };
   });
 
-  const dedupeKeys = normalized.map((task) =>
-    normalizeTaskForDedupe(task.task),
-  );
+  const dedupeKeys = tasks.map((task) => normalizeTaskForDedupe(task.task));
   if (new Set(dedupeKeys).size !== dedupeKeys.length) {
-    throw new Error("Parallel explore tasks must be distinct.");
+    throw new Error("Explore tasks must be distinct.");
   }
 
-  return { mode: "parallel", context, splitRationale, tasks: normalized };
+  const mode = tasks.length === 1 ? "single" : "parallel";
+  const splitRationale = optionalString(args.split_rationale);
+  if (
+    mode === "parallel" &&
+    (!splitRationale ||
+      splitRationale.length < EXPLORE_SPLIT_RATIONALE_MIN_LENGTH)
+  ) {
+    throw new Error(
+      "Parallel explore requires split_rationale explaining why the tasks are independent and why this is the right number of sub-agents.",
+    );
+  }
+
+  return {
+    mode,
+    context,
+    ...(mode === "parallel" ? { splitRationale } : {}),
+    tasks,
+  };
 }
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : undefined;
+}
+
+function optionalExploreTaskContext(
+  value: unknown,
+  index: number,
+): string | undefined {
+  if (value === undefined) return undefined;
+  const context = optionalString(value);
+  if (!context) {
+    throw new Error(
+      `Explore task ${index + 1} context must be a non-empty string when provided.`,
+    );
+  }
+  return context;
 }
 
 export function throwIfAborted(signal: AbortSignal | undefined): void {
@@ -126,6 +135,9 @@ export function exploreUserPrompt(
     task.label ? `Exploration label: ${task.label}` : undefined,
     "Parent agent context:",
     plan.context,
+    task.context
+      ? ["", "Task-specific context:", task.context].join("\n")
+      : undefined,
     plan.splitRationale
       ? ["", "Parallel split rationale:", plan.splitRationale].join("\n")
       : undefined,
@@ -452,6 +464,7 @@ export function formatExploreReportFile(
     output.usage ? `- Usage: ${formatExploreUsage(output.usage)}` : undefined,
     `- Task: ${task.task}`,
     `- Context: ${plan.context}`,
+    task.context ? `- Task-specific context: ${task.context}` : undefined,
     plan.splitRationale
       ? `- Split rationale: ${plan.splitRationale}`
       : undefined,
@@ -515,11 +528,17 @@ function truncateInline(text: string, maxChars: number): string {
   return text.length <= maxChars ? text : `${text.slice(0, maxChars - 1)}…`;
 }
 
-export function exploreSystemPrompt(): string {
+export function exploreSystemPrompt(projectDir: string): string {
   return promptText`
     You are an Explore Agent specialized in reading and mapping codebases for a parent coding agent.
     Your job is to investigate the assigned area thoroughly using only the read-only tools made available to you.
     You cannot edit files, write files, run shell commands, start tasks, cancel tasks, ask the user questions, or change runtime state.
+
+    Environment:
+    - Current project working directory: ${projectDir}
+    - Relative filesystem paths resolve against this project working directory.
+    - Absolute NERVE_HOME plan or report paths in the assignment are artifacts, not the source root, unless the assignment explicitly identifies them as source roots.
+
     Strategy:
     1. Start with grep/find/ls to locate relevant code quickly.
     2. Read targeted sections, not entire files, unless the file is small and central.

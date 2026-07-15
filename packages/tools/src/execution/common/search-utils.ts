@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, readdir, stat } from "node:fs/promises";
+import { access, lstat, readdir, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { isErrnoException, resolveToolPath } from "../filesystem/path.js";
 
@@ -75,10 +75,10 @@ function searchScopeInputs(
     });
   }
   if (args.path !== undefined) {
-    if (typeof args.path !== "string" || args.path.trim().length === 0) {
-      throw new Error(`${toolName} 'path' must be a non-empty string.`);
+    if (typeof args.path !== "string") {
+      throw new Error(`${toolName} 'path' must be a string.`);
     }
-    return [args.path];
+    return [args.path.trim().length === 0 ? "." : args.path];
   }
   return ["."];
 }
@@ -106,21 +106,53 @@ export async function walkFiles(
   limit: number,
   onFile: (absolutePath: string, relativePath: string) => Promise<void>,
   shouldStop?: () => boolean,
+  nested = false,
 ): Promise<void> {
   if (shouldStop?.()) return;
-  const info = await stat(path);
+  const info = await (nested ? lstat(path) : stat(path)).catch(
+    (error: unknown) => {
+      if (nested && isTransientTraversalError(error)) return undefined;
+      throw error;
+    },
+  );
+  if (!info || (nested && info.isSymbolicLink())) return;
   if (info.isDirectory()) {
-    const entries = await readdir(path, { withFileTypes: true });
+    const entries = await readdir(path, { withFileTypes: true }).catch(
+      (error: unknown) => {
+        if (nested && isTransientTraversalError(error)) return undefined;
+        throw error;
+      },
+    );
+    if (!entries) return;
     for (const entry of entries) {
       if (shouldStop?.()) return;
       if (entry.name === "node_modules" || entry.name === ".git") continue;
-      await walkFiles(root, join(path, entry.name), limit, onFile, shouldStop);
+      await walkFiles(
+        root,
+        join(path, entry.name),
+        limit,
+        onFile,
+        shouldStop,
+        true,
+      );
     }
     return;
   }
   if (!info.isFile()) return;
-  await access(path, constants.R_OK);
-  await onFile(path, relative(root, path));
+  const readable = await access(path, constants.R_OK)
+    .then(() => true)
+    .catch((error: unknown) => {
+      if (nested && isTransientTraversalError(error)) return false;
+      throw error;
+    });
+  if (readable) await onFile(path, relative(root, path));
+}
+
+function isTransientTraversalError(error: unknown): boolean {
+  return (
+    isErrnoException(error) &&
+    (error.code === "ENOENT" || error.code === "ENOTDIR")
+  );
 }
 
 export function globToRegExp(pattern: string): RegExp {

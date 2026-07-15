@@ -352,7 +352,10 @@ describe("tool policy", () => {
       evaluateToolPolicy(
         agent("autonomous"),
         "explore",
-        { task: "map the API" },
+        {
+          tasks: [{ task: "Map the API architecture in detail." }],
+          context: "Parent lookup identified the API entry points for review.",
+        },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "allow",
@@ -361,7 +364,10 @@ describe("tool policy", () => {
       evaluateToolPolicy(
         agent("supervised"),
         "explore",
-        { task: "map the API" },
+        {
+          tasks: [{ task: "Map the API architecture in detail." }],
+          context: "Parent lookup identified the API entry points for review.",
+        },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "approval",
@@ -370,7 +376,10 @@ describe("tool policy", () => {
       evaluateToolPolicy(
         agent("read_only"),
         "explore",
-        { task: "map the API" },
+        {
+          tasks: [{ task: "Map the API architecture in detail." }],
+          context: "Parent lookup identified the API entry points for review.",
+        },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "deny",
@@ -379,7 +388,10 @@ describe("tool policy", () => {
       evaluateToolPolicy(
         agent("autonomous", "planning"),
         "explore",
-        { task: "map the API" },
+        {
+          tasks: [{ task: "Map the API architecture in detail." }],
+          context: "Parent lookup identified the API entry points for review.",
+        },
         { dataDir: "/tmp/nerve" },
       ).decision,
       "allow",

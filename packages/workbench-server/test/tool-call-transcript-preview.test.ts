@@ -244,7 +244,7 @@ describe("toToolCallTranscriptRecord", () => {
       toolName: "explore",
       risk: "agent_spawn",
       args: {
-        task: "Inspect the transcript preview boundary",
+        tasks: [{ task: "Inspect the transcript preview boundary" }],
         context:
           "Confirm compact Explore results remain renderable after reload.",
       },

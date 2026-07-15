@@ -40,7 +40,7 @@ describe("explore runtime", () => {
           id: "explore_1",
           name: "explore",
           args: {
-            task: "Find the important sandbox agent runtime file",
+            tasks: [{ task: "Find the important sandbox agent runtime file" }],
             context:
               "Parent already inspected the repository and needs the child to locate the relevant sandbox agent runtime file without making changes.",
           },
@@ -135,7 +135,7 @@ describe("explore runtime", () => {
           id: "explore_cancel",
           name: "explore",
           args: {
-            task: "Wait until the parent run cancellation arrives",
+            tasks: [{ task: "Wait until the parent run cancellation arrives" }],
             context:
               "Parent already confirmed this is a cancellation test and the child should wait until the abort signal is delivered.",
           },

@@ -17,7 +17,10 @@ export async function executeLs(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
-  const input = args.path ?? ".";
+  const input =
+    typeof args.path === "string" && args.path.trim().length === 0
+      ? "."
+      : (args.path ?? ".");
   const root = resolveToolPath(context.cwd, input);
   const info = await stat(root).catch((error: unknown) => {
     if (isErrnoException(error) && error.code === "ENOENT") {

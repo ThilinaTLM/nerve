@@ -345,6 +345,23 @@ describe("agent tool definitions", () => {
     assert.ok(
       explore.promptGuidelines?.some((line) => line.includes("quick lookup")),
     );
+    const parameters = explore.parameters as {
+      required?: string[];
+      properties?: Record<
+        string,
+        {
+          minItems?: number;
+          maxItems?: number;
+          items?: { properties?: Record<string, unknown> };
+        }
+      >;
+    };
+    assert.ok(parameters.required?.includes("tasks"));
+    assert.ok(parameters.required?.includes("context"));
+    assert.equal(parameters.properties?.task, undefined);
+    assert.equal(parameters.properties?.tasks?.minItems, 1);
+    assert.equal(parameters.properties?.tasks?.maxItems, 5);
+    assert.ok(parameters.properties?.tasks?.items?.properties?.context);
   });
 
   it("bounds model-facing text content blocks with one aggregate budget", () => {
@@ -381,10 +398,15 @@ describe("agent tool definitions", () => {
   it("normalizes single explore run plans", () => {
     assert.deepEqual(
       exploreRunPlanArg({
-        task: "Map how OAuth credentials are stored and retrieved.",
+        tasks: [
+          {
+            task: "Map how OAuth credentials are stored and retrieved.",
+            label: "auth storage",
+            context: "Focus on encryption and repository boundaries.",
+          },
+        ],
         context:
           "I checked auth routes and storage initialization. Need the detailed credential repository flow and encryption boundary.",
-        label: "auth storage",
       }),
       {
         mode: "single",
@@ -394,6 +416,7 @@ describe("agent tool definitions", () => {
           {
             task: "Map how OAuth credentials are stored and retrieved.",
             label: "auth storage",
+            context: "Focus on encryption and repository boundaries.",
           },
         ],
       },
@@ -427,40 +450,50 @@ describe("agent tool definitions", () => {
       "I checked likely files with grep/read and need focused follow-up mapping.";
     const split_rationale =
       "The two investigations are independent enough to split, and two agents match the two ownership areas.";
-    assert.throws(() => exploreRunPlanArg({}), /exactly one/);
+    assert.throws(() => exploreRunPlanArg({}), /tasks/);
+    assert.throws(
+      () => exploreRunPlanArg({ tasks: [], context }),
+      /at least 1 task/,
+    );
     assert.throws(
       () =>
         exploreRunPlanArg({
-          task: "Map authentication flow details.",
-          tasks: [{ task: "Map tool execution flow details." }],
+          task: "The removed top-level task shape must not be accepted.",
           context,
         }),
-      /exactly one/,
-    );
-    assert.throws(
-      () => exploreRunPlanArg({ task: "Map authentication flow details." }),
-      /context/,
-    );
-    assert.throws(
-      () =>
-        exploreRunPlanArg({
-          task: "Map authentication flow details.",
-          context: "too short",
-        }),
-      /context/,
-    );
-    assert.throws(
-      () => exploreRunPlanArg({ task: "Map auth", context }),
-      /too vague/,
+      /tasks/,
     );
     assert.throws(
       () =>
         exploreRunPlanArg({
           tasks: [{ task: "Map authentication flow details." }],
-          context,
-          split_rationale,
         }),
-      /at least 2/,
+      /context/,
+    );
+    assert.throws(
+      () =>
+        exploreRunPlanArg({
+          tasks: [{ task: "Map authentication flow details." }],
+          context: "too short",
+        }),
+      /context/,
+    );
+    assert.throws(
+      () => exploreRunPlanArg({ tasks: [{ task: "Map auth" }], context }),
+      /too vague/,
+    );
+    assert.throws(
+      () =>
+        exploreRunPlanArg({
+          tasks: [
+            {
+              task: "Map authentication flow details.",
+              context: 42,
+            },
+          ],
+          context,
+        }),
+      /context must be a non-empty string/,
     );
     assert.throws(
       () =>
@@ -519,9 +552,11 @@ describe("agent tool definitions", () => {
   });
 
   it("documents explore child-agent prompt constraints", () => {
-    const prompt = exploreSystemPrompt();
+    const prompt = exploreSystemPrompt("/tmp/focused-project");
     assert.ok(prompt.includes("Start with grep/find/ls"));
     assert.ok(prompt.includes("Do not ask the user questions"));
+    assert.ok(prompt.includes("/tmp/focused-project"));
+    assert.match(prompt, /NERVE_HOME.*artifacts, not the source root/);
     assert.match(prompt, /^# Findings$/m);
     assert.match(prompt, /^## Summary\n- One to five/m);
     assert.doesNotMatch(prompt, /^ +# Findings$/m);

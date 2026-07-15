@@ -37,6 +37,9 @@ import { OrchestrationToolDispatcher } from "./orchestration-tool-dispatcher.js"
 import { toToolCallTranscriptRecord } from "./tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
 
+const HOST_RESTART_TOOL_ERROR =
+  "Tool execution was interrupted because the host restarted.";
+
 export interface ToolExecutionResponse {
   toolCall: ToolCallRecord;
   approval?: ApprovalRecord;
@@ -216,8 +219,9 @@ export class ToolService {
   }
 
   async hydrate(): Promise<void> {
-    const toolCalls = await this.toolCallRepository.hydrate();
-    this.todoState.hydrateFromToolCalls(toolCalls);
+    await this.toolCallRepository.hydrate();
+    await this.reconcileInterruptedToolCallsOnStartup();
+    this.todoState.hydrateFromToolCalls(this.toolCallRepository.list());
     await this.approvalRepository.hydrate();
     await this.userQuestionRepository.hydrate();
   }
@@ -512,14 +516,10 @@ export class ToolService {
       );
     const terminated: ToolCallRecord[] = [];
     for (const toolCall of stale) {
-      const failed = await this.updateToolCall(toolCall.id, {
-        status: "error",
-        error: errorMessage,
-        result: {
-          content: errorMessage,
-          contentBlocks: [{ type: "text", text: errorMessage }],
-        },
-      });
+      const failed = await this.updateToolCall(
+        toolCall.id,
+        interruptedToolCallPatch(errorMessage),
+      );
       await this.publishToolCallUpdated(failed);
       await this.logger?.warn("Tool call terminated after run ended", {
         toolCallId: failed.id,
@@ -532,6 +532,21 @@ export class ToolService {
       terminated.push(failed);
     }
     return terminated;
+  }
+
+  private async reconcileInterruptedToolCallsOnStartup(): Promise<void> {
+    const interrupted = this.toolCallRepository
+      .list()
+      .filter(
+        (toolCall) =>
+          toolCall.status === "requested" || toolCall.status === "running",
+      );
+    for (const toolCall of interrupted) {
+      await this.updateToolCall(
+        toolCall.id,
+        interruptedToolCallPatch(HOST_RESTART_TOOL_ERROR),
+      );
+    }
   }
 
   async grantApproval(
@@ -676,6 +691,17 @@ export class ToolService {
   private async upsertApproval(approval: ApprovalRecord): Promise<void> {
     await this.approvalRepository.upsert(approval);
   }
+}
+
+function interruptedToolCallPatch(errorMessage: string) {
+  return {
+    status: "error" as const,
+    error: errorMessage,
+    result: {
+      content: errorMessage,
+      contentBlocks: [{ type: "text" as const, text: errorMessage }],
+    },
+  };
 }
 
 function isTerminalToolCall(toolCall: ToolCallRecord): boolean {

@@ -187,6 +187,19 @@ describe("filesystem executors", () => {
     );
   });
 
+  it("defaults blank ls paths to cwd and rejects file paths", async () => {
+    const project = await createTempProject();
+    await project.write("file.txt", "content");
+
+    const result = await executeLs({ path: "  " }, { cwd: project.root });
+    assert.equal(result.path, project.root);
+    assert.deepEqual(result.entries, [{ path: "file.txt", kind: "file" }]);
+    await assert.rejects(
+      executeLs({ path: "file.txt" }, { cwd: project.root }),
+      /ls path is not a directory/,
+    );
+  });
+
   it("lists directory entries in case-insensitive order with kinds and limits", async () => {
     const project = await createTempProject();
     await project.write("b.txt", "b");

@@ -10,38 +10,34 @@ const exploreTaskParameters = Type.Object(
     label: Type.Optional(
       Type.String({ description: "Short label for this exploration task" }),
     ),
+    context: Type.Optional(
+      Type.String({
+        description:
+          "Optional focused evidence or instructions specific to this task",
+      }),
+    ),
   },
   { additionalProperties: false },
 );
 
 const exploreParameters = Type.Object(
   {
-    task: Type.Optional(
-      Type.String({
-        description: "Specific codebase exploration task for single-agent mode",
-        minLength: 15,
-      }),
-    ),
-    tasks: Type.Optional(
-      Type.Array(exploreTaskParameters, {
-        minItems: 2,
-        maxItems: 5,
-        description: "Independent exploration tasks for parallel execution",
-      }),
-    ),
+    tasks: Type.Array(exploreTaskParameters, {
+      minItems: 1,
+      maxItems: 5,
+      description:
+        "One task launches one child. Two to five independent tasks launch in parallel and require split_rationale.",
+    }),
     context: Type.String({
       minLength: 40,
       description:
         "Required. Summarize the parent agent's own quick grep/find/read lookup, what it found, and what remains unresolved. Mention relevant files or symbols when possible.",
     }),
-    label: Type.Optional(
-      Type.String({ description: "Short label for the single task" }),
-    ),
     split_rationale: Type.Optional(
       Type.String({
         minLength: 40,
         description:
-          "Required when using tasks. Explain why the tasks are independent enough to split and why this is the right number of sub-agents.",
+          "Required when tasks contains 2–5 items. Explain why the tasks are independent enough to split and why this is the right number of sub-agents.",
       }),
     ),
   },
@@ -57,11 +53,12 @@ export const exploreToolDefinitions = [
     executionKind: "host",
     label: "explore",
     description:
-      "Delegate substantial read-only codebase investigations to child agents after your own quick lookup. Use single { task, context, label? } or parallel { tasks, context, split_rationale } for 2-5 independent tasks.",
+      "Delegate substantial read-only codebase investigations to child agents after your own quick lookup. Pass one required tasks array: one item launches one child; 2–5 independent items launch in parallel and require split_rationale. Each task may include focused context.",
     promptSnippet:
       "Delegate substantial, independent codebase investigations to read-only child agents after doing an initial lookup",
     promptGuidelines: [
       "Use explore only after a quick lookup, and only for substantial codebase investigations.",
+      "Pass 1–5 items in tasks. For 2–5 independent tasks, explain the split in split_rationale.",
     ],
     parameters: exploreParameters,
     executionMode: "parallel",

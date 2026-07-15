@@ -54,9 +54,15 @@ describe("explore subagent transcript isolation", () => {
         parent.id,
         "explore",
         {
-          task: "Inspect the temporary project and summarize its contents.",
+          tasks: [
+            {
+              task: "Inspect the temporary project and summarize its contents.",
+              context:
+                "Verify that relative ls paths start from the project root.",
+            },
+          ],
           context:
-            "The parent already created an empty project and needs a focused read-only verification report.",
+            "The parent read a plan under /tmp/.nerve-v2/plans/example.md and needs a focused read-only verification of the actual source project.",
         },
       );
 
@@ -71,6 +77,11 @@ describe("explore subagent transcript isolation", () => {
         .find((agent) => agent.parentAgentId === parent.id);
       assert.ok(child);
       assert.equal(child.status, "idle");
+      assert.match(child.systemPrompt ?? "", new RegExp(root));
+      assert.match(
+        child.systemPrompt ?? "",
+        /NERVE_HOME.*artifacts, not the source root/,
+      );
       assert.equal(
         orchestrator.registry.getConversation(conversation.id).activeAgentId,
         parent.id,
@@ -90,7 +101,12 @@ describe("explore subagent transcript isolation", () => {
         join(root, "agents", child.id, "conversation.jsonl"),
         "utf8",
       );
-      assert.match(childHarness, /focused read-only verification report/);
+      assert.match(childHarness, /focused read-only verification/);
+      assert.match(childHarness, /Task-specific context/);
+      assert.match(
+        childHarness,
+        /relative ls paths start from the project root/,
+      );
       assert.match(childHarness, /temporary project is isolated/i);
 
       const childToolCalls = orchestrator.registry.tools

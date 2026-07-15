@@ -182,7 +182,10 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const view = parseToolView(
       toolCall(
         "explore",
-        { task: "Investigate the bug" },
+        {
+          tasks: [{ task: "Investigate the bug" }],
+          context: "Parent lookup found the relevant failure path for review.",
+        },
         {
           reports: [
             {
@@ -236,7 +239,10 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const view = parseToolView(
       transcriptToolCall(
         "explore",
-        { task: "Investigate the bug" },
+        {
+          tasks: [{ task: "Investigate the bug" }],
+          context: "Parent lookup found the relevant failure path for review.",
+        },
         {
           reports: [
             {
@@ -320,7 +326,14 @@ describe("parseToolView ask_user/todos/task/explore", () => {
 
   it("parses explore live progress JSONL with plain-text fallback", () => {
     const view = parseToolView(
-      toolCall("explore", { task: "Investigate" }, { reports: [] }),
+      toolCall(
+        "explore",
+        {
+          tasks: [{ task: "Investigate the selected subsystem" }],
+          context: "Parent lookup found the selected subsystem needs review.",
+        },
+        { reports: [] },
+      ),
       {
         toolCallId: "tool_live_output",
         chunks: [],
@@ -353,7 +366,10 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const view = parseToolView(
       toolCall(
         "explore",
-        { task: "Investigate" },
+        {
+          tasks: [{ task: "Investigate the selected subsystem" }],
+          context: "Parent lookup found the selected subsystem needs review.",
+        },
         { reports: [] },
         {
           status: "running",
@@ -429,7 +445,10 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const view = parseToolView(
       toolCall(
         "explore",
-        { task: "Investigate" },
+        {
+          tasks: [{ task: "Investigate the selected subsystem" }],
+          context: "Parent lookup found the selected subsystem needs review.",
+        },
         { reports: [] },
         {
           status: "running",
@@ -472,7 +491,10 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const view = parseToolView(
       toolCall(
         "explore",
-        { task: "Investigate" },
+        {
+          tasks: [{ task: "Investigate the selected subsystem" }],
+          context: "Parent lookup found the selected subsystem needs review.",
+        },
         { reports: [] },
         {
           status: "running",
@@ -529,7 +551,10 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const view = parseToolView(
       toolCall(
         "explore",
-        { task: "Investigate" },
+        {
+          tasks: [{ task: "Investigate the selected subsystem" }],
+          context: "Parent lookup found the selected subsystem needs review.",
+        },
         { reports: [] },
         {
           status: "running",

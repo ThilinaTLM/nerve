@@ -66,8 +66,13 @@ const cases: Array<[ToolName, Record<string, unknown>, string]> = [
   ["task_restart", { taskId: "dev" }, "dev"],
   [
     "explore",
-    { task: "Investigate the lifecycle registry", label: "Lifecycle" },
-    "Lifecycle",
+    {
+      tasks: [
+        { task: "Investigate the lifecycle registry", label: "Lifecycle" },
+      ],
+      context: "Parent lookup identified the lifecycle registry for review.",
+    },
+    "1 agent",
   ],
   ["plan_mode_enter", { reason: "Complex change" }, "Enter planning mode"],
   [
