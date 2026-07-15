@@ -1,5 +1,8 @@
 import { relativePathForDisplay } from "@nervekit/ui-kit/core/utils/path-links";
-import type { LiveToolCallDraft } from "../../state/transcript-types";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
+
+/** Canonical tool-draft content block; local alias for signature brevity. */
+type ToolDraftBlock = ConversationLiveToolDraftBlockSnapshot;
 import {
   confluenceDraftMeta,
   confluenceDraftPrimaryArg,
@@ -316,7 +319,7 @@ function previewFromJsonEntries(
 }
 
 function firstPathFromDraft(
-  draft: LiveToolCallDraft,
+  draft: ToolDraftBlock,
   cwd?: string,
 ): string | undefined {
   const args = asRecord(draft.args);
@@ -329,7 +332,7 @@ function firstPathFromDraft(
 }
 
 function summarizeWriteDraft(
-  draft: LiveToolCallDraft,
+  draft: ToolDraftBlock,
   cwd?: string,
 ): ToolDraftSummary {
   const args = asRecord(draft.args);
@@ -520,9 +523,7 @@ function partialEditPreview(
   return { preview, previewLanguage: preview ? "diff" : undefined };
 }
 
-function progressEditStats(
-  draft: LiveToolCallDraft,
-): EditDraftStats | undefined {
+function progressEditStats(draft: ToolDraftBlock): EditDraftStats | undefined {
   const progress = draft.progress;
   if (!progress) return undefined;
   return {
@@ -571,7 +572,7 @@ function partialEditStats(argsText: string): EditDraftStats {
 }
 
 function summarizeEditDraft(
-  draft: LiveToolCallDraft,
+  draft: ToolDraftBlock,
   cwd?: string,
 ): ToolDraftSummary {
   const args = asRecord(draft.args);
@@ -628,7 +629,7 @@ function summarizeEditDraft(
   };
 }
 
-function summarizeBashDraft(draft: LiveToolCallDraft): ToolDraftSummary {
+function summarizeBashDraft(draft: ToolDraftBlock): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalCommand = stringField(args.command);
   const partialCommand = extractJsonStringEntries(draft.argsText, [
@@ -661,7 +662,7 @@ function summarizeBashDraft(draft: LiveToolCallDraft): ToolDraftSummary {
 }
 
 function summarizePythonDraft(
-  draft: LiveToolCallDraft,
+  draft: ToolDraftBlock,
   cwd?: string,
 ): ToolDraftSummary {
   const args = asRecord(draft.args);
@@ -707,7 +708,7 @@ function summarizePythonDraft(
 }
 
 function firstKnownString(
-  draft: LiveToolCallDraft,
+  draft: ToolDraftBlock,
   property: string,
 ): string | undefined {
   return (
@@ -716,7 +717,7 @@ function firstKnownString(
   );
 }
 
-function genericPrimaryArg(draft: LiveToolCallDraft): string | undefined {
+function genericPrimaryArg(draft: ToolDraftBlock): string | undefined {
   const toolName = draft.toolName;
   if (toolName === "bash") return firstKnownString(draft, "command");
   if (toolName === "web_fetch") return firstKnownString(draft, "url");
@@ -738,7 +739,7 @@ function genericPrimaryArg(draft: LiveToolCallDraft): string | undefined {
   return firstKnownString(draft, "path");
 }
 
-function genericMeta(draft: LiveToolCallDraft): DraftMetaItem[] {
+function genericMeta(draft: ToolDraftBlock): DraftMetaItem[] {
   const meta: DraftMetaItem[] = [];
   if (draft.toolName?.startsWith("jira_")) {
     meta.push(...jiraDraftMeta(draft, firstKnownString));
@@ -754,7 +755,7 @@ function genericMeta(draft: LiveToolCallDraft): DraftMetaItem[] {
 
 function withDraftArgsPreview(
   summary: ToolDraftSummary,
-  draft: LiveToolCallDraft,
+  draft: ToolDraftBlock,
 ): ToolDraftSummary {
   return {
     ...summary,
@@ -766,7 +767,7 @@ function withDraftArgsPreview(
 }
 
 export function summarizeToolDraft(
-  draft: LiveToolCallDraft,
+  draft: ToolDraftBlock,
   cwd?: string,
 ): ToolDraftSummary {
   if (draft.toolName === "write") {

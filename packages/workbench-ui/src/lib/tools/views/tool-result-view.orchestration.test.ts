@@ -291,6 +291,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     const view = parseToolView(
       toolCall("explore", { task: "Investigate" }, { reports: [] }),
       {
+        toolCallId: "tool_live_output",
         chunks: [],
         updatedAt: "2026-01-01T00:00:00.000Z",
         text: [
@@ -328,6 +329,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
         },
       ),
       {
+        toolCallId: "tool_live_output",
         chunks: [],
         updatedAt: "2026-01-01T00:00:00.000Z",
         text: [
@@ -403,6 +405,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
         },
       ),
       {
+        toolCallId: "tool_live_output",
         chunks: [],
         updatedAt: "2026-01-01T00:00:00.000Z",
         text: [
@@ -445,6 +448,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
         },
       ),
       {
+        toolCallId: "tool_live_output",
         chunks: [],
         updatedAt: "2026-01-01T00:00:00.000Z",
         text: [
@@ -501,6 +505,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
         },
       ),
       {
+        toolCallId: "tool_live_output",
         chunks: [],
         updatedAt: "2026-01-01T00:00:00.000Z",
         text: [
@@ -593,6 +598,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
         },
       ),
       {
+        toolCallId: "tool_live_output",
         chunks: [],
         updatedAt: "2026-01-01T00:00:00.000Z",
         text: "",

@@ -1,13 +1,13 @@
-import type { LiveToolCallDraft } from "../../state/transcript-types";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
 import type { DraftMetaItem } from "./tool-draft-progress";
 
 type FirstKnownString = (
-  draft: LiveToolCallDraft,
+  draft: ConversationLiveToolDraftBlockSnapshot,
   property: string,
 ) => string | undefined;
 
 export function confluenceDraftPrimaryArg(
-  draft: LiveToolCallDraft,
+  draft: ConversationLiveToolDraftBlockSnapshot,
   firstKnownString: FirstKnownString,
 ): string | undefined {
   const toolName = draft.toolName;
@@ -54,7 +54,7 @@ export function confluenceDraftPrimaryArg(
 }
 
 export function confluenceDraftMeta(
-  draft: LiveToolCallDraft,
+  draft: ConversationLiveToolDraftBlockSnapshot,
   firstKnownString: FirstKnownString,
 ): DraftMetaItem[] {
   const toolName = draft.toolName;

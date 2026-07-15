@@ -19,7 +19,7 @@ import type {
 export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
 
 import { LruCache } from "@nervekit/ui-kit/core/utils/lru-cache";
-import type { LiveToolOutput } from "../../state/transcript-types";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";
 import { parseJiraView } from "./jira-result-view";
@@ -139,7 +139,7 @@ function payloadSignature(value: unknown): string {
 
 function toolViewSignature(
   toolCall: ToolCallDisplayRecord,
-  liveOutput?: LiveToolOutput,
+  liveOutput?: ConversationLiveToolOutputSnapshot,
 ): string {
   const payloads = toolCall as ToolCallDisplayRecord & {
     args?: unknown;
@@ -166,7 +166,7 @@ function toolViewSignature(
 /** Cached wrapper around {@link parseToolView}, keyed by tool-call revision. */
 export function parseToolViewCached(
   toolCall: ToolCallDisplayRecord,
-  liveOutput?: LiveToolOutput,
+  liveOutput?: ConversationLiveToolOutputSnapshot,
 ): ToolView {
   const key = toolViewSignature(toolCall, liveOutput);
   const cached = toolViewCache.get(key);
@@ -178,7 +178,7 @@ export function parseToolViewCached(
 
 export function parseToolView(
   toolCall: ToolCallDisplayRecord,
-  liveOutput?: LiveToolOutput,
+  liveOutput?: ConversationLiveToolOutputSnapshot,
 ): ToolView {
   const payloads = toolCall as ToolCallDisplayRecord & {
     args?: unknown;
@@ -274,7 +274,7 @@ export function parseToolView(
         truncated: detailsTruncated(result?.details),
         live: !result && Boolean(liveOutput?.text),
         outputLimits: liveOutput?.outputLimits
-          ? { ...outputLimits, live: liveOutput.outputLimits }
+          ? { ...outputLimits, live: { ...liveOutput.outputLimits } }
           : outputLimits,
         outputArtifacts,
       };
@@ -335,7 +335,7 @@ export function parseToolView(
         artifacts: details.success ? details.data.artifacts : undefined,
         streams: details.success ? details.data.streams : undefined,
         outputLimits: liveOutput?.outputLimits
-          ? { ...outputLimits, live: liveOutput.outputLimits }
+          ? { ...outputLimits, live: { ...liveOutput.outputLimits } }
           : outputLimits,
         outputArtifacts,
       };

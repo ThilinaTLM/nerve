@@ -182,6 +182,22 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
     ].join(":");
   }
   if (node.kind === "tool") {
+    // Draft phase: the canonical block carries no timestamps, so the version
+    // encodes content directly. Tool phase: status/updatedAt/output. Including
+    // the presented phase makes the draft-to-tool handoff re-measure exactly
+    // once.
+    if (!node.toolCall) {
+      const block = node.draft?.block;
+      const progress = block?.progress;
+      return [
+        "draft",
+        block?.argsText.length ?? 0,
+        block?.done ? "done" : "open",
+        progress?.lineCount ?? 0,
+        progress?.generatedLineCount ?? 0,
+        progress?.generatedPreview?.length ?? 0,
+      ].join(":");
+    }
     const toolCallId = node.toolCall.id;
     const approval = approvals.find(
       (candidate) => candidate.toolCallId === toolCallId,
@@ -195,6 +211,7 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
         ? pendingPlanReview
         : undefined;
     return [
+      "tool",
       node.toolCall.status,
       node.toolCall.updatedAt,
       node.liveOutput?.updatedAt ?? "no-output",
@@ -202,9 +219,6 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
       question ? `${question.id}:${question.status}` : "no-question",
       plan ? `${plan.id}:${plan.status}` : "no-plan",
     ].join(":");
-  }
-  if (node.kind === "tool_draft") {
-    return `${node.draft.updatedAt}:${node.draft.argsText.length}:${node.draft.done ? "done" : "open"}`;
   }
   return node.key;
 }

@@ -6,7 +6,7 @@ import type {
   QueuedPromptRecord,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
-import type { ConversationLiveState } from "./transcript-types.js";
+import type { ConversationTransientState } from "./transcript-types.js";
 
 export interface ConversationRenderState {
   conversationId?: string;
@@ -15,7 +15,7 @@ export interface ConversationRenderState {
   activeEntryIds: string[];
   toolCalls: ToolCallTranscriptRecord[];
   activeRun?: ConversationActiveRunSnapshot;
-  live?: ConversationLiveState;
+  transient?: ConversationTransientState;
   queuedPrompts?: QueuedPromptRecord[];
   contextUsage?: ContextUsage;
   cursorSeq: number;

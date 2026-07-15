@@ -6,7 +6,7 @@ import {
   jiraTransitionSummarySchema,
   jiraUserSummarySchema,
 } from "@nervekit/contracts";
-import type { LiveToolOutput } from "../../state/transcript-types";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   asRecord,
@@ -29,7 +29,7 @@ export function parseJiraView(
   toolCall: ToolCallDisplayRecord,
   args: Record<string, unknown>,
   rawResult: unknown,
-  liveOutput?: LiveToolOutput,
+  liveOutput?: ConversationLiveToolOutputSnapshot,
 ): ToolView {
   const action = jiraAction(toolCall.toolName);
   if (!action) return { kind: "generic" };

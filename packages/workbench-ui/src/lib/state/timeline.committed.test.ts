@@ -17,7 +17,7 @@ describe("buildConversationTimeline committed transcript", () => {
 
     const timeline = buildConversationTimeline(transcript, toolCalls);
 
-    assert.deepEqual(keys(timeline), ["msg-0", "tool_02"]);
+    assert.deepEqual(keys(timeline), ["msg-0", "tool:tool_02"]);
     assert.equal(timeline[0]?.kind, "message");
     assert.equal(timeline[1]?.kind, "tool");
   });
@@ -73,7 +73,7 @@ describe("buildConversationTimeline committed transcript", () => {
 
     assert.deepEqual(keys(timeline), [
       "entry_user",
-      "tool_01",
+      "tool:tool_01",
       "entry_assistant",
     ]);
     assert.equal(timeline[1]?.kind, "tool");
@@ -128,7 +128,7 @@ describe("buildConversationTimeline committed transcript", () => {
 
     assert.deepEqual(keys(timeline), [
       "entry_user",
-      "tool_01",
+      "tool:tool_01",
       "entry_assistant",
     ]);
     assert.deepEqual(
@@ -168,7 +168,7 @@ describe("buildConversationTimeline committed transcript", () => {
 
     const timeline = buildConversationTimeline(transcript, toolCalls);
 
-    assert.deepEqual(keys(timeline), ["entry_user", "tool_error"]);
+    assert.deepEqual(keys(timeline), ["entry_user", "tool:tool_error"]);
     assert.equal(timeline[1]?.kind, "tool");
     if (timeline[1]?.kind === "tool") {
       assert.equal(timeline[1].anchorEntryId, "entry_result");
@@ -238,7 +238,7 @@ describe("buildConversationTimeline committed transcript", () => {
 
     assert.deepEqual(keys(timeline), [
       "entry_user",
-      "tool_plan",
+      "tool:tool_plan",
       "entry_plan_followup",
       "entry_next_assistant",
     ]);
@@ -285,7 +285,7 @@ describe("buildConversationTimeline committed transcript", () => {
 
     const timeline = buildConversationTimeline(transcript, toolCalls);
 
-    assert.deepEqual(keys(timeline), ["entry_user", "tool_01"]);
+    assert.deepEqual(keys(timeline), ["entry_user", "tool:tool_01"]);
   });
 
   it("anchors tool cards by source tool-call id when no internal id exists", () => {
@@ -312,7 +312,7 @@ describe("buildConversationTimeline committed transcript", () => {
 
     assert.deepEqual(keys(timeline), [
       "entry_user",
-      "tool_error",
+      "tool:tool_error",
       "entry_assistant",
     ]);
     assert.equal(timeline[1]?.kind, "tool");
@@ -344,6 +344,10 @@ describe("buildConversationTimeline committed transcript", () => {
 
     const timeline = buildConversationTimeline(transcript, toolCalls);
 
-    assert.deepEqual(keys(timeline), ["entry_user", "tool_b", "tool_a"]);
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "tool:tool_b",
+      "tool:tool_a",
+    ]);
   });
 });

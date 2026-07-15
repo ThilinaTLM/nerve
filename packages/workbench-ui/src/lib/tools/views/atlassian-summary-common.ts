@@ -1,4 +1,4 @@
-import type { LiveToolCallDraft } from "../../state/transcript-types";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import type { ToolView } from "./tool-view-types";
 
@@ -71,7 +71,9 @@ export function toolArgSource(toolCall: ToolCallDisplayRecord): ArgSource {
   };
 }
 
-export function draftArgSource(draft: LiveToolCallDraft): ArgSource {
+export function draftArgSource(
+  draft: ConversationLiveToolDraftBlockSnapshot,
+): ArgSource {
   return {
     args: draft.args ?? parseJsonRecord(draft.argsText),
     argsText: draft.argsText,

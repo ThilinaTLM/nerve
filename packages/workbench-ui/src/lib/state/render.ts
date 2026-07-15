@@ -1,12 +1,8 @@
 import type { QueuedPromptRecord } from "@nervekit/contracts";
+import { activeRunStreamingText } from "./active-run.js";
 import {
-  activeRunToLegacyLive,
-  liveTextFromLegacyLive,
-  materializedLiveMessagesFromEntries,
-} from "./live.js";
-import {
+  buildActiveRunTimeline,
   buildCommittedTimeline,
-  buildLiveTimeline,
   selectVisibleCommitted,
   type TimelineItem,
 } from "./timeline.js";
@@ -39,23 +35,27 @@ export function buildConversationRenderProjection(
 
   const transcript = entriesToTranscript(state.entries);
   const toolCalls = state.toolCalls ?? [];
-  const live =
-    state.live ??
-    activeRunToLegacyLive(state.activeRun, {
-      materialized: materializedLiveMessagesFromEntries(state.entries),
-    });
   const committed = buildCommittedTimeline(transcript, toolCalls, {
-    includeUnanchoredTerminalToolCalls: !live.runId,
+    includeUnanchoredTerminalToolCalls: !state.activeRun,
   });
-  const liveItems = buildLiveTimeline(live, committed.context);
+  const liveItems = buildActiveRunTimeline(
+    state.activeRun,
+    state.transient,
+    committed.context,
+  );
   const timeline = [
-    ...selectVisibleCommitted(committed.items, live),
+    ...selectVisibleCommitted(
+      committed.items,
+      state.activeRun,
+      state.transient,
+      committed.context,
+    ),
     ...liveItems,
   ];
 
   return {
     timeline,
-    streamingText: liveTextFromLegacyLive(live),
+    streamingText: activeRunStreamingText(state.activeRun),
     hasLiveTimelineNodes:
       liveItems.length > 0 ||
       toolCalls.some((toolCall) => toolCall.status === "running"),

@@ -58,11 +58,10 @@ function view(
   return {
     conversationId: "conv_01H00000000000000000000000",
     activeEntryIds: [],
-    transcript: [],
+    entries: [],
     toolCalls: [],
     treeNodes: [],
-    streamingText: "",
-    live: { messages: [], toolDrafts: [], toolOutputByToolCallId: {} },
+    optimisticMessages: [],
     queuedPrompts: [],
     cursorSeq: 0,
     sending: false,

@@ -33,12 +33,15 @@ let {
   items,
   class: className,
   triggerClass,
+  disabled = false,
   onOpenChange,
 }: {
   children: Snippet;
   items: ContextMenuItem[];
   class?: string;
   triggerClass?: string;
+  /** Keep the trigger mounted but inert (e.g. while no actions exist yet). */
+  disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
 } = $props();
 </script>
@@ -80,7 +83,7 @@ let {
 {/snippet}
 
 <ContextMenu.Root {onOpenChange}>
-  <ContextMenu.Trigger class={triggerClass}>
+  <ContextMenu.Trigger class={triggerClass} {disabled}>
     {@render children()}
   </ContextMenu.Trigger>
   <ContextMenu.Content class={className}>

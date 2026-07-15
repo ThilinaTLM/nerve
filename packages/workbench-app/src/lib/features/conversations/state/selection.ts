@@ -1,10 +1,5 @@
 import { modelKey } from "@nervekit/workbench-ui/core/utils/model";
-import {
-  activeRunToLegacyLive,
-  entriesToTranscript,
-  liveTextFromLegacyLive,
-  materializedLiveMessagesFromEntries,
-} from "@nervekit/workbench-ui/state";
+import { fromConversationSnapshot } from "@nervekit/workbench-ui/state";
 import {
   type AgentRecord,
   type ConversationRecord,
@@ -74,23 +69,24 @@ export async function refreshConversationView(conversationId: string) {
   view.loading = true;
   try {
     const snapshot = await getConversationSnapshot(conversationId);
+    // Canonical state comes straight from the shared snapshot ingestion
+    // (which drains already-materialized active-run messages).
+    const canonical = fromConversationSnapshot(snapshot);
     view.activeEntryId = snapshot.tree.activeEntryId;
-    view.activeEntryIds = snapshot.activeEntryIds;
-    view.transcript = entriesToTranscript(snapshot.entries);
-    view.toolCalls = snapshot.toolCalls;
+    view.activeEntryIds = canonical.activeEntryIds;
+    view.entries = canonical.entries;
+    view.toolCalls = canonical.toolCalls;
     view.treeNodes = snapshot.tree.nodes;
-    view.activeRun = snapshot.activeRun;
-    view.queuedPrompts = snapshot.activeRun?.queuedPrompts ?? [];
-    view.contextUsage = snapshot.contextUsage;
-    view.cursorSeq = snapshot.cursorSeq;
+    view.activeRun = canonical.activeRun;
+    view.transient = undefined;
+    view.optimisticMessages = [];
+    view.queuedPrompts = canonical.queuedPrompts ?? [];
+    view.contextUsage = canonical.contextUsage;
+    view.cursorSeq = canonical.cursorSeq;
     workspaceState.conversations = workspaceState.conversations.map(
       (candidate) =>
         candidate.id === conversationId ? snapshot.conversation : candidate,
     );
-    view.live = activeRunToLegacyLive(snapshot.activeRun, {
-      materialized: materializedLiveMessagesFromEntries(snapshot.entries),
-    });
-    view.streamingText = liveTextFromLegacyLive(view.live);
     view.sending = Boolean(snapshot.activeRun);
     if (selection.conversationId === conversationId) {
       selection.entryId = snapshot.tree.activeEntryId;

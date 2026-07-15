@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { LiveToolCallDraft } from "../../state/transcript-types";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
 import {
   confluenceDraftSummaryBody,
   confluenceToolSummaryBody,
@@ -13,19 +13,16 @@ import { toolCall } from "./tool-result-view.fixtures";
 
 function draft(
   toolName: string,
-  overrides: Partial<LiveToolCallDraft> = {},
-): LiveToolCallDraft {
+  overrides: Partial<ConversationLiveToolDraftBlockSnapshot> = {},
+): ConversationLiveToolDraftBlockSnapshot {
   return {
     kind: "tool_call_draft",
-    key: "live:msg_1:tool-draft:0",
-    runId: "run_01H00000000000000000000000",
-    conversationId: "conv_01H00000000000000000000000",
+    contentBlockId: "block_1",
     contentIndex: 0,
     providerToolCallId: "call_1",
     toolName,
     argsText: "",
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
+    done: false,
     ...overrides,
   };
 }

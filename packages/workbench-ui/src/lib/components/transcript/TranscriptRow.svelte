@@ -12,8 +12,7 @@ import type {
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import ToolCallCard from "../../tools/components/ToolCallCard.svelte";
-import ToolDraftCard from "../../tools/components/tool-call/ToolDraftCard.svelte";
+import ToolActivityCard from "../../tools/components/ToolActivityCard.svelte";
 import ToolResultErrorCard from "../../tools/components/tool-call/ToolResultErrorCard.svelte";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import PlainText from "@nervekit/ui-kit/core/components/PlainText.svelte";
@@ -131,18 +130,26 @@ $effect(() => {
 
 {#if node.kind === "tool"}
   <div class="relative min-w-0 px-3">
+    <!-- Keep one stable trigger across the whole tool lifecycle; it is inert
+         (not removed) while only a draft exists, so the handoff to the real
+         tool menu causes no layout shift. -->
     <ContextMenu
-      items={toolMenu(node.anchorEntryId, node.toolCall)}
+      items={node.toolCall ? toolMenu(node.anchorEntryId, node.toolCall) : []}
+      disabled={!node.toolCall}
       triggerClass="block min-w-0"
     >
-      <ToolCallCard
+      <ToolActivityCard
+        draft={node.draft}
         toolCall={node.toolCall}
         liveOutput={node.liveOutput}
-        pendingApproval={approvals.find(
-          (approval) =>
-            approval.toolCallId === node.toolCall.id &&
-            approval.status === "pending",
-        )}
+        cwd={activeProject?.dir}
+        pendingApproval={node.toolCall
+          ? approvals.find(
+              (approval) =>
+                approval.toolCallId === node.toolCall?.id &&
+                approval.status === "pending",
+            )
+          : undefined}
         {pendingUserQuestion}
         hydrateBody={hydrateToolBodies}
         {pendingPlanReview}
@@ -159,10 +166,6 @@ $effect(() => {
         {onRejectPlanReview}
       />
     </ContextMenu>
-  </div>
-{:else if node.kind === "tool_draft"}
-  <div class="relative min-w-0 px-3">
-    <ToolDraftCard draft={node.draft} cwd={activeProject?.dir} />
   </div>
 {:else if node.kind === "tool_result_error"}
   <div class="relative min-w-0 px-3">

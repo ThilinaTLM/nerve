@@ -113,7 +113,7 @@ describe("conversation event reducer", () => {
       }),
     );
 
-    const output = state.live?.toolOutputByToolCallId.tool_test;
+    const output = state.activeRun?.toolOutputsByToolCallId.tool_test;
     assert.equal(output?.text.length, 32_000);
     assert.equal(output?.outputLimits?.capped, true);
     assert.equal(output?.outputLimits?.totalChars, 33_000);
@@ -156,7 +156,15 @@ describe("conversation event reducer", () => {
       }),
     );
 
-    assert.equal(state.live?.toolDrafts[0]?.progress?.path, "src/app.ts");
+    const draftBlock = state.activeRun?.turns[0]?.messages[0]?.blocks.find(
+      (block) => block.kind === "tool_call_draft",
+    );
+    assert.equal(
+      draftBlock?.kind === "tool_call_draft"
+        ? draftBlock.progress?.path
+        : undefined,
+      "src/app.ts",
+    );
 
     state = applyConversationEvent(
       state,
@@ -175,10 +183,15 @@ describe("conversation event reducer", () => {
       }),
     );
 
-    assert.deepEqual(state.live?.toolDrafts, []);
+    assert.deepEqual(
+      state.activeRun?.turns[0]?.messages[0]?.blocks.filter(
+        (block) => block.kind === "tool_call_draft",
+      ),
+      [],
+    );
   });
 
-  it("removes matching live tool drafts when the durable tool call arrives", () => {
+  it("keeps the draft block and joins it with the durable tool call", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, startRun());
     state = applyConversationEvent(state, startMessage());
@@ -197,7 +210,11 @@ describe("conversation event reducer", () => {
         toolName: "bash",
       }),
     );
-    assert.equal(state.live?.toolDrafts.length, 1);
+    const draftBlocks = () =>
+      state.activeRun?.turns[0]?.messages[0]?.blocks.filter(
+        (block) => block.kind === "tool_call_draft",
+      ) ?? [];
+    assert.equal(draftBlocks().length, 1);
 
     state = applyConversationEvent(
       state,
@@ -221,8 +238,18 @@ describe("conversation event reducer", () => {
       ),
     );
 
-    assert.deepEqual(state.live?.toolDrafts, []);
+    // The draft block survives for the presentation handoff; the timeline
+    // joins draft and record into one node with a stable slot key.
+    assert.equal(draftBlocks().length, 1);
     assert.equal(state.toolCalls[0]?.id, "tool_test");
+    const render = buildConversationRenderProjection(state);
+    const toolNodes = render.timeline.filter((item) => item.kind === "tool");
+    assert.equal(toolNodes.length, 1);
+    assert.equal(toolNodes[0]?.key, "tool-slot:msg_test:1");
+    if (toolNodes[0]?.kind === "tool") {
+      assert.equal(toolNodes[0].toolCall?.id, "tool_test");
+      assert.equal(toolNodes[0].draft?.block.toolName, "bash");
+    }
   });
 
   it("updates queued prompts from prompt queue events", () => {
@@ -310,6 +337,60 @@ describe("conversation event reducer", () => {
     assert.equal(render.timeline[0]?.key, "run-status:run_test");
   });
 
+  it("hides every failed attempt across consecutive retries of one run", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state.entries = ["entry_failed_1", "entry_failed_2"].map((id) => ({
+      id,
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      runId: "run_test",
+      role: "assistant" as const,
+      kind: "message" as const,
+      text: "failed",
+      details: { stopReason: "error", errorMessage: "rate limited" },
+      createdAt: ts,
+    }));
+    state.activeEntryIds = ["entry_failed_1", "entry_failed_2"];
+    const retrying = (seq: number, attempt: number, failedEntryId: string) =>
+      evt(
+        seq,
+        "run.retrying",
+        {
+          conversationId: "conv_test",
+          agentId: "agent_test",
+          projectId: "proj_test",
+          runId: "run_test",
+          attempt,
+          maxRetries: 3,
+          delayMs: 100,
+          retryAt: ts,
+          errorMessage: "rate limited",
+          failedEntryId,
+        },
+        "durable",
+      );
+    state = applyConversationEvent(state, retrying(1, 1, "entry_failed_1"));
+    state = applyConversationEvent(state, retrying(2, 2, "entry_failed_2"));
+
+    const render = buildConversationRenderProjection(state);
+    assert.deepEqual(
+      render.timeline.map((item) => item.kind),
+      ["run_status"],
+    );
+
+    // The failures stay hidden while the successful attempt streams.
+    state = applyConversationEvent(state, startMessage(3));
+    assert.equal(state.activeRun?.status, "running");
+    assert.equal(state.activeRun?.retry, undefined);
+    const streaming = buildConversationRenderProjection(state);
+    assert.equal(
+      streaming.timeline.some(
+        (item) => item.kind === "message" && item.item.text === "failed",
+      ),
+      false,
+    );
+  });
+
   it("resumes a HITL continuation without rendering retry status", () => {
     let state = applyConversationEvent(
       emptyConversationRenderState("conv_test"),
@@ -354,7 +435,6 @@ describe("conversation event reducer", () => {
 
     assert.equal(state.activeRun?.status, "running");
     assert.equal(state.activeRun?.retry, undefined);
-    assert.equal(state.live?.runStatus, undefined);
     assert.equal(state.sending, true);
     assert.equal(
       buildConversationRenderProjection(state).timeline.some(
@@ -448,7 +528,11 @@ describe("conversation event reducer", () => {
     );
 
     assert.equal(gapCalled, false);
-    assert.equal(state.live?.messages[0]?.text, "hello world");
+    const block = state.activeRun?.turns[0]?.messages[0]?.blocks[0];
+    assert.equal(
+      block && block.kind !== "tool_call_draft" ? block.text : undefined,
+      "hello world",
+    );
   });
 
   it("calls the snapshot recovery hook on offset gaps", () => {
@@ -481,6 +565,6 @@ describe("conversation event reducer", () => {
       runId: "run_test",
       type: "conversation.live.content.delta",
     });
-    assert.deepEqual(state.live?.messages, []);
+    assert.deepEqual(state.activeRun?.turns, []);
   });
 });

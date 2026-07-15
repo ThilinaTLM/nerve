@@ -24,13 +24,12 @@ export {
 export { conversationSelectors } from "./state/conversation-selectors.svelte";
 export type {
   CompactionNotice,
-  ConversationLiveState,
+  ConversationTransientState,
   ConversationViewState,
-  LiveToolCallDraft,
-  LiveToolOutput,
   PendingConversationState,
   RunStatusNotice,
   TaskEventNotice,
+  ToolDraftViewModel,
   TranscriptItem,
 } from "./state/conversation-state.svelte";
 export { conversationState } from "./state/conversation-state.svelte";

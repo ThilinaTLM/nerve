@@ -9,7 +9,7 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "../../state/tool-types";
-import type { LiveToolOutput } from "../../state/transcript-types";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import { toolPresentationCached } from "../views/tool-presentation";
 import { parseToolViewCached } from "../views/tool-result-view";
 import { toolViewComponent } from "../views/registry";
@@ -20,7 +20,7 @@ import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
 
 type Props = {
   toolCall: ToolCallTranscriptRecord;
-  liveOutput?: LiveToolOutput;
+  liveOutput?: ConversationLiveToolOutputSnapshot;
   pendingApproval?: ApprovalWithToolCall;
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;

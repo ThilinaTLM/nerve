@@ -1,16 +1,30 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildActiveRunTimeline,
   buildCommittedTimeline,
   buildConversationTimeline,
-  buildLiveTimeline,
   selectVisibleCommitted,
 } from "./timeline";
-import { keys, liveState, toolCall } from "./timeline.fixtures";
+import {
+  activeRun,
+  keys,
+  liveMessage,
+  runTurn,
+  textBlock,
+  toolCall,
+} from "./timeline.fixtures";
 import type { TranscriptItem } from "./transcript-types";
 
+const RETRY = {
+  attempt: 1,
+  maxRetries: 3,
+  delayMs: 1000,
+  retryAt: "2026-01-01T00:00:05.000Z",
+};
+
 describe("buildConversationTimeline split builders", () => {
-  it("composes from the committed + live split builders", () => {
+  it("composes from the committed + active-run split builders", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Go" },
       { id: "entry_failed", role: "assistant", text: "Agent run failed" },
@@ -20,24 +34,24 @@ describe("buildConversationTimeline split builders", () => {
         status: "running",
       }),
     ];
-    const live = liveState({
-      runStatus: {
-        state: "retrying",
-        runId: "run_01H00000000000000000000000",
-        failedEntryId: "entry_failed",
-        attempt: 1,
-        maxRetries: 3,
-      },
+    const run = activeRun({
+      status: "retrying",
+      retry: { ...RETRY, failedEntryId: "entry_failed" },
     });
 
     const committed = buildCommittedTimeline(transcript, toolCalls);
     const expected = [
-      ...selectVisibleCommitted(committed.items, live),
-      ...buildLiveTimeline(live, committed.context),
+      ...selectVisibleCommitted(
+        committed.items,
+        run,
+        undefined,
+        committed.context,
+      ),
+      ...buildActiveRunTimeline(run, undefined, committed.context),
     ];
 
     assert.deepEqual(
-      keys(buildConversationTimeline(transcript, toolCalls, live)),
+      keys(buildConversationTimeline(transcript, toolCalls, run)),
       keys(expected),
     );
   });
@@ -72,29 +86,37 @@ describe("buildConversationTimeline split builders", () => {
         },
       ),
     ];
-    const live = liveState({
+    const run = activeRun({
       runId: "run_active",
-      messages: [
-        {
-          id: "live:msg_first:thinking:0",
-          role: "assistant",
-          displayKind: "thinking",
-          text: "I should inspect the file first.",
-          createdAt: "2026-01-01T00:00:00.000Z",
-          contentIndex: 0,
-          live: false,
-          done: true,
-        },
-        {
-          id: "live:msg_second:thinking:0",
-          role: "assistant",
-          displayKind: "thinking",
-          text: "Now I should run the focused check.",
-          createdAt: "2026-01-01T00:00:02.000Z",
-          contentIndex: 0,
-          live: false,
-          done: true,
-        },
+      turns: [
+        runTurn("turn_1", 0, [
+          liveMessage(
+            "msg_first",
+            0,
+            [
+              textBlock(
+                "thinking",
+                0,
+                "I should inspect the file first.",
+                true,
+              ),
+            ],
+            "2026-01-01T00:00:00.000Z",
+          ),
+          liveMessage(
+            "msg_second",
+            1,
+            [
+              textBlock(
+                "thinking",
+                0,
+                "Now I should run the focused check.",
+                true,
+              ),
+            ],
+            "2026-01-01T00:00:02.000Z",
+          ),
+        ]),
       ],
     });
 
@@ -102,40 +124,92 @@ describe("buildConversationTimeline split builders", () => {
       includeUnanchoredTerminalToolCalls: false,
     });
     const timeline = [
-      ...selectVisibleCommitted(committed.items, live),
-      ...buildLiveTimeline(live, committed.context),
+      ...selectVisibleCommitted(
+        committed.items,
+        run,
+        undefined,
+        committed.context,
+      ),
+      ...buildActiveRunTimeline(run, undefined, committed.context),
     ];
 
     assert.deepEqual(keys(timeline), [
       "entry_user",
       "live:msg_first:thinking:0",
-      "tool_first",
+      "tool-slot:msg_first:1",
       "live:msg_second:thinking:0",
-      "tool_second",
+      "tool-slot:msg_second:1",
     ]);
   });
 
-  it("keeps the committed pass independent of live state", () => {
+  it("keeps the committed pass independent of run state", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Go" },
       { id: "entry_failed", role: "assistant", text: "Agent run failed" },
     ];
     const committed = buildCommittedTimeline(transcript, []);
-    // The failed entry is only hidden once live state references it.
+    // The failed entry is only hidden once run state references it.
     assert.deepEqual(keys(committed.items), ["entry_user", "entry_failed"]);
     assert.deepEqual(
       keys(
         selectVisibleCommitted(
           committed.items,
-          liveState({
-            runStatus: {
-              state: "retrying",
-              runId: "run_01H00000000000000000000000",
-              failedEntryId: "entry_failed",
-              attempt: 1,
-              maxRetries: 3,
-            },
+          activeRun({
+            status: "retrying",
+            retry: { ...RETRY, failedEntryId: "entry_failed" },
           }),
+          undefined,
+          committed.context,
+        ),
+      ),
+      ["entry_user"],
+    );
+  });
+
+  it("hides all failed attempts of the active run across consecutive retries", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Go" },
+      {
+        id: "entry_failed_1",
+        runId: "run_retry",
+        role: "assistant",
+        text: "Agent run failed",
+        stopReason: "error",
+      },
+      {
+        id: "entry_failed_2",
+        runId: "run_retry",
+        role: "assistant",
+        text: "Agent run failed",
+        stopReason: "error",
+      },
+    ];
+    const committed = buildCommittedTimeline(transcript, []);
+    // Second retry references only the latest failure; the earlier one is
+    // hidden by the run-scoped assistant-error rule.
+    assert.deepEqual(
+      keys(
+        selectVisibleCommitted(
+          committed.items,
+          activeRun({
+            runId: "run_retry",
+            status: "retrying",
+            retry: { ...RETRY, attempt: 2, failedEntryId: "entry_failed_2" },
+          }),
+          undefined,
+          committed.context,
+        ),
+      ),
+      ["entry_user"],
+    );
+    // The failures stay hidden while the successful attempt streams.
+    assert.deepEqual(
+      keys(
+        selectVisibleCommitted(
+          committed.items,
+          activeRun({ runId: "run_retry", status: "running" }),
+          undefined,
+          committed.context,
         ),
       ),
       ["entry_user"],

@@ -3,6 +3,7 @@ import type {
   ApprovalWithToolCall,
   CompletionItem,
   ContextUsage,
+  ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationRecord,
   ConversationTreeNode,
@@ -15,7 +16,7 @@ import type {
   UserQuestionRecord,
 } from "$lib/api";
 import type {
-  ConversationLiveState,
+  ConversationTransientState,
   PendingConversationState,
   TranscriptItem,
 } from "$lib/core/types/state-types";
@@ -35,11 +36,12 @@ export type ConversationPaneProps = {
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;
   active?: boolean;
-  transcript?: TranscriptItem[];
+  entries?: ConversationEntry[];
+  optimisticMessages?: TranscriptItem[];
   toolCalls?: ToolCallTranscriptRecord[];
   treeNodes?: ConversationTreeNode[];
-  streamingText?: string;
-  liveState?: ConversationLiveState;
+  activeRun?: ConversationActiveRunSnapshot;
+  transient?: ConversationTransientState;
   queuedPrompts?: QueuedPromptRecord[];
   live?: boolean;
   sending?: boolean;

@@ -88,7 +88,7 @@ export function conversationActivityForRecord(input: {
     };
   }
 
-  if (input.view?.live.compaction?.state === "running") {
+  if (input.view?.transient?.compaction?.state === "running") {
     return {
       tone: "running",
       pulse: true,

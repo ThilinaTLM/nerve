@@ -1,4 +1,4 @@
-import type { LiveToolCallDraft } from "../../state/transcript-types";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
 import {
   type ArgSource,
   type AtlassianSummaryOptions,
@@ -94,7 +94,7 @@ export function confluenceToolSummaryBody(
 }
 
 export function confluenceDraftSummaryBody(
-  draft: LiveToolCallDraft,
+  draft: ConversationLiveToolDraftBlockSnapshot,
   options: AtlassianSummaryOptions = {},
 ): string | undefined {
   const action = confluenceActionFromToolName(draft.toolName);

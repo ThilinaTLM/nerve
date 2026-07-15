@@ -6,9 +6,11 @@ import type { TranscriptItem } from "$lib/core/types/state-types";
 import type { ConversationPaneProps } from "./conversation-pane-props";
 import { shortProjectLabel } from "$lib/core/utils/project-tree";
 import {
+  activeRunStreamingText,
+  buildActiveRunTimeline,
   buildCommittedTimeline,
-  buildLiveTimeline,
   currentTodosForAgent,
+  entriesToTranscript,
   selectVisibleCommitted,
 } from "@nervekit/workbench-ui/state";
 import { AgentConversationPane } from "@nervekit/workbench-ui";
@@ -31,11 +33,12 @@ let {
   pendingUserQuestion,
   pendingPlanReview,
   active = true,
-  transcript = [],
+  entries = [],
+  optimisticMessages = [],
   toolCalls = [],
   treeNodes = [],
-  streamingText = "",
-  liveState,
+  activeRun,
+  transient,
   queuedPrompts = [],
   live = false,
   sending = false,
@@ -93,22 +96,32 @@ const conversationOpen = $derived(
 const activeProjectLabel = $derived(
   activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined,
 );
-// Incremental projection: `committed` only recomputes when transcript/toolCalls
-// identity changes (i.e. not during pure text streaming), so streaming tokens
-// only re-run the small live tail.
+// Incremental projection: `committed` only recomputes when entries/optimistic
+// rows/toolCalls identity changes (i.e. not during pure text streaming), so
+// streaming tokens only re-run the small active-run tail.
+const transcript = $derived.by(() => [
+  ...entriesToTranscript(entries),
+  ...optimisticMessages,
+]);
 const committed = $derived.by(() =>
   buildCommittedTimeline(transcript, toolCalls, {
-    includeUnanchoredTerminalToolCalls: !liveState?.runId,
+    includeUnanchoredTerminalToolCalls: !activeRun,
   }),
 );
 const liveItems = $derived.by(() =>
-  buildLiveTimeline(liveState, committed.context),
+  buildActiveRunTimeline(activeRun, transient, committed.context),
 );
 const visibleCommitted = $derived(
-  selectVisibleCommitted(committed.items, liveState),
+  selectVisibleCommitted(
+    committed.items,
+    activeRun,
+    transient,
+    committed.context,
+  ),
 );
 const timeline = $derived([...visibleCommitted, ...liveItems]);
-const compacting = $derived(liveState?.compaction?.state === "running");
+const compacting = $derived(transient?.compaction?.state === "running");
+const streamingText = $derived(activeRunStreamingText(activeRun));
 const treeEntriesById = $derived(
   new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
 );

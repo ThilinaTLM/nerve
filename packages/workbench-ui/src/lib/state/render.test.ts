@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ToolCallTranscriptRecord } from "@nervekit/contracts";
+import type {
+  ConversationSnapshot,
+  ToolCallTranscriptRecord,
+} from "@nervekit/contracts";
+import { fromConversationSnapshot } from "./adapters.js";
 import { buildConversationRenderProjection } from "./render.js";
 import type { ConversationRenderState } from "./types.js";
 
@@ -100,15 +104,25 @@ describe("conversation render projection", () => {
       [
         "entry_user",
         "live:msg_sandbox:text:0",
-        "tool_bash",
+        "tool-slot:msg_sandbox:1",
         "live:msg_sandbox:text:2",
       ],
     );
   });
 
   it("excludes active-run live messages once the durable entry exists", () => {
-    const state: ConversationRenderState = {
-      conversationId: "conv_sandbox",
+    const snapshot: ConversationSnapshot = {
+      conversation: {
+        id: "conv_sandbox",
+        projectId: "proj_sandbox",
+        title: "Sandbox",
+        mode: "coding",
+        permissionLevel: "supervised",
+        approvalPolicy: { autoApproveReadOnly: true },
+        createdAt: ts,
+        updatedAt: ts,
+      },
+      tree: { conversationId: "conv_sandbox", rootEntryIds: [], nodes: [] },
       entries: [
         {
           id: "entry_assistant",
@@ -158,9 +172,13 @@ describe("conversation render projection", () => {
         queuedPrompts: [],
       },
       cursorSeq: 0,
+      generatedAt: ts,
     };
 
-    const render = buildConversationRenderProjection(state);
+    // Snapshot ingestion drains materialized messages before projection.
+    const render = buildConversationRenderProjection(
+      fromConversationSnapshot(snapshot),
+    );
 
     assert.deepEqual(
       render.timeline.map((item) => item.key),
@@ -193,7 +211,7 @@ describe("conversation render projection", () => {
 
     assert.deepEqual(
       render.timeline.map((item) => item.key),
-      ["entry_user", "tool_bash"],
+      ["entry_user", "tool:tool_bash"],
     );
   });
 });

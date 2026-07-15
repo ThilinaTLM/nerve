@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildConversationTimeline } from "./timeline";
-import { keys, liveState, toolCall } from "./timeline.fixtures";
+import {
+  activeRun,
+  draftBlock,
+  keys,
+  liveMessage,
+  runTurn,
+  textBlock,
+  toolCall,
+} from "./timeline.fixtures";
 import type { TranscriptItem } from "./transcript-types";
 
 describe("buildConversationTimeline live tools", () => {
@@ -24,8 +32,8 @@ describe("buildConversationTimeline live tools", () => {
     assert.deepEqual(keys(timeline), [
       "entry_user",
       "entry_assistant",
-      "tool_early",
-      "tool_late",
+      "tool:tool_early",
+      "tool:tool_late",
     ]);
   });
 
@@ -54,7 +62,7 @@ describe("buildConversationTimeline live tools", () => {
     assert.deepEqual(keys(timeline), [
       "entry_user",
       "entry_assistant",
-      "tool_live",
+      "tool:tool_live",
     ]);
   });
 
@@ -75,12 +83,12 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       transcript,
       toolCalls,
-      liveState({ runId: "run_active" }),
+      activeRun({ runId: "run_active" }),
     );
 
     assert.deepEqual(keys(timeline), [
       "entry_user",
-      "tool_completed_during_run",
+      "tool:tool_completed_during_run",
     ]);
   });
 
@@ -101,7 +109,7 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       transcript,
       toolCalls,
-      liveState({ runId: "run_active" }),
+      activeRun({ runId: "run_active" }),
     );
 
     assert.deepEqual(keys(timeline), ["entry_user"]);
@@ -125,10 +133,10 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       transcript,
       toolCalls,
-      liveState({ runId: "run_active" }),
+      activeRun({ runId: "run_active" }),
     );
 
-    assert.deepEqual(keys(timeline), ["entry_user", "tool_active"]);
+    assert.deepEqual(keys(timeline), ["entry_user", "tool:tool_active"]);
   });
 
   it("keeps live candidates scoped to active-run and live-output tools", () => {
@@ -170,20 +178,18 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       transcript,
       toolCalls,
-      liveState({
+      activeRun({
         runId: "run_active",
-        messages: [
-          {
-            id: "live:msg_active:text:0",
-            role: "assistant",
-            displayKind: "message",
-            text: "Running selected tools",
-            contentIndex: 0,
-            live: true,
-          },
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_active", 0, [
+              textBlock("text", 0, "Running selected tools"),
+            ]),
+          ]),
         ],
-        toolOutputByToolCallId: {
+        toolOutputsByToolCallId: {
           tool_with_live_output: {
+            toolCallId: "tool_with_live_output",
             chunks: [
               {
                 stream: "stdout",
@@ -201,8 +207,8 @@ describe("buildConversationTimeline live tools", () => {
     assert.deepEqual(keys(timeline), [
       "entry_user",
       "live:msg_active:text:0",
-      "tool_active_placed",
-      "tool_with_live_output",
+      "tool-slot:msg_active:1",
+      "tool:tool_with_live_output",
     ]);
   });
 
@@ -228,34 +234,18 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       transcript,
       toolCalls,
-      liveState({
+      activeRun({
         runId: "run_active",
-        messages: [
-          {
-            id: "live:msg_active:thinking:0",
-            role: "assistant",
-            displayKind: "thinking",
-            text: "I should check the task state.",
-            createdAt: "2026-01-01T00:00:00.000Z",
-            contentIndex: 0,
-            live: false,
-            done: true,
-          },
-        ],
-        toolDrafts: [
-          {
-            kind: "tool_call_draft",
-            key: "live:msg_active:tool-draft:2",
-            runId: "run_active",
-            conversationId: "conv_01H00000000000000000000000",
-            contentIndex: 2,
-            providerToolCallId: "provider_start",
-            toolName: "task_start",
-            argsText: "",
-            done: false,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:03.000Z",
-          },
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_active", 0, [
+              textBlock("thinking", 0, "I should check the task state.", true),
+              draftBlock(2, {
+                providerToolCallId: "provider_start",
+                toolName: "task_start",
+              }),
+            ]),
+          ]),
         ],
       }),
     );
@@ -263,8 +253,8 @@ describe("buildConversationTimeline live tools", () => {
     assert.deepEqual(keys(timeline), [
       "entry_user",
       "live:msg_active:thinking:0",
-      "tool_task_status",
-      "live:msg_active:tool-draft:2",
+      "tool-slot:msg_active:1",
+      "tool-slot:msg_active:2",
     ]);
   });
 
@@ -299,8 +289,8 @@ describe("buildConversationTimeline live tools", () => {
 
     assert.deepEqual(keys(timeline), [
       "entry_user",
-      "tool_older_create",
-      "tool_newer_update",
+      "tool:tool_older_create",
+      "tool:tool_newer_update",
     ]);
   });
 
@@ -308,21 +298,16 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       [{ id: "entry_user", role: "user", text: "Hello" }],
       [],
-      liveState({
-        messages: [
-          {
-            id: "live:run_1:text:0",
-            role: "assistant",
-            displayKind: "message",
-            text: "Hi there",
-            contentIndex: 0,
-            live: true,
-          },
+      activeRun({
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_1", 0, [textBlock("text", 0, "Hi there")]),
+          ]),
         ],
       }),
     );
 
-    assert.deepEqual(keys(timeline), ["entry_user", "live:run_1:text:0"]);
+    assert.deepEqual(keys(timeline), ["entry_user", "live:msg_1:text:0"]);
     assert.equal(timeline[1]?.kind, "message");
   });
 
@@ -330,28 +315,25 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       [{ id: "entry_user", role: "user", text: "Think" }],
       [],
-      liveState({
-        messages: [
-          {
-            id: "live:run_1:thinking:0",
-            role: "assistant",
-            displayKind: "thinking",
-            text: "I should reason about this.",
-            contentIndex: 0,
-            live: true,
-          },
+      activeRun({
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_1", 0, [
+              textBlock("thinking", 0, "I should reason about this."),
+            ]),
+          ]),
         ],
       }),
     );
 
-    assert.deepEqual(keys(timeline), ["entry_user", "live:run_1:thinking:0"]);
+    assert.deepEqual(keys(timeline), ["entry_user", "live:msg_1:thinking:0"]);
     assert.equal(timeline[1]?.kind, "message");
     if (timeline[1]?.kind === "message") {
       assert.equal(timeline[1].item.displayKind, "thinking");
     }
   });
 
-  it("replaces a live tool draft with the matching real tool call", () => {
+  it("joins a live tool draft with the matching real tool call in one node", () => {
     const matching = toolCall(
       "tool_real",
       "2026-01-01T00:00:01.000Z",
@@ -362,61 +344,206 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       [{ id: "entry_user", role: "user", text: "Run command" }],
       [matching],
-      liveState({
-        toolDrafts: [
-          {
-            kind: "tool_call_draft",
-            key: "live:run_1:tool-draft:0",
-            runId: "run_1",
-            conversationId: "conv_01H00000000000000000000000",
-            contentIndex: 0,
-            providerToolCallId: "provider_call_1",
-            toolName: "bash",
-            argsText: '{"command":"pwd"}',
-            done: true,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-          },
+      activeRun({
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_1", 0, [
+              draftBlock(0, {
+                providerToolCallId: "provider_call_1",
+                toolName: "bash",
+                argsText: '{"command":"pwd"}',
+                done: true,
+              }),
+            ]),
+          ]),
         ],
       }),
     );
 
-    assert.deepEqual(keys(timeline), ["entry_user", "tool_real"]);
+    assert.deepEqual(keys(timeline), ["entry_user", "tool-slot:msg_1:0"]);
     assert.equal(timeline[1]?.kind, "tool");
+    if (timeline[1]?.kind === "tool") {
+      assert.equal(timeline[1].toolCall?.id, "tool_real");
+      assert.equal(timeline[1].draft?.block.toolName, "bash");
+    }
   });
 
-  it("matches live tool drafts by provider tool-call id", () => {
-    const matching = toolCall(
+  it("joins by exact coordinates before provider aliases", () => {
+    const coordinateMatch = toolCall(
+      "tool_by_slot",
+      "2026-01-01T00:00:01.000Z",
+      "bash",
+      undefined,
+      {
+        runId: "run_01H00000000000000000000000",
+        liveMessageId: "msg_1",
+        contentIndex: 0,
+        status: "running",
+      },
+    );
+    const aliasMatch = toolCall(
+      "tool_by_alias",
+      "2026-01-01T00:00:02.000Z",
+      "bash",
+      "provider_call_1",
+      { status: "running" },
+    );
+    const timeline = buildConversationTimeline(
+      [{ id: "entry_user", role: "user", text: "Run command" }],
+      [coordinateMatch, aliasMatch],
+      activeRun({
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_1", 0, [
+              draftBlock(0, {
+                providerToolCallId: "provider_call_1",
+                toolName: "bash",
+                done: true,
+              }),
+            ]),
+          ]),
+        ],
+      }),
+    );
+
+    const joined = timeline.find((item) => item.kind === "tool");
+    assert.equal(joined?.kind, "tool");
+    if (joined?.kind === "tool") {
+      assert.equal(joined.toolCall?.id, "tool_by_slot");
+    }
+  });
+
+  it("keeps one stable key across draft-only, joined, and committed projections", () => {
+    const run = (
+      overrides: Parameters<typeof activeRun>[0] = {},
+      draftOverrides: Parameters<typeof draftBlock>[1] = {},
+    ) =>
+      activeRun({
+        runId: "run_active",
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_1", 0, [
+              draftBlock(0, {
+                providerToolCallId: "provider_call_1",
+                toolName: "bash",
+                ...draftOverrides,
+              }),
+            ]),
+          ]),
+        ],
+        ...overrides,
+      });
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Run command" },
+    ];
+
+    // Phase 1: draft only.
+    const draftOnly = buildConversationTimeline(transcript, [], run());
+    // Phase 2: joined draft + running tool record.
+    const record = toolCall(
       "tool_real",
       "2026-01-01T00:00:01.000Z",
       "bash",
       undefined,
-      { providerToolCallId: "provider_call_1", status: "running" },
+      {
+        runId: "run_active",
+        providerToolCallId: "provider_call_1",
+        liveMessageId: "msg_1",
+        contentIndex: 0,
+        status: "running",
+      },
     );
+    const joined = buildConversationTimeline(
+      transcript,
+      [record],
+      run({}, { done: true }),
+    );
+    // Phase 3: committed (message materialized, entry anchors the tool).
+    const committed = buildConversationTimeline(
+      [
+        ...transcript,
+        {
+          id: "entry_assistant",
+          role: "assistant",
+          text: "[Tool call: bash]",
+          toolRecordId: "tool_real",
+        },
+      ],
+      [{ ...record, status: "completed" }],
+    );
+
+    const expectedKey = "tool-slot:msg_1:0";
+    assert.deepEqual(keys(draftOnly), ["entry_user", expectedKey]);
+    assert.deepEqual(keys(joined), ["entry_user", expectedKey]);
+    assert.deepEqual(keys(committed), ["entry_user", expectedKey]);
+  });
+
+  it("does not duplicate a card while the entry materializes around the tool", () => {
+    const record = toolCall(
+      "tool_real",
+      "2026-01-01T00:00:01.000Z",
+      "bash",
+      undefined,
+      {
+        runId: "run_active",
+        providerToolCallId: "provider_call_1",
+        liveMessageId: "msg_1",
+        contentIndex: 0,
+        status: "running",
+      },
+    );
+    // Entry appended and anchored, but the live message has not drained yet.
     const timeline = buildConversationTimeline(
-      [{ id: "entry_user", role: "user", text: "Run command" }],
-      [matching],
-      liveState({
-        toolDrafts: [
-          {
-            kind: "tool_call_draft",
-            key: "live:run_1:tool-draft:0",
-            runId: "run_1",
-            conversationId: "conv_01H00000000000000000000000",
-            contentIndex: 0,
-            providerToolCallId: "provider_call_1",
-            toolName: "bash",
-            argsText: '{"command":"pwd"}',
-            done: true,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-          },
+      [
+        { id: "entry_user", role: "user", text: "Run command" },
+        {
+          id: "entry_assistant",
+          role: "assistant",
+          text: "[Tool call: bash]",
+          toolRecordId: "tool_real",
+        },
+      ],
+      [record],
+      activeRun({
+        runId: "run_active",
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_1", 0, [
+              draftBlock(0, {
+                providerToolCallId: "provider_call_1",
+                toolName: "bash",
+                done: true,
+              }),
+            ]),
+          ]),
         ],
       }),
     );
 
-    assert.deepEqual(keys(timeline), ["entry_user", "tool_real"]);
-    assert.equal(timeline[1]?.kind, "tool");
+    assert.deepEqual(timeline.filter((item) => item.kind === "tool").length, 1);
+  });
+
+  it("produces identical keys for repeated projections of the same state", () => {
+    const state = activeRun({
+      runId: "run_active",
+      turns: [
+        runTurn("turn_1", 0, [
+          liveMessage("msg_1", 0, [
+            textBlock("thinking", 0, "Reasoning", true),
+            draftBlock(1, { toolName: "bash" }),
+            textBlock("text", 2, "Progress update"),
+          ]),
+        ]),
+      ],
+    });
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Go" },
+    ];
+
+    assert.deepEqual(
+      keys(buildConversationTimeline(transcript, [], state)),
+      keys(buildConversationTimeline(transcript, [], state)),
+    );
   });
 
   it("attaches live output to the matching tool card", () => {
@@ -430,9 +557,10 @@ describe("buildConversationTimeline live tools", () => {
     const timeline = buildConversationTimeline(
       [{ id: "entry_user", role: "user", text: "Run command" }],
       [running],
-      liveState({
-        toolOutputByToolCallId: {
+      activeRun({
+        toolOutputsByToolCallId: {
           tool_bash: {
+            toolCallId: "tool_bash",
             chunks: [
               {
                 stream: "stdout",

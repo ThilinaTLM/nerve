@@ -370,11 +370,12 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   approvals={activeApprovals}
   {pendingUserQuestion}
   {pendingPlanReview}
-  transcript={view?.transcript ?? []}
+  entries={view?.entries ?? []}
+  optimisticMessages={view?.optimisticMessages ?? []}
   toolCalls={view?.toolCalls ?? []}
   treeNodes={view?.treeNodes ?? []}
-  streamingText={view?.streamingText ?? ""}
-  liveState={view?.live}
+  activeRun={view?.activeRun}
+  transient={view?.transient}
   queuedPrompts={view?.queuedPrompts ?? []}
   live={workspaceState.connection === "live"}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}

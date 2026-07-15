@@ -28,6 +28,7 @@ import {
 } from "$lib/features/workspace/state/selection.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { optimisticUserMessage } from "./conversation-optimistic";
 import { abortActiveRun } from "./run-control";
 import { upsertAgentRecord, upsertConversationRecord } from "./selection";
 import {
@@ -193,11 +194,9 @@ async function sendPendingPrompt(
     view = ensureConversationView(conversation.id);
     view.sending = true;
     view.error = undefined;
-    view.streamingText = "";
-    view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
-    view.transcript = isInlineCommandPrompt(text)
+    view.optimisticMessages = isInlineCommandPrompt(text)
       ? []
-      : [{ role: "user", text, optimistic: true }];
+      : [optimisticUserMessage(text)];
     view.composerText = preservedComposerText;
     workspaceState.error = undefined;
     if (clearComposer) composerDraft.text = "";
@@ -257,7 +256,7 @@ export async function sendPromptText(
     notifyPromptError("No usable model configured", message);
     return;
   }
-  if (view.live.compaction?.state === "running") {
+  if (view.transient?.compaction?.state === "running") {
     notifyPromptError(
       "Compaction in progress",
       "Wait for context compaction to finish before sending another prompt.",
@@ -269,8 +268,6 @@ export async function sendPromptText(
   workspaceState.error = undefined;
   if (!queueWhileRunning) {
     view.sending = true;
-    view.streamingText = "";
-    view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
   }
   try {
     const agentId = await ensureAgent();
@@ -287,9 +284,9 @@ export async function sendPromptText(
       return;
     }
     if (!isInlineCommandPrompt(text)) {
-      view.transcript = [
-        ...view.transcript,
-        { role: "user", text, optimistic: true },
+      view.optimisticMessages = [
+        ...view.optimisticMessages,
+        optimisticUserMessage(text),
       ];
     }
     await protocolRequest(

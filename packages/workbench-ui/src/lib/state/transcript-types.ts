@@ -1,7 +1,4 @@
-import type {
-  ConversationEntry,
-  ConversationLiveToolDraftProgressSnapshot,
-} from "@nervekit/contracts";
+import type { ConversationEntry } from "@nervekit/contracts";
 
 export type TranscriptDisplayKind = "message" | "thinking";
 
@@ -95,70 +92,11 @@ export type TranscriptItem = {
   taskEvent?: TaskEventNotice;
 };
 
-export type LiveToolCallDraft = {
-  kind: "tool_call_draft";
-  key: string;
-  runId?: string;
-  conversationId: string;
-  contentIndex: number;
-  /** Live coordinates (streaming drafts only); used for materialized draining. */
-  turnId?: string;
-  messageOrdinal?: number;
-  providerToolCallId?: string;
-  toolName?: string;
-  argsText: string;
-  args?: Record<string, unknown>;
-  progress?: ConversationLiveToolDraftProgressSnapshot;
-  done?: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type LiveToolOutputChunk = {
-  stream: "stdout" | "stderr" | "combined";
-  text: string;
-  ts: string;
-};
-
-export type LiveToolOutput = {
-  chunks: LiveToolOutputChunk[];
-  text: string;
-  updatedAt: string;
-  outputLimits?: {
-    capped: boolean;
-    direction: "tail";
-    maxChars: number;
-    maxChunks: number;
-    totalChars?: number;
-    displayedChars?: number;
-    omittedChars?: number;
-    totalLines?: number;
-    displayedLines?: number;
-    omittedLines?: number;
-  };
-};
-
-export type LiveMessageMeta = {
-  turnId: string;
-  messageOrdinal: number;
-};
-
-export type ConversationLiveState = {
-  runId?: string;
-  messages: TranscriptItem[];
-  toolDrafts: LiveToolCallDraft[];
-  toolOutputByToolCallId: Record<string, LiveToolOutput>;
-  runStatus?: RunStatusNotice;
+/**
+ * Frontend-only presentation state for events that do not belong to the
+ * canonical active-run snapshot (e.g. compaction progress, which can run
+ * without an active run).
+ */
+export type ConversationTransientState = {
   compaction?: CompactionNotice;
-  hiddenEntryIds?: string[];
-  /**
-   * Live coordinates by `liveMessageId`, recorded from
-   * `conversation.live.message.started`. Lets `entry.appended` drain stale
-   * blocks by per-turn ordinal watermark when id correlation misses.
-   */
-  messageMeta?: Record<string, LiveMessageMeta>;
 };
-
-export function emptyLiveState(runId?: string): ConversationLiveState {
-  return { runId, messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
-}

@@ -8,6 +8,13 @@ import ToolFooter from "./ToolFooter.svelte";
 type Props = {
   /** Tool-call status; mapped to a `data-state` lifecycle styling hook. */
   status?: string;
+  /**
+   * Explicit lifecycle for the pre-record draft phase. A draft is not a
+   * persisted tool status: it presents as in-flight and never settles — the
+   * meaningful transitions are the draft-to-tool handoff and the real
+   * running-to-terminal settle.
+   */
+  draftPhase?: "drafting" | "prepared";
   dotTone: StatusTone;
   dotPulse?: boolean;
   badge: string;
@@ -26,6 +33,7 @@ type Props = {
 };
 let {
   status,
+  draftPhase,
   dotTone,
   dotPulse = false,
   badge,
@@ -40,6 +48,7 @@ let {
 
 // Lightweight lifecycle derived from the (exhaustive) tool-call status enum.
 const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
+  if (draftPhase) return "running";
   switch (status) {
     case "requested":
     case "pending_approval":
@@ -80,7 +89,7 @@ $effect(() => {
 <article
   class="tool-card"
   class:state-settling={settling}
-  data-state={lifecycle}
+  data-state={draftPhase ?? lifecycle}
   onanimationend={(event) => {
     if (event.target === event.currentTarget) settling = false;
   }}

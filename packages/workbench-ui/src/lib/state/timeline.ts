@@ -1,24 +1,44 @@
-import type { ToolCallTranscriptRecord } from "@nervekit/contracts";
+import type {
+  ConversationActiveRunSnapshot,
+  ConversationLiveMessageSnapshot,
+  ConversationLiveToolOutputSnapshot,
+  ConversationLiveTurnSnapshot,
+  ToolCallTranscriptRecord,
+} from "@nervekit/contracts";
+import {
+  liveBlockKey,
+  orderedBlocks,
+  orderedMessages,
+  orderedTurns,
+  toolSlotKey,
+  type ToolDraftViewModel,
+} from "./active-run.js";
 import type {
   CompactionNotice,
-  ConversationLiveState,
-  LiveToolCallDraft,
-  LiveToolOutput,
+  ConversationTransientState,
   RunStatusNotice,
   TaskEventNotice,
   TranscriptItem,
-} from "./transcript-types";
+} from "./transcript-types.js";
+
+/**
+ * One tool content slot rendered as a single stable row across its whole
+ * lifecycle. At least one of `draft` or `toolCall` is present: draft-only
+ * while arguments stream, joined during the presentation handoff, tool-only
+ * once the draft block has been drained/materialized.
+ */
+export type ToolActivityTimelineItem = {
+  kind: "tool";
+  key: string;
+  draft?: ToolDraftViewModel;
+  toolCall?: ToolCallTranscriptRecord;
+  liveOutput?: ConversationLiveToolOutputSnapshot;
+  anchorEntryId?: string;
+};
 
 export type TimelineItem =
   | { kind: "message"; key: string; item: TranscriptItem }
-  | {
-      kind: "tool";
-      key: string;
-      toolCall: ToolCallTranscriptRecord;
-      liveOutput?: LiveToolOutput;
-      anchorEntryId?: string;
-    }
-  | { kind: "tool_draft"; key: string; draft: LiveToolCallDraft }
+  | ToolActivityTimelineItem
   | { kind: "compaction"; key: string; notice: CompactionNotice }
   | {
       kind: "tool_result_error";
@@ -30,21 +50,26 @@ export type TimelineItem =
   | { kind: "task_event"; key: string; notice: TaskEventNotice };
 
 /**
- * Memoizable products of the persisted-branch projection. `buildLiveTimeline`
- * consumes this so the live tail can be recomputed without re-walking the
- * (potentially huge) transcript or re-sorting the tool calls.
+ * Memoizable products of the persisted-branch projection.
+ * `buildActiveRunTimeline` consumes this so the live tail can be recomputed
+ * without re-walking the (potentially huge) transcript or re-sorting the tool
+ * calls.
  */
 export type CommittedContext = {
   orderedToolCalls: ToolCallTranscriptRecord[];
   toolCallsById: Map<string, ToolCallTranscriptRecord>;
   toolCallsByProviderId: Map<string, ToolCallTranscriptRecord>;
   toolCallsByRunId: Map<string, ToolCallTranscriptRecord[]>;
+  /** Anchored records by `tool-slot:` key for coordinate-first joining. */
+  toolCallsBySlot: Map<string, ToolCallTranscriptRecord>;
   /** Live-status tools that may need an unanchored live-tail card. */
   liveCandidateToolCalls: ToolCallTranscriptRecord[];
   /** Tool ids already rendered as anchored committed cards. */
   consumedToolCallIds: Set<string>;
   /** Run ids that already have a committed run-status node. */
   statusRunIds: Set<string>;
+  /** Run ids with visible assistant error entries (retry-hiding candidates). */
+  failedAssistantRunIds: Set<string>;
   /** Keys (id/entryId/`run:<id>`) of committed compaction notices. */
   completedCompactionKeys: Set<string>;
 };
@@ -95,137 +120,37 @@ function toolCallAliasIds(toolCall: ToolCallTranscriptRecord): string[] {
   );
 }
 
-function isActiveRunPlacedToolCall(
+function toolCallSlotKey(
   toolCall: ToolCallTranscriptRecord,
-  live: ConversationLiveState | undefined,
-): boolean {
-  return Boolean(
-    live?.runId &&
-    toolCall.runId === live.runId &&
-    typeof toolCall.contentIndex === "number",
-  );
+): string | undefined {
+  return toolCall.liveMessageId && typeof toolCall.contentIndex === "number"
+    ? toolSlotKey(toolCall.liveMessageId, toolCall.contentIndex)
+    : undefined;
+}
+
+/**
+ * Stable timeline key for a tool record: content-slot identity when the
+ * record carries live coordinates (survives materialization), durable tool id
+ * for genuinely unanchored/non-run tools.
+ */
+export function toolTimelineKey(toolCall: ToolCallTranscriptRecord): string {
+  return toolCallSlotKey(toolCall) ?? `tool:${toolCall.id}`;
 }
 
 function shouldAppendUnanchoredToolCall(
   toolCall: ToolCallTranscriptRecord,
-  liveOutput: LiveToolOutput | undefined,
-  live: ConversationLiveState | undefined,
+  liveOutput: ConversationLiveToolOutputSnapshot | undefined,
+  activeRun: ConversationActiveRunSnapshot | undefined,
 ): boolean {
   // Tools actively streaming output always belong in the live tail.
   if (liveOutput) return true;
-  // During an active run, only that run's tool calls belong in the live tail; a
-  // stale live-status call from a finished run must not be pinned below the
+  // During an active run, only that run's tool calls belong in the live tail;
+  // a stale live-status call from a finished run must not be pinned below the
   // current run's streaming content.
-  if (live?.runId) return toolCall.runId === live.runId;
+  if (activeRun) return toolCall.runId === activeRun.runId;
   // No active run: surface genuinely live tool calls. Stale ones are
   // terminalized by the orchestrator so they are no longer live-status here.
   return isLiveToolCall(toolCall);
-}
-
-function liveOutputFor(
-  live: ConversationLiveState | undefined,
-  toolCallId: string,
-): LiveToolOutput | undefined {
-  return live?.toolOutputByToolCallId[toolCallId];
-}
-
-function contentIndexOf(
-  item: TranscriptItem | LiveToolCallDraft | ToolCallTranscriptRecord,
-): number {
-  return typeof item.contentIndex === "number"
-    ? item.contentIndex
-    : Number.MAX_SAFE_INTEGER;
-}
-
-type LiveTimelineNode =
-  | { type: "message"; item: TranscriptItem }
-  | { type: "draft"; draft: LiveToolCallDraft }
-  | { type: "tool"; toolCall: ToolCallTranscriptRecord };
-
-function liveMessageIdFromKey(key: string | undefined): string | undefined {
-  const match = key?.match(/^live:([^:]+):/);
-  return match?.[1];
-}
-
-function liveNodeMessageId(node: LiveTimelineNode): string | undefined {
-  if (node.type === "message") return liveMessageIdFromKey(node.item.id);
-  if (node.type === "draft") return liveMessageIdFromKey(node.draft.key);
-  return node.toolCall.liveMessageId;
-}
-
-function liveNodeContentIndex(node: LiveTimelineNode): number {
-  if (node.type === "message") return contentIndexOf(node.item);
-  if (node.type === "draft") return contentIndexOf(node.draft);
-  return contentIndexOf(node.toolCall);
-}
-
-function liveNodeCreatedAt(node: LiveTimelineNode): string {
-  if (node.type === "message") return node.item.createdAt ?? "";
-  if (node.type === "draft") return node.draft.createdAt;
-  return node.toolCall.createdAt;
-}
-
-function liveNodeStableKey(node: LiveTimelineNode): string {
-  if (node.type === "message") return node.item.id ?? "";
-  if (node.type === "draft") return node.draft.key;
-  return node.toolCall.id;
-}
-
-function liveNodeTypePriority(node: LiveTimelineNode): number {
-  if (node.type === "message") return 0;
-  if (node.type === "draft") return 1;
-  return 2;
-}
-
-function liveMessageOrder(nodes: LiveTimelineNode[]): Map<string, number> {
-  const firstByMessageId = new Map<
-    string,
-    { createdAt: string; sequence: number }
-  >();
-  for (const [sequence, node] of nodes.entries()) {
-    const messageId = liveNodeMessageId(node);
-    if (!messageId) continue;
-    const createdAt = liveNodeCreatedAt(node);
-    const current = firstByMessageId.get(messageId);
-    if (current && (current.createdAt || "9999") <= (createdAt || "9999")) {
-      continue;
-    }
-    firstByMessageId.set(messageId, { createdAt, sequence });
-  }
-
-  return new Map(
-    [...firstByMessageId.entries()]
-      .sort(([, a], [, b]) => {
-        const createdAtCmp = (a.createdAt || "9999").localeCompare(
-          b.createdAt || "9999",
-        );
-        return createdAtCmp !== 0 ? createdAtCmp : a.sequence - b.sequence;
-      })
-      .map(([messageId], index) => [messageId, index]),
-  );
-}
-
-function compareLiveTimelineNodes(
-  order: Map<string, number>,
-  a: LiveTimelineNode,
-  b: LiveTimelineNode,
-): number {
-  const aMessageOrder = order.get(liveNodeMessageId(a) ?? "") ?? order.size;
-  const bMessageOrder = order.get(liveNodeMessageId(b) ?? "") ?? order.size;
-  if (aMessageOrder !== bMessageOrder) return aMessageOrder - bMessageOrder;
-
-  const aIndex = liveNodeContentIndex(a);
-  const bIndex = liveNodeContentIndex(b);
-  if (aIndex !== bIndex) return aIndex - bIndex;
-
-  const aPriority = liveNodeTypePriority(a);
-  const bPriority = liveNodeTypePriority(b);
-  if (aPriority !== bPriority) return aPriority - bPriority;
-
-  const createdAtCmp = liveNodeCreatedAt(a).localeCompare(liveNodeCreatedAt(b));
-  return createdAtCmp !== 0
-    ? createdAtCmp
-    : liveNodeStableKey(a).localeCompare(liveNodeStableKey(b));
 }
 
 function runStatusTimelineKey(
@@ -264,9 +189,9 @@ function isHiddenByFailedRun(
 
 /**
  * Project the persisted branch transcript + tool calls into committed timeline
- * nodes. This pass is intentionally independent of live state so it can be
+ * nodes. This pass is intentionally independent of the active run so it can be
  * memoized while the agent streams: only `transcript`/`toolCalls` identity
- * changes invalidate it. Live-only hiding is layered in afterwards by
+ * changes invalidate it. Run-derived hiding is layered in afterwards by
  * {@link selectVisibleCommitted}.
  */
 export function buildCommittedTimeline(
@@ -283,12 +208,17 @@ export function buildCommittedTimeline(
   );
   const toolCallsByProviderId = new Map<string, ToolCallTranscriptRecord>();
   const toolCallsByRunId = new Map<string, ToolCallTranscriptRecord[]>();
+  const toolCallsBySlot = new Map<string, ToolCallTranscriptRecord>();
   const liveCandidateToolCalls: ToolCallTranscriptRecord[] = [];
   for (const toolCall of orderedToolCalls) {
     for (const alias of toolCallAliasIds(toolCall)) {
       if (!toolCallsByProviderId.has(alias)) {
         toolCallsByProviderId.set(alias, toolCall);
       }
+    }
+    const slotKey = toolCallSlotKey(toolCall);
+    if (slotKey && !toolCallsBySlot.has(slotKey)) {
+      toolCallsBySlot.set(slotKey, toolCall);
     }
     if (toolCall.runId) {
       const runToolCalls = toolCallsByRunId.get(toolCall.runId) ?? [];
@@ -301,8 +231,8 @@ export function buildCommittedTimeline(
   }
   const consumedToolCallIds = new Set<string>();
 
-  // Transcript-derived hiding (persisted run-status entries). Live-derived
-  // hiding is applied later, so this pass stays live-independent.
+  // Transcript-derived hiding (persisted run-status entries). Run-derived
+  // hiding is applied later, so this pass stays run-independent.
   const hiddenEntryIds = new Set<string>();
   const hiddenFailedRunIds = new Set<string>();
   for (const item of transcript) {
@@ -353,7 +283,7 @@ export function buildCommittedTimeline(
     if (toolCall) {
       items.push({
         kind: "tool",
-        key: toolCall.id,
+        key: toolTimelineKey(toolCall),
         toolCall,
         anchorEntryId: item.id,
       });
@@ -385,6 +315,16 @@ export function buildCommittedTimeline(
         : [],
     ),
   );
+  const failedAssistantRunIds = new Set(
+    items.flatMap((node) =>
+      node.kind === "message" &&
+      node.item.role === "assistant" &&
+      node.item.stopReason === "error" &&
+      node.item.runId
+        ? [node.item.runId]
+        : [],
+    ),
+  );
   const completedCompactionKeys = new Set(
     items.flatMap((node) => {
       if (node.kind !== "compaction") return [];
@@ -409,7 +349,7 @@ export function buildCommittedTimeline(
     for (const toolCall of unanchoredTerminalToolCalls) {
       items.push({
         kind: "tool",
-        key: toolCall.id,
+        key: toolTimelineKey(toolCall),
         toolCall,
       });
       consumedToolCallIds.add(toolCall.id);
@@ -424,9 +364,11 @@ export function buildCommittedTimeline(
       toolCallsById,
       toolCallsByProviderId,
       toolCallsByRunId,
+      toolCallsBySlot,
       liveCandidateToolCalls,
       consumedToolCallIds,
       statusRunIds,
+      failedAssistantRunIds,
       completedCompactionKeys,
     },
   };
@@ -444,8 +386,7 @@ function isTerminalUnanchoredToolCall(
 
 function timelineItemCreatedAt(item: TimelineItem): string | undefined {
   if (item.kind === "message") return item.item.createdAt;
-  if (item.kind === "tool") return item.toolCall.createdAt;
-  if (item.kind === "tool_draft") return item.draft.createdAt;
+  if (item.kind === "tool") return item.toolCall?.createdAt;
   if (item.kind === "compaction") return item.notice.createdAt;
   if (item.kind === "run_status") return item.notice.createdAt;
   if (item.kind === "task_event") return item.notice.createdAt;
@@ -474,39 +415,52 @@ function committedEntryId(item: TimelineItem): string | undefined {
 }
 
 /**
- * Filter committed items that live state hides (retry/compaction in progress).
- * Returns the same array reference when nothing is hidden — the common case
- * during pure text streaming — so the timeline concat stays cheap.
+ * Filter committed items hidden by run/transient state (retry or compaction in
+ * progress). Returns the same array reference when nothing is hidden — the
+ * common case during pure text streaming — so the timeline concat stays cheap.
+ *
+ * While a run is active, every failed assistant error entry of that run is
+ * hidden (not only the latest `failedEntryId`), so multi-attempt retries do
+ * not resurrect earlier failures and a successful retry keeps superseded
+ * attempts hidden while it streams.
  */
 export function selectVisibleCommitted(
   items: TimelineItem[],
-  live: ConversationLiveState | undefined,
+  activeRun: ConversationActiveRunSnapshot | undefined,
+  transient: ConversationTransientState | undefined,
+  context?: Pick<CommittedContext, "failedAssistantRunIds">,
 ): TimelineItem[] {
-  const liveHiddenEntryIds = new Set<string>(live?.hiddenEntryIds ?? []);
-  if (live?.runStatus?.failedEntryId)
-    liveHiddenEntryIds.add(live.runStatus.failedEntryId);
-  if (live?.compaction?.failedEntryId)
-    liveHiddenEntryIds.add(live.compaction.failedEntryId);
-  const liveHiddenRunId = live?.runStatus?.runId;
+  const hiddenEntryIds = new Set<string>();
+  if (activeRun?.retry?.failedEntryId) {
+    hiddenEntryIds.add(activeRun.retry.failedEntryId);
+  }
+  if (
+    transient?.compaction?.state === "running" &&
+    transient.compaction.failedEntryId
+  ) {
+    hiddenEntryIds.add(transient.compaction.failedEntryId);
+  }
+  const hiddenRunId =
+    activeRun &&
+    (!context || context.failedAssistantRunIds.has(activeRun.runId))
+      ? activeRun.runId
+      : undefined;
 
-  if (liveHiddenEntryIds.size === 0 && !liveHiddenRunId) return items;
+  if (hiddenEntryIds.size === 0 && !hiddenRunId) return items;
 
-  const hiddenEntryIds = [...liveHiddenEntryIds];
+  const hidden = [...hiddenEntryIds];
 
   return items.filter((item) => {
     const entryId = committedEntryId(item);
-    if (
-      entryId &&
-      hiddenEntryIds.some((hidden) => entryIdMatches(entryId, hidden))
-    ) {
+    if (entryId && hidden.some((value) => entryIdMatches(entryId, value))) {
       return false;
     }
     if (
-      liveHiddenRunId &&
+      hiddenRunId &&
       item.kind === "message" &&
       item.item.role === "assistant" &&
       item.item.stopReason === "error" &&
-      item.item.runId === liveHiddenRunId
+      item.item.runId === hiddenRunId
     ) {
       return false;
     }
@@ -514,125 +468,102 @@ export function selectVisibleCommitted(
   });
 }
 
+type MessageSlot =
+  | { contentIndex: number; order: number; type: "block"; blockIndex: number }
+  | {
+      contentIndex: number;
+      order: number;
+      type: "tool";
+      toolCall: ToolCallTranscriptRecord;
+    };
+
+function anchoredRunToolCallsByMessage(
+  activeRun: ConversationActiveRunSnapshot | undefined,
+  context: CommittedContext,
+): Map<string, ToolCallTranscriptRecord[]> {
+  const byMessage = new Map<string, ToolCallTranscriptRecord[]>();
+  if (!activeRun) return byMessage;
+  for (const toolCall of context.toolCallsByRunId.get(activeRun.runId) ?? []) {
+    if (!toolCall.liveMessageId || typeof toolCall.contentIndex !== "number") {
+      continue;
+    }
+    const list = byMessage.get(toolCall.liveMessageId) ?? [];
+    list.push(toolCall);
+    byMessage.set(toolCall.liveMessageId, list);
+  }
+  return byMessage;
+}
+
 /**
- * Project the transient live tail (streaming assistant content, tool drafts,
- * unanchored/active-run tool cards, run-status, compaction) using the memoized
- * committed `context` instead of recomputing it.
+ * Project the transient live tail (streaming assistant content, unified tool
+ * activities, run-status, compaction) directly from the canonical active-run
+ * snapshot, using the memoized committed `context` instead of recomputing it.
  */
-export function buildLiveTimeline(
-  live: ConversationLiveState | undefined,
+export function buildActiveRunTimeline(
+  activeRun: ConversationActiveRunSnapshot | undefined,
+  transient: ConversationTransientState | undefined,
   context: CommittedContext,
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
-  const {
-    toolCallsById,
-    toolCallsByProviderId,
-    toolCallsByRunId,
-    liveCandidateToolCalls,
-    statusRunIds,
-    completedCompactionKeys,
-  } = context;
   const liveConsumedToolCallIds = new Set<string>();
-  const activeRunToolCalls = live?.runId
-    ? (toolCallsByRunId.get(live.runId) ?? [])
-    : [];
-
   const isToolConsumed = (toolCallId: string) =>
     context.consumedToolCallIds.has(toolCallId) ||
     liveConsumedToolCallIds.has(toolCallId);
   const consumeTool = (toolCallId: string) => {
     liveConsumedToolCallIds.add(toolCallId);
   };
+  const liveOutputFor = (toolCallId: string) =>
+    activeRun?.toolOutputsByToolCallId[toolCallId];
 
-  const liveNodes: LiveTimelineNode[] = [
-    ...(live?.messages ?? []).map((item) => ({
-      type: "message" as const,
-      item,
-    })),
-    ...(live?.toolDrafts ?? []).map((draft) => ({
-      type: "draft" as const,
-      draft,
-    })),
-    ...activeRunToolCalls
-      .filter((toolCall) => isActiveRunPlacedToolCall(toolCall, live))
-      .map((toolCall) => ({
-        type: "tool" as const,
-        toolCall,
-      })),
-  ];
-  const messageOrder = liveMessageOrder(liveNodes);
-  liveNodes.sort((a, b) => compareLiveTimelineNodes(messageOrder, a, b));
+  const anchoredByMessage = anchoredRunToolCallsByMessage(activeRun, context);
 
-  for (const node of liveNodes) {
-    if (node.type === "message") {
-      if (!node.item.text && node.item.displayKind !== "thinking") continue;
-      items.push({
-        kind: "message",
-        key:
-          node.item.id ?? `live-msg-${node.item.contentIndex ?? items.length}`,
-        item: node.item,
-      });
-      continue;
-    }
-
-    if (node.type === "tool") {
-      if (!isToolConsumed(node.toolCall.id)) {
-        items.push({
-          kind: "tool",
-          key: node.toolCall.id,
-          toolCall: node.toolCall,
-          liveOutput: liveOutputFor(live, node.toolCall.id),
+  if (activeRun) {
+    for (const turn of orderedTurns(activeRun)) {
+      for (const message of orderedMessages(turn)) {
+        emitMessageSlots(items, activeRun, turn, message, {
+          context,
+          anchoredToolCalls: anchoredByMessage.get(message.liveMessageId) ?? [],
+          isToolConsumed,
+          consumeTool,
+          liveOutputFor,
         });
-        consumeTool(node.toolCall.id);
       }
-      continue;
     }
-
-    const matchingToolCall = node.draft.providerToolCallId
-      ? toolCallsByProviderId.get(node.draft.providerToolCallId)
-      : undefined;
-    if (matchingToolCall) {
-      if (!isToolConsumed(matchingToolCall.id)) {
-        items.push({
-          kind: "tool",
-          key: matchingToolCall.id,
-          toolCall: matchingToolCall,
-          liveOutput: liveOutputFor(live, matchingToolCall.id),
-        });
-        consumeTool(matchingToolCall.id);
-      }
-      continue;
-    }
-
-    items.push({
-      kind: "tool_draft",
-      key: node.draft.key,
-      draft: node.draft,
-    });
   }
 
-  if (live?.runStatus && !statusRunIds.has(live.runStatus.runId ?? "")) {
+  if (
+    activeRun?.retry &&
+    activeRun.status === "retrying" &&
+    !context.statusRunIds.has(activeRun.runId)
+  ) {
     items.push({
       kind: "run_status",
-      key: runStatusTimelineKey(
-        live.runStatus,
-        `live:run-status:${live.runStatus.runId ?? live.runId ?? "active"}`,
-      ),
-      notice: live.runStatus,
+      key: `run-status:${activeRun.runId}`,
+      notice: {
+        conversationId: activeRun.conversationId,
+        agentId: activeRun.agentId,
+        runId: activeRun.runId,
+        state: "retrying",
+        ...activeRun.retry,
+      },
     });
   }
 
-  if (live?.compaction) {
+  if (transient?.compaction) {
     const duplicateKeys = [
-      live.compaction.id,
-      live.compaction.entryId,
-      live.compaction.runId ? `run:${live.compaction.runId}` : undefined,
+      transient.compaction.id,
+      transient.compaction.entryId,
+      transient.compaction.runId
+        ? `run:${transient.compaction.runId}`
+        : undefined,
     ].filter((value): value is string => Boolean(value));
-    if (!duplicateKeys.some((key) => completedCompactionKeys.has(key))) {
+    if (
+      !duplicateKeys.some((key) => context.completedCompactionKeys.has(key))
+    ) {
       items.push({
         kind: "compaction",
-        key: live.compaction.id,
-        notice: live.compaction,
+        key: transient.compaction.id,
+        notice: transient.compaction,
       });
     }
   }
@@ -646,48 +577,181 @@ export function buildLiveTimeline(
     }
   };
 
-  for (const toolCall of liveCandidateToolCalls)
+  for (const toolCall of context.liveCandidateToolCalls)
     addUnanchoredCandidate(toolCall);
-  for (const toolCall of activeRunToolCalls) addUnanchoredCandidate(toolCall);
-  for (const toolCallId of Object.keys(live?.toolOutputByToolCallId ?? {})) {
-    addUnanchoredCandidate(toolCallsById.get(toolCallId));
+  if (activeRun) {
+    for (const toolCall of context.toolCallsByRunId.get(activeRun.runId) ?? [])
+      addUnanchoredCandidate(toolCall);
+    for (const toolCallId of Object.keys(activeRun.toolOutputsByToolCallId)) {
+      addUnanchoredCandidate(context.toolCallsById.get(toolCallId));
+    }
   }
 
   for (const toolCall of [...unanchoredToolCandidates.values()].sort(
     byCreatedAtAscending,
   )) {
-    const liveOutput = liveOutputFor(live, toolCall.id);
+    const liveOutput = liveOutputFor(toolCall.id);
     if (
       isToolConsumed(toolCall.id) ||
-      !shouldAppendUnanchoredToolCall(toolCall, liveOutput, live)
+      !shouldAppendUnanchoredToolCall(toolCall, liveOutput, activeRun)
     ) {
       continue;
     }
     items.push({
       kind: "tool",
-      key: toolCall.id,
+      key: toolTimelineKey(toolCall),
       toolCall,
       liveOutput,
     });
+    consumeTool(toolCall.id);
   }
 
   return items;
 }
 
+function emitMessageSlots(
+  items: TimelineItem[],
+  activeRun: ConversationActiveRunSnapshot,
+  turn: ConversationLiveTurnSnapshot,
+  message: ConversationLiveMessageSnapshot,
+  input: {
+    context: CommittedContext;
+    anchoredToolCalls: ToolCallTranscriptRecord[];
+    isToolConsumed: (toolCallId: string) => boolean;
+    consumeTool: (toolCallId: string) => void;
+    liveOutputFor: (
+      toolCallId: string,
+    ) => ConversationLiveToolOutputSnapshot | undefined;
+  },
+): void {
+  const blocks = orderedBlocks(message);
+  const slots: MessageSlot[] = blocks.map((block, blockIndex) => ({
+    contentIndex: block.contentIndex,
+    order: 0,
+    type: "block",
+    blockIndex,
+  }));
+  const draftIndexes = new Set(
+    blocks
+      .filter((block) => block.kind === "tool_call_draft")
+      .map((block) => block.contentIndex),
+  );
+  // Anchored run tools whose transient draft events were missed still render
+  // in their canonical slot position.
+  for (const toolCall of input.anchoredToolCalls) {
+    if (draftIndexes.has(toolCall.contentIndex as number)) continue;
+    slots.push({
+      contentIndex: toolCall.contentIndex as number,
+      order: 1,
+      type: "tool",
+      toolCall,
+    });
+  }
+  slots.sort((a, b) =>
+    a.contentIndex !== b.contentIndex
+      ? a.contentIndex - b.contentIndex
+      : a.order - b.order,
+  );
+
+  for (const slot of slots) {
+    if (slot.type === "tool") {
+      if (input.isToolConsumed(slot.toolCall.id)) continue;
+      items.push({
+        kind: "tool",
+        key: toolTimelineKey(slot.toolCall),
+        toolCall: slot.toolCall,
+        liveOutput: input.liveOutputFor(slot.toolCall.id),
+      });
+      input.consumeTool(slot.toolCall.id);
+      continue;
+    }
+
+    const block = blocks[slot.blockIndex];
+    if (block.kind !== "tool_call_draft") {
+      if (!block.text && block.kind !== "thinking") continue;
+      items.push({
+        kind: "message",
+        key: liveBlockKey(
+          message.liveMessageId,
+          block.kind,
+          block.contentIndex,
+        ),
+        item: {
+          id: liveBlockKey(
+            message.liveMessageId,
+            block.kind,
+            block.contentIndex,
+          ),
+          role: "assistant",
+          displayKind: block.kind === "thinking" ? "thinking" : "message",
+          text: block.text,
+          createdAt: message.startedAt,
+          contentIndex: block.contentIndex,
+          turnId: turn.turnId,
+          messageOrdinal: message.messageOrdinal,
+          live: !block.done,
+          done: block.done,
+          redacted: block.redacted,
+        },
+      });
+      continue;
+    }
+
+    const slotKey = toolSlotKey(message.liveMessageId, block.contentIndex);
+    // Coordinate-first joining; provider/source aliases as fallback.
+    const toolCall =
+      input.context.toolCallsBySlot.get(slotKey) ??
+      (block.providerToolCallId
+        ? input.context.toolCallsByProviderId.get(block.providerToolCallId)
+        : undefined);
+    if (toolCall && input.isToolConsumed(toolCall.id)) continue;
+    items.push({
+      kind: "tool",
+      key: slotKey,
+      draft: {
+        key: slotKey,
+        runId: activeRun.runId,
+        conversationId: activeRun.conversationId,
+        turnId: turn.turnId,
+        liveMessageId: message.liveMessageId,
+        messageOrdinal: message.messageOrdinal,
+        startedAt: message.startedAt,
+        block,
+      },
+      toolCall,
+      liveOutput: toolCall ? input.liveOutputFor(toolCall.id) : undefined,
+    });
+    if (toolCall) input.consumeTool(toolCall.id);
+  }
+}
+
 /**
- * Merge persisted branch entries, live assistant content, tool-call drafts, and
- * live/unanchored tool records into one renderer-facing conversation timeline.
- * Thin compose over {@link buildCommittedTimeline} + {@link buildLiveTimeline};
- * the reactive UI calls those directly so the committed pass stays memoized.
+ * Merge persisted branch entries, streaming assistant content, and unified
+ * tool activities into one renderer-facing conversation timeline. Thin compose
+ * over {@link buildCommittedTimeline} + {@link buildActiveRunTimeline}; the
+ * reactive UI calls those directly so the committed pass stays memoized.
  */
 export function buildConversationTimeline(
   transcript: TranscriptItem[],
   toolCalls: ToolCallTranscriptRecord[],
-  live?: ConversationLiveState,
+  activeRun?: ConversationActiveRunSnapshot,
+  transient?: ConversationTransientState,
 ): TimelineItem[] {
   const committed = buildCommittedTimeline(transcript, toolCalls, {
-    includeUnanchoredTerminalToolCalls: !live,
+    includeUnanchoredTerminalToolCalls: !activeRun,
   });
-  const liveItems = buildLiveTimeline(live, committed.context);
-  return [...selectVisibleCommitted(committed.items, live), ...liveItems];
+  const liveItems = buildActiveRunTimeline(
+    activeRun,
+    transient,
+    committed.context,
+  );
+  return [
+    ...selectVisibleCommitted(
+      committed.items,
+      activeRun,
+      transient,
+      committed.context,
+    ),
+    ...liveItems,
+  ];
 }

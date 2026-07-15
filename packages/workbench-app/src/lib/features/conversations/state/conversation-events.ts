@@ -6,7 +6,6 @@ import {
   isConversationRuntimeEvent,
 } from "./conversation-event-routing";
 import {
-  clearLiveCompaction,
   handleConversationEvent,
   isOpenConversation,
   refreshContextUsage,
@@ -31,7 +30,9 @@ function handleConversationBusEvent(
     const conversationId = conversationIdFromEvent(event);
     if (conversationId && isOpenConversation(conversationId)) {
       if (event.type === "conversation.compacted") {
-        clearLiveCompaction(conversationId, event);
+        // The shared reducer records the compaction entry and clears the
+        // transient compaction notice before the authoritative refresh lands.
+        handleConversationEvent(event);
       }
       void refreshConversationView(conversationId);
     }

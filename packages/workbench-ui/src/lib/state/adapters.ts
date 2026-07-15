@@ -2,6 +2,7 @@
 import {
   conversationEventTypes,
   type ConversationActiveRunSnapshot,
+  ConversationCompactedData,
   ConversationCompactionFailedData,
   ConversationCompactionStartedData,
   ConversationEntry,
@@ -16,6 +17,7 @@ import {
   ConversationLiveToolDraftProgressData,
   ConversationLiveToolDraftStartedData,
   ConversationLiveToolOutputDeltaData,
+  ConversationLiveToolOutputSnapshot,
   ConversationPromptCancelledData,
   ConversationPromptDequeuedData,
   ConversationPromptQueuedData,
@@ -33,17 +35,13 @@ import {
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
 import {
-  activeRunToLegacyLive,
-  drainMaterializedLiveMessages,
+  drainMaterializedActiveRunMessages,
   materializedLiveMessagesFromEntries,
-} from "./live.js";
-import {
-  type CompactionNotice,
-  type ConversationLiveState,
-  emptyLiveState,
-  type LiveToolCallDraft,
-  type LiveToolOutput,
-  type TranscriptItem,
+  removeActiveRunMessage,
+} from "./active-run.js";
+import type {
+  CompactionNotice,
+  ConversationTransientState,
 } from "./transcript-types.js";
 import {
   type ConversationRenderState,
@@ -72,13 +70,32 @@ export function fromConversationSnapshot(
     entries: snapshot.entries,
     activeEntryIds: snapshot.activeEntryIds,
     toolCalls: snapshot.toolCalls,
-    activeRun: snapshot.activeRun,
+    activeRun: drainedSnapshotActiveRun(snapshot.activeRun, snapshot.entries),
     queuedPrompts: snapshot.activeRun?.queuedPrompts ?? [],
     contextUsage: snapshot.contextUsage,
     cursorSeq: snapshot.cursorSeq,
     generatedAt: snapshot.generatedAt,
     sending: Boolean(snapshot.activeRun),
   };
+}
+
+/**
+ * Defensive snapshot normalization: the server filters materialized messages
+ * from active-run snapshots, but a snapshot taken between entry persistence
+ * and materialization marking could still carry stale blocks. Draining against
+ * the snapshot's own entries keeps recovery renders duplicate-free.
+ */
+function drainedSnapshotActiveRun(
+  activeRun: ConversationActiveRunSnapshot | undefined,
+  entries: ConversationEntry[],
+): ConversationActiveRunSnapshot | undefined {
+  if (!activeRun) return undefined;
+  const cloned = cloneActiveRun(activeRun) as ConversationActiveRunSnapshot;
+  drainMaterializedActiveRunMessages(
+    cloned,
+    materializedLiveMessagesFromEntries(entries),
+  );
+  return cloned;
 }
 
 export function fromSandboxConversationViewSnapshot(
@@ -145,11 +162,7 @@ export function applyConversationEvent(
       applyRunResumed(next, event.data as ConversationRunResumedData);
       break;
     case "run.retrying":
-      applyRunRetrying(
-        next,
-        event.data as ConversationRunRetryingData,
-        event.ts,
-      );
+      applyRunRetrying(next, event.data as ConversationRunRetryingData);
       break;
     case "run.suspended":
       applyRunSuspended(next, event.data as ConversationRunSuspendedData);
@@ -173,6 +186,9 @@ export function applyConversationEvent(
         event.data as ConversationCompactionFailedData,
         event.ts,
       );
+      break;
+    case "conversation.compacted":
+      applyCompacted(next, event.data as ConversationCompactedData);
       break;
     case "conversation.live.message.started":
       applyLiveMessageStarted(
@@ -242,17 +258,19 @@ export function applyConversationEvent(
   return next;
 }
 
+/**
+ * Shallow clone plus a deep clone of the mutable active-run tail. Handlers
+ * replace `entries`/`toolCalls`/`activeEntryIds`/`queuedPrompts` immutably, so
+ * those arrays keep their identity across unrelated events — the committed
+ * timeline memoization depends on that.
+ */
 function cloneRenderState(
   state: ConversationRenderState,
 ): ConversationRenderState {
   return {
     ...state,
-    entries: [...state.entries],
-    activeEntryIds: [...state.activeEntryIds],
-    toolCalls: [...state.toolCalls],
     activeRun: cloneActiveRun(state.activeRun),
-    live: cloneLiveState(state.live),
-    queuedPrompts: state.queuedPrompts ? [...state.queuedPrompts] : undefined,
+    transient: cloneTransient(state.transient),
   };
 }
 
@@ -288,32 +306,18 @@ function cloneActiveRun(
   };
 }
 
-function cloneLiveState(
-  live: ConversationLiveState | undefined,
-): ConversationLiveState | undefined {
-  if (!live) return undefined;
+function cloneTransient(
+  transient: ConversationTransientState | undefined,
+): ConversationTransientState | undefined {
+  if (!transient) return undefined;
   return {
-    ...live,
-    messages: live.messages.map((message) => ({ ...message })),
-    toolDrafts: live.toolDrafts.map((draft) => ({
-      ...draft,
-      args: draft.args ? { ...draft.args } : undefined,
-      progress: draft.progress ? { ...draft.progress } : undefined,
-    })),
-    toolOutputByToolCallId: Object.fromEntries(
-      Object.entries(live.toolOutputByToolCallId).map(([id, output]) => [
-        id,
-        cloneLiveOutput(output),
-      ]),
-    ),
-    runStatus: live.runStatus ? { ...live.runStatus } : undefined,
-    compaction: live.compaction ? { ...live.compaction } : undefined,
-    hiddenEntryIds: live.hiddenEntryIds ? [...live.hiddenEntryIds] : undefined,
-    messageMeta: live.messageMeta ? { ...live.messageMeta } : undefined,
+    compaction: transient.compaction ? { ...transient.compaction } : undefined,
   };
 }
 
-function cloneLiveOutput<T extends LiveToolOutput>(output: T): T {
+function cloneLiveOutput(
+  output: ConversationLiveToolOutputSnapshot,
+): ConversationLiveToolOutputSnapshot {
   return {
     ...output,
     chunks: output.chunks.map((chunk) => ({ ...chunk })),
@@ -337,7 +341,7 @@ function applyRunStarted(
     toolOutputsByToolCallId: {},
     queuedPrompts: [],
   };
-  state.live = emptyLiveState(data.runId);
+  clearTransientCompaction(state);
   state.queuedPrompts = [];
   state.sending = true;
   state.error = undefined;
@@ -351,9 +355,15 @@ function applyEntryAppended(
   state.conversationId = data.conversationId ?? entry.conversationId;
   state.entries = upsert(state.entries, entry.id, entry);
   state.activeEntryIds = nextActiveEntryIds(state.activeEntryIds, entry);
+  if (!state.activeRun) return;
   const liveMessageId = data.liveMessageId ?? entry.liveMessageId;
-  if (liveMessageId) removeLiveMessageById(state, liveMessageId);
-  drainMaterializedEntry(state, entry);
+  if (liveMessageId) removeActiveRunMessage(state.activeRun, liveMessageId);
+  if (entry.role === "assistant") {
+    drainMaterializedActiveRunMessages(
+      state.activeRun,
+      materializedLiveMessagesFromEntries([entry]),
+    );
+  }
 }
 
 function nextActiveEntryIds(
@@ -371,54 +381,6 @@ function nextActiveEntryIds(
   }
 
   return [...activeEntryIds, entry.id];
-}
-
-function removeLiveMessageById(
-  state: ConversationRenderState,
-  liveMessageId: string,
-): void {
-  const livePrefix = `live:${liveMessageId}:`;
-  if (state.live) {
-    state.live.messages = state.live.messages.filter(
-      (item) => !item.id?.startsWith(livePrefix),
-    );
-    state.live.toolDrafts = state.live.toolDrafts.filter(
-      (draft) => !draft.key.startsWith(livePrefix),
-    );
-  }
-  if (state.activeRun) {
-    for (const turn of state.activeRun.turns) {
-      turn.messages = turn.messages.filter(
-        (message) => message.liveMessageId !== liveMessageId,
-      );
-    }
-  }
-}
-
-/**
- * Structural drain: remove live blocks materialized by this entry from both
- * the legacy live state and the active-run mirror. Uses the per-turn
- * `messageOrdinal` watermark so a missed `liveMessageId` correlation cannot
- * strand thinking blocks at the bottom of the timeline.
- */
-function drainMaterializedEntry(
-  state: ConversationRenderState,
-  entry: ConversationEntry,
-): void {
-  if (entry.role !== "assistant") return;
-  if (state.live) drainMaterializedLiveMessages(state.live, entry);
-  if (
-    state.activeRun &&
-    entry.turnId &&
-    typeof entry.messageOrdinal === "number"
-  ) {
-    for (const turn of state.activeRun.turns) {
-      if (turn.turnId !== entry.turnId) continue;
-      turn.messages = turn.messages.filter(
-        (message) => message.messageOrdinal > (entry.messageOrdinal as number),
-      );
-    }
-  }
 }
 
 function applyPromptQueued(
@@ -469,6 +431,13 @@ function removePrompt(
   return prompts.filter((candidate) => candidate.id !== prompt.id);
 }
 
+/**
+ * Upsert the durable tool record. Draft blocks are intentionally kept: the
+ * unified timeline node joins the draft with the actual record during the
+ * presentation handoff, and only `tool_draft.discarded` or message
+ * materialization removes the block — mirroring the server's own snapshot
+ * lifecycle.
+ */
 function applyToolCallUpdated(
   state: ConversationRenderState,
   data: ConversationToolCallUpdatedData,
@@ -481,13 +450,6 @@ function applyToolCallUpdated(
   } else {
     state.toolCalls = upsertToolCallUpdate(state.toolCalls, toolCall);
   }
-
-  const providerToolCallIds = [
-    data.providerToolCallId,
-    toolCall.providerToolCallId,
-    toolCall.sourceToolCallId,
-  ].filter((value): value is string => Boolean(value));
-  removeLiveDraftsForProviderIds(state, providerToolCallIds);
 }
 
 function applyRunResumed(
@@ -495,8 +457,6 @@ function applyRunResumed(
   data: ConversationRunResumedData,
 ): void {
   state.conversationId = data.conversationId;
-  const live = ensureLiveState(state, data.runId);
-  live.runStatus = undefined;
   const activeRun = ensureActiveRun(state, {
     ...data,
     startedAt: data.resumedAt,
@@ -510,10 +470,16 @@ function applyRunResumed(
 function applyRunRetrying(
   state: ConversationRenderState,
   data: ConversationRunRetryingData,
-  ts: string,
 ): void {
-  const live = ensureLiveState(state, data.runId);
-  const retry = {
+  const activeRun = ensureActiveRun(state, {
+    conversationId: data.conversationId,
+    agentId: data.agentId,
+    projectId: data.projectId,
+    runId: data.runId,
+    startedAt: data.retryAt,
+  });
+  activeRun.status = "retrying";
+  activeRun.retry = {
     attempt: data.attempt,
     maxRetries: data.maxRetries,
     delayMs: data.delayMs,
@@ -521,26 +487,6 @@ function applyRunRetrying(
     errorMessage: data.errorMessage,
     failedEntryId: data.failedEntryId,
   };
-  const notice = {
-    conversationId: data.conversationId,
-    agentId: data.agentId,
-    runId: data.runId,
-    state: "retrying" as const,
-    createdAt: ts,
-    ...retry,
-  };
-  live.runStatus = notice;
-  if (retry.failedEntryId) addHiddenEntryId(live, retry.failedEntryId);
-
-  const activeRun = ensureActiveRun(state, {
-    conversationId: data.conversationId,
-    agentId: data.agentId,
-    projectId: data.projectId,
-    runId: data.runId,
-    startedAt: ts,
-  });
-  activeRun.status = "retrying";
-  activeRun.retry = retry;
   state.sending = true;
   state.error = undefined;
 }
@@ -549,7 +495,6 @@ function applyRunSuspended(
   state: ConversationRenderState,
   data: ConversationRunSuspendedData,
 ): void {
-  clearRunLiveState(state, data.runId);
   if (runMatches(state.activeRun?.runId, data.runId))
     state.activeRun = undefined;
   state.sending = false;
@@ -559,7 +504,6 @@ function applyRunCompleted(
   state: ConversationRenderState,
   data: ConversationRunCompletedData,
 ): void {
-  clearRunLiveState(state, data.runId);
   if (runMatches(state.activeRun?.runId, data.runId))
     state.activeRun = undefined;
   state.queuedPrompts = [];
@@ -571,28 +515,15 @@ function applyRunFailed(
   state: ConversationRenderState,
   data: ConversationRunFailedData,
 ): void {
-  const failedCompaction =
-    state.live?.compaction?.state === "failed"
-      ? state.live.compaction
-      : undefined;
-  clearRunLiveState(state, data.runId);
-  if (failedCompaction) {
-    state.live = { ...emptyLiveState(), compaction: failedCompaction };
-  }
   if (runMatches(state.activeRun?.runId, data.runId))
     state.activeRun = undefined;
+  // A failed compaction notice explains the failure; keep it visible.
+  if (state.transient?.compaction?.state !== "failed") {
+    clearTransientCompaction(state);
+  }
   state.queuedPrompts = [];
   state.sending = false;
   state.error = data.aborted ? undefined : data.message || "Agent error";
-}
-
-function clearRunLiveState(
-  state: ConversationRenderState,
-  runId?: string,
-): void {
-  if (!runId || !state.live?.runId || state.live.runId === runId) {
-    state.live = emptyLiveState();
-  }
 }
 
 function applyCompactionStarted(
@@ -600,10 +531,12 @@ function applyCompactionStarted(
   data: ConversationCompactionStartedData,
   ts: string,
 ): void {
-  const live = ensureLiveState(state, data.runId);
-  const notice = compactionNoticeFromStarted(data, ts, live.compaction);
-  live.compaction = notice;
-  if (notice.failedEntryId) addHiddenEntryId(live, notice.failedEntryId);
+  const transient = ensureTransient(state);
+  transient.compaction = compactionNoticeFromStarted(
+    data,
+    ts,
+    transient.compaction,
+  );
   state.error = undefined;
 }
 
@@ -612,8 +545,21 @@ function applyCompactionFailed(
   data: ConversationCompactionFailedData,
   ts: string,
 ): void {
-  const live = ensureLiveState(state, data.runId);
-  live.compaction = compactionNoticeFromFailed(data, ts, live.compaction);
+  const transient = ensureTransient(state);
+  transient.compaction = compactionNoticeFromFailed(
+    data,
+    ts,
+    transient.compaction,
+  );
+}
+
+function applyCompacted(
+  state: ConversationRenderState,
+  data: ConversationCompactedData,
+): void {
+  state.entries = upsert(state.entries, data.entry.id, data.entry);
+  state.activeEntryIds = nextActiveEntryIds(state.activeEntryIds, data.entry);
+  clearTransientCompaction(state);
 }
 
 function compactionNoticeFromStarted(
@@ -675,21 +621,28 @@ function liveCompactionId(
   return `live:compaction:${runId ?? conversationId}:${reason}`;
 }
 
+function ensureTransient(
+  state: ConversationRenderState,
+): ConversationTransientState {
+  state.transient ??= {};
+  return state.transient;
+}
+
+function clearTransientCompaction(state: ConversationRenderState): void {
+  if (!state.transient?.compaction) return;
+  state.transient = { ...state.transient, compaction: undefined };
+}
+
 function applyLiveMessageStarted(
   state: ConversationRenderState,
   data: ConversationLiveMessageStartedData,
 ): void {
-  const live = ensureLiveState(state, data.runId);
-  ensureActiveRun(state, data);
   ensureActiveMessage(state, data, data.startedAt);
-  live.messageMeta = {
-    ...live.messageMeta,
-    [data.liveMessageId]: {
-      turnId: data.turnId,
-      messageOrdinal: data.messageOrdinal,
-    },
-  };
-  live.runStatus = undefined;
+  // Streaming resumed; a pending retry attempt has evidently succeeded.
+  if (state.activeRun && state.activeRun.status === "retrying") {
+    state.activeRun.status = "running";
+    state.activeRun.retry = undefined;
+  }
   state.sending = true;
 }
 
@@ -700,33 +653,16 @@ function applyLiveContentDelta(
   options: ApplyConversationEventOptions,
 ): void {
   if (!data.delta) return;
-  const live = ensureLiveState(state, data.runId);
-  const id = liveTextId(data.liveMessageId, data.kind, data.contentIndex);
-  const current = live.messages.find((item) => item.id === id);
-  const currentLength = current?.text.length ?? 0;
+  const current = findActiveBlock(state, data);
+  const currentLength =
+    current && current.kind !== "tool_call_draft" ? current.text.length : 0;
   if (currentLength > data.offset) return;
   if (currentLength < data.offset) {
     reportGap(options, data, "conversation.live.content.delta");
     return;
   }
-
-  const text = `${current?.text ?? ""}${data.delta}`;
-  upsertLiveMessage(live, {
-    id,
-    role: "assistant",
-    displayKind: data.kind === "thinking" ? "thinking" : "message",
-    text,
-    createdAt: current?.createdAt ?? activeMessageStartedAt(state, data) ?? ts,
-    contentIndex: data.contentIndex,
-    turnId: data.turnId,
-    messageOrdinal: liveMessageOrdinal(state, data),
-    live: true,
-    done: false,
-    redacted: current?.redacted,
-  });
-
   const block = ensureActiveTextBlock(state, data, ts);
-  if (block) block.text = text;
+  if (block) block.text = `${block.text}${data.delta}`;
   state.sending = true;
 }
 
@@ -735,31 +671,11 @@ function applyLiveContentDone(
   data: ConversationLiveContentDoneData,
   ts: string,
 ): void {
-  const live = ensureLiveState(state, data.runId);
-  const id = liveTextId(data.liveMessageId, data.kind, data.contentIndex);
-  const current = live.messages.find((item) => item.id === id);
   const block = ensureActiveTextBlock(state, data, ts);
-  const text = data.finalText ?? current?.text ?? block?.text ?? "";
-
-  if (block) {
-    block.text = text;
-    block.done = true;
-    block.redacted = data.redacted;
-  }
-
-  upsertLiveMessage(live, {
-    id,
-    role: "assistant",
-    displayKind: data.kind === "thinking" ? "thinking" : "message",
-    text,
-    createdAt: current?.createdAt ?? activeMessageStartedAt(state, data) ?? ts,
-    contentIndex: data.contentIndex,
-    turnId: data.turnId,
-    messageOrdinal: liveMessageOrdinal(state, data),
-    live: false,
-    done: true,
-    redacted: data.kind === "thinking" ? data.redacted : undefined,
-  });
+  if (!block) return;
+  block.text = data.finalText ?? block.text;
+  block.done = true;
+  block.redacted = data.kind === "thinking" ? data.redacted : undefined;
 }
 
 function applyToolDraftStarted(
@@ -767,8 +683,6 @@ function applyToolDraftStarted(
   data: ConversationLiveToolDraftStartedData,
   ts: string,
 ): void {
-  ensureLiveState(state, data.runId);
-  upsertToolDraft(state, data, ts, {});
   ensureActiveToolDraftBlock(state, data, ts);
   state.sending = true;
 }
@@ -779,19 +693,16 @@ function applyToolDraftDelta(
   ts: string,
   options: ApplyConversationEventOptions,
 ): void {
-  const live = ensureLiveState(state, data.runId);
-  const key = draftKey(data.liveMessageId, data.contentIndex);
-  const current = live.toolDrafts.find((draft) => draft.key === key);
-  const currentLength = current?.argsText.length ?? 0;
+  const current = findActiveBlock(state, data);
+  const currentLength =
+    current?.kind === "tool_call_draft" ? current.argsText.length : 0;
   if (currentLength > data.offset) return;
   if (currentLength < data.offset) {
     reportGap(options, data, "conversation.live.tool_draft.delta");
     return;
   }
-  const argsText = `${current?.argsText ?? ""}${data.delta}`;
-  upsertToolDraft(state, data, ts, { argsText });
   const block = ensureActiveToolDraftBlock(state, data, ts);
-  if (block) block.argsText = argsText;
+  if (block) block.argsText = `${block.argsText}${data.delta}`;
 }
 
 function applyToolDraftDone(
@@ -799,21 +710,13 @@ function applyToolDraftDone(
   data: ConversationLiveToolDraftDoneData,
   ts: string,
 ): void {
-  upsertToolDraft(state, data, ts, {
-    argsText: "",
-    args: data.args,
-    done: true,
-    providerToolCallId: data.providerToolCallId,
-    toolName: data.toolName,
-  });
   const block = ensureActiveToolDraftBlock(state, data, ts);
-  if (block) {
-    block.argsText = "";
-    block.args = data.args;
-    block.done = true;
-    block.providerToolCallId = data.providerToolCallId;
-    block.toolName = data.toolName;
-  }
+  if (!block) return;
+  block.argsText = "";
+  block.args = data.args;
+  block.done = true;
+  block.providerToolCallId = data.providerToolCallId;
+  block.toolName = data.toolName;
 }
 
 function applyToolDraftProgress(
@@ -821,7 +724,6 @@ function applyToolDraftProgress(
   data: ConversationLiveToolDraftProgressData,
   ts: string,
 ): void {
-  upsertToolDraft(state, data, ts, { progress: data.progress });
   const block = ensureActiveToolDraftBlock(state, data, ts);
   if (block) block.progress = data.progress;
 }
@@ -830,27 +732,18 @@ function applyToolDraftDiscarded(
   state: ConversationRenderState,
   data: ConversationLiveToolDraftDiscardedData,
 ): void {
-  const key = draftKey(data.liveMessageId, data.contentIndex);
-  if (state.live) {
-    state.live.toolDrafts = removeDiscardedToolDraft(
-      state.live.toolDrafts,
-      key,
-      data.providerToolCallId,
-    );
-  }
   const message = activeMessage(state, data.turnId, data.liveMessageId);
-  if (message) {
-    message.blocks = message.blocks.filter((block) => {
-      if (block.kind !== "tool_call_draft") return true;
-      if (block.contentIndex === data.contentIndex) return false;
-      if (
-        data.providerToolCallId &&
-        block.providerToolCallId === data.providerToolCallId
-      )
-        return false;
-      return true;
-    });
-  }
+  if (!message) return;
+  message.blocks = message.blocks.filter((block) => {
+    if (block.kind !== "tool_call_draft") return true;
+    if (block.contentIndex === data.contentIndex) return false;
+    if (
+      data.providerToolCallId &&
+      block.providerToolCallId === data.providerToolCallId
+    )
+      return false;
+    return true;
+  });
 }
 
 function applyToolOutputDelta(
@@ -860,8 +753,19 @@ function applyToolOutputDelta(
   options: ApplyConversationEventOptions,
 ): void {
   if (!data.delta) return;
-  const live = ensureLiveState(state, data.runId);
-  const previous = live.toolOutputByToolCallId[data.toolCallId];
+  const activeRun =
+    state.activeRun ??
+    (data.runId
+      ? ensureActiveRun(state, {
+          conversationId: data.conversationId,
+          agentId: data.agentId,
+          projectId: data.projectId,
+          runId: data.runId,
+          startedAt: ts,
+        })
+      : undefined);
+  if (!activeRun) return;
+  const previous = activeRun.toolOutputsByToolCallId[data.toolCallId];
   const previousTotal =
     previous?.outputLimits?.totalChars ?? previous?.text.length ?? 0;
   if (previousTotal > data.offset) return;
@@ -869,55 +773,25 @@ function applyToolOutputDelta(
     reportGap(options, data, "conversation.live.tool_output.delta");
     return;
   }
-  const output = capLiveOutput({
-    chunks: [
-      ...(previous?.chunks ?? []),
-      { stream: data.stream, text: data.delta, ts },
-    ],
-    text: `${previous?.text ?? ""}${data.delta}`,
-    updatedAt: ts,
-    outputLimits: {
-      capped: false,
-      direction: "tail",
-      maxChars: MAX_LIVE_TOOL_OUTPUT_CHARS,
-      maxChunks: MAX_LIVE_TOOL_OUTPUT_CHUNKS,
-      totalChars: previousTotal + data.delta.length,
-    },
-  });
-  live.toolOutputByToolCallId = {
-    ...live.toolOutputByToolCallId,
-    [data.toolCallId]: output,
-  };
-  if (state.activeRun) {
-    state.activeRun.toolOutputsByToolCallId = {
-      ...state.activeRun.toolOutputsByToolCallId,
-      [data.toolCallId]: {
-        toolCallId: data.toolCallId,
-        ...output,
+  activeRun.toolOutputsByToolCallId = {
+    ...activeRun.toolOutputsByToolCallId,
+    [data.toolCallId]: capLiveOutput({
+      toolCallId: data.toolCallId,
+      chunks: [
+        ...(previous?.chunks ?? []),
+        { stream: data.stream, text: data.delta, ts },
+      ],
+      text: `${previous?.text ?? ""}${data.delta}`,
+      updatedAt: ts,
+      outputLimits: {
+        capped: false,
+        direction: "tail",
+        maxChars: MAX_LIVE_TOOL_OUTPUT_CHARS,
+        maxChunks: MAX_LIVE_TOOL_OUTPUT_CHUNKS,
+        totalChars: previousTotal + data.delta.length,
       },
-    };
-  }
-}
-
-function ensureLiveState(
-  state: ConversationRenderState,
-  runId?: string,
-): ConversationLiveState {
-  if (!state.live) {
-    state.live =
-      state.activeRun && (!runId || state.activeRun.runId === runId)
-        ? activeRunToLegacyLive(state.activeRun, {
-            materialized: materializedLiveMessagesFromEntries(state.entries),
-          })
-        : emptyLiveState(runId);
-    return state.live;
-  }
-  if (!runId || state.live.runId === runId || !state.live.runId) {
-    state.live = { ...state.live, runId: runId || state.live.runId };
-    return state.live;
-  }
-  state.live = emptyLiveState(runId);
-  return state.live;
+    }),
+  };
 }
 
 function ensureActiveRun(
@@ -981,6 +855,15 @@ function ensureActiveMessage(
     turn.messages.push(message);
   }
   return message;
+}
+
+function findActiveBlock(
+  state: ConversationRenderState,
+  data: { turnId: string; liveMessageId: string; contentBlockId: string },
+) {
+  return activeMessage(state, data.turnId, data.liveMessageId)?.blocks.find(
+    (block) => block.contentBlockId === data.contentBlockId,
+  );
 }
 
 function ensureActiveTextBlock(
@@ -1059,119 +942,9 @@ function activeMessageStartedAt(
   return activeMessage(state, data.turnId, data.liveMessageId)?.startedAt;
 }
 
-function upsertLiveMessage(
-  live: ConversationLiveState,
-  item: TranscriptItem,
-): void {
-  const index = live.messages.findIndex(
-    (candidate) => candidate.id === item.id,
-  );
-  live.messages =
-    index === -1
-      ? [...live.messages, item]
-      : live.messages.map((candidate) =>
-          candidate.id === item.id ? item : candidate,
-        );
-}
-
-function upsertToolDraft(
-  state: ConversationRenderState,
-  data:
-    | ConversationLiveToolDraftStartedData
-    | ConversationLiveToolDraftDeltaData
-    | ConversationLiveToolDraftDoneData
-    | ConversationLiveToolDraftProgressData,
-  ts: string,
-  patch: Partial<LiveToolCallDraft>,
-): void {
-  const live = ensureLiveState(state, data.runId);
-  const key = draftKey(data.liveMessageId, data.contentIndex);
-  const current = live.toolDrafts.find((draft) => draft.key === key);
-  const updated: LiveToolCallDraft = {
-    kind: "tool_call_draft",
-    key,
-    runId: data.runId,
-    conversationId: data.conversationId,
-    contentIndex: data.contentIndex,
-    turnId: data.turnId,
-    messageOrdinal: liveMessageOrdinal(state, data),
-    providerToolCallId:
-      patch.providerToolCallId ??
-      data.providerToolCallId ??
-      current?.providerToolCallId,
-    toolName: patch.toolName ?? data.toolName ?? current?.toolName,
-    argsText: patch.argsText ?? current?.argsText ?? "",
-    args: patch.args ?? current?.args,
-    progress: patch.progress ?? current?.progress,
-    done: patch.done ?? current?.done,
-    createdAt: current?.createdAt ?? activeMessageStartedAt(state, data) ?? ts,
-    updatedAt: ts,
-  };
-  live.toolDrafts = current
-    ? live.toolDrafts.map((draft) => (draft.key === key ? updated : draft))
-    : [...live.toolDrafts, updated];
-}
-
-export function removeDiscardedToolDraft(
-  drafts: LiveToolCallDraft[],
-  key: string,
-  providerToolCallId?: string,
-): LiveToolCallDraft[] {
-  return drafts.filter(
-    (draft) =>
-      draft.key !== key &&
-      (!providerToolCallId || draft.providerToolCallId !== providerToolCallId),
-  );
-}
-
-function removeLiveDraftsForProviderIds(
-  state: ConversationRenderState,
-  providerToolCallIds: string[],
-): void {
-  if (providerToolCallIds.length === 0) return;
-  const ids = new Set(providerToolCallIds);
-  if (state.live) {
-    state.live.toolDrafts = state.live.toolDrafts.filter(
-      (draft) =>
-        !draft.providerToolCallId || !ids.has(draft.providerToolCallId),
-    );
-  }
-  if (state.activeRun) {
-    for (const turn of state.activeRun.turns) {
-      for (const message of turn.messages) {
-        message.blocks = message.blocks.filter(
-          (block) =>
-            block.kind !== "tool_call_draft" ||
-            !block.providerToolCallId ||
-            !ids.has(block.providerToolCallId),
-        );
-      }
-    }
-  }
-}
-
-function liveMessageOrdinal(
-  state: ConversationRenderState,
-  data: { turnId: string; liveMessageId: string },
-): number | undefined {
-  const meta = state.live?.messageMeta?.[data.liveMessageId];
-  if (meta) return meta.messageOrdinal;
-  return activeMessage(state, data.turnId, data.liveMessageId)?.messageOrdinal;
-}
-
-function liveTextId(
-  liveMessageId: string,
-  kind: "text" | "thinking",
-  contentIndex: number,
-): string {
-  return `live:${liveMessageId}:${kind}:${contentIndex}`;
-}
-
-function draftKey(liveMessageId: string, contentIndex: number): string {
-  return `live:${liveMessageId}:tool-draft:${contentIndex}`;
-}
-
-export function capLiveOutput(output: LiveToolOutput): LiveToolOutput {
+export function capLiveOutput(
+  output: ConversationLiveToolOutputSnapshot,
+): ConversationLiveToolOutputSnapshot {
   const totalChars = output.outputLimits?.totalChars ?? output.text.length;
   let text = output.text;
   if (text.length > MAX_LIVE_TOOL_OUTPUT_CHARS) {
@@ -1206,12 +979,6 @@ export function capLiveOutput(output: LiveToolOutput): LiveToolOutput {
 function countLines(text: string): number {
   if (!text) return 0;
   return text.split("\n").length;
-}
-
-function addHiddenEntryId(live: ConversationLiveState, entryId: string): void {
-  live.hiddenEntryIds = Array.from(
-    new Set([...(live.hiddenEntryIds ?? []), entryId]),
-  );
 }
 
 function runMatches(

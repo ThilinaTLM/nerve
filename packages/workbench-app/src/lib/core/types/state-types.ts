@@ -3,13 +3,12 @@
 // one neutral place for cross-feature consumers.
 export type {
   CompactionNotice,
-  ConversationLiveState,
+  ConversationTransientState,
   ConversationViewState,
-  LiveToolCallDraft,
-  LiveToolOutput,
   PendingConversationState,
   RunStatusNotice,
   TaskEventNotice,
+  ToolDraftViewModel,
   TranscriptItem,
 } from "$lib/features/conversations";
 export type { FileViewState } from "$lib/features/filesystem";

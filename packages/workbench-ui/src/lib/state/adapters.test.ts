@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { EventEnvelope } from "@nervekit/contracts";
+import type { ConversationSnapshot, EventEnvelope } from "@nervekit/contracts";
 import {
   applyConversationEvent,
   buildConversationRenderProjection,
   type ConversationRenderState,
   emptyConversationRenderState,
+  fromConversationSnapshot,
 } from "./index.js";
 
 describe("shared conversation adapters", () => {
@@ -275,12 +276,78 @@ describe("shared conversation adapters", () => {
       "thinking:thinking about B",
     ]);
 
-    // A snapshot-style rebuild (live state dropped) must not resurrect it
-    // either: the active-run mirror was drained by the same watermark.
-    const rebuilt = buildConversationRenderProjection({
-      ...(state as ConversationRenderState),
-      live: undefined,
-    });
+    // A snapshot-style recovery must not resurrect it either: even when the
+    // server snapshot still carries the materialized message (persistence /
+    // materialization race), ingestion drains it against the snapshot entries.
+    const rendered2 = state as ConversationRenderState;
+    const snapshot: ConversationSnapshot = {
+      conversation: {
+        id: "conv_test",
+        projectId: "proj_test",
+        title: "Test",
+        mode: "coding",
+        permissionLevel: "supervised",
+        approvalPolicy: { autoApproveReadOnly: true },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      entries: rendered2.entries,
+      activeEntryIds: rendered2.activeEntryIds,
+      tree: {
+        conversationId: "conv_test",
+        rootEntryIds: [],
+        nodes: [],
+      },
+      toolCalls: [],
+      activeRun: {
+        ...(rendered2.activeRun as NonNullable<
+          ConversationRenderState["activeRun"]
+        >),
+        // Simulate a stale snapshot that still carries the materialized
+        // message alongside the streaming one.
+        turns: [
+          {
+            turnId: "turn_test",
+            ordinal: 0,
+            messages: [
+              {
+                liveMessageId: "msg_1",
+                messageOrdinal: 0,
+                startedAt: "2026-01-01T00:00:01.000Z",
+                blocks: [
+                  {
+                    kind: "thinking",
+                    contentBlockId: "block_msg_1",
+                    contentIndex: 0,
+                    text: "thinking about A",
+                    done: true,
+                  },
+                ],
+              },
+              {
+                liveMessageId: "msg_2",
+                messageOrdinal: 1,
+                startedAt: "2026-01-01T00:00:05.000Z",
+                blocks: [
+                  {
+                    kind: "thinking",
+                    contentBlockId: "block_msg_2",
+                    contentIndex: 0,
+                    text: "thinking about B",
+                    done: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      cursorSeq: 10,
+      generatedAt: "2026-01-01T00:00:06.000Z",
+    };
+    const rebuilt = buildConversationRenderProjection(
+      fromConversationSnapshot(snapshot),
+    );
     const rebuiltRendered = rebuilt.timeline.map((node) =>
       node.kind === "message"
         ? `${node.item.displayKind}:${node.item.text}`

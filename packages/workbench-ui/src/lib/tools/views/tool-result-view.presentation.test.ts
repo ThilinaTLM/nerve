@@ -365,6 +365,7 @@ describe("toolPresentation", () => {
       { status: "running" },
     );
     const view = parseToolView(tc, {
+      toolCallId: "tool_live_output",
       chunks: [],
       updatedAt: "2026-01-01T00:00:00.000Z",
       text: exploreUpdate("queued", "Starting 2 explore agents.", {

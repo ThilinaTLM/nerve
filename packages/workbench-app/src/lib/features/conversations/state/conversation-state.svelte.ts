@@ -1,51 +1,44 @@
 import type {
   AgentRecord,
   CompletionItem,
-  ContextUsage,
-  ConversationActiveRunSnapshot,
   ConversationTreeNode,
   QueuedPromptRecord,
-  ToolCallTranscriptRecord,
 } from "$lib/api";
 import type {
-  ConversationLiveState,
+  ConversationRenderState,
   TranscriptItem,
 } from "@nervekit/workbench-ui/state";
 
-// Transcript/live state shapes are owned by the shared workbench-ui package so
-// the app reducers and the shared timeline/drain helpers agree on one model.
+// Transcript/state shapes are owned by the shared workbench-ui package so the
+// app effects and the shared reducer/timeline helpers agree on one model.
 export type {
   CompactionNotice,
   CompactionNoticeState,
-  ConversationLiveState,
-  LiveMessageMeta,
-  LiveToolCallDraft,
-  LiveToolOutput,
-  LiveToolOutputChunk,
+  ConversationRenderState,
+  ConversationTransientState,
   RunStatusNotice,
   TaskEventNotice,
+  ToolDraftViewModel,
   TranscriptDisplayKind,
   TranscriptItem,
 } from "@nervekit/workbench-ui/state";
 
-export type ConversationViewState = {
+/**
+ * Canonical shared render state plus app-only view concerns (tree, composer,
+ * optimistic user rows, loading). The shared `applyConversationEvent` reducer
+ * operates on the canonical subset; app effects own the rest.
+ */
+export interface ConversationViewState extends ConversationRenderState {
   conversationId: string;
   activeEntryId?: string;
-  activeEntryIds: string[];
-  transcript: TranscriptItem[];
-  toolCalls: ToolCallTranscriptRecord[];
   treeNodes: ConversationTreeNode[];
-  streamingText: string;
-  live: ConversationLiveState;
-  activeRun?: ConversationActiveRunSnapshot;
+  /** Locally echoed user prompts awaiting their durable entries. */
+  optimisticMessages: TranscriptItem[];
   queuedPrompts: QueuedPromptRecord[];
-  contextUsage?: ContextUsage;
-  cursorSeq: number;
   sending: boolean;
-  error?: string;
   composerText: string;
   loading: boolean;
-};
+}
 
 export type PendingConversationState = {
   id: string;

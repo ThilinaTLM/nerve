@@ -1,7 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildConversationTimeline } from "./timeline";
-import { keys, liveState } from "./timeline.fixtures";
+import {
+  activeRun,
+  keys,
+  liveMessage,
+  runTurn,
+  textBlock,
+} from "./timeline.fixtures";
+
+const RETRY = {
+  attempt: 1,
+  maxRetries: 3,
+  delayMs: 1000,
+  retryAt: "2026-01-01T00:00:05.000Z",
+};
 
 describe("buildConversationTimeline status and compaction", () => {
   it("appends live retry status and suppresses the referenced failed assistant", () => {
@@ -11,14 +24,9 @@ describe("buildConversationTimeline status and compaction", () => {
         { id: "entry_failed", role: "assistant", text: "Agent run failed" },
       ],
       [],
-      liveState({
-        runStatus: {
-          state: "retrying",
-          runId: "run_01H00000000000000000000000",
-          failedEntryId: "entry_failed",
-          attempt: 1,
-          maxRetries: 3,
-        },
+      activeRun({
+        status: "retrying",
+        retry: { ...RETRY, failedEntryId: "entry_failed" },
       }),
     );
 
@@ -33,19 +41,20 @@ describe("buildConversationTimeline status and compaction", () => {
     const timeline = buildConversationTimeline(
       [
         { id: "entry_user", role: "user", text: "Go" },
-        { id: "entry_failed", role: "assistant", text: "Agent run failed" },
+        {
+          id: "entry_failed",
+          runId: "run_01H00000000000000000000000",
+          role: "assistant",
+          text: "Agent run failed",
+          stopReason: "error",
+        },
       ],
       [],
-      liveState({
-        hiddenEntryIds: ["entry_failed"],
-        messages: [
-          {
-            id: "live:msg_1:text:0",
-            role: "assistant",
-            displayKind: "message",
-            text: "Retry response",
-            live: true,
-          },
+      activeRun({
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_1", 0, [textBlock("text", 0, "Retry response")]),
+          ]),
         ],
       }),
     );
@@ -78,14 +87,15 @@ describe("buildConversationTimeline status and compaction", () => {
     assert.equal(timeline[1]?.kind, "compaction");
   });
 
-  it("appends live compaction and hides the failed overflow entry", () => {
+  it("appends running compaction and hides the failed overflow entry", () => {
     const timeline = buildConversationTimeline(
       [
         { id: "entry_user", role: "user", text: "Go" },
         { id: "entry_failed", role: "assistant", text: "Too many tokens" },
       ],
       [],
-      liveState({
+      undefined,
+      {
         compaction: {
           id: "live:compaction:run_1:overflow",
           state: "running",
@@ -93,7 +103,7 @@ describe("buildConversationTimeline status and compaction", () => {
           runId: "run_1",
           failedEntryId: "entry_failed",
         },
-      }),
+      },
     );
 
     assert.deepEqual(keys(timeline), [
@@ -101,6 +111,33 @@ describe("buildConversationTimeline status and compaction", () => {
       "live:compaction:run_1:overflow",
     ]);
     assert.equal(timeline[1]?.kind, "compaction");
+  });
+
+  it("keeps the failed entry visible once compaction has failed", () => {
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Go" },
+        { id: "entry_failed", role: "assistant", text: "Too many tokens" },
+      ],
+      [],
+      undefined,
+      {
+        compaction: {
+          id: "live:compaction:run_1:overflow",
+          state: "failed",
+          reason: "overflow",
+          runId: "run_1",
+          failedEntryId: "entry_failed",
+          errorMessage: "Compaction failed",
+        },
+      },
+    );
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "entry_failed",
+      "live:compaction:run_1:overflow",
+    ]);
   });
 
   it("renders persisted run status entries as status timeline nodes", () => {
@@ -147,14 +184,10 @@ describe("buildConversationTimeline status and compaction", () => {
         },
       ],
       [],
-      liveState({
+      activeRun({
         runId: "run_retry",
-        runStatus: {
-          runId: "run_retry",
-          state: "retrying",
-          attempt: 3,
-          maxRetries: 3,
-        },
+        status: "retrying",
+        retry: { ...RETRY, attempt: 3 },
       }),
     );
 

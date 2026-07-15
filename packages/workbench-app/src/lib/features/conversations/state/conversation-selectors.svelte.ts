@@ -3,6 +3,7 @@ import {
   parseModelKey,
   scopedUsableModelOptions,
 } from "@nervekit/workbench-ui/core/utils/model";
+import { activeRunStreamingText } from "@nervekit/workbench-ui/state";
 import {
   conversationViewKey,
   pendingConversationKey,
@@ -77,11 +78,11 @@ export const conversationSelectors = {
   get pendingApprovalCount() {
     return workspaceState.approvals.length;
   },
-  get conversationLiveState() {
-    return activeView()?.live;
+  get conversationActiveRun() {
+    return activeView()?.activeRun;
   },
-  get transcript() {
-    return activeView()?.transcript ?? [];
+  get entries() {
+    return activeView()?.entries ?? [];
   },
   get toolCalls() {
     return activeView()?.toolCalls ?? [];
@@ -90,7 +91,7 @@ export const conversationSelectors = {
     return activeView()?.treeNodes ?? [];
   },
   get streamingText() {
-    return activeView()?.streamingText ?? "";
+    return activeRunStreamingText(activeView()?.activeRun);
   },
   get queuedPrompts() {
     return activeView()?.queuedPrompts ?? [];
@@ -155,13 +156,13 @@ export const conversationSelectors = {
       cacheWrite: 0,
       cost: 0,
     };
-    for (const item of activeView()?.transcript ?? []) {
-      if (!item.usage) continue;
-      totals.input += item.usage.input;
-      totals.output += item.usage.output;
-      totals.cacheRead += item.usage.cacheRead;
-      totals.cacheWrite += item.usage.cacheWrite;
-      totals.cost += item.usage.cost;
+    for (const entry of activeView()?.entries ?? []) {
+      if (!entry.usage) continue;
+      totals.input += entry.usage.input;
+      totals.output += entry.usage.output;
+      totals.cacheRead += entry.usage.cacheRead;
+      totals.cacheWrite += entry.usage.cacheWrite;
+      totals.cost += entry.usage.cost;
     }
     return totals;
   },

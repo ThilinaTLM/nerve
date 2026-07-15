@@ -1,4 +1,4 @@
-import type { LiveToolCallDraft } from "../../state/transcript-types";
+import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
 
 export type DraftArgsPreview = {
   argsPreview?: string;
@@ -102,7 +102,7 @@ function formatPartialJsonish(text: string): string {
 }
 
 export function draftArgsPreview(
-  draft: LiveToolCallDraft,
+  draft: ConversationLiveToolDraftBlockSnapshot,
   options: DraftArgsPreviewOptions,
 ): DraftArgsPreview {
   if (draft.args !== undefined) {

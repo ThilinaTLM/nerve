@@ -36,18 +36,18 @@ export async function compactActiveConversation() {
     conversationId,
     createdAt: new Date().toISOString(),
   };
-  view.live = { ...view.live, compaction: notice };
+  view.transient = { ...view.transient, compaction: notice };
   view.error = undefined;
   try {
     await compactConversation(conversationId);
-    view.live = { ...view.live, compaction: undefined };
+    view.transient = { ...view.transient, compaction: undefined };
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     await openConversation(conversationId);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
-    view.live = {
-      ...view.live,
+    view.transient = {
+      ...view.transient,
       compaction: {
         ...notice,
         state: "failed",
@@ -90,9 +90,9 @@ export async function abortActiveRun() {
     { idempotencyKey: crypto.randomUUID() },
   );
   if (view) {
+    // Immediate visual feedback; the run.failed(aborted) event confirms.
     view.sending = false;
-    view.streamingText = "";
-    view.live = { messages: [], toolDrafts: [], toolOutputByToolCallId: {} };
+    view.activeRun = undefined;
     view.queuedPrompts = [];
   }
 }

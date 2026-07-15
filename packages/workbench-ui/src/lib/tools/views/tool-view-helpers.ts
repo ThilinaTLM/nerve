@@ -9,7 +9,7 @@ import {
   resolveDisplayPath,
 } from "@nervekit/ui-kit/core/utils/path-links";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
-import type { LiveToolOutput } from "../../state/transcript-types";
+import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
 /** Lines/items shown before the footer "Show more" toggle expands a body. */
@@ -113,7 +113,7 @@ function combinedStreamOutput(value: unknown): string | undefined {
 export function resultOutputText(
   result: ReturnType<typeof parseToolExecutionResult>,
   rawResult: unknown,
-  liveOutput?: LiveToolOutput,
+  liveOutput?: ConversationLiveToolOutputSnapshot,
 ): string {
   return (
     result?.content ??
