@@ -19,7 +19,10 @@ void describe("resolveFilePaneModel", () => {
       "README.mdown",
       "README.mkd",
     ]) {
-      assert.equal(resolveFilePaneModel(view({ path })).displayMode, "rendered");
+      assert.equal(
+        resolveFilePaneModel(view({ path })).displayMode,
+        "rendered",
+      );
     }
     assert.equal(resolveFilePaneModel(view()).displayMode, "raw");
   });
