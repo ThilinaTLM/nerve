@@ -358,9 +358,10 @@ function handleMicContextMenu(event: MouseEvent) {
   }}
 >
   {#snippet header()}
-    {#if composerSuggestions.length > 0 && !blockedForReview && !sending && !compacting && canPrompt}
+    {#if composerSuggestions.length > 0 && !blockedForReview && !compacting && canPrompt}
       <PromptSuggestionChips
         suggestions={composerSuggestions}
+        disabled={sending}
         onSend={onSendSuggestion}
         onDraft={onDraftSuggestion}
       />

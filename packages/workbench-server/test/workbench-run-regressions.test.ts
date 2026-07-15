@@ -56,6 +56,45 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(state.agents.get(agent.id)?.status, "idle");
   });
 
+  it("preserves newer persisted agent status during startup rebuild", async () => {
+    const state = new RuntimeState();
+    const newerAgent = {
+      ...agentRecord(),
+      status: "idle" as const,
+      updatedAt: "2026-07-13T00:00:10.000Z",
+    };
+    state.agents.set(newerAgent.id, newerAgent);
+    const projected: AgentRecord["status"][] = [];
+    const projector = new WorkbenchRunStatusProjector(
+      state,
+      async (current, status) => {
+        projected.push(status);
+        state.agents.set(current.id, { ...current, status });
+      },
+    );
+    const failedRun = runRecord("failed", 5);
+    const hydrated = {
+      run: failedRun,
+      transitions: [],
+      prompts: [],
+      interactions: [],
+      checkpoints: [],
+      deliveries: [],
+    };
+
+    await projector.rebuild([hydrated]);
+    assert.deepEqual(projected, []);
+    assert.equal(state.agents.get(newerAgent.id)?.status, "idle");
+
+    state.agents.set(newerAgent.id, {
+      ...newerAgent,
+      updatedAt: "2026-07-13T00:00:04.000Z",
+    });
+    await projector.rebuild([hydrated]);
+    assert.deepEqual(projected, ["error"]);
+    assert.equal(state.agents.get(newerAgent.id)?.status, "error");
+  });
+
   it("projects HITL resumes as running and real retries from durable metadata", async () => {
     const runtime = new RuntimeState();
     const legacyResume = {
@@ -294,6 +333,21 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.resolutions[0]?.completeRun, true);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
+    assert.equal(fixture.source.status, "idle");
+    assert.deepEqual(fixture.statusUpdates, []);
+  });
+
+  it("settles a detached rejected plan to idle", async () => {
+    const fixture = rejectionFixture("detached");
+
+    const rejected = await fixture.service.rejectPlanReview(fixture.review.id);
+
+    assert.equal(rejected.status, "changes_requested");
+    assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 0);
+    assert.equal(fixture.source.status, "idle");
+    assert.deepEqual(fixture.statusUpdates, ["idle"]);
   });
 
   it("reconciles when the source run becomes terminal during rejection", async () => {
@@ -305,6 +359,8 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.resolutions.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
+    assert.equal(fixture.source.status, "idle");
+    assert.deepEqual(fixture.statusUpdates, ["idle"]);
   });
 
   it("reconciles an orphaned plan review whose source run is terminal", async () => {
@@ -319,6 +375,8 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.resolutions.length, 0);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
+    assert.equal(fixture.source.status, "idle");
+    assert.deepEqual(fixture.statusUpdates, ["idle"]);
   });
 
   it("bounds automatic fresh-run handovers at three and resets only externally", async () => {
@@ -478,19 +536,24 @@ function acceptanceFixture(
 }
 
 function rejectionFixture(
-  sourceState: "pending" | "terminal" | "terminal_race",
+  sourceState: "detached" | "pending" | "terminal" | "terminal_race",
 ) {
-  const source = { ...agentRecord(), mode: "planning" as const };
+  let source: AgentRecord = {
+    ...agentRecord(),
+    mode: "planning",
+    status: sourceState === "pending" ? "awaiting_user" : "error",
+  };
   const review = planReview();
   const resolutions: Array<Record<string, unknown>> = [];
   const completedToolCalls: unknown[] = [];
   const appendedEntries: unknown[] = [];
+  const statusUpdates: AgentRecord["status"][] = [];
   const pendingToolCall = {
     id: review.toolCallId,
     agentId: source.id,
     conversationId: source.conversationId,
     projectId: source.projectId,
-    runId: "run_source",
+    runId: sourceState === "detached" ? undefined : "run_source",
     turnId: "turn_source",
     providerToolCallId: "provider_plan",
     toolName: "plan_mode_present",
@@ -539,11 +602,18 @@ function rejectionFixture(
         if (sourceState === "terminal_race") {
           throw new Error("run became terminal");
         }
+        source = { ...source, status: "idle" };
       },
     },
     getAgent: () => source,
     configureAgent: async () => source,
-    setAgentStatus: async () => undefined,
+    setAgentStatus: async (
+      agent: AgentRecord,
+      status: AgentRecord["status"],
+    ) => {
+      statusUpdates.push(status);
+      source = { ...agent, status };
+    },
     continueAgent: async () => undefined,
     createConversation: async () => {
       throw new Error("not used");
@@ -565,9 +635,13 @@ function rejectionFixture(
   return {
     service,
     review,
+    get source() {
+      return source;
+    },
     resolutions,
     completedToolCalls,
     appendedEntries,
+    statusUpdates,
   };
 }
 

@@ -34,12 +34,20 @@ export class WorkbenchRunStatusProjector implements RunTransitionObserverPort {
         latestByAgent.set(run.agentId, run);
       }
     }
-    for (const run of latestByAgent.values()) await this.project(run);
+    for (const run of latestByAgent.values()) {
+      await this.project(run, { preserveNewerAgentStatus: true });
+    }
   }
 
-  private async project(run: RunRecord): Promise<void> {
+  private async project(
+    run: RunRecord,
+    options: { preserveNewerAgentStatus?: boolean } = {},
+  ): Promise<void> {
     const agent = this.state.agents.get(run.agentId);
     if (!agent) return;
+    if (options.preserveNewerAgentStatus && agent.updatedAt > run.updatedAt) {
+      return;
+    }
     const status = agentStatusForRun(run.status);
     if (agent.status === status) return;
     await this.update(agent, status);

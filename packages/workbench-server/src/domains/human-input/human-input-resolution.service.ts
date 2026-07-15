@@ -194,11 +194,13 @@ export class HumanInputResolutionService {
           finalSuspensionStatus: "cancelled",
         },
       );
+      await this.setRejectedPlanAgentIdle(review);
       return review;
     }
 
     if (source.state === "terminal") {
       await this.reconcileTerminalPlanReview(review);
+      await this.setRejectedPlanAgentIdle(review);
       return review;
     }
 
@@ -217,6 +219,7 @@ export class HumanInputResolutionService {
       if (latest.state !== "terminal") throw error;
       await this.reconcileTerminalPlanReview(review);
     }
+    await this.setRejectedPlanAgentIdle(review);
     return review;
   }
 
@@ -502,6 +505,14 @@ export class HumanInputResolutionService {
       this.deps.plans.planReviewResult(review),
     );
     await this.appendToolResultForToolCall(completed, false);
+  }
+
+  private async setRejectedPlanAgentIdle(
+    review: PlanReviewRecord,
+  ): Promise<void> {
+    const agent = this.deps.getAgent(review.agentId);
+    if (agent.status === "idle") return;
+    await this.deps.setAgentStatus(agent, "idle");
   }
 
   private async resolveSuspensionForToolCall(

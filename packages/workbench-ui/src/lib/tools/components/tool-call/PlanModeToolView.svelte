@@ -134,11 +134,13 @@ const acceptVariant = $derived<"success" | "default">(
 const statusMeta = $derived<MetaItem[]>(
   accepted || acceptedInNewChat
     ? [{ text: "Accepted", tone: "success" }]
-    : rejected
-      ? [{ text: "Changes requested", tone: "error" }]
-      : pendingReview
-        ? [{ text: "Awaiting review", tone: "warning" }]
-        : [],
+    : reviewStatus === "changes_requested"
+      ? [{ text: "Changes requested" }]
+      : reviewStatus === "discarded"
+        ? [{ text: "Discarded" }]
+        : pendingReview
+          ? [{ text: "Awaiting review", tone: "warning" }]
+          : [],
 );
 
 async function acceptSame(options?: PlanReviewResolveOptions) {
