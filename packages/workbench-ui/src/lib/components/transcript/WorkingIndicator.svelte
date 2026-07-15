@@ -5,6 +5,25 @@
 
 const TIMER_APPEAR_SECONDS = 3;
 
+/** Generic working phrases only: this row shows before any real runtime
+ * events exist, so labels must never claim specific activity. */
+const PHRASES = [
+  "Thinking…",
+  "Planning next steps…",
+  "Connecting the dots…",
+  "Reasoning through it…",
+  "Mapping it out…",
+  "Gathering context…",
+  "Weighing options…",
+  "Putting the pieces together…",
+  "Sketching an approach…",
+  "Getting my bearings…",
+];
+
+// One phrase per wait: chosen at mount, stable until the row is replaced by
+// real output.
+const phrase = PHRASES[Math.floor(Math.random() * PHRASES.length)];
+
 let elapsedSeconds = $state(0);
 
 $effect(() => {
@@ -24,7 +43,7 @@ const elapsedLabel = $derived(
   <span class="orbit" aria-hidden="true">
     <span class="orbit-spinner"></span>
   </span>
-  <span class="label">Thinking…</span>
+  <span class="label">{phrase}</span>
   {#if elapsedSeconds >= TIMER_APPEAR_SECONDS}
     <span class="elapsed">{elapsedLabel}</span>
   {/if}

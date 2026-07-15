@@ -15,10 +15,10 @@ import ContextMenu, {
 import ToolActivityCard from "../../tools/components/ToolActivityCard.svelte";
 import ToolResultErrorCard from "../../tools/components/tool-call/ToolResultErrorCard.svelte";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
-import PlainText from "@nervekit/ui-kit/core/components/PlainText.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import type { TranscriptItem } from "../../state/transcript-types";
 import CompactionCard from "./CompactionCard.svelte";
+import UserMessageContent from "./UserMessageContent.svelte";
 import TaskEventCard from "./TaskEventCard.svelte";
 import RunStatusCard from "./RunStatusCard.svelte";
 import ThinkingGroup from "./ThinkingGroup.svelte";
@@ -210,7 +210,10 @@ $effect(() => {
         {#if node.item.text}
           <div class="message-content">
             {#if node.item.role === "user"}
-              <PlainText text={node.item.text} />
+              <UserMessageContent
+                text={node.item.text}
+                pending={Boolean(node.item.optimistic)}
+              />
             {:else}
               <Markdown
                 text={node.item.text}

@@ -23,6 +23,18 @@ export type ExecutableCommandBlockReplacement = {
   text: string;
 };
 
+export type InlineCommandResultBlock = {
+  /** Zero-based start offset of the opening fence. */
+  start: number;
+  /** Zero-based end offset (exclusive) of the closing fence. */
+  end: number;
+  command: string;
+  status: string;
+  exitCode?: number;
+  /** Raw output body between the status line and the closing fence. */
+  output: string;
+};
+
 export type InlineCommandResultTextInput = {
   command: string;
   output: string;
@@ -69,6 +81,46 @@ export function isInlineCommandPrompt(text: string): boolean {
 
 export function hasExecutableCommandBlocks(text: string): boolean {
   return findExecutableCommandBlocks(text).length > 0;
+}
+
+/**
+ * Parse blocks produced by {@link formatInlineCommandResultText}: a backtick
+ * fence with an empty info string whose body is a `$ command` transcript, a
+ * blank line, a `> [exit code: N, ]status: S` line, and the command output.
+ */
+export function findInlineCommandResultBlocks(
+  text: string,
+): InlineCommandResultBlock[] {
+  const blocks: InlineCommandResultBlock[] = [];
+  const lines = splitLinesWithOffsets(text);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const open = parseResultOpeningFence(lines[index].text);
+    if (!open) continue;
+
+    for (
+      let closeIndex = index + 1;
+      closeIndex < lines.length;
+      closeIndex += 1
+    ) {
+      if (!isClosingFence(lines[closeIndex].text, "`", open.fenceLength)) {
+        continue;
+      }
+      const body = lines.slice(index + 1, closeIndex);
+      const parsed = parseResultBody(body.map((line) => line.text));
+      if (parsed) {
+        blocks.push({
+          start: lines[index].offset,
+          end: lines[closeIndex].offset + lines[closeIndex].text.length,
+          ...parsed,
+        });
+        index = closeIndex;
+      }
+      break;
+    }
+  }
+
+  return blocks;
 }
 
 export function findExecutableCommandBlocks(
@@ -137,6 +189,36 @@ export function replaceExecutableCommandBlocks(
 }
 
 type LineWithOffset = { text: string; offset: number };
+
+const RESULT_STATUS_LINE = /^> (?:exit code: (-?\d+), )?status: (\S+)$/;
+
+function parseResultOpeningFence(
+  line: string,
+): { fenceLength: number } | undefined {
+  const match = stripLineEnding(line).match(/^(`{3,})$/);
+  return match ? { fenceLength: match[1].length } : undefined;
+}
+
+function parseResultBody(
+  rawLines: string[],
+):
+  | Pick<InlineCommandResultBlock, "command" | "status" | "exitCode" | "output">
+  | undefined {
+  const lines = rawLines.map(stripLineEnding);
+  if (lines.length < 3) return undefined;
+  if (!lines[0].startsWith("$ ")) return undefined;
+  const blankIndex = lines.indexOf("");
+  if (blankIndex < 1 || blankIndex + 1 >= lines.length) return undefined;
+  const statusMatch = lines[blankIndex + 1].match(RESULT_STATUS_LINE);
+  if (!statusMatch) return undefined;
+  const command = [lines[0].slice(2), ...lines.slice(1, blankIndex)].join("\n");
+  return {
+    command,
+    status: statusMatch[2],
+    exitCode: statusMatch[1] === undefined ? undefined : Number(statusMatch[1]),
+    output: lines.slice(blankIndex + 2).join("\n"),
+  };
+}
 
 type OpeningFence = {
   fenceChar: "`" | "~";

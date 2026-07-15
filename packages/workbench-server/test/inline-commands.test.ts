@@ -65,6 +65,7 @@ function collectEvents(
 function mockBashTool(
   state: Awaited<ReturnType<typeof createProjectConversationAgent>>["state"],
   output: string,
+  calls: Array<{ toolName: string; args: Record<string, unknown> }> = [],
 ): () => void {
   const originalRequestToolAndWait =
     state.registry.tools.requestToolAndWait.bind(state.registry.tools);
@@ -73,8 +74,9 @@ function mockBashTool(
     toolName,
     args,
     options,
-  ) =>
-    ({
+  ) => {
+    calls.push({ toolName, args });
+    return {
       id: "tool_01HN0000000000000000000000",
       agentId: toolAgent.id,
       conversationId: toolAgent.conversationId,
@@ -93,7 +95,8 @@ function mockBashTool(
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }) as ToolCallRecord;
+    } as ToolCallRecord;
+  };
   return () => {
     state.registry.tools.requestToolAndWait = originalRequestToolAndWait;
   };
@@ -104,11 +107,21 @@ describe("inline command prompts", () => {
     const { state, conversation, agent } =
       await createProjectConversationAgent();
     try {
-      const restoreBashTool = mockBashTool(state, "inline-ok");
+      const events = collectEvents(state);
+      const bashCalls: Array<{
+        toolName: string;
+        args: Record<string, unknown>;
+      }> = [];
+      const restoreBashTool = mockBashTool(state, "inline-ok", bashCalls);
       await state.registry.promptAgent(agent.id, { text: "!printf inline-ok" });
-      await waitFor(
-        () => state.registry.getConversationEntries(conversation.id).length > 0,
+      await waitFor(() =>
+        events.some((event) => event.type === "run.completed"),
       );
+
+      // The command runs as a single bash tool call.
+      assert.equal(bashCalls.length, 1);
+      assert.equal(bashCalls[0].toolName, "bash");
+      assert.deepEqual(bashCalls[0].args, { command: "printf inline-ok" });
 
       const entries = state.registry.getConversationEntries(conversation.id);
       assert.equal(entries.length, 1);
@@ -119,6 +132,22 @@ describe("inline command prompts", () => {
       );
       assert.match(entries[0]?.text ?? "", /printf inline-ok/);
       assert.match(entries[0]?.text ?? "", /inline-ok/);
+
+      // No harness/LLM activity: no user or assistant entries and no live
+      // message streaming events were ever produced.
+      assert.equal(
+        entries.some(
+          (entry) => entry.role === "user" || entry.role === "assistant",
+        ),
+        false,
+      );
+      assert.equal(
+        events.some((event) => event.type.startsWith("conversation.live.")),
+        false,
+      );
+
+      // The agent settles back to idle once the command-only run completes.
+      await waitFor(() => state.registry.getAgent(agent.id).status === "idle");
       restoreBashTool();
     } finally {
       state.index.close();

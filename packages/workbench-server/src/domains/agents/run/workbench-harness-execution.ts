@@ -22,11 +22,7 @@ import type {
   RunExecutionSink,
   WaitCommand,
 } from "@nervekit/host-runtime";
-import {
-  findExecutableCommandBlocks,
-  replaceExecutableCommandBlocks,
-  toolNameSchema,
-} from "@nervekit/contracts";
+import { toolNameSchema } from "@nervekit/contracts";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {
   activeToolNamesForAgent,
@@ -48,7 +44,7 @@ import {
   sameStringList,
   isRetryableAssistantError,
 } from "./harness-execution-shared.js";
-import { inlineCommandExecutionResultText } from "./inline-command-results.js";
+import { expandExecutablePromptBlocks } from "./prompt-block-expansion.js";
 import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,
@@ -587,14 +583,30 @@ export async function executeWorkbenchHarness(
         await harness.setThinkingLevel(updatedAgent.thinkingLevel);
       }
     };
+    // Expand `!!!` command blocks at harness-delivery time so steered and
+    // queued prompts get the same command semantics as run-starting prompts.
+    const expandBlocks = (text: string, images?: PromptRequest["images"]) =>
+      expandExecutablePromptBlocks(
+        (command, opts) =>
+          this.executeInlinePromptBlockCommand(agent, command, opts),
+        { text, images },
+        runAbortController.signal,
+      );
     const liveControl: WorkbenchLiveExecutionControl = {
-      steer: (prompt) =>
-        harness.steer(prompt.text, { id: prompt.id, images: prompt.images }),
-      followUp: (prompt) =>
-        harness.followUp(prompt.text, {
+      steer: async (prompt) => {
+        const expanded = await expandBlocks(prompt.text, prompt.images);
+        return harness.steer(expanded.text, {
           id: prompt.id,
           images: prompt.images,
-        }),
+        });
+      },
+      followUp: async (prompt) => {
+        const expanded = await expandBlocks(prompt.text, prompt.images);
+        return harness.followUp(expanded.text, {
+          id: prompt.id,
+          images: prompt.images,
+        });
+      },
       continue: async () => undefined,
       cancel: abort,
       removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
@@ -609,12 +621,7 @@ export async function executeWorkbenchHarness(
         }),
     };
 
-    const promptRequest = await expandExecutablePromptBlocks(
-      this,
-      agent,
-      request,
-      runAbortController.signal,
-    );
+    const promptRequest = await expandBlocks(request.text, request.images);
     const runAssistant = await this.runHarnessAttempt({
       harness,
       conversation: harnessConversation,
@@ -768,32 +775,5 @@ function canonicalWaitCommand(
     placeholder: question?.placeholder,
     required: true,
     checkpoint,
-  };
-}
-
-async function expandExecutablePromptBlocks(
-  runner: WorkbenchAgentMechanics,
-  agent: AgentRecord,
-  request: PromptRequest,
-  signal: AbortSignal,
-): Promise<PromptRequest> {
-  const blocks = findExecutableCommandBlocks(request.text);
-  if (blocks.length === 0) return request;
-  const replacements = [];
-  for (const block of blocks) {
-    if (signal.aborted) throw new Error("Command execution aborted.");
-    const result = await runner.executeInlinePromptBlockCommand(
-      agent,
-      block.command,
-      { signal },
-    );
-    replacements.push({
-      block,
-      text: inlineCommandExecutionResultText(block.command, result),
-    });
-  }
-  return {
-    ...request,
-    text: replaceExecutableCommandBlocks(request.text, replacements),
   };
 }

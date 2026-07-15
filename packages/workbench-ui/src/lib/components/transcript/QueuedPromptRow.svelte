@@ -7,8 +7,8 @@ import type { QueuedPromptRecord } from "../../state/tool-types";
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import PlainText from "@nervekit/ui-kit/core/components/PlainText.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import UserMessageContent from "./UserMessageContent.svelte";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 
 type Props = {
@@ -99,7 +99,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       </Tooltip.Provider>
     </div>
     <div class="queued-content">
-      <PlainText text={prompt.text} />
+      <UserMessageContent text={prompt.text} />
     </div>
   </article>
 </ContextMenu>

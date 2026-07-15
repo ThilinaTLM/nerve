@@ -417,7 +417,7 @@ class SandboxRunExecution implements RunExecution {
       this.pendingPrompts.push({ behavior: "steer", prompt });
       return;
     }
-    await this.harness?.steer(prompt.text, {
+    await this.harness?.steer(await this.resolvePrompt(prompt.text), {
       id: prompt.id,
       images: prompt.images,
     });
@@ -428,7 +428,7 @@ class SandboxRunExecution implements RunExecution {
       this.pendingPrompts.push({ behavior: "follow-up", prompt });
       return;
     }
-    await this.harness?.followUp(prompt.text, {
+    await this.harness?.followUp(await this.resolvePrompt(prompt.text), {
       id: prompt.id,
       images: prompt.images,
     });
@@ -437,13 +437,16 @@ class SandboxRunExecution implements RunExecution {
   private async deliverPendingPrompts(): Promise<void> {
     this.harnessReady = true;
     for (const queued of this.pendingPrompts.splice(0)) {
+      // Expand `!!!` command blocks at delivery time so queued prompts get
+      // the same command semantics as run-starting prompts.
+      const text = await this.resolvePrompt(queued.prompt.text);
       if (queued.behavior === "steer") {
-        await this.harness?.steer(queued.prompt.text, {
+        await this.harness?.steer(text, {
           id: queued.prompt.id,
           images: queued.prompt.images,
         });
       } else {
-        await this.harness?.followUp(queued.prompt.text, {
+        await this.harness?.followUp(text, {
           id: queued.prompt.id,
           images: queued.prompt.images,
         });
