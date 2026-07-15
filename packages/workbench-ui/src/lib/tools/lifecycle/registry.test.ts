@@ -73,7 +73,7 @@ const cases: Array<[ToolName, Record<string, unknown>, string]> = [
   [
     "plan_mode_present",
     { file_path: "/plans/tool.md", title: "Tool lifecycle" },
-    "Tool lifecycle",
+    "tool.md",
   ],
   [
     "plan_mode_force_exit",
@@ -113,6 +113,23 @@ describe("tool lifecycle registry", () => {
       );
       assert.notEqual(presentation.body.kind, "json", name);
     }
+  });
+
+  it("uses the clickable plan filename instead of the review title", () => {
+    const planPath = "C:\\Users\\Taylor\\.nerve\\plans\\tool-lifecycle.md";
+    const presentation = presentToolArguments(
+      "plan_mode_present",
+      {
+        args: {
+          file_path: planPath,
+          title: "Tool lifecycle",
+        },
+      },
+      "completed",
+    );
+
+    assert.equal(presentation.primaryArg?.text, "tool-lifecycle.md");
+    assert.equal(presentation.primaryArg?.openPath, planPath);
   });
 
   it("encodes interaction, retained-proposal, and immediate-result handoffs", () => {

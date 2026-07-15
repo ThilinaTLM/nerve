@@ -314,11 +314,9 @@ export const orchestrationToolLifecycleSpecs = {
     present: (source) => {
       const path = source.string("file_path");
       return argumentPresentation({
-        primaryArg: source.string("title")
-          ? textArg(source.string("title"))
-          : path
-            ? { text: path.split(/[\\/]/).pop() || path, openPath: path }
-            : textArg("Plan review"),
+        primaryArg: path
+          ? { text: path.split(/[\\/]/).pop() || path, openPath: path }
+          : textArg("Plan review"),
         secondary: path ? [{ text: path, mono: true, openPath: path }] : [],
         body: source.string("summary")
           ? {

@@ -442,7 +442,10 @@ describe("toolPresentation", () => {
   it("keeps the generic footer empty for a rejected plan_mode_present", () => {
     const p = present(
       "plan_mode_present",
-      { file_path: "/home/user/.nerve/plans/feature.md" },
+      {
+        file_path: "/home/user/.nerve/plans/feature.md",
+        title: "Feature plan",
+      },
       {
         review: {
           planPath: "/home/user/.nerve/plans/feature.md",
@@ -453,6 +456,7 @@ describe("toolPresentation", () => {
     );
     assert.equal(p.badge, "plan_mode_present");
     assert.equal(p.primaryArg?.text, "feature.md");
+    assert.equal(p.primaryArg?.openPath, "/home/user/.nerve/plans/feature.md");
     assert.deepEqual(metaText(p.meta), []);
   });
 
