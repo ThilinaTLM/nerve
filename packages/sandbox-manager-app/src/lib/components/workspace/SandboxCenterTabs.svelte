@@ -25,12 +25,12 @@ import type {
 import { isMarkdownPath } from "@nervekit/ui-kit/core/utils/file-display";
 import SandboxDashboard from "../dashboard/SandboxDashboard.svelte";
 import SandboxSettingsPanel from "../settings/SandboxSettingsPanel.svelte";
-import SandboxChatPane from "./SandboxChatPane.svelte";
+import SandboxConversationShell from "./SandboxConversationShell.svelte";
 import SandboxEmptyCenterPlaceholder from "./SandboxEmptyCenterPlaceholder.svelte";
-import SandboxFilePane from "./SandboxFilePane.svelte";
+import { FilePane } from "@nervekit/workbench-ui/components/file";
 import SandboxSummaryTab from "./SandboxSummaryTab.svelte";
-import SandboxPrPane from "./SandboxPrPane.svelte";
-import SandboxTaskOutputPane from "./SandboxTaskOutputPane.svelte";
+import SandboxPrShell from "./SandboxPrShell.svelte";
+import SandboxTaskShell from "./SandboxTaskShell.svelte";
 import SandboxConfigView from "../../routes/SandboxConfigView.svelte";
 import SandboxEventsView from "../../routes/SandboxEventsView.svelte";
 import SandboxLogsView from "../../routes/SandboxLogsView.svelte";
@@ -144,7 +144,7 @@ function toWorkbenchTab(tab: SandboxWorkspaceTabIdentity): WorkbenchTabModel {
       closeable: true,
     };
   }
-  if (tab.kind === "chat") {
+  if (tab.kind === "conversation") {
     const conversation = sandboxConversationById(detail, tab.id);
     const pending = isPendingConversationId(tab.id)
       ? detail?.pendingConversationsById[tab.id]
@@ -271,7 +271,7 @@ function handleClose(tab: WorkbenchTabIdentity): void {
 function handleRefresh(tab: WorkbenchTabIdentity): void {
   if (isSettings(tab) || !sandboxId) return;
   const identity = cast(tab);
-  if (identity.kind === "chat") {
+  if (identity.kind === "conversation") {
     if (!isPendingConversationId(identity.id))
       void store
         .recoverConversationSnapshot(sandboxId, identity.id)
@@ -412,14 +412,11 @@ function buildMenuItems({
               {:else if activeWorkspaceTab.kind === "summary"}
                 <SandboxSummaryTab {record} />
               {:else if activeWorkspaceTab.kind === "file"}
-                <SandboxFilePane view={activeFileView} />
+                <FilePane view={activeFileView} />
               {:else if activeWorkspaceTab.kind === "task"}
-                <SandboxTaskOutputPane
-                  {record}
-                  taskId={activeWorkspaceTab.id}
-                />
+                <SandboxTaskShell {record} taskId={activeWorkspaceTab.id} />
               {:else if activeWorkspaceTab.kind === "pr"}
-                <SandboxPrPane {record} viewId={activeWorkspaceTab.id} />
+                <SandboxPrShell {record} viewId={activeWorkspaceTab.id} />
               {:else if activeWorkspaceTab.kind === "diagnostic"}
                 {#if activeWorkspaceTab.id === "logs"}
                   <SandboxLogsView {record} />
@@ -429,7 +426,7 @@ function buildMenuItems({
                   <SandboxEventsView {record} />
                 {/if}
               {:else}
-                <SandboxChatPane sandboxId={record.sandboxId} />
+                <SandboxConversationShell sandboxId={record.sandboxId} />
               {/if}
             </div>
           </div>

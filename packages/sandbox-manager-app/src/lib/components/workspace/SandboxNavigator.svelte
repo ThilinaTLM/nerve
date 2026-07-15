@@ -66,7 +66,8 @@ const groups = $derived.by<ConversationNavigatorGroup[]>(() =>
         const open =
           detail?.openWorkspaceTabs?.some(
             (tab) =>
-              tab.kind === "chat" && tab.id === conversation.conversationId,
+              tab.kind === "conversation" &&
+              tab.id === conversation.conversationId,
           ) ?? false;
         return {
           id: conversation.conversationId,

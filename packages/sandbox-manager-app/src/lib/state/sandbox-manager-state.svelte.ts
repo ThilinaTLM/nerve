@@ -91,7 +91,7 @@ import {
 import {
   closeWorkspaceTab as closeWorkspaceTabInDetail,
   closeWorkspaceTabs as closeWorkspaceTabsInDetail,
-  openWorkspaceChatTab as openWorkspaceChatTabInDetail,
+  openWorkspaceConversationTab as openWorkspaceConversationTabInDetail,
   openWorkspaceDiagnosticTab as openWorkspaceDiagnosticTabInDetail,
   openWorkspaceFile as openWorkspaceFileInDetail,
   openWorkspaceSummaryTab as openWorkspaceSummaryTabInDetail,
@@ -429,7 +429,7 @@ export class SandboxManagerStore {
       selectDurableConversation(detail, key);
       detail.selectedAgentId = result.agentId ?? renderState.activeRun?.agentId;
       detail.selectedRunId = result.runId ?? renderState.activeRun?.runId;
-      openWorkspaceChatTabInDetail(detail, key);
+      openWorkspaceConversationTabInDetail(detail, key);
     } else if (detail.selectedConversationId === key) {
       detail.selectedAgentId = result.agentId ?? renderState.activeRun?.agentId;
       detail.selectedRunId = result.runId ?? renderState.activeRun?.runId;
@@ -497,8 +497,8 @@ export class SandboxManagerStore {
     closeWorkspaceTabInDetail(this.detail(sandboxId), tab);
   }
 
-  openWorkspaceChatTab(sandboxId: string): void {
-    openWorkspaceChatTabInDetail(this.detail(sandboxId));
+  openWorkspaceConversationTab(sandboxId: string): void {
+    openWorkspaceConversationTabInDetail(this.detail(sandboxId));
   }
 
   openWorkspaceSummaryTab(sandboxId: string): void {
@@ -521,7 +521,7 @@ export class SandboxManagerStore {
       )[0];
     detail.selectedRunId = activeRun?.runId;
     detail.selectedAgentId = activeRun?.agentId;
-    openWorkspaceChatTabInDetail(detail, conversationId);
+    openWorkspaceConversationTabInDetail(detail, conversationId);
     void this.recoverConversationSnapshot(sandboxId, conversationId, {
       select: true,
     }).catch(() => undefined);
@@ -530,7 +530,7 @@ export class SandboxManagerStore {
   selectPendingConversation(sandboxId: string, pendingId: string): void {
     const detail = this.detail(sandboxId);
     selectPendingConversationInDetail(detail, pendingId);
-    openWorkspaceChatTabInDetail(detail, pendingId);
+    openWorkspaceConversationTabInDetail(detail, pendingId);
   }
 
   startNewConversation(sandboxId: string): void {
@@ -545,7 +545,7 @@ export class SandboxManagerStore {
     const pendingId = createPendingConversationId();
     ensurePendingConversation(detail, pendingId);
     selectPendingConversationInDetail(detail, pendingId);
-    openWorkspaceChatTabInDetail(detail, pendingId);
+    openWorkspaceConversationTabInDetail(detail, pendingId);
   }
 
   closeOtherWorkspaceTabs(
@@ -915,7 +915,7 @@ export class SandboxManagerStore {
       const queued = pending.queuedPrompt;
       pending.queuedPrompt = undefined;
       selectPendingConversationInDetail(detail, pending.id);
-      openWorkspaceChatTabInDetail(detail, pending.id);
+      openWorkspaceConversationTabInDetail(detail, pending.id);
       await this.sendPrompt(sandboxId, queued);
     }
     for (const [conversationId, queued] of Object.entries(
@@ -946,7 +946,7 @@ export class SandboxManagerStore {
     const pendingId =
       detail.selectedPendingConversationId ??
       (!conversationId &&
-      detail.activeWorkspaceTab?.kind === "chat" &&
+      detail.activeWorkspaceTab?.kind === "conversation" &&
       isPendingConversationId(detail.activeWorkspaceTab.id)
         ? detail.activeWorkspaceTab.id
         : undefined);
@@ -992,7 +992,7 @@ export class SandboxManagerStore {
         selectDurableConversation(detail, result.conversationId);
         detail.selectedAgentId = result.agentId;
         detail.selectedRunId = result.runId;
-        openWorkspaceChatTabInDetail(detail, result.conversationId);
+        openWorkspaceConversationTabInDetail(detail, result.conversationId);
       }
       detail.composerTextByConversationId[result.conversationId] = "";
       setActiveComposerText(detail, "");
@@ -1336,7 +1336,7 @@ export class SandboxManagerStore {
       detail.selectedConversationId === conversationId;
     if (!activeConversationKey(detail)) {
       selectDurableConversation(detail, conversationId);
-      openWorkspaceChatTabInDetail(detail, conversationId);
+      openWorkspaceConversationTabInDetail(detail, conversationId);
     }
     if (
       isActiveConversation ||

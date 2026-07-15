@@ -82,7 +82,7 @@ export type SandboxUtilityTab = "tasks" | "context" | "git";
 
 export type SandboxWorkspaceTabIdentity =
   | { kind: "summary"; id: "summary" }
-  | { kind: "chat"; id: string }
+  | { kind: "conversation"; id: string }
   | { kind: "file"; id: string }
   | { kind: "task"; id: string }
   | { kind: "pr"; id: string; repo: string; number: number }

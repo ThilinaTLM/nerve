@@ -1,8 +1,6 @@
 <script lang="ts">
-import {
-  AgentConversationPane,
-  buildConversationRenderProjection,
-} from "@nervekit/workbench-ui";
+import { buildConversationRenderProjection } from "@nervekit/workbench-ui";
+import { ConversationPane } from "@nervekit/workbench-ui/components/conversation";
 import { setConversationUiCapabilities } from "@nervekit/workbench-ui/context";
 import type { ThinkingLevel } from "@nervekit/contracts";
 import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
@@ -187,7 +185,7 @@ $effect(() => {
 });
 </script>
 
-<AgentConversationPane
+<ConversationPane
   model={{
     conversationId: scrollConversationId,
     open: true,

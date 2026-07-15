@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
-import TaskLogTerminal from "@nervekit/workbench-ui/tasks/TaskLogTerminal.svelte";
+import { TaskOutputPane } from "@nervekit/workbench-ui/tasks";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 
 let {
@@ -34,4 +34,4 @@ $effect(() => {
 });
 </script>
 
-<TaskLogTerminal taskLogs={logs} command={task?.command} />
+<TaskOutputPane {task} taskLogs={logs} />

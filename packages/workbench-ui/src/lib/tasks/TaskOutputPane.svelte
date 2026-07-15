@@ -1,10 +1,10 @@
 <script lang="ts">
 import Terminal from "@lucide/svelte/icons/terminal";
-import type { TaskLogQueryResponse, TaskRecord } from "$lib/api";
-import TaskLogTerminal from "@nervekit/workbench-ui/tasks/TaskLogTerminal.svelte";
+import type { TaskLogQueryResponse, TaskRecord } from "@nervekit/contracts";
+import TaskLogTerminal from "./TaskLogTerminal.svelte";
 
 type Props = {
-  task?: TaskRecord;
+  task?: Pick<TaskRecord, "command">;
   taskLogs?: TaskLogQueryResponse;
 };
 
@@ -20,9 +20,9 @@ let { task, taskLogs }: Props = $props();
     >
       <Terminal class="mx-auto size-7 text-primary" strokeWidth={1.7} />
       <p class="mt-1 text-foreground">Task not found.</p>
-      <span class="text-xs"
-        >The task may have been removed or is no longer available.</span
-      >
+      <span class="text-xs">
+        The task may have been removed or is no longer available.
+      </span>
     </div>
   {/if}
 </section>

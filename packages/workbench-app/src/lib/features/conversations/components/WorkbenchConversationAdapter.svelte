@@ -3,7 +3,7 @@ import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import type { ToolCallTranscriptRecord } from "$lib/api";
 import type { TranscriptItem } from "$lib/core/types/state-types";
-import type { ConversationPaneProps } from "./conversation-pane-props";
+import type { WorkbenchConversationAdapterProps } from "./workbench-conversation-adapter-props";
 import { shortProjectLabel } from "$lib/core/utils/project-tree";
 import {
   activeRunStreamingText,
@@ -13,7 +13,7 @@ import {
   entriesToTranscript,
   selectVisibleCommitted,
 } from "@nervekit/workbench-ui/state";
-import { AgentConversationPane } from "@nervekit/workbench-ui";
+import { ConversationPane } from "@nervekit/workbench-ui/components/conversation";
 import { setConversationUiCapabilities } from "@nervekit/workbench-ui/context";
 import WorkbenchComposerAdapter from "../adapters/WorkbenchComposerAdapter.svelte";
 import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
@@ -86,7 +86,7 @@ let {
   onNavigateToEntry,
   onEditEntry,
   onOpenHistory,
-}: ConversationPaneProps = $props();
+}: WorkbenchConversationAdapterProps = $props();
 
 const composerTodos = $derived(
   currentTodosForAgent(toolCalls, activeAgent?.id),
@@ -188,7 +188,7 @@ function menuForTool(
 }
 </script>
 
-<AgentConversationPane
+<ConversationPane
   model={{
     conversationId: scrollConversationId,
     open: conversationOpen,
@@ -294,4 +294,4 @@ function menuForTool(
   {#snippet emptyExtension()}
     <ConversationWelcome onNewChat={() => onOpenProject?.()} />
   {/snippet}
-</AgentConversationPane>
+</ConversationPane>

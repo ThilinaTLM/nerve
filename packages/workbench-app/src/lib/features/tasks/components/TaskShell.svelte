@@ -1,5 +1,5 @@
 <script lang="ts">
-import TaskOutputPane from "$lib/features/tasks/components/TaskOutputPane.svelte";
+import { TaskOutputPane } from "@nervekit/workbench-ui/tasks";
 import { taskSelectors } from "$lib/features/tasks/state/task-selectors.svelte";
 
 const taskLogs = $derived(taskSelectors.taskLogs);

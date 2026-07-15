@@ -124,8 +124,8 @@ export function selectDurableConversation(
   detail.selectedConversationId = conversationId;
 }
 
-export function chatTabFor(key: string): SandboxWorkspaceTabIdentity {
-  return { kind: "chat", id: key };
+export function conversationTabFor(key: string): SandboxWorkspaceTabIdentity {
+  return { kind: "conversation", id: key };
 }
 
 export function replacePendingConversation(
@@ -143,15 +143,15 @@ export function replacePendingConversation(
   delete detail.pendingConversationsById[pendingId];
 
   detail.openWorkspaceTabs = detail.openWorkspaceTabs.map((tab) =>
-    tab.kind === "chat" && tab.id === pendingId
-      ? chatTabFor(real.conversationId)
+    tab.kind === "conversation" && tab.id === pendingId
+      ? conversationTabFor(real.conversationId)
       : tab,
   );
   if (
-    detail.activeWorkspaceTab?.kind === "chat" &&
+    detail.activeWorkspaceTab?.kind === "conversation" &&
     detail.activeWorkspaceTab.id === pendingId
   ) {
-    detail.activeWorkspaceTab = chatTabFor(real.conversationId);
+    detail.activeWorkspaceTab = conversationTabFor(real.conversationId);
   }
 
   detail.selectedPendingConversationId = undefined;

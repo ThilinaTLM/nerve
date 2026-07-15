@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
-import GithubPrPane from "@nervekit/workbench-ui/git/GithubPrPane.svelte";
+import { GithubPrPane } from "@nervekit/workbench-ui/git";
 import { notify } from "@nervekit/ui-kit/core/notify";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 

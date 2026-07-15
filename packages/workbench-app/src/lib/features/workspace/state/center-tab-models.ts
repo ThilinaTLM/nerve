@@ -6,7 +6,7 @@ import type {
   ProjectRecord,
   TaskRecord,
 } from "$lib/api";
-import type { defaultFileDisplayMode } from "$lib/core/utils/file-display";
+import type { FileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 
 export type ConversationTabModel = {
@@ -50,7 +50,7 @@ export type FileTabModel = {
   file?: FilesystemFileResponse;
   path?: string;
   relativePath?: string;
-  displayMode: ReturnType<typeof defaultFileDisplayMode>;
+  displayMode: FileDisplayMode;
   wrapLines: boolean;
   markdown: boolean;
   active: boolean;

@@ -1,7 +1,7 @@
 import { defaultFileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 import * as api from "../api/manager-client";
 import {
-  chatTabFor,
+  conversationTabFor,
   isPendingConversationId,
   selectDurableConversation,
   selectPendingConversation,
@@ -56,7 +56,7 @@ export function selectWorkspaceTab(
 ): void {
   ensureWorkspaceTab(detail, tab);
   detail.activeWorkspaceTab = tab;
-  if (tab.kind !== "chat") return;
+  if (tab.kind !== "conversation") return;
   if (isPendingConversationId(tab.id)) {
     selectPendingConversation(detail, tab.id);
     return;
@@ -92,7 +92,7 @@ export function closeWorkspaceTab(
   if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
   if (tab.kind === "task") delete detail.taskLogsById[tab.id];
   if (tab.kind === "pr") delete detail.prViewsById[tab.id];
-  if (tab.kind === "chat" && isPendingConversationId(tab.id))
+  if (tab.kind === "conversation" && isPendingConversationId(tab.id))
     delete detail.pendingConversationsById[tab.id];
   if (sameWorkspaceTab(detail.activeWorkspaceTab, tab)) {
     const next =
@@ -100,18 +100,18 @@ export function closeWorkspaceTab(
       detail.openWorkspaceTabs[index - 1] ??
       undefined;
     detail.activeWorkspaceTab = next;
-    if (next?.kind === "chat") selectWorkspaceTab(detail, next);
+    if (next?.kind === "conversation") selectWorkspaceTab(detail, next);
   }
 }
 
-export function openWorkspaceChatTab(
+export function openWorkspaceConversationTab(
   detail: SandboxDetailState,
   key = detail.selectedPendingConversationId ?? detail.selectedConversationId,
 ): void {
   if (!key) return;
   if (isPendingConversationId(key)) selectPendingConversation(detail, key);
   else if (key.startsWith("conv_")) selectDurableConversation(detail, key);
-  selectWorkspaceTab(detail, chatTabFor(key));
+  selectWorkspaceTab(detail, conversationTabFor(key));
 }
 
 export function openWorkspaceSummaryTab(detail: SandboxDetailState): void {
@@ -219,7 +219,7 @@ export function closeWorkspaceTabs(
     if (tab.kind === "file") delete detail.workspaceFileViewsById[tab.id];
     if (tab.kind === "task") delete detail.taskLogsById[tab.id];
     if (tab.kind === "pr") delete detail.prViewsById[tab.id];
-    if (tab.kind === "chat" && isPendingConversationId(tab.id))
+    if (tab.kind === "conversation" && isPendingConversationId(tab.id))
       delete detail.pendingConversationsById[tab.id];
   }
   const closing = (tab: SandboxWorkspaceTabIdentity | undefined) =>
@@ -233,7 +233,7 @@ export function closeWorkspaceTabs(
       detail.openWorkspaceTabs[0] ??
       undefined;
     detail.activeWorkspaceTab = next;
-    if (next?.kind === "chat") selectWorkspaceTab(detail, next);
+    if (next?.kind === "conversation") selectWorkspaceTab(detail, next);
   }
 }
 

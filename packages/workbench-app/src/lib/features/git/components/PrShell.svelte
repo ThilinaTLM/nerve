@@ -2,7 +2,7 @@
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 
 import { checkoutGithubPr } from "$lib/api";
-import PrPane from "@nervekit/workbench-ui/git/GithubPrPane.svelte";
+import { GithubPrPane } from "@nervekit/workbench-ui/git";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
 import { refreshPrPane } from "$lib/features/git/state/pr-tabs.svelte";
@@ -23,7 +23,7 @@ async function checkoutActivePr() {
 }
 </script>
 
-<PrPane
+<GithubPrPane
   view={activeCenterPrView}
   onRefresh={() =>
     activeCenterPrView && void refreshPrPane(activeCenterPrView.id)}

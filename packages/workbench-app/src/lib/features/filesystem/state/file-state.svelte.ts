@@ -1,5 +1,5 @@
 import type { FilesystemFileResponse } from "$lib/api";
-import type { FileDisplayMode } from "$lib/core/utils/file-display";
+import type { FileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 
 export type FileViewState = {
   id: string;

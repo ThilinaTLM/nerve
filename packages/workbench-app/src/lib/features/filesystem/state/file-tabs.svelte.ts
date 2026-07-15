@@ -3,7 +3,7 @@ import { fileViewKey } from "$lib/core/state/state-keys";
 import {
   defaultFileDisplayMode,
   type FileDisplayMode,
-} from "$lib/core/utils/file-display";
+} from "@nervekit/ui-kit/core/utils/file-display";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {

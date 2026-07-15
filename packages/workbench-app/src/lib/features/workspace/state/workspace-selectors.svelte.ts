@@ -9,7 +9,7 @@ import {
 import {
   defaultFileDisplayMode,
   isMarkdownPath,
-} from "$lib/core/utils/file-display";
+} from "@nervekit/ui-kit/core/utils/file-display";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import {
   buildConversationActivityById,

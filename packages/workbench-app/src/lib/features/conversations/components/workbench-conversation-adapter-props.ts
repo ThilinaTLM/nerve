@@ -22,7 +22,7 @@ import type {
 } from "$lib/core/types/state-types";
 import type { ComposerSuggestion } from "./composer-suggestion";
 
-export type ConversationPaneProps = {
+export type WorkbenchConversationAdapterProps = {
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;

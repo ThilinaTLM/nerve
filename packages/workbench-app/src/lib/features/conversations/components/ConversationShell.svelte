@@ -14,7 +14,7 @@ import {
   scopedUsableModelOptions,
 } from "@nervekit/workbench-ui/core/utils/model";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import ConversationPane from "$lib/features/conversations/components/ConversationPane.svelte";
+import WorkbenchConversationAdapter from "$lib/features/conversations/components/WorkbenchConversationAdapter.svelte";
 import {
   composerSignals,
   focusComposer,
@@ -369,7 +369,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
 }
 </script>
 
-<ConversationPane
+<WorkbenchConversationAdapter
   {active}
   {activeProject}
   {activeConversation}

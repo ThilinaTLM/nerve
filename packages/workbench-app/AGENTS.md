@@ -2,6 +2,8 @@
 
 Inherits the root `AGENTS.md`. These rules govern all CSS/Tailwind in this package. Git and task utility wrappers must remain thin adapters around the canonical feature hosts in `@nervekit/workbench-ui`; app state, protocol calls, polling, navigation, notifications, and clipboard effects stay here.
 
+Application `*Shell` components are state/effect adapters around canonical `*Pane` presentation components from `@nervekit/workbench-ui`. Do not recreate shared pane markup in this package.
+
 ## Two authoring tiers
 
 - **Tier 1 (default): Tailwind token utilities in markup** for layout, spacing,

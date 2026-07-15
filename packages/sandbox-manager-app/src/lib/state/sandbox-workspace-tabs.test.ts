@@ -8,7 +8,7 @@ import {
 import {
   closeWorkspaceTab,
   closeWorkspaceTabs,
-  openWorkspaceChatTab,
+  openWorkspaceConversationTab,
 } from "./sandbox-workspace-tabs";
 
 void describe("sandbox workspace tabs", () => {
@@ -28,12 +28,12 @@ void describe("sandbox workspace tabs", () => {
     assert.equal(detail.activeWorkspaceTab, undefined);
   });
 
-  void it("allows closing the last chat tab", () => {
+  void it("allows closing the last conversation tab", () => {
     const detail = createSandboxDetailState("sandbox_test");
-    detail.openWorkspaceTabs = [{ kind: "chat", id: "conv_one" }];
-    detail.activeWorkspaceTab = { kind: "chat", id: "conv_one" };
+    detail.openWorkspaceTabs = [{ kind: "conversation", id: "conv_one" }];
+    detail.activeWorkspaceTab = { kind: "conversation", id: "conv_one" };
 
-    closeWorkspaceTab(detail, { kind: "chat", id: "conv_one" });
+    closeWorkspaceTab(detail, { kind: "conversation", id: "conv_one" });
 
     assert.deepEqual(detail.openWorkspaceTabs, []);
     assert.equal(detail.activeWorkspaceTab, undefined);
@@ -43,7 +43,7 @@ void describe("sandbox workspace tabs", () => {
     const detail = createSandboxDetailState("sandbox_test");
     detail.openWorkspaceTabs = [
       sandboxSummaryTab,
-      { kind: "chat", id: "conv_one" },
+      { kind: "conversation", id: "conv_one" },
       { kind: "diagnostic", id: "logs" },
     ];
     detail.activeWorkspaceTab = { kind: "diagnostic", id: "logs" };
@@ -57,9 +57,9 @@ void describe("sandbox workspace tabs", () => {
   void it("deletes pending conversation state when its tab closes", () => {
     const detail = createSandboxDetailState("sandbox_test");
     ensurePendingConversation(detail, "pending_test");
-    openWorkspaceChatTab(detail, "pending_test");
+    openWorkspaceConversationTab(detail, "pending_test");
 
-    closeWorkspaceTab(detail, { kind: "chat", id: "pending_test" });
+    closeWorkspaceTab(detail, { kind: "conversation", id: "pending_test" });
 
     assert.equal(detail.pendingConversationsById.pending_test, undefined);
   });
