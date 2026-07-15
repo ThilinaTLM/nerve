@@ -6,7 +6,7 @@ import type {
 
 /**
  * Stable icon identifiers. The Svelte layer maps these to `@lucide/svelte`
- * components (see HistoryTab.svelte). Keeping this module free of component
+ * components (see HistoryGraphNode.svelte). Keeping this module free of component
  * imports lets it stay pure and unit-testable under `node:test`.
  */
 export type HistoryIconName =
@@ -305,8 +305,6 @@ export function classifyHistoryEntry(
 export type HistoryGraphRow = {
   node: ConversationTreeNode;
   index: number;
-  lane: number;
-  parentLane?: number;
   isOnActivePath: boolean;
   isActive: boolean;
   isLeaf: boolean;
@@ -315,17 +313,14 @@ export type HistoryGraphRow = {
 
 export type HistoryGraph = {
   rows: HistoryGraphRow[];
-  laneCount: number;
 };
 
 /**
- * Lay out the conversation tree as a git-style commit graph.
+ * Build renderer-neutral metadata for the conversation tree.
  *
- * Rows are emitted in depth-first chronological order. The first child of any
- * node reuses its parent's lane, so a purely linear history stays in lane 0;
- * only genuine branch points spawn additional lanes. Because of DFS ordering
- * each lane occupies a single contiguous vertical block, which lets the gutter
- * draw clean rails + branch-out connectors.
+ * Rows are emitted in deterministic depth-first chronological order. Layout is
+ * deliberately left to the renderer so this model can drive lists, diagrams,
+ * and tests without carrying presentation-specific coordinates.
  */
 export function buildHistoryGraph(
   treeNodes: ConversationTreeNode[],
@@ -351,7 +346,6 @@ export function buildHistoryGraph(
 
   const rows: HistoryGraphRow[] = [];
   const visited = new Set<string>();
-  let nextLane = 0;
   let index = 0;
 
   const childrenOf = (node: ConversationTreeNode): ConversationTreeNode[] =>
@@ -359,36 +353,24 @@ export function buildHistoryGraph(
       .map((id) => byId.get(id))
       .filter((child): child is ConversationTreeNode => Boolean(child));
 
-  const walk = (
-    node: ConversationTreeNode,
-    lane: number,
-    parentLane: number | undefined,
-  ) => {
+  const walk = (node: ConversationTreeNode) => {
     if (visited.has(node.entry.id)) return;
     visited.add(node.entry.id);
     const children = childrenOf(node);
     rows.push({
       node,
       index: ++index,
-      lane,
-      parentLane,
       isOnActivePath: activePath.has(node.entry.id),
       isActive: node.entry.id === activeEntryId,
       isLeaf: children.length === 0,
       isBranchPoint: children.length > 1,
     });
-    children.forEach((child, childIndex) => {
-      const childLane = childIndex === 0 ? lane : nextLane++;
-      walk(child, childLane, lane);
-    });
+    children.forEach(walk);
   };
 
-  for (const root of roots) walk(root, nextLane++, undefined);
+  roots.forEach(walk);
   // Detached entries (parent missing from the set) render as extra roots.
-  for (const node of treeNodes) {
-    if (!visited.has(node.entry.id)) walk(node, nextLane++, undefined);
-  }
+  treeNodes.forEach(walk);
 
-  const laneCount = rows.reduce((max, row) => Math.max(max, row.lane + 1), 1);
-  return { rows, laneCount };
+  return { rows };
 }

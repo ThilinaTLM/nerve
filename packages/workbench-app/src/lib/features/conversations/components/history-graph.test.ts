@@ -42,17 +42,16 @@ function node(
 }
 
 describe("buildHistoryGraph", () => {
-  it("keeps a linear history in lane 0", () => {
+  it("keeps a linear history in deterministic depth-first order", () => {
     const nodes = [
       node("a", undefined, ["b"]),
       node("b", "a", ["c"]),
       node("c", "b", []),
     ];
     const graph = buildHistoryGraph(nodes, "entry_c");
-    assert.equal(graph.laneCount, 1);
     assert.deepEqual(
-      graph.rows.map((row) => row.lane),
-      [0, 0, 0],
+      graph.rows.map((row) => row.node.entry.id),
+      ["entry_a", "entry_b", "entry_c"],
     );
     assert.deepEqual(
       graph.rows.map((row) => row.isOnActivePath),
@@ -61,7 +60,7 @@ describe("buildHistoryGraph", () => {
     assert.equal(graph.rows.at(-1)?.isLeaf, true);
   });
 
-  it("allocates a new lane at a branch point", () => {
+  it("marks a branch point and preserves child order", () => {
     // a -> b -> c (branch A), and a -> b -> d (branch B)
     const nodes = [
       node("a", undefined, ["b"]),
@@ -70,13 +69,12 @@ describe("buildHistoryGraph", () => {
       node("d", "b", []),
     ];
     const graph = buildHistoryGraph(nodes, "entry_d");
-    assert.equal(graph.laneCount, 2);
     const byId = new Map(graph.rows.map((row) => [row.node.entry.id, row]));
     assert.equal(byId.get("entry_b")?.isBranchPoint, true);
-    // First child reuses parent lane; second child gets a fresh lane.
-    assert.equal(byId.get("entry_c")?.lane, 0);
-    assert.equal(byId.get("entry_d")?.lane, 1);
-    assert.equal(byId.get("entry_d")?.parentLane, 0);
+    assert.deepEqual(
+      graph.rows.map((row) => row.node.entry.id),
+      ["entry_a", "entry_b", "entry_c", "entry_d"],
+    );
     // Active path is a -> b -> d only.
     assert.equal(byId.get("entry_c")?.isOnActivePath, false);
     assert.equal(byId.get("entry_d")?.isOnActivePath, true);
@@ -87,7 +85,7 @@ describe("buildHistoryGraph", () => {
     const nodes = [node("orphan", "missing", [])];
     const graph = buildHistoryGraph(nodes, undefined);
     assert.equal(graph.rows.length, 1);
-    assert.equal(graph.rows[0]?.lane, 0);
+    assert.equal(graph.rows[0]?.node.entry.id, "entry_orphan");
   });
 });
 

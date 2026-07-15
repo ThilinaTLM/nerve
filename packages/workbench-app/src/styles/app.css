@@ -3,6 +3,7 @@
  * global partials are imported afterwards. */
 
 @import "@nervekit/ui-kit/styles/app.css";
+@import "@xyflow/svelte/dist/base.css";
 @import "./components.css";
 @source "../../../workbench-ui/src/lib/**/*.{svelte,ts}";
 @source "../**/*.{svelte,ts}";

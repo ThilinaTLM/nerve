@@ -11,7 +11,7 @@ import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
-import HistoryTab from "./HistoryTab.svelte";
+import ConversationHistoryGraph from "./ConversationHistoryGraph.svelte";
 
 type Props = {
   open?: boolean;
@@ -61,7 +61,7 @@ function editAndClose(entry: ConversationEntry) {
 <Dialog
   bind:open
   title="Conversation history"
-  description="Browse the branch tree, preview any point, then jump to or fork from it."
+  description="Explore branches, zoom into rich message and tool details, then jump to or fork from any point."
   class="conversation-history-dialog"
   onOpenChange={handleOpenChange}
 >
@@ -86,7 +86,7 @@ function editAndClose(entry: ConversationEntry) {
     </DropdownMenu.Root>
   {/snippet}
 
-  <HistoryTab
+  <ConversationHistoryGraph
     {activeConversation}
     {treeNodes}
     {toolCalls}
@@ -108,8 +108,8 @@ function editAndClose(entry: ConversationEntry) {
   top: 4vh;
   /* Override the base dialog's vertical centering so the header stays on-screen. */
   transform: translateX(-50%);
-  width: min(1100px, calc(100vw - 48px));
-  height: min(760px, calc(100vh - 48px));
+  width: min(1440px, calc(100vw - 48px));
+  height: min(900px, calc(100vh - 48px));
   max-height: calc(100vh - 8vh);
 }
 

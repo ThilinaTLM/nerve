@@ -24,9 +24,12 @@
     "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.0.0",
     "@fontsource/iosevka": "^5.2.5",
     "@fontsource/outfit": "^5.2.6",
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/protocol": "workspace:*",
+    "@nervekit/ui-kit": "workspace:*",
     "@nervekit/workbench-ui": "workspace:*",
     "@shikijs/core": "^4.1.0",
     "@shikijs/engine-javascript": "^4.1.0",
@@ -35,6 +38,7 @@
     "@tailwindcss/vite": "4.3.1",
     "@tanstack/svelte-query": "6.0.0",
     "@tanstack/svelte-virtual": "^3.13.29",
+    "@xyflow/svelte": "1.6.2",
     "bits-ui": "^2.18.1",
     "paneforge": "^1.0.2",
     "rehype-sanitize": "^6.0.0",
@@ -47,9 +51,7 @@
     "svelte-sonner": "^1.1.1",
     "tailwindcss": "4.3.1",
     "unified": "^11.0.5",
-    "workbox-window": "7.4.1",
-    "@nervekit/protocol": "workspace:*",
-    "@nervekit/ui-kit": "workspace:*"
+    "workbox-window": "7.4.1"
   },
   "devDependencies": {
     "@lucide/svelte": "^1.17.0",

@@ -40,9 +40,7 @@ export type HistorySegmentPart = {
 export type HistorySegment = {
   /** Stable id = the head entry's id. */
   id: string;
-  lane: number;
   headParentEntryId?: string;
-  headParentLane?: number;
   rows: HistoryGraphRow[];
   isOnActivePath: boolean;
   total: number;
@@ -85,9 +83,7 @@ function makeSegment(
   }
   return {
     id: head.node.entry.id,
-    lane: head.lane,
     headParentEntryId: head.node.entry.parentEntryId,
-    headParentLane: head.parentLane,
     rows: indices.map((i) => rows[i]),
     isOnActivePath: indices.some((i) => rows[i].isOnActivePath),
     total: indices.length,
@@ -144,8 +140,7 @@ export function buildHistoryVisible(
     const prev = prevIndex === undefined ? undefined : rows[prevIndex];
     const linked =
       prev !== undefined &&
-      rows[i].node.entry.parentEntryId === prev.node.entry.id &&
-      rows[i].lane === prev.lane;
+      rows[i].node.entry.parentEntryId === prev.node.entry.id;
     if (run.length && !linked) flushRun();
     run.push(i);
   }

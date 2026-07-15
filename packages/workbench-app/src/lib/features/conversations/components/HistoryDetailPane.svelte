@@ -12,12 +12,8 @@ import PlainText from "@nervekit/ui-kit/core/components/PlainText.svelte";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { dateTimeLabel, relativeTimeLabel } from "$lib/core/utils/time";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import {
-  classifyHistoryEntry,
-  parseToolCallNames,
-  resolveToolCallForEntry,
-  type HistoryGraphRow,
-} from "./history-graph";
+import type { HistoryGraphRow } from "./history-graph";
+import { buildHistoryEntryView } from "./history-entry-view";
 import { HISTORY_ICONS, HISTORY_TONE_TEXT } from "./history-icons";
 import type { HistorySelection } from "./history-segments";
 
@@ -45,55 +41,11 @@ let {
 const entry = $derived(
   selection?.kind === "entry" ? selection.row.node.entry : undefined,
 );
-const desc = $derived(
-  entry ? classifyHistoryEntry(entry, toolCallsById) : undefined,
+const view = $derived(
+  entry ? buildHistoryEntryView(entry, toolCallsById) : undefined,
 );
-const record = $derived(
-  entry ? resolveToolCallForEntry(entry, toolCallsById) : undefined,
-);
-
-function thinkingText(value: ConversationEntry): string {
-  const details = value.details as
-    | { thinkingBlocks?: { text?: string }[] }
-    | undefined;
-  const blocks = details?.thinkingBlocks;
-  if (!Array.isArray(blocks)) return "";
-  return blocks
-    .map((block) => block?.text ?? "")
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-function pretty(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-const isToolEntry = $derived(
-  desc?.type === "tool_call" ||
-    desc?.type === "tool_result" ||
-    desc?.type === "human_loop",
-);
-const toolName = $derived(
-  record?.toolName ??
-    (entry ? parseToolCallNames(entry.text)[0] : undefined) ??
-    (entry?.details as { toolName?: string } | undefined)?.toolName,
-);
-const hasArgs = $derived(
-  record?.argsPreview !== undefined &&
-    record?.argsPreview !== null &&
-    Object.keys(record.argsPreview as object).length > 0,
-);
-const resultText = $derived(
-  entry?.role === "system"
-    ? entry.text
-    : typeof record?.resultPreview === "string"
-      ? record.resultPreview
-      : "",
-);
+const desc = $derived(view?.descriptor);
+const record = $derived(view?.record);
 
 async function copyId(id: string) {
   try {
@@ -166,7 +118,10 @@ async function copyId(id: string) {
     </div>
     <div class="flex flex-col gap-0.5 border-t pt-3">
       {#each segment.rows as row (row.node.entry.id)}
-        {@const stepDesc = classifyHistoryEntry(row.node.entry, toolCallsById)}
+        {@const stepDesc = buildHistoryEntryView(
+          row.node.entry,
+          toolCallsById,
+        ).descriptor}
         {@const StepIcon = HISTORY_ICONS[stepDesc.icon]}
         <button
           class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/60"
@@ -193,7 +148,7 @@ async function copyId(id: string) {
   </div>
 {:else if entry && desc}
   {@const Icon = HISTORY_ICONS[desc.icon]}
-  {@const thinking = thinkingText(entry)}
+  {@const thinking = view?.thinkingText ?? ""}
   <div class="flex h-full flex-col">
     <div class="flex flex-col gap-3 border-b p-5">
       <div class="flex items-center gap-2">
@@ -263,46 +218,44 @@ async function copyId(id: string) {
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto p-5">
-      {#if isToolEntry}
+      {#if view?.isToolEntry}
         <div class="flex flex-col gap-3">
-          {#if toolName}
+          {#if view.toolName}
             <div class="flex items-center gap-2 text-xs text-muted-foreground">
               <span class="font-medium text-foreground">Tool</span>
-              <span class="font-mono">{toolName}</span>
+              <span class="font-mono">{view.toolName}</span>
               {#if record?.status}<span
                   class="rounded-full border px-1.5 py-0.5"
                   >{record.status}</span
                 >{/if}
             </div>
           {/if}
-          {#if hasArgs}
+          {#if view.argsText}
             <div class="flex flex-col gap-1">
               <span class="text-xs font-medium text-muted-foreground"
                 >Arguments</span
               >
               <pre
-                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap break-words">{pretty(
-                  record?.argsPreview,
-                )}</pre>
+                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap break-words">{view.argsText}</pre>
             </div>
           {/if}
-          {#if resultText}
+          {#if view.resultText}
             <div class="flex flex-col gap-1">
               <span class="text-xs font-medium text-muted-foreground"
                 >Result</span
               >
               <pre
-                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap break-words">{resultText}</pre>
+                class="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap break-words">{view.resultText}</pre>
             </div>
           {/if}
-          {#if record?.error}
+          {#if view.errorText}
             <div class="flex flex-col gap-1">
               <span class="text-xs font-medium text-destructive">Error</span>
               <pre
-                class="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs whitespace-pre-wrap break-words">{record.error}</pre>
+                class="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs whitespace-pre-wrap break-words">{view.errorText}</pre>
             </div>
           {/if}
-          {#if !hasArgs && !resultText && !record?.error}
+          {#if !view.argsText && !view.resultText && !view.errorText}
             <p class="text-xs text-muted-foreground">
               No tool details available for this entry.
             </p>
