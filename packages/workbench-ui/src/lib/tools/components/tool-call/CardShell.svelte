@@ -4,16 +4,10 @@ import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import type { MetaItem, PrimaryArg } from "../../views/tool-presentation";
 import ToolStatusIcon from "./ToolStatusIcon.svelte";
 import ToolFooter from "./ToolFooter.svelte";
+import ToolActivityRegion from "./ToolActivityRegion.svelte";
 
 type Props = {
-  /** Tool-call status; mapped to a `data-state` lifecycle styling hook. */
   status?: string;
-  /**
-   * Explicit lifecycle for the pre-record draft phase. A draft is not a
-   * persisted tool status: it presents as in-flight and never settles — the
-   * meaningful transitions are the draft-to-tool handoff and the real
-   * running-to-terminal settle.
-   */
   draftPhase?: "drafting" | "prepared";
   dotTone: StatusTone;
   dotPulse?: boolean;
@@ -22,12 +16,9 @@ type Props = {
   error?: string;
   meta?: MetaItem[];
   detailsAction?: { label: string; onClick: () => void };
-  /**
-   * Render the generic footer (meta chips + show-more). Interactive HIL tools
-   * suppress this and render their own footer (chips + action buttons) inside
-   * the body so chips and buttons share one line.
-   */
   footer?: boolean;
+  bodyVisible?: boolean;
+  layoutRevision?: string;
   onOpenFile?: (path: string, line?: number) => void;
   children?: Snippet;
 };
@@ -42,11 +33,12 @@ let {
   meta = [],
   detailsAction,
   footer = true,
+  bodyVisible = false,
+  layoutRevision = "static",
   onOpenFile,
   children,
 }: Props = $props();
 
-// Lightweight lifecycle derived from the (exhaustive) tool-call status enum.
 const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
   if (draftPhase) return "running";
   switch (status) {
@@ -64,36 +56,15 @@ const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
       return "idle";
   }
 });
-
-// Transient settle only on a real running -> terminal change. Initialize the
-// tracker to the current value so a card that mounts already terminal does
-// not fire a spurious settle.
-let settling = $state(false);
-let previousLifecycle: "running" | "complete" | "error" | "idle" | undefined;
-$effect(() => {
-  const current = lifecycle;
-  if (previousLifecycle === undefined) {
-    previousLifecycle = current;
-    return;
-  }
-  if (
-    previousLifecycle === "running" &&
-    (current === "complete" || current === "error")
-  ) {
-    settling = true;
-  }
-  previousLifecycle = current;
-});
+const footerVisible = $derived(
+  footer && (meta.length > 0 || Boolean(detailsAction)),
+);
+const activityVisible = $derived(
+  Boolean(error) || bodyVisible || footerVisible,
+);
 </script>
 
-<article
-  class="tool-card"
-  class:state-settling={settling}
-  data-state={draftPhase ?? lifecycle}
-  onanimationend={(event) => {
-    if (event.target === event.currentTarget) settling = false;
-  }}
->
+<article class="tool-card" data-state={draftPhase ?? lifecycle}>
   <div class="tool-header">
     <ToolStatusIcon
       tone={dotTone}
@@ -138,31 +109,25 @@ $effect(() => {
     {/if}
   </div>
 
-  {#if error}
-    <pre class="tool-error">{error}</pre>
-  {/if}
+  <ToolActivityRegion revision={layoutRevision} visible={activityVisible}>
+    {#if error}
+      <pre class="tool-error">{error}</pre>
+    {/if}
 
-  {#if children}
-    <div class="tool-body">{@render children()}</div>
-  {/if}
+    {#if bodyVisible && children}
+      <div class="tool-body">{@render children()}</div>
+    {/if}
 
-  {#if footer}
-    <ToolFooter {meta} {detailsAction} {onOpenFile} />
-  {/if}
+    {#if footerVisible}
+      <ToolFooter {meta} {detailsAction} {onOpenFile} />
+    {/if}
+  </ToolActivityRegion>
 </article>
 
 <style>
 .tool-card {
-  display: grid;
-  gap: 0.4rem;
   width: 100%;
   padding: 0.6rem 0;
-}
-
-/* Brief opacity/transform settle when a running tool reaches a terminal
-   * state. Neutralized by the global prefers-reduced-motion rule in base.css. */
-.tool-card.state-settling {
-  animation: transcript-state-settle 180ms ease-out;
 }
 
 /* Inline flow so a long arg wraps flush to the left edge (no hanging indent). */

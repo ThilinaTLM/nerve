@@ -9,6 +9,7 @@ import {
 } from "./confluence-draft-progress";
 import { jiraDraftMeta, jiraDraftPrimaryArg } from "./jira-draft-progress";
 import { draftArgsPreview } from "./tool-draft-args-preview";
+export { hasMeaningfulToolDraftBody } from "./tool-draft-body";
 
 export type DraftMetaTone =
   | "default"

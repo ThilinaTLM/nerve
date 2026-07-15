@@ -92,6 +92,20 @@ const chips = $derived.by<MetaItem[]>(() => {
 const errorMessage = $derived(
   notice.errorMessage?.trim() || "Could not compact this conversation.",
 );
+const bodyVisible = $derived(
+  notice.state === "running" ||
+    (notice.state === "completed" && Boolean(summaryLead)),
+);
+const layoutRevision = $derived(
+  [
+    notice.state,
+    bodyVisible ? "body" : "no-body",
+    notice.state === "failed" ? "error" : "no-error",
+    notice.state === "completed" && chips.length > 0
+      ? `footer:${chips.length}`
+      : "no-footer",
+  ].join("|"),
+);
 </script>
 
 <div class="compaction-block">
@@ -103,6 +117,8 @@ const errorMessage = $derived(
     arg={{ text: reasonLabel }}
     error={notice.state === "failed" ? errorMessage : undefined}
     meta={notice.state === "completed" ? chips : []}
+    {bodyVisible}
+    {layoutRevision}
   >
     {#if notice.state === "running"}
       <p class="lead">Summarizing recent work…</p>

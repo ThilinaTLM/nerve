@@ -37,7 +37,6 @@ import {
 import {
   drainMaterializedActiveRunMessages,
   materializedLiveMessagesFromEntries,
-  removeActiveRunMessage,
 } from "./active-run.js";
 import type {
   CompactionNotice,
@@ -80,10 +79,10 @@ export function fromConversationSnapshot(
 }
 
 /**
- * Defensive snapshot normalization: the server filters materialized messages
- * from active-run snapshots, but a snapshot taken between entry persistence
- * and materialization marking could still carry stale blocks. Draining against
- * the snapshot's own entries keeps recovery renders duplicate-free.
+ * Defensive snapshot normalization: a snapshot taken between entry persistence
+ * and materialization marking can still carry stale prose. Draining against
+ * the snapshot entries removes persisted text/thinking while retaining an
+ * unresolved tool slot through the durable-record handoff.
  */
 function drainedSnapshotActiveRun(
   activeRun: ConversationActiveRunSnapshot | undefined,
@@ -355,15 +354,16 @@ function applyEntryAppended(
   state.conversationId = data.conversationId ?? entry.conversationId;
   state.entries = upsert(state.entries, entry.id, entry);
   state.activeEntryIds = nextActiveEntryIds(state.activeEntryIds, entry);
-  if (!state.activeRun) return;
+  if (!state.activeRun || entry.role !== "assistant") return;
   const liveMessageId = data.liveMessageId ?? entry.liveMessageId;
-  if (liveMessageId) removeActiveRunMessage(state.activeRun, liveMessageId);
-  if (entry.role === "assistant") {
-    drainMaterializedActiveRunMessages(
-      state.activeRun,
-      materializedLiveMessagesFromEntries([entry]),
-    );
-  }
+  drainMaterializedActiveRunMessages(
+    state.activeRun,
+    materializedLiveMessagesFromEntries([
+      liveMessageId && !entry.liveMessageId
+        ? { ...entry, liveMessageId }
+        : entry,
+    ]),
+  );
 }
 
 function nextActiveEntryIds(
@@ -434,9 +434,8 @@ function removePrompt(
 /**
  * Upsert the durable tool record. Draft blocks are intentionally kept: the
  * unified timeline node joins the draft with the actual record during the
- * presentation handoff, and only `tool_draft.discarded` or message
- * materialization removes the block — mirroring the server's own snapshot
- * lifecycle.
+ * presentation handoff. A discarded draft is removed immediately; a
+ * materialized message retains its draft slot until the active run ends.
  */
 function applyToolCallUpdated(
   state: ConversationRenderState,

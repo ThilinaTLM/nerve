@@ -26,12 +26,14 @@ import {
   groupConsecutiveThinking,
   type TranscriptDisplayNode,
 } from "./transcript-presentation";
+import { TranscriptEntryMotionLedger } from "./transcript-entry-motion";
 
 type TranscriptRowItem =
   | {
       kind: "timeline";
       key: string;
       node: TranscriptDisplayNode;
+      entranceToken?: string;
     }
   | { kind: "waiting"; key: string }
   | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
@@ -136,13 +138,34 @@ let {
   toolMenu,
 }: Props = $props();
 
+const entranceLedger = new TranscriptEntryMotionLedger();
+
+function entranceEligible(node: TranscriptDisplayNode): boolean {
+  if (node.kind === "message") return Boolean(node.item.live);
+  if (node.kind === "thinking_group") {
+    return node.items.some((member) => Boolean(member.item.live));
+  }
+  return node.kind === "tool" && Boolean(node.draft);
+}
+
 const rows = $derived.by<TranscriptRowItem[]>(() => {
   const seenKeys = new Map<string, number>();
   const displayNodes = groupConsecutiveThinking(timeline);
-  const result: TranscriptRowItem[] = displayNodes.map((node) => ({
-    kind: "timeline",
+  const timelineRows = displayNodes.map((node) => ({
+    kind: "timeline" as const,
     key: uniqueRowKey(node.key, seenKeys),
     node,
+  }));
+  const entranceTokens = entranceLedger.project(
+    heightCacheKey ?? "__default-transcript__",
+    timelineRows.map((row) => ({
+      key: row.key,
+      eligible: entranceEligible(row.node),
+    })),
+  );
+  const result: TranscriptRowItem[] = timelineRows.map((row) => ({
+    ...row,
+    entranceToken: entranceTokens.get(row.key),
   }));
   if (sending && !hasLiveTimelineNodes) {
     result.push({ kind: "waiting", key: "__waiting__" });
@@ -152,6 +175,10 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
   }
   return result;
 });
+
+function claimEntrance(key: string, token: string): boolean {
+  return entranceLedger.claim(key, token);
+}
 
 // Content revisions request measurement without changing component identity.
 // Keep each revision scoped to the row whose rendered body can actually change
@@ -183,10 +210,10 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
     ].join(":");
   }
   if (node.kind === "tool") {
-    // Draft phase: the canonical block carries no timestamps, so the version
-    // encodes content directly. Tool phase: status/updatedAt/output. Including
-    // the presented phase makes the draft-to-tool handoff re-measure exactly
-    // once.
+    // The canonical draft block carries no timestamps, so structural progress
+    // is encoded directly. Durable revisions include activity/hydration state;
+    // the shared ResizeObserver remains the sole authority for intermediate
+    // animated heights.
     if (!node.toolCall) {
       const block = node.draft?.block;
       const progress = block?.progress;
@@ -197,6 +224,9 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
         progress?.lineCount ?? 0,
         progress?.generatedLineCount ?? 0,
         progress?.generatedPreview?.length ?? 0,
+        block?.argsText || progress?.generatedPreview
+          ? "activity-visible"
+          : "header-only",
       ].join(":");
     }
     const toolCallId = node.toolCall.id;
@@ -216,6 +246,10 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
       node.toolCall.status,
       node.toolCall.updatedAt,
       node.liveOutput?.updatedAt ?? "no-output",
+      active ? "body-hydrated" : "body-deferred",
+      node.toolCall.status === "error" || node.toolCall.status === "denied"
+        ? "activity-error"
+        : "activity-visible",
       approval ? `${approval.id}:${approval.status}` : "no-approval",
       question ? `${question.id}:${question.status}` : "no-question",
       plan ? `${plan.id}:${plan.status}` : "no-plan",
@@ -279,6 +313,8 @@ const showEmptyRun = $derived(
       {#if item.kind === "timeline"}
         <TranscriptRow
           node={item.node}
+          entranceToken={item.entranceToken}
+          onClaimEntrance={(token) => claimEntrance(item.key, token)}
           {sending}
           hydrateToolBodies={active}
           {activeProject}

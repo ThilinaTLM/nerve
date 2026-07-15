@@ -322,6 +322,16 @@ describe("shared conversation adapters", () => {
                     text: "thinking about A",
                     done: true,
                   },
+                  {
+                    kind: "tool_call_draft",
+                    contentBlockId: "block_tool_msg_1",
+                    contentIndex: 1,
+                    providerToolCallId: "provider_pending",
+                    toolName: "read",
+                    argsText: "",
+                    args: { path: "package.json" },
+                    done: true,
+                  },
                 ],
               },
               {
@@ -356,6 +366,7 @@ describe("shared conversation adapters", () => {
     assert.deepEqual(rebuiltRendered, [
       "thinking:thinking about A",
       "message:Answer A",
+      "tool",
       "thinking:thinking about B",
     ]);
   });

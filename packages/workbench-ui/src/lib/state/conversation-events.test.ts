@@ -189,6 +189,30 @@ describe("conversation event reducer", () => {
       ),
       [],
     );
+
+    state = applyConversationEvent(
+      state,
+      evt(
+        2,
+        "conversation.entry.appended",
+        {
+          conversationId: "conv_test",
+          liveMessageId: "msg_test",
+          entry: {
+            id: "entry_test",
+            conversationId: "conv_test",
+            agentId: "agent_test",
+            runId: "run_test",
+            role: "assistant",
+            kind: "message",
+            text: "No tool call",
+            createdAt: ts,
+          },
+        },
+        "durable",
+      ),
+    );
+    assert.deepEqual(state.activeRun?.turns[0]?.messages, []);
   });
 
   it("keeps the draft block and joins it with the durable tool call", () => {
@@ -250,6 +274,180 @@ describe("conversation event reducer", () => {
       assert.equal(toolNodes[0].toolCall?.id, "tool_test");
       assert.equal(toolNodes[0].draft?.block.toolName, "bash");
     }
+  });
+
+  it("keeps one tool-slot node through materialization, approval, execution, and commit", () => {
+    let state = emptyConversationRenderState("conv_test");
+    const assertOneSlot = () => {
+      const tools = buildConversationRenderProjection(state).timeline.filter(
+        (item) => item.kind === "tool",
+      );
+      assert.equal(tools.length, 1);
+      assert.equal(tools[0]?.key, "tool-slot:msg_test:1");
+    };
+
+    state = applyConversationEvent(state, startRun());
+    state = applyConversationEvent(state, startMessage());
+    state = applyConversationEvent(
+      state,
+      evt(3, "conversation.live.tool_draft.started", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        liveMessageId: "msg_test",
+        contentBlockId: "block_tool",
+        contentIndex: 1,
+        providerToolCallId: "call_test",
+        toolName: "bash",
+      }),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(4, "conversation.live.tool_draft.delta", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        liveMessageId: "msg_test",
+        contentBlockId: "block_tool",
+        contentIndex: 1,
+        providerToolCallId: "call_test",
+        toolName: "bash",
+        offset: 0,
+        delta: '{"command":"pwd"}',
+      }),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(5, "conversation.live.tool_draft.done", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        liveMessageId: "msg_test",
+        contentBlockId: "block_tool",
+        contentIndex: 1,
+        providerToolCallId: "call_test",
+        toolName: "bash",
+        args: { command: "pwd" },
+      }),
+    );
+    assertOneSlot();
+
+    // The durable assistant entry lands before the durable tool record. The
+    // envelope supplies exact correlation even though the entry omits it.
+    state = applyConversationEvent(
+      state,
+      evt(
+        2,
+        "conversation.entry.appended",
+        {
+          conversationId: "conv_test",
+          liveMessageId: "msg_test",
+          entry: {
+            id: "entry_assistant",
+            conversationId: "conv_test",
+            agentId: "agent_test",
+            runId: "run_test",
+            turnId: "turn_test",
+            messageOrdinal: 0,
+            role: "assistant",
+            kind: "message",
+            text: "[Tool call: bash]",
+            createdAt: ts,
+          },
+        },
+        "durable",
+      ),
+    );
+    assert.deepEqual(
+      state.activeRun?.turns[0]?.messages[0]?.blocks.map((block) => block.kind),
+      ["tool_call_draft"],
+    );
+    assertOneSlot();
+
+    const updateTool = (
+      seq: number,
+      status: ToolCallTranscriptRecord["status"],
+    ) => {
+      state = applyConversationEvent(
+        state,
+        evt(
+          seq,
+          "toolCall.updated",
+          {
+            conversationId: "conv_test",
+            agentId: "agent_test",
+            projectId: "proj_test",
+            runId: "run_test",
+            providerToolCallId: "call_test",
+            toolCall: toolCall({
+              status,
+              turnId: "turn_test",
+              liveMessageId: "msg_test",
+              contentIndex: 1,
+              updatedAt: `2026-07-07T00:00:0${seq}.000Z`,
+            }),
+          },
+          "durable",
+        ),
+      );
+      assertOneSlot();
+    };
+    updateTool(3, "requested");
+    updateTool(4, "pending_approval");
+    updateTool(5, "running");
+    updateTool(6, "completed");
+
+    state = applyConversationEvent(
+      state,
+      evt(
+        7,
+        "conversation.entry.appended",
+        {
+          conversationId: "conv_test",
+          entry: {
+            id: "entry_tool_result",
+            conversationId: "conv_test",
+            agentId: "agent_test",
+            runId: "run_test",
+            role: "system",
+            kind: "message",
+            text: "/workspace",
+            details: {
+              toolCallId: "call_test",
+              toolRecordId: "tool_test",
+              toolName: "bash",
+            },
+            createdAt: ts,
+          },
+        },
+        "durable",
+      ),
+    );
+    assertOneSlot();
+
+    state = applyConversationEvent(
+      state,
+      evt(
+        8,
+        "run.completed",
+        {
+          conversationId: "conv_test",
+          agentId: "agent_test",
+          projectId: "proj_test",
+          runId: "run_test",
+          completedAt: ts,
+        },
+        "durable",
+      ),
+    );
+    assert.equal(state.activeRun, undefined);
+    assertOneSlot();
   });
 
   it("updates queued prompts from prompt queue events", () => {

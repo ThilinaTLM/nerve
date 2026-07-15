@@ -25,7 +25,8 @@ import type {
  * One tool content slot rendered as a single stable row across its whole
  * lifecycle. At least one of `draft` or `toolCall` is present: draft-only
  * while arguments stream, joined during the presentation handoff, tool-only
- * once the draft block has been drained/materialized.
+ * after the active run ends. A materialized message's retained draft is the
+ * handoff bridge to the durable record, not a second tool card.
  */
 export type ToolActivityTimelineItem = {
   kind: "tool";
@@ -698,7 +699,8 @@ function emitMessageSlots(
     }
 
     const slotKey = toolSlotKey(message.liveMessageId, block.contentIndex);
-    // Coordinate-first joining; provider/source aliases as fallback.
+    // Coordinate-first joining keeps the retained materialized draft as one
+    // handoff bridge; provider/source aliases are recovery-only fallbacks.
     const toolCall =
       input.context.toolCallsBySlot.get(slotKey) ??
       (block.providerToolCallId

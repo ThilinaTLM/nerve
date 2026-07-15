@@ -12,7 +12,7 @@ import type {
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import ToolActivityCard from "../../tools/components/ToolActivityCard.svelte";
+import ToolCallCard from "../../tools/components/ToolCallCard.svelte";
 import ToolResultErrorCard from "../../tools/components/tool-call/ToolResultErrorCard.svelte";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
@@ -32,6 +32,8 @@ type Props = {
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;
   hydrateToolBodies?: boolean;
+  entranceToken?: string;
+  onClaimEntrance?: (token: string) => boolean;
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
@@ -66,6 +68,8 @@ let {
   pendingUserQuestion,
   pendingPlanReview,
   hydrateToolBodies = true,
+  entranceToken,
+  onClaimEntrance,
   planReviewModels = [],
   planReviewModelKey = "",
   planReviewThinkingLevel = "off",
@@ -83,9 +87,6 @@ let {
   toolMenu,
 }: Props = $props();
 
-// Lifecycle for normal message rows. `running` while a live assistant message
-// streams, `complete` once the same live message is done, `static` for
-// persisted/non-live rows and user/system rows.
 const messageMenuItems = $derived.by(() => {
   if (node.kind === "message") return messageMenu(node.item);
   if (node.kind === "thinking_group") {
@@ -109,133 +110,136 @@ const messageState = $derived.by<"running" | "complete" | "static">(() => {
   return "static";
 });
 
-// Transient one-shot settle, only on a real running -> complete change.
-// Initialize the tracker to the current value so an already-complete row
-// mounting (scrollback, reload, recycled VirtualScroller instance) does not
-// fire a spurious settle.
-let settling = $state(false);
-let previousMessageState: "running" | "complete" | "static" | undefined;
+let entering = $state(false);
+let claimedEntranceToken: string | undefined;
 $effect(() => {
-  const current = messageState;
-  if (previousMessageState === undefined) {
-    previousMessageState = current;
-    return;
-  }
-  if (previousMessageState === "running" && current === "complete") {
-    settling = true;
-  }
-  previousMessageState = current;
+  const token = entranceToken;
+  if (!token || token === claimedEntranceToken) return;
+  claimedEntranceToken = token;
+  if (onClaimEntrance?.(token)) entering = true;
 });
 </script>
 
-{#if node.kind === "tool"}
-  <div class="relative min-w-0 px-3">
-    <!-- Keep one stable trigger across the whole tool lifecycle; it is inert
+<div
+  class="transcript-row-content"
+  class:live-entering={entering}
+  onanimationend={(event) => {
+    if (event.target === event.currentTarget) entering = false;
+  }}
+>
+  {#if node.kind === "tool"}
+    <div class="relative min-w-0 px-3">
+      <!-- Keep one stable trigger across the whole tool lifecycle; it is inert
          (not removed) while only a draft exists, so the handoff to the real
          tool menu causes no layout shift. -->
-    <ContextMenu
-      items={node.toolCall ? toolMenu(node.anchorEntryId, node.toolCall) : []}
-      disabled={!node.toolCall}
-      triggerClass="block min-w-0"
-    >
-      <ToolActivityCard
-        draft={node.draft}
-        toolCall={node.toolCall}
-        liveOutput={node.liveOutput}
-        cwd={activeProject?.dir}
-        pendingApproval={node.toolCall
-          ? approvals.find(
-              (approval) =>
-                approval.toolCallId === node.toolCall?.id &&
-                approval.status === "pending",
-            )
-          : undefined}
-        {pendingUserQuestion}
-        hydrateBody={hydrateToolBodies}
-        {pendingPlanReview}
-        {onOpenFile}
-        {planReviewModels}
-        {planReviewModelKey}
-        {planReviewThinkingLevel}
-        {onAnswerUserQuestion}
-        {onDismissUserQuestion}
-        {onGrantApproval}
-        {onDenyApproval}
-        {onAcceptPlanReview}
-        {onAcceptPlanReviewInNewChat}
-        {onRejectPlanReview}
-      />
+      <ContextMenu
+        items={node.toolCall ? toolMenu(node.anchorEntryId, node.toolCall) : []}
+        disabled={!node.toolCall}
+        triggerClass="block min-w-0"
+      >
+        <ToolCallCard
+          draft={node.draft}
+          toolCall={node.toolCall}
+          liveOutput={node.liveOutput}
+          cwd={activeProject?.dir}
+          pendingApproval={node.toolCall
+            ? approvals.find(
+                (approval) =>
+                  approval.toolCallId === node.toolCall?.id &&
+                  approval.status === "pending",
+              )
+            : undefined}
+          {pendingUserQuestion}
+          hydrateBody={hydrateToolBodies}
+          {pendingPlanReview}
+          {onOpenFile}
+          {planReviewModels}
+          {planReviewModelKey}
+          {planReviewThinkingLevel}
+          {onAnswerUserQuestion}
+          {onDismissUserQuestion}
+          {onGrantApproval}
+          {onDenyApproval}
+          {onAcceptPlanReview}
+          {onAcceptPlanReviewInNewChat}
+          {onRejectPlanReview}
+        />
+      </ContextMenu>
+    </div>
+  {:else if node.kind === "tool_result_error"}
+    <div class="relative min-w-0 px-3">
+      <ToolResultErrorCard toolName={node.toolName} error={node.error} />
+    </div>
+  {:else if node.kind === "run_status"}
+    <RunStatusCard
+      notice={node.notice}
+      isLast={node.key === lastTimelineKey}
+      {sending}
+      {onContinueFromFailure}
+    />
+  {:else if node.kind === "compaction"}
+    <CompactionCard notice={node.notice} />
+  {:else if node.kind === "task_event"}
+    <TaskEventCard notice={node.notice} />
+  {:else if node.kind === "thinking_group"}
+    <ContextMenu items={messageMenuItems} triggerClass="select-text">
+      <article
+        class="transcript-entry assistant thinking-entry"
+        data-state="static"
+      >
+        <div class="message-body">
+          <ThinkingGroup items={node.items.map((member) => member.item)} />
+        </div>
+      </article>
     </ContextMenu>
-  </div>
-{:else if node.kind === "tool_result_error"}
-  <div class="relative min-w-0 px-3">
-    <ToolResultErrorCard toolName={node.toolName} error={node.error} />
-  </div>
-{:else if node.kind === "run_status"}
-  <RunStatusCard
-    notice={node.notice}
-    isLast={node.key === lastTimelineKey}
-    {sending}
-    {onContinueFromFailure}
-  />
-{:else if node.kind === "compaction"}
-  <CompactionCard notice={node.notice} />
-{:else if node.kind === "task_event"}
-  <TaskEventCard notice={node.notice} />
-{:else if node.kind === "thinking_group"}
-  <ContextMenu items={messageMenuItems} triggerClass="select-text">
-    <article
-      class="transcript-entry assistant thinking-entry"
-      data-state="static"
+  {:else}
+    <ContextMenu
+      items={messageMenuItems}
+      triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}
     >
-      <div class="message-body">
-        <ThinkingGroup items={node.items.map((member) => member.item)} />
-      </div>
-    </article>
-  </ContextMenu>
-{:else}
-  <ContextMenu
-    items={messageMenuItems}
-    triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}
-  >
-    <article
-      class={`transcript-entry ${node.item.role} ${node.item.live ? "streaming" : ""}`}
-      class:state-settling={settling}
-      data-state={messageState}
-      onanimationend={(event) => {
-        if (event.target === event.currentTarget) settling = false;
-      }}
-    >
-      <div class="message-body">
-        {#if node.item.text}
-          <div class="message-content">
-            {#if node.item.role === "user"}
-              <UserMessageContent
-                text={node.item.text}
-                pending={Boolean(node.item.optimistic)}
-              />
-            {:else}
-              <Markdown
-                text={node.item.text}
-                trimCodeBlocks={node.item.role !== "assistant"}
-                streaming={Boolean(node.item.live && !node.item.done)}
-                linkBasePath={activeProject?.dir}
-                {onOpenFile}
-                onCopy={notifyCopyResult}
-              />
-            {/if}
-            {#if node.item.live && !node.item.done}<span
-                class="stream-caret"
-                aria-hidden="true"
-              ></span>{/if}
-          </div>
-        {/if}
-      </div>
-    </article>
-  </ContextMenu>
-{/if}
+      <article
+        class={`transcript-entry ${node.item.role} ${node.item.live ? "streaming" : ""}`}
+        data-state={messageState}
+      >
+        <div class="message-body">
+          {#if node.item.text}
+            <div class="message-content">
+              {#if node.item.role === "user"}
+                <UserMessageContent
+                  text={node.item.text}
+                  pending={Boolean(node.item.optimistic)}
+                />
+              {:else}
+                <Markdown
+                  text={node.item.text}
+                  trimCodeBlocks={node.item.role !== "assistant"}
+                  streaming={Boolean(node.item.live && !node.item.done)}
+                  linkBasePath={activeProject?.dir}
+                  {onOpenFile}
+                  onCopy={notifyCopyResult}
+                />
+              {/if}
+              {#if node.item.live && !node.item.done}<span
+                  class="stream-caret"
+                  aria-hidden="true"
+                ></span>{/if}
+            </div>
+          {/if}
+        </div>
+      </article>
+    </ContextMenu>
+  {/if}
+</div>
 
 <style>
+.transcript-row-content {
+  min-width: 0;
+}
+
+.transcript-row-content.live-entering {
+  animation: transcript-live-enter 180ms ease-out;
+}
+
 .transcript-entry {
   position: relative;
   width: 100%;
@@ -290,11 +294,5 @@ $effect(() => {
   margin-top: 0.18rem;
   background: var(--primary);
   animation: pulse 1s steps(2, start) infinite;
-}
-
-/* Brief opacity/transform settle when a live message becomes terminal.
-   * Neutralized by the global prefers-reduced-motion rule in base.css. */
-.transcript-entry.state-settling {
-  animation: transcript-state-settle 180ms ease-out;
 }
 </style>

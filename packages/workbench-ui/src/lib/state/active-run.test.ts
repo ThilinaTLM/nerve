@@ -9,7 +9,6 @@ import {
   orderedBlocks,
   orderedMessages,
   orderedTurns,
-  removeActiveRunMessage,
   toolSlotKey,
 } from "./active-run.js";
 import {
@@ -65,15 +64,6 @@ describe("active-run helpers", () => {
     assert.equal(activeRunStreamingText(undefined), "");
   });
 
-  it("removes a message by exact liveMessageId", () => {
-    const snapshot = run();
-    removeActiveRunMessage(snapshot, "msg_2");
-    const remaining = snapshot.turns.flatMap((turn) =>
-      turn.messages.map((message) => message.liveMessageId),
-    );
-    assert.deepEqual(remaining.sort(), ["msg_1", "msg_3"]);
-  });
-
   it("drains materialized messages by exact id", () => {
     const snapshot = run();
     drainMaterializedActiveRunMessages(
@@ -88,11 +78,28 @@ describe("active-run helpers", () => {
     assert.deepEqual(remaining.sort(), ["msg_2", "msg_3"]);
   });
 
-  it("drains text and draft blocks by turn ordinal watermark on id misses", () => {
+  it("retains draft slots when materializing by exact id", () => {
     const snapshot = run();
-    // The entry materializes msg_2 (ordinal 1 in turn_1) without an id match;
-    // the watermark must drain msg_1 and msg_2 — including the draft block —
-    // while msg_3 in turn_2 survives.
+    drainMaterializedActiveRunMessages(
+      snapshot,
+      materializedLiveMessagesFromEntries([
+        { role: "assistant", liveMessageId: "msg_2" },
+      ]),
+    );
+    const retained = snapshot.turns
+      .flatMap((turn) => turn.messages)
+      .find((message) => message.liveMessageId === "msg_2");
+    assert.deepEqual(
+      retained?.blocks.map((block) => block.kind),
+      ["tool_call_draft"],
+    );
+  });
+
+  it("drains prose but retains draft slots by turn ordinal watermark", () => {
+    const snapshot = run();
+    // The entry materializes msg_2 (ordinal 1 in turn_1) without an id match.
+    // Prose at/below the watermark drains, while msg_2 remains at its original
+    // coordinates with only the unresolved tool slot.
     drainMaterializedActiveRunMessages(
       snapshot,
       materializedLiveMessagesFromEntries([
@@ -102,7 +109,15 @@ describe("active-run helpers", () => {
     const remaining = snapshot.turns.flatMap((turn) =>
       turn.messages.map((message) => message.liveMessageId),
     );
-    assert.deepEqual(remaining, ["msg_3"]);
+    assert.deepEqual(remaining.sort(), ["msg_2", "msg_3"]);
+    const retained = snapshot.turns
+      .flatMap((turn) => turn.messages)
+      .find((message) => message.liveMessageId === "msg_2");
+    assert.equal(retained?.messageOrdinal, 1);
+    assert.deepEqual(
+      retained?.blocks.map((block) => block.kind),
+      ["tool_call_draft"],
+    );
   });
 
   it("ignores non-assistant entries when collecting materialized messages", () => {

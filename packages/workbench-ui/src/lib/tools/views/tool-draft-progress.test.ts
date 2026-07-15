@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
-import { DRAFT_PREVIEW_LINES, summarizeToolDraft } from "./tool-draft-progress";
+import {
+  DRAFT_PREVIEW_LINES,
+  hasMeaningfulToolDraftBody,
+  summarizeToolDraft,
+} from "./tool-draft-progress";
 
 function draft(
   toolName: string,
@@ -24,6 +28,25 @@ function previewLines(text: string | undefined): number {
 }
 
 describe("summarizeToolDraft", () => {
+  it("distinguishes header-only drafts from meaningful body content", () => {
+    const empty = summarizeToolDraft(draft("write"));
+    assert.equal(hasMeaningfulToolDraftBody(empty), false);
+
+    const preview = summarizeToolDraft(
+      draft("write", {
+        progress: { generatedPreview: "first line", estimated: true },
+      }),
+    );
+    assert.equal(hasMeaningfulToolDraftBody(preview), true);
+    assert.equal(
+      hasMeaningfulToolDraftBody(
+        summarizeToolDraft(draft("jira_get_issue")),
+        "Preparing Jira get issue\nWaiting for arguments…",
+      ),
+      false,
+    );
+  });
+
   it("counts partial write content lines from escaped JSON", () => {
     const summary = summarizeToolDraft(
       draft("write", {

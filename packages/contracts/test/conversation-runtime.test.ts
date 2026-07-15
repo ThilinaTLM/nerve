@@ -159,7 +159,7 @@ describe("ConversationRuntime", () => {
     assert.equal(output?.outputLimits?.omittedChars, 8_000);
   });
 
-  it("hides materialized messages from snapshots while keeping ordinals stable", () => {
+  it("hides materialized prose messages while keeping ordinals stable", () => {
     const runtime = new ConversationRuntime();
     const { run, turn, message } = start(runtime);
     runtime.applyContentDelta({
@@ -191,6 +191,80 @@ describe("ConversationRuntime", () => {
     assert.equal(
       "materialized" in (refreshed?.turns[0]?.messages[0] ?? {}),
       false,
+    );
+  });
+
+  it("retains only tool-draft slots from materialized mixed messages", () => {
+    const runtime = new ConversationRuntime();
+    const { run, turn, message } = start(runtime);
+    runtime.applyContentDelta({
+      runId: run.runId,
+      turnId: turn.turnId,
+      liveMessageId: message.liveMessageId,
+      contentIndex: 0,
+      kind: "thinking",
+      delta: "reasoning",
+    });
+    runtime.startToolDraft({
+      runId: run.runId,
+      turnId: turn.turnId,
+      liveMessageId: message.liveMessageId,
+      contentIndex: 1,
+      providerToolCallId: "provider_tool_1",
+      toolName: "write",
+    });
+    runtime.applyContentDelta({
+      runId: run.runId,
+      turnId: turn.turnId,
+      liveMessageId: message.liveMessageId,
+      contentIndex: 2,
+      kind: "text",
+      delta: "done",
+    });
+
+    runtime.markMessageMaterialized(
+      run.runId,
+      turn.turnId,
+      message.liveMessageId,
+    );
+
+    const retained =
+      runtime.snapshotForConversation("conv_test")?.turns[0]?.messages[0];
+    assert.equal(retained?.liveMessageId, message.liveMessageId);
+    assert.equal(retained?.messageOrdinal, message.messageOrdinal);
+    assert.deepEqual(
+      retained?.blocks.map((block) => block.kind),
+      ["tool_call_draft"],
+    );
+    assert.equal("materialized" in (retained ?? {}), false);
+  });
+
+  it("does not retain a discarded draft after materialization", () => {
+    const runtime = new ConversationRuntime();
+    const { run, turn, message } = start(runtime);
+    runtime.startToolDraft({
+      runId: run.runId,
+      turnId: turn.turnId,
+      liveMessageId: message.liveMessageId,
+      contentIndex: 0,
+      toolName: "write",
+    });
+    runtime.discardToolDraft({
+      runId: run.runId,
+      turnId: turn.turnId,
+      liveMessageId: message.liveMessageId,
+      contentIndex: 0,
+      reason: "invalid",
+    });
+    runtime.markMessageMaterialized(
+      run.runId,
+      turn.turnId,
+      message.liveMessageId,
+    );
+
+    assert.deepEqual(
+      runtime.snapshotForConversation("conv_test")?.turns[0]?.messages,
+      [],
     );
   });
 

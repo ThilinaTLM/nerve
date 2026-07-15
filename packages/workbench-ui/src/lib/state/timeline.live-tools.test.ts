@@ -333,13 +333,13 @@ describe("buildConversationTimeline live tools", () => {
     }
   });
 
-  it("joins a live tool draft with the matching real tool call in one node", () => {
+  it("joins a live draft with a fast completed record by provider alias", () => {
     const matching = toolCall(
       "tool_real",
       "2026-01-01T00:00:01.000Z",
       "bash",
       "provider_call_1",
-      { status: "running" },
+      { status: "completed" },
     );
     const timeline = buildConversationTimeline(
       [{ id: "entry_user", role: "user", text: "Run command" }],

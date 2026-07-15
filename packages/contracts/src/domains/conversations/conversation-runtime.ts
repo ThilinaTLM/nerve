@@ -52,8 +52,9 @@ interface MutableMessage extends ConversationLiveMessageSnapshot {
   >;
   /**
    * True once the message has been persisted as a conversation entry. Kept in
-   * the mutable structure (for stable ordinals and event handling) but
-   * excluded from snapshots so refreshes can never resurrect it in the UI.
+   * the mutable structure for stable ordinals and event handling. Snapshots
+   * drain persisted prose but retain tool-draft slot anchors until the active
+   * run ends so the UI can bridge durable tool-record handoff.
    */
   materialized?: boolean;
 }
@@ -178,8 +179,9 @@ export class ConversationRuntime {
 
   /**
    * Mark a live assistant message as materialized (persisted as an entry).
-   * The message stays in the mutable run so message ordinals remain unique,
-   * but it is dropped from all future snapshots. Silent no-op when the run,
+   * The message stays in the mutable run so message ordinals remain unique.
+   * Future snapshots drain its persisted text/thinking while retaining any
+   * tool-draft slot anchors through the active run. Silent no-op when the run,
    * turn, or message no longer exists (e.g. the run already completed).
    */
   markMessageMaterialized(
@@ -623,21 +625,27 @@ function cloneRun(run: MutableRun): ConversationActiveRunSnapshot {
 function cloneTurn(turn: MutableTurn): ConversationLiveTurnSnapshot {
   return {
     ...turn,
-    messages: turn.messages
-      .filter((message) => !message.materialized)
-      .map((message) => ({
-        liveMessageId: message.liveMessageId,
-        messageOrdinal: message.messageOrdinal,
-        startedAt: message.startedAt,
-        blocks: message.blocks.map((block) =>
-          block.kind === "tool_call_draft"
-            ? {
-                ...block,
-                progress: block.progress ? { ...block.progress } : undefined,
-              }
-            : { ...block },
-        ),
-      })),
+    messages: turn.messages.flatMap((message) => {
+      const visibleBlocks = message.materialized
+        ? message.blocks.filter((block) => block.kind === "tool_call_draft")
+        : message.blocks;
+      if (message.materialized && visibleBlocks.length === 0) return [];
+      return [
+        {
+          liveMessageId: message.liveMessageId,
+          messageOrdinal: message.messageOrdinal,
+          startedAt: message.startedAt,
+          blocks: visibleBlocks.map((block) =>
+            block.kind === "tool_call_draft"
+              ? {
+                  ...block,
+                  progress: block.progress ? { ...block.progress } : undefined,
+                }
+              : { ...block },
+          ),
+        },
+      ];
+    }),
   };
 }
 

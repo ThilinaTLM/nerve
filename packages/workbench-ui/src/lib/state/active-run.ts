@@ -66,11 +66,11 @@ export function isMaterializedMessage(
 }
 
 /**
- * Remove active-run messages already materialized as persisted entries: exact
- * `liveMessageId` matches plus everything in a turn at or below its
- * materialized `messageOrdinal` watermark. Keyed structurally so a missed or
- * mislabelled id cannot strand thinking or draft blocks in the live tail.
- * Mutates `activeRun` in place; callers own cloning.
+ * Materialize active-run messages matched by exact `liveMessageId` or a turn
+ * ordinal watermark. Persisted text/thinking blocks are drained, while
+ * tool-draft blocks remain as handoff anchors until the active run ends.
+ * Messages emptied by the drain are removed; tool-only messages retain their
+ * original coordinates. Mutates `activeRun` in place; callers own cloning.
  */
 export function drainMaterializedActiveRunMessages(
   activeRun: ConversationActiveRunSnapshot,
@@ -83,26 +83,22 @@ export function drainMaterializedActiveRunMessages(
     return;
   }
   for (const turn of activeRun.turns) {
-    turn.messages = turn.messages.filter(
-      (message) =>
+    turn.messages = turn.messages.flatMap((message) => {
+      if (
         !isMaterializedMessage(materialized, {
           liveMessageId: message.liveMessageId,
           turnId: turn.turnId,
           messageOrdinal: message.messageOrdinal,
-        }),
-    );
-  }
-}
-
-/** Remove one active-run message by exact id. Mutates `activeRun` in place. */
-export function removeActiveRunMessage(
-  activeRun: ConversationActiveRunSnapshot,
-  liveMessageId: string,
-): void {
-  for (const turn of activeRun.turns) {
-    turn.messages = turn.messages.filter(
-      (message) => message.liveMessageId !== liveMessageId,
-    );
+        })
+      ) {
+        return [message];
+      }
+      const blocks = message.blocks.filter(
+        (block): block is ConversationLiveToolDraftBlockSnapshot =>
+          block.kind === "tool_call_draft",
+      );
+      return blocks.length > 0 ? [{ ...message, blocks }] : [];
+    });
   }
 }
 

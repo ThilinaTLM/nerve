@@ -69,25 +69,13 @@
   }
 }
 
-/* Bottom-only reveal for live/waiting transcript surfaces
- * (TranscriptList.svelte waiting-entry). Opacity/transform only. */
+/* One-shot entrance for genuinely new live transcript content and the
+ * short-lived waiting row. Applied inside virtual rows so their translated
+ * positioning remains owned by the virtualizer. */
 @keyframes transcript-live-enter {
   from {
     opacity: 0;
     transform: translateY(0.25rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* One-shot settle when a live/running surface becomes terminal
- * (TranscriptRow, ToolDraftCard, CardShell). Opacity/transform only. */
-@keyframes transcript-state-settle {
-  from {
-    opacity: 0.72;
-    transform: translateY(0.12rem);
   }
   to {
     opacity: 1;
