@@ -40,6 +40,7 @@ import {
   sendPromptText,
   setActiveComposerText,
 } from "$lib/features/conversations/state/prompt-send";
+import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import {
   setComposerApprovalPolicy,
   setComposerMode,
@@ -144,11 +145,19 @@ const planReviewAgent = $derived(
       )
     : undefined,
 );
+// A pending desired override is the immediate display value while an
+// `agent.configure` mutation is in flight; the authoritative agent record
+// takes over once the mutation settles.
+const activeAgentConfigOverride = $derived(
+  agentConfigOverride(activeAgent?.id),
+);
 const selectedModelKey = $derived(
   activePendingConversation?.selectedModelKey ??
-    (activeAgent?.model
-      ? modelKey(activeAgent.model)
-      : conversationState.selectedModelKey),
+    (activeAgentConfigOverride?.model
+      ? modelKey(activeAgentConfigOverride.model)
+      : activeAgent?.model
+        ? modelKey(activeAgent.model)
+        : conversationState.selectedModelKey),
 );
 const selectedModelInfo = $derived(
   settingsState.models.find((model) => modelKey(model) === selectedModelKey),
@@ -163,23 +172,27 @@ const activeModelInfo = $derived(
 );
 const selectedThinkingLevel = $derived(
   activePendingConversation?.thinkingLevel ??
+    activeAgentConfigOverride?.thinkingLevel ??
     activeAgent?.thinkingLevel ??
     "off",
 );
 const selectedMode = $derived(
   activePendingConversation?.mode ??
+    activeAgentConfigOverride?.mode ??
     activeAgent?.mode ??
     activeConversation?.mode ??
     conversationState.selectedMode,
 );
 const selectedPermissionLevel = $derived(
   activePendingConversation?.permissionLevel ??
+    activeAgentConfigOverride?.permissionLevel ??
     activeAgent?.permissionLevel ??
     activeConversation?.permissionLevel ??
     conversationState.selectedPermissionLevel,
 );
 const selectedApprovalPolicy = $derived(
   activePendingConversation?.approvalPolicy ??
+    activeAgentConfigOverride?.approvalPolicy ??
     activeAgent?.approvalPolicy ??
     activeConversation?.approvalPolicy ??
     conversationState.selectedApprovalPolicy,
@@ -379,6 +392,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   queuedPrompts={view?.queuedPrompts ?? []}
   live={workspaceState.connection === "live"}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
+  stopping={view?.stopping ?? false}
   composerText={activeComposerText}
   {composerSuggestions}
   onSendSuggestion={sendSuggestion}
@@ -426,8 +440,8 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   onApprovalPolicyChange={(value) => {
     void runActivePaneAction(() => setComposerApprovalPolicy(value));
   }}
-  onGrantApproval={(id) => void grantApproval(id)}
-  onDenyApproval={(id) => void denyApproval(id)}
+  onGrantApproval={grantApproval}
+  onDenyApproval={denyApproval}
   onAcceptPlanReview={(id, options) => acceptPendingPlanReview(id, options)}
   onAcceptPlanReviewInNewChat={(id, options) =>
     acceptPendingPlanReviewInNewChat(id, options)}

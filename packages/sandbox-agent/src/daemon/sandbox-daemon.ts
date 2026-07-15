@@ -387,14 +387,10 @@ export class SandboxDaemon {
     this.router.register("agent.promptQueue.cancel", async (params) => {
       await this.requireReady();
       const input = params as { agentId: string; queuedPromptId: string };
-      const state = (await this.runRuntime?.unitOfWork.list())?.find(
-        (candidate) =>
-          candidate.run.agentId === input.agentId &&
-          candidate.prompts.some(
-            (prompt) => prompt.id === input.queuedPromptId,
-          ),
+      const state = await this.runRuntime?.unitOfWork.findByPromptId(
+        input.queuedPromptId,
       );
-      if (!state)
+      if (!state || state.run.agentId !== input.agentId)
         throw new SandboxOperationError(
           "INVALID_RUN_STATE",
           "Queued prompt was not found",

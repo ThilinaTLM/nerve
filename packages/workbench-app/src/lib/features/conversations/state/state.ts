@@ -30,6 +30,7 @@ export function ensureConversationView(
     queuedPrompts: [],
     cursorSeq: 0,
     sending: false,
+    stopping: false,
     composerText: "",
     loading: false,
   };

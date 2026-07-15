@@ -20,6 +20,23 @@ export interface RunHydratedState {
 export interface RunUnitOfWorkPort {
   load(runId: string): Promise<RunHydratedState | undefined>;
   findActive(scopeId: string): Promise<RunHydratedState | undefined>;
+  /** Loads only currently-active runs without hydrating terminal history. */
+  listActive(): Promise<readonly RunHydratedState[]>;
+  /** Resolves the active run containing the interaction, if any. */
+  findByInteractionId(
+    interactionId: string,
+  ): Promise<RunHydratedState | undefined>;
+  /** Resolves the active run whose interaction carries the tool call. */
+  findByInteractionToolCallId(
+    toolCallId: string,
+  ): Promise<RunHydratedState | undefined>;
+  /** Resolves the active run containing the prompt, if any. */
+  findByPromptId(promptId: string): Promise<RunHydratedState | undefined>;
+  /**
+   * Enumerates and hydrates every run, including terminal history. Reserved
+   * for boot recovery, event-delivery recovery, status rebuilds, and explicit
+   * historical queries; hot paths must use the targeted reads above.
+   */
   list(): Promise<readonly RunHydratedState[]>;
   /** Appends and fsyncs one authoritative transition after revision validation. */
   commit(

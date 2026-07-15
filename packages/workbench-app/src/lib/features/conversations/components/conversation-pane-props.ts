@@ -45,6 +45,7 @@ export type ConversationPaneProps = {
   queuedPrompts?: QueuedPromptRecord[];
   live?: boolean;
   sending?: boolean;
+  stopping?: boolean;
   composerText?: string;
   models?: ModelInfo[];
   selectedModelKey?: string;
@@ -67,8 +68,11 @@ export type ConversationPaneProps = {
   onDraftSuggestion?: (suggestion: ComposerSuggestion) => void;
   onComposerChange?: (value: string) => void;
   onSubmit?: () => void;
-  onAnswerUserQuestion?: (questionId: string, answer: string) => void;
-  onDismissUserQuestion?: (questionId: string) => void;
+  onAnswerUserQuestion?: (
+    questionId: string,
+    answer: string,
+  ) => void | Promise<void>;
+  onDismissUserQuestion?: (questionId: string) => void | Promise<void>;
   onAbort?: () => void;
   onOpenProject?: () => void;
   onNewConversationInProject?: (projectDir: string) => void;
@@ -78,8 +82,8 @@ export type ConversationPaneProps = {
   onModeChange?: (value: AgentRecord["mode"]) => void;
   onPermissionChange?: (value: AgentRecord["permissionLevel"]) => void;
   onApprovalPolicyChange?: (value: AgentRecord["approvalPolicy"]) => void;
-  onGrantApproval?: (id: string) => void;
-  onDenyApproval?: (id: string) => void;
+  onGrantApproval?: (id: string) => void | Promise<void>;
+  onDenyApproval?: (id: string) => void | Promise<void>;
   onAcceptPlanReview?: (
     id: string,
     options?: PlanReviewResolveOptions,

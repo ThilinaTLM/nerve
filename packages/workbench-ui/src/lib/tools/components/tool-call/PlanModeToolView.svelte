@@ -248,7 +248,11 @@ async function rejectPlan() {
               class="size-3.5"
               strokeWidth={2.4}
             />{/if}
-          Accept & Implement
+          {accepting === "same"
+            ? "Accepting…"
+            : accepting === "new-chat"
+              ? "Accepting in new chat…"
+              : "Accept & Implement"}
           {#snippet menu()}
             <DropdownMenu.Item
               disabled={actionsDisabled}

@@ -4,6 +4,7 @@ export * from "./run-coordinator.js";
 export * from "./run-errors.js";
 export * from "./run-events.js";
 export * from "./run-execution.js";
+export * from "./run-lookup-index.js";
 export * from "./run-retries.js";
 export * from "./run-transitions.js";
 export * from "./run-unit-of-work.js";

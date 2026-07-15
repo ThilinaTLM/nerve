@@ -36,6 +36,8 @@ export interface ConversationViewState extends ConversationRenderState {
   optimisticMessages: TranscriptItem[];
   queuedPrompts: QueuedPromptRecord[];
   sending: boolean;
+  /** Local Stop request is awaiting server acknowledgment. */
+  stopping: boolean;
   composerText: string;
   loading: boolean;
 }

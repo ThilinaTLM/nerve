@@ -36,6 +36,18 @@ class DeliveryUnitOfWork implements RunUnitOfWorkPort {
   async findActive(): Promise<RunHydratedState | undefined> {
     return undefined;
   }
+  async listActive(): Promise<readonly RunHydratedState[]> {
+    return [];
+  }
+  async findByInteractionId(): Promise<RunHydratedState | undefined> {
+    return undefined;
+  }
+  async findByInteractionToolCallId(): Promise<RunHydratedState | undefined> {
+    return undefined;
+  }
+  async findByPromptId(): Promise<RunHydratedState | undefined> {
+    return undefined;
+  }
   async list(): Promise<readonly RunHydratedState[]> {
     return [];
   }

@@ -5,10 +5,10 @@ import {
   conversationIdFromEvent,
   isConversationRuntimeEvent,
 } from "./conversation-event-routing";
+import { scheduleContextUsageRefresh } from "./conversation-context-usage";
 import {
   handleConversationEvent,
   isOpenConversation,
-  refreshContextUsage,
 } from "./conversation-reducers";
 
 export function registerConversationEventHandlers(): () => void {
@@ -39,9 +39,11 @@ function handleConversationBusEvent(
   }
 
   if (event.type === "agent.configured") {
+    // This event owns the coalesced context-usage refresh after model or
+    // thinking changes; rapid reconfigurations collapse into one request.
     const agent = event.data?.agent as { conversationId?: unknown } | undefined;
     if (typeof agent?.conversationId === "string") {
-      void refreshContextUsage(agent.conversationId);
+      scheduleContextUsageRefresh(agent.conversationId);
     }
   }
 }

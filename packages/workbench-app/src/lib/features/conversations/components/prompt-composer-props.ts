@@ -30,6 +30,7 @@ export type PromptComposerProps = {
   interactive?: boolean;
   live?: boolean;
   sending?: boolean;
+  stopping?: boolean;
   compacting?: boolean;
   models?: ModelInfo[];
   selectedModelKey?: string;

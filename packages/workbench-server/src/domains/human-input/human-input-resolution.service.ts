@@ -230,6 +230,7 @@ export class HumanInputResolutionService {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
     await this.deps.runs.assertPendingInteractionForToolCall(
       pendingReview.toolCallId,
+      this.deps.tools.getToolCall(pendingReview.toolCallId).runId,
     );
     try {
       const review = await this.deps.plans.requestPlanChanges(
@@ -258,6 +259,7 @@ export class HumanInputResolutionService {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
     await this.deps.runs.assertPendingInteractionForToolCall(
       pendingReview.toolCallId,
+      this.deps.tools.getToolCall(pendingReview.toolCallId).runId,
     );
     try {
       const review = await this.deps.plans.discardPlanReview(
@@ -298,6 +300,7 @@ export class HumanInputResolutionService {
     if (pendingToolCall.runId) {
       await this.deps.runs.assertPendingInteractionForToolCall(
         pendingToolCall.id,
+        pendingToolCall.runId,
       );
     }
     const toolCall =
@@ -311,6 +314,7 @@ export class HumanInputResolutionService {
     );
     await this.deps.runs.resolveInteractionForToolCall({
       toolCallId: toolCall.id,
+      runId: toolCall.runId,
       resolutionRequestId: `resolution_${createHash("sha256")
         .update(`${approvalId}:${decision}:${note ?? ""}`)
         .digest("hex")
@@ -331,6 +335,7 @@ export class HumanInputResolutionService {
     if (pendingQuestion.runId) {
       await this.deps.runs.assertPendingInteractionForToolCall(
         pendingQuestion.toolCallId,
+        pendingQuestion.runId,
       );
     }
     try {
@@ -361,6 +366,7 @@ export class HumanInputResolutionService {
     if (pendingQuestion.runId) {
       await this.deps.runs.assertPendingInteractionForToolCall(
         pendingQuestion.toolCallId,
+        pendingQuestion.runId,
       );
     }
     try {
@@ -554,6 +560,7 @@ export class HumanInputResolutionService {
       .slice(0, 24)}`;
     await this.deps.runs.resolveInteractionForToolCall({
       toolCallId,
+      runId: completed.runId,
       resolutionRequestId,
       resolution,
       entries,

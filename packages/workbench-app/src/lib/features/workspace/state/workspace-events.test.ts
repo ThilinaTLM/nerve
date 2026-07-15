@@ -24,8 +24,43 @@ describe("workspace run lifecycle events", () => {
     assert.equal(runtimeAgentStatusFromEvent("unrelated.event"), undefined);
   });
 
-  it("refreshes workspace state across the answer continuation sequence", () => {
-    for (const type of ["run.waiting", "run.resumed", "run.completed"]) {
+  it("does not schedule snapshot refreshes for locally-projected events", () => {
+    // Run lifecycle events project agent status locally.
+    for (const type of [
+      "run.started",
+      "run.waiting",
+      "run.resumed",
+      "run.retrying",
+      "run.completed",
+      "run.failed",
+      "run.suspended",
+    ]) {
+      assert.equal(shouldRefreshWorkspace(type), false, type);
+    }
+    // Interaction and agent events carry complete records for the reducers.
+    for (const type of [
+      "approval.updated",
+      "userQuestion.updated",
+      "planReview.updated",
+      "agent.configured",
+      "agent.status_changed",
+      "agent.mode_changed",
+    ]) {
+      assert.equal(shouldRefreshWorkspace(type), false, type);
+    }
+  });
+
+  it("keeps snapshot refreshes for events reducers cannot fully project", () => {
+    for (const type of [
+      "conversation.created",
+      "conversation.deleted",
+      "agent.created",
+      "agent.subagent_started",
+      "toolCall.updated",
+      "task.updated",
+      "plan.written",
+      "settings.updated",
+    ]) {
       assert.equal(shouldRefreshWorkspace(type), true, type);
     }
   });

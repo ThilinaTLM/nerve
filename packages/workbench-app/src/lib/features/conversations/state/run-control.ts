@@ -6,6 +6,7 @@ import { notify } from "$lib/features/notifications/notify.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { createAbortActiveRun } from "./run-abort";
 import { ensureConversationView } from "./state";
 import { openConversation } from "./tabs";
 
@@ -79,20 +80,18 @@ export async function continueFromFailure(statusEntryId: string) {
   }
 }
 
-export async function abortActiveRun() {
-  if (!selection.agentId) return;
-  const view = selection.conversationId
-    ? ensureConversationView(selection.conversationId)
-    : undefined;
-  await protocolRequest(
-    "run.cancel",
-    { agentId: selection.agentId },
-    { idempotencyKey: crypto.randomUUID() },
-  );
-  if (view) {
-    // Immediate visual feedback; the run.failed(aborted) event confirms.
-    view.sending = false;
-    view.activeRun = undefined;
-    view.queuedPrompts = [];
-  }
-}
+export const abortActiveRun = createAbortActiveRun({
+  agentId: () => selection.agentId,
+  view: () =>
+    selection.conversationId
+      ? ensureConversationView(selection.conversationId)
+      : undefined,
+  cancelRun: async (agentId) => {
+    await protocolRequest(
+      "run.cancel",
+      { agentId },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+  },
+  notifyError: (title, options) => notify.error(title, options),
+});

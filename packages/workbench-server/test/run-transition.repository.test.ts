@@ -166,3 +166,191 @@ test("workbench run journals reuse hot state and cold-hydrate equivalently", asy
     /Conflicting event delivery/,
   );
 });
+
+function scopedRun(input: {
+  runId: string;
+  scopeId: string;
+  revision: number;
+  status: RunRecord["status"];
+  activeInteractionId?: string;
+}): RunRecord {
+  return {
+    stateEpoch: 1,
+    conversationId: "conv_lookup_test",
+    agentId: "agent_lookup_test",
+    projectId: "proj_lookup_test",
+    runId: input.runId,
+    scopeId: input.scopeId,
+    revision: input.revision,
+    status: input.status,
+    recoverability: "retryable",
+    executionId: "exec_lookup_test",
+    attempt: 1,
+    createdAt: startedAt,
+    updatedAt: startedAt,
+    startedAt,
+    activeInteractionId: input.activeInteractionId,
+    terminalAt: ["completed", "failed", "cancelled"].includes(input.status)
+      ? startedAt
+      : undefined,
+    cancellationEvidence: [],
+  };
+}
+
+test("targeted lookups skip historical hydration and evict terminal commits", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-lookup-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  let id = 1000;
+  const ids = { next: () => String(++id) };
+  const integrity = { checksum: () => digest };
+  // Cache size zero forces every load through authoritative journal reads.
+  const seed = new WorkbenchRunUnitOfWork(home, 0);
+
+  const historicalRunIds: string[] = [];
+  for (let index = 0; index < 8; index += 1) {
+    const historicalRunId = `run_history_${index}`;
+    historicalRunIds.push(historicalRunId);
+    const scopeId = `conv_lookup_test:agent_history_${index}`;
+    await seed.commit(
+      0,
+      buildTransition(
+        scopedRun({
+          runId: historicalRunId,
+          scopeId,
+          revision: 1,
+          status: "running",
+        }),
+        "started",
+        0,
+        {},
+        ids,
+        integrity,
+      ),
+    );
+    await seed.commit(
+      1,
+      buildTransition(
+        scopedRun({
+          runId: historicalRunId,
+          scopeId,
+          revision: 2,
+          status: "completed",
+        }),
+        "completed",
+        1,
+        {},
+        ids,
+        integrity,
+      ),
+    );
+  }
+
+  const liveRunId = "run_live";
+  const liveScopeId = "conv_lookup_test:agent_live";
+  const liveInteraction = {
+    stateEpoch: 1,
+    kind: "question",
+    id: "interaction_live",
+    conversationId: "conv_lookup_test",
+    agentId: "agent_lookup_test",
+    projectId: "proj_lookup_test",
+    runId: liveRunId,
+    executionId: "exec_lookup_test",
+    toolCallId: "toolcall_live",
+    prompt: "Which option should be used?",
+    status: "pending",
+    required: true,
+    checkpointId: "checkpoint_live",
+    createdAt: startedAt,
+  } as const;
+  const livePrompt: RunPromptRecord = {
+    id: "promptq_live",
+    agentId: "agent_lookup_test",
+    conversationId: "conv_lookup_test",
+    projectId: "proj_lookup_test",
+    runId: liveRunId,
+    behavior: "steer",
+    text: "queued while waiting",
+    status: "queued",
+    createdAt: startedAt,
+    updatedAt: startedAt,
+    ordinal: 0,
+    deliveryAttempts: 0,
+  };
+  await seed.commit(
+    0,
+    buildTransition(
+      scopedRun({
+        runId: liveRunId,
+        scopeId: liveScopeId,
+        revision: 1,
+        status: "waiting",
+        activeInteractionId: liveInteraction.id,
+      }),
+      "waiting",
+      0,
+      { interactions: [liveInteraction], prompts: [livePrompt] },
+      ids,
+      integrity,
+    ),
+  );
+
+  // A restarted store initializes its lookup lazily from one full hydration.
+  const restarted = new WorkbenchRunUnitOfWork(home, 0);
+  const active = await restarted.findActive(liveScopeId);
+  assert.equal(active?.run.runId, liveRunId);
+
+  // Corrupt every historical journal: any further hydration of terminal
+  // history now throws, so passing targeted reads proves they only load the
+  // indexed active run.
+  for (const historicalRunId of historicalRunIds) {
+    await appendFile(
+      join(home, "run-runtime", "runs", historicalRunId, "transitions.jsonl"),
+      "not-json\n",
+    );
+  }
+  await assert.rejects(restarted.list(), /Corrupt run journal/);
+
+  assert.equal((await restarted.findActive(liveScopeId))?.run.runId, liveRunId);
+  assert.deepEqual(
+    (await restarted.listActive()).map((state) => state.run.runId),
+    [liveRunId],
+  );
+  assert.equal(
+    (await restarted.findByInteractionId("interaction_live"))?.run.runId,
+    liveRunId,
+  );
+  assert.equal(
+    (await restarted.findByInteractionToolCallId("toolcall_live"))?.run.runId,
+    liveRunId,
+  );
+  assert.equal(
+    (await restarted.findByPromptId("promptq_live"))?.run.runId,
+    liveRunId,
+  );
+
+  // Committing the run to a terminal status evicts every targeted key.
+  await restarted.commit(
+    1,
+    buildTransition(
+      scopedRun({
+        runId: liveRunId,
+        scopeId: liveScopeId,
+        revision: 2,
+        status: "cancelled",
+      }),
+      "cancelled",
+      1,
+      {},
+      ids,
+      integrity,
+    ),
+  );
+  assert.equal(await restarted.findActive(liveScopeId), undefined);
+  assert.deepEqual(await restarted.listActive(), []);
+  assert.equal(await restarted.findByPromptId("promptq_live"), undefined);
+  assert.equal(
+    await restarted.findByInteractionToolCallId("toolcall_live"),
+    undefined,
+  );
+});

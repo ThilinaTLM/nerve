@@ -71,7 +71,8 @@ function submit(): void {
   pendingQuestion={model.pendingQuestion}
   pendingPlan={model.pendingPlan}
   showStop={model.showStop ?? model.sending}
-  stopDisabled={!actions.onAbort}
+  stopping={model.stopping}
+  stopDisabled={!actions.onAbort || model.stopping}
   stopShortcutAria={model.stopShortcutAria}
   stopTitle={model.stopTitle}
   {submitDisabled}

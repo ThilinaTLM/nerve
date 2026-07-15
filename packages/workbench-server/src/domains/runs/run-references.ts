@@ -72,12 +72,7 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
   async interaction(
     interactionId: string,
   ): Promise<RunInteractionRecord | undefined> {
-    for (const state of await this.unitOfWork.list()) {
-      const interaction = state.interactions.find(
-        (item) => item.id === interactionId,
-      );
-      if (interaction) return interaction;
-    }
-    return undefined;
+    const state = await this.unitOfWork.findByInteractionId(interactionId);
+    return state?.interactions.find((item) => item.id === interactionId);
   }
 }

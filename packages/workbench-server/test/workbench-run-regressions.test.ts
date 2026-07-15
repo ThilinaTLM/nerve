@@ -111,7 +111,10 @@ describe("workbench coordinator behavior regressions", () => {
     };
     let states = [legacyResume];
     const query = new WorkbenchRunQuery(
-      { list: async () => states } as never,
+      {
+        list: async () => states,
+        listActive: async () => states,
+      } as never,
       runtime,
     );
 

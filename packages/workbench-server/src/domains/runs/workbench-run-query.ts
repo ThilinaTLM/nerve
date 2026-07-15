@@ -13,6 +13,7 @@ export class WorkbenchRunQuery {
     private readonly state: RuntimeState,
   ) {}
 
+  /** Full historical projection; reserved for explicit history queries. */
   async states(): Promise<readonly RunHydratedState[]> {
     return this.unitOfWork.list();
   }
@@ -20,7 +21,7 @@ export class WorkbenchRunQuery {
   async activeForConversation(
     conversationId: string,
   ): Promise<ConversationActiveRunSnapshot | undefined> {
-    const canonical = (await this.states())
+    const canonical = (await this.unitOfWork.listActive())
       .filter(
         (candidate) =>
           candidate.run.conversationId === conversationId &&

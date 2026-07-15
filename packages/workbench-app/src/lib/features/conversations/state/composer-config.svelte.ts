@@ -8,11 +8,8 @@ import type {
   ModelSelection,
   Settings,
 } from "$lib/api";
-import { getConversationContextUsage, updateAgentConfig } from "$lib/api";
-import {
-  conversationViewKey,
-  pendingConversationKey,
-} from "$lib/core/state/state-keys";
+import { pendingConversationKey } from "$lib/core/state/state-keys";
+import { queueAgentConfigChange } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { queueSettingsSave } from "$lib/features/settings/state/settings-actions.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
@@ -70,8 +67,15 @@ export function selectedThinkingLevel(): AgentRecord["thinkingLevel"] {
   );
 }
 
-export async function setComposerModel(key: string) {
+/**
+ * Composer setters mutate local state synchronously (immediate display) and
+ * enqueue one coalesced, serialized `agent.configure` mutation per agent.
+ * Pending-conversation controls stay local-only. The `agent.configured`
+ * conversation event owns the coalesced context-usage refresh.
+ */
+export function setComposerModel(key: string) {
   conversationState.selectedModelKey = key;
+  // Clamp thinking locally from the already-loaded model info.
   const thinkingLevel = clampThinkingLevelForModel(
     conversationState.selectedThinkingLevel,
     selectedModelInfo(),
@@ -87,81 +91,52 @@ export async function setComposerModel(key: string) {
     ...(model ? { model } : {}),
     thinkingLevel,
   });
-  if (!selection.agentId) return;
-  const agent = await updateAgentConfig(selection.agentId, {
+  if (pending || !selection.agentId) return;
+  queueAgentConfigChange(selection.agentId, {
     model: model ?? null,
     thinkingLevel,
   });
-  conversationState.selectedThinkingLevel = agent.thinkingLevel;
-  workspaceState.agents = workspaceState.agents.map((candidate) =>
-    candidate.id === agent.id ? agent : candidate,
-  );
-  if (selection.conversationId) {
-    const contextUsage = await getConversationContextUsage(
-      selection.conversationId,
-    ).catch(() => undefined);
-    const view =
-      conversationState.conversationViews[
-        conversationViewKey(selection.conversationId)
-      ];
-    if (contextUsage && view) view.contextUsage = contextUsage;
-  }
 }
 
-export async function setComposerThinkingLevel(
-  level: AgentRecord["thinkingLevel"],
-) {
+export function setComposerThinkingLevel(level: AgentRecord["thinkingLevel"]) {
   const thinkingLevel = clampThinkingLevelForModel(level, selectedModelInfo());
   conversationState.selectedThinkingLevel = thinkingLevel;
   const pending = activePendingComposerConversation();
   if (pending) pending.thinkingLevel = thinkingLevel;
   rememberLastAgentSelection({ thinkingLevel });
-  if (!selection.agentId) return;
-  const agent = await updateAgentConfig(selection.agentId, { thinkingLevel });
-  conversationState.selectedThinkingLevel = agent.thinkingLevel;
-  workspaceState.agents = workspaceState.agents.map((candidate) =>
-    candidate.id === agent.id ? agent : candidate,
-  );
+  if (pending || !selection.agentId) return;
+  queueAgentConfigChange(selection.agentId, { thinkingLevel });
 }
 
-export async function setComposerMode(mode: AgentRecord["mode"]) {
+export function setComposerMode(mode: AgentRecord["mode"]) {
   conversationState.selectedMode = mode;
   const pending = activePendingComposerConversation();
   if (pending) pending.mode = mode;
   rememberLastAgentSelection({ mode });
-  if (!selection.agentId) return;
-  const agent = await updateAgentConfig(selection.agentId, { mode });
-  workspaceState.agents = workspaceState.agents.map((candidate) =>
-    candidate.id === agent.id ? agent : candidate,
-  );
+  if (pending || !selection.agentId) return;
+  queueAgentConfigChange(selection.agentId, { mode });
 }
 
-export async function setComposerPermission(
+export function setComposerPermission(
   permissionLevel: AgentRecord["permissionLevel"],
 ) {
   conversationState.selectedPermissionLevel = permissionLevel;
   const pending = activePendingComposerConversation();
   if (pending) pending.permissionLevel = permissionLevel;
   rememberLastAgentSelection({ permissionLevel });
-  if (!selection.agentId) return;
-  const agent = await updateAgentConfig(selection.agentId, { permissionLevel });
-  workspaceState.agents = workspaceState.agents.map((candidate) =>
-    candidate.id === agent.id ? agent : candidate,
-  );
+  if (pending || !selection.agentId) return;
+  queueAgentConfigChange(selection.agentId, { permissionLevel });
 }
 
-export async function setComposerApprovalPolicy(
+export function setComposerApprovalPolicy(
   approvalPolicy: AgentRecord["approvalPolicy"],
 ) {
   conversationState.selectedApprovalPolicy = approvalPolicy;
   const pending = activePendingComposerConversation();
   if (pending) pending.approvalPolicy = approvalPolicy;
   rememberLastAgentSelection({ approvalPolicy });
-  if (!selection.agentId) return;
-  const agent = await updateAgentConfig(selection.agentId, { approvalPolicy });
-  workspaceState.agents = workspaceState.agents.map((candidate) =>
-    candidate.id === agent.id ? agent : candidate,
-  );
+  if (pending || !selection.agentId) return;
+  queueAgentConfigChange(selection.agentId, { approvalPolicy });
 }
 
 function approvalPoliciesEqual(

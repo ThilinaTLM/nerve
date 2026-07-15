@@ -32,6 +32,7 @@ let {
   pendingPlanReview,
   interactive = true,
   sending = false,
+  stopping = false,
   compacting = false,
   models = [],
   selectedModelKey = "",
@@ -118,15 +119,20 @@ const canPrompt = $derived(
     !compacting,
   ),
 );
-const editorDisabled = $derived(!interactive || !canPrompt);
+const editorDisabled = $derived(!interactive || !canPrompt || stopping);
 const commandMode = $derived(isInlineCommandPrompt(text));
 const submitDisabled = $derived(
-  !interactive || !canPrompt || voiceSubmitPending || (commandMode && sending),
+  !interactive ||
+    !canPrompt ||
+    stopping ||
+    voiceSubmitPending ||
+    (commandMode && sending),
 );
 const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
 const supportsAudioRecording = $derived(voiceInputSession.isSupported());
 const micDisabled = $derived(
   !interactive ||
+    stopping ||
     !voiceTarget ||
     voiceInputSession.pending ||
     (!recording &&
@@ -190,6 +196,7 @@ async function submitComposer() {
     !interactive ||
     blockedForReview ||
     compacting ||
+    stopping ||
     voiceSubmitPending ||
     (commandMode && sending)
   )
@@ -216,7 +223,7 @@ async function pasteImage(file: File): Promise<string> {
 const controlsDisabled = $derived(
   !interactive ||
     !(activeConversation || pendingConversationActive) ||
-    sending ||
+    stopping ||
     compacting ||
     blockedForReview,
 );
@@ -227,14 +234,16 @@ const modelDisabled = $derived(
   !interactive ||
     !(activeConversation || pendingConversationActive) ||
     models.length === 0 ||
-    compacting,
+    compacting ||
+    stopping,
 );
 const modelRuntimeChangeHint = $derived(
   sending ? "Changes apply to the next model request" : undefined,
 );
 
 function toggleRecording() {
-  if (!interactive || micDisabled || compacting || !voiceTarget) return;
+  if (!interactive || micDisabled || compacting || stopping || !voiceTarget)
+    return;
   if (!recording && !chatGptAudioConfigured) {
     audioAuthDialogOpen = true;
     return;
@@ -292,8 +301,9 @@ function handleMicContextMenu(event: MouseEvent) {
     editorDisabled,
     submitDisabled,
     sending,
+    stopping,
     compacting,
-    showStop: sending && !pendingQuestion && !compacting,
+    showStop: (sending || stopping) && !compacting,
     pendingApproval,
     pendingQuestion,
     pendingPlan,
@@ -324,9 +334,11 @@ function handleMicContextMenu(event: MouseEvent) {
     sendAriaLabel,
     sendTitle,
     stopShortcutAria,
-    stopTitle: stopShortcut
-      ? `Stop generation (${stopShortcut})`
-      : "Stop generation",
+    stopTitle: stopping
+      ? "Stopping generation"
+      : stopShortcut
+        ? `Stop generation (${stopShortcut})`
+        : "Stop generation",
     permissionShortcut,
     permissionShortcutAria,
     modeShortcut,

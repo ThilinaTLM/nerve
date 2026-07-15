@@ -6,6 +6,8 @@ import {
   runTransitionRecordSchema,
 } from "@nervekit/contracts";
 import {
+  ACTIVE_STATUSES,
+  ActiveRunLookup,
   applyRunEventDelivery,
   applyRunTransition,
   BoundedRunStateCache,
@@ -17,20 +19,13 @@ import {
 import { JsonStore } from "../state/json-store.js";
 import { JsonlStore } from "../state/jsonl-store.js";
 
-const ACTIVE_STATUSES = new Set([
-  "starting",
-  "running",
-  "retrying",
-  "waiting",
-  "suspended",
-  "cancellation_requested",
-  "cancellation_failed",
-  "interrupted",
-]);
-
 export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
   private readonly locks = new Map<string, Promise<void>>();
   private readonly cache: BoundedRunStateCache;
+  private readonly lookup = new ActiveRunLookup({
+    load: (runId) => this.load(runId),
+    hydrateAll: () => this.list(),
+  });
 
   constructor(
     private readonly stateDir: string,
@@ -43,15 +38,37 @@ export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
     const cached = this.cache.get(runId);
     if (cached) return cached;
     const state = await this.hydrate(runId);
-    if (state) this.cache.set(state);
+    if (state) {
+      this.cache.set(state);
+      this.lookup.observe(state);
+    }
     return state;
   }
 
   async findActive(scopeId: string): Promise<RunHydratedState | undefined> {
-    return (await this.list()).find(
-      (state) =>
-        state.run.scopeId === scopeId && ACTIVE_STATUSES.has(state.run.status),
-    );
+    return this.lookup.findActive(scopeId);
+  }
+
+  async listActive(): Promise<readonly RunHydratedState[]> {
+    return this.lookup.listActive();
+  }
+
+  async findByInteractionId(
+    interactionId: string,
+  ): Promise<RunHydratedState | undefined> {
+    return this.lookup.findByInteractionId(interactionId);
+  }
+
+  async findByInteractionToolCallId(
+    toolCallId: string,
+  ): Promise<RunHydratedState | undefined> {
+    return this.lookup.findByInteractionToolCallId(toolCallId);
+  }
+
+  async findByPromptId(
+    promptId: string,
+  ): Promise<RunHydratedState | undefined> {
+    return this.lookup.findByPromptId(promptId);
   }
 
   async list(): Promise<readonly RunHydratedState[]> {
@@ -68,8 +85,10 @@ export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
       if (!cached && ACTIVE_STATUSES.has(state.run.status)) {
         this.cache.set(state);
       }
+      this.lookup.observe(state);
       states.push(state);
     }
+    this.lookup.markInitialized();
     return states.sort((left, right) =>
       left.run.updatedAt.localeCompare(right.run.updatedAt),
     );
@@ -93,6 +112,7 @@ export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
       const next = applyRunTransition(current, parsed);
       await this.transitions(parsed.runId).append(parsed);
       this.cache.set(next);
+      this.lookup.observe(next);
       return next;
     });
   }

@@ -86,13 +86,8 @@ export class SandboxRunReferences implements RunCheckpointReferencePort {
   async interaction(
     interactionId: string,
   ): Promise<RunInteractionRecord | undefined> {
-    for (const state of await this.unitOfWork.list()) {
-      const found = state.interactions.find(
-        (item) => item.id === interactionId,
-      );
-      if (found) return found;
-    }
-    return undefined;
+    const state = await this.unitOfWork.findByInteractionId(interactionId);
+    return state?.interactions.find((item) => item.id === interactionId);
   }
 
   /**
@@ -103,11 +98,11 @@ export class SandboxRunReferences implements RunCheckpointReferencePort {
   async interactionByToolCall(
     toolCallId: string,
   ): Promise<RunInteractionRecord | undefined> {
+    const state = await this.unitOfWork.findByInteractionToolCallId(toolCallId);
+    if (!state) return undefined;
     let latest: RunInteractionRecord | undefined;
-    for (const state of await this.unitOfWork.list()) {
-      for (const item of state.interactions) {
-        if (item.toolCallId === toolCallId) latest = item;
-      }
+    for (const item of state.interactions) {
+      if (item.toolCallId === toolCallId) latest = item;
     }
     return latest;
   }

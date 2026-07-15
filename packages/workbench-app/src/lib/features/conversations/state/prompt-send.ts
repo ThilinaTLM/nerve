@@ -3,7 +3,7 @@ import {
   isInlineCommandPrompt,
 } from "@nervekit/contracts";
 import { scopedUsableModelOptions } from "@nervekit/workbench-ui/core/utils/model";
-import { deleteConversation, updateAgentConfig } from "$lib/api";
+import { deleteConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { pendingConversationKey } from "$lib/core/state/state-keys";
@@ -11,6 +11,11 @@ import type {
   ConversationViewState,
   PendingConversationState,
 } from "$lib/core/types/state-types";
+import {
+  flushAgentConfigChanges,
+  queueAgentConfigChange,
+} from "$lib/features/conversations/state/agent-config-mutations.svelte";
+import type { AgentConfigPatch } from "$lib/features/conversations/state/agent-config-mutation-queue";
 import {
   agentNeedsComposerUpdate,
   currentActiveAgent,
@@ -52,6 +57,11 @@ export function setActiveComposerText(value: string) {
 
 export async function ensureAgent(): Promise<string> {
   if (selection.agentId) {
+    const agentId = selection.agentId;
+    // First flush an already-published local intent. Only compute a fallback
+    // delta afterward, avoiding a redundant duplicate configuration request
+    // based on the still-stale authoritative agent record.
+    await flushAgentConfigChanges(agentId);
     const agent = currentActiveAgent();
     const {
       desired,
@@ -62,28 +72,23 @@ export async function ensureAgent(): Promise<string> {
       needsApprovalPolicy,
       needsThinking,
     } = agentNeedsComposerUpdate(agent);
-    if (
-      needsModel ||
-      needsMode ||
-      needsPermission ||
-      needsApprovalPolicy ||
-      needsThinking
-    ) {
-      const updated = await updateAgentConfig(selection.agentId, {
-        model: desired ?? null,
-        thinkingLevel,
-        mode: conversationState.selectedMode,
-        permissionLevel: conversationState.selectedPermissionLevel,
-        approvalPolicy: conversationState.selectedApprovalPolicy,
-      }).catch(() => undefined);
-      if (updated) {
-        conversationState.selectedThinkingLevel = updated.thinkingLevel;
-        workspaceState.agents = workspaceState.agents.map((candidate) =>
-          candidate.id === updated.id ? updated : candidate,
-        );
-      }
-    }
-    return selection.agentId;
+    const patch: AgentConfigPatch = {
+      ...(needsModel && desired ? { model: desired } : {}),
+      ...(needsThinking ? { thinkingLevel } : {}),
+      ...(needsMode ? { mode: conversationState.selectedMode } : {}),
+      ...(needsPermission
+        ? { permissionLevel: conversationState.selectedPermissionLevel }
+        : {}),
+      ...(needsApprovalPolicy
+        ? { approvalPolicy: conversationState.selectedApprovalPolicy }
+        : {}),
+    };
+    // Route any remaining delta through the shared per-agent mutation queue
+    // and flush it, so the visibly selected configuration applies to this
+    // prompt without a competing full configuration request.
+    if (Object.keys(patch).length > 0) queueAgentConfigChange(agentId, patch);
+    await flushAgentConfigChanges(agentId);
+    return agentId;
   }
   if (selection.projectId && selection.conversationId) {
     const { agent } = (

@@ -511,7 +511,8 @@ export class RunCoordinator {
 
   async recover(): Promise<readonly RunRecord[]> {
     const recovered: RunRecord[] = [];
-    for (const state of await this.ports.unitOfWork.list()) {
+    // Terminal runs cannot require recovery, so only active runs are scanned.
+    for (const state of await this.ports.unitOfWork.listActive()) {
       const decision = await decideRunRecovery(
         state,
         this.ports.references,

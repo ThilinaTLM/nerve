@@ -3,6 +3,7 @@ import Send from "@lucide/svelte/icons/send";
 import Square from "@lucide/svelte/icons/square";
 import type { Snippet } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 
 type Props = {
   /** Opaque mode string; only `"planning"` receives special surface styling. */
@@ -13,6 +14,7 @@ type Props = {
   pendingQuestion?: boolean;
   pendingPlan?: boolean;
   showStop?: boolean;
+  stopping?: boolean;
   stopDisabled?: boolean;
   stopAriaLabel?: string;
   stopTitle?: string;
@@ -38,6 +40,7 @@ let {
   pendingQuestion = false,
   pendingPlan = false,
   showStop = false,
+  stopping = false,
   stopDisabled = false,
   stopAriaLabel = "Stop generation",
   stopTitle = "Stop generation",
@@ -88,13 +91,17 @@ let {
             size="icon-sm"
             class="stop-button"
             type="button"
-            disabled={stopDisabled}
+            disabled={stopDisabled || stopping}
             onclick={onAbort}
-            aria-label={stopAriaLabel}
+            aria-label={stopping ? "Stopping generation" : stopAriaLabel}
             aria-keyshortcuts={stopShortcutAria}
-            title={stopTitle}
+            title={stopping ? "Stopping generation" : stopTitle}
           >
-            <Square size={13} strokeWidth={2.5} />
+            {#if stopping}
+              <Spinner class="size-3.5" />
+            {:else}
+              <Square size={13} strokeWidth={2.5} />
+            {/if}
           </Button>
         {/if}
         <Button

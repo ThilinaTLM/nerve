@@ -42,6 +42,7 @@ let {
   queuedPrompts = [],
   live = false,
   sending = false,
+  stopping: stoppingRequested = false,
   composerText = "",
   models = [],
   selectedModelKey = "",
@@ -121,6 +122,9 @@ const visibleCommitted = $derived(
 );
 const timeline = $derived([...visibleCommitted, ...liveItems]);
 const compacting = $derived(transient?.compaction?.state === "running");
+const stopping = $derived(
+  stoppingRequested || activeRun?.status === "aborting",
+);
 const streamingText = $derived(activeRunStreamingText(activeRun));
 const treeEntriesById = $derived(
   new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
@@ -208,6 +212,7 @@ function menuForTool(
       text: composerText,
       disabled: !active,
       sending,
+      stopping,
       compacting,
       models,
       selectedModelKey,
@@ -256,6 +261,7 @@ function menuForTool(
       interactive={active}
       {live}
       {sending}
+      {stopping}
       {compacting}
       {models}
       {selectedModelKey}

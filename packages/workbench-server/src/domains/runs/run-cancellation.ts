@@ -82,16 +82,18 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
   }
 
   async cancelSubagents(run: RunRecord): Promise<Evidence> {
-    const childIds = [...this.state.agents.values()]
-      .filter((agent) => agent.parentAgentId === run.agentId)
-      .map((agent) => agent.id);
-    if (childIds.length === 0) return "not_running";
-    const states = await this.unitOfWork.list();
-    const children = states.filter(
-      (candidate) =>
-        childIds.includes(candidate.run.agentId) &&
-        !["completed", "failed", "cancelled"].includes(candidate.run.status),
+    const childAgents = [...this.state.agents.values()].filter(
+      (agent) => agent.parentAgentId === run.agentId,
     );
+    if (childAgents.length === 0) return "not_running";
+    // Check each child's active scope directly instead of listing all runs.
+    const children = [];
+    for (const child of childAgents) {
+      const active = await this.unitOfWork.findActive(
+        `${child.conversationId}:${child.id}`,
+      );
+      if (active) children.push(active);
+    }
     if (children.length === 0) return "not_running";
     if (!this.cancelRun)
       throw new Error("Child run cancellation is unavailable");

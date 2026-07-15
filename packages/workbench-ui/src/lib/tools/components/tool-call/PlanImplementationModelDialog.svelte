@@ -45,13 +45,12 @@ let {
 
 let selectedModelKey = $state("");
 let selectedThinkingLevel = $state<ThinkingLevel>("off");
-let confirming = $state(false);
 
 const selectedModel = $derived(
   models.find((model) => modelKey(model) === selectedModelKey),
 );
 const thinkingLevels = $derived(supportedThinkingLevelsForModel(selectedModel));
-const confirmDisabled = $derived(!selectedModel || confirming);
+const confirmDisabled = $derived(!selectedModel);
 
 const thinkingLevelDetails: Record<ThinkingLevel, string> = {
   off: "No reasoning",
@@ -96,20 +95,18 @@ function selectThinking(level: ThinkingLevel) {
   selectedThinkingLevel = clampThinkingLevelForModel(level, selectedModel);
 }
 
-async function confirmSelection() {
-  if (!selectedModel || confirming) return;
+function confirmSelection() {
+  if (!selectedModel) return;
   const implementationModel = parseModelKey(selectedModelKey);
   if (!implementationModel) return;
-  confirming = true;
-  try {
-    await onConfirm?.({
-      implementationModel,
-      implementationThinkingLevel: selectedThinkingLevel,
-    });
-    handleOpenChange(false);
-  } finally {
-    confirming = false;
-  }
+  // Capture the selection and close immediately; the parent plan card owns
+  // the action's progress and error presentation.
+  const options = {
+    implementationModel,
+    implementationThinkingLevel: selectedThinkingLevel,
+  };
+  handleOpenChange(false);
+  void onConfirm?.(options);
 }
 
 $effect(() => {
@@ -203,10 +200,8 @@ $effect(() => {
   </div>
 
   {#snippet footer()}
-    <Button
-      variant="secondary"
-      onclick={() => handleOpenChange(false)}
-      disabled={confirming}>Cancel</Button
+    <Button variant="secondary" onclick={() => handleOpenChange(false)}
+      >Cancel</Button
     >
     <Button onclick={confirmSelection} disabled={confirmDisabled}
       >{confirmLabel}</Button

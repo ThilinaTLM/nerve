@@ -8,6 +8,7 @@ import {
   type ProjectRecord,
 } from "$lib/api";
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
+import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { replaceOpenCenterTabs } from "$lib/features/workspace/state/center-tabs.svelte";
@@ -52,16 +53,27 @@ export async function applyActiveConversationSelection(
   selection.entryId = conversation.activeEntryId;
   const project = await projectForConversation(conversation);
   composerDraft.projectDir = project.dir;
-  if (conversationAgent?.model) {
+  // A pending desired override survives tab switches: it stays the display
+  // value for its agent until the in-flight configuration mutation settles.
+  const override = agentConfigOverride(conversationAgent?.id);
+  const overrideModel = override?.model ?? undefined;
+  if (overrideModel) {
+    conversationState.selectedModelKey = modelKey(overrideModel);
+  } else if (conversationAgent?.model) {
     conversationState.selectedModelKey = modelKey(conversationAgent.model);
   }
   conversationState.selectedThinkingLevel =
-    conversationAgent?.thinkingLevel ?? "off";
-  conversationState.selectedMode = conversationAgent?.mode ?? conversation.mode;
+    override?.thinkingLevel ?? conversationAgent?.thinkingLevel ?? "off";
+  conversationState.selectedMode =
+    override?.mode ?? conversationAgent?.mode ?? conversation.mode;
   conversationState.selectedPermissionLevel =
-    conversationAgent?.permissionLevel ?? conversation.permissionLevel;
+    override?.permissionLevel ??
+    conversationAgent?.permissionLevel ??
+    conversation.permissionLevel;
   conversationState.selectedApprovalPolicy =
-    conversationAgent?.approvalPolicy ?? conversation.approvalPolicy;
+    override?.approvalPolicy ??
+    conversationAgent?.approvalPolicy ??
+    conversation.approvalPolicy;
 }
 
 export async function refreshConversationView(conversationId: string) {

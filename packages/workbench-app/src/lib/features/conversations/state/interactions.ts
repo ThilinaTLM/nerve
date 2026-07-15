@@ -5,110 +5,94 @@ import {
   denyApprovalRequest,
   discardPlanReview,
   dismissUserQuestion as dismissUserQuestionRequest,
-  getPendingApprovals,
-  getPendingPlanReviews,
-  getPendingUserQuestions,
   grantApprovalRequest,
   type PlanReviewResolveOptions,
   rejectPlanReview,
   requestPlanChanges,
 } from "$lib/api";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-import { refreshConversationView } from "./selection";
+import {
+  removeApproval,
+  upsertAgentRecordFresh,
+  upsertConversationRecord,
+  upsertPlanReview,
+  upsertUserQuestion,
+} from "$lib/features/workspace/state/entity-reducers";
+import { createInteractionActions } from "./interaction-actions";
 import { openConversation } from "./tabs";
 
+/**
+ * Result-driven interaction handlers: each RPC's returned record reconciles
+ * local state immediately via the shared entity reducers, while conversation
+ * and run durable events remain responsible for transcript progression.
+ */
+const actions = createInteractionActions({
+  requests: {
+    grantApproval: grantApprovalRequest,
+    denyApproval: denyApprovalRequest,
+    acceptPlanReview,
+    acceptPlanReviewInNewChat,
+    rejectPlanReview,
+    requestPlanChanges,
+    discardPlanReview,
+    answerUserQuestion,
+    dismissUserQuestion: dismissUserQuestionRequest,
+  },
+  reconcile: {
+    removeApproval,
+    upsertUserQuestion,
+    upsertPlanReview,
+    upsertConversation: upsertConversationRecord,
+    upsertAgent: upsertAgentRecordFresh,
+  },
+  notify,
+  openConversation,
+});
+
 export async function grantApproval(approvalId: string) {
-  await grantApprovalRequest(approvalId);
-  workspaceState.approvals = await getPendingApprovals();
-  notify.success("Approval granted");
+  await actions.grantApproval(approvalId);
 }
 
 export async function denyApproval(approvalId: string) {
-  await denyApprovalRequest(approvalId, "Denied from UI.");
-  workspaceState.approvals = await getPendingApprovals();
-  notify.message("Approval denied");
+  await actions.denyApproval(approvalId);
 }
 
 export async function acceptPendingPlanReview(
   reviewId: string,
   options: PlanReviewResolveOptions = {},
 ) {
-  await acceptPlanReview(reviewId, options);
-  workspaceState.planReviews = await getPendingPlanReviews();
-  await loadWorkspaceState();
-  if (selection.conversationId)
-    await refreshConversationView(selection.conversationId);
-  notify.success("Plan accepted");
+  await actions.acceptPendingPlanReview(reviewId, options);
 }
 
 export async function acceptPendingPlanReviewInNewChat(
   reviewId: string,
   options: PlanReviewResolveOptions = {},
 ) {
-  const { conversation } = await acceptPlanReviewInNewChat(reviewId, options);
-  workspaceState.planReviews = await getPendingPlanReviews();
-  await loadWorkspaceState();
-  await openConversation(conversation.id);
-  notify.success("Plan accepted in new chat");
+  await actions.acceptPendingPlanReviewInNewChat(reviewId, options);
 }
 
 export async function rejectPendingPlanReview(reviewId: string) {
-  try {
-    await rejectPlanReview(reviewId, "Rejected from UI.");
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message : String(caught);
-    notify.error("Could not reject plan", { description: message });
-    throw caught;
-  }
-
-  workspaceState.planReviews = workspaceState.planReviews.filter(
-    (review) => review.id !== reviewId,
-  );
-  notify.message("Plan rejected");
-
-  try {
-    await loadWorkspaceState();
-    if (selection.conversationId)
-      await refreshConversationView(selection.conversationId);
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message : String(caught);
-    notify.message("Plan rejected; refresh pending", {
-      description: message,
-    });
-  }
+  await actions.rejectPendingPlanReview(reviewId);
 }
 
 export async function requestPendingPlanChanges(
   reviewId: string,
   feedback: string,
 ) {
-  await requestPlanChanges(reviewId, feedback);
-  workspaceState.planReviews = await getPendingPlanReviews();
-  notify.message("Change request sent");
+  await actions.requestPendingPlanChanges(reviewId, feedback);
 }
 
 export async function discardPendingPlanReview(reviewId: string) {
-  await discardPlanReview(reviewId, "Discarded from UI.");
-  workspaceState.planReviews = await getPendingPlanReviews();
-  notify.message("Plan discarded");
+  await actions.discardPendingPlanReview(reviewId);
 }
 
 export async function answerUserQuestionById(
   questionId: string,
   answer: string,
 ) {
-  const trimmed = answer.trim();
-  if (!trimmed) return;
-  await answerUserQuestion(questionId, trimmed);
-  workspaceState.userQuestions = await getPendingUserQuestions();
-  notify.success("Reply sent");
+  await actions.answerUserQuestionById(questionId, answer);
 }
 
 export async function dismissUserQuestionById(questionId: string) {
-  await dismissUserQuestionRequest(questionId, "Dismissed from UI.");
-  workspaceState.userQuestions = await getPendingUserQuestions();
-  notify.message("Question dismissed");
+  await actions.dismissUserQuestionById(questionId);
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
 import X from "@lucide/svelte/icons/x";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import type { ApprovalWithToolCall } from "../../../state/tool-types";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ToolArgumentPresentation } from "../../lifecycle/registry";
@@ -13,8 +14,8 @@ type Props = {
   toolName: string;
   presentation: ToolArgumentPresentation;
   detailsAction?: { label: string; onClick: () => void };
-  onGrantApproval?: (id: string) => void;
-  onDenyApproval?: (id: string) => void;
+  onGrantApproval?: (id: string) => void | Promise<void>;
+  onDenyApproval?: (id: string) => void | Promise<void>;
 };
 let {
   approval,
@@ -24,6 +25,28 @@ let {
   onGrantApproval,
   onDenyApproval,
 }: Props = $props();
+
+let decision = $state<"approve" | "deny" | undefined>();
+let actionError = $state<string | undefined>();
+
+async function decide(kind: "approve" | "deny") {
+  // One shared in-flight state covers both choices and rejects duplicates.
+  if (decision) return;
+  const callback = kind === "approve" ? onGrantApproval : onDenyApproval;
+  if (!callback) return;
+  decision = kind;
+  actionError = undefined;
+  try {
+    await callback(approval.id);
+  } catch (error) {
+    actionError =
+      error instanceof Error && error.message.trim()
+        ? error.message
+        : "Could not resolve the approval.";
+  } finally {
+    decision = undefined;
+  }
+}
 
 function riskTone(risk: string | undefined): MetaTone {
   if (risk === "destructive" || risk === "secret" || risk === "deployment")
@@ -47,16 +70,32 @@ const meta = $derived<MetaItem[]>([
   {/if}
   <ToolFooter {meta} {detailsAction}>
     {#snippet actions()}
-      <Button size="sm" onclick={() => onGrantApproval?.(approval.id)}>
-        <Check size={14} strokeWidth={2.4} />Approve
+      <Button
+        size="sm"
+        disabled={Boolean(decision)}
+        onclick={() => void decide("approve")}
+      >
+        {#if decision === "approve"}
+          <Spinner class="size-3.5" />Approving…
+        {:else}
+          <Check size={14} strokeWidth={2.4} />Approve
+        {/if}
       </Button>
       <Button
         size="sm"
         variant="secondary"
-        onclick={() => onDenyApproval?.(approval.id)}
+        disabled={Boolean(decision)}
+        onclick={() => void decide("deny")}
       >
-        <X size={14} strokeWidth={2.4} />Deny
+        {#if decision === "deny"}
+          <Spinner class="size-3.5" />Denying…
+        {:else}
+          <X size={14} strokeWidth={2.4} />Deny
+        {/if}
       </Button>
     {/snippet}
   </ToolFooter>
+  {#if actionError}
+    <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
+  {/if}
 </div>

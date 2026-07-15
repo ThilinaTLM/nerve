@@ -19,6 +19,7 @@ import {
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { recoverSnapshotFromNetwork } from "$lib/core/events/snapshot-recovery";
+import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import {
   openPendingConversation,
   removeConversationTabs,
@@ -83,12 +84,22 @@ function syncSelectedAgentConfig(
     ? agents.find((agent) => agent.id === selection.agentId)
     : undefined;
   if (activeAgent) {
-    if (activeAgent.model)
+    // A pending desired override outranks the snapshot for its agent so a
+    // delayed snapshot cannot undo an optimistic composer selection.
+    const override = agentConfigOverride(activeAgent.id);
+    const overrideModel = override?.model ?? undefined;
+    if (overrideModel) {
+      conversationState.selectedModelKey = modelKey(overrideModel);
+    } else if (activeAgent.model) {
       conversationState.selectedModelKey = modelKey(activeAgent.model);
-    conversationState.selectedThinkingLevel = activeAgent.thinkingLevel;
-    conversationState.selectedMode = activeAgent.mode;
-    conversationState.selectedPermissionLevel = activeAgent.permissionLevel;
-    conversationState.selectedApprovalPolicy = activeAgent.approvalPolicy;
+    }
+    conversationState.selectedThinkingLevel =
+      override?.thinkingLevel ?? activeAgent.thinkingLevel;
+    conversationState.selectedMode = override?.mode ?? activeAgent.mode;
+    conversationState.selectedPermissionLevel =
+      override?.permissionLevel ?? activeAgent.permissionLevel;
+    conversationState.selectedApprovalPolicy =
+      override?.approvalPolicy ?? activeAgent.approvalPolicy;
     return;
   }
 

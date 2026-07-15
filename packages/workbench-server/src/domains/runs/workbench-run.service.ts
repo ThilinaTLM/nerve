@@ -41,10 +41,10 @@ export class WorkbenchRunService {
   ) {}
 
   async listQueuedPrompts(agentId: string) {
-    this.requireAgent(agentId);
-    const states = await this.unitOfWork.list();
-    return states
-      .flatMap((state) => state.prompts)
+    const agent = this.requireAgent(agentId);
+    const state = await this.unitOfWork.findActive(this.scopeId(agent));
+    if (!state) return [];
+    return state.prompts
       .filter(
         (prompt) =>
           prompt.agentId === agentId &&
@@ -55,13 +55,11 @@ export class WorkbenchRunService {
 
   async cancelQueuedPrompt(agentId: string, promptId: string) {
     this.requireAgent(agentId);
-    const states = await this.unitOfWork.list();
-    const state = states.find((candidate) =>
-      candidate.prompts.some(
-        (prompt) => prompt.id === promptId && prompt.agentId === agentId,
-      ),
+    const state = await this.unitOfWork.findByPromptId(promptId);
+    const prompt = state?.prompts.find(
+      (candidate) => candidate.id === promptId && candidate.agentId === agentId,
     );
-    if (!state) {
+    if (!state || !prompt) {
       throw new HttpError(
         404,
         "QUEUED_PROMPT_NOT_FOUND",
@@ -157,11 +155,18 @@ export class WorkbenchRunService {
     );
   }
 
-  async assertPendingInteractionForToolCall(toolCallId: string): Promise<void> {
-    const states = await this.unitOfWork.list();
-    const interaction = states
-      .flatMap((state) => state.interactions)
-      .find((candidate) => candidate.toolCallId === toolCallId);
+  async assertPendingInteractionForToolCall(
+    toolCallId: string,
+    runId?: string,
+  ): Promise<void> {
+    // Prefer the known run ID; the interaction lookup covers callers that
+    // only carry a tool-call ID.
+    const state = runId
+      ? await this.unitOfWork.load(runId)
+      : await this.unitOfWork.findByInteractionToolCallId(toolCallId);
+    const interaction = state?.interactions.find(
+      (candidate) => candidate.toolCallId === toolCallId,
+    );
     if (!interaction || interaction.status !== "pending") {
       throw new HttpError(
         409,
@@ -173,6 +178,7 @@ export class WorkbenchRunService {
 
   async resolveInteractionForToolCall(input: {
     toolCallId: string;
+    runId?: string;
     resolutionRequestId: string;
     resolution: Record<string, unknown>;
     entries?: readonly ConversationEntry[];
@@ -180,12 +186,9 @@ export class WorkbenchRunService {
     continueRun: boolean;
     completeRun?: boolean;
   }): Promise<void> {
-    const states = await this.unitOfWork.list();
-    const state = states.find((candidate) =>
-      candidate.interactions.some(
-        (interaction) => interaction.toolCallId === input.toolCallId,
-      ),
-    );
+    const state = input.runId
+      ? await this.unitOfWork.load(input.runId)
+      : await this.unitOfWork.findByInteractionToolCallId(input.toolCallId);
     const interaction = state?.interactions.find(
       (candidate) => candidate.toolCallId === input.toolCallId,
     );

@@ -36,10 +36,30 @@ class MemoryUnitOfWork implements RunUnitOfWorkPort {
     );
   }
   async findActive(scopeId: string) {
-    return (await this.list()).find(
-      (item) =>
-        item.run.scopeId === scopeId &&
-        !["completed", "failed", "cancelled"].includes(item.run.status),
+    return (await this.listActive()).find(
+      (item) => item.run.scopeId === scopeId,
+    );
+  }
+  async listActive() {
+    return (await this.list()).filter(
+      (item) => !["completed", "failed", "cancelled"].includes(item.run.status),
+    );
+  }
+  async findByInteractionId(interactionId: string) {
+    return (await this.listActive()).find((item) =>
+      item.interactions.some((interaction) => interaction.id === interactionId),
+    );
+  }
+  async findByInteractionToolCallId(toolCallId: string) {
+    return (await this.listActive()).find((item) =>
+      item.interactions.some(
+        (interaction) => interaction.toolCallId === toolCallId,
+      ),
+    );
+  }
+  async findByPromptId(promptId: string) {
+    return (await this.listActive()).find((item) =>
+      item.prompts.some((prompt) => prompt.id === promptId),
     );
   }
   async list() {

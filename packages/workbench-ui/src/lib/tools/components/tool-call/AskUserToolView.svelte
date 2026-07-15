@@ -26,8 +26,11 @@ type Props = {
   view: Extract<ToolView, { kind: "ask_user" }>;
   questionRecord?: UserQuestionRecord;
   detailsAction?: { label: string; onClick: () => void };
-  onAnswerUserQuestion?: (questionId: string, answer: string) => void;
-  onDismissUserQuestion?: (questionId: string) => void;
+  onAnswerUserQuestion?: (
+    questionId: string,
+    answer: string,
+  ) => void | Promise<void>;
+  onDismissUserQuestion?: (questionId: string) => void | Promise<void>;
 };
 let {
   toolCall,
@@ -46,6 +49,11 @@ const QUICK_REPLIES = [
 ];
 
 let answer = $state("");
+let submitting = $state<"answer" | "dismiss" | undefined>();
+let submitError = $state<string | undefined>();
+let localResolution = $state<
+  { kind: "answered"; answer: string } | { kind: "dismissed" } | undefined
+>();
 let audioAuthDialogOpen = $state(false);
 let replyInputEl = $state<HTMLTextAreaElement | undefined>(undefined);
 let lastAutoFocusedQuestionId = $state<string | undefined>(undefined);
@@ -64,9 +72,17 @@ const context = $derived(questionRecord?.context ?? view.context);
 const recommendation = $derived(
   questionRecord?.recommendation ?? view.recommendation,
 );
-const submittedAnswer = $derived(questionRecord?.answer ?? view.answer);
+// The locally submitted text bridges the gap between a successful RPC and
+// the authoritative tool result arriving through durable events.
+const submittedAnswer = $derived(
+  questionRecord?.answer ??
+    view.answer ??
+    (localResolution?.kind === "answered" ? localResolution.answer : undefined),
+);
 const dismissed = $derived(
-  questionRecord?.status === "dismissed" || view.dismissed,
+  questionRecord?.status === "dismissed" ||
+    view.dismissed ||
+    localResolution?.kind === "dismissed",
 );
 const dismissedReason = $derived(
   questionRecord?.dismissedReason ?? view.dismissedReason,
@@ -107,6 +123,7 @@ const supportsAudioRecording = $derived(Boolean(voice?.session.isSupported()));
 const micDisabled = $derived(
   !voice ||
     !voiceTarget ||
+    Boolean(submitting) ||
     voice.session.pending ||
     (!recording && (!pending || voiceBusyElsewhere)),
 );
@@ -179,14 +196,53 @@ function formatElapsed(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+async function sendAnswer(text: string) {
+  if (!pending || !questionRecord || submitting || !onAnswerUserQuestion) {
+    return;
+  }
+  const questionId = questionRecord.id;
+  submitting = "answer";
+  submitError = undefined;
+  try {
+    await onAnswerUserQuestion(questionId, text);
+    localResolution = { kind: "answered", answer: text };
+  } catch (error) {
+    submitError = actionErrorMessage(error, "Could not send the reply.");
+  } finally {
+    submitting = undefined;
+  }
+}
+
 function submitAnswer() {
-  if (!pending || !questionRecord || !trimmedAnswer) return;
-  onAnswerUserQuestion?.(questionRecord.id, trimmedAnswer);
+  if (!trimmedAnswer) return;
+  void sendAnswer(trimmedAnswer);
 }
 
 function submitQuickReply(phrase: string) {
-  if (!pending || !questionRecord) return;
-  onAnswerUserQuestion?.(questionRecord.id, phrase);
+  void sendAnswer(phrase);
+}
+
+async function dismissQuestion() {
+  if (!pending || !questionRecord || submitting || !onDismissUserQuestion) {
+    return;
+  }
+  const questionId = questionRecord.id;
+  submitting = "dismiss";
+  submitError = undefined;
+  try {
+    await onDismissUserQuestion(questionId);
+    localResolution = { kind: "dismissed" };
+  } catch (error) {
+    submitError = actionErrorMessage(error, "Could not dismiss the question.");
+  } finally {
+    submitting = undefined;
+  }
+}
+
+function actionErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : fallback;
 }
 
 function toggleRecording() {
@@ -251,6 +307,7 @@ function handleMicContextMenu(event: MouseEvent) {
         <button
           type="button"
           class="quick-reply rounded-full"
+          disabled={Boolean(submitting)}
           onclick={() => submitQuickReply(phrase)}
         >
           {phrase}
@@ -271,6 +328,7 @@ function handleMicContextMenu(event: MouseEvent) {
           bind:this={replyInputEl}
           bind:value={answer}
           rows="3"
+          disabled={Boolean(submitting)}
           placeholder={questionRecord.placeholder ??
             "Reply to the agent's question"}
           aria-label="Reply to agent question"
@@ -316,19 +374,35 @@ function handleMicContextMenu(event: MouseEvent) {
       </div>
       <ToolFooter {detailsAction}>
         {#snippet actions()}
-          <Button size="sm" type="submit" disabled={!trimmedAnswer}>
-            <Send size={14} strokeWidth={2.4} />Reply
+          <Button
+            size="sm"
+            type="submit"
+            disabled={!trimmedAnswer || Boolean(submitting)}
+          >
+            {#if submitting === "answer"}
+              <Spinner class="size-3.5" />Sending…
+            {:else}
+              <Send size={14} strokeWidth={2.4} />Reply
+            {/if}
           </Button>
           <Button
             size="sm"
             variant="secondary"
             type="button"
-            onclick={() => onDismissUserQuestion?.(questionRecord.id)}
+            disabled={Boolean(submitting)}
+            onclick={() => void dismissQuestion()}
           >
-            <X size={14} strokeWidth={2.4} />Dismiss
+            {#if submitting === "dismiss"}
+              <Spinner class="size-3.5" />Dismissing…
+            {:else}
+              <X size={14} strokeWidth={2.4} />Dismiss
+            {/if}
           </Button>
         {/snippet}
       </ToolFooter>
+      {#if submitError}
+        <p class="m-0 text-xs text-destructive" role="alert">{submitError}</p>
+      {/if}
     </form>
   {:else if submittedAnswer}
     <p class="meta answer">
@@ -403,6 +477,17 @@ function handleMicContextMenu(event: MouseEvent) {
   border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
   background: var(--accent);
   color: var(--foreground);
+}
+
+.quick-reply:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.quick-reply:disabled:hover {
+  border-color: var(--border);
+  background: var(--sidebar);
+  color: var(--muted-foreground);
 }
 
 .reply {

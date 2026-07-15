@@ -39,6 +39,8 @@ export type ConversationComposerModel = {
   sending?: boolean;
   compacting?: boolean;
   showStop?: boolean;
+  /** Cancellation is in flight: keep Stop visible but disabled. */
+  stopping?: boolean;
   pendingApproval?: boolean;
   pendingQuestion?: boolean;
   pendingPlan?: boolean;
@@ -110,10 +112,10 @@ export type ConversationPaneActions = {
   onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
   onPasteImage?: (file: File) => Promise<string>;
   onOpenFile?: (path: string, line?: number) => void;
-  onAnswerUserQuestion?: (id: string, answer: string) => void;
-  onDismissUserQuestion?: (id: string) => void;
-  onGrantApproval?: (id: string) => void;
-  onDenyApproval?: (id: string) => void;
+  onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
+  onDismissUserQuestion?: (id: string) => void | Promise<void>;
+  onGrantApproval?: (id: string) => void | Promise<void>;
+  onDenyApproval?: (id: string) => void | Promise<void>;
   onAcceptPlanReview?: (
     id: string,
     options?: PlanReviewResolveOptions,
