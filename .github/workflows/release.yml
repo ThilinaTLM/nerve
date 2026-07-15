@@ -214,24 +214,20 @@ jobs:
       - name: Pack npm tarballs
         run: node scripts/pack-npm.mjs
 
-      - name: Publish tarballs (skip already-published versions)
+      - name: Publish desktop tarball (skip already-published version)
         shell: bash
         run: |
           set -euo pipefail
-          # Publish in dependency-friendly order.
-          order=(contracts protocol harness tools host-runtime workbench-server desktop-shell)
-          for pkg in "${order[@]}"; do
-            tgz="$(ls release/npm/nervekit-${pkg}-*.tgz 2>/dev/null | head -n1 || true)"
-            if [ -z "${tgz}" ]; then
-              echo "No tarball found for ${pkg}" >&2
-              exit 1
-            fi
-            name="@nervekit/${pkg}"
-            version="$(node -e "console.log(require('./packages/${pkg}/package.json').version)")"
-            if npm view "${name}@${version}" version >/dev/null 2>&1; then
-              echo "Skipping ${name}@${version} (already published)"
-              continue
-            fi
-            echo "Publishing ${tgz} as ${name}@${version}"
-            npm publish "${tgz}" --provenance --access public
-          done
+          name="@nervekit/desktop"
+          version="$(node -e "console.log(require('./package.json').version)")"
+          tgz="release/npm/nervekit-desktop-${version}.tgz"
+          if [ ! -f "${tgz}" ]; then
+            echo "No verified tarball found at ${tgz}" >&2
+            exit 1
+          fi
+          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "Skipping ${name}@${version} (already published)"
+            exit 0
+          fi
+          echo "Publishing ${tgz} as ${name}@${version}"
+          npm publish "${tgz}" --provenance --access public

@@ -6,14 +6,14 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-export const publicPackages = [
+const publicPackage = ["@nervekit/desktop", "desktop"];
+const bundledPackages = [
   ["@nervekit/contracts", "contracts"],
   ["@nervekit/protocol", "protocol"],
   ["@nervekit/harness", "harness"],
   ["@nervekit/tools", "tools"],
   ["@nervekit/host-runtime", "host-runtime"],
   ["@nervekit/workbench-server", "workbench-server"],
-  ["@nervekit/desktop-shell", "desktop-shell"],
 ];
 
 export async function verifyNpmTarballs(
@@ -22,107 +22,180 @@ export async function verifyNpmTarballs(
   const rootVersion = JSON.parse(
     await readFile(join(repoRoot, "package.json"), "utf8"),
   ).version;
-  const tarballs = [];
-  for (const [packageName, directory] of publicPackages) {
-    const expectedFilename = `nervekit-${directory}-${rootVersion}.tgz`;
-    const tarball = join(packDirectory, expectedFilename);
-    const manifest = JSON.parse(
-      capture("tar", ["-xOzf", tarball, "package/package.json"]),
+  const expectedFilename = `nervekit-desktop-${rootVersion}.tgz`;
+  const tarball = join(packDirectory, expectedFilename);
+  const manifest = extractJson(tarball, "package/package.json");
+  if (manifest.name !== publicPackage[0] || manifest.version !== rootVersion)
+    throw new Error(
+      `${expectedFilename}: expected ${publicPackage[0]}@${rootVersion}, found ${manifest.name}@${manifest.version}.`,
     );
-    if (manifest.name !== packageName || manifest.version !== rootVersion)
-      throw new Error(
-        `${expectedFilename}: expected ${packageName}@${rootVersion}, found ${manifest.name}@${manifest.version}`,
-      );
-    if (JSON.stringify(manifest).includes("workspace:"))
-      throw new Error(
-        `${expectedFilename}: packed manifest contains workspace: dependency`,
-      );
+  if (manifest.private === true)
+    throw new Error(
+      `${expectedFilename}: public manifest must not be private.`,
+    );
+  if (JSON.stringify(manifest).includes("workspace:"))
+    throw new Error(
+      `${expectedFilename}: public manifest contains a workspace dependency.`,
+    );
 
-    const entries = capture("tar", ["-tzf", tarball])
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map((entry) => entry.replace(/\/$/, ""));
-    verifyContents(directory, entries, manifest, expectedFilename);
-    if (directory === "desktop-shell")
-      verifyDesktopBin(tarball, expectedFilename);
-    tarballs.push(tarball);
-  }
-
-  await isolatedInstallSmoke(tarballs, rootVersion);
+  const entries = tarEntries(tarball);
+  verifyPublicManifest(manifest, rootVersion, expectedFilename);
+  verifyContents(tarball, entries, rootVersion, expectedFilename);
+  verifyDesktopBin(tarball, expectedFilename);
+  await isolatedInstallSmoke(tarball, rootVersion);
   console.log(
-    `Verified ${tarballs.length} npm tarballs and isolated runtime resolution.`,
+    `Verified ${publicPackage[0]}@${rootVersion} tarball and isolated bundled runtime resolution.`,
   );
 }
 
-function verifyContents(directory, entries, manifest, filename) {
-  const required = [
+function verifyPublicManifest(manifest, version, filename) {
+  if (manifest.main !== "dist/main.js")
+    throw new Error(`${filename}: unexpected main entry ${manifest.main}.`);
+  if (manifest.bin?.["nerve-desktop"] !== "./dist/bin.js")
+    throw new Error(`${filename}: missing nerve-desktop bin entry.`);
+  if (manifest.engines?.node !== ">=24.0.0")
+    throw new Error(`${filename}: unexpected Node engine.`);
+  if (manifest.repository?.directory !== "packages/desktop-shell")
+    throw new Error(`${filename}: unexpected repository directory.`);
+
+  const expectedBundled = bundledPackages.map(([name]) => name);
+  if (
+    JSON.stringify(manifest.bundleDependencies) !==
+    JSON.stringify(expectedBundled)
+  )
+    throw new Error(
+      `${filename}: bundleDependencies must contain exactly ${expectedBundled.join(", ")}.`,
+    );
+  for (const name of expectedBundled) {
+    if (manifest.dependencies?.[name] !== version)
+      throw new Error(
+        `${filename}: expected exact bundled dependency ${name}@${version}.`,
+      );
+  }
+  for (const name of ["electron", "sharp"]) {
+    if (!manifest.dependencies?.[name])
+      throw new Error(`${filename}: missing external dependency ${name}.`);
+    if (manifest.bundleDependencies.includes(name))
+      throw new Error(`${filename}: ${name} must not be bundled.`);
+  }
+}
+
+function verifyContents(tarball, entries, version, filename) {
+  const requiredRoot = [
     "package/package.json",
+    "package/README.md",
     "package/LICENSE",
     "package/NOTICE",
+    "package/dist/bin.js",
+    "package/dist/main.js",
+    "package/dist/preload.cjs",
+    "package/build/README.md",
   ];
-  for (const entry of required) {
-    if (!entries.includes(entry))
-      throw new Error(`${filename}: missing ${entry}`);
-  }
-  for (const entry of ["package/dist/index.js", "package/dist/index.d.ts"]) {
-    if (!entries.includes(entry) && directory !== "desktop-shell")
-      throw new Error(`${filename}: missing ${entry}`);
-  }
-  const allowedRoots = new Set([
-    "package/package.json",
-    "package/LICENSE",
-    "package/NOTICE",
-  ]);
+  for (const entry of requiredRoot) requireEntry(entries, entry, filename);
+
+  const allowedInternalRoots = new Set(
+    bundledPackages.map(
+      ([name]) =>
+        `package/node_modules/@nervekit/${name.slice("@nervekit/".length)}`,
+    ),
+  );
   for (const entry of entries) {
-    if (entry === "package" || allowedRoots.has(entry)) continue;
-    if (entry === "package/dist" || entry.startsWith("package/dist/")) continue;
     if (
-      directory === "contracts" &&
-      (entry === "package/schemas" || entry.startsWith("package/schemas/"))
+      entry === "package" ||
+      entry === "package/package.json" ||
+      entry === "package/README.md" ||
+      entry === "package/LICENSE" ||
+      entry === "package/NOTICE" ||
+      entry === "package/dist" ||
+      entry.startsWith("package/dist/") ||
+      entry === "package/build" ||
+      entry.startsWith("package/build/") ||
+      entry === "package/node_modules" ||
+      entry === "package/node_modules/@nervekit"
     )
       continue;
+    const internalRoot = [...allowedInternalRoots].find(
+      (root) => entry === root || entry.startsWith(`${root}/`),
+    );
+    if (!internalRoot)
+      throw new Error(`${filename}: unexpected packed path ${entry}.`);
+    const relative = entry.slice(internalRoot.length).replace(/^\//, "");
     if (
-      directory === "desktop-shell" &&
-      (entry === "package/build" || entry.startsWith("package/build/"))
+      relative === "" ||
+      relative === "package.json" ||
+      relative === "LICENSE" ||
+      relative === "NOTICE" ||
+      relative === "dist" ||
+      relative.startsWith("dist/") ||
+      (internalRoot.endsWith("/contracts") &&
+        (relative === "schemas" || relative.startsWith("schemas/")))
     )
       continue;
-    throw new Error(`${filename}: unexpected packed path ${entry}`);
+    throw new Error(`${filename}: unexpected bundled package path ${entry}.`);
   }
+
   const forbidden =
-    /^package\/(?:src|test|tests|\.nerve|\.git|node_modules|release|coverage|logs?|cache)(?:\/|$)|\/node_modules\/|\.(?:log|sqlite|db)$/i;
+    /(?:^|\/)(?:src|test|tests|\.nerve|\.git|release|coverage|cache)(?:\/|$)|\.(?:log|sqlite|db|node)$/i;
   for (const entry of entries) {
     if (forbidden.test(entry))
-      throw new Error(`${filename}: forbidden packed path ${entry}`);
+      throw new Error(`${filename}: forbidden packed path ${entry}.`);
   }
-  for (const target of exportTargets(manifest.exports)) {
-    const path = `package/${target.replace(/^\.\//, "")}`;
-    if (!entries.includes(path))
-      throw new Error(`${filename}: export target is missing: ${path}`);
-  }
-  if (
-    directory === "contracts" &&
-    !entries.includes("package/schemas/sandbox-config-v1.schema.json")
-  )
-    throw new Error(`${filename}: sandbox config JSON schema is missing`);
-  if (directory === "workbench-server") {
-    if (!entries.includes("package/dist/web/index.html"))
-      throw new Error(`${filename}: bundled web index is missing`);
-    if (!entries.some((entry) => entry.startsWith("package/dist/web/assets/")))
-      throw new Error(`${filename}: bundled web assets are missing`);
-  }
-  if (directory === "desktop-shell") {
+
+  for (const [packageName, directory] of bundledPackages) {
+    const packageRoot = `package/node_modules/@nervekit/${directory}`;
     for (const entry of [
-      "package/dist/bin.js",
-      "package/dist/main.js",
-      "package/dist/preload.cjs",
-      "package/build/README.md",
-    ]) {
-      if (!entries.includes(entry))
-        throw new Error(
-          `${filename}: desktop runtime file is missing: ${entry}`,
-        );
+      `${packageRoot}/package.json`,
+      `${packageRoot}/LICENSE`,
+      `${packageRoot}/NOTICE`,
+      `${packageRoot}/dist/index.js`,
+      `${packageRoot}/dist/index.d.ts`,
+    ])
+      requireEntry(entries, entry, filename);
+    const manifest = extractJson(tarball, `${packageRoot}/package.json`);
+    if (manifest.name !== packageName || manifest.version !== version)
+      throw new Error(
+        `${filename}: expected bundled ${packageName}@${version}, found ${manifest.name}@${manifest.version}.`,
+      );
+    if (manifest.private !== undefined || manifest.publishConfig !== undefined)
+      throw new Error(
+        `${filename}: bundled ${packageName} contains publication metadata.`,
+      );
+    if (JSON.stringify(manifest).includes("workspace:"))
+      throw new Error(
+        `${filename}: bundled ${packageName} contains a workspace dependency.`,
+      );
+    for (const target of exportTargets(manifest.exports)) {
+      requireEntry(
+        entries,
+        `${packageRoot}/${target.replace(/^\.\//, "")}`,
+        filename,
+      );
     }
   }
+
+  requireEntry(
+    entries,
+    "package/node_modules/@nervekit/contracts/schemas/sandbox-config-v1.schema.json",
+    filename,
+  );
+  requireEntry(
+    entries,
+    "package/node_modules/@nervekit/workbench-server/dist/main.js",
+    filename,
+  );
+  requireEntry(
+    entries,
+    "package/node_modules/@nervekit/workbench-server/dist/web/index.html",
+    filename,
+  );
+  if (
+    !entries.some((entry) =>
+      entry.startsWith(
+        "package/node_modules/@nervekit/workbench-server/dist/web/assets/",
+      ),
+    )
+  )
+    throw new Error(`${filename}: bundled workbench web assets are missing.`);
 }
 
 function exportTargets(exportsField) {
@@ -139,18 +212,16 @@ function exportTargets(exportsField) {
 function verifyDesktopBin(tarball, filename) {
   const source = capture("tar", ["-xOzf", tarball, "package/dist/bin.js"]);
   if (!source.startsWith("#!/usr/bin/env node"))
-    throw new Error(`${filename}: desktop bin is missing its Node shebang`);
+    throw new Error(`${filename}: desktop bin is missing its Node shebang.`);
   const verbose = capture("tar", ["-tvzf", tarball]);
   const line = verbose
     .split(/\r?\n/)
     .find((entry) => entry.trim().endsWith("package/dist/bin.js"));
   if (!line || !/^-rwx/.test(line.trim()))
-    throw new Error(
-      `${filename}: desktop bin is not executable in the tarball`,
-    );
+    throw new Error(`${filename}: desktop bin is not executable.`);
 }
 
-async function isolatedInstallSmoke(tarballs, version) {
+async function isolatedInstallSmoke(tarball, version) {
   const directory = await mkdtemp(join(os.tmpdir(), "nerve-npm-smoke-"));
   try {
     await writeFile(
@@ -159,15 +230,27 @@ async function isolatedInstallSmoke(tarballs, version) {
     );
     run(
       "npm",
-      ["install", "--ignore-scripts", "--no-audit", "--no-fund", ...tarballs],
+      ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball],
       directory,
     );
-    const lock = await readFile(join(directory, "package-lock.json"), "utf8");
-    if (lock.includes("workspace:"))
-      throw new Error("isolated package-lock contains workspace: references");
-    const smoke = `
-const packages = ${JSON.stringify(publicPackages.map(([name]) => name))};
-for (const name of packages) console.log(name, import.meta.resolve(name));
+
+    const lock = JSON.parse(
+      await readFile(join(directory, "package-lock.json"), "utf8"),
+    );
+    if (JSON.stringify(lock).includes("workspace:"))
+      throw new Error("isolated package-lock contains workspace references.");
+    verifyBundledLockEntries(lock, version);
+
+    const desktopRoot = join(directory, "node_modules", "@nervekit", "desktop");
+    const desktopSmoke = join(desktopRoot, "dist", "npm-bundle-smoke.mjs");
+    await writeFile(
+      desktopSmoke,
+      `
+const packages = ${JSON.stringify(bundledPackages.map(([name]) => name))};
+for (const name of packages) {
+  console.log(name, import.meta.resolve(name));
+  await import(name);
+}
 for (const subpath of [
   "@nervekit/contracts/schemas/sandbox-config-v1.schema.json",
   "@nervekit/harness/node",
@@ -178,36 +261,82 @@ for (const subpath of [
   "@nervekit/host-runtime/test-support",
   "@nervekit/workbench-server/main"
 ]) console.log(subpath, import.meta.resolve(subpath));
-for (const name of packages.filter((name) => name !== "@nervekit/desktop-shell")) await import(name);
-`;
-    await writeFile(join(directory, "smoke.mjs"), smoke);
-    run(process.execPath, ["smoke.mjs"], directory);
-    const bin = join(
-      directory,
+`,
+    );
+    run(process.execPath, [desktopSmoke], directory);
+
+    const serverSmoke = join(
+      desktopRoot,
       "node_modules",
       "@nervekit",
-      "desktop-shell",
+      "workbench-server",
       "dist",
-      "bin.js",
+      "npm-worker-smoke.mjs",
     );
+    await writeFile(
+      serverSmoke,
+      `console.log(import.meta.resolve("@nervekit/host-runtime/harness/worker"));\n`,
+    );
+    run(process.execPath, [serverSmoke], directory);
+
+    const bin = join(desktopRoot, "dist", "bin.js");
     const versionOutput = capture(
       process.execPath,
       [bin, "--version"],
       directory,
     ).trim();
-    if (versionOutput !== `@nervekit/desktop-shell ${version}`)
+    if (versionOutput !== `@nervekit/desktop ${version}`)
       throw new Error(
-        `desktop --version returned ${JSON.stringify(versionOutput)}`,
+        `desktop --version returned ${JSON.stringify(versionOutput)}.`,
       );
     const helpOutput = capture(process.execPath, [bin, "--help"], directory);
     if (
       !helpOutput.includes("Usage:") ||
+      !helpOutput.includes("npx @nervekit/desktop") ||
       !helpOutput.includes("--connect <url>")
     )
-      throw new Error("desktop --help output is incomplete");
+      throw new Error("desktop --help output is incomplete.");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+}
+
+function verifyBundledLockEntries(lock, version) {
+  const packages = lock.packages ?? {};
+  for (const [name] of bundledPackages) {
+    const suffix = `/node_modules/${name}`;
+    const entries = Object.entries(packages).filter(
+      ([path, metadata]) =>
+        (path === `node_modules/${name}` || path.endsWith(suffix)) &&
+        metadata?.version === version,
+    );
+    if (entries.length !== 1)
+      throw new Error(
+        `isolated package-lock expected one bundled ${name}@${version}, found ${entries.length}.`,
+      );
+    const [path, metadata] = entries[0];
+    if (
+      typeof metadata.resolved === "string" &&
+      metadata.resolved.includes("registry.npmjs.org")
+    )
+      throw new Error(`${path} was resolved from the npm registry.`);
+  }
+}
+
+function requireEntry(entries, entry, filename) {
+  if (!entries.includes(entry))
+    throw new Error(`${filename}: missing ${entry}.`);
+}
+
+function extractJson(tarball, entry) {
+  return JSON.parse(capture("tar", ["-xOzf", tarball, entry]));
+}
+
+function tarEntries(tarball) {
+  return capture("tar", ["-tzf", tarball])
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((entry) => entry.replace(/\/$/, ""));
 }
 
 function capture(command, args, cwd = repoRoot) {
@@ -233,7 +362,7 @@ function run(command, args, cwd = repoRoot) {
   if (result.error) throw result.error;
   if (result.status !== 0)
     throw new Error(
-      `${command} ${args.join(" ")} failed with exit code ${result.status}`,
+      `${command} ${args.join(" ")} failed with exit code ${result.status}.`,
     );
 }
 

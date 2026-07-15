@@ -1,6 +1,6 @@
 // Node-safe helpers shared between the Electron main process and the
 // `bin.ts` launcher. This module must not import Electron so it can run in a
-// plain Node context (for example under `npx @nervekit/desktop-shell`).
+// plain Node context (for example under `npx @nervekit/desktop`).
 
 export type ElectronOzonePlatform = "x11" | "wayland" | "auto";
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Node-only launcher used by `npx @nervekit/desktop-shell`, `pnpx @nervekit/desktop-shell`,
+// Node-only launcher used by `npx @nervekit/desktop`, `pnpx @nervekit/desktop`,
 // and the globally installed `nerve-desktop` bin. It spawns Electron as a child
 // process against this package directory; it must not import the Electron main
 // module (that runs inside the spawned Electron process).
@@ -38,8 +38,8 @@ if (forwardedArgs.includes("--help") || forwardedArgs.includes("-h")) {
       `${manifest.name} ${manifest.version}`,
       "",
       "Usage:",
-      "  npx @nervekit/desktop-shell [-- <app args>]",
-      "  pnpx @nervekit/desktop-shell [-- <app args>]",
+      `  npx ${manifest.name} [-- <app args>]`,
+      `  pnpx ${manifest.name} [-- <app args>]`,
       "  nerve-desktop [<app args>]",
       "",
       "Common app args:",

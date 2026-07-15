@@ -128,6 +128,7 @@ $effect(() => {
 .code-view {
   --file-code-font-size: var(--text-sm);
   --line-number-width: 2ch;
+  --line-number-gap: calc(var(--spacing) * 6);
   counter-reset: code-line;
   min-width: 100%;
   margin: 0;
@@ -185,9 +186,9 @@ $effect(() => {
 
 .code-view.wrap-lines :global(.line),
 .code-view.wrap-lines .code-line {
-  padding-left: calc(var(--line-number-width) + 1rem);
+  padding-left: calc(var(--line-number-width) + var(--line-number-gap));
   overflow-wrap: anywhere;
-  text-indent: calc(-1 * (var(--line-number-width) + 1rem));
+  text-indent: calc(-1 * (var(--line-number-width) + var(--line-number-gap)));
   white-space: pre-wrap;
 }
 
@@ -199,7 +200,7 @@ $effect(() => {
   left: 0;
   display: inline-block;
   width: var(--line-number-width);
-  margin-right: 1rem;
+  margin-right: var(--line-number-gap);
   background: var(--background);
   color: color-mix(in oklab, var(--muted-foreground) 58%, transparent);
   text-align: right;

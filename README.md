@@ -11,8 +11,8 @@ The desktop app is the primary way to use Nerve locally. It starts an owned loca
 Run the beta desktop app with your package runner:
 
 ```sh
-npx @nervekit/desktop-shell
-pnpm dlx @nervekit/desktop-shell
+npx @nervekit/desktop
+pnpm dlx @nervekit/desktop
 ```
 
 The first run may download Electron's platform binary through npm or pnpm; subsequent runs use the package manager cache.
@@ -82,15 +82,15 @@ macOS `.app` or DMG release package is not configured yet.
 Pass desktop/daemon options after `--`:
 
 ```sh
-npx @nervekit/desktop-shell -- --host 0.0.0.0 --allow-remote
-npx @nervekit/desktop-shell -- --connect http://127.0.0.1:3747 --token <token>
-pnpm dlx @nervekit/desktop-shell -- --host 0.0.0.0 --allow-remote
+npx @nervekit/desktop -- --host 0.0.0.0 --allow-remote
+npx @nervekit/desktop -- --connect http://127.0.0.1:3747 --token <token>
+pnpm dlx @nervekit/desktop -- --host 0.0.0.0 --allow-remote
 ```
 
 For opt-in LAN remote access plus self-signed HTTPS for mobile browsers, run with:
 
 ```sh
-npx @nervekit/desktop-shell -- --host 0.0.0.0 --allow-remote --mobile-https
+npx @nervekit/desktop -- --host 0.0.0.0 --allow-remote --mobile-https
 ```
 
 ### Linux Wayland troubleshooting
@@ -98,7 +98,7 @@ npx @nervekit/desktop-shell -- --host 0.0.0.0 --allow-remote --mobile-https
 Electron may emit Chromium/Ozone Wayland messages such as `Frame latency is negative` or `Invalid state when trying to start drag`. If native Wayland also causes copy/drag freezes on your desktop environment, run the desktop shell through XWayland:
 
 ```sh
-NERVE_ELECTRON_OZONE_PLATFORM=x11 npx @nervekit/desktop-shell
+NERVE_ELECTRON_OZONE_PLATFORM=x11 npx @nervekit/desktop
 ```
 
 Supported values are `x11`, `wayland`, and `auto`. Leave it unset for Electron's default platform selection.

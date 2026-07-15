@@ -192,7 +192,7 @@ function checkRetiredSurface() {
   )) {
     const text = read(file);
     for (const name of retiredPackages) {
-      if (text.includes(name))
+      if (file !== "docs/release.md" && text.includes(name))
         fail(file, `retired package/path remains: ${name}`);
     }
     for (const identifier of retiredIdentifiers) {

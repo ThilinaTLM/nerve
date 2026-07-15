@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/sandbox-agent",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Agent runtime process for isolated Nerve sandboxes.",
   "private": true,
   "author": "ThilinaTLM",

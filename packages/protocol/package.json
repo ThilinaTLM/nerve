@@ -1,14 +1,11 @@
 {
   "name": "@nervekit/protocol",
-  "version": "0.7.0",
+  "version": "0.8.0",
+  "private": true,
   "description": "Transport-neutral Nerve Protocol v1 session, RPC, replay, and flow engine.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ThilinaTLM/nerve.git",

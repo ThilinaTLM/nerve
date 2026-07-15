@@ -1,6 +1,6 @@
 # Release checklist
 
-Nerve publishes exactly seven npm packages and builds two private runtime images. The npm desktop distribution is the runnable `@nervekit/desktop-shell`; signed native installers are not part of this release path.
+Nerve publishes exactly one npm package, `@nervekit/desktop`, and builds two private runtime images. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path.
 
 ## Requirements
 
@@ -9,19 +9,11 @@ Nerve publishes exactly seven npm packages and builds two private runtime images
 - Docker or Podman for the required image gate
 - PostgreSQL for manager integration/image smoke
 
-## Public npm packages
+## Public npm package
 
-Publish in dependency order:
+Publish only `@nervekit/desktop`. Its generated tarball embeds the private `contracts`, `protocol`, `harness`, `tools`, `host-runtime`, and `workbench-server` runtime workspaces as npm bundled dependencies. Third-party dependencies such as Electron and sharp remain normal dependencies so npm installs the correct platform artifacts.
 
-1. `@nervekit/contracts`
-2. `@nervekit/protocol`
-3. `@nervekit/harness`
-4. `@nervekit/tools`
-5. `@nervekit/host-runtime`
-6. `@nervekit/workbench-server`
-7. `@nervekit/desktop-shell`
-
-The root, UI packages, sandbox packages, and apps are private. Workbench-server embeds the built workbench web assets. Sandbox-manager embeds the manager web assets in its image rather than an npm publication.
+All source workspaces are private. Workbench-server embeds the built workbench web assets. Sandbox-manager embeds the manager web assets in its image rather than an npm publication.
 
 ## Version and validation
 
@@ -29,7 +21,7 @@ Keep the root and workspace versions aligned and tag `v<version>`.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm release:verify-tag -- v0.7.0
+pnpm release:verify-tag -- v0.8.0
 pnpm fix
 pnpm check
 pnpm test
@@ -40,7 +32,7 @@ pnpm build-image:sandbox-agent
 NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES=false pnpm build-image:sandbox-manager
 ```
 
-`release/npm` is generated and must not be committed. Packing stages `LICENSE`/`NOTICE` only for the duration of the command. `node scripts/pack-npm.mjs` verifies exact names/versions/contents and runs an isolated install that resolves package roots, published subpaths, the workbench server entry, and the desktop launcher.
+`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. `node scripts/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-0.8.0.tgz`; it verifies exact names, versions, contents, bundled package resolution, the workbench/worker entries, and the desktop launcher through an isolated install.
 
 Run the finite built-artifact and image smokes after `pnpm release:build`:
 
@@ -73,11 +65,11 @@ Stop all Nerve processes and containers first.
 
 The deterministic errors are `Incompatible Nerve state at <path>...`, `Incompatible sandbox agent state at <path>...`, and `Incompatible sandbox manager state at <path>...`, each ending with `Reset this directory before starting Nerve Protocol v1.` No migration reader is provided.
 
-## First publication and OIDC
+## npm publication, migration, and OIDC
 
-The first version of each package may need a manual npm bootstrap before Trusted Publishing can be configured. After full validation, publish the seven tarballs in the order above with `--access public`, then configure npm Trusted Publishers for `.github/workflows/release.yml` in `ThilinaTLM/nerve`.
+Tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The existing trusted publisher for `@nervekit/desktop` continues to use `.github/workflows/release.yml` in `ThilinaTLM/nerve`. The workflow must not publish until checks, tests, cross-platform package verification, Linux built-artifact smokes, manager-agent smoke, and both image smokes pass. An already-published matching version may be skipped only after the expected local tarball is verified.
 
-Subsequent tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The workflow must not publish until checks, tests, cross-platform package verification, Linux built-artifact smokes, manager-agent smoke, and both image smokes pass. An already-published matching version may be skipped only after the expected local tarball is verified.
+After `@nervekit/desktop@0.8.0` is published and clean-machine startup is verified, confirm npm `latest` points to it. Then deprecate versions `<=0.7.0` of `@nervekit/shared`, `@nervekit/tools`, `@nervekit/agent`, and `@nervekit/orchestrator` with `Internal legacy package retained for @nervekit/desktop <=0.7.0. Install @nervekit/desktop@latest instead.` Deprecate `@nervekit/desktop@<=0.7.0` with `Legacy multi-package release. Upgrade to @nervekit/desktop@latest.` Do not unpublish these versions: pinned legacy desktop installs still need them.
 
 ## Scope and cleanup
 
