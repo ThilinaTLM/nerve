@@ -21,6 +21,7 @@ import type {
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts";
+import type { RedactedStructuredEntry } from "../lifecycle/argument-source";
 
 export type ToolOutputInfo = {
   outputLimits?: ToolOutputLimitsPayload;
@@ -237,6 +238,7 @@ export type ToolView =
       action: "start" | "cancel" | "restart";
       task?: TaskRecord;
       tasks?: TaskRecord[];
+      liveLog?: string;
     }
   | { kind: "task_status"; tasks: TaskRecord[] }
   | {
@@ -366,4 +368,10 @@ export type ToolView =
       outputLimits?: ToolOutputLimitsPayload;
       outputArtifacts?: ToolOutputArtifactPayload[];
     }
-  | { kind: "generic" };
+  | {
+      kind: "generic";
+      toolName: string;
+      args: RedactedStructuredEntry[];
+      result: RedactedStructuredEntry[];
+      resultText?: string;
+    };

@@ -19,6 +19,7 @@ import {
   COLLAPSED_LINES,
   type ToolView,
 } from "./tool-result-view";
+import { presentToolArguments } from "../lifecycle/registry";
 
 export type {
   DetailsActionInfo,
@@ -200,7 +201,23 @@ export function toolPresentation(
       )
     : undefined;
   const { tone: dotTone, pulse: dotPulse } = statusDot(toolCall, view);
-  const base = { badge: toolCall.toolName, meta: [], dotTone, dotPulse };
+  const payloads = toolCall as ToolCallDisplayRecord & {
+    args?: unknown;
+    argsPreview?: unknown;
+  };
+  const argumentPresentation = presentToolArguments(
+    toolCall.toolName,
+    { args: payloads.args, argsPreview: payloads.argsPreview },
+    "completed",
+    toolCall.cwd,
+  );
+  const base: ToolPresentation = {
+    badge: toolCall.toolName,
+    primaryArg: argumentPresentation.primaryArg,
+    meta: [],
+    dotTone,
+    dotPulse,
+  };
 
   switch (view.kind) {
     case "read": {
@@ -281,13 +298,7 @@ export function toolPresentation(
       if (view.timedOut) meta.push({ text: "timed out", tone: "error" });
       const duration = formatDuration(view.durationMs);
       if (duration) meta.push({ text: duration });
-      if (view.codeLineCount > 0)
-        meta.push({ text: plural(view.codeLineCount, "code line") });
       if (lines > 0) meta.push({ text: plural(lines, "line") });
-      if (view.allowFileWrite === false)
-        meta.push({ text: "writes off", tone: "warning" });
-      if (view.envKeys && view.envKeys.length > 0)
-        meta.push({ text: plural(view.envKeys.length, "env") });
       if (view.artifacts && view.artifacts.length > 0)
         meta.push({
           text: plural(view.artifacts.length, "artifact"),
@@ -411,9 +422,7 @@ export function toolPresentation(
         ...base,
         primaryArg: view.task?.name
           ? { text: view.task.name }
-          : view.mode
-            ? { text: view.mode }
-            : undefined,
+          : base.primaryArg,
         meta,
         detailsAction:
           previewDetailsAction ??
@@ -661,7 +670,7 @@ export function toolPresentation(
       return {
         ...base,
         badge: `task_${view.action}`,
-        primaryArg: task?.name ? { text: task.name } : undefined,
+        primaryArg: task?.name ? { text: task.name } : base.primaryArg,
       };
     }
 
@@ -699,9 +708,11 @@ export function toolPresentation(
       return {
         ...base,
         badge: `plan_mode_${view.action}`,
-        primaryArg: view.planPath
-          ? { text: view.planPath, openPath: view.planPath }
-          : undefined,
+        primaryArg:
+          base.primaryArg ??
+          (view.planPath
+            ? { text: view.planPath, openPath: view.planPath }
+            : undefined),
         meta: [],
         detailsAction: previewDetailsAction,
       };

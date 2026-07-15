@@ -11,7 +11,7 @@ type Props = {
   expanded?: boolean;
   onOpenFile?: (path: string) => void;
 };
-let { view, expanded = false, onOpenFile }: Props = $props();
+let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
 
 type FileEntryView = FileEntry & { openPath?: string };
 
@@ -26,9 +26,9 @@ const sorted = $derived(sortEntries(view.entries));
 const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
 </script>
 
-{#if view.total === 0}
+{#if view.total === 0 && toolCall.status === "completed"}
   <p class="m-0 text-xs text-muted-foreground">Empty directory.</p>
-{:else}
+{:else if view.total > 0}
   <ul
     class="m-0 list-none rounded-sm border bg-sidebar px-2.5 py-2 font-mono text-xs leading-normal text-sidebar-foreground"
   >

@@ -11,25 +11,24 @@ import type {
 } from "../../state/tool-types";
 import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import type { ToolDraftViewModel } from "../../state/active-run";
-import type { PrimaryArg } from "../views/tool-presentation";
+import type { MetaItem, PrimaryArg } from "../views/tool-presentation";
 import { toolPresentationCached } from "../views/tool-presentation";
-import { parseToolViewCached } from "../views/tool-result-view";
+import {
+  parseToolViewCached,
+  type ToolView as ParsedToolView,
+} from "../views/tool-result-view";
 import { toolViewComponent } from "../views/registry";
 import {
   hasMeaningfulToolDraftBody,
   summarizeToolDraft,
 } from "../views/tool-draft-progress";
-import {
-  confluenceDraftSummaryBody,
-  isConfluenceToolName,
-  isJiraToolName,
-  jiraDraftSummaryBody,
-} from "../views/atlassian-tool-summary";
+import { presentToolArguments, toolLifecycleSpec } from "../lifecycle/registry";
 import { deriveToolActivityState } from "../views/tool-activity-state";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import CardShell from "./tool-call/CardShell.svelte";
 import ToolDraftBody from "./tool-call/ToolDraftBody.svelte";
+import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
 
@@ -110,27 +109,82 @@ const ToolView = $derived.by(() =>
 const draftSummary = $derived.by(() =>
   draft ? summarizeToolDraft(draft.block, cwd) : undefined,
 );
-const atlassianDraftSummary = $derived.by(() => {
-  if (!draft) return undefined;
-  if (isJiraToolName(draft.block.toolName))
-    return jiraDraftSummaryBody(draft.block);
-  if (isConfluenceToolName(draft.block.toolName))
-    return confluenceDraftSummaryBody(draft.block);
-  return undefined;
-});
 const meaningfulDraftBody = $derived(
-  draftSummary
-    ? hasMeaningfulToolDraftBody(draftSummary, atlassianDraftSummary)
-    : false,
+  draftSummary ? hasMeaningfulToolDraftBody(draftSummary) : false,
 );
-const hasDurableBodyContent = $derived(
-  Boolean(liveOutput?.text.length || toolCall?.resultPreview !== undefined),
-);
+function hasMeaningfulDurableBody(view: ParsedToolView | undefined): boolean {
+  if (!view) return false;
+  switch (view.kind) {
+    case "read":
+      return Boolean(view.image || view.content?.length);
+    case "bash":
+    case "python":
+      return view.output.length > 0;
+    case "edit":
+      return Boolean(view.diff);
+    case "write":
+      return Boolean(view.content?.length);
+    case "grep":
+      return view.matchCount > 0;
+    case "find":
+      return view.count > 0;
+    case "ls":
+      return view.total > 0;
+    case "todos":
+      return view.items.length > 0;
+    case "task_action":
+      return Boolean(view.task || view.tasks?.length || view.liveLog?.length);
+    case "task_status":
+      return view.tasks.length > 0;
+    case "task_logs":
+      return view.events.length > 0;
+    case "explore":
+      return Boolean(
+        view.reports.length || view.liveUpdates.length || view.liveLog?.length,
+      );
+    case "web_search":
+      return Boolean(view.answer || view.results.length);
+    case "web_fetch":
+      return Boolean(view.content?.length);
+    case "generic":
+      return Boolean(view.resultText || view.result.length);
+    case "jira":
+    case "confluence":
+      return toolCall?.resultPreview !== undefined;
+    case "ask_user":
+    case "plan_mode":
+      return true;
+  }
+}
+const hasDurableBodyContent = $derived(hasMeaningfulDurableBody(view));
 const toolApproval = $derived(
   toolCall &&
     pendingApproval?.toolCallId === toolCall.id &&
     toolCall.status === "pending_approval"
     ? pendingApproval
+    : undefined,
+);
+const lifecycleSpec = $derived(
+  toolLifecycleSpec(toolCall?.toolName ?? draft?.block.toolName ?? "tool"),
+);
+const argumentInput = $derived({
+  args: draft?.block.args,
+  argsText: draft?.block.argsText,
+  argsPreview: toolCall?.argsPreview,
+});
+const lifecycleArgumentPresentation = $derived.by(() => {
+  const toolName = toolCall?.toolName ?? draft?.block.toolName;
+  if (!toolName) return undefined;
+  return presentToolArguments(toolName, argumentInput, "executing", cwd);
+});
+const approvalPresentation = $derived.by(() => {
+  const toolName = toolCall?.toolName ?? draft?.block.toolName;
+  if (!toolName) return undefined;
+  return presentToolArguments(toolName, argumentInput, "approval", cwd);
+});
+const failurePresentation = $derived(
+  toolCall && (toolCall.status === "error" || toolCall.status === "denied")
+    ? lifecycleArgumentPresentation
     : undefined,
 );
 const hilInteractive = $derived(
@@ -147,28 +201,44 @@ const toolPlanReview = $derived(
     ? pendingPlanReview
     : undefined,
 );
+function mergeMetaItems(...groups: Array<readonly MetaItem[]>): MetaItem[] {
+  const seen: string[] = [];
+  return groups.flat().filter((item) => {
+    if (seen.includes(item.text)) return false;
+    seen.push(item.text);
+    return true;
+  });
+}
+const activityMeta = $derived.by(() => {
+  if (!toolCall) return draftSummary?.meta ?? [];
+  if (toolCall.status === "completed") return presentation?.meta ?? [];
+  return mergeMetaItems(
+    draftSummary?.meta ?? [],
+    lifecycleArgumentPresentation?.secondary ?? [],
+    presentation?.meta ?? [],
+  );
+});
 const activityState = $derived.by(() =>
   deriveToolActivityState({
     draft: draft?.block,
     toolCall,
     hasMeaningfulDraftBody: meaningfulDraftBody,
     hasDurableBodyContent,
+    executionHandoff: lifecycleSpec.executionHandoff,
     bodyHydrated: shouldHydrateBody,
     hasApproval: Boolean(toolApproval),
     hasInteraction: hilInteractive,
-    footerItems: presentation?.meta ?? draftSummary?.meta,
+    hasFailureContext: Boolean(
+      failurePresentation && failurePresentation.body.kind !== "none",
+    ),
+    footerItems: activityMeta,
     hasDetailsAction: Boolean(toolCall),
   }),
 );
 const draftArg = $derived.by<PrimaryArg | undefined>(() => {
   if (!draftSummary) return undefined;
+  if (draftSummary.primaryArg) return draftSummary.primaryArg;
   if (draftSummary.path) return { text: draftSummary.path };
-  if (draftSummary.kind === "bash" || draftSummary.kind === "python") {
-    const input =
-      draftSummary.inlineInput ??
-      (draftSummary.inputMode === "inline" ? "inline" : undefined);
-    if (input) return { text: input };
-  }
   return { text: "Preparing arguments…" };
 });
 const badge = $derived(
@@ -177,12 +247,16 @@ const badge = $derived(
     draft?.block.toolName ??
     "tool",
 );
-const primaryArg = $derived(presentation?.primaryArg ?? draftArg);
+const primaryArg = $derived(
+  presentation?.primaryArg ??
+    lifecycleArgumentPresentation?.primaryArg ??
+    draftArg,
+);
 // A prepared draft only means argument generation finished; execution has not.
 // Keep it visibly in-flight until a durable terminal status takes ownership.
 const dotTone = $derived(presentation?.dotTone ?? "running");
 const dotPulse = $derived(presentation?.dotPulse ?? true);
-const meta = $derived(presentation?.meta ?? draftSummary?.meta ?? []);
+const meta = $derived(activityMeta);
 const detailsAction = $derived(
   toolCall
     ? {
@@ -263,9 +337,13 @@ async function openDetails() {
 >
   {#if activityState.bodyMode === "draft-preview" && draft}
     <ToolDraftBody draft={draft.block} {cwd} />
-  {:else if activityState.bodyMode === "approval" && toolApproval}
+  {:else if activityState.bodyMode === "failure-context" && failurePresentation}
+    <ToolArgumentBody body={failurePresentation.body} />
+  {:else if activityState.bodyMode === "approval" && toolApproval && approvalPresentation && toolCall}
     <ApprovalPrompt
       approval={toolApproval}
+      toolName={toolCall.toolName}
+      presentation={approvalPresentation}
       detailsAction={bodyDetailsAction}
       {onGrantApproval}
       {onDenyApproval}

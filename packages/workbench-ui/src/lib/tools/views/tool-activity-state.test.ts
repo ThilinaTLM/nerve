@@ -83,9 +83,18 @@ describe("deriveToolActivityState", () => {
     assert.equal(
       deriveToolActivityState({
         toolCall: toolCall("running"),
+        hasDurableBodyContent: true,
         bodyHydrated: true,
       }).bodyMode,
       "tool-output",
+    );
+    assert.equal(
+      deriveToolActivityState({
+        toolCall: toolCall("running"),
+        executionHandoff: "result-immediate",
+        bodyHydrated: true,
+      }).bodyMode,
+      "none",
     );
     const failed = deriveToolActivityState({
       toolCall: toolCall("error", "boom"),
@@ -98,6 +107,13 @@ describe("deriveToolActivityState", () => {
       deriveToolActivityState({ toolCall: toolCall("denied") }).bodyMode,
       "error",
     );
+    const failedWithContext = deriveToolActivityState({
+      toolCall: toolCall("error", "boom"),
+      hasFailureContext: true,
+    });
+    assert.equal(failedWithContext.bodyMode, "failure-context");
+    assert.equal(failedWithContext.bodyVisible, true);
+    assert.equal(failedWithContext.errorVisible, true);
   });
 
   it("keeps a meaningful draft body until durable output is available", () => {
@@ -126,10 +142,12 @@ describe("deriveToolActivityState", () => {
   it("tracks body hydration without changing for streamed content", () => {
     const hidden = deriveToolActivityState({
       toolCall: toolCall("running"),
+      hasDurableBodyContent: true,
       bodyHydrated: false,
     });
     const visible = deriveToolActivityState({
       toolCall: toolCall("running"),
+      hasDurableBodyContent: true,
       bodyHydrated: true,
     });
     assert.equal(hidden.bodyVisible, false);
@@ -139,6 +157,7 @@ describe("deriveToolActivityState", () => {
       visible.structuralRevision,
       deriveToolActivityState({
         toolCall: toolCall("completed"),
+        hasDurableBodyContent: true,
         bodyHydrated: true,
       }).structuralRevision,
     );

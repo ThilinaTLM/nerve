@@ -9,7 +9,7 @@ type Props = {
   view: Extract<ToolView, { kind: "web_search" }>;
   expanded?: boolean;
 };
-let { view, expanded = false }: Props = $props();
+let { toolCall, view, expanded = false }: Props = $props();
 
 const results = $derived(
   expanded ? view.results : view.results.slice(0, COLLAPSED_LINES),
@@ -77,6 +77,6 @@ function hostname(url: string): string {
       </li>
     {/each}
   </ul>
-{:else if !view.answer}
+{:else if !view.answer && toolCall.status === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No results.</p>
 {/if}

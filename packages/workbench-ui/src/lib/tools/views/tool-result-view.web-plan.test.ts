@@ -133,12 +133,22 @@ describe("parseToolView plan and web tools", () => {
     assert.equal(view.matchCount, 0);
   });
 
-  it("returns generic for unknown tools", () => {
+  it("returns a bounded redacted structured view for unknown tools", () => {
     const view = parseToolView(
-      toolCall("read", {}, undefined, {
-        toolName: "mystery" as ToolCallRecord["toolName"],
-      }),
+      toolCall(
+        "read",
+        { target: "workspace", api_token: "secret-value" },
+        { message: "recorded outcome", password: "hidden" },
+        { toolName: "mystery" as ToolCallRecord["toolName"] },
+      ),
     );
     assert.equal(view.kind, "generic");
+    if (view.kind !== "generic") return;
+    assert.equal(view.toolName, "mystery");
+    const serialized = JSON.stringify(view);
+    assert.match(serialized, /workspace/);
+    assert.match(serialized, /recorded outcome/);
+    assert.match(serialized, /\[redacted\]/);
+    assert.doesNotMatch(serialized, /secret-value|hidden/);
   });
 });

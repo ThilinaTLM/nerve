@@ -8,7 +8,7 @@ type Props = {
   expanded?: boolean;
   onOpenFile?: (path: string) => void;
 };
-let { view, expanded = false, onOpenFile }: Props = $props();
+let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
 
 const visible = $derived(
   (expanded ? view.paths : view.paths.slice(0, COLLAPSED_LINES)).map(
@@ -20,9 +20,9 @@ const visible = $derived(
 );
 </script>
 
-{#if view.count === 0}
+{#if view.count === 0 && toolCall.status === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No files found.</p>
-{:else}
+{:else if view.count > 0}
   <ul
     class="m-0 list-none rounded-sm border bg-sidebar px-2.5 py-2 font-mono text-xs leading-snug text-sidebar-foreground"
   >

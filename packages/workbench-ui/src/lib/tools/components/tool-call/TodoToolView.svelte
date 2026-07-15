@@ -7,7 +7,11 @@ type Props = {
   toolCall: ToolCallDisplayRecord;
   view: Extract<ToolView, { kind: "todos" }>;
 };
-let { view }: Props = $props();
+let { toolCall, view }: Props = $props();
 </script>
 
-<TodoChecklist items={view.items} />
+{#if view.items.length > 0}
+  <TodoChecklist items={view.items} />
+{:else if toolCall.status === "completed"}
+  <TodoChecklist items={[]} emptyLabel="No todos." />
+{/if}

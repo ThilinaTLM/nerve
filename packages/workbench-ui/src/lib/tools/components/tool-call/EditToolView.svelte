@@ -9,7 +9,7 @@ type Props = {
   expanded?: boolean;
   onOpenFile?: (path: string) => void;
 };
-let { view, expanded = false }: Props = $props();
+let { toolCall, view, expanded = false }: Props = $props();
 </script>
 
 {#if view.diff}
@@ -19,4 +19,6 @@ let { view, expanded = false }: Props = $props();
     direction="tail"
     {expanded}
   />
+{:else if toolCall.status === "completed"}
+  <p class="m-0 text-xs text-muted-foreground">No changes.</p>
 {/if}

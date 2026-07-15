@@ -32,7 +32,13 @@ export function parseJiraView(
   liveOutput?: ConversationLiveToolOutputSnapshot,
 ): ToolView {
   const action = jiraAction(toolCall.toolName);
-  if (!action) return { kind: "generic" };
+  if (!action)
+    return {
+      kind: "generic",
+      toolName: toolCall.toolName,
+      args: [],
+      result: [],
+    };
   const result = parseToolExecutionResult(rawResult);
   const outputLimits = outputLimitsFromDetails(result?.details);
   const outputArtifacts = outputArtifactsFromDetails(result?.details);

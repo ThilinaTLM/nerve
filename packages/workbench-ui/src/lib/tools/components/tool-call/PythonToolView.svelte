@@ -33,11 +33,9 @@ const inlineCodeIsMultiline = $derived(
         terminal
       />
     </section>
-  {:else if toolCall.status === "running"}
-    <p class="m-0 text-xs text-muted-foreground">Waiting for Python output…</p>
-  {:else if toolCall.status === "completed" && (view.inputMode === "file" || (view.code && view.code.length > 0))}
+  {:else if toolCall.status === "completed"}
     <section class="grid gap-1" aria-label="Python output">
-      <p class="m-0 text-xs text-muted-foreground">No Python output.</p>
+      <p class="m-0 text-xs text-muted-foreground">No output.</p>
     </section>
   {/if}
 

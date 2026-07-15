@@ -3,12 +3,14 @@ import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts
 
 /** Canonical tool-draft content block; local alias for signature brevity. */
 type ToolDraftBlock = ConversationLiveToolDraftBlockSnapshot;
-import {
-  confluenceDraftMeta,
-  confluenceDraftPrimaryArg,
-} from "./confluence-draft-progress";
-import { jiraDraftMeta, jiraDraftPrimaryArg } from "./jira-draft-progress";
 import { draftArgsPreview } from "./tool-draft-args-preview";
+import {
+  isKnownToolName,
+  presentToolArguments,
+  type ToolArgumentBody,
+} from "../lifecycle/registry";
+import { mergeDraftMeta, specializedDraftBody } from "./tool-draft-body";
+import type { PrimaryArg } from "./tool-presentation-types";
 export { hasMeaningfulToolDraftBody } from "./tool-draft-body";
 
 export type DraftMetaTone =
@@ -50,6 +52,9 @@ export type ToolDraftSummary = {
   language?: "bash" | "python";
   argsPreview?: string;
   argsPreviewLanguage?: "json";
+  primaryArg?: PrimaryArg;
+  argumentBody?: ToolArgumentBody;
+  safetyNotes?: string[];
   done: boolean;
 };
 
@@ -644,7 +649,6 @@ function summarizeBashDraft(draft: ToolDraftBlock): ToolDraftSummary {
   if (commandLineCount !== undefined && commandLineCount > 1) {
     meta.push({ text: plural(commandLineCount, "command line"), tone: "info" });
   }
-  if (draft.done) meta.push({ text: "submitted", tone: "success" });
   return {
     kind: "bash",
     toolName: "bash",
@@ -683,7 +687,6 @@ function summarizePythonDraft(
     meta.push({ text: plural(codeLineCount, "code line"), tone: "info" });
   }
   if (hasPath && !hasCode) meta.push({ text: "file", tone: "info" });
-  if (draft.done) meta.push({ text: "submitted", tone: "success" });
   return {
     kind: "python",
     toolName: "python",
@@ -708,62 +711,32 @@ function summarizePythonDraft(
   };
 }
 
-function firstKnownString(
-  draft: ToolDraftBlock,
-  property: string,
-): string | undefined {
-  return (
-    stringField(asRecord(draft.args)[property]) ??
-    extractJsonStringValues(draft.argsText, property, { maxChars: 240 })[0]
-  );
-}
-
-function genericPrimaryArg(draft: ToolDraftBlock): string | undefined {
-  const toolName = draft.toolName;
-  if (toolName === "bash") return firstKnownString(draft, "command");
-  if (toolName === "web_fetch") return firstKnownString(draft, "url");
-  if (toolName === "web_search") return firstKnownString(draft, "query");
-  const jiraArg = jiraDraftPrimaryArg(draft, firstKnownString);
-  if (jiraArg !== undefined) return jiraArg;
-  const confluenceArg = confluenceDraftPrimaryArg(draft, firstKnownString);
-  if (confluenceArg !== undefined) return confluenceArg;
-  if (toolName === "grep" || toolName === "find") {
-    return firstKnownString(draft, "pattern");
-  }
-  if (toolName?.startsWith("task_")) {
-    return (
-      firstKnownString(draft, "taskId") ??
-      firstKnownString(draft, "groupId") ??
-      firstKnownString(draft, "name")
-    );
-  }
-  return firstKnownString(draft, "path");
-}
-
-function genericMeta(draft: ToolDraftBlock): DraftMetaItem[] {
-  const meta: DraftMetaItem[] = [];
-  if (draft.toolName?.startsWith("jira_")) {
-    meta.push(...jiraDraftMeta(draft, firstKnownString));
-  }
-  if (draft.toolName?.startsWith("confluence_")) {
-    meta.push(...confluenceDraftMeta(draft, firstKnownString));
-  }
-  const cwd = firstKnownString(draft, "cwd");
-  if (cwd) meta.push({ text: "cwd", tone: "info" });
-  if (draft.done) meta.push({ text: "submitted", tone: "success" });
-  return meta;
-}
-
-function withDraftArgsPreview(
+function withLifecyclePresentation(
   summary: ToolDraftSummary,
   draft: ToolDraftBlock,
+  cwd?: string,
 ): ToolDraftSummary {
+  const toolName = draft.toolName ?? "tool";
+  const presentation = presentToolArguments(
+    toolName,
+    { args: draft.args, argsText: draft.argsText },
+    "drafting",
+    cwd,
+  );
+  const specializedBody = specializedDraftBody(summary);
   return {
     ...summary,
-    ...draftArgsPreview(draft, {
-      maxLines: DRAFT_PREVIEW_LINES,
-      maxChars: DRAFT_PREVIEW_MAX_VALUE_CHARS,
-    }),
+    path: summary.path ?? presentation.primaryArg?.text,
+    primaryArg: presentation.primaryArg,
+    meta: mergeDraftMeta(summary.meta, presentation.secondary),
+    argumentBody: specializedBody ?? presentation.body,
+    safetyNotes: presentation.safetyNotes,
+    ...(!isKnownToolName(toolName)
+      ? draftArgsPreview(draft, {
+          maxLines: DRAFT_PREVIEW_LINES,
+          maxChars: DRAFT_PREVIEW_MAX_VALUE_CHARS,
+        })
+      : {}),
   };
 }
 
@@ -772,29 +745,51 @@ export function summarizeToolDraft(
   cwd?: string,
 ): ToolDraftSummary {
   if (draft.toolName === "write") {
-    return withDraftArgsPreview(summarizeWriteDraft(draft, cwd), draft);
+    return withLifecyclePresentation(
+      summarizeWriteDraft(draft, cwd),
+      draft,
+      cwd,
+    );
   }
   if (draft.toolName === "edit") {
-    return withDraftArgsPreview(summarizeEditDraft(draft, cwd), draft);
+    return withLifecyclePresentation(
+      summarizeEditDraft(draft, cwd),
+      draft,
+      cwd,
+    );
   }
   if (draft.toolName === "bash") {
-    return withDraftArgsPreview(summarizeBashDraft(draft), draft);
+    return withLifecyclePresentation(summarizeBashDraft(draft), draft, cwd);
   }
   if (draft.toolName === "python") {
-    return withDraftArgsPreview(summarizePythonDraft(draft, cwd), draft);
+    return withLifecyclePresentation(
+      summarizePythonDraft(draft, cwd),
+      draft,
+      cwd,
+    );
   }
   const toolName = draft.toolName ?? "tool";
-  return withDraftArgsPreview(
+  const presentation = presentToolArguments(
+    toolName,
+    { args: draft.args, argsText: draft.argsText },
+    "drafting",
+    cwd,
+  );
+  return withLifecyclePresentation(
     {
       kind: "generic",
       toolName,
-      path: genericPrimaryArg(draft),
+      path: presentation.primaryArg?.text,
       statusText: draft.done
         ? `${toolName} arguments prepared.`
         : `Preparing ${toolName} arguments…`,
-      meta: genericMeta(draft),
+      meta: presentation.secondary,
+      primaryArg: presentation.primaryArg,
+      argumentBody: presentation.body,
+      safetyNotes: presentation.safetyNotes,
       done: Boolean(draft.done),
     },
     draft,
+    cwd,
   );
 }

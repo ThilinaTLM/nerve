@@ -226,8 +226,11 @@ async function rejectPlan() {
 {#if showPlanCard && displayedReview}
   <div class="grid gap-2" aria-label="Plan review">
     {#if preview.trim()}
-      <pre
-        class="m-0 whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-normal text-foreground">{preview}</pre>
+      <div
+        class="whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]"
+      >
+        {preview}
+      </div>
     {/if}
 
     <ToolFooter meta={statusMeta} {detailsAction}>

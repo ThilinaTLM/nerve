@@ -3,9 +3,8 @@ import type {
   ToolCallDisplayRecord,
   ToolView,
 } from "../../views/tool-result-view";
-import { COLLAPSED_LINES } from "../../views/tool-result-view";
 import { confluenceToolSummaryBody } from "../../views/atlassian-tool-summary";
-import ResultCodeBlock from "./ResultCodeBlock.svelte";
+import ToolArgumentBody from "./ToolArgumentBody.svelte";
 
 type ConfluenceView = Extract<ToolView, { kind: "confluence" }>;
 
@@ -22,19 +21,9 @@ const summary = $derived(
 </script>
 
 {#if summary}
-  <ResultCodeBlock
-    code={summary}
-    trim={false}
-    highlight={false}
-    wrap
-    overflow={expanded ? "auto" : "hidden"}
-    fixedRows={expanded ? undefined : COLLAPSED_LINES}
-    maxHeight="22rem"
-  />
-{:else}
-  <div
-    class="rounded-sm border bg-sidebar px-2.5 py-2 text-xs text-muted-foreground"
-  >
+  <ToolArgumentBody body={{ kind: "atlassian-summary", text: summary }} />
+{:else if toolCall.status === "completed"}
+  <p class="m-0 text-xs text-muted-foreground">
     No Confluence summary available. Open Details for raw arguments and result.
-  </div>
+  </p>
 {/if}

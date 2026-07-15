@@ -112,7 +112,7 @@ describe("toolPresentation", () => {
       },
       { previewOverflow: { hidden: 14, noun: "lines", direction: "tail" } },
     );
-    assert.deepEqual(metaText(python.meta), ["1 code line", "24 lines"]);
+    assert.deepEqual(metaText(python.meta), ["24 lines"]);
 
     const write = presentTranscript(
       "write",
@@ -191,7 +191,7 @@ describe("toolPresentation", () => {
     assert.match(p.detailsAction?.label ?? "", /earlier lines/);
   });
 
-  it("marks python exits and planning write guard metadata with an inline source marker", () => {
+  it("marks python execution outcomes without repeating input metadata", () => {
     const p = present(
       "python",
       { code: "print('x')\nprint('y')" },
@@ -203,10 +203,14 @@ describe("toolPresentation", () => {
     );
     assert.equal(p.primaryArg?.text, "inline");
     assert.ok(p.meta.some((m) => m.text === "exit 3" && m.tone === "error"));
-    assert.ok(p.meta.some((m) => m.text === "2 code lines"));
+    assert.equal(
+      p.meta.some((m) => m.text.includes("code line")),
+      false,
+    );
     assert.ok(p.meta.some((m) => m.text === "2 lines"));
-    assert.ok(
-      p.meta.some((m) => m.text === "writes off" && m.tone === "warning"),
+    assert.equal(
+      p.meta.some((m) => m.text === "writes off"),
+      false,
     );
     assert.equal(p.dotTone, "danger");
   });
@@ -415,23 +419,23 @@ describe("toolPresentation", () => {
     assert.equal(p.meta[0]?.tone, "error");
   });
 
-  it("shows no footer chip for an answered ask_user with no primary arg", () => {
+  it("keeps the question in the header for an answered ask_user", () => {
     const p = present(
       "ask_user",
       { question: "Which?" },
       { question: "Which?", response: "B" },
     );
-    assert.equal(p.primaryArg, undefined);
+    assert.equal(p.primaryArg?.text, "Which?");
     assert.deepEqual(metaText(p.meta), []);
   });
 
-  it("shows no footer chip for a dismissed ask_user", () => {
+  it("keeps the question in the header for a dismissed ask_user", () => {
     const p = present(
       "ask_user",
       { question: "Which?" },
       { question: "Which?", dismissed: true, dismissedReason: "aborted" },
     );
-    assert.equal(p.primaryArg, undefined);
+    assert.equal(p.primaryArg?.text, "Which?");
     assert.deepEqual(metaText(p.meta), []);
   });
 
@@ -448,7 +452,7 @@ describe("toolPresentation", () => {
       },
     );
     assert.equal(p.badge, "plan_mode_present");
-    assert.equal(p.primaryArg?.text, "/home/user/.nerve/plans/feature.md");
+    assert.equal(p.primaryArg?.text, "feature.md");
     assert.deepEqual(metaText(p.meta), []);
   });
 

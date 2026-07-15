@@ -11,16 +11,16 @@ type Props = {
   view: Extract<ToolView, { kind: "task_logs" }>;
   expanded?: boolean;
 };
-let { view, expanded = false }: Props = $props();
+let { toolCall, view, expanded = false }: Props = $props();
 
 const visible = $derived(
   expanded ? view.events : tail(view.events, COLLAPSED_LINES),
 );
 </script>
 
-{#if view.events.length === 0}
+{#if view.events.length === 0 && toolCall.status === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No log events.</p>
-{:else}
+{:else if view.events.length > 0}
   <div
     class="terminal-output rounded-sm border bg-sidebar px-2.5 py-1.5 font-mono text-xs text-sidebar-foreground"
   >

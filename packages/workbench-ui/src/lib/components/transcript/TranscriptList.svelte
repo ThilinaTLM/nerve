@@ -27,6 +27,7 @@ import {
   type TranscriptDisplayNode,
 } from "./transcript-presentation";
 import { TranscriptEntryMotionLedger } from "./transcript-entry-motion";
+import { toolLifecycleSpec } from "../../tools/lifecycle/registry";
 
 type TranscriptRowItem =
   | {
@@ -217,8 +218,11 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
     if (!node.toolCall) {
       const block = node.draft?.block;
       const progress = block?.progress;
+      const lifecycle = toolLifecycleSpec(block?.toolName ?? "tool");
       return [
         "draft",
+        `body:${lifecycle.draftBody}`,
+        `handoff:${lifecycle.executionHandoff}`,
         block?.argsText.length ?? 0,
         block?.done ? "done" : "open",
         progress?.lineCount ?? 0,
@@ -230,6 +234,7 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
       ].join(":");
     }
     const toolCallId = node.toolCall.id;
+    const lifecycle = toolLifecycleSpec(node.toolCall.toolName);
     const approval = approvals.find(
       (candidate) => candidate.toolCallId === toolCallId,
     );
@@ -243,6 +248,8 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
         : undefined;
     return [
       "tool",
+      `body:${lifecycle.draftBody}`,
+      `handoff:${lifecycle.executionHandoff}`,
       node.toolCall.status,
       node.toolCall.updatedAt,
       node.liveOutput?.updatedAt ?? "no-output",

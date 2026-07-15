@@ -31,8 +31,8 @@ const commandIsMultiline = $derived(Boolean(view.command?.match(/[\r\n]/)));
         terminal
       />
     </section>
-  {:else if toolCall.status === "running"}
-    <p class="m-0 text-xs text-muted-foreground">Waiting for command output…</p>
+  {:else if toolCall.status === "completed"}
+    <p class="m-0 text-xs text-muted-foreground">No output.</p>
   {/if}
 
   {#if view.live}

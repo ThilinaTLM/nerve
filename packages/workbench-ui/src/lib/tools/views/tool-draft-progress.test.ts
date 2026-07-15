@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
 import {
-  DRAFT_PREVIEW_LINES,
   hasMeaningfulToolDraftBody,
   summarizeToolDraft,
 } from "./tool-draft-progress";
@@ -21,10 +20,6 @@ function draft(
     done: false,
     ...overrides,
   };
-}
-
-function previewLines(text: string | undefined): number {
-  return text ? text.split("\n").length : 0;
 }
 
 describe("summarizeToolDraft", () => {
@@ -61,7 +56,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.preview, "one\ntwo");
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["+3"],
+      ["+3", "13 bytes"],
     );
   });
 
@@ -157,7 +152,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.preview, "one\ntwo");
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["+2"],
+      ["+2", "7 bytes"],
     );
   });
 
@@ -384,7 +379,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.codeLineCount, 2);
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["2 code lines", "submitted"],
+      ["2 code lines"],
     );
   });
 
@@ -418,7 +413,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.statusText, "Submitting Python file…");
     assert.deepEqual(
       summary.meta.map((item) => item.text),
-      ["file", "submitted"],
+      ["file"],
     );
   });
 
@@ -430,7 +425,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.kind, "python");
     assert.equal(summary.code, undefined);
     assert.equal(summary.statusText, "Waiting for Python code or path…");
-    assert.deepEqual(summary.meta, []);
+    assert.deepEqual(summary.meta, [{ text: "timeout 5s" }]);
   });
 
   it("falls back cleanly for malformed partial JSON", () => {
@@ -466,7 +461,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.path, "/etc/hosts");
   });
 
-  it("caps final generic tool argument previews to 10 lines", () => {
+  it("renders final todos as a readable checklist without JSON", () => {
     const todos = Array.from({ length: 12 }, (_, index) => ({
       todo: `Task ${index + 1}`,
       done: index % 2 === 0,
@@ -479,13 +474,16 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "generic");
-    assert.equal(summary.argsPreviewLanguage, "json");
-    assert.ok(summary.argsPreview);
-    assert.ok(previewLines(summary.argsPreview) <= DRAFT_PREVIEW_LINES);
-    assert.match(summary.argsPreview, /Task 12/);
+    assert.equal(summary.argsPreview, undefined);
+    assert.equal(summary.argsPreviewLanguage, undefined);
+    assert.equal(summary.argumentBody?.kind, "checklist");
+    if (summary.argumentBody?.kind === "checklist") {
+      assert.equal(summary.argumentBody.items.length, 12);
+      assert.equal(summary.argumentBody.items[11]?.text, "Task 12");
+    }
   });
 
-  it("caps partial generic tool argument previews to 10 lines", () => {
+  it("renders partial explore assignments without JSON", () => {
     const partialTasks = Array.from(
       { length: 5 },
       (_, index) =>
@@ -498,10 +496,12 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "generic");
-    assert.equal(summary.argsPreviewLanguage, "json");
-    assert.ok(summary.argsPreview);
-    assert.ok(previewLines(summary.argsPreview) <= DRAFT_PREVIEW_LINES);
-    assert.match(summary.argsPreview, /context/);
+    assert.equal(summary.argsPreview, undefined);
+    assert.equal(summary.argumentBody?.kind, "text-summary");
+    if (summary.argumentBody?.kind === "text-summary") {
+      assert.match(summary.argumentBody.text, /Area 1/);
+      assert.match(summary.argumentBody.text, /Area 5/);
+    }
   });
 
   it("summarizes Jira draft arguments without expanding large bodies", () => {
@@ -520,10 +520,10 @@ describe("summarizeToolDraft", () => {
     assert.equal(search.path, "project = NER ORDER BY updated DESC");
     assert.deepEqual(
       search.meta.map((item) => item.text),
-      ["max 15", "2 fields", "submitted"],
+      ["2 fields", "max 15"],
     );
-    assert.ok(search.argsPreview);
-    assert.ok(previewLines(search.argsPreview) <= DRAFT_PREVIEW_LINES);
+    assert.equal(search.argsPreview, undefined);
+    assert.equal(search.argumentBody?.kind, "none");
 
     const transition = summarizeToolDraft(
       draft("jira_transition_issue", {
@@ -531,10 +531,10 @@ describe("summarizeToolDraft", () => {
       }),
     );
 
-    assert.equal(transition.path, "NER-1");
+    assert.equal(transition.path, "NER-1 · Done");
     assert.deepEqual(
       transition.meta.map((item) => item.text),
-      ["Done", "dry run"],
+      ["dry run"],
     );
   });
 
@@ -550,7 +550,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(search.path, "type = page");
     assert.deepEqual(
       search.meta.map((item) => item.text),
-      ["max 10", "space DEV", "submitted"],
+      ["space DEV", "max 10"],
     );
 
     const publish = summarizeToolDraft(
@@ -563,14 +563,14 @@ describe("summarizeToolDraft", () => {
       }),
     );
 
-    assert.equal(publish.path, "/tmp/pages.jsonl");
+    assert.equal(publish.path, "pages.jsonl");
     assert.deepEqual(
       publish.meta.map((item) => item.text),
       ["dry run", "create missing"],
     );
   });
 
-  it("provides capped argument previews for representative generic tools", () => {
+  it("never exposes JSON previews for representative recognized tools", () => {
     for (const [toolName, args] of [
       [
         "plan_mode_present",
@@ -596,11 +596,9 @@ describe("summarizeToolDraft", () => {
     ] as const) {
       const summary = summarizeToolDraft(draft(toolName, { args, done: true }));
       assert.equal(summary.kind, "generic", toolName);
-      assert.ok(summary.argsPreview, toolName);
-      assert.ok(
-        previewLines(summary.argsPreview) <= DRAFT_PREVIEW_LINES,
-        toolName,
-      );
+      assert.equal(summary.argsPreview, undefined, toolName);
+      assert.equal(summary.argsPreviewLanguage, undefined, toolName);
+      assert.ok(summary.primaryArg, toolName);
     }
   });
 });

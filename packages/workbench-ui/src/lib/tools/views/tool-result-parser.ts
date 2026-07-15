@@ -21,6 +21,10 @@ export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
 
 import { LruCache } from "@nervekit/ui-kit/core/utils/lru-cache";
 import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
+import {
+  redactStructuredValue,
+  toolArgumentSource,
+} from "../lifecycle/argument-source";
 import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";
 import { parseJiraView } from "./jira-result-view";
@@ -504,6 +508,7 @@ export function parseToolView(
         kind: "task_action",
         action: "start",
         task: parsed.success ? parsed.data.task : undefined,
+        liveLog: liveOutput?.text,
       };
     }
 
@@ -515,6 +520,7 @@ export function parseToolView(
         action: "cancel",
         task: tasks?.[0],
         tasks,
+        liveLog: liveOutput?.text,
       };
     }
 
@@ -524,6 +530,7 @@ export function parseToolView(
         kind: "task_action",
         action: "restart",
         task: parsed.success ? parsed.data.task : undefined,
+        liveLog: liveOutput?.text,
       };
     }
 
@@ -659,7 +666,18 @@ export function parseToolView(
       };
     }
 
-    default:
-      return { kind: "generic" };
+    default: {
+      const resultText = resultOutputText(result, rawResult, liveOutput);
+      const safeResultText = resultText
+        ? redactStructuredValue("result", resultText).slice(0, 6_000)
+        : undefined;
+      return {
+        kind: "generic",
+        toolName: toolCall.toolName,
+        args: toolArgumentSource({ args: rawArgs }).structuredEntries(),
+        result: toolArgumentSource({ args: rawResult }).structuredEntries(),
+        resultText: safeResultText,
+      };
+    }
   }
 }

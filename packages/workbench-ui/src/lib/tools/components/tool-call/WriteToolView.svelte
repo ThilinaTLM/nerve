@@ -10,11 +10,13 @@ type Props = {
   expanded?: boolean;
   onOpenFile?: (path: string) => void;
 };
-let { view, expanded = false }: Props = $props();
+let { toolCall, view, expanded = false }: Props = $props();
 
 const language = $derived(extname(view.relPath));
 </script>
 
 {#if view.content !== undefined && view.content.length > 0}
   <ToolOutputBlock text={view.content} {language} direction="tail" {expanded} />
+{:else if toolCall.status === "completed"}
+  <p class="m-0 text-xs text-muted-foreground">Empty file written.</p>
 {/if}

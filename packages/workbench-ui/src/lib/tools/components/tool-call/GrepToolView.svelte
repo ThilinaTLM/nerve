@@ -12,7 +12,7 @@ type Props = {
   expanded?: boolean;
   onOpenFile?: (path: string, line?: number) => void;
 };
-let { view, expanded = false, onOpenFile }: Props = $props();
+let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
 
 const visibleGroups = $derived.by(() => {
   if (expanded) return view.allMatches;
@@ -61,9 +61,9 @@ const visibleGroups = $derived.by(() => {
   </div>
 {/snippet}
 
-{#if view.matchCount === 0}
+{#if view.matchCount === 0 && toolCall.status === "completed"}
   <p class="note">No matches.</p>
-{:else}
+{:else if view.matchCount > 0}
   {@render matchGroups(visibleGroups)}
 {/if}
 

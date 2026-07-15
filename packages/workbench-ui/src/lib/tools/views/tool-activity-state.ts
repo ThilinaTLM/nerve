@@ -3,6 +3,7 @@ import type {
   ToolCallStatus,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
+import type { ToolExecutionHandoff } from "../lifecycle/types";
 import type { MetaItem } from "./tool-presentation-types";
 
 export type ToolActivityPhase = "drafting" | "prepared" | ToolCallStatus;
@@ -13,6 +14,7 @@ export type ToolActivityBodyMode =
   | "tool-output"
   | "approval"
   | "interaction"
+  | "failure-context"
   | "error";
 
 export type ToolActivityRenderState = {
@@ -30,9 +32,11 @@ type DeriveToolActivityStateInput = {
   toolCall?: Pick<ToolCallTranscriptRecord, "status" | "error">;
   hasMeaningfulDraftBody?: boolean;
   hasDurableBodyContent?: boolean;
+  executionHandoff?: ToolExecutionHandoff;
   bodyHydrated?: boolean;
   hasApproval?: boolean;
   hasInteraction?: boolean;
+  hasFailureContext?: boolean;
   footerItems?: readonly Pick<
     MetaItem,
     "tone" | "mono" | "openPath" | "href"
@@ -69,6 +73,15 @@ export function deriveToolActivityState(
       ? "prepared"
       : "drafting";
 
+  const executionHandoff =
+    input.executionHandoff ?? "retain-draft-until-output";
+  const inFlight = Boolean(
+    input.toolCall &&
+    (input.toolCall.status === "requested" ||
+      input.toolCall.status === "pending_approval" ||
+      input.toolCall.status === "running"),
+  );
+
   let bodyMode: ToolActivityBodyMode;
   if (!input.toolCall) {
     bodyMode = input.hasMeaningfulDraftBody ? "draft-preview" : "none";
@@ -76,22 +89,23 @@ export function deriveToolActivityState(
     input.toolCall.status === "error" ||
     input.toolCall.status === "denied"
   ) {
-    bodyMode = "error";
+    bodyMode = input.hasFailureContext ? "failure-context" : "error";
   } else if (input.hasApproval) {
     bodyMode = "approval";
   } else if (input.hasInteraction) {
     bodyMode = "interaction";
   } else if (
+    executionHandoff === "retain-draft-until-output" &&
     input.hasMeaningfulDraftBody &&
     !input.hasDurableBodyContent &&
-    (input.toolCall.status === "requested" ||
-      input.toolCall.status === "pending_approval" ||
-      input.toolCall.status === "running")
+    inFlight
   ) {
-    // Keep the already-visible draft preview mounted until the durable view
-    // has real result/output content. The durable record still owns the
-    // header and status during this short handoff.
+    // Keep meaningful prepared content mounted until a durable progress/result
+    // body is actually available. Status and header still come from the record.
     bodyMode = "draft-preview";
+  } else if (inFlight && !input.hasDurableBodyContent) {
+    // Header-only tools do not grow an empty waiting body while executing.
+    bodyMode = "none";
   } else {
     bodyMode = "tool-output";
   }
@@ -103,7 +117,9 @@ export function deriveToolActivityState(
   const bodyVisible =
     bodyMode !== "none" && bodyMode !== "error" && bodyHydrated;
   const errorVisible = Boolean(
-    bodyMode === "error" && input.toolCall?.error?.trim(),
+    (input.toolCall?.status === "error" ||
+      input.toolCall?.status === "denied") &&
+    input.toolCall.error?.trim(),
   );
   const footerVisible =
     bodyMode !== "approval" &&
@@ -121,6 +137,7 @@ export function deriveToolActivityState(
     errorVisible,
     footerVisible,
     structuralRevision: [
+      `handoff:${executionHandoff}`,
       bodyMode,
       bodyVisible ? "body" : "no-body",
       errorVisible ? "error" : "no-error",

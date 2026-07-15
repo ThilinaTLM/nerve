@@ -56,6 +56,23 @@ const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
       return "idle";
   }
 });
+const statusLabel = $derived(
+  draftPhase
+    ? "Preparing tool call"
+    : status === "pending_approval"
+      ? "Needs approval"
+      : status === "waiting_for_user"
+        ? "Waiting for user feedback"
+        : status === "requested" || status === "running"
+          ? "Executing tool call"
+          : status === "completed"
+            ? "Tool call completed"
+            : status === "denied"
+              ? "Tool call denied"
+              : status === "error"
+                ? "Tool call failed"
+                : "Tool call status",
+);
 const footerVisible = $derived(
   footer && (meta.length > 0 || Boolean(detailsAction)),
 );
@@ -71,11 +88,7 @@ const activityVisible = $derived(
       pulse={dotPulse}
       waitingForUser={status === "waiting_for_user" ||
         status === "pending_approval"}
-      label={status === "waiting_for_user"
-        ? "Waiting for user feedback"
-        : status === "pending_approval"
-          ? "Approval required"
-          : undefined}
+      label={statusLabel}
       size={14}
       class="mr-1.5 align-middle"
     />

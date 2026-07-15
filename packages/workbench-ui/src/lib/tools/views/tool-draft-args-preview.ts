@@ -1,4 +1,5 @@
 import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
+import { isKnownToolName } from "../lifecycle/registry";
 
 export type DraftArgsPreview = {
   argsPreview?: string;
@@ -105,6 +106,7 @@ export function draftArgsPreview(
   draft: ConversationLiveToolDraftBlockSnapshot,
   options: DraftArgsPreviewOptions,
 ): DraftArgsPreview {
+  if (draft.toolName && isKnownToolName(draft.toolName)) return {};
   if (draft.args !== undefined) {
     const preview = draftPreviewText(
       JSON.stringify(draft.args, null, 2),

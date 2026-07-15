@@ -3,17 +3,27 @@ import Check from "@lucide/svelte/icons/check";
 import X from "@lucide/svelte/icons/x";
 import type { ApprovalWithToolCall } from "../../../state/tool-types";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import type { ToolArgumentPresentation } from "../../lifecycle/registry";
 import type { MetaItem, MetaTone } from "../../views/tool-presentation";
+import ToolApprovalSummary from "./ToolApprovalSummary.svelte";
 import ToolFooter from "./ToolFooter.svelte";
 
 type Props = {
   approval: ApprovalWithToolCall;
+  toolName: string;
+  presentation: ToolArgumentPresentation;
   detailsAction?: { label: string; onClick: () => void };
   onGrantApproval?: (id: string) => void;
   onDenyApproval?: (id: string) => void;
 };
-let { approval, detailsAction, onGrantApproval, onDenyApproval }: Props =
-  $props();
+let {
+  approval,
+  toolName,
+  presentation,
+  detailsAction,
+  onGrantApproval,
+  onDenyApproval,
+}: Props = $props();
 
 function riskTone(risk: string | undefined): MetaTone {
   if (risk === "destructive" || risk === "secret" || risk === "deployment")
@@ -25,11 +35,13 @@ function riskTone(risk: string | undefined): MetaTone {
 }
 
 const meta = $derived<MetaItem[]>([
+  ...presentation.secondary,
   { text: approval.risk, tone: riskTone(approval.risk) },
 ]);
 </script>
 
-<div class="grid gap-1.5" aria-label="Tool approval">
+<div class="grid gap-2" aria-label="Tool approval">
+  <ToolApprovalSummary {toolName} {presentation} />
   {#if approval.reason}
     <p class="m-0 text-sm text-muted-foreground">{approval.reason}</p>
   {/if}

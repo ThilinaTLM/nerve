@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { exploreResultSchema } from "@nervekit/contracts";
+import { toolPresentation } from "./tool-presentation";
 import { aggregateExploreTasks, parseToolView } from "./tool-result-view";
 import {
   CWD,
@@ -76,37 +77,39 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.deepEqual(view.items, [{ todo: "Fallback", done: false }]);
   });
 
-  it("parses a task_start action with ready url", () => {
-    const view = parseToolView(
-      toolCall(
-        "task_start",
-        { command: "npm run dev" },
-        {
-          task: {
-            id: "task_01H00000000000000000000000",
-            name: "dev",
-            cwd: CWD,
-            command: "npm run dev",
-            status: "ready",
-            readiness: {
-              readyOnUrl: true,
-              outcome: "ready",
-              matched: "http://localhost:3000",
-            },
-            stdoutPath: "/x/out",
-            stderrPath: "/x/err",
-            logsPath: "/x/log",
-            startedAt: "2026-01-01T00:00:00.000Z",
-            updatedAt: "2026-01-01T00:00:00.000Z",
+  it("parses a task_start action while keeping tool completion separate from process state", () => {
+    const tc = toolCall(
+      "task_start",
+      { command: "npm run dev" },
+      {
+        task: {
+          id: "task_01H00000000000000000000000",
+          name: "dev",
+          cwd: CWD,
+          command: "npm run dev",
+          status: "ready",
+          readiness: {
+            readyOnUrl: true,
+            outcome: "ready",
+            matched: "http://localhost:3000",
           },
+          stdoutPath: "/x/out",
+          stderrPath: "/x/err",
+          logsPath: "/x/log",
+          startedAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
         },
-      ),
+      },
     );
+    const view = parseToolView(tc);
     assert.equal(view.kind, "task_action");
     if (view.kind !== "task_action") return;
     assert.equal(view.action, "start");
     assert.equal(view.task?.status, "ready");
     assert.equal(view.task?.readiness.matched, "http://localhost:3000");
+    const presentation = toolPresentation(view, tc);
+    assert.equal(presentation.dotTone, "good");
+    assert.equal(presentation.dotPulse, false);
   });
 
   it("parses flat task_status results", () => {
