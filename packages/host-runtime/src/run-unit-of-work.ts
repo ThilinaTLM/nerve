@@ -287,12 +287,13 @@ function sameDelivery(
   left: RunEventDeliveryRecord,
   right: RunEventDeliveryRecord,
 ): boolean {
+  // A retry can observe the same idempotent publication at a later time.
+  // deliveredAt records the marker attempt, not the publication identity.
   return (
     left.intentId === right.intentId &&
     left.runId === right.runId &&
     left.revision === right.revision &&
     left.eventId === right.eventId &&
-    left.sequence === right.sequence &&
-    left.deliveredAt === right.deliveredAt
+    left.sequence === right.sequence
   );
 }

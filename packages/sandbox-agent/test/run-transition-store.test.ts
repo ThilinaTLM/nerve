@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -142,12 +142,19 @@ test("sandbox run journals reuse hot state and cold-hydrate equivalently", async
 
   const fresh = new SandboxRunUnitOfWork(stateDir);
   assert.deepEqual(await fresh.load(runId), hot);
+  const deliveriesPath = path.join(root, "event-deliveries.jsonl");
   assert.equal(
-    (await readFile(path.join(root, "event-deliveries.jsonl"), "utf8"))
-      .trim()
-      .split("\n").length,
+    (await readFile(deliveriesPath, "utf8")).trim().split("\n").length,
     1,
   );
+
+  const retriedDelivery = {
+    ...delivery,
+    deliveredAt: "2026-07-12T00:00:03.001Z",
+  };
+  await appendFile(deliveriesPath, `${JSON.stringify(retriedDelivery)}\n`);
+  const restarted = new SandboxRunUnitOfWork(stateDir);
+  assert.deepEqual((await restarted.load(runId))?.deliveries, [delivery]);
 
   await assert.rejects(
     unitOfWork.commit(1, records.third),

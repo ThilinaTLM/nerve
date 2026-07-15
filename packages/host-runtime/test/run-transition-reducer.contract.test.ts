@@ -143,7 +143,7 @@ test("full reducer rejects a gap in transition revisions", () => {
   );
 });
 
-test("delivery application is idempotent and rejects conflicts", () => {
+test("delivery application ignores retry timestamps and rejects publication conflicts", () => {
   const state = applyRunTransition(undefined, transition(1));
   const delivery: RunEventDeliveryRecord = {
     intentId: "intent_1",
@@ -156,6 +156,13 @@ test("delivery application is idempotent and rejects conflicts", () => {
   const delivered = applyRunEventDelivery(state, delivery);
 
   assert.equal(applyRunEventDelivery(delivered, delivery), delivered);
+  assert.equal(
+    applyRunEventDelivery(delivered, {
+      ...delivery,
+      deliveredAt: at(31),
+    }),
+    delivered,
+  );
   assert.throws(
     () =>
       applyRunEventDelivery(delivered, {
