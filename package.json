@@ -34,7 +34,7 @@
     "check:boundaries": "node scripts/check-package-boundaries.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.80.6"
+    "@earendil-works/pi-ai": "0.80.7"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
