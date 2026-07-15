@@ -33,10 +33,10 @@
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",
-    "ws": "8.18.3",
-    "yaml": "2.9.0",
+    "@nervekit/host-runtime": "workspace:*",
     "@nervekit/protocol": "workspace:*",
-    "@nervekit/host-runtime": "workspace:*"
+    "ws": "8.21.0",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

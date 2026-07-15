@@ -38,11 +38,11 @@
     "@aws-sdk/client-ecs": "^3.1081.0",
     "@earendil-works/pi-ai": "0.80.6",
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/protocol": "workspace:*",
     "node-pg-migrate": "8.0.4",
     "pg": "8.13.1",
-    "ws": "8.18.3",
-    "yaml": "2.9.0",
-    "@nervekit/protocol": "workspace:*"
+    "ws": "8.21.0",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
