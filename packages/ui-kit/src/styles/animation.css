@@ -95,6 +95,17 @@
   }
 }
 
+/* Text sheen sweeping across the transcript waiting label
+ * (WorkingIndicator.svelte). Consumers set the gradient; this only moves it. */
+@keyframes text-shimmer {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -70% 0;
+  }
+}
+
 /* Directory picker skeleton shimmer (directory-picker.css). */
 @keyframes picker-sheen {
   from {

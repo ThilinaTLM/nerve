@@ -21,6 +21,7 @@ import type { TimelineItem } from "../../state/timeline";
 import ConversationSignal from "../conversation/conversation-signal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
+import WorkingIndicator from "./WorkingIndicator.svelte";
 import {
   groupConsecutiveThinking,
   type TranscriptDisplayNode,
@@ -302,10 +303,7 @@ const showEmptyRun = $derived(
         />
       {:else if item.kind === "waiting"}
         <article class="transcript-entry assistant streaming waiting-entry">
-          <div class="streaming-content">
-            <span class="activity-dot" aria-hidden="true"></span>
-            <span>Thinking…</span>
-          </div>
+          <WorkingIndicator />
         </article>
       {:else}
         <QueuedPromptRow
@@ -333,24 +331,5 @@ const showEmptyRun = $derived(
   /* Delay avoids flashing the activity line for responses that begin almost
      * immediately. The row still owns a stable one-line virtual height. */
   animation: transcript-live-enter 180ms ease-out 120ms both;
-}
-
-.streaming-content {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--muted-foreground);
-  min-width: 0;
-  font-size: var(--text-sm);
-}
-
-.activity-dot {
-  display: inline-block;
-  width: 0.42rem;
-  height: 0.42rem;
-  border-radius: 9999px;
-  background: var(--primary);
-  animation: pulse 1s ease-in-out infinite;
 }
 </style>
