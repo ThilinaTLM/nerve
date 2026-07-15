@@ -49,7 +49,8 @@ describe("sandbox coordinator-owned provider retry", () => {
         { text: "Retry once" },
         { idempotencyKey: "cmd_retry" },
       )) as { runId: string };
-      const unitOfWork = new SandboxRunUnitOfWork(stores.stateDir);
+      // This adapter observes a separately owned host, so it must not cache.
+      const unitOfWork = new SandboxRunUnitOfWork(stores.stateDir, 0);
       await waitFor(async () => {
         const state = await unitOfWork.load(started.runId);
         if (

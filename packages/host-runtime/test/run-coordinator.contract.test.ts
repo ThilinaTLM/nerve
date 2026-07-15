@@ -12,6 +12,8 @@ import {
   RunConflictError,
   RunCoordinator,
   RunEventDeliveryService,
+  applyRunEventDelivery,
+  applyRunTransition,
   reduceRunTransitions,
   type RunExecution,
   type RunExecutionOutcome,
@@ -48,10 +50,13 @@ class MemoryUnitOfWork implements RunUnitOfWorkPort {
   async commit(expectedRevision: number, transition: RunTransitionRecord) {
     const current = await this.load(transition.runId);
     assert.equal(current?.run.revision ?? 0, expectedRevision);
+    const committed = structuredClone(transition);
+    const next = applyRunTransition(current, committed);
     this.transitions.set(transition.runId, [
       ...(this.transitions.get(transition.runId) ?? []),
-      structuredClone(transition),
+      committed,
     ]);
+    return next;
   }
   async pendingEventIntents() {
     const pending = [];
@@ -72,12 +77,13 @@ class MemoryUnitOfWork implements RunUnitOfWorkPort {
     return pending;
   }
   async markEventDelivered(delivery: RunEventDeliveryRecord) {
-    const existing = this.deliveries.get(delivery.runId) ?? [];
-    if (!existing.some((item) => item.intentId === delivery.intentId)) {
-      this.deliveries.set(delivery.runId, [...existing, delivery]);
-    }
+    const state = await this.load(delivery.runId);
+    if (!state) throw new Error(`Unknown run: ${delivery.runId}`);
+    const next = applyRunEventDelivery(state, delivery);
+    this.deliveries.set(delivery.runId, [...next.deliveries]);
   }
-  async materialize() {
+  async materialize(state: RunHydratedState) {
+    void state;
     if (this.materializeFailure) throw this.materializeFailure;
   }
 }
@@ -213,7 +219,7 @@ function fixture(
         if (options.observerFails) throw new Error("observer unavailable");
       },
     },
-    flushEvents: () => delivery.flush(),
+    flushEvents: (transition) => delivery.flushTransition(transition),
   });
   return {
     coordinator,

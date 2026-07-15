@@ -35,7 +35,8 @@ describe("workbench coordinator-owned provider retry", () => {
         model: { provider: "nerve-scripted", modelId: "scripted-fast" },
       });
       await orchestrator.registry.promptAgent(agent.id, { text: "Retry once" });
-      const unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home);
+      // This adapter observes a separately owned host, so it must not cache.
+      const unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home, 0);
       let runId: string | undefined;
       await waitFor(async () => {
         const states = await unitOfWork.list();

@@ -6,6 +6,9 @@ import {
   runTransitionRecordSchema,
 } from "@nervekit/contracts";
 import {
+  applyRunEventDelivery,
+  applyRunTransition,
+  BoundedRunStateCache,
   reduceRunTransitions,
   RunRevisionConflictError,
   type RunHydratedState,
@@ -27,14 +30,21 @@ const ACTIVE_STATUSES = new Set([
 
 export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
   private readonly locks = new Map<string, Promise<void>>();
+  private readonly cache: BoundedRunStateCache;
 
-  constructor(private readonly stateDir: string) {}
+  constructor(
+    private readonly stateDir: string,
+    cacheMaximum = 32,
+  ) {
+    this.cache = new BoundedRunStateCache(cacheMaximum);
+  }
 
   async load(runId: string): Promise<RunHydratedState | undefined> {
-    const transitions = await this.transitions(runId).readAll();
-    if (transitions.length === 0) return undefined;
-    const deliveries = await this.deliveries(runId).readAll();
-    return reduceRunTransitions(transitions, deliveries);
+    const cached = this.cache.get(runId);
+    if (cached) return cached;
+    const state = await this.hydrate(runId);
+    if (state) this.cache.set(state);
+    return state;
   }
 
   async findActive(scopeId: string): Promise<RunHydratedState | undefined> {
@@ -52,8 +62,13 @@ export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
     const states: RunHydratedState[] = [];
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      const state = await this.load(entry.name);
-      if (state) states.push(state);
+      const cached = this.cache.get(entry.name);
+      const state = cached ?? (await this.hydrate(entry.name));
+      if (!state) continue;
+      if (!cached && ACTIVE_STATUSES.has(state.run.status)) {
+        this.cache.set(state);
+      }
+      states.push(state);
     }
     return states.sort((left, right) =>
       left.run.updatedAt.localeCompare(right.run.updatedAt),
@@ -63,21 +78,22 @@ export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
   async commit(
     expectedRevision: number,
     transition: RunTransitionRecord,
-  ): Promise<void> {
-    await this.exclusive(transition.runId, async () => {
-      const parsed = runTransitionRecordSchema.parse(transition);
+  ): Promise<RunHydratedState> {
+    const parsed = runTransitionRecordSchema.parse(
+      JSON.parse(JSON.stringify(transition)) as unknown,
+    );
+    return this.exclusive(parsed.runId, async () => {
       const current = await this.load(parsed.runId);
       const actualRevision = current?.run.revision ?? 0;
-      if (
-        actualRevision !== expectedRevision ||
-        parsed.previousRevision !== expectedRevision ||
-        parsed.revision !== expectedRevision + 1
-      ) {
+      if (actualRevision !== expectedRevision) {
         throw new RunRevisionConflictError(
           `Run ${parsed.runId} expected revision ${expectedRevision}, found ${actualRevision}`,
         );
       }
+      const next = applyRunTransition(current, parsed);
       await this.transitions(parsed.runId).append(parsed);
+      this.cache.set(next);
+      return next;
     });
   }
 
@@ -110,27 +126,18 @@ export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
 
   async markEventDelivered(delivery: RunEventDeliveryRecord): Promise<void> {
     const parsed = runEventDeliveryRecordSchema.parse(delivery);
-    const state = await this.load(parsed.runId);
-    if (!state) throw new Error(`Unknown run: ${parsed.runId}`);
-    const existing = state.deliveries.find(
-      (item) => item.intentId === parsed.intentId,
-    );
-    if (existing) {
-      if (
-        existing.eventId !== parsed.eventId ||
-        existing.sequence !== parsed.sequence
-      ) {
-        throw new Error(`Conflicting event delivery: ${parsed.intentId}`);
-      }
-      return;
-    }
-    await this.deliveries(parsed.runId).append(parsed);
+    await this.exclusive(parsed.runId, async () => {
+      const state = await this.load(parsed.runId);
+      if (!state) throw new Error(`Unknown run: ${parsed.runId}`);
+      const next = applyRunEventDelivery(state, parsed);
+      if (next === state) return;
+      await this.deliveries(parsed.runId).append(parsed);
+      this.cache.set(next);
+    });
   }
 
-  async materialize(runId: string): Promise<void> {
-    const state = await this.load(runId);
-    if (!state) return;
-    const root = this.runRoot(runId);
+  async materialize(state: RunHydratedState): Promise<void> {
+    const root = this.runRoot(state.run.runId);
     await Promise.all([
       new JsonStore(path.join(root, "state.json")).write(state.run),
       new JsonStore(path.join(root, "prompts.json")).write(state.prompts),
@@ -141,6 +148,13 @@ export class SandboxRunUnitOfWork implements RunUnitOfWorkPort {
         state.checkpoints,
       ),
     ]);
+  }
+
+  private async hydrate(runId: string): Promise<RunHydratedState | undefined> {
+    const transitions = await this.transitions(runId).readAll();
+    if (transitions.length === 0) return undefined;
+    const deliveries = await this.deliveries(runId).readAll();
+    return reduceRunTransitions(transitions, deliveries);
   }
 
   private root(): string {

@@ -7,6 +7,7 @@ import type {
   RunInteractionRecord,
   RunPromptRecord,
   RunRecord,
+  RunTransitionRecord,
 } from "@nervekit/contracts";
 import type { ClockPort, DiagnosticPort, IdPort } from "./index.js";
 import { assertCheckpoint, checkpointValid } from "./run-checkpoints.js";
@@ -79,7 +80,7 @@ export interface RunCoordinatorPorts {
   clock: ClockPort;
   ids: IdPort;
   integrity: RunIntegrityPort;
-  flushEvents(): Promise<void>;
+  flushEvents(transition: RunTransitionRecord): Promise<void>;
   transient?: RunTransientEventPort;
   diagnostics?: DiagnosticPort;
   retryPolicy?: RunRetryPolicyPort;
@@ -801,7 +802,10 @@ export class RunCoordinator {
       this.ports.ids,
       this.ports.integrity,
     );
-    await this.ports.unitOfWork.commit(expectedRevision, transition);
+    const committed = await this.ports.unitOfWork.commit(
+      expectedRevision,
+      transition,
+    );
     try {
       await this.ports.transitionObserver?.committed(transition);
     } catch (error) {
@@ -812,7 +816,7 @@ export class RunCoordinator {
       });
     }
     try {
-      await this.ports.unitOfWork.materialize(run.runId);
+      await this.ports.unitOfWork.materialize(committed);
     } catch (error) {
       this.ports.diagnostics?.error("run projection materialization failed", {
         runId: run.runId,
@@ -821,7 +825,7 @@ export class RunCoordinator {
       });
     }
     try {
-      await this.ports.flushEvents();
+      await this.ports.flushEvents(transition);
     } catch (error) {
       this.ports.diagnostics?.warn("run event delivery deferred", {
         runId: run.runId,

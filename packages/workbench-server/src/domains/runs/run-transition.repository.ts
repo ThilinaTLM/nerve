@@ -9,6 +9,9 @@ import {
   runTransitionRecordSchema,
 } from "@nervekit/contracts";
 import {
+  applyRunEventDelivery,
+  applyRunTransition,
+  BoundedRunStateCache,
   reduceRunTransitions,
   RunRevisionConflictError,
   type RunHydratedState,
@@ -33,20 +36,21 @@ const ACTIVE_STATUSES = new Set([
 
 export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   private readonly locks = new Map<string, Promise<void>>();
+  private readonly cache: BoundedRunStateCache;
 
-  constructor(private readonly home: string) {}
+  constructor(
+    private readonly home: string,
+    cacheMaximum = 32,
+  ) {
+    this.cache = new BoundedRunStateCache(cacheMaximum);
+  }
 
   async load(runId: string): Promise<RunHydratedState | undefined> {
-    const transitions = await strictJsonLines(
-      this.transitionsPath(runId),
-      runTransitionRecordSchema,
-    );
-    if (transitions.length === 0) return undefined;
-    const deliveries = await strictJsonLines(
-      this.deliveriesPath(runId),
-      runEventDeliveryRecordSchema,
-    );
-    return reduceRunTransitions(transitions, deliveries);
+    const cached = this.cache.get(runId);
+    if (cached) return cached;
+    const state = await this.hydrate(runId);
+    if (state) this.cache.set(state);
+    return state;
   }
 
   async findActive(scopeId: string): Promise<RunHydratedState | undefined> {
@@ -59,8 +63,13 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   async list(): Promise<readonly RunHydratedState[]> {
     const states: RunHydratedState[] = [];
     for (const runId of await listChildDirs(this.root())) {
-      const state = await this.load(runId);
-      if (state) states.push(state);
+      const cached = this.cache.get(runId);
+      const state = cached ?? (await this.hydrate(runId));
+      if (!state) continue;
+      if (!cached && ACTIVE_STATUSES.has(state.run.status)) {
+        this.cache.set(state);
+      }
+      states.push(state);
     }
     return states.sort((left, right) =>
       left.run.updatedAt.localeCompare(right.run.updatedAt),
@@ -70,21 +79,22 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   async commit(
     expectedRevision: number,
     transition: RunTransitionRecord,
-  ): Promise<void> {
-    await this.exclusive(transition.runId, async () => {
-      const parsed = runTransitionRecordSchema.parse(transition);
+  ): Promise<RunHydratedState> {
+    const parsed = runTransitionRecordSchema.parse(
+      JSON.parse(JSON.stringify(transition)) as unknown,
+    );
+    return this.exclusive(parsed.runId, async () => {
       const current = await this.load(parsed.runId);
       const actualRevision = current?.run.revision ?? 0;
-      if (
-        actualRevision !== expectedRevision ||
-        parsed.previousRevision !== expectedRevision ||
-        parsed.revision !== expectedRevision + 1
-      ) {
+      if (actualRevision !== expectedRevision) {
         throw new RunRevisionConflictError(
           `Run ${parsed.runId} expected revision ${expectedRevision}, found ${actualRevision}`,
         );
       }
+      const next = applyRunTransition(current, parsed);
       await appendJsonLine(this.transitionsPath(parsed.runId), parsed, 0o600);
+      this.cache.set(next);
+      return next;
     });
   }
 
@@ -117,27 +127,18 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
 
   async markEventDelivered(delivery: RunEventDeliveryRecord): Promise<void> {
     const parsed = runEventDeliveryRecordSchema.parse(delivery);
-    const state = await this.load(parsed.runId);
-    if (!state) throw new Error(`Unknown run: ${parsed.runId}`);
-    const existing = state.deliveries.find(
-      (item) => item.intentId === parsed.intentId,
-    );
-    if (existing) {
-      if (
-        existing.eventId !== parsed.eventId ||
-        existing.sequence !== parsed.sequence
-      ) {
-        throw new Error(`Conflicting event delivery: ${parsed.intentId}`);
-      }
-      return;
-    }
-    await appendJsonLine(this.deliveriesPath(parsed.runId), parsed, 0o600);
+    await this.exclusive(parsed.runId, async () => {
+      const state = await this.load(parsed.runId);
+      if (!state) throw new Error(`Unknown run: ${parsed.runId}`);
+      const next = applyRunEventDelivery(state, parsed);
+      if (next === state) return;
+      await appendJsonLine(this.deliveriesPath(parsed.runId), parsed, 0o600);
+      this.cache.set(next);
+    });
   }
 
-  async materialize(runId: string): Promise<void> {
-    const state = await this.load(runId);
-    if (!state) return;
-    const root = this.runRoot(runId);
+  async materialize(state: RunHydratedState): Promise<void> {
+    const root = this.runRoot(state.run.runId);
     await Promise.all([
       atomicWriteJson(join(root, "state.json"), state.run, 0o600),
       atomicWriteJson(join(root, "prompts.json"), state.prompts, 0o600),
@@ -148,6 +149,19 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
       ),
       atomicWriteJson(join(root, "checkpoints.json"), state.checkpoints, 0o600),
     ]);
+  }
+
+  private async hydrate(runId: string): Promise<RunHydratedState | undefined> {
+    const transitions = await strictJsonLines(
+      this.transitionsPath(runId),
+      runTransitionRecordSchema,
+    );
+    if (transitions.length === 0) return undefined;
+    const deliveries = await strictJsonLines(
+      this.deliveriesPath(runId),
+      runEventDeliveryRecordSchema,
+    );
+    return reduceRunTransitions(transitions, deliveries);
   }
 
   private root(): string {
@@ -172,17 +186,15 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   ): Promise<T> {
     const previous = this.locks.get(runId) ?? Promise.resolve();
     const task = previous.catch(() => undefined).then(action);
-    this.locks.set(
-      runId,
-      task.then(
-        () => undefined,
-        () => undefined,
-      ),
+    const tail = task.then(
+      () => undefined,
+      () => undefined,
     );
+    this.locks.set(runId, tail);
     try {
       return await task;
     } finally {
-      if (this.locks.get(runId) === task) this.locks.delete(runId);
+      if (this.locks.get(runId) === tail) this.locks.delete(runId);
     }
   }
 }

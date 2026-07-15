@@ -13,7 +13,7 @@ export class JsonlStore<T> {
     const handle = await open(this.filePath, "a");
     try {
       await handle.write(`${JSON.stringify(parsed)}\n`);
-      await handle.sync().catch(() => undefined);
+      await handle.sync();
     } finally {
       await handle.close();
     }

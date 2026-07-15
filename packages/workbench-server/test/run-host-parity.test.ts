@@ -65,7 +65,8 @@ class WorkbenchParityAdapter implements RealHostRunMatrixFixture {
     private readonly root: string,
     private readonly storage: InitializedStorage,
   ) {
-    this.unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home);
+    // This adapter observes a separately owned host, so it must not cache.
+    this.unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home, 0);
   }
 
   static async create(root: string): Promise<WorkbenchParityAdapter> {
@@ -405,6 +406,7 @@ class WorkbenchParityAdapter implements RealHostRunMatrixFixture {
       }
     }
     await writeJsonLines(path, records);
+    await this.recreate();
   }
 
   private async removeDeliveryMarker(

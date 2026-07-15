@@ -98,8 +98,8 @@ export function createSandboxRunRuntime(
     ids: { next: () => randomUUID() },
     integrity,
     retryPolicy: deps.retryPolicy,
-    flushEvents: async () => {
-      await delivery.flush();
+    flushEvents: async (transition) => {
+      await delivery.flushTransition(transition);
       await transient.flush();
     },
     transient,

@@ -97,8 +97,8 @@ export function createWorkbenchRunRuntime(input: {
     transient,
     retryPolicy: input.retryPolicy,
     transitionObserver: statusProjector,
-    flushEvents: async () => {
-      await delivery.flush();
+    flushEvents: async (transition) => {
+      await delivery.flushTransition(transition);
       await transient.flush();
     },
     diagnostics: diagnostics(input.logger),

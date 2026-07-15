@@ -74,7 +74,8 @@ class SandboxParityAdapter implements RealHostRunMatrixFixture {
   private counter = 0;
 
   private constructor(private readonly dir: string) {
-    this.unitOfWork = new SandboxRunUnitOfWork(dir);
+    // This adapter observes a separately owned host, so it must not cache.
+    this.unitOfWork = new SandboxRunUnitOfWork(dir, 0);
   }
 
   static async create(dir: string): Promise<SandboxParityAdapter> {
@@ -429,6 +430,7 @@ class SandboxParityAdapter implements RealHostRunMatrixFixture {
       }
     }
     await writeJsonLines(journal, records);
+    await this.recreate();
   }
 
   private async removeDeliveryMarker(
