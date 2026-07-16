@@ -7,6 +7,8 @@ import {
   taskCancelToolResultSchema,
   taskEnvInfoSchema,
   taskLaunchConfigSchema,
+  taskLogQueryResponseSchema,
+  taskLogQuerySchema,
   taskRecordSchema,
   taskRestartToolResultSchema,
   taskStartToolResultSchema,
@@ -273,6 +275,39 @@ describe("tool task result metadata", () => {
 
     assert.equal(parsed.success, true);
     assert.equal(toolNameSchema.safeParse("task_list").success, false);
+  });
+});
+
+describe("task log paging metadata", () => {
+  it("accepts backward cursors and requires pagination flags", () => {
+    assert.equal(
+      taskLogQuerySchema.safeParse({
+        mode: "recent",
+        beforeSeq: 42,
+        limit: 20,
+      }).success,
+      true,
+    );
+    assert.equal(
+      taskLogQueryResponseSchema.safeParse({
+        task: record(),
+        events: [],
+        nextCursor: 42,
+        hasMoreBefore: true,
+        hasMoreAfter: false,
+        mode: "recent",
+      }).success,
+      true,
+    );
+    assert.equal(
+      taskLogQueryResponseSchema.safeParse({
+        task: record(),
+        events: [],
+        nextCursor: 42,
+        mode: "recent",
+      }).success,
+      false,
+    );
   });
 });
 

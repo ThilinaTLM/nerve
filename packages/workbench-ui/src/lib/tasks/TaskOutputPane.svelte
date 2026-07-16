@@ -4,16 +4,24 @@ import type { TaskLogQueryResponse, TaskRecord } from "@nervekit/contracts";
 import TaskLogTerminal from "./TaskLogTerminal.svelte";
 
 type Props = {
-  task?: Pick<TaskRecord, "command">;
+  task?: Pick<TaskRecord, "id" | "command">;
   taskLogs?: TaskLogQueryResponse;
+  onLoadEarlier?: () => void | Promise<void>;
 };
 
-let { task, taskLogs }: Props = $props();
+let { task, taskLogs, onLoadEarlier }: Props = $props();
 </script>
 
 <section class="h-full min-h-0 bg-background">
   {#if task}
-    <TaskLogTerminal {taskLogs} command={task.command} />
+    {#key task.id}
+      <TaskLogTerminal
+        taskId={task.id}
+        {taskLogs}
+        command={task.command}
+        {onLoadEarlier}
+      />
+    {/key}
   {:else}
     <div
       class="grid min-h-full place-content-center gap-1 text-center text-muted-foreground"

@@ -1,12 +1,15 @@
 import {
   cancelTask,
   deleteTask,
-  getTaskLogs,
   pruneTasks,
   restartTask,
   startTask,
 } from "$lib/api";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import {
+  loadTaskLogWindow,
+  refreshTaskLogWindow,
+} from "$lib/features/tasks/state/task-logs.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
   activateFallbackCenterTab,
@@ -17,7 +20,7 @@ import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-acti
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 export async function selectTask(taskId: string) {
   taskState.selectedTaskId = taskId;
-  taskState.taskLogs = await getTaskLogs(taskId);
+  await loadTaskLogWindow(taskId);
 }
 
 export async function cancelSelectedTask(taskId: string) {
@@ -26,7 +29,7 @@ export async function cancelSelectedTask(taskId: string) {
   await cancelTask(taskId);
   await loadWorkspaceState();
   if (taskState.selectedTaskId) {
-    taskState.taskLogs = await getTaskLogs(taskState.selectedTaskId);
+    await loadTaskLogWindow(taskState.selectedTaskId);
   }
   notify.success(
     wasOrphaned ? "Orphaned task cleanup completed" : "Task cancelled",
@@ -43,7 +46,7 @@ export async function restartSelectedTask(taskId: string) {
   }
   taskState.selectedTaskId = restarted.id;
   await loadWorkspaceState();
-  taskState.taskLogs = await getTaskLogs(restarted.id);
+  await loadTaskLogWindow(restarted.id);
   notify.success("Task restarted", {
     description: restarted.name ?? restarted.command ?? restarted.id,
   });
@@ -97,6 +100,5 @@ export async function runTaskCommand(input: {
 }
 
 export async function refreshTaskLogs() {
-  if (!taskState.selectedTaskId) return;
-  taskState.taskLogs = await getTaskLogs(taskState.selectedTaskId);
+  await refreshTaskLogWindow();
 }

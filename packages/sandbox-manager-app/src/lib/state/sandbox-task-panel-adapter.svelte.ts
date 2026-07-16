@@ -203,11 +203,6 @@ export function createSandboxTaskPanelAdapter(
       () => {
         if (document.visibilityState !== "visible") return;
         void store.refreshSandboxTasks(sandboxId).catch(() => undefined);
-        const taskId = detail()?.selectedTaskId;
-        if (taskId)
-          void store
-            .refreshSandboxTaskLogs(sandboxId, taskId)
-            .catch(() => undefined);
       },
       hasRunning ? 1_500 : 5_000,
     );

@@ -34,4 +34,9 @@ $effect(() => {
 });
 </script>
 
-<TaskOutputPane {task} taskLogs={logs} />
+<TaskOutputPane
+  {task}
+  taskLogs={logs}
+  onLoadEarlier={() =>
+    store.loadEarlierSandboxTaskLogs(record.sandboxId, taskId)}
+/>

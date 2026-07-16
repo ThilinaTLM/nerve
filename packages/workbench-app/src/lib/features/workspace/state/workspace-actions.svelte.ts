@@ -10,7 +10,6 @@ import {
   deleteProject,
   getFileCompletions,
   getSlashCompletions,
-  getTaskLogs,
   getWorkspaceSnapshot,
   openProjectInEditor,
   type ProjectEditor,
@@ -26,6 +25,7 @@ import {
 } from "$lib/features/conversations/state/conversation-flow.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import { loadTaskLogWindow } from "$lib/features/tasks/state/task-logs.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
@@ -71,7 +71,7 @@ async function applyWorkspaceSnapshot(
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
   taskState.selectedTaskId = taskState.selectedTaskId ?? taskState.tasks[0]?.id;
   if (taskState.selectedTaskId) {
-    taskState.taskLogs = await getTaskLogs(taskState.selectedTaskId);
+    await loadTaskLogWindow(taskState.selectedTaskId);
   }
   return snapshot.cursor;
 }

@@ -136,7 +136,7 @@ function statusItems(): ContextMenuItem[] {
 
 function taskMenu(): ContextMenuItem[] {
   const commands: ContextMenuItem[] = [
-    ...(isActive && capabilities.logs.enabled
+    ...(capabilities.logs.enabled
       ? [
           {
             label: "Open output",
@@ -191,13 +191,11 @@ function stopPropagation(event: MouseEvent) {
             {...props}
             class="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-2 text-left"
             type="button"
-            disabled={isActive && !capabilities.logs.enabled}
-            title={isActive && !capabilities.logs.enabled
+            disabled={!capabilities.logs.enabled}
+            title={!capabilities.logs.enabled
               ? capabilities.logs.reason
               : undefined}
-            onclick={() => {
-              if (isActive) onOpenTaskOutput?.(task.id);
-            }}
+            onclick={() => onOpenTaskOutput?.(task.id)}
           >
             <StatusDot
               tone={taskTone(task.status)}

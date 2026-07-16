@@ -72,6 +72,7 @@ export function createTaskRoutes(state: OrchestratorState): Hono {
       const query = taskLogQuerySchema.parse({
         mode: c.req.query("mode"),
         sinceSeq: numberQuery(c.req.query("sinceSeq")),
+        beforeSeq: numberQuery(c.req.query("beforeSeq")),
         contains: c.req.query("contains"),
         regex: c.req.query("regex"),
         contextLines: numberQuery(c.req.query("contextLines")),

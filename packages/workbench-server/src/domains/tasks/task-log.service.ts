@@ -6,6 +6,7 @@ import type {
   TaskRecord,
 } from "@nervekit/contracts";
 import { taskLogEventSchema } from "@nervekit/contracts";
+import { queryTaskLogEvents } from "@nervekit/host-runtime";
 import type { EventBus } from "../../infrastructure/events/index.js";
 import {
   appendJsonLine,
@@ -40,46 +41,10 @@ export class TaskLogService {
     task: TaskRecord,
     query: TaskLogQuery = {},
   ): Promise<TaskLogQueryResponse> {
-    const mode = query.mode ?? "recent";
-    const limit = query.limit ?? 100;
-    const contextLines = query.contextLines ?? 2;
     const allEvents = await this.readLogEvents(task.logsPath);
-    let events = allEvents;
-
-    if (mode === "since_cursor") {
-      events = events.filter((event) => event.seq > (query.sinceSeq ?? 0));
-    } else if (mode === "errors") {
-      events = events.filter((event) => event.level === "error");
-    } else if (mode === "warnings") {
-      events = events.filter((event) => event.level === "warn");
-    } else if (mode === "first_failure") {
-      const index = allEvents.findIndex((event) => event.level === "error");
-      events =
-        index >= 0
-          ? allEvents.slice(
-              Math.max(0, index - contextLines),
-              index + contextLines + 1,
-            )
-          : [];
-    }
-
-    if (query.contains) {
-      const contains = query.contains.toLowerCase();
-      events = events.filter((event) =>
-        event.line.toLowerCase().includes(contains),
-      );
-    }
-    if (query.regex) {
-      const matcher = new RegExp(query.regex, "i");
-      events = events.filter((event) => matcher.test(event.line));
-    }
-    if (mode !== "first_failure") events = events.slice(-limit);
-
     return {
       task,
-      events,
-      nextCursor: allEvents.at(-1)?.seq ?? 0,
-      mode,
+      ...queryTaskLogEvents(allEvents, query),
     };
   }
 

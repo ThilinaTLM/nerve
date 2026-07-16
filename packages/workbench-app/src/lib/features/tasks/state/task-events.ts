@@ -1,5 +1,5 @@
 import type { TaskRecord } from "@nervekit/contracts";
-import { getTaskLogs } from "$lib/api";
+import { refreshTaskLogWindow } from "./task-logs.svelte";
 import { onEvent } from "$lib/core/events/event-bus";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { applyVisibleTaskRecord } from "./task-reducers";
@@ -53,8 +53,6 @@ function handleTaskLogEvent(event: { data?: Record<string, unknown> }): void {
     workspaceState.activeCenterTab?.kind === "task" &&
     workspaceState.activeCenterTab.id === taskId;
   if (taskId && taskId === taskState.selectedTaskId && viewingTask) {
-    void getTaskLogs(taskId).then((logs) => {
-      taskState.taskLogs = logs;
-    });
+    void refreshTaskLogWindow(taskId).catch(() => undefined);
   }
 }

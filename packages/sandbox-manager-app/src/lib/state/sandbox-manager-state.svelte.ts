@@ -25,12 +25,16 @@ import {
   sandboxActivitySummarySchema,
   runAcceptedResultSchema,
 } from "@nervekit/contracts";
-import { SvelteSet } from "svelte/reactivity";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { notify } from "@nervekit/ui-kit/core/notify";
 import {
   applyConversationEvent,
   fromSandboxConversationViewSnapshot,
 } from "@nervekit/workbench-ui/state";
+import {
+  appendTaskLogPage,
+  prependTaskLogPage,
+} from "@nervekit/workbench-ui/tasks";
 import { getContext, setContext } from "svelte";
 import { createOperationId } from "../api/idempotency";
 import * as api from "../api/manager-client";
@@ -167,6 +171,8 @@ export class SandboxManagerStore {
 
   private ws: ManagerWsClient;
   private readonly conversationsLoading = new SvelteSet<string>();
+  private readonly taskLogRefreshes = new SvelteMap<string, Promise<void>>();
+  private readonly taskLogHistoryLoads = new SvelteMap<string, Promise<void>>();
   private fleetRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly operationCleanupTimers = new SvelteSet<
     ReturnType<typeof setTimeout>
@@ -656,8 +662,75 @@ export class SandboxManagerStore {
     taskId = this.detail(sandboxId).selectedTaskId,
   ): Promise<void> {
     if (!taskId) return;
-    const detail = this.detail(sandboxId);
-    detail.taskLogsById[taskId] = await getSandboxTaskLogs(sandboxId, taskId);
+    const key = `${sandboxId}:${taskId}`;
+    const existing = this.taskLogRefreshes.get(key);
+    if (existing) return existing;
+
+    const request = (async () => {
+      const detail = this.detail(sandboxId);
+      let current = detail.taskLogsById[taskId];
+      if (!current) {
+        const initial = await getSandboxTaskLogs(sandboxId, taskId, {
+          mode: "recent",
+          limit: 500,
+        });
+        if (this.details[sandboxId]?.tasks.some((task) => task.id === taskId)) {
+          this.detail(sandboxId).taskLogsById[taskId] = initial;
+        }
+        return;
+      }
+
+      let newer = await getSandboxTaskLogs(sandboxId, taskId, {
+        mode: "since_cursor",
+        sinceSeq: current.nextCursor,
+        limit: 500,
+      });
+      while (true) {
+        current = this.details[sandboxId]?.taskLogsById[taskId];
+        if (!current) return;
+        this.detail(sandboxId).taskLogsById[taskId] = appendTaskLogPage(
+          current,
+          newer,
+        );
+        if (!newer.hasMoreAfter) return;
+        newer = await getSandboxTaskLogs(sandboxId, taskId, {
+          mode: "since_cursor",
+          sinceSeq: newer.nextCursor,
+          limit: 500,
+        });
+      }
+    })().finally(() => this.taskLogRefreshes.delete(key));
+    this.taskLogRefreshes.set(key, request);
+    return request;
+  }
+
+  async loadEarlierSandboxTaskLogs(
+    sandboxId: string,
+    taskId: string,
+  ): Promise<void> {
+    const key = `${sandboxId}:${taskId}`;
+    const existing = this.taskLogHistoryLoads.get(key);
+    if (existing) return existing;
+    const current = this.details[sandboxId]?.taskLogsById[taskId];
+    const beforeSeq = current?.events[0]?.seq;
+    if (!current?.hasMoreBefore || beforeSeq === undefined) return;
+
+    const request = getSandboxTaskLogs(sandboxId, taskId, {
+      mode: "recent",
+      beforeSeq,
+      limit: 500,
+    })
+      .then((older) => {
+        const latest = this.details[sandboxId]?.taskLogsById[taskId];
+        if (!latest) return;
+        this.detail(sandboxId).taskLogsById[taskId] = prependTaskLogPage(
+          latest,
+          older,
+        );
+      })
+      .finally(() => this.taskLogHistoryLoads.delete(key));
+    this.taskLogHistoryLoads.set(key, request);
+    return request;
   }
 
   async runSandboxTask(

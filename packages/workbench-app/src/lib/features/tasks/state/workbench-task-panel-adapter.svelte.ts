@@ -209,7 +209,7 @@ export function createWorkbenchTaskPanelAdapter(
       }
     },
     loadLogs: async (taskId, query) => {
-      taskState.taskLogs = await getTaskLogs(taskId, query?.mode ?? "recent");
+      taskState.taskLogs = await getTaskLogs(taskId, query);
     },
   };
   adapter.actions = createTaskPanelActions(() => adapter.model, host);

@@ -189,6 +189,39 @@ describe("task log service line buffering", () => {
     );
   });
 
+  it("pages recent history backward without overlaps", async () => {
+    const { record, service, cursor, onLog } = await createFixture();
+    await service.captureOutput(
+      record,
+      cursor,
+      "stdout",
+      "one\ntwo\nthree\nfour\nfive\nsix\n",
+      onLog,
+    );
+
+    const recent = await service.queryLogs(record, {
+      mode: "recent",
+      limit: 2,
+    });
+    assert.deepEqual(
+      recent.events.map((event) => event.seq),
+      [5, 6],
+    );
+    assert.equal(recent.hasMoreBefore, true);
+    assert.equal(recent.hasMoreAfter, false);
+
+    const older = await service.queryLogs(record, {
+      mode: "recent",
+      beforeSeq: recent.events[0]?.seq,
+      limit: 2,
+    });
+    assert.deepEqual(
+      older.events.map((event) => event.seq),
+      [3, 4],
+    );
+    assert.equal(older.hasMoreBefore, true);
+  });
+
   it("caps large newline-less buffers", async () => {
     const { record, service, cursor, onLog } = await createFixture();
     const text = "x".repeat(MAX_BUFFERED_LOG_LINE_CHARS + 1);

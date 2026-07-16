@@ -72,6 +72,42 @@ describe("sandbox TaskService adapter", () => {
     await service.drain();
   });
 
+  it("pages retained logs and reports evicted history", async () => {
+    const root = await temporaryRoot();
+    const workspace = path.join(root, "workspace");
+    await mkdir(workspace);
+    const service = await createService(root, workspace, 4);
+    const started = await service.start({
+      cwd: workspace,
+      command: "printf 'one\\ntwo\\nthree\\nfour\\nfive\\nsix\\n'",
+    });
+    await waitForTerminal(service, started.id);
+
+    const recent = await service.logs(started.id, {
+      mode: "recent",
+      limit: 2,
+    });
+    assert.deepEqual(
+      recent.events.map((event) => event.line),
+      ["five", "six"],
+    );
+    assert.equal(recent.hasMoreBefore, true);
+    assert.equal(recent.truncated, true);
+
+    const older = await service.logs(started.id, {
+      mode: "recent",
+      beforeSeq: recent.events[0]?.seq,
+      limit: 2,
+    });
+    assert.deepEqual(
+      older.events.map((event) => event.line),
+      ["three", "four"],
+    );
+    assert.equal(older.hasMoreBefore, false);
+    assert.equal(older.truncated, true);
+    await service.drain();
+  });
+
   it("persists sandbox launch environments for restart", async () => {
     const root = await temporaryRoot();
     const workspace = path.join(root, "workspace");
@@ -103,6 +139,7 @@ async function temporaryRoot(): Promise<string> {
 async function createService(
   root: string,
   workspace: string,
+  maxLogEvents?: number,
 ): Promise<SandboxTaskService> {
   const stores = new SandboxStateStores(root);
   await stores.load();
@@ -110,6 +147,7 @@ async function createService(
     stateDir: root,
     workspaceDir: workspace,
     events: stores.events,
+    maxLogEvents,
   });
   await service.load();
   return service;

@@ -8,6 +8,7 @@ export * from "./run-lookup-index.js";
 export * from "./run-retries.js";
 export * from "./run-transitions.js";
 export * from "./run-unit-of-work.js";
+export * from "./task-log-query.js";
 export * from "./task-service.js";
 
 export interface ClockPort {

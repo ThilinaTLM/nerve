@@ -3,6 +3,7 @@ import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import {
+  queryTaskLogEvents,
   TaskService,
   type DiagnosticPort,
   type DomainEventIntent,
@@ -173,39 +174,14 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
     query: TaskLogQuery,
   ): Promise<TaskLogQueryResponse> {
     const logs = this.logsFor(task.id);
-    const mode = query.mode ?? "recent";
-    const limit = query.limit ?? 120;
-    let events = logs.events;
-    if (mode === "since_cursor")
-      events = events.filter((event) => event.seq > (query.sinceSeq ?? 0));
-    else if (mode === "errors")
-      events = events.filter((event) => event.level === "error");
-    else if (mode === "warnings")
-      events = events.filter((event) => event.level === "warn");
-    else if (mode === "first_failure") {
-      const first = events.findIndex((event) => event.level === "error");
-      const context = query.contextLines ?? 3;
-      events =
-        first < 0
-          ? []
-          : events.slice(Math.max(0, first - context), first + context + 1);
-    }
-    if (query.contains)
-      events = events.filter((event) => event.line.includes(query.contains!));
-    if (query.regex) {
-      try {
-        const regex = new RegExp(query.regex);
-        events = events.filter((event) => regex.test(event.line));
-      } catch {
-        events = [];
-      }
-    }
-    events = mode === "recent" ? events.slice(-limit) : events.slice(0, limit);
+    const page = queryTaskLogEvents(logs.events, {
+      limit: 120,
+      ...query,
+    });
     return {
       task,
-      events: events.map((event) => ({ ...event })),
-      nextCursor: Math.max(0, ...logs.events.map((event) => event.seq)),
-      mode,
+      ...page,
+      events: page.events.map((event) => ({ ...event })),
       previewPath: task.combinedPath,
       truncated: logs.truncated,
     };

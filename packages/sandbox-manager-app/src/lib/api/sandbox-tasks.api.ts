@@ -97,13 +97,12 @@ export async function pruneSandboxTasks(
 export async function getSandboxTaskLogs(
   sandboxId: string,
   taskId: string,
-  mode: TaskLogQuery["mode"] = "recent",
+  query: TaskLogQuery = {},
 ): Promise<TaskLogQueryResponse> {
   return (
     await sandboxProtocolRequest(sandboxId, "task.logs", {
       taskId,
-      mode,
-      limit: 120,
+      ...query,
     })
   ).result;
 }

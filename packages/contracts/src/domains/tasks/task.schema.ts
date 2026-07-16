@@ -192,6 +192,7 @@ export const taskLogQuerySchema = z.object({
     .enum(["recent", "errors", "warnings", "since_cursor", "first_failure"])
     .optional(),
   sinceSeq: z.number().int().nonnegative().optional(),
+  beforeSeq: z.number().int().nonnegative().optional(),
   contains: z.string().optional(),
   regex: z.string().optional(),
   contextLines: z.number().int().nonnegative().max(20).optional(),
@@ -203,6 +204,8 @@ export const taskLogQueryResponseSchema = z.object({
   task: taskRecordSchema,
   events: z.array(taskLogEventSchema),
   nextCursor: z.number().int().nonnegative(),
+  hasMoreBefore: z.boolean(),
+  hasMoreAfter: z.boolean(),
   mode: z.string(),
   previewPath: z.string().min(1).optional(),
   truncated: z.boolean().optional(),

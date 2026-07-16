@@ -1,5 +1,6 @@
 import type {
   StartTaskRequest,
+  TaskLogQuery,
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/contracts";
@@ -8,9 +9,12 @@ import { protocolRequest } from "@nervekit/protocol";
 
 export async function getTaskLogs(
   taskId: string,
-  mode = "recent",
+  query: TaskLogQuery = {},
 ): Promise<TaskLogQueryResponse> {
-  const params = new URLSearchParams({ mode, limit: "120" });
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) params.set(key, String(value));
+  }
   return apiGet<TaskLogQueryResponse>(
     `/api/tasks/${apiPathSegment(taskId)}/logs?${params.toString()}`,
   );
