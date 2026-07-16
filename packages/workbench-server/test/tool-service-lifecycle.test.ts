@@ -77,6 +77,10 @@ describe("tool service lifecycle", () => {
     assert.equal(toolCall.sourceToolCallId, "provider_call_1");
     assert.equal(toolCall.providerToolCallId, "provider_call_1");
     assert.equal(toolCall.error, "Validation failed for tool edit.");
+    assert.deepEqual(toolCall.errorDetails, {
+      code: "INVALID_TOOL_ARGUMENTS",
+      message: "Validation failed for tool edit.",
+    });
     assert.deepEqual(toolCall.args, {
       path: "src/file.ts",
       replacements: [{ oldText: "a", newText: "b", note: "bad" }],

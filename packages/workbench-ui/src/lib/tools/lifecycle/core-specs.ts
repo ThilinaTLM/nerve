@@ -276,7 +276,7 @@ function pythonPresentation(
 
 function writePresentation(
   source: ToolArgumentSource,
-  _stage: ToolLifecycleStage,
+  stage: ToolLifecycleStage,
   cwd?: string,
 ) {
   const content = source.string("content");
@@ -289,21 +289,22 @@ function writePresentation(
     secondary: [
       ...(bytes !== undefined ? [{ text: plural(bytes, "byte") }] : []),
     ],
-    body: content
-      ? {
-          kind: "code",
-          text: boundedText(content)!,
-          language: "text",
-          tail: true,
-        }
-      : undefined,
+    body:
+      stage !== "failed" && content
+        ? {
+            kind: "code",
+            text: boundedText(content)!,
+            language: "text",
+            tail: true,
+          }
+        : undefined,
     safetyNotes: ["Creates the file or overwrites it if it already exists."],
   });
 }
 
 function editPresentation(
   source: ToolArgumentSource,
-  _stage: ToolLifecycleStage,
+  stage: ToolLifecycleStage,
   cwd?: string,
 ) {
   const stats = editStats(source);
@@ -320,7 +321,10 @@ function editPresentation(
   return argumentPresentation({
     primaryArg: pathArg(source, cwd),
     secondary,
-    body: diff ? { kind: "diff", text: diff, tail: true } : undefined,
+    body:
+      stage !== "failed" && diff
+        ? { kind: "diff", text: diff, tail: true }
+        : undefined,
     safetyNotes: [
       source.boolean("dryRun") === true
         ? "Previews the edit without changing the file."

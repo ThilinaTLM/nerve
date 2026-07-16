@@ -475,6 +475,10 @@ export class ToolService {
       status: "error",
       hidden: options.hidden === true ? true : undefined,
       error: errorMessage,
+      errorDetails: {
+        code: "INVALID_TOOL_ARGUMENTS",
+        message: errorMessage,
+      },
       result: {
         content: errorMessage,
         contentBlocks: [{ type: "text", text: errorMessage }],

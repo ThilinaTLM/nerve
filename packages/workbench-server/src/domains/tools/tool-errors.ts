@@ -22,7 +22,7 @@ export function toolErrorDetails(error: unknown): ToolCallErrorDetails {
     if (Object.keys(error.details).length > 0) details.details = error.details;
     return details;
   }
-  if (isToolExecutionErrorLike(error)) {
+  if (isStructuredToolErrorLike(error)) {
     const details: ToolCallErrorDetails = {
       code: error.code,
       message: error.message,
@@ -46,7 +46,7 @@ export function toolErrorDetails(error: unknown): ToolCallErrorDetails {
   };
 }
 
-function isToolExecutionErrorLike(error: unknown): error is Error & {
+function isStructuredToolErrorLike(error: unknown): error is Error & {
   code: string;
   details?: Record<string, unknown>;
   retryable?: boolean;
@@ -54,7 +54,8 @@ function isToolExecutionErrorLike(error: unknown): error is Error & {
   if (!(error instanceof Error)) return false;
   const candidate = error as Error & Record<string, unknown>;
   return (
-    candidate.name === "ToolExecutionError" &&
+    (candidate.name === "ToolExecutionError" ||
+      candidate.name === "ToolRuntimeError") &&
     typeof candidate.code === "string" &&
     (candidate.details === undefined ||
       (typeof candidate.details === "object" && candidate.details !== null))

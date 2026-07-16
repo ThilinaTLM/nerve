@@ -216,6 +216,39 @@ describe("tool lifecycle registry", () => {
     assert.ok(edit.secondary.some((item) => item.text === "dry run"));
   });
 
+  it("hides failed file mutation previews but keeps executable input context", () => {
+    const edit = presentToolArguments(
+      "edit",
+      {
+        args: {
+          path: "src/app.ts",
+          replacements: [{ oldText: "old", newText: "new" }],
+        },
+      },
+      "failed",
+    );
+    const write = presentToolArguments(
+      "write",
+      { args: { path: "src/new.ts", content: "export const value = 1;" } },
+      "failed",
+    );
+    const bash = presentToolArguments(
+      "bash",
+      { args: { command: "pnpm test\npnpm check" } },
+      "failed",
+    );
+    const python = presentToolArguments(
+      "python",
+      { args: { code: "print('start')\nraise RuntimeError('boom')" } },
+      "failed",
+    );
+
+    assert.equal(edit.body.kind, "none");
+    assert.equal(write.body.kind, "none");
+    assert.equal(bash.body.kind, "code");
+    assert.equal(python.body.kind, "code");
+  });
+
   it("shows environment key names but never values in approvals", () => {
     const presentation = presentToolArguments(
       "task_start",

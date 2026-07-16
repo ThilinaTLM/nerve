@@ -6,6 +6,7 @@ export type ToolLifecycleStage =
   | "drafting"
   | "approval"
   | "executing"
+  | "failed"
   | "completed";
 
 export type ToolArgumentBody =

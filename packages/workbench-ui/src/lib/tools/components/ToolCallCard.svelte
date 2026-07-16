@@ -23,6 +23,7 @@ import {
   summarizeToolDraft,
 } from "../views/tool-draft-progress";
 import { presentToolArguments, toolLifecycleSpec } from "../lifecycle/registry";
+import { isInputValidationFailure } from "../lifecycle/failure-context";
 import { deriveToolActivityState } from "../views/tool-activity-state";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
@@ -182,11 +183,16 @@ const approvalPresentation = $derived.by(() => {
   if (!toolName) return undefined;
   return presentToolArguments(toolName, argumentInput, "approval", cwd);
 });
-const failurePresentation = $derived(
-  toolCall && (toolCall.status === "error" || toolCall.status === "denied")
-    ? lifecycleArgumentPresentation
-    : undefined,
-);
+const failurePresentation = $derived.by(() => {
+  if (
+    !toolCall ||
+    (toolCall.status !== "error" && toolCall.status !== "denied") ||
+    isInputValidationFailure(toolCall)
+  ) {
+    return undefined;
+  }
+  return presentToolArguments(toolCall.toolName, argumentInput, "failed", cwd);
+});
 const hilInteractive = $derived(
   view?.kind === "ask_user" ||
     (view?.kind === "plan_mode" && view.action === "present"),

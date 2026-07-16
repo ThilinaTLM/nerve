@@ -71,6 +71,32 @@ describe("ToolExecutorService structured errors", () => {
     });
   });
 
+  it("preserves host-runtime input validation metadata", async () => {
+    let record = toolCall();
+    const executor = createExecutor({
+      record,
+      onUpdate: (updated) => {
+        record = updated;
+      },
+      execute: async () => {
+        throw Object.assign(new Error("taskId must be a non-empty string."), {
+          name: "ToolRuntimeError",
+          code: "INVALID_TOOL_ARGUMENTS",
+          details: { argument: "taskId" },
+        });
+      },
+    });
+
+    const failed = await executor.executeAllowedTool(record.id);
+
+    assert.equal(failed.status, "error");
+    assert.deepEqual(failed.errorDetails, {
+      code: "INVALID_TOOL_ARGUMENTS",
+      message: "taskId must be a non-empty string.",
+      details: { argument: "taskId" },
+    });
+  });
+
   it("clears stale error metadata when dispatch later succeeds", async () => {
     let record = toolCall({
       status: "error",
