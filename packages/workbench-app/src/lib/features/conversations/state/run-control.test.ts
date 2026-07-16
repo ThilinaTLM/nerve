@@ -43,6 +43,7 @@ describe("abort active run", () => {
   it("projects aborting synchronously and clears queued prompts", async () => {
     const cancellation = deferred<void>();
     const view: AbortableConversationView = {
+      conversationId: "conv_1",
       sending: true,
       stopping: false,
       activeRun: activeRun(),
@@ -68,6 +69,7 @@ describe("abort active run", () => {
     const cancellation = deferred<void>();
     let calls = 0;
     const view: AbortableConversationView = {
+      conversationId: "conv_1",
       sending: true,
       stopping: false,
       activeRun: activeRun(),
@@ -92,6 +94,7 @@ describe("abort active run", () => {
 
   it("applies a local terminal fallback after a successful acknowledgment", async () => {
     const view: AbortableConversationView = {
+      conversationId: "conv_1",
       sending: true,
       stopping: false,
       activeRun: activeRun(),
@@ -114,6 +117,7 @@ describe("abort active run", () => {
     const previousRun = activeRun();
     const previousPrompts = [queuedPrompt()];
     const view: AbortableConversationView = {
+      conversationId: "conv_1",
       sending: true,
       stopping: false,
       activeRun: previousRun,
@@ -137,6 +141,106 @@ describe("abort active run", () => {
     assert.deepEqual(notifications, [
       { title: "Could not stop the run", description: "connection lost" },
     ]);
+  });
+
+  it("applies the acknowledgment fallback to a replaced view object", async () => {
+    const cancellation = deferred<void>();
+    const initial: AbortableConversationView = {
+      conversationId: "conv_1",
+      sending: true,
+      stopping: false,
+      activeRun: activeRun(),
+      queuedPrompts: [queuedPrompt()],
+    };
+    let current = initial;
+    const abort = createAbortActiveRun({
+      agentId: () => "agent_1",
+      view: () => current,
+      cancelRun: () => cancellation.promise,
+      notifyError: () => undefined,
+    });
+
+    const result = abort();
+    current = {
+      ...initial,
+      activeRun: initial.activeRun ? { ...initial.activeRun } : undefined,
+      queuedPrompts: [...initial.queuedPrompts],
+    };
+    cancellation.resolve();
+    await result;
+
+    assert.equal(current.sending, false);
+    assert.equal(current.stopping, false);
+    assert.equal(current.activeRun, undefined);
+    assert.deepEqual(current.queuedPrompts, []);
+  });
+
+  it("does not resurrect a run when its terminal event beats an RPC failure", async () => {
+    const cancellation = deferred<void>();
+    let current: AbortableConversationView = {
+      conversationId: "conv_1",
+      sending: true,
+      stopping: false,
+      activeRun: activeRun(),
+      queuedPrompts: [],
+    };
+    const notifications: string[] = [];
+    const abort = createAbortActiveRun({
+      agentId: () => "agent_1",
+      view: () => current,
+      cancelRun: () => cancellation.promise,
+      notifyError: (title) => notifications.push(title),
+    });
+
+    const result = abort();
+    current = {
+      conversationId: "conv_1",
+      sending: false,
+      stopping: false,
+      activeRun: undefined,
+      queuedPrompts: [],
+    };
+    cancellation.reject(new Error("connection lost after commit"));
+    await result;
+
+    assert.equal(current.activeRun, undefined);
+    assert.equal(current.sending, false);
+    assert.equal(current.stopping, false);
+    assert.deepEqual(notifications, []);
+  });
+
+  it("does not clear a newer run after a late cancellation acknowledgment", async () => {
+    const cancellation = deferred<void>();
+    let current: AbortableConversationView = {
+      conversationId: "conv_1",
+      sending: true,
+      stopping: false,
+      activeRun: activeRun(),
+      queuedPrompts: [],
+    };
+    const abort = createAbortActiveRun({
+      agentId: () => "agent_1",
+      view: () => current,
+      cancelRun: () => cancellation.promise,
+      notifyError: () => undefined,
+    });
+
+    const result = abort();
+    current = {
+      conversationId: "conv_1",
+      sending: true,
+      // A run.started projection can inherit the old app-only latch.
+      stopping: true,
+      activeRun: { ...activeRun(), runId: "run_2" },
+      queuedPrompts: [queuedPrompt()],
+    };
+    cancellation.resolve();
+    await result;
+
+    assert.equal(current.activeRun?.runId, "run_2");
+    assert.equal(current.sending, true);
+    assert.equal(current.stopping, false);
+    assert.deepEqual(current.queuedPrompts, [queuedPrompt()]);
   });
 
   it("does nothing when no agent is selected", async () => {

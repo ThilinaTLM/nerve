@@ -25,6 +25,7 @@ describe("conversation event routing", () => {
     for (const type of [
       "run.started",
       "run.completed",
+      "run.cancelled",
       "run.failed",
       "run.waiting",
       "run.suspended",

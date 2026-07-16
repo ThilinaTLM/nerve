@@ -11,7 +11,15 @@ let { toolCall, view }: Props = $props();
 </script>
 
 {#if view.tasks.length === 0 && toolCall.status === "completed"}
-  <p class="m-0 text-xs text-muted-foreground">No tasks.</p>
+  <p
+    class="m-0 text-xs"
+    class:text-warning={view.previewUnavailable}
+    class:text-muted-foreground={!view.previewUnavailable}
+  >
+    {view.previewUnavailable
+      ? "Task status preview unavailable. Open Details to inspect the full result."
+      : "No matching tasks."}
+  </p>
 {:else if view.tasks.length > 0}
   <div class="grid gap-1">
     {#each view.tasks as task (task.id)}

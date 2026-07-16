@@ -4,11 +4,6 @@ import {
   editOperationResultDetailsSchema,
   exploreResultPreviewSchema,
   pythonResultDetailsSchema,
-  taskCancelToolResultSchema,
-  taskLogsToolResultSchema,
-  taskRestartToolResultSchema,
-  taskStartToolResultSchema,
-  taskStatusToolResultSchema,
   todosResultSchema,
   webFetchResultDetailsSchema,
   webSearchResultDetailsSchema,
@@ -28,6 +23,13 @@ import {
 import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";
 import { parseJiraView } from "./jira-result-view";
+import {
+  parseTaskCancelResult,
+  parseTaskLogsResult,
+  parseTaskRestartResult,
+  parseTaskStartResult,
+  parseTaskStatusResult,
+} from "./task-result-parser";
 import {
   asRecord,
   detailsTruncated,
@@ -503,60 +505,61 @@ export function parseToolView(
     }
 
     case "task_start": {
-      const parsed = taskStartToolResultSchema.safeParse(rawResult);
+      const data = parseTaskStartResult(rawResult);
       return {
         kind: "task_action",
         action: "start",
-        task: parsed.success ? parsed.data.task : undefined,
+        ...data,
         liveLog: liveOutput?.text,
       };
     }
 
     case "task_cancel": {
-      const parsed = taskCancelToolResultSchema.safeParse(rawResult);
-      const tasks = parsed.success ? parsed.data.tasks : undefined;
+      const data = parseTaskCancelResult(rawResult);
+      const visibleOutcomes = data.outcomes?.length ?? 0;
       return {
         kind: "task_action",
         action: "cancel",
-        task: tasks?.[0],
-        tasks,
+        task: data.tasks?.[0],
+        ...data,
+        outcomeCount:
+          visibleOutcomes + previewOverflowHidden(toolCall, "tasks", "head"),
         liveLog: liveOutput?.text,
       };
     }
 
     case "task_restart": {
-      const parsed = taskRestartToolResultSchema.safeParse(rawResult);
+      const data = parseTaskRestartResult(rawResult);
       return {
         kind: "task_action",
         action: "restart",
-        task: parsed.success ? parsed.data.task : undefined,
+        ...data,
         liveLog: liveOutput?.text,
       };
     }
 
     case "task_status": {
-      const parsed = taskStatusToolResultSchema.safeParse(rawResult);
+      const data = parseTaskStatusResult(rawResult);
+      const hiddenTaskCount = previewOverflowHidden(toolCall, "tasks", "head");
       return {
         kind: "task_status",
-        tasks: parsed.success ? parsed.data.tasks : [],
+        ...data,
+        hiddenTaskCount,
+        taskCount: data.tasks.length + hiddenTaskCount,
       };
     }
 
     case "task_logs": {
-      const parsed = taskLogsToolResultSchema.safeParse(rawResult);
-      const data = parsed.success ? parsed.data : undefined;
-      const events = data?.events ?? [];
+      const data = parseTaskLogsResult(rawResult);
       return {
         kind: "task_logs",
-        task: data?.task,
-        events,
+        ...data,
         eventCount: actualPreviewCount(
-          events.length,
+          data.events.length,
           toolCall,
           "events",
           "tail",
         ),
-        mode: data?.mode,
       };
     }
 

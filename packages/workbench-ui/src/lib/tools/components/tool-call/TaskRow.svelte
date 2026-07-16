@@ -1,6 +1,6 @@
 <script lang="ts">
 import ExternalLink from "@lucide/svelte/icons/external-link";
-import type { TaskRecord } from "../../../state/tool-types";
+import type { TaskToolSummaryPayload } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
@@ -8,19 +8,15 @@ import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
 import { dateTimeLabel } from "@nervekit/ui-kit/core/utils/time";
 import { taskUrl } from "../../views/task";
 
-type Props = { task: TaskRecord; dense?: boolean };
+type Props = { task: TaskToolSummaryPayload; dense?: boolean };
 let { task, dense = false }: Props = $props();
 
 const url = $derived(taskUrl(task));
 const tone = $derived(taskTone(task.status));
-const envCount = $derived(task.envInfo?.keys.length ?? 0);
-const envKeys = $derived(task.envInfo?.keys.join(", "));
-const envSummary = $derived(
-  envCount === 0
-    ? undefined
-    : `${envCount} redacted ${envCount === 1 ? "var" : "vars"}`,
+const hasExit = $derived(
+  task.termination?.exitCode !== undefined &&
+    task.termination.exitCode !== null,
 );
-const hasExit = $derived(task.exitCode !== undefined && task.exitCode !== null);
 </script>
 
 <Tooltip.Provider delayDuration={300} disableHoverableContent>
@@ -54,15 +50,12 @@ const hasExit = $derived(task.exitCode !== undefined && task.exitCode !== null);
               <ExternalLink size={12} strokeWidth={2} />{url}
             </a>
           {/if}
-          {#if envCount > 0}<Badge tone="neutral" size="xs" title={envKeys}
-              >env</Badge
-            >{/if}
           {#if hasExit}<Badge
-              tone={task.exitCode === 0 ? "neutral" : "danger"}
-              size="xs">exit {task.exitCode}</Badge
+              tone={task.termination?.exitCode === 0 ? "neutral" : "danger"}
+              size="xs">exit {task.termination?.exitCode}</Badge
             >
-          {:else if task.signal}<Badge tone="warn" size="xs"
-              >signal {task.signal}</Badge
+          {:else if task.termination?.signal}<Badge tone="warn" size="xs"
+              >signal {task.termination.signal}</Badge
             >{/if}
           <Badge
             {tone}
@@ -86,56 +79,38 @@ const hasExit = $derived(task.exitCode !== undefined && task.exitCode !== null);
       <span class="tt-row"><span class="tt-key">cwd</span>{task.cwd}</span>
       <span class="tt-row"><span class="tt-key">status</span>{task.status}</span
       >
-      {#if envCount > 0}
-        <span class="tt-row"><span class="tt-key">env</span>{envSummary}</span>
-        <span class="tt-row tt-env-keys"
-          ><span class="tt-key">keys</span>{envKeys}</span
-        >
-      {/if}
       <span class="tt-row"
         ><span class="tt-key">started</span>{dateTimeLabel(
-          task.startedAt,
+          task.timing.startedAt,
         )}</span
       >
-      {#if task.groupId}<span class="tt-row"
-          ><span class="tt-key">group</span>{task.groupId}</span
+      {#if task.lineage?.groupId}<span class="tt-row"
+          ><span class="tt-key">group</span>{task.lineage.groupId}</span
         >{/if}
-      {#if task.runtime?.childPid}<span class="tt-row"
-          ><span class="tt-key">pid</span>{task.runtime.childPid}</span
-        >{/if}
-      {#if task.runtime?.processGroupId}<span class="tt-row"
-          ><span class="tt-key">pgid</span>{task.runtime.processGroupId}</span
-        >{/if}
-      {#if task.runtime?.platform}<span class="tt-row"
-          ><span class="tt-key">platform</span>{task.runtime.platform}</span
-        >{/if}
-      {#if task.runtime?.spawnedAt}<span class="tt-row"
-          ><span class="tt-key">spawned</span>{dateTimeLabel(
-            task.runtime.spawnedAt,
-          )}</span
-        >{/if}
-      {#if task.finishedAt}<span class="tt-row"
+      {#if task.timing.finishedAt}<span class="tt-row"
           ><span class="tt-key">finished</span>{dateTimeLabel(
-            task.finishedAt,
+            task.timing.finishedAt,
           )}</span
         >{/if}
       {#if hasExit}
         <span class="tt-row"
-          ><span class="tt-key">exit</span>{task.exitCode}</span
+          ><span class="tt-key">exit</span>{task.termination?.exitCode}</span
         >
-      {:else if task.signal}
+      {:else if task.termination?.signal}
         <span class="tt-row"
-          ><span class="tt-key">signal</span>{task.signal}</span
+          ><span class="tt-key">signal</span>{task.termination.signal}</span
         >
       {/if}
-      {#if task.error}<span class="tt-row"
-          ><span class="tt-key">error</span>{task.error}</span
+      {#if task.termination?.error}<span class="tt-row"
+          ><span class="tt-key">error</span>{task.termination.error}</span
         >{/if}
       <span class="tt-id">{task.id}</span>
     </Tooltip.Content>
   </Tooltip.Root>
 </Tooltip.Provider>
 
-{#if task.error}
-  <p class="m-0 break-words text-xs text-destructive">{task.error}</p>
+{#if task.termination?.error}
+  <p class="m-0 break-words text-xs text-destructive">
+    {task.termination.error}
+  </p>
 {/if}

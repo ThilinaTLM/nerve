@@ -645,6 +645,17 @@ test("cancels a scheduled retry without launching a new execution", async () => 
   );
   const cancelled = await harness.coordinator.cancel(run.runId);
   assert.equal(cancelled.status, "cancelled");
+  const cancellationEvents = harness.publicationAttempts.filter(
+    (event) => event.type === "run.cancelled",
+  );
+  assert.equal(cancellationEvents.length, 1);
+  assert.deepEqual(cancellationEvents[0]?.data, {
+    conversationId: run.conversationId,
+    agentId: run.agentId,
+    projectId: run.projectId,
+    runId: run.runId,
+    cancelledAt: cancelled.updatedAt,
+  });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(harness.executions.length, 1);
 });

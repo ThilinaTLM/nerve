@@ -1,10 +1,17 @@
 import {
   toolCallTranscriptRecordSchema,
   type GrepMatch,
-  type TaskLogEvent,
   type ToolCallRecord,
   type ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
+import {
+  boundedToolError,
+  metadataOnlyToolCallPreview,
+} from "./tool-call-metadata-preview.js";
+import {
+  buildTaskToolTranscriptPreview,
+  isTaskToolResultPreview,
+} from "./task-tool-transcript-preview.js";
 
 const PREVIEW_COUNT = 10;
 const MAX_PREVIEW_CHARS = 8 * 1024;
@@ -68,17 +75,6 @@ function firstItems<T>(
   if (!items) return { value: items, hidden: 0 };
   return {
     value: items.length > count ? items.slice(0, count) : items,
-    hidden: Math.max(0, items.length - count),
-  };
-}
-
-function lastItems<T>(
-  items: T[] | undefined,
-  count = PREVIEW_COUNT,
-): Preview<T[] | undefined> {
-  if (!items) return { value: items, hidden: 0 };
-  return {
-    value: items.length > count ? items.slice(items.length - count) : items,
     hidden: Math.max(0, items.length - count),
   };
 }
@@ -408,6 +404,7 @@ type PublicPreviewState = {
 function finalizePublicPreview(
   argsPreview: unknown,
   resultPreview: unknown,
+  resultFirst = false,
 ): {
   argsPreview: unknown;
   resultPreview: unknown;
@@ -421,9 +418,15 @@ function finalizePublicPreview(
     hiddenChars: 0,
     hiddenItems: 0,
   };
+  const projectedResult = resultFirst
+    ? projectPublicValue(resultPreview, state, 0)
+    : undefined;
+  const projectedArgs = projectPublicValue(argsPreview, state, 0);
   return {
-    argsPreview: projectPublicValue(argsPreview, state, 0),
-    resultPreview: projectPublicValue(resultPreview, state, 0),
+    argsPreview: projectedArgs,
+    resultPreview: resultFirst
+      ? projectedResult
+      : projectPublicValue(resultPreview, state, 0),
     hiddenChars: state.hiddenChars,
     hiddenItems: state.hiddenItems,
     state,
@@ -506,45 +509,6 @@ function truncateUtf8(value: string, maxBytes: number): string {
   return value.slice(0, low);
 }
 
-function boundedError(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined;
-  if (CREDENTIAL_URL.test(value)) {
-    return "[Credential-bearing error text omitted; open details.]";
-  }
-  return value.slice(0, 2_048);
-}
-
-function metadataOnlyFallback(
-  toolCall: ToolCallRecord,
-): ToolCallTranscriptRecord {
-  return {
-    id: toolCall.id,
-    agentId: toolCall.agentId,
-    conversationId: toolCall.conversationId,
-    projectId: toolCall.projectId,
-    toolName: toolCall.toolName,
-    risk: toolCall.risk,
-    cwd: CREDENTIAL_URL.test(toolCall.cwd || "")
-      ? "."
-      : (toolCall.cwd || ".").slice(0, 2_048),
-    status: toolCall.status,
-    hidden: toolCall.hidden,
-    approvalId: toolCall.approvalId,
-    suspensionId: toolCall.suspensionId,
-    error: boundedError(toolCall.error),
-    errorDetails: toolCall.errorDetails
-      ? {
-          code: toolCall.errorDetails.code.slice(0, 128),
-          message:
-            boundedError(toolCall.errorDetails.message) ?? "Tool failed.",
-          retryable: toolCall.errorDetails.retryable,
-        }
-      : undefined,
-    createdAt: toolCall.createdAt,
-    updatedAt: toolCall.updatedAt,
-  };
-}
-
 /**
  * Project raw provider tool arguments into the bounded, secret-safe shape used
  * by public live-draft events. Full arguments remain in the durable tool record.
@@ -566,6 +530,14 @@ export function toToolCallTranscriptRecord(
   let hidden = 0;
   let noun = "lines";
   let direction: Overflow["direction"];
+  let taskToolName:
+    | "task_start"
+    | "task_status"
+    | "task_logs"
+    | "task_cancel"
+    | "task_restart"
+    | undefined;
+  let semanticTaskOverflow = false;
 
   switch (toolCall.toolName) {
     case "read": {
@@ -701,19 +673,23 @@ export function toToolCallTranscriptRecord(
       break;
     }
 
-    case "task_logs": {
-      const events = lastItems(arrayField<TaskLogEvent>(resultRecord.events));
-      resultPreview = {
-        task: resultRecord.task,
-        events: events.value,
-        nextCursor: resultRecord.nextCursor,
-        mode: resultRecord.mode,
-        previewPath: resultRecord.previewPath,
-        truncated: resultRecord.truncated,
-      };
-      hidden = events.hidden;
-      noun = "events";
-      direction = "tail";
+    case "task_start":
+    case "task_status":
+    case "task_logs":
+    case "task_cancel":
+    case "task_restart": {
+      taskToolName = toolCall.toolName;
+      const preview = buildTaskToolTranscriptPreview(taskToolName, result);
+      if (!preview.valid) return metadataOnlyToolCallPreview(toolCall);
+      resultPreview = preview.resultPreview;
+      if (preview.overflow) {
+        hidden = preview.overflow.hidden;
+        noun = preview.overflow.noun;
+        direction = preview.overflow.direction;
+        semanticTaskOverflow = true;
+      } else {
+        direction = "head";
+      }
       break;
     }
 
@@ -753,13 +729,25 @@ export function toToolCallTranscriptRecord(
     }
   }
 
-  const finalized = finalizePublicPreview(argsPreview, resultPreview);
-  if (finalized.hiddenItems > 0) {
-    hidden += finalized.hiddenItems;
-    noun = "items";
-  } else if (finalized.hiddenChars > 0) {
-    hidden += finalized.hiddenChars;
-    noun = "characters";
+  const finalized = finalizePublicPreview(
+    argsPreview,
+    resultPreview,
+    taskToolName !== undefined,
+  );
+  if (!semanticTaskOverflow) {
+    if (finalized.hiddenItems > 0) {
+      hidden += finalized.hiddenItems;
+      noun = "items";
+    } else if (finalized.hiddenChars > 0) {
+      hidden += finalized.hiddenChars;
+      noun = "characters";
+    }
+  }
+  if (
+    taskToolName &&
+    !isTaskToolResultPreview(taskToolName, finalized.resultPreview)
+  ) {
+    return metadataOnlyToolCallPreview(toolCall);
   }
   const projectedErrorDetails = base.errorDetails
     ? {
@@ -775,7 +763,7 @@ export function toToolCallTranscriptRecord(
     : undefined;
   const candidate = {
     ...base,
-    error: boundedError(base.error),
+    error: boundedToolError(base.error),
     errorDetails: projectedErrorDetails,
     argsPreview: finalized.argsPreview,
     resultPreview: finalized.resultPreview,
@@ -783,7 +771,7 @@ export function toToolCallTranscriptRecord(
   };
   const parsed = toolCallTranscriptRecordSchema.safeParse(candidate);
   if (parsed.success) return parsed.data;
-  const fallback = metadataOnlyFallback(toolCall);
+  const fallback = metadataOnlyToolCallPreview(toolCall);
   const parsedFallback = toolCallTranscriptRecordSchema.safeParse(fallback);
   return parsedFallback.success ? parsedFallback.data : fallback;
 }

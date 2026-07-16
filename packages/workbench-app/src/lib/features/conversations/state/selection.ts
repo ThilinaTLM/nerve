@@ -10,6 +10,7 @@ import {
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { replaceOpenCenterTabs } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
@@ -84,6 +85,7 @@ export async function refreshConversationView(conversationId: string) {
     // Canonical state comes straight from the shared snapshot ingestion
     // (which drains already-materialized active-run messages).
     const canonical = fromConversationSnapshot(snapshot);
+    const previousRunId = view.activeRun?.runId;
     view.activeEntryId = snapshot.tree.activeEntryId;
     view.activeEntryIds = canonical.activeEntryIds;
     view.entries = canonical.entries;
@@ -95,6 +97,11 @@ export async function refreshConversationView(conversationId: string) {
     view.queuedPrompts = canonical.queuedPrompts ?? [];
     view.contextUsage = canonical.contextUsage;
     view.cursorSeq = canonical.cursorSeq;
+    view.stopping = stoppingAfterConversationSnapshot(
+      view.stopping,
+      previousRunId,
+      canonical.activeRun?.runId,
+    );
     workspaceState.conversations = workspaceState.conversations.map(
       (candidate) =>
         candidate.id === conversationId ? snapshot.conversation : candidate,

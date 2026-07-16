@@ -936,6 +936,58 @@ describe("Sandbox shared schemas", () => {
       }).success,
       true,
     );
+    assert.equal(
+      conversationEventPayloadSchemas["run.cancelled"].safeParse({
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        projectId: "proj_1",
+        runId: "run_1",
+        cancelledAt: ts,
+      }).success,
+      true,
+    );
+  });
+
+  it("accepts current and previously persisted run cancellation events", () => {
+    const envelope = {
+      id: "evt_cancelled",
+      seq: 1,
+      ts,
+      type: "run.cancelled",
+      durability: "durable" as const,
+    };
+    assert.equal(
+      parsePublicEventEnvelope(
+        {
+          ...envelope,
+          data: {
+            conversationId: "conv_1",
+            agentId: "agent_1",
+            projectId: "proj_1",
+            runId: "run_1",
+            cancelledAt: ts,
+          },
+        },
+        "workbench_server",
+      ).type,
+      "run.cancelled",
+    );
+    assert.equal(
+      parsePublicEventEnvelope(
+        {
+          ...envelope,
+          data: {
+            conversationId: "conv_1",
+            agentId: "agent_1",
+            runId: "run_1",
+            status: "cancelled",
+            cancelledAt: ts,
+          },
+        },
+        "sandbox_agent",
+      ).type,
+      "run.cancelled",
+    );
   });
 
   it("validates conversation events carried by sandbox protocol", () => {

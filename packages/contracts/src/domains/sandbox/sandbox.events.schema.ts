@@ -299,14 +299,6 @@ export const runCheckpointedEventSchema = sandboxEventCommonSchema
     checkpointedAt: isoDateTimeSchema,
   });
 
-export const runTerminalEventSchema = sandboxEventCommonSchema
-  .merge(sandboxRunScopeSchema)
-  .extend({
-    status: z.enum(["completed", "cancelled"]),
-    completedAt: isoDateTimeSchema.optional(),
-    cancelledAt: isoDateTimeSchema.optional(),
-  });
-
 export const runFailedEventSchema = sandboxEventCommonSchema
   .merge(sandboxRunScopeSchema)
   .extend({
@@ -369,7 +361,6 @@ export const sandboxOperationalEventPayloadSchemas = {
     runWaitingForPlanReviewEventSchema,
   ]),
   "run.checkpointed": runCheckpointedEventSchema,
-  "run.cancelled": runTerminalEventSchema,
 } as const;
 
 const sandboxEventNames = Object.keys(

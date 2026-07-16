@@ -664,20 +664,30 @@ export function toolPresentation(
       };
 
     case "task_action": {
-      // Status / exit / signal / runtime metadata render on the TaskRow badges
-      // and tooltip in the body, so the header stays minimal.
+      // Status / exit / signal metadata render on the TaskRow badges and
+      // tooltip in the body, so the header stays minimal.
       const task = view.task ?? view.tasks?.[0];
       return {
         ...base,
         badge: `task_${view.action}`,
         primaryArg: task?.name ? { text: task.name } : base.primaryArg,
+        meta:
+          view.action === "cancel" && (view.outcomeCount ?? 0) > 1
+            ? [{ text: plural(view.outcomeCount ?? 0, "outcome") }]
+            : [],
+        detailsAction: previewDetailsAction,
       };
     }
 
     case "task_status":
       return {
         ...base,
-        meta: [{ text: plural(view.tasks.length, "task", "s") }],
+        meta: [{ text: plural(view.taskCount, "task", "s") }],
+        detailsAction: detailsActionFromHidden(
+          view.hiddenTaskCount,
+          "tasks",
+          "head",
+        ),
       };
 
     case "explore": {

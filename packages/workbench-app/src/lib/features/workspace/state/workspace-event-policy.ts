@@ -14,6 +14,8 @@ export function runtimeAgentStatusFromEvent(
       return "awaiting_user";
     case "run.completed":
       return "idle";
+    case "run.cancelled":
+      return "aborted";
     case "run.failed":
       return data?.aborted ? "aborted" : "error";
     default:

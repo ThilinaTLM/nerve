@@ -1,7 +1,9 @@
 import { compactConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/core/query";
+import { conversationViewKey } from "$lib/core/state/state-keys";
 import type { CompactionNotice } from "$lib/core/types/state-types";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
@@ -82,9 +84,9 @@ export async function continueFromFailure(statusEntryId: string) {
 
 export const abortActiveRun = createAbortActiveRun({
   agentId: () => selection.agentId,
-  view: () =>
-    selection.conversationId
-      ? ensureConversationView(selection.conversationId)
+  view: (conversationId = selection.conversationId) =>
+    conversationId
+      ? conversationState.conversationViews[conversationViewKey(conversationId)]
       : undefined,
   cancelRun: async (agentId) => {
     await protocolRequest(

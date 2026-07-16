@@ -6,6 +6,7 @@ import {
   taskRecordSchema,
   taskStatusSchema,
 } from "../tasks/index.js";
+import { taskCancelOutcomeSchema } from "./task-tool-previews.schema.js";
 
 /**
  * Result contracts shared between the `@nervekit/tools` executors (producers) and the
@@ -603,15 +604,6 @@ export type ToolExecutionResultPayload = z.infer<
   typeof toolExecutionResultSchema
 >;
 
-export const taskCancelOutcomeSchema = z.enum([
-  "cancelled",
-  "force_cancelled",
-  "already_terminal",
-  "became_terminal_before_cancel",
-  "no_matching_active_task",
-]);
-export type TaskCancelOutcomePayload = z.infer<typeof taskCancelOutcomeSchema>;
-
 export const taskCancelResultSchema = z.object({
   taskId: z.string().startsWith("task_").optional(),
   taskName: z.string().optional(),
@@ -622,8 +614,7 @@ export const taskCancelResultSchema = z.object({
   releasedPorts: z.array(taskListeningPortSchema).optional(),
 });
 export type TaskCancelResultPayload = z.infer<typeof taskCancelResultSchema>;
-
-/** Exact result of task_start. */
+/** Exact dispatcher result of task_start. */
 export const taskStartToolResultSchema = z
   .object({
     task: taskRecordSchema,
@@ -632,7 +623,7 @@ export const taskStartToolResultSchema = z
   .strict();
 export type TaskStartToolResult = z.infer<typeof taskStartToolResultSchema>;
 
-/** Exact result of task_status. */
+/** Exact dispatcher result of task_status. */
 export const taskStatusToolResultSchema = z
   .object({
     tasks: z.array(taskRecordSchema),
@@ -641,7 +632,7 @@ export const taskStatusToolResultSchema = z
   .strict();
 export type TaskStatusToolResult = z.infer<typeof taskStatusToolResultSchema>;
 
-/** Exact result of task_cancel. */
+/** Exact dispatcher result of task_cancel. */
 export const taskCancelToolResultSchema = z
   .object({
     tasks: z.array(taskRecordSchema),
@@ -651,7 +642,7 @@ export const taskCancelToolResultSchema = z
   .strict();
 export type TaskCancelToolResult = z.infer<typeof taskCancelToolResultSchema>;
 
-/** Exact result of task_restart. */
+/** Exact dispatcher result of task_restart. */
 export const taskRestartToolResultSchema = z
   .object({
     task: taskRecordSchema,
@@ -663,7 +654,7 @@ export const taskRestartToolResultSchema = z
   .strict();
 export type TaskRestartToolResult = z.infer<typeof taskRestartToolResultSchema>;
 
-/** Exact result of task_logs. */
+/** Exact dispatcher result of task_logs. */
 export const taskLogsToolResultSchema = taskLogQueryResponseSchema
   .extend({
     contentBlocks: z.array(toolContentBlockSchema).optional(),

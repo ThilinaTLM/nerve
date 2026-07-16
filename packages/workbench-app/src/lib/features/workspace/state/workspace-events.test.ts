@@ -12,6 +12,7 @@ describe("workspace run lifecycle events", () => {
     assert.equal(runtimeAgentStatusFromEvent("run.resumed"), "running");
     assert.equal(runtimeAgentStatusFromEvent("run.retrying"), "running");
     assert.equal(runtimeAgentStatusFromEvent("run.completed"), "idle");
+    assert.equal(runtimeAgentStatusFromEvent("run.cancelled"), "aborted");
   });
 
   it("retains suspended and failed status projections", () => {
@@ -32,6 +33,7 @@ describe("workspace run lifecycle events", () => {
       "run.resumed",
       "run.retrying",
       "run.completed",
+      "run.cancelled",
       "run.failed",
       "run.suspended",
     ]) {

@@ -21,6 +21,7 @@ import {
   scheduleContextUsageRefresh,
 } from "./conversation-context-usage";
 import { reconcileOptimisticMessages } from "./conversation-optimistic";
+import { applyConversationTerminalUiState } from "./conversation-terminal-state";
 import {
   active,
   entryBelongsToActiveBranch,
@@ -151,7 +152,7 @@ function applyAppEffects(
       clearContextUsageRefresh(conversationId);
       break;
     case "run.completed":
-      view.optimisticMessages = [];
+      applyConversationTerminalUiState(view);
       void refreshConversationView(conversationId).then(() => {
         if (selection.conversationId === conversationId)
           void openConversation(conversationId);
@@ -160,7 +161,12 @@ function applyAppEffects(
         void invalidateGit(stringValue(event.data?.projectId));
       }
       break;
+    case "run.cancelled":
+      applyConversationTerminalUiState(view);
+      break;
     case "run.failed":
+      applyConversationTerminalUiState(view);
+      break;
     case "run.suspended":
       view.optimisticMessages = [];
       break;

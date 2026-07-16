@@ -18,9 +18,13 @@ const visible = $derived(
 );
 </script>
 
-{#if view.events.length === 0 && toolCall.status === "completed"}
-  <p class="m-0 text-xs text-muted-foreground">No log events.</p>
-{:else if view.events.length > 0}
+{#if view.previewUnavailable && toolCall.status === "completed"}
+  <p class="m-0 text-xs text-warning">
+    Log preview is incomplete. Open Details to inspect the full result.
+  </p>
+{/if}
+
+{#if view.events.length > 0}
   <div
     class="terminal-output rounded-sm border bg-sidebar px-2.5 py-1.5 font-mono text-xs text-sidebar-foreground"
   >
@@ -41,4 +45,10 @@ const visible = $derived(
       </div>
     {/each}
   </div>
+{:else if toolCall.status === "completed" && !view.previewUnavailable}
+  <p class="m-0 text-xs text-muted-foreground">
+    No matching log events{view.task
+      ? ` for ${view.task.name ?? view.task.id} (${view.task.status})`
+      : ""}.
+  </p>
 {/if}

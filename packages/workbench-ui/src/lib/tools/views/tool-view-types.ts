@@ -15,8 +15,10 @@ import type {
   JiraUserSummaryPayload,
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
+  TaskCancelOutcomePreviewPayload,
   TaskLogEvent,
   TaskRecord,
+  TaskToolSummaryPayload,
   TodoItem,
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
@@ -236,17 +238,29 @@ export type ToolView =
   | {
       kind: "task_action";
       action: "start" | "cancel" | "restart";
-      task?: TaskRecord;
-      tasks?: TaskRecord[];
+      task?: TaskToolSummaryPayload;
+      tasks?: TaskToolSummaryPayload[];
+      outcomes?: TaskCancelOutcomePreviewPayload[];
+      outcomeCount?: number;
+      restartedFromTaskId?: string;
+      previewUnavailable: boolean;
       liveLog?: string;
     }
-  | { kind: "task_status"; tasks: TaskRecord[] }
+  | {
+      kind: "task_status";
+      tasks: TaskToolSummaryPayload[];
+      taskCount: number;
+      hiddenTaskCount: number;
+      previewUnavailable: boolean;
+    }
   | {
       kind: "task_logs";
-      task?: TaskRecord;
+      task?: TaskToolSummaryPayload;
       events: TaskLogEvent[];
       eventCount: number;
+      nextCursor?: number;
       mode?: string;
+      previewUnavailable: boolean;
     }
   | {
       kind: "explore";

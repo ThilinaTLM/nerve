@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   exploreResultPreviewSchema,
+  taskCancelToolResultPreviewSchema,
+  taskLogsToolResultPreviewSchema,
+  taskRestartToolResultPreviewSchema,
+  taskStartToolResultPreviewSchema,
+  taskStatusToolResultPreviewSchema,
+  type TaskRecord,
   type ToolCallRecord,
   validatePublicEvent,
 } from "@nervekit/contracts";
@@ -32,6 +38,60 @@ function lines(prefix: string, count: number): string {
     { length: count },
     (_, index) => `${prefix}${index + 1}`,
   ).join("\n");
+}
+
+function task(index = 1, status: TaskRecord["status"] = "running"): TaskRecord {
+  const id = `task_preview_${index}`;
+  return {
+    id,
+    name: `dev-${index}`,
+    groupId: "taskgrp_preview",
+    workerId: "worker_preview",
+    projectId: "proj_preview",
+    conversationId: "conv_preview",
+    agentId: "agent_preview",
+    cwd: `/tmp/project/apps/service-${index}`,
+    command: `pnpm --filter service-${index} dev`,
+    envInfo: { keys: ["API_TOKEN", "PORT"], persisted: true, redacted: true },
+    status,
+    readiness: {
+      outcome: status === "ready" ? "ready" : "pending",
+      readyUrl: `http://127.0.0.1:${5000 + index}`,
+      readyOnUrl: true,
+      matched: `http://127.0.0.1:${5000 + index}`,
+    },
+    stdoutPath: `/tmp/${id}/stdout.log`,
+    stderrPath: `/tmp/${id}/stderr.log`,
+    logsPath: `/tmp/${id}/logs.jsonl`,
+    startedAt: "2026-01-02T03:04:05.000Z",
+    updatedAt: "2026-01-02T03:04:06.000Z",
+    runtime: {
+      platform: "linux",
+      childPid: 1000 + index,
+      processGroupId: 1000 + index,
+      detached: true,
+      shell: true,
+      spawnedAt: "2026-01-02T03:04:05.000Z",
+    },
+    notifications: {
+      enabled: true,
+      ready: true,
+      terminal: true,
+      outputTailLineCount: 80,
+    },
+  };
+}
+
+function enrichedDetails() {
+  return {
+    outputLimits: {
+      model: {
+        truncated: false,
+        displayedLines: 2,
+        contentKind: "content_blocks",
+      },
+    },
+  };
 }
 
 describe("toToolCallTranscriptRecord", () => {
@@ -290,6 +350,191 @@ describe("toToolCallTranscriptRecord", () => {
         "workbench_server",
       ),
     );
+  });
+
+  it("projects all task tool results into their compact transcript contracts", () => {
+    const started = task(1, "ready");
+    const startCall = toolCall({
+      toolName: "task_start",
+      args: { name: started.name, command: started.command },
+      result: {
+        task: started,
+        contentBlocks: [{ type: "text", text: "Started task." }],
+        details: enrichedDetails(),
+      },
+    });
+    const start = toToolCallTranscriptRecord(startCall);
+    const startResult = taskStartToolResultPreviewSchema.parse(
+      start.resultPreview,
+    );
+    assert.equal(startResult.task.status, "ready");
+    assert.equal(startResult.task.readiness.readyUrl, "http://127.0.0.1:5001");
+    assert.equal("stdoutPath" in startResult.task, false);
+    assert.equal("envInfo" in startResult.task, false);
+    assert.equal("details" in (start.resultPreview as object), false);
+
+    const status = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "task_status",
+        risk: "read",
+        result: {
+          tasks: Array.from({ length: 8 }, (_, index) => task(index + 1)),
+          contentBlocks: [{ type: "text", text: "8 tasks" }],
+          details: enrichedDetails(),
+        },
+      }),
+    );
+    const statusResult = taskStatusToolResultPreviewSchema.parse(
+      status.resultPreview,
+    );
+    assert.equal(statusResult.tasks.length, 5);
+    assert.deepEqual(status.previewOverflow, {
+      hidden: 3,
+      noun: "tasks",
+      direction: "head",
+    });
+
+    const events = Array.from({ length: 15 }, (_, index) => ({
+      seq: index + 1,
+      ts: "2026-01-02T03:04:05.000Z",
+      stream: "stdout" as const,
+      level: "info" as const,
+      line: `${"λ".repeat(700)} ${index + 1}`,
+    }));
+    const logs = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "task_logs",
+        risk: "read",
+        result: {
+          task: started,
+          events,
+          nextCursor: 15,
+          mode: "recent",
+          details: enrichedDetails(),
+        },
+      }),
+    );
+    const logsResult = taskLogsToolResultPreviewSchema.parse(
+      logs.resultPreview,
+    );
+    assert.equal(logsResult.events.length, 10);
+    assert.equal(logsResult.events[0]?.seq, 6);
+    assert.equal(logsResult.events[9]?.seq, 15);
+    assert.ok(
+      Buffer.byteLength(logsResult.events[0]?.line ?? "", "utf8") <= 512,
+    );
+    assert.deepEqual(logs.previewOverflow, {
+      hidden: 5,
+      noun: "events",
+      direction: "tail",
+    });
+
+    const cancelledTasks = Array.from({ length: 5 }, (_, index) => ({
+      ...task(index + 1, "cancelled"),
+      signal: "SIGTERM",
+      finishedAt: "2026-01-02T03:04:07.000Z",
+    }));
+    const cancel = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "task_cancel",
+        result: {
+          tasks: cancelledTasks,
+          cancelResults: cancelledTasks.map((item) => ({
+            taskId: item.id,
+            taskName: item.name,
+            requestedSignal: "SIGTERM",
+            outcome: "cancelled",
+            status: "cancelled",
+            message: `${item.name} cancelled with SIGTERM.`,
+          })),
+          details: enrichedDetails(),
+        },
+      }),
+    );
+    const cancelResult = taskCancelToolResultPreviewSchema.parse(
+      cancel.resultPreview,
+    );
+    assert.equal(cancelResult.outcomes.length, 3);
+    assert.equal(
+      cancelResult.outcomes[0]?.task?.termination?.signal,
+      "SIGTERM",
+    );
+    assert.deepEqual(cancel.previewOverflow, {
+      hidden: 2,
+      noun: "tasks",
+      direction: "head",
+    });
+
+    const restarted = {
+      ...task(9, "running"),
+      restartedFromTaskId: "task_preview_1",
+      restartRootTaskId: "task_preview_1",
+      restartGeneration: 1,
+    };
+    const restart = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "task_restart",
+        result: {
+          task: restarted,
+          restartedFromTaskId: "task_preview_1",
+          newTaskId: restarted.id,
+          restartRootTaskId: "task_preview_1",
+          details: enrichedDetails(),
+        },
+      }),
+    );
+    const restartResult = taskRestartToolResultPreviewSchema.parse(
+      restart.resultPreview,
+    );
+    assert.equal(
+      restartResult.task.lineage?.restartedFromTaskId,
+      "task_preview_1",
+    );
+    assert.equal(restartResult.newTaskId, restarted.id);
+
+    for (const [call, preview] of [
+      [startCall, start],
+      [toolCall({ toolName: "task_status", risk: "read" }), status],
+      [toolCall({ toolName: "task_logs", risk: "read" }), logs],
+      [toolCall({ toolName: "task_cancel" }), cancel],
+      [toolCall({ toolName: "task_restart" }), restart],
+    ] as const) {
+      assert.doesNotThrow(() =>
+        validatePublicEvent(
+          "toolCall.updated",
+          {
+            conversationId: call.conversationId,
+            agentId: call.agentId,
+            projectId: call.projectId,
+            toolCall: preview,
+          },
+          "workbench_server",
+        ),
+      );
+      assert.ok(Buffer.byteLength(JSON.stringify(preview), "utf8") < 16 * 1024);
+    }
+  });
+
+  it("preserves a task-less no-match cancellation outcome", () => {
+    const preview = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "task_cancel",
+        result: {
+          tasks: [],
+          cancelResults: [
+            {
+              outcome: "no_matching_active_task",
+              message: "No matching tasks to cancel.",
+            },
+          ],
+        },
+      }),
+    );
+    const result = taskCancelToolResultPreviewSchema.parse(
+      preview.resultPreview,
+    );
+    assert.equal(result.outcomes[0]?.task, undefined);
+    assert.equal(result.outcomes[0]?.outcome, "no_matching_active_task");
   });
 
   it("previews presented plan content from the head without marker text", () => {

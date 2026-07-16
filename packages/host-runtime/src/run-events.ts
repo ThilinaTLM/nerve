@@ -279,8 +279,8 @@ export class RunEventFactory {
     return this.intent(run, "run.cancelled", now, {
       conversationId: run.conversationId,
       agentId: run.agentId,
+      projectId: run.projectId,
       runId: run.runId,
-      status: "cancelled",
       cancelledAt: now,
     });
   }

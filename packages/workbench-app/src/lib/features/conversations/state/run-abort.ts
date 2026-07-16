@@ -4,6 +4,7 @@ import type {
 } from "$lib/api";
 
 export interface AbortableConversationView {
+  conversationId: string;
   sending: boolean;
   stopping: boolean;
   activeRun?: ConversationActiveRunSnapshot;
@@ -12,7 +13,7 @@ export interface AbortableConversationView {
 
 export interface AbortActiveRunDeps {
   agentId(): string | undefined;
-  view(): AbortableConversationView | undefined;
+  view(conversationId?: string): AbortableConversationView | undefined;
   cancelRun(agentId: string): Promise<void>;
   notifyError(title: string, options: { description: string }): void;
 }
@@ -33,6 +34,8 @@ export function createAbortActiveRun(
     if (!agentId || cancellationsInFlight.has(agentId)) return;
     const view = deps.view();
     if (view?.activeRun?.status === "aborting") return;
+    const conversationId = view?.conversationId;
+    const targetRunId = view?.activeRun?.runId;
     const previous = view
       ? {
           activeRun: view.activeRun,
@@ -54,26 +57,55 @@ export function createAbortActiveRun(
     try {
       await deps.cancelRun(agentId);
     } catch (caught) {
-      if (view && previous) {
-        view.activeRun = previous.activeRun;
-        view.queuedPrompts = previous.queuedPrompts;
-        view.sending = previous.sending;
-        view.stopping = previous.stopping;
+      const current = conversationId ? deps.view(conversationId) : undefined;
+      const targetStillProjected = Boolean(
+        current?.stopping &&
+        (targetRunId
+          ? current.activeRun?.runId === targetRunId
+          : !current.activeRun),
+      );
+      if (current && previous && targetStillProjected) {
+        current.activeRun = previous.activeRun;
+        current.queuedPrompts = previous.queuedPrompts;
+        current.sending = previous.sending;
+        current.stopping = previous.stopping;
       }
-      deps.notifyError("Could not stop the run", {
-        description: caught instanceof Error ? caught.message : String(caught),
-      });
+      // A durable terminal event can win even if the request transport later
+      // rejects. Do not resurrect that run or report a false stop failure.
+      const terminalEventWon = Boolean(
+        current && targetRunId && !current.activeRun && !current.stopping,
+      );
+      if (
+        current?.activeRun &&
+        (!targetRunId || current.activeRun.runId !== targetRunId)
+      ) {
+        current.stopping = false;
+      }
+      if (!terminalEventWon) {
+        deps.notifyError("Could not stop the run", {
+          description:
+            caught instanceof Error ? caught.message : String(caught),
+        });
+      }
       return;
     } finally {
       cancellationsInFlight.delete(agentId);
     }
-    if (view) {
-      // Local terminal fallback from the acknowledgment; durable events
-      // remain the canonical convergence mechanism.
-      view.sending = false;
-      view.stopping = false;
-      view.activeRun = undefined;
-      view.queuedPrompts = [];
+    const current = conversationId ? deps.view(conversationId) : undefined;
+    if (!current) return;
+    const currentRunId = current.activeRun?.runId;
+    const stillTarget = targetRunId
+      ? !currentRunId || currentRunId === targetRunId
+      : !currentRunId;
+    if (!stillTarget) {
+      current.stopping = false;
+      return;
     }
+    // Local terminal fallback from the acknowledgment; durable events remain
+    // the canonical convergence mechanism.
+    current.sending = false;
+    current.stopping = false;
+    current.activeRun = undefined;
+    current.queuedPrompts = [];
   };
 }

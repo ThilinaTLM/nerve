@@ -10,36 +10,58 @@ type Props = {
 };
 let { toolCall, view }: Props = $props();
 
-const completionLabel = $derived(
+const completionMessage = $derived(
   view.action === "start"
-    ? "Task started"
+    ? "Task started; process state is shown below."
     : view.action === "restart"
-      ? "Task restarted"
-      : "Cancellation completed",
+      ? "Task restarted; process state is shown below."
+      : "Cancellation completed.",
 );
 
 const tasks = $derived(view.tasks ?? (view.task ? [view.task] : []));
+const outcomes = $derived(view.outcomes ?? []);
+const hasResult = $derived(tasks.length > 0 || outcomes.length > 0);
 </script>
 
-{#if tasks.length > 0}
+{#if hasResult}
   <div class="grid gap-1.5">
     {#if toolCall.status === "completed"}
       <p class="m-0 text-xs font-medium text-muted-foreground">
-        {completionLabel}; process state is shown below.
+        {completionMessage}
       </p>
     {/if}
-    {#each tasks as task (task.id)}
-      <TaskRow {task} />
-    {/each}
-    {#if view.action === "restart" && view.task?.restartedFromTaskId}
+    {#if view.action === "cancel"}
+      {#each outcomes as outcome, index (`${outcome.task?.id ?? "none"}-${index}`)}
+        <div class="grid gap-1">
+          {#if outcome.task}<TaskRow task={outcome.task} />{/if}
+          <p
+            class="m-0 break-words text-xs"
+            class:text-warning={outcome.outcome === "already_terminal" ||
+              outcome.outcome === "became_terminal_before_cancel"}
+            class:text-muted-foreground={outcome.outcome !==
+              "already_terminal" &&
+              outcome.outcome !== "became_terminal_before_cancel"}
+          >
+            {outcome.message}
+          </p>
+        </div>
+      {/each}
+    {:else}
+      {#each tasks as task (task.id)}
+        <TaskRow {task} />
+      {/each}
+    {/if}
+    {#if view.action === "restart" && view.task && view.restartedFromTaskId}
       <p class="m-0 text-xs text-muted-foreground">
         Replacement <span class="font-mono">{view.task.id}</span> restarted
-        <span class="font-mono">{view.task.restartedFromTaskId}</span>.
+        <span class="font-mono">{view.restartedFromTaskId}</span>.
       </p>
     {/if}
   </div>
-{:else if toolCall.status === "completed"}
-  <p class="m-0 text-xs text-muted-foreground">No task record returned.</p>
+{:else if toolCall.status === "completed" && view.previewUnavailable}
+  <p class="m-0 text-xs text-warning">
+    Task result preview unavailable. Open Details to inspect the full result.
+  </p>
 {/if}
 
 {#if view.liveLog}

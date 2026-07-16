@@ -84,6 +84,60 @@ describe("shared conversation adapters", () => {
     assert.equal(state.toolCalls[0]?.contentIndex, 1);
   });
 
+  it("clears active and queued state when a run is cancelled", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(state, {
+      id: "evt_start",
+      seq: 1,
+      ts: "2026-01-01T00:00:00.000Z",
+      type: "run.started",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        runId: "run_test",
+        projectId: "proj_test",
+        startedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    const queuedPrompt = {
+      id: "promptq_test",
+      agentId: "agent_test",
+      conversationId: "conv_test",
+      projectId: "proj_test",
+      runId: "run_test",
+      behavior: "steer" as const,
+      text: "queued",
+      status: "queued" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    state.queuedPrompts = [queuedPrompt];
+    state.activeRun?.queuedPrompts.push(queuedPrompt);
+    state.error = "stale error";
+
+    state = applyConversationEvent(state, {
+      id: "evt_cancelled",
+      seq: 2,
+      ts: "2026-01-01T00:00:01.000Z",
+      type: "run.cancelled",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        cancelledAt: "2026-01-01T00:00:01.000Z",
+      },
+    });
+
+    assert.equal(state.activeRun, undefined);
+    assert.deepEqual(state.queuedPrompts, []);
+    assert.equal(state.sending, false);
+    assert.equal(state.error, undefined);
+    assert.equal(state.cursorSeq, 2);
+  });
+
   it("applies live text and durable entry events", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, {

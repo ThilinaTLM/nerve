@@ -45,6 +45,17 @@ export interface ConversationRunCompletedData {
   completedAt: string;
 }
 
+export interface ConversationRunCancelledData {
+  conversationId: string;
+  agentId: string;
+  runId: string;
+  /** Optional only so durable events from earlier builds remain replayable. */
+  projectId?: string;
+  /** Legacy redundant discriminator accepted at the event boundary. */
+  status?: "cancelled";
+  cancelledAt: string;
+}
+
 export interface ConversationRunRetryExhaustedData {
   statusEntryId?: string;
   failedEntryId?: string;
@@ -342,6 +353,7 @@ export interface ConversationLiveToolOutputDeltaData {
 export type ConversationEventData =
   | ConversationRunStartedData
   | ConversationRunCompletedData
+  | ConversationRunCancelledData
   | ConversationRunFailedData
   | ConversationRunSuspendedData
   | ConversationRunResumedData
@@ -600,6 +612,15 @@ const conversationRunCompletedDataSchema = z.object({
   completedAt: z.string().datetime(),
 });
 
+const conversationRunCancelledDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  runId: runIdSchema,
+  projectId: z.string().startsWith("proj_").optional(),
+  status: z.literal("cancelled").optional(),
+  cancelledAt: z.string().datetime(),
+});
+
 const conversationRunRetryExhaustedDataSchema = z.object({
   statusEntryId: z.string().startsWith("entry_").optional(),
   failedEntryId: z.string().startsWith("entry_").optional(),
@@ -821,6 +842,7 @@ const conversationLiveToolOutputDeltaDataSchema = z.object({
 export const conversationEventPayloadSchemas = {
   "run.started": conversationRunStartedDataSchema,
   "run.completed": conversationRunCompletedDataSchema,
+  "run.cancelled": conversationRunCancelledDataSchema,
   "run.failed": conversationRunFailedDataSchema,
   "run.suspended": conversationRunSuspendedDataSchema,
   "run.resumed": conversationRunResumedDataSchema,
@@ -860,6 +882,7 @@ export const conversationEventTypeSchema = z.enum(
 export const conversationEventTypes = [
   "run.started",
   "run.completed",
+  "run.cancelled",
   "run.failed",
   "run.suspended",
   "run.resumed",

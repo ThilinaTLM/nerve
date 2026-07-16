@@ -158,6 +158,35 @@ describe("toolPresentation", () => {
       { previewOverflow: { hidden: 7, noun: "events", direction: "tail" } },
     );
     assert.ok(metaText(taskLogs.meta).includes("17 events"));
+    assert.equal(taskLogs.detailsAction?.label, "Show 7 earlier events");
+
+    const taskStatus = presentTranscript(
+      "task_status",
+      { status: "all" },
+      { tasks: Array.from({ length: 5 }, () => task) },
+      { previewOverflow: { hidden: 4, noun: "tasks", direction: "head" } },
+    );
+    assert.ok(metaText(taskStatus.meta).includes("9 tasks"));
+    assert.equal(taskStatus.detailsAction?.label, "Show 4 more tasks");
+
+    const taskCancel = presentTranscript(
+      "task_cancel",
+      { taskIds: ["task_one", "task_two"] },
+      {
+        outcomes: [
+          {
+            outcome: "already_terminal",
+            status: "completed",
+            message: "task one is already completed.",
+          },
+          {
+            outcome: "no_matching_active_task",
+            message: "No matching active task for task two.",
+          },
+        ],
+      },
+    );
+    assert.ok(metaText(taskCancel.meta).includes("2 outcomes"));
   });
 
   it("marks a non-zero bash exit with an error chip and no collapse for short output", () => {

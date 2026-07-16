@@ -5,6 +5,10 @@ import {
   optimisticUserMessage,
   reconcileOptimisticMessages,
 } from "./conversation-optimistic";
+import {
+  applyConversationTerminalUiState,
+  stoppingAfterConversationSnapshot,
+} from "./conversation-terminal-state";
 
 const now = "2026-01-01T00:00:00.000Z";
 
@@ -19,6 +23,35 @@ function entry(overrides: Partial<ConversationEntry> = {}): ConversationEntry {
     ...overrides,
   };
 }
+
+describe("conversation terminal event effects", () => {
+  it("clears app-only stopping and optimistic projections", () => {
+    const view = {
+      optimisticMessages: [optimisticUserMessage("Stop this run")],
+      stopping: true,
+    };
+
+    applyConversationTerminalUiState(view);
+
+    assert.equal(view.stopping, false);
+    assert.deepEqual(view.optimisticMessages, []);
+  });
+
+  it("preserves stopping only while a snapshot shows the same run", () => {
+    assert.equal(
+      stoppingAfterConversationSnapshot(true, "run_1", "run_1"),
+      true,
+    );
+    assert.equal(
+      stoppingAfterConversationSnapshot(true, "run_1", undefined),
+      false,
+    );
+    assert.equal(
+      stoppingAfterConversationSnapshot(true, "run_1", "run_2"),
+      false,
+    );
+  });
+});
 
 describe("optimistic message reconciliation", () => {
   it("drops the echoed prompt once a durable user entry arrives", () => {

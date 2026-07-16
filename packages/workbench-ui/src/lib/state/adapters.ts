@@ -21,6 +21,7 @@ import {
   ConversationPromptCancelledData,
   ConversationPromptDequeuedData,
   ConversationPromptQueuedData,
+  ConversationRunCancelledData,
   ConversationRunCompletedData,
   ConversationRunFailedData,
   ConversationRunResumedData,
@@ -168,6 +169,9 @@ export function applyConversationEvent(
       break;
     case "run.completed":
       applyRunCompleted(next, event.data as ConversationRunCompletedData);
+      break;
+    case "run.cancelled":
+      applyRunCancelled(next, event.data as ConversationRunCancelledData);
       break;
     case "run.failed":
       applyRunFailed(next, event.data as ConversationRunFailedData);
@@ -502,6 +506,17 @@ function applyRunSuspended(
 function applyRunCompleted(
   state: ConversationRenderState,
   data: ConversationRunCompletedData,
+): void {
+  if (runMatches(state.activeRun?.runId, data.runId))
+    state.activeRun = undefined;
+  state.queuedPrompts = [];
+  state.sending = false;
+  state.error = undefined;
+}
+
+function applyRunCancelled(
+  state: ConversationRenderState,
+  data: ConversationRunCancelledData,
 ): void {
   if (runMatches(state.activeRun?.runId, data.runId))
     state.activeRun = undefined;
