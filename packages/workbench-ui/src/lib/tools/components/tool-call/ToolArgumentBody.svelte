@@ -6,9 +6,10 @@ import TodoChecklist from "./TodoChecklist.svelte";
 type Props = {
   body: ArgumentBody;
   fixedRows?: number;
+  highlight?: boolean;
 };
 
-let { body, fixedRows = 10 }: Props = $props();
+let { body, fixedRows = 10, highlight = true }: Props = $props();
 </script>
 
 {#if body.kind === "code"}
@@ -20,7 +21,7 @@ let { body, fixedRows = 10 }: Props = $props();
       code={body.text}
       language={body.language === "text" ? undefined : body.language}
       trim={false}
-      highlight={body.language !== "text"}
+      highlight={highlight && body.language !== "text"}
       wrap
       overflow="hidden"
       tail={body.tail}
