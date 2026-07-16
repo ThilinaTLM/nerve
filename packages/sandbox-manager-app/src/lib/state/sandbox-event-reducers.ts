@@ -555,6 +555,7 @@ function applyRunTerminal(
     run.status = status;
     run.deltaText = "";
   }
+  if (detail.stoppingRunId === runId) detail.stoppingRunId = undefined;
   // Resolve any waits attached to this run's tool calls on terminal.
   for (const wait of Object.values(detail.waitsById))
     if (wait.status === "waiting" && status !== "completed")

@@ -24,6 +24,26 @@ function event(
 }
 
 describe("applySandboxEvent", () => {
+  it("derives a disconnect exit deadline from the loaded policy", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    applySandboxEvent(
+      detail,
+      event(1, "sandbox.config.loaded", {
+        ...scope,
+        status: "loaded",
+        effectiveDefaults: {
+          disconnectPolicy: { mode: "exit_self", exitAfterMs: 300_000 },
+        },
+      }),
+    );
+    applySandboxEvent(
+      detail,
+      event(2, "sandbox.controller.disconnected", { ...scope }),
+    );
+    assert.equal(detail.disconnectExitAfterMs, 300_000);
+    assert.equal(detail.disconnectExitAt, "2026-06-26T12:05:00.000Z");
+  });
+
   it("tracks run lifecycle, streaming deltas, and durable transcript", () => {
     const detail = createSandboxDetailState("sbx_1");
     applySandboxEvent(

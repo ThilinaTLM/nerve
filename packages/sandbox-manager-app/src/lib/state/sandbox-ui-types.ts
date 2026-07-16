@@ -200,6 +200,8 @@ export type SandboxDetailState = {
   disconnectExitAt?: string;
   /** Agent disconnect policy grace period, from `sandbox.config.loaded`. */
   disconnectExitAfterMs?: number;
+  /** Run id with an in-flight cancellation request. */
+  stoppingRunId?: string;
 };
 
 export function createSandboxDetailState(

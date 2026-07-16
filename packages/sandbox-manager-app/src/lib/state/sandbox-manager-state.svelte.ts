@@ -6,6 +6,7 @@ import type {
   ModelInfo,
   ModelSelection,
   OperationName,
+  QueuedPromptRecord,
   RemoveOptions,
   SandboxActivitySummary,
   SandboxConfigYamlResult,
@@ -1083,23 +1084,66 @@ export class SandboxManagerStore {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
     if (!detail.selectedRunId) return;
-    await this.sendOperation(sandboxId, "run.cancel", () => ({
-      conversationId: outboundConversationId(detail.selectedConversationId),
-      agentId: detail.selectedAgentId,
-      runId: detail.selectedRunId,
-    }));
+    detail.stoppingRunId = detail.selectedRunId;
+    try {
+      await this.sendOperation(sandboxId, "run.cancel", () => ({
+        conversationId: outboundConversationId(detail.selectedConversationId),
+        agentId: detail.selectedAgentId,
+        runId: detail.selectedRunId,
+      }));
+    } catch (error) {
+      detail.stoppingRunId = undefined;
+      throw error;
+    }
   }
 
-  async continueRun(sandboxId: string): Promise<void> {
+  async continueRun(sandboxId: string, runId?: string): Promise<void> {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId)) return;
-    if (!detail.selectedRunId) return;
+    const targetRunId = runId ?? detail.selectedRunId;
+    if (!targetRunId) return;
     await this.sendOperation(sandboxId, "run.continue", () => ({
       conversationId: outboundConversationId(detail.selectedConversationId),
       agentId: detail.selectedAgentId,
-      runId: detail.selectedRunId,
+      runId: targetRunId,
       reason: "manual",
     }));
+  }
+
+  /** Drop the client-held prompt queued for dispatch after boot. */
+  discardLocalQueuedPrompt(sandboxId: string): void {
+    const detail = this.detail(sandboxId);
+    setActiveQueuedPrompt(detail, undefined);
+  }
+
+  /** Cancel a server-side queued prompt; returns true when it was removed. */
+  async discardQueuedPrompt(
+    sandboxId: string,
+    prompt: QueuedPromptRecord,
+  ): Promise<boolean> {
+    if (!this.canForwardSandboxCommand(sandboxId)) return false;
+    try {
+      await this.sendOperation(sandboxId, "agent.promptQueue.cancel", () => ({
+        agentId: prompt.agentId,
+        queuedPromptId: prompt.id,
+      }));
+    } catch (error) {
+      notify.error("Queued prompt action failed", {
+        description: errorMessage(error),
+      });
+      return false;
+    }
+    const detail = this.detail(sandboxId);
+    const view = detail.conversationViewsById[prompt.conversationId];
+    if (view?.queuedPrompts)
+      view.queuedPrompts = view.queuedPrompts.filter(
+        (candidate) => candidate.id !== prompt.id,
+      );
+    if (view?.activeRun?.queuedPrompts)
+      view.activeRun.queuedPrompts = view.activeRun.queuedPrompts.filter(
+        (candidate) => candidate.id !== prompt.id,
+      );
+    return true;
   }
 
   async submitInput(
@@ -1328,7 +1372,7 @@ export class SandboxManagerStore {
       lifecycleUpdatedAt:
         typeof payload.changedAt === "string"
           ? payload.changedAt
-          : new Date().toISOString(),
+          : record.updatedAt,
     });
   }
 

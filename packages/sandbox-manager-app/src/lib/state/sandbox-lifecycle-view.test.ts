@@ -128,6 +128,21 @@ describe("sandboxLifecycleView", () => {
     assert.equal(view.defaultDetailsOpen, false);
   });
 
+  it("offers restart with clear copy after a reconnect timeout", () => {
+    const failed = {
+      ...record("failed"),
+      lastError: {
+        code: "RECONNECT_TIMEOUT",
+        message: "Sandbox agent did not reconnect before the watchdog timeout",
+      },
+    };
+    const view = sandboxLifecycleView(failed, undefined);
+    assert.equal(view.state, "failed");
+    assert.equal(view.primaryAction, "restart");
+    assert.match(view.headline, /connection was lost/i);
+    assert.match(view.description, /restart the sandbox/i);
+  });
+
   it("does not call a running container ready before readiness is announced", () => {
     const detail = createSandboxDetailState("sbx_1");
     detail.status = status({ status: "booting", connected: true });
