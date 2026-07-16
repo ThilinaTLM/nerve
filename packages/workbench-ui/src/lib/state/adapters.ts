@@ -536,7 +536,9 @@ function applyRunFailed(
 ): void {
   const continuableInterruption =
     data.interrupted === true && data.continuable === true;
-  if (continuableInterruption) {
+  const targetsCurrentRun =
+    !state.activeRun || runMatches(state.activeRun.runId, data.runId);
+  if (continuableInterruption && targetsCurrentRun) {
     const activeRun = ensureActiveRun(state, {
       conversationId: data.conversationId,
       agentId: data.agentId,
@@ -561,7 +563,7 @@ function applyRunFailed(
   state.queuedPrompts = [];
   state.sending = false;
   state.error =
-    data.aborted || continuableInterruption
+    data.aborted || (continuableInterruption && targetsCurrentRun)
       ? undefined
       : data.message || "Agent error";
 }
