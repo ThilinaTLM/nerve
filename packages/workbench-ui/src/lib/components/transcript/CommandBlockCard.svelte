@@ -56,7 +56,7 @@ const resultLabel = $derived(
     <div class="border-t border-border px-2.5 py-1.5">
       {#if output}
         <pre
-          class="max-h-64 min-w-0 overflow-y-auto font-mono text-xs leading-5 whitespace-pre-wrap break-words text-muted-foreground">{output}</pre>
+          class="min-w-0 font-mono text-xs leading-4 whitespace-pre-wrap break-words text-muted-foreground">{output}</pre>
       {:else}
         <p class="font-mono text-xs italic text-muted-foreground">
           (no output)
