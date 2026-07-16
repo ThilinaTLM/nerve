@@ -8,6 +8,7 @@ import type {
   PeerDescriptor,
   ProtocolRequestData,
   ProtocolV1Message,
+  ReadyPeerStatus,
   StreamCursor,
   WelcomeData,
 } from "@nervekit/contracts";
@@ -52,6 +53,12 @@ export interface ClientSessionOptions {
   readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
   /** Optional host readiness gate resolved before the protocol ready frame. */
   readonly awaitReady?: (welcome: WelcomeData) => void | Promise<void>;
+  /**
+   * Optional host status carried on the ready frame. Return "booting" when the
+   * transport is ready while host startup continues; the server should not
+   * treat the peer as fully operational until it announces readiness.
+   */
+  readonly readyStatus?: () => ReadyPeerStatus | undefined;
   readonly onReady?: (welcome: WelcomeData) => void | Promise<void>;
   readonly onSnapshotRequired?: (welcome: WelcomeData) => void | Promise<void>;
   readonly onReplayUnavailable?: (
@@ -194,6 +201,7 @@ export class ProtocolClientSession {
         this.#options.createMessage("ready", {
           sessionId: welcome.sessionId,
           streams: this.#options.cursors?.() as StreamCursor[] | undefined,
+          status: this.#options.readyStatus?.(),
         }),
       );
       this.state = "ready";

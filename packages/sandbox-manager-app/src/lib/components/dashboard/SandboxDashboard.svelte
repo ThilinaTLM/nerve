@@ -1,6 +1,7 @@
 <script lang="ts">
 import Boxes from "@lucide/svelte/icons/boxes";
 import Plus from "@lucide/svelte/icons/plus";
+import { ConversationSignal } from "@nervekit/workbench-ui";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Search from "@lucide/svelte/icons/search";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -69,21 +70,26 @@ const sandboxes = $derived(filteredSandboxes(store));
       />
     </div>
 
-    {#if sandboxes.length === 0}
+    {#if store.sandboxes.length === 0}
+      <ConversationSignal
+        title="Spin up your first sandbox"
+        message="Sandboxes run agents in isolated containers with their own workspace, tools, and credentials."
+      >
+        {#snippet footer()}
+          <Button onclick={() => (store.createDialogOpen = true)}>
+            <Plus aria-hidden="true" />
+            New sandbox
+          </Button>
+        {/snippet}
+      </ConversationSignal>
+    {:else if sandboxes.length === 0}
       <div
         class="flex flex-col items-center gap-3 rounded-md border border-dashed bg-card py-16 text-center"
       >
         <Boxes class="size-8 text-muted-foreground" />
         <p class="text-sm text-muted-foreground">
-          {store.sandboxes.length === 0
-            ? "No sandboxes yet. Create one to get started."
-            : "No sandboxes match the current filter."}
+          No sandboxes match the current filter.
         </p>
-        {#if store.sandboxes.length === 0}
-          <Button size="sm" onclick={() => (store.createDialogOpen = true)}>
-            <Plus class="size-4" /> New sandbox
-          </Button>
-        {/if}
       </div>
     {:else}
       <ul class="flex flex-col gap-2">

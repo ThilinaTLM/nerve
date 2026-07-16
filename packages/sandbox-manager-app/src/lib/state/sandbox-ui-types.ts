@@ -198,6 +198,8 @@ export type SandboxDetailState = {
   loading: boolean;
   error?: string;
   disconnectExitAt?: string;
+  /** Agent disconnect policy grace period, from `sandbox.config.loaded`. */
+  disconnectExitAfterMs?: number;
 };
 
 export function createSandboxDetailState(

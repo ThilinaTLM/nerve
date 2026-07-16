@@ -16,7 +16,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Separator } from "@nervekit/ui-kit/components/ui/separator";
 import SandboxActionMenu from "../SandboxActionMenu.svelte";
-import SandboxBootProgress from "../SandboxBootProgress.svelte";
+import SandboxLaunchProgress from "../SandboxLaunchProgress.svelte";
 import SandboxStatStrip from "../SandboxStatStrip.svelte";
 import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
 import { sandboxLifecycleView } from "../../state/sandbox-lifecycle-view";
@@ -171,6 +171,13 @@ function openLogs(): void {
             >
               <Play class="size-4" /> Start sandbox
             </Button>
+          {:else if lifecycle.primaryAction === "restart"}
+            <Button
+              size="sm"
+              onclick={() => void store.restartSandbox(record.sandboxId)}
+            >
+              <RefreshCw class="size-4" /> Restart sandbox
+            </Button>
           {:else if lifecycle.primaryAction === "open_logs"}
             <Button size="sm" variant="destructive" onclick={openLogs}>
               <Terminal class="size-4" /> Open logs
@@ -217,12 +224,13 @@ function openLogs(): void {
       {/if}
     </section>
 
-    <SandboxBootProgress
+    <SandboxLaunchProgress
       {record}
       variant="banner"
       expanded={startupExpanded ?? lifecycle.defaultDetailsOpen}
       onToggle={() =>
         (startupExpanded = !(startupExpanded ?? lifecycle.defaultDetailsOpen))}
+      onOpenLogs={openLogs}
     />
 
     {#if hasRuntimeMetrics}

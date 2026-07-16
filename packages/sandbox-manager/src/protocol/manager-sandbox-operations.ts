@@ -158,6 +158,11 @@ export async function stopManagedSandbox(
   return publicSandboxRecord(await state.supervisor.stop(sandboxId));
 }
 
+/**
+ * Restart intentionally reuses the sandbox's state volume (`stateRef`), so
+ * conversations, run history, and recovered agent state survive the restart.
+ * Remove + recreate the sandbox to get a clean slate.
+ */
 export async function restartManagedSandbox(
   state: ManagerState,
   sandboxId: string,

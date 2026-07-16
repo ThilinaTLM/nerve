@@ -165,24 +165,29 @@ export function sandboxLifecycleView(
   const canChat =
     state === "ready" || state === "degraded" || state === "starting";
   const readOnly = ["stopping", "stopped", "failed", "removed"].includes(state);
+  const reconnectTimedOut =
+    state === "failed" && record?.lastError?.code === "RECONNECT_TIMEOUT";
   const primaryAction: SandboxPrimaryAction =
     state === "ready" || state === "degraded"
       ? "new_conversation"
       : state === "stopped"
         ? "start"
-        : state === "failed"
-          ? "open_logs"
-          : "none";
+        : reconnectTimedOut
+          ? "restart"
+          : state === "failed"
+            ? "open_logs"
+            : "none";
 
   return {
     state,
     label: LABELS[state],
     tone: TONES[state],
-    headline: headlineFor(
-      state,
-      state === "failed" ? issue?.stage : activeStage,
-    ),
-    description,
+    headline: reconnectTimedOut
+      ? "Agent connection was lost"
+      : headlineFor(state, state === "failed" ? issue?.stage : activeStage),
+    description: reconnectTimedOut
+      ? "The sandbox agent never reconnected. Restart the sandbox to continue; conversations are preserved."
+      : description,
     since:
       activeItem?.startedAt ??
       detail?.status?.connectivity?.disconnectedAt ??

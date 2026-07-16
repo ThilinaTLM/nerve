@@ -4,7 +4,11 @@ import type {
   ManagedSandboxRecord,
   SandboxStatusGetResult,
 } from "@nervekit/contracts";
-import { computeSandboxBootProgress } from "./sandbox-boot-progress";
+import {
+  computeSandboxBootProgress,
+  groupBootPhases,
+  type BootPhase,
+} from "./sandbox-boot-progress";
 import { createSandboxDetailState } from "./sandbox-ui-types";
 
 const ts = "2026-07-07T17:06:10.000Z";
@@ -295,6 +299,115 @@ describe("computeSandboxBootProgress", () => {
     assert.equal(
       progress.phases.find((phase) => phase.id === "container")?.status,
       "failed",
+    );
+  });
+
+  it("exposes launch groups alongside the fine-grained phases", () => {
+    const detail = createSandboxDetailState("sbx_1");
+    const progress = computeSandboxBootProgress(record("running"), detail);
+    assert.deepEqual(
+      progress.groups.map((group) => group.id),
+      ["provision", "connect", "prepare", "boot", "start"],
+    );
+    assert.equal(
+      progress.groups.reduce((sum, group) => sum + group.phases.length, 0),
+      progress.phases.length,
+    );
+  });
+});
+
+function phase(
+  id: BootPhase["id"],
+  phaseStatus: BootPhase["status"],
+  extra: Partial<BootPhase> = {},
+): BootPhase {
+  return { id, label: id, description: id, status: phaseStatus, ...extra };
+}
+
+describe("groupBootPhases", () => {
+  it("keeps groups pending before any phase starts", () => {
+    const groups = groupBootPhases([
+      phase("container", "pending"),
+      phase("config", "pending"),
+      phase("state", "pending"),
+      phase("daemon", "pending"),
+    ]);
+    assert.ok(
+      groups.every(
+        (group) => group.phases.length === 0 || group.status === "pending",
+      ),
+    );
+  });
+
+  it("marks a group active while a phase runs and reports the active phase", () => {
+    const groups = groupBootPhases([
+      phase("preflight", "done"),
+      phase("models", "active", { ts: "2026-07-07T17:06:12.000Z" }),
+      phase("secrets", "pending"),
+      phase("git", "pending"),
+      phase("github", "pending"),
+      phase("context", "pending"),
+      phase("skills", "pending"),
+    ]);
+    const prepare = groups.find((group) => group.id === "prepare");
+    assert.equal(prepare?.status, "active");
+    assert.equal(prepare?.activePhase?.id, "models");
+  });
+
+  it("treats a partially completed group without a live phase as active", () => {
+    const groups = groupBootPhases([
+      phase("config", "done"),
+      phase("state", "done"),
+      phase("daemon", "pending"),
+    ]);
+    assert.equal(
+      groups.find((group) => group.id === "connect")?.status,
+      "active",
+    );
+  });
+
+  it("rolls up failure with the failing phase error", () => {
+    const groups = groupBootPhases([
+      phase("preflight", "done"),
+      phase("models", "failed", { error: "MODEL_RESOLVE: no provider" }),
+      phase("secrets", "pending"),
+    ]);
+    const prepare = groups.find((group) => group.id === "prepare");
+    assert.equal(prepare?.status, "failed");
+    assert.equal(prepare?.error, "MODEL_RESOLVE: no provider");
+  });
+
+  it("rolls up degraded when everything finished but a phase degraded", () => {
+    const groups = groupBootPhases([
+      phase("preflight", "done"),
+      phase("models", "degraded", { error: "fallback model in use" }),
+      phase("secrets", "skipped"),
+      phase("git", "done"),
+      phase("github", "skipped"),
+      phase("context", "done"),
+      phase("skills", "done"),
+    ]);
+    const prepare = groups.find((group) => group.id === "prepare");
+    assert.equal(prepare?.status, "degraded");
+    assert.equal(prepare?.error, "fallback model in use");
+  });
+
+  it("reports done with the latest phase timestamp", () => {
+    const groups = groupBootPhases([
+      phase("config", "done", { ts: "2026-07-07T17:06:11.000Z" }),
+      phase("state", "done", { ts: "2026-07-07T17:06:13.000Z" }),
+      phase("daemon", "done", { ts: "2026-07-07T17:06:12.000Z" }),
+    ]);
+    const connect = groups.find((group) => group.id === "connect");
+    assert.equal(connect?.status, "done");
+    assert.equal(connect?.ts, "2026-07-07T17:06:13.000Z");
+  });
+
+  it("reports skipped when every phase was skipped", () => {
+    const groups = groupBootPhases([phase("boot", "skipped")]);
+    assert.equal(
+      groups.find((group) => group.id === "boot")?.status,
+      "skipped",
     );
   });
 });

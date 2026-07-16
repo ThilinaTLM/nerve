@@ -1,6 +1,6 @@
 <script lang="ts">
-import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
 import Plus from "@lucide/svelte/icons/plus";
+import { ConversationSignal } from "@nervekit/workbench-ui";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SandboxSummaryCards from "../SandboxSummaryCards.svelte";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
@@ -10,33 +10,23 @@ const store = useSandboxManagerStore();
 const sandboxes = $derived(filteredSandboxes(store));
 </script>
 
-<div class="flex h-full min-h-0 overflow-auto bg-background p-4">
-  <div class="m-auto flex w-full max-w-3xl flex-col gap-3">
+<div class="flex h-full min-h-0 flex-col overflow-auto bg-background p-4">
+  <div class="mx-auto w-full max-w-3xl">
     <SandboxSummaryCards />
-
-    <section
-      class="flex flex-col items-center gap-3 rounded-md border border-dashed bg-card px-6 py-8 text-center"
+  </div>
+  <div class="flex min-h-0 flex-1 items-center justify-center">
+    <ConversationSignal
+      title="Where should we start?"
+      message={sandboxes.length > 0
+        ? "Open a sandbox from the navigator to continue, or spin up a fresh one."
+        : "Spin up a sandbox to explore, plan, and build in an isolated container."}
     >
-      <div class="rounded-md bg-muted p-2">
-        <LayoutDashboard class="size-5 text-muted-foreground" />
-      </div>
-      <div class="max-w-md">
-        <h2 class="text-sm font-semibold">No tabs open</h2>
-        <p class="mt-1 text-sm text-muted-foreground">
-          Open a sandbox from the navigator or create a new sandbox.
-          {#if sandboxes.length > 0}
-            The fleet currently has {sandboxes.length} sandbox{sandboxes.length ===
-            1
-              ? ""
-              : "es"} in view.
-          {/if}
-        </p>
-      </div>
-      <div class="flex flex-wrap justify-center gap-2">
-        <Button size="sm" onclick={() => (store.createDialogOpen = true)}>
-          <Plus class="size-4" /> New sandbox
+      {#snippet footer()}
+        <Button onclick={() => (store.createDialogOpen = true)}>
+          <Plus aria-hidden="true" />
+          New sandbox
         </Button>
-      </div>
-    </section>
+      {/snippet}
+    </ConversationSignal>
   </div>
 </div>

@@ -211,5 +211,11 @@ export function canStop(record: ManagedSandboxRecord): boolean {
 }
 
 export function canRestart(record: ManagedSandboxRecord): boolean {
-  return record.lifecycleState !== "removed";
+  return (
+    record.lifecycleState !== "removed" &&
+    record.lifecycleState !== "container_creating" &&
+    record.lifecycleState !== "container_starting" &&
+    record.lifecycleState !== "stopping" &&
+    record.desiredState !== "removed"
+  );
 }

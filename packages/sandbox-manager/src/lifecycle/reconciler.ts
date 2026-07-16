@@ -81,7 +81,10 @@ function deriveLifecycleFromObserved(
   if (record.desiredState === "stopped") return "stopped";
   if (observedState === "failed") return "failed";
   if (observedState === "exited") return "failed";
-  if (observedState === "reconnecting") return "reconnecting";
+  // Exit code 22 is the agent's deliberate self-exit after the disconnect
+  // grace period; the container is gone, so nothing can reconnect. Settle as
+  // stopped instead of showing "reconnecting" forever.
+  if (observedState === "reconnecting") return "stopped";
   if (current === "daemon_connected" || current === "booting") return current;
   if (current === "ready" || current === "degraded") return current;
   if (current === "failed" || current === "removed") return current;

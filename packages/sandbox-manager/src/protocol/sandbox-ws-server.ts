@@ -212,6 +212,12 @@ export class SandboxWsServer {
           throw new Error("Sandbox identity/session missing at ready");
         const now = new Date().toISOString();
         const sessionId = protocolSession.sessionId;
+        // The protocol ready frame means "transport + event streaming ready".
+        // The agent reports "booting" while startup continues; readiness then
+        // arrives through the durable `sandbox.ready` event.
+        const agentStatus = ready.data.status ?? "ready";
+        const booting = agentStatus === "booting";
+        const readyAt = booting ? undefined : (record.daemon?.readyAt ?? now);
         const forwarder = new RpcForwarder(sandboxId, {
           logger: this.state.logger.child({ sandboxId, sessionId }),
           request: (method, params, options) =>
@@ -226,9 +232,9 @@ export class SandboxWsServer {
           instanceId,
           sessionId,
           connectedAt: now,
-          readyAt: now,
+          readyAt,
           lastHeartbeatAt: now,
-          agentStatus: "ready",
+          agentStatus,
           socket: ws,
           forwarder,
         };
@@ -239,28 +245,24 @@ export class SandboxWsServer {
           state: "connected",
           updatedAt: now,
           connectedAt: now,
-          readyAt: now,
-          agentStatus: "ready",
+          readyAt,
+          agentStatus,
           cursors: ready.data.streams,
           capabilities: protocolSession.peer
             ? [...CONTROLLER_CAPABILITIES]
             : [],
         });
         const connectedRecord = await transitionSandboxLifecycle(
-          {
-            store: this.state.sandboxes,
-            recordEvent: (event) =>
-              recordManagerLifecycleEvent(this.state, event),
-          },
+          this.lifecycleContext(),
           sandboxId,
-          "ready",
+          booting ? "daemon_connected" : agentStatus,
           {
             observedState: "running",
             instanceId,
             daemon: {
               sessionId,
               connectedAt: now,
-              readyAt: now,
+              ...(readyAt ? { readyAt } : {}),
               lastHeartbeatAt: now,
             },
             force: true,
@@ -285,6 +287,17 @@ export class SandboxWsServer {
           sandboxId,
           message.data.range.previousDurableSeq ?? 0,
           message.data.events,
+        );
+        await this.applyStartupSignals(sandboxId, result.acceptedEvents).catch(
+          (error) => {
+            this.state.logger.warn("Failed to apply sandbox startup signals", {
+              sandboxId,
+              error: (error instanceof Error
+                ? error.message
+                : String(error)
+              ).slice(0, 512),
+            });
+          },
         );
         return {
           streams: [
@@ -383,11 +396,7 @@ export class SandboxWsServer {
       )
     ) {
       await transitionSandboxLifecycle(
-        {
-          store: this.state.sandboxes,
-          recordEvent: (event) =>
-            recordManagerLifecycleEvent(this.state, event),
-        },
+        this.lifecycleContext(),
         sandboxId,
         "reconnecting",
         {
@@ -401,6 +410,122 @@ export class SandboxWsServer {
       );
     }
   }
+
+  private lifecycleContext() {
+    return {
+      store: this.state.sandboxes,
+      recordEvent: (event: Parameters<typeof recordManagerLifecycleEvent>[1]) =>
+        recordManagerLifecycleEvent(this.state, event),
+      logger: this.state.logger,
+    };
+  }
+
+  /**
+   * Derive lifecycle transitions from live startup events: the first startup
+   * stage moves `daemon_connected` → `booting`, a failed stage records the
+   * precise error, and the durable `sandbox.ready` event announces readiness.
+   */
+  private async applyStartupSignals(
+    sandboxId: string,
+    events: readonly StoredSandboxEvent[],
+  ): Promise<void> {
+    const startupSeen = events.some((event) =>
+      event.type.startsWith("sandbox.startup.stage."),
+    );
+    const readyEvent = findLastEvent(
+      events,
+      (event) => event.type === "sandbox.ready",
+    );
+    const failedStage = findLastEvent(
+      events,
+      (event) =>
+        event.type === "sandbox.startup.stage.completed" &&
+        asRecord(event.payload)?.status === "failed",
+    );
+    if (!startupSeen && !readyEvent) return;
+    const record = await this.state.sandboxes.get(sandboxId);
+    if (!record) return;
+    if (readyEvent) {
+      const payload = asRecord(readyEvent.payload);
+      const status = payload?.status === "degraded" ? "degraded" : "ready";
+      const readyAt =
+        typeof payload?.readyAt === "string"
+          ? payload.readyAt
+          : (readyEvent.ts ?? new Date().toISOString());
+      await transitionSandboxLifecycle(
+        this.lifecycleContext(),
+        sandboxId,
+        status,
+        {
+          observedState: "running",
+          daemon: { readyAt },
+          force: true,
+        },
+      );
+      const live = this.sessions.get(sandboxId);
+      if (live) {
+        live.agentStatus = status;
+        live.readyAt = readyAt;
+      }
+      const stored = await this.state.sessions.get(sandboxId);
+      if (stored?.state === "connected") {
+        await this.state.sessions.put({
+          ...stored,
+          agentStatus: status,
+          readyAt,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return;
+    }
+    if (failedStage) {
+      const payload = asRecord(failedStage.payload);
+      const stage =
+        typeof payload?.stage === "string" ? payload.stage : "startup";
+      const failure = asRecord(payload?.error);
+      const message =
+        typeof failure?.message === "string"
+          ? failure.message
+          : "startup stage failed";
+      // Keep the lifecycle state: the agent exits after a fatal stage and the
+      // container observer marks the sandbox failed. Record the precise stage
+      // error now so the failure surfaces with full context.
+      await this.state.sandboxes.put({
+        ...record,
+        lastError: {
+          code: "STARTUP_STAGE_FAILED",
+          message: `${stage}: ${message}`,
+        },
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+    if (record.lifecycleState === "daemon_connected") {
+      await transitionSandboxLifecycle(
+        this.lifecycleContext(),
+        sandboxId,
+        "booting",
+        { observedState: "running", force: true },
+      );
+    }
+  }
+}
+
+function findLastEvent(
+  events: readonly StoredSandboxEvent[],
+  predicate: (event: StoredSandboxEvent) => boolean,
+): StoredSandboxEvent | undefined {
+  for (let index = events.length - 1; index >= 0; index--) {
+    const event = events[index];
+    if (event && predicate(event)) return event;
+  }
+  return undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function matchSandboxId(url: string): string | undefined {

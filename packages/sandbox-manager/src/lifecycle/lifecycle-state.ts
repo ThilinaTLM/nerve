@@ -28,6 +28,7 @@ export type SandboxLifecycleTransitionDetails = {
 export type SandboxLifecycleTransitionContext = {
   store: ManagerStore;
   recordEvent?: LifecycleEventRecorder;
+  logger?: { warn(message: string, context?: Record<string, unknown>): void };
 };
 
 const terminalStates = new Set<ManagedSandboxLifecycleState>([
@@ -35,6 +36,99 @@ const terminalStates = new Set<ManagedSandboxLifecycleState>([
   "stopped",
   "removed",
 ]);
+
+/**
+ * Legal lifecycle transitions for non-forced calls. Every state may always
+ * transition to itself, and `force: true` bypasses the table (used by
+ * supervisor/reconciler recovery paths that legitimately jump states).
+ */
+const legalTransitions: Record<
+  ManagedSandboxLifecycleState,
+  ReadonlySet<ManagedSandboxLifecycleState>
+> = {
+  record_created: new Set(["container_creating", "failed", "removed"]),
+  container_creating: new Set([
+    "container_created",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  container_created: new Set([
+    "container_starting",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  container_starting: new Set([
+    "container_started",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  container_started: new Set([
+    "daemon_connected",
+    "booting",
+    "ready",
+    "degraded",
+    "reconnecting",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  daemon_connected: new Set([
+    "booting",
+    "ready",
+    "degraded",
+    "reconnecting",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  booting: new Set([
+    "ready",
+    "degraded",
+    "reconnecting",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  ready: new Set([
+    "degraded",
+    "reconnecting",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  degraded: new Set([
+    "ready",
+    "reconnecting",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  reconnecting: new Set([
+    "daemon_connected",
+    "booting",
+    "ready",
+    "degraded",
+    "stopping",
+    "stopped",
+    "failed",
+    "removed",
+  ]),
+  stopping: new Set(["stopped", "failed", "removed"]),
+  stopped: new Set(["container_creating", "failed", "removed"]),
+  failed: new Set(["container_creating", "removed"]),
+  removed: new Set([]),
+};
 
 export function lifecycleReadyForOperations(
   record: Pick<ManagedSandboxRecord, "lifecycleState"> | undefined,
@@ -72,6 +166,19 @@ export async function transitionSandboxLifecycle(
     !details.force &&
     nextState !== "removed"
   ) {
+    return current;
+  }
+  if (
+    current.lifecycleState !== nextState &&
+    !details.force &&
+    !legalTransitions[current.lifecycleState].has(nextState)
+  ) {
+    context.logger?.warn("Ignoring illegal sandbox lifecycle transition", {
+      sandboxId,
+      from: current.lifecycleState,
+      to: nextState,
+      reason: details.reason,
+    });
     return current;
   }
   const now = new Date().toISOString();

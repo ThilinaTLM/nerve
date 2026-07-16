@@ -60,8 +60,29 @@ export type BootState =
   | "failed"
   | "offline";
 
+export type BootPhaseGroupId =
+  | "provision"
+  | "connect"
+  | "prepare"
+  | "boot"
+  | "start";
+
+export type BootPhaseGroup = {
+  id: BootPhaseGroupId;
+  label: string;
+  status: BootPhaseStatus;
+  phases: BootPhase[];
+  /** Latest timestamp reported by any phase in the group. */
+  ts?: string;
+  /** First failure (or degradation) reported by a phase in the group. */
+  error?: string;
+  /** The phase currently in progress within this group, if any. */
+  activePhase?: BootPhase;
+};
+
 export type SandboxBootProgress = {
   phases: BootPhase[];
+  groups: BootPhaseGroup[];
   completed: number;
   total: number;
   fraction: number;
@@ -69,7 +90,92 @@ export type SandboxBootProgress = {
   state: BootState;
   ready: boolean;
   showPhaseStepper: boolean;
+  /** Boot start reference for elapsed-time display. */
+  startedAt?: string;
+  /** Timestamp of the ready phase when the boot completed. */
+  readyAt?: string;
 };
+
+const GROUP_DEFINITIONS: ReadonlyArray<{
+  id: BootPhaseGroupId;
+  label: string;
+  phases: readonly BootPhaseId[];
+}> = [
+  { id: "provision", label: "Provision container", phases: ["container"] },
+  {
+    id: "connect",
+    label: "Start agent",
+    phases: ["config", "state", "daemon"],
+  },
+  {
+    id: "prepare",
+    label: "Prepare workspace",
+    phases: [
+      "preflight",
+      "models",
+      "secrets",
+      "git",
+      "github",
+      "context",
+      "skills",
+    ],
+  },
+  { id: "boot", label: "Run boot script", phases: ["boot"] },
+  { id: "start", label: "Start runtime", phases: ["runtime", "ready"] },
+];
+
+const TERMINAL_GROUP_STATUSES: ReadonlySet<BootPhaseStatus> = new Set([
+  "done",
+  "skipped",
+  "degraded",
+  "stopped",
+]);
+
+function rollupGroupStatus(
+  statuses: readonly BootPhaseStatus[],
+): BootPhaseStatus {
+  if (statuses.some((status) => status === "failed")) return "failed";
+  if (statuses.some((status) => status === "active")) return "active";
+  if (statuses.every((status) => status === "skipped")) return "skipped";
+  if (statuses.every((status) => TERMINAL_GROUP_STATUSES.has(status))) {
+    if (statuses.some((status) => status === "degraded")) return "degraded";
+    if (statuses.some((status) => status === "stopped")) return "stopped";
+    return "done";
+  }
+  // Partially complete without a live phase: still in progress.
+  if (statuses.some((status) => TERMINAL_GROUP_STATUSES.has(status)))
+    return "active";
+  return "pending";
+}
+
+/** Group the fine-grained boot phases into user-facing launch steps. */
+export function groupBootPhases(
+  phases: readonly BootPhase[],
+): BootPhaseGroup[] {
+  const byId = new Map(phases.map((phase) => [phase.id, phase]));
+  return GROUP_DEFINITIONS.map((definition) => {
+    const groupPhases = definition.phases
+      .map((id) => byId.get(id))
+      .filter((phase): phase is BootPhase => phase !== undefined);
+    const statuses = groupPhases.map((phase) => phase.status);
+    const ts = groupPhases
+      .map((phase) => phase.ts)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1);
+    return {
+      id: definition.id,
+      label: definition.label,
+      status: rollupGroupStatus(statuses),
+      phases: groupPhases,
+      ts,
+      error:
+        groupPhases.find((phase) => phase.status === "failed")?.error ??
+        groupPhases.find((phase) => phase.status === "degraded")?.error,
+      activePhase: groupPhases.find((phase) => phase.status === "active"),
+    };
+  });
+}
 
 export const isSandboxConnected = sandboxIsConnected;
 export const isSandboxReadyForChat = sandboxReadyForCommands;
@@ -569,8 +675,17 @@ export function computeSandboxBootProgress(
     state === "reconnecting" ||
     state === "failed";
 
+  const startedAt =
+    record?.startedAt ??
+    phases
+      .map((phase) => phase.ts)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(0);
+
   return {
     phases,
+    groups: groupBootPhases(phases),
     completed,
     total,
     fraction,
@@ -578,5 +693,7 @@ export function computeSandboxBootProgress(
     state,
     ready: readyForCommands,
     showPhaseStepper,
+    startedAt,
+    readyAt: ready.status === "done" ? ready.ts : undefined,
   };
 }

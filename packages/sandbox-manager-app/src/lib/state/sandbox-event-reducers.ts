@@ -13,6 +13,20 @@ import type {
 const MAX_EVENTS = 500;
 const MAX_TIMELINE_TEXT = 8_000;
 
+/**
+ * Derive the agent's self-exit deadline when the disconnect event does not
+ * carry `exitAt`, using the disconnect policy from `sandbox.config.loaded`.
+ */
+function fallbackDisconnectExitAt(
+  detail: SandboxDetailState,
+  event: SandboxUiEvent,
+): string | undefined {
+  if (typeof detail.disconnectExitAfterMs !== "number") return undefined;
+  const disconnectedAt = Date.parse(event.ts ?? "");
+  if (!Number.isFinite(disconnectedAt)) return undefined;
+  return new Date(disconnectedAt + detail.disconnectExitAfterMs).toISOString();
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -70,7 +84,7 @@ export function applySandboxEvent(
     case "sandbox.startup.stage.completed":
       applySharedStartupEvent(detail.setupTimeline, event);
       return;
-    case "sandbox.config.loaded":
+    case "sandbox.config.loaded": {
       pushSetup(
         detail,
         event,
@@ -79,7 +93,13 @@ export function applySandboxEvent(
         "Config loaded",
         detailsFromData(data),
       );
+      const disconnectPolicy = asRecord(
+        asRecord(data.effectiveDefaults).disconnectPolicy,
+      );
+      if (typeof disconnectPolicy.exitAfterMs === "number")
+        detail.disconnectExitAfterMs = disconnectPolicy.exitAfterMs;
       return;
+    }
     case "sandbox.setup.git.started":
       pushSetup(
         detail,
@@ -168,7 +188,10 @@ export function applySandboxEvent(
     case "sandbox.controller.disconnected":
       detail.controllerConnected = false;
       detail.disconnectExitAt =
-        typeof data.exitAt === "string" ? data.exitAt : detail.disconnectExitAt;
+        typeof data.exitAt === "string"
+          ? data.exitAt
+          : (fallbackDisconnectExitAt(detail, event) ??
+            detail.disconnectExitAt);
       return;
     case "sandbox.controller.reconnected":
       detail.controllerConnected = true;

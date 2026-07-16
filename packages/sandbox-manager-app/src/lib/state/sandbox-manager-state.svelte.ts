@@ -22,6 +22,7 @@ import type {
 } from "@nervekit/contracts";
 import {
   deriveConversationTitle,
+  managedSandboxLifecycleStateSchema,
   sandboxActivitySummarySchema,
   runAcceptedResultSchema,
 } from "@nervekit/contracts";
@@ -1305,6 +1306,32 @@ export class SandboxManagerStore {
     detail.localConversationsById[conversation.conversationId] = next;
   }
 
+  private applyLifecycleChange(data: unknown): void {
+    if (typeof data !== "object" || data === null) return;
+    const payload = data as {
+      sandboxId?: unknown;
+      current?: unknown;
+      changedAt?: unknown;
+    };
+    if (typeof payload.sandboxId !== "string") return;
+    const parsed = managedSandboxLifecycleStateSchema.safeParse(
+      payload.current,
+    );
+    if (!parsed.success) return;
+    const record = this.sandboxes.find(
+      (existing) => existing.sandboxId === payload.sandboxId,
+    );
+    if (!record || record.lifecycleState === parsed.data) return;
+    this.patchRecord({
+      ...record,
+      lifecycleState: parsed.data,
+      lifecycleUpdatedAt:
+        typeof payload.changedAt === "string"
+          ? payload.changedAt
+          : new Date().toISOString(),
+    });
+  }
+
   private patchRecord(record: ManagedSandboxRecord): void {
     const index = this.sandboxes.findIndex(
       (existing) => existing.sandboxId === record.sandboxId,
@@ -1329,6 +1356,11 @@ export class SandboxManagerStore {
           };
         return;
       }
+      // Apply lifecycle changes immediately so the UI tracks boot progress
+      // and failures in real time; the debounced fleet refresh reconciles
+      // the rest of the record afterwards.
+      if (envelope.type === "sandbox.lifecycle.changed")
+        this.applyLifecycleChange(envelope.data);
       this.scheduleFleetRefresh();
       return;
     }
@@ -1359,6 +1391,18 @@ export class SandboxManagerStore {
     ) {
       void this.flushQueuedPrompt(sandboxId);
       void this.loadDetail(sandboxId);
+    }
+    if (envelope.type === "sandbox.ready") {
+      // Toast only for a live boot, not for replayed history after a reload.
+      const eventTime = Date.parse(envelope.ts ?? "");
+      if (Number.isFinite(eventTime) && Date.now() - eventTime < 30_000) {
+        const record = this.sandboxes.find(
+          (item) => item.sandboxId === sandboxId,
+        );
+        notify.success("Sandbox ready", {
+          description: `${record?.name ?? sandboxId} finished starting and can chat now.`,
+        });
+      }
     }
   }
 

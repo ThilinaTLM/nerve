@@ -11,6 +11,7 @@ import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import SandboxActionMenu from "../SandboxActionMenu.svelte";
+import SandboxLaunchProgress from "../SandboxLaunchProgress.svelte";
 import SandboxStatusBadge from "../SandboxStatusBadge.svelte";
 import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
 import { activityFor } from "../../state/sandbox-manager-selectors.svelte";
@@ -142,24 +143,31 @@ function extractLatestContextFiles(
 <div class="flex flex-col gap-2 p-2">
   <PanelSection title="Runtime" icon={Box} bind:open={runtimeOpen}>
     <div class="flex flex-col gap-3">
-      <div
-        class="flex items-start gap-2 rounded-md border bg-background px-2 py-2"
-      >
-        <StatusDot
-          tone={observedStateTone(record.observedState)}
-          pulse={record.observedState === "starting" ||
-            record.observedState === "reconnecting"}
+      {#if progress.state === "provisioning" || progress.state === "booting" || progress.state === "reconnecting" || progress.state === "failed"}
+        <SandboxLaunchProgress
+          {record}
+          variant="rail"
+          onOpenLogs={() =>
+            store.openWorkspaceDiagnosticTab(record.sandboxId, "logs")}
         />
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-xs font-medium">{progress.headline}</p>
-          <p class="text-xs text-muted-foreground">
-            {progress.completed}/{progress.total} boot steps · {status?.connected
-              ? "connected"
-              : "not connected"}
-          </p>
+      {:else}
+        <div
+          class="flex items-start gap-2 rounded-md border bg-background px-2 py-2"
+        >
+          <StatusDot
+            tone={observedStateTone(record.observedState)}
+            pulse={record.observedState === "starting" ||
+              record.observedState === "reconnecting"}
+          />
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-xs font-medium">{progress.headline}</p>
+            <p class="text-xs text-muted-foreground">
+              {status?.connected ? "Connected" : "Not connected"}
+            </p>
+          </div>
+          {#if status?.stale}<Badge tone="warn" size="xs">stale</Badge>{/if}
         </div>
-        {#if status?.stale}<Badge tone="warn" size="xs">stale</Badge>{/if}
-      </div>
+      {/if}
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
         <dt class="text-xs text-muted-foreground">State</dt>
         <dd class="truncate text-xs">

@@ -376,6 +376,86 @@ describe("toToolCallTranscriptRecord", () => {
     );
   });
 
+  it("preserves Explore reports when verbose arguments exceed the shared preview budget", () => {
+    const firstTask = `Compare the conversation experience in detail. ${"Include concrete file evidence and user-impact implications. ".repeat(30)}`;
+    const secondTask = `Audit lifecycle handling in detail. ${"Include concrete state transitions and failure-path evidence. ".repeat(30)}`;
+    const call = toolCall({
+      toolName: "explore",
+      risk: "agent_spawn",
+      args: {
+        context:
+          "The parent completed a broad initial lookup and identified several unresolved integration boundaries. ".repeat(
+            30,
+          ),
+        split_rationale:
+          "The conversation and lifecycle investigations have independent owners and evidence paths. ".repeat(
+            12,
+          ),
+        tasks: [
+          { label: "conversation parity", task: firstTask },
+          { label: "lifecycle audit", task: secondTask },
+        ],
+      },
+      result: {
+        reports: [
+          {
+            agentId: "agent_02H00000000000000000000001",
+            task: firstTask,
+            label: "conversation parity",
+            status: "completed",
+            report: "Full conversation parity report.",
+            steps: [{ type: "assistant", message: "Report received." }],
+            reportPath: "/tmp/nerve/explore/conversation-parity.md",
+            summaryPreview: "Conversation parity findings are available.",
+          },
+          {
+            agentId: "agent_02H00000000000000000000002",
+            task: secondTask,
+            label: "lifecycle audit",
+            status: "completed",
+            report: "Full lifecycle audit report.",
+            steps: [{ type: "assistant", message: "Report received." }],
+            reportPath: "/tmp/nerve/explore/lifecycle-audit.md",
+            summaryPreview: "Lifecycle audit findings are available.",
+          },
+        ],
+      },
+    });
+
+    assert.ok(Buffer.byteLength(JSON.stringify(call.args), "utf8") > 6 * 1024);
+
+    const preview = toToolCallTranscriptRecord(call);
+    const parsed = exploreResultPreviewSchema.parse(preview.resultPreview);
+
+    assert.equal(parsed.reports.length, 2);
+    assert.equal(
+      parsed.reports[0]?.reportPath,
+      "/tmp/nerve/explore/conversation-parity.md",
+    );
+    assert.equal(
+      parsed.reports[1]?.reportPath,
+      "/tmp/nerve/explore/lifecycle-audit.md",
+    );
+    assert.equal(
+      parsed.reports[1]?.summaryPreview,
+      "Lifecycle audit findings are available.",
+    );
+    assert.equal("report" in (parsed.reports[0] ?? {}), false);
+    assert.equal("steps" in (parsed.reports[1] ?? {}), false);
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "toolCall.updated",
+        {
+          conversationId: call.conversationId,
+          agentId: call.agentId,
+          projectId: call.projectId,
+          toolCall: preview,
+        },
+        "workbench_server",
+      ),
+    );
+  });
+
   it("projects all task tool results into their compact transcript contracts", () => {
     const started = task(1, "ready");
     const startCall = toolCall({

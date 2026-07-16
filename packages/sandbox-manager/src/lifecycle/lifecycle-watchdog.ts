@@ -47,6 +47,25 @@ export class SandboxLifecycleWatchdog {
       );
       return;
     }
+    if (state === "reconnecting") {
+      const session = await this.state.sessions.get(record.sandboxId);
+      const disconnectedAt = Date.parse(
+        session?.disconnectedAt ??
+          record.lifecycleUpdatedAt ??
+          record.updatedAt,
+      );
+      if (
+        Number.isFinite(disconnectedAt) &&
+        now - disconnectedAt > this.state.config.reconnectTimeoutMs
+      ) {
+        await this.fail(
+          record,
+          "RECONNECT_TIMEOUT",
+          "Sandbox agent did not reconnect before the watchdog timeout",
+        );
+      }
+      return;
+    }
     if (state !== "daemon_connected" && state !== "booting") return;
     const connectedAt = Date.parse(
       record.daemon?.connectedAt ??

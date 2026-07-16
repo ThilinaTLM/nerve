@@ -43,6 +43,12 @@ export type ManagerConfig = {
   daemonConnectTimeoutMs: number;
   bootReadyTimeoutMs: number;
   bootStallTimeoutMs: number;
+  /**
+   * How long a sandbox may stay in `reconnecting` before the watchdog gives
+   * up. Must exceed the agent's disconnect-policy `exitAfterMs` (default
+   * 300s) so a self-exiting agent is observed as exited, not failed early.
+   */
+  reconnectTimeoutMs: number;
   maxPendingOperations: number;
   maxOperationBytes: number;
   serveWebUi: boolean;
@@ -139,6 +145,9 @@ export function loadManagerConfig(env = process.env): ManagerConfig {
     ),
     bootStallTimeoutMs: Number(
       env.NERVE_SANDBOX_MANAGER_BOOT_STALL_TIMEOUT_MS ?? 120_000,
+    ),
+    reconnectTimeoutMs: Number(
+      env.NERVE_SANDBOX_MANAGER_RECONNECT_TIMEOUT_MS ?? 360_000,
     ),
     maxPendingOperations: Number(
       env.NERVE_SANDBOX_MANAGER_MAX_PENDING_COMMANDS ?? 256,

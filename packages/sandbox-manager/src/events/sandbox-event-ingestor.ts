@@ -30,7 +30,11 @@ export class SandboxEventIngestor {
       durability?: "durable" | "transient";
       [key: string]: unknown;
     }>,
-  ): Promise<{ processedSeq: number; accepted: number }> {
+  ): Promise<{
+    processedSeq: number;
+    accepted: number;
+    acceptedEvents: StoredSandboxEvent[];
+  }> {
     return this.withSandboxQueue(sandboxId, async () => {
       const existing = await this.store.list(sandboxId);
       const durableExisting = existing
@@ -43,6 +47,7 @@ export class SandboxEventIngestor {
         );
       let provenReplaySeq = previousDurableSeq;
       let accepted = 0;
+      const acceptedEvents: StoredSandboxEvent[] = [];
 
       for (const raw of events) {
         const envelope = parseSandboxEnvelope(sandboxId, raw);
@@ -79,9 +84,10 @@ export class SandboxEventIngestor {
         }
 
         accepted += 1;
+        acceptedEvents.push(stored);
         this.publish(sandboxId, stored);
       }
-      return { processedSeq, accepted };
+      return { processedSeq, accepted, acceptedEvents };
     });
   }
 

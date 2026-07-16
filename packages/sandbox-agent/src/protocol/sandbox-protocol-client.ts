@@ -176,13 +176,15 @@ export class SandboxProtocolClient {
           send,
           onDisconnect,
           rpcDispatcher: this.rpcDispatcher,
-          awaitReady: async (welcome) => {
+          // The ready frame is sent immediately after welcome so startup
+          // events stream live while the sandbox boots; readyStatus tells the
+          // manager whether this peer is still booting.
+          awaitReady: (welcome) => {
             this.sessionId = welcome.sessionId;
             this.acceptedCapabilities = [...welcome.capabilities].sort();
             this.welcomed = true;
-            while (!this.readyStatus && !this.stopping)
-              await new Promise((resolve) => setTimeout(resolve, 25));
           },
+          readyStatus: () => this.readyStatus ?? "booting",
           onReady: async () => {
             this.activeSession = session;
             this.connectedAt = new Date().toISOString();
@@ -227,6 +229,12 @@ export class SandboxProtocolClient {
     }
   }
 
+  /**
+   * Record final boot status. The protocol session is already ready (the
+   * ready frame is sent right after welcome with status "booting"); readiness
+   * reaches the manager through the durable `sandbox.ready` event and through
+   * the ready-frame status on subsequent reconnects.
+   */
   async markReady(status: "ready" | "degraded" = "ready"): Promise<void> {
     this.readyStatus = status;
     await this.waitForWelcome();

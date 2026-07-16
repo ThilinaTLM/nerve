@@ -734,10 +734,14 @@ export function toToolCallTranscriptRecord(
     }
   }
 
+  // Preserve schema-bearing semantic results before verbose arguments consume
+  // the shared text budget; otherwise downstream parsers can reject the preview.
+  const resultFirst =
+    taskToolName !== undefined || toolCall.toolName === "explore";
   const finalized = finalizePublicPreview(
     argsPreview,
     resultPreview,
-    taskToolName !== undefined,
+    resultFirst,
   );
   if (!semanticTaskOverflow) {
     if (finalized.hiddenItems > 0) {

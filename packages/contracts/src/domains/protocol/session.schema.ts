@@ -91,10 +91,19 @@ export const welcomeMessageSchema = typedMessageSchema(
   welcomeDataSchema,
 );
 
+/**
+ * Host status carried on the ready frame. "ready" means the peer is fully
+ * operational; "booting" means the transport/event streaming is ready while
+ * host startup continues (readiness is then announced via domain events).
+ */
+export const readyPeerStatusSchema = z.enum(["booting", "ready", "degraded"]);
+export type ReadyPeerStatus = z.infer<typeof readyPeerStatusSchema>;
+
 export const readyDataSchema = z
   .object({
     sessionId: z.string().min(1),
     streams: z.array(streamCursorSchema).optional(),
+    status: readyPeerStatusSchema.optional(),
   })
   .strict();
 export type ReadyData = z.infer<typeof readyDataSchema>;
