@@ -1,5 +1,4 @@
 <script lang="ts">
-import Folder from "@lucide/svelte/icons/folder";
 import type { Snippet } from "svelte";
 import ConversationPaneLayout from "../ConversationPaneLayout.svelte";
 import TranscriptAnnouncer from "../transcript/TranscriptAnnouncer.svelte";
@@ -8,7 +7,7 @@ import { createConversationScrollController } from "../transcript/conversation-s
 import AgentComposer from "./agent-composer.svelte";
 import ConversationBanner from "./conversation-banner.svelte";
 import ConversationEmptyState from "./conversation-empty-state.svelte";
-import ConversationSignal from "./conversation-signal.svelte";
+import { hasTranscriptContent } from "../transcript/transcript-content.js";
 import type {
   ConversationMenuBuilders,
   ConversationPaneActions,
@@ -34,11 +33,19 @@ const lastTimelineKey = $derived(model.timeline.at(-1)?.key);
 const pendingApprovalId = $derived(
   model.approvals?.find((approval) => approval.status === "pending")?.id,
 );
+const transcriptHasContent = $derived(
+  hasTranscriptContent({
+    timelineLength: model.timeline.length,
+    streamingText: model.streamingText,
+    sending: model.sending,
+    queuedPromptCount: model.queuedPrompts.length,
+  }),
+);
 const scroll = createConversationScrollController({
   active: () => active,
   conversationOpen: () => model.open,
   conversationId: () => model.conversationId,
-  contentReady: () => model.timeline.length > 0,
+  contentReady: () => transcriptHasContent,
 });
 </script>
 
@@ -68,70 +75,43 @@ const scroll = createConversationScrollController({
         <ConversationBanner {...model.banner} />
       {/if}
       <div class="min-h-0 flex-1">
-        {#if model.hasContent === false}
-          <ConversationSignal
-            title="Where should we start?"
-            message="Ask Nerve to explore, plan, or build in this project."
-          >
-            {#snippet footer()}
-              {#if model.activeProjectLabel}
-                <div
-                  class="inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground"
-                  title={model.activeProject?.dir}
-                  aria-label={`Conversation will be created in project ${model.activeProject?.dir}`}
-                >
-                  <Folder
-                    class="size-3.5 shrink-0"
-                    strokeWidth={2.2}
-                    aria-hidden="true"
-                  />
-                  <span class="shrink-0">Project:</span>
-                  <span class="truncate font-mono text-foreground"
-                    >{model.activeProjectLabel}</span
-                  >
-                </div>
-              {/if}
-            {/snippet}
-          </ConversationSignal>
-        {:else}
-          <TranscriptList
-            bind:controller={scroll.controller}
-            bind:atEnd={scroll.atEnd}
-            paddingEnd={18}
-            heightCacheKey={model.transcriptHeightCacheKey ??
-              model.conversationId}
-            transcriptLabel={model.transcriptLabel}
-            timeline={model.timeline}
-            streamingText={model.streamingText}
-            sending={model.sending}
-            hasLiveTimelineNodes={model.hasLiveTimelineNodes}
-            queuedPrompts={model.queuedPrompts}
-            followBottom={active ? scroll.followBottom : false}
-            activeProject={model.activeProject}
-            activeProjectLabel={model.activeProjectLabel}
-            approvals={model.approvals}
-            pendingUserQuestion={model.pendingUserQuestion}
-            pendingPlanReview={model.pendingPlanReview}
-            {active}
-            planReviewModels={model.planReviewModels}
-            planReviewModelKey={model.planReviewModelKey}
-            planReviewThinkingLevel={model.planReviewThinkingLevel}
-            {lastTimelineKey}
-            onOpenFile={actions.onOpenFile}
-            onAnswerUserQuestion={actions.onAnswerUserQuestion}
-            onDismissUserQuestion={actions.onDismissUserQuestion}
-            onGrantApproval={actions.onGrantApproval}
-            onDenyApproval={actions.onDenyApproval}
-            onAcceptPlanReview={actions.onAcceptPlanReview}
-            onAcceptPlanReviewInNewChat={actions.onAcceptPlanReviewInNewChat}
-            onRejectPlanReview={actions.onRejectPlanReview}
-            onContinueFromFailure={actions.onContinueFromFailure}
-            onDiscardQueuedPrompt={actions.onDiscardQueuedPrompt}
-            onMoveQueuedPromptToComposer={actions.onMoveQueuedPromptToComposer}
-            messageMenu={menus.messageMenu}
-            toolMenu={menus.toolMenu}
-          />
-        {/if}
+        <TranscriptList
+          bind:controller={scroll.controller}
+          bind:atEnd={scroll.atEnd}
+          paddingEnd={18}
+          heightCacheKey={model.transcriptHeightCacheKey ??
+            model.conversationId}
+          transcriptLabel={model.transcriptLabel}
+          timeline={model.timeline}
+          streamingText={model.streamingText}
+          sending={model.sending}
+          hasLiveTimelineNodes={model.hasLiveTimelineNodes}
+          queuedPrompts={model.queuedPrompts}
+          followBottom={active ? scroll.followBottom : false}
+          activeProject={model.activeProject}
+          activeProjectLabel={model.activeProjectLabel}
+          approvals={model.approvals}
+          pendingUserQuestion={model.pendingUserQuestion}
+          pendingPlanReview={model.pendingPlanReview}
+          {active}
+          planReviewModels={model.planReviewModels}
+          planReviewModelKey={model.planReviewModelKey}
+          planReviewThinkingLevel={model.planReviewThinkingLevel}
+          {lastTimelineKey}
+          onOpenFile={actions.onOpenFile}
+          onAnswerUserQuestion={actions.onAnswerUserQuestion}
+          onDismissUserQuestion={actions.onDismissUserQuestion}
+          onGrantApproval={actions.onGrantApproval}
+          onDenyApproval={actions.onDenyApproval}
+          onAcceptPlanReview={actions.onAcceptPlanReview}
+          onAcceptPlanReviewInNewChat={actions.onAcceptPlanReviewInNewChat}
+          onRejectPlanReview={actions.onRejectPlanReview}
+          onContinueFromFailure={actions.onContinueFromFailure}
+          onDiscardQueuedPrompt={actions.onDiscardQueuedPrompt}
+          onMoveQueuedPromptToComposer={actions.onMoveQueuedPromptToComposer}
+          messageMenu={menus.messageMenu}
+          toolMenu={menus.toolMenu}
+        />
       </div>
     </div>
   {/snippet}

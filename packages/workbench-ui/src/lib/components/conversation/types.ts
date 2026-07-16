@@ -78,7 +78,6 @@ export type ConversationComposerModel = {
 export type ConversationPaneModel = {
   conversationId?: string;
   open: boolean;
-  hasContent?: boolean;
   active?: boolean;
   timeline: TimelineItem[];
   streamingText: string;

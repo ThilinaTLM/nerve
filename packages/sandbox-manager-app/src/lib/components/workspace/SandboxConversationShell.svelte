@@ -50,7 +50,7 @@ const booting = $derived(
     sandboxCanQueuePrompt(record, detail) &&
     progress.state !== "failed",
 );
-const hasContent = $derived(
+const hasSnapshotContent = $derived(
   render.timeline.length > 0 || Boolean(render.streamingText),
 );
 const transcriptHeightCacheKey = $derived(
@@ -75,7 +75,9 @@ const canCancel = $derived(
       activeRun?.status === "streaming"),
 );
 const readOnly = $derived(sandboxIsReadOnly(record, detail));
-const snapshotReadOnly = $derived(Boolean(richState?.readOnly) && hasContent);
+const snapshotReadOnly = $derived(
+  Boolean(richState?.readOnly) && hasSnapshotContent,
+);
 const lifecycleMessage = $derived(sandboxLifecycleMessage(record, detail));
 const snapshotMessage = $derived(
   richState?.fallbackReason ??
@@ -189,7 +191,6 @@ $effect(() => {
   model={{
     conversationId: scrollConversationId,
     open: true,
-    hasContent,
     active: true,
     timeline: render.timeline,
     streamingText: render.streamingText,

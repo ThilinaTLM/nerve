@@ -28,6 +28,7 @@ import {
 } from "./transcript-presentation";
 import { TranscriptEntryMotionLedger } from "./transcript-entry-motion";
 import { toolLifecycleSpec } from "../../tools/lifecycle/registry";
+import { hasTranscriptContent } from "./transcript-content";
 
 type TranscriptRowItem =
   | {
@@ -266,7 +267,12 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
 }
 
 const showEmptyRun = $derived(
-  timeline.length === 0 && !streamingText && !sending,
+  !hasTranscriptContent({
+    timelineLength: timeline.length,
+    streamingText,
+    sending,
+    queuedPromptCount: queuedPrompts.length,
+  }),
 );
 </script>
 

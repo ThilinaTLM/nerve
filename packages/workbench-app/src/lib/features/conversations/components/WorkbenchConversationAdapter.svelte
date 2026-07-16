@@ -192,7 +192,6 @@ function menuForTool(
   model={{
     conversationId: scrollConversationId,
     open: conversationOpen,
-    hasContent: timeline.length > 0 || Boolean(streamingText),
     active,
     timeline,
     streamingText,
