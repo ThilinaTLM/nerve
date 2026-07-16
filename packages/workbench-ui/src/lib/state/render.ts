@@ -6,13 +6,14 @@ import {
   selectVisibleCommitted,
   type TimelineItem,
 } from "./timeline.js";
+import { hasRunTimelineOutput } from "./timeline-output.js";
 import { entriesToTranscript } from "./transcript.js";
 import type { ConversationRenderState } from "./types.js";
 
 export type ConversationRenderProjection = {
   timeline: TimelineItem[];
   streamingText: string;
-  hasLiveTimelineNodes: boolean;
+  hasActiveRunOutput: boolean;
   queuedPrompts: QueuedPromptRecord[];
 };
 
@@ -28,7 +29,7 @@ export function buildConversationRenderProjection(
     return {
       timeline: [],
       streamingText: "",
-      hasLiveTimelineNodes: false,
+      hasActiveRunOutput: false,
       queuedPrompts: [],
     };
   }
@@ -56,9 +57,7 @@ export function buildConversationRenderProjection(
   return {
     timeline,
     streamingText: activeRunStreamingText(state.activeRun),
-    hasLiveTimelineNodes:
-      liveItems.length > 0 ||
-      toolCalls.some((toolCall) => toolCall.status === "running"),
+    hasActiveRunOutput: hasRunTimelineOutput(timeline, state.activeRun?.runId),
     queuedPrompts: state.queuedPrompts ?? state.activeRun?.queuedPrompts ?? [],
   };
 }

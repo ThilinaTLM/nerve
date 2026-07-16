@@ -195,7 +195,7 @@ $effect(() => {
     timeline: render.timeline,
     streamingText: render.streamingText,
     sending: richState?.sending ?? detail?.sending ?? false,
-    hasLiveTimelineNodes: render.hasLiveTimelineNodes,
+    hasActiveRunOutput: render.hasActiveRunOutput,
     queuedPrompts: render.queuedPrompts,
     approvals,
     pendingUserQuestion,

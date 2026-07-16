@@ -108,6 +108,7 @@ describe("conversation render projection", () => {
         "live:msg_sandbox:text:2",
       ],
     );
+    assert.equal(render.hasActiveRunOutput, true);
   });
 
   it("excludes active-run live messages once the durable entry exists", () => {
@@ -185,6 +186,43 @@ describe("conversation render projection", () => {
       ["entry_assistant"],
     );
     assert.equal(render.streamingText, "");
+    assert.equal(render.hasActiveRunOutput, true);
+  });
+
+  it("does not count the current run's user prompt as agent output", () => {
+    const state: ConversationRenderState = {
+      conversationId: "conv_sandbox",
+      entries: [
+        {
+          id: "entry_user",
+          conversationId: "conv_sandbox",
+          agentId: "agent_sandbox",
+          runId: "run_sandbox",
+          role: "user",
+          kind: "message",
+          text: "Answer this",
+          createdAt: ts,
+        },
+      ],
+      activeEntryIds: ["entry_user"],
+      toolCalls: [],
+      activeRun: {
+        runId: "run_sandbox",
+        agentId: "agent_sandbox",
+        projectId: "proj_sandbox",
+        conversationId: "conv_sandbox",
+        status: "running",
+        startedAt: ts,
+        turns: [],
+        toolOutputsByToolCallId: {},
+        queuedPrompts: [],
+      },
+      cursorSeq: 0,
+    };
+
+    const render = buildConversationRenderProjection(state);
+
+    assert.equal(render.hasActiveRunOutput, false);
   });
 
   it("keeps terminal recovered tool calls visible after activeRun clears", () => {

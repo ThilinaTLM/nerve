@@ -11,6 +11,7 @@ import {
   buildCommittedTimeline,
   currentTodosForAgent,
   entriesToTranscript,
+  hasRunTimelineOutput,
   selectVisibleCommitted,
 } from "@nervekit/workbench-ui/state";
 import { ConversationPane } from "@nervekit/workbench-ui/components/conversation";
@@ -132,10 +133,10 @@ const treeEntriesById = $derived(
 const parentEntryIdById = $derived(
   new Map(treeNodes.map((node) => [node.entry.id, node.entry.parentEntryId])),
 );
-// Cheap live-activity check (no whole-timeline scan): the live tail being
-// non-empty, or any running tool card, means something live is rendered.
-const hasLiveTimelineNodes = $derived(
-  liveItems.length > 0 || toolCalls.some((tool) => tool.status === "running"),
+// Run-scoped output remains true when a live row materializes into its durable
+// entry, so the pre-output indicator cannot reappear during that handoff.
+const hasActiveRunOutput = $derived(
+  hasRunTimelineOutput(timeline, activeRun?.runId),
 );
 const scrollConversationId = $derived(
   activeConversation?.id ??
@@ -196,7 +197,7 @@ function menuForTool(
     timeline,
     streamingText,
     sending,
-    hasLiveTimelineNodes,
+    hasActiveRunOutput,
     queuedPrompts,
     approvals,
     pendingUserQuestion,

@@ -4,6 +4,7 @@ export * from "./conversation-view.js";
 export * from "./render.js";
 export * from "./thinking-levels.js";
 export * from "./timeline.js";
+export * from "./timeline-output.js";
 export * from "./tool-types.js";
 export * from "./transcript.js";
 export * from "./transcript-types.js";

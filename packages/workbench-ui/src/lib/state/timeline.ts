@@ -44,6 +44,7 @@ export type TimelineItem =
   | {
       kind: "tool_result_error";
       key: string;
+      runId?: string;
       toolName: string;
       error: string;
     }
@@ -296,6 +297,7 @@ export function buildCommittedTimeline(
       items.push({
         kind: "tool_result_error",
         key: item.id ?? `tool-result-error-${index}`,
+        runId: item.runId,
         toolName: item.toolName,
         error: item.text,
       });
@@ -702,6 +704,7 @@ function emitMessageSlots(
             block.kind,
             block.contentIndex,
           ),
+          runId: activeRun.runId,
           role: "assistant",
           displayKind: block.kind === "thinking" ? "thinking" : "message",
           text: block.text,
