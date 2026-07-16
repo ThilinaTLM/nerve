@@ -418,7 +418,11 @@ setInterval(() => {}, 1000);
         { cwd: project.root, signal: controller.signal },
       ),
     );
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    for (;;) {
+      const started = await readFile(marker, "utf8").catch(() => undefined);
+      if (started === "started") break;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
     controller.abort();
     await assert.rejects(pending, /aborted/);
     assert.equal(await readFile(marker, "utf8"), "started\nstopped");

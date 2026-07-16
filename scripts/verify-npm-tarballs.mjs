@@ -213,12 +213,17 @@ function verifyDesktopBin(tarball, filename) {
   const source = capture("tar", ["-xOzf", tarball, "package/dist/bin.js"]);
   if (!source.startsWith("#!/usr/bin/env node"))
     throw new Error(`${filename}: desktop bin is missing its Node shebang.`);
-  const verbose = capture("tar", ["-tvzf", tarball]);
-  const line = verbose
-    .split(/\r?\n/)
-    .find((entry) => entry.trim().endsWith("package/dist/bin.js"));
-  if (!line || !/^-rwx/.test(line.trim()))
-    throw new Error(`${filename}: desktop bin is not executable.`);
+  // Windows filesystems do not expose Unix executable bits, so npm cannot
+  // preserve one in tarballs packed there. The published tarball is built on
+  // Linux, where this check still protects the installed CLI.
+  if (process.platform !== "win32") {
+    const verbose = capture("tar", ["-tvzf", tarball]);
+    const line = verbose
+      .split(/\r?\n/)
+      .find((entry) => entry.trim().endsWith("package/dist/bin.js"));
+    if (!line || !/^-rwx/.test(line.trim()))
+      throw new Error(`${filename}: desktop bin is not executable.`);
+  }
 }
 
 async function isolatedInstallSmoke(tarball, version) {
