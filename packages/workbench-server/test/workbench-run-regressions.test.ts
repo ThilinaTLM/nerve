@@ -163,6 +163,62 @@ describe("workbench coordinator behavior regressions", () => {
     });
   });
 
+  it("projects only checkpoint-backed interruptions as continuable", async () => {
+    const runtime = new RuntimeState();
+    let states = [
+      {
+        run: {
+          ...runRecord("interrupted", 4),
+          recoverability: "checkpoint" as const,
+          failure: {
+            code: "RUN_INTERRUPTED",
+            message: "Host restarted during active execution",
+            retryable: true,
+          },
+        },
+        transitions: [],
+        prompts: [],
+        interactions: [],
+        checkpoints: [],
+        deliveries: [],
+      },
+    ];
+    const query = new WorkbenchRunQuery(
+      {
+        list: async () => states,
+        listActive: async () => states,
+      } as never,
+      runtime,
+    );
+
+    const interrupted = await query.activeForConversation("conv_regression");
+    assert.equal(interrupted?.status, "interrupted");
+    assert.deepEqual(interrupted?.recovery, {
+      errorMessage: "Host restarted during active execution",
+      continuable: true,
+    });
+
+    states = [
+      {
+        ...states[0],
+        run: {
+          ...states[0]!.run,
+          status: "failed" as const,
+          recoverability: "none" as const,
+          failure: {
+            code: "INVALID_CHECKPOINT",
+            message: "No valid checkpoint",
+            retryable: true,
+          },
+        },
+      },
+    ];
+    assert.equal(
+      await query.activeForConversation("conv_regression"),
+      undefined,
+    );
+  });
+
   it("continues a valid pending plan interaction without starting a replacement run", async () => {
     const fixture = acceptanceFixture("pending");
 

@@ -75,7 +75,9 @@ export function fromConversationSnapshot(
     contextUsage: snapshot.contextUsage,
     cursorSeq: snapshot.cursorSeq,
     generatedAt: snapshot.generatedAt,
-    sending: Boolean(snapshot.activeRun),
+    sending: Boolean(
+      snapshot.activeRun && snapshot.activeRun.status !== "interrupted",
+    ),
   };
 }
 
@@ -284,6 +286,7 @@ function cloneActiveRun(
   return {
     ...run,
     retry: run.retry ? { ...run.retry } : undefined,
+    recovery: run.recovery ? { ...run.recovery } : undefined,
     queuedPrompts: [...run.queuedPrompts],
     turns: run.turns.map((turn) => ({
       ...turn,
@@ -466,6 +469,7 @@ function applyRunResumed(
   });
   activeRun.status = "running";
   activeRun.retry = undefined;
+  activeRun.recovery = undefined;
   state.sending = true;
   state.error = undefined;
 }
@@ -482,6 +486,7 @@ function applyRunRetrying(
     startedAt: data.retryAt,
   });
   activeRun.status = "retrying";
+  activeRun.recovery = undefined;
   activeRun.retry = {
     attempt: data.attempt,
     maxRetries: data.maxRetries,
@@ -529,15 +534,36 @@ function applyRunFailed(
   state: ConversationRenderState,
   data: ConversationRunFailedData,
 ): void {
-  if (runMatches(state.activeRun?.runId, data.runId))
+  const continuableInterruption =
+    data.interrupted === true && data.continuable === true;
+  if (continuableInterruption) {
+    const activeRun = ensureActiveRun(state, {
+      conversationId: data.conversationId,
+      agentId: data.agentId,
+      projectId: data.projectId,
+      runId: data.runId,
+      startedAt: data.failedAt,
+    });
+    activeRun.status = "interrupted";
+    activeRun.retry = undefined;
+    activeRun.recovery = {
+      errorMessage: data.message || undefined,
+      continuable: true,
+    };
+    activeRun.queuedPrompts = [];
+  } else if (runMatches(state.activeRun?.runId, data.runId)) {
     state.activeRun = undefined;
+  }
   // A failed compaction notice explains the failure; keep it visible.
   if (state.transient?.compaction?.state !== "failed") {
     clearTransientCompaction(state);
   }
   state.queuedPrompts = [];
   state.sending = false;
-  state.error = data.aborted ? undefined : data.message || "Agent error";
+  state.error =
+    data.aborted || continuableInterruption
+      ? undefined
+      : data.message || "Agent error";
 }
 
 function applyCompactionStarted(

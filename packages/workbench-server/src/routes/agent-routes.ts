@@ -107,10 +107,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
     "/agents/:agentId/continue-from-failure",
     routeHandler(async (c) => {
       const body = continueFromFailureRequestSchema.parse(await c.req.json());
-      await state.registry.continueFromFailedTurn(
-        routeParam(c, "agentId"),
-        body.statusEntryId,
-      );
+      await state.registry.continueRun(routeParam(c, "agentId"), body.runId);
       return c.json({ ok: true }, 202);
     }),
   );

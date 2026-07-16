@@ -56,6 +56,62 @@ describe("buildConversationTimeline split builders", () => {
     );
   });
 
+  it("appends one continuable status for an interrupted active run", () => {
+    const run = activeRun({
+      status: "interrupted",
+      recovery: {
+        errorMessage: "Host restarted during active execution",
+        continuable: true,
+      },
+    });
+    const committed = buildCommittedTimeline(
+      [{ id: "entry_user", role: "user", text: "Go" }],
+      [],
+    );
+    const timeline = buildConversationTimeline(
+      [{ id: "entry_user", role: "user", text: "Go" }],
+      [],
+      run,
+    );
+
+    assert.deepEqual(keys(timeline), ["entry_user", `run-status:${run.runId}`]);
+    const active = buildActiveRunTimeline(run, undefined, committed.context);
+    assert.deepEqual(active[0], {
+      kind: "run_status",
+      key: `run-status:${run.runId}`,
+      notice: {
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        runId: run.runId,
+        state: "interrupted",
+        errorMessage: "Host restarted during active execution",
+        retryable: true,
+      },
+    });
+
+    const persisted = buildCommittedTimeline(
+      [
+        {
+          id: "entry_status",
+          role: "system",
+          text: "Interrupted",
+          runId: run.runId,
+          runStatus: {
+            entryId: "entry_status",
+            runId: run.runId,
+            state: "interrupted",
+            retryable: true,
+          },
+        },
+      ],
+      [],
+    );
+    assert.deepEqual(
+      buildActiveRunTimeline(run, undefined, persisted.context),
+      [],
+    );
+  });
+
   it("keeps active-run reasoning immediately before each completed tool", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Inspect the project" },

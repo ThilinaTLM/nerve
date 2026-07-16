@@ -112,16 +112,13 @@ export class WorkbenchRunService {
     await this.coordinator.continue(state.run.runId);
   }
 
-  async continueFromFailedTurn(
-    agentId: string,
-    failedEntryId: string,
-  ): Promise<void> {
-    void failedEntryId;
-    await this.continueAgent(agentId);
-  }
-
-  async resumeRun(agentId: string): Promise<void> {
-    await this.continueAgent(agentId);
+  async continueRun(agentId: string, runId: string): Promise<void> {
+    const agent = this.requireAgent(agentId);
+    const state = await this.unitOfWork.load(runId);
+    if (!state || state.run.agentId !== agent.id) {
+      throw new HttpError(404, "RUN_NOT_FOUND", "Run not found.");
+    }
+    await this.coordinator.continue(runId);
   }
 
   async abortAgent(agentId: string): Promise<void> {

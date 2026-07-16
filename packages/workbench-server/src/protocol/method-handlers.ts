@@ -463,14 +463,15 @@ export async function handleProtocolMethod(
       );
     }
     case "run.continue": {
-      const request = params as { agentId?: string; statusEntryId?: string };
-      if (!request.agentId || !request.statusEntryId)
-        throw new Error("run.continue requires agentId and statusEntryId");
-      await state.registry.continueFromFailedTurn(
-        request.agentId,
-        request.statusEntryId,
-      );
-      return { accepted: true, agentId: request.agentId };
+      const request = params as { agentId?: string; runId?: string };
+      if (!request.agentId || !request.runId)
+        throw new Error("run.continue requires agentId and runId");
+      await state.registry.continueRun(request.agentId, request.runId);
+      return {
+        accepted: true,
+        agentId: request.agentId,
+        runId: request.runId,
+      };
     }
     case "run.cancel": {
       const request = params as { agentId?: string };

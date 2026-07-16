@@ -914,6 +914,14 @@ test("continues only from a checkpoint whose complete references match", async (
   const interrupted = await harness.coordinator.get(run.runId);
   assert.equal(interrupted?.run.lastCheckpointId, checkpoint.checkpointId);
   assert.equal(interrupted?.run.status, "interrupted");
+  assert.equal(
+    (
+      interrupted?.transitions.at(-1)?.events[0]?.data as
+        | { continuable?: boolean }
+        | undefined
+    )?.continuable,
+    true,
+  );
   const continued = await harness.coordinator.continue(run.runId);
   assert.equal(continued.status, "running");
   const continuedState = await harness.coordinator.get(run.runId);
@@ -1062,6 +1070,15 @@ test("recovery fails an interrupted run without a valid checkpoint", async () =>
   const state = recovered.find((item) => item.runId === run.runId);
   assert.equal(state?.status, "failed");
   assert.equal(state?.failure?.code, "INVALID_CHECKPOINT");
+  const recoveredState = await harness.coordinator.get(run.runId);
+  assert.equal(
+    (
+      recoveredState?.transitions.at(-1)?.events[0]?.data as
+        | { continuable?: boolean }
+        | undefined
+    )?.continuable,
+    undefined,
+  );
 });
 
 async function waitUntil(

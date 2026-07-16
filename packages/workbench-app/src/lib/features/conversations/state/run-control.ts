@@ -61,7 +61,7 @@ export async function compactActiveConversation() {
   }
 }
 
-export async function continueFromFailure(statusEntryId: string) {
+export async function continueFromFailure(runId: string) {
   if (!selection.agentId || !selection.conversationId) return;
   const view = ensureConversationView(selection.conversationId);
   view.sending = true;
@@ -70,7 +70,12 @@ export async function continueFromFailure(statusEntryId: string) {
   try {
     await protocolRequest(
       "run.continue",
-      { agentId: selection.agentId, statusEntryId },
+      {
+        agentId: selection.agentId,
+        conversationId: selection.conversationId,
+        runId,
+        reason: "manual",
+      },
       { idempotencyKey: crypto.randomUUID() },
     );
   } catch (caught) {

@@ -55,9 +55,10 @@ function lastLines(
   count = PREVIEW_COUNT,
 ): Preview<string | undefined> {
   if (text === undefined) return emptyTextPreview(undefined);
-  const lineStart = startBeforeLastLines(text, count);
-  const charStart = Math.max(lineStart, text.length - MAX_PREVIEW_CHARS);
-  const value = text.slice(charStart);
+  const logicalEnd = text.endsWith("\n") ? text.length - 1 : text.length;
+  const lineStart = startBeforeLastLines(text, logicalEnd, count);
+  const charStart = Math.max(lineStart, logicalEnd - MAX_PREVIEW_CHARS);
+  const value = text.slice(charStart, logicalEnd);
   const hiddenLines = countLinesUntil(text, lineStart);
   const hiddenChars = Math.max(0, charStart);
   return {
@@ -98,13 +99,17 @@ function endAfterFirstLines(text: string, count: number): number {
   return text.length;
 }
 
-function startBeforeLastLines(text: string, count: number): number {
-  if (count <= 0) return text.length;
-  let lines = 1;
-  for (let index = text.length - 1; index >= 0; index -= 1) {
+function startBeforeLastLines(
+  text: string,
+  logicalEnd: number,
+  count: number,
+): number {
+  if (count <= 0) return logicalEnd;
+  let remaining = count;
+  for (let index = logicalEnd - 1; index >= 0; index -= 1) {
     if (text[index] !== "\n") continue;
-    lines += 1;
-    if (lines > count) return index + 1;
+    remaining -= 1;
+    if (remaining === 0) return index + 1;
   }
   return 0;
 }

@@ -145,6 +145,30 @@ describe("toToolCallTranscriptRecord", () => {
     assert.equal(preview.previewOverflow?.hidden, 5);
   });
 
+  it("sends the last ten logical bash lines when output ends with a newline", () => {
+    const output = `${lines("out", 25)}\n`;
+    const expected = Array.from(
+      { length: 10 },
+      (_, index) => `out${index + 16}`,
+    ).join("\n");
+    const preview = toToolCallTranscriptRecord(
+      toolCall({
+        toolName: "bash",
+        args: { command: "pnpm check" },
+        result: { content: output, exitCode: 0 },
+      }),
+    );
+
+    const content = (preview.resultPreview as { content: string }).content;
+    assert.equal(content, expected);
+    assert.equal(content.split("\n").length, 10);
+    assert.deepEqual(preview.previewOverflow, {
+      hidden: 15,
+      noun: "lines",
+      direction: "tail",
+    });
+  });
+
   it("previews write content from the tail", () => {
     const preview = toToolCallTranscriptRecord(
       toolCall({

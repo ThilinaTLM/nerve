@@ -97,7 +97,7 @@ export type WorkbenchConversationAdapterProps = {
   onMoveQueuedPromptToComposer?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;
-  onContinueFromFailure?: (statusEntryId: string) => void;
+  onContinueFromFailure?: (runId: string) => void;
   onNavigateToEntry?: (
     entryId: string | undefined,
     summarize?: boolean,

@@ -311,6 +311,20 @@ describe("Protocol v1 shared schemas", () => {
     );
     assert.throws(() => parseOperationParams("project.get", {}));
     assert.deepEqual(
+      parseOperationParams("run.continue", {
+        agentId: "agent_1",
+        runId: "run_1",
+        reason: "manual",
+      }),
+      { agentId: "agent_1", runId: "run_1", reason: "manual" },
+    );
+    assert.throws(() =>
+      parseOperationParams("run.continue", {
+        agentId: "agent_1",
+        statusEntryId: "entry_1",
+      }),
+    );
+    assert.deepEqual(
       parseProtocolRequestData({
         method: "project.get",
         params: { projectId: "proj_1" },

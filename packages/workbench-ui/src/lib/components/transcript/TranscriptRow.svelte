@@ -52,7 +52,7 @@ type Props = {
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
-  onContinueFromFailure?: (statusEntryId: string) => void;
+  onContinueFromFailure?: (runId: string) => void;
   messageMenu: (item: TranscriptItem) => ContextMenuItem[];
   toolMenu: (
     anchorEntryId: string | undefined,

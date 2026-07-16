@@ -138,6 +138,110 @@ describe("shared conversation adapters", () => {
     assert.equal(state.cursorSeq, 2);
   });
 
+  it("retains continuable interruptions and resumes the same run", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(state, {
+      id: "evt_start",
+      seq: 1,
+      ts: "2026-01-01T00:00:00.000Z",
+      type: "run.started",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        runId: "run_test",
+        projectId: "proj_test",
+        startedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    state = applyConversationEvent(state, {
+      id: "evt_interrupted",
+      seq: 2,
+      ts: "2026-01-01T00:00:01.000Z",
+      type: "run.failed",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        message: "Host restarted during active execution",
+        aborted: false,
+        interrupted: true,
+        continuable: true,
+        failedAt: "2026-01-01T00:00:01.000Z",
+      },
+    });
+
+    assert.equal(state.activeRun?.status, "interrupted");
+    assert.deepEqual(state.activeRun?.recovery, {
+      errorMessage: "Host restarted during active execution",
+      continuable: true,
+    });
+    assert.equal(state.sending, false);
+    assert.equal(state.error, undefined);
+
+    state = applyConversationEvent(state, {
+      id: "evt_resumed",
+      seq: 3,
+      ts: "2026-01-01T00:00:02.000Z",
+      type: "run.resumed",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        attempt: 2,
+        resumeKind: "manual",
+        resumedAt: "2026-01-01T00:00:02.000Z",
+      },
+    });
+
+    assert.equal(state.activeRun?.status, "running");
+    assert.equal(state.activeRun?.recovery, undefined);
+    assert.equal(state.sending, true);
+  });
+
+  it("clears noncontinuable interrupted failures", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(state, {
+      id: "evt_start",
+      seq: 1,
+      ts: "2026-01-01T00:00:00.000Z",
+      type: "run.started",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        runId: "run_test",
+        projectId: "proj_test",
+        startedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    state = applyConversationEvent(state, {
+      id: "evt_interrupted",
+      seq: 2,
+      ts: "2026-01-01T00:00:01.000Z",
+      type: "run.failed",
+      durability: "durable",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        message: "No valid checkpoint",
+        aborted: false,
+        interrupted: true,
+        failedAt: "2026-01-01T00:00:01.000Z",
+      },
+    });
+
+    assert.equal(state.activeRun, undefined);
+    assert.equal(state.sending, false);
+    assert.equal(state.error, "No valid checkpoint");
+  });
+
   it("applies live text and durable entry events", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, {

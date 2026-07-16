@@ -25,7 +25,7 @@ export const liveMessageIdSchema = z.string().startsWith("msg_");
 export const contentBlockIdSchema = z.string().startsWith("block_");
 
 export type AgentMessageContentKind = "text" | "thinking";
-export type RunStatus = "running" | "retrying" | "aborting";
+export type RunStatus = "running" | "retrying" | "aborting" | "interrupted";
 
 export interface ConversationRunStartedData {
   conversationId: string;
@@ -73,6 +73,7 @@ export interface ConversationRunFailedData {
   message: string;
   aborted: boolean;
   interrupted?: boolean;
+  continuable?: boolean;
   failedAt: string;
   retryExhausted?: ConversationRunRetryExhaustedData;
 }
@@ -451,6 +452,11 @@ export interface ConversationRunRetrySnapshot {
   failedEntryId?: string;
 }
 
+export interface ConversationRunRecoverySnapshot {
+  errorMessage?: string;
+  continuable: boolean;
+}
+
 export interface ConversationActiveRunSnapshot {
   runId: string;
   agentId: string;
@@ -462,6 +468,7 @@ export interface ConversationActiveRunSnapshot {
   toolOutputsByToolCallId: Record<string, ConversationLiveToolOutputSnapshot>;
   queuedPrompts: QueuedPromptRecord[];
   retry?: ConversationRunRetrySnapshot;
+  recovery?: ConversationRunRecoverySnapshot;
 }
 
 export interface ConversationSnapshot {
@@ -566,12 +573,17 @@ export const conversationRunRetrySnapshotSchema = z.object({
   failedEntryId: z.string().startsWith("entry_").optional(),
 });
 
+export const conversationRunRecoverySnapshotSchema = z.object({
+  errorMessage: z.string().optional(),
+  continuable: z.boolean(),
+});
+
 export const conversationActiveRunSnapshotSchema = z.object({
   runId: runIdSchema,
   agentId: z.string().startsWith("agent_"),
   projectId: z.string().startsWith("proj_"),
   conversationId: z.string().startsWith("conv_"),
-  status: z.enum(["running", "retrying", "aborting"]),
+  status: z.enum(["running", "retrying", "aborting", "interrupted"]),
   startedAt: z.string().datetime(),
   turns: z.array(conversationLiveTurnSnapshotSchema),
   toolOutputsByToolCallId: z.record(
@@ -580,6 +592,7 @@ export const conversationActiveRunSnapshotSchema = z.object({
   ),
   queuedPrompts: z.array(queuedPromptRecordSchema),
   retry: conversationRunRetrySnapshotSchema.optional(),
+  recovery: conversationRunRecoverySnapshotSchema.optional(),
 });
 
 export const conversationSnapshotSchema = z.object({
@@ -638,6 +651,7 @@ const conversationRunFailedDataSchema = z.object({
   message: z.string(),
   aborted: z.boolean(),
   interrupted: z.boolean().optional(),
+  continuable: z.boolean().optional(),
   failedAt: z.string().datetime(),
   retryExhausted: conversationRunRetryExhaustedDataSchema.optional(),
 });

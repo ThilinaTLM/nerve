@@ -116,7 +116,7 @@ export const promptRequestSchema = z.object({
 export type PromptRequest = z.infer<typeof promptRequestSchema>;
 
 export const continueFromFailureRequestSchema = z.object({
-  statusEntryId: z.string().startsWith("entry_"),
+  runId: z.string().startsWith("run_"),
 });
 export type ContinueFromFailureRequest = z.infer<
   typeof continueFromFailureRequestSchema

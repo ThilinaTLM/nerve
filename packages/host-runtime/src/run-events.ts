@@ -90,6 +90,10 @@ export class RunEventFactory {
       message: run.failure?.message ?? "run failed",
       aborted: false,
       interrupted: interrupted || undefined,
+      continuable:
+        run.status === "interrupted" && run.recoverability === "checkpoint"
+          ? true
+          : undefined,
       failedAt: now,
     });
   }

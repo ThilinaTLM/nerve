@@ -155,12 +155,9 @@ class WorkbenchParityAdapter implements RealHostRunMatrixFixture {
         });
         return this.latestPromptId(runId, text);
       },
-      continue: async () => {
+      continue: async (runId) => {
         await normalizeCheckpointError(() =>
-          this.orchestrator.registry.continueFromFailedTurn(
-            agentId,
-            "entry_parity",
-          ),
+          this.orchestrator.registry.continueRun(agentId, runId),
         );
       },
       cancel: async () => {

@@ -7,7 +7,7 @@ type Props = {
   notice: RunStatusNotice;
   isLast: boolean;
   sending: boolean;
-  onContinueFromFailure?: (statusEntryId: string) => void;
+  onContinueFromFailure?: (runId: string) => void;
 };
 
 let { notice, isLast, sending, onContinueFromFailure }: Props = $props();
@@ -28,7 +28,7 @@ const canContinue = $derived(
     isLast &&
     !sending &&
     notice.retryable === true &&
-    Boolean(notice.entryId) &&
+    Boolean(notice.runId) &&
     Boolean(onContinueFromFailure),
 );
 
@@ -93,8 +93,8 @@ const bodyText = $derived.by(() => {
 });
 
 function continueFromFailure() {
-  if (!notice.entryId || !canContinue) return;
-  onContinueFromFailure?.(notice.entryId);
+  if (!notice.runId || !canContinue) return;
+  onContinueFromFailure?.(notice.runId);
 }
 </script>
 

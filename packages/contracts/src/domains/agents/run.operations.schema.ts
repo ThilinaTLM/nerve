@@ -5,8 +5,6 @@ import { promptImageSchema } from "./agent.schema.js";
 const agentIdSchema = z.string().startsWith("agent_");
 const conversationIdSchema = z.string().startsWith("conv_");
 const runIdSchema = z.string().startsWith("run_");
-const statusEntryIdSchema = z.string().startsWith("entry_");
-
 const runScopeSchema = z.object({
   agentId: agentIdSchema.optional(),
   conversationId: conversationIdSchema.optional(),
@@ -28,18 +26,11 @@ export const runFollowUpParamsSchema = runScopeSchema
   .required({ agentId: true })
   .merge(promptContentSchema);
 export const runContinueParamsSchema = runScopeSchema
+  .required({ runId: true })
   .extend({
-    statusEntryId: statusEntryIdSchema.optional(),
     reason: z
       .enum(["after_input", "after_approval", "retry_error", "manual"])
       .optional(),
-  })
-  .superRefine((value, context) => {
-    if (value.runId || value.statusEntryId) return;
-    context.addIssue({
-      code: "custom",
-      message: "run.continue requires runId or statusEntryId",
-    });
   });
 export const runCancelParamsSchema = runScopeSchema
   .extend({ reason: z.string().min(1).max(1_024).optional() })

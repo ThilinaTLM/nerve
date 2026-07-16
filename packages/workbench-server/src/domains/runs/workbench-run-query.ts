@@ -39,12 +39,13 @@ export class WorkbenchRunQuery {
       conversationId: canonical.run.conversationId,
       status: retry
         ? "retrying"
-        : canonical.run.status === "interrupted" ||
-            canonical.run.status === "cancellation_failed"
-          ? "retrying"
-          : canonical.run.status === "cancellation_requested"
-            ? "aborting"
-            : "running",
+        : canonical.run.status === "interrupted"
+          ? "interrupted"
+          : canonical.run.status === "cancellation_failed"
+            ? "retrying"
+            : canonical.run.status === "cancellation_requested"
+              ? "aborting"
+              : "running",
       startedAt: canonical.run.startedAt ?? canonical.run.createdAt,
       turns: transient?.turns ?? [],
       toolOutputsByToolCallId: transient?.toolOutputsByToolCallId ?? {},
@@ -52,6 +53,13 @@ export class WorkbenchRunQuery {
         (prompt) => prompt.status === "queued" || prompt.status === "accepted",
       ),
       retry,
+      recovery:
+        canonical.run.status === "interrupted"
+          ? {
+              errorMessage: canonical.run.failure?.message,
+              continuable: canonical.run.recoverability === "checkpoint",
+            }
+          : undefined,
     };
   }
 }

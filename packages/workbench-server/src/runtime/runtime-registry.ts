@@ -552,11 +552,8 @@ export class RuntimeRegistry {
     return this.workbenchRun.abortAgent(agentId);
   }
 
-  async continueFromFailedTurn(
-    agentId: string,
-    statusEntryId: string,
-  ): Promise<void> {
-    await this.workbenchRun.continueFromFailedTurn(agentId, statusEntryId);
+  async continueRun(agentId: string, runId: string): Promise<void> {
+    await this.workbenchRun.continueRun(agentId, runId);
   }
 
   private async setAgentStatus(
