@@ -79,7 +79,11 @@ describe("desktop data-directory preparation", () => {
     assert.equal(recorded.dialogs[0]?.cancelId, 1);
     assert.match(
       recorded.dialogs[0]?.detail ?? "",
-      /settings.*not be imported/i,
+      /settings, custom providers and models/i,
+    );
+    assert.match(
+      recorded.dialogs[0]?.detail ?? "",
+      /Conversations, agents, projects, logs, and history will not be imported/,
     );
   });
 
@@ -96,6 +100,10 @@ describe("desktop data-directory preparation", () => {
           migrations += 1;
           return {
             backupPath: "/home/test/.nerve-bk-20260716-013229",
+            settingsStatus: "imported",
+            providerCatalogStatus: "imported",
+            importedCustomProviderCount: 2,
+            importedCustomModelCount: 3,
             credentialStatus: "imported",
             importedCredentialCount: 4,
           };
@@ -109,11 +117,19 @@ describe("desktop data-directory preparation", () => {
     const completion = recorded.dialogs[1];
     assert.equal(completion?.type, "info");
     assert.match(completion?.detail ?? "", /\.nerve-bk-20260716-013229/);
+    assert.match(completion?.detail ?? "", /Your settings were restored/);
+    assert.match(
+      completion?.detail ?? "",
+      /Restored 2 custom providers and 3 custom models/,
+    );
     assert.match(
       completion?.detail ?? "",
       /Restored 4 provider\/tool credentials/,
     );
-    assert.match(completion?.detail ?? "", /Review your settings/);
+    assert.match(
+      completion?.detail ?? "",
+      /Conversations, agents, projects, logs, and history were not imported/,
+    );
     assert.match(completion?.detail ?? "", /never delete this backup/i);
   });
 
@@ -127,6 +143,10 @@ describe("desktop data-directory preparation", () => {
         inspect: async () => ({ kind: "legacy", reason: "legacy state" }),
         migrate: async () => ({
           backupPath: "/home/test/.nerve-bk-20260716-013229",
+          settingsStatus: "imported",
+          providerCatalogStatus: "none",
+          importedCustomProviderCount: 0,
+          importedCustomModelCount: 0,
           credentialStatus: "failed",
           importedCredentialCount: 0,
         }),
@@ -136,6 +156,10 @@ describe("desktop data-directory preparation", () => {
     assert.equal(result.status, "ready");
     assert.equal(recorded.dialogs[1]?.type, "warning");
     assert.match(recorded.dialogs[1]?.detail ?? "", /Sign in.*again/i);
+    assert.match(
+      recorded.dialogs[1]?.detail ?? "",
+      /Your settings were restored/,
+    );
   });
 
   it("stops with a no-changes message for unsupported versioned state", async () => {

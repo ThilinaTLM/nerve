@@ -117,6 +117,7 @@ async function withAgentSession(
     send: (message: unknown) => void;
     nextMessage: () => Promise<{ kind: string; data: Record<string, unknown> }>;
     messages: ReturnType<typeof createMessageFactory>;
+    closed: Promise<{ code: number; reason: string }>;
   }) => Promise<void>,
 ): Promise<void> {
   const controller = new SandboxWsServer(test.state);
@@ -146,6 +147,11 @@ async function withAgentSession(
     socket.once("open", resolve);
     socket.once("error", reject);
   });
+  const closed = new Promise<{ code: number; reason: string }>((resolve) => {
+    socket.once("close", (code, reason) =>
+      resolve({ code, reason: reason.toString() }),
+    );
+  });
   const messages = createMessageFactory({
     source: {
       role: "sandbox_agent",
@@ -164,6 +170,7 @@ async function withAgentSession(
             )
           : new Promise((resolve) => waiters.push(resolve)),
       messages,
+      closed,
     });
   } finally {
     socket.close();
@@ -343,26 +350,30 @@ test("a failed startup stage records the stage error on the sandbox record", asy
   });
 });
 
-test("a ready frame without status keeps the legacy immediate-ready behavior", async () => {
+test("a ready frame without status is a protocol error that rejects the session", async () => {
   const context = createTestState(baseRecord());
-  await withAgentSession(context, async ({ send, nextMessage, messages }) => {
-    send(
-      messages("hello", {
-        requestedVersion: 1,
-        capabilities: agentCapabilities,
-        requiredCapabilities: agentCapabilities,
-        encodings: ["json"],
-        resume: { streams: [{ stream: "sandbox:sbx_test", processedSeq: 0 }] },
-      }),
-    );
-    const welcome = await nextMessage();
-    send(messages("ready", { sessionId: welcome.data.sessionId as string }));
-    await waitFor(
-      () => context.records.get("sbx_test")?.lifecycleState === "ready",
-      "ready",
-    );
-    assert.equal(context.sessions.get("sbx_test")?.agentStatus, "ready");
-  });
+  await withAgentSession(
+    context,
+    async ({ send, nextMessage, messages, closed }) => {
+      send(
+        messages("hello", {
+          requestedVersion: 1,
+          capabilities: agentCapabilities,
+          requiredCapabilities: agentCapabilities,
+          encodings: ["json"],
+          resume: {
+            streams: [{ stream: "sandbox:sbx_test", processedSeq: 0 }],
+          },
+        }),
+      );
+      const welcome = await nextMessage();
+      send(messages("ready", { sessionId: welcome.data.sessionId as string }));
+      const closure = await closed;
+      assert.equal(closure.code, 1008);
+    },
+  );
+  assert.equal(context.sessions.get("sbx_test"), undefined);
+  assert.notEqual(context.records.get("sbx_test")?.lifecycleState, "ready");
 });
 
 test("illegal lifecycle transitions are ignored without force", async () => {

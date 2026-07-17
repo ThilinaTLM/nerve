@@ -72,8 +72,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build release artifacts
-        run: pnpm release:build
+      - name: Build all packages
+        run: pnpm build
 
       - name: Package unpacked desktop bundle
         run: pnpm --filter @nervekit/desktop-shell package:dir
@@ -110,8 +110,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build release artifacts
-        run: pnpm release:build
+      - name: Build all packages
+        run: pnpm build
 
       - name: Smoke built workbench HTTP and WebSocket parity
         run: pnpm release:smoke:workbench
@@ -208,8 +208,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build release artifacts
-        run: pnpm release:build
+      - name: Build all packages
+        run: pnpm build
 
       - name: Pack npm tarballs
         run: node scripts/pack-npm.mjs

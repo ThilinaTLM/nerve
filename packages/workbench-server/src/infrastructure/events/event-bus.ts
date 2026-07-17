@@ -161,6 +161,14 @@ export class EventBus {
     index.checkpoint();
   }
 
+  /**
+   * Waits for every queued publication to settle without publishing anything.
+   * Used by shutdown to reach journal write quiescence deterministically.
+   */
+  async settled(): Promise<void> {
+    await this.#publishTail.catch(() => undefined);
+  }
+
   publish<T>(
     type: string,
     data: T,

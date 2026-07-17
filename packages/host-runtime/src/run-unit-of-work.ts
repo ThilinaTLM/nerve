@@ -104,6 +104,14 @@ export class RunEventDeliveryService {
     private readonly now: () => string,
   ) {}
 
+  /**
+   * Waits for every queued delivery to settle without initiating new work.
+   * Used by host shutdown to reach write quiescence deterministically.
+   */
+  settled(): Promise<void> {
+    return this.tail;
+  }
+
   /** Performs the all-run recovery sweep. */
   flush(): Promise<void> {
     return this.serialized(async () => {

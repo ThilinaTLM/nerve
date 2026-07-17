@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  createRunRuntime,
   type DiagnosticPort,
-  RunCoordinator,
-  RunEventDeliveryService,
+  type RunCoordinator,
+  type RunEventDeliveryService,
 } from "@nervekit/host-runtime";
 import type { AgentRecord } from "@nervekit/contracts";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
@@ -60,9 +61,6 @@ export function createWorkbenchRunRuntime(input: {
   const integrity = new WorkbenchRunIntegrity();
   const publisher = new WorkbenchRunEventPublisher(input.events);
   const transient = new WorkbenchRunTransientPublisher(input.events);
-  const delivery = new RunEventDeliveryService(unitOfWork, publisher, () =>
-    new Date().toISOString(),
-  );
   const references = new WorkbenchRunReferences(
     unitOfWork,
     input.harnessStorage,
@@ -85,7 +83,7 @@ export function createWorkbenchRunRuntime(input: {
     input.state,
     input.setAgentStatus,
   );
-  const coordinator = new RunCoordinator({
+  const { coordinator, delivery } = createRunRuntime({
     sourceRole: "workbench_server",
     unitOfWork,
     execution,
@@ -94,13 +92,10 @@ export function createWorkbenchRunRuntime(input: {
     clock: { now: () => new Date() },
     ids: { next: () => randomUUID() },
     integrity,
+    publisher,
     transient,
     retryPolicy: input.retryPolicy,
     transitionObserver: statusProjector,
-    flushEvents: async (transition) => {
-      await delivery.flushTransition(transition);
-      await transient.flush();
-    },
     diagnostics: diagnostics(input.logger),
   });
   cancellation.bindCancelRun((runId, reason) =>

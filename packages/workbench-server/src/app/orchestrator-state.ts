@@ -122,6 +122,26 @@ export function createOrchestratorState(
   };
 }
 
+const shutdownStates = new WeakSet<OrchestratorState>();
+
+/**
+ * Idempotent owner of orchestrator-state teardown: registry timers,
+ * subscription-usage polling, storage-cleanup scheduling, logger flush, and
+ * index close. HTTP/WebSocket session shutdown stays with the server entry;
+ * call this afterwards, once state-owned logging has finished.
+ */
+export async function shutdownOrchestratorState(
+  state: OrchestratorState,
+): Promise<void> {
+  if (shutdownStates.has(state)) return;
+  shutdownStates.add(state);
+  await state.registry.shutdown();
+  state.subscriptionUsage.stop();
+  await state.storageCleanup.shutdown().catch(() => undefined);
+  await state.logger.flush();
+  state.index.close();
+}
+
 export function toDaemonFile(state: OrchestratorState): DaemonFile {
   return {
     daemonId: state.daemonId,

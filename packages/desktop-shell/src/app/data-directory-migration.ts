@@ -57,9 +57,8 @@ export async function prepareDesktopDataDirectory(
     message: "This Nerve upgrade needs to start with fresh local data.",
     detail: [
       `The complete existing data directory at ${input.home} will be moved to a retained timestamped backup.`,
-      "Nerve will try to restore only provider and tool authentication.",
-      "Conversations, projects, history, settings, custom provider definitions, and all other data will not be imported.",
-      "You may need to configure your settings again.",
+      "Nerve will restore your settings, custom providers and models, and recoverable provider/tool authentication.",
+      "Conversations, agents, projects, logs, and history will not be imported; they remain only in the backup.",
     ].join("\n\n"),
     buttons: ["Back up and continue", "Quit"],
     defaultId: 1,
@@ -95,15 +94,35 @@ function completionDialog(
     message: "Your legacy data is safely backed up.",
     detail: [
       `Complete backup: ${migration.backupPath}`,
+      portableStateSummary(migration),
       credentialSummary(migration),
-      "Conversations, projects, history, settings, custom provider definitions, and other legacy data were not imported.",
-      "Review your settings before starting new work. Nerve will never delete this backup automatically.",
+      "Conversations, agents, projects, logs, and history were not imported; they remain only in the backup.",
+      "Nerve will never delete this backup automatically.",
     ].join("\n\n"),
     buttons: ["Continue to Nerve"],
     defaultId: 0,
     cancelId: 0,
     noLink: true,
   };
+}
+
+function portableStateSummary(migration: LegacyHomeMigrationResult): string {
+  const parts: string[] = [];
+  parts.push(
+    migration.settingsStatus === "imported"
+      ? "Your settings were restored."
+      : "No legacy settings were found to restore.",
+  );
+  if (migration.providerCatalogStatus === "imported") {
+    const providers = migration.importedCustomProviderCount;
+    const models = migration.importedCustomModelCount;
+    parts.push(
+      `Restored ${providers} custom ${providers === 1 ? "provider" : "providers"} and ${models} custom ${models === 1 ? "model" : "models"}.`,
+    );
+  } else {
+    parts.push("No custom provider or model definitions were found.");
+  }
+  return parts.join(" ");
 }
 
 function credentialSummary(migration: LegacyHomeMigrationResult): string {

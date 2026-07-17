@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
-import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import {
+  createOrchestratorState,
+  shutdownOrchestratorState,
+} from "../src/app/orchestrator-state.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
@@ -65,8 +68,7 @@ describe("workbench coordinator-owned provider retry", () => {
       assert.equal(orchestrator.registry.agents.get(agent.id)?.status, "idle");
     } finally {
       registration.unregister();
-      orchestrator.registry.shutdown();
-      orchestrator.index.close();
+      await shutdownOrchestratorState(orchestrator);
       await rm(root, { recursive: true, force: true });
     }
   });

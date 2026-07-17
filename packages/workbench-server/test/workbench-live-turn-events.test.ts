@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { EventEnvelope } from "@nervekit/contracts";
 import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
-import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import {
+  createOrchestratorState,
+  shutdownOrchestratorState,
+} from "../src/app/orchestrator-state.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
 describe("workbench live turn events", () => {
@@ -87,8 +90,7 @@ describe("workbench live turn events", () => {
     } finally {
       unsubscribe();
       registration.unregister();
-      orchestrator.registry.shutdown();
-      orchestrator.index.close();
+      await shutdownOrchestratorState(orchestrator);
       await rm(root, { recursive: true, force: true });
     }
   });

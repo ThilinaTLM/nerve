@@ -5,8 +5,8 @@ import {
 
 /**
  * Manager create-request schema. Accepts UI-friendly create input where
- * `config.controller` may be omitted (the manager injects controller wiring),
- * and remains backward-compatible with full `SandboxConfigV1` bodies.
+ * `config.controller` may be omitted (the manager injects controller wiring)
+ * or supplied in full as its documented optional field.
  */
 export const createSandboxRequestSchema = sandboxCreateRequestSchema;
 export const credentialProfileWriteSchema =

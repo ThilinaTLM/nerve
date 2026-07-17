@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
-import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import {
+  createOrchestratorState,
+  shutdownOrchestratorState,
+} from "../src/app/orchestrator-state.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 
 describe("explore subagent transcript isolation", () => {
@@ -122,8 +125,7 @@ describe("explore subagent transcript isolation", () => {
       );
     } finally {
       registration.unregister();
-      orchestrator.registry.shutdown();
-      orchestrator.index.close();
+      await shutdownOrchestratorState(orchestrator);
       await rm(root, { recursive: true, force: true });
     }
   });

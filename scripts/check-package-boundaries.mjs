@@ -301,6 +301,19 @@ function checkRemovedPaths() {
     "packages/workbench-app/src/lib/features/git/components/git-remote-actions.ts",
     "packages/workbench-app/src/lib/features/git/components/pr-pane-helpers.ts",
     "packages/sandbox-manager-app/src/lib/components/composer/SandboxPromptComposer.svelte",
+    "packages/workbench-app/components.json",
+    "packages/sandbox-manager-app/components.json",
+    "packages/workbench-app/src/lib/core/highlight/highlight.ts",
+    "packages/workbench-app/src/lib/core/highlight/highlight.test.ts",
+    "packages/workbench-app/src/lib/core/utils/lru-cache.ts",
+    "packages/workbench-app/src/lib/core/utils/lru-cache.test.ts",
+    "packages/workbench-app/src/lib/core/utils/path-links.ts",
+    "packages/workbench-app/src/lib/core/utils/path-links.test.ts",
+    "packages/workbench-app/src/lib/core/utils/text-preview.ts",
+    "packages/workbench-app/src/lib/core/utils/text-preview.test.ts",
+    "packages/harness/src/harness/utils/shell-output.ts",
+    "packages/harness/src/harness/utils/truncate.ts",
+    "packages/desktop-shell/src/daemon-helpers.ts",
   ];
   for (const file of removed) {
     if (trackedFiles.includes(file))

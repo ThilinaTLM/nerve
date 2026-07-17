@@ -14,7 +14,7 @@ import {
 } from "../src/lifecycle/orphan-reconciler.js";
 import { SandboxReconciler } from "../src/lifecycle/reconciler.js";
 import { readAgentStateSummary } from "../src/state/agent-state-summary.js";
-import { FileManagerStore } from "../src/state/manager-store.js";
+import { MemoryManagerStore } from "./support/memory-manager-store.js";
 
 function record(sandboxId = "sbx_1") {
   return {
@@ -36,32 +36,22 @@ function record(sandboxId = "sbx_1") {
 
 describe("sandbox manager reconciliation gc and orphan handling", () => {
   it("updates observed state from driver inspections and self-exit 22", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-reconcile-"));
-    try {
-      const store = new FileManagerStore(dir);
-      await store.put(record());
-      const driver = fakeDriver({ state: "exited", exitCode: 22 });
-      await new SandboxReconciler(store, driver).reconcile();
-      assert.equal((await store.get("sbx_1"))?.observedState, "reconnecting");
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const store = new MemoryManagerStore();
+    await store.put(record());
+    const driver = fakeDriver({ state: "exited", exitCode: 22 });
+    await new SandboxReconciler(store, driver).reconcile();
+    assert.equal((await store.get("sbx_1"))?.observedState, "reconnecting");
   });
 
   it("marks nonzero container exits as failed during reconciliation", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-reconcile-fail-"));
-    try {
-      const store = new FileManagerStore(dir);
-      await store.put(record());
-      const driver = fakeDriver({ state: "exited", exitCode: 13 });
-      await new SandboxReconciler(store, driver).reconcile();
-      const updated = await store.get("sbx_1");
-      assert.equal(updated?.observedState, "failed");
-      assert.equal(updated?.lastError?.code, "CONTAINER_EXITED_BEFORE_READY");
-      assert.match(updated?.lastError?.message ?? "", /13/);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const store = new MemoryManagerStore();
+    await store.put(record());
+    const driver = fakeDriver({ state: "exited", exitCode: 13 });
+    await new SandboxReconciler(store, driver).reconcile();
+    const updated = await store.get("sbx_1");
+    assert.equal(updated?.observedState, "failed");
+    assert.equal(updated?.lastError?.code, "CONTAINER_EXITED_BEFORE_READY");
+    assert.match(updated?.lastError?.message ?? "", /13/);
   });
 
   it("recovers boot setup failure from the sandbox agent outbox", async () => {
@@ -113,81 +103,60 @@ describe("sandbox manager reconciliation gc and orphan handling", () => {
   });
 
   it("preserves failed records and removes elapsed gc records", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-gc-"));
-    try {
-      const store = new FileManagerStore(dir);
-      await store.put({
-        ...record("sbx_failed"),
-        observedState: "failed",
-        lifecycleState: "failed",
-        retention: { preserveFailed: true },
-        gcAfter: "2020-01-01T00:00:00.000Z",
-      });
-      await store.put({
-        ...record("sbx_old"),
-        desiredState: "removed",
-        observedState: "removed",
-        lifecycleState: "removed",
-        gcAfter: "2020-01-01T00:00:00.000Z",
-      });
-      const decisions = await new SandboxGarbageCollector(store).collect(
-        new Date("2026-01-01T00:00:00.000Z"),
-      );
-      assert.equal(
-        decisions.find((d) => d.sandboxId === "sbx_failed")?.action,
-        "none",
-      );
-      assert.equal(await store.get("sbx_old"), undefined);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const store = new MemoryManagerStore();
+    await store.put({
+      ...record("sbx_failed"),
+      observedState: "failed",
+      lifecycleState: "failed",
+      retention: { preserveFailed: true },
+      gcAfter: "2020-01-01T00:00:00.000Z",
+    });
+    await store.put({
+      ...record("sbx_old"),
+      desiredState: "removed",
+      observedState: "removed",
+      lifecycleState: "removed",
+      gcAfter: "2020-01-01T00:00:00.000Z",
+    });
+    const decisions = await new SandboxGarbageCollector(store).collect(
+      new Date("2026-01-01T00:00:00.000Z"),
+    );
+    assert.equal(
+      decisions.find((d) => d.sandboxId === "sbx_failed")?.action,
+      "none",
+    );
+    assert.equal(await store.get("sbx_old"), undefined);
   });
 
   it("adopts ECS orphans using sandbox id metadata", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-orphan-ecs-"));
-    try {
-      const store = new FileManagerStore(dir);
-      await store.put(record("sbx_ecs"));
-      const driver = fakeDriver();
-      const decisions = await new OrphanReconciler(store, driver).reconcile([
-        {
-          kind: "ecs",
-          id: "task-arn",
-          metadata: { sandboxId: "sbx_ecs" },
-        },
-      ]);
-      assert.equal(decisions[0].action, "adopt");
-      assert.equal((await store.get("sbx_ecs"))?.containerRef?.kind, "ecs");
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const store = new MemoryManagerStore();
+    await store.put(record("sbx_ecs"));
+    const driver = fakeDriver();
+    const decisions = await new OrphanReconciler(store, driver).reconcile([
+      {
+        kind: "ecs",
+        id: "task-arn",
+        metadata: { sandboxId: "sbx_ecs" },
+      },
+    ]);
+    assert.equal(decisions[0].action, "adopt");
+    assert.equal((await store.get("sbx_ecs"))?.containerRef?.kind, "ecs");
   });
 
   it("adopts matching orphans and stops unmanaged containers by policy", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-orphan-"));
-    try {
-      const store = new FileManagerStore(dir);
-      await store.put(record("sbx_1"));
-      const driver = fakeDriver();
-      const decisions = await new OrphanReconciler(store, driver).reconcile([
-        { kind: "docker", id: "known", name: "nerve-sbx_1" },
-        { kind: "docker", id: "unknown", name: "nerve-sbx_2" },
-      ]);
-      assert.equal(
-        decisions.find((d) => d.ref.id === "known")?.action,
-        "adopt",
-      );
-      assert.equal(
-        decisions.find((d) => d.ref.id === "unknown")?.action,
-        "stop",
-      );
-      assert.equal(
-        decideOrphan({ kind: "docker", id: "x" }, new Set(), "remove").action,
-        "remove",
-      );
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const store = new MemoryManagerStore();
+    await store.put(record("sbx_1"));
+    const driver = fakeDriver();
+    const decisions = await new OrphanReconciler(store, driver).reconcile([
+      { kind: "docker", id: "known", name: "nerve-sbx_1" },
+      { kind: "docker", id: "unknown", name: "nerve-sbx_2" },
+    ]);
+    assert.equal(decisions.find((d) => d.ref.id === "known")?.action, "adopt");
+    assert.equal(decisions.find((d) => d.ref.id === "unknown")?.action, "stop");
+    assert.equal(
+      decideOrphan({ kind: "docker", id: "x" }, new Set(), "remove").action,
+      "remove",
+    );
   });
 });
 

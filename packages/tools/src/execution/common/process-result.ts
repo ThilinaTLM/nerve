@@ -13,7 +13,7 @@ import {
   textLimitSnapshot,
 } from "./output-budget.js";
 import {
-  formatSize,
+  formatByteSize,
   PROCESS_INLINE_MAX_BYTES,
   PROCESS_INLINE_MAX_LINES,
   PROCESS_PREVIEW_EDGE_LINES,
@@ -563,7 +563,7 @@ async function writeTranscriptFile({
 }
 
 function formatStats(stats: OutputStats): string {
-  return `${formatSize(stats.bytes)}, ${formatLineCount(stats.lines)}`;
+  return `${formatByteSize(stats.bytes)}, ${formatLineCount(stats.lines)}`;
 }
 
 function formatLineCount(lines: number): string {
@@ -576,7 +576,7 @@ function formatOmissions(truncation: TruncationResult): string {
     parts.push(formatLineCount(truncation.omittedLines));
   }
   if (truncation.omittedBytes > 0) {
-    parts.push(formatSize(truncation.omittedBytes));
+    parts.push(formatByteSize(truncation.omittedBytes));
   }
   return parts.length > 0 ? parts.join(", ") : "0 bytes";
 }

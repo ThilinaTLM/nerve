@@ -11,7 +11,7 @@ import {
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
-  formatSize,
+  formatByteSize,
 } from "../common/truncate.js";
 import {
   isErrnoException,
@@ -151,7 +151,7 @@ export async function executeRead(
   const bounded = boundFileText(content, { maxLines: DEFAULT_MAX_LINES });
   let output = bounded.text;
   if (bounded.truncated) {
-    output += `\n\n[...output truncated to ${DEFAULT_MAX_LINES} lines, ${formatSize(DEFAULT_MAX_BYTES)}, or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line.${formatContinuationGuidance(bounded)}]`;
+    output += `\n\n[...output truncated to ${DEFAULT_MAX_LINES} lines, ${formatByteSize(DEFAULT_MAX_BYTES)}, or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line.${formatContinuationGuidance(bounded)}]`;
   }
   return {
     path,
@@ -198,7 +198,7 @@ function readByteRange(
   }
   if (nextByteOffset !== undefined) {
     messages.push(
-      `[...${formatSize(buffer.length - requestedEnd)} remain after this byte range. Continue with byteOffset ${nextByteOffset}.]`,
+      `[...${formatByteSize(buffer.length - requestedEnd)} remain after this byte range. Continue with byteOffset ${nextByteOffset}.]`,
     );
   }
   const output = [bounded.text, ...messages]
@@ -247,7 +247,7 @@ function formatSelectedRangeTruncation(truncation: BoundedTextResult): string {
     truncation.partialLine || truncation.truncatedLines > 0
       ? " Use byteOffset/byteLimit to inspect overlong lines exactly."
       : "";
-  return `[...selected output truncated to ${formatSize(DEFAULT_MAX_BYTES)} or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line${omissions}.${guidance}]`;
+  return `[...selected output truncated to ${formatByteSize(DEFAULT_MAX_BYTES)} or ${FILE_OUTPUT_MAX_LINE_CHARS} characters per line${omissions}.${guidance}]`;
 }
 
 function formatByteRangeTruncation(truncation: BoundedTextResult): string {
@@ -275,7 +275,7 @@ function formatOmissions(truncation: BoundedTextResult): string {
     );
   }
   if (truncation.omittedBytes > 0) {
-    parts.push(`${formatSize(truncation.omittedBytes)} omitted`);
+    parts.push(`${formatByteSize(truncation.omittedBytes)} omitted`);
   }
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }

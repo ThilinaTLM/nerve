@@ -268,6 +268,9 @@ function createAgent(
         onDisconnect,
         rpcDispatcher: dispatcher,
         awaitReady: (welcome) => onWelcome?.(welcome),
+        // Sandbox-manager requires the sandbox-agent-specific host status even
+        // though generic protocol peers may omit it.
+        readyStatus: () => "ready",
         onAck: (message) => {
           const cursor = message.data.streams.find(
             (item) => item.stream === `sandbox:${record.sandboxId}`,

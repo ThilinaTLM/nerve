@@ -43,8 +43,6 @@ export * from "./harness/prompt-templates.js";
 export * from "./harness/skills.js";
 export * from "./harness/system-prompt.js";
 export * from "./harness/types.js";
-export * from "./harness/utils/shell-output.js";
-export * from "./harness/utils/truncate.js";
 export * from "./proxy.js";
 export * from "./runtime.js";
 export * from "./suspension.js";

@@ -5,11 +5,11 @@
     "baseColor": "neutral"
   },
   "aliases": {
-    "components": "@nervekit/workbench-ui/components",
-    "utils": "@nervekit/ui-kit/core/utils",
-    "ui": "@nervekit/ui-kit/components/ui",
-    "hooks": "@nervekit/workbench-ui/hooks",
-    "lib": "@nervekit/workbench-ui"
+    "components": "$lib/components",
+    "utils": "$lib/core/utils",
+    "ui": "$lib/components/ui",
+    "hooks": "$lib/hooks",
+    "lib": "$lib"
   },
   "typescript": true,
   "registry": "https://shadcn-svelte.com/registry",

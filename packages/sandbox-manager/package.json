@@ -30,7 +30,6 @@
     "check": "tsc -b --pretty false",
     "dev": "node --env-file-if-exists=dev.defaults.env --env-file-if-exists=.env --import tsx src/main.ts",
     "test": "tsx --test \"test/**/*.test.ts\"",
-    "bundle:web": "node ../../scripts/copy-sandbox-manager-app-dist-to-manager.mjs",
     "migrate": "node dist/db/migrations.js"
   },
   "dependencies": {

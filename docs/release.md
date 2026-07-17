@@ -26,7 +26,6 @@ pnpm fix
 pnpm check
 pnpm test
 pnpm build
-pnpm release:build
 node scripts/pack-npm.mjs
 pnpm build-image:sandbox-agent
 NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES=false pnpm build-image:sandbox-manager
@@ -34,7 +33,7 @@ NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES=false pnpm build-image:sandbox-mana
 
 `release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. `node scripts/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-0.8.0.tgz`; it verifies exact names, versions, contents, bundled package resolution, the workbench/worker entries, and the desktop launcher through an isolated install.
 
-Run the finite built-artifact and image smokes after `pnpm release:build`:
+Run the finite built-artifact and image smokes after `pnpm build`:
 
 ```sh
 pnpm release:verify-npm            # inspect packed tarballs and isolated install
@@ -63,7 +62,7 @@ Stop all Nerve processes and containers first.
 - Sandbox manager: reset both its configured storage directory (`nerve-sandbox-manager-state` version 1) and its PostgreSQL database.
 - Browsers: clear site local and session storage, including `nerve.protocol.clientId`, `nerve.protocol.instanceId`, and manager record `nerve.protocol.v1.sandbox-manager-ui` (epoch `protocol-v1`).
 
-The deterministic errors are `Incompatible Nerve state at <path>...`, `Incompatible sandbox agent state at <path>...`, and `Incompatible sandbox manager state at <path>...`, each ending with `Reset this directory before starting Nerve Protocol v1.` Headless workbench and sandbox startup provide no general migration reader. The desktop has one narrow upgrade path for an unversioned legacy workbench home: after confirmation it retains a timestamped whole-home backup, initializes version 2, and selectively re-encrypts provider/tool authentication. It never downgrades or automatically resets malformed, unknown, or future versioned stores.
+The deterministic errors are `Incompatible Nerve state at <path>...`, `Incompatible sandbox agent state at <path>...`, and `Incompatible sandbox manager state at <path>...`, each ending with `Reset this directory before starting Nerve Protocol v1.` Headless workbench and sandbox startup provide no general migration reader. The desktop has one narrow upgrade path for an unversioned legacy workbench home: after confirmation it retains a timestamped whole-home backup, initializes version 2, and restores only portable user state — validated settings (`config.json` merged with current defaults), the custom provider/model catalog (`providers.json`), and re-encrypted `provider:<id>:(apiKey|oauth)` credentials. Malformed settings or catalog data aborts the migration and restores the original home; an undecryptable credential store is reported as a nonfatal failure because the backup retains it. Conversations, agents, projects, logs, plans, run history, SQLite, and daemon/session state are deliberately not imported and remain only in the backup. It never downgrades or automatically resets malformed, unknown, or future versioned stores.
 
 ## npm publication, migration, and OIDC
 

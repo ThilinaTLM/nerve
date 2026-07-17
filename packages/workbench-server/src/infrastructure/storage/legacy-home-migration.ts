@@ -3,18 +3,26 @@ import { join } from "node:path";
 import { daemonFileSchema } from "@nervekit/contracts";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
 import { initializeStorage } from "./initialize.js";
-import { pathExists } from "./json.js";
+import { atomicWriteJson, pathExists } from "./json.js";
+import {
+  type LegacyPortableState,
+  readLegacyPortableState,
+} from "./legacy-portable-state.js";
+import { storagePaths } from "./paths.js";
 import {
   inspectWorkbenchHome,
   type WorkbenchHomeInspection,
 } from "./state-layout.js";
 
-const providerCredentialName = /^provider:.+:(?:apiKey|oauth)$/;
-
 export type LegacyCredentialMigrationStatus = "imported" | "none" | "failed";
+export type LegacyPortableImportStatus = "imported" | "none";
 
 export interface LegacyHomeMigrationResult {
   backupPath: string;
+  settingsStatus: LegacyPortableImportStatus;
+  providerCatalogStatus: LegacyPortableImportStatus;
+  importedCustomProviderCount: number;
+  importedCustomModelCount: number;
   importedCredentialCount: number;
   credentialStatus: LegacyCredentialMigrationStatus;
 }
@@ -53,6 +61,17 @@ export class LegacyHomeMigrationError extends Error {
   }
 }
 
+/**
+ * Replaces an unversioned legacy Nerve home with a freshly initialized one
+ * while retaining the complete legacy tree as a timestamped backup.
+ *
+ * Portable user state — validated settings, the custom provider/model catalog,
+ * and provider/tool credentials — is restored into the new home. Operational
+ * state (projects, conversations, agents, logs, plans, run history, SQLite,
+ * daemon/session files) is deliberately not imported; it remains only in the
+ * backup. Malformed settings or catalog data aborts the migration and restores
+ * the original home.
+ */
 export async function migrateLegacyWorkbenchHome(
   home: string,
   options: LegacyHomeMigrationOptions = {},
@@ -73,28 +92,45 @@ export async function migrateLegacyWorkbenchHome(
     );
   });
 
-  const credentialRead = await readLegacyProviderCredentials(backupPath);
+  let portable: LegacyPortableState;
   try {
+    portable = await readLegacyPortableState(backupPath);
     await (options.initializeFreshHome ?? initializeStorage)(home);
+    const paths = storagePaths(home);
+    if (portable.settings) {
+      await atomicWriteJson(paths.configPath, portable.settings, 0o600);
+    }
+    if (portable.providerCatalog) {
+      await atomicWriteJson(
+        paths.providersPath,
+        portable.providerCatalog,
+        0o600,
+      );
+    }
     const writeCredential =
       options.writeCredential ??
       (async (targetHome: string, name: string, value: string) => {
         await new EncryptedFileSecretProvider(targetHome).set(name, value);
       });
-    for (const [name, value] of credentialRead.credentials) {
+    for (const [name, value] of portable.credentials) {
       await writeCredential(home, name, value);
     }
   } catch (cause) {
-    await rollbackMigration(home, backupPath, cause);
+    return rollbackMigration(home, backupPath, cause);
   }
 
   return {
     backupPath,
-    importedCredentialCount: credentialRead.credentials.length,
+    settingsStatus: portable.settings ? "imported" : "none",
+    providerCatalogStatus: portable.providerCatalog ? "imported" : "none",
+    importedCustomProviderCount:
+      portable.providerCatalog?.providers.length ?? 0,
+    importedCustomModelCount: portable.providerCatalog?.models.length ?? 0,
+    importedCredentialCount: portable.credentials.length,
     credentialStatus:
-      credentialRead.status === "failed"
+      portable.credentialStatus === "failed"
         ? "failed"
-        : credentialRead.credentials.length > 0
+        : portable.credentials.length > 0
           ? "imported"
           : "none",
   };
@@ -155,35 +191,6 @@ function formatBackupTimestamp(value: Date): string {
   }
   const compact = value.toISOString().replaceAll(/[-:]/g, "");
   return `${compact.slice(0, 8)}-${compact.slice(9, 15)}`;
-}
-
-async function readLegacyProviderCredentials(home: string): Promise<{
-  status: "read" | "failed";
-  credentials: Array<[name: string, value: string]>;
-}> {
-  const keyPath = join(home, "keys", "master.key");
-  const storePath = join(home, "keys", "secrets.json.enc");
-  if (!(await pathExists(storePath))) {
-    return { status: "read", credentials: [] };
-  }
-  if (!(await pathExists(keyPath))) {
-    return { status: "failed", credentials: [] };
-  }
-
-  try {
-    const secrets = new EncryptedFileSecretProvider(home);
-    const names = (await secrets.list()).filter((name) =>
-      providerCredentialName.test(name),
-    );
-    const credentials: Array<[name: string, value: string]> = [];
-    for (const name of names) {
-      const value = await secrets.get(name);
-      if (value !== undefined) credentials.push([name, value]);
-    }
-    return { status: "read", credentials };
-  } catch {
-    return { status: "failed", credentials: [] };
-  }
 }
 
 async function rollbackMigration(

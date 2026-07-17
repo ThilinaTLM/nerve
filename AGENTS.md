@@ -1,7 +1,5 @@
-- This is an early foundation project: prefer clean direct designs and architecturally sounds solutions over compatibility and workaround shims.
+- Prefer clean and simple architectural solutions rather than compatibility and workaround shims.
 - The desktop app and source development launcher use `~/.nerve` and ports `3747`/`3748` by default. Keep Electron's active profile outside `NERVE_HOME` so whole-home backup and migration remain safe; use explicit environment overrides when isolation is required.
-- Use file-first storage under the active `NERVE_HOME`; SQLite is only a rebuildable index/cache.
 - Keep shared API, event, policy, and storage schemas in `packages/contracts`; keep protocol types transport-neutral.
 - Use `pnpm fix` to apply formatting and lint fixes. Validate with `pnpm check`; run `pnpm test` when relevant.
 - Use the official shadcn-svelte components in `packages/ui-kit/src/lib/components/ui`; style only with shadcn theme tokens and Tailwind token utilities (+ `success`/`warning`/`info`) for colors, typography, spacing, radius, and shadows. Avoid hard-coded colors, font sizes, spacing, and one-off visual constants unless there is a documented exception. Use `@lucide/svelte` for icons and keep mono for code/logs/paths only. Shared global CSS and design tokens live in `packages/ui-kit/src/styles/` (entry `app.css`); apps import that entry and add only app-specific partials. See `packages/workbench-app/AGENTS.md` for the full styling conventions (two-tier model, escape-hatch list, `:global` policy).
-- Keep the codebase clean and maintainable.

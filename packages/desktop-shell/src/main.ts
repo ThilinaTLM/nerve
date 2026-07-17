@@ -134,6 +134,13 @@ if (!gotSingleInstanceLock) {
           {
             context: {
               backupPath: preparation.migration.backupPath,
+              settingsStatus: preparation.migration.settingsStatus,
+              providerCatalogStatus:
+                preparation.migration.providerCatalogStatus,
+              importedCustomProviderCount:
+                preparation.migration.importedCustomProviderCount,
+              importedCustomModelCount:
+                preparation.migration.importedCustomModelCount,
               credentialStatus: preparation.migration.credentialStatus,
               importedCredentialCount:
                 preparation.migration.importedCredentialCount,

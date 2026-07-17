@@ -218,9 +218,15 @@ export class SandboxWsServer {
         const now = new Date().toISOString();
         const sessionId = protocolSession.sessionId;
         // The protocol ready frame means "transport + event streaming ready".
-        // The agent reports "booting" while startup continues; readiness then
-        // arrives through the durable `sandbox.ready` event.
-        const agentStatus = ready.data.status ?? "ready";
+        // Sandbox agents must always report their host startup state here:
+        // "booting" while startup continues (readiness then arrives through the
+        // durable `sandbox.ready` event), or "ready"/"degraded". A missing
+        // status is a protocol error at this boundary.
+        if (!ready.data.status)
+          throw new Error(
+            "Sandbox agent ready frame is missing the required status",
+          );
+        const agentStatus = ready.data.status;
         const booting = agentStatus === "booting";
         const readyAt = booting ? undefined : (record.daemon?.readyAt ?? now);
         const forwarder = new RpcForwarder(sandboxId, {

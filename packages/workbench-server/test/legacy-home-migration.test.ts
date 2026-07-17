@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
+import { defaultSettings } from "@nervekit/contracts";
 import { EncryptedFileSecretProvider } from "../src/infrastructure/secrets/index.js";
 import {
   LegacyHomeMigrationError,
@@ -19,6 +20,32 @@ import { inspectWorkbenchHome } from "../src/infrastructure/storage/state-layout
 
 const roots: string[] = [];
 const fixedNow = () => new Date("2026-07-16T01:32:29.000Z");
+
+const legacyCatalog = {
+  version: 1,
+  providers: [
+    {
+      id: "my-proxy",
+      displayName: "My Proxy",
+      api: "openai-completions",
+      baseUrl: "https://proxy.example.com/v1",
+      headers: {},
+    },
+  ],
+  models: [
+    {
+      provider: "my-proxy",
+      modelId: "proxy-large",
+      name: "Proxy Large",
+      reasoning: false,
+      supportedThinkingLevels: ["off"],
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 128000,
+      maxTokens: 8192,
+    },
+  ],
+};
 
 after(async () => {
   await Promise.all(
@@ -31,7 +58,10 @@ async function tempLegacyHome(): Promise<{ root: string; home: string }> {
   roots.push(root);
   const home = join(root, ".nerve");
   await mkdir(home);
-  await writeFile(join(home, "config.json"), '{"legacy":true}\n');
+  await writeFile(
+    join(home, "config.json"),
+    '{"defaultThinkingLevel":"high"}\n',
+  );
   return { root, home };
 }
 
@@ -43,14 +73,21 @@ async function exists(path: string): Promise<boolean> {
 }
 
 describe("legacy workbench home migration", () => {
-  it("retains the full legacy tree and re-encrypts only provider/tool credentials", async () => {
+  it("retains the full legacy tree and restores settings, catalog, and credentials", async () => {
     const { home } = await tempLegacyHome();
     await mkdir(join(home, "projects", "project_old"), { recursive: true });
     await writeFile(
       join(home, "projects", "project_old", "sentinel.txt"),
       "legacy project\n",
     );
-    await writeFile(join(home, "providers.json"), '{"legacy":true}\n');
+    await mkdir(join(home, "conversations"), { recursive: true });
+    await writeFile(join(home, "conversations", "conv.jsonl"), "{}\n");
+    await mkdir(join(home, "logs"), { recursive: true });
+    await writeFile(join(home, "logs", "app.jsonl"), "{}\n");
+    await writeFile(
+      join(home, "providers.json"),
+      `${JSON.stringify(legacyCatalog)}\n`,
+    );
 
     const sourceSecrets = new EncryptedFileSecretProvider(home);
     const credentials = new Map([
@@ -83,6 +120,10 @@ describe("legacy workbench home migration", () => {
     const result = await migrateLegacyWorkbenchHome(home, { now: fixedNow });
 
     assert.equal(result.backupPath, `${home}-bk-20260716-013229`);
+    assert.equal(result.settingsStatus, "imported");
+    assert.equal(result.providerCatalogStatus, "imported");
+    assert.equal(result.importedCustomProviderCount, 1);
+    assert.equal(result.importedCustomModelCount, 1);
     assert.equal(result.credentialStatus, "imported");
     assert.equal(result.importedCredentialCount, credentials.size);
     assert.equal(
@@ -94,14 +135,34 @@ describe("legacy workbench home migration", () => {
     );
     assert.equal(
       await readFile(join(result.backupPath, "config.json"), "utf8"),
-      '{"legacy":true}\n',
+      '{"defaultThinkingLevel":"high"}\n',
     );
     assert.equal(
       await inspectWorkbenchHome(home).then((item) => item.kind),
       "current",
     );
+
+    // Operational state is deliberately not imported.
     assert.equal(await exists(join(home, "projects", "project_old")), false);
-    assert.equal(await exists(join(home, "providers.json")), false);
+    assert.equal(
+      await exists(join(home, "conversations", "conv.jsonl")),
+      false,
+    );
+    assert.equal(await exists(join(home, "logs", "app.jsonl")), false);
+
+    // Settings merge with defaults and survive validation.
+    const settings = JSON.parse(
+      await readFile(join(home, "config.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.equal(settings.defaultThinkingLevel, "high");
+    assert.equal(settings.defaultMode, defaultSettings.defaultMode);
+
+    // The custom provider/model catalog is restored verbatim.
+    const catalog = JSON.parse(
+      await readFile(join(home, "providers.json"), "utf8"),
+    ) as typeof legacyCatalog;
+    assert.equal(catalog.providers[0]?.id, "my-proxy");
+    assert.equal(catalog.models[0]?.modelId, "proxy-large");
 
     const targetSecrets = new EncryptedFileSecretProvider(home);
     for (const [name, value] of credentials) {
@@ -132,18 +193,82 @@ describe("legacy workbench home migration", () => {
     );
   });
 
-  it("starts fresh when the legacy home has no credential store", async () => {
-    const { home } = await tempLegacyHome();
+  it("reports none for missing optional portable state", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-legacy-migration-"));
+    roots.push(root);
+    const home = join(root, ".nerve");
+    await mkdir(home);
+    // Legacy detection requires some legacy marker; use an operational dir.
+    await mkdir(join(home, "conversations"));
 
     const result = await migrateLegacyWorkbenchHome(home, { now: fixedNow });
 
+    assert.equal(result.settingsStatus, "none");
+    assert.equal(result.providerCatalogStatus, "none");
+    assert.equal(result.importedCustomProviderCount, 0);
+    assert.equal(result.importedCustomModelCount, 0);
     assert.equal(result.credentialStatus, "none");
     assert.equal(result.importedCredentialCount, 0);
     assert.equal(
       await inspectWorkbenchHome(home).then((item) => item.kind),
       "current",
     );
-    assert.equal(await exists(join(result.backupPath, "config.json")), true);
+  });
+
+  it("rolls back when the legacy settings file is malformed", async () => {
+    const { home } = await tempLegacyHome();
+    await writeFile(join(home, "config.json"), "not json\n");
+
+    await assert.rejects(
+      migrateLegacyWorkbenchHome(home, { now: fixedNow }),
+      (error: unknown) =>
+        error instanceof LegacyHomeMigrationError &&
+        error.code === "MIGRATION_FAILED" &&
+        error.details.originalRestored,
+    );
+    assert.equal(
+      await readFile(join(home, "config.json"), "utf8"),
+      "not json\n",
+    );
+    assert.equal(await exists(`${home}-bk-20260716-013229`), false);
+  });
+
+  it("rolls back when the legacy settings fail schema validation", async () => {
+    const { home } = await tempLegacyHome();
+    await writeFile(
+      join(home, "config.json"),
+      '{"defaultThinkingLevel":"not-a-level"}\n',
+    );
+
+    await assert.rejects(
+      migrateLegacyWorkbenchHome(home, { now: fixedNow }),
+      (error: unknown) =>
+        error instanceof LegacyHomeMigrationError &&
+        error.code === "MIGRATION_FAILED" &&
+        error.details.originalRestored,
+    );
+    assert.equal(await exists(`${home}-bk-20260716-013229`), false);
+  });
+
+  it("rolls back when the legacy provider catalog is malformed", async () => {
+    const { home } = await tempLegacyHome();
+    await writeFile(
+      join(home, "providers.json"),
+      '{"providers":[{"id":"broken"}]}\n',
+    );
+
+    await assert.rejects(
+      migrateLegacyWorkbenchHome(home, { now: fixedNow }),
+      (error: unknown) =>
+        error instanceof LegacyHomeMigrationError &&
+        error.code === "MIGRATION_FAILED" &&
+        error.details.originalRestored,
+    );
+    assert.equal(
+      await readFile(join(home, "providers.json"), "utf8"),
+      '{"providers":[{"id":"broken"}]}\n',
+    );
+    assert.equal(await exists(`${home}-bk-20260716-013229`), false);
   });
 
   it("keeps the backup and continues when legacy credentials cannot be decrypted", async () => {
@@ -156,6 +281,7 @@ describe("legacy workbench home migration", () => {
 
     assert.equal(result.credentialStatus, "failed");
     assert.equal(result.importedCredentialCount, 0);
+    assert.equal(result.settingsStatus, "imported");
     assert.equal(
       await readFile(
         join(result.backupPath, "keys", "secrets.json.enc"),
@@ -215,7 +341,7 @@ describe("legacy workbench home migration", () => {
     );
     assert.equal(
       await readFile(join(home, "config.json"), "utf8"),
-      '{"legacy":true}\n',
+      '{"defaultThinkingLevel":"high"}\n',
     );
     assert.equal(await exists(join(home, "partial.txt")), false);
     assert.equal(await exists(`${home}-bk-20260716-013229`), false);

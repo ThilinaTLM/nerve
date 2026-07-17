@@ -59,6 +59,7 @@ const sensitiveKeyPattern =
 export class ApplicationLogger {
   #seq = 0;
   #buffer: ApplicationLogRecord[] = [];
+  #appendTail: Promise<void> = Promise.resolve();
 
   private readonly root: ApplicationLogger;
   private readonly dataDir: string;
@@ -293,10 +294,37 @@ export class ApplicationLogger {
     return this.#seq;
   }
 
-  private async append(record: ApplicationLogRecord): Promise<void> {
+  /**
+   * Serializes all root appends through one tracked promise tail so ignored
+   * fire-and-forget diagnostic writes cannot race each other or teardown.
+   * Each caller still observes its own write failure; the tracked tail
+   * swallows rejections so later appends continue.
+   */
+  private append(record: ApplicationLogRecord): Promise<void> {
+    const queued = this.#appendTail
+      .catch(() => undefined)
+      .then(() => this.appendDirect(record));
+    this.#appendTail = queued.then(
+      () => undefined,
+      () => undefined,
+    );
+    return queued;
+  }
+
+  private async appendDirect(record: ApplicationLogRecord): Promise<void> {
     await appendJsonLine(this.logPathFor(record.ts), record, 0o600);
     this.#buffer.push(record);
     if (this.#buffer.length > this.maxBufferedLogs) this.#buffer.shift();
+  }
+
+  /**
+   * Waits until every queued append (including ignored fire-and-forget
+   * diagnostic writes) has settled. Individual write errors stay with their
+   * original callers; flush itself never rejects for a past append failure.
+   */
+  async flush(): Promise<void> {
+    if (this.root !== this) return this.root.flush();
+    await this.#appendTail;
   }
 
   private async readAllLogs(): Promise<ApplicationLogRecord[]> {

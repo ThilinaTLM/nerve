@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -57,9 +56,9 @@ describe("sandbox real-host run parity", () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-sandbox-parity-"));
     const adapter = await SandboxParityAdapter.create(dir);
     try {
-      const result = await runRealHostParityMatrix(adapter);
-      assert.equal(result.totalRuns, 20);
-      assert.equal(result.scenarios.length, 6);
+      // The shared matrix owns its scenario set and assertions; this suite
+      // owns only adapter execution and teardown.
+      await runRealHostParityMatrix(adapter);
     } finally {
       await adapter.close();
       await rm(dir, { recursive: true, force: true });

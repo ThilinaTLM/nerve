@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import {
+  createRunRuntime,
   type DiagnosticPort,
-  RunCoordinator,
-  RunEventDeliveryService,
+  type RunCoordinator,
+  type RunEventDeliveryService,
   type RunRetryPolicyPort,
 } from "@nervekit/host-runtime";
 import type { StructuredLogger, SandboxConfigV1 } from "@nervekit/contracts";
 import { SandboxRunUnitOfWork } from "../agent/run-transition-store.js";
 import type { HarnessFactory } from "../agent/harness-factory.js";
-import type { AgentConfigStore } from "../agent/agent-config-store.js";
 import type { ExploreRuntime } from "../agent/explore-runtime.js";
 import type { EventOutbox } from "../state/event-outbox.js";
 import type { SandboxInteractionPort } from "../tools/sandbox-orchestration-types.js";
@@ -35,7 +35,6 @@ export interface SandboxRunRuntimeDeps {
   toolRuntime?: SandboxToolRuntime;
   taskService?: SandboxTaskService;
   exploreRuntime?: ExploreRuntime;
-  configStore?: AgentConfigStore;
   logger?: StructuredLogger;
   retryPolicy?: RunRetryPolicyPort;
 }
@@ -63,9 +62,6 @@ export function createSandboxRunRuntime(
   const integrity = new SandboxRunIntegrity();
   const publisher = new SandboxRunEventPublisher(deps.outbox);
   const transient = new SandboxRunTransientPublisher(deps.outbox);
-  const delivery = new RunEventDeliveryService(unitOfWork, publisher, () =>
-    new Date().toISOString(),
-  );
   const references = new SandboxRunReferences(unitOfWork, deps.harnessFactory);
   const live = new SandboxLiveHarnessRegistry();
   const channel = new SandboxInteractionChannel();
@@ -85,10 +81,9 @@ export function createSandboxRunRuntime(
     channel,
     pending,
     toolRuntime: deps.toolRuntime,
-    configStore: deps.configStore,
     logger: deps.logger,
   });
-  const coordinator = new RunCoordinator({
+  const { coordinator, delivery } = createRunRuntime({
     sourceRole: "sandbox_agent",
     unitOfWork,
     execution,
@@ -97,12 +92,9 @@ export function createSandboxRunRuntime(
     clock: { now: () => new Date() },
     ids: { next: () => randomUUID() },
     integrity,
-    retryPolicy: deps.retryPolicy,
-    flushEvents: async (transition) => {
-      await delivery.flushTransition(transition);
-      await transient.flush();
-    },
+    publisher,
     transient,
+    retryPolicy: deps.retryPolicy,
     diagnostics: toDiagnostics(deps.logger),
   });
   const interactions: SandboxInteractionPort = {

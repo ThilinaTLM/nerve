@@ -6,6 +6,7 @@ import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
 import {
   createOrchestratorState,
+  shutdownOrchestratorState,
   toDaemonFile,
 } from "./app/orchestrator-state.js";
 import { createApp } from "./app/server.js";
@@ -303,9 +304,6 @@ async function main() {
     await state.logger
       .info("Daemon file removed", { durationMs: Date.now() - startedAt })
       .catch(() => undefined);
-    state.registry.shutdown();
-    state.subscriptionUsage.stop();
-    await state.storageCleanup.shutdown().catch(() => undefined);
     await Promise.all(
       [...protocolSessions, ...(httpsProtocolSessions ?? [])].map((session) =>
         session.shutdown("Daemon shutting down"),
@@ -313,12 +311,12 @@ async function main() {
     );
     closeWebSocketClients(webSockets);
     webSockets.close();
-    state.index.close();
     await state.logger
       .info("Daemon resources closed; closing HTTP server", {
         durationMs: Date.now() - startedAt,
       })
       .catch(() => undefined);
+    await shutdownOrchestratorState(state).catch(() => undefined);
     httpsServer?.close();
     server.close(() => {
       runtimeMonitor?.markClean(signal);

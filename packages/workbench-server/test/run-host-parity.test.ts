@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,7 +14,10 @@ import {
 } from "@nervekit/host-runtime/test-support";
 import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
 import type { RunInteractionRecord } from "@nervekit/contracts";
-import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import {
+  createOrchestratorState,
+  shutdownOrchestratorState,
+} from "../src/app/orchestrator-state.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
 import {
   initializeStorage,
@@ -30,19 +32,9 @@ describe("workbench real-host run parity", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-workbench-parity-"));
     const adapter = await WorkbenchParityAdapter.create(root);
     try {
-      const result = await runRealHostParityMatrix(adapter);
-      assert.equal(result.totalRuns, 20);
-      assert.deepEqual(
-        result.scenarios.map((scenario) => scenario.name),
-        [
-          "completion",
-          "tools",
-          "interactions",
-          "cancellation",
-          "retry-recovery",
-          "redelivery-races",
-        ],
-      );
+      // The shared matrix owns its scenario set and assertions; this suite
+      // owns only adapter execution and teardown.
+      await runRealHostParityMatrix(adapter);
     } finally {
       await adapter.close();
       await rm(root, {
@@ -113,8 +105,7 @@ class WorkbenchParityAdapter implements RealHostRunMatrixFixture {
   }
 
   async close(): Promise<void> {
-    this.orchestrator.registry.shutdown();
-    this.orchestrator.index.close();
+    await shutdownOrchestratorState(this.orchestrator);
   }
 
   private session(
@@ -216,8 +207,7 @@ class WorkbenchParityAdapter implements RealHostRunMatrixFixture {
 
   private async recreate(): Promise<void> {
     if (this.orchestrator) {
-      this.orchestrator.registry.shutdown();
-      this.orchestrator.index.close();
+      await shutdownOrchestratorState(this.orchestrator);
     }
     this.orchestrator = createOrchestratorState(this.storage, "127.0.0.1", 0);
     await this.orchestrator.events.hydrate();

@@ -1,6 +1,13 @@
 export type IdFactory = (prefix: string) => string;
 
-export const createProtocolId: IdFactory = (prefix) => {
+/**
+ * Creates a random, non-sortable transport/session/client identifier.
+ *
+ * Persisted domain entities use the time-sortable `createId` factory in
+ * `@nervekit/contracts` instead; the two ID strategies are intentionally
+ * distinct.
+ */
+export const createTransportId: IdFactory = (prefix) => {
   const uuid = globalThis.crypto?.randomUUID?.() ?? fallbackUuid();
   return `${prefix}_${uuid.replaceAll("-", "")}`;
 };

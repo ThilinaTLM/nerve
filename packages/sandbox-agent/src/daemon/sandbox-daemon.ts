@@ -200,7 +200,6 @@ export class SandboxDaemon {
       toolRuntime: this.toolRuntime,
       taskService: this.taskService,
       exploreRuntime: this.exploreRuntime,
-      configStore: this.agentConfigStore,
       logger: logger.child({ component: "run-coordinator" }),
     });
     this.toolRuntime.setInteractions(this.runRuntime.interactions);

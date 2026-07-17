@@ -134,4 +134,87 @@ describe("ApplicationLogger", () => {
       ["keep me", "keep warning"],
     );
   });
+
+  it("serializes concurrent appends in submission order", async () => {
+    const home = await tempHome();
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      level: "debug",
+      mirrorToConsole: false,
+    });
+    await logger.hydrate();
+    const child = logger.child({ component: "child" });
+    await Promise.all([
+      logger.info("first"),
+      child.info("second"),
+      logger.info("third"),
+      child.info("fourth"),
+    ]);
+    const response = await logger.query({ limit: 10 });
+    assert.deepEqual(
+      response.logs.map((log) => log.message),
+      ["first", "second", "third", "fourth"],
+    );
+    assert.deepEqual(
+      response.logs.map((log) => log.seq),
+      [1, 2, 3, 4],
+    );
+  });
+
+  it("keeps individual write errors with their callers and continues after a rejected append", async () => {
+    const home = await tempHome();
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      level: "debug",
+      mirrorToConsole: false,
+    });
+    await logger.hydrate();
+    await logger.info("before failure");
+    // Simulate a rejected append by pointing one logger at an invalid data
+    // dir (a file cannot contain a logs/ directory).
+    await logger.flush();
+    const broken = new ApplicationLogger({
+      dataDir: join(
+        home,
+        "logs",
+        `application-${new Date().toISOString().slice(0, 10)}.jsonl`,
+      ),
+      component: "broken",
+      level: "debug",
+      mirrorToConsole: false,
+    });
+    await assert.rejects(broken.info("will fail"));
+    // The same (broken) logger continues accepting later flushes.
+    await broken.flush();
+    // The healthy logger is unaffected and stays ordered.
+    await logger.info("after failure");
+    await logger.flush();
+    const response = await logger.query({ limit: 10 });
+    assert.deepEqual(
+      response.logs.map((log) => log.message),
+      ["before failure", "after failure"],
+    );
+  });
+
+  it("flush waits for ignored fire-and-forget diagnostic writes", async () => {
+    const home = await tempHome();
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      level: "debug",
+      mirrorToConsole: false,
+    });
+    await logger.hydrate();
+    // Fire-and-forget: intentionally not awaited.
+    void logger.info("ignored one");
+    void logger.child({ component: "child" }).warn("ignored two");
+    await logger.flush();
+    const response = await logger.query({ limit: 10 });
+    assert.deepEqual(
+      response.logs.map((log) => log.message),
+      ["ignored one", "ignored two"],
+    );
+  });
 });

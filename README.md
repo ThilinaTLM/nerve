@@ -196,12 +196,11 @@ pnpm desktop:remote-enabled   # run desktop with LAN/mobile HTTPS flags
 pnpm dev                      # run daemon and Web UI in dev mode
 pnpm dev:ui                   # run Web UI in dev mode against an existing daemon
 pnpm dev:sandbox              # run sandbox manager and sandbox manager UI in dev mode
-pnpm build                    # build all packages
+pnpm build                    # build all packages and stage web runtime artifacts
 pnpm fix                      # apply ESLint fixes and format the repository
 pnpm check                    # verify formatting, lint, and package checks
 pnpm test                     # run package tests
 pnpm release:verify-tag       # validate the release tag against package versions
-pnpm release:build            # build release artifacts
 ```
 
 Release details are documented in `docs/release.md`.

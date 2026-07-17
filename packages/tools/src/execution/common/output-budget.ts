@@ -2,7 +2,7 @@ import type { TextLimitSnapshotPayload } from "@nervekit/contracts";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
-  formatSize,
+  formatByteSize,
   PROCESS_PREVIEW_MAX_LINE_CHARS,
   type TruncationDirection,
   truncateHead,
@@ -188,7 +188,7 @@ export function formatBoundedTextNotice(
     );
   }
   if (bounded.omittedBytes > 0) {
-    parts.push(`${formatSize(bounded.omittedBytes)} omitted`);
+    parts.push(`${formatByteSize(bounded.omittedBytes)} omitted`);
   }
   const subject = options.label ?? "output";
   const summary = parts.length > 0 ? parts.join(", ") : "bounded";

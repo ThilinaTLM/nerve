@@ -114,9 +114,15 @@ export class RuntimeRegistry {
     });
   }
 
-  shutdown(): void {
+  /**
+   * Stops registry timers and waits for queued run-event deliveries and
+   * event-journal publications to settle so no writer races teardown.
+   */
+  async shutdown(): Promise<void> {
     this.services.runCompletion.stop();
     this.services.taskNotifications.stop();
+    await this.services.runRuntime.delivery.settled();
+    await this.events.settled();
   }
 
   /** Current subscription usage snapshots (Anthropic / Codex). */

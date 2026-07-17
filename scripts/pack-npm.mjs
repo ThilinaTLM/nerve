@@ -62,27 +62,27 @@ async function verifyBuildOutputs() {
   const required = [
     [
       join("packages", "desktop-shell", "dist", "bin.js"),
-      "Run pnpm release:build before packing the desktop package.",
+      "Run pnpm build before packing the desktop package.",
     ],
     [
       join("packages", "desktop-shell", "dist", "main.js"),
-      "Run pnpm release:build before packing the desktop package.",
+      "Run pnpm build before packing the desktop package.",
     ],
     [
       join("packages", "desktop-shell", "dist", "preload.cjs"),
-      "Run pnpm release:build before packing the desktop package.",
+      "Run pnpm build before packing the desktop package.",
     ],
     [
       join("packages", "workbench-server", "dist", "main.js"),
-      "Run pnpm release:build before packing the desktop package.",
+      "Run pnpm build before packing the desktop package.",
     ],
     [
       join("packages", "workbench-server", "dist", "web", "index.html"),
-      "Run pnpm release:build so workbench-server contains the built web app.",
+      "Run pnpm build so workbench-server contains the built web app.",
     ],
     [
       join("packages", "workbench-app", "dist", "index.html"),
-      "Run pnpm release:build before packing the desktop package.",
+      "Run pnpm build before packing the desktop package.",
     ],
   ];
   for (const [relativePath, message] of required) {
@@ -93,7 +93,7 @@ async function verifyBuildOutputs() {
   for (const [, directory] of internalPackages) {
     await access(join(repoRoot, "packages", directory, "dist")).catch(() => {
       throw new Error(
-        `Missing packages/${directory}/dist. Run pnpm release:build before packing the desktop package.`,
+        `Missing packages/${directory}/dist. Run pnpm build before packing the desktop package.`,
       );
     });
   }

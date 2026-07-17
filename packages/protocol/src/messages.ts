@@ -3,7 +3,7 @@ import type {
   PeerDescriptor,
   SafeMetadata,
 } from "@nervekit/contracts";
-import { createProtocolId, type IdFactory } from "./ids.js";
+import { createTransportId, type IdFactory } from "./ids.js";
 
 export interface MessageFactoryOptions {
   readonly source: PeerDescriptor;
@@ -25,7 +25,7 @@ export function createMessageFactory(
   defaults: Pick<MessageFactoryOptions, "source" | "target">,
   dependencies: MessageFactoryDependencies = {},
 ) {
-  const id = dependencies.id ?? createProtocolId;
+  const id = dependencies.id ?? createTransportId;
   const now = dependencies.now ?? (() => new Date());
   return <TData>(
     kind: string,

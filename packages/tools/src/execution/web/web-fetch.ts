@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NodeHtmlMarkdown } from "node-html-markdown";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { formatByteSize } from "../common/truncate.js";
 
 const MAX_INLINE_BYTES = 512 * 1024;
 
@@ -65,13 +66,6 @@ function tmpPath(
 ): string {
   const hash = createHash("sha256").update(url).digest("hex").slice(0, 12);
   return join(saveDir(context), `${hash}${ext}`);
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
 }
 
 function lineCount(text: string): number {
@@ -184,7 +178,7 @@ export async function executeWebFetch(
       details.savedTo,
       buffer,
     );
-    const content = `Raw content saved to: ${details.savedTo}\nSize: ${formatSize(size)}\nContent-Type: ${contentType}`;
+    const content = `Raw content saved to: ${details.savedTo}\nSize: ${formatByteSize(size)}\nContent-Type: ${contentType}`;
     return {
       content,
       contentBlocks: [{ type: "text", text: content }],
@@ -199,7 +193,7 @@ export async function executeWebFetch(
       details.savedTo,
       buffer,
     );
-    const content = `Binary content saved to: ${details.savedTo}\nSize: ${formatSize(size)}\nContent-Type: ${contentType}\nUse the read tool to inspect it.`;
+    const content = `Binary content saved to: ${details.savedTo}\nSize: ${formatByteSize(size)}\nContent-Type: ${contentType}\nUse the read tool to inspect it.`;
     return {
       content,
       contentBlocks: [{ type: "text", text: content }],
@@ -228,6 +222,6 @@ export async function executeWebFetch(
     details.savedTo,
     text,
   );
-  const content = `Response saved to: ${details.savedTo}\nSize: ${formatSize(Buffer.byteLength(text))}${details.converted ? " (converted to markdown)" : ""}\nThe content is large — use grep or read to inspect it.`;
+  const content = `Response saved to: ${details.savedTo}\nSize: ${formatByteSize(Buffer.byteLength(text))}${details.converted ? " (converted to markdown)" : ""}\nThe content is large — use grep or read to inspect it.`;
   return { content, contentBlocks: [{ type: "text", text: content }], details };
 }
