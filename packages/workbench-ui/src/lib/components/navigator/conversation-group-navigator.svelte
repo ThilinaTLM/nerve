@@ -48,14 +48,12 @@ const visibleGroups = $derived(filterConversationGroups(groups, searchValue));
         onOpenChange={(open) => onGroupOpenChange?.(group, open)}
         contentClass="grid gap-0.5"
       >
-        {#if group.meta}
-          <!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -- Named snippet is consumed by PanelSection. -->
-          {#snippet meta()}<span>{group.meta}</span>{/snippet}
-        {/if}
-        {#if groupActions}
-          <!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -- Named snippet is consumed by PanelSection. -->
-          {#snippet actions()}{@render groupActions(group)}{/snippet}
-        {/if}
+        {#snippet meta()}
+          {#if group.meta}<span>{group.meta}</span>{/if}
+        {/snippet}
+        {#snippet actions()}
+          {#if groupActions}{@render groupActions(group)}{/if}
+        {/snippet}
         {#each group.items as item (item.id)}
           {#if itemTooltip}
             <NavigatorItem
