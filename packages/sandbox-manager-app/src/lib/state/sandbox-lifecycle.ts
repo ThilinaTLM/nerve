@@ -21,10 +21,14 @@ export function sandboxLifecycleState(
   record: ManagedSandboxRecord | undefined,
   detail: SandboxDetailState | undefined,
 ): ManagedSandboxLifecycleState | undefined {
+  // The record is refreshed by both detail loads and live
+  // `sandbox.lifecycle.changed` events, so it is never staler than the
+  // fetched status/snapshot payloads; prefer it to keep boot transitions
+  // visible in real time.
   return (
+    record?.lifecycleState ??
     detail?.status?.lifecycle?.state ??
-    detail?.snapshot?.lifecycle?.state ??
-    record?.lifecycleState
+    detail?.snapshot?.lifecycle?.state
   );
 }
 
@@ -37,12 +41,14 @@ export function sandboxDaemonStatus(
 export function sandboxIsConnected(
   detail: SandboxDetailState | undefined,
 ): boolean {
-  if (typeof detail?.status?.connected === "boolean") {
-    return detail.status.connected;
-  }
-  return (
-    detail?.controllerConnected === true || detail?.snapshot?.connected === true
-  );
+  if (!detail) return false;
+  // `controllerConnected` mirrors `status.connected` whenever the detail is
+  // loaded and is kept fresh by live controller events (`sandbox.ready`,
+  // `sandbox.controller.disconnected`/`reconnected`), so it wins over the
+  // fetched payloads. Snapshot-only details (conversation-list preloads that
+  // never fetched status) fall back to the snapshot's connected flag.
+  if (detail.controllerConnected) return true;
+  return detail.status === undefined && detail.snapshot?.connected === true;
 }
 
 export function sandboxIsOffline(

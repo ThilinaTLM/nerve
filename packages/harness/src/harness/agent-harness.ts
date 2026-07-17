@@ -283,6 +283,12 @@ export class AgentHarness<
     if (entries.length === 0) return [];
     try {
       await this.emitQueueUpdate();
+      const messageIds = entries.flatMap((entry) =>
+        entry.id ? [entry.id] : [],
+      );
+      if (messageIds.length > 0) {
+        await this.emitOwn({ type: "queue_drained", messageIds });
+      }
       const groups = coalesceQueuedUserEntries(entries);
       for (const group of groups) {
         if (group.entries.length !== 1) continue;

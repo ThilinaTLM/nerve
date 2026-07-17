@@ -51,11 +51,21 @@ const LIMITS = {
   maxUnackedDurableEvents: 10_000,
 };
 
-export async function createManagerUiSharedSession(
-  ws: WebSocket,
+/**
+ * Load the fleet stream state needed to accept a manager UI protocol client
+ * and return a function that attaches the session to a WebSocket.
+ *
+ * The attach step is fully synchronous by design: a protocol client sends
+ * hello immediately after the socket opens, so every storage read must finish
+ * before the upgrade completes. Performing async work between the upgrade and
+ * handler attachment drops that first frame and deadlocks the handshake (the
+ * UI then idles in "connecting" and never receives live lifecycle or boot
+ * events).
+ */
+export async function prepareManagerUiSharedSession(
   state: ManagerState,
   server: SandboxWsServer,
-): Promise<void> {
+): Promise<(ws: WebSocket) => void> {
   const streamStates = new Map<string, StreamState>();
   const activeStreams = new Set<string>([MANAGER_EVENT_STREAM]);
   const records = await state.sandboxes.list();
@@ -68,6 +78,23 @@ export async function createManagerUiSharedSession(
   for (const [stream, storeId] of streams)
     streamStates.set(stream, await loadStreamState(state, stream, storeId));
 
+  return (ws) =>
+    attachManagerUiSharedSession(
+      ws,
+      state,
+      server,
+      streamStates,
+      activeStreams,
+    );
+}
+
+function attachManagerUiSharedSession(
+  ws: WebSocket,
+  state: ManagerState,
+  server: SandboxWsServer,
+  streamStates: Map<string, StreamState>,
+  activeStreams: Set<string>,
+): void {
   const peer = {
     role: "sandbox_manager" as const,
     id: "sandbox-manager",
@@ -247,8 +274,10 @@ function managerReplaySource(
           latestSeq: current.durableSeq ?? 0,
           recovery: { action: "load_snapshot" as const },
         };
-      const all = (await state.events.list(storeId))
-        .filter((event) => event.durability !== "transient")
+      const durable = (await state.events.list(storeId)).filter(
+        (event) => event.durability !== "transient",
+      );
+      const all = durable
         .map(toStoredEnvelope)
         .filter(
           (event) =>
@@ -261,12 +290,8 @@ function managerReplaySource(
         events,
         previousDurableSeq: Math.max(
           0,
-          ...(await state.events.list(storeId))
-            .filter(
-              (event) =>
-                event.durability !== "transient" &&
-                (event.seq ?? 0) < request.fromSeq,
-            )
+          ...durable
+            .filter((event) => (event.seq ?? 0) < request.fromSeq)
             .map((event) => event.seq ?? 0),
         ),
         complete: events.length === all.length,
@@ -281,18 +306,15 @@ async function loadStreamState(
   stream: string,
   storeId: string,
 ): Promise<StreamState> {
-  const events = await state.events.list(storeId);
-  const latestSeq = Math.max(0, ...events.map((event) => event.seq ?? 0));
-  const durable = events.filter((event) => event.durability !== "transient");
-  const durableSeq = Math.max(0, ...durable.map((event) => event.seq ?? 0));
-  const first = Math.min(
-    ...durable.map((event) => event.seq ?? Number.POSITIVE_INFINITY),
-  );
+  const summary = await state.events.streamState(storeId);
   return {
     stream,
-    latestSeq,
-    durableSeq,
-    replayAvailableFromSeq: Number.isFinite(first) ? Math.max(0, first - 1) : 0,
+    latestSeq: summary.latestSeq,
+    durableSeq: summary.durableSeq,
+    replayAvailableFromSeq:
+      summary.firstDurableSeq !== undefined
+        ? Math.max(0, summary.firstDurableSeq - 1)
+        : 0,
   };
 }
 

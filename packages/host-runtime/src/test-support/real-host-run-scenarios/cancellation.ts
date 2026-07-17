@@ -53,6 +53,49 @@ export async function runCancellationScenarios(
   await cancellationCase(
     fixture,
     {
+      name: "cancel-active-queued-prompt",
+      permissionLevel: "autonomous",
+      steps: [
+        {
+          type: "toolCall",
+          id: "parity_active_queue_tool",
+          name: "bash",
+          args: {
+            command:
+              'node -e "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)"',
+            timeout: 10,
+          },
+        },
+        { type: "assistantText", text: "The queued prompt was discarded." },
+      ],
+    },
+    async (session, runId) => {
+      await session.waitForToolStatus(runId, "running");
+      const promptId = await session.followUp(
+        runId,
+        "Discard this active queued prompt.",
+      );
+      const accepted = await session.load(runId);
+      invariant(
+        accepted?.prompts.find((prompt) => prompt.id === promptId)?.status ===
+          "accepted",
+        "Active queued prompt was not retained as accepted",
+      );
+      await session.cancelPrompt(runId, promptId);
+      const cancelled = await session.load(runId);
+      invariant(
+        cancelled?.prompts.find((prompt) => prompt.id === promptId)?.status ===
+          "cancelled",
+        "Active queued prompt was not cancelled",
+      );
+      await session.cancel(runId);
+    },
+  );
+  assertions += 6;
+
+  await cancellationCase(
+    fixture,
+    {
       name: "cancel-queued-prompt",
       steps: questionSteps("question_parity_queue"),
     },

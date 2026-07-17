@@ -27,13 +27,23 @@ export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdap
       method: "steer" | "followUp";
       prompt: RunPromptRecord;
     }> = [];
+    const forwarding = new Map<string, Promise<void>>();
+
+    const forward = (
+      control: WorkbenchLiveExecutionControl,
+      queued: (typeof pending)[number],
+    ) => {
+      const promise = control[queued.method](queued.prompt).finally(() => {
+        forwarding.delete(queued.prompt.id);
+      });
+      forwarding.set(queued.prompt.id, promise);
+      void promise.catch(() => undefined);
+    };
 
     const installControl = (control: WorkbenchLiveExecutionControl) => {
       installed = control;
       if (cancelled) void control.cancel("run cancelled before harness start");
-      for (const queued of pending.splice(0)) {
-        void control[queued.method](queued.prompt);
-      }
+      for (const queued of pending.splice(0)) forward(control, queued);
     };
 
     const control: WorkbenchLiveExecutionControl = {
@@ -51,8 +61,18 @@ export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdap
         pending.length = 0;
         await installed?.cancel(reason);
       },
-      removeQueuedPrompt: (promptId) =>
-        installed?.removeQueuedPrompt?.(promptId),
+      removeQueuedPrompt: async (promptId) => {
+        const pendingIndex = pending.findIndex(
+          (queued) => queued.prompt.id === promptId,
+        );
+        if (pendingIndex !== -1) {
+          pending.splice(pendingIndex, 1);
+          return true;
+        }
+        const forwardingPrompt = forwarding.get(promptId);
+        if (forwardingPrompt) await forwardingPrompt;
+        return (await installed?.removeQueuedPrompt(promptId)) ?? false;
+      },
       updateAgentRuntimeConfig: async (agent) =>
         installed?.updateAgentRuntimeConfig?.(agent),
       appendExternalMessage: async (input) =>

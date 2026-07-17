@@ -39,6 +39,12 @@ export interface QueueUpdateEvent {
   nextTurn: AgentMessage[];
 }
 
+/** Queued user messages removed from the queue for delivery to an agent turn. */
+export interface QueueDrainedEvent {
+  type: "queue_drained";
+  messageIds: string[];
+}
+
 export interface SavePointEvent {
   type: "save_point";
   hadPendingMutations: boolean;
@@ -171,6 +177,7 @@ export type AgentHarnessOwnEvent<
   TPromptTemplate extends PromptTemplate = PromptTemplate,
 > =
   | QueueUpdateEvent
+  | QueueDrainedEvent
   | SavePointEvent
   | AbortEvent
   | SettledEvent
@@ -254,6 +261,7 @@ export type AgentHarnessEventResultMap = {
   resources_update: undefined;
   tools_update: undefined;
   queue_update: undefined;
+  queue_drained: undefined;
   save_point: undefined;
   abort: undefined;
   settled: undefined;

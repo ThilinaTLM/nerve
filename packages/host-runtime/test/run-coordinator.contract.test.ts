@@ -121,6 +121,7 @@ function fixture(
     retryPolicy?: { enabled: boolean; maxRetries: number; baseDelayMs: number };
     observerFails?: boolean;
     retryDelay?: (delayMs: number, signal: AbortSignal) => Promise<void>;
+    removeQueuedPrompt?: (promptId: string) => boolean | Promise<boolean>;
   } = {},
 ) {
   const unitOfWork = new MemoryUnitOfWork();
@@ -130,6 +131,7 @@ function fixture(
   const controlPrompts: import("@nervekit/contracts").RunPromptRecord[] = [];
   const controlContinues: number[] = [];
   const controlCancels: Array<string | undefined> = [];
+  const removedPromptIds: string[] = [];
   const executions: RunExecution[] = [];
   const sinks: RunExecutionSink[] = [];
   const transient: RunProgressEvent[] = [];
@@ -178,6 +180,12 @@ function fixture(
             followUp: async (prompt) => {
               controls.push({ behavior: prompt.behavior, text: prompt.text });
               controlPrompts.push(prompt);
+            },
+            removeQueuedPrompt: async (promptId) => {
+              removedPromptIds.push(promptId);
+              return options.removeQueuedPrompt
+                ? options.removeQueuedPrompt(promptId)
+                : true;
             },
             continue: async () => {
               controlContinues.push(attempt);
@@ -250,6 +258,7 @@ function fixture(
     controlPrompts,
     controlContinues,
     controlCancels,
+    removedPromptIds,
     executions,
     sinks,
     transient,
@@ -303,19 +312,102 @@ test("constructs before committing started and enforces durable exclusivity", as
   assert.equal(harness.published.size, 1);
 });
 
-test("drains ordered steer and follow-up prompts and persists delivery", async () => {
+test("keeps accepted prompts queued until the execution reports delivery", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);
   await harness.coordinator.steer(run.runId, "first");
   await harness.coordinator.followUp(run.runId, "second");
-  const state = await harness.coordinator.get(run.runId);
+  let state = await harness.coordinator.get(run.runId);
   assert.deepEqual(harness.controls, [
     { behavior: "steer", text: "first" },
     { behavior: "follow-up", text: "second" },
   ]);
   assert.deepEqual(
     state?.prompts.map((item) => item.status),
+    ["accepted", "accepted"],
+  );
+  assert.equal(
+    state?.transitions
+      .flatMap((transition) => transition.events)
+      .some((event) => event.type === "conversation.prompt.dequeued"),
+    false,
+  );
+
+  for (const prompt of state?.prompts ?? []) {
+    await harness.sinks[0]?.promptDelivered(prompt.id);
+  }
+  state = await harness.coordinator.get(run.runId);
+  assert.deepEqual(
+    state?.prompts.map((item) => item.status),
     ["delivered", "delivered"],
+  );
+  assert.equal(
+    state?.transitions
+      .flatMap((transition) => transition.events)
+      .filter((event) => event.type === "conversation.prompt.dequeued").length,
+    2,
+  );
+
+  await harness.sinks[0]?.promptDelivered(state?.prompts[0]?.id ?? "");
+  const replayed = await harness.coordinator.get(run.runId);
+  assert.equal(
+    replayed?.transitions
+      .flatMap((transition) => transition.events)
+      .filter((event) => event.type === "conversation.prompt.dequeued").length,
+    2,
+  );
+});
+
+test("re-enqueues accepted prompts when a new execution is launched", async () => {
+  let releaseFirstAttempt!: () => void;
+  const firstAttemptGate = new Promise<void>((resolve) => {
+    releaseFirstAttempt = resolve;
+  });
+  let promptId = "";
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 1, baseDelayMs: 0 },
+    execute: async (attempt, _input, sink) => {
+      if (attempt === 1) {
+        await firstAttemptGate;
+        await sink.checkpoint({
+          boundary: "before_provider_request",
+          transcriptCursor: 0,
+          entryIds: [],
+          harnessLeafId: null,
+          harnessSavePointId: "save_0",
+          toolCalls: [],
+        });
+        return {
+          status: "failed",
+          failure: {
+            code: "PROVIDER_FAILED",
+            message: "restart execution",
+            retryable: true,
+          },
+        };
+      }
+      await sink.promptDelivered(promptId);
+      return { status: "completed" };
+    },
+  });
+  const run = await start(harness.coordinator);
+  const prompt = await harness.coordinator.followUp(run.runId, "survive retry");
+  promptId = prompt.id;
+  releaseFirstAttempt();
+
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "completed",
+  );
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(
+    harness.controls.filter((control) => control.text === "survive retry")
+      .length,
+    2,
+  );
+  assert.equal(
+    state?.prompts.find((candidate) => candidate.id === prompt.id)?.status,
+    "delivered",
   );
 });
 
@@ -351,7 +443,11 @@ test("preserves images on start, steer, and follow-up delivery", async () => {
 test("commits prompt dequeue and cancellation intents exactly once", async () => {
   const deliveredHarness = fixture();
   const deliveredRun = await start(deliveredHarness.coordinator);
-  await deliveredHarness.coordinator.steer(deliveredRun.runId, "delivered");
+  const deliveredPrompt = await deliveredHarness.coordinator.steer(
+    deliveredRun.runId,
+    "delivered",
+  );
+  await deliveredHarness.sinks[0]?.promptDelivered(deliveredPrompt.id);
   const deliveredState = await deliveredHarness.coordinator.get(
     deliveredRun.runId,
   );
@@ -387,6 +483,47 @@ test("commits prompt dequeue and cancellation intents exactly once", async () =>
     cancelledTypes?.filter((type) => type === "conversation.prompt.cancelled")
       .length,
     1,
+  );
+});
+
+test("removes an accepted live prompt before committing cancellation", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const prompt = await harness.coordinator.followUp(run.runId, "cancel me");
+
+  await harness.coordinator.cancelPrompt(run.runId, prompt.id);
+  await harness.sinks[0]?.promptDelivered(prompt.id);
+
+  const state = await harness.coordinator.get(run.runId);
+  assert.deepEqual(harness.removedPromptIds, [prompt.id]);
+  assert.equal(
+    state?.prompts.find((candidate) => candidate.id === prompt.id)?.status,
+    "cancelled",
+  );
+  const promptEvents = state?.transitions
+    .flatMap((transition) => transition.events)
+    .filter((event) => event.type.startsWith("conversation.prompt."));
+  assert.deepEqual(
+    promptEvents?.map((event) => event.type),
+    ["conversation.prompt.queued", "conversation.prompt.cancelled"],
+  );
+});
+
+test("does not claim cancellation after an accepted prompt was drained", async () => {
+  const harness = fixture({ removeQueuedPrompt: () => false });
+  const run = await start(harness.coordinator);
+  const prompt = await harness.coordinator.followUp(run.runId, "too late");
+
+  await assert.rejects(
+    harness.coordinator.cancelPrompt(run.runId, prompt.id),
+    /Queued prompt was not found/,
+  );
+  await harness.sinks[0]?.promptDelivered(prompt.id);
+
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(
+    state?.prompts.find((candidate) => candidate.id === prompt.id)?.status,
+    "delivered",
   );
 });
 

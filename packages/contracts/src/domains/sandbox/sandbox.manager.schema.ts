@@ -493,8 +493,8 @@ export const sandboxManagerLifecycleSettingsSchema = z.object({
   daemonConnectTimeoutMs: z.number().int().positive().safe().optional(),
   bootReadyTimeoutMs: z.number().int().positive().safe().optional(),
   bootStallTimeoutMs: z.number().int().positive().safe().optional(),
-  maxPendingCommands: z.number().int().nonnegative().safe(),
-  maxCommandBytes: z.number().int().positive().safe(),
+  maxPendingOperations: z.number().int().nonnegative().safe(),
+  maxOperationBytes: z.number().int().positive().safe(),
 });
 export type SandboxManagerLifecycleSettings = z.infer<
   typeof sandboxManagerLifecycleSettingsSchema

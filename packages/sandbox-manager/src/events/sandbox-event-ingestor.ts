@@ -161,7 +161,27 @@ function assertSameDurableEvent(
     existing.seq !== candidate.seq ||
     existing.id !== candidate.id ||
     existing.type !== candidate.type ||
-    JSON.stringify(existing.payload) !== JSON.stringify(candidate.payload)
+    canonicalJson(existing.payload) !== canonicalJson(candidate.payload)
   )
     throw new Error("Conflicting durable sandbox event replay");
+}
+
+/**
+ * Stable stringify with sorted object keys. Stored payloads round-trip
+ * through Postgres jsonb, which does not preserve key order, so a plain
+ * JSON.stringify comparison would reject legitimate duplicate re-deliveries
+ * as conflicting replays.
+ */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortKeysDeep(value));
+}
+
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (typeof value !== "object" || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([key, entry]) => [key, sortKeysDeep(entry)]),
+  );
 }

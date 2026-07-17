@@ -3,7 +3,6 @@ import type { AgentMessage } from "@nervekit/host-runtime/harness";
 import type { RunExecutionControl } from "@nervekit/host-runtime";
 
 export interface WorkbenchLiveExecutionControl extends RunExecutionControl {
-  removeQueuedPrompt?(promptId: string): void;
   updateAgentRuntimeConfig?(agent: AgentRecord): Promise<void>;
   appendExternalMessage?(input: {
     id: string;

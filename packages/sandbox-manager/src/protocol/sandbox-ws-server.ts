@@ -21,7 +21,7 @@ import { SandboxEventIngestor } from "../events/sandbox-event-ingestor.js";
 import type { StoredSandboxEvent } from "../state/event-store.js";
 import { extractSandboxToken, timingSafeTokenEquals } from "../http/auth.js";
 import { transitionSandboxLifecycle } from "../lifecycle/lifecycle-state.js";
-import { createManagerUiSharedSession } from "./manager-ui-shared-session.js";
+import { prepareManagerUiSharedSession } from "./manager-ui-shared-session.js";
 import { RpcForwarder } from "./rpc-forwarder.js";
 import {
   type ConnectedSandboxSession,
@@ -95,9 +95,11 @@ export class SandboxWsServer {
       if (matchManagerUiWs(req.url ?? "")) {
         if (!this.authorizeManagerClient(this.state, req))
           return rejectUpgrade(socket, 401, "Unauthorized");
-        this.wss.handleUpgrade(req, socket, head, (ws) => {
-          void this.handleUiConnection(ws);
-        });
+        // Load fleet stream state before completing the upgrade. A protocol
+        // client sends hello immediately after open; awaiting storage after
+        // the upgrade would drop that first frame and deadlock the handshake.
+        const attach = await prepareManagerUiSharedSession(this.state, this);
+        this.wss.handleUpgrade(req, socket, head, attach);
         return;
       }
       const sandboxId = matchSandboxId(req.url ?? "");
@@ -138,9 +140,6 @@ export class SandboxWsServer {
     }
   }
 
-  private async handleUiConnection(ws: WebSocket): Promise<void> {
-    await createManagerUiSharedSession(ws, this.state, this);
-  }
   async acceptAgentConnection(
     sandboxId: string,
     ws: WebSocket,

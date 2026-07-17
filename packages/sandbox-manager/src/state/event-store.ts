@@ -13,9 +13,21 @@ export type StoredSandboxEvent = {
   durability?: "durable" | "transient";
   payload: unknown;
 };
+export type SandboxEventStreamState = {
+  latestSeq: number;
+  durableSeq: number;
+  /** Lowest durable seq still stored, when any durable events exist. */
+  firstDurableSeq?: number;
+};
+
 export interface SandboxEventStore {
   append(event: StoredSandboxEvent): Promise<boolean>;
   list(sandboxId: string): Promise<StoredSandboxEvent[]>;
+  /**
+   * Aggregate stream cursors without materializing the event history. Used on
+   * every UI protocol connect, so it must stay O(1) relative to history size.
+   */
+  streamState(sandboxId: string): Promise<SandboxEventStreamState>;
 }
 
 export class PostgresEventStore implements SandboxEventStore {
@@ -38,6 +50,31 @@ export class PostgresEventStore implements SandboxEventStore {
       ],
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async streamState(sandboxId: string): Promise<SandboxEventStreamState> {
+    const result = await this.pool.query<{
+      latest_seq: string | number | null;
+      durable_seq: string | number | null;
+      first_durable_seq: string | number | null;
+    }>(
+      `select
+         max(seq) as latest_seq,
+         max(seq) filter (where durability <> 'transient') as durable_seq,
+         min(seq) filter (where durability <> 'transient') as first_durable_seq
+       from ${dbTables.sandboxEvents}
+       where sandbox_id = $1`,
+      [sandboxId],
+    );
+    const row = result.rows[0];
+    return {
+      latestSeq: row?.latest_seq === null ? 0 : Number(row?.latest_seq ?? 0),
+      durableSeq: row?.durable_seq === null ? 0 : Number(row?.durable_seq ?? 0),
+      firstDurableSeq:
+        row?.first_durable_seq === null || row?.first_durable_seq === undefined
+          ? undefined
+          : Number(row.first_durable_seq),
+    };
   }
 
   async list(sandboxId: string): Promise<StoredSandboxEvent[]> {
@@ -110,6 +147,10 @@ export class EventStore {
     }
   }
 
+  async streamState(sandboxId: string): Promise<SandboxEventStreamState> {
+    return eventStreamState(await this.list(sandboxId));
+  }
+
   private async withSandboxQueue<T>(
     sandboxId: string,
     run: () => Promise<T>,
@@ -128,4 +169,24 @@ export class EventStore {
 }
 async function writeJson(file: string, value: unknown): Promise<void> {
   await atomicWriteFile(file, `${JSON.stringify(value, null, 2)}\n`, 0o600);
+}
+
+/** Derive stream cursors from an in-memory event list (file-backed stores). */
+export function eventStreamState(
+  events: readonly StoredSandboxEvent[],
+): SandboxEventStreamState {
+  const durable = events.filter((event) => event.durability !== "transient");
+  const durableSeqs = durable
+    .map((event) => event.seq)
+    .filter((seq): seq is number => seq !== undefined);
+  return {
+    latestSeq: Math.max(
+      0,
+      ...events
+        .map((event) => event.seq)
+        .filter((seq): seq is number => seq !== undefined),
+    ),
+    durableSeq: Math.max(0, ...durableSeqs),
+    firstDurableSeq: durableSeqs.length ? Math.min(...durableSeqs) : undefined,
+  };
 }

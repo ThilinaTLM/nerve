@@ -198,6 +198,12 @@ export async function executeWorkbenchHarness(
       context: undefined,
     });
     harness.subscribe(async (event) => {
+      if (event.type === "queue_drained") {
+        for (const promptId of event.messageIds) {
+          await coordinator.sink.promptDelivered(promptId);
+        }
+        return;
+      }
       if (event.type === "before_provider_request") {
         currentProviderForResponse = event.model.provider;
         this.deps.subscriptionUsage.touchProvider(event.model.provider);

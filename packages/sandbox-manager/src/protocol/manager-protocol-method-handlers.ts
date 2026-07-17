@@ -204,7 +204,7 @@ async function sandboxSnapshot(
     const result = await session.forwarder.send(
       session.socket,
       "sandbox.snapshot.get",
-      params,
+      { sandboxId, ...params },
     );
     const container = await connectedContainerStatus(state, sandboxId);
     const lifecycle = await connectedLifecycle(state, sandboxId);
@@ -235,7 +235,7 @@ async function sandboxConversationSnapshot(
       const result = await session.forwarder.send(
         session.socket,
         "sandbox.conversation.snapshot.get",
-        params,
+        { sandboxId, ...params },
       );
       return sandboxConversationViewSnapshotSchema.parse({
         connected: true,

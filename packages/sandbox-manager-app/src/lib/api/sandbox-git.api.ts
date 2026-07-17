@@ -14,7 +14,10 @@ import type {
 } from "@nervekit/contracts";
 import { sandboxProtocolRequest } from "./manager-protocol-client";
 
-const SANDBOX_PROJECT_ID = "sandbox_workspace";
+// Wire-level project id for git operations. The sandbox agent ignores it and
+// always operates on its own workspace, but the shared git operation schemas
+// require the workbench "proj_" prefix.
+const SANDBOX_PROJECT_ID = "proj_sandbox_workspace";
 
 export async function discoverSandboxGitRepos(
   sandboxId: string,

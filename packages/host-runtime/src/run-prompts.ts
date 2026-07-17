@@ -64,7 +64,7 @@ export class RunPromptCoordinator {
       return record;
     });
     const execution = this.ports.live(runId);
-    if (execution) await this.drain(runId, execution);
+    if (execution) await this.accept(runId, execution, prompt.id, false);
     return prompt;
   }
 
@@ -75,6 +75,20 @@ export class RunPromptCoordinator {
       if (!prompt || !["queued", "accepted"].includes(prompt.status)) {
         throw new InvalidRunStateError("Queued prompt was not found");
       }
+
+      const execution = this.ports.live(runId);
+      if (prompt.status === "accepted" && execution) {
+        const removed = await execution.control.removeQueuedPrompt(prompt.id);
+        if (!removed) {
+          throw new InvalidRunStateError("Queued prompt was not found");
+        }
+      } else if (prompt.status === "queued" && execution) {
+        // A queue request can publish before its live acceptance begins. Remove
+        // opportunistically; if it is not present, this locked cancellation
+        // wins and the later acceptance re-check becomes a no-op.
+        await execution.control.removeQueuedPrompt(prompt.id);
+      }
+
       const now = this.ports.now();
       const cancelled: RunPromptRecord = {
         ...prompt,
@@ -90,43 +104,76 @@ export class RunPromptCoordinator {
     });
   }
 
+  /** Rehydrates all prompts that may have existed only in a lost live queue. */
   async drain(runId: string, execution: RunExecution): Promise<void> {
     const initial = await this.ports.load(runId);
-    for (const prompt of initial.prompts.filter(
-      (item) => item.status === "queued",
+    for (const prompt of initial.prompts.filter((item) =>
+      ["queued", "accepted"].includes(item.status),
     )) {
-      try {
-        if (prompt.behavior === "steer") await execution.control.steer(prompt);
-        else await execution.control.followUp(prompt);
-        await this.markDelivered(runId, prompt);
-      } catch (error) {
-        await this.markFailed(runId, prompt, error);
-        throw error;
-      }
+      await this.accept(runId, execution, prompt.id, true);
     }
   }
 
-  private async markDelivered(
-    runId: string,
-    prompt: RunPromptRecord,
-  ): Promise<void> {
+  /** Called only when the harness removes a prompt for an agent turn. */
+  async delivered(runId: string, promptId: string): Promise<void> {
     await this.ports.exclusive(`run:${runId}`, async () => {
-      const current = await this.ports.load(runId);
-      const persisted = current.prompts.find((item) => item.id === prompt.id);
-      if (!persisted || persisted.status !== "queued") return;
+      const state = await this.ports.load(runId);
+      const prompt = state.prompts.find((item) => item.id === promptId);
+      if (!prompt || !["queued", "accepted"].includes(prompt.status)) return;
       const now = this.ports.now();
       const delivered: RunPromptRecord = {
-        ...persisted,
+        ...prompt,
         status: "delivered",
-        deliveryAttempts: persisted.deliveryAttempts + 1,
+        deliveryAttempts: prompt.deliveryAttempts + 1,
         updatedAt: now,
       };
-      const next = revise(current.run, {}, now);
-      await this.ports.commit(current, next, "prompt_delivered", {
+      const next = revise(state.run, {}, now);
+      await this.ports.commit(state, next, "prompt_delivered", {
         prompts: [delivered],
         events: [this.ports.events.dequeuedPrompt(next, delivered)],
       });
     });
+  }
+
+  private async accept(
+    runId: string,
+    execution: RunExecution,
+    promptId: string,
+    reenqueueAccepted: boolean,
+  ): Promise<void> {
+    let failedPrompt: RunPromptRecord | undefined;
+    try {
+      await this.ports.exclusive(`run:${runId}`, async () => {
+        const state = await this.ports.load(runId);
+        const prompt = state.prompts.find((item) => item.id === promptId);
+        if (!prompt || !["queued", "accepted"].includes(prompt.status)) return;
+        if (prompt.status === "accepted" && !reenqueueAccepted) return;
+        failedPrompt = prompt;
+
+        if (prompt.behavior === "steer") {
+          await execution.control.steer(prompt);
+        } else {
+          await execution.control.followUp(prompt);
+        }
+        if (prompt.status === "accepted") return;
+
+        const now = this.ports.now();
+        const accepted: RunPromptRecord = {
+          ...prompt,
+          status: "accepted",
+          updatedAt: now,
+        };
+        await this.ports.commit(
+          state,
+          revise(state.run, {}, now),
+          "prompt_accepted",
+          { prompts: [accepted] },
+        );
+      });
+    } catch (error) {
+      if (failedPrompt) await this.markFailed(runId, failedPrompt, error);
+      throw error;
+    }
   }
 
   private async markFailed(
@@ -137,7 +184,9 @@ export class RunPromptCoordinator {
     await this.ports.exclusive(`run:${runId}`, async () => {
       const current = await this.ports.load(runId);
       const persisted = current.prompts.find((item) => item.id === prompt.id);
-      if (!persisted || persisted.status !== "queued") return;
+      if (!persisted || !["queued", "accepted"].includes(persisted.status)) {
+        return;
+      }
       const now = this.ports.now();
       await this.ports.commit(
         current,

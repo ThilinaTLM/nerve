@@ -84,6 +84,7 @@ import {
   sandboxCanQueuePrompt,
   sandboxIsConnected,
   sandboxLifecycleMessage,
+  sandboxShouldPollStatus,
 } from "./sandbox-lifecycle";
 import { applySnapshot } from "./sandbox-snapshot-adapter";
 import type { SandboxFleetFilter } from "./sandbox-status";
@@ -176,6 +177,8 @@ export class SandboxManagerStore {
   private readonly taskLogRefreshes = new SvelteMap<string, Promise<void>>();
   private readonly taskLogHistoryLoads = new SvelteMap<string, Promise<void>>();
   private fleetRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private bootPollTimer: ReturnType<typeof setInterval> | undefined;
+  private bootPollInFlight = false;
   private readonly operationCleanupTimers = new SvelteSet<
     ReturnType<typeof setTimeout>
   >();
@@ -201,11 +204,51 @@ export class SandboxManagerStore {
       this.refreshFleet(),
     ]);
     this.ws.connect();
+    this.bootPollTimer = setInterval(
+      () => void this.pollSelectedBootStatus(),
+      3_000,
+    );
+  }
+
+  /**
+   * Poll the selected sandbox's record and status while it boots. Live events
+   * normally drive the boot stepper; this keeps it moving when the event
+   * stream is degraded (for example while the manager websocket reconnects).
+   */
+  private async pollSelectedBootStatus(): Promise<void> {
+    if (this.disposed || this.bootPollInFlight) return;
+    const sandboxId = this.selectedSandboxId;
+    if (!sandboxId) return;
+    const detail = this.details[sandboxId];
+    const record = recordForDetail(this, sandboxId);
+    if (!sandboxShouldPollStatus(record, detail)) return;
+    this.bootPollInFlight = true;
+    try {
+      const fresh = await api.getSandboxRecord(sandboxId);
+      if (fresh) this.patchRecord(fresh);
+      const status = await api
+        .getSandboxStatus(sandboxId)
+        .catch(() => undefined);
+      if (status && this.details[sandboxId]) {
+        this.details[sandboxId].status = status;
+        this.details[sandboxId].controllerConnected = status.connected;
+      }
+      // When readiness is first observed through polling, hydrate the full
+      // detail (conversations, sessions, pinned commands) that live events
+      // would otherwise have triggered.
+      if (status?.status === "ready" || status?.status === "degraded")
+        await this.loadDetail(sandboxId);
+    } catch {
+      // Best-effort poll; the next tick retries.
+    } finally {
+      this.bootPollInFlight = false;
+    }
   }
 
   dispose(): void {
     this.disposed = true;
     if (this.fleetRefreshTimer) clearTimeout(this.fleetRefreshTimer);
+    if (this.bootPollTimer) clearInterval(this.bootPollTimer);
     for (const timer of this.operationCleanupTimers) clearTimeout(timer);
     this.operationCleanupTimers.clear();
     this.ws.close();

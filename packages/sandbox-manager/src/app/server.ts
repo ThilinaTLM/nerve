@@ -409,7 +409,7 @@ async function sandboxSnapshot(
     const result = await session.forwarder.send(
       session.socket,
       "sandbox.snapshot.get",
-      {},
+      { sandboxId },
     );
     const container = await connectedContainerStatus(state, sandboxId);
     return sandboxSnapshotResultSchema.parse({

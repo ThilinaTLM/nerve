@@ -24,6 +24,8 @@ export interface RunExecutionSink {
   upsertToolCalls(
     toolCalls: readonly ToolCallTranscriptRecord[],
   ): Promise<void>;
+  /** Mark a queued user prompt delivered when the execution drains it. */
+  promptDelivered(promptId: string): Promise<void>;
   /** Record a provider/tool checkpoint boundary after reference validation. */
   checkpoint(command: CheckpointCommand): Promise<RunCheckpointRecord>;
   /** Enter a typed durable wait (question/approval/plan review). */
@@ -36,6 +38,7 @@ export interface RunExecutionSink {
 export interface RunExecutionControl {
   steer(prompt: RunPromptRecord): Promise<void>;
   followUp(prompt: RunPromptRecord): Promise<void>;
+  removeQueuedPrompt(promptId: string): Promise<boolean>;
   continue(): Promise<void>;
   cancel(reason?: string): Promise<void>;
 }

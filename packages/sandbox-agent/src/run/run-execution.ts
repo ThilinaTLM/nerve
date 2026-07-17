@@ -74,6 +74,7 @@ class SandboxRunExecution implements RunExecution {
     behavior: "steer" | "follow-up";
     prompt: RunPromptRecord;
   }> = [];
+  private readonly forwardingPrompts = new Map<string, Promise<void>>();
   private harnessReady = false;
   private projectionTail: Promise<void> = Promise.resolve();
 
@@ -86,6 +87,7 @@ class SandboxRunExecution implements RunExecution {
   readonly control: RunExecutionControl = {
     steer: async (prompt) => this.steer(prompt),
     followUp: async (prompt) => this.followUp(prompt),
+    removeQueuedPrompt: async (promptId) => this.removeQueuedPrompt(promptId),
     continue: async () => this.deliverResolution(),
     cancel: async () => {
       this.abort.abort("cancelled");
@@ -135,9 +137,13 @@ class SandboxRunExecution implements RunExecution {
     this.harness = harness;
     this.deps.live.set(this.run.runId, { harness, abort: this.abort });
     const dispose = harness.subscribe((event) => {
-      this.projectionTail = this.projectionTail
-        .then(() => this.project(event))
-        .catch((error) => log.warn("run projection failed", { err: error }));
+      const projected = this.projectionTail.then(() => this.project(event));
+      this.projectionTail = projected.catch((error) =>
+        log.warn("run projection failed", { err: error }),
+      );
+      // Delivery is transactional with harness dequeue. Let failures reject
+      // this event so AgentHarness restores the taken queue entries.
+      if (event.type === "queue_drained") return projected;
     });
     try {
       const assistant =
@@ -438,21 +444,45 @@ class SandboxRunExecution implements RunExecution {
   private async deliverPendingPrompts(): Promise<void> {
     this.harnessReady = true;
     for (const queued of this.pendingPrompts.splice(0)) {
-      // Expand `!!!` command blocks at delivery time so queued prompts get
-      // the same command semantics as run-starting prompts.
-      const text = await this.resolvePrompt(queued.prompt.text);
-      if (queued.behavior === "steer") {
-        await this.harness?.steer(text, {
-          id: queued.prompt.id,
-          images: queued.prompt.images,
-        });
-      } else {
-        await this.harness?.followUp(text, {
-          id: queued.prompt.id,
-          images: queued.prompt.images,
-        });
-      }
+      const forwarding = this.forwardPrompt(queued).finally(() => {
+        this.forwardingPrompts.delete(queued.prompt.id);
+      });
+      this.forwardingPrompts.set(queued.prompt.id, forwarding);
+      await forwarding;
     }
+  }
+
+  private async forwardPrompt(queued: {
+    behavior: "steer" | "follow-up";
+    prompt: RunPromptRecord;
+  }): Promise<void> {
+    // Expand `!!!` command blocks at delivery time so queued prompts get the
+    // same command semantics as run-starting prompts.
+    const text = await this.resolvePrompt(queued.prompt.text);
+    if (queued.behavior === "steer") {
+      await this.harness?.steer(text, {
+        id: queued.prompt.id,
+        images: queued.prompt.images,
+      });
+    } else {
+      await this.harness?.followUp(text, {
+        id: queued.prompt.id,
+        images: queued.prompt.images,
+      });
+    }
+  }
+
+  private async removeQueuedPrompt(promptId: string): Promise<boolean> {
+    const pendingIndex = this.pendingPrompts.findIndex(
+      (queued) => queued.prompt.id === promptId,
+    );
+    if (pendingIndex !== -1) {
+      this.pendingPrompts.splice(pendingIndex, 1);
+      return true;
+    }
+    const forwarding = this.forwardingPrompts.get(promptId);
+    if (forwarding) await forwarding;
+    return (await this.harness?.removeQueuedMessage(promptId)) ?? false;
   }
 
   /**
@@ -554,6 +584,7 @@ class SandboxRunExecution implements RunExecution {
 
   private async project(event: {
     type: string;
+    messageIds?: string[];
     message?: AgentMessage;
     toolCallId?: string;
     toolName?: string;
@@ -561,6 +592,12 @@ class SandboxRunExecution implements RunExecution {
     result?: unknown;
     isError?: boolean;
   }): Promise<void> {
+    if (event.type === "queue_drained") {
+      for (const promptId of event.messageIds ?? []) {
+        await this.sink.promptDelivered(promptId);
+      }
+      return;
+    }
     if (event.type === "turn_start") {
       await this.deliverPendingPrompts();
       return;

@@ -330,6 +330,19 @@ const showGroups = $derived(
     <Progress value={progress.fraction * 100} />
   {/if}
 
+  {#if showBody && starting && store.connection !== "live"}
+    <div
+      class="flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5"
+    >
+      <WifiOff class="size-3.5 flex-none text-warning" />
+      <p class="text-xs text-muted-foreground">
+        Live updates are unavailable while the manager connection is
+        {store.connection === "reconnecting" ? "reconnecting" : "connecting"};
+        progress refreshes by polling.
+      </p>
+    </div>
+  {/if}
+
   {#if showBody && progress.state === "reconnecting"}
     <div class="flex items-start gap-2.5 rounded-md border bg-muted/30 p-3">
       <WifiOff class="mt-0.5 size-4 flex-none text-info" />

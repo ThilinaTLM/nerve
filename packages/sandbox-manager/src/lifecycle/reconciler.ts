@@ -26,21 +26,26 @@ export async function refreshSandboxObservedState(
   if (!record.containerRef || record.desiredState === "removed") return record;
   try {
     const status = await driver.inspect(record.containerRef);
+    // Re-read after the slow inspect: lifecycle transitions driven by live
+    // agent events (for example booting → ready) can land while awaiting the
+    // container runtime, and writing the stale snapshot back would silently
+    // revert them without a lifecycle event.
+    const current = (await store.get(record.sandboxId)) ?? record;
     const observedState = mapObservedState(status.state, status.exitCode);
     const lifecycleState = deriveLifecycleFromObserved(
-      record,
+      current,
       observedState,
       status.exitCode,
     );
     const now = new Date().toISOString();
-    const lifecycleChanged = lifecycleState !== record.lifecycleState;
+    const lifecycleChanged = lifecycleState !== current.lifecycleState;
     const next: ManagedSandboxRecord = {
-      ...record,
+      ...current,
       observedState,
       lifecycleState,
-      lifecycleUpdatedAt: lifecycleChanged ? now : record.lifecycleUpdatedAt,
-      stoppedAt: status.finishedAt ?? record.stoppedAt,
-      startedAt: status.startedAt ?? record.startedAt,
+      lifecycleUpdatedAt: lifecycleChanged ? now : current.lifecycleUpdatedAt,
+      stoppedAt: status.finishedAt ?? current.stoppedAt,
+      startedAt: status.startedAt ?? current.startedAt,
       updatedAt: now,
       lastError:
         lifecycleState === "failed" || observedState === "failed"
@@ -51,13 +56,14 @@ export async function refreshSandboxObservedState(
                   : "CONTAINER_FAILED",
               message: `container exited${status.exitCode !== undefined ? ` ${status.exitCode}` : ""}`,
             }
-          : record.lastError,
+          : current.lastError,
     };
     await store.put(next);
     return next;
   } catch (error) {
+    const current = (await store.get(record.sandboxId)) ?? record;
     const next: ManagedSandboxRecord = {
-      ...record,
+      ...current,
       observedState: "unknown",
       updatedAt: new Date().toISOString(),
       lastError: {

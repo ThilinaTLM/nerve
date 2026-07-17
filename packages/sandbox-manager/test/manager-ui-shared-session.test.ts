@@ -11,7 +11,7 @@ import {
 import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../src/app/manager-state.js";
 import { ManagerEventBus } from "../src/events/manager-event-bus.js";
-import { createManagerUiSharedSession } from "../src/protocol/manager-ui-shared-session.js";
+import { prepareManagerUiSharedSession } from "../src/protocol/manager-ui-shared-session.js";
 import type { SandboxWsServer } from "../src/protocol/sandbox-ws-server.js";
 
 const capabilities = [
@@ -51,7 +51,10 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
         sandboxId === "a" ? sandboxRecord : undefined,
     },
     pinnedCommands: { list: async () => [] },
-    events: { list: async () => [] },
+    events: {
+      list: async () => [],
+      streamState: async () => ({ latestSeq: 0, durableSeq: 0 }),
+    },
     eventBus,
     logger: { warn: () => undefined },
   } as unknown as ManagerState;
@@ -77,7 +80,9 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
         : undefined,
   } as unknown as SandboxWsServer;
   sockets.on("connection", (socket) => {
-    void createManagerUiSharedSession(socket, state, controller);
+    void prepareManagerUiSharedSession(state, controller).then((attach) =>
+      attach(socket),
+    );
   });
   await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
   const address = http.address();

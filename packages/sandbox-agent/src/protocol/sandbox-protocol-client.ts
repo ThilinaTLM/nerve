@@ -83,6 +83,7 @@ export class SandboxProtocolClient {
   private stopping = false;
   private welcomed = false;
   private flushScheduled = false;
+  private flushChain: Promise<void> = Promise.resolve();
   private unsubscribeOutbox?: () => void;
   private reconnectAttempts = 0;
   private outageGeneration = 0;
@@ -276,7 +277,21 @@ export class SandboxProtocolClient {
     }, 100).unref();
   }
 
-  private async flushUnacked(replay: boolean): Promise<void> {
+  /**
+   * Serialize flushes: concurrent callers (ready announcement, outbox
+   * subscription, ack handler) must not interleave batches, otherwise the
+   * manager sees duplicate or out-of-order durable ranges and rejects the
+   * session.
+   */
+  private flushUnacked(replay: boolean): Promise<void> {
+    const next = this.flushChain
+      .catch(() => undefined)
+      .then(() => this.doFlushUnacked(replay));
+    this.flushChain = next.catch(() => undefined);
+    return next;
+  }
+
+  private async doFlushUnacked(replay: boolean): Promise<void> {
     const session = this.activeSession;
     if (!session || session.state !== "ready") return;
     const stream = `sandbox:${this.identity.sandboxId}`;

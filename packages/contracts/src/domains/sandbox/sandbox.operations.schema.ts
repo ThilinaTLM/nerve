@@ -167,7 +167,7 @@ export const sandboxOperationDefinitions = [
     sandboxSnapshotResultSchema,
     "read",
     "none",
-    managerRole,
+    managerAndAgentRoles,
     "operation.sandbox.snapshot.get",
   ),
   defineOperation(
@@ -176,7 +176,7 @@ export const sandboxOperationDefinitions = [
     sandboxConversationViewSnapshotSchema,
     "read",
     "none",
-    managerRole,
+    managerAndAgentRoles,
     "operation.sandbox.conversation.snapshot.get",
   ),
 ] as const;

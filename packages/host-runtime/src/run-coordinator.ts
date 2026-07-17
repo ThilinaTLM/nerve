@@ -549,6 +549,7 @@ export class RunCoordinator {
         this.appendDurable(runId, "tool_calls_upserted", {
           toolCalls: [...toolCalls],
         }),
+      promptDelivered: (promptId) => this.prompts.delivered(runId, promptId),
       checkpoint: (command) => this.checkpoint(runId, command),
       wait: (command) => this.wait(runId, command),
       progress: (event) => this.ports.transient?.publish(event),
