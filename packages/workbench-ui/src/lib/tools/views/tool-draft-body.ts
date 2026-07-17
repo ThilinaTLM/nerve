@@ -46,11 +46,18 @@ export function hasMeaningfulToolDraftBody(
   summary: ToolDraftSummary,
   atlassianSummary?: string,
 ): boolean {
+  const argumentBody = summary.argumentBody;
+  const meaningfulArgumentBody =
+    argumentBody?.kind === "atlassian-draft"
+      ? !summary.done ||
+        argumentBody.fields.some((field) => field.value !== undefined) ||
+        argumentBody.text?.text !== undefined
+      : Boolean(argumentBody && argumentBody.kind !== "none");
   return Boolean(
     summary.preview?.length ||
     summary.inputPreview?.length ||
     summary.argsPreview?.length ||
-    (summary.argumentBody && summary.argumentBody.kind !== "none") ||
+    meaningfulArgumentBody ||
     (atlassianSummary?.length &&
       !atlassianSummary.includes("Waiting for arguments…")),
   );

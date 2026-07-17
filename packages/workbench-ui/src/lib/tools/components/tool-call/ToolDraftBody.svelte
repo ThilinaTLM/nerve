@@ -22,6 +22,7 @@ const summary = $derived(summarizeToolDraft(draft, cwd));
     body={summary.argumentBody}
     fixedRows={DRAFT_PREVIEW_LINES}
     highlight={summary.done}
+    streaming={!summary.done}
   />
 {:else if summary.argsPreview}
   <!-- Raw structured previews are reserved for removed/custom historical tools. -->

@@ -50,11 +50,20 @@ export interface VoiceInputCapability {
   AudioAuthDialog: Component<any>;
 }
 
+export interface AtlassianLinkCapability {
+  /** Reactive getter; returns undefined until settings are known. */
+  jiraSiteUrl: () => string | undefined;
+  /** Reactive getter; returns undefined until settings are known. */
+  confluenceSiteUrl: () => string | undefined;
+}
+
 export interface ConversationUiCapabilities {
   /** Fetch a full tool-call record for the details dialog. */
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallRecord>;
   /** Voice input integration for the ask-user card. */
   voice?: VoiceInputCapability;
+  /** Site URLs used to build external Jira/Confluence links. */
+  atlassian?: AtlassianLinkCapability;
 }
 
 const KEY = Symbol.for("nerve.conversationUi.capabilities");

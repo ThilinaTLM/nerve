@@ -15,6 +15,7 @@ const languageLoaders = {
   svelte: () => import("@shikijs/langs/svelte"),
   tsx: () => import("@shikijs/langs/tsx"),
   typescript: () => import("@shikijs/langs/typescript"),
+  xml: () => import("@shikijs/langs/xml"),
   yaml: () => import("@shikijs/langs/yaml"),
 } as const;
 

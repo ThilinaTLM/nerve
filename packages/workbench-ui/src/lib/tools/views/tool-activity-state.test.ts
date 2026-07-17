@@ -116,6 +116,31 @@ describe("deriveToolActivityState", () => {
     assert.equal(failedWithContext.errorVisible, true);
   });
 
+  it("uses an executing placeholder for opted-in header-only tools", () => {
+    const plain = deriveToolActivityState({
+      toolCall: toolCall("running"),
+      hasExecutingPlaceholder: false,
+    });
+    assert.equal(plain.bodyMode, "none");
+    assert.equal(plain.bodyVisible, false);
+
+    const placeholder = deriveToolActivityState({
+      toolCall: toolCall("running"),
+      hasExecutingPlaceholder: true,
+    });
+    assert.equal(placeholder.bodyMode, "executing-placeholder");
+    assert.equal(placeholder.bodyVisible, true);
+
+    const output = deriveToolActivityState({
+      toolCall: toolCall("completed"),
+      hasExecutingPlaceholder: true,
+      hasDurableBodyContent: true,
+      bodyHydrated: true,
+    });
+    assert.equal(output.bodyMode, "tool-output");
+    assert.notEqual(placeholder.structuralRevision, output.structuralRevision);
+  });
+
   it("keeps a meaningful draft body until durable output is available", () => {
     const handoff = deriveToolActivityState({
       draft: draft(true),

@@ -16,6 +16,7 @@ import type {
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   aggregateExploreTasks,
+  ATLASSIAN_COLLAPSED_ITEMS,
   COLLAPSED_LINES,
   type ToolView,
 } from "./tool-result-view";
@@ -53,6 +54,22 @@ function formatCount(
 ): string | undefined {
   if (value === undefined || value <= 0) return undefined;
   return `${value.toLocaleString()} ${noun}${value === 1 ? "" : "s"}`;
+}
+
+/**
+ * Footer details action for Atlassian views: the first item list exceeding the
+ * collapsed card budget wins; otherwise fall back to hidden content lines.
+ */
+function atlassianDetailsAction(
+  itemGroups: ReadonlyArray<readonly [count: number, noun: string]>,
+  contentLineCount: number,
+) {
+  for (const [count, noun] of itemGroups) {
+    if (count > ATLASSIAN_COLLAPSED_ITEMS) {
+      return detailsActionFor(count, noun, "head", ATLASSIAN_COLLAPSED_ITEMS);
+    }
+  }
+  return detailsActionFor(contentLineCount, "lines");
 }
 
 function isOneLine(text: string | undefined): boolean {
@@ -534,21 +551,13 @@ export function toolPresentation(
       meta.push(...outputMeta(view));
       const detailsAction =
         previewDetailsAction ??
-        detailsActionFor(
-          view.issues.length > COLLAPSED_LINES
-            ? view.issues.length
-            : view.users.length > COLLAPSED_LINES
-              ? view.users.length
-              : view.transitions.length > COLLAPSED_LINES
-                ? view.transitions.length
-                : view.contentLineCount,
-          view.issues.length > COLLAPSED_LINES
-            ? "issues"
-            : view.users.length > COLLAPSED_LINES
-              ? "users"
-              : view.transitions.length > COLLAPSED_LINES
-                ? "transitions"
-                : "lines",
+        atlassianDetailsAction(
+          [
+            [view.issues.length, "issues"],
+            [view.users.length, "users"],
+            [view.transitions.length, "transitions"],
+          ],
+          view.contentLineCount,
         );
       return {
         ...base,
@@ -571,6 +580,14 @@ export function toolPresentation(
         case "search_pages":
         case "download_pages":
           countChip(view.pageCount ?? view.pages.length, "page");
+          if (view.action === "download_pages") {
+            const downloaded =
+              view.includedCounts?.downloadedAttachments ??
+              view.includedCounts?.attachments;
+            if (downloaded !== undefined && downloaded > 0) {
+              countChip(downloaded, "attachment");
+            }
+          }
           if (view.bodyFormat) meta.push({ text: view.bodyFormat });
           if (view.downloadDir) {
             meta.push({
@@ -594,10 +611,16 @@ export function toolPresentation(
             });
           }
           break;
-        case "get_page":
-          // Status, version, and include-counts render in the page row and
-          // metric strip; the footer stays limited to output artifacts.
+        case "get_page": {
+          // Attachments are not listed in the body; surface the count here.
+          // Other include-counts render in the page row and metric strip.
+          const attachments =
+            view.attachmentCount ?? view.includedCounts?.attachments;
+          if (attachments !== undefined && attachments > 0) {
+            countChip(attachments, "attachment");
+          }
           break;
+        }
         case "create_page":
         case "update_page":
           // Space key and version render in the page row's chip line.
@@ -617,21 +640,13 @@ export function toolPresentation(
       meta.push(...outputMeta(view));
       const detailsAction =
         previewDetailsAction ??
-        detailsActionFor(
-          view.pages.length > COLLAPSED_LINES
-            ? view.pages.length
-            : view.spaces.length > COLLAPSED_LINES
-              ? view.spaces.length
-              : view.outcomes.length > COLLAPSED_LINES
-                ? view.outcomes.length
-                : view.contentLineCount,
-          view.pages.length > COLLAPSED_LINES
-            ? "pages"
-            : view.spaces.length > COLLAPSED_LINES
-              ? "spaces"
-              : view.outcomes.length > COLLAPSED_LINES
-                ? "outcomes"
-                : "lines",
+        atlassianDetailsAction(
+          [
+            [view.pages.length, "pages"],
+            [view.spaces.length, "spaces"],
+            [view.outcomes.length, "outcomes"],
+          ],
+          view.contentLineCount,
         );
       return {
         ...base,

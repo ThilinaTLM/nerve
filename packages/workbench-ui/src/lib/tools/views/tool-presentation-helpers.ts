@@ -38,8 +38,9 @@ export function detailsActionFor(
   total: number,
   noun: string,
   direction: "head" | "tail" | "mixed" = "head",
+  collapsedCount: number = COLLAPSED_LINES,
 ): DetailsActionInfo | undefined {
-  const hidden = total - COLLAPSED_LINES;
+  const hidden = total - collapsedCount;
   if (hidden <= 0) return undefined;
   return detailsActionFromHidden(hidden, noun, direction);
 }

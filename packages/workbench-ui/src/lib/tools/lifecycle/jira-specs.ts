@@ -1,9 +1,12 @@
 import type { CoreToolName } from "@nervekit/contracts";
 import type { MetaItem } from "../views/tool-presentation-types";
+import type { ToolArgumentSource } from "./argument-source";
 import {
-  redactStructuredValue,
-  type ToolArgumentSource,
-} from "./argument-source";
+  atlassianDraftBody,
+  draftField,
+  dryRunField,
+  optionalDraftField,
+} from "./atlassian-draft";
 import { boundedText, plural, textArg } from "./core-specs";
 import {
   argumentPresentation,
@@ -20,26 +23,8 @@ function spec<Name extends JiraToolName>(
   return value;
 }
 
-function add(lines: string[], label: string, value: unknown): void {
-  if (value === undefined || value === null || value === "") return;
-  lines.push(`${label}: ${String(value)}`);
-}
-
 function list(value: string[] | undefined): string | undefined {
   return value && value.length > 0 ? value.join(", ") : undefined;
-}
-
-function appendRecordValues(
-  lines: string[],
-  label: string,
-  record: Record<string, unknown> | undefined,
-): void {
-  if (!record) return;
-  for (const [key, value] of Object.entries(record).slice(0, 8)) {
-    add(lines, `${label} ${key}`, redactStructuredValue(key, value));
-  }
-  const hidden = Object.keys(record).length - 8;
-  if (hidden > 0) lines.push(`${label}: ${hidden} more fields in Details`);
 }
 
 function adfText(value: unknown): string | undefined {
@@ -64,6 +49,21 @@ function adfText(value: unknown): string | undefined {
 function atlassianBody(lines: string[]): ToolArgumentBody {
   const text = boundedText(lines.join("\n"));
   return text ? { kind: "atlassian-summary", text } : { kind: "none" };
+}
+
+function assigneeValue(source: ToolArgumentSource): string | undefined {
+  const query = source.string("assignee_query");
+  if (query) return query;
+  const accountId = source.string("assignee_account_id");
+  return accountId ? `account ${accountId}` : undefined;
+}
+
+function recordKeys(
+  source: ToolArgumentSource,
+  key: string,
+): string | undefined {
+  const keys = source.objectKeys(key);
+  return keys.length > 0 ? keys.join(", ") : undefined;
 }
 
 function dryRunMeta(source: ToolArgumentSource): MetaItem[] {
@@ -92,6 +92,7 @@ export const jiraToolLifecycleSpecs = {
   jira_search_users: spec({
     name: "jira_search_users",
     draftBody: "none",
+    executingBody: "skeleton",
     approvalDetail: "target",
     executionHandoff: "result-immediate",
     completedView: "jira",
@@ -127,6 +128,7 @@ export const jiraToolLifecycleSpecs = {
   jira_search_issues: spec({
     name: "jira_search_issues",
     draftBody: "none",
+    executingBody: "skeleton",
     approvalDetail: "target",
     executionHandoff: "result-immediate",
     completedView: "jira",
@@ -154,6 +156,7 @@ export const jiraToolLifecycleSpecs = {
   jira_get_issue: spec({
     name: "jira_get_issue",
     draftBody: "none",
+    executingBody: "skeleton",
     approvalDetail: "target",
     executionHandoff: "result-immediate",
     completedView: "jira",
@@ -179,6 +182,7 @@ export const jiraToolLifecycleSpecs = {
   jira_get_project: spec({
     name: "jira_get_project",
     draftBody: "none",
+    executingBody: "skeleton",
     approvalDetail: "target",
     executionHandoff: "result-immediate",
     completedView: "jira",
@@ -212,28 +216,33 @@ export const jiraToolLifecycleSpecs = {
       const project = source.string("project_key");
       const issueType = source.string("issue_type");
       const summary = source.string("summary");
-      const lines: string[] = [];
-      add(lines, "Project", project);
-      add(lines, "Issue type", issueType);
-      add(lines, "Summary", summary);
-      add(
-        lines,
-        "Description",
-        boundedText(
-          source.string("description") ??
+      const body = atlassianDraftBody({
+        fields: [
+          draftField("Project", project, { mono: true }),
+          draftField("Type", issueType),
+          draftField("Summary", summary),
+          ...optionalDraftField("Parent", source.string("parent_key"), {
+            mono: true,
+          }),
+          ...optionalDraftField("Priority", source.string("priority")),
+          ...optionalDraftField("Assignee", assigneeValue(source)),
+          ...optionalDraftField("Labels", list(source.strings("labels"))),
+          ...optionalDraftField(
+            "Components",
+            list(source.strings("components")),
+          ),
+          ...optionalDraftField("Custom fields", recordKeys(source, "fields"), {
+            mono: true,
+          }),
+          ...dryRunField(source),
+        ],
+        text: {
+          label: "Description",
+          text:
+            source.string("description") ??
             adfText(source.value("description_adf")),
-        ),
-      );
-      add(
-        lines,
-        "Assignee",
-        source.string("assignee_query") ?? source.string("assignee_account_id"),
-      );
-      add(lines, "Priority", source.string("priority"));
-      add(lines, "Parent", source.string("parent_key"));
-      add(lines, "Labels", list(source.strings("labels")));
-      add(lines, "Components", list(source.strings("components")));
-      appendRecordValues(lines, "Field", source.record("fields"));
+        },
+      });
       return argumentPresentation({
         primaryArg: textArg(
           [project, issueType, summary].filter(Boolean).join(" · "),
@@ -245,7 +254,7 @@ export const jiraToolLifecycleSpecs = {
             ? [{ text: plural(source.strings("labels")!.length, "label") }]
             : []),
         ],
-        body: atlassianBody(lines),
+        body,
         safetyNotes: mutationSafety(source, "create an issue"),
       });
     },
@@ -257,34 +266,43 @@ export const jiraToolLifecycleSpecs = {
     executionHandoff: "retain-draft-until-output",
     completedView: "jira",
     present: (source) => {
-      const lines: string[] = [];
-      add(lines, "Issue", source.string("issue_key"));
-      add(lines, "Summary", source.string("summary"));
-      add(
-        lines,
-        "Description",
-        boundedText(
-          source.string("description") ??
-            adfText(source.value("description_adf")),
-        ),
-      );
-      add(
-        lines,
-        "Assignee",
-        source.string("assignee_query") ?? source.string("assignee_account_id"),
-      );
-      add(lines, "Priority", source.string("priority"));
-      add(lines, "Labels", list(source.strings("labels")));
-      appendRecordValues(lines, "Field", source.record("fields"));
-      appendRecordValues(lines, "Update", source.record("update"));
-      const changed = lines.slice(1).length;
+      const description =
+        source.string("description") ??
+        adfText(source.value("description_adf"));
+      const changes = [
+        ...optionalDraftField("Summary", source.string("summary")),
+        ...optionalDraftField("Priority", source.string("priority")),
+        ...optionalDraftField("Assignee", assigneeValue(source)),
+        ...optionalDraftField("Labels", list(source.strings("labels"))),
+        ...optionalDraftField("Field keys", recordKeys(source, "fields"), {
+          mono: true,
+        }),
+        ...optionalDraftField("Update ops", recordKeys(source, "update"), {
+          mono: true,
+        }),
+      ];
+      const changed = changes.length + (description !== undefined ? 1 : 0);
+      const body = atlassianDraftBody({
+        fields: [
+          draftField("Issue", source.string("issue_key"), { mono: true }),
+          ...changes,
+          ...(source.boolean("notify_users") === false
+            ? [draftField("Notify users", "no")]
+            : []),
+          ...dryRunField(source),
+        ],
+        text:
+          description !== undefined
+            ? { label: "Description", text: description }
+            : undefined,
+      });
       return argumentPresentation({
         primaryArg: textArg(source.string("issue_key"), "Issue"),
         secondary: [
           ...dryRunMeta(source),
           ...(changed > 0 ? [{ text: plural(changed, "change") }] : []),
         ],
-        body: atlassianBody(lines),
+        body,
         safetyNotes: mutationSafety(source, "update the issue"),
       });
     },
@@ -296,25 +314,28 @@ export const jiraToolLifecycleSpecs = {
     executionHandoff: "retain-draft-until-output",
     completedView: "jira",
     present: (source) => {
-      const lines: string[] = [];
-      add(lines, "Issue", source.string("issue_key"));
-      add(
-        lines,
-        "Comment",
-        boundedText(source.string("body") ?? adfText(source.value("body_adf"))),
-      );
       const visibility = source.record("visibility");
-      add(
-        lines,
-        "Visibility",
-        visibility
-          ? [visibility.type, visibility.value].filter(Boolean).join(": ")
-          : undefined,
-      );
+      const body = atlassianDraftBody({
+        fields: [
+          draftField("Issue", source.string("issue_key"), { mono: true }),
+          ...optionalDraftField(
+            "Visibility",
+            visibility
+              ? [visibility.type, visibility.value]
+                  .filter((part): part is string => typeof part === "string")
+                  .join(" · ")
+              : undefined,
+          ),
+        ],
+        text: {
+          label: "Comment",
+          text: source.string("body") ?? adfText(source.value("body_adf")),
+        },
+      });
       return argumentPresentation({
         primaryArg: textArg(source.string("issue_key"), "Issue"),
         secondary: [{ text: source.record("body_adf") ? "ADF" : "plain text" }],
-        body: atlassianBody(lines),
+        body,
         safetyNotes: ["Adds this comment to the selected Jira issue."],
       });
     },
@@ -328,26 +349,33 @@ export const jiraToolLifecycleSpecs = {
     present: (source) => {
       const transition =
         source.string("transition") ?? "list available transitions";
-      const lines: string[] = [];
-      add(lines, "Issue", source.string("issue_key"));
-      add(lines, "Transition", transition);
-      add(lines, "Resolution", source.string("resolution"));
-      add(
-        lines,
-        "Comment",
-        boundedText(
-          source.string("comment") ?? adfText(source.value("comment_adf")),
-        ),
-      );
-      appendRecordValues(lines, "Field", source.record("fields"));
-      appendRecordValues(lines, "Update", source.record("update"));
+      const comment =
+        source.string("comment") ?? adfText(source.value("comment_adf"));
+      const body = atlassianDraftBody({
+        fields: [
+          draftField("Issue", source.string("issue_key"), { mono: true }),
+          draftField("Transition", source.string("transition")),
+          ...optionalDraftField("Resolution", source.string("resolution")),
+          ...optionalDraftField("Field keys", recordKeys(source, "fields"), {
+            mono: true,
+          }),
+          ...optionalDraftField("Update ops", recordKeys(source, "update"), {
+            mono: true,
+          }),
+          ...dryRunField(source),
+        ],
+        text:
+          comment !== undefined
+            ? { label: "Comment", text: comment }
+            : undefined,
+      });
       return argumentPresentation({
         primaryArg: textArg(
           [source.string("issue_key"), transition].filter(Boolean).join(" · "),
           "Issue transition",
         ),
         secondary: dryRunMeta(source),
-        body: atlassianBody(lines),
+        body,
         safetyNotes: mutationSafety(source, "transition the issue"),
       });
     },

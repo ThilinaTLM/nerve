@@ -53,6 +53,7 @@ export { aggregateExploreTasks } from "./explore-progress";
 // Re-export the supporting modules so existing consumers that import from this
 // file (via tool-result-view) keep a single, stable surface.
 export {
+  ATLASSIAN_COLLAPSED_ITEMS,
   COLLAPSED_LINES,
   groupMatchesByFile,
   imageDataUrl,

@@ -11,6 +11,7 @@ export type ToolActivityPhase = "drafting" | "prepared" | ToolCallStatus;
 export type ToolActivityBodyMode =
   | "none"
   | "draft-preview"
+  | "executing-placeholder"
   | "tool-output"
   | "approval"
   | "interaction"
@@ -37,6 +38,8 @@ type DeriveToolActivityStateInput = {
   hasApproval?: boolean;
   hasInteraction?: boolean;
   hasFailureContext?: boolean;
+  /** Tool opts into a skeleton body while executing without durable output. */
+  hasExecutingPlaceholder?: boolean;
   footerItems?: readonly Pick<
     MetaItem,
     "tone" | "mono" | "openPath" | "href"
@@ -104,8 +107,9 @@ export function deriveToolActivityState(
     // body is actually available. Status and header still come from the record.
     bodyMode = "draft-preview";
   } else if (inFlight && !input.hasDurableBodyContent) {
-    // Header-only tools do not grow an empty waiting body while executing.
-    bodyMode = "none";
+    // Header-only tools do not grow an empty waiting body while executing;
+    // opted-in tools show a skeleton so results replace it without a jump.
+    bodyMode = input.hasExecutingPlaceholder ? "executing-placeholder" : "none";
   } else {
     bodyMode = "tool-output";
   }

@@ -14,6 +14,8 @@ import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
 /** Lines/items shown before the footer "Show more" toggle expands a body. */
 export const COLLAPSED_LINES = 10;
+/** Rich Atlassian result items (issue/page cards) shown in a collapsed body. */
+export const ATLASSIAN_COLLAPSED_ITEMS = 5;
 const GREP_MATCH_TEXT_MAX = 260;
 
 export function asRecord(value: unknown): Record<string, unknown> {

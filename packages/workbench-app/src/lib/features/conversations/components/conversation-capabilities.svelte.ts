@@ -14,6 +14,11 @@ import {
   chatGptAudioAuth,
 } from "$lib/features/audio";
 import { getToolCall } from "$lib/features/tools/api/tools.api";
+import {
+  confluenceSiteUrl,
+  ensureAtlassianSiteUrls,
+  jiraSiteUrl,
+} from "$lib/features/conversations/state/atlassian-site-urls.svelte";
 
 /**
  * Build the workbench capability object consumed by the shared conversation
@@ -21,8 +26,10 @@ import { getToolCall } from "$lib/features/tools/api/tools.api";
  * input). Kept in web because it wires app-only services.
  */
 export function workbenchConversationUiCapabilities(): ConversationUiCapabilities {
+  ensureAtlassianSiteUrls();
   return {
     fetchToolCall: (toolCallId) => getToolCall(toolCallId),
+    atlassian: { jiraSiteUrl, confluenceSiteUrl },
     voice: {
       session: voiceInputSession,
       targetKey: voiceInputTargetKey,

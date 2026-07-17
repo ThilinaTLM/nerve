@@ -185,14 +185,22 @@ describe("tool lifecycle registry", () => {
       },
       "approval",
     );
-    assert.equal(jira.body.kind, "atlassian-summary");
-    assert.match(
-      jira.body.kind === "atlassian-summary" ? jira.body.text : "",
-      /Project: NER/,
+    assert.equal(jira.body.kind, "atlassian-draft");
+    assert.ok(
+      jira.body.kind === "atlassian-draft" &&
+        jira.body.fields.some(
+          (field) => field.label === "Project" && field.value === "NER",
+        ),
+    );
+    assert.ok(
+      jira.body.kind === "atlassian-draft" &&
+        jira.body.fields.some(
+          (field) => field.label === "Assignee" && field.value === "Taylor",
+        ),
     );
     assert.match(
-      jira.body.kind === "atlassian-summary" ? jira.body.text : "",
-      /Assignee: Taylor/,
+      jira.body.kind === "atlassian-draft" ? (jira.body.text?.text ?? "") : "",
+      /A bounded description/,
     );
     assert.ok(jira.secondary.some((item) => item.text === "dry run"));
     assert.match(jira.safetyNotes.join(" "), /will not create/i);

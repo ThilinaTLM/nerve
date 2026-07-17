@@ -54,6 +54,35 @@ describe("Confluence tool result view", () => {
     assert.equal(view.nextCursor, "cursor-2");
   });
 
+  it("surfaces attachment counts in footer metadata", () => {
+    const page = present(
+      "confluence_get_page",
+      { page_id: "123", include_attachments: true },
+      {
+        details: {
+          action: "get_page",
+          page: { id: "123", title: "Home" },
+          attachmentCount: 3,
+          includedCounts: { attachments: 3 },
+        },
+      },
+    );
+    assert.ok(metaText(page.meta).includes("3 attachments"));
+
+    const download = present(
+      "confluence_download_pages",
+      { page_id: "123", download_attachments: true },
+      {
+        details: {
+          action: "download_pages",
+          pageCount: 1,
+          includedCounts: { downloadedAttachments: 2 },
+        },
+      },
+    );
+    assert.ok(metaText(download.meta).includes("2 attachments"));
+  });
+
   it("parses download paths and publish outcomes", () => {
     const downloadView = parseToolView(
       toolCall(

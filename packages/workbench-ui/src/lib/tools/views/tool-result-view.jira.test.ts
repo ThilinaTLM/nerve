@@ -237,7 +237,7 @@ describe("Jira tool views", () => {
     );
     const presentation = toolPresentation(parseToolView(tc), tc);
 
-    assert.equal(presentation.detailsAction?.hidden, 2);
-    assert.match(presentation.detailsAction?.label ?? "", /2 more issues/);
+    assert.equal(presentation.detailsAction?.hidden, 7);
+    assert.match(presentation.detailsAction?.label ?? "", /7 more issues/);
   });
 });

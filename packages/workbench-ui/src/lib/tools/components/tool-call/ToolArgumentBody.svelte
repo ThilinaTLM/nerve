@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { ToolArgumentBody as ArgumentBody } from "../../lifecycle/registry";
+import AtlassianDraftBody from "./AtlassianDraftBody.svelte";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 import TodoChecklist from "./TodoChecklist.svelte";
 
@@ -7,9 +8,16 @@ type Props = {
   body: ArgumentBody;
   fixedRows?: number;
   highlight?: boolean;
+  /** True while draft arguments are still streaming (skeleton placeholders). */
+  streaming?: boolean;
 };
 
-let { body, fixedRows = 10, highlight = true }: Props = $props();
+let {
+  body,
+  fixedRows = 10,
+  highlight = true,
+  streaming = false,
+}: Props = $props();
 </script>
 
 {#if body.kind === "code"}
@@ -66,6 +74,8 @@ let { body, fixedRows = 10, highlight = true }: Props = $props();
   <TodoChecklist
     items={body.items.map((item) => ({ todo: item.text, done: item.done }))}
   />
+{:else if body.kind === "atlassian-draft"}
+  <AtlassianDraftBody {body} {streaming} {fixedRows} />
 {:else if body.kind === "text-summary" || body.kind === "atlassian-summary"}
   <div class="grid gap-1.5">
     {#if body.kind === "text-summary" && body.label}

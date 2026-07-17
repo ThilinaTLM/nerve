@@ -29,6 +29,7 @@ import { getConversationUiCapabilities } from "../../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import CardShell from "./tool-call/CardShell.svelte";
 import ToolDraftBody from "./tool-call/ToolDraftBody.svelte";
+import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
 import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
@@ -234,6 +235,7 @@ const activityState = $derived.by(() =>
     bodyHydrated: shouldHydrateBody,
     hasApproval: Boolean(toolApproval),
     hasInteraction: hilInteractive,
+    hasExecutingPlaceholder: lifecycleSpec.executingBody === "skeleton",
     hasFailureContext: Boolean(
       failurePresentation && failurePresentation.body.kind !== "none",
     ),
@@ -343,6 +345,8 @@ async function openDetails() {
 >
   {#if activityState.bodyMode === "draft-preview" && draft}
     <ToolDraftBody draft={draft.block} {cwd} />
+  {:else if activityState.bodyMode === "executing-placeholder"}
+    <ToolExecutingSkeleton />
   {:else if activityState.bodyMode === "failure-context" && failurePresentation}
     <ToolArgumentBody body={failurePresentation.body} />
   {:else if activityState.bodyMode === "approval" && toolApproval && approvalPresentation && toolCall}

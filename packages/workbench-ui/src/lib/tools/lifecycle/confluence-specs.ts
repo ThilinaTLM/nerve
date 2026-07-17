@@ -1,6 +1,13 @@
 import type { CoreToolName } from "@nervekit/contracts";
 import type { MetaItem } from "../views/tool-presentation-types";
 import type { ToolArgumentSource } from "./argument-source";
+import {
+  atlassianDraftBody,
+  draftField,
+  dryRunField,
+  optionalDraftField,
+  streamedLineCount,
+} from "./atlassian-draft";
 import { boundedText, plural, textArg } from "./core-specs";
 import {
   argumentPresentation,
@@ -15,11 +22,6 @@ function spec<Name extends ConfluenceToolName>(
   value: ToolLifecycleSpec<Name>,
 ): ToolLifecycleSpec<Name> {
   return value;
-}
-
-function add(lines: string[], label: string, value: unknown): void {
-  if (value === undefined || value === null || value === "") return;
-  lines.push(`${label}: ${String(value)}`);
 }
 
 function list(value: string[] | undefined): string | undefined {
@@ -52,17 +54,48 @@ function readOnlyBody(
   return stage === "approval" ? atlassianBody(lines) : undefined;
 }
 
-function bodySource(source: ToolArgumentSource, lines: string[]): void {
-  add(lines, "Page file", source.string("page_file"));
-  add(lines, "Body file", source.string("body_file"));
-  add(lines, "Body", boundedText(source.string("body")));
-  add(lines, "Representation", source.string("body_representation"));
+/**
+ * Write-tool-style streaming body for page create/update: the page body
+ * streams into an XML code block; file-sourced bodies have nothing to show.
+ */
+function pageBodyPresentation(source: ToolArgumentSource): {
+  body: ToolArgumentBody;
+  chips: MetaItem[];
+} {
+  const fileSourced = Boolean(
+    source.string("page_file") ?? source.string("body_file"),
+  );
+  const representation = source.string("body_representation");
+  const bodyText = source.string("body");
+  const chips: MetaItem[] = [];
+  const status = source.string("status");
+  if (status) chips.push({ text: status });
+  if (representation && representation !== "storage")
+    chips.push({ text: representation });
+  const lines = streamedLineCount(bodyText);
+  if (lines !== undefined) chips.push({ text: `+${lines}`, tone: "success" });
+  if (fileSourced) return { body: { kind: "none" }, chips };
+  return {
+    body: atlassianDraftBody({
+      fields: [],
+      text: {
+        label: "Page body",
+        text: bodyText,
+        language:
+          representation === undefined || representation === "storage"
+            ? "xml"
+            : undefined,
+      },
+    }),
+    chips,
+  };
 }
 
 export const confluenceToolLifecycleSpecs = {
   confluence_search_spaces: spec({
     name: "confluence_search_spaces",
     draftBody: "none",
+    executingBody: "skeleton",
     approvalDetail: "target",
     executionHandoff: "result-immediate",
     completedView: "confluence",
@@ -89,6 +122,7 @@ export const confluenceToolLifecycleSpecs = {
   confluence_search_pages: spec({
     name: "confluence_search_pages",
     draftBody: "none",
+    executingBody: "skeleton",
     approvalDetail: "target",
     executionHandoff: "result-immediate",
     completedView: "confluence",
@@ -124,6 +158,7 @@ export const confluenceToolLifecycleSpecs = {
   confluence_get_page: spec({
     name: "confluence_get_page",
     draftBody: "none",
+    executingBody: "skeleton",
     approvalDetail: "target",
     executionHandoff: "result-immediate",
     completedView: "confluence",
@@ -155,6 +190,7 @@ export const confluenceToolLifecycleSpecs = {
   confluence_download_pages: spec({
     name: "confluence_download_pages",
     draftBody: "none",
+    executingBody: "skeleton",
     approvalDetail: "summary",
     executionHandoff: "result-immediate",
     completedView: "confluence",
@@ -198,12 +234,7 @@ export const confluenceToolLifecycleSpecs = {
     present: (source) => {
       const space = source.string("space_key") ?? source.string("space_id");
       const title = source.string("title") ?? source.string("page_file");
-      const lines: string[] = [];
-      add(lines, "Space", space);
-      add(lines, "Parent", source.string("parent_id"));
-      add(lines, "Title", title);
-      add(lines, "Status", source.string("status"));
-      bodySource(source, lines);
+      const { body, chips } = pageBodyPresentation(source);
       return argumentPresentation({
         primaryArg: textArg(
           [space, title].filter(Boolean).join(" · "),
@@ -214,8 +245,9 @@ export const confluenceToolLifecycleSpecs = {
           ...(source.string("parent_id")
             ? [{ text: `parent ${source.string("parent_id")}`, mono: true }]
             : []),
+          ...chips,
         ],
-        body: atlassianBody(lines),
+        body,
         safetyNotes: mutationSafety(source, "create the page"),
       });
     },
@@ -228,16 +260,7 @@ export const confluenceToolLifecycleSpecs = {
     completedView: "confluence",
     present: (source) => {
       const page = source.string("page_id") ?? source.string("page_file");
-      const lines: string[] = [];
-      add(lines, "Page", page);
-      add(lines, "Title", source.string("title"));
-      add(lines, "Parent", source.string("parent_id"));
-      add(lines, "Status", source.string("status"));
-      add(lines, "Expected version", source.number("expected_version"));
-      add(lines, "Version message", source.string("version_message"));
-      bodySource(source, lines);
-      if (source.boolean("allow_stale"))
-        add(lines, "Version guard", "allow stale version");
+      const { body, chips } = pageBodyPresentation(source);
       return argumentPresentation({
         primaryArg: textArg(page, "Confluence page"),
         secondary: [
@@ -248,8 +271,9 @@ export const confluenceToolLifecycleSpecs = {
           ...(source.boolean("allow_stale")
             ? [{ text: "allow stale", tone: "warning" as const }]
             : []),
+          ...chips,
         ],
-        body: atlassianBody(lines),
+        body,
         safetyNotes: mutationSafety(source, "update the page"),
       });
     },
@@ -263,18 +287,33 @@ export const confluenceToolLifecycleSpecs = {
     present: (source) => {
       const inputPath = source.string("input_path");
       const pageTitles = source.nestedStrings("title");
-      const lines: string[] = [];
-      add(lines, "Source", inputPath);
-      add(lines, "Page count", pageTitles.length || undefined);
-      if (pageTitles.length)
-        add(lines, "Pages", pageTitles.slice(0, 5).join(", "));
-      add(lines, "Version message", source.string("version_message"));
-      add(
-        lines,
-        "Conflict handling",
-        source.boolean("allow_stale") ? "allow stale" : "enforce versions",
-      );
-      add(lines, "Create missing", source.boolean("create_missing"));
+      const allowStale = source.boolean("allow_stale") === true;
+      const body = atlassianDraftBody({
+        fields: [
+          draftField("Source", inputPath, { mono: true }),
+          ...optionalDraftField(
+            "Pages",
+            pageTitles.length
+              ? `${plural(pageTitles.length, "page")}: ${pageTitles
+                  .slice(0, 5)
+                  .join(", ")}${pageTitles.length > 5 ? ", …" : ""}`
+              : undefined,
+          ),
+          ...optionalDraftField(
+            "Version message",
+            source.string("version_message"),
+          ),
+          draftField(
+            "Conflict handling",
+            allowStale ? "allow stale" : "enforce versions",
+            allowStale ? { tone: "warning" } : {},
+          ),
+          ...(source.boolean("create_missing") === true
+            ? [draftField("Create missing", "yes")]
+            : []),
+          ...dryRunField(source),
+        ],
+      });
       return argumentPresentation({
         primaryArg: inputPath
           ? {
@@ -294,7 +333,7 @@ export const confluenceToolLifecycleSpecs = {
             ? [{ text: "allow stale", tone: "warning" as const }]
             : []),
         ],
-        body: atlassianBody(lines),
+        body,
         safetyNotes: mutationSafety(source, "publish the pages"),
       });
     },
@@ -322,15 +361,20 @@ export const confluenceToolLifecycleSpecs = {
         secondary,
         body:
           stage === "approval"
-            ? atlassianBody([
-                `Target page: ${page ?? ""}`,
-                `Source file: ${path ?? ""}`,
-                ...(filename ? [`Filename: ${filename}`] : []),
-                ...(source.string("comment")
-                  ? [`Comment: ${source.string("comment")}`]
-                  : []),
-                `Existing attachment: ${source.boolean("update_existing") === false ? "do not replace" : "update if present"}`,
-              ])
+            ? atlassianDraftBody({
+                fields: [
+                  draftField("Target page", page, { mono: true }),
+                  draftField("Source file", path, { mono: true }),
+                  ...optionalDraftField("Filename", filename),
+                  ...optionalDraftField("Comment", source.string("comment")),
+                  draftField(
+                    "Existing attachment",
+                    source.boolean("update_existing") === false
+                      ? "do not replace"
+                      : "update if present",
+                  ),
+                ],
+              })
             : undefined,
         safetyNotes: [
           "Uploads this local file to the selected Confluence page.",

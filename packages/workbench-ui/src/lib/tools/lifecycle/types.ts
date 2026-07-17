@@ -33,7 +33,19 @@ export type ToolArgumentBody =
       items: Array<{ text: string; done: boolean }>;
     }
   | { kind: "text-summary"; text: string; label?: string }
-  | { kind: "atlassian-summary"; text: string };
+  | { kind: "atlassian-summary"; text: string }
+  | {
+      kind: "atlassian-draft";
+      /** Ordered field rows; `value === undefined` means expected/pending. */
+      fields: Array<{
+        label: string;
+        value?: string;
+        mono?: boolean;
+        tone?: MetaItem["tone"];
+      }>;
+      /** Long-form section; `text === undefined` means not yet streamed. */
+      text?: { label: string; text?: string; language?: "xml" };
+    };
 
 export type ToolArgumentPresentation = {
   primaryArg?: PrimaryArg;
@@ -76,6 +88,8 @@ export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   approvalDetail: ToolApprovalDetailPolicy;
   executionHandoff: ToolExecutionHandoff;
   completedView: CompletedViewFamily;
+  /** Body shown while executing without durable output (default: none). */
+  executingBody?: "skeleton";
   emptyResult?: string;
   present: (
     source: ToolArgumentSource,

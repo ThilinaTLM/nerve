@@ -40,6 +40,12 @@ describe("summarizeToolDraft", () => {
       ),
       false,
     );
+    const pendingPageBody = summarizeToolDraft(draft("confluence_create_page"));
+    assert.equal(hasMeaningfulToolDraftBody(pendingPageBody), true);
+    const omittedPageBody = summarizeToolDraft(
+      draft("confluence_create_page", { done: true }),
+    );
+    assert.equal(hasMeaningfulToolDraftBody(omittedPageBody), false);
   });
 
   it("counts partial write content lines from escaped JSON", () => {
