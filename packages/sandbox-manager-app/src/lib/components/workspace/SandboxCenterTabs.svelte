@@ -391,7 +391,7 @@ function buildMenuItems({
     {/if}
   {/snippet}
   {#snippet content()}
-    <div class="sandbox-center-content">
+    <div class="sandbox-center-content h-full">
       {#if contentMode === "settings"}
         <SandboxSettingsPanel />
       {:else if contentMode === "sandbox"}
