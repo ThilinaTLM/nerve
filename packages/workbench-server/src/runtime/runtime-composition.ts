@@ -472,6 +472,8 @@ export function composeRuntime(
     setAgentStatus: (agent, status) =>
       services.agentLifecycle.setAgentStatus(agent, status),
     appendEntry,
+    getConversationEntries: (conversationId) =>
+      state.getConversationEntries(conversationId),
     harnessStorage: services.harnessStorage,
   });
   services.pruneConversations = new PruneProjectConversationsService({

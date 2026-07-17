@@ -10,6 +10,7 @@ let {
   active,
   sending,
   pendingApprovalId,
+  pendingApprovalCount,
   pendingQuestionId,
   pendingPlanReviewId,
 }: Props = $props();
@@ -23,6 +24,7 @@ $effect(() => {
     active,
     sending,
     pendingApprovalId,
+    pendingApprovalCount,
     pendingQuestionId,
     pendingPlanReviewId,
   };

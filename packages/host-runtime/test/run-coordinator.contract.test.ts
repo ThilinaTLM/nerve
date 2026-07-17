@@ -927,6 +927,135 @@ test("resolves an interaction once and rejects conflicting resolution", async ()
   );
 });
 
+test("waits for and resolves an approval batch atomically in assistant order", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const batchToolCallIds = ["tool_first", "tool_second"];
+  const checkpoint = suspensionCheckpoint();
+  const interactions = await harness.coordinator.waitMany(run.runId, [
+    {
+      kind: "approval",
+      interactionId: "approval_first",
+      toolCallId: "tool_first",
+      batchToolCallIds,
+      prompt: "Approve first",
+      risk: ["write"],
+      normalizedArgs: { order: 1 },
+      offeredScopes: ["single_call"],
+      checkpoint,
+    },
+    {
+      kind: "approval",
+      interactionId: "approval_second",
+      toolCallId: "tool_second",
+      batchToolCallIds,
+      prompt: "Approve second",
+      risk: ["write"],
+      normalizedArgs: { order: 2 },
+      offeredScopes: ["single_call"],
+      checkpoint,
+    },
+  ]);
+
+  let state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "waiting");
+  assert.equal(state?.run.activeInteractionId, "approval_first");
+  assert.equal(new Set(interactions.map((item) => item.checkpointId)).size, 1);
+  assert.deepEqual(
+    interactions.map((item) => item.batchToolCallIds),
+    [batchToolCallIds, batchToolCallIds],
+  );
+  assert.equal(
+    state?.transitions
+      .at(-1)
+      ?.events.filter((event) => event.type === "run.waiting").length,
+    2,
+  );
+  await assert.rejects(
+    harness.coordinator.resolveInteraction(run.runId, {
+      interactionId: "approval_second",
+      resolutionRequestId: "partial",
+      resolution: { decision: "allow" },
+    }),
+    /resolved together/,
+  );
+  await assert.rejects(
+    harness.coordinator.continue(run.runId),
+    /All interactions must be resolved/,
+  );
+  assert.deepEqual(harness.controlContinues, []);
+
+  const commands = [
+    {
+      interactionId: "approval_first",
+      resolutionRequestId: "batch_request",
+      resolution: { decision: "allow" },
+    },
+    {
+      interactionId: "approval_second",
+      resolutionRequestId: "batch_request",
+      resolution: { decision: "deny" },
+    },
+  ];
+  const resolved = await harness.coordinator.resolveInteractionBatch(
+    run.runId,
+    commands,
+  );
+  assert.deepEqual(
+    resolved.map((interaction) => interaction.toolCallId),
+    batchToolCallIds,
+  );
+  state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "suspended");
+  assert.equal(state?.run.activeInteractionId, undefined);
+  assert.deepEqual(harness.controlContinues, [1]);
+
+  await harness.coordinator.resolveInteractionBatch(run.runId, commands);
+  assert.deepEqual(harness.controlContinues, [1]);
+  await assert.rejects(
+    harness.coordinator.resolveInteractionBatch(run.runId, [
+      commands[0]!,
+      { ...commands[1]!, resolution: { decision: "allow" } },
+    ]),
+    RunConflictError,
+  );
+});
+
+test("cancellation terminalizes every pending approval batch member", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const batchToolCallIds = ["tool_first", "tool_second"];
+  await harness.coordinator.waitMany(run.runId, [
+    {
+      kind: "approval",
+      toolCallId: "tool_first",
+      batchToolCallIds,
+      prompt: "Approve first",
+      risk: ["write"],
+      normalizedArgs: {},
+      offeredScopes: ["single_call"],
+      checkpoint: suspensionCheckpoint(),
+    },
+    {
+      kind: "approval",
+      toolCallId: "tool_second",
+      batchToolCallIds,
+      prompt: "Approve second",
+      risk: ["write"],
+      normalizedArgs: {},
+      offeredScopes: ["single_call"],
+      checkpoint: suspensionCheckpoint(),
+    },
+  ]);
+
+  await harness.coordinator.cancel(run.runId);
+  const state = await harness.coordinator.get(run.runId);
+  assert.deepEqual(
+    state?.interactions.map((interaction) => interaction.status),
+    ["cancelled", "cancelled"],
+  );
+});
+
 test("publishes a bounded plan preview while retaining the full interaction", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);

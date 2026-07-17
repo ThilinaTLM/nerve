@@ -27,7 +27,6 @@ const commandIsMultiline = $derived(Boolean(view.command?.match(/[\r\n]/)));
         direction="tail"
         collapsedLines={10}
         {expanded}
-        outputLimits={view.outputLimits}
         terminal
       />
     </section>

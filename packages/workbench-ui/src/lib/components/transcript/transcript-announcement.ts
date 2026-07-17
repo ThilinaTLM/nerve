@@ -2,6 +2,7 @@ export type TranscriptAnnouncementState = {
   active: boolean;
   sending: boolean;
   pendingApprovalId?: string;
+  pendingApprovalCount?: number;
   pendingQuestionId?: string;
   pendingPlanReviewId?: string;
 };
@@ -11,11 +12,15 @@ export function transcriptAnnouncementForTransition(
   current: TranscriptAnnouncementState,
 ): string | undefined {
   if (!previous || !previous.active || !current.active) return undefined;
+  const pendingApprovalCount = current.pendingApprovalCount ?? 0;
   if (
-    current.pendingApprovalId &&
-    current.pendingApprovalId !== previous.pendingApprovalId
+    pendingApprovalCount > 0 &&
+    (pendingApprovalCount !== (previous.pendingApprovalCount ?? 0) ||
+      current.pendingApprovalId !== previous.pendingApprovalId)
   ) {
-    return "Approval required.";
+    return pendingApprovalCount === 1
+      ? "1 approval required."
+      : `${pendingApprovalCount} approvals required.`;
   }
   if (
     current.pendingQuestionId &&

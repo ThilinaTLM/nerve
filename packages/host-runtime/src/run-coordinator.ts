@@ -59,6 +59,7 @@ import {
   newRun,
   prefixed,
   revise,
+  sameStrings,
   type StartRunCommand,
   TERMINAL_STATUSES,
   type TransitionChanges,
@@ -180,16 +181,12 @@ export class RunCoordinator {
   async continue(runId: string): Promise<RunRecord> {
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
-      if (state.run.status === "waiting") {
-        const pending = state.interactions.find(
-          (item) => item.id === state.run.activeInteractionId,
+      if (state.interactions.some((item) => item.status === "pending")) {
+        throw new InvalidRunStateError(
+          "All interactions must be resolved before continue",
         );
-        if (pending?.status === "pending") {
-          throw new InvalidRunStateError(
-            "Interaction must be resolved before continue",
-          );
-        }
-      } else if (
+      }
+      if (
         state.run.status !== "suspended" &&
         state.run.status !== "interrupted"
       ) {
@@ -263,6 +260,18 @@ export class RunCoordinator {
     runId: string,
     command: WaitCommand,
   ): Promise<RunInteractionRecord> {
+    const [interaction] = await this.waitMany(runId, [command]);
+    if (!interaction) throw new InvalidRunStateError("Wait was not created");
+    return interaction;
+  }
+
+  async waitMany(
+    runId: string,
+    commands: readonly WaitCommand[],
+  ): Promise<readonly RunInteractionRecord[]> {
+    if (commands.length === 0) {
+      throw new InvalidRunStateError("Wait batch must not be empty");
+    }
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
       if (state.interactions.some((item) => item.status === "pending")) {
@@ -270,37 +279,37 @@ export class RunCoordinator {
           `Run ${runId} already has a pending interaction`,
         );
       }
+      this.assertWaitBatch(commands);
+      const now = this.now();
       const checkpoint = checkpointRecord(
         state,
-        { ...command.checkpoint, boundary: "suspension" },
-        this.now(),
+        { ...commands[0]!.checkpoint, boundary: "suspension" },
+        now,
         this.ports.ids,
         this.ports.integrity,
       );
-      const interaction = interactionRecord(
-        state.run,
-        command,
-        checkpoint,
-        this.now(),
-        this.ports.ids,
+      const interactions = commands.map((command) =>
+        interactionRecord(state.run, command, checkpoint, now, this.ports.ids),
       );
-      const now = this.now();
+      const first = interactions[0]!;
       const next = revise(
         state.run,
         {
           status: "waiting",
           recoverability: "checkpoint",
-          activeInteractionId: interaction.id,
+          activeInteractionId: first.id,
           lastCheckpointId: checkpoint.checkpointId,
         },
         now,
       );
       await this.commit(state, next, "waiting", {
-        interactions: [interaction],
+        interactions,
         checkpoints: [checkpoint],
-        events: [this.events.waiting(next, interaction)],
+        events: interactions.map((interaction) =>
+          this.events.waiting(next, interaction),
+        ),
       });
-      return interaction;
+      return interactions;
     });
   }
 
@@ -339,6 +348,19 @@ export class RunCoordinator {
         if (!current || current.runId !== runId) {
           throw new InvalidRunStateError("Interaction does not belong to run");
         }
+        if (
+          current.batchToolCallIds ||
+          state.interactions.some(
+            (item) =>
+              item.id !== current.id &&
+              item.checkpointId === current.checkpointId &&
+              item.status === "pending",
+          )
+        ) {
+          throw new InvalidRunStateError(
+            "Batched interactions must be resolved together",
+          );
+        }
         const resolutionHash = this.ports.integrity.checksum(
           command.resolution,
         );
@@ -374,6 +396,85 @@ export class RunCoordinator {
     return resolved;
   }
 
+  async resolveInteractionBatch(
+    runId: string,
+    commands: readonly ResolveInteractionCommand[],
+  ): Promise<readonly RunInteractionRecord[]> {
+    if (commands.length === 0) {
+      throw new InvalidRunStateError("Interaction batch must not be empty");
+    }
+    const { resolved, wake } = await this.exclusive(
+      `run:${runId}`,
+      async (): Promise<{
+        resolved: readonly RunInteractionRecord[];
+        wake: boolean;
+      }> => {
+        const state = await this.require(runId);
+        const selected = commands.map((command) => {
+          const interaction = state.interactions.find(
+            (item) => item.id === command.interactionId,
+          );
+          if (!interaction || interaction.runId !== runId) {
+            throw new InvalidRunStateError(
+              "Interaction does not belong to run",
+            );
+          }
+          return { command, interaction };
+        });
+        this.assertResolutionBatch(
+          state,
+          selected.map(({ interaction }) => interaction),
+        );
+
+        const records = selected.map(({ command, interaction }) => {
+          const resolutionHash = this.ports.integrity.checksum(
+            command.resolution,
+          );
+          if (interaction.status === "resolved") {
+            if (interaction.resolutionHash !== resolutionHash) {
+              throw new RunConflictError("Conflicting interaction resolution");
+            }
+            return interaction;
+          }
+          if (interaction.status !== "pending") {
+            throw invalid(state.run, "resolve interaction batch");
+          }
+          const now = this.now();
+          return {
+            ...interaction,
+            status: "resolved" as const,
+            resolutionRequestId: command.resolutionRequestId,
+            resolutionHash,
+            resolution: command.resolution,
+            resolvedAt: now,
+          } satisfies RunInteractionRecord;
+        });
+        if (
+          selected.every(({ interaction }) => interaction.status === "resolved")
+        ) {
+          return { resolved: records, wake: false };
+        }
+        if (
+          selected.some(({ interaction }) => interaction.status !== "pending")
+        ) {
+          throw new RunConflictError("Partially resolved interaction batch");
+        }
+        const now = this.now();
+        const next = revise(
+          state.run,
+          { status: "suspended", activeInteractionId: undefined },
+          now,
+        );
+        await this.commit(state, next, "interaction_batch_resolved", {
+          interactions: [...records],
+        });
+        return { resolved: records, wake: true };
+      },
+    );
+    if (wake) await this.live.get(runId)?.execution.control.continue();
+    return resolved;
+  }
+
   async resolveAndCompleteInteraction(
     runId: string,
     command: ResolveInteractionCommand,
@@ -388,6 +489,18 @@ export class RunCoordinator {
         );
         if (!current || current.runId !== runId) {
           throw new InvalidRunStateError("Interaction does not belong to run");
+        }
+        if (
+          state.interactions.some(
+            (item) =>
+              item.id !== current.id &&
+              item.checkpointId === current.checkpointId &&
+              item.status === "pending",
+          )
+        ) {
+          throw new InvalidRunStateError(
+            "Pending sibling interactions prevent terminal resolution",
+          );
         }
         const resolutionHash = this.ports.integrity.checksum(
           command.resolution,
@@ -552,8 +665,126 @@ export class RunCoordinator {
       promptDelivered: (promptId) => this.prompts.delivered(runId, promptId),
       checkpoint: (command) => this.checkpoint(runId, command),
       wait: (command) => this.wait(runId, command),
+      waitMany: (commands) => this.waitMany(runId, commands),
       progress: (event) => this.ports.transient?.publish(event),
     };
+  }
+
+  private assertWaitBatch(commands: readonly WaitCommand[]): void {
+    const first = commands[0]!;
+    const firstCheckpointHash = this.ports.integrity.checksum({
+      ...first.checkpoint,
+      boundary: "suspension",
+    });
+    const batchToolCallIds = first.batchToolCallIds;
+    if (commands.length > 1 && !batchToolCallIds) {
+      throw new InvalidRunStateError(
+        "Multi-wait commands require batch tool-call IDs",
+      );
+    }
+    if (
+      batchToolCallIds &&
+      (batchToolCallIds.length < 2 || batchToolCallIds.length > 32)
+    ) {
+      throw new InvalidRunStateError("Invalid interaction batch size");
+    }
+    const commandToolCallIds = new Set<string>();
+    const interactionIds = new Set<string>();
+    for (const command of commands) {
+      if (
+        this.ports.integrity.checksum({
+          ...command.checkpoint,
+          boundary: "suspension",
+        }) !== firstCheckpointHash
+      ) {
+        throw new InvalidRunStateError(
+          "Wait commands must share one suspension checkpoint",
+        );
+      }
+      if (
+        !sameStrings(command.batchToolCallIds ?? [], batchToolCallIds ?? [])
+      ) {
+        throw new InvalidRunStateError(
+          "Wait commands must share ordered batch tool-call IDs",
+        );
+      }
+      if (commandToolCallIds.has(command.toolCallId)) {
+        throw new InvalidRunStateError("Duplicate wait tool-call ID");
+      }
+      commandToolCallIds.add(command.toolCallId);
+      if (command.interactionId) {
+        if (interactionIds.has(command.interactionId)) {
+          throw new InvalidRunStateError("Duplicate wait interaction ID");
+        }
+        interactionIds.add(command.interactionId);
+      }
+      if (batchToolCallIds && !batchToolCallIds.includes(command.toolCallId)) {
+        throw new InvalidRunStateError(
+          "Wait tool call is not a member of its batch",
+        );
+      }
+    }
+    if (
+      batchToolCallIds &&
+      new Set(batchToolCallIds).size !== batchToolCallIds.length
+    ) {
+      throw new InvalidRunStateError("Duplicate batch tool-call ID");
+    }
+  }
+
+  private assertResolutionBatch(
+    state: RunHydratedState,
+    interactions: readonly RunInteractionRecord[],
+  ): void {
+    const first = interactions[0]!;
+    const selectedIds = interactions.map((interaction) => interaction.id);
+    if (new Set(selectedIds).size !== selectedIds.length) {
+      throw new InvalidRunStateError("Duplicate interaction resolution");
+    }
+    if (
+      interactions.some(
+        (interaction) => interaction.checkpointId !== first.checkpointId,
+      )
+    ) {
+      throw new InvalidRunStateError(
+        "Interaction batch must share one checkpoint",
+      );
+    }
+    const batchToolCallIds = first.batchToolCallIds;
+    if (
+      interactions.some(
+        (interaction) =>
+          !sameStrings(
+            interaction.batchToolCallIds ?? [],
+            batchToolCallIds ?? [],
+          ),
+      )
+    ) {
+      throw new InvalidRunStateError(
+        "Interaction batch metadata does not match",
+      );
+    }
+    const checkpointInteractions = state.interactions.filter(
+      (interaction) => interaction.checkpointId === first.checkpointId,
+    );
+    const expected = batchToolCallIds
+      ? batchToolCallIds.flatMap((toolCallId) => {
+          const interaction = checkpointInteractions.find(
+            (candidate) => candidate.toolCallId === toolCallId,
+          );
+          return interaction ? [interaction] : [];
+        })
+      : checkpointInteractions;
+    if (
+      !sameStrings(
+        selectedIds,
+        expected.map((interaction) => interaction.id),
+      )
+    ) {
+      throw new InvalidRunStateError(
+        "All checkpoint interactions must be resolved together in order",
+      );
+    }
   }
 
   private async appendDurable(

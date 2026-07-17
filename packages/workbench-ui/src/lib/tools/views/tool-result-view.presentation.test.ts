@@ -201,6 +201,34 @@ describe("toolPresentation", () => {
     assert.equal(p.detailsAction, undefined);
   });
 
+  it("omits live-tail limit metadata for bash output", () => {
+    const p = present(
+      "bash",
+      { command: "pnpm test" },
+      {
+        content: "latest output",
+        exitCode: 0,
+        details: {
+          outputLimits: {
+            live: {
+              capped: true,
+              direction: "tail",
+              maxChars: 32_000,
+              maxChunks: 400,
+              displayedChars: 32_000,
+              omittedChars: 73,
+            },
+          },
+        },
+      },
+    );
+
+    assert.equal(
+      p.meta.some((item) => item.text.startsWith("live tail")),
+      false,
+    );
+  });
+
   it("uses an inline marker for multi-line bash command primary args", () => {
     const command = "printf 'a' &&\n  printf 'b'";
     const p = present("bash", { command }, { content: "ok", exitCode: 0 });

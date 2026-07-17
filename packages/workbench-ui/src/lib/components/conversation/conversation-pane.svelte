@@ -30,9 +30,11 @@ let {
 
 const active = $derived(model.active ?? true);
 const lastTimelineKey = $derived(model.timeline.at(-1)?.key);
-const pendingApprovalId = $derived(
-  model.approvals?.find((approval) => approval.status === "pending")?.id,
+const pendingApprovals = $derived(
+  model.approvals?.filter((approval) => approval.status === "pending") ?? [],
 );
+const pendingApprovalId = $derived(pendingApprovals[0]?.id);
+const pendingApprovalCount = $derived(pendingApprovals.length);
 const transcriptHasContent = $derived(
   hasTranscriptContent({
     timelineLength: model.timeline.length,
@@ -61,6 +63,7 @@ const scroll = createConversationScrollController({
       {active}
       sending={model.sending}
       {pendingApprovalId}
+      {pendingApprovalCount}
       pendingQuestionId={model.pendingUserQuestion?.status === "pending"
         ? model.pendingUserQuestion.id
         : undefined}

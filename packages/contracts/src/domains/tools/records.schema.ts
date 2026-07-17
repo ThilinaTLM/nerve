@@ -224,6 +224,7 @@ export const approvalRecordSchema = z.object({
   status: approvalStatusSchema,
   requestedAt: z.string().datetime(),
   resolvedAt: z.string().datetime().optional(),
+  resolutionNote: z.string().max(4_096).optional(),
 });
 export type ApprovalRecord = z.infer<typeof approvalRecordSchema>;
 

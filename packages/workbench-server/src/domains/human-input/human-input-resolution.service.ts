@@ -25,6 +25,7 @@ import type { PlanService } from "../plans/plan-service.js";
 import { completedToolResult } from "../tools/agent-tool-adapter.js";
 import type { ToolService } from "../tools/tool-service.js";
 import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
+import { ApprovalBatchResolutionService } from "./approval-batch-resolution.js";
 
 export type AcceptPlanReviewInNewChatResult = {
   planReview: PlanReviewRecord;
@@ -54,11 +55,29 @@ export interface HumanInputResolutionDeps {
     input: AppendEntryInput,
     options?: AppendEntryOptions,
   ): Promise<ConversationEntry>;
+  getConversationEntries(conversationId: string): ConversationEntry[];
   harnessStorage: ConversationHarnessStorage;
 }
 
 export class HumanInputResolutionService {
-  constructor(private readonly deps: HumanInputResolutionDeps) {}
+  private readonly approvalBatches: ApprovalBatchResolutionService;
+
+  constructor(private readonly deps: HumanInputResolutionDeps) {
+    this.approvalBatches = new ApprovalBatchResolutionService({
+      tools: deps.tools,
+      runs: deps.runs,
+      appendToolResult: (toolCall, isError) =>
+        this.appendToolResultForToolCall(toolCall, isError),
+      existingToolResultEntry: (toolCall) =>
+        deps.getConversationEntries(toolCall.conversationId).find((entry) => {
+          if (!entry.details || typeof entry.details !== "object") return false;
+          return (
+            (entry.details as { toolRecordId?: unknown }).toolRecordId ===
+            toolCall.id
+          );
+        }),
+    });
+  }
 
   async acceptPlanReview(
     reviewId: string,
@@ -281,50 +300,16 @@ export class HumanInputResolutionService {
     }
   }
 
-  async resolveApproval(
+  resolveApproval(
     approvalId: string,
     decision: "allow" | "deny",
     note?: string,
   ): Promise<ToolCallRecord> {
-    const approval = this.deps.tools
-      .listApprovals()
-      .find((candidate) => candidate.id === approvalId);
-    if (!approval || approval.status !== "pending") {
-      throw new HttpError(
-        404,
-        "APPROVAL_NOT_FOUND",
-        "Approval is not pending.",
-      );
-    }
-    const pendingToolCall = this.deps.tools.getToolCall(approval.toolCallId);
-    if (pendingToolCall.runId) {
-      await this.deps.runs.assertPendingInteractionForToolCall(
-        pendingToolCall.id,
-        pendingToolCall.runId,
-      );
-    }
-    const toolCall =
-      decision === "allow"
-        ? await this.deps.tools.grantApproval(approvalId, note)
-        : await this.deps.tools.denyApproval(approvalId, note);
-    if (!toolCall.runId) return toolCall;
-    const entry = await this.appendToolResultForToolCall(
-      toolCall,
-      toolCall.status !== "completed",
-    );
-    await this.deps.runs.resolveInteractionForToolCall({
-      toolCallId: toolCall.id,
-      runId: toolCall.runId,
-      resolutionRequestId: `resolution_${createHash("sha256")
-        .update(`${approvalId}:${decision}:${note ?? ""}`)
-        .digest("hex")
-        .slice(0, 24)}`,
-      resolution: { decision, note },
-      entries: [entry],
-      toolCalls: [toToolCallTranscriptRecord(toolCall)],
-      continueRun: true,
-    });
-    return toolCall;
+    return this.approvalBatches.resolve(approvalId, decision, note);
+  }
+
+  recoverReadyApprovalBatches(): Promise<void> {
+    return this.approvalBatches.recoverReadyBatches();
   }
 
   async answerUserQuestion(

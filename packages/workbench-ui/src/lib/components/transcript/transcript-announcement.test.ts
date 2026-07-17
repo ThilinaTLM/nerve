@@ -46,14 +46,26 @@ describe("transcript announcements", () => {
   });
 
   it("announces each newly blocking human interaction once", () => {
-    const approval = { ...idle, pendingApprovalId: "approval_1" };
+    const approval = {
+      ...idle,
+      pendingApprovalId: "approval_1",
+      pendingApprovalCount: 1,
+    };
     assert.equal(
       transcriptAnnouncementForTransition(idle, approval),
-      "Approval required.",
+      "1 approval required.",
     );
     assert.equal(
       transcriptAnnouncementForTransition(approval, approval),
       undefined,
+    );
+    const twoApprovals = {
+      ...approval,
+      pendingApprovalCount: 2,
+    };
+    assert.equal(
+      transcriptAnnouncementForTransition(approval, twoApprovals),
+      "2 approvals required.",
     );
 
     const question = { ...idle, pendingQuestionId: "question_1" };

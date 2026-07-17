@@ -39,6 +39,18 @@ export function completeInteractionResolution(
   events: RunEventFactory,
 ): RunSettlement {
   if (
+    state.interactions.some(
+      (candidate) =>
+        candidate.id !== interaction.id &&
+        candidate.checkpointId === interaction.checkpointId &&
+        candidate.status === "pending",
+    )
+  ) {
+    throw new InvalidRunStateError(
+      "Pending sibling interactions prevent terminal settlement",
+    );
+  }
+  if (
     state.run.status !== "waiting" ||
     state.run.activeInteractionId !== interaction.id ||
     interaction.status !== "resolved"

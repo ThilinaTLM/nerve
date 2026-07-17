@@ -55,6 +55,7 @@ export type ToolRequestOptions = {
   contentIndex?: number;
   anchor?: ToolAnchor;
   durableSuspend?: boolean;
+  forceApproval?: boolean;
   hidden?: boolean;
   continueAfterPromotedTask?: boolean;
   useForegroundBash?: boolean;
@@ -281,6 +282,10 @@ export class ToolService {
     const evaluation = evaluateToolPolicy(latestAgent, toolName, args, {
       dataDir: this.storage.paths.home,
     });
+    const decision =
+      evaluation.decision === "allow" && options.forceApproval === true
+        ? "approval"
+        : evaluation.decision;
     const providerToolCallId =
       options.providerToolCallId ?? options.sourceToolCallId;
     const anchor = options.anchor;
@@ -313,7 +318,7 @@ export class ToolService {
       projectId: agent.projectId,
       toolName,
       risk: evaluation.risk,
-      decision: evaluation.decision,
+      decision,
       reason: evaluation.reason,
     });
     await this.logger?.info("Tool policy evaluated", {
@@ -325,12 +330,12 @@ export class ToolService {
       context: {
         toolName,
         risk: evaluation.risk,
-        decision: evaluation.decision,
+        decision,
         reason: evaluation.reason,
       },
     });
 
-    if (evaluation.decision === "deny") {
+    if (decision === "deny") {
       const denied = await this.updateToolCall(toolCall.id, {
         status: "denied",
         error: evaluation.reason,
@@ -347,7 +352,7 @@ export class ToolService {
       return { toolCall: denied };
     }
 
-    if (evaluation.decision === "approval") {
+    if (decision === "approval") {
       const approval: ApprovalRecord = {
         id: createId("approval"),
         toolCallId: toolCall.id,
@@ -553,43 +558,59 @@ export class ToolService {
     }
   }
 
+  async decideApproval(
+    approvalId: string,
+    decision: "allow" | "deny",
+    note?: string,
+  ): Promise<ApprovalRecord> {
+    const approval = this.getPendingApproval(approvalId);
+    const decided: ApprovalRecord = {
+      ...approval,
+      status: decision === "allow" ? "granted" : "denied",
+      resolvedAt: new Date().toISOString(),
+      resolutionNote: note,
+    };
+    await this.upsertApproval(decided);
+    await this.events.publish("approval.updated", {
+      approval: decided,
+      note,
+    });
+    return decided;
+  }
+
+  async finalizeDecidedApproval(approvalId: string): Promise<ToolCallRecord> {
+    const approval = this.approvals.get(approvalId);
+    if (!approval) throw new Error("Approval not found.");
+    const toolCall = this.getToolCall(approval.toolCallId);
+    if (isTerminalToolCall(toolCall)) return toolCall;
+    if (approval.status === "pending") {
+      throw new Error("Approval is still pending.");
+    }
+    if (approval.status === "granted") {
+      return this.executor.executeAllowedTool(toolCall.id);
+    }
+    const denied = await this.updateToolCall(toolCall.id, {
+      status: "denied",
+      error: approval.resolutionNote ?? "Denied by user.",
+    });
+    await this.publishToolCallUpdated(denied);
+    return denied;
+  }
+
   async grantApproval(
     approvalId: string,
     note?: string,
   ): Promise<ToolCallRecord> {
-    const approval = this.getPendingApproval(approvalId);
-    const granted: ApprovalRecord = {
-      ...approval,
-      status: "granted",
-      resolvedAt: new Date().toISOString(),
-    };
-    await this.upsertApproval(granted);
-    await this.events.publish("approval.updated", { approval: granted, note });
-    const toolCall = this.getToolCall(granted.toolCallId);
-    return this.executor.executeAllowedTool(toolCall.id);
+    await this.decideApproval(approvalId, "allow", note);
+    return this.finalizeDecidedApproval(approvalId);
   }
 
   async denyApproval(
     approvalId: string,
     note?: string,
   ): Promise<ToolCallRecord> {
-    const approval = this.getPendingApproval(approvalId);
-    const deniedApproval: ApprovalRecord = {
-      ...approval,
-      status: "denied",
-      resolvedAt: new Date().toISOString(),
-    };
-    await this.upsertApproval(deniedApproval);
-    const deniedToolCall = await this.updateToolCall(approval.toolCallId, {
-      status: "denied",
-      error: note ?? "Denied by user.",
-    });
-    await this.events.publish("approval.updated", {
-      approval: deniedApproval,
-      note,
-    });
-    await this.publishToolCallUpdated(deniedToolCall);
-    return deniedToolCall;
+    await this.decideApproval(approvalId, "deny", note);
+    return this.finalizeDecidedApproval(approvalId);
   }
 
   async answerUserQuestion(

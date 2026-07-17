@@ -170,7 +170,10 @@ function jiraPrimaryArg(
   }
 }
 
-function outputMeta(view: ToolView): MetaItem[] {
+function outputMeta(
+  view: ToolView,
+  options: { includeLiveLimit?: boolean } = {},
+): MetaItem[] {
   const limits = "outputLimits" in view ? view.outputLimits : undefined;
   const artifacts =
     "outputArtifacts" in view ? view.outputArtifacts : undefined;
@@ -183,7 +186,7 @@ function outputMeta(view: ToolView): MetaItem[] {
       tone: "warning",
     });
   }
-  if (limits?.live?.capped) {
+  if (options.includeLiveLimit !== false && limits?.live?.capped) {
     const chars = formatCount(limits.live.omittedChars, "char");
     meta.push({
       text: ["live tail", chars ? `${chars} omitted` : undefined]
@@ -276,7 +279,7 @@ export function toolPresentation(
       }
       if (lines > 0) meta.push({ text: plural(lines, "line") });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
-      meta.push(...outputMeta(view));
+      meta.push(...outputMeta(view, { includeLiveLimit: false }));
       if (view.savedTo && !hasOutputArtifactPath(view, view.savedTo)) {
         meta.push({
           text: `saved ${basename(view.savedTo)}`,

@@ -386,7 +386,10 @@ describe("buildConversationTimeline live tools", () => {
       "2026-01-01T00:00:02.000Z",
       "bash",
       "provider_call_1",
-      { status: "running" },
+      {
+        runId: "run_01H00000000000000000000000",
+        status: "running",
+      },
     );
     const timeline = buildConversationTimeline(
       [{ id: "entry_user", role: "user", text: "Run command" }],
@@ -406,9 +409,12 @@ describe("buildConversationTimeline live tools", () => {
       }),
     );
 
-    const joined = timeline.find((item) => item.kind === "tool");
+    const joinedTools = timeline.filter((item) => item.kind === "tool");
+    assert.equal(joinedTools.length, 1);
+    const joined = joinedTools[0];
     assert.equal(joined?.kind, "tool");
     if (joined?.kind === "tool") {
+      assert.equal(joined.key, "tool-slot:msg_1:0");
       assert.equal(joined.toolCall?.id, "tool_by_slot");
     }
   });
@@ -521,6 +527,44 @@ describe("buildConversationTimeline live tools", () => {
     );
 
     assert.deepEqual(timeline.filter((item) => item.kind === "tool").length, 1);
+  });
+
+  it("does not append a live alias after an approved call is committed", () => {
+    const completed = toolCall(
+      "tool_completed",
+      "2026-01-01T00:00:01.000Z",
+      "jira_search_issues",
+      "provider_call_1",
+      { runId: "run_active", status: "completed" },
+    );
+    const resumedAlias = toolCall(
+      "tool_resumed_alias",
+      "2026-01-01T00:00:02.000Z",
+      "jira_search_issues",
+      "provider_call_1",
+      { runId: "run_active", status: "running" },
+    );
+    const timeline = buildConversationTimeline(
+      [
+        { id: "entry_user", role: "user", text: "Search Jira" },
+        {
+          id: "entry_tool_result",
+          role: "system",
+          text: "Jira search completed",
+          toolRecordId: completed.id,
+        },
+      ],
+      [completed, resumedAlias],
+      activeRun({ runId: "run_active" }),
+    );
+
+    const tools = timeline.filter((item) => item.kind === "tool");
+    assert.equal(tools.length, 1);
+    assert.equal(tools[0]?.kind, "tool");
+    if (tools[0]?.kind === "tool") {
+      assert.equal(tools[0].toolCall?.id, "tool_completed");
+      assert.equal(tools[0].toolCall?.status, "completed");
+    }
   });
 
   it("produces identical keys for repeated projections of the same state", () => {

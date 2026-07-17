@@ -13,6 +13,11 @@ import {
   toolSlotKey,
   type ToolDraftViewModel,
 } from "./active-run.js";
+import {
+  createToolConsumptionTracker,
+  toolCallAliasIds,
+  toolCallSlotKey,
+} from "./timeline-tool-identity.js";
 import type {
   CompactionNotice,
   ConversationTransientState,
@@ -110,24 +115,6 @@ function isLiveToolCall(toolCall: ToolCallTranscriptRecord): boolean {
     toolCall.status === "waiting_for_user" ||
     toolCall.status === "running"
   );
-}
-
-function toolCallAliasIds(toolCall: ToolCallTranscriptRecord): string[] {
-  return Array.from(
-    new Set(
-      [toolCall.sourceToolCallId, toolCall.providerToolCallId].filter(
-        (value): value is string => Boolean(value),
-      ),
-    ),
-  );
-}
-
-function toolCallSlotKey(
-  toolCall: ToolCallTranscriptRecord,
-): string | undefined {
-  return toolCall.liveMessageId && typeof toolCall.contentIndex === "number"
-    ? toolSlotKey(toolCall.liveMessageId, toolCall.contentIndex)
-    : undefined;
 }
 
 /**
@@ -508,13 +495,11 @@ export function buildActiveRunTimeline(
   context: CommittedContext,
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
-  const liveConsumedToolCallIds = new Set<string>();
-  const isToolConsumed = (toolCallId: string) =>
-    context.consumedToolCallIds.has(toolCallId) ||
-    liveConsumedToolCallIds.has(toolCallId);
-  const consumeTool = (toolCallId: string) => {
-    liveConsumedToolCallIds.add(toolCallId);
-  };
+  const consumption = createToolConsumptionTracker({
+    initiallyConsumedIds: context.consumedToolCallIds,
+    toolCallsById: context.toolCallsById,
+    activeRunId: activeRun?.runId,
+  });
   const liveOutputFor = (toolCallId: string) =>
     activeRun?.toolOutputsByToolCallId[toolCallId];
 
@@ -526,8 +511,8 @@ export function buildActiveRunTimeline(
         emitMessageSlots(items, activeRun, turn, message, {
           context,
           anchoredToolCalls: anchoredByMessage.get(message.liveMessageId) ?? [],
-          isToolConsumed,
-          consumeTool,
+          isToolConsumed: consumption.isConsumed,
+          consumeTool: consumption.consume,
           liveOutputFor,
         });
       }
@@ -614,7 +599,7 @@ export function buildActiveRunTimeline(
   )) {
     const liveOutput = liveOutputFor(toolCall.id);
     if (
-      isToolConsumed(toolCall.id) ||
+      consumption.isConsumed(toolCall) ||
       !shouldAppendUnanchoredToolCall(toolCall, liveOutput, activeRun)
     ) {
       continue;
@@ -625,7 +610,7 @@ export function buildActiveRunTimeline(
       toolCall,
       liveOutput,
     });
-    consumeTool(toolCall.id);
+    consumption.consume(toolCall);
   }
 
   return items;
@@ -639,8 +624,11 @@ function emitMessageSlots(
   input: {
     context: CommittedContext;
     anchoredToolCalls: ToolCallTranscriptRecord[];
-    isToolConsumed: (toolCallId: string) => boolean;
-    consumeTool: (toolCallId: string) => void;
+    isToolConsumed: (toolCall: ToolCallTranscriptRecord) => boolean;
+    consumeTool: (
+      toolCall: ToolCallTranscriptRecord,
+      extraAlias?: string,
+    ) => void;
     liveOutputFor: (
       toolCallId: string,
     ) => ConversationLiveToolOutputSnapshot | undefined;
@@ -677,14 +665,14 @@ function emitMessageSlots(
 
   for (const slot of slots) {
     if (slot.type === "tool") {
-      if (input.isToolConsumed(slot.toolCall.id)) continue;
+      if (input.isToolConsumed(slot.toolCall)) continue;
       items.push({
         kind: "tool",
         key: toolTimelineKey(slot.toolCall),
         toolCall: slot.toolCall,
         liveOutput: input.liveOutputFor(slot.toolCall.id),
       });
-      input.consumeTool(slot.toolCall.id);
+      input.consumeTool(slot.toolCall);
       continue;
     }
 
@@ -728,7 +716,7 @@ function emitMessageSlots(
       (block.providerToolCallId
         ? input.context.toolCallsByProviderId.get(block.providerToolCallId)
         : undefined);
-    if (toolCall && input.isToolConsumed(toolCall.id)) continue;
+    if (toolCall && input.isToolConsumed(toolCall)) continue;
     items.push({
       kind: "tool",
       key: slotKey,
@@ -745,7 +733,7 @@ function emitMessageSlots(
       toolCall,
       liveOutput: toolCall ? input.liveOutputFor(toolCall.id) : undefined,
     });
-    if (toolCall) input.consumeTool(toolCall.id);
+    if (toolCall) input.consumeTool(toolCall, block.providerToolCallId);
   }
 }
 

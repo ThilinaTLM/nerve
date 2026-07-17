@@ -30,6 +30,10 @@ export interface RunExecutionSink {
   checkpoint(command: CheckpointCommand): Promise<RunCheckpointRecord>;
   /** Enter a typed durable wait (question/approval/plan review). */
   wait(command: WaitCommand): Promise<RunInteractionRecord>;
+  /** Atomically enter multiple waits sharing one suspension checkpoint. */
+  waitMany(
+    commands: readonly WaitCommand[],
+  ): Promise<readonly RunInteractionRecord[]>;
   /** Publish a bounded transient progress/delta on a non-authoritative port. */
   progress(event: RunProgressEvent): void;
 }

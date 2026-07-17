@@ -13,14 +13,12 @@ import type {
   ConversationEntry,
   PromptRequest,
   RunRecord,
-  ToolCallRecord,
   ToolName,
 } from "@nervekit/contracts";
 import type {
   CheckpointCommand,
   RunExecutionOutcome,
   RunExecutionSink,
-  WaitCommand,
 } from "@nervekit/host-runtime";
 import { toolNameSchema } from "@nervekit/contracts";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
@@ -45,6 +43,7 @@ import {
   isRetryableAssistantError,
 } from "./harness-execution-shared.js";
 import { expandExecutablePromptBlocks } from "./prompt-block-expansion.js";
+import { waitForSequentialToolApprovalBatch } from "./sequential-tool-approval-batch.js";
 import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,
@@ -699,29 +698,15 @@ export async function executeWorkbenchHarness(
       ? error
       : this.suspensionFromWaitingToolCall(agent, runId, error);
     if (suspensionError) {
-      const toolCall = this.deps.tools.getToolCall(
-        suspensionError.data.toolCallId,
-      );
-      const interactionId =
-        this.deps.tools
-          .listUserQuestions()
-          .find((question) => question.toolCallId === toolCall.id)?.id ??
-        this.deps.plans
-          .listPlanReviews()
-          .find((review) => review.toolCallId === toolCall.id)?.id ??
-        toolCall.id;
-      const checkpoint = await coordinator.checkpointCommand(
-        "suspension",
-        interactionId,
-      );
-      const wait = canonicalWaitCommand(
-        interactionId,
-        toolCall,
-        checkpoint,
-        suspensionError.data.reason,
-        this.deps,
-      );
-      await coordinator.sink.wait(wait);
+      await waitForSequentialToolApprovalBatch({
+        agent,
+        runId,
+        suspension: suspensionError.data,
+        deps: this.deps,
+        sink: coordinator.sink,
+        checkpointCommand: (boundary, interactionId) =>
+          coordinator.checkpointCommand(boundary, interactionId),
+      });
       return { status: "suspended" };
     }
     return abortRequested
@@ -735,64 +720,4 @@ export async function executeWorkbenchHarness(
           },
         };
   }
-}
-function canonicalWaitCommand(
-  interactionId: string,
-  toolCall: ToolCallRecord,
-  checkpoint: CheckpointCommand,
-  reason: string,
-  deps: WorkbenchAgentMechanics["deps"],
-): WaitCommand {
-  if (toolCall.toolName === "plan_mode_present") {
-    const review = deps.plans
-      .listPlanReviews()
-      .find((candidate) => candidate.toolCallId === toolCall.id);
-    if (!review) {
-      throw new Error(
-        `Plan review for tool call ${toolCall.id} was not found.`,
-      );
-    }
-    return {
-      kind: "plan_review",
-      interactionId,
-      toolCallId: toolCall.id,
-      prompt: reason,
-      planReview: review,
-      checkpoint,
-    };
-  }
-  const approval = deps.tools
-    .listApprovals()
-    .find(
-      (candidate) =>
-        candidate.toolCallId === toolCall.id && candidate.status === "pending",
-    );
-  if (approval) {
-    return {
-      kind: "approval",
-      interactionId,
-      toolCallId: toolCall.id,
-      prompt: reason,
-      risk: [approval.risk, approval.reason],
-      normalizedArgs:
-        toolCall.args && typeof toolCall.args === "object"
-          ? (toolCall.args as Record<string, unknown>)
-          : {},
-      offeredScopes: ["single_call"],
-      checkpoint,
-    };
-  }
-  const question = deps.tools
-    .listUserQuestions()
-    .find((candidate) => candidate.toolCallId === toolCall.id);
-  return {
-    kind: "question",
-    interactionId,
-    toolCallId: toolCall.id,
-    prompt: question?.question ?? reason,
-    context: question?.context,
-    placeholder: question?.placeholder,
-    required: true,
-    checkpoint,
-  };
 }

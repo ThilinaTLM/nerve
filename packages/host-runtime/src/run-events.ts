@@ -206,34 +206,52 @@ export class RunEventFactory {
       createdAt: interaction.createdAt,
     };
     if (interaction.kind === "question") {
-      return this.intent(run, "run.waiting", interaction.createdAt, {
-        ...common,
-        waitKind: "input",
-        requestId: interaction.id,
-        question: { text: interaction.prompt },
-        placeholder: interaction.placeholder,
-        required: interaction.required,
-      });
+      return this.intent(
+        run,
+        "run.waiting",
+        interaction.createdAt,
+        {
+          ...common,
+          waitKind: "input",
+          requestId: interaction.id,
+          question: { text: interaction.prompt },
+          placeholder: interaction.placeholder,
+          required: interaction.required,
+        },
+        interaction.id,
+      );
     }
     if (interaction.kind === "approval") {
-      return this.intent(run, "run.waiting", interaction.createdAt, {
-        ...common,
-        waitKind: "approval",
-        approvalId: interaction.id,
-        toolCallId: interaction.toolCallId,
-        risk: interaction.risk,
-        reason: interaction.prompt,
-        normalizedArgs: interaction.normalizedArgs,
-        offeredScopes: interaction.offeredScopes,
-      });
+      return this.intent(
+        run,
+        "run.waiting",
+        interaction.createdAt,
+        {
+          ...common,
+          waitKind: "approval",
+          approvalId: interaction.id,
+          toolCallId: interaction.toolCallId,
+          risk: interaction.risk,
+          reason: interaction.prompt,
+          normalizedArgs: interaction.normalizedArgs,
+          offeredScopes: interaction.offeredScopes,
+        },
+        interaction.id,
+      );
     }
-    return this.intent(run, "run.waiting", interaction.createdAt, {
-      ...common,
-      waitKind: "plan_review",
-      reviewId: interaction.planReview.id,
-      toolCallId: interaction.toolCallId,
-      planReview: toPlanReviewPreview(interaction.planReview),
-    });
+    return this.intent(
+      run,
+      "run.waiting",
+      interaction.createdAt,
+      {
+        ...common,
+        waitKind: "plan_review",
+        reviewId: interaction.planReview.id,
+        toolCallId: interaction.toolCallId,
+        planReview: toPlanReviewPreview(interaction.planReview),
+      },
+      interaction.id,
+    );
   }
 
   entryAppended(

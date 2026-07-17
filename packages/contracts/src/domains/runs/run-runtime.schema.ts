@@ -12,6 +12,10 @@ const agentIdSchema = z.string().startsWith("agent_");
 const projectIdSchema = z.string().startsWith("proj_");
 const executionIdSchema = z.string().startsWith("exec_");
 const interactionIdSchema = z.string().min(1).max(256);
+const interactionBatchToolCallIdsSchema = z
+  .array(z.string().min(1).max(256))
+  .min(2)
+  .max(32);
 const checkpointIdSchema = z.string().startsWith("checkpoint_");
 const sha256Schema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
 
@@ -127,6 +131,7 @@ const runInteractionBaseSchema = z.object({
   runId: runIdSchema,
   executionId: executionIdSchema,
   toolCallId: z.string().min(1).max(256),
+  batchToolCallIds: interactionBatchToolCallIdsSchema.optional(),
   prompt: z.string().min(1).max(16_000),
   context: z.string().max(16_000).optional(),
   status: z.enum(["pending", "resolved", "cancelled"]),

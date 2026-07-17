@@ -56,37 +56,31 @@ export interface CheckpointCommand {
   interactionId?: string;
 }
 
-export interface WaitForQuestionCommand {
-  kind: "question";
+export interface WaitCommandBase {
   interactionId?: string;
   toolCallId: string;
+  batchToolCallIds?: readonly string[];
   prompt: string;
   context?: string;
-  placeholder?: string;
-  required?: boolean;
   checkpoint: CheckpointCommand;
 }
 
-export interface WaitForApprovalCommand {
+export interface WaitForQuestionCommand extends WaitCommandBase {
+  kind: "question";
+  placeholder?: string;
+  required?: boolean;
+}
+
+export interface WaitForApprovalCommand extends WaitCommandBase {
   kind: "approval";
-  interactionId?: string;
-  toolCallId: string;
-  prompt: string;
-  context?: string;
   risk: string[];
   normalizedArgs: Record<string, unknown>;
   offeredScopes: Array<"single_call" | "same_tool_same_args" | "run">;
-  checkpoint: CheckpointCommand;
 }
 
-export interface WaitForPlanReviewCommand {
+export interface WaitForPlanReviewCommand extends WaitCommandBase {
   kind: "plan_review";
-  interactionId?: string;
-  toolCallId: string;
-  prompt: string;
-  context?: string;
   planReview: PlanReviewRecord;
-  checkpoint: CheckpointCommand;
 }
 
 export type WaitCommand =
@@ -243,6 +237,9 @@ export function interactionRecord(
     runId: run.runId,
     executionId: run.executionId,
     toolCallId: command.toolCallId,
+    batchToolCallIds: command.batchToolCallIds
+      ? [...command.batchToolCallIds]
+      : undefined,
     prompt: command.prompt,
     context: command.context,
     status: "pending" as const,

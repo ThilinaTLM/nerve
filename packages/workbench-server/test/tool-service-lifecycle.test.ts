@@ -193,6 +193,89 @@ describe("tool service lifecycle", () => {
     assert.equal(afterSecondHydrate.length, records.length + 2);
   });
 
+  it("force-stages policy-allowed tools for approval", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-force-approval-"));
+    const testAgent = agent("autonomous");
+    const { service, events } = buildToolService(home, testAgent);
+
+    const response = await service.requestTool(
+      testAgent,
+      "todos_set",
+      { todos: [{ todo: "stage me", done: false }] },
+      { forceApproval: true, durableSuspend: true },
+    );
+
+    assert.equal(response.toolCall.status, "pending_approval");
+    assert.equal(response.approval?.status, "pending");
+    assert.equal(service.listApprovals("pending").length, 1);
+    assert.equal(
+      (
+        events.find((event) => event.type === "policy.evaluated")?.data as {
+          decision?: string;
+        }
+      ).decision,
+      "approval",
+    );
+  });
+
+  it("defers approval execution and terminalization until finalization", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-deferred-approval-"));
+    const testAgent = agent("autonomous");
+    const { service } = buildToolService(home, testAgent);
+    const response = await service.requestTool(
+      testAgent,
+      "todos_set",
+      { todos: [{ todo: "execute later", done: false }] },
+      { forceApproval: true, durableSuspend: true },
+    );
+    const approvalId = response.approval!.id;
+
+    const granted = await service.decideApproval(
+      approvalId,
+      "allow",
+      "approved",
+    );
+    assert.equal(granted.status, "granted");
+    assert.equal(granted.resolutionNote, "approved");
+    assert.equal(
+      service.getToolCall(response.toolCall.id).status,
+      "pending_approval",
+    );
+
+    const completed = await service.finalizeDecidedApproval(approvalId);
+    assert.equal(completed.status, "completed");
+    assert.equal(
+      (await service.finalizeDecidedApproval(approvalId)).status,
+      "completed",
+    );
+
+    const deniedResponse = await service.requestTool(
+      testAgent,
+      "todos_set",
+      { todos: [{ todo: "deny later", done: false }] },
+      { forceApproval: true, durableSuspend: true },
+    );
+    await service.decideApproval(
+      deniedResponse.approval!.id,
+      "deny",
+      "not now",
+    );
+    assert.equal(
+      service.getToolCall(deniedResponse.toolCall.id).status,
+      "pending_approval",
+    );
+    const denied = await service.finalizeDecidedApproval(
+      deniedResponse.approval!.id,
+    );
+    assert.equal(denied.status, "denied");
+    assert.equal(denied.error, "not now");
+    assert.equal(
+      (await service.finalizeDecidedApproval(deniedResponse.approval!.id))
+        .status,
+      "denied",
+    );
+  });
+
   it("terminalizes lingering running/requested tool calls when a run ends", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-reconcile-"));
     const testAgent = agent("autonomous");
@@ -268,7 +351,10 @@ function buildToolService(home: string, testAgent: AgentRecord) {
       publish: async (type: string, data: unknown) =>
         events.push({ type, data }),
     } as never,
-    { upsertToolCall: () => undefined } as never,
+    {
+      upsertToolCall: () => undefined,
+      upsertApproval: () => undefined,
+    } as never,
     {} as never,
     {
       runtimeForProject: async () => undefined,

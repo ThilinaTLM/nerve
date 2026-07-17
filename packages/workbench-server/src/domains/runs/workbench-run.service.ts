@@ -3,6 +3,7 @@ import type {
   ContextUsage,
   ConversationEntry,
   PromptRequest,
+  RunInteractionRecord,
   ToolCallTranscriptRecord,
   ToolName,
 } from "@nervekit/contracts";
@@ -12,6 +13,18 @@ import { HttpError } from "../../http/errors.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ExploreReport } from "../agents/run/subagent-runner.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
+
+export interface ApprovalInteractionBatch {
+  runId: string;
+  checkpointId: string;
+  batchToolCallIds: readonly string[];
+  interactions: readonly RunInteractionRecord[];
+}
+
+export interface ApprovalBatchResolutionMember {
+  interaction: RunInteractionRecord;
+  resolution: Record<string, unknown>;
+}
 
 export interface WorkbenchRunFeatureMechanics {
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
@@ -171,6 +184,102 @@ export class WorkbenchRunService {
         "The run interaction is not pending.",
       );
     }
+  }
+
+  async approvalBatchForToolCall(
+    toolCallId: string,
+    runId?: string,
+  ): Promise<ApprovalInteractionBatch> {
+    const state = runId
+      ? await this.unitOfWork.load(runId)
+      : await this.unitOfWork.findByInteractionToolCallId(toolCallId);
+    const target = state?.interactions.find(
+      (interaction) => interaction.toolCallId === toolCallId,
+    );
+    if (
+      !state ||
+      !target ||
+      state.run.status !== "waiting" ||
+      target.status !== "pending"
+    ) {
+      throw new HttpError(
+        409,
+        "RUN_INTERACTION_NOT_FOUND",
+        "The pending run interaction was not found.",
+      );
+    }
+    const batchToolCallIds = target.batchToolCallIds ?? [target.toolCallId];
+    const interactions = batchToolCallIds.flatMap((memberToolCallId) => {
+      const interaction = state.interactions.find(
+        (candidate) =>
+          candidate.checkpointId === target.checkpointId &&
+          candidate.toolCallId === memberToolCallId,
+      );
+      return interaction ? [interaction] : [];
+    });
+    if (
+      interactions.some(
+        (interaction) =>
+          interaction.kind !== "approval" ||
+          interaction.checkpointId !== target.checkpointId,
+      )
+    ) {
+      throw new HttpError(
+        409,
+        "RUN_APPROVAL_BATCH_INVALID",
+        "The run approval batch is invalid.",
+      );
+    }
+    return {
+      runId: state.run.runId,
+      checkpointId: target.checkpointId,
+      batchToolCallIds,
+      interactions,
+    };
+  }
+
+  async resolveInteractionBatchForToolCalls(input: {
+    members: readonly ApprovalBatchResolutionMember[];
+    entries: readonly ConversationEntry[];
+    toolCalls: readonly ToolCallTranscriptRecord[];
+    resolutionRequestId: string;
+  }): Promise<void> {
+    const first = input.members[0]?.interaction;
+    if (!first) {
+      throw new HttpError(
+        409,
+        "RUN_INTERACTION_NOT_FOUND",
+        "The approval interaction batch is empty.",
+      );
+    }
+    if (input.toolCalls.length) {
+      await this.coordinator.upsertToolCalls(first.runId, input.toolCalls);
+    }
+    if (input.entries.length) {
+      const state = await this.unitOfWork.load(first.runId);
+      const existingEntryIds = new Set(
+        state?.transitions.flatMap((transition) =>
+          transition.entries.map((entry) => entry.id),
+        ),
+      );
+      const missingEntries = input.entries.filter(
+        (entry) => !existingEntryIds.has(entry.id),
+      );
+      if (missingEntries.length) {
+        await this.coordinator.appendEntries(first.runId, missingEntries);
+      }
+    }
+    const commands = input.members.map(({ interaction, resolution }) => ({
+      interactionId: interaction.id,
+      resolutionRequestId: input.resolutionRequestId,
+      resolution,
+    }));
+    if (first.batchToolCallIds) {
+      await this.coordinator.resolveInteractionBatch(first.runId, commands);
+    } else {
+      await this.coordinator.resolveInteraction(first.runId, commands[0]!);
+    }
+    await this.coordinator.continue(first.runId);
   }
 
   async resolveInteractionForToolCall(input: {

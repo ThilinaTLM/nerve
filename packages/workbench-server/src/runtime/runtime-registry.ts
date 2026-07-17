@@ -137,6 +137,7 @@ export class RuntimeRegistry {
     await this.rebuildConversations();
     await this.services.runRuntime.delivery.flush();
     await this.services.runRuntime.coordinator.recover();
+    await this.services.humanInput.recoverReadyApprovalBatches();
     await this.services.runRuntime.statusProjector.rebuild(
       await this.services.runRuntime.unitOfWork.list(),
     );
