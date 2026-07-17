@@ -1,0 +1,69 @@
+@startuml
+!pragma layout smetana
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+skinparam ArrowThickness 1
+
+title Nerve system context and runtime topology
+
+actor "Nerve user" as user
+
+rectangle "Local workbench" as local {
+  component "desktop-shell\nElectron launcher and\nlocal-daemon owner" as desktop
+  component "workbench-app\nBrowser workbench host" as workbench_app
+  component "workbench-server\nLocal API, protocol, runtime,\nand static web host" as workbench_server
+  database "NERVE_HOME\nFile-first source of truth\nSQLite rebuildable index/cache" as nerve_home
+}
+
+rectangle "Sandbox control plane" as control {
+  component "sandbox-manager-app\nFleet and sandbox browser UI" as manager_app
+  component "sandbox-manager\nLifecycle, protocol routing,\nauth, and static web host" as manager
+  database "PostgreSQL\nManager records, lifecycle, events,\nidempotency, audit, credentials" as postgres
+  folder "Manager storage /\nvolume backend" as manager_storage
+}
+
+cloud "Container / task runtime" as runtime {
+  node "Sandbox 1..N" as sandbox {
+    component "sandbox-agent\nIsolated coding daemon and\nagent execution runtime" as agent
+    folder "/workspace\nProject files" as workspace
+    folder "/state\nFile-first runtime state,\noutbox, ACK, checkpoints" as state
+  }
+}
+
+cloud "Model and credential providers" as providers
+cloud "Git remotes and project resources" as resources
+
+user --> desktop : launches desktop
+user --> workbench_app : uses workbench UI
+user --> manager_app : uses sandbox manager UI
+
+desktop --> workbench_server : owns/spawns local daemon\nor monitors existing/remote daemon
+workbench_server --> workbench_app : serves bundled web assets
+workbench_app <--> workbench_server : HTTP + Protocol v1 WebSocket\ndurable stream: local
+workbench_server --> nerve_home : authoritative files + rebuildable index
+
+manager --> manager_app : serves bundled web assets
+manager_app <--> manager : REST + Protocol v1 WebSocket\nstreams: manager + selected sandbox:<id>
+manager --> postgres : durable control-plane state
+manager --> manager_storage : runtime volume/config ownership
+manager --> runtime : create / start / stop / inspect\nthrough runtime driver
+agent <--> manager : Protocol v1 WebSocket\ndurable stream: sandbox:<id>
+agent --> workspace
+agent --> state
+
+workbench_server --> providers : model/auth requests
+agent --> providers : model/auth requests
+workbench_server --> resources : Git, files, tools
+agent --> resources : Git, files, tools
+
+legend bottom
+  |= Runtime link |= Meaning |
+  | workbench-app <-> workbench-server | Local UI API/protocol; server is the only writer of the local stream |
+  | sandbox-manager-app <-> sandbox-manager | Fleet UI plus manager and selected sandbox streams |
+  | sandbox-agent <-> sandbox-manager | Targeted RPC, replay, durable event delivery, and processed ACK |
+  Nerve Protocol v1 supplies strict envelopes, catalog RPC/events, session lifecycle,
+  replay/ACK, bounded flow control, and snapshot recovery across all three links.
+endlegend
+@enduml

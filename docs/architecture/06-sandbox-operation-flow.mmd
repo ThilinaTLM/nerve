@@ -1,0 +1,72 @@
+sequenceDiagram
+    autonumber
+    actor Operator
+    participant UI as sandbox-manager-app
+    participant Manager as Manager REST / Protocol layer
+    participant Handlers as Manager operation handlers
+    participant Supervisor as SandboxSupervisor
+    participant Driver as ContainerRuntimeDriver
+    participant Agent as sandbox-agent session / runtime
+    participant Outbox as /state event outbox
+    participant DB as PostgreSQL event and lifecycle stores
+    participant Reducers as Browser event reducers
+
+    Operator->>UI: Create a sandbox
+    UI->>Manager: Authenticated sandbox.create + idempotency key
+    Manager->>Handlers: Validate catalog operation and target
+    Handlers->>DB: Materialize volume/config metadata and persist record_created
+    Note over UI,Supervisor: sandbox.create starts the new record immediately.<br/>sandbox.start is also available later for a stopped or failed record.
+    Handlers->>Supervisor: start(sandboxId, createSpec)
+    Supervisor->>DB: Persist container_creating / start_requested
+    Supervisor->>Driver: create(spec with workspace, state, secrets mounts)
+    Driver-->>Supervisor: Managed container reference
+    Supervisor->>DB: Persist container_created then container_starting
+    Supervisor->>Driver: start(ref)
+    Supervisor->>Driver: inspect(ref)
+    Driver-->>Supervisor: running status
+    Supervisor->>DB: Persist container_started / started
+    Supervisor-->>Handlers: Running lifecycle record
+    Handlers-->>UI: Created sandbox and current lifecycle state
+
+    Agent->>Manager: Authenticated WebSocket upgrade and hello
+    Manager->>DB: Load sandbox, session, and ingested event cursor
+    Manager-->>Agent: welcome / resume decision
+    Agent->>Manager: ready(status = booting)
+    Manager->>DB: Persist connected session and daemon lifecycle
+    Manager-->>UI: manager lifecycle event
+
+    Operator->>UI: Invoke a sandbox operation
+    UI->>Manager: Protocol request targeting<br/>{role: sandbox_agent, id: sandboxId}
+    Manager->>Handlers: Parse catalog method, params, lineage, timeout, idempotency
+    Handlers->>Handlers: Verify sandbox is ready for operations
+    Handlers->>Agent: Forward the same method and params<br/>with correlation / causation / trace lineage
+    Agent->>Agent: Execute via SandboxDaemon and host runtime
+    Agent-->>Handlers: Correlated operation result or typed error
+    Handlers-->>Manager: Preserve response semantics
+    Manager-->>UI: Correlated response
+
+    Agent->>Outbox: Append durable event with sandbox:<id> sequence
+    Outbox->>Manager: Send event batch over Protocol v1
+    Manager->>DB: Idempotently ingest durable event
+    DB-->>Manager: Commit succeeded
+    Manager-->>Agent: Processed ACK for sandbox:<id>
+    Agent->>Outbox: Advance ACK cursor and compact when eligible
+    Manager-->>UI: Deliver selected sandbox event
+    UI->>Reducers: Apply event to browser state
+    Reducers-->>Manager: Advance processed cursor / ACK after application
+
+    alt UI reconnect cursor is replayable
+        UI->>Manager: hello with processed stream cursors
+        Manager->>DB: Read events after cursor while buffering live events
+        Manager-->>UI: Ordered replay, then buffered live events
+        UI->>Reducers: Apply replay atomically
+    else Replay cannot satisfy the cursor
+        Manager-->>UI: Snapshot recovery required
+        UI->>Manager: Request manager/sandbox recovery snapshot
+        Manager->>DB: Build snapshot and authoritative cursors
+        Manager-->>UI: Snapshot + atomic cursor installation data
+        UI->>Reducers: Replace projected state, then resume live stream
+    end
+
+    Note over Agent,DB: The manager acknowledges a durable agent event only after PostgreSQL ingestion.
+    Note over UI,Reducers: The UI advances durable progress only after reducer/application succeeds.

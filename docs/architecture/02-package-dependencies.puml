@@ -1,0 +1,88 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+skinparam linetype ortho
+
+title Nerve workspace packages: purposes and allowed dependencies
+
+package "Shared foundations" as foundations {
+  component "@nervekit/contracts\nTransport-neutral API, operation,\nevent, policy, and storage schemas" as contracts
+  component "@nervekit/protocol\nProtocol v1 codec, sessions, RPC,\nreplay, ACK, and flow control" as protocol
+  component "@nervekit/harness\nModel conversation, harness,\nand agent loop runtime" as harness
+  component "@nervekit/tools\nCanonical coding tool catalog,\nexecutors, and policy contracts" as tools
+  component "@nervekit/host-runtime\nEnvironment-neutral Git, task, tool,\nand run use-case composition" as host_runtime
+  component "@nervekit/ui-kit\nContract-free shadcn-svelte primitives,\ntheme, utilities, and renderers" as ui_kit
+  component "@nervekit/workbench-ui\nApp-neutral workbench, conversation,\nGit, task, and file feature hosts" as workbench_ui
+}
+
+package "Local workbench" as local {
+  component "@nervekit/workbench-server\nLocal HTTP/WebSocket daemon, persistence,\nauth, runtime, and static web host" as workbench_server
+  component "@nervekit/workbench-app\nSvelte browser entrypoint and\nthin shared-feature adapters" as workbench_app
+  component "@nervekit/desktop-shell\nElectron launcher, desktop capabilities,\nand local-server ownership" as desktop_shell
+}
+
+package "Sandbox system" as sandbox {
+  component "@nervekit/sandbox-manager\nPostgreSQL control plane, lifecycle,\nruntime drivers, routing, and web host" as sandbox_manager
+  component "@nervekit/sandbox-manager-app\nSvelte fleet/sandbox browser entrypoint\nand thin shared-feature adapters" as sandbox_manager_app
+  component "@nervekit/sandbox-agent\nIsolated file-first daemon with Git,\ntools, tasks, and agent runs" as sandbox_agent
+}
+
+protocol -[#3567a8]-> contracts
+harness -[#3567a8]-> contracts
+tools -[#3567a8]-> contracts
+host_runtime -[#3567a8]-> contracts
+host_runtime -[#3567a8]-> harness
+host_runtime -[#3567a8]-> tools
+workbench_ui -[#3567a8]-> contracts
+workbench_ui -[#3567a8]-> ui_kit
+
+workbench_server -[#3567a8]-> contracts
+workbench_server -[#3567a8]-> protocol
+workbench_server -[#3567a8]-> host_runtime
+workbench_app -[#3567a8]-> contracts
+workbench_app -[#3567a8]-> protocol
+workbench_app -[#3567a8]-> workbench_ui
+workbench_app -[#3567a8]-> ui_kit
+desktop_shell -[#3567a8]-> contracts
+desktop_shell -[#3567a8]-> workbench_server
+
+sandbox_manager -[#3567a8]-> contracts
+sandbox_manager -[#3567a8]-> protocol
+sandbox_manager_app -[#3567a8]-> contracts
+sandbox_manager_app -[#3567a8]-> protocol
+sandbox_manager_app -[#3567a8]-> workbench_ui
+sandbox_manager_app -[#3567a8]-> ui_kit
+sandbox_agent -[#3567a8]-> contracts
+sandbox_agent -[#3567a8]-> protocol
+sandbox_agent -[#3567a8]-> host_runtime
+
+rectangle "Runtime links (not package imports)" as runtime_links {
+  component "workbench-app" as rt_workbench_app
+  component "workbench-server" as rt_workbench_server
+  component "sandbox-manager-app" as rt_manager_app
+  component "sandbox-manager" as rt_manager
+  component "sandbox-agent 1..N" as rt_agent
+
+  rt_workbench_app <..> rt_workbench_server : HTTP / WebSocket\nlocal stream
+  rt_manager_app <..> rt_manager : REST / WebSocket\nmanager + selected sandbox streams
+  rt_agent <..> rt_manager : WebSocket\nsandbox:<id> stream
+runtime_links -[hidden]down-> local
+
+}
+
+note bottom of contracts
+  Contracts remain transport- and framework-neutral.
+end note
+note bottom of ui_kit
+  UI kit intentionally has no @nervekit dependency.
+end note
+
+legend bottom
+  |<#3567a8> solid arrow | consumer --> allowed compile-time @nervekit dependency |
+  | dotted double arrow | runtime network communication, not an import dependency |
+  The compile-time graph is enforced by scripts/check-package-boundaries.mjs.
+endlegend
+@enduml

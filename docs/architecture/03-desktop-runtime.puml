@@ -1,0 +1,96 @@
+@startuml
+!pragma layout smetana
+left to right direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+
+title Desktop runtime: Electron shell, browser workbench, and daemon ownership
+
+actor "Desktop user" as user
+
+node "Electron desktop application" as electron {
+  component "Main process\napp lifecycle and migration" as main
+  component "DaemonSupervisor\nselect, health-monitor,\nspawn/restart/stop when owned" as supervisor
+  component "Tray + window IPC handlers" as ipc_handlers
+  component "Preload context bridge\nwindow.nerveDesktop" as preload
+
+  node "BrowserWindow renderer" as renderer {
+    component "@nervekit/workbench-app\nSvelte browser host" as app
+    component "@nervekit/workbench-ui\nShared workbench features" as wb_ui
+    component "@nervekit/ui-kit\nUI primitives and theme" as ui
+  }
+
+  folder "Electron active profile\nOutside NERVE_HOME" as profile
+}
+
+node "Owned local child process\n@nervekit/workbench-server" as owned_daemon {
+  component "HTTP router + auth\n/api/* and health" as http
+  component "Protocol v1 WebSocket\nlocal stream, replay, ACK" as ws
+  component "Static web host\nBundled workbench-app assets" as static
+  component "Host runtime\nGit, tasks, tools, harness, runs" as host
+}
+
+node "Existing local daemon\n(unowned, monitor only)" as existing_daemon
+cloud "Remote daemon\n(token required, monitor only)" as remote_daemon
+
+folder "Active NERVE_HOME" as nerve_home {
+  folder "File-first authoritative state\nconversations, projects, events, settings, auth" as files
+  database "SQLite\nRebuildable index/cache only" as sqlite
+  folder "logs / crashes" as diagnostics
+}
+
+cloud "Model providers / Git remotes" as external
+
+user --> main : launch / quit
+user --> app : workbench interaction
+main --> supervisor : ensureDaemon(options)
+supervisor --> owned_daemon : spawn, readiness wait,\nhealth check, restart, owned stop
+supervisor ..> existing_daemon : reuse healthy local endpoint;\nnever spawn or stop
+supervisor ..> remote_daemon : connect with URL + token;\nnever spawn or stop
+
+main --> profile : Chromium/Electron session data
+main --> renderer : loading/error pages, then loadURL(daemon URL)
+main --> preload : isolated preload installation
+preload <--> ipc_handlers : narrow Electron IPC
+ipc_handlers <--> app : window state, close-to-tray,\nnotifications, clipboard, settings
+
+app --> wb_ui
+wb_ui --> ui
+app <--> http : same-origin REST / HTTP\nHttpOnly nerve_token cookie or Bearer token
+app <--> ws : Protocol v1 WebSocket\napplication operations and local events
+static --> app : HTML / JS / CSS assets
+
+owned_daemon --> files
+owned_daemon --> sqlite
+owned_daemon --> diagnostics
+host --> external : model, Git, files, coding tools
+http --> host
+ws --> host
+
+note bottom of supervisor
+  Exactly one daemon mode is selected:
+  1. healthy existing local daemon: unowned;
+  2. newly spawned local child: owned and supervised;
+  3. configured remote daemon: unowned.
+
+  Quit stops only mode 2.
+end note
+
+note bottom of app
+  Application data does not travel through Electron IPC.
+  The renderer talks directly to the selected daemon over
+  same-origin HTTP and Protocol v1 WebSocket.
+end note
+
+note bottom of nerve_home
+  Keeping the Electron profile outside NERVE_HOME makes a
+  whole-home backup or migration safe and self-contained.
+end note
+
+legend bottom
+  | solid arrow | active process, API, library, or storage interaction |
+  | dotted arrow | alternative monitor-only daemon connection |
+endlegend
+@enduml

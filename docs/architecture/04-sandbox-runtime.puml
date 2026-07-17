@@ -1,0 +1,113 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+
+title Sandbox runtime: browser control plane and isolated agent data plane
+
+actor "Sandbox operator" as operator
+
+node "Browser" as browser {
+  component "@nervekit/sandbox-manager-app\nFleet, configuration, and sandbox UI" as manager_app
+  component "@nervekit/workbench-ui\nShared conversation, Git, task,\nand file feature hosts" as workbench_ui
+  component "@nervekit/ui-kit\nShared primitives and theme" as ui_kit
+}
+
+node "@nervekit/sandbox-manager\nControl plane" as manager {
+  component "Static web + REST host\nFleet/config/auth/OAuth/files/logs" as manager_http
+  component "Protocol v1 sessions and router\nManager UI + sandbox agents" as protocol_router
+  component "Operation handlers\nManager lifecycle or transparent agent forwarding" as handlers
+  component "SandboxSupervisor\nAuthoritative lifecycle transitions" as supervisor
+  component "ContainerRuntimeDriver\ncreate/start/inspect/logs/stop/remove" as driver
+  component "ManagerEventBus + activity projection" as event_bus
+  component "Credential, secret, policy,\nidempotency, and audit services" as services
+}
+
+database "PostgreSQL" as postgres {
+  collections "Sandboxes and sessions\nManager + ingested sandbox events\nIdempotency and audit\nCredentials, secret metadata/policies\nPinned commands and volume records" as manager_records
+}
+
+folder "Manager storage / volume backend" as storage {
+  folder "Version and backend configuration" as storage_config
+  folder "Local bind volumes, EFS, or S3-files" as volumes
+}
+
+cloud "Replaceable runtime backend" as backend {
+  component "Auto / Docker / Podman / Podman WSL\nECS/Fargate" as backend_examples
+}
+
+node "Sandbox container / task 1..N" as sandbox {
+  component "@nervekit/sandbox-agent" as agent {
+    component "Protocol client\nRPC + reconnect + replay/ACK" as agent_protocol
+    component "Sandbox daemon\nOperation router and recovery" as daemon
+    component "@nervekit/host-runtime\nGitService, TaskService, tools,\nharness, RunCoordinator" as host_runtime
+  }
+
+  folder "/workspace\nProject files" as workspace
+  folder "/state\nVersion-4 file-first state\nsetup, runs/tasks, outbox/ACK,\nidempotency, checkpoints, caches" as state
+  folder "/secrets\nRead-only launch mount" as secrets_mount
+}
+
+cloud "Model providers, Git remotes,\nand configured secret stores" as externals
+
+operator --> manager_app
+manager_app --> workbench_ui
+workbench_ui --> ui_kit
+manager_http --> manager_app : serve bundled assets
+manager_app <--> manager_http : authenticated REST\nfleet/config/out-of-band operations
+manager_app <--> protocol_router : Protocol v1 WebSocket\ncatalog RPC + live/replayed events
+
+manager_http --> handlers
+protocol_router --> handlers
+handlers --> supervisor : manager-owned lifecycle operations
+handlers --> protocol_router : forward agent-targeted operation\nwithout renaming method or params
+supervisor --> driver
+driver --> backend_examples
+
+manager_http --> services
+handlers --> postgres
+supervisor --> postgres : persist lifecycle before/after runtime effects
+protocol_router --> postgres : sessions and durable event ingestion
+services --> postgres
+protocol_router --> event_bus : publish ingested + transient activity
+postgres --> protocol_router : replay / snapshots
+
+manager --> storage_config
+manager --> volumes
+volumes --> workspace : mount read/write
+volumes --> state : mount read/write
+volumes --> secrets_mount : mount read-only
+backend_examples --> sandbox : create / start / inspect / stop / remove
+
+agent_protocol <--> protocol_router : authenticated WebSocket\ntargeted RPC and sandbox:<id> stream
+daemon --> host_runtime
+host_runtime --> workspace
+agent_protocol --> state : durable event outbox + ACK cursor
+daemon --> state : runtime state and recovery
+host_runtime --> externals
+services --> externals
+
+agent_protocol -[#8a4f00]-> protocol_router : durable sandbox:<id> events
+protocol_router -[#8a4f00]-> agent_protocol : processed ACK only after DB ingestion
+protocol_router -[#6b4fa1]-> manager_app : manager + selected sandbox events
+
+note bottom of postgres
+  Manager-owned source of truth for control-plane records and
+  ingested streams. The manager writes the manager stream;
+  each agent remains the unique writer of sandbox:<id>.
+end note
+
+note bottom of state
+  /state is the sandbox agent's authoritative file-first store.
+  No secret value belongs in protocol events, snapshots, logs,
+  or browser state.
+end note
+
+legend bottom
+  | solid dark arrow | request, dependency, lifecycle, or storage interaction |
+  |<#8a4f00> brown arrow | durable agent event and processed ACK path |
+  |<#6b4fa1> purple arrow | manager/UI event projection |
+endlegend
+@enduml

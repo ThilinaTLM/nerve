@@ -1,0 +1,67 @@
+sequenceDiagram
+    autonumber
+    participant Runtime as Sandbox container entrypoint
+    participant Config as YAML config and identity
+    participant State as /state version-4 stores
+    participant Outbox as Durable startup event outbox
+    participant Manager as sandbox-manager protocol session
+    participant Setup as Preflight and setup adapters
+    participant Daemon as SandboxDaemon / host runtime
+
+    Runtime->>Config: Resolve sandboxId, instanceId, paths, and config path
+    Runtime->>Config: Load and strictly validate YAML configuration
+    Config-->>Runtime: Typed config and config digest
+    Runtime->>State: Validate version-4 layout and acquire state lock
+    Runtime->>State: Load idempotency, outbox, ACK, status, and connectivity
+    Runtime->>State: Recover journals, tasks, checkpoints, and unacked events
+    State-->>Runtime: Initialized stores and recovered state
+    Runtime->>Outbox: Attach StartupReporter durable event sink
+    Runtime->>Daemon: Construct boot-only daemon
+    Runtime->>Manager: Start protocol client and connect early
+    Manager-->>Runtime: welcome / accepted resume cursor
+    Runtime->>Manager: ready(status = booting)
+    Note over Runtime,Manager: The controller connects before lengthy setup so boot progress can stream live.
+
+    Runtime->>Setup: Filesystem/runtime preflight
+    Setup-->>Runtime: Mount, permission, and policy result
+    Runtime->>Setup: Resolve model catalog/runtime
+    Setup-->>Runtime: Active model and optional degraded status
+    Runtime->>Setup: Build secret-store registry and resolver
+    Setup-->>Runtime: Secret-store availability metadata (never values)
+    Runtime->>Setup: Configure Git identity and credentials
+    Setup-->>Runtime: Git setup result and secure environment
+    Runtime->>Setup: Authenticate GitHub access
+    Setup-->>Runtime: GitHub setup result
+    Runtime->>Setup: Load project context files
+    Setup-->>Runtime: Context descriptors
+    Runtime->>Setup: Load available skills
+    Setup-->>Runtime: Skill descriptors
+    Runtime->>Setup: Execute configured boot phases
+    Setup-->>Runtime: Persisted attempts and bounded/redacted logs
+    Runtime->>Daemon: initializeRuntime(setup, skills, context, model, secrets)
+    Daemon->>State: Compose tools, tasks, Git, harness, explore, and runs
+    Daemon->>State: Recover interrupted active work
+    Daemon-->>Runtime: Runtime initialized
+
+    loop Every startup stage and status change
+        Runtime->>Outbox: Append typed durable startup event
+        alt Manager session is connected
+            Outbox->>Manager: Deliver sandbox:<id> event
+            Manager-->>Outbox: Processed ACK after durable ingestion
+        else Manager session is disconnected
+            Note over Outbox: Retain event in /state/events/outbox.jsonl for reconnect replay
+        end
+    end
+
+    alt Config changed during recovery or model runtime is limited
+        Runtime->>Daemon: markReady(degraded)
+        Runtime->>Outbox: Append sandbox.ready(status = degraded, limitations)
+        Runtime->>Manager: Protocol ready / status update (degraded)
+    else Fully ready
+        Runtime->>Daemon: markReady(ready)
+        Runtime->>Outbox: Append sandbox.ready(status = ready)
+        Runtime->>Manager: Protocol ready / status update (ready)
+    end
+
+    Note over Runtime,State: /state remains the file-first source of truth for setup, run/task state,<br/>outbox/ACK, idempotency, checkpoints, and caches.
+    Note over Runtime,Manager: On controller disconnect, the configured policy governs reconnect/self-exit.<br/>Where omitted, exit_self defaults to 300 seconds. Exit code 22 means reconnecting.

@@ -1,0 +1,78 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant Main as Electron main process
+    participant Home as Desktop data preparation
+    participant Window as BrowserWindow / Electron session
+    participant Supervisor as DaemonSupervisor
+    participant Daemon as Selected workbench daemon
+    participant App as workbench-app renderer
+
+    User->>Main: Launch Nerve desktop
+    Main->>Main: Acquire single-instance lock
+    alt Another instance already owns the lock
+        Main-->>User: Focus existing instance and quit this launch
+    else Lock acquired
+        Main->>Home: Prepare active data directory
+        alt Unversioned legacy local NERVE_HOME
+            Home-->>User: Ask before replacing legacy home
+            alt User accepts migration
+                Home->>Home: Rename complete home to timestamped backup
+                Home->>Home: Initialize current store and restore readable auth only
+            else User declines
+                Home-->>Main: Quit without changing the home
+            end
+        end
+        Main->>Main: Configure loopback proxy bypass and tray
+        Main->>Window: Create window and show loading page
+        Main->>Supervisor: ensureDaemon(options)
+
+        alt Remote mode
+            Supervisor->>Daemon: Normalize URL and health-check with token
+            Note over Supervisor,Daemon: Monitor only, owned = false
+        else Healthy local daemon already exists
+            Supervisor->>Daemon: Read daemon metadata and health-check
+            Note over Supervisor,Daemon: Reuse and monitor, owned = false
+        else No healthy local daemon
+            Supervisor->>Daemon: Spawn workbench-server child
+            Daemon->>Daemon: Initialize file-first storage, runtime, auth, and listeners
+            Daemon-->>Supervisor: Ready metadata (URL, token, capabilities)
+            Note over Supervisor,Daemon: Supervise child and restart with backoff, owned = true
+        end
+
+        Supervisor-->>Main: ManagedDaemon
+        Main->>Window: Install HttpOnly nerve_token cookie
+        Main->>Daemon: Fetch desktop settings with Bearer token
+        Daemon-->>Main: close-to-tray and desktop settings
+        Main->>Window: Clear service worker/cache storage for daemon origin
+        Main->>Window: loadURL(daemon URL)
+        Window->>Daemon: GET application route
+        Daemon-->>Window: Bundled workbench-app HTML / JS / CSS
+        Window->>App: Start Svelte application
+        App->>Daemon: Authenticated REST requests
+        App->>Daemon: Open Protocol v1 WebSocket (local stream)
+        Daemon-->>App: Welcome, recovery snapshot/replay, then live events
+
+        loop Health monitoring
+            Supervisor->>Daemon: Health check
+            alt Owned daemon crashes or remains unhealthy
+                Supervisor->>Daemon: Restart child with bounded backoff
+                Supervisor-->>Main: restarting / ready status
+                Main-->>Window: Update overlay and tray state
+            else Existing or remote daemon is unhealthy
+                Supervisor-->>Main: Report status only, never spawn or stop it
+            end
+        end
+
+        User->>Main: Quit
+        Main-->>App: Notify quit started
+        alt Selected daemon is owned
+            Main->>Supervisor: stop()
+            Supervisor->>Daemon: Graceful child shutdown
+            Daemon-->>Supervisor: Stopped
+            Main->>Main: Retry Electron quit
+        else Existing local or remote daemon
+            Note over Main,Daemon: Leave unowned daemon running
+        end
+        Main-->>User: Desktop exits
+    end

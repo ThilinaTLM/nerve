@@ -1,0 +1,154 @@
+@startuml
+hide empty description
+skinparam shadowing false
+skinparam state {
+  BackgroundColor #F4F4F5
+  BorderColor #3F3F46
+  ArrowColor #3F3F46
+}
+skinparam note {
+  BackgroundColor #FEF9C3
+  BorderColor #A16207
+}
+
+title Unified sandbox container, agent, daemon, and controller lifecycle
+
+state "Manager-owned sandbox lifecycle\nPersisted in PostgreSQL" as ManagerLifecycle {
+  [*] --> M_RECORD
+  state "record_created\ndesired: created\nobserved: unknown" as M_RECORD
+  state "container_creating\ndesired: running\nobserved: starting" as M_CREATING
+  state "container_created" as M_CREATED
+  state "container_starting" as M_STARTING
+  state "container_started\ndesired/observed: running" as M_STARTED
+
+  state "Agent-attached runtime" as M_ATTACHED {
+    [*] --> M_CONNECTED
+    state "daemon_connected\ntransport and event streaming ready" as M_CONNECTED
+    state "booting\nstartup progress is arriving" as M_BOOTING
+    state "ready\noperations allowed" as M_READY
+    state "degraded\noperations allowed with limitations" as M_DEGRADED
+    state "reconnecting\ncontainer desired state is still running" as M_RECONNECTING
+
+    M_CONNECTED --> M_BOOTING : first startup-stage event
+    M_BOOTING --> M_READY : durable sandbox.ready(status=ready)
+    M_BOOTING --> M_DEGRADED : durable sandbox.ready(status=degraded)
+    M_READY --> M_DEGRADED : runtime limitation reported
+    M_DEGRADED --> M_READY : limitation cleared
+
+    M_CONNECTED --> M_RECONNECTING : controller session closes
+    M_BOOTING --> M_RECONNECTING : controller session closes
+    M_READY --> M_RECONNECTING : controller session closes
+    M_DEGRADED --> M_RECONNECTING : controller session closes
+    M_RECONNECTING --> M_CONNECTED : reconnect reports booting
+    M_RECONNECTING --> M_READY : reconnect reports ready
+    M_RECONNECTING --> M_DEGRADED : reconnect reports degraded
+  }
+
+  state "stopping\ndesired: stopped" as M_STOPPING
+  state "stopped\nobserved: exited" as M_STOPPED
+  state "failed\nlastError identifies stage/timeout" as M_FAILED
+  state "removed\ndesired/observed: removed" as M_REMOVED
+
+  M_RECORD --> M_CREATING : sandbox.start
+  M_CREATING --> M_CREATED : driver.create succeeds
+  M_CREATED --> M_STARTING : start requested
+  M_STARTING --> M_STARTED : driver.start + inspect = running
+  M_STARTED --> M_ATTACHED : authenticated hello/welcome/ready(booting)
+
+  M_STARTED --> M_STOPPING : stop requested
+  M_ATTACHED --> M_STOPPING : stop requested
+  M_STOPPING --> M_STOPPED : driver.stop completes
+  M_STOPPED --> M_CREATING : start / restart
+  M_FAILED --> M_CREATING : explicit retry / restart
+
+  M_CREATING --> M_FAILED : create/start failure or timeout
+  M_STARTING --> M_FAILED : start failure or timeout
+  M_STARTED --> M_FAILED : daemon-connect timeout
+  M_ATTACHED --> M_FAILED : boot/reconnect watchdog timeout
+
+  M_RECORD --> M_REMOVED : remove
+  M_STOPPED --> M_REMOVED : remove container + volumes
+  M_FAILED --> M_REMOVED : remove
+  M_ATTACHED --> M_REMOVED : forced remove
+  M_REMOVED --> [*]
+}
+
+state "sandbox-agent process inside the container" as AgentProcess {
+  state "Daemon / host runtime" as DaemonRegion {
+    [*] --> A_BOOTING
+    state "booting\nconfig -> state -> controller -> preflight ->\nmodels -> secrets -> Git/GitHub -> context/skills ->\nboot plan -> runtime recovery" as A_BOOTING
+    state "ready\nSandboxDaemon accepts catalog operations" as A_READY
+    state "degraded\nRuntime available with declared limitations" as A_DEGRADED
+    state "shutting_down" as A_STOPPING
+
+    A_BOOTING --> A_READY : initializeRuntime + markReady(ready)
+    A_BOOTING --> A_DEGRADED : initializeRuntime + markReady(degraded)
+    A_READY --> A_DEGRADED : limitation reported
+    A_DEGRADED --> A_READY : limitation cleared
+    A_READY --> A_STOPPING : SIGTERM / SIGINT
+    A_DEGRADED --> A_STOPPING : SIGTERM / SIGINT
+    A_STOPPING --> [*] : session.stop, then exit 0
+    A_BOOTING --> [*] : fatal startup stage, nonzero exit
+  }
+
+  --
+
+  state "Controller protocol session" as SessionRegion {
+    [*] --> A_CONNECTING
+    state "connecting / handshaking" as A_CONNECTING
+    state "connected: booting\nProtocol ready frame sent immediately" as A_CONNECTED_BOOTING
+    state "connected: ready or degraded\nOutbox flush and targeted RPC active" as A_CONNECTED_READY
+    state "reconnecting\nTransient queue dropped; durable outbox retained" as A_RECONNECTING
+    state "shutting_down\nConnectivity persisted" as A_SESSION_STOPPING
+
+    A_CONNECTING --> A_CONNECTED_BOOTING : welcome accepted + ready(booting)
+    A_CONNECTED_BOOTING --> A_CONNECTED_READY : sandbox.ready persisted and sent
+    A_CONNECTED_READY --> A_RECONNECTING : WebSocket closes
+    A_CONNECTED_BOOTING --> A_RECONNECTING : WebSocket closes during boot
+    A_RECONNECTING --> A_CONNECTED_BOOTING : reconnect while still booting
+    A_RECONNECTING --> A_CONNECTED_READY : reconnect with final ready status
+    A_RECONNECTING --> A_RECONNECTING : stay_reconnecting policy
+    A_CONNECTED_READY --> A_SESSION_STOPPING : graceful process shutdown
+    A_CONNECTED_BOOTING --> A_SESSION_STOPPING : graceful process shutdown
+    A_SESSION_STOPPING --> [*] : connection closed
+    A_RECONNECTING --> [*] : exit_self timeout, exit code 22
+  }
+}
+
+note right of ManagerLifecycle
+  SandboxSupervisor, protocol sessions, reconciler, and watchdog
+  are the manager-side lifecycle authorities.
+
+  Only ready and degraded accept agent-targeted operations.
+  Forced recovery transitions may bypass the normal legal table.
+end note
+
+note right of AgentProcess
+  The daemon/runtime and controller session progress together but
+  are distinct: application readiness can survive a temporary
+  controller outage because durable state remains under /state.
+
+  Durable sandbox:<id> events stay in the outbox until the manager
+  ingests them and returns a processed ACK.
+end note
+
+note as Synchronization
+  **Cross-boundary synchronization**
+  | Manager/runtime observation | Agent-side state | Manager lifecycle result |
+  | Driver starts the container | Entrypoint enters daemon booting | container_started |
+  | Protocol ready(status=booting) | Session connected: booting | daemon_connected |
+  | First typed startup-stage event | Daemon remains booting | booting |
+  | Durable sandbox.ready | Daemon ready or degraded | ready or degraded |
+  | WebSocket closes while desired=running | Session reconnecting | reconnecting |
+  | Reconnect welcome/final status | Session connected again | daemon_connected, ready, or degraded |
+  | Requested stop and exit 0 | Both regions shut down | stopped |
+  | Fatal startup/container exit | Process exits nonzero | failed |
+  | exit_self timeout, code 22 | Process exits for reconciliation | reconnecting |
+end note
+
+legend bottom
+  | solid arrow | state transition owned within that lifecycle |
+  Manager lifecycle state is authoritative for the UI and fleet control plane.
+  Agent daemon/connectivity state is authoritative inside the sandbox process.
+endlegend
+@enduml
