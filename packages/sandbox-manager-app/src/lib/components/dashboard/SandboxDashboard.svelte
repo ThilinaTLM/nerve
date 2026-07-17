@@ -24,8 +24,10 @@ const sandboxes = $derived(filteredSandboxes(store));
 </script>
 
 <ScrollArea class="h-full">
-  <div class="relative mx-auto min-h-full w-full max-w-5xl p-4 sm:p-6">
-    <div class="relative z-10 flex flex-col gap-5">
+  <div
+    class="mx-auto flex h-full min-h-full w-full max-w-5xl flex-col p-4 sm:p-6"
+  >
+    <div class="flex flex-col gap-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
           <h1 class="text-lg font-semibold">Sandboxes</h1>
@@ -73,7 +75,7 @@ const sandboxes = $derived(filteredSandboxes(store));
     </div>
 
     {#if store.sandboxes.length === 0}
-      <div class="absolute inset-0">
+      <div class="flex min-h-0 flex-1 items-center justify-center">
         <ConversationSignal
           title="Spin up your first sandbox"
           message="Sandboxes run agents in isolated containers with their own workspace, tools, and credentials."
