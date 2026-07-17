@@ -566,6 +566,7 @@ export class AgentHarness<
       return await this.executeTurn(turnState, prompt.text, prompt.options);
     } catch (error) {
       this.phase = "idle";
+      if (isAgentToolSuspension(error)) throw error;
       throw normalizeHarnessError(error, "unknown");
     } finally {
       finishRunPromise();

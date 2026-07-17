@@ -1,7 +1,6 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   type AgentHarness,
-  AgentToolSuspension,
   Conversation,
   calculateContextTokens,
   deriveAutoCompactionPolicy,
@@ -285,32 +284,6 @@ export class WorkbenchAgentMechanics {
       });
       return false;
     }
-  }
-
-  suspensionFromWaitingToolCall(
-    agent: AgentRecord,
-    runId: string,
-    error: unknown,
-  ): AgentToolSuspension | undefined {
-    const message = error instanceof Error ? error.message : String(error);
-    const toolCall = this.deps.tools
-      .listToolCalls()
-      .find(
-        (candidate) =>
-          candidate.agentId === agent.id &&
-          candidate.runId === runId &&
-          (candidate.status === "pending_approval" ||
-            (candidate.status === "waiting_for_user" &&
-              (candidate.toolName === "ask_user" ||
-                candidate.toolName === "plan_mode_present"))),
-      );
-    if (!toolCall) return undefined;
-    return new AgentToolSuspension({
-      toolCallId: toolCall.id,
-      toolName: toolCall.toolName,
-      reason: message || `Tool ${toolCall.toolName} is awaiting user input.`,
-      remainingToolCalls: [],
-    });
   }
 
   /** Compute compaction-aware context-window usage for a conversation. */

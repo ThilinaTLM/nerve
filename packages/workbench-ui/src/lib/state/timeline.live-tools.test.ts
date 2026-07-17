@@ -333,6 +333,78 @@ describe("buildConversationTimeline live tools", () => {
     }
   });
 
+  it("hands every pending approval draft to its own durable tool card", () => {
+    const runId = "run_01H00000000000000000000000";
+    const liveMessageId = "msg_approval_batch";
+    const providerIds = [
+      "provider_approval_first",
+      "provider_approval_second",
+      "provider_approval_third",
+    ];
+    const toolCalls = providerIds.map((providerToolCallId, contentIndex) =>
+      toolCall(
+        `tool_approval_${contentIndex}`,
+        `2026-01-01T00:00:0${contentIndex + 1}.000Z`,
+        "bash",
+        providerToolCallId,
+        {
+          providerToolCallId,
+          runId,
+          liveMessageId,
+          contentIndex,
+          risk: "command",
+          status: "pending_approval",
+        },
+      ),
+    );
+
+    const timeline = buildConversationTimeline(
+      [{ id: "entry_user", role: "user", text: "Run three commands" }],
+      toolCalls,
+      activeRun({
+        runId,
+        status: "running",
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage(
+              liveMessageId,
+              0,
+              providerIds.map((providerToolCallId, contentIndex) =>
+                draftBlock(contentIndex, {
+                  providerToolCallId,
+                  toolName: "bash",
+                  argsText: `{"command":"printf ${contentIndex + 1}"}`,
+                  done: true,
+                }),
+              ),
+            ),
+          ]),
+        ],
+      }),
+    );
+
+    const toolNodes = timeline.filter((item) => item.kind === "tool");
+    assert.deepEqual(
+      toolNodes.map((node) => node.key),
+      [
+        "tool-slot:msg_approval_batch:0",
+        "tool-slot:msg_approval_batch:1",
+        "tool-slot:msg_approval_batch:2",
+      ],
+    );
+    assert.deepEqual(
+      toolNodes.map((node) => node.toolCall?.id),
+      ["tool_approval_0", "tool_approval_1", "tool_approval_2"],
+    );
+    assert.ok(
+      toolNodes.every(
+        (node) =>
+          node.toolCall?.status === "pending_approval" &&
+          node.draft !== undefined,
+      ),
+    );
+  });
+
   it("joins a live draft with a fast completed record by provider alias", () => {
     const matching = toolCall(
       "tool_real",

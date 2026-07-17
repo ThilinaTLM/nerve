@@ -19,7 +19,6 @@ describe("workbench harness failure classification", () => {
           },
         },
       },
-      suspensionFromWaitingToolCall: () => undefined,
     };
 
     const outcome = await executeWorkbenchHarness.call(

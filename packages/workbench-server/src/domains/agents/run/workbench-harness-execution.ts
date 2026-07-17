@@ -694,14 +694,11 @@ export async function executeWorkbenchHarness(
       result: { finalEntryId: assistantEntry.id },
     };
   } catch (error) {
-    const suspensionError = isAgentToolSuspension(error)
-      ? error
-      : this.suspensionFromWaitingToolCall(agent, runId, error);
-    if (suspensionError) {
+    if (isAgentToolSuspension(error)) {
       await waitForSequentialToolApprovalBatch({
         agent,
         runId,
-        suspension: suspensionError.data,
+        suspension: error.data,
         deps: this.deps,
         sink: coordinator.sink,
         checkpointCommand: (boundary, interactionId) =>

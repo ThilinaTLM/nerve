@@ -159,6 +159,10 @@ export interface AgentPromptInput {
 export type AgentScriptedProviderStep =
   | { type: "assistantText"; text?: string; chunks?: string[] }
   | { type: "toolCall"; id: string; name: string; args: unknown }
+  | {
+      type: "toolCalls";
+      calls: Array<{ id: string; name: string; args: unknown }>;
+    }
   | { type: "providerError"; message: string; retryable?: boolean }
   | { type: "waitForAbort" };
 
@@ -186,6 +190,13 @@ export function registerAgentScriptedProvider(options: {
         return fauxAssistantMessage([
           fauxToolCall(step.name, step.args as never, { id: step.id }),
         ]);
+      }
+      if (step.type === "toolCalls") {
+        return fauxAssistantMessage(
+          step.calls.map((call) =>
+            fauxToolCall(call.name, call.args as never, { id: call.id }),
+          ),
+        );
       }
       if (step.type === "waitForAbort") {
         await new Promise<void>((resolve) => {
