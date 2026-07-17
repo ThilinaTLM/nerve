@@ -22,9 +22,12 @@ describe("sandbox agent image durable state foundations", () => {
       path.join(os.tmpdir(), "nerve-sandbox-agent-lock-"),
     );
     try {
+      const exitListeners = process.listenerCount("exit");
       const lock = await StateLock.acquire(dir);
+      assert.equal(process.listenerCount("exit"), exitListeners + 1);
       await assert.rejects(() => StateLock.acquire(dir), /already held/);
       await lock.release();
+      assert.equal(process.listenerCount("exit"), exitListeners);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

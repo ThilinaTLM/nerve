@@ -37,6 +37,7 @@ const sandboxRemoveParamsSchema =
 const sandboxLogsParamsSchema =
   sandboxIdParamsSchema.merge(logReadOptionsSchema);
 const managerRole = ["sandbox_manager"] as const;
+const managerAndAgentRoles = ["sandbox_manager", "sandbox_agent"] as const;
 const managerRecoveryParamsSchema = z.object({
   sandboxId: sandboxIdSchema.optional(),
   conversationId: z.string().min(1).optional(),
@@ -139,7 +140,7 @@ export const sandboxOperationDefinitions = [
     sandboxStatusGetResultSchema,
     "read",
     "none",
-    managerRole,
+    managerAndAgentRoles,
     "operation.sandbox.status.get",
   ),
   defineOperation(

@@ -162,15 +162,21 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
     ref: ManagedContainerRef,
     options: RemoveOptions = {},
   ): Promise<void> {
-    await this.exec(
-      [
-        "rm",
-        ...(options.force ? ["--force"] : []),
-        ...(options.removeVolumes ? ["--volumes"] : []),
-        ref.id,
-      ],
-      { timeout: 30_000 },
-    );
+    try {
+      await this.exec(
+        [
+          "rm",
+          ...(options.force ? ["--force"] : []),
+          ...(options.removeVolumes ? ["--volumes"] : []),
+          ref.id,
+        ],
+        { timeout: 30_000 },
+      );
+    } catch (error) {
+      // Removal is idempotent: reconciliation or an operator may have already
+      // deleted a stale container while its persisted ref still exists.
+      if (!isMissingContainerError(error)) throw error;
+    }
   }
 
   private commandParts(): string[] {
@@ -191,6 +197,16 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
       stderr: string;
     }>;
   }
+}
+function isMissingContainerError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error))
+    .toLowerCase()
+    .replaceAll("\n", " ");
+  return (
+    message.includes("no such container") ||
+    (message.includes("no container with name or id") &&
+      message.includes("found"))
+  );
 }
 function mapState(status: string | undefined): ManagedContainerStatus["state"] {
   if (status === "running") return "running";

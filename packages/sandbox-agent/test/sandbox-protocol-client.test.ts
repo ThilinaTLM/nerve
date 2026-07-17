@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { SandboxOutboxRecord } from "@nervekit/contracts";
-import { chunkOutboxRecords } from "../src/protocol/sandbox-protocol-client.js";
+import type { SandboxConfigV1, SandboxOutboxRecord } from "@nervekit/contracts";
+import {
+  chunkOutboxRecords,
+  sandboxDaemonCapabilities,
+} from "../src/protocol/sandbox-protocol-client.js";
+
+test("sandbox capabilities advertise remotely handled operations", () => {
+  const capabilities = sandboxDaemonCapabilities({
+    controller: {},
+  } as SandboxConfigV1);
+
+  assert.ok(capabilities.includes("operation.sandbox.status.get"));
+  assert.ok(capabilities.includes("operation.run.start"));
+});
 
 test("durable replay batches advance their predecessor", () => {
   const records = Array.from(

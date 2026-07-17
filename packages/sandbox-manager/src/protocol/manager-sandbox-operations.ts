@@ -209,7 +209,7 @@ export async function managedSandboxStatus(
     const result = await session.forwarder.send(
       session.socket,
       "sandbox.status.get",
-      {},
+      { sandboxId },
     );
     return sandboxStatusGetResultSchema.parse({
       connected: true,

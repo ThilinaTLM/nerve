@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
+  allOperationDefinitions,
   operationNameSchema,
   type ManagedSandboxRecord,
   type ProtocolV1Message,
@@ -53,6 +54,11 @@ const CONTROLLER_CAPABILITIES = new Set([
   "sandbox.skills.v1",
   "sandbox.disconnect_exit.v1",
   "sandbox.multi_agent_state.v1",
+  ...allOperationDefinitions()
+    .filter((definition) =>
+      definition.allowedTargetRoles.includes("sandbox_agent"),
+    )
+    .map((definition) => definition.requiredCapability),
   "sandbox.network.egress_policy.v1",
 ]);
 

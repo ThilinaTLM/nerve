@@ -480,6 +480,10 @@ describe("Sandbox shared schemas", () => {
       operationDefinition("sandbox.conversation.snapshot.get").kind,
       "read",
     );
+    assert.deepEqual(
+      operationDefinition("sandbox.status.get").allowedTargetRoles,
+      ["sandbox_manager", "sandbox_agent"],
+    );
   });
 
   it("validates host and manager operation definitions", () => {

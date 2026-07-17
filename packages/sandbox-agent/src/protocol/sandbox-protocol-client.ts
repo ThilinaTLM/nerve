@@ -48,6 +48,10 @@ const REQUIRED_CAPABILITIES = [
 
 export function sandboxDaemonCapabilities(config: SandboxConfigV1): string[] {
   const capabilities = new Set<string>(REQUIRED_CAPABILITIES);
+  for (const definition of allOperationDefinitions()) {
+    if (definition.allowedTargetRoles.includes("sandbox_agent"))
+      capabilities.add(definition.requiredCapability);
+  }
   capabilities.add("sandbox.models.pi_ai.v1");
   if (config.secretStores?.stores) capabilities.add("sandbox.secret_stores.v1");
   if (config.git?.enabled !== false) capabilities.add("sandbox.git_config.v1");
