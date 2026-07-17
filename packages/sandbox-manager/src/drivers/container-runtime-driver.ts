@@ -30,6 +30,8 @@ export interface ContainerRuntimeDriver {
   stop(ref: ManagedContainerRef, options?: StopOptions): Promise<void>;
   kill(ref: ManagedContainerRef, signal?: string): Promise<void>;
   remove(ref: ManagedContainerRef, options?: RemoveOptions): Promise<void>;
+  /** Delete contents of a manager-owned bind path using the runtime's root user. */
+  removeHostPath?(hostPath: string, image: string): Promise<void>;
   listManaged?(): Promise<ManagedContainerRef[]>;
   backendOptions?(): Promise<SandboxManagerBackendOption[]>;
 }

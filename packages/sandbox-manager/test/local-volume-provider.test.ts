@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -21,6 +21,31 @@ describe("LocalVolumeProvider", () => {
       await provider.remove("sbx_remove", { removeVolumes: true });
       await assert.rejects(() => stat(path.join(root, "sbx_remove")));
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("uses privileged cleanup for sandbox-owned protected state", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "nerve-volumes-rm-"));
+    const base = path.join(root, "sbx_protected");
+    const protectedDir = path.join(base, "state", "credentials");
+    let cleanupPath: string | undefined;
+    try {
+      await mkdir(protectedDir, { recursive: true });
+      await writeFile(path.join(protectedDir, "credential.json"), "secret");
+      await chmod(protectedDir, 0o000);
+      const provider = new LocalVolumeProvider(root, async (target) => {
+        cleanupPath = target;
+        await chmod(protectedDir, 0o700);
+        await rm(protectedDir, { recursive: true, force: true });
+      });
+
+      await provider.remove("sbx_protected", { removeVolumes: true });
+
+      assert.equal(cleanupPath, base);
+      await assert.rejects(() => stat(base));
+    } finally {
+      await chmod(protectedDir, 0o700).catch(() => undefined);
       await rm(root, { recursive: true, force: true });
     }
   });

@@ -96,6 +96,13 @@ export class AutoContainerDriver implements ContainerRuntimeDriver {
     await (await this.driverFor(ref)).remove(ref, options);
   }
 
+  async removeHostPath(hostPath: string, image: string): Promise<void> {
+    const driver = await this.resolveActiveDriver();
+    if (!driver.removeHostPath)
+      throw new Error(`${driver.kind} cannot remove local bind paths`);
+    await driver.removeHostPath(hostPath, image);
+  }
+
   private async driverFor(
     ref: ManagedContainerRef,
   ): Promise<ContainerRuntimeDriver> {

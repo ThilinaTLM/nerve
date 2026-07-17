@@ -10,7 +10,10 @@ import type {
 export class LocalVolumeProvider implements RuntimeVolumeProvider {
   readonly kind = "local";
 
-  constructor(private readonly rootDir: string) {}
+  constructor(
+    private readonly rootDir: string,
+    private readonly removeProtectedContents?: (path: string) => Promise<void>,
+  ) {}
 
   async prepare(
     sandboxId: string,
@@ -70,7 +73,18 @@ export class LocalVolumeProvider implements RuntimeVolumeProvider {
 
   async remove(sandboxId: string, options: RemoveOptions = {}): Promise<void> {
     if (!("removeVolumes" in options) || !options.removeVolumes) return;
-    await rm(this.paths(sandboxId).base, { recursive: true, force: true });
+    const base = this.paths(sandboxId).base;
+    try {
+      await rm(base, { recursive: true, force: true });
+    } catch (error) {
+      if (!isPermissionError(error) || !this.removeProtectedContents)
+        throw error;
+      // Sandboxes intentionally own sensitive state directories with mode 700.
+      // Once their container is gone, use the local runtime's root user to
+      // empty the bind mount, then remove the now-accessible mount root here.
+      await this.removeProtectedContents(base);
+      await rm(base, { recursive: true, force: true });
+    }
   }
 
   private paths(sandboxId: string) {
@@ -85,6 +99,14 @@ export class LocalVolumeProvider implements RuntimeVolumeProvider {
       controllerTokenPath: path.join(base, "secrets", "controller-token"),
     };
   }
+}
+
+function isPermissionError(error: unknown): boolean {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+  return code === "EACCES" || code === "EPERM";
 }
 
 function safePathSegment(value: string): string {

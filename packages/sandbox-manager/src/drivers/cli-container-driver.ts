@@ -179,6 +179,27 @@ export class CliContainerDriver implements ContainerRuntimeDriver {
     }
   }
 
+  async removeHostPath(hostPath: string, image: string): Promise<void> {
+    await this.exec(
+      [
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--user",
+        "0:0",
+        "--volume",
+        `${hostPath}:/nerve-remove`,
+        "--entrypoint",
+        "/bin/sh",
+        image,
+        "-c",
+        "rm -rf -- /nerve-remove/* /nerve-remove/.[!.]* /nerve-remove/..?*",
+      ],
+      { timeout: 30_000 },
+    );
+  }
+
   private commandParts(): string[] {
     return Array.isArray(this.command) ? this.command : [this.command];
   }

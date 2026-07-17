@@ -108,6 +108,13 @@ export class ContainerDriverRegistry implements ContainerRuntimeDriver {
     await this.driverForRef(ref).remove(ref, options);
   }
 
+  async removeHostPath(hostPath: string, image: string): Promise<void> {
+    const driver = this.driverForBackend(this.config.backend);
+    if (!driver.removeHostPath)
+      throw new Error(`${driver.kind} cannot remove local bind paths`);
+    await driver.removeHostPath(hostPath, image);
+  }
+
   async listManaged(): Promise<ManagedContainerRef[]> {
     const local = await discoverOrphanContainers("auto");
     const ecs =

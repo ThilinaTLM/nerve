@@ -17,19 +17,21 @@ const store = useSandboxManagerStore();
 let force = $state(false);
 let removeVolumes = $state(false);
 let busy = $state(false);
+let error = $state<string | undefined>(undefined);
 
 const dangerous = $derived(force || removeVolumes);
 
 async function confirm() {
   busy = true;
+  error = undefined;
   try {
     await store.removeSandbox(record.sandboxId, { force, removeVolumes });
     if (center.selectedSandboxId === record.sandboxId) center.clearSelection();
     open = false;
     force = false;
     removeVolumes = false;
-  } catch {
-    // Error surfaced via pending operations.
+  } catch (cause) {
+    error = cause instanceof Error ? cause.message : String(cause);
   } finally {
     busy = false;
   }
@@ -62,6 +64,15 @@ async function confirm() {
         This will permanently delete resources for this sandbox.
       </p>
     {/if}
+    {#if error}
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive"
+      >
+        <TriangleAlert class="mt-0.5 size-4 flex-none" />
+        <span>Removal failed: {error}</span>
+      </p>
+    {/if}
   </div>
 
   {#snippet footer()}
@@ -74,7 +85,7 @@ async function confirm() {
       Cancel
     </Button>
     <Button variant="destructive" size="sm" disabled={busy} onclick={confirm}>
-      Remove sandbox
+      {busy ? "Removing…" : "Remove sandbox"}
     </Button>
   {/snippet}
 </DialogShell>

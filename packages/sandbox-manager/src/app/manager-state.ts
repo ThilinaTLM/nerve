@@ -100,8 +100,8 @@ export class ManagerState {
     this.audit = new PostgresAuditStore(this.pool);
     this.volumeStore = new PostgresRuntimeVolumeStore(this.pool);
     this.pinnedCommands = new SandboxPinnedCommandStore(this.pool);
-    this.volumeProvider = createVolumeProvider(config);
     this.driver = options.driver ?? createContainerDriver(config);
+    this.volumeProvider = createVolumeProvider(config, this.driver);
     this.eventBus = new ManagerEventBus();
     // Activity summaries are best-effort and rebuildable: publish them live on
     // the manager stream as transient events (never journaled) so fleet tiles
@@ -132,12 +132,21 @@ export class ManagerState {
   }
 }
 
-function createVolumeProvider(config: ManagerConfig): RuntimeVolumeProvider {
+function createVolumeProvider(
+  config: ManagerConfig,
+  driver: ContainerRuntimeDriver,
+): RuntimeVolumeProvider {
   if (config.volumeBackend === "efs")
     return new EfsVolumeProvider({
       mountRoot: config.efsMountRoot ?? "",
       rootDirectory: config.efsRootDirectory,
     });
   if (config.volumeBackend === "s3-files") return new S3FilesVolumeProvider();
-  return new LocalVolumeProvider(path.join(config.storageDir, "volumes"));
+  return new LocalVolumeProvider(
+    path.join(config.storageDir, "volumes"),
+    driver.removeHostPath
+      ? (hostPath) =>
+          driver.removeHostPath!(hostPath, config.defaultSandboxImage)
+      : undefined,
+  );
 }
