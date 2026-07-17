@@ -26,7 +26,6 @@ import { isMarkdownPath } from "@nervekit/ui-kit/core/utils/file-display";
 import SandboxDashboard from "../dashboard/SandboxDashboard.svelte";
 import SandboxSettingsPanel from "../settings/SandboxSettingsPanel.svelte";
 import SandboxConversationShell from "./SandboxConversationShell.svelte";
-import SandboxEmptyCenterPlaceholder from "./SandboxEmptyCenterPlaceholder.svelte";
 import { FilePane } from "@nervekit/workbench-ui/components/file";
 import SandboxSummaryTab from "./SandboxSummaryTab.svelte";
 import SandboxPrShell from "./SandboxPrShell.svelte";
@@ -72,7 +71,7 @@ const canCreateConversation = $derived(
 const contentMode = $derived(
   center.mode === "settings" && center.settingsOpen
     ? "settings"
-    : selectedSandboxId
+    : center.mode === "sandbox" && record && activeWorkspaceTab
       ? "sandbox"
       : "dashboard",
 );
@@ -394,43 +393,37 @@ function buildMenuItems({
     <div class="sandbox-center-content h-full">
       {#if contentMode === "settings"}
         <SandboxSettingsPanel />
-      {:else if contentMode === "sandbox"}
-        {#if !record}
-          <SandboxEmptyCenterPlaceholder />
-        {:else}
-          <div class="flex h-full min-h-0 min-w-0 flex-col">
-            {#if record.lastError && activeWorkspaceTab?.kind !== "summary"}
-              <p
-                class="flex-none border-b bg-destructive/10 px-4 py-2 text-xs text-destructive"
-              >
-                {record.lastError.code}: {record.lastError.message}
-              </p>
-            {/if}
-            <div class="min-h-0 min-w-0 flex-1">
-              {#if !activeWorkspaceTab}
-                <SandboxEmptyCenterPlaceholder />
-              {:else if activeWorkspaceTab.kind === "summary"}
-                <SandboxSummaryTab {record} />
-              {:else if activeWorkspaceTab.kind === "file"}
-                <FilePane view={activeFileView} />
-              {:else if activeWorkspaceTab.kind === "task"}
-                <SandboxTaskShell {record} taskId={activeWorkspaceTab.id} />
-              {:else if activeWorkspaceTab.kind === "pr"}
-                <SandboxPrShell {record} viewId={activeWorkspaceTab.id} />
-              {:else if activeWorkspaceTab.kind === "diagnostic"}
-                {#if activeWorkspaceTab.id === "logs"}
-                  <SandboxLogsView {record} />
-                {:else if activeWorkspaceTab.id === "config"}
-                  <SandboxConfigView {record} />
-                {:else}
-                  <SandboxEventsView {record} />
-                {/if}
+      {:else if contentMode === "sandbox" && record && activeWorkspaceTab}
+        <div class="flex h-full min-h-0 min-w-0 flex-col">
+          {#if record.lastError && activeWorkspaceTab.kind !== "summary"}
+            <p
+              class="flex-none border-b bg-destructive/10 px-4 py-2 text-xs text-destructive"
+            >
+              {record.lastError.code}: {record.lastError.message}
+            </p>
+          {/if}
+          <div class="min-h-0 min-w-0 flex-1">
+            {#if activeWorkspaceTab.kind === "summary"}
+              <SandboxSummaryTab {record} />
+            {:else if activeWorkspaceTab.kind === "file"}
+              <FilePane view={activeFileView} />
+            {:else if activeWorkspaceTab.kind === "task"}
+              <SandboxTaskShell {record} taskId={activeWorkspaceTab.id} />
+            {:else if activeWorkspaceTab.kind === "pr"}
+              <SandboxPrShell {record} viewId={activeWorkspaceTab.id} />
+            {:else if activeWorkspaceTab.kind === "diagnostic"}
+              {#if activeWorkspaceTab.id === "logs"}
+                <SandboxLogsView {record} />
+              {:else if activeWorkspaceTab.id === "config"}
+                <SandboxConfigView {record} />
               {:else}
-                <SandboxConversationShell sandboxId={record.sandboxId} />
+                <SandboxEventsView {record} />
               {/if}
-            </div>
+            {:else}
+              <SandboxConversationShell sandboxId={record.sandboxId} />
+            {/if}
           </div>
-        {/if}
+        </div>
       {:else}
         <SandboxDashboard />
       {/if}
