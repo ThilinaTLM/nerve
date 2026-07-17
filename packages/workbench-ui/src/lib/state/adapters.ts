@@ -11,6 +11,7 @@ import {
   ConversationLiveContentDeltaData,
   ConversationLiveContentDoneData,
   ConversationLiveMessageStartedData,
+  ConversationLiveTurnStartedData,
   ConversationLiveToolDraftDeltaData,
   ConversationLiveToolDraftDiscardedData,
   ConversationLiveToolDraftDoneData,
@@ -194,6 +195,13 @@ export function applyConversationEvent(
       break;
     case "conversation.compacted":
       applyCompacted(next, event.data as ConversationCompactedData);
+      break;
+    case "conversation.live.turn.started":
+      applyLiveTurnStarted(
+        next,
+        event.data as ConversationLiveTurnStartedData,
+        event.ts,
+      );
       break;
     case "conversation.live.message.started":
       applyLiveMessageStarted(
@@ -675,6 +683,18 @@ function clearTransientCompaction(state: ConversationRenderState): void {
   state.transient = { ...state.transient, compaction: undefined };
 }
 
+function applyLiveTurnStarted(
+  state: ConversationRenderState,
+  data: ConversationLiveTurnStartedData,
+  ts: string,
+): void {
+  const run = ensureActiveRun(state, { ...data, startedAt: ts });
+  ensureActiveTurn(run, data.turnId, data.ordinal);
+  run.status = "running";
+  run.retry = undefined;
+  state.sending = true;
+}
+
 function applyLiveMessageStarted(
   state: ConversationRenderState,
   data: ConversationLiveMessageStartedData,
@@ -861,6 +881,19 @@ function ensureActiveRun(
   return state.activeRun;
 }
 
+function ensureActiveTurn(
+  run: ConversationActiveRunSnapshot,
+  turnId: string,
+  ordinal = run.turns.length,
+) {
+  let turn = run.turns.find((item) => item.turnId === turnId);
+  if (!turn) {
+    turn = { turnId, ordinal, messages: [] };
+    run.turns.push(turn);
+  }
+  return turn;
+}
+
 function ensureActiveMessage(
   state: ConversationRenderState,
   data: {
@@ -875,15 +908,7 @@ function ensureActiveMessage(
   startedAt: string,
 ) {
   const run = ensureActiveRun(state, { ...data, startedAt });
-  let turn = run.turns.find((item) => item.turnId === data.turnId);
-  if (!turn) {
-    turn = {
-      turnId: data.turnId,
-      ordinal: run.turns.length,
-      messages: [],
-    };
-    run.turns.push(turn);
-  }
+  const turn = ensureActiveTurn(run, data.turnId);
   let message = turn.messages.find(
     (item) => item.liveMessageId === data.liveMessageId,
   );

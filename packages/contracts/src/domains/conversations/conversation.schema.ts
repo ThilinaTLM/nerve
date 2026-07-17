@@ -209,6 +209,15 @@ export interface ConversationToolCallUpdatedData {
   toolCall: ToolCallTranscriptRecord;
 }
 
+export interface ConversationLiveTurnStartedData {
+  conversationId: string;
+  agentId: string;
+  projectId: string;
+  runId: string;
+  turnId: string;
+  ordinal: number;
+}
+
 export interface ConversationLiveMessageStartedData {
   conversationId: string;
   agentId: string;
@@ -368,6 +377,7 @@ export type ConversationEventData =
   | ConversationCompactedData
   | ConversationContextUpdatedData
   | ConversationToolCallUpdatedData
+  | ConversationLiveTurnStartedData
   | ConversationLiveMessageStartedData
   | ConversationLiveContentDeltaData
   | ConversationLiveContentDoneData
@@ -770,6 +780,15 @@ const conversationToolCallUpdatedDataSchema = z.object({
   toolCall: toolCallTranscriptRecordSchema,
 });
 
+const conversationLiveTurnStartedDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_"),
+  projectId: z.string().startsWith("proj_"),
+  runId: runIdSchema,
+  turnId: turnIdSchema,
+  ordinal: z.number().int().nonnegative(),
+});
+
 const conversationLiveMessageStartedDataSchema = z.object({
   conversationId: z.string().startsWith("conv_"),
   agentId: z.string().startsWith("agent_"),
@@ -870,6 +889,7 @@ export const conversationEventPayloadSchemas = {
   "conversation.compacted": conversationCompactedDataSchema,
   "conversation.context.updated": conversationContextUpdatedDataSchema,
   "toolCall.updated": conversationToolCallUpdatedDataSchema,
+  "conversation.live.turn.started": conversationLiveTurnStartedDataSchema,
   "conversation.live.message.started": conversationLiveMessageStartedDataSchema,
   "conversation.live.content.delta": conversationLiveContentDeltaDataSchema,
   "conversation.live.content.done": conversationLiveContentDoneDataSchema,
@@ -910,6 +930,7 @@ export const conversationEventTypes = [
   "conversation.compacted",
   "conversation.context.updated",
   "toolCall.updated",
+  "conversation.live.turn.started",
   "conversation.live.message.started",
   "conversation.live.content.delta",
   "conversation.live.content.done",

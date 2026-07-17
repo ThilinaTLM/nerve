@@ -50,9 +50,15 @@ export class SandboxConversationLiveProjector {
   }
 
   startTurn(): void {
-    this.currentTurnId = this.runtime.startTurn(this.scope.runId).turnId;
+    const turn = this.runtime.startTurn(this.scope.runId);
+    this.currentTurnId = turn.turnId;
     this.currentMessage = undefined;
     this.toolNamesByContentIndex.clear();
+    this.emit("conversation.live.turn.started", {
+      ...this.scope,
+      turnId: turn.turnId,
+      ordinal: turn.ordinal,
+    });
   }
 
   startAssistantMessage(): void {

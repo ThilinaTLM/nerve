@@ -44,6 +44,17 @@ function startRun(seq = 1): EventEnvelope {
   );
 }
 
+function startTurn(seq = 2, turnId = "turn_test", ordinal = 0): EventEnvelope {
+  return evt(seq, "conversation.live.turn.started", {
+    conversationId: "conv_test",
+    agentId: "agent_test",
+    projectId: "proj_test",
+    runId: "run_test",
+    turnId,
+    ordinal,
+  });
+}
+
 function startMessage(seq = 2): EventEnvelope {
   return evt(seq, "conversation.live.message.started", {
     conversationId: "conv_test",
@@ -95,6 +106,26 @@ function queuedPrompt(overrides: Partial<QueuedPromptRecord> = {}) {
 }
 
 describe("conversation event reducer", () => {
+  it("records explicit turn starts idempotently", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(state, startRun());
+    state = applyConversationEvent(state, startTurn());
+    state = applyConversationEvent(state, startTurn(3));
+    state = applyConversationEvent(state, startTurn(4, "turn_second", 4));
+
+    assert.deepEqual(
+      state.activeRun?.turns.map((turn) => ({
+        turnId: turn.turnId,
+        ordinal: turn.ordinal,
+        messageCount: turn.messages.length,
+      })),
+      [
+        { turnId: "turn_test", ordinal: 0, messageCount: 0 },
+        { turnId: "turn_second", ordinal: 4, messageCount: 0 },
+      ],
+    );
+  });
+
   it("caps live tool output and exposes tail output limits", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, startRun());

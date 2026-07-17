@@ -884,6 +884,19 @@ describe("Sandbox shared schemas", () => {
       true,
     );
     assert.equal(
+      conversationEventPayloadSchemas[
+        "conversation.live.turn.started"
+      ].safeParse({
+        conversationId: "conv_1",
+        agentId: "agent_1",
+        projectId: "proj_1",
+        runId: "run_1",
+        turnId: "turn_1",
+        ordinal: 1,
+      }).success,
+      true,
+    );
+    assert.equal(
       conversationEventPayloadSchemas["toolCall.updated"].safeParse({
         conversationId: "conv_1",
         agentId: "agent_1",

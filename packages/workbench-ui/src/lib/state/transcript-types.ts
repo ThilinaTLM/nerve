@@ -77,7 +77,7 @@ export type TranscriptItem = {
   done?: boolean;
   redacted?: boolean;
   contentIndex?: number;
-  /** Live coordinates (streaming items only); used for materialized draining. */
+  /** Turn coordinates retained across live and durable presentation. */
   turnId?: string;
   messageOrdinal?: number;
   toolCallId?: string;

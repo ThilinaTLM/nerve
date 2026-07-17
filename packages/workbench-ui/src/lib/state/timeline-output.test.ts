@@ -1,102 +1,157 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { hasRunTimelineOutput } from "./timeline-output";
+import {
+  hasActiveTurnTimelineOutput,
+  hasTurnTimelineOutput,
+  latestActiveTurn,
+} from "./timeline-output";
 import { buildConversationTimeline } from "./timeline";
 import {
   activeRun,
+  draftBlock,
   liveMessage,
   runTurn,
   textBlock,
   toolCall,
 } from "./timeline.fixtures";
+import type { ConversationLiveMessageSnapshot } from "@nervekit/contracts";
 import type { TranscriptItem } from "./transcript-types";
 
 const runId = "run_active";
+const firstTurnId = "turn_first";
+const secondTurnId = "turn_second";
 
-function runningTimeline(transcript: TranscriptItem[] = []) {
-  return buildConversationTimeline(transcript, [], activeRun({ runId }));
+function runWithSecondTurn(
+  secondTurnMessages: ConversationLiveMessageSnapshot[] = [],
+  transcript: TranscriptItem[] = [],
+) {
+  const run = activeRun({
+    runId,
+    turns: [
+      runTurn(firstTurnId, 0, [
+        liveMessage("message_first", 0, [
+          textBlock("text", 0, "Earlier output", true),
+        ]),
+      ]),
+      runTurn(secondTurnId, 1, secondTurnMessages),
+    ],
+  });
+  return {
+    run,
+    timeline: buildConversationTimeline(transcript, [], run),
+  };
 }
 
-describe("hasRunTimelineOutput", () => {
-  it("does not treat missing run state or the run's user prompt as output", () => {
-    const userOnly = runningTimeline([
-      { id: "entry_user", runId, role: "user", text: "Start" },
-    ]);
+describe("active turn timeline output", () => {
+  it("treats a missing or empty latest turn as pre-output", () => {
+    const noTurns = activeRun({ runId });
+    const { run, timeline } = runWithSecondTurn();
 
-    assert.equal(hasRunTimelineOutput(userOnly, undefined), false);
-    assert.equal(hasRunTimelineOutput(userOnly, runId), false);
-  });
-
-  it("recognizes live and durable assistant output from the active run", () => {
-    const live = buildConversationTimeline(
-      [],
-      [],
-      activeRun({
-        runId,
-        turns: [
-          runTurn("turn_active", 0, [
-            liveMessage("message_active", 0, [
-              textBlock("text", 0, "Streaming answer"),
-            ]),
-          ]),
-        ],
-      }),
+    assert.equal(latestActiveTurn(noTurns), undefined);
+    assert.equal(hasActiveTurnTimelineOutput([], noTurns), false);
+    assert.equal(latestActiveTurn(run)?.turnId, secondTurnId);
+    assert.equal(hasActiveTurnTimelineOutput(timeline, run), false);
+    assert.equal(
+      hasTurnTimelineOutput(timeline, runId, firstTurnId),
+      true,
+      "prior-turn output remains identifiable but must not satisfy the latest turn",
     );
-    const durable = runningTimeline([
-      {
-        id: "entry_assistant",
-        runId,
-        role: "assistant",
-        text: "Durable answer",
-      },
-    ]);
+  });
 
-    assert.equal(live[0]?.kind, "message");
-    if (live[0]?.kind === "message") {
-      assert.equal(live[0].item.runId, runId);
+  it("recognizes live text and thinking from the latest turn", () => {
+    for (const kind of ["text", "thinking"] as const) {
+      const { run, timeline } = runWithSecondTurn([
+        liveMessage("message_second", 0, [
+          textBlock(kind, 0, "Streaming output"),
+        ]),
+      ]);
+
+      assert.equal(hasActiveTurnTimelineOutput(timeline, run), true);
     }
-    assert.equal(hasRunTimelineOutput(live, runId), true);
-    assert.equal(hasRunTimelineOutput(durable, runId), true);
   });
 
-  it("ignores output from an older run", () => {
-    const timeline = runningTimeline([
-      {
-        id: "entry_old_assistant",
-        runId: "run_old",
-        role: "assistant",
-        text: "Earlier answer",
-      },
-    ]);
+  it("recognizes durable latest-turn output after live materialization", () => {
+    const { run, timeline } = runWithSecondTurn(
+      [],
+      [
+        {
+          id: "entry_first",
+          runId,
+          turnId: firstTurnId,
+          role: "assistant",
+          text: "Earlier durable output",
+        },
+        {
+          id: "entry_second",
+          runId,
+          turnId: secondTurnId,
+          role: "assistant",
+          text: "Final durable output",
+        },
+      ],
+    );
 
-    assert.equal(hasRunTimelineOutput(timeline, runId), false);
+    assert.equal(hasActiveTurnTimelineOutput(timeline, run), true);
   });
 
-  it("recognizes current-run tool activity and fallback tool errors", () => {
+  it("recognizes latest-turn tool drafts and materialized tool calls", () => {
+    const draftRun = activeRun({
+      runId,
+      turns: [
+        runTurn(secondTurnId, 1, [
+          liveMessage("message_second", 0, [draftBlock(0)]),
+        ]),
+      ],
+    });
+    const draftTimeline = buildConversationTimeline([], [], draftRun);
+    const toolRun = activeRun({
+      runId,
+      turns: [runTurn(secondTurnId, 1, [])],
+    });
     const toolTimeline = buildConversationTimeline(
       [],
       [
         toolCall("tool_active", "2026-01-01T00:00:00.000Z", "bash", undefined, {
           runId,
+          turnId: secondTurnId,
           status: "completed",
         }),
       ],
-      activeRun({ runId }),
+      toolRun,
     );
-    const errorTimeline = runningTimeline([
-      {
-        id: "entry_tool_error",
-        runId,
-        role: "system",
-        text: "Tool failed validation",
-        toolCallId: "missing_tool",
-        toolName: "edit",
-        isToolError: true,
-      },
-    ]);
 
-    assert.equal(hasRunTimelineOutput(toolTimeline, runId), true);
-    assert.equal(errorTimeline[0]?.kind, "tool_result_error");
-    assert.equal(hasRunTimelineOutput(errorTimeline, runId), true);
+    assert.equal(hasActiveTurnTimelineOutput(draftTimeline, draftRun), true);
+    assert.equal(hasActiveTurnTimelineOutput(toolTimeline, toolRun), true);
+  });
+
+  it("ignores current-run user input and output from other runs or turns", () => {
+    const { run, timeline } = runWithSecondTurn(
+      [],
+      [
+        {
+          id: "entry_user",
+          runId,
+          turnId: secondTurnId,
+          role: "user",
+          text: "Follow up",
+        },
+        {
+          id: "entry_other_turn",
+          runId,
+          turnId: firstTurnId,
+          role: "assistant",
+          text: "Earlier answer",
+        },
+        {
+          id: "entry_other_run",
+          runId: "run_other",
+          turnId: secondTurnId,
+          role: "assistant",
+          text: "Unrelated answer",
+        },
+      ],
+    );
+
+    assert.equal(hasActiveTurnTimelineOutput(timeline, run), false);
   });
 });

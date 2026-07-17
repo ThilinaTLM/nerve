@@ -451,6 +451,18 @@ describe("Protocol v1 shared schemas", () => {
       new Set(definitions.map((definition) => definition.name)).size,
       definitions.length,
     );
+    const turnStarted = definitions.find(
+      (definition) => definition.name === "conversation.live.turn.started",
+    );
+    assert.equal(turnStarted?.durability, "transient");
+    assert.equal(turnStarted?.coalescing, undefined);
+    assert.deepEqual(turnStarted?.scope, [
+      "projectId",
+      "conversationId",
+      "agentId",
+      "runId",
+      "turnId",
+    ]);
     for (const definition of definitions) {
       assert.ok(definition.allowedSourceRoles.length > 0);
       assert.ok(["durable", "transient"].includes(definition.durability));

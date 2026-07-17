@@ -20,6 +20,9 @@ export const conversationRuntimeEventDefinitions = Object.entries(
 );
 
 function conversationEventScope(name: string): readonly string[] {
+  if (name === "conversation.live.turn.started") {
+    return ["projectId", "conversationId", "agentId", "runId", "turnId"];
+  }
   if (
     name === "conversation.live.content.delta" ||
     name === "conversation.live.tool_draft.delta"

@@ -197,6 +197,23 @@ export async function executeWorkbenchHarness(
       scope: { conversationId: conversation.id, agentId: agent.id, runId },
       context: undefined,
     });
+    const startLiveTurn = async () => {
+      const turn = this.deps.state.conversationRuntime.startTurn(runId);
+      currentTurnId = turn.turnId;
+      await this.deps.events.publish(
+        "conversation.live.turn.started",
+        {
+          conversationId: conversation.id,
+          agentId: agent.id,
+          projectId: project.id,
+          runId,
+          turnId: turn.turnId,
+          ordinal: turn.ordinal,
+        },
+        { durability: "transient" },
+      );
+      return turn.turnId;
+    };
     harness.subscribe(async (event) => {
       if (event.type === "queue_drained") {
         for (const promptId of event.messageIds) {
@@ -219,8 +236,7 @@ export async function executeWorkbenchHarness(
       }
       if (event.type === "turn_start") {
         coordinator.installControl(liveControl);
-        const turn = this.deps.state.conversationRuntime.startTurn(runId);
-        currentTurnId = turn.turnId;
+        await startLiveTurn();
         currentLiveMessageId = undefined;
         liveToolDraftNames.clear();
         liveToolDraftProgress.clear();
@@ -280,14 +296,11 @@ export async function executeWorkbenchHarness(
         event.type === "message_start" &&
         event.message.role === "assistant"
       ) {
-        if (!currentTurnId) {
-          const turn = this.deps.state.conversationRuntime.startTurn(runId);
-          currentTurnId = turn.turnId;
-        }
+        const turnId = currentTurnId ?? (await startLiveTurn());
         const started =
           this.deps.state.conversationRuntime.startAssistantMessage(
             runId,
-            currentTurnId,
+            turnId,
           );
         currentLiveMessageId = started.liveMessageId;
         assistantEntryMeta.onMessageStarted(started);

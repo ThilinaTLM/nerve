@@ -239,6 +239,8 @@ export function entryToTranscriptItems(
     items.push({
       id: `${entry.id}:thinking:${index}`,
       runId: entry.runId,
+      turnId: entry.turnId,
+      messageOrdinal: entry.messageOrdinal,
       role: "assistant",
       kind: entry.kind,
       displayKind: "thinking",
@@ -257,6 +259,8 @@ export function entryToTranscriptItems(
     items.push({
       id: entry.id,
       runId: entry.runId,
+      turnId: entry.turnId,
+      messageOrdinal: entry.messageOrdinal,
       role: entry.role,
       kind: entry.kind,
       displayKind: "message",

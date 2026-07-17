@@ -11,7 +11,7 @@ import {
   buildCommittedTimeline,
   currentTodosForAgent,
   entriesToTranscript,
-  hasRunTimelineOutput,
+  hasActiveTurnTimelineOutput,
   selectVisibleCommitted,
 } from "@nervekit/workbench-ui/state";
 import { ConversationPane } from "@nervekit/workbench-ui/components/conversation";
@@ -133,10 +133,10 @@ const treeEntriesById = $derived(
 const parentEntryIdById = $derived(
   new Map(treeNodes.map((node) => [node.entry.id, node.entry.parentEntryId])),
 );
-// Run-scoped output remains true when a live row materializes into its durable
-// entry, so the pre-output indicator cannot reappear during that handoff.
-const hasActiveRunOutput = $derived(
-  hasRunTimelineOutput(timeline, activeRun?.runId),
+// Latest-turn output remains true when a live row materializes into its durable
+// entry, while a newly started empty turn re-enables the waiting indicator.
+const hasActiveTurnOutput = $derived(
+  hasActiveTurnTimelineOutput(timeline, activeRun),
 );
 const scrollConversationId = $derived(
   activeConversation?.id ??
@@ -197,7 +197,7 @@ function menuForTool(
     timeline,
     streamingText,
     sending,
-    hasActiveRunOutput,
+    hasActiveTurnOutput,
     queuedPrompts,
     approvals,
     pendingUserQuestion,

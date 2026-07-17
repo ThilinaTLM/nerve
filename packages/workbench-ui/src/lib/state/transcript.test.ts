@@ -16,6 +16,23 @@ function entry(overrides: Partial<ConversationEntry>): ConversationEntry {
 }
 
 describe("entryToTranscriptItems", () => {
+  it("retains durable message turn coordinates", () => {
+    const [item] = entryToTranscriptItems(
+      entry({
+        role: "assistant",
+        kind: "message",
+        text: "Done.",
+        runId: "run_01H00000000000000000000000",
+        turnId: "turn_01H0000000000000000000000",
+        messageOrdinal: 2,
+      }),
+    );
+
+    assert.equal(item?.runId, "run_01H00000000000000000000000");
+    assert.equal(item?.turnId, "turn_01H0000000000000000000000");
+    assert.equal(item?.messageOrdinal, 2);
+  });
+
   it("converts compaction entries into transcript compaction items", () => {
     const [item] = entryToTranscriptItems(
       entry({

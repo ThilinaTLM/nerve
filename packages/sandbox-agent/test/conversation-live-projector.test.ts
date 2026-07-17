@@ -112,6 +112,7 @@ describe("SandboxConversationLiveProjector", () => {
     assert.deepEqual(
       published.map((event) => event.type),
       [
+        "conversation.live.turn.started",
         "conversation.live.message.started",
         "conversation.live.content.delta",
         "conversation.live.content.delta",
@@ -133,7 +134,10 @@ describe("SandboxConversationLiveProjector", () => {
     assert.equal(output?.stream, "stdout");
     assert.equal(output?.delta, "sandbox\n");
 
-    const started = published[0].data;
+    const turnStarted = published[0].data;
+    const started = published[1].data;
+    assert.equal(turnStarted.turnId, started.turnId);
+    assert.equal(turnStarted.ordinal, 0);
     const anchor = projector.resolveToolAnchor("provider_1");
     assert.equal(anchor?.turnId, started.turnId);
     assert.equal(anchor?.liveMessageId, started.liveMessageId);

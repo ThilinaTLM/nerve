@@ -50,7 +50,7 @@ type Props = {
   timeline: TimelineItem[];
   streamingText: string;
   sending: boolean;
-  hasActiveRunOutput: boolean;
+  hasActiveTurnOutput: boolean;
   queuedPrompts: QueuedPromptRecord[];
   followBottom?: boolean;
   activeProject?: ProjectRecord;
@@ -112,7 +112,7 @@ let {
   timeline,
   streamingText,
   sending,
-  hasActiveRunOutput,
+  hasActiveTurnOutput,
   queuedPrompts,
   followBottom = true,
   activeProject,
@@ -169,9 +169,9 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
     ...row,
     entranceToken: entranceTokens.get(row.key),
   }));
-  // This is a pre-output row only. Run-scoped output stays true across the
-  // live-to-durable handoff, so the row cannot reappear after a response.
-  if (sending && !hasActiveRunOutput) {
+  // This is a per-turn pre-output row. Turn-scoped output stays true across
+  // the live-to-durable handoff, so it cannot reappear after the final message.
+  if (sending && !hasActiveTurnOutput) {
     result.push({ kind: "waiting", key: "__waiting__" });
   }
   for (const prompt of queuedPrompts) {

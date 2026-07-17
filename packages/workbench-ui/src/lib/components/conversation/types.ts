@@ -82,7 +82,7 @@ export type ConversationPaneModel = {
   timeline: TimelineItem[];
   streamingText: string;
   sending: boolean;
-  hasActiveRunOutput: boolean;
+  hasActiveTurnOutput: boolean;
   queuedPrompts: QueuedPromptRecord[];
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestion?: UserQuestionRecord;

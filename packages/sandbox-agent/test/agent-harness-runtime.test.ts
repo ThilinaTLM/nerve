@@ -42,8 +42,17 @@ describe("sandbox live AgentHarness runtime", () => {
 
       const run = await waitForRun(daemon, result.runId, "completed");
       assert.equal(run.status, "completed");
+      await waitForEvent(stores, "run.completed");
       const events = stores.events.all();
       assert.ok(events.some((event) => event.type === "run.started"));
+      const turnStartedIndex = events.findIndex(
+        (event) => event.type === "conversation.live.turn.started",
+      );
+      const messageStartedIndex = events.findIndex(
+        (event) => event.type === "conversation.live.message.started",
+      );
+      assert.ok(turnStartedIndex >= 0);
+      assert.ok(messageStartedIndex > turnStartedIndex);
       assert.ok(
         events.some(
           (event) => event.type === "conversation.live.message.started",
@@ -120,6 +129,18 @@ describe("sandbox live AgentHarness runtime", () => {
     }
   });
 });
+
+async function waitForEvent(
+  stores: SandboxStateStores,
+  type: string,
+): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    if (stores.events.all().some((event) => event.type === type)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for ${type}`);
+}
 
 async function waitForRun(
   daemon: SandboxDaemon,
