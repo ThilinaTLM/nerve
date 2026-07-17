@@ -8,6 +8,7 @@ import type {
   StructuredLogLevel,
   VolumeRef,
 } from "@nervekit/contracts";
+import { sandboxContainerNetworkMode } from "./local-container-connectivity.js";
 import type { ContainerBackend } from "./manager-config.js";
 
 export type SandboxRuntimeMountRefs = {
@@ -65,7 +66,9 @@ export function buildSandboxLaunchSpec(
     mounts: runtimeMounts(options, isEcs),
     workingDir: "/workspace",
     user: "sandbox",
-    network: { mode: isEcs ? "ecs-awsvpc" : "bridge" },
+    network: {
+      mode: isEcs ? "ecs-awsvpc" : sandboxContainerNetworkMode(options.backend),
+    },
     security: {
       readOnlyRootFilesystem: true,
       noNewPrivileges: true,

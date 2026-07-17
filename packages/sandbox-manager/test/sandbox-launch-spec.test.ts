@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { SandboxConfigV1 } from "@nervekit/contracts";
+import { sandboxContainerNetworkMode } from "../src/config/local-container-connectivity.js";
 import { buildSandboxLaunchSpec } from "../src/config/sandbox-launch-spec.js";
 
 function baseConfig(
@@ -75,6 +76,17 @@ describe("buildSandboxLaunchSpec log level propagation", () => {
     assert.equal(spec.labels.team, "core");
     assert.equal(spec.labels["org.nerve.sandbox.id"], "sbx_1");
     assert.deepEqual(spec.resources, { memoryMb: 8192, vcpu: 2 });
+  });
+
+  it("uses the backend connectivity strategy for local networking", () => {
+    const spec = buildSandboxLaunchSpec(baseConfig(), {
+      ...options,
+      backend: "podman",
+    });
+    assert.equal(
+      spec.network?.mode,
+      sandboxContainerNetworkMode("podman", process.platform),
+    );
   });
 
   it("propagates instance id and builds ECS/EFS mounts", () => {

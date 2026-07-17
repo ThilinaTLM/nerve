@@ -19,6 +19,10 @@ import {
   selectProfiles,
 } from "../config/apply-credential-profiles.js";
 import {
+  managerCallbackBaseUrl,
+  resolveEffectiveSandboxBackend,
+} from "../config/local-container-connectivity.js";
+import {
   materializeSandboxConfig,
   parseSandboxConfigInput,
 } from "../config/materialize-sandbox-config.js";
@@ -44,8 +48,13 @@ export async function previewSandboxConfigYaml(
   const normalizedLaunch = normalizeSandboxLaunchConfig(state.config, launch, {
     preview: true,
   });
+  const backend = await resolveEffectiveSandboxBackend(
+    state.driver,
+    normalizedLaunch.backend,
+  );
   const materialized = await materializeManagedSandboxConfig(state, config, {
     auth,
+    backend,
     sandboxId: normalizedLaunch.sandboxId,
   });
   return {
@@ -106,8 +115,13 @@ export async function createSandboxRecord(
   const sandboxId = normalizedLaunch.sandboxId;
   const instanceId = `inst_${randomUUID()}`;
   const token = `ntok_${randomBytes(32).toString("base64url")}`;
+  const backend = await resolveEffectiveSandboxBackend(
+    state.driver,
+    normalizedLaunch.backend,
+  );
   const materialized = await materializeManagedSandboxConfig(state, config, {
     auth,
+    backend,
     sandboxId,
   });
   const volumes = await state.volumeProvider.prepare(
@@ -129,7 +143,7 @@ export async function createSandboxRecord(
     instanceId,
     name: normalizedLaunch.name,
     labels: normalizedLaunch.labels,
-    backend: normalizedLaunch.backend,
+    backend,
     resources: normalizedLaunch.resources,
     image: { reference: normalizedLaunch.image, sandboxSpec: "v1" },
     desiredState: "created",
@@ -159,18 +173,28 @@ export async function createSandboxRecord(
 async function materializeManagedSandboxConfig(
   state: ManagerState,
   config: SandboxCreateConfigInput,
-  options: { sandboxId: string; auth?: SandboxCreateAuthRefs },
+  options: {
+    sandboxId: string;
+    backend: ManagedSandboxRecord["backend"];
+    auth?: SandboxCreateAuthRefs;
+  },
 ): Promise<MaterializedSandboxConfig> {
   const requestedProfiles = selectProfiles(
     await state.credentials.list(),
     options.auth,
   );
-  const controllerUrl = `${managerWsBaseUrl(state)}/api/sandboxes/${encodeURIComponent(
-    options.sandboxId,
-  )}/ws`;
+  const controllerUrl = `${managerCallbackBaseUrl(
+    state.config,
+    options.backend,
+    "ws",
+  )}/api/sandboxes/${encodeURIComponent(options.sandboxId)}/ws`;
   const withProfiles = applyCredentialProfiles(config, requestedProfiles, {
     sandboxId: options.sandboxId,
-    managerHttpBaseUrl: managerHttpBaseUrl(state),
+    managerHttpBaseUrl: managerCallbackBaseUrl(
+      state.config,
+      options.backend,
+      "http",
+    ),
   });
   const materializedConfig: SandboxConfigV1 = sandboxConfigV1Schema.parse({
     ...withProfiles,
@@ -195,20 +219,4 @@ async function materializeManagedSandboxConfig(
     configYaml: materializeSandboxConfig(materializedConfig),
     configDigest: sandboxConfigDigestStable(materializedConfig),
   };
-}
-
-function managerHttpBaseUrl(state: ManagerState): string {
-  const configured = process.env.NERVE_SANDBOX_MANAGER_PUBLIC_URL?.trim();
-  if (configured) return configured.replace(/^ws/, "http").replace(/\/$/, "");
-  const host =
-    state.config.host === "0.0.0.0" ? "127.0.0.1" : state.config.host;
-  return `http://${host}:${state.config.port}`;
-}
-
-function managerWsBaseUrl(state: ManagerState): string {
-  const configured = process.env.NERVE_SANDBOX_MANAGER_PUBLIC_URL?.trim();
-  if (configured) return configured.replace(/^http/, "ws").replace(/\/$/, "");
-  const host =
-    state.config.host === "0.0.0.0" ? "127.0.0.1" : state.config.host;
-  return `ws://${host}:${state.config.port}`;
 }

@@ -68,9 +68,9 @@ describe("guarded local container sandbox smoke", () => {
       path.join(os.tmpdir(), "nerve-manager-e2e-smoke-"),
     );
     const port = await freePort();
-    const publicUrl = publicManagerUrl(port);
+    const publicUrl = configuredPublicManagerUrl(port);
     const oldPublicUrl = process.env.NERVE_SANDBOX_MANAGER_PUBLIC_URL;
-    process.env.NERVE_SANDBOX_MANAGER_PUBLIC_URL = publicUrl;
+    if (publicUrl) process.env.NERVE_SANDBOX_MANAGER_PUBLIC_URL = publicUrl;
     const state = new ManagerState({
       host: "0.0.0.0",
       port,
@@ -183,11 +183,10 @@ async function waitForConnectedStatus(
   throw new Error("Timed out waiting for sandbox daemon connection");
 }
 
-function publicManagerUrl(port: number): string {
+function configuredPublicManagerUrl(port: number): string | undefined {
   const configured =
     process.env.NERVE_SANDBOX_AGENT_SMOKE_MANAGER_PUBLIC_URL?.trim();
-  if (configured) return configured.replace("{port}", String(port));
-  return `ws://host.docker.internal:${port}`;
+  return configured?.replace("{port}", String(port));
 }
 
 function listen(
