@@ -27,6 +27,8 @@ import {
   parseProtocolResponseData,
   replayCompleteMessageSchema,
   replayRequestMessageSchema,
+  streamSubscriptionSetMessageSchema,
+  streamSubscriptionUpdatedMessageSchema,
   snapshotCursorSchema,
   validatePublicEvent,
   welcomeMessageSchema,
@@ -207,6 +209,53 @@ describe("Protocol v1 shared schemas", () => {
       resume: { accepted: true, mode: "replay" },
     });
     assert.equal(welcomeMessageSchema.safeParse(welcome).success, true);
+  });
+
+  it("validates exact-set stream subscription messages", () => {
+    const set = message("stream.subscription.set", {
+      sessionId: "ses_test",
+      subscriptionId: "sub_test",
+      streams: [
+        { stream: "manager", processedSeq: 4 },
+        { stream: "sandbox:one", processedSeq: 2 },
+      ],
+    });
+    assert.equal(
+      streamSubscriptionSetMessageSchema.safeParse(set).success,
+      true,
+    );
+    assert.equal(
+      streamSubscriptionSetMessageSchema.safeParse({
+        ...set,
+        data: {
+          ...set.data,
+          streams: [
+            { stream: "manager", processedSeq: 4 },
+            { stream: "manager", processedSeq: 2 },
+          ],
+        },
+      }).success,
+      false,
+    );
+    assert.equal(
+      streamSubscriptionSetMessageSchema.safeParse({
+        ...set,
+        data: { ...set.data, sessionId: "", streams: [] },
+      }).success,
+      false,
+    );
+    assert.equal(
+      streamSubscriptionUpdatedMessageSchema.safeParse(
+        message("stream.subscription.updated", {
+          sessionId: "ses_test",
+          subscriptionId: "sub_test",
+          accepted: true,
+          mode: "replay",
+          streams: [{ stream: "manager", latestSeq: 8, durableSeq: 8 }],
+        }),
+      ).success,
+      true,
+    );
   });
 
   it("validates event batches and rejects inconsistent ranges", () => {
@@ -456,6 +505,11 @@ describe("Protocol v1 shared schemas", () => {
     );
     assert.equal(turnStarted?.durability, "transient");
     assert.equal(turnStarted?.coalescing, undefined);
+    const sandboxActivity = definitions.find(
+      (definition) => definition.name === "sandbox.activity.changed",
+    );
+    assert.equal(sandboxActivity?.durability, "transient");
+    assert.equal(sandboxActivity?.coalescing, "latest_by_scope");
     assert.deepEqual(turnStarted?.scope, [
       "projectId",
       "conversationId",

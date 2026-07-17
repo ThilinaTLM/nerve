@@ -360,10 +360,14 @@ test("session queue coalesces catalog-approved transient events", () => {
     data: { provider: "one", value: 2 },
   });
   assert.equal(queue.coalesceTransientOverflow(1), 1);
-  assert.deepEqual(queue.shiftTransient(1)[0]?.data, {
+  const shifted = queue.shiftLive(1);
+  assert.deepEqual(shifted.events[0]?.data, {
     provider: "one",
     value: 2,
   });
+  assert.deepEqual(shifted.skippedNonDurableRanges, [
+    { fromSeq: 1, toSeq: 1, reason: "coalesced" },
+  ]);
 });
 
 test("client heartbeat watchdog closes a silent session", async () => {

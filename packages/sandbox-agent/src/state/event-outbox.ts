@@ -16,6 +16,7 @@ export class EventOutbox {
   private transientRecords: SandboxOutboxRecord[] = [];
   private nextSeq = 1;
   private listeners = new Set<(record: SandboxOutboxRecord) => void>();
+  private appendTail: Promise<unknown> = Promise.resolve();
   constructor(outboxPath: string, ackPath: string) {
     this.outbox = new JsonlStore(outboxPath, sandboxOutboxRecordSchema);
     this.ackStore = new JsonStore(ackPath, sandboxAckStateSchema);
@@ -25,7 +26,20 @@ export class EventOutbox {
     this.transientRecords = [];
     this.nextSeq = Math.max(0, ...this.records.map((record) => record.seq)) + 1;
   }
-  async append(
+  append(
+    input: Omit<SandboxOutboxRecord, "seq" | "id" | "ts"> & {
+      id?: string;
+      ts?: string;
+    },
+  ): Promise<SandboxOutboxRecord> {
+    const next = this.appendTail
+      .catch(() => undefined)
+      .then(() => this.appendSerialized(input));
+    this.appendTail = next.catch(() => undefined);
+    return next;
+  }
+
+  private async appendSerialized(
     input: Omit<SandboxOutboxRecord, "seq" | "id" | "ts"> & {
       id?: string;
       ts?: string;

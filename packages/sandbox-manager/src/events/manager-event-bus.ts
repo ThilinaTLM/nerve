@@ -1,20 +1,22 @@
 import { EventEmitter } from "node:events";
 
+/** A complete, catalog-validated event ready for protocol publication. */
 export type ManagerEvent = {
-  type: string;
-  stream?: string;
+  stream: string;
   sandboxId?: string;
-  seq?: number;
-  id?: string;
-  durability?: "durable" | "transient";
-  payload?: unknown;
+  id: string;
+  seq: number;
+  type: string;
   ts: string;
+  durability: "durable" | "transient";
+  payload: Record<string, unknown>;
 };
 
 export class ManagerEventBus extends EventEmitter {
-  publish(event: Omit<ManagerEvent, "ts"> & { ts?: string }): void {
-    this.emit("event", { ...event, ts: event.ts ?? new Date().toISOString() });
+  publish(event: ManagerEvent): void {
+    this.emit("event", event);
   }
+
   subscribe(listener: (event: ManagerEvent) => void): () => void {
     this.on("event", listener);
     return () => this.off("event", listener);

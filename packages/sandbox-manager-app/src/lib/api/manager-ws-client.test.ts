@@ -29,6 +29,7 @@ const capabilities = [
   "event.replay",
   "event.ack.processed",
   "flow.backpressure",
+  "stream.subscription.v1",
   "sandbox.manager.ui.v1",
   "sandbox.manager.snapshots.v1",
   "operation.sandbox.manager.recovery.get",
@@ -72,6 +73,16 @@ test("ManagerWsClient keeps only the latest selection generation and installs ex
         resume: (hello) => {
           hellos.push(hello);
           return { accepted: true, mode: "live" as const };
+        },
+        subscriptions: {
+          resolve: (cursors) => ({
+            accepted: true,
+            streams: cursors.map((cursor) => ({
+              stream: cursor.stream,
+              latestSeq: cursor.processedSeq,
+              durableSeq: cursor.processedSeq,
+            })),
+          }),
         },
       });
       const connection = new ProtocolConnection({
@@ -119,19 +130,35 @@ test("ManagerWsClient keeps only the latest selection generation and installs ex
   );
 
   try {
-    client.activateSelection("a", [
+    await client.setSelection("a", [
       { stream: "manager", processedSeq: 4 },
       { stream: "sandbox:a", processedSeq: 2 },
     ]);
-    client.activateSelection("b", [
+    await client.setSelection("b", [
       { stream: "manager", processedSeq: 5 },
       { stream: "sandbox:b", processedSeq: 3 },
     ]);
-    client.activateSelection("c", [
+    await client.setSelection("c", [
       { stream: "manager", processedSeq: 6 },
       { stream: "sandbox:c", processedSeq: 1 },
     ]);
+    client.connect();
     await waitFor(() => liveCount === 1 && hellos.length >= 1);
+    await Promise.all([
+      client.setSelection("a", [
+        { stream: "manager", processedSeq: 6 },
+        { stream: "sandbox:a", processedSeq: 2 },
+      ]),
+      client.setSelection("b", [
+        { stream: "manager", processedSeq: 6 },
+        { stream: "sandbox:b", processedSeq: 3 },
+      ]),
+      client.setSelection("c", [
+        { stream: "manager", processedSeq: 6 },
+        { stream: "sandbox:c", processedSeq: 1 },
+      ]),
+    ]);
+    assert.equal(hellos.length, 1, "selection updates reuse one connection");
     const latest = hellos.at(-1)?.resume?.streams;
     assert.deepEqual(latest, [
       { stream: "manager", processedSeq: 6 },
@@ -228,7 +255,10 @@ test("ManagerWsClient installs snapshot before applying buffered live events", a
     },
   );
   try {
-    client.activateManager([{ stream: "manager", processedSeq: 9 }]);
+    await client.setSelection(undefined, [
+      { stream: "manager", processedSeq: 9 },
+    ]);
+    client.connect();
     await waitFor(() => order.includes("snapshot-start"));
     assert.deepEqual(order, ["snapshot-start"]);
     releaseSnapshot();

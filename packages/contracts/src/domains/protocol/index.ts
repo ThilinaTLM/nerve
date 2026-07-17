@@ -8,3 +8,4 @@ export * from "./operation-catalog.schema.js";
 export * from "./replay.schema.js";
 export * from "./session.schema.js";
 export * from "./snapshot.schema.js";
+export * from "./stream-subscription.schema.js";

@@ -86,7 +86,7 @@ export interface ProtocolTimers {
 }
 
 export interface ProtocolIdSource {
-  create(prefix: "msg" | "ack" | "rpl" | "batch" | "session"): string;
+  create(prefix: "msg" | "ack" | "rpl" | "batch" | "session" | "sub"): string;
 }
 
 export type ProtocolTransportFactory = TransportFactory;

@@ -20,6 +20,7 @@ const capabilities = [
   "event.replay",
   "event.ack.processed",
   "flow.backpressure",
+  "stream.subscription.v1",
   "sandbox.manager.ui.v1",
   "sandbox.manager.snapshots.v1",
   "operation.sandbox.manager.recovery.get",
@@ -43,20 +44,43 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
     desiredState: "running",
     observedState: "running",
   };
+  let blockSandboxB = false;
+  let markSandboxBLoad!: () => void;
+  const sandboxBLoadStarted = new Promise<void>((resolve) => {
+    markSandboxBLoad = resolve;
+  });
+  let releaseSandboxBLoad!: () => void;
+  const sandboxBLoadGate = new Promise<void>((resolve) => {
+    releaseSandboxBLoad = resolve;
+  });
   const state = {
     config: { heartbeatTimeoutMs: 45_000 },
     sandboxes: {
       list: async () => [{ sandboxId: "a" }, { sandboxId: "b" }],
       get: async (sandboxId: string) =>
-        sandboxId === "a" ? sandboxRecord : undefined,
+        sandboxId === "a" || sandboxId === "b"
+          ? { ...sandboxRecord, sandboxId }
+          : undefined,
     },
     pinnedCommands: { list: async () => [] },
     events: {
       list: async () => [],
-      streamState: async () => ({ latestSeq: 0, durableSeq: 0 }),
+      streamState: async (storeId: string) => {
+        if (storeId === "b" && blockSandboxB) {
+          markSandboxBLoad();
+          await sandboxBLoadGate;
+        }
+        return { latestSeq: 0, durableSeq: 0 };
+      },
+      readDurableRange: async () => ({
+        events: [],
+        previousDurableSeq: 0,
+        complete: true,
+        nextSeq: 1,
+      }),
     },
     eventBus,
-    logger: { warn: () => undefined },
+    logger: { warn: () => undefined, debug: () => undefined },
   } as unknown as ManagerState;
   const controller = {
     getSession: (sandboxId: string) =>
@@ -80,9 +104,7 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
         : undefined,
   } as unknown as SandboxWsServer;
   sockets.on("connection", (socket) => {
-    void prepareManagerUiSharedSession(state, controller).then((attach) =>
-      attach(socket),
-    );
+    prepareManagerUiSharedSession(state, controller)(socket);
   });
   await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
   const address = http.address();
@@ -97,6 +119,7 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
     source: { role: "ui", id: "ui_test", instanceId: "ui_instance" },
     target: { role: "sandbox_manager", id: "sandbox-manager" },
   });
+  let clientSession!: ProtocolClientSession;
   const connection = new ProtocolClientConnection({
     transport: nodeWebSocketTransportFactory(
       () =>
@@ -104,8 +127,8 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
           `ws://127.0.0.1:${address.port}`,
         ) as unknown as WebSocketLike,
     ),
-    createSession: ({ send, onDisconnect }) =>
-      new ProtocolClientSession({
+    createSession: ({ send, onDisconnect }) => {
+      clientSession = new ProtocolClientSession({
         createMessage: messages,
         capabilities,
         requiredCapabilities: capabilities,
@@ -119,7 +142,9 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
         applyEvent: (stream) => {
           received.push(stream);
         },
-      }),
+      });
+      return clientSession;
+    },
   });
 
   try {
@@ -132,6 +157,7 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
       id: "evt_manager_1",
       durability: "durable",
       payload: {},
+      ts: "2026-01-01T00:00:00.000Z",
     });
     eventBus.publish({
       type: "run.delta",
@@ -141,6 +167,7 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
       id: "evt_a_1",
       durability: "transient",
       payload: {},
+      ts: "2026-01-01T00:00:01.000Z",
     });
     eventBus.publish({
       type: "run.delta",
@@ -150,9 +177,31 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
       id: "evt_b_1",
       durability: "transient",
       payload: {},
+      ts: "2026-01-01T00:00:02.000Z",
     });
     await waitFor(() => received.length === 2);
     assert.deepEqual(received.sort(), ["manager", "sandbox:a"]);
+
+    blockSandboxB = true;
+    const subscription = clientSession.setSubscriptions([
+      { stream: "manager", processedSeq: 1 },
+      { stream: "sandbox:b", processedSeq: 0 },
+    ]);
+    await sandboxBLoadStarted;
+    eventBus.publish({
+      type: "run.delta",
+      stream: "sandbox:b",
+      sandboxId: "b",
+      seq: 2,
+      id: "evt_b_2",
+      durability: "transient",
+      payload: {},
+      ts: "2026-01-01T00:00:03.000Z",
+    });
+    releaseSandboxBLoad();
+    await subscription;
+    await waitFor(() => received.length === 3);
+    assert.equal(received.at(-1), "sandbox:b");
 
     const managerResult = await connection.request(
       "pinnedCommand.list",

@@ -11,6 +11,7 @@ import type {
   ProtocolRequestData,
   ProtocolV1Message,
   ReplayUnavailableData,
+  StreamCursor,
   StreamState,
 } from "@nervekit/contracts";
 import { buildEventBatch, chunkEvents } from "./event-batch.js";
@@ -46,10 +47,13 @@ export class ProtocolServerSession {
   readonly #previousDurableSeq = new Map<string, number>();
   readonly #processedSeq = new Map<string, number>();
   readonly #unackedDurableSeqs = new Map<string, number[]>();
+  readonly #activeStreams = new Set<string>();
+  readonly #streamStates = new Map<string, StreamState>();
   #hello?: HelloData;
   #negotiatedTarget?: PeerDescriptor;
   #resumeDecision?: SessionResumeDecision;
   #rpcDispatcher?: RpcDispatcher;
+  #negotiatedCapabilities: string[] = [];
   #handshakeTimeout?: unknown;
   #flushing = false;
   #liveDeliveryEnabled = false;
@@ -177,6 +181,14 @@ export class ProtocolServerSession {
       const capabilities = [...(this.#options.capabilities ?? [])].filter(
         (capability) => message.data.capabilities.includes(capability),
       );
+      this.#negotiatedCapabilities = capabilities;
+      const streams = [...this.#options.streams()];
+      this.#activeStreams.clear();
+      this.#streamStates.clear();
+      for (const stream of streams) {
+        this.#activeStreams.add(stream.stream);
+        this.#streamStates.set(stream.stream, stream);
+      }
       this.#rpcDispatcher =
         typeof this.#options.rpcDispatcher === "function"
           ? this.#options.rpcDispatcher({
@@ -194,7 +206,7 @@ export class ProtocolServerSession {
             acceptedVersion: 1,
             capabilities,
             encoding: "json",
-            streams: [...this.#options.streams()],
+            streams,
             limits: this.#options.limits,
             heartbeat: this.#options.heartbeat,
             resume: decision,
@@ -277,6 +289,10 @@ export class ProtocolServerSession {
       throw new SessionStateError(
         `Cannot receive ${message.kind} while ${this.state}`,
       );
+    }
+    if (message.kind === "stream.subscription.set") {
+      await this.#setSubscriptions(message);
+      return;
     }
     if (message.kind === "goodbye") {
       if (message.data.sessionId && message.data.sessionId !== this.sessionId) {
@@ -377,6 +393,173 @@ export class ProtocolServerSession {
       return;
     }
     await this.#options.onMessage?.(message);
+  }
+
+  async #setSubscriptions(
+    message: ProtocolV1Message & { kind: "stream.subscription.set" },
+  ): Promise<void> {
+    const subscription = this.#options.subscriptions;
+    if (
+      !subscription ||
+      !this.#negotiatedCapabilities.includes("stream.subscription.v1")
+    ) {
+      await this.fail(
+        "CAPABILITY_REQUIRED",
+        "Dynamic stream subscriptions were not negotiated",
+      );
+      return;
+    }
+    if (message.data.sessionId !== this.sessionId) {
+      await this.fail("INVALID_MESSAGE", "Subscription session id mismatch");
+      return;
+    }
+
+    const decision = await subscription.resolve(
+      message.data.streams,
+      message.source,
+    );
+    const requestedNames = message.data.streams.map((cursor) => cursor.stream);
+    const resolvedNames = decision.streams.map((state) => state.stream);
+    const exactSet =
+      new Set(requestedNames).size === requestedNames.length &&
+      new Set(resolvedNames).size === resolvedNames.length &&
+      requestedNames.length === resolvedNames.length &&
+      requestedNames.every((stream) => resolvedNames.includes(stream));
+    if (!decision.accepted || !exactSet) {
+      await this.#sendSubscriptionUpdated(message, {
+        accepted: false,
+        mode: "live",
+        streams: [...this.#streamStates.values()],
+        reason:
+          decision.reason ??
+          (exactSet ? "Subscription rejected" : "Resolved stream set mismatch"),
+      });
+      return;
+    }
+
+    const states = new Map(
+      decision.streams.map((state) => [state.stream, state]),
+    );
+    let snapshotReason: string | undefined;
+    const replay: StreamCursor[] = [];
+    for (const cursor of message.data.streams) {
+      const state = states.get(cursor.stream) as StreamState;
+      const durableSeq = state.durableSeq ?? state.latestSeq;
+      const replayAvailableFromSeq = state.replayAvailableFromSeq ?? 0;
+      if (cursor.processedSeq > durableSeq)
+        snapshotReason = `Cursor ahead of ${cursor.stream}`;
+      else if (
+        cursor.processedSeq > 0 &&
+        cursor.processedSeq < replayAvailableFromSeq
+      )
+        snapshotReason = `Cursor expired for ${cursor.stream}`;
+      else if (cursor.processedSeq < durableSeq) replay.push(cursor);
+    }
+    if (snapshotReason) {
+      await this.#sendSubscriptionUpdated(message, {
+        accepted: false,
+        mode: "snapshot_required",
+        streams: [...this.#streamStates.values()],
+        reason: snapshotReason,
+      });
+      return;
+    }
+
+    if (replay.length > 0 && !this.#options.replaySource) {
+      await this.#sendSubscriptionUpdated(message, {
+        accepted: false,
+        mode: "snapshot_required",
+        streams: [...this.#streamStates.values()],
+        reason: "Replay source is unavailable",
+      });
+      return;
+    }
+
+    const nextNames = new Set(requestedNames);
+    for (const stream of [...this.#activeStreams]) {
+      if (nextNames.has(stream)) continue;
+      this.#activeStreams.delete(stream);
+      this.#streamStates.delete(stream);
+      this.#queues.get(stream)?.clear();
+      this.#queues.delete(stream);
+      this.#replaying.delete(stream);
+      this.#previousDurableSeq.delete(stream);
+      this.#processedSeq.delete(stream);
+      this.#unackedDurableSeqs.delete(stream);
+    }
+    for (const state of decision.streams) {
+      this.#activeStreams.add(state.stream);
+      this.#streamStates.set(state.stream, state);
+    }
+    for (const cursor of message.data.streams) {
+      const previous = this.#processedSeq.get(cursor.stream) ?? 0;
+      const processedSeq = this.#activeStreams.has(cursor.stream)
+        ? Math.max(previous, cursor.processedSeq)
+        : cursor.processedSeq;
+      this.#processedSeq.set(cursor.stream, processedSeq);
+      this.#previousDurableSeq.set(cursor.stream, processedSeq);
+    }
+
+    const replayId = replay.length > 0 ? this.#ids.create("rpl") : undefined;
+    if (replayId) {
+      for (const cursor of replay) {
+        const ids = this.#replaying.get(cursor.stream) ?? new Set<string>();
+        ids.add(replayId);
+        this.#replaying.set(cursor.stream, ids);
+      }
+    }
+    await this.#sendSubscriptionUpdated(message, {
+      accepted: true,
+      mode: replayId ? "replay" : "live",
+      streams: decision.streams,
+    });
+    await subscription.activate?.(message.data.streams, decision.streams);
+    if (replayId) {
+      await this.#replay(
+        this.#options.createMessage(
+          "replay.request",
+          {
+            sessionId: this.sessionId as string,
+            replayId,
+            streams: replay.map((cursor) => ({
+              stream: cursor.stream,
+              fromSeq: cursor.processedSeq + 1,
+              toSeq:
+                states.get(cursor.stream)?.durableSeq ??
+                states.get(cursor.stream)?.latestSeq,
+            })),
+            reason: "snapshot_delta",
+          },
+          { source: message.source, target: this.#options.acceptingPeer },
+        ) as ProtocolV1Message & { kind: "replay.request" },
+      );
+    }
+    await this.#flush();
+  }
+
+  async #sendSubscriptionUpdated(
+    request: ProtocolV1Message & { kind: "stream.subscription.set" },
+    data: {
+      accepted: boolean;
+      mode: "live" | "replay" | "snapshot_required";
+      streams: readonly StreamState[];
+      reason?: string;
+    },
+  ): Promise<void> {
+    await this.#sendControl(
+      this.#options.createMessage(
+        "stream.subscription.updated",
+        {
+          sessionId: this.sessionId as string,
+          subscriptionId: request.data.subscriptionId,
+          accepted: data.accepted,
+          mode: data.mode,
+          streams: [...data.streams],
+          reason: data.reason,
+        },
+        { target: request.source, correlationId: request.id },
+      ),
+    );
   }
 
   async #replay(
@@ -602,6 +785,7 @@ export class ProtocolServerSession {
   ): Promise<void> {
     if (this.state === "closing" || this.state === "closed")
       throw new SessionStateError("Live events require an open session");
+    if (this.#options.subscriptions && !this.#activeStreams.has(stream)) return;
     const queue = this.#queues.get(stream) ?? new ProtocolSessionQueue();
     this.#queues.set(stream, queue);
     for (const event of Array.isArray(events) ? events : [events])
@@ -692,6 +876,8 @@ export class ProtocolServerSession {
       this.#timers.clearTimeout(this.#handshakeTimeout);
     this.#handshakeTimeout = undefined;
     this.#replaying.clear();
+    this.#activeStreams.clear();
+    this.#streamStates.clear();
     for (const queue of this.#queues.values()) queue.clear();
     this.#queues.clear();
     this.#sender.close();
@@ -704,12 +890,11 @@ export class ProtocolServerSession {
     try {
       for (const [stream, queue] of this.#queues) {
         if ((this.#replaying.get(stream)?.size ?? 0) > 0) continue;
-        let events = queue.shiftDurable(this.#options.limits.maxBatchEvents);
-        if (events.length === 0)
-          events = queue.shiftTransient(this.#options.limits.maxBatchEvents);
-        while (events.length > 0 && this.state === "ready") {
+        let shifted = queue.shiftLive(this.#options.limits.maxBatchEvents);
+        while (shifted.events.length > 0 && this.state === "ready") {
+          let skipped = shifted.skippedNonDurableRanges;
           for (const batch of chunkEvents(
-            events,
+            shifted.events,
             this.#options.limits.maxBatchEvents,
             this.#options.limits.maxBatchBytes,
           )) {
@@ -717,6 +902,11 @@ export class ProtocolServerSession {
               this.#previousDurableSeq.get(stream) ??
               this.#processedSeq.get(stream) ??
               0;
+            const lastSeq = batch.at(-1)?.seq ?? 0;
+            const batchSkipped = skipped.filter(
+              (range) => range.fromSeq <= lastSeq,
+            );
+            skipped = skipped.filter((range) => range.fromSeq > lastSeq);
             await this.#sendLive(
               this.#options.createMessage(
                 "event.batch",
@@ -724,6 +914,7 @@ export class ProtocolServerSession {
                   stream,
                   reason: "live",
                   previousDurableSeq,
+                  skippedNonDurableRanges: batchSkipped,
                 }),
                 { target: this.peer },
               ),
@@ -737,21 +928,9 @@ export class ProtocolServerSession {
                 durable.at(-1)?.seq ?? previousDurableSeq,
               );
               this.#trackUnacked(stream, durable);
-              const dropped = queue.dropTransientThrough(
-                durable.at(-1)?.seq ?? previousDurableSeq,
-              );
-              if (dropped > 0)
-                await this.#sendFlow(
-                  stream,
-                  "degraded",
-                  "transient_events_dropped",
-                  { type: "pause_transient" },
-                );
             }
           }
-          events = queue.shiftDurable(this.#options.limits.maxBatchEvents);
-          if (events.length === 0)
-            events = queue.shiftTransient(this.#options.limits.maxBatchEvents);
+          shifted = queue.shiftLive(this.#options.limits.maxBatchEvents);
         }
       }
     } finally {

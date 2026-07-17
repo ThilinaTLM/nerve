@@ -9,6 +9,12 @@
 5. The client completes required replay or snapshot recovery, then sends `ready` with installed cursors.
 6. Normal RPC and event delivery begins.
 
+## Capability-negotiated stream subscriptions
+
+A duplex host may negotiate `stream.subscription.v1`. After `ready`, the client sends `stream.subscription.set` with a session ID, correlation subscription ID, and the exact desired `StreamCursor[]`. The server validates and authorizes the complete set before changing it, then returns `stream.subscription.updated`. Rejection leaves the old set active. An accepted update removes old streams atomically, installs new cursor state, and starts required replay before releasing buffered live events.
+
+Hosts without this capability retain their fixed handshake stream set and must not advertise it. Dynamic subscriptions are application-protocol behavior; WebSocket is only the current duplex transport.
+
 `ProtocolClientSession` and `ProtocolServerSession` implement this state machine. `ProtocolClientConnection` owns reconnect transport behavior; host composition supplies auth, message factories, replay/snapshot ports, and durable cursor persistence.
 
 ## Heartbeat and close

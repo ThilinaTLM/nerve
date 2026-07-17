@@ -85,8 +85,25 @@ function createTestState(record: ManagedSandboxRecord): TestState {
         eventsByStore.set(event.sandboxId, bucket);
         return true;
       },
+      appendDurableBatch: async (events: StoredSandboxEvent[]) => {
+        for (const event of events) {
+          const bucket = eventsByStore.get(event.sandboxId) ?? [];
+          bucket.push(event);
+          eventsByStore.set(event.sandboxId, bucket);
+        }
+      },
+      findDurableConflicts: async () => [],
+      streamState: async (storeId: string) => {
+        const events = eventsByStore.get(storeId) ?? [];
+        const sequences = events.flatMap((event) => event.seq ?? []);
+        return {
+          latestSeq: Math.max(0, ...sequences),
+          durableSeq: Math.max(0, ...sequences),
+        };
+      },
     },
     eventBus: { publish: () => undefined },
+    eventJournal: { publish: async () => undefined },
     activity: undefined,
     config: { reconnectTimeoutMs: 360_000 },
     logger,

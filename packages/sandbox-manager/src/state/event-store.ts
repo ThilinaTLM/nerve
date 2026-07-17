@@ -13,6 +13,16 @@ export type StoredSandboxEvent = {
   durability?: "durable" | "transient";
   payload: unknown;
 };
+type StoredEventRow = {
+  sandbox_id: string | null;
+  event_id: string | null;
+  seq: string | number | null;
+  type: string | null;
+  ts: Date | string | null;
+  durability: "durable" | "transient" | null;
+  payload: unknown;
+};
+
 export type SandboxEventStreamState = {
   latestSeq: number;
   durableSeq: number;
@@ -20,8 +30,26 @@ export type SandboxEventStreamState = {
   firstDurableSeq?: number;
 };
 
+export type DurableEventRange = {
+  events: StoredSandboxEvent[];
+  previousDurableSeq: number;
+  complete: boolean;
+  nextSeq: number;
+};
+
 export interface SandboxEventStore {
   append(event: StoredSandboxEvent): Promise<boolean>;
+  appendDurableBatch(events: readonly StoredSandboxEvent[]): Promise<void>;
+  findDurableConflicts(
+    sandboxId: string,
+    candidates: readonly Pick<StoredSandboxEvent, "id" | "seq">[],
+  ): Promise<StoredSandboxEvent[]>;
+  readDurableRange(
+    sandboxId: string,
+    fromSeq: number,
+    toSeq: number | undefined,
+    limit: number,
+  ): Promise<DurableEventRange>;
   list(sandboxId: string): Promise<StoredSandboxEvent[]>;
   /**
    * Aggregate stream cursors without materializing the event history. Used on
@@ -52,6 +80,106 @@ export class PostgresEventStore implements SandboxEventStore {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async appendDurableBatch(
+    events: readonly StoredSandboxEvent[],
+  ): Promise<void> {
+    if (events.length === 0) return;
+    await this.pool.query(
+      `insert into ${dbTables.sandboxEvents}
+        (sandbox_id, event_id, seq, type, ts, durability, payload)
+       select sandbox_id, event_id, seq, type, ts, durability, payload
+       from jsonb_to_recordset($1::jsonb) as record(
+         sandbox_id text,
+         event_id text,
+         seq bigint,
+         type text,
+         ts timestamptz,
+         durability text,
+         payload jsonb
+       )`,
+      [
+        JSON.stringify(
+          events.map((event) => ({
+            sandbox_id: event.sandboxId,
+            event_id: event.id ?? null,
+            seq: event.seq ?? null,
+            type: event.type,
+            ts: event.ts ?? null,
+            durability: event.durability ?? "durable",
+            payload: event.payload,
+          })),
+        ),
+      ],
+    );
+  }
+
+  async findDurableConflicts(
+    sandboxId: string,
+    candidates: readonly Pick<StoredSandboxEvent, "id" | "seq">[],
+  ): Promise<StoredSandboxEvent[]> {
+    if (candidates.length === 0) return [];
+    const ids = candidates
+      .map((candidate) => candidate.id)
+      .filter((id): id is string => id !== undefined);
+    const sequences = candidates
+      .map((candidate) => candidate.seq)
+      .filter((seq): seq is number => seq !== undefined);
+    const result = await this.pool.query<StoredEventRow>(
+      `select sandbox_id, event_id, seq, type, ts, durability, payload
+       from ${dbTables.sandboxEvents}
+       where sandbox_id = $1
+         and durability <> 'transient'
+         and (event_id = any($2::text[]) or seq = any($3::bigint[]))
+       order by seq`,
+      [sandboxId, ids, sequences],
+    );
+    return result.rows.map(storedEventFromRow);
+  }
+
+  async readDurableRange(
+    sandboxId: string,
+    fromSeq: number,
+    toSeq: number | undefined,
+    limit: number,
+  ): Promise<DurableEventRange> {
+    const result = await this.pool.query<
+      StoredEventRow & { previous_durable_seq: string | number | null }
+    >(
+      `with previous as (
+         select max(seq) as previous_durable_seq
+         from ${dbTables.sandboxEvents}
+         where sandbox_id = $1 and durability <> 'transient' and seq < $2
+       ), page as (
+         select sandbox_id, event_id, seq, type, ts, durability, payload
+         from ${dbTables.sandboxEvents}
+         where sandbox_id = $1
+           and durability <> 'transient'
+           and seq >= $2
+           and ($3::bigint is null or seq <= $3)
+         order by seq
+         limit $4
+       )
+       select page.*, previous.previous_durable_seq
+       from previous left join page on true
+       order by page.seq`,
+      [sandboxId, fromSeq, toSeq ?? null, limit + 1],
+    );
+    const previousDurableSeq = Number(
+      result.rows[0]?.previous_durable_seq ?? 0,
+    );
+    const availableRows = result.rows.filter(
+      (row) => row.sandbox_id !== null && row.seq !== null,
+    );
+    const complete = availableRows.length <= limit;
+    const events = availableRows.slice(0, limit).map(storedEventFromRow);
+    return {
+      events,
+      previousDurableSeq,
+      complete,
+      nextSeq: (events.at(-1)?.seq ?? fromSeq - 1) + 1,
+    };
+  }
+
   async streamState(sandboxId: string): Promise<SandboxEventStreamState> {
     const result = await this.pool.query<{
       latest_seq: string | number | null;
@@ -78,35 +206,14 @@ export class PostgresEventStore implements SandboxEventStore {
   }
 
   async list(sandboxId: string): Promise<StoredSandboxEvent[]> {
-    const result = await this.pool.query<{
-      sandbox_id: string;
-      event_id: string | null;
-      seq: string | number | null;
-      type: string;
-      ts: Date | string | null;
-      durability: "durable" | "transient";
-      payload: unknown;
-    }>(
+    const result = await this.pool.query<StoredEventRow>(
       `select sandbox_id, event_id, seq, type, ts, durability, payload
        from ${dbTables.sandboxEvents}
        where sandbox_id = $1
        order by coalesce(seq, 0), id`,
       [sandboxId],
     );
-    return result.rows.map((row) => ({
-      sandboxId: row.sandbox_id,
-      id: row.event_id ?? undefined,
-      seq: row.seq === null ? undefined : Number(row.seq),
-      type: row.type,
-      ts:
-        row.ts instanceof Date
-          ? row.ts.toISOString()
-          : row.ts === null
-            ? undefined
-            : row.ts,
-      durability: row.durability,
-      payload: row.payload,
-    }));
+    return result.rows.map(storedEventFromRow);
   }
 }
 
@@ -134,6 +241,79 @@ export class EventStore {
       return true;
     });
   }
+  async appendDurableBatch(
+    events: readonly StoredSandboxEvent[],
+  ): Promise<void> {
+    if (events.length === 0) return;
+    const sandboxId = events[0]?.sandboxId as string;
+    if (events.some((event) => event.sandboxId !== sandboxId))
+      throw new Error("Durable batch must target one sandbox stream");
+    await mkdir(this.rootDir, { recursive: true });
+    await this.withSandboxQueue(sandboxId, async () => {
+      const existing = await this.list(sandboxId);
+      for (const event of events) {
+        if (
+          existing.some(
+            (item) =>
+              (event.id && item.id === event.id) ||
+              (event.seq !== undefined && item.seq === event.seq),
+          )
+        )
+          throw new Error("Sandbox durable event conflict");
+        existing.push(event);
+      }
+      await writeJson(path.join(this.rootDir, `${sandboxId}.json`), existing);
+    });
+  }
+
+  async findDurableConflicts(
+    sandboxId: string,
+    candidates: readonly Pick<StoredSandboxEvent, "id" | "seq">[],
+  ): Promise<StoredSandboxEvent[]> {
+    const ids = new Set(candidates.flatMap((candidate) => candidate.id ?? []));
+    const sequences = new Set(
+      candidates.flatMap((candidate) => candidate.seq ?? []),
+    );
+    return (await this.list(sandboxId)).filter(
+      (event) =>
+        event.durability !== "transient" &&
+        ((event.id !== undefined && ids.has(event.id)) ||
+          (event.seq !== undefined && sequences.has(event.seq))),
+    );
+  }
+
+  async readDurableRange(
+    sandboxId: string,
+    fromSeq: number,
+    toSeq: number | undefined,
+    limit: number,
+  ): Promise<DurableEventRange> {
+    const durable = (await this.list(sandboxId))
+      .filter(
+        (event) =>
+          event.durability !== "transient" &&
+          (event.seq ?? 0) >= fromSeq &&
+          (toSeq === undefined || (event.seq ?? 0) <= toSeq),
+      )
+      .sort((left, right) => (left.seq ?? 0) - (right.seq ?? 0));
+    const events = durable.slice(0, limit);
+    const previousDurableSeq = Math.max(
+      0,
+      ...(await this.list(sandboxId))
+        .filter(
+          (event) =>
+            event.durability !== "transient" && (event.seq ?? 0) < fromSeq,
+        )
+        .map((event) => event.seq ?? 0),
+    );
+    return {
+      events,
+      previousDurableSeq,
+      complete: events.length === durable.length,
+      nextSeq: (events.at(-1)?.seq ?? fromSeq - 1) + 1,
+    };
+  }
+
   async list(sandboxId: string): Promise<StoredSandboxEvent[]> {
     try {
       const raw = await readFile(
@@ -169,6 +349,25 @@ export class EventStore {
 }
 async function writeJson(file: string, value: unknown): Promise<void> {
   await atomicWriteFile(file, `${JSON.stringify(value, null, 2)}\n`, 0o600);
+}
+
+function storedEventFromRow(row: StoredEventRow): StoredSandboxEvent {
+  if (!row.sandbox_id || !row.type || !row.durability)
+    throw new Error("Event store returned an incomplete row");
+  return {
+    sandboxId: row.sandbox_id,
+    id: row.event_id ?? undefined,
+    seq: row.seq === null ? undefined : Number(row.seq),
+    type: row.type,
+    ts:
+      row.ts instanceof Date
+        ? row.ts.toISOString()
+        : row.ts === null
+          ? undefined
+          : row.ts,
+    durability: row.durability,
+    payload: row.payload,
+  };
 }
 
 /** Derive stream cursors from an in-memory event list (file-backed stores). */

@@ -3,6 +3,7 @@ import {
   allOperationDefinitions,
   type EventEnvelope,
   type ProtocolV1Message,
+  type StreamCursor,
   type StreamState,
 } from "@nervekit/contracts";
 import {
@@ -15,10 +16,12 @@ import {
 } from "@nervekit/protocol";
 import type { WebSocket } from "ws";
 import type { ManagerState } from "../app/manager-state.js";
+import type { ManagerEvent } from "../events/manager-event-bus.js";
 import {
   MANAGER_EVENT_STORE_ID,
   MANAGER_EVENT_STREAM,
 } from "../events/manager-events.js";
+import type { StoredSandboxEvent } from "../state/event-store.js";
 import { managerWebSocketRpcDispatcher } from "./manager-protocol-http-dispatcher.js";
 import type { SandboxWsServer } from "./sandbox-ws-server.js";
 
@@ -37,6 +40,7 @@ const CAPABILITIES = [
   "event.replay",
   "event.ack.processed",
   "flow.backpressure",
+  "stream.subscription.v1",
   "sandbox.manager.ui.v1",
   "sandbox.manager.snapshots.v1",
   "operation.sandbox.manager.recovery.get",
@@ -52,48 +56,20 @@ const LIMITS = {
 };
 
 /**
- * Load the fleet stream state needed to accept a manager UI protocol client
- * and return a function that attaches the session to a WebSocket.
- *
- * The attach step is fully synchronous by design: a protocol client sends
- * hello immediately after the socket opens, so every storage read must finish
- * before the upgrade completes. Performing async work between the upgrade and
- * handler attachment drops that first frame and deadlocks the handshake (the
- * UI then idles in "connecting" and never receives live lifecycle or boot
- * events).
+ * Return a synchronous WebSocket attachment callback. Stream state is loaded
+ * lazily from resume/subscription ports after protocol listeners are attached.
  */
-export async function prepareManagerUiSharedSession(
+export function prepareManagerUiSharedSession(
   state: ManagerState,
   server: SandboxWsServer,
-): Promise<(ws: WebSocket) => void> {
-  const streamStates = new Map<string, StreamState>();
-  const activeStreams = new Set<string>([MANAGER_EVENT_STREAM]);
-  const records = await state.sandboxes.list();
-  const streams = [
-    [MANAGER_EVENT_STREAM, MANAGER_EVENT_STORE_ID] as const,
-    ...records.map(
-      (record) => [`sandbox:${record.sandboxId}`, record.sandboxId] as const,
-    ),
-  ];
-  for (const [stream, storeId] of streams)
-    streamStates.set(stream, await loadStreamState(state, stream, storeId));
-
-  return (ws) =>
-    attachManagerUiSharedSession(
-      ws,
-      state,
-      server,
-      streamStates,
-      activeStreams,
-    );
+): (ws: WebSocket) => void {
+  return (ws) => attachManagerUiSharedSession(ws, state, server);
 }
 
 function attachManagerUiSharedSession(
   ws: WebSocket,
   state: ManagerState,
   server: SandboxWsServer,
-  streamStates: Map<string, StreamState>,
-  activeStreams: Set<string>,
 ): void {
   const peer = {
     role: "sandbox_manager" as const,
@@ -105,10 +81,66 @@ function attachManagerUiSharedSession(
     target: { role: "ui" },
   });
   const transport = websocketTransport(ws as unknown as WebSocketLike);
+  const streamStates = new Map<string, StreamState>();
+  const activeStreams = new Set<string>([MANAGER_EVENT_STREAM]);
+  const observedHighWater = new Map<
+    string,
+    { latestSeq: number; durableSeq: number }
+  >();
+  const pendingSubscriptionStreams = new Set<string>();
+  const pendingSubscriptionEvents = new Map<string, ManagerEvent[]>();
   let disposed = false;
+  let closing = false;
   let unsubscribe: () => void = () => undefined;
+  const binding: { connection?: ProtocolConnection } = {};
+
+  const resolve = async (
+    cursors: readonly StreamCursor[],
+  ): Promise<
+    | { accepted: true; states: StreamState[]; mode: "live" | "replay" }
+    | { accepted: false; reason: string }
+  > => {
+    const policy = await validateRequestedStreams(state, cursors);
+    if (!policy.accepted) return policy;
+    const states = await Promise.all(
+      cursors.map((cursor) =>
+        loadStreamState(state, cursor.stream, observedHighWater),
+      ),
+    );
+    for (const stateValue of states)
+      streamStates.set(stateValue.stream, stateValue);
+    for (const cursor of cursors) {
+      const current = streamStates.get(cursor.stream) as StreamState;
+      const durableSeq = current.durableSeq ?? current.latestSeq;
+      if (cursor.processedSeq > durableSeq)
+        return {
+          accepted: false,
+          reason: `Cursor ahead of ${cursor.stream}`,
+        };
+      if (
+        cursor.processedSeq > 0 &&
+        cursor.processedSeq < (current.replayAvailableFromSeq ?? 0)
+      )
+        return {
+          accepted: false,
+          reason: `Cursor expired for ${cursor.stream}`,
+        };
+    }
+    return {
+      accepted: true,
+      states,
+      mode: cursors.some(
+        (cursor) =>
+          cursor.processedSeq <
+          (streamStates.get(cursor.stream)?.durableSeq ?? 0),
+      )
+        ? "replay"
+        : "live",
+    };
+  };
+
   const replaySource = managerReplaySource(state, streamStates, activeStreams);
-  const session: ProtocolServerSession = new ProtocolServerSession({
+  const session = new ProtocolServerSession({
     acceptingPeer: peer,
     allowedPeerRoles: ["ui"],
     createMessage: messages,
@@ -125,7 +157,9 @@ function attachManagerUiSharedSession(
     },
     sessionId: () => `ses_${randomUUID()}`,
     send: async (message): Promise<void> => {
-      await connection.send(message as ProtocolV1Message);
+      if (!binding.connection)
+        throw new Error("Manager UI protocol connection is not attached");
+      await binding.connection.send(message as ProtocolV1Message);
     },
     authorizeTarget: async (message, context) => {
       const target = message.target;
@@ -149,74 +183,133 @@ function attachManagerUiSharedSession(
       managerWebSocketRpcDispatcher(state, server, capabilities),
     replaySource,
     resume: async (hello) => {
-      const requested = hello.resume?.streams ?? [];
-      const names = requested.map((cursor) => cursor.stream);
-      if (new Set(names).size !== names.length)
-        return { accepted: false, mode: "snapshot_required" as const };
-      const sandboxStreams = names.filter((stream) =>
-        stream.startsWith("sandbox:"),
-      );
-      if (
-        names.some(
-          (stream) =>
-            stream !== MANAGER_EVENT_STREAM && !stream.startsWith("sandbox:"),
-        ) ||
-        sandboxStreams.length > 1 ||
-        names.some((stream) => !streamStates.has(stream))
-      )
-        return { accepted: false, mode: "snapshot_required" as const };
-      activeStreams.clear();
-      activeStreams.add(MANAGER_EVENT_STREAM);
-      for (const stream of sandboxStreams) activeStreams.add(stream);
-      let needsReplay = false;
-      for (const cursor of requested) {
-        const current = streamStates.get(cursor.stream);
-        if (!current || cursor.processedSeq > (current.durableSeq ?? 0))
-          return { accepted: false, mode: "snapshot_required" as const };
-        if (
-          cursor.processedSeq > 0 &&
-          cursor.processedSeq < (current.replayAvailableFromSeq ?? 0)
-        )
-          return { accepted: false, mode: "snapshot_required" as const };
-        if (cursor.processedSeq < (current.durableSeq ?? 0)) needsReplay = true;
+      const requested = hello.resume?.streams?.length
+        ? hello.resume.streams
+        : [{ stream: MANAGER_EVENT_STREAM, processedSeq: 0 }];
+      const resolved = await resolve(requested);
+      if (!resolved.accepted) {
+        const manager = await loadStreamState(
+          state,
+          MANAGER_EVENT_STREAM,
+          observedHighWater,
+        );
+        streamStates.set(MANAGER_EVENT_STREAM, manager);
+        activeStreams.clear();
+        activeStreams.add(MANAGER_EVENT_STREAM);
+        return {
+          accepted: false,
+          mode: "snapshot_required" as const,
+          reason: resolved.reason,
+        };
       }
+      activeStreams.clear();
+      for (const stream of resolved.states) activeStreams.add(stream.stream);
       return {
         accepted: true,
-        mode: needsReplay ? ("replay" as const) : ("live" as const),
+        mode: resolved.mode,
       };
     },
+    subscriptions: {
+      resolve: async (cursors) => {
+        pendingSubscriptionStreams.clear();
+        pendingSubscriptionEvents.clear();
+        for (const cursor of cursors) {
+          if (!activeStreams.has(cursor.stream))
+            pendingSubscriptionStreams.add(cursor.stream);
+        }
+        try {
+          const resolved = await resolve(cursors);
+          if (!resolved.accepted) {
+            pendingSubscriptionStreams.clear();
+            pendingSubscriptionEvents.clear();
+          }
+          return resolved.accepted
+            ? { accepted: true, streams: resolved.states }
+            : { accepted: false, streams: [], reason: resolved.reason };
+        } catch (error) {
+          pendingSubscriptionStreams.clear();
+          pendingSubscriptionEvents.clear();
+          throw error;
+        }
+      },
+      activate: async (_cursors, states) => {
+        activeStreams.clear();
+        for (const stream of states) activeStreams.add(stream.stream);
+        pendingSubscriptionStreams.clear();
+        const durableBoundary = new Map(
+          states.map((stream) => [
+            stream.stream,
+            stream.durableSeq ?? stream.latestSeq,
+          ]),
+        );
+        const buffered = [...pendingSubscriptionEvents.values()]
+          .flat()
+          .filter(
+            (event) => event.seq > (durableBoundary.get(event.stream) ?? 0),
+          )
+          .sort((left, right) => left.seq - right.seq);
+        pendingSubscriptionEvents.clear();
+        for (const event of buffered)
+          await session.publish(event.stream, toEnvelope(event));
+        state.logger.debug("Manager UI subscription updated", {
+          streams: states.map((stream) => stream.stream),
+          bufferedEvents: buffered.length,
+        });
+      },
+    },
   });
+
   const dispose = () => {
     if (disposed) return;
     disposed = true;
     unsubscribe();
     session.dispose();
-    connection.dispose();
+    binding.connection?.dispose();
   };
-  const protocolFailure = async () => {
+  const closeForFailure = async (
+    code: number,
+    reason: string,
+    error?: unknown,
+  ) => {
+    if (closing || disposed) return;
+    closing = true;
+    state.logger.warn("Manager UI protocol transport closing", {
+      reason,
+      error: error === undefined ? undefined : boundedError(error),
+    });
     try {
-      await session.shutdown("protocol_error", "Invalid protocol frame");
-      await transport.close(1002, "protocol_error");
+      await Promise.race([
+        session.shutdown("protocol_error", reason),
+        new Promise<void>((resolve) => setTimeout(resolve, 100)),
+      ]);
+    } catch {
+      // The transport is closed below even if the bounded goodbye fails.
+    }
+    try {
+      await transport.close(code, reason.slice(0, 123));
     } finally {
       dispose();
     }
   };
-  const connection: ProtocolConnection = new ProtocolConnection({
+  binding.connection = new ProtocolConnection({
     transport,
     onMessage: (message): Promise<void> => session.receive(message),
-    onProtocolError: () => void protocolFailure(),
-    onError: (error) => {
-      state.logger.warn("Manager UI protocol session failed", {
-        error: boundedError(error),
-      });
-      dispose();
-    },
+    onProtocolError: (error) => closeForFailure(1002, "protocol_error", error),
+    onError: (error) => closeForFailure(1011, "server_error", error),
   });
+
   unsubscribe = state.eventBus.subscribe((event) => {
-    const stream = event.stream ?? MANAGER_EVENT_STREAM;
-    const current = streamStates.get(stream);
-    if (current && typeof event.seq === "number") {
-      streamStates.set(stream, {
+    const observed = observedHighWater.get(event.stream) ?? {
+      latestSeq: 0,
+      durableSeq: 0,
+    };
+    observed.latestSeq = Math.max(observed.latestSeq, event.seq);
+    if (event.durability === "durable")
+      observed.durableSeq = Math.max(observed.durableSeq, event.seq);
+    observedHighWater.set(event.stream, observed);
+    const current = streamStates.get(event.stream);
+    if (current) {
+      streamStates.set(event.stream, {
         ...current,
         latestSeq: Math.max(current.latestSeq, event.seq),
         durableSeq:
@@ -225,17 +318,25 @@ function attachManagerUiSharedSession(
             : Math.max(current.durableSeq ?? 0, event.seq),
       });
     }
-    if (!activeStreams.has(stream)) return;
-    const envelope = toEnvelope(event);
-    void session.publish(stream, envelope).catch((error: unknown) => {
-      state.logger.warn("Manager UI event publication failed", {
-        error: boundedError(error),
-      });
-      dispose();
-    });
+    if (!activeStreams.has(event.stream)) {
+      if (pendingSubscriptionStreams.has(event.stream)) {
+        const pending = pendingSubscriptionEvents.get(event.stream) ?? [];
+        pending.push(event);
+        pendingSubscriptionEvents.set(event.stream, pending);
+      }
+      return;
+    }
+    void session
+      .publish(event.stream, toEnvelope(event))
+      .catch((error: unknown) =>
+        closeForFailure(1011, "publication_failed", error),
+      );
   });
   ws.once("close", dispose);
-  ws.once("error", dispose);
+  ws.once(
+    "error",
+    (error) => void closeForFailure(1011, "socket_error", error),
+  );
 }
 
 function managerReplaySource(
@@ -244,7 +345,11 @@ function managerReplaySource(
   activeStreams: ReadonlySet<string>,
 ): ReplaySource {
   return {
-    streams: () => [...streamStates.values()],
+    streams: () =>
+      [...activeStreams].flatMap((stream) => {
+        const current = streamStates.get(stream);
+        return current ? [current] : [];
+      }),
     async read(request) {
       const storeId = storeIdForStream(request.stream);
       const current = activeStreams.has(request.stream)
@@ -256,11 +361,12 @@ function managerReplaySource(
           reason: "stream_not_found" as const,
           latestSeq: 0,
         };
-      if (request.fromSeq > (current.durableSeq ?? 0) + 1)
+      const durableSeq = current.durableSeq ?? 0;
+      if (request.fromSeq > durableSeq + 1)
         return {
           available: false,
           reason: "cursor_ahead_of_server" as const,
-          latestSeq: current.durableSeq ?? 0,
+          latestSeq: durableSeq,
           recovery: { action: "load_snapshot" as const },
         };
       if (
@@ -271,46 +377,72 @@ function managerReplaySource(
           available: false,
           reason: "cursor_too_old" as const,
           earliestAvailableSeq: current.replayAvailableFromSeq,
-          latestSeq: current.durableSeq ?? 0,
+          latestSeq: durableSeq,
           recovery: { action: "load_snapshot" as const },
         };
-      const durable = (await state.events.list(storeId)).filter(
-        (event) => event.durability !== "transient",
+      const range = await state.events.readDurableRange(
+        storeId,
+        request.fromSeq,
+        request.toSeq,
+        request.limit,
       );
-      const all = durable
-        .map(toStoredEnvelope)
-        .filter(
-          (event) =>
-            event.seq >= request.fromSeq &&
-            event.seq <= (request.toSeq ?? Number.MAX_SAFE_INTEGER),
-        );
-      const events = all.slice(0, request.limit);
       return {
         available: true,
-        events,
-        previousDurableSeq: Math.max(
-          0,
-          ...durable
-            .filter((event) => (event.seq ?? 0) < request.fromSeq)
-            .map((event) => event.seq ?? 0),
-        ),
-        complete: events.length === all.length,
-        nextSeq: (events.at(-1)?.seq ?? request.fromSeq - 1) + 1,
+        events: range.events.map(toStoredEnvelope),
+        previousDurableSeq: range.previousDurableSeq,
+        complete: range.complete,
+        nextSeq: range.nextSeq,
       };
     },
   };
 }
 
+async function validateRequestedStreams(
+  state: ManagerState,
+  cursors: readonly StreamCursor[],
+): Promise<{ accepted: true } | { accepted: false; reason: string }> {
+  const names = cursors.map((cursor) => cursor.stream);
+  if (new Set(names).size !== names.length)
+    return { accepted: false, reason: "Duplicate streams are not allowed" };
+  if (!names.includes(MANAGER_EVENT_STREAM))
+    return { accepted: false, reason: "The manager stream is required" };
+  const sandboxStreams = names.filter((stream) =>
+    stream.startsWith("sandbox:"),
+  );
+  if (
+    names.some(
+      (stream) =>
+        stream !== MANAGER_EVENT_STREAM && !stream.startsWith("sandbox:"),
+    )
+  )
+    return { accepted: false, reason: "Unknown stream" };
+  if (sandboxStreams.length > 1)
+    return {
+      accepted: false,
+      reason: "Only one sandbox stream may be selected",
+    };
+  const sandboxId = sandboxStreams[0]?.slice("sandbox:".length);
+  if (sandboxId && !(await state.sandboxes.get(sandboxId)))
+    return { accepted: false, reason: "Sandbox stream was not found" };
+  return { accepted: true };
+}
+
 async function loadStreamState(
   state: ManagerState,
   stream: string,
-  storeId: string,
+  observedHighWater: ReadonlyMap<
+    string,
+    { latestSeq: number; durableSeq: number }
+  >,
 ): Promise<StreamState> {
+  const storeId = storeIdForStream(stream);
+  if (!storeId) throw new Error(`Unknown manager UI stream: ${stream}`);
   const summary = await state.events.streamState(storeId);
+  const observed = observedHighWater.get(stream);
   return {
     stream,
-    latestSeq: summary.latestSeq,
-    durableSeq: summary.durableSeq,
+    latestSeq: Math.max(summary.latestSeq, observed?.latestSeq ?? 0),
+    durableSeq: Math.max(summary.durableSeq, observed?.durableSeq ?? 0),
     replayAvailableFromSeq:
       summary.firstDurableSeq !== undefined
         ? Math.max(0, summary.firstDurableSeq - 1)
@@ -326,33 +458,43 @@ function storeIdForStream(stream: string): string | undefined {
 }
 
 function toStoredEnvelope(
-  event: Awaited<ReturnType<ManagerState["events"]["list"]>>[number],
+  event: StoredSandboxEvent,
 ): EventEnvelope<Record<string, unknown>> {
+  if (
+    !event.id ||
+    event.seq === undefined ||
+    !event.ts ||
+    !event.durability ||
+    !isRecord(event.payload)
+  )
+    throw new Error("Stored protocol events require complete envelopes");
   return {
-    id: event.id ?? `evt_${event.sandboxId}_${event.seq ?? 0}`,
-    seq: event.seq ?? 0,
+    id: event.id,
+    seq: event.seq,
     type: event.type,
-    ts: event.ts ?? new Date(0).toISOString(),
-    durability: event.durability ?? "durable",
-    data: isRecord(event.payload) ? event.payload : { value: event.payload },
+    ts: event.ts,
+    durability: event.durability,
+    data: event.payload,
   };
 }
 
 function toEnvelope(
-  event: Parameters<ManagerState["eventBus"]["publish"]>[0],
+  event: ManagerEvent,
 ): EventEnvelope<Record<string, unknown>> {
   return {
-    id: event.id ?? `evt_${randomUUID()}`,
-    seq: event.seq ?? 0,
+    id: event.id,
+    seq: event.seq,
     type: event.type,
-    ts: event.ts ?? new Date().toISOString(),
-    durability: event.durability ?? "durable",
-    data: isRecord(event.payload) ? event.payload : { value: event.payload },
+    ts: event.ts,
+    durability: event.durability,
+    data: event.payload,
   };
 }
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
 function boundedError(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 512);
 }

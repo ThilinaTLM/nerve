@@ -129,17 +129,25 @@ async function managerRecoverySnapshot(
     runId?: string;
   },
 ): Promise<OperationResult<"sandbox.manager.recovery.get">> {
-  const managerEvents = await context.state.events.list(MANAGER_EVENT_STORE_ID);
+  const managerStream = await context.state.events.streamState(
+    MANAGER_EVENT_STORE_ID,
+  );
   const cursors = [
     {
       stream: "manager",
-      processedSeq: lastDurableSeq(managerEvents),
+      processedSeq: managerStream.durableSeq,
     },
   ];
   const sandboxes = await listManagedSandboxes(context.state);
   if (!params.sandboxId)
     return { stateEpoch: "protocol-v1", cursors, sandboxes };
+  const historyStartedAt = Date.now();
   const sandboxEvents = await context.state.events.list(params.sandboxId);
+  context.state.logger.debug("Manager recovery history loaded", {
+    sandboxId: params.sandboxId,
+    events: sandboxEvents.length,
+    durationMs: Date.now() - historyStartedAt,
+  });
   cursors.push({
     stream: `sandbox:${params.sandboxId}`,
     processedSeq: lastDurableSeq(sandboxEvents),

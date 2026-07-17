@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { SandboxConfigV1, SandboxOutboxRecord } from "@nervekit/contracts";
-import {
-  chunkOutboxRecords,
-  sandboxDaemonCapabilities,
-} from "../src/protocol/sandbox-protocol-client.js";
+import type { SandboxConfigV1 } from "@nervekit/contracts";
+import { sandboxDaemonCapabilities } from "../src/protocol/sandbox-protocol-client.js";
 
 test("sandbox capabilities advertise remotely handled operations", () => {
   const capabilities = sandboxDaemonCapabilities({
@@ -13,31 +10,4 @@ test("sandbox capabilities advertise remotely handled operations", () => {
 
   assert.ok(capabilities.includes("operation.sandbox.status.get"));
   assert.ok(capabilities.includes("operation.run.start"));
-});
-
-test("durable replay batches advance their predecessor", () => {
-  const records = Array.from(
-    { length: 205 },
-    (_, index) =>
-      ({
-        id: `evt_${index + 11}`,
-        seq: index + 11,
-        type: "run.started",
-        ts: "2026-01-01T00:00:00.000Z",
-        durability: "durable",
-        data: {},
-      }) as SandboxOutboxRecord,
-  );
-  const batches = chunkOutboxRecords(records, 10);
-  assert.deepEqual(
-    batches.map((batch) => [
-      batch.previousDurableSeq,
-      batch.records.at(-1)?.seq,
-    ]),
-    [
-      [10, 110],
-      [110, 210],
-      [210, 215],
-    ],
-  );
 });

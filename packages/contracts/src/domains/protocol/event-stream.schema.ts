@@ -28,16 +28,24 @@ export const eventBatchReasonSchema = z.enum([
 ]);
 export type EventBatchReason = z.infer<typeof eventBatchReasonSchema>;
 
-export const skippedNonDurableRangeSchema = z.object({
-  fromSeq: z.number().int().nonnegative().safe(),
-  toSeq: z.number().int().nonnegative().safe(),
-  reason: z.enum([
-    "transient_unavailable",
-    "transient_dropped",
-    "coalesced",
-    "not_required",
-  ]),
-});
+export const skippedNonDurableRangeSchema = z
+  .object({
+    fromSeq: z.number().int().positive().safe(),
+    toSeq: z.number().int().positive().safe(),
+    reason: z.enum([
+      "transient_unavailable",
+      "transient_dropped",
+      "coalesced",
+      "not_required",
+    ]),
+  })
+  .refine((range) => range.fromSeq <= range.toSeq, {
+    message: "skipped range fromSeq must not exceed toSeq",
+    path: ["toSeq"],
+  });
+export type SkippedNonDurableRange = z.infer<
+  typeof skippedNonDurableRangeSchema
+>;
 
 export const eventBatchRangeSchema = z.object({
   firstSeq: z.number().int().nonnegative().safe().nullable(),

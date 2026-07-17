@@ -1,6 +1,6 @@
 # Sandbox manager web UI
 
-`@nervekit/sandbox-manager-app` is a same-origin single-page Svelte app served from the manager's built `dist/web`. It uses `ProtocolClientSession` to consume `manager` and the selected `sandbox:<id>` stream, persists epoch-versioned cursors, and recovers cursor-bearing snapshots before replay.
+`@nervekit/sandbox-manager-app` is a same-origin single-page Svelte app served from the manager's built `dist/web`. It keeps one persistent `ProtocolClientSession`, always subscribes to `manager`, and uses capability-negotiated exact-set subscriptions for at most one selected `sandbox:<id>`. Selection installs the sandbox recovery snapshot and cursor before subscribing; replay catches up durable changes while live events buffer. Dashboard/settings replace the set with `manager` only without reconnecting. Epoch-versioned durable cursors remain persisted independently for inactive sandboxes.
 
 The app covers lifecycle/dashboard, create/start/stop/delete, setup/boot diagnostics, logs, configuration, credentials, conversations/interactions, runs/tools, files, Git/GitHub/PRs, tasks/logs, pinned commands, and settings.
 

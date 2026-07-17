@@ -75,6 +75,7 @@ export class SandboxWsServer {
       state.events,
       state.eventBus,
       state.activity,
+      state.logger,
     );
   }
 
@@ -95,10 +96,9 @@ export class SandboxWsServer {
       if (matchManagerUiWs(req.url ?? "")) {
         if (!this.authorizeManagerClient(this.state, req))
           return rejectUpgrade(socket, 401, "Unauthorized");
-        // Load fleet stream state before completing the upgrade. A protocol
-        // client sends hello immediately after open; awaiting storage after
-        // the upgrade would drop that first frame and deadlock the handshake.
-        const attach = await prepareManagerUiSharedSession(this.state, this);
+        // Attach protocol listeners synchronously at upgrade. Stream state is
+        // resolved lazily by resume/subscription callbacks after hello arrives.
+        const attach = prepareManagerUiSharedSession(this.state, this);
         this.wss.handleUpgrade(req, socket, head, attach);
         return;
       }

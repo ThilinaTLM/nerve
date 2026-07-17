@@ -10,6 +10,7 @@ import type {
   ProtocolV1Message,
   ReadyPeerStatus,
   StreamCursor,
+  StreamSubscriptionUpdatedData,
   WelcomeData,
 } from "@nervekit/contracts";
 import { ProcessedAckTracker } from "./ack-tracker.js";
@@ -68,7 +69,9 @@ export interface ClientSessionOptions {
     stream: string,
     event: EventEnvelope<Record<string, unknown>>,
   ) => void | Promise<void>;
-  readonly onFlowUpdate?: (message: ProtocolV1Message) => void | Promise<void>;
+  readonly onFlowUpdate?: (
+    message: ProtocolV1Message & { kind: "flow.update" },
+  ) => void | Promise<void>;
   readonly rpcDispatcher?: import("./rpc.js").RpcDispatcher;
   readonly onAck?: (
     message: ProtocolV1Message & { kind: "event.ack" },
@@ -109,6 +112,17 @@ export class ProtocolClientSession {
   #acceptingPeer?: PeerDescriptor;
   #localPeer?: PeerDescriptor;
   #addressedPeer?: PeerDescriptor;
+  #negotiatedCapabilities: string[] = [];
+  #activeSubscriptions?: Set<string>;
+  readonly #pendingSubscriptions = new Map<
+    string,
+    {
+      cursors: readonly StreamCursor[];
+      resolve: (data: StreamSubscriptionUpdatedData) => void;
+      reject: (error: Error) => void;
+      timeout: unknown;
+    }
+  >();
 
   constructor(options: ClientSessionOptions) {
     this.#options = options;
@@ -196,6 +210,11 @@ export class ProtocolClientSession {
       }
       this.sessionId = welcome.sessionId;
       this.#acceptingPeer = welcome.acceptingPeer;
+      this.#negotiatedCapabilities = [...welcome.capabilities];
+      if (welcome.capabilities.includes("stream.subscription.v1"))
+        this.#activeSubscriptions = new Set(
+          welcome.streams.map((stream) => stream.stream),
+        );
       await this.#options.awaitReady?.(welcome);
       await this.#options.send(
         this.#options.createMessage("ready", {
@@ -254,6 +273,26 @@ export class ProtocolClientSession {
               correlationId: message.id,
             }),
       );
+      return;
+    }
+    if (message.kind === "stream.subscription.updated") {
+      if (message.data.sessionId !== this.sessionId)
+        throw new SessionStateError("Subscription session id mismatch");
+      const pending = this.#pendingSubscriptions.get(
+        message.data.subscriptionId,
+      );
+      if (!pending)
+        throw new SessionStateError(
+          `Unexpected subscription response: ${message.data.subscriptionId}`,
+        );
+      this.#pendingSubscriptions.delete(message.data.subscriptionId);
+      this.#timers.clearTimeout(pending.timeout);
+      if (!message.data.accepted) {
+        pending.reject(new StreamSubscriptionError(message.data));
+        return;
+      }
+      this.resetStreams(pending.cursors);
+      pending.resolve(message.data);
       return;
     }
     if (message.kind === "event.ack") {
@@ -345,6 +384,58 @@ export class ProtocolClientSession {
     await this.#options.onMessage?.(message);
   }
 
+  async setSubscriptions(
+    cursors: readonly StreamCursor[],
+  ): Promise<StreamSubscriptionUpdatedData> {
+    if (this.state !== "ready" || !this.sessionId)
+      throw new SessionStateError(
+        "Stream subscriptions require a ready session",
+      );
+    if (!this.#negotiatedCapabilities.includes("stream.subscription.v1"))
+      throw new SessionStateError(
+        "Dynamic stream subscriptions were not negotiated",
+      );
+    const names = cursors.map((cursor) => cursor.stream);
+    if (new Set(names).size !== names.length)
+      throw new SessionStateError(
+        "Stream subscriptions must not contain duplicate streams",
+      );
+    const subscriptionId = this.#ids.create("sub");
+    const result = new Promise<StreamSubscriptionUpdatedData>(
+      (resolve, reject) => {
+        const timeout = this.#timers.setTimeout(() => {
+          this.#pendingSubscriptions.delete(subscriptionId);
+          reject(new Error("Stream subscription update timed out"));
+        }, this.#options.rpcTimeoutMs ?? 30_000);
+        this.#pendingSubscriptions.set(subscriptionId, {
+          cursors: [...cursors],
+          resolve,
+          reject,
+          timeout,
+        });
+      },
+    );
+    try {
+      await this.#options.send(
+        this.#options.createMessage("stream.subscription.set", {
+          sessionId: this.sessionId,
+          subscriptionId,
+          streams: [...cursors],
+        }),
+      );
+    } catch (error) {
+      const pending = this.#pendingSubscriptions.get(subscriptionId);
+      if (pending) {
+        this.#pendingSubscriptions.delete(subscriptionId);
+        this.#timers.clearTimeout(pending.timeout);
+        pending.reject(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    }
+    return result;
+  }
+
   async publishEventBatch(
     data: Extract<ProtocolV1Message, { kind: "event.batch" }>["data"],
   ): Promise<void> {
@@ -385,6 +476,10 @@ export class ProtocolClientSession {
       this.#streams.set(cursor.stream, state);
     }
     this.#acks.reset(cursors);
+    if (this.#activeSubscriptions)
+      this.#activeSubscriptions = new Set(
+        cursors.map((cursor) => cursor.stream),
+      );
     this.#replaying.clear();
     this.#liveDuringReplay.clear();
   }
@@ -399,6 +494,10 @@ export class ProtocolClientSession {
     message: ProtocolV1Message & { kind: "event.batch" },
   ): Promise<void> {
     const stream = message.data.stream;
+    if (this.#activeSubscriptions && !this.#activeSubscriptions.has(stream))
+      throw new SessionStateError(
+        `Received event for inactive subscription: ${stream}`,
+      );
     const state = this.#streams.get(stream) ?? createClientEventStreamState(0);
     this.#streams.set(stream, state);
     const events: EventEnvelope<Record<string, unknown>>[] = [];
@@ -445,8 +544,17 @@ export class ProtocolClientSession {
     if (this.state === "closed") return;
     this.#stopHeartbeat();
     this.#rpc.disconnect(error);
+    this.#rejectPendingSubscriptions(error);
     this.state = "closed";
     void this.#options.onDisconnect?.(error);
+  }
+
+  #rejectPendingSubscriptions(error: Error): void {
+    for (const pending of this.#pendingSubscriptions.values()) {
+      this.#timers.clearTimeout(pending.timeout);
+      pending.reject(error);
+    }
+    this.#pendingSubscriptions.clear();
   }
 
   async #recoverSnapshot(
@@ -535,6 +643,7 @@ export class ProtocolClientSession {
       }),
     );
     this.#rpc.close();
+    this.#rejectPendingSubscriptions(new Error("Protocol session closed"));
     this.state = "closed";
   }
 }
@@ -559,6 +668,16 @@ function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {
     left.instanceId === right.instanceId &&
     left.name === right.name
   );
+}
+
+export class StreamSubscriptionError extends Error {
+  readonly response: StreamSubscriptionUpdatedData;
+
+  constructor(response: StreamSubscriptionUpdatedData) {
+    super(response.reason ?? `Stream subscription ${response.mode}`);
+    this.name = "StreamSubscriptionError";
+    this.response = response;
+  }
 }
 
 export class SessionStateError extends Error {

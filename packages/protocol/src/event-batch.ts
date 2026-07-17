@@ -2,6 +2,7 @@ import {
   type EventBatchData,
   type EventBatchReason,
   type EventEnvelope,
+  type SkippedNonDurableRange,
   eventBatchDataSchema,
 } from "@nervekit/contracts";
 
@@ -9,6 +10,7 @@ export interface BuildEventBatchOptions {
   stream: string;
   reason: EventBatchReason;
   previousDurableSeq?: number;
+  skippedNonDurableRanges?: readonly SkippedNonDurableRange[];
   replay?: EventBatchData["replay"];
 }
 
@@ -24,6 +26,9 @@ export function buildEventBatch(
     lastSeq: sorted.at(-1)?.seq ?? null,
     durableCount: durable.length,
     transientCount: transient.length,
+    skippedNonDurableRanges: options.skippedNonDurableRanges?.length
+      ? [...options.skippedNonDurableRanges]
+      : undefined,
   };
 
   if (durable.length > 0) {

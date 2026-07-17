@@ -341,7 +341,27 @@ function context(
       },
       activity: { get: () => undefined },
       sessions: { get: async () => undefined },
-      events: { list: async () => options.events ?? [] },
+      events: {
+        list: async () => options.events ?? [],
+        streamState: async () => ({
+          latestSeq: Math.max(
+            0,
+            ...(options.events ?? []).map((event) =>
+              Number((event as { seq?: number }).seq ?? 0),
+            ),
+          ),
+          durableSeq: Math.max(
+            0,
+            ...(options.events ?? [])
+              .filter(
+                (event) =>
+                  (event as { durability?: string }).durability !== "transient",
+              )
+              .map((event) => Number((event as { seq?: number }).seq ?? 0)),
+          ),
+        }),
+      },
+      logger: { debug: () => undefined },
       idempotency: {
         get: async (key: string) => idempotency.get(key),
         put: async (key: string, hash: string, value: unknown) => {

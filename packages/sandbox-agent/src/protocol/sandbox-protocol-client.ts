@@ -7,11 +7,9 @@ import {
   type ProtocolErrorData,
   type ProtocolRequestData,
   type SandboxConfigV1,
-  type SandboxOutboxRecord,
   type StructuredLogger,
 } from "@nervekit/contracts";
 import {
-  buildEventBatch,
   createMessageFactory,
   nodeWebSocketTransportFactory,
   ProtocolClientConnection,
@@ -28,6 +26,7 @@ import { SandboxOperationError } from "../daemon/errors.js";
 import type { SandboxDaemon } from "../daemon/sandbox-daemon.js";
 import type { SandboxRuntimeIdentity } from "../runtime/identity.js";
 import type { SandboxStateStores } from "../state/sandbox-state.js";
+import { SandboxEventRelay } from "./sandbox-event-relay.js";
 
 export type SandboxProtocolClientState =
   | "disconnected"
@@ -82,17 +81,14 @@ export class SandboxProtocolClient {
   private readyStatus?: "ready" | "degraded";
   private stopping = false;
   private welcomed = false;
-  private flushScheduled = false;
-  private flushChain: Promise<void> = Promise.resolve();
-  private unsubscribeOutbox?: () => void;
   private reconnectAttempts = 0;
   private outageGeneration = 0;
   private outageActive = false;
   private exitTimer?: NodeJS.Timeout;
-  private readonly transientQueue: SandboxOutboxRecord[] = [];
   private resumeCursors: Array<{ stream: string; processedSeq: number }> = [];
   private acceptedCapabilities: string[] = [];
   private readonly logger: StructuredLogger;
+  private readonly eventRelay: SandboxEventRelay;
   private readonly identity: SandboxRuntimeIdentity;
   private readonly rpcDispatcher: RpcDispatcher;
 
@@ -125,17 +121,16 @@ export class SandboxProtocolClient {
           ...this.identity,
         },
       });
+    this.eventRelay = new SandboxEventRelay(
+      stores.events,
+      `sandbox:${this.identity.sandboxId}`,
+      this.logger,
+    );
   }
 
   async start(): Promise<void> {
     this.resumeCursors = [...(await this.stores.events.ackState()).streams];
-    this.unsubscribeOutbox ??= this.stores.events.subscribe((record) => {
-      if (record.durability === "transient") {
-        if (this.transientQueue.length >= 256) this.transientQueue.shift();
-        this.transientQueue.push(record);
-      }
-      this.scheduleFlush();
-    });
+    this.eventRelay.start();
     const token = await new SecretResolver(
       this.config,
       undefined,
@@ -173,6 +168,7 @@ export class SandboxProtocolClient {
           failure: safeError(error),
         }),
       createSession: ({ send, onDisconnect }) => {
+        let relayGeneration = 0;
         const session = new ProtocolClientSession({
           createMessage: messages,
           capabilities: sandboxDaemonCapabilities(this.config),
@@ -190,8 +186,12 @@ export class SandboxProtocolClient {
             this.welcomed = true;
           },
           readyStatus: () => this.readyStatus ?? "booting",
-          onReady: async () => {
+          onReady: async (welcome) => {
             this.activeSession = session;
+            relayGeneration = await this.eventRelay.attach(
+              session,
+              welcome.limits,
+            );
             this.connectedAt = new Date().toISOString();
             this.state = "connected";
             this.reconnectAttempts = 0;
@@ -200,7 +200,6 @@ export class SandboxProtocolClient {
             if (this.exitTimer) clearTimeout(this.exitTimer);
             this.exitTimer = undefined;
             await this.persistConnectivity("connected");
-            await this.flushUnacked(true);
           },
           onAck: async (message) => {
             const expected = `sandbox:${this.identity.sandboxId}`;
@@ -208,13 +207,14 @@ export class SandboxProtocolClient {
               (item) => item.stream === expected,
             );
             if (cursor) {
-              await this.stores.events.ack(expected, cursor.processedSeq);
-              this.resumeCursors = [
-                { stream: expected, processedSeq: cursor.processedSeq },
-              ];
+              const processedSeq = await this.eventRelay.acknowledge(
+                message,
+                relayGeneration,
+              );
+              this.resumeCursors = [{ stream: expected, processedSeq }];
             }
-            this.scheduleFlush();
           },
+          onFlowUpdate: (message) => this.eventRelay.handleFlow(message),
         });
         this.activeSession = session;
         return session;
@@ -247,7 +247,6 @@ export class SandboxProtocolClient {
       readyAt: new Date().toISOString(),
       agentStatus: status,
     });
-    await this.flushUnacked(false);
   }
 
   async stop(): Promise<void> {
@@ -255,72 +254,12 @@ export class SandboxProtocolClient {
     ++this.outageGeneration;
     if (this.exitTimer) clearTimeout(this.exitTimer);
     this.exitTimer = undefined;
-    this.unsubscribeOutbox?.();
-    this.unsubscribeOutbox = undefined;
+    this.eventRelay.stop();
     await this.connection?.close();
     this.state = "closed";
     await this.persistConnectivity("shutting_down", {
       closeReason: "shutdown",
     });
-  }
-
-  private scheduleFlush(): void {
-    if (this.flushScheduled || this.state !== "connected") return;
-    this.flushScheduled = true;
-    setTimeout(() => {
-      this.flushScheduled = false;
-      void this.flushUnacked(false).catch((error) =>
-        this.logger.warn("failed to flush sandbox outbox", {
-          failure: safeError(error),
-        }),
-      );
-    }, 100).unref();
-  }
-
-  /**
-   * Serialize flushes: concurrent callers (ready announcement, outbox
-   * subscription, ack handler) must not interleave batches, otherwise the
-   * manager sees duplicate or out-of-order durable ranges and rejects the
-   * session.
-   */
-  private flushUnacked(replay: boolean): Promise<void> {
-    const next = this.flushChain
-      .catch(() => undefined)
-      .then(() => this.doFlushUnacked(replay));
-    this.flushChain = next.catch(() => undefined);
-    return next;
-  }
-
-  private async doFlushUnacked(replay: boolean): Promise<void> {
-    const session = this.activeSession;
-    if (!session || session.state !== "ready") return;
-    const stream = `sandbox:${this.identity.sandboxId}`;
-    const ack = await this.stores.events.ackState();
-    const processedSeq =
-      ack.streams.find((item) => item.stream === stream)?.processedSeq ?? 0;
-    const unacked = this.stores.events.unacked(processedSeq);
-    const durableBatches = chunkOutboxRecords(unacked, processedSeq);
-    for (const { records: batch, previousDurableSeq } of durableBatches) {
-      await session.publishEventBatch(
-        buildEventBatch(batch.map(toProtocolEvent), {
-          stream,
-          reason: replay ? "replay" : "live",
-          previousDurableSeq,
-        }),
-      );
-    }
-    const previousDurableSeq =
-      durableBatches.at(-1)?.records.at(-1)?.seq ?? processedSeq;
-    while (this.transientQueue.length > 0 && session.state === "ready") {
-      const batch = this.transientQueue.splice(0, 100);
-      await session.publishEventBatch(
-        buildEventBatch(batch.map(toProtocolEvent), {
-          stream,
-          reason: "live",
-          previousDurableSeq,
-        }),
-      );
-    }
   }
 
   private async onConnectionState(
@@ -335,7 +274,7 @@ export class SandboxProtocolClient {
     if (value !== "closed" && value !== "reconnecting") return;
     if (this.outageActive) return;
     this.outageActive = true;
-    this.transientQueue.length = 0;
+    this.eventRelay.disconnect();
     this.disconnectedAt = new Date().toISOString();
     this.state = "reconnecting";
     this.reconnectAttempts += 1;
@@ -379,27 +318,6 @@ export class SandboxProtocolClient {
   }
 }
 
-export function chunkOutboxRecords(
-  records: readonly SandboxOutboxRecord[],
-  initialPreviousDurableSeq: number,
-  size = 100,
-): Array<{
-  records: SandboxOutboxRecord[];
-  previousDurableSeq: number;
-}> {
-  const batches: Array<{
-    records: SandboxOutboxRecord[];
-    previousDurableSeq: number;
-  }> = [];
-  let previousDurableSeq = initialPreviousDurableSeq;
-  for (let index = 0; index < records.length; index += size) {
-    const batch = records.slice(index, index + size);
-    batches.push({ records: batch, previousDurableSeq });
-    previousDurableSeq = batch.at(-1)?.seq ?? previousDurableSeq;
-  }
-  return batches;
-}
-
 function sandboxOperationHandlers(
   daemon: SandboxDaemon,
 ): Partial<OperationHandlerRegistry> {
@@ -432,16 +350,6 @@ function operationError(error: unknown): ProtocolErrorData {
     code: domain ? "DOMAIN_VALIDATION_FAILED" : "INTERNAL_ERROR",
     message: safeError(error),
     retryable: false,
-  };
-}
-function toProtocolEvent(record: SandboxOutboxRecord) {
-  return {
-    id: record.id,
-    seq: record.seq,
-    type: record.type,
-    ts: record.ts,
-    durability: record.durability,
-    data: record.data,
   };
 }
 function safeError(error: unknown): string {

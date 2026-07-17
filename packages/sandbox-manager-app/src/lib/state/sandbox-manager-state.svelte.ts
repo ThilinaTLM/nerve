@@ -208,6 +208,9 @@ export class SandboxManagerStore {
       },
       onSnapshotRecovery: () =>
         this.recoverProtocolSnapshot(this.selectedSandboxId),
+      onFlowUpdate: (message) => {
+        this.connectionError = `${message.data.mode}: ${message.data.reason}`;
+      },
     });
   }
 
@@ -331,26 +334,20 @@ export class SandboxManagerStore {
   async selectSandbox(sandboxId: string | undefined): Promise<void> {
     const generation = ++this.selectionGeneration;
     this.selectedSandboxId = sandboxId;
-    this.ws.suspendSelection();
-    if (!sandboxId) {
-      const cursors = await this.recoverProtocolSnapshot(undefined);
-      if (generation === this.selectionGeneration)
-        this.ws.activateManager(cursors);
-      return;
-    }
-    this.detail(sandboxId);
-    await this.loadDetail(sandboxId);
+    if (sandboxId) this.detail(sandboxId);
+    const cursors = await this.recoverProtocolSnapshot(sandboxId);
     if (
       generation !== this.selectionGeneration ||
       this.selectedSandboxId !== sandboxId
     )
       return;
-    const cursors = await this.recoverProtocolSnapshot(sandboxId);
+    await this.ws.setSelection(sandboxId, cursors);
     if (
+      sandboxId &&
       generation === this.selectionGeneration &&
       this.selectedSandboxId === sandboxId
     )
-      this.ws.activateSelection(sandboxId, cursors);
+      void this.loadSelectionAncillaryDetail(sandboxId);
   }
 
   private async recoverProtocolSnapshot(
@@ -386,6 +383,25 @@ export class SandboxManagerStore {
     }
     return result.cursors;
   }
+  private async loadSelectionAncillaryDetail(sandboxId: string): Promise<void> {
+    const detail = this.detail(sandboxId);
+    detail.loading = true;
+    const [status, session] = await Promise.allSettled([
+      api.getSandboxStatus(sandboxId),
+      api.getLatestSession(sandboxId),
+      this.refreshSandboxPinnedCommands(sandboxId),
+      this.refreshSandboxTasks(sandboxId),
+    ]);
+    if (status.status === "fulfilled") {
+      detail.status = status.value;
+      detail.controllerConnected = status.value.connected;
+    }
+    detail.latestSession =
+      session.status === "fulfilled" ? session.value : undefined;
+    if (sandboxIsConnected(detail)) void this.flushQueuedPrompt(sandboxId);
+    detail.loading = false;
+  }
+
   async loadDetail(sandboxId: string): Promise<void> {
     const detail = this.detail(sandboxId);
     detail.loading = true;

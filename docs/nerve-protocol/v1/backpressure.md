@@ -4,8 +4,8 @@ Protocol limits are negotiated in `welcome`: maximum message bytes, batch events
 
 `flow.update` communicates queue scope, mode, reason, statistics, and requested action. Under pressure:
 
-- coalescible transient updates may replace older updates for the same key;
-- other transient updates may be dropped and reported;
+- coalescible transient updates may replace older updates for the same key without reordering retained events;
+- other transient updates may be dropped and reported through both `flow.update` counters and event-batch skipped non-durable ranges;
 - durable events are never silently dropped;
 - durable hard overflow, invalid ACK progress, or inability to preserve ordering terminates the session so reconnect/replay or snapshot recovery can restore correctness.
 

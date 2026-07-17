@@ -97,6 +97,8 @@ try {
     0,
     (request) => (forwarded = request),
     (seq) => (acknowledged = seq),
+    undefined,
+    origin,
   );
   await agent.start();
   await waitUntil(() => agent.state === "ready", 10_000, "manager-agent ready");
@@ -179,6 +181,7 @@ try {
       resumedFromExactCursor =
         welcome.resume.accepted && welcome.resume.mode === "live";
     },
+    origin,
   );
   await agent.start();
   await waitUntil(
@@ -197,7 +200,14 @@ try {
   await postgres.stop();
 }
 
-function createAgent(record, processedSeq, onRequest, onAck, onWelcome) {
+function createAgent(
+  record,
+  processedSeq,
+  onRequest,
+  onAck,
+  onWelcome,
+  managerOrigin,
+) {
   const capabilities = [
     "encoding.json",
     "event.batch",
@@ -229,9 +239,12 @@ function createAgent(record, processedSeq, onRequest, onAck, onWelcome) {
   return new ProtocolClientConnection({
     transport: nodeWebSocketTransportFactory(
       () =>
-        new WebSocket(record.controller.url, {
-          headers: { authorization: `Bearer ${record.controller.token}` },
-        }),
+        new WebSocket(
+          `${managerOrigin.replace(/^http/, "ws")}/api/sandboxes/${record.sandboxId}/ws`,
+          {
+            headers: { authorization: `Bearer ${record.controller.token}` },
+          },
+        ),
     ),
     reconnect: new ReconnectPolicy({ maximumAttempts: 0 }),
     onStateChange: (value) => console.log(`sandbox protocol state: ${value}`),

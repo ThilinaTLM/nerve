@@ -35,6 +35,26 @@ export interface SessionResumeDecision {
   readonly reason?: string;
 }
 
+export interface StreamSubscriptionDecision {
+  readonly accepted: boolean;
+  /** Resolved states for the requested exact stream set. */
+  readonly streams: readonly StreamState[];
+  readonly reason?: string;
+}
+
+/** Host authorization and lazy stream-state resolution for dynamic subscriptions. */
+export interface ServerStreamSubscriptionPort {
+  resolve(
+    cursors: readonly StreamCursor[],
+    peer: PeerDescriptor,
+  ): StreamSubscriptionDecision | Promise<StreamSubscriptionDecision>;
+  /** Called only after the protocol has atomically accepted the exact set. */
+  activate?(
+    cursors: readonly StreamCursor[],
+    states: readonly StreamState[],
+  ): void | Promise<void>;
+}
+
 export interface ServerSessionOptions {
   readonly acceptingPeer: PeerDescriptor;
   readonly allowedPeerRoles?: readonly PeerRole[];
@@ -87,6 +107,7 @@ export interface ServerSessionOptions {
     message: ProtocolV1Message & { kind: "event.ack" },
   ) => void | Promise<void>;
   readonly replaySource?: ReplaySource;
+  readonly subscriptions?: ServerStreamSubscriptionPort;
   readonly onReplayRequest?: (
     message: ProtocolV1Message & { kind: "replay.request" },
   ) => void | Promise<void>;

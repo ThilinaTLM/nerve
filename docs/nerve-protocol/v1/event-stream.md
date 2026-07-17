@@ -8,6 +8,8 @@ Implemented streams are:
 - `manager`, written by sandbox-manager lifecycle/state services;
 - one `sandbox:<id>` stream per sandbox, written by that sandbox daemon and ingested without sequence rewriting.
 
-There is exactly one sequence writer per stream. Consumers deduplicate by stream and sequence. Durable events are reducer/state transitions and are recoverable. Transient events, including `task.output`, are bounded live signals; durable task logs are stored by the task service and queried with `task.logs` or the host's large-log HTTP surface.
+There is exactly one sequence writer per stream, and it assigns a positive stream-local sequence to every durable and transient event. Transient sequences are not persisted, so after restart a writer may resume from its last durable sequence. Consumers deduplicate durable recovery by stream and sequence. Durable events are reducer/state transitions and are recoverable. Transient events, including `task.output`, are bounded live signals; durable task logs are stored by the task service and queried with `task.logs` or the host's large-log HTTP surface.
 
-A client applies each event in order. It advances the processed durable cursor only after the reducer and any required durable application complete. Reducer failure prevents ACK and triggers recovery rather than acknowledging lost state.
+Live queues retain ascending sequence order across mixed durability; a later durable event never jumps ahead of an already queued transient delta. Catalog-approved transient coalescing or dropping may create holes recorded in `skippedNonDurableRanges`, while durable predecessor continuity remains based only on durable events.
+
+A client applies each retained event in order. It advances the processed durable cursor only after the reducer and any required durable application complete. Reducer failure prevents ACK and triggers recovery rather than acknowledging lost state.

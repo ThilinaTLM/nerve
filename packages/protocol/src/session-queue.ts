@@ -1,4 +1,8 @@
-import { publicEventDefinition, type EventEnvelope } from "@nervekit/contracts";
+import {
+  publicEventDefinition,
+  type EventEnvelope,
+  type SkippedNonDurableRange,
+} from "@nervekit/contracts";
 
 export interface ProtocolSessionQueueStats {
   durableCount: number;
@@ -9,34 +13,40 @@ export interface ProtocolSessionQueueStats {
   latestQueuedDurableSeq: number;
 }
 
+export interface ShiftedLiveEvents {
+  events: EventEnvelope[];
+  skippedNonDurableRanges: SkippedNonDurableRange[];
+}
+
+/** A single sequence-ordered live queue for one protocol stream. */
 export class ProtocolSessionQueue {
-  readonly durable: EventEnvelope[] = [];
-  readonly transient: EventEnvelope[] = [];
+  readonly #live: EventEnvelope[] = [];
+  readonly #skipped: SkippedNonDurableRange[] = [];
   #queuedBytes = 0;
   #droppedTransientCount = 0;
   #coalescedTransientCount = 0;
   #latestQueuedDurableSeq = 0;
 
   enqueueLive(event: EventEnvelope): void {
-    if (event.durability === "durable") {
-      this.durable.push(event);
+    const previous = this.#live.at(-1);
+    if (previous && event.seq <= previous.seq)
+      throw new Error("Live stream events must be enqueued in ascending order");
+    this.#live.push(event);
+    if (event.durability === "durable")
       this.#latestQueuedDurableSeq = Math.max(
         this.#latestQueuedDurableSeq,
         event.seq,
       );
-    } else {
-      this.transient.push(event);
-    }
     this.#queuedBytes += estimatedBytes(event);
   }
 
   coalesceTransientOverflow(maxTransient: number): number {
-    if (this.transient.length <= maxTransient) return 0;
-    const originalLength = this.transient.length;
+    if (this.#transientCount() <= maxTransient) return 0;
     const output: EventEnvelope[] = [];
     const latestIndexByKey = new Map<string, number>();
+    const removed: number[] = [];
 
-    for (const event of this.transient) {
+    for (const event of this.#live) {
       const strategy = coalescingStrategy(event);
       if (!strategy) {
         output.push(event);
@@ -49,6 +59,7 @@ export class ProtocolSessionQueue {
           const merged = mergeDeltaEvents(previous, event);
           if (merged) {
             output[output.length - 1] = merged;
+            removed.push(previous.seq);
             continue;
           }
         }
@@ -61,62 +72,68 @@ export class ProtocolSessionQueue {
         latestIndexByKey.set(strategy.key, output.length);
         output.push(event);
       } else {
+        removed.push((output[existingIndex] as EventEnvelope).seq);
         output[existingIndex] = event;
       }
     }
 
-    const coalesced = originalLength - output.length;
-    if (coalesced <= 0) return 0;
-    this.transient.splice(0, this.transient.length, ...output);
-    this.#coalescedTransientCount += coalesced;
-    this.#queuedBytes = estimatedQueueBytes(this.durable, this.transient);
-    return coalesced;
+    if (removed.length === 0) return 0;
+    output.sort((left, right) => left.seq - right.seq);
+    this.#live.splice(0, this.#live.length, ...output);
+    this.#coalescedTransientCount += removed.length;
+    this.#recordSkipped(removed, "coalesced");
+    this.#queuedBytes = estimatedQueueBytes(this.#live);
+    return removed.length;
   }
 
-  dropTransientOverflow(maxTransient: number): void {
-    if (this.transient.length <= maxTransient) return;
-    const dropCount = this.transient.length - maxTransient;
-    this.transient.splice(0, dropCount);
-    this.#droppedTransientCount += dropCount;
-    this.#queuedBytes = estimatedQueueBytes(this.durable, this.transient);
+  dropTransientOverflow(maxTransient: number): number {
+    const dropCount = this.#transientCount() - maxTransient;
+    if (dropCount <= 0) return 0;
+    let remaining = dropCount;
+    const dropped: number[] = [];
+    const retained = this.#live.filter((event) => {
+      if (remaining > 0 && event.durability === "transient") {
+        remaining -= 1;
+        dropped.push(event.seq);
+        return false;
+      }
+      return true;
+    });
+    this.#live.splice(0, this.#live.length, ...retained);
+    this.#droppedTransientCount += dropped.length;
+    this.#recordSkipped(dropped, "transient_dropped");
+    this.#queuedBytes = estimatedQueueBytes(this.#live);
+    return dropped.length;
   }
 
-  dropTransientThrough(seq: number): number {
-    const retained = this.transient.filter((event) => event.seq > seq);
-    const dropped = this.transient.length - retained.length;
-    if (dropped === 0) return 0;
-    this.transient.splice(0, this.transient.length, ...retained);
-    this.#droppedTransientCount += dropped;
-    this.#queuedBytes = estimatedQueueBytes(this.durable, this.transient);
-    return dropped;
-  }
-
-  shiftDurable(maxEvents: number): EventEnvelope[] {
-    const events = this.durable.splice(0, maxEvents);
-    if (events.length > 0) {
-      this.#queuedBytes = Math.max(
-        0,
-        this.#queuedBytes - estimatedBytes(events),
-      );
-    }
-    return events;
-  }
-
-  shiftTransient(maxEvents: number): EventEnvelope[] {
-    const events = this.transient.splice(0, maxEvents);
-    if (events.length > 0) {
-      this.#queuedBytes = Math.max(
-        0,
-        this.#queuedBytes - estimatedBytes(events),
-      );
-    }
-    return events;
+  shiftLive(maxEvents: number): ShiftedLiveEvents {
+    const events = this.#live.splice(0, maxEvents);
+    if (events.length === 0) return { events, skippedNonDurableRanges: [] };
+    this.#queuedBytes = Math.max(
+      0,
+      this.#queuedBytes - estimatedQueueBytes(events),
+    );
+    this.#latestQueuedDurableSeq = Math.max(
+      0,
+      ...this.#live
+        .filter((event) => event.durability === "durable")
+        .map((event) => event.seq),
+    );
+    const throughSeq = (events.at(-1) as EventEnvelope).seq;
+    const split = this.#skipped.findIndex(
+      (range) => range.fromSeq > throughSeq,
+    );
+    const count = split < 0 ? this.#skipped.length : split;
+    return {
+      events,
+      skippedNonDurableRanges: this.#skipped.splice(0, count),
+    };
   }
 
   stats(): ProtocolSessionQueueStats {
     return {
-      durableCount: this.durable.length,
-      transientCount: this.transient.length,
+      durableCount: this.#live.length - this.#transientCount(),
+      transientCount: this.#transientCount(),
       queuedBytes: this.#queuedBytes,
       droppedTransientCount: this.#droppedTransientCount,
       coalescedTransientCount: this.#coalescedTransientCount,
@@ -125,12 +142,32 @@ export class ProtocolSessionQueue {
   }
 
   clear(): void {
-    this.durable.length = 0;
-    this.transient.length = 0;
+    this.#live.length = 0;
+    this.#skipped.length = 0;
     this.#queuedBytes = 0;
     this.#droppedTransientCount = 0;
     this.#coalescedTransientCount = 0;
     this.#latestQueuedDurableSeq = 0;
+  }
+
+  #transientCount(): number {
+    return this.#live.reduce(
+      (count, event) => count + (event.durability === "transient" ? 1 : 0),
+      0,
+    );
+  }
+
+  #recordSkipped(
+    sequences: readonly number[],
+    reason: SkippedNonDurableRange["reason"],
+  ): void {
+    for (const seq of [...sequences].sort((left, right) => left - right)) {
+      const previous = this.#skipped.at(-1);
+      if (previous && previous.reason === reason && previous.toSeq + 1 === seq)
+        previous.toSeq = seq;
+      else this.#skipped.push({ fromSeq: seq, toSeq: seq, reason });
+    }
+    this.#skipped.sort((left, right) => left.fromSeq - right.fromSeq);
   }
 }
 
@@ -169,9 +206,8 @@ function mergeDeltaEvents(
     previousOffset !== undefined &&
     nextOffset !== undefined &&
     previousOffset + previousDelta.length !== nextOffset
-  ) {
+  )
     return undefined;
-  }
   return {
     ...next,
     data: {
@@ -224,14 +260,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function estimatedQueueBytes(
-  durable: EventEnvelope[],
-  transient: EventEnvelope[],
-): number {
-  return (
-    durable.reduce((sum, value) => sum + estimatedBytes(value), 0) +
-    transient.reduce((sum, value) => sum + estimatedBytes(value), 0)
-  );
+function estimatedQueueBytes(events: readonly EventEnvelope[]): number {
+  return events.reduce((total, event) => total + estimatedBytes(event), 0);
 }
 
 function estimatedBytes(value: unknown): number {

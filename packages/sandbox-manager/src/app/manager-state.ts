@@ -11,10 +11,8 @@ import { createPostgresPool, type PostgresPool } from "../db/postgres.js";
 import { createContainerDriver } from "../drivers/container-driver-factory.js";
 import type { ContainerRuntimeDriver } from "../drivers/container-runtime-driver.js";
 import { ManagerEventBus } from "../events/manager-event-bus.js";
-import {
-  MANAGER_EVENT_STREAM,
-  recordManagerLifecycleEvent,
-} from "../events/manager-events.js";
+import { ManagerEventJournal } from "../events/manager-event-journal.js";
+import { recordManagerLifecycleEvent } from "../events/manager-events.js";
 import { SandboxActivityTracker } from "../events/sandbox-activity-tracker.js";
 import { SandboxSupervisor } from "../lifecycle/sandbox-supervisor.js";
 import { LogRingBuffer } from "../observability/log-ring-buffer.js";
@@ -55,6 +53,7 @@ export class ManagerState {
   readonly volumeProvider: RuntimeVolumeProvider;
   readonly driver: ContainerRuntimeDriver;
   readonly eventBus: ManagerEventBus;
+  readonly eventJournal: ManagerEventJournal;
   readonly activity: SandboxActivityTracker;
   readonly supervisor: SandboxSupervisor;
   readonly logger: StructuredLogger;
@@ -103,18 +102,21 @@ export class ManagerState {
     this.driver = options.driver ?? createContainerDriver(config);
     this.volumeProvider = createVolumeProvider(config, this.driver);
     this.eventBus = new ManagerEventBus();
-    // Activity summaries are best-effort and rebuildable: publish them live on
-    // the manager stream as transient events (never journaled) so fleet tiles
-    // update without the O(n) append/list cost of durable lifecycle events.
+    this.eventJournal = new ManagerEventJournal(this.events, this.eventBus);
     this.activity = new SandboxActivityTracker((summary) => {
-      this.eventBus.publish({
-        type: "sandbox.activity.changed",
-        stream: MANAGER_EVENT_STREAM,
-        sandboxId: summary.sandboxId,
-        durability: "transient",
-        payload: summary,
-        ts: summary.updatedAt,
-      });
+      void this.eventJournal
+        .publish({
+          type: "sandbox.activity.changed",
+          sandboxId: summary.sandboxId,
+          durability: "transient",
+          payload: summary,
+          ts: summary.updatedAt,
+        })
+        .catch((error: unknown) =>
+          this.logger.warn("Manager activity event publication failed", {
+            error: boundedError(error),
+          }),
+        );
     });
     this.supervisor = new SandboxSupervisor(
       this.sandboxes,
@@ -128,8 +130,13 @@ export class ManagerState {
       recursive: true,
     });
     await runMigrations(this.config, this.logger);
+    await this.eventJournal.init();
     await this.secrets.assertReady();
   }
+}
+
+function boundedError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 512);
 }
 
 function createVolumeProvider(

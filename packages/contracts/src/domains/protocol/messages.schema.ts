@@ -20,6 +20,10 @@ import {
   readyMessageSchema,
   welcomeMessageSchema,
 } from "./session.schema.js";
+import {
+  streamSubscriptionSetMessageSchema,
+  streamSubscriptionUpdatedMessageSchema,
+} from "./stream-subscription.schema.js";
 
 export const protocolV1MessageSchema = z.discriminatedUnion("kind", [
   helloMessageSchema,
@@ -37,6 +41,8 @@ export const protocolV1MessageSchema = z.discriminatedUnion("kind", [
   replayCompleteMessageSchema,
   replayUnavailableMessageSchema,
   flowUpdateMessageSchema,
+  streamSubscriptionSetMessageSchema,
+  streamSubscriptionUpdatedMessageSchema,
 ]);
 export type ProtocolV1Message = z.infer<typeof protocolV1MessageSchema>;
 

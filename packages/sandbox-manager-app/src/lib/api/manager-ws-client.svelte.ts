@@ -3,6 +3,7 @@ import {
   allOperationDefinitions,
   type EventEnvelope,
   type PeerDescriptor,
+  type ProtocolV1Message,
   type StreamCursor,
 } from "@nervekit/contracts";
 import {
@@ -12,6 +13,7 @@ import {
   ProtocolClientSession,
   protocolClientId,
   protocolInstanceId,
+  StreamSubscriptionError,
   type ProtocolClientConnectionState,
   type TransportFactory,
 } from "@nervekit/protocol";
@@ -39,6 +41,7 @@ const UI_CAPABILITIES = [
   "event.replay",
   "event.ack.processed",
   "flow.backpressure",
+  "stream.subscription.v1",
   "sandbox.manager.ui.v1",
   "sandbox.manager.snapshots.v1",
   "operation.sandbox.manager.recovery.get",
@@ -65,6 +68,9 @@ export type ManagerWsHandlers = {
   onSnapshotRecovery?: (
     streams: readonly string[],
   ) => readonly StreamCursor[] | void | Promise<readonly StreamCursor[] | void>;
+  onFlowUpdate?: (
+    message: ProtocolV1Message & { kind: "flow.update" },
+  ) => void | Promise<void>;
 };
 
 export type ManagerWsClientOptions = {
@@ -80,11 +86,14 @@ type PersistedProtocolState = {
 
 export class ManagerWsClient {
   private connection?: ProtocolClientConnection;
+  private activeSession?: ProtocolClientSession;
   private readonly cursors = new SvelteMap<string, number>();
-  private selectedStream?: string;
+  private desiredStream?: string;
+  private activeSelectedStream?: string;
   private closedByCaller = false;
   private wasReady = false;
-  private generation = 0;
+  private connectionGeneration = 0;
+  private subscriptionGeneration = 0;
 
   constructor(
     private readonly handlers: ManagerWsHandlers,
@@ -96,54 +105,67 @@ export class ManagerWsClient {
 
   connect(): void {
     this.closedByCaller = false;
-    const generation = ++this.generation;
-    this.open(generation);
+    if (this.connection) return;
+    this.open(++this.connectionGeneration);
   }
 
   close(): void {
     this.closedByCaller = true;
-    ++this.generation;
+    ++this.connectionGeneration;
+    ++this.subscriptionGeneration;
+    this.activeSession = undefined;
     void this.connection?.close().catch(() => undefined);
     this.connection = undefined;
     this.handlers.onConnectionChange("closed");
   }
 
-  suspendSelection(): void {
-    this.selectedStream = undefined;
-    ++this.generation;
-    const previous = this.connection;
-    this.connection = undefined;
-    void previous?.close().catch(() => undefined);
-  }
-
-  activateManager(cursors: readonly StreamCursor[] = []): void {
-    this.selectedStream = undefined;
-    if (cursors.length > 0) this.replaceCursors(cursors);
-    const generation = ++this.generation;
-    this.open(generation);
-  }
-
-  activateSelection(sandboxId: string, cursors: readonly StreamCursor[]): void {
-    const stream = sandboxStreamId(sandboxId);
-    this.selectedStream = stream;
+  /**
+   * Replace the exact active stream set without replacing the WebSocket.
+   * Recovery cursors must already be installed by the caller.
+   */
+  async setSelection(
+    sandboxId: string | undefined,
+    cursors: readonly StreamCursor[],
+  ): Promise<void> {
+    const generation = ++this.subscriptionGeneration;
+    this.desiredStream = sandboxId ? sandboxStreamId(sandboxId) : undefined;
     this.replaceCursors(cursors);
-    if (!this.cursors.has(stream)) this.cursors.set(stream, 0);
-    const generation = ++this.generation;
-    const previous = this.connection;
-    this.connection = undefined;
-    if (previous) {
-      void previous
-        .close()
-        .catch(() => undefined)
-        .finally(() => {
-          if (!this.closedByCaller && generation === this.generation)
-            this.open(generation);
-        });
-    } else if (!this.closedByCaller) this.open(generation);
+    if (this.desiredStream && !this.cursors.has(this.desiredStream))
+      this.cursors.set(this.desiredStream, 0);
+    const session = this.activeSession;
+    if (!session || session.state !== "ready") return;
+    await this.applyDesiredSubscriptions(session, generation);
+  }
+
+  private async applyDesiredSubscriptions(
+    session: ProtocolClientSession,
+    generation: number,
+  ): Promise<void> {
+    const desired = this.currentCursors();
+    const requestedSelectedStream = desired.find((cursor) =>
+      cursor.stream.startsWith("sandbox:"),
+    )?.stream;
+    try {
+      await session.setSubscriptions(desired);
+    } catch (error) {
+      if (
+        !(error instanceof StreamSubscriptionError) ||
+        error.response.mode !== "snapshot_required" ||
+        generation !== this.subscriptionGeneration
+      )
+        throw error;
+      const recovered = await this.handlers.onSnapshotRecovery?.(
+        desired.map((cursor) => cursor.stream),
+      );
+      if (generation !== this.subscriptionGeneration) return;
+      if (recovered?.length) this.replaceCursors(recovered);
+      await session.setSubscriptions(this.currentCursors());
+    }
+    this.activeSelectedStream = requestedSelectedStream;
   }
 
   private open(generation: number): void {
-    if (generation !== this.generation || this.closedByCaller) return;
+    if (generation !== this.connectionGeneration || this.closedByCaller) return;
     const source: PeerDescriptor = this.options.source?.() ?? {
       role: "ui",
       id: protocolClientId(),
@@ -159,33 +181,67 @@ export class ManagerWsClient {
         this.options.transportFactory?.() ??
         browserWebSocketTransportFactory(this.wsUrl()),
       onStateChange: (state) => {
-        if (generation === this.generation) this.onConnectionState(state);
+        if (generation === this.connectionGeneration)
+          this.onConnectionState(state);
       },
       onError: (error) => {
-        if (!this.closedByCaller && generation === this.generation)
+        if (!this.closedByCaller && generation === this.connectionGeneration)
           this.handlers.onConnectionChange("error", boundedError(error));
       },
-      createSession: ({ send, onDisconnect }) =>
-        new ProtocolClientSession({
+      createSession: ({ send, onDisconnect }) => {
+        const session = new ProtocolClientSession({
           createMessage: messages,
           capabilities: UI_CAPABILITIES,
           requiredCapabilities: UI_CAPABILITIES,
           cursors: () => this.currentCursors(),
           send,
           onDisconnect,
-          onReady: () => {
-            if (generation !== this.generation) return;
-            const reconnected = this.wasReady;
-            this.wasReady = true;
-            this.handlers.onConnectionChange("live");
-            if (reconnected) this.handlers.onReconnected?.();
+          onReady: (welcome) => {
+            if (generation !== this.connectionGeneration) return;
+            this.activeSession = session;
+            this.activeSelectedStream = welcome.streams.find((stream) =>
+              stream.stream.startsWith("sandbox:"),
+            )?.stream;
+            // Do not await a subscription response from inside the welcome
+            // receive handler: inbound responses are serialized behind it.
+            void Promise.resolve()
+              .then(async () => {
+                const welcomed = new SvelteSet(
+                  welcome.streams.map((stream) => stream.stream),
+                );
+                const desired = this.currentCursors();
+                if (
+                  desired.length !== welcomed.size ||
+                  desired.some((cursor) => !welcomed.has(cursor.stream))
+                )
+                  await this.applyDesiredSubscriptions(
+                    session,
+                    this.subscriptionGeneration,
+                  );
+                else this.activeSelectedStream = this.desiredStream;
+                if (generation !== this.connectionGeneration) return;
+                const reconnected = this.wasReady;
+                this.wasReady = true;
+                this.handlers.onConnectionChange("live");
+                if (reconnected) this.handlers.onReconnected?.();
+              })
+              .catch((error: unknown) => {
+                if (generation === this.connectionGeneration)
+                  this.handlers.onConnectionChange(
+                    "error",
+                    boundedError(error),
+                  );
+              });
           },
           applyEvent: async (stream, event) => {
-            if (generation !== this.generation)
+            if (generation !== this.connectionGeneration)
               throw new Error("Stale manager UI protocol generation");
-            if (stream.startsWith("sandbox:") && stream !== this.selectedStream)
+            if (
+              stream.startsWith("sandbox:") &&
+              stream !== this.activeSelectedStream
+            )
               throw new Error(
-                `Unexpected unselected sandbox stream: ${stream}`,
+                `Unexpected unsubscribed sandbox stream: ${stream}`,
               );
             await this.handlers.onEvent({
               ...event,
@@ -194,15 +250,16 @@ export class ManagerWsClient {
             });
           },
           processedEvents: {
-            persist: (cursors) => this.installCursors(cursors),
+            persist: (nextCursors) => this.installCursors(nextCursors),
           },
+          onFlowUpdate: (message) => this.handlers.onFlowUpdate?.(message),
           snapshotRecovery: {
             load: async ({ streams }) => {
-              if (generation !== this.generation)
+              if (generation !== this.connectionGeneration)
                 throw new Error("Stale manager UI snapshot generation");
               const recovered =
                 await this.handlers.onSnapshotRecovery?.(streams);
-              if (generation !== this.generation)
+              if (generation !== this.connectionGeneration)
                 throw new Error("Stale manager UI snapshot generation");
               return {
                 snapshot: undefined,
@@ -211,14 +268,17 @@ export class ManagerWsClient {
               };
             },
           },
-          installSnapshot: (_snapshot, cursors) => {
-            if (generation !== this.generation)
+          installSnapshot: (_snapshot, nextCursors) => {
+            if (generation !== this.connectionGeneration)
               throw new Error("Stale manager UI snapshot generation");
-            this.replaceCursors(cursors);
+            this.replaceCursors(nextCursors);
           },
-        }),
+        });
+        this.activeSession = session;
+        return session;
+      },
     });
-    if (generation !== this.generation || this.closedByCaller) {
+    if (generation !== this.connectionGeneration || this.closedByCaller) {
       void connection.close().catch(() => undefined);
       return;
     }
@@ -228,15 +288,15 @@ export class ManagerWsClient {
 
   private currentCursors(): StreamCursor[] {
     const active = new SvelteSet([MANAGER_STREAM]);
-    if (this.selectedStream) active.add(this.selectedStream);
+    if (this.desiredStream) active.add(this.desiredStream);
     return [...active].map((stream) => ({
       stream,
       processedSeq: this.cursors.get(stream) ?? 0,
     }));
   }
 
-  private installCursors(cursors: readonly StreamCursor[]): void {
-    for (const cursor of cursors)
+  private installCursors(nextCursors: readonly StreamCursor[]): void {
+    for (const cursor of nextCursors)
       this.cursors.set(
         cursor.stream,
         Math.max(this.cursors.get(cursor.stream) ?? 0, cursor.processedSeq),
@@ -244,27 +304,23 @@ export class ManagerWsClient {
     this.persistCursors();
   }
 
-  private replaceCursors(cursors: readonly StreamCursor[]): void {
-    for (const cursor of cursors)
+  private replaceCursors(nextCursors: readonly StreamCursor[]): void {
+    for (const cursor of nextCursors)
       this.cursors.set(cursor.stream, cursor.processedSeq);
     this.persistCursors();
   }
 
   private persistCursors(): void {
-    try {
-      this.storage().setItem(
-        STATE_KEY,
-        JSON.stringify({
-          epoch: STATE_EPOCH,
-          cursors: [...this.cursors].map(([stream, processedSeq]) => ({
-            stream,
-            processedSeq,
-          })),
-        } satisfies PersistedProtocolState),
-      );
-    } catch {
-      /* Browser storage is optional. */
-    }
+    this.storage().setItem(
+      STATE_KEY,
+      JSON.stringify({
+        epoch: STATE_EPOCH,
+        cursors: [...this.cursors].map(([stream, processedSeq]) => ({
+          stream,
+          processedSeq,
+        })),
+      } satisfies PersistedProtocolState),
+    );
   }
 
   private restore(): void {
@@ -299,6 +355,7 @@ export class ManagerWsClient {
 
   private onConnectionState(state: ProtocolClientConnectionState): void {
     if (state === "ready") return;
+    if (state === "closed") this.activeSession = undefined;
     if (state === "closed" && this.closedByCaller)
       this.handlers.onConnectionChange("closed");
     else if (state === "closed")
