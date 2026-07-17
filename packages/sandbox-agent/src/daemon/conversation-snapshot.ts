@@ -1,4 +1,5 @@
 import type {
+  ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationSnapshot,
   ConversationTree,
@@ -9,7 +10,7 @@ import {
   conversationSnapshotSchema,
   deriveConversationTitle,
 } from "@nervekit/contracts";
-import type { RunHydratedState } from "@nervekit/host-runtime";
+import { ACTIVE_STATUSES, type RunHydratedState } from "@nervekit/host-runtime";
 
 export async function buildConversationSnapshot(input: {
   config: SandboxConfigV1;
@@ -58,6 +59,12 @@ export async function buildConversationSnapshot(input: {
     }
   }
   const activeEntryId = entries.at(-1)?.id;
+  const activeState = [...conversationStates]
+    .filter((state) => ACTIVE_STATUSES.has(state.run.status))
+    .sort((left, right) =>
+      left.run.updatedAt.localeCompare(right.run.updatedAt),
+    )
+    .at(-1);
   const createdAt = conversationStates
     .map((state) => state.run.createdAt)
     .sort()[0]!;
@@ -78,7 +85,7 @@ export async function buildConversationSnapshot(input: {
       permissionLevel:
         input.config.agent.defaultPermissionLevel ?? "autonomous",
       approvalPolicy: { autoApproveReadOnly: true },
-      activeAgentId: selected.run.agentId,
+      activeAgentId: activeState?.run.agentId ?? selected.run.agentId,
       activeEntryId,
       createdAt,
       updatedAt,
@@ -89,11 +96,49 @@ export async function buildConversationSnapshot(input: {
     activeEntryIds: activeEntryId ? [activeEntryId] : [],
     tree: linearTree(selected.run.conversationId, entries, activeEntryId),
     toolCalls: [...tools.values()],
-    activeRun: undefined,
+    activeRun: activeState ? projectActiveRun(activeState) : undefined,
     contextUsage: undefined,
     cursorSeq: input.cursorSeq ?? 0,
     generatedAt: new Date().toISOString(),
   });
+}
+
+function projectActiveRun(
+  state: RunHydratedState,
+): ConversationActiveRunSnapshot {
+  const run = state.run;
+  return {
+    runId: run.runId,
+    agentId: run.agentId,
+    projectId: run.projectId,
+    conversationId: run.conversationId,
+    status: conversationRunStatus(run.status),
+    startedAt: run.startedAt ?? run.createdAt,
+    turns: [],
+    toolOutputsByToolCallId: {},
+    queuedPrompts: state.prompts.filter((prompt) =>
+      ["queued", "accepted"].includes(prompt.status),
+    ),
+    recovery:
+      run.status === "interrupted"
+        ? {
+            errorMessage: run.failure?.message,
+            continuable: ["checkpoint", "retryable", "manual"].includes(
+              run.recoverability,
+            ),
+          }
+        : undefined,
+  };
+}
+
+function conversationRunStatus(
+  status: RunHydratedState["run"]["status"],
+): ConversationActiveRunSnapshot["status"] {
+  if (status === "retrying") return "retrying";
+  if (status === "cancellation_requested" || status === "cancellation_failed")
+    return "aborting";
+  if (status === "interrupted") return "interrupted";
+  return "running";
 }
 
 function linearTree(

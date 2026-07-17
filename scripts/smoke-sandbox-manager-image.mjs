@@ -17,7 +17,8 @@ assertEqual(
   "node /manager/dist/main.js",
   "manager entrypoint",
 );
-if (!inspect.Config.Healthcheck?.Test?.join(" ").includes("/health"))
+const healthcheck = inspect.Config.Healthcheck ?? inspect.Healthcheck;
+if (!healthcheck?.Test?.join(" ").includes("/health"))
   throw new Error("manager image healthcheck is missing");
 if (!inspect.Config.ExposedPorts?.["7869/tcp"])
   throw new Error("manager image must expose 7869/tcp");

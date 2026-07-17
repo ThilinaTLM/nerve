@@ -88,17 +88,60 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         },
       )) as {
         snapshot?: {
-          activeRun?: unknown;
+          activeRun?: {
+            runId: string;
+            status: string;
+            queuedPrompts: Array<{ id: string; text: string }>;
+          };
           toolCalls: Array<{ toolName: string; status: string }>;
         };
       };
-      assert.equal(waitingConversation.snapshot?.activeRun, undefined);
+      assert.equal(waitingConversation.snapshot?.activeRun?.runId, start.runId);
+      assert.equal(waitingConversation.snapshot?.activeRun?.status, "running");
+      assert.deepEqual(
+        waitingConversation.snapshot?.activeRun?.queuedPrompts,
+        [],
+      );
       assert.equal(
         waitingConversation.snapshot?.toolCalls.find(
           (tool) => tool.toolName === "ask_user",
         )?.status,
         "waiting_for_user",
       );
+
+      await daemon.router.dispatch("run.followUp", {
+        conversationId: start.conversationId,
+        agentId: start.agentId,
+        runId: start.runId,
+        text: "Use this after my answer",
+      });
+      const queuedConversation = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: start.conversationId,
+          agentId: start.agentId,
+          runId: start.runId,
+        },
+      )) as typeof waitingConversation;
+      const queuedPrompt =
+        queuedConversation.snapshot?.activeRun?.queuedPrompts[0];
+      assert.equal(queuedPrompt?.text, "Use this after my answer");
+      assert.match(queuedPrompt?.id ?? "", /^promptq_/);
+      assert.ok(queuedPrompt);
+
+      await daemon.router.dispatch("agent.promptQueue.cancel", {
+        agentId: start.agentId,
+        queuedPromptId: queuedPrompt.id,
+      });
+      const cancelledQueue = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: start.conversationId,
+          agentId: start.agentId,
+          runId: start.runId,
+        },
+      )) as typeof waitingConversation;
+      assert.deepEqual(cancelledQueue.snapshot?.activeRun?.queuedPrompts, []);
 
       const transitionFile = path.join(
         dir,
@@ -123,6 +166,19 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         { workspaceDir: process.cwd() },
       );
       recovered.start();
+      const recoveredConversation = (await recovered.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: start.conversationId,
+          agentId: start.agentId,
+          runId: start.runId,
+        },
+      )) as typeof waitingConversation;
+      assert.equal(
+        recoveredConversation.snapshot?.activeRun?.runId,
+        start.runId,
+      );
+
       const submit = (await recovered.router.dispatch(
         "userQuestion.answer",
         { questionId: "ask_1", answer: "42" },
@@ -214,11 +270,12 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         },
       )) as {
         snapshot?: {
-          activeRun?: unknown;
+          activeRun?: { runId: string; status: string };
           toolCalls: Array<{ toolName: string; status: string }>;
         };
       };
-      assert.equal(conversation.snapshot?.activeRun, undefined);
+      assert.equal(conversation.snapshot?.activeRun?.runId, start.runId);
+      assert.equal(conversation.snapshot?.activeRun?.status, "running");
       assert.equal(
         conversation.snapshot?.toolCalls.find(
           (tool) => tool.toolName === "bash",

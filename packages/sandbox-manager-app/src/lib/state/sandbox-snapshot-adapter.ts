@@ -4,6 +4,7 @@ import type {
   SandboxToolCallSummary,
   SandboxWaitSummary,
 } from "@nervekit/contracts";
+import { selectPreferredSandboxRun } from "./sandbox-prompt-routing";
 import type {
   SandboxDetailState,
   SandboxTimelineRow,
@@ -45,8 +46,7 @@ function selectDefault(
   const runs = snapshot.runs.filter(
     (run) => run.conversationId === chosen.conversationId,
   );
-  const activeRun =
-    runs.find((run) => run.status === "running") ?? mostRecentRun(runs);
+  const activeRun = selectPreferredSandboxRun(runs);
   if (activeRun) {
     detail.selectedAgentId = activeRun.agentId;
     detail.selectedRunId = activeRun.runId;
@@ -56,14 +56,6 @@ function selectDefault(
 function mostRecentConversation(snapshot: SandboxSnapshotResult) {
   return [...snapshot.conversations].sort((a, b) =>
     (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
-  )[0];
-}
-
-function mostRecentRun(runs: SandboxRunSnapshot[]) {
-  return [...runs].sort((a, b) =>
-    (b.updatedAt ?? b.createdAt ?? "").localeCompare(
-      a.updatedAt ?? a.createdAt ?? "",
-    ),
   )[0];
 }
 

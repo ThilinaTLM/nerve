@@ -6,6 +6,8 @@ import type {
   ModelInfo,
   ModelSelection,
   OperationName,
+  OperationParams,
+  OperationResult,
   QueuedPromptRecord,
   RemoveOptions,
   SandboxActivitySummary,
@@ -67,6 +69,7 @@ import {
 } from "../api/sandbox-tasks.api";
 import { isSandboxConversationUiEvent } from "./sandbox-conversation-event-routing";
 import {
+  activeComposerText,
   activeConversationKey,
   activeQueuedPrompt,
   createPendingConversationId,
@@ -79,6 +82,10 @@ import {
   setActiveQueuedPrompt,
 } from "./sandbox-conversation-state";
 import { applySandboxEvent } from "./sandbox-event-reducers";
+import {
+  resolveSandboxPromptDispatch,
+  selectPreferredSandboxRun,
+} from "./sandbox-prompt-routing";
 import {
   sandboxCanCreateConversation,
   sandboxCanForwardCommand,
@@ -114,6 +121,13 @@ import {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function restoreSubmittedPrompt(submitted: string, current: string): string {
+  const next = current.trim();
+  if (!next || next === submitted) return submitted;
+  if (next.startsWith(`${submitted}\n\n`)) return current;
+  return `${submitted}\n\n${current}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -564,13 +578,7 @@ export class SandboxManagerStore {
       detail.snapshot?.runs.filter(
         (run) => run.conversationId === conversationId,
       ) ?? [];
-    const activeRun =
-      runs.find((run) => run.status === "running") ??
-      [...runs].sort((a, b) =>
-        (b.updatedAt ?? b.createdAt ?? "").localeCompare(
-          a.updatedAt ?? a.createdAt ?? "",
-        ),
-      )[0];
+    const activeRun = selectPreferredSandboxRun(runs);
     detail.selectedRunId = activeRun?.runId;
     detail.selectedAgentId = activeRun?.agentId;
     openWorkspaceConversationTabInDetail(detail, conversationId);
@@ -1016,7 +1024,7 @@ export class SandboxManagerStore {
     setActiveComposerText(this.detail(sandboxId), text);
   }
 
-  /** Dispatch queued prompts once the sandbox is ready for chat. */
+  /** Dispatch client-held prompts once the sandbox is ready for chat. */
   async flushQueuedPrompt(sandboxId: string): Promise<void> {
     const detail = this.detail(sandboxId);
     const record = recordForDetail(this, sandboxId);
@@ -1026,7 +1034,12 @@ export class SandboxManagerStore {
     const activeQueued = activeQueuedPrompt(detail);
     if (activeQueued) {
       setActiveQueuedPrompt(detail, undefined);
-      await this.sendPrompt(sandboxId, activeQueued);
+      if (
+        !(await this.sendPrompt(sandboxId, activeQueued, {
+          manageComposer: false,
+        }))
+      )
+        setActiveQueuedPrompt(detail, activeQueued);
     }
     for (const pending of Object.values(detail.pendingConversationsById)) {
       if (pending.id === activeKey) continue;
@@ -1035,7 +1048,12 @@ export class SandboxManagerStore {
       pending.queuedPrompt = undefined;
       selectPendingConversationInDetail(detail, pending.id);
       openWorkspaceConversationTabInDetail(detail, pending.id);
-      await this.sendPrompt(sandboxId, queued);
+      if (
+        !(await this.sendPrompt(sandboxId, queued, {
+          manageComposer: false,
+        }))
+      )
+        pending.queuedPrompt = queued;
     }
     for (const [conversationId, queued] of Object.entries(
       detail.queuedPromptByConversationId,
@@ -1043,21 +1061,31 @@ export class SandboxManagerStore {
       if (!queued) continue;
       detail.queuedPromptByConversationId[conversationId] = undefined;
       this.selectConversation(sandboxId, conversationId);
-      await this.sendPrompt(sandboxId, queued);
+      if (
+        !(await this.sendPrompt(sandboxId, queued, {
+          manageComposer: false,
+        }))
+      )
+        detail.queuedPromptByConversationId[conversationId] = queued;
     }
   }
 
-  async sendPrompt(sandboxId: string, prompt: string): Promise<void> {
+  async sendPrompt(
+    sandboxId: string,
+    prompt: string,
+    options: { manageComposer?: boolean } = {},
+  ): Promise<boolean> {
     const detail = this.detail(sandboxId);
     const trimmed = prompt.trim();
-    if (!trimmed) return;
+    if (!trimmed) return false;
+    const manageComposer = options.manageComposer ?? true;
     const record = recordForDetail(this, sandboxId);
     if (!sandboxCanForwardCommand(record, detail)) {
-      setActiveComposerText(detail, trimmed);
+      if (manageComposer) setActiveComposerText(detail, trimmed);
       notify.message("Sandbox command disabled", {
         description: sandboxLifecycleMessage(record, detail),
       });
-      return;
+      return false;
     }
     const conversationId = outboundConversationId(
       detail.selectedConversationId,
@@ -1074,20 +1102,33 @@ export class SandboxManagerStore {
       if (!detail.selectedPendingConversationId)
         selectPendingConversationInDetail(detail, pendingId);
     }
+    const dispatch = resolveSandboxPromptDispatch({
+      text: trimmed,
+      conversationId,
+      agentId: detail.selectedAgentId,
+      selectedRunId: detail.selectedRunId,
+      richActiveRun: conversationId
+        ? detail.conversationViewsById[conversationId]?.activeRun
+        : undefined,
+      liveRuns: detail.liveRuns,
+      snapshotRuns: detail.snapshot?.runs,
+    });
+    if (manageComposer) setActiveComposerText(detail, "");
     detail.sending = true;
     if (pendingId) detail.pendingConversationsById[pendingId].sending = true;
     try {
-      const behavior =
-        conversationId && detail.selectedRunId ? "follow_up" : "start";
-      const raw = await this.sendOperation(
-        sandboxId,
-        behavior === "follow_up" ? "run.followUp" : "run.start",
-        () => ({
-          conversationId,
-          agentId: detail.selectedAgentId,
-          text: trimmed,
-        }),
-      );
+      const raw =
+        dispatch.method === "run.followUp"
+          ? await this.sendOperation(
+              sandboxId,
+              "run.followUp",
+              () => dispatch.params,
+            )
+          : await this.sendOperation(
+              sandboxId,
+              "run.start",
+              () => dispatch.params,
+            );
       const result = runAcceptedResultSchema
         .required({ conversationId: true, agentId: true, runId: true })
         .parse(raw);
@@ -1096,15 +1137,22 @@ export class SandboxManagerStore {
       const pendingCreatedAt = pendingId
         ? detail.pendingConversationsById[pendingId]?.createdAt
         : undefined;
+      const existingConversation = conversationId
+        ? (detail.snapshot?.conversations.find(
+            (conversation) =>
+              conversation.conversationId === result.conversationId,
+          ) ?? detail.localConversationsById[result.conversationId])
+        : undefined;
       this.upsertLocalConversation(sandboxId, {
         conversationId: result.conversationId,
         agentIds: [result.agentId],
-        title: deriveConversationTitle(trimmed),
+        title: existingConversation?.title ?? deriveConversationTitle(trimmed),
         mode: detail.agentControls.mode === "planning" ? "planning" : "coding",
-        createdAt: pendingCreatedAt ?? now,
+        createdAt: existingConversation?.createdAt ?? pendingCreatedAt ?? now,
         updatedAt: now,
         activeRunIds: [result.runId],
       });
+      const nextDraft = activeComposerText(detail);
       if (pendingId) {
         replacePendingConversation(detail, pendingId, result);
       } else {
@@ -1112,11 +1160,38 @@ export class SandboxManagerStore {
         detail.selectedAgentId = result.agentId;
         detail.selectedRunId = result.runId;
         openWorkspaceConversationTabInDetail(detail, result.conversationId);
+        if (nextDraft)
+          detail.composerTextByConversationId[result.conversationId] =
+            nextDraft;
       }
-      detail.composerTextByConversationId[result.conversationId] = "";
-      setActiveComposerText(detail, "");
-      // Start snapshot polling immediately — we know a run is starting, so do not
-      // wait for a `run.started` event (which can be dropped by live delivery).
+      const previousLiveRun = detail.liveRuns[result.runId];
+      detail.liveRuns[result.runId] = {
+        runId: result.runId,
+        conversationId: result.conversationId,
+        agentId: result.agentId,
+        status:
+          !result.status || result.status === "accepted"
+            ? "queued"
+            : result.status,
+        deltaText: previousLiveRun?.deltaText ?? "",
+        updatedAt: now,
+      };
+      detail.error = undefined;
+      if (pendingId && detail.pendingConversationsById[pendingId])
+        detail.pendingConversationsById[pendingId].error = undefined;
+      return true;
+    } catch (error) {
+      const message = errorMessage(error);
+      if (manageComposer)
+        setActiveComposerText(
+          detail,
+          restoreSubmittedPrompt(trimmed, activeComposerText(detail)),
+        );
+      detail.error = message;
+      if (pendingId && detail.pendingConversationsById[pendingId])
+        detail.pendingConversationsById[pendingId].error = message;
+      notify.error("Prompt failed", { description: message });
+      return false;
     } finally {
       if (pendingId && detail.pendingConversationsById[pendingId])
         detail.pendingConversationsById[pendingId].sending = false;
@@ -1292,14 +1367,15 @@ export class SandboxManagerStore {
   ): Promise<void> {
     const detail = this.detail(sandboxId);
     if (!this.canForwardSandboxCommand(sandboxId, false)) return;
-    if (!detail.selectedAgentId) return;
+    const agentId = detail.selectedAgentId;
+    if (!agentId) return;
     await this.sendOperation(sandboxId, "agent.configure", () => ({
-      agentId: detail.selectedAgentId,
+      agentId,
       model: patch.model
         ? { provider: patch.model.provider, modelId: patch.model.model }
         : undefined,
       thinkingLevel: patch.model?.thinkingLevel,
-      mode: patch.mode,
+      mode: patch.mode === "normal" ? "coding" : patch.mode,
       permissionLevel: patch.permissionLevel,
       approvalPolicy: patch.approvalPolicy,
     }));
@@ -1319,11 +1395,11 @@ export class SandboxManagerStore {
     return false;
   }
 
-  private async sendOperation(
+  private async sendOperation<M extends OperationName>(
     sandboxId: string,
-    method: OperationName,
-    buildParams: (key: string) => Record<string, unknown>,
-  ): Promise<unknown> {
+    method: M,
+    buildParams: (key: string) => OperationParams<M>,
+  ): Promise<OperationResult<M>> {
     return this.runOperation("command", sandboxId, method, (key) =>
       api.sendSandboxOperation(sandboxId, method, buildParams(key), key),
     );

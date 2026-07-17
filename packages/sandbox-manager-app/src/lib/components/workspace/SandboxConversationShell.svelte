@@ -8,6 +8,7 @@ import {
 } from "@nervekit/workbench-ui/components/conversation";
 import { setConversationUiCapabilities } from "@nervekit/workbench-ui/context";
 import { currentTodosForAgent } from "@nervekit/workbench-ui/state";
+import { isInlineCommandPrompt } from "@nervekit/contracts";
 import type { QueuedPromptRecord, ThinkingLevel } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { computeSandboxBootProgress } from "../../state/sandbox-boot-progress";
@@ -23,6 +24,7 @@ import {
   activeQueuedPrompt,
 } from "../../state/sandbox-conversation-state";
 import { sandboxAvailableModels } from "../../state/sandbox-manager-selectors.svelte";
+import { isSandboxRunActive } from "../../state/sandbox-prompt-routing";
 import {
   sandboxMessageMenu,
   sandboxToolMenu,
@@ -75,11 +77,12 @@ const activeRun = $derived(
     (detail?.selectedRunId ? detail.liveRuns[detail.selectedRunId] : undefined),
 );
 const canForward = $derived(sandboxCanForwardCommand(record, detail));
+const runActive = $derived(isSandboxRunActive(activeRun?.status));
 const canCancel = $derived(
   canForward &&
-    (activeRun?.status === "running" ||
-      activeRun?.status === "queued" ||
-      activeRun?.status === "streaming"),
+    runActive &&
+    activeRun?.status !== "interrupted" &&
+    activeRun?.status !== "recoverable_failed",
 );
 const readOnly = $derived(sandboxIsReadOnly(record, detail));
 const snapshotReadOnly = $derived(
@@ -101,11 +104,18 @@ const blockedForReview = $derived(
     Boolean(pendingUserQuestion) ||
     Boolean(pendingPlanReview),
 );
-const composerDisabled = $derived(
-  !sandboxCanQueuePrompt(record, detail) ||
+const composerText = $derived(activeComposerText(detail));
+const queuedPrompt = $derived(activeQueuedPrompt(detail));
+const composerBlocked = $derived(
+  !sandboxCanQueuePrompt(record, detail) || readOnly || blockedForReview,
+);
+const conversationSending = $derived(
+  Boolean(detail?.sending || richState?.sending || runActive),
+);
+const composerSubmitDisabled = $derived(
+  composerBlocked ||
     (detail?.sending ?? false) ||
-    readOnly ||
-    blockedForReview,
+    (conversationSending && isInlineCommandPrompt(composerText)),
 );
 const controls = $derived(detail?.agentControls);
 const selectedModelKey = $derived(
@@ -117,8 +127,6 @@ const composerModels = $derived(sandboxAvailableModels(store.models, detail));
 const selectedModel = $derived(
   composerModels.find((model) => modelKey(model) === selectedModelKey),
 );
-const composerText = $derived(activeComposerText(detail));
-const queuedPrompt = $derived(activeQueuedPrompt(detail));
 let composerFocusToken = $state(0);
 const activeAgentId = $derived(
   richState?.activeRun?.agentId ?? detail?.selectedAgentId,
@@ -288,8 +296,10 @@ $effect(() => {
     transcriptHeightCacheKey,
     composer: {
       text: composerText,
-      disabled: composerDisabled,
-      sending: canCancel,
+      disabled: composerBlocked,
+      submitDisabled: composerSubmitDisabled,
+      sending: conversationSending,
+      showStop: canCancel,
       stopping,
       models: composerModels,
       selectedModelKey,

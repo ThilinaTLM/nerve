@@ -24,6 +24,8 @@ const cli = selectContainerCli();
 console.log(`Building ${imageTag} with ${cli}`);
 run(cli, [
   "build",
+  // Podman defaults to OCI, which cannot store Dockerfile HEALTHCHECK metadata.
+  ...(isPodman(cli) ? ["--format", "docker"] : []),
   "-f",
   "packages/sandbox-manager/Dockerfile",
   "--build-arg",
@@ -49,6 +51,10 @@ function selectContainerCli() {
   fail(
     "Neither Docker nor Podman is available to build the sandbox manager image.",
   );
+}
+
+function isPodman(command) {
+  return /(^|[\\/])podman(?:\.exe)?$/i.test(command);
 }
 
 function isAvailable(command) {

@@ -78,9 +78,11 @@ describe("sandbox daemon operation semantics", () => {
         requestId: "cmd_snapshot_second",
         conversationId: first.conversationId,
         agentId: first.agentId,
-        behavior: "follow_up",
         text: "second prompt",
       })) as { conversationId: string; agentId: string; runId: string };
+      assert.notEqual(second.runId, first.runId);
+      assert.equal(second.conversationId, first.conversationId);
+      assert.equal(second.agentId, first.agentId);
 
       await waitForRun(daemon, second.runId, "completed");
       const result = (await daemon.router.dispatch(
@@ -90,7 +92,12 @@ describe("sandbox daemon operation semantics", () => {
           agentId: second.agentId,
           runId: second.runId,
         },
-      )) as { snapshot?: { entries: Array<{ role: string; text: string }> } };
+      )) as {
+        snapshot?: {
+          entries: Array<{ role: string; text: string }>;
+          activeRun?: unknown;
+        };
+      };
 
       assert.deepEqual(
         result.snapshot?.entries
@@ -98,6 +105,7 @@ describe("sandbox daemon operation semantics", () => {
           .map((entry) => entry.text),
         ["first prompt", "second prompt"],
       );
+      assert.equal(result.snapshot?.activeRun, undefined);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

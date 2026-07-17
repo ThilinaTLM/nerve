@@ -15,7 +15,8 @@ assertEqual(
   "node /agent/dist/main.js",
   "agent entrypoint",
 );
-if (!inspect.Config.Healthcheck?.Test?.join(" ").includes("healthcheck"))
+const healthcheck = inspect.Config.Healthcheck ?? inspect.Healthcheck;
+if (!healthcheck?.Test?.join(" ").includes("healthcheck"))
   throw new Error("agent image healthcheck is missing");
 if (inspect.Config.Labels?.["org.nerve.sandbox.spec"] !== "v1")
   throw new Error("agent image sandbox spec label is missing");
