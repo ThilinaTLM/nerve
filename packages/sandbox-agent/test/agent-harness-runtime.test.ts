@@ -44,14 +44,39 @@ describe("sandbox live AgentHarness runtime", () => {
       assert.equal(run.status, "completed");
       const events = stores.events.all();
       assert.ok(events.some((event) => event.type === "run.started"));
+      assert.ok(
+        events.some(
+          (event) => event.type === "conversation.live.message.started",
+        ),
+      );
+      assert.ok(
+        events.some(
+          (event) => event.type === "conversation.live.content.delta",
+        ),
+      );
+      assert.ok(
+        events.some((event) => event.type === "conversation.live.content.done"),
+      );
       assert.ok(events.some((event) => event.type === "run.completed"));
       const snapshot = (await daemon.router.dispatch(
         "sandbox.conversation.snapshot.get",
         { runId: result.runId },
-      )) as { snapshot?: { entries: Array<{ role: string }> } };
-      assert.ok(
-        snapshot.snapshot?.entries.some((entry) => entry.role === "assistant"),
+      )) as {
+        snapshot?: {
+          entries: Array<{
+            role: string;
+            turnId?: string;
+            liveMessageId?: string;
+            messageOrdinal?: number;
+          }>;
+        };
+      };
+      const assistant = snapshot.snapshot?.entries.find(
+        (entry) => entry.role === "assistant",
       );
+      assert.match(assistant?.turnId ?? "", /^turn_/);
+      assert.match(assistant?.liveMessageId ?? "", /^msg_/);
+      assert.equal(assistant?.messageOrdinal, 0);
       for (const event of events) {
         const schema = publicEventDefinition(event.type)?.payloadSchema;
         assert.ok(schema, event.type);

@@ -65,6 +65,7 @@ import {
   restartSandboxTask,
   startSandboxTask,
 } from "../api/sandbox-tasks.api";
+import { isSandboxConversationUiEvent } from "./sandbox-conversation-event-routing";
 import {
   activeConversationKey,
   activeQueuedPrompt,
@@ -1465,7 +1466,7 @@ export class SandboxManagerStore {
       data: envelope.data,
       sandboxId,
     };
-    if (envelope.type.startsWith("conversation.")) {
+    if (isSandboxConversationUiEvent(envelope.type)) {
       this.applyConversationUiEvent(sandboxId, detail, uiEvent);
     }
     applySandboxEvent(detail, uiEvent);

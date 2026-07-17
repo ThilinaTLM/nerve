@@ -1,5 +1,6 @@
 import {
   type AgentHarness,
+  type AgentHarnessEvent,
   type AgentMessage,
   isAgentToolSuspension,
 } from "@nervekit/host-runtime/harness";
@@ -33,6 +34,7 @@ import type { AgentConfigStore } from "../agent/agent-config-store.js";
 import type { HarnessFactory } from "../agent/harness-factory.js";
 import { sandboxSha256Digest } from "../state/hash.js";
 import type { SandboxToolRuntime } from "../tools/tool-runtime.js";
+import { SandboxConversationLiveProjector } from "./conversation-live-projector.js";
 import type { SandboxInteractionChannel } from "./interaction-channel.js";
 import type { SandboxLiveHarnessRegistry } from "./live-registry.js";
 import type { SandboxPendingInteractions } from "./pending-interactions.js";
@@ -77,12 +79,28 @@ class SandboxRunExecution implements RunExecution {
   private readonly forwardingPrompts = new Map<string, Promise<void>>();
   private harnessReady = false;
   private projectionTail: Promise<void> = Promise.resolve();
+  private readonly liveProjector: SandboxConversationLiveProjector;
 
   constructor(
     private readonly run: RunRecord,
     private readonly sink: RunExecutionSink,
     private readonly deps: SandboxRunExecutionDeps,
-  ) {}
+  ) {
+    this.liveProjector = new SandboxConversationLiveProjector(
+      {
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        projectId: run.projectId,
+        runId: run.runId,
+      },
+      (type, data) =>
+        sink.progress({
+          type,
+          occurredAt: new Date().toISOString(),
+          data,
+        }),
+    );
+  }
 
   readonly control: RunExecutionControl = {
     steer: async (prompt) => this.steer(prompt),
@@ -582,31 +600,27 @@ class SandboxRunExecution implements RunExecution {
     };
   }
 
-  private async project(event: {
-    type: string;
-    messageIds?: string[];
-    message?: AgentMessage;
-    toolCallId?: string;
-    toolName?: string;
-    args?: unknown;
-    result?: unknown;
-    isError?: boolean;
-  }): Promise<void> {
+  private async project(event: AgentHarnessEvent): Promise<void> {
     if (event.type === "queue_drained") {
-      for (const promptId of event.messageIds ?? []) {
+      for (const promptId of event.messageIds) {
         await this.sink.promptDelivered(promptId);
       }
       return;
     }
     if (event.type === "turn_start") {
+      this.liveProjector.startTurn();
       await this.deliverPendingPrompts();
       return;
     }
-    if (
-      event.type === "tool_execution_start" &&
-      event.toolCallId &&
-      event.toolName
-    ) {
+    if (event.type === "message_start" && event.message.role === "assistant") {
+      this.liveProjector.startAssistantMessage();
+      return;
+    }
+    if (event.type === "message_update") {
+      this.liveProjector.updateAssistantMessage(event);
+      return;
+    }
+    if (event.type === "tool_execution_start") {
       const record = this.toolCallRecord(
         event.toolCallId,
         event.toolName,
@@ -616,11 +630,16 @@ class SandboxRunExecution implements RunExecution {
       if (record) await this.sink.upsertToolCalls([record]);
       return;
     }
-    if (
-      event.type === "tool_execution_end" &&
-      event.toolCallId &&
-      event.toolName
-    ) {
+    if (event.type === "tool_execution_update") {
+      this.liveProjector.publishToolOutput(
+        event.toolCallId,
+        `tool_${sandboxSha256Digest(event.toolCallId).slice(7, 23)}`,
+        event.toolName,
+        event.partialResult,
+      );
+      return;
+    }
+    if (event.type === "tool_execution_end") {
       const record = this.toolCallRecord(
         event.toolCallId,
         event.toolName,
@@ -631,20 +650,9 @@ class SandboxRunExecution implements RunExecution {
       if (record) await this.sink.upsertToolCalls([record]);
       return;
     }
-    if (event.type === "message_update") {
-      this.sink.progress({
-        type: "conversation.live.updated",
-        occurredAt: new Date().toISOString(),
-        data: {
-          conversationId: this.run.conversationId,
-          agentId: this.run.agentId,
-          runId: this.run.runId,
-        },
-      });
-      return;
-    }
-    if (event.type === "message_end" && event.message?.role === "assistant") {
+    if (event.type === "message_end" && event.message.role === "assistant") {
       const text = messageText(event.message);
+      const materialized = this.liveProjector.materializeAssistantMessage();
       if (!text) return;
       await this.sink.appendEntries([
         {
@@ -652,6 +660,9 @@ class SandboxRunExecution implements RunExecution {
           conversationId: this.run.conversationId,
           agentId: this.run.agentId,
           runId: this.run.runId,
+          turnId: materialized?.turnId,
+          liveMessageId: materialized?.liveMessageId,
+          messageOrdinal: materialized?.messageOrdinal,
           role: "assistant",
           kind: "message",
           text: text.slice(0, 200_000),
@@ -673,15 +684,16 @@ class SandboxRunExecution implements RunExecution {
     const now = new Date().toISOString();
     const id = `tool_${sandboxSha256Digest(providerToolCallId).slice(7, 23)}`;
     const previous = this.toolCalls.get(providerToolCallId);
+    const anchor = this.liveProjector.resolveToolAnchor(providerToolCallId);
     const record: ToolCallTranscriptRecord = {
       id,
       agentId: this.run.agentId,
       conversationId: this.run.conversationId,
       projectId: this.run.projectId,
       runId: this.run.runId,
-      turnId: `turn_${sandboxSha256Digest(`${this.run.runId}:${this.run.attempt}`).slice(7, 23)}`,
-      liveMessageId: `msg_${sandboxSha256Digest(`${this.run.runId}:${providerToolCallId}`).slice(7, 23)}`,
-      contentIndex: 0,
+      turnId: anchor?.turnId ?? previous?.turnId,
+      liveMessageId: anchor?.liveMessageId ?? previous?.liveMessageId,
+      contentIndex: anchor?.contentIndex ?? previous?.contentIndex,
       toolName: parsedName.data,
       providerToolCallId,
       risk: toolRisk(parsedName.data),

@@ -177,6 +177,26 @@ describe("sandbox daemon operation semantics", () => {
       assert.equal(toolCall?.contentIndex, 0);
       assert.match(toolCall?.turnId ?? "", /^turn_/);
       assert.match(toolCall?.liveMessageId ?? "", /^msg_/);
+
+      const events = stores.events.all();
+      const draftStarted = events.find(
+        (event) => event.type === "conversation.live.tool_draft.started",
+      );
+      const draftDone = events.find(
+        (event) => event.type === "conversation.live.tool_draft.done",
+      );
+      assert.ok(draftStarted);
+      assert.ok(draftDone);
+      assert.equal(draftDone.data.turnId, toolCall?.turnId);
+      assert.equal(draftDone.data.liveMessageId, toolCall?.liveMessageId);
+      assert.equal(draftDone.data.contentIndex, toolCall?.contentIndex);
+      const liveOutput = events.find(
+        (event) => event.type === "conversation.live.tool_output.delta",
+      );
+      assert.match(
+        String((liveOutput?.data as { delta?: unknown } | undefined)?.delta),
+        /sandbox rich output/,
+      );
     } finally {
       registration.unregister();
       await rm(dir, { recursive: true, force: true });
