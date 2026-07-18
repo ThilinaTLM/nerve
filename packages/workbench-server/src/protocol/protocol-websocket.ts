@@ -123,28 +123,30 @@ export function createLocalProtocolSession(
       workbenchWebSocketRpcDispatcher(state, capabilities),
     subscriptions: {
       async resolve(cursors) {
-        try {
-          const streams = await Promise.all(
-            cursors.map(async (cursor) => {
-              if (cursor.stream === WORKSPACE_STREAM) {
-                return state.events.bounds(cursor.stream);
-              }
-              const conversationId = parseConversationStream(cursor.stream);
-              if (!conversationId) {
-                throw new Error(`Unknown stream ${cursor.stream}`);
-              }
-              state.registry.getConversation(conversationId);
-              return state.events.bounds(cursor.stream);
-            }),
-          );
-          return { accepted: true, streams };
-        } catch (error) {
-          return {
-            accepted: false,
-            streams: [],
-            reason: boundedError(error),
-          };
+        // Resolve each stream independently. Unknown or deleted streams are
+        // omitted and degrade to "unavailable" in the session layer; they
+        // must not reject the whole set and silence every other stream.
+        const streams = [];
+        for (const cursor of cursors) {
+          try {
+            if (cursor.stream === WORKSPACE_STREAM) {
+              streams.push(await state.events.bounds(cursor.stream));
+              continue;
+            }
+            const conversationId = parseConversationStream(cursor.stream);
+            if (!conversationId) {
+              throw new Error(`Unknown stream ${cursor.stream}`);
+            }
+            state.registry.getConversation(conversationId);
+            streams.push(await state.events.bounds(cursor.stream));
+          } catch (error) {
+            state.logger.warn("Stream subscription entry unavailable", {
+              context: { stream: cursor.stream },
+              error: boundedError(error),
+            });
+          }
         }
+        return { accepted: true, streams };
       },
     },
     readStream: (stream, fromSeq, limit) =>

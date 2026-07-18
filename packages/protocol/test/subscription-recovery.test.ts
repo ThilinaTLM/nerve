@@ -75,8 +75,10 @@ function createPair(
     ) => void | Promise<void>;
     notify?: (events: readonly NotifyEvent[]) => void;
     snapshot?: (stream: string) => void;
+    unavailable?: (stream: string) => void;
     close?: (code: number, reason: string) => void;
     maxBufferedEvents?: number;
+    knownStreams?: readonly string[];
   } = {},
 ) {
   const clientOutbound: ProtocolV1Message[] = [];
@@ -109,9 +111,12 @@ function createPair(
     maxBufferedEvents: options.maxBufferedEvents,
     subscriptions: {
       resolve(cursors) {
+        const known = options.knownStreams;
         return {
           accepted: true,
-          streams: cursors.map((cursor) => logs.state(cursor.stream)),
+          streams: cursors
+            .filter((cursor) => !known || known.includes(cursor.stream))
+            .map((cursor) => logs.state(cursor.stream)),
         };
       },
     },
@@ -135,6 +140,7 @@ function createPair(
     applyEvent: options.apply,
     onNotify: (events) => options.notify?.(events),
     onSnapshotRequired: (stream) => options.snapshot?.(stream),
+    onStreamUnavailable: (stream) => options.unavailable?.(stream),
   });
 
   return { client, server, clientOutbound, serverOutbound };
@@ -169,6 +175,45 @@ describe("subscription-only replay and recovery", () => {
     assert.deepEqual(applied, [1, 2, 3]);
     assert.deepEqual(pair.client.currentCursors(), [
       { stream: "workspace", processedSeq: 3 },
+    ]);
+  });
+
+  it("degrades unknown streams to unavailable without silencing the rest", async () => {
+    const logs = new MemoryStreams();
+    logs.append("workspace");
+    const applied: Array<{ stream: string; seq: number }> = [];
+    const unavailable: string[] = [];
+    const pair = createPair(logs, {
+      apply: (stream, event) => applied.push({ stream, seq: event.seq }),
+      unavailable: (stream) => unavailable.push(stream),
+      knownStreams: ["workspace"],
+    });
+    await start(pair);
+
+    const updated = await pair.client.subscribe([
+      { stream: "workspace", processedSeq: 0 },
+      { stream: "conv/conv_gone", processedSeq: 7 },
+    ]);
+    assert.equal(updated.accepted, true);
+    const modes = new Map(
+      updated.streams.map((stream) => [stream.stream, stream.mode]),
+    );
+    assert.equal(modes.get("workspace"), "replay");
+    assert.equal(modes.get("conv/conv_gone"), "unavailable");
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    assert.deepEqual(unavailable, ["conv/conv_gone"]);
+
+    const live = logs.append("workspace");
+    await pair.server.publish("workspace", live);
+    await pair.server.flush();
+    assert.equal(
+      applied.some(
+        (entry) => entry.stream === "workspace" && entry.seq === live.seq,
+      ),
+      true,
+    );
+    assert.deepEqual(pair.client.currentCursors(), [
+      { stream: "workspace", processedSeq: live.seq },
     ]);
   });
 

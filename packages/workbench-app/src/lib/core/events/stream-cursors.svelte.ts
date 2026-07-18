@@ -1,10 +1,20 @@
 import type { StreamCursor } from "@nervekit/contracts";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 
-type SubscriptionSync = (cursors: readonly StreamCursor[]) => Promise<unknown>;
+/**
+ * Applies the desired cursor set to the server, or reports "skipped" when the
+ * protocol session cannot accept subscriptions yet. Skipped or failed syncs
+ * stay dirty and are retried; a lost subscription update must never leave the
+ * client silently detached from live delivery.
+ */
+type SubscriptionSync = (
+  cursors: readonly StreamCursor[],
+) => Promise<"applied" | "skipped">;
 
+const SYNC_RETRY_MS = 1_000;
 let syncSubscription: SubscriptionSync | undefined;
 let syncScheduled = false;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function currentEventCursors(): StreamCursor[] {
   return [...workspaceState.eventCursors]
@@ -37,19 +47,42 @@ export function removeEventStream(stream: string): void {
 export function bindSubscriptionSync(sync: SubscriptionSync): () => void {
   syncSubscription = sync;
   return () => {
-    if (syncSubscription === sync) syncSubscription = undefined;
+    if (syncSubscription !== sync) return;
+    syncSubscription = undefined;
+    clearRetry();
   };
 }
 
 export function requestSubscriptionSync(): void {
   if (!syncSubscription || syncScheduled) return;
   syncScheduled = true;
-  queueMicrotask(() => {
-    syncScheduled = false;
-    const sync = syncSubscription;
-    if (!sync) return;
-    void sync(currentEventCursors()).catch((error: unknown) => {
-      console.error("Stream subscription update failed", error);
-    });
-  });
+  queueMicrotask(() => void runSubscriptionSync());
+}
+
+async function runSubscriptionSync(): Promise<void> {
+  syncScheduled = false;
+  clearRetry();
+  const sync = syncSubscription;
+  if (!sync) return;
+  try {
+    const result = await sync(currentEventCursors());
+    if (result === "skipped") scheduleRetry();
+  } catch (error) {
+    console.error("Stream subscription update failed; retrying", error);
+    scheduleRetry();
+  }
+}
+
+function scheduleRetry(): void {
+  if (retryTimer !== undefined || !syncSubscription) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined;
+    requestSubscriptionSync();
+  }, SYNC_RETRY_MS);
+}
+
+function clearRetry(): void {
+  if (retryTimer === undefined) return;
+  clearTimeout(retryTimer);
+  retryTimer = undefined;
 }

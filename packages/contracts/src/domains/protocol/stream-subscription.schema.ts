@@ -25,6 +25,7 @@ export const streamSubscriptionModeSchema = z.enum([
   "live",
   "replay",
   "snapshot_required",
+  "unavailable",
 ]);
 export type StreamSubscriptionMode = z.infer<
   typeof streamSubscriptionModeSchema

@@ -3,7 +3,13 @@ import type { Server } from "node:http";
 import { afterEach, test } from "node:test";
 import { serve } from "@hono/node-server";
 import type { ProtocolV1Message } from "@nervekit/contracts";
-import { ProtocolCodec, createMessageFactory } from "@nervekit/protocol";
+import {
+  ProtocolCodec,
+  ProtocolClientConnection,
+  ProtocolClientSession,
+  createMessageFactory,
+  nodeWebSocketTransportFactory,
+} from "@nervekit/protocol";
 import WebSocket, { WebSocketServer } from "ws";
 import { createOrchestratorState } from "../src/app/orchestrator-state.js";
 import { createApp } from "../src/app/server.js";
@@ -255,6 +261,246 @@ test("real adapter replays exclusively through stream subscriptions", async () =
   assert.equal(
     batch.data.events.filter((candidate) => candidate.id === event.id).length,
     1,
+  );
+  peer.socket.close();
+});
+
+test("real adapter delivers live events published after a head subscription", async () => {
+  const host = await fixture();
+  const peer = await open(host.wsUrl, host.token);
+  const messages = clientMessages(host.state.daemonId);
+  const welcome = await handshake(peer, messages);
+  peer.socket.send(
+    codec.encode(
+      messages("ready", {
+        sessionId: welcome.data.sessionId,
+      }) as ProtocolV1Message,
+    ),
+  );
+  const head = (await host.state.events.bounds("workspace")).latestSeq;
+  const updated = await subscribeWorkspace(
+    peer,
+    messages,
+    welcome.data.sessionId,
+    head,
+  );
+  assert.equal(updated.data.streams[0]?.mode, "live");
+
+  const event = await host.state.events.publish(
+    "project.created",
+    projectCreatedData("proj_live"),
+  );
+  const batch = await peer.next("event.batch");
+  assert.equal(batch.data.reason, "live");
+  assert.equal(
+    batch.data.events.some((candidate) => candidate.id === event.id),
+    true,
+  );
+  peer.socket.close();
+});
+
+test("real ProtocolClientSession applies live events after app-style subscribe", async () => {
+  const host = await fixture();
+  const applied: Array<{ stream: string; seq: number; type: string }> = [];
+  const cursors = new Map<string, number>([["workspace", 0]]);
+  let resolveReady!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve;
+  });
+  const messages = clientMessages(host.state.daemonId);
+  const connection = new ProtocolClientConnection({
+    transport: nodeWebSocketTransportFactory(
+      () =>
+        new WebSocket(host.wsUrl, {
+          headers: { authorization: `Bearer ${host.token}` },
+        }) as unknown as import("@nervekit/protocol").WebSocketLike,
+    ),
+    createSession: ({ send, onDisconnect }) =>
+      new ProtocolClientSession({
+        createMessage: messages,
+        capabilities: [
+          "encoding.json",
+          "event.batch",
+          "event.notify",
+          "stream.subscription.v1",
+          "snapshot.workspace",
+        ],
+        requiredCapabilities: [
+          "encoding.json",
+          "event.batch",
+          "event.notify",
+          "stream.subscription.v1",
+          "snapshot.workspace",
+        ],
+        cursors: () =>
+          [...cursors].map(([stream, processedSeq]) => ({
+            stream,
+            processedSeq,
+          })),
+        send,
+        onDisconnect,
+        onReady: () => resolveReady(),
+        applyEvent: async (stream, event) => {
+          applied.push({ stream, seq: event.seq, type: event.type });
+          cursors.set(stream, event.seq);
+        },
+      }),
+  });
+  cleanups.push(async () => connection.close());
+  await connection.start();
+  await ready;
+
+  await connection.session.subscribe(
+    [...cursors].map(([stream, processedSeq]) => ({ stream, processedSeq })),
+  );
+  const event = await host.state.events.publish(
+    "project.created",
+    projectCreatedData("proj_client_live"),
+  );
+  const deadline = Date.now() + 5_000;
+  while (
+    Date.now() < deadline &&
+    !applied.some((entry) => entry.seq === event.seq)
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(
+    applied.some(
+      (entry) =>
+        entry.stream === "workspace" &&
+        entry.seq === event.seq &&
+        entry.type === "project.created",
+    ),
+    true,
+    `live event was not applied; applied=${JSON.stringify(applied)}`,
+  );
+});
+
+test("real client applies live conversation events on a two-stream subscription", async () => {
+  const host = await fixture();
+  const project = await host.state.registry.createProject({
+    dir: `/tmp/proj-live-conv-${crypto.randomUUID()}`,
+  });
+  const conversation = await host.state.registry.createConversation({
+    projectId: project.id,
+  });
+  const stream = `conv/${conversation.id}`;
+  const applied: Array<{ stream: string; seq: number; type: string }> = [];
+  const cursors = new Map<string, number>([
+    ["workspace", (await host.state.events.bounds("workspace")).latestSeq],
+    [stream, (await host.state.events.bounds(stream)).latestSeq],
+  ]);
+  let resolveReady!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve;
+  });
+  const messages = clientMessages(host.state.daemonId);
+  const connection = new ProtocolClientConnection({
+    transport: nodeWebSocketTransportFactory(
+      () =>
+        new WebSocket(host.wsUrl, {
+          headers: { authorization: `Bearer ${host.token}` },
+        }) as unknown as import("@nervekit/protocol").WebSocketLike,
+    ),
+    createSession: ({ send, onDisconnect }) =>
+      new ProtocolClientSession({
+        createMessage: messages,
+        capabilities: ["encoding.json", "event.batch", "event.notify"],
+        cursors: () =>
+          [...cursors].map(([name, processedSeq]) => ({
+            stream: name,
+            processedSeq,
+          })),
+        send,
+        onDisconnect,
+        onReady: () => resolveReady(),
+        applyEvent: async (name, event) => {
+          applied.push({ stream: name, seq: event.seq, type: event.type });
+          cursors.set(name, event.seq);
+        },
+      }),
+  });
+  cleanups.push(async () => connection.close());
+  await connection.start();
+  await ready;
+  await connection.session.subscribe(
+    [...cursors].map(([name, processedSeq]) => ({
+      stream: name,
+      processedSeq,
+    })),
+  );
+
+  const event = await host.state.events.publish(
+    "conversation.live.turn.started",
+    {
+      projectId: project.id,
+      conversationId: conversation.id,
+      agentId: "agent_live",
+      runId: "run_live",
+      turnId: "turn_live",
+      ordinal: 0,
+    },
+  );
+  const deadline = Date.now() + 5_000;
+  while (
+    Date.now() < deadline &&
+    !applied.some((entry) => entry.stream === stream)
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(
+    applied.some((entry) => entry.stream === stream && entry.seq === event.seq),
+    true,
+    `live conversation event was not applied; applied=${JSON.stringify(applied)}`,
+  );
+});
+
+test("a stale conversation stream degrades per-stream without silencing workspace", async () => {
+  const host = await fixture();
+  const peer = await open(host.wsUrl, host.token);
+  const messages = clientMessages(host.state.daemonId);
+  const welcome = await handshake(peer, messages);
+  peer.socket.send(
+    codec.encode(
+      messages("ready", {
+        sessionId: welcome.data.sessionId,
+      }) as ProtocolV1Message,
+    ),
+  );
+  const head = (await host.state.events.bounds("workspace")).latestSeq;
+  peer.socket.send(
+    codec.encode(
+      messages("stream.subscription.set", {
+        sessionId: welcome.data.sessionId,
+        subscriptionId: `sub_${crypto.randomUUID()}`,
+        streams: [
+          { stream: "workspace", processedSeq: head },
+          { stream: "conv/conv_deleted_long_ago", processedSeq: 0 },
+        ],
+      }) as ProtocolV1Message,
+    ),
+  );
+  const updated = await peer.next("stream.subscription.updated");
+  assert.equal(
+    updated.data.accepted,
+    true,
+    `subscription rejected: ${JSON.stringify(updated.data)}`,
+  );
+  const modes = new Map(
+    updated.data.streams.map((stream) => [stream.stream, stream.mode]),
+  );
+  assert.equal(modes.get("workspace"), "live");
+  assert.equal(modes.get("conv/conv_deleted_long_ago"), "unavailable");
+
+  const event = await host.state.events.publish(
+    "project.created",
+    projectCreatedData("proj_degraded"),
+  );
+  const batch = await peer.next("event.batch");
+  assert.equal(batch.data.stream, "workspace");
+  assert.equal(
+    batch.data.events.some((candidate) => candidate.id === event.id),
+    true,
   );
   peer.socket.close();
 });

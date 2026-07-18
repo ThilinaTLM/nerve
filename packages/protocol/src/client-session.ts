@@ -53,6 +53,11 @@ export interface ClientSessionOptions {
   readonly readyStatus?: () => ReadyPeerStatus | undefined;
   readonly onReady?: (welcome: WelcomeData) => void | Promise<void>;
   readonly onSnapshotRequired?: (stream: string) => void | Promise<void>;
+  /**
+   * The server reported this stream as gone (deleted/unknown). The
+   * application should drop its cursor and any dependent view state.
+   */
+  readonly onStreamUnavailable?: (stream: string) => void | Promise<void>;
   readonly applyEvent?: (
     stream: string,
     event: EventEnvelope<Record<string, unknown>>,
@@ -424,7 +429,12 @@ export class ProtocolClientSession {
     this.resetStreams(pending.cursors);
     this.#activeSubscriptions.clear();
     for (const stream of data.streams) {
-      if (stream.mode === "snapshot_required") {
+      if (stream.mode === "unavailable") {
+        this.#streams.delete(stream.stream);
+        queueMicrotask(
+          () => void this.#options.onStreamUnavailable?.(stream.stream),
+        );
+      } else if (stream.mode === "snapshot_required") {
         queueMicrotask(
           () => void this.#options.onSnapshotRequired?.(stream.stream),
         );

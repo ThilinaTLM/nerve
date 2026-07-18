@@ -30,6 +30,7 @@ import {
   bindSubscriptionSync,
   currentEventCursors,
   installEventCursors,
+  removeEventStream,
   requestSubscriptionSync,
 } from "$lib/core/events/stream-cursors.svelte";
 import {
@@ -155,6 +156,15 @@ async function connectWebsocket(wsUrl: string): Promise<void> {
           const conversationId = parseConversationStream(stream);
           if (conversationId) await refreshConversationView(conversationId);
         },
+        onStreamUnavailable: (stream) => {
+          // The server no longer knows this stream (conversation deleted or
+          // stale). Drop its cursor so it cannot poison future subscription
+          // sets; workspace events reconcile any dependent view state.
+          clientLog("warn", "websocket", "Event stream unavailable", {
+            context: { stream },
+          });
+          removeEventStream(stream);
+        },
         applyEvent: async (stream, event) => {
           flushNotifyEvents();
           await applyEventAndFlush(event);
@@ -179,8 +189,9 @@ async function connectWebsocket(wsUrl: string): Promise<void> {
   });
   unbindSubscriptionSync = bindSubscriptionSync(async (cursors) => {
     const session = connection?.session;
-    if (!session || session.state !== "ready") return;
+    if (!session || session.state !== "ready") return "skipped";
     await session.subscribe(cursors);
+    return "applied";
   });
   void connection.start().catch(rejectInitialReady);
   await initialReady;

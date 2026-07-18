@@ -407,10 +407,7 @@ export class ProtocolServerSession {
     const statesByName = new Map(
       decision.streams.map((state) => [state.stream, state]),
     );
-    const exactSet =
-      decision.streams.length === message.data.streams.length &&
-      message.data.streams.every((cursor) => statesByName.has(cursor.stream));
-    if (!decision.accepted || !exactSet) {
+    if (!decision.accepted) {
       await this.#sendSubscriptionUpdated(
         message,
         false,
@@ -420,17 +417,30 @@ export class ProtocolServerSession {
       return;
     }
 
+    // Streams the resolver could not produce (deleted/unknown) degrade
+    // per-stream to "unavailable" instead of rejecting the whole set: one
+    // stale conversation stream must never disable live delivery for the
+    // remaining streams.
     const subscribed: SubscribedStreamState[] = message.data.streams.map(
       (cursor) => {
-        const state = statesByName.get(cursor.stream) as StreamState;
+        const state = statesByName.get(cursor.stream);
+        if (!state) {
+          return {
+            stream: cursor.stream,
+            latestSeq: 0,
+            earliestAvailableSeq: 0,
+            mode: "unavailable" as const,
+          };
+        }
         return { ...state, mode: subscriptionMode(cursor, state) };
       },
     );
-    const acceptedCursors = message.data.streams.filter(
-      (cursor) =>
-        subscribed.find((state) => state.stream === cursor.stream)?.mode !==
-        "snapshot_required",
-    );
+    const acceptedCursors = message.data.streams.filter((cursor) => {
+      const mode = subscribed.find(
+        (state) => state.stream === cursor.stream,
+      )?.mode;
+      return mode !== "snapshot_required" && mode !== "unavailable";
+    });
     const nextActive = new Set(acceptedCursors.map((cursor) => cursor.stream));
     this.#activeStreams.clear();
     this.#streamStates.clear();

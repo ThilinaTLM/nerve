@@ -13,6 +13,7 @@ import { agentConfigOverride } from "$lib/features/conversations/state/agent-con
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
+import { getPendingUserQuestions } from "$lib/features/tools/api/tools.api";
 import { replaceOpenCenterTabs } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,
@@ -113,8 +114,20 @@ export async function refreshConversationView(conversationId: string) {
     if (selection.conversationId === conversationId) {
       selection.entryId = snapshot.tree.activeEntryId;
     }
+    // Pending human-input records ride the workspace stream; rehydrate them
+    // here so a missed live update cannot permanently hide the answer form
+    // for tool calls in this conversation.
+    void refreshPendingUserQuestions();
   } finally {
     view.loading = false;
+  }
+}
+
+async function refreshPendingUserQuestions(): Promise<void> {
+  try {
+    workspaceState.userQuestions = await getPendingUserQuestions();
+  } catch (error) {
+    console.warn("Failed to refresh pending user questions", error);
   }
 }
 

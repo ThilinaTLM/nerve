@@ -8,9 +8,12 @@ Reconnect does not carry cursors in `hello`. After ready, the client sends its c
 
 - equal to `latestSeq`: `live`;
 - behind but still retained: `replay`;
-- ahead of `latestSeq`, or older than `earliestAvailableSeq - 1`: `snapshot_required`.
+- ahead of `latestSeq`, or older than `earliestAvailableSeq - 1`: `snapshot_required`;
+- unknown to the server (for example a deleted conversation): `unavailable`.
 
 For replay, the server reads from `processedSeq + 1` in bounded dense pages. Events arriving while that stream replays are buffered and released afterward. Streams recover independently.
+
+An `unavailable` stream is excluded from activation without rejecting the rest of the set. The client drops its cursor and dependent state; a stale stream must never be able to silence live delivery for the remaining streams. Client subscription synchronization is self-healing: a sync that cannot run (session not ready) or fails stays dirty and is retried until the desired set is acknowledged.
 
 ## Defensive gaps
 

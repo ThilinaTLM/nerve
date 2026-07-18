@@ -17,9 +17,10 @@
 
 - `live`: cursor equals the stream head;
 - `replay`: missing retained events will follow;
-- `snapshot_required`: the cursor is ahead or older than retained history.
+- `snapshot_required`: the cursor is ahead or older than retained history;
+- `unavailable`: the server no longer knows the stream (for example a deleted conversation).
 
-Accepted non-snapshot streams become the exact active set. Replay is emitted before live events that arrived during replay. A rejected update leaves the previous set active.
+Accepted streams outside `snapshot_required`/`unavailable` become the exact active set. Replay is emitted before live events that arrived during replay. Streams degrade individually: one unknown stream must never reject the whole set, because that would silence live delivery for every other stream. Whole-set rejection is reserved for unauthorized or malformed requests, and a rejected update leaves the previous set active. Clients drop cursors for `unavailable` streams and clean up dependent state.
 
 ## Heartbeat and close
 
