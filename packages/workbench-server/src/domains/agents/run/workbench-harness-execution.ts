@@ -664,7 +664,11 @@ export async function executeWorkbenchHarness(
     ) {
       const aborted = runAssistant.stopReason === "aborted" || abortRequested;
       const retryable = !aborted && isRetryableAssistantError(runAssistant);
-      if (retryable) {
+      // Automatic retry policy and manual recovery are intentionally separate:
+      // billing/auth failures should not spin, but users can change models and
+      // resume from the provider boundary.
+      const continuable = !aborted;
+      if (continuable) {
         const leafId = await harnessConversation.getLeafId();
         const leaf = leafId
           ? await harnessConversation.getEntry(leafId)
@@ -685,6 +689,7 @@ export async function executeWorkbenchHarness(
                 code: "MODEL_REQUEST_FAILED",
                 message: runAssistant.errorMessage ?? "Agent run failed.",
                 retryable,
+                continuable,
               },
             }),
       } as RunExecutionOutcome;

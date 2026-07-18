@@ -281,8 +281,14 @@ export function failure(
   code: string,
   error: unknown,
   retryable: boolean,
+  continuable = retryable,
 ): RunFailureRecord {
-  return boundedFailure({ code, message: errorMessage(error), retryable });
+  return boundedFailure({
+    code,
+    message: errorMessage(error),
+    retryable,
+    continuable,
+  });
 }
 
 export function prefixed(prefix: string, value: string): string {

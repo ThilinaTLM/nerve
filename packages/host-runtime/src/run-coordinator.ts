@@ -911,8 +911,9 @@ export class RunCoordinator {
       ) {
         return undefined;
       }
+      const checkpointEligible = value.continuable ?? value.retryable;
       const validCheckpoint =
-        value.retryable &&
+        checkpointEligible &&
         (await checkpointValid(
           state,
           this.ports.references,
@@ -925,7 +926,7 @@ export class RunCoordinator {
         countAutomaticRetries(state.transitions),
       );
       const now = this.now();
-      if (validCheckpoint && decision.retry) {
+      if (value.retryable && validCheckpoint && decision.retry) {
         const retrying = revise(
           state.run,
           {

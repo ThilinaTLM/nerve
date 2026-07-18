@@ -743,6 +743,89 @@ test("refuses automatic retry without a valid checkpoint", async () => {
   assert.equal(harness.executions.length, 1);
 });
 
+test("allows manual continuation without automatically retrying", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 3, baseDelayMs: 1 },
+    execute: async (attempt, _input, sink) => {
+      if (attempt > 1) return { status: "completed" };
+      await sink.checkpoint({
+        boundary: "before_provider_request",
+        transcriptCursor: 0,
+        entryIds: [],
+        harnessLeafId: null,
+        harnessSavePointId: "save_0",
+        toolCalls: [],
+      });
+      return {
+        status: "failed",
+        failure: {
+          code: "MODEL_REQUEST_FAILED",
+          message: "billing must be updated",
+          retryable: false,
+          continuable: true,
+        },
+      };
+    },
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "interrupted",
+  );
+
+  let state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.recoverability, "checkpoint");
+  assert.equal(
+    state?.transitions.some((transition) => transition.kind === "retrying"),
+    false,
+  );
+  assert.equal(harness.executions.length, 1);
+  const failureEvent = state?.transitions
+    .at(-1)
+    ?.events.find((event) => event.type === "run.failed");
+  assert.equal(
+    (failureEvent?.data as { interrupted?: boolean })?.interrupted,
+    true,
+  );
+  assert.equal(
+    (failureEvent?.data as { continuable?: boolean })?.continuable,
+    true,
+  );
+
+  const continued = await harness.coordinator.continue(run.runId);
+  assert.equal(continued.status, "running");
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "completed",
+  );
+  state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.attempt, 2);
+  assert.equal(harness.executions.length, 2);
+});
+
+test("keeps a continuable failure terminal without a valid checkpoint", async () => {
+  const harness = fixture({
+    execute: async () => ({
+      status: "failed",
+      failure: {
+        code: "MODEL_REQUEST_FAILED",
+        message: "billing must be updated",
+        retryable: false,
+        continuable: true,
+      },
+    }),
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "failed",
+  );
+
+  const state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.recoverability, "none");
+  await assert.rejects(() => harness.coordinator.continue(run.runId));
+});
+
 test("cancels a scheduled retry without launching a new execution", async () => {
   const harness = fixture({
     retryPolicy: { enabled: true, maxRetries: 2, baseDelayMs: 25 },

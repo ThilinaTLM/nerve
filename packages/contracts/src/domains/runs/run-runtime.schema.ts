@@ -50,7 +50,10 @@ export const RUN_FAILURE_MESSAGE_MAX_LENGTH = 2_000;
 export const runFailureSchema = z.object({
   code: z.string().min(1).max(128),
   message: z.string().min(1).max(RUN_FAILURE_MESSAGE_MAX_LENGTH),
+  /** Whether the host may retry this failure automatically. */
   retryable: z.boolean(),
+  /** Whether a user may resume manually when a valid checkpoint exists. */
+  continuable: z.boolean().optional(),
 });
 export type RunFailureRecord = z.infer<typeof runFailureSchema>;
 

@@ -4,6 +4,7 @@ import { queryClient, queryKeys } from "$lib/core/query";
 import { conversationViewKey } from "$lib/core/state/state-keys";
 import type { CompactionNotice } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { flushAgentConfigChanges } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
@@ -63,16 +64,21 @@ export async function compactActiveConversation() {
 
 export async function continueFromFailure(runId: string) {
   if (!selection.agentId || !selection.conversationId) return;
-  const view = ensureConversationView(selection.conversationId);
+  const agentId = selection.agentId;
+  const conversationId = selection.conversationId;
+  const view = ensureConversationView(conversationId);
   view.sending = true;
   view.error = undefined;
   workspaceState.error = undefined;
   try {
+    // The user may have selected a replacement model specifically to recover
+    // this run. Ensure that configuration is authoritative before resuming.
+    await flushAgentConfigChanges(agentId);
     await protocolRequest(
       "run.continue",
       {
-        agentId: selection.agentId,
-        conversationId: selection.conversationId,
+        agentId,
+        conversationId,
         runId,
         reason: "manual",
       },

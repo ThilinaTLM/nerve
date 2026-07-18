@@ -69,7 +69,112 @@ describe("workbench coordinator-owned provider retry", () => {
     } finally {
       registration.unregister();
       await shutdownOrchestratorState(orchestrator);
-      await rm(root, { recursive: true, force: true });
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 20,
+      });
+    }
+  });
+
+  it("continues a non-retryable model failure after changing models", async () => {
+    const failingProvider = registerAgentScriptedProvider({
+      provider: "nerve-scripted-billing",
+      model: "billing-failure",
+      steps: [
+        {
+          type: "providerError",
+          message: "Insufficient balance. Update billing before retrying.",
+          retryable: false,
+        },
+      ],
+    });
+    const recoveryProvider = registerAgentScriptedProvider({
+      provider: "nerve-scripted-recovery",
+      model: "recovery-model",
+      steps: [
+        {
+          type: "assistantText",
+          text: "Recovered with the replacement model.",
+        },
+      ],
+    });
+    const root = await mkdtemp(join(tmpdir(), "nerve-workbench-continue-"));
+    const storage = await initializeStorage(root);
+    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    try {
+      await orchestrator.registry.hydrate();
+      const project = await orchestrator.registry.createProject({ dir: root });
+      const conversation = await orchestrator.registry.createConversation({
+        projectId: project.id,
+      });
+      const agent = await orchestrator.registry.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        model: {
+          provider: "nerve-scripted-billing",
+          modelId: "billing-failure",
+        },
+      });
+      await orchestrator.registry.promptAgent(agent.id, {
+        text: "Recover manually",
+      });
+      const unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home, 0);
+      let runId: string | undefined;
+      await waitFor(async () => {
+        const states = await unitOfWork.list();
+        runId ??= states.find((state) => state.run.agentId === agent.id)?.run
+          .runId;
+        if (!runId) return false;
+        return (await unitOfWork.load(runId))?.run.status === "interrupted";
+      });
+
+      let state = await unitOfWork.load(runId!);
+      assert.equal(state?.run.recoverability, "checkpoint");
+      assert.equal(state?.run.failure?.retryable, false);
+      assert.equal(state?.run.failure?.continuable, true);
+      assert.equal(
+        state?.transitions.some((transition) => transition.kind === "retrying"),
+        false,
+      );
+      assert.equal(state?.run.attempt, 1);
+
+      await orchestrator.registry.configureAgent(agent.id, {
+        model: {
+          provider: "nerve-scripted-recovery",
+          modelId: "recovery-model",
+        },
+      });
+      await orchestrator.registry.continueRun(agent.id, runId!);
+      await waitFor(
+        async () => (await unitOfWork.load(runId!))?.run.status === "completed",
+      );
+
+      state = await unitOfWork.load(runId!);
+      assert.equal(state?.run.attempt, 2);
+      assert.equal(
+        orchestrator.registry.agents.get(agent.id)?.model?.provider,
+        "nerve-scripted-recovery",
+      );
+      assert.equal(
+        orchestrator.registry
+          .getConversationEntries(conversation.id)
+          .some((entry) =>
+            entry.text.includes("Recovered with the replacement model."),
+          ),
+        true,
+      );
+    } finally {
+      failingProvider.unregister();
+      recoveryProvider.unregister();
+      await shutdownOrchestratorState(orchestrator);
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 20,
+      });
     }
   });
 });

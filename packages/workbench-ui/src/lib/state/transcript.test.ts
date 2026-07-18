@@ -33,6 +33,24 @@ describe("entryToTranscriptItems", () => {
     assert.equal(item?.messageOrdinal, 2);
   });
 
+  it("retains an empty assistant message's durable error", () => {
+    const [item] = entryToTranscriptItems(
+      entry({
+        role: "assistant",
+        kind: "message",
+        text: "",
+        details: {
+          stopReason: "error",
+          errorMessage: "401: Insufficient balance",
+        },
+      }),
+    );
+
+    assert.equal(item?.text, "");
+    assert.equal(item?.stopReason, "error");
+    assert.equal(item?.errorMessage, "401: Insufficient balance");
+  });
+
   it("converts compaction entries into transcript compaction items", () => {
     const [item] = entryToTranscriptItems(
       entry({
