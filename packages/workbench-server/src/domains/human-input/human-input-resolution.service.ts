@@ -359,15 +359,19 @@ export class HumanInputResolutionService {
       );
     }
     try {
+      const dispatcherOwnsCompletion =
+        this.deps.tools.hasUserQuestionWaiter(questionId);
       const question = await this.deps.tools.answerUserQuestion(
         questionId,
         answer,
       );
-      await this.resolveSuspensionForToolCall(
-        question.toolCallId,
-        this.deps.tools.userQuestionResult(question),
-        { continueAgent: true, finalSuspensionStatus: "resumed" },
-      );
+      if (!dispatcherOwnsCompletion) {
+        await this.resolveSuspensionForToolCall(
+          question.toolCallId,
+          this.deps.tools.userQuestionResult(question),
+          { continueAgent: true, finalSuspensionStatus: "resumed" },
+        );
+      }
       return question;
     } catch (error) {
       throw new HttpError(
@@ -390,15 +394,19 @@ export class HumanInputResolutionService {
       );
     }
     try {
+      const dispatcherOwnsCompletion =
+        this.deps.tools.hasUserQuestionWaiter(questionId);
       const question = await this.deps.tools.dismissUserQuestion(
         questionId,
         reason,
       );
-      await this.resolveSuspensionForToolCall(
-        question.toolCallId,
-        this.deps.tools.userQuestionResult(question),
-        { continueAgent: true, finalSuspensionStatus: "resumed" },
-      );
+      if (!dispatcherOwnsCompletion) {
+        await this.resolveSuspensionForToolCall(
+          question.toolCallId,
+          this.deps.tools.userQuestionResult(question),
+          { continueAgent: true, finalSuspensionStatus: "resumed" },
+        );
+      }
       return question;
     } catch (error) {
       throw new HttpError(

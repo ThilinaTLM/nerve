@@ -8,6 +8,16 @@ import { createAuthenticatedApp, tempHome } from "./helpers/server-routes.js";
 describe("orchestrator server agent tool routes", () => {
   it("lists and answers pending user questions", async () => {
     const { app, state, headers } = await createAuthenticatedApp();
+    const askUserStatuses: string[] = [];
+    const unsubscribe = state.events.subscribe((event) => {
+      if (event.type !== "toolCall.updated") return;
+      const toolCall = (
+        event.data as { toolCall?: { toolName?: string; status?: string } }
+      ).toolCall;
+      if (toolCall?.toolName === "ask_user" && toolCall.status) {
+        askUserStatuses.push(toolCall.status);
+      }
+    });
     try {
       const project = await state.registry.createProject({
         dir: state.storage.paths.home,
@@ -69,7 +79,15 @@ describe("orchestrator server agent tool routes", () => {
           .dismissed,
         false,
       );
+      assert.deepEqual(askUserStatuses, [
+        "requested",
+        "running",
+        "waiting_for_user",
+        "running",
+        "completed",
+      ]);
     } finally {
+      unsubscribe();
       state.index.close();
     }
   });
