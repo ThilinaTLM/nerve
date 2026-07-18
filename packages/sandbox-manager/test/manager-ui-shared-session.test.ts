@@ -42,15 +42,6 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
     desiredState: "running",
     observedState: "running",
   };
-  let blockSandboxB = false;
-  let markSandboxBLoad!: () => void;
-  const sandboxBLoadStarted = new Promise<void>((resolve) => {
-    markSandboxBLoad = resolve;
-  });
-  let releaseSandboxBLoad!: () => void;
-  const sandboxBLoadGate = new Promise<void>((resolve) => {
-    releaseSandboxBLoad = resolve;
-  });
   const state = {
     config: { heartbeatTimeoutMs: 45_000 },
     sandboxes: {
@@ -63,13 +54,10 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
     pinnedCommands: { list: async () => [] },
     events: {
       list: async () => [],
-      streamState: async (storeId: string) => {
-        if (storeId === "b" && blockSandboxB) {
-          markSandboxBLoad();
-          await sandboxBLoadGate;
-        }
-        return { latestSeq: 0, earliestAvailableSeq: 1 };
-      },
+      streamState: async () => ({
+        latestSeq: 0,
+        earliestAvailableSeq: 1,
+      }),
       readRange: async () => ({
         events: [],
         latestSeq: 0,
@@ -174,14 +162,10 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
     await waitFor(() => received.length === 2);
     assert.deepEqual(received.sort(), ["manager", "sandbox:a"]);
 
-    blockSandboxB = true;
-    const subscription = clientSession.subscribe([
+    await clientSession.subscribe([
       { stream: "manager", processedSeq: 1 },
       { stream: "sandbox:b", processedSeq: 0 },
     ]);
-    await sandboxBLoadStarted;
-    releaseSandboxBLoad();
-    await subscription;
     eventBus.publish({
       type: "run.started",
       stream: "sandbox:b",

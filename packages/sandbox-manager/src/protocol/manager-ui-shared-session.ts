@@ -104,10 +104,10 @@ function attachManagerUiSharedSession(
     authorizeTarget: async (message, context) => {
       const target = message.target;
       if (
-        target.role === context.negotiatedTarget.role &&
-        target.id === context.negotiatedTarget.id &&
-        target.instanceId === context.negotiatedTarget.instanceId &&
-        target.name === context.negotiatedTarget.name
+        target.role === context.acceptingPeer.role &&
+        target.id === context.acceptingPeer.id &&
+        target.instanceId === context.acceptingPeer.instanceId &&
+        target.name === context.acceptingPeer.name
       )
         return true;
       if (
