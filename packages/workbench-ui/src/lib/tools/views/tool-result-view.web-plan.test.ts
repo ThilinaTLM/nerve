@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import type { ToolCallRecord } from "../../state/tool-types";
 import { toolPresentation } from "./tool-presentation";
 import { parseToolView } from "./tool-result-view";
-import { toolCall } from "./tool-result-view.fixtures";
+import { toolCall, transcriptToolCall } from "./tool-result-view.fixtures";
 
 describe("parseToolView plan and web tools", () => {
   it("parses plan_mode_enter", () => {
@@ -86,6 +86,40 @@ describe("parseToolView plan and web tools", () => {
     assert.equal(view.results[0]?.score, 0.9);
   });
 
+  it("parses and presents web_search transcript previews", () => {
+    const tc = transcriptToolCall(
+      "web_search",
+      { query: "nerve agent" },
+      {
+        details: {
+          query: "nerve agent",
+          answer: "It searches.",
+          results: [
+            {
+              title: "First result",
+              url: "https://example.test/first",
+              content: "First snippet.",
+              score: 0.9,
+            },
+            {
+              title: "Second result",
+              url: "https://example.test/second",
+              content: "Second snippet.",
+            },
+          ],
+        },
+      },
+    );
+
+    const view = parseToolView(tc);
+    assert.equal(view.kind, "web_search");
+    if (view.kind !== "web_search") return;
+    assert.equal(view.answer, "It searches.");
+    assert.equal(view.results.length, 2);
+    assert.equal(view.results[0]?.content, "First snippet.");
+    assert.equal(toolPresentation(view, tc).meta[0]?.text, "2 results");
+  });
+
   it("offers a details action when web_search results exceed the collapsed body", () => {
     const results = Array.from({ length: 14 }, (_, index) => ({
       title: `Result ${index + 1}`,
@@ -122,6 +156,30 @@ describe("parseToolView plan and web tools", () => {
     assert.equal(view.status, 200);
     assert.equal(view.converted, true);
     assert.match(view.content ?? "", /Fetched markdown/);
+  });
+
+  it("parses web_fetch transcript previews", () => {
+    const tc = transcriptToolCall(
+      "web_fetch",
+      { url: "https://example.test" },
+      {
+        details: {
+          url: "https://example.test",
+          status: 200,
+          contentType: "text/html; charset=utf-8",
+          size: 120,
+          converted: true,
+        },
+        content: "# Example\n\nFetched markdown preview.",
+      },
+    );
+
+    const view = parseToolView(tc);
+    assert.equal(view.kind, "web_fetch");
+    if (view.kind !== "web_fetch") return;
+    assert.equal(view.status, 200);
+    assert.equal(view.converted, true);
+    assert.match(view.content ?? "", /Fetched markdown preview/);
   });
 
   it("falls back to generic for a malformed result", () => {

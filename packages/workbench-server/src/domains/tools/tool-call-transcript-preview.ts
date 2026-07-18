@@ -12,6 +12,10 @@ import {
   buildTaskToolTranscriptPreview,
   isTaskToolResultPreview,
 } from "./task-tool-transcript-preview.js";
+import {
+  buildWebFetchTranscriptPreview,
+  buildWebSearchTranscriptPreview,
+} from "./web-tool-transcript-preview.js";
 
 const PREVIEW_COUNT = 10;
 const MAX_PREVIEW_CHARS = 8 * 1024;
@@ -514,10 +518,7 @@ function truncateUtf8(value: string, maxBytes: number): string {
   return value.slice(0, low);
 }
 
-/**
- * Project raw provider tool arguments into the bounded, secret-safe shape used
- * by public live-draft events. Full arguments remain in the durable tool record.
- */
+/** Build a bounded, secret-safe public preview of provider arguments. */
 export function toPublicToolCallArgsPreview(
   args: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -542,7 +543,7 @@ export function toToolCallTranscriptRecord(
     | "task_cancel"
     | "task_restart"
     | undefined;
-  let semanticTaskOverflow = false;
+  let semanticOverflow = false;
 
   switch (toolCall.toolName) {
     case "read": {
@@ -678,6 +679,16 @@ export function toToolCallTranscriptRecord(
       break;
     }
 
+    case "web_search":
+    case "web_fetch": {
+      const preview =
+        toolCall.toolName === "web_search"
+          ? buildWebSearchTranscriptPreview(resultRecord)
+          : buildWebFetchTranscriptPreview(resultRecord);
+      ({ resultPreview, hidden, noun, direction, semanticOverflow } = preview);
+      break;
+    }
+
     case "task_start":
     case "task_status":
     case "task_logs":
@@ -691,7 +702,7 @@ export function toToolCallTranscriptRecord(
         hidden = preview.overflow.hidden;
         noun = preview.overflow.noun;
         direction = preview.overflow.direction;
-        semanticTaskOverflow = true;
+        semanticOverflow = true;
       } else {
         direction = "head";
       }
@@ -734,16 +745,18 @@ export function toToolCallTranscriptRecord(
     }
   }
 
-  // Preserve schema-bearing semantic results before verbose arguments consume
-  // the shared text budget; otherwise downstream parsers can reject the preview.
+  // Project schema-bearing semantic results before verbose arguments.
   const resultFirst =
-    taskToolName !== undefined || toolCall.toolName === "explore";
+    taskToolName !== undefined ||
+    toolCall.toolName === "explore" ||
+    toolCall.toolName === "web_search" ||
+    toolCall.toolName === "web_fetch";
   const finalized = finalizePublicPreview(
     argsPreview,
     resultPreview,
     resultFirst,
   );
-  if (!semanticTaskOverflow) {
+  if (!semanticOverflow) {
     if (finalized.hiddenItems > 0) {
       hidden += finalized.hiddenItems;
       noun = "items";
