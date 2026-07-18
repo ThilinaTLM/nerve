@@ -202,6 +202,23 @@ function mergeSettingsPatch(
     next.tools = {
       ...(base?.tools ?? {}),
       ...(patch.tools ?? {}),
+      ...(base?.tools?.bash || patch.tools?.bash
+        ? {
+            bash: {
+              ...(base?.tools?.bash ?? {}),
+              ...(patch.tools?.bash ?? {}),
+              ...(base?.tools?.bash?.autoPromotion ||
+              patch.tools?.bash?.autoPromotion
+                ? {
+                    autoPromotion: {
+                      ...(base?.tools?.bash?.autoPromotion ?? {}),
+                      ...(patch.tools?.bash?.autoPromotion ?? {}),
+                    },
+                  }
+                : {}),
+            },
+          }
+        : {}),
     };
   }
   return next;

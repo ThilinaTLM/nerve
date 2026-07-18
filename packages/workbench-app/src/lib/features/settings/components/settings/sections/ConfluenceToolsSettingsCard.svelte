@@ -105,6 +105,7 @@ const hasRequiredConfig = $derived(
 function ensureTools() {
   settingsDraft.tools ??= {
     disabled: [],
+    bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
   };

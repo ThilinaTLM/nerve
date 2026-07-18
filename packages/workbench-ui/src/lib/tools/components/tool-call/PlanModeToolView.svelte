@@ -228,7 +228,7 @@ async function rejectPlan() {
   <div class="grid gap-2" aria-label="Plan review">
     {#if preview.trim()}
       <div
-        class="whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]"
+        class="whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]"
       >
         {preview}
       </div>

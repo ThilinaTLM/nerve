@@ -124,6 +124,7 @@ function saveJiraEnabled(enabled: boolean) {
   if (enabled && !hasRequiredConfig) return;
   settingsDraft.tools ??= {
     disabled: [],
+    bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
   };
@@ -148,6 +149,7 @@ async function saveConfig() {
     }
     settingsDraft.tools ??= {
       disabled: [],
+      bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
       jira: { enabled: false },
       confluence: { enabled: false },
     };
@@ -187,6 +189,7 @@ async function removeToken() {
     tokenDraft = "";
     settingsDraft.tools ??= {
       disabled: [],
+      bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
       jira: { enabled: false },
       confluence: { enabled: false },
     };

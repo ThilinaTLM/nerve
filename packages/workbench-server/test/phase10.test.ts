@@ -34,6 +34,7 @@ describe("phase 10 hardening helpers", () => {
     const settings = await writeSettings(storage, {
       defaultPermissionLevel: "autonomous",
       server: { allowRemote: true },
+      tools: { bash: { autoPromotion: { afterMs: 240_000 } } },
       scopedModels,
     });
 
@@ -45,15 +46,32 @@ describe("phase 10 hardening helpers", () => {
     assert.equal(settings.ui.zoomLevel, 0);
     assert.equal(settings.desktop.closeToTray, true);
     assert.equal(settings.compaction.auto, true);
+    assert.deepEqual(settings.tools.bash.autoPromotion, {
+      enabled: true,
+      afterMs: 240_000,
+    });
     assert.deepEqual(settings.scopedModels, scopedModels);
     assert.equal(storage.settings.server.allowRemote, true);
     assert.deepEqual(storage.settings.scopedModels, scopedModels);
 
+    const disabledSettings = await writeSettings(storage, {
+      tools: { bash: { autoPromotion: { enabled: false } } },
+    });
+    assert.deepEqual(disabledSettings.tools.bash.autoPromotion, {
+      enabled: false,
+      afterMs: 240_000,
+    });
+
     const desktopSettings = await writeSettings(storage, {
       desktop: { closeToTray: false },
+      tools: { disabled: ["web_search"] },
     });
     assert.equal(desktopSettings.desktop.closeToTray, false);
     assert.equal(desktopSettings.server.allowRemote, true);
+    assert.deepEqual(desktopSettings.tools.bash.autoPromotion, {
+      enabled: false,
+      afterMs: 240_000,
+    });
     assert.deepEqual(desktopSettings.scopedModels, scopedModels);
   });
 

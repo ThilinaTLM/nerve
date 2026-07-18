@@ -25,6 +25,10 @@ describe("settings schema", () => {
     });
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
+    assert.deepEqual(settings.tools.bash.autoPromotion, {
+      enabled: true,
+      afterMs: 120_000,
+    });
     assert.equal(settings.tools.jira.enabled, false);
     assert.equal(settings.tools.confluence.enabled, false);
     assert.equal(settings.compaction.auto, true);
@@ -54,6 +58,10 @@ describe("settings schema", () => {
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
+    assert.deepEqual(settings.tools.bash.autoPromotion, {
+      enabled: true,
+      afterMs: 120_000,
+    });
     assert.equal(settings.tools.jira.enabled, false);
     assert.equal(settings.tools.confluence.enabled, false);
   });
@@ -77,8 +85,27 @@ describe("settings schema", () => {
     });
 
     assert.deepEqual(settings.tools.disabled, ["web_search"]);
+    assert.deepEqual(settings.tools.bash.autoPromotion, {
+      enabled: true,
+      afterMs: 120_000,
+    });
     assert.deepEqual(settings.tools.jira, { enabled: false });
     assert.deepEqual(settings.tools.confluence, { enabled: false });
+  });
+
+  it("backfills partial Bash auto-promotion settings", () => {
+    const settings = settingsSchema.parse({
+      ...defaultSettings,
+      tools: {
+        ...defaultSettings.tools,
+        bash: { autoPromotion: { enabled: false } },
+      },
+    });
+
+    assert.deepEqual(settings.tools.bash.autoPromotion, {
+      enabled: false,
+      afterMs: 120_000,
+    });
   });
 
   it("accepts runtime and tool update settings", () => {
@@ -93,6 +120,9 @@ describe("settings schema", () => {
       },
       tools: {
         disabled: ["web_search", "web_fetch", "python"],
+        bash: {
+          autoPromotion: { enabled: false, afterMs: 240_000 },
+        },
         jira: {
           enabled: true,
           siteUrl: "https://example.atlassian.net",
@@ -122,6 +152,10 @@ describe("settings schema", () => {
       "web_fetch",
       "python",
     ]);
+    assert.deepEqual(parsed.tools?.bash?.autoPromotion, {
+      enabled: false,
+      afterMs: 240_000,
+    });
     assert.equal(parsed.tools?.jira?.enabled, true);
     assert.equal(parsed.tools?.jira?.siteUrl, "https://example.atlassian.net");
     assert.equal(parsed.tools?.jira?.email, "user@example.com");
@@ -148,6 +182,17 @@ describe("settings schema", () => {
     assert.equal(cleared.tools?.confluence?.siteUrl, null);
     assert.equal(cleared.tools?.confluence?.email, null);
     assert.equal(cleared.tools?.confluence?.defaultSpaceKey, null);
+
+    assert.throws(() =>
+      updateSettingsRequestSchema.parse({
+        tools: { bash: { autoPromotion: { afterMs: 0 } } },
+      }),
+    );
+    assert.throws(() =>
+      updateSettingsRequestSchema.parse({
+        tools: { bash: { autoPromotion: { afterMs: 86_400_001 } } },
+      }),
+    );
   });
 
   it("accepts python runtime status", () => {

@@ -76,25 +76,32 @@ export async function runForegroundBashWithPromotion(
     abortHandler = () => resolveAbort("aborted");
     input.signal?.addEventListener("abort", abortHandler, { once: true });
   });
-  const promotionDelayMs = foregroundPromotionDelayMs(input);
   let promotionTimer: NodeJS.Timeout | undefined;
-  const promotionPromise = new Promise<"promote">((resolvePromote) => {
-    promotionTimer = setTimeout(
-      () => resolvePromote("promote"),
-      promotionDelayMs,
-    );
-  });
+  let promotionPromise: Promise<"promote"> | undefined;
+  if (input.autoPromoteAfterMs !== undefined) {
+    const promotionDelayMs = foregroundPromotionDelayMs({
+      timeoutMs: input.timeoutMs,
+      autoPromoteAfterMs: input.autoPromoteAfterMs,
+    });
+    promotionPromise = new Promise<"promote">((resolvePromote) => {
+      promotionTimer = setTimeout(
+        () => resolvePromote("promote"),
+        promotionDelayMs,
+      );
+    });
+  }
   const completionPromise = managed.terminalPromise.then(
     () => "completed" as const,
   );
+  const outcomePromises: Array<Promise<"completed" | "promote" | "aborted">> = [
+    completionPromise,
+    abortPromise,
+  ];
+  if (promotionPromise) outcomePromises.push(promotionPromise);
 
   let outcome: "completed" | "promote" | "aborted";
   try {
-    outcome = await Promise.race([
-      completionPromise,
-      promotionPromise,
-      abortPromise,
-    ]);
+    outcome = await Promise.race(outcomePromises);
   } finally {
     if (promotionTimer) clearTimeout(promotionTimer);
     if (abortHandler) input.signal?.removeEventListener("abort", abortHandler);

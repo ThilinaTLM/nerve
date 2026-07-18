@@ -60,7 +60,7 @@ export type ForegroundBashPromotionInput = {
   conversationId: string;
   agentId: string;
   timeoutMs?: number;
-  autoPromoteAfterMs: number;
+  autoPromoteAfterMs?: number;
   origin: Extract<TaskRecord["origin"], { kind: "agent_tool" }>;
   signal?: AbortSignal;
   onOutput?: (update: ToolExecutionOutputUpdate) => void;

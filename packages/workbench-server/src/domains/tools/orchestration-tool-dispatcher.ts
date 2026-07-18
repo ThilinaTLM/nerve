@@ -65,7 +65,6 @@ import type {
   ToolRequestOptions,
 } from "./tool-service.js";
 
-const DEFAULT_BASH_AUTO_PROMOTE_AFTER_MS = 60_000;
 const MAX_BASH_TIMEOUT_MS = 86_400_000;
 
 export interface OrchestrationToolDispatcherDeps {
@@ -248,6 +247,7 @@ export class OrchestrationToolDispatcher {
     delete args.cwd;
     if (toolCall.toolName === "bash" && options.useForegroundBash !== false) {
       const agent = this.deps.getAgent(toolCall.agentId);
+      const autoPromotion = this.deps.storage.settings.tools.bash.autoPromotion;
       const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
         command: stringArg(args, "command"),
         cwd: toolCall.cwd,
@@ -256,7 +256,9 @@ export class OrchestrationToolDispatcher {
         conversationId: toolCall.conversationId,
         agentId: toolCall.agentId,
         timeoutMs: bashTimeoutMs(args.timeout),
-        autoPromoteAfterMs: DEFAULT_BASH_AUTO_PROMOTE_AFTER_MS,
+        autoPromoteAfterMs: autoPromotion.enabled
+          ? autoPromotion.afterMs
+          : undefined,
         signal: options.signal,
         onOutput: executionContext.onUpdate,
         origin: {

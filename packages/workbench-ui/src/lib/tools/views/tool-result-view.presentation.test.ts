@@ -482,23 +482,23 @@ describe("toolPresentation", () => {
     assert.equal(p.meta[0]?.tone, "error");
   });
 
-  it("keeps the question in the header for an answered ask_user", () => {
+  it("omits the question from the header for an answered ask_user", () => {
     const p = present(
       "ask_user",
       { question: "Which?" },
       { question: "Which?", response: "B" },
     );
-    assert.equal(p.primaryArg?.text, "Which?");
+    assert.equal(p.primaryArg, undefined);
     assert.deepEqual(metaText(p.meta), []);
   });
 
-  it("keeps the question in the header for a dismissed ask_user", () => {
+  it("omits the question from the header for a dismissed ask_user", () => {
     const p = present(
       "ask_user",
       { question: "Which?" },
       { question: "Which?", dismissed: true, dismissedReason: "aborted" },
     );
-    assert.equal(p.primaryArg?.text, "Which?");
+    assert.equal(p.primaryArg, undefined);
     assert.deepEqual(metaText(p.meta), []);
   });
 

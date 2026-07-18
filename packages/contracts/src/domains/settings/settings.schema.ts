@@ -54,8 +54,23 @@ export const confluenceToolSettingsSchema = z.object({
   defaultSpaceKey: z.string().trim().min(1).optional(),
 });
 
+const bashAutoPromotionSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  afterMs: z.number().int().positive().max(86_400_000).default(120_000),
+});
+
+const bashToolSettingsSchema = z.object({
+  autoPromotion: bashAutoPromotionSettingsSchema.default({
+    enabled: true,
+    afterMs: 120_000,
+  }),
+});
+
 const toolSettingsSchema = z.object({
   disabled: z.array(userConfigurableToolNameSchema).default([]),
+  bash: bashToolSettingsSchema.default({
+    autoPromotion: { enabled: true, afterMs: 120_000 },
+  }),
   jira: jiraToolSettingsSchema.default({ enabled: false }),
   confluence: confluenceToolSettingsSchema.default({ enabled: false }),
 });
@@ -105,6 +120,7 @@ export const settingsSchema = z.object({
   runtime: runtimeSettingsSchema.default({}),
   tools: toolSettingsSchema.default({
     disabled: [],
+    bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
   }),
@@ -155,6 +171,7 @@ export const defaultSettings: Settings = {
   runtime: {},
   tools: {
     disabled: [],
+    bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
   },
@@ -229,6 +246,16 @@ export const updateSettingsRequestSchema = z.object({
   tools: z
     .object({
       disabled: z.array(userConfigurableToolNameSchema).optional(),
+      bash: z
+        .object({
+          autoPromotion: z
+            .object({
+              enabled: z.boolean().optional(),
+              afterMs: z.number().int().positive().max(86_400_000).optional(),
+            })
+            .optional(),
+        })
+        .optional(),
       jira: z
         .object({
           enabled: z.boolean().optional(),

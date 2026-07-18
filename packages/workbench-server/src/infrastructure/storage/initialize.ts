@@ -120,6 +120,19 @@ export async function writeSettings(
         ...(patch.runtime.shellPath === null ? { shellPath: undefined } : {}),
       }
     : undefined;
+  const bashPatch = patch.tools?.bash
+    ? {
+        ...patch.tools.bash,
+        ...(patch.tools.bash.autoPromotion
+          ? {
+              autoPromotion: {
+                ...storage.settings.tools.bash.autoPromotion,
+                ...patch.tools.bash.autoPromotion,
+              },
+            }
+          : {}),
+      }
+    : undefined;
   const jiraPatch = patch.tools?.jira
     ? {
         ...patch.tools.jira,
@@ -145,6 +158,9 @@ export async function writeSettings(
   const toolsPatch = patch.tools
     ? {
         ...patch.tools,
+        ...(bashPatch
+          ? { bash: { ...storage.settings.tools.bash, ...bashPatch } }
+          : {}),
         ...(jiraPatch
           ? { jira: { ...storage.settings.tools.jira, ...jiraPatch } }
           : {}),

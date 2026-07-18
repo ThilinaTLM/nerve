@@ -729,7 +729,9 @@ export function toolPresentation(
     }
 
     case "ask_user":
-      return { ...base, meta: [] };
+      // The interactive body renders the question prominently, so keep the
+      // header to just the tool badge and avoid showing the question twice.
+      return { ...base, primaryArg: undefined, meta: [] };
 
     case "plan_mode":
       // The presented-plan card renders its own footer (status chip + accept/

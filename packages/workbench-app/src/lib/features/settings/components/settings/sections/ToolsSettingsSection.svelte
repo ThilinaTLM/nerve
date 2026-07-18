@@ -179,6 +179,7 @@ const tavilyDisplayName = $derived(tavilyProvider?.displayName ?? "Tavily");
 function setToolsEnabled(names: ConfigurableToolName[], enabled: boolean) {
   settingsDraft.tools ??= {
     disabled: [],
+    bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
   };
@@ -190,6 +191,25 @@ function setToolsEnabled(names: ConfigurableToolName[], enabled: boolean) {
   const disabled = configurableToolOrder.filter((name) => next.has(name));
   settingsDraft.tools.disabled = disabled;
   onSettingsChange?.({ tools: { disabled } }, { immediate: true });
+}
+
+function setBashAutoPromotionEnabled(enabled: boolean) {
+  settingsDraft.tools.bash.autoPromotion.enabled = enabled;
+  onSettingsChange?.(
+    { tools: { bash: { autoPromotion: { enabled } } } },
+    { immediate: true },
+  );
+}
+
+function updateBashAutoPromotionSeconds(value: string) {
+  const seconds = Number(value);
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 86_400) return;
+  const afterMs = seconds * 1000;
+  settingsDraft.tools.bash.autoPromotion.afterMs = afterMs;
+  onSettingsChange?.(
+    { tools: { bash: { autoPromotion: { afterMs } } } },
+    { debounceMs: 650 },
+  );
 }
 
 function openTavilyDialog() {
@@ -406,6 +426,46 @@ async function removeTavilyKey() {
       "Shell tool is always enabled",
     )}{/snippet}
   {@render toolList(shellTools)}
+
+  <div
+    class="flex flex-col gap-3 rounded-md border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
+  >
+    <div class="min-w-0 space-y-1">
+      <strong class="block text-sm font-medium">Automatic backgrounding</strong>
+      <p class="text-xs text-muted-foreground">
+        Promote Bash calls that are still running after the configured delay.
+        When disabled, calls stay foreground until completion, timeout, or
+        abort.
+      </p>
+    </div>
+    <ToggleSwitch
+      checked={settingsDraft.tools.bash.autoPromotion.enabled}
+      aria-label="Enable automatic Bash backgrounding"
+      onCheckedChange={setBashAutoPromotionEnabled}
+    />
+  </div>
+
+  <label class="flex items-center justify-between gap-3 text-sm">
+    <span>Background after</span>
+    <span class="flex items-center gap-2">
+      <Input
+        value={String(settingsDraft.tools.bash.autoPromotion.afterMs / 1000)}
+        type="number"
+        size="sm"
+        min={1}
+        max={86_400}
+        step={1}
+        disabled={!settingsDraft.tools.bash.autoPromotion.enabled}
+        ariaLabel="Bash automatic backgrounding delay in seconds"
+        class="w-24"
+        oninput={(event) =>
+          updateBashAutoPromotionSeconds(
+            (event.currentTarget as HTMLInputElement).value,
+          )}
+      />
+      <span class="text-xs text-muted-foreground">seconds</span>
+    </span>
+  </label>
 </SettingsSectionCard>
 
 <SettingsSectionCard

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import {
   defaultSettings,
+  type Settings,
   type TaskLogQuery,
   type TaskRecord,
   type ToolCallRecord,
@@ -304,10 +305,38 @@ describe("orchestration task tools", () => {
     assert.equal(result.content, "ok");
     assert.equal(captured?.command, "pnpm check");
     assert.equal(captured?.timeoutMs, undefined);
+    assert.equal(captured?.autoPromoteAfterMs, 120_000);
     assert.equal(captured?.projectId, "proj_test");
     assert.equal(captured?.conversationId, "conv_test");
     assert.equal(captured?.agentId, "agent_test");
     assert.equal(captured?.workerId, "worker_test");
+  });
+
+  it("passes custom and disabled Bash auto-promotion settings", async () => {
+    const settings = structuredClone(defaultSettings);
+    let captured: Record<string, unknown> | undefined;
+    const dispatcher = await createDispatcher([], {
+      settings,
+      runForegroundBashWithPromotion: async (input) => {
+        captured = input as Record<string, unknown>;
+        return {
+          kind: "completed_foreground",
+          result: {
+            content: "ok",
+            contentBlocks: [{ type: "text", text: "ok" }],
+            exitCode: 0,
+          },
+        };
+      },
+    });
+
+    settings.tools.bash.autoPromotion.afterMs = 240_000;
+    await dispatcher.execute(toolCall("bash"), { command: "pnpm test" });
+    assert.equal(captured?.autoPromoteAfterMs, 240_000);
+
+    settings.tools.bash.autoPromotion.enabled = false;
+    await dispatcher.execute(toolCall("bash"), { command: "pnpm test" });
+    assert.equal(captured?.autoPromoteAfterMs, undefined);
   });
 
   it("filters task_status by a concrete terminal status", async () => {
@@ -431,6 +460,7 @@ async function createDispatcher(
     restartTask: (taskId: string) => Promise<TaskRecord>;
     cancelTask: (taskId: string) => Promise<TaskRecord>;
     runForegroundBashWithPromotion: (input: unknown) => Promise<unknown>;
+    settings: Settings;
   }> = {},
 ): Promise<OrchestrationToolDispatcher> {
   const root = await mkdtemp(join(tmpdir(), "nerve-task-dispatcher-"));
@@ -477,7 +507,10 @@ async function createDispatcher(
   };
 
   return new OrchestrationToolDispatcher({
-    storage: { paths: { home: root }, settings: defaultSettings },
+    storage: {
+      paths: { home: root },
+      settings: overrides.settings ?? defaultSettings,
+    },
     events: {},
     tasks,
     pythonRuntime: {},
