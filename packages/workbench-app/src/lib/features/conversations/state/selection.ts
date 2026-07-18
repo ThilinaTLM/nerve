@@ -109,7 +109,7 @@ export async function refreshConversationView(conversationId: string) {
       (candidate) =>
         candidate.id === conversationId ? snapshot.conversation : candidate,
     );
-    view.sending = Boolean(snapshot.activeRun);
+    view.sending = canonical.sending ?? false;
     installEventCursors(response.cursor.streams);
     if (selection.conversationId === conversationId) {
       selection.entryId = snapshot.tree.activeEntryId;

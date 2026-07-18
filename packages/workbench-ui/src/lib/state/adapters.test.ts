@@ -10,6 +10,64 @@ import {
 } from "./index.js";
 
 describe("shared conversation adapters", () => {
+  it("hydrates waiting active runs without projecting active execution", () => {
+    const snapshot: ConversationSnapshot = {
+      conversation: {
+        id: "conv_waiting",
+        projectId: "proj_waiting",
+        title: "Waiting",
+        mode: "planning",
+        permissionLevel: "supervised",
+        approvalPolicy: { autoApproveReadOnly: true },
+        activeAgentId: "agent_waiting",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:01.000Z",
+      },
+      entries: [],
+      activeEntryIds: [],
+      tree: {
+        conversationId: "conv_waiting",
+        rootEntryIds: [],
+        nodes: [],
+      },
+      toolCalls: [
+        {
+          id: "tool_waiting",
+          providerToolCallId: "provider_waiting",
+          conversationId: "conv_waiting",
+          agentId: "agent_waiting",
+          projectId: "proj_waiting",
+          runId: "run_waiting",
+          toolName: "plan_mode_present",
+          status: "waiting_for_user",
+          risk: "interaction",
+          cwd: "/workspace",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:01.000Z",
+        },
+      ],
+      activeRun: {
+        runId: "run_waiting",
+        agentId: "agent_waiting",
+        projectId: "proj_waiting",
+        conversationId: "conv_waiting",
+        status: "waiting",
+        startedAt: "2026-01-01T00:00:00.000Z",
+        turns: [],
+        toolOutputsByToolCallId: {},
+        queuedPrompts: [],
+      },
+      cursorSeq: 1,
+      generatedAt: "2026-01-01T00:00:01.000Z",
+    };
+
+    const state = fromConversationSnapshot(snapshot);
+
+    assert.equal(state.activeRun?.status, "waiting");
+    assert.equal(state.sending, false);
+    assert.equal(state.toolCalls[0]?.status, "waiting_for_user");
+  });
+
   it("preserves tool-call previews across lifecycle updates", () => {
     let state = emptyConversationRenderState("conv_test");
     const base = {

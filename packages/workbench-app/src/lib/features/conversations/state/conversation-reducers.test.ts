@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ConversationEntry } from "@nervekit/contracts";
+import type { ConversationViewState } from "$lib/core/types/state-types";
 import {
   optimisticUserMessage,
   reconcileOptimisticMessages,
 } from "./conversation-optimistic";
 import {
   applyConversationTerminalUiState,
+  applyRunWaitingProjection,
   stoppingAfterConversationSnapshot,
 } from "./conversation-terminal-state";
 
@@ -25,6 +27,46 @@ function entry(overrides: Partial<ConversationEntry> = {}): ConversationEntry {
 }
 
 describe("conversation terminal event effects", () => {
+  it("projects live waits onto the matching active run", () => {
+    const queuedPrompt = {
+      id: "promptq_waiting",
+      agentId: "agent_waiting",
+      conversationId: "conv_waiting",
+      projectId: "proj_waiting",
+      runId: "run_waiting",
+      behavior: "steer" as const,
+      text: "queued",
+      status: "queued" as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const view = {
+      conversationId: "conv_waiting",
+      activeRun: {
+        runId: "run_waiting",
+        agentId: "agent_waiting",
+        projectId: "proj_waiting",
+        conversationId: "conv_waiting",
+        status: "running",
+        startedAt: now,
+        turns: [],
+        toolOutputsByToolCallId: {},
+        queuedPrompts: [queuedPrompt],
+      },
+      queuedPrompts: [queuedPrompt],
+      sending: true,
+      error: "stale",
+    } as unknown as ConversationViewState;
+
+    applyRunWaitingProjection(view, "run_waiting");
+
+    assert.equal(view.activeRun?.status, "waiting");
+    assert.equal(view.sending, false);
+    assert.deepEqual(view.queuedPrompts, []);
+    assert.deepEqual(view.activeRun?.queuedPrompts, []);
+    assert.equal(view.error, undefined);
+  });
+
   it("clears app-only stopping and optimistic projections", () => {
     const view = {
       optimisticMessages: [optimisticUserMessage("Stop this run")],

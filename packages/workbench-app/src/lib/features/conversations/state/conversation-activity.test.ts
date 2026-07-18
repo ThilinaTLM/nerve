@@ -175,6 +175,32 @@ describe("conversation activity", () => {
     assert.equal(activity.source, "pending-input");
   });
 
+  it("treats a waiting active run as user action despite stale running agent state", () => {
+    const activity = conversationActivityForRecord({
+      conversationId: "conv_01H00000000000000000000000",
+      agent: agent({ status: "running" }),
+      view: view({
+        activeRun: {
+          runId: "run_waiting",
+          agentId: "agent_01H00000000000000000000000",
+          projectId: "proj_01H0000000000000000000000",
+          conversationId: "conv_01H00000000000000000000000",
+          status: "waiting",
+          startedAt: now,
+          turns: [],
+          toolOutputsByToolCallId: {},
+          queuedPrompts: [],
+        },
+      }),
+    });
+
+    assert.equal(activity.label, "Needs user action");
+    assert.equal(activity.busy, false);
+    assert.equal(activity.pulse, false);
+    assert.equal(activity.needsUser, true);
+    assert.equal(activity.source, "live-view");
+  });
+
   it("shows pending human input as warn even if agent status is stale", () => {
     const [record] = [conversation()];
     const activityById = buildConversationActivityById({

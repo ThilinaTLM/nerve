@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Run regression scenarios share deterministic lifecycle fixtures. */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type {
@@ -163,6 +164,44 @@ describe("workbench coordinator behavior regressions", () => {
     });
   });
 
+  it("preserves canonical waiting runs and queued prompts in snapshots", async () => {
+    const runtime = new RuntimeState();
+    const queuedPrompt = {
+      id: "promptq_waiting",
+      agentId: "agent_regression",
+      conversationId: "conv_regression",
+      projectId: "proj_regression",
+      runId: "run_regression",
+      behavior: "steer",
+      text: "queued while waiting",
+      status: "queued",
+      createdAt: "2026-07-13T00:00:00.000Z",
+      updatedAt: "2026-07-13T00:00:00.000Z",
+    };
+    const states = [
+      {
+        run: runRecord("waiting", 4),
+        transitions: [],
+        prompts: [queuedPrompt],
+        interactions: [],
+        checkpoints: [],
+        deliveries: [],
+      },
+    ];
+    const query = new WorkbenchRunQuery(
+      {
+        list: async () => states,
+        listActive: async () => states,
+      } as never,
+      runtime,
+    );
+
+    const waiting = await query.activeForConversation("conv_regression");
+    assert.equal(waiting?.status, "waiting");
+    assert.equal(waiting?.retry, undefined);
+    assert.deepEqual(waiting?.queuedPrompts, [queuedPrompt]);
+  });
+
   it("projects only checkpoint-backed interruptions as continuable", async () => {
     const runtime = new RuntimeState();
     let states = [
@@ -230,6 +269,17 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.starts.length, 0);
   });
 
+  it("accepts a plan after source cancellation without continuing the cancelled run", async () => {
+    const fixture = acceptanceFixture("terminal");
+
+    await fixture.service.acceptPlanReview(fixture.review.id);
+
+    assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.resumedToolCalls.length, 1);
+    assert.equal(fixture.currentToolCall.status, "completed");
+    assert.equal(fixture.starts.length, 1);
+  });
+
   it("starts accepted terminal-orphan plans in the same conversation", async () => {
     const fixture = acceptanceFixture("terminal");
 
@@ -237,6 +287,7 @@ describe("workbench coordinator behavior regressions", () => {
 
     assert.equal(accepted.status, "accepted");
     assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
     assert.equal(fixture.starts.length, 1);
@@ -251,8 +302,52 @@ describe("workbench coordinator behavior regressions", () => {
 
     assert.equal(accepted.status, "accepted");
     assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 2);
+    assert.equal(fixture.starts.length, 1);
+  });
+
+  it("recovers an accepted review with a pending source interaction", async () => {
+    const fixture = acceptanceFixture("pending", "accepted");
+
+    await fixture.service.recoverAcceptedPlanReviews();
+
+    assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.resolutions[0]?.continueRun, true);
+    assert.equal(fixture.resumedToolCalls.length, 1);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 2);
+    assert.equal(fixture.starts.length, 0);
+  });
+
+  it("recovers when an accepted review source becomes terminal during continuation", async () => {
+    const fixture = acceptanceFixture("terminal_race", "accepted");
+
+    await fixture.service.recoverAcceptedPlanReviews();
+
+    assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.currentToolCall.status, "completed");
+    assert.equal(fixture.appendedEntries.length, 2);
+    assert.equal(fixture.starts.length, 1);
+  });
+
+  it("recovers an accepted review left waiting after source cancellation exactly once", async () => {
+    const fixture = acceptanceFixture("terminal", "accepted");
+
+    await fixture.service.recoverAcceptedPlanReviews();
+
+    assert.equal(fixture.currentToolCall.status, "completed");
+    assert.equal(fixture.resumedToolCalls.length, 1);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 1);
+    assert.equal(fixture.starts.length, 1);
+
+    await fixture.service.recoverAcceptedPlanReviews();
+
+    assert.equal(fixture.resumedToolCalls.length, 1);
+    assert.equal(fixture.completedToolCalls.length, 1);
+    assert.equal(fixture.appendedEntries.length, 1);
     assert.equal(fixture.starts.length, 1);
   });
 
@@ -265,6 +360,7 @@ describe("workbench coordinator behavior regressions", () => {
 
     assert.equal(accepted.planReview.status, "accepted_in_new_chat");
     assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
     assert.equal(fixture.starts[0]?.agentId, fixture.createdAgent.id);
@@ -397,6 +493,7 @@ describe("workbench coordinator behavior regressions", () => {
 
     assert.equal(rejected.status, "changes_requested");
     assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.resolutions[0]?.continueRun, false);
     assert.equal(fixture.resolutions[0]?.completeRun, true);
     assert.equal(fixture.completedToolCalls.length, 1);
@@ -412,6 +509,7 @@ describe("workbench coordinator behavior regressions", () => {
 
     assert.equal(rejected.status, "changes_requested");
     assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 0);
     assert.equal(fixture.source.status, "idle");
@@ -425,6 +523,7 @@ describe("workbench coordinator behavior regressions", () => {
 
     assert.equal(rejected.status, "changes_requested");
     assert.equal(fixture.resolutions.length, 1);
+    assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
     assert.equal(fixture.source.status, "idle");
@@ -441,6 +540,7 @@ describe("workbench coordinator behavior regressions", () => {
 
     assert.equal(rejected.status, "changes_requested");
     assert.equal(fixture.resolutions.length, 0);
+    assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
     assert.equal(fixture.source.status, "idle");
@@ -496,9 +596,10 @@ function agentRecord(): AgentRecord {
 
 function acceptanceFixture(
   sourceState: "pending" | "terminal" | "terminal_race",
+  reviewStatus: PlanReviewRecord["status"] = "pending",
 ) {
   const source = { ...agentRecord(), mode: "planning" as const };
-  const review = planReview();
+  const review = { ...planReview(), status: reviewStatus };
   const createdAgent = {
     ...agentRecord(),
     id: "agent_implementation",
@@ -507,8 +608,9 @@ function acceptanceFixture(
   };
   const resolutions: Array<Record<string, unknown>> = [];
   const starts: Array<{ agentId: string; text: string }> = [];
+  const resumedToolCalls: unknown[] = [];
   const completedToolCalls: unknown[] = [];
-  const appendedEntries: unknown[] = [];
+  const appendedEntries: Array<Record<string, unknown>> = [];
   let currentReview = review;
   let currentToolCall = {
     id: review.toolCallId,
@@ -544,10 +646,13 @@ function acceptanceFixture(
     tools: {
       getToolCall: () => currentToolCall,
       resumeToolCall: async () => {
+        assert.equal(currentToolCall.status, "waiting_for_user");
         currentToolCall = { ...currentToolCall, status: "running" };
+        resumedToolCalls.push(currentToolCall);
         return currentToolCall;
       },
       completeToolCall: async () => {
+        assert.equal(currentToolCall.status, "running");
         currentToolCall = {
           ...currentToolCall,
           status: "completed",
@@ -589,6 +694,7 @@ function acceptanceFixture(
       appendedEntries.push(input);
       return { ...input, id: String(input.id) };
     },
+    getConversationEntries: () => appendedEntries as never,
     harnessStorage: {
       appendAgentMessage: async () => ({
         id: "entry_plan_accepted",
@@ -599,9 +705,13 @@ function acceptanceFixture(
   return {
     service,
     review,
+    get currentToolCall() {
+      return currentToolCall;
+    },
     createdAgent,
     resolutions,
     starts,
+    resumedToolCalls,
     completedToolCalls,
     appendedEntries,
   };
@@ -617,8 +727,9 @@ function rejectionFixture(
   };
   const review = planReview();
   const resolutions: Array<Record<string, unknown>> = [];
+  const resumedToolCalls: unknown[] = [];
   const completedToolCalls: unknown[] = [];
-  const appendedEntries: unknown[] = [];
+  const appendedEntries: Array<Record<string, unknown>> = [];
   const statusUpdates: AgentRecord["status"][] = [];
   const pendingToolCall = {
     id: review.toolCallId,
@@ -652,10 +763,13 @@ function rejectionFixture(
     tools: {
       getToolCall: () => currentToolCall,
       resumeToolCall: async () => {
+        assert.equal(currentToolCall.status, "waiting_for_user");
         currentToolCall = { ...currentToolCall, status: "running" };
+        resumedToolCalls.push(currentToolCall);
         return currentToolCall;
       },
       completeToolCall: async () => {
+        assert.equal(currentToolCall.status, "running");
         currentToolCall = {
           ...currentToolCall,
           status: "completed",
@@ -701,6 +815,7 @@ function rejectionFixture(
       appendedEntries.push(input);
       return { ...input, id: String(input.id) };
     },
+    getConversationEntries: () => appendedEntries as never,
     harnessStorage: {
       appendAgentMessage: async () => ({
         id: "entry_plan_rejected",
@@ -715,6 +830,7 @@ function rejectionFixture(
       return source;
     },
     resolutions,
+    resumedToolCalls,
     completedToolCalls,
     appendedEntries,
     statusUpdates,

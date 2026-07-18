@@ -81,7 +81,8 @@ export function fromConversationSnapshot(
     cursorSeq: snapshot.cursorSeq,
     generatedAt: snapshot.generatedAt,
     sending: Boolean(
-      snapshot.activeRun && snapshot.activeRun.status !== "interrupted",
+      snapshot.activeRun &&
+      ["running", "retrying", "aborting"].includes(snapshot.activeRun.status),
     ),
   };
 }

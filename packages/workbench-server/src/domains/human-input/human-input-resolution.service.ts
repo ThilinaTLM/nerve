@@ -312,6 +312,41 @@ export class HumanInputResolutionService {
     return this.approvalBatches.recoverReadyBatches();
   }
 
+  async recoverAcceptedPlanReviews(): Promise<void> {
+    const reviews = this.deps.plans
+      .listPlanReviews()
+      .filter((review) => review.status === "accepted");
+    for (const review of reviews) {
+      const toolCall = this.deps.tools.getToolCall(review.toolCallId);
+      if (
+        toolCall.toolName !== "plan_mode_present" ||
+        toolCall.status !== "waiting_for_user"
+      ) {
+        continue;
+      }
+      const source = await this.planReviewSource(review);
+      if (source.state === "pending") {
+        try {
+          await this.resolveSuspensionForToolCall(
+            review.toolCallId,
+            this.deps.plans.planReviewResult(review),
+            {
+              continueAgent: true,
+              followUpUserMessage: acceptedPlanFollowUp(review.planPath),
+              finalSuspensionStatus: "resumed",
+            },
+          );
+          continue;
+        } catch (error) {
+          const latest = await this.planReviewSource(review);
+          if (latest.state !== "terminal") throw error;
+        }
+      }
+      await this.reconcileTerminalPlanReview(review);
+      await this.startAcceptedPlanImplementation(review);
+    }
+  }
+
   async answerUserQuestion(
     questionId: string,
     answer: string,
@@ -491,11 +526,28 @@ export class HumanInputResolutionService {
   ): Promise<void> {
     const toolCall = this.deps.tools.getToolCall(review.toolCallId);
     if (toolCall.status === "completed") return;
+    await this.deps.tools.resumeToolCall(review.toolCallId);
     const completed = await this.deps.tools.completeToolCall(
       review.toolCallId,
       this.deps.plans.planReviewResult(review),
     );
-    await this.appendToolResultForToolCall(completed, false);
+    if (!this.existingToolResultEntry(completed)) {
+      await this.appendToolResultForToolCall(completed, false);
+    }
+  }
+
+  private existingToolResultEntry(
+    toolCall: ToolCallRecord,
+  ): ConversationEntry | undefined {
+    return this.deps
+      .getConversationEntries(toolCall.conversationId)
+      .find((entry) => {
+        if (!entry.details || typeof entry.details !== "object") return false;
+        return (
+          (entry.details as { toolRecordId?: unknown }).toolRecordId ===
+          toolCall.id
+        );
+      });
   }
 
   private async setRejectedPlanAgentIdle(

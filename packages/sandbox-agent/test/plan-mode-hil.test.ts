@@ -66,6 +66,24 @@ describe("sandbox plan-mode HIL", () => {
         text: "Prepare and present the plan",
       })) as { conversationId: string; agentId: string; runId: string };
       const first = await waitForPlanReview(daemon, start.runId, "plan_1");
+      const waitingSnapshot = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: start.conversationId,
+          agentId: start.agentId,
+          runId: start.runId,
+        },
+      )) as {
+        snapshot?: {
+          activeRun?: { runId: string; status: string };
+          toolCalls: Array<{ id: string; toolName: string; status: string }>;
+        };
+      };
+      assert.equal(waitingSnapshot.snapshot?.activeRun?.status, "waiting");
+      const waitingTool = waitingSnapshot.snapshot?.toolCalls.find(
+        (tool) => tool.toolName === "plan_mode_present",
+      );
+      assert.equal(waitingTool?.status, "waiting_for_user");
 
       const recoveredStores = new SandboxStateStores(dir);
       await recoveredStores.load();
@@ -77,6 +95,22 @@ describe("sandbox plan-mode HIL", () => {
         { workspaceDir: process.cwd() },
       );
       recovered.start();
+      const recoveredSnapshot = (await recovered.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: start.conversationId,
+          agentId: start.agentId,
+          runId: start.runId,
+        },
+      )) as typeof waitingSnapshot;
+      assert.equal(recoveredSnapshot.snapshot?.activeRun?.status, "waiting");
+      assert.deepEqual(
+        recoveredSnapshot.snapshot?.toolCalls.find(
+          (tool) => tool.toolName === "plan_mode_present",
+        ),
+        waitingTool,
+      );
+
       await recovered.router.dispatch("planReview.requestChanges", {
         requestId: "cmd_plan_changes",
         conversationId: start.conversationId,

@@ -7,6 +7,7 @@ import {
   boundedPublicJsonSchema,
   boundedPublicObjectSchema,
   canTransition,
+  conversationActiveRunSnapshotSchema,
   conversationStream,
   type EventBatchData,
   type EventEnvelope,
@@ -138,6 +139,22 @@ describe("compact explore payloads", () => {
 });
 
 describe("Protocol v1 shared schemas", () => {
+  it("accepts waiting conversation active-run snapshots", () => {
+    const parsed = conversationActiveRunSnapshotSchema.parse({
+      runId: "run_waiting",
+      agentId: "agent_waiting",
+      projectId: "proj_waiting",
+      conversationId: "conv_waiting",
+      status: "waiting",
+      startedAt: ts,
+      turns: [],
+      toolOutputsByToolCallId: {},
+      queuedPrompts: [],
+    });
+
+    assert.equal(parsed.status, "waiting");
+  });
+
   it("validates baseline, hello, and welcome envelopes", () => {
     assert.equal(
       nerveMessageSchema.safeParse(message("heartbeat", {})).success,

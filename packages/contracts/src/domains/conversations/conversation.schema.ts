@@ -25,7 +25,12 @@ export const liveMessageIdSchema = z.string().startsWith("msg_");
 export const contentBlockIdSchema = z.string().startsWith("block_");
 
 export type AgentMessageContentKind = "text" | "thinking";
-export type RunStatus = "running" | "retrying" | "aborting" | "interrupted";
+export type RunStatus =
+  | "running"
+  | "retrying"
+  | "aborting"
+  | "waiting"
+  | "interrupted";
 
 export interface ConversationRunStartedData {
   conversationId: string;
@@ -593,7 +598,7 @@ export const conversationActiveRunSnapshotSchema = z.object({
   agentId: z.string().startsWith("agent_"),
   projectId: z.string().startsWith("proj_"),
   conversationId: z.string().startsWith("conv_"),
-  status: z.enum(["running", "retrying", "aborting", "interrupted"]),
+  status: z.enum(["running", "retrying", "aborting", "waiting", "interrupted"]),
   startedAt: z.string().datetime(),
   turns: z.array(conversationLiveTurnSnapshotSchema),
   toolOutputsByToolCallId: z.record(

@@ -1,8 +1,27 @@
-import type { TranscriptItem } from "$lib/core/types/state-types";
+import type {
+  ConversationViewState,
+  TranscriptItem,
+} from "$lib/core/types/state-types";
 
 export interface ConversationTerminalUiState {
   optimisticMessages: TranscriptItem[];
   stopping: boolean;
+}
+
+export function applyRunWaitingProjection(
+  view: ConversationViewState,
+  runId: string | undefined,
+): void {
+  const activeRun = view.activeRun;
+  if (activeRun) {
+    if (activeRun.runId === runId) {
+      activeRun.status = "waiting";
+      activeRun.queuedPrompts = [];
+    }
+  }
+  view.sending = false;
+  view.queuedPrompts = [];
+  view.error = undefined;
 }
 
 /** Clear app-only state that must not survive a terminal run event. */

@@ -26,7 +26,10 @@ import {
   scheduleContextUsageRefresh,
 } from "./conversation-context-usage";
 import { reconcileOptimisticMessages } from "./conversation-optimistic";
-import { applyConversationTerminalUiState } from "./conversation-terminal-state";
+import {
+  applyConversationTerminalUiState,
+  applyRunWaitingProjection,
+} from "./conversation-terminal-state";
 import {
   active,
   entryBelongsToActiveBranch,
@@ -214,9 +217,7 @@ function applyAppEffects(
     case "run.waiting":
       // Not part of the shared conversation event surface: the run pauses for
       // human input, so stop treating it as actively sending.
-      view.sending = false;
-      view.queuedPrompts = [];
-      view.error = undefined;
+      applyRunWaitingProjection(view, stringValue(event.data?.runId));
       break;
   }
 }

@@ -77,14 +77,15 @@ export function conversationActivityForRecord(input: {
   hasPendingHumanInput?: boolean;
 }): ConversationActivityState {
   const pending = Boolean(input.hasPendingHumanInput);
-  if (pending || input.agent?.status === "awaiting_user") {
+  const waiting = input.view?.activeRun?.status === "waiting";
+  if (pending || waiting || input.agent?.status === "awaiting_user") {
     return {
       tone: "warn",
       pulse: false,
       label: "Needs user action",
       busy: false,
       needsUser: true,
-      source: pending ? "pending-input" : "agent",
+      source: pending ? "pending-input" : waiting ? "live-view" : "agent",
     };
   }
 

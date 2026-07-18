@@ -93,11 +93,11 @@ describe("sandbox input wait/recovery with scripted provider", () => {
             status: string;
             queuedPrompts: Array<{ id: string; text: string }>;
           };
-          toolCalls: Array<{ toolName: string; status: string }>;
+          toolCalls: Array<{ id: string; toolName: string; status: string }>;
         };
       };
       assert.equal(waitingConversation.snapshot?.activeRun?.runId, start.runId);
-      assert.equal(waitingConversation.snapshot?.activeRun?.status, "running");
+      assert.equal(waitingConversation.snapshot?.activeRun?.status, "waiting");
       assert.deepEqual(
         waitingConversation.snapshot?.activeRun?.queuedPrompts,
         [],
@@ -177,6 +177,18 @@ describe("sandbox input wait/recovery with scripted provider", () => {
       assert.equal(
         recoveredConversation.snapshot?.activeRun?.runId,
         start.runId,
+      );
+      assert.equal(
+        recoveredConversation.snapshot?.activeRun?.status,
+        "waiting",
+      );
+      assert.deepEqual(
+        recoveredConversation.snapshot?.toolCalls.find(
+          (tool) => tool.toolName === "ask_user",
+        ),
+        waitingConversation.snapshot?.toolCalls.find(
+          (tool) => tool.toolName === "ask_user",
+        ),
       );
 
       const submit = (await recovered.router.dispatch(
@@ -275,7 +287,7 @@ describe("sandbox input wait/recovery with scripted provider", () => {
         };
       };
       assert.equal(conversation.snapshot?.activeRun?.runId, start.runId);
-      assert.equal(conversation.snapshot?.activeRun?.status, "running");
+      assert.equal(conversation.snapshot?.activeRun?.status, "waiting");
       assert.equal(
         conversation.snapshot?.toolCalls.find(
           (tool) => tool.toolName === "bash",

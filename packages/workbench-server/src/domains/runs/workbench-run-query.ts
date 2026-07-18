@@ -39,13 +39,15 @@ export class WorkbenchRunQuery {
       conversationId: canonical.run.conversationId,
       status: retry
         ? "retrying"
-        : canonical.run.status === "interrupted"
-          ? "interrupted"
-          : canonical.run.status === "cancellation_failed"
-            ? "retrying"
-            : canonical.run.status === "cancellation_requested"
-              ? "aborting"
-              : "running",
+        : canonical.run.status === "waiting"
+          ? "waiting"
+          : canonical.run.status === "interrupted"
+            ? "interrupted"
+            : canonical.run.status === "cancellation_failed"
+              ? "retrying"
+              : canonical.run.status === "cancellation_requested"
+                ? "aborting"
+                : "running",
       startedAt: canonical.run.startedAt ?? canonical.run.createdAt,
       turns: transient?.turns ?? [],
       toolOutputsByToolCallId: transient?.toolOutputsByToolCallId ?? {},

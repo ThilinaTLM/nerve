@@ -29,7 +29,6 @@ type AppShortcutsOptions = {
   focusProjectSearch: () => void;
   hasConversationComposer: () => boolean;
   sending: () => boolean;
-  live: () => boolean;
   abortActiveRun: () => void | Promise<void>;
   composerEscape: () => void;
   toggleMic: () => void;
@@ -184,7 +183,7 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
         options.composerEscape();
         return true;
       case "composer.stopRun":
-        if (!options.sending() && !options.live()) return false;
+        if (!options.sending()) return false;
         void options.abortActiveRun();
         return true;
       case "composer.toggleMic":
@@ -232,6 +231,7 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
     cycleThinkingLevel,
     handleWorkbenchShortcut,
     handleZoomShortcut,
+    runShortcutCommand,
     selectCenterTabByIndex,
     selectRelativeCenterTab,
     toggleComposerModeShortcut,

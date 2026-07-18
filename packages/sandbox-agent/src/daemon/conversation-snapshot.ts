@@ -137,6 +137,7 @@ function conversationRunStatus(
   if (status === "retrying") return "retrying";
   if (status === "cancellation_requested" || status === "cancellation_failed")
     return "aborting";
+  if (status === "waiting") return "waiting";
   if (status === "interrupted") return "interrupted";
   return "running";
 }

@@ -65,7 +65,6 @@ const activeProject = $derived(workspaceSelectors.activeProject);
 const activeConversation = $derived(conversationSelectors.activeConversation);
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
 const centerTabs = $derived(workspaceSelectors.centerTabs);
-const live = $derived(conversationSelectors.live);
 const pendingConversationActive = $derived(
   conversationSelectors.pendingConversationActive,
 );
@@ -118,7 +117,6 @@ const appShortcuts = createAppShortcuts({
   hasConversationComposer: () =>
     Boolean(activeConversation || pendingConversationActive),
   sending: () => sending,
-  live: () => live,
   abortActiveRun,
   composerEscape: escapeComposer,
   toggleMic: toggleComposerMic,
