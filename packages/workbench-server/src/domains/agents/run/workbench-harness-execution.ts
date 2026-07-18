@@ -143,7 +143,10 @@ export async function executeWorkbenchHarness(
         currentActiveToolNames,
         toolPromptMetadata(currentActiveToolNames),
         resources,
-        { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
+        {
+          planDir: planDirForStorageHome(this.deps.storage.paths.home),
+          tasks: this.deps.tasks.listTasks(),
+        },
       );
     };
     const liveToolDraftReconciler = new LiveToolDraftReconciler({

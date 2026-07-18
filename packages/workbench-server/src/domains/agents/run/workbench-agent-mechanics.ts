@@ -33,6 +33,7 @@ import type { ConversationHarnessStorage } from "../../conversations/conversatio
 import type { CompactionService } from "../../conversations/operations/index.js";
 import type { PythonRuntimeService } from "../../runtime/python-runtime-service.js";
 import type { PlanService } from "../../plans/plan-service.js";
+import type { WorkbenchTaskService } from "../../tasks/workbench-task-service.js";
 import { activeToolNamesForAgent } from "../../tools/agent-tool-adapter.js";
 import type {
   ExploreProgressUpdate,
@@ -51,6 +52,7 @@ export interface WorkbenchAgentMechanicsDeps {
   events: EventBus;
   auth: AuthManager;
   tools: ToolService;
+  tasks: WorkbenchTaskService;
   pythonRuntime: PythonRuntimeService;
   plans: PlanService;
   harnessStorage: ConversationHarnessStorage;

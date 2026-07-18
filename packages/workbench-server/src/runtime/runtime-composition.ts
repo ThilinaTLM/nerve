@@ -371,6 +371,7 @@ export function composeRuntime(
     events,
     auth,
     tools: services.tools,
+    tasks: services.tasks,
     pythonRuntime: services.pythonRuntime,
     plans: services.plans,
     harnessStorage: services.harnessStorage,

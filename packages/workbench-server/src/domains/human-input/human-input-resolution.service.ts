@@ -22,7 +22,7 @@ import type { WorkbenchRunService } from "../runs/workbench-run.service.js";
 import { agentMessageText } from "../agents/run/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { PlanService } from "../plans/plan-service.js";
-import { completedToolResult } from "../tools/agent-tool-adapter.js";
+import { toolCallResultForModel } from "../tools/agent-tool-adapter.js";
 import type { ToolService } from "../tools/tool-service.js";
 import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
 import { ApprovalBatchResolutionService } from "./approval-batch-resolution.js";
@@ -590,7 +590,7 @@ export class HumanInputResolutionService {
     isError: boolean,
   ): Promise<ConversationEntry> {
     const agent = this.deps.getAgent(toolCall.agentId);
-    const result = completedToolResult(toolCall);
+    const result = toolCallResultForModel(toolCall);
     const providerToolCallId =
       toolCall.providerToolCallId ?? toolCall.sourceToolCallId ?? toolCall.id;
     const message: ToolResultMessage = {

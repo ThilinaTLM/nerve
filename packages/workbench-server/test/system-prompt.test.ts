@@ -86,6 +86,39 @@ describe("Nerve system prompt", () => {
     );
   });
 
+  it("renders active background task count and IDs when task tools are enabled", () => {
+    const prompt = buildNerveSystemPrompt({
+      cwd: "/tmp/project",
+      selectedTools: ["read", "task_status"],
+      activeBackgroundTaskIds: ["task_alpha", "task_beta"],
+    });
+
+    assert.match(
+      prompt,
+      /Current working directory: \/tmp\/project\nActive background tasks \(2\): task_alpha, task_beta\n<\/environment>$/,
+    );
+  });
+
+  it("omits background task context when no active tasks exist", () => {
+    const prompt = buildNerveSystemPrompt({
+      cwd: "/tmp/project",
+      selectedTools: ["task_status"],
+      activeBackgroundTaskIds: [],
+    });
+
+    assert.doesNotMatch(prompt, /Active background tasks/);
+  });
+
+  it("omits background task context when task tools are disabled", () => {
+    const prompt = buildNerveSystemPrompt({
+      cwd: "/tmp/project",
+      selectedTools: ["read"],
+      activeBackgroundTaskIds: ["task_alpha"],
+    });
+
+    assert.doesNotMatch(prompt, /Active background tasks/);
+  });
+
   it("uses only active tools in the concise tool summary", () => {
     const prompt = buildNerveSystemPrompt({
       cwd: "/tmp/project",

@@ -7,7 +7,7 @@ import {
   coreToolDescriptors,
   MODEL_TOOL_RESULT_MAX_BYTES,
 } from "@nervekit/host-runtime/tools";
-import type { AgentRecord } from "@nervekit/contracts";
+import type { AgentRecord, ToolCallRecord } from "@nervekit/contracts";
 import { coreToolNameSchema } from "@nervekit/contracts";
 import {
   exploreRunPlanArg,
@@ -17,6 +17,7 @@ import {
   activeToolNamesForAgent,
   activeToolNamesForExploreAgent,
   contentBlocksFromResult,
+  toolCallResultForModel,
 } from "../src/domains/tools/agent-tool-adapter.js";
 
 describe("agent tool definitions", () => {
@@ -364,6 +365,38 @@ describe("agent tool definitions", () => {
     assert.ok(parameters.properties?.tasks?.items?.properties?.context);
   });
 
+  it("serializes completed, denied, and failed tool outcomes for the model", () => {
+    assert.equal(
+      toolResultText(
+        toolCallResultForModel(toolCall("completed", { result: "done" })),
+      ),
+      "done",
+    );
+
+    const deniedWithReason = toolResultText(
+      toolCallResultForModel(
+        toolCall("denied", { error: "Declined for this run." }),
+      ),
+    );
+    assert.match(deniedWithReason, /^User denied the requested tool call\./);
+    assert.match(deniedWithReason, /Reason: Declined for this run\./);
+    assert.doesNotMatch(deniedWithReason, /Tool completed\./);
+
+    const deniedWithoutReason = toolResultText(
+      toolCallResultForModel(toolCall("denied")),
+    );
+    assert.equal(deniedWithoutReason, "User denied the requested tool call.");
+
+    const failed = toolResultText(
+      toolCallResultForModel(
+        toolCall("error", { error: "Command could not start." }),
+      ),
+    );
+    assert.match(failed, /^Tool execution failed\./);
+    assert.match(failed, /Error: Command could not start\./);
+    assert.doesNotMatch(failed, /Tool completed\./);
+  });
+
   it("bounds model-facing text content blocks with one aggregate budget", () => {
     const blocks = contentBlocksFromResult({
       contentBlocks: [
@@ -585,6 +618,36 @@ describe("agent tool definitions", () => {
     });
   });
 });
+
+function toolCall(
+  status: ToolCallRecord["status"],
+  options: { result?: unknown; error?: string } = {},
+): ToolCallRecord {
+  return {
+    id: "tool_01HN0000000000000000000000",
+    agentId: "agent_01HN0000000000000000000000",
+    conversationId: "conv_01HN0000000000000000000000",
+    projectId: "proj_01HN0000000000000000000000",
+    toolName: "bash",
+    risk: "command",
+    args: { command: "printf done" },
+    cwd: "/tmp/project",
+    status,
+    result: options.result,
+    error: options.error,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:01.000Z",
+  };
+}
+
+function toolResultText(
+  result: ReturnType<typeof toolCallResultForModel>,
+): string {
+  return result.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+}
 
 function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {
   return {

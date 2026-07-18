@@ -37,8 +37,14 @@ describe("result code block fixed-row sizing", () => {
 
   it("converts measured wrapped content height into visual rows", () => {
     assert.equal(visualRowsFromScrollHeight(42, 14), 3);
-    assert.equal(visualRowsFromScrollHeight(43, 14), 4);
+    assert.equal(visualRowsFromScrollHeight(56, 14), 4);
     assert.equal(visualRowsFromScrollHeight(0, 14), 0);
+  });
+
+  it("ignores integer scroll-height rounding around fractional line heights", () => {
+    assert.equal(visualRowsFromScrollHeight(43, 14), 3);
+    assert.equal(visualRowsFromScrollHeight(132, 14.64), 9);
+    assert.equal(visualRowsFromScrollHeight(146, 14.64), 10);
   });
 
   it("grows by measured visual rows, clamps at the fixed row cap, and never shrinks", () => {

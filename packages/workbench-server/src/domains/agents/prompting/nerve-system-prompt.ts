@@ -14,6 +14,7 @@ export interface BuildNerveSystemPromptOptions {
   planDir?: string;
   contextFiles?: Array<{ path: string; content: string }>;
   skills?: Skill[];
+  activeBackgroundTaskIds?: readonly string[];
 }
 
 export function buildNerveSystemPrompt(
@@ -41,7 +42,14 @@ export function buildNerveSystemPrompt(
     options.mode === "planning"
       ? buildPlanModeInstructions(options.planDir ?? "Nerve plan storage")
       : "";
-  const environmentBlock = formatEnvironment({ date, cwd });
+  const taskToolsEnabled = tools.some((tool) => tool.startsWith("task_"));
+  const environmentBlock = formatEnvironment({
+    date,
+    cwd,
+    activeBackgroundTaskIds: taskToolsEnabled
+      ? options.activeBackgroundTaskIds
+      : undefined,
+  });
 
   return [
     basePrompt,
@@ -170,13 +178,24 @@ function buildPlanModeInstructions(planDir: string): string {
   `;
 }
 
-function formatEnvironment(options: { date: string; cwd: string }): string {
-  return promptText`
-    <environment>
-    Current date: ${options.date}
-    Current working directory: ${options.cwd}
-    </environment>
-  `;
+function formatEnvironment(options: {
+  date: string;
+  cwd: string;
+  activeBackgroundTaskIds?: readonly string[];
+}): string {
+  const lines = [
+    "<environment>",
+    `Current date: ${options.date}`,
+    `Current working directory: ${options.cwd}`,
+  ];
+  const taskIds = options.activeBackgroundTaskIds;
+  if (taskIds?.length) {
+    lines.push(
+      `Active background tasks (${taskIds.length}): ${taskIds.join(", ")}`,
+    );
+  }
+  lines.push("</environment>");
+  return lines.join("\n");
 }
 
 function formatProjectInstructions(

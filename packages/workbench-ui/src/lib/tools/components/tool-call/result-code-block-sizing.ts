@@ -44,7 +44,10 @@ export function visualRowsFromScrollHeight(
   lineHeightPixels: number,
 ): number {
   if (scrollHeight <= 0 || lineHeightPixels <= 0) return 0;
-  return Math.max(1, Math.ceil(scrollHeight / lineHeightPixels));
+  // scrollHeight is integer-valued while computed line heights can be
+  // fractional. Round to the nearest complete line box so browser pixel
+  // quantization does not turn an exact N-row block into N+1 rows.
+  return Math.max(1, Math.round(scrollHeight / lineHeightPixels));
 }
 
 export function nextFixedVisibleRows(options: {

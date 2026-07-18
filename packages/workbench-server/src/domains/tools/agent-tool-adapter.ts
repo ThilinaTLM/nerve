@@ -58,7 +58,8 @@ export function createAgentToolsForAgent(
         hidden: options.hidden === true ? true : undefined,
         onLifecycle: options.onLifecycle,
       });
-      if (toolCall.status === "completed") return completedToolResult(toolCall);
+      if (toolCall.status === "completed")
+        return toolCallResultForModel(toolCall);
       if (
         toolCall.status === "pending_approval" ||
         (toolCall.status === "waiting_for_user" &&
@@ -154,13 +155,22 @@ export function toolPromptMetadata(
   return { activeToolNames: [...active], snippets, guidelines };
 }
 
-export function completedToolResult(
+export function toolCallResultForModel(
   toolCall: ToolCallRecord,
 ): AgentToolResult<unknown> {
+  const content =
+    toolCall.status === "completed"
+      ? (contentBlocksFromResult(toolCall.result) ?? [
+          { type: "text" as const, text: formatToolResultForModel(toolCall) },
+        ])
+      : [
+          {
+            type: "text" as const,
+            text: formatToolResultForModel(toolCall),
+          },
+        ];
   return {
-    content: contentBlocksFromResult(toolCall.result) ?? [
-      { type: "text", text: formatToolResultForModel(toolCall) },
-    ],
+    content,
     details: {
       toolCall: { id: toolCall.id },
     },
@@ -202,6 +212,28 @@ export function contentBlocksFromResult(
 }
 
 export function formatToolResultForModel(toolCall: ToolCallRecord): string {
+  if (toolCall.status === "denied") {
+    return boundModelText(
+      toolCall.error?.trim()
+        ? `User denied the requested tool call.\nReason: ${toolCall.error}`
+        : "User denied the requested tool call.",
+    );
+  }
+  if (toolCall.status === "error") {
+    return boundModelText(
+      toolCall.error?.trim()
+        ? `Tool execution failed.\nError: ${toolCall.error}`
+        : "Tool execution failed.",
+    );
+  }
+  if (toolCall.status !== "completed") {
+    return boundModelText(
+      toolCall.error?.trim()
+        ? `Tool ${toolCall.toolName} ${toolCall.status}.\nReason: ${toolCall.error}`
+        : `Tool ${toolCall.toolName} ${toolCall.status}.`,
+    );
+  }
+
   const result = toolCall.result;
   if (result === undefined) return "Tool completed.";
   if (

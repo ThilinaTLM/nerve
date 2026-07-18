@@ -21,6 +21,10 @@ export {
 } from "./task-port-inspector.js";
 export { TaskReadinessService } from "./task-readiness.service.js";
 export {
+  activeBackgroundTaskIdsInDirectoryTree,
+  isPathInDirectoryTree,
+} from "./task-scope.js";
+export {
   isActiveTaskStatus,
   isOrphanedTaskStatus,
   isStoppableTaskStatus,

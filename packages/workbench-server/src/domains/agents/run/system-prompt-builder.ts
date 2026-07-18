@@ -1,8 +1,10 @@
 import type {
   AgentRecord,
+  TaskRecord,
   UserConfigurableToolName,
 } from "@nervekit/contracts";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
+import { activeBackgroundTaskIdsInDirectoryTree } from "../../tasks/index.js";
 import {
   activeToolNamesForAgent,
   toolPromptMetadata,
@@ -23,6 +25,7 @@ export async function buildAgentSystemPrompt(
     disabledToolNames?: readonly UserConfigurableToolName[];
     jiraEnabled?: boolean;
     confluenceEnabled?: boolean;
+    tasks?: readonly TaskRecord[];
   } = {},
 ): Promise<string> {
   const activeToolNames = activeToolNamesForAgent(agent, {
@@ -40,9 +43,12 @@ export async function buildAgentSystemPrompt(
     activeToolNames,
     promptMetadata,
     resources,
-    options.storageHome
-      ? { planDir: planDirForStorageHome(options.storageHome) }
-      : undefined,
+    {
+      planDir: options.storageHome
+        ? planDirForStorageHome(options.storageHome)
+        : undefined,
+      tasks: options.tasks,
+    },
   );
 }
 
@@ -55,7 +61,7 @@ export function composeAgentSystemPrompt(
   activeToolNames: ReturnType<typeof activeToolNamesForAgent>,
   promptMetadata: ReturnType<typeof toolPromptMetadata>,
   resources: Awaited<ReturnType<typeof loadHarnessResources>>,
-  options: { planDir?: string } = {},
+  options: { planDir?: string; tasks?: readonly TaskRecord[] } = {},
 ): string {
   if (agent.systemPrompt) return agent.systemPrompt;
   return buildNerveSystemPrompt({
@@ -68,5 +74,8 @@ export function composeAgentSystemPrompt(
     customPrompt: resources.systemPrompt,
     appendSystemPrompt: resources.appendSystemPrompt,
     planDir: options.planDir,
+    activeBackgroundTaskIds: options.tasks
+      ? activeBackgroundTaskIdsInDirectoryTree(options.tasks, agent.projectDir)
+      : undefined,
   });
 }

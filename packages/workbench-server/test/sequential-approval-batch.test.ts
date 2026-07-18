@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type {
   AgentRecord,
   ApprovalRecord,
@@ -164,6 +165,22 @@ describe("sequential approval batches", () => {
       ),
       [true, true],
     );
+    assert.deepEqual(
+      fixture.messages.map((message) => message.toolCallId),
+      ["provider_first", "provider_second"],
+    );
+    assert.deepEqual(
+      fixture.messages.map((message) => message.isError),
+      [true, true],
+    );
+    const failedText = toolResultMessageText(fixture.messages[0]!);
+    assert.match(failedText, /^Tool execution failed\./);
+    assert.match(failedText, /Error: execution failed/);
+    assert.doesNotMatch(failedText, /Tool completed\./);
+    const deniedText = toolResultMessageText(fixture.messages[1]!);
+    assert.match(deniedText, /^User denied the requested tool call\./);
+    assert.match(deniedText, /Reason: declined/);
+    assert.doesNotMatch(deniedText, /Tool completed\./);
     assert.equal(fixture.resolutions.length, 1);
   });
 
@@ -220,6 +237,7 @@ function approvalBatchFixture(
     members: readonly unknown[];
     entries: readonly ConversationEntry[];
   }> = [];
+  const messages: ToolResultMessage[] = [];
   let resolved = false;
   let entryOrdinal = 0;
 
@@ -288,10 +306,16 @@ function approvalBatchFixture(
     getAgent: () => testAgent,
     getConversationEntries: () => entries,
     harnessStorage: {
-      appendAgentMessage: async () => ({
-        id: `entry_${++entryOrdinal}`,
-        timestamp: `2026-07-17T00:00:0${entryOrdinal}.000Z`,
-      }),
+      appendAgentMessage: async (
+        _agent: AgentRecord,
+        message: ToolResultMessage,
+      ) => {
+        messages.push(message);
+        return {
+          id: `entry_${++entryOrdinal}`,
+          timestamp: `2026-07-17T00:00:0${entryOrdinal}.000Z`,
+        };
+      },
     },
     appendEntry: async (input: ConversationEntry) => {
       entries.push(input);
@@ -299,7 +323,14 @@ function approvalBatchFixture(
     },
   } as never);
 
-  return { service, finalized, entries, resolutions };
+  return { service, finalized, entries, messages, resolutions };
+}
+
+function toolResultMessageText(message: ToolResultMessage): string {
+  return message.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
 }
 
 function toolCall(id: string, providerToolCallId: string): ToolCallRecord {

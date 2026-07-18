@@ -1,4 +1,3 @@
-import path from "node:path";
 import {
   buildProcessTextResult,
   type ToolExecutionOutputUpdate,
@@ -11,7 +10,7 @@ import {
   type ToolCallRecord,
 } from "@nervekit/contracts";
 import { ensurePlanDir } from "../plans/plan-paths.js";
-import { isActiveTaskStatus } from "../tasks/index.js";
+import { isActiveTaskStatus, isPathInDirectoryTree } from "../tasks/index.js";
 import { formatListeningPort } from "../tasks/task-port-inspector.js";
 import {
   formatTaskCancelSummary,
@@ -185,23 +184,6 @@ export function tasksInScope(
   return this.deps.tasks
     .listTasks()
     .filter((task) => isPathInDirectoryTree(toolCall.cwd, task.cwd));
-}
-
-export function isPathInDirectoryTree(
-  root: string,
-  candidate: string,
-): boolean {
-  const flavor = /^[A-Za-z]:[\\/]/.test(root) ? path.win32 : path;
-  const relative = flavor.relative(
-    flavor.resolve(root),
-    flavor.resolve(candidate),
-  );
-  return (
-    relative === "" ||
-    (relative !== ".." &&
-      !relative.startsWith(`..${flavor.sep}`) &&
-      !flavor.isAbsolute(relative))
-  );
 }
 
 export function resolveTaskReference(
