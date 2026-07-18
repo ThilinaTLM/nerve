@@ -2,6 +2,7 @@
 import Bot from "@lucide/svelte/icons/bot";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import Copy from "@lucide/svelte/icons/copy";
 import Download from "@lucide/svelte/icons/download";
 import Layers from "@lucide/svelte/icons/layers";
 import ScrollText from "@lucide/svelte/icons/scroll-text";
@@ -16,8 +17,11 @@ import {
   agentActivityTone,
 } from "@nervekit/ui-kit/core/utils/status";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
+import { writeClipboardText } from "$lib/core/clipboard";
+import { notify } from "$lib/features/notifications/notify.svelte";
 
 type Props = {
   status?: StatusResponse;
@@ -55,6 +59,9 @@ const fields = $derived([
   { label: "Daemon", value: status?.daemonId },
   { label: "Data", value: status?.dataDir },
 ]);
+const activeContextText = $derived(
+  fields.map((field) => `${field.label}: ${field.value ?? "—"}`).join("\n"),
+);
 
 const mainAgents = $derived(
   conversationAgents.filter((agent) => !agent.parentAgentId),
@@ -62,6 +69,15 @@ const mainAgents = $derived(
 const subagents = $derived(
   conversationAgents.filter((agent) => agent.parentAgentId),
 );
+
+async function copyActiveContext(): Promise<void> {
+  try {
+    await writeClipboardText(activeContextText);
+    notify.success("Copied active context");
+  } catch {
+    notify.error("Could not copy to clipboard");
+  }
+}
 
 function shortAgentId(id: string): string {
   const parts = id.split("_");
@@ -106,6 +122,18 @@ $effect(() => {
     icon={Layers}
     bind:open={activeContextOpen}
   >
+    {#snippet actions()}
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        ariaLabel="Copy active context"
+        title="Copy active context"
+        onclick={() => void copyActiveContext()}
+      >
+        <Copy />
+      </Button>
+    {/snippet}
+
     <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
       {#each fields as field (field.label)}
         <dt class="font-mono text-xs text-muted-foreground">{field.label}</dt>
