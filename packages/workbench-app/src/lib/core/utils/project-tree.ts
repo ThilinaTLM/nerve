@@ -23,8 +23,8 @@ export type ProjectGroupResult = {
   hiddenProjects: number;
 };
 
-export const MAX_PROJECTS = 5;
-export const MAX_ROWS_PER_PROJECT = 5;
+export const MAX_PROJECTS = 20;
+export const MAX_ROWS_PER_PROJECT = 6;
 
 export function projectKey(project: ProjectRecord): string {
   return project.dir.replace(/[\\/]+$/, "") || project.dir;
