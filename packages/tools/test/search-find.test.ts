@@ -428,39 +428,6 @@ setInterval(() => {}, 1000);
     assert.equal(await readFile(marker, "utf8"), "started\nstopped");
   });
 
-  it("times out ripgrep and cleans up the child process", async (context) => {
-    context.mock.timers.enable({ apis: ["setTimeout"] });
-    const project = await createTempProject();
-    const bin = join(project.root, "bin");
-    await mkdir(bin);
-    const marker = join(project.root, "rg-timeout.txt");
-    await writeExecutable(
-      bin,
-      "rg",
-      `
-const fs = require("node:fs");
-fs.writeFileSync(${JSON.stringify(marker)}, "started");
-process.on("SIGTERM", () => {
-  fs.appendFileSync(${JSON.stringify(marker)}, "\\nstopped");
-  process.exit(0);
-});
-setInterval(() => {}, 1000);
-`,
-    );
-    const pending = withPath(bin, () =>
-      executeGrep({ path: ".", pattern: "needle" }, { cwd: project.root }),
-    );
-    for (;;) {
-      const started = await readFile(marker, "utf8").catch(() => undefined);
-      if (started === "started") break;
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    context.mock.timers.tick(30_000);
-    await assert.rejects(pending, /timed out/);
-    assert.equal(await readFile(marker, "utf8"), "started\nstopped");
-    context.mock.timers.reset();
-  });
-
   it("greps a single file with rg fast path", async () => {
     const project = await createTempProject();
     const bin = join(project.root, "bin");

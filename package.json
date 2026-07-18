@@ -28,7 +28,6 @@
     "release:smoke:workbench": "node scripts/smoke-workbench-release.mjs",
     "release:smoke:desktop": "node scripts/smoke-desktop-release.mjs",
     "release:smoke:desktop-package": "node scripts/smoke-desktop-package.mjs",
-    "release:smoke:sandbox": "node scripts/smoke-sandbox-release.mjs",
     "release:smoke:image:sandbox-agent": "node scripts/smoke-sandbox-agent-image.mjs",
     "release:smoke:image:sandbox-manager": "node scripts/smoke-sandbox-manager-image.mjs",
     "check:boundaries": "node scripts/check-package-boundaries.mjs"

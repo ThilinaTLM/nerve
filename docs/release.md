@@ -39,7 +39,6 @@ Run the finite built-artifact and image smokes after `pnpm build`:
 pnpm release:verify-npm            # inspect packed tarballs and isolated install
 pnpm release:smoke:workbench       # built workbench server HTTP/WS parity
 pnpm release:smoke:desktop         # desktop --version/--help and server resolution
-pnpm release:smoke:sandbox         # manager UI + manager-agent replay/ACK/resume
 pnpm release:smoke:image:sandbox-agent    # after build-image:sandbox-agent
 pnpm release:smoke:image:sandbox-manager  # after build-image:sandbox-manager
 ```

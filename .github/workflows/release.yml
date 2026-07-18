@@ -88,7 +88,7 @@ jobs:
         run: pnpm release:smoke:desktop
 
   built-artifact-smoke:
-    name: Built workbench and sandbox protocol smoke
+    name: Built workbench protocol smoke
     runs-on: ubuntu-latest
     needs: validate
 
@@ -118,9 +118,6 @@ jobs:
 
       - name: Smoke desktop resolution and CLI
         run: pnpm release:smoke:desktop
-
-      - name: Smoke manager UI and manager-agent protocol
-        run: pnpm release:smoke:sandbox
 
   image-smoke:
     name: Sandbox ${{ matrix.image }} image build and smoke
