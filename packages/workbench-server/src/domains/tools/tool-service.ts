@@ -608,10 +608,6 @@ export class ToolService {
     return this.finalizeDecidedApproval(approvalId);
   }
 
-  hasUserQuestionWaiter(questionId: string): boolean {
-    return this.interactionSessions.hasUserQuestionWaiter(questionId);
-  }
-
   async answerUserQuestion(
     questionId: string,
     answer: string,

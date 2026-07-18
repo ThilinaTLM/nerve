@@ -75,10 +75,6 @@ export class InteractionSessionService {
     return this.userQuestionResult(resolved);
   }
 
-  hasUserQuestionWaiter(questionId: string): boolean {
-    return (this.userQuestionWaiters.get(questionId)?.size ?? 0) > 0;
-  }
-
   async answerUserQuestion(
     questionId: string,
     answer: string,
