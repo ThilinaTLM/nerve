@@ -602,6 +602,26 @@ describe("conversation event reducer", () => {
     );
   });
 
+  it("can consume render-neutral events to preserve a dense stream cursor", () => {
+    const state = emptyConversationRenderState("conv_test");
+    const next = applyConversationEvent(
+      state,
+      evt(1, "run.checkpointed", {
+        conversationId: "conv_test",
+        runId: "run_test",
+      }),
+      { consumeUnhandled: true },
+    );
+
+    assert.notEqual(next, state);
+    assert.equal(next.cursorSeq, 1);
+    assert.deepEqual(next.entries, []);
+    assert.equal(
+      applyConversationEvent(state, evt(1, "run.checkpointed", {})),
+      state,
+    );
+  });
+
   it("ignores stale durable events without rewinding state", () => {
     const state = emptyConversationRenderState("conv_test");
     state.cursorSeq = 5;

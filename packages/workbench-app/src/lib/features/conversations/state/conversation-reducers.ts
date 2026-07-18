@@ -118,6 +118,7 @@ export function handleConversationEvent(
   let applied: ConversationViewState;
   try {
     applied = applyConversationEvent(view, event, {
+      consumeUnhandled: true,
       onGap: () => {
         gapDetected = true;
       },

@@ -6,7 +6,7 @@ import {
 import { refreshConversationView } from "$lib/features/conversations/state/conversation-flow.svelte";
 import {
   conversationIdFromEvent,
-  isConversationRuntimeEvent,
+  isConversationStreamEvent,
 } from "./conversation-event-routing";
 import { scheduleContextUsageRefresh } from "./conversation-context-usage";
 import {
@@ -20,24 +20,23 @@ export function registerConversationEventHandlers(): () => void {
 
 function handleConversationBusEvent(event: WorkbenchEvent): void {
   if (!isSequencedEvent(event)) return;
-  if (isConversationRuntimeEvent(event.type)) {
-    handleConversationEvent(event);
-    return;
-  }
-
+  const conversationId = conversationIdFromEvent(event);
   if (
-    event.type === "conversation.compacted" ||
-    event.type === "conversation.navigated"
+    conversationId &&
+    isOpenConversation(conversationId) &&
+    isConversationStreamEvent(event)
   ) {
-    const conversationId = conversationIdFromEvent(event);
-    if (conversationId && isOpenConversation(conversationId)) {
-      if (event.type === "conversation.compacted") {
-        // The shared reducer records the compaction entry and clears the
-        // transient compaction notice before the authoritative refresh lands.
-        handleConversationEvent(event);
-      }
+    // Every event on the dense stream must be consumed, including catalog
+    // events with no transcript projection (for example run.checkpointed and
+    // policy.evaluated), or the render cursor will falsely report a gap.
+    handleConversationEvent(event);
+    if (
+      event.type === "conversation.compacted" ||
+      event.type === "conversation.navigated"
+    ) {
       void refreshConversationView(conversationId);
     }
+    return;
   }
 
   if (event.type === "agent.configured") {

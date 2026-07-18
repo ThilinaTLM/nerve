@@ -62,6 +62,8 @@ export type ApplyConversationEventOptions = {
     runId?: string;
     type: string;
   }) => void;
+  /** Advance the stream cursor for catalog events with no render projection. */
+  consumeUnhandled?: boolean;
 };
 
 export function fromConversationSnapshot(
@@ -130,7 +132,8 @@ export function applyConversationEvent(
   event: EventEnvelope,
   options: ApplyConversationEventOptions = {},
 ): ConversationRenderState {
-  if (!conversationEventTypeSet.has(event.type)) return state;
+  const handled = conversationEventTypeSet.has(event.type);
+  if (!handled && !options.consumeUnhandled) return state;
   if (event.seq <= state.cursorSeq) return state;
   if (event.seq !== state.cursorSeq + 1) {
     reportGap(
@@ -143,6 +146,7 @@ export function applyConversationEvent(
 
   const next = cloneRenderState(state);
   next.cursorSeq = event.seq;
+  if (!handled) return next;
 
   const type = event.type as ConversationEventType;
   switch (type) {

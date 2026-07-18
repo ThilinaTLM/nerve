@@ -79,13 +79,16 @@ function createPair(
     close?: (code: number, reason: string) => void;
     maxBufferedEvents?: number;
     knownStreams?: readonly string[];
+    addressServerByRole?: boolean;
   } = {},
 ) {
   const clientOutbound: ProtocolV1Message[] = [];
   const serverOutbound: ProtocolV1Message[] = [];
   const clientMessages = createMessageFactory({
     source: { role: "ui", id: "ui_test" },
-    target: { role: "workbench_server", id: "server_test" },
+    target: options.addressServerByRole
+      ? { role: "workbench_server" }
+      : { role: "workbench_server", id: "server_test" },
   });
   const serverMessages = createMessageFactory({
     source: { role: "workbench_server", id: "server_test" },
@@ -153,6 +156,35 @@ async function start(pair: Pair): Promise<void> {
 }
 
 describe("subscription-only replay and recovery", () => {
+  it("binds role-addressed clients to the accepting peer after welcome", async () => {
+    const logs = new MemoryStreams();
+    const applied: number[] = [];
+    const pair = createPair(logs, {
+      addressServerByRole: true,
+      apply: (_stream, event) => applied.push(event.seq),
+    });
+    await start(pair);
+
+    await pair.client.subscribe([{ stream: "workspace", processedSeq: 0 }]);
+    const live = logs.append("workspace");
+    await pair.server.publish("workspace", live);
+    await pair.server.flush();
+
+    const postWelcome = pair.clientOutbound.filter(
+      (message) => message.kind !== "hello",
+    );
+    assert.equal(postWelcome.length > 0, true);
+    assert.equal(
+      postWelcome.every(
+        (message) =>
+          message.target.role === "workbench_server" &&
+          message.target.id === "server_test",
+      ),
+      true,
+    );
+    assert.deepEqual(applied, [live.seq]);
+  });
+
   it("orders replay before live for each stream", async () => {
     const logs = new MemoryStreams();
     logs.append("workspace");

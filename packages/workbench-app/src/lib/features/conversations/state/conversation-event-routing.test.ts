@@ -1,77 +1,77 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { conversationEventTypes } from "@nervekit/contracts";
+import {
+  conversationEventTypes,
+  type EventEnvelope,
+} from "@nervekit/contracts";
 import {
   conversationIdFromEvent,
-  isConversationRuntimeEvent,
+  isConversationStreamEvent,
 } from "./conversation-event-routing";
 
+const base = {
+  id: "evt_1",
+  seq: 1,
+  ts: "2026-01-01T00:00:00.000Z",
+};
+
+function event(
+  type: string,
+  data: Record<string, unknown> = { conversationId: "conv_a" },
+): EventEnvelope<Record<string, unknown>> {
+  return { ...base, type, data };
+}
+
 describe("conversation event routing", () => {
-  it("routes every contract conversation event to the runtime reducer", () => {
-    // `conversation.compacted` is intentionally handled separately in
-    // conversation-events.ts via a full view refresh. Any other exclusion
-    // means a contract event type is silently dropped by the reducer filter.
-    const excluded = new Set<string>(["conversation.compacted"]);
+  it("routes every contract conversation projection event by its catalog stream", () => {
     for (const type of conversationEventTypes) {
       assert.equal(
-        isConversationRuntimeEvent(type),
-        !excluded.has(type),
+        isConversationStreamEvent(event(type)),
+        true,
         `unexpected routing for '${type}'`,
       );
     }
   });
 
-  it("routes run lifecycle and toolCall events after the v2 renames", () => {
-    for (const type of [
-      "run.started",
-      "run.completed",
-      "run.cancelled",
-      "run.failed",
-      "run.waiting",
-      "run.suspended",
-      "run.retrying",
-      "toolCall.updated",
-    ]) {
-      assert.equal(isConversationRuntimeEvent(type), true, type);
+  it("also routes render-neutral events that occupy conversation sequence numbers", () => {
+    for (const type of ["run.checkpointed", "policy.evaluated"]) {
+      assert.equal(isConversationStreamEvent(event(type)), true, type);
     }
   });
 
-  it("ignores unrelated event types", () => {
-    for (const type of [
-      "agent.configured",
-      "conversation.navigated",
-      "workspace.updated",
-      "running",
-    ]) {
-      assert.equal(isConversationRuntimeEvent(type), false, type);
-    }
+  it("does not treat workspace conversation events as conversation-stream events", () => {
+    assert.equal(
+      isConversationStreamEvent(event("conversation.deleted")),
+      false,
+    );
+    assert.equal(
+      isConversationStreamEvent(
+        event("agent.configured", {
+          agent: { conversationId: "conv_a" },
+        }),
+      ),
+      false,
+    );
   });
 
   it("extracts the conversation id from event payload shapes", () => {
-    const base = {
-      id: "evt_1",
-      seq: 1,
-      type: "run.started",
-      ts: "2026-01-01T00:00:00.000Z",
-    };
+    assert.equal(conversationIdFromEvent(event("run.started")), "conv_a");
     assert.equal(
-      conversationIdFromEvent({ ...base, data: { conversationId: "conv_a" } }),
-      "conv_a",
-    );
-    assert.equal(
-      conversationIdFromEvent({
-        ...base,
-        data: { entry: { conversationId: "conv_b" } },
-      }),
+      conversationIdFromEvent(
+        event("conversation.entry.appended", {
+          entry: { conversationId: "conv_b" },
+        }),
+      ),
       "conv_b",
     );
     assert.equal(
-      conversationIdFromEvent({
-        ...base,
-        data: { toolCall: { conversationId: "conv_c" } },
-      }),
+      conversationIdFromEvent(
+        event("toolCall.updated", {
+          toolCall: { conversationId: "conv_c" },
+        }),
+      ),
       "conv_c",
     );
-    assert.equal(conversationIdFromEvent({ ...base, data: {} }), undefined);
+    assert.equal(conversationIdFromEvent(event("run.started", {})), undefined);
   });
 });

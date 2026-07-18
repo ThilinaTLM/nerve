@@ -1,21 +1,19 @@
+import { conversationStream, streamForEvent } from "@nervekit/contracts";
 import type { EventEnvelope } from "$lib/api";
 
 /**
- * Conversation events routed to the runtime reducer in
- * `conversation-reducers.ts`. `conversation.compacted` and
- * `conversation.navigated` are intentionally handled separately in
- * `conversation-events.ts` via a full view refresh.
+ * True when the catalog routes this envelope to its conversation's dense
+ * stream. Render-neutral events still need to pass through the conversation
+ * reducer so its snapshot cursor remains aligned with protocol delivery.
  */
-export function isConversationRuntimeEvent(type: string): boolean {
+export function isConversationStreamEvent(
+  event: EventEnvelope<Record<string, unknown>>,
+): boolean {
+  const conversationId = conversationIdFromEvent(event);
+  if (!conversationId) return false;
   return (
-    type === "conversation.entry.appended" ||
-    type === "conversation.compaction.started" ||
-    type === "conversation.compaction.failed" ||
-    type === "conversation.context.updated" ||
-    type === "toolCall.updated" ||
-    type.startsWith("conversation.prompt.") ||
-    type.startsWith("run.") ||
-    type.startsWith("conversation.live.")
+    streamForEvent(event.type, event.data) ===
+    conversationStream(conversationId)
   );
 }
 

@@ -255,11 +255,15 @@ export class ProtocolClientSession {
     );
     try {
       await this.#options.send(
-        this.#options.createMessage("stream.subscription.set", {
-          sessionId: this.sessionId,
-          subscriptionId,
-          streams: [...cursors],
-        }),
+        this.#options.createMessage(
+          "stream.subscription.set",
+          {
+            sessionId: this.sessionId,
+            subscriptionId,
+            streams: [...cursors],
+          },
+          { target: this.#acceptingPeer },
+        ),
       );
     } catch (error) {
       const pending = this.#pendingSubscriptions.get(subscriptionId);
@@ -278,7 +282,11 @@ export class ProtocolClientSession {
     if (this.state !== "ready") {
       throw new SessionStateError("Event publication requires a ready session");
     }
-    await this.#options.send(this.#options.createMessage("event.batch", data));
+    await this.#options.send(
+      this.#options.createMessage("event.batch", data, {
+        target: this.#acceptingPeer,
+      }),
+    );
   }
 
   async publishNotify(data: EventNotifyData): Promise<void> {
@@ -287,7 +295,11 @@ export class ProtocolClientSession {
         "Notify publication requires a ready session",
       );
     }
-    await this.#options.send(this.#options.createMessage("event.notify", data));
+    await this.#options.send(
+      this.#options.createMessage("event.notify", data, {
+        target: this.#acceptingPeer,
+      }),
+    );
   }
 
   request<M extends OperationName>(
@@ -307,7 +319,10 @@ export class ProtocolClientSession {
     if (this.state !== "ready") {
       throw new SessionStateError("RPC requests require a ready session");
     }
-    return this.#rpc.request(method, params, options);
+    return this.#rpc.request(method, params, {
+      ...options,
+      target: options.target ?? this.#acceptingPeer,
+    });
   }
 
   resetStreams(cursors: readonly StreamCursor[]): void {
@@ -349,11 +364,15 @@ export class ProtocolClientSession {
     this.#stopHeartbeat();
     if (this.sessionId) {
       await this.#options.send(
-        this.#options.createMessage("goodbye", {
-          sessionId: this.sessionId,
-          reason,
-          message,
-        }),
+        this.#options.createMessage(
+          "goodbye",
+          {
+            sessionId: this.sessionId,
+            reason,
+            message,
+          },
+          { target: this.#acceptingPeer },
+        ),
       );
     }
     this.disconnect(new Error(message ?? reason));
@@ -395,15 +414,22 @@ export class ProtocolClientSession {
       );
     }
     this.sessionId = welcome.sessionId;
+    // Hello may address a role without knowing the concrete server id. Once
+    // welcome resolves that address, every session message must target the
+    // accepting peer or the server will correctly reject it as misaddressed.
     this.#acceptingPeer = welcome.acceptingPeer;
     this.#negotiatedCapabilities = [...welcome.capabilities];
     await this.#options.awaitReady?.(welcome);
     this.state = "ready";
     await this.#options.send(
-      this.#options.createMessage("ready", {
-        sessionId: welcome.sessionId,
-        status: this.#options.readyStatus?.(),
-      }),
+      this.#options.createMessage(
+        "ready",
+        {
+          sessionId: welcome.sessionId,
+          status: this.#options.readyStatus?.(),
+        },
+        { target: welcome.acceptingPeer },
+      ),
     );
     this.#startHeartbeat(welcome.heartbeat);
     await this.#rpc.retryPending();
@@ -501,10 +527,14 @@ export class ProtocolClientSession {
     this.#heartbeatInterval = this.#timers.setInterval(() => {
       if (this.state !== "ready" || !this.sessionId) return;
       void this.#options.send(
-        this.#options.createMessage("heartbeat", {
-          sessionId: this.sessionId,
-          sentAt: this.#clock.isoNow(),
-        }),
+        this.#options.createMessage(
+          "heartbeat",
+          {
+            sessionId: this.sessionId,
+            sentAt: this.#clock.isoNow(),
+          },
+          { target: this.#acceptingPeer },
+        ),
       );
     }, heartbeat.intervalMs);
     this.#heartbeatWatchdog = this.#timers.setInterval(
