@@ -34,8 +34,13 @@ import {
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { optimisticUserMessage } from "./conversation-optimistic";
+import { startNewConversationRun } from "./new-conversation-run";
 import { abortActiveRun } from "./run-control";
-import { upsertAgentRecord, upsertConversationRecord } from "./selection";
+import {
+  refreshConversationView,
+  upsertAgentRecord,
+  upsertConversationRecord,
+} from "./selection";
 import {
   activePendingConversation,
   ensureConversationView,
@@ -197,22 +202,28 @@ async function sendPendingPrompt(
       pendingConversationKey(pending.id)
     ];
     view = ensureConversationView(conversation.id);
-    view.sending = true;
-    view.error = undefined;
-    view.optimisticMessages = isInlineCommandPrompt(text)
-      ? []
-      : [optimisticUserMessage(text)];
     view.composerText = preservedComposerText;
     workspaceState.error = undefined;
     if (clearComposer) composerDraft.text = "";
     persistConversationTabs();
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
-    await protocolRequest(
-      "run.start",
-      { agentId: agent.id, text },
-      { idempotencyKey: crypto.randomUUID() },
-    );
+    // Run, transcript, and tool events live on the conversation stream, so
+    // establish its authoritative snapshot cursor before starting the run.
+    await startNewConversationRun({
+      hydrate: () => refreshConversationView(conversation.id),
+      view: () => ensureConversationView(conversation.id),
+      optimisticMessages: isInlineCommandPrompt(text)
+        ? []
+        : [optimisticUserMessage(text)],
+      start: async () => {
+        await protocolRequest(
+          "run.start",
+          { agentId: agent.id, text },
+          { idempotencyKey: crypto.randomUUID() },
+        );
+      },
+    });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     if (view) {
