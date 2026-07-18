@@ -61,7 +61,12 @@ describe("sandbox real-host run parity", () => {
       await runRealHostParityMatrix(adapter);
     } finally {
       await adapter.close();
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 50,
+      });
     }
   });
 });

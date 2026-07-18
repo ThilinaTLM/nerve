@@ -3,15 +3,15 @@ import { spawnSync } from "node:child_process";
 import { access } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createNodeDaemonPorts } from "../packages/desktop-shell/dist/daemon/node-integration.js";
 import {
   localConnectUrl,
   normalizeRemoteDaemonUrl,
-  resolveWorkbenchServerMainPath,
-} from "../packages/desktop-shell/dist/daemon-helpers.js";
+} from "../packages/desktop-shell/dist/daemon/urls.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const bin = join(repoRoot, "packages", "desktop-shell", "dist", "bin.js");
-const serverMain = resolveWorkbenchServerMainPath();
+const serverMain = createNodeDaemonPorts().resolveServerMain();
 await access(serverMain);
 if (
   !serverMain.endsWith(join("packages", "workbench-server", "dist", "main.js"))
