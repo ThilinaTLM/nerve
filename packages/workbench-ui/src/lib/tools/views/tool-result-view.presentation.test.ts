@@ -248,6 +248,22 @@ describe("toolPresentation", () => {
     assert.match(p.detailsAction?.label ?? "", /earlier lines/);
   });
 
+  it("uses logical line counts for newline-terminated bash output", () => {
+    const output = `${Array.from(
+      { length: 17 },
+      (_, index) => `line ${index + 1}`,
+    ).join("\n")}\n`;
+    const p = present(
+      "bash",
+      { command: "x" },
+      { content: output, exitCode: 0 },
+    );
+
+    assert.deepEqual(metaText(p.meta), ["17 lines"]);
+    assert.equal(p.detailsAction?.hidden, 11);
+    assert.equal(p.detailsAction?.label, "Show 11 earlier lines");
+  });
+
   it("marks python execution outcomes without repeating input metadata", () => {
     const p = present(
       "python",

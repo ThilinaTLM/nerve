@@ -1,5 +1,9 @@
 <script lang="ts">
-import { COLLAPSED_LINES, tail } from "../../views/tool-result-view";
+import {
+  COLLAPSED_LINES,
+  splitLogicalLines,
+  tail,
+} from "../../views/tool-result-view";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
 type Props = {
@@ -30,7 +34,7 @@ let {
 
 const visible = $derived.by(() => {
   if (expanded) return text;
-  const lines = text.split("\n");
+  const lines = splitLogicalLines(text);
   if (lines.length <= collapsedLines) return text;
   return direction === "tail"
     ? tail(lines, collapsedLines).join("\n")

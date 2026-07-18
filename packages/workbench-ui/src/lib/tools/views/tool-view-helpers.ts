@@ -18,6 +18,21 @@ export const COLLAPSED_LINES = 6;
 export const ATLASSIAN_COLLAPSED_ITEMS = 5;
 const GREP_MATCH_TEXT_MAX = 260;
 
+/**
+ * Splits text into logical lines, treating one final LF as a terminator rather
+ * than an additional empty line. Further trailing LFs preserve blank lines.
+ */
+export function splitLogicalLines(text: string): string[] {
+  if (text.length === 0) return [];
+  const content = text.endsWith("\n") ? text.slice(0, -1) : text;
+  return content.split("\n");
+}
+
+/** Counts lines using the same final-LF semantics as collapsed tool output. */
+export function countLogicalLines(text: string | undefined): number {
+  return text === undefined ? 0 : splitLogicalLines(text).length;
+}
+
 export function asRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;

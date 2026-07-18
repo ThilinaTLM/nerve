@@ -32,6 +32,7 @@ import {
 } from "./task-result-parser";
 import {
   asRecord,
+  countLogicalLines,
   detailsTruncated,
   diffStats,
   firstTextBlock,
@@ -55,9 +56,11 @@ export { aggregateExploreTasks } from "./explore-progress";
 export {
   ATLASSIAN_COLLAPSED_ITEMS,
   COLLAPSED_LINES,
+  countLogicalLines,
   groupMatchesByFile,
   imageDataUrl,
   relativePath,
+  splitLogicalLines,
   tail,
 } from "./tool-view-helpers";
 export type {
@@ -82,11 +85,6 @@ function editShorthandOperationCount(args: Record<string, unknown>): number {
     arrayField(args.lineInsertions).length +
     (typeof args.patch === "string" && args.patch.length > 0 ? 1 : 0)
   );
-}
-
-function countLines(text: string | undefined): number {
-  if (!text) return 0;
-  return text.length === 0 ? 0 : text.split("\n").length;
 }
 
 function previewOverflowHidden(
@@ -125,7 +123,7 @@ function actualTextLineCount(
 ): number {
   return (
     modelDisplayedLines(outputLimits) ??
-    actualPreviewCount(countLines(text), toolCall, noun, direction)
+    actualPreviewCount(countLogicalLines(text), toolCall, noun, direction)
   );
 }
 
@@ -311,7 +309,7 @@ export function parseToolView(
       );
       const output = resultOutputText(result, rawResult, liveOutput);
       const codeLineCount = code
-        ? actualPreviewCount(countLines(code), toolCall, "lines", "head")
+        ? actualPreviewCount(countLogicalLines(code), toolCall, "lines", "head")
         : 0;
       const outputLineCount = actualTextLineCount(
         output,
@@ -370,7 +368,7 @@ export function parseToolView(
         : editShorthandOperationCount(args);
       const diff = details.success ? details.data.diff : undefined;
       const diffLineCount = actualPreviewCount(
-        countLines(diff),
+        countLogicalLines(diff),
         toolCall,
         "lines",
         "tail",
@@ -398,7 +396,12 @@ export function parseToolView(
       const lineCount =
         content === undefined
           ? undefined
-          : actualPreviewCount(countLines(content), toolCall, "lines", "tail");
+          : actualPreviewCount(
+              countLogicalLines(content),
+              toolCall,
+              "lines",
+              "tail",
+            );
       const charCount = content?.length;
       return {
         kind: "write",

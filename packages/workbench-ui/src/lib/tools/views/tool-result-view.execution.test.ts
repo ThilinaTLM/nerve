@@ -31,6 +31,32 @@ describe("parseToolView bash/python execution", () => {
     assert.equal(view.truncated, true);
   });
 
+  it("counts newline-terminated bash and Python output without mutating it", () => {
+    const bashView = parseToolView(
+      toolCall(
+        "bash",
+        { command: "printf 'first\\nsecond\\n'" },
+        { content: "first\nsecond\n", exitCode: 0 },
+      ),
+    );
+    assert.equal(bashView.kind, "bash");
+    if (bashView.kind !== "bash") return;
+    assert.equal(bashView.output, "first\nsecond\n");
+    assert.equal(bashView.outputLineCount, 2);
+
+    const pythonView = parseToolView(
+      toolCall(
+        "python",
+        { code: "print('first')\nprint('second')" },
+        { content: "first\nsecond\n", exitCode: 0 },
+      ),
+    );
+    assert.equal(pythonView.kind, "python");
+    if (pythonView.kind !== "python") return;
+    assert.equal(pythonView.output, "first\nsecond\n");
+    assert.equal(pythonView.outputLineCount, 2);
+  });
+
   it("parses a backgrounded bash task disposition", () => {
     const view = parseToolView(
       toolCall(

@@ -1,6 +1,7 @@
 import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import type { DetailsActionInfo, MetaTone } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
+import { countLogicalLines } from "./tool-view-helpers";
 import {
   aggregateExploreTasks,
   COLLAPSED_LINES,
@@ -30,8 +31,7 @@ export function plural(count: number, singular: string, suffix = "s"): string {
 }
 
 export function lineCount(text: string | undefined): number {
-  if (!text) return 0;
-  return text.length === 0 ? 0 : text.split("\n").length;
+  return countLogicalLines(text);
 }
 
 export function detailsActionFor(
