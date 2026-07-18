@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/ui-kit",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Contract-free Nerve UI primitives, renderers, utilities, and theme styles.",
   "private": true,
   "type": "module",

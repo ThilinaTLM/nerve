@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/protocol",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "Transport-neutral Nerve Protocol v1 session, RPC, replay, and flow engine.",
   "author": "ThilinaTLM",
