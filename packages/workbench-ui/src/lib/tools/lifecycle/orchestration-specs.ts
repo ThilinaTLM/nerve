@@ -73,10 +73,9 @@ function taskStartPresentation(
   if (source.boolean("notify") === false)
     secondary.push({ text: "notifications off" });
   const commandLines = lineCount(command) ?? 0;
+  // Stage-independent so the block never appears/disappears mid-lifecycle.
   let body: ToolArgumentBody = codeBody(command, "bash", {
-    force:
-      stage === "approval" &&
-      (commandLines > 1 || (command?.length ?? 0) > 500),
+    force: (command?.length ?? 0) > 500,
     label: "Command",
   });
   if (body.kind === "none" && stage === "approval") {
@@ -108,17 +107,13 @@ function taskStartPresentation(
 export const orchestrationToolLifecycleSpecs = {
   task_start: spec({
     name: "task_start",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "task_action",
     present: taskStartPresentation,
   }),
   task_status: spec({
     name: "task_status",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "task_status",
     emptyResult: "No tasks",
     present: (source, stage) => {
@@ -142,9 +137,7 @@ export const orchestrationToolLifecycleSpecs = {
   }),
   task_logs: spec({
     name: "task_logs",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "task_logs",
     emptyResult: "No log events",
     present: (source, stage) => {
@@ -177,9 +170,7 @@ export const orchestrationToolLifecycleSpecs = {
   }),
   task_cancel: spec({
     name: "task_cancel",
-    draftBody: "none",
-    approvalDetail: "full",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "task_action",
     present: (source, stage) => {
       const selector = taskSelector(source);
@@ -219,9 +210,7 @@ export const orchestrationToolLifecycleSpecs = {
   }),
   task_restart: spec({
     name: "task_restart",
-    draftBody: "none",
-    approvalDetail: "full",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "task_action",
     present: (source, stage) =>
       argumentPresentation({
@@ -240,9 +229,7 @@ export const orchestrationToolLifecycleSpecs = {
   }),
   explore: spec({
     name: "explore",
-    draftBody: "meaningful",
-    approvalDetail: "summary",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "explore",
     present: (source, stage) => {
       const taskRecords = source.recordsArray("tasks") ?? [];
@@ -265,11 +252,7 @@ export const orchestrationToolLifecycleSpecs = {
           : singleTask
             ? [boundedText(singleTask)!]
             : [];
-      if (stage === "approval" && source.string("split_rationale")) {
-        bodyLines.push(
-          `Why parallel: ${boundedText(source.string("split_rationale"))}`,
-        );
-      }
+      const splitRationale = source.string("split_rationale");
       return argumentPresentation({
         primaryArg: textArg(
           singleLabel ??
@@ -284,15 +267,18 @@ export const orchestrationToolLifecycleSpecs = {
           bodyLines.length > 0
             ? { kind: "text-summary", text: bodyLines.join("\n") }
             : undefined,
-        safetyNotes: ["Delegates read-only investigation to child agents."],
+        safetyNotes: [
+          "Delegates read-only investigation to child agents.",
+          ...(stage === "approval" && splitRationale
+            ? [`Why parallel: ${boundedText(splitRationale)}`]
+            : []),
+        ],
       });
     },
   }),
   plan_mode_enter: spec({
     name: "plan_mode_enter",
-    draftBody: "meaningful",
-    approvalDetail: "summary",
-    executionHandoff: "result-immediate",
+    argumentRegion: "until-result",
     completedView: "plan_mode",
     present: (source) =>
       argumentPresentation({
@@ -307,9 +293,7 @@ export const orchestrationToolLifecycleSpecs = {
   }),
   plan_mode_present: spec({
     name: "plan_mode_present",
-    draftBody: "meaningful",
-    approvalDetail: "summary",
-    executionHandoff: "replace-with-interaction",
+    argumentRegion: "until-result",
     completedView: "plan_mode",
     present: (source) => {
       const path = source.string("file_path");
@@ -329,9 +313,7 @@ export const orchestrationToolLifecycleSpecs = {
   }),
   plan_mode_force_exit: spec({
     name: "plan_mode_force_exit",
-    draftBody: "meaningful",
-    approvalDetail: "summary",
-    executionHandoff: "result-immediate",
+    argumentRegion: "until-result",
     completedView: "plan_mode",
     present: (source) =>
       argumentPresentation({

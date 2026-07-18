@@ -128,7 +128,7 @@ const activityVisible = $derived(
     {/if}
 
     {#if bodyVisible && children}
-      <div class="tool-body">{@render children()}</div>
+      <div class="tool-body grid gap-1.5">{@render children()}</div>
     {/if}
 
     {#if footerVisible}

@@ -13,7 +13,7 @@ import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts";
 import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
 /** Lines/items shown before the footer "Show more" toggle expands a body. */
-export const COLLAPSED_LINES = 10;
+export const COLLAPSED_LINES = 6;
 /** Rich Atlassian result items (issue/page cards) shown in a collapsed body. */
 export const ATLASSIAN_COLLAPSED_ITEMS = 5;
 const GREP_MATCH_TEXT_MAX = 260;

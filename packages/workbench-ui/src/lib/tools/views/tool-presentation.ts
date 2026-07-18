@@ -278,6 +278,7 @@ export function toolPresentation(
         meta.push({ text: view.backgroundTask.status });
       }
       if (lines > 0) meta.push({ text: plural(lines, "line") });
+      if (view.live) meta.push({ text: "streaming", tone: "info" });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
       meta.push(...outputMeta(view, { includeLiveLimit: false }));
       if (view.savedTo && !hasOutputArtifactPath(view, view.savedTo)) {
@@ -319,6 +320,7 @@ export function toolPresentation(
       const duration = formatDuration(view.durationMs);
       if (duration) meta.push({ text: duration });
       if (lines > 0) meta.push({ text: plural(lines, "line") });
+      if (view.live) meta.push({ text: "streaming", tone: "info" });
       if (view.artifacts && view.artifacts.length > 0)
         meta.push({
           text: plural(view.artifacts.length, "artifact"),

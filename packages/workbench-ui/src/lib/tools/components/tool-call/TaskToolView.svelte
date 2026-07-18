@@ -66,11 +66,6 @@ const hasResult = $derived(tasks.length > 0 || outcomes.length > 0);
 
 {#if view.liveLog}
   <section class="grid gap-1" aria-label="Task startup output">
-    <ToolOutputBlock
-      text={view.liveLog}
-      direction="tail"
-      collapsedLines={10}
-      terminal
-    />
+    <ToolOutputBlock text={view.liveLog} direction="tail" terminal />
   </section>
 {/if}

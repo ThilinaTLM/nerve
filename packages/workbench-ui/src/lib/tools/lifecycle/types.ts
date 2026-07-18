@@ -14,7 +14,7 @@ export type ToolArgumentBody =
   | {
       kind: "code";
       text: string;
-      language: "bash" | "python" | "text";
+      language: "bash" | "python" | "text" | "json";
       label?: string;
       tail?: boolean;
     }
@@ -54,12 +54,22 @@ export type ToolArgumentPresentation = {
   safetyNotes: string[];
 };
 
-export type ToolDraftBodyPolicy = "none" | "meaningful";
-export type ToolApprovalDetailPolicy = "target" | "summary" | "full";
-export type ToolExecutionHandoff =
-  | "retain-draft-until-output"
-  | "replace-with-interaction"
-  | "result-immediate";
+/**
+ * How the card's persistent argument section behaves across the lifecycle:
+ * - `persistent`: argument body stays mounted in every state, including
+ *   completed (the completed view must not render it again).
+ * - `until-result`: argument body stays mounted through drafting, approval,
+ *   and execution, and is replaced once the result section shows output.
+ * - `none`: no argument section; approval-stage bodies render inside the
+ *   approval prompt instead.
+ */
+export type ToolArgumentRegion = "persistent" | "until-result" | "none";
+
+/** Executing-state placeholder rendered in the result section. */
+export type ToolResultPlaceholder = {
+  variant: "text" | "list";
+  rows: number;
+};
 
 export type CompletedViewFamily =
   | "read"
@@ -84,12 +94,10 @@ export type CompletedViewFamily =
 
 export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   name: Name;
-  draftBody: ToolDraftBodyPolicy;
-  approvalDetail: ToolApprovalDetailPolicy;
-  executionHandoff: ToolExecutionHandoff;
+  argumentRegion: ToolArgumentRegion;
   completedView: CompletedViewFamily;
-  /** Body shown while executing without durable output (default: none). */
-  executingBody?: "skeleton";
+  /** Placeholder shown while executing without durable output. */
+  resultPlaceholder?: ToolResultPlaceholder;
   emptyResult?: string;
   present: (
     source: ToolArgumentSource,

@@ -3,13 +3,14 @@ import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts
 
 /** Canonical tool-draft content block; local alias for signature brevity. */
 type ToolDraftBlock = ConversationLiveToolDraftBlockSnapshot;
-import { draftArgsPreview } from "./tool-draft-args-preview";
+import { draftArgsPreviewBody } from "./tool-draft-args-preview";
 import {
   isKnownToolName,
   presentToolArguments,
   type ToolArgumentBody,
 } from "../lifecycle/registry";
 import { mergeDraftMeta, specializedDraftBody } from "./tool-draft-body";
+import { COLLAPSED_LINES } from "./tool-view-helpers";
 import type { PrimaryArg } from "./tool-presentation-types";
 export { hasMeaningfulToolDraftBody } from "./tool-draft-body";
 
@@ -50,8 +51,6 @@ export type ToolDraftSummary = {
   inputPreview?: string;
   inputLineCount?: number;
   language?: "bash" | "python";
-  argsPreview?: string;
-  argsPreviewLanguage?: "json";
   primaryArg?: PrimaryArg;
   argumentBody?: ToolArgumentBody;
   safetyNotes?: string[];
@@ -161,7 +160,6 @@ function lineCountsForJsonStringValues(
   return counts;
 }
 
-export const DRAFT_PREVIEW_LINES = 10;
 const DRAFT_PREVIEW_MAX_VALUE_CHARS = 24_000;
 
 type JsonStringEntry<Property extends string = string> = {
@@ -245,7 +243,7 @@ function completedLinePreviewText(
   return normalized.slice(0, lastNewline);
 }
 
-function tailLinePreview(text: string, maxLines = DRAFT_PREVIEW_LINES): string {
+function tailLinePreview(text: string, maxLines = COLLAPSED_LINES): string {
   if (text.length === 0) return "";
   const lines = normalizeLines(text).split("\n");
   if (lines.length <= maxLines) return lines.join("\n");
@@ -724,19 +722,24 @@ function withLifecyclePresentation(
     cwd,
   );
   const specializedBody = specializedDraftBody(summary);
+  // Unknown historical tools stream raw JSON as their argument body so the
+  // card can render one persistent argument section for every tool.
+  const fallbackBody =
+    presentation.body.kind !== "none"
+      ? presentation.body
+      : !isKnownToolName(toolName)
+        ? draftArgsPreviewBody(draft, {
+            maxLines: COLLAPSED_LINES,
+            maxChars: DRAFT_PREVIEW_MAX_VALUE_CHARS,
+          })
+        : undefined;
   return {
     ...summary,
     path: summary.path ?? presentation.primaryArg?.text,
     primaryArg: presentation.primaryArg,
     meta: mergeDraftMeta(summary.meta, presentation.secondary),
-    argumentBody: specializedBody ?? presentation.body,
+    argumentBody: specializedBody ?? fallbackBody ?? presentation.body,
     safetyNotes: presentation.safetyNotes,
-    ...(!isKnownToolName(toolName)
-      ? draftArgsPreview(draft, {
-          maxLines: DRAFT_PREVIEW_LINES,
-          maxChars: DRAFT_PREVIEW_MAX_VALUE_CHARS,
-        })
-      : {}),
   };
 }
 

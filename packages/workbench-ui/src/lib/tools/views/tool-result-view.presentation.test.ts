@@ -244,7 +244,7 @@ describe("toolPresentation", () => {
       { content: output, exitCode: 0 },
     );
     assert.ok(p.detailsAction);
-    assert.equal(p.detailsAction?.hidden, 15);
+    assert.equal(p.detailsAction?.hidden, 19);
     assert.match(p.detailsAction?.label ?? "", /earlier lines/);
   });
 
@@ -300,8 +300,8 @@ describe("toolPresentation", () => {
     const code = Array.from({ length: 14 }, (_, i) => `line${i}`).join("\n");
     const p = present("python", { code }, { content: "ok" });
     assert.ok(p.detailsAction);
-    assert.equal(p.detailsAction?.hidden, 4);
-    assert.match(p.detailsAction?.label ?? "", /4 more lines/);
+    assert.equal(p.detailsAction?.hidden, 8);
+    assert.match(p.detailsAction?.label ?? "", /8 more lines/);
   });
 
   it("emits byte, line, and char chips for writes", () => {

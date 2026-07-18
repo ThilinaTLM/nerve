@@ -5,9 +5,11 @@ import ToolArgumentBody from "./ToolArgumentBody.svelte";
 type Props = {
   toolName: string;
   presentation: ToolArgumentPresentation;
+  /** False when the card's argument section already shows the body. */
+  includeBody?: boolean;
 };
 
-let { toolName, presentation }: Props = $props();
+let { toolName, presentation, includeBody = true }: Props = $props();
 </script>
 
 <div class="grid gap-2" aria-label="Approval operation summary">
@@ -19,7 +21,7 @@ let { toolName, presentation }: Props = $props();
       >
     {/if}
   </p>
-  {#if presentation.body.kind !== "none"}
+  {#if includeBody && presentation.body.kind !== "none"}
     <ToolArgumentBody body={presentation.body} />
   {/if}
   {#if presentation.safetyNotes.length > 0}

@@ -5,6 +5,7 @@ import {
 import type { CoreToolName } from "@nervekit/contracts";
 import type { MetaItem, PrimaryArg } from "../views/tool-presentation-types";
 import type { ToolArgumentSource } from "./argument-source";
+import { COLLAPSED_LINES } from "../views/tool-view-helpers";
 import {
   argumentPresentation,
   type ToolArgumentBody,
@@ -12,7 +13,7 @@ import {
   type ToolLifecycleStage,
 } from "./types";
 
-const BODY_LINES = 10;
+const BODY_LINES = COLLAPSED_LINES;
 const BODY_CHARS = 6_000;
 
 function plural(count: number, noun: string, suffix = "s"): string {
@@ -103,7 +104,7 @@ function keyValues(
     : { kind: "none" };
 }
 
-function editDiff(source: ToolArgumentSource): string | undefined {
+function editDiffLines(source: ToolArgumentSource): string[] {
   const lines: string[] = [];
   const prefix = (value: unknown, marker: "+" | "-") => {
     if (typeof value !== "string" || !value) return;
@@ -128,7 +129,11 @@ function editDiff(source: ToolArgumentSource): string | undefined {
     oldText.forEach((value) => prefix(value, "-"));
     newText.forEach((value) => prefix(value, "+"));
   }
-  return boundedText(lines.join("\n"));
+  return lines;
+}
+
+function editDiff(source: ToolArgumentSource): string | undefined {
+  return boundedText(editDiffLines(source).join("\n"));
 }
 
 function editStats(source: ToolArgumentSource): {
@@ -142,10 +147,9 @@ function editStats(source: ToolArgumentSource): {
     (source.count("lineReplacements") ?? 0) +
     (source.count("lineInsertions") ?? 0) +
     (source.string("patch") ? 1 : 0);
-  const diff = editDiff(source) ?? "";
   let additions = 0;
   let deletions = 0;
-  for (const line of diff.split("\n")) {
+  for (const line of editDiffLines(source)) {
     if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
     if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
   }
@@ -193,10 +197,7 @@ function readPresentation(
   });
 }
 
-function bashPresentation(
-  source: ToolArgumentSource,
-  stage: ToolLifecycleStage,
-) {
+function bashPresentation(source: ToolArgumentSource) {
   const command = source.string("command");
   const commandLines = lineCount(command) ?? 0;
   const cwd = source.string("cwd");
@@ -210,10 +211,9 @@ function bashPresentation(
       ...(cwd ? [{ text: `cwd ${cwd}`, mono: true } satisfies MetaItem] : []),
       ...(timeout !== undefined ? [{ text: `timeout ${timeout}s` }] : []),
     ],
+    // Stage-independent so the block never appears/disappears mid-lifecycle.
     body: codeBody(command, "bash", {
-      force:
-        stage === "approval" &&
-        (commandLines > 1 || (command?.length ?? 0) > 500),
+      force: (command?.length ?? 0) > 500,
       label: "Command",
     }),
     safetyNotes: [
@@ -224,7 +224,7 @@ function bashPresentation(
 
 function pythonPresentation(
   source: ToolArgumentSource,
-  stage: ToolLifecycleStage,
+  _stage: ToolLifecycleStage,
   cwd?: string,
 ) {
   const scriptPath = source.string("path");
@@ -242,18 +242,12 @@ function pythonPresentation(
     source.boolean("allowFileWrite") ?? source.boolean("allow_file_write");
   if (allowFileWrite === false)
     secondary.push({ text: "writes off", tone: "warning" });
-  const envSummary =
-    envKeys.length > 0 ? `Environment keys: ${envKeys.join(", ")}` : undefined;
-  const bodyText = codeBody(code, "python", {
-    force: stage === "approval" && (codeLines > 1 || (code?.length ?? 0) > 500),
+  // Stage-independent so the block never appears/disappears mid-lifecycle.
+  // Env-key details surface via safety notes on the approval prompt instead.
+  const body = codeBody(code, "python", {
+    force: (code?.length ?? 0) > 500,
     label: "Python",
   });
-  const body =
-    bodyText.kind !== "none"
-      ? bodyText
-      : stage === "approval" && envSummary
-        ? ({ kind: "text-summary", text: envSummary } as const)
-        : bodyText;
   return argumentPresentation({
     primaryArg: scriptPath
       ? pathArg(source, cwd)
@@ -336,51 +330,41 @@ function editPresentation(
 export const coreToolLifecycleSpecs = {
   read: defineToolLifecycleSpec({
     name: "read",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "read",
     present: readPresentation,
   }),
   bash: defineToolLifecycleSpec({
     name: "bash",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "persistent",
     completedView: "bash",
+    resultPlaceholder: { variant: "text", rows: 2 },
     emptyResult: "No output",
     present: bashPresentation,
   }),
   python: defineToolLifecycleSpec({
     name: "python",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "persistent",
     completedView: "python",
+    resultPlaceholder: { variant: "text", rows: 2 },
     emptyResult: "No output",
     present: pythonPresentation,
   }),
   edit: defineToolLifecycleSpec({
     name: "edit",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "edit",
     present: editPresentation,
   }),
   write: defineToolLifecycleSpec({
     name: "write",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "write",
     present: writePresentation,
   }),
   grep: defineToolLifecycleSpec({
     name: "grep",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "grep",
     emptyResult: "No matches",
     present: (source, stage) => {
@@ -417,9 +401,7 @@ export const coreToolLifecycleSpecs = {
   }),
   find: defineToolLifecycleSpec({
     name: "find",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "find",
     emptyResult: "No files found",
     present: (source, stage, cwd) =>
@@ -452,9 +434,7 @@ export const coreToolLifecycleSpecs = {
   }),
   ls: defineToolLifecycleSpec({
     name: "ls",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "ls",
     emptyResult: "Empty directory",
     present: (source, stage, cwd) =>
@@ -474,9 +454,7 @@ export const coreToolLifecycleSpecs = {
   }),
   ask_user: defineToolLifecycleSpec({
     name: "ask_user",
-    draftBody: "meaningful",
-    approvalDetail: "summary",
-    executionHandoff: "replace-with-interaction",
+    argumentRegion: "until-result",
     completedView: "ask_user",
     present: (source) => {
       const lines = [
@@ -498,9 +476,7 @@ export const coreToolLifecycleSpecs = {
   }),
   todos_set: defineToolLifecycleSpec({
     name: "todos_set",
-    draftBody: "meaningful",
-    approvalDetail: "summary",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "todos",
     present: (source) => {
       const exact = source.recordsArray("todos") ?? [];
@@ -533,19 +509,16 @@ export const coreToolLifecycleSpecs = {
   }),
   todos_get: defineToolLifecycleSpec({
     name: "todos_get",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "todos",
     emptyResult: "No todos",
     present: () => argumentPresentation({ primaryArg: textArg("Get todos") }),
   }),
   web_search: defineToolLifecycleSpec({
     name: "web_search",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "web_search",
+    resultPlaceholder: { variant: "list", rows: 3 },
     emptyResult: "No results",
     present: (source, stage) =>
       argumentPresentation({
@@ -566,10 +539,9 @@ export const coreToolLifecycleSpecs = {
   }),
   web_fetch: defineToolLifecycleSpec({
     name: "web_fetch",
-    draftBody: "none",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
     completedView: "web_fetch",
+    resultPlaceholder: { variant: "text", rows: 3 },
     present: (source, stage) =>
       argumentPresentation({
         primaryArg: urlArg(source.string("url")) ?? textArg("URL"),

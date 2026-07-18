@@ -22,13 +22,16 @@ import {
   hasMeaningfulToolDraftBody,
   summarizeToolDraft,
 } from "../views/tool-draft-progress";
-import { presentToolArguments, toolLifecycleSpec } from "../lifecycle/registry";
+import {
+  presentToolArguments,
+  toolLifecycleSpec,
+  type ToolLifecycleStage,
+} from "../lifecycle/registry";
 import { isInputValidationFailure } from "../lifecycle/failure-context";
-import { deriveToolActivityState } from "../views/tool-activity-state";
+import { deriveToolActivitySections } from "../views/tool-activity-state";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import CardShell from "./tool-call/CardShell.svelte";
-import ToolDraftBody from "./tool-call/ToolDraftBody.svelte";
 import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
 import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
@@ -174,25 +177,39 @@ const argumentInput = $derived({
   argsText: draft?.block.argsText,
   argsPreview: toolCall?.argsPreview,
 });
+function argumentLifecycleStage(): ToolLifecycleStage {
+  if (!toolCall) return "drafting";
+  if (toolCall.status === "error" || toolCall.status === "denied")
+    return "failed";
+  if (toolCall.status === "completed") return "completed";
+  // Approval-only details belong to ApprovalPrompt. The persistent argument
+  // section uses the same presentation before and after the decision.
+  return "executing";
+}
 const lifecycleArgumentPresentation = $derived.by(() => {
   const toolName = toolCall?.toolName ?? draft?.block.toolName;
   if (!toolName) return undefined;
-  return presentToolArguments(toolName, argumentInput, "executing", cwd);
+  return presentToolArguments(
+    toolName,
+    argumentInput,
+    argumentLifecycleStage(),
+    cwd,
+  );
 });
+const argumentBody = $derived.by(() => {
+  if (!toolCall) return draftSummary?.argumentBody;
+  if (isInputValidationFailure(toolCall)) return undefined;
+  return lifecycleArgumentPresentation?.body;
+});
+const hasArgumentBody = $derived(
+  toolCall
+    ? Boolean(argumentBody && argumentBody.kind !== "none")
+    : meaningfulDraftBody,
+);
 const approvalPresentation = $derived.by(() => {
   const toolName = toolCall?.toolName ?? draft?.block.toolName;
   if (!toolName) return undefined;
   return presentToolArguments(toolName, argumentInput, "approval", cwd);
-});
-const failurePresentation = $derived.by(() => {
-  if (
-    !toolCall ||
-    (toolCall.status !== "error" && toolCall.status !== "denied") ||
-    isInputValidationFailure(toolCall)
-  ) {
-    return undefined;
-  }
-  return presentToolArguments(toolCall.toolName, argumentInput, "failed", cwd);
 });
 const hilInteractive = $derived(
   view?.kind === "ask_user" ||
@@ -225,20 +242,17 @@ const activityMeta = $derived.by(() => {
     presentation?.meta ?? [],
   );
 });
-const activityState = $derived.by(() =>
-  deriveToolActivityState({
+const activitySections = $derived.by(() =>
+  deriveToolActivitySections({
     draft: draft?.block,
     toolCall,
-    hasMeaningfulDraftBody: meaningfulDraftBody,
+    argumentRegion: lifecycleSpec.argumentRegion,
+    hasArgumentBody,
     hasDurableBodyContent,
-    executionHandoff: lifecycleSpec.executionHandoff,
     bodyHydrated: shouldHydrateBody,
     hasApproval: Boolean(toolApproval),
     hasInteraction: hilInteractive,
-    hasExecutingPlaceholder: lifecycleSpec.executingBody === "skeleton",
-    hasFailureContext: Boolean(
-      failurePresentation && failurePresentation.body.kind !== "none",
-    ),
+    resultPlaceholder: lifecycleSpec.resultPlaceholder,
     footerItems: activityMeta,
     hasDetailsAction: Boolean(toolCall),
   }),
@@ -280,9 +294,9 @@ const bodyDetailsAction = $derived({
 const errorPreview = $derived(
   toolCall?.error
     ? trimTextPreview(toolCall.error, {
-        headLines: 18,
-        tailLines: 6,
-        maxChars: 6_000,
+        headLines: 4,
+        tailLines: 2,
+        maxChars: 2_000,
       }).text
     : undefined,
 );
@@ -328,37 +342,49 @@ async function openDetails() {
   status={toolCall?.status}
   draftPhase={toolCall
     ? undefined
-    : activityState.phase === "prepared"
+    : activitySections.phase === "prepared"
       ? "prepared"
       : "drafting"}
   {dotTone}
   {dotPulse}
   {badge}
   arg={primaryArg}
-  error={activityState.errorVisible ? errorPreview : undefined}
+  error={activitySections.errorVisible ? errorPreview : undefined}
   {meta}
-  footer={activityState.footerVisible}
-  bodyVisible={activityState.bodyVisible}
-  layoutRevision={activityState.structuralRevision}
+  footer={activitySections.footerVisible}
+  bodyVisible={activitySections.argumentVisible ||
+    activitySections.interactionMode !== "none" ||
+    activitySections.resultMode !== "none"}
+  layoutRevision={activitySections.structuralRevision}
   {detailsAction}
   {onOpenFile}
 >
-  {#if activityState.bodyMode === "draft-preview" && draft}
-    <ToolDraftBody draft={draft.block} {cwd} />
-  {:else if activityState.bodyMode === "executing-placeholder"}
-    <ToolExecutingSkeleton />
-  {:else if activityState.bodyMode === "failure-context" && failurePresentation}
-    <ToolArgumentBody body={failurePresentation.body} />
-  {:else if activityState.bodyMode === "approval" && toolApproval && approvalPresentation && toolCall}
+  {#if activitySections.argumentVisible && argumentBody}
+    <ToolArgumentBody
+      body={argumentBody}
+      highlight={Boolean(toolCall || draft?.block.done)}
+      streaming={!toolCall && !draft?.block.done}
+    />
+  {/if}
+
+  {#if activitySections.interactionMode === "approval" && toolApproval && approvalPresentation && toolCall}
     <ApprovalPrompt
       approval={toolApproval}
       toolName={toolCall.toolName}
       presentation={approvalPresentation}
+      includeBody={!activitySections.argumentVisible}
       detailsAction={bodyDetailsAction}
       {onGrantApproval}
       {onDenyApproval}
     />
-  {:else if (activityState.bodyMode === "tool-output" || activityState.bodyMode === "interaction") && toolCall && view && ToolView}
+  {/if}
+
+  {#if activitySections.resultMode === "placeholder" && lifecycleSpec.resultPlaceholder}
+    <ToolExecutingSkeleton
+      variant={lifecycleSpec.resultPlaceholder.variant}
+      rows={lifecycleSpec.resultPlaceholder.rows}
+    />
+  {:else if activitySections.resultMode === "output" && toolCall && view && ToolView}
     <ToolView
       {toolCall}
       {view}

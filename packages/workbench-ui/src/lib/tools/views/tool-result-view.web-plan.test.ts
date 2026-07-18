@@ -131,8 +131,8 @@ describe("parseToolView plan and web tools", () => {
       { details: { query: "many", results } },
     );
     const presentation = toolPresentation(parseToolView(tc), tc);
-    assert.equal(presentation.detailsAction?.hidden, 4);
-    assert.match(presentation.detailsAction?.label ?? "", /4 more results/);
+    assert.equal(presentation.detailsAction?.hidden, 8);
+    assert.match(presentation.detailsAction?.label ?? "", /8 more results/);
   });
   it("parses web_fetch details and content", () => {
     const view = parseToolView(

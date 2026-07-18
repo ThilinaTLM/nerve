@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { ToolArgumentBody as ArgumentBody } from "../../lifecycle/registry";
+import { COLLAPSED_LINES } from "../../views/tool-view-helpers";
 import AtlassianDraftBody from "./AtlassianDraftBody.svelte";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 import TodoChecklist from "./TodoChecklist.svelte";
@@ -14,7 +15,7 @@ type Props = {
 
 let {
   body,
-  fixedRows = 10,
+  fixedRows = COLLAPSED_LINES,
   highlight = true,
   streaming = false,
 }: Props = $props();

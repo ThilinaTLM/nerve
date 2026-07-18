@@ -1,6 +1,7 @@
 <script lang="ts">
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import type { ToolArgumentBody as ArgumentBody } from "../../lifecycle/registry";
+import { COLLAPSED_LINES } from "../../views/tool-view-helpers";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
 type AtlassianDraftBody = Extract<ArgumentBody, { kind: "atlassian-draft" }>;
@@ -11,7 +12,7 @@ type Props = {
   streaming?: boolean;
   fixedRows?: number;
 };
-let { body, streaming = false, fixedRows = 10 }: Props = $props();
+let { body, streaming = false, fixedRows = COLLAPSED_LINES }: Props = $props();
 
 const fields = $derived(
   body.fields.filter((field) => field.value !== undefined || streaming),

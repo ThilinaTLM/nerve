@@ -5,7 +5,7 @@ import type {
   ToolCallStatus,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
-import { deriveToolActivityState } from "./tool-activity-state";
+import { deriveToolActivitySections } from "./tool-activity-state";
 
 function draft(done = false): ConversationLiveToolDraftBlockSnapshot {
   return {
@@ -25,25 +25,31 @@ function toolCall(
   return { status, error };
 }
 
-describe("deriveToolActivityState", () => {
-  it("keeps an empty draft header-only and expands meaningful previews", () => {
-    const empty = deriveToolActivityState({ draft: draft() });
-    assert.equal(empty.phase, "drafting");
-    assert.equal(empty.bodyMode, "none");
-    assert.equal(empty.bodyVisible, false);
-
-    const preview = deriveToolActivityState({
+describe("deriveToolActivitySections", () => {
+  it("keeps an empty draft header-only and mounts argument bodies", () => {
+    const empty = deriveToolActivitySections({
       draft: draft(),
-      hasMeaningfulDraftBody: true,
+      argumentRegion: "until-result",
     });
-    assert.equal(preview.bodyMode, "draft-preview");
-    assert.equal(preview.bodyVisible, true);
+    assert.equal(empty.phase, "drafting");
+    assert.equal(empty.argumentVisible, false);
+    assert.equal(empty.resultMode, "none");
+
+    const preview = deriveToolActivitySections({
+      draft: draft(),
+      argumentRegion: "until-result",
+      hasArgumentBody: true,
+    });
+    assert.equal(preview.argumentVisible, true);
   });
 
   it("represents a prepared draft without requiring a durable record", () => {
-    const state = deriveToolActivityState({ draft: draft(true) });
+    const state = deriveToolActivitySections({
+      draft: draft(true),
+      argumentRegion: "until-result",
+    });
     assert.equal(state.phase, "prepared");
-    assert.equal(state.bodyMode, "none");
+    assert.equal(state.resultMode, "none");
   });
 
   it("uses every durable status as the activity phase", () => {
@@ -58,151 +64,229 @@ describe("deriveToolActivityState", () => {
     ];
     for (const status of statuses) {
       assert.equal(
-        deriveToolActivityState({ toolCall: toolCall(status) }).phase,
+        deriveToolActivitySections({
+          toolCall: toolCall(status),
+          argumentRegion: "none",
+        }).phase,
         status,
       );
     }
   });
 
-  it("selects approval, interaction, output, and error body modes", () => {
-    assert.equal(
-      deriveToolActivityState({
-        toolCall: toolCall("pending_approval"),
-        hasApproval: true,
-      }).bodyMode,
-      "approval",
-    );
-    assert.equal(
-      deriveToolActivityState({
-        toolCall: toolCall("waiting_for_user"),
-        hasInteraction: true,
+  it("keeps a persistent argument section mounted across the lifecycle", () => {
+    const revisions = new Set<string>();
+    for (const status of [
+      "pending_approval",
+      "running",
+      "completed",
+    ] as const) {
+      const state = deriveToolActivitySections({
+        draft: draft(true),
+        toolCall: toolCall(status),
+        argumentRegion: "persistent",
+        hasArgumentBody: true,
+        hasApproval: status === "pending_approval",
+        hasDurableBodyContent: status === "completed",
+        resultPlaceholder: { variant: "text", rows: 2 },
         bodyHydrated: true,
-      }).bodyMode,
-      "interaction",
-    );
-    assert.equal(
-      deriveToolActivityState({
-        toolCall: toolCall("running"),
-        hasDurableBodyContent: true,
-        bodyHydrated: true,
-      }).bodyMode,
-      "tool-output",
-    );
-    assert.equal(
-      deriveToolActivityState({
-        toolCall: toolCall("running"),
-        executionHandoff: "result-immediate",
-        bodyHydrated: true,
-      }).bodyMode,
-      "none",
-    );
-    const failed = deriveToolActivityState({
+      });
+      assert.equal(state.argumentVisible, true, status);
+      revisions.add(state.structuralRevision);
+    }
+    // Approval buttons, placeholder, and output are the only structural swaps.
+    assert.equal(revisions.size, 3);
+  });
+
+  it("keeps persistent arguments visible on failure alongside the error", () => {
+    const failed = deriveToolActivitySections({
       toolCall: toolCall("error", "boom"),
-      bodyHydrated: true,
+      argumentRegion: "persistent",
+      hasArgumentBody: true,
     });
-    assert.equal(failed.bodyMode, "error");
+    assert.equal(failed.argumentVisible, true);
+    assert.equal(failed.resultMode, "none");
     assert.equal(failed.errorVisible, true);
-    assert.equal(failed.bodyVisible, false);
-    assert.equal(
-      deriveToolActivityState({ toolCall: toolCall("denied") }).bodyMode,
-      "error",
-    );
-    const failedWithContext = deriveToolActivityState({
-      toolCall: toolCall("error", "boom"),
-      hasFailureContext: true,
-    });
-    assert.equal(failedWithContext.bodyMode, "failure-context");
-    assert.equal(failedWithContext.bodyVisible, true);
-    assert.equal(failedWithContext.errorVisible, true);
   });
 
-  it("uses an executing placeholder for opted-in header-only tools", () => {
-    const plain = deriveToolActivityState({
-      toolCall: toolCall("running"),
-      hasExecutingPlaceholder: false,
-    });
-    assert.equal(plain.bodyMode, "none");
-    assert.equal(plain.bodyVisible, false);
-
-    const placeholder = deriveToolActivityState({
-      toolCall: toolCall("running"),
-      hasExecutingPlaceholder: true,
-    });
-    assert.equal(placeholder.bodyMode, "executing-placeholder");
-    assert.equal(placeholder.bodyVisible, true);
-
-    const output = deriveToolActivityState({
-      toolCall: toolCall("completed"),
-      hasExecutingPlaceholder: true,
-      hasDurableBodyContent: true,
-      bodyHydrated: true,
-    });
-    assert.equal(output.bodyMode, "tool-output");
-    assert.notEqual(placeholder.structuralRevision, output.structuralRevision);
-  });
-
-  it("keeps a meaningful draft body until durable output is available", () => {
-    const handoff = deriveToolActivityState({
+  it("replaces until-result arguments once result output exists", () => {
+    const retained = deriveToolActivitySections({
       draft: draft(true),
       toolCall: toolCall("running"),
-      hasMeaningfulDraftBody: true,
+      argumentRegion: "until-result",
+      hasArgumentBody: true,
       hasDurableBodyContent: false,
       bodyHydrated: true,
     });
-    assert.equal(handoff.phase, "running");
-    assert.equal(handoff.bodyMode, "draft-preview");
-    assert.equal(handoff.bodyVisible, true);
+    assert.equal(retained.argumentVisible, true);
+    assert.equal(retained.resultMode, "none");
 
-    const output = deriveToolActivityState({
+    const output = deriveToolActivitySections({
       draft: draft(true),
       toolCall: toolCall("running"),
-      hasMeaningfulDraftBody: true,
+      argumentRegion: "until-result",
+      hasArgumentBody: true,
       hasDurableBodyContent: true,
       bodyHydrated: true,
     });
-    assert.equal(output.bodyMode, "tool-output");
-    assert.notEqual(handoff.structuralRevision, output.structuralRevision);
+    assert.equal(output.argumentVisible, false);
+    assert.equal(output.resultMode, "output");
+    assert.notEqual(retained.structuralRevision, output.structuralRevision);
+
+    const failure = deriveToolActivitySections({
+      toolCall: toolCall("error", "boom"),
+      argumentRegion: "until-result",
+      hasArgumentBody: true,
+    });
+    assert.equal(failure.argumentVisible, true);
+    assert.equal(failure.resultMode, "none");
+    assert.equal(failure.errorVisible, true);
+  });
+
+  it("retains arguments during the tool-to-approval record handoff", () => {
+    const state = deriveToolActivitySections({
+      toolCall: toolCall("pending_approval"),
+      argumentRegion: "until-result",
+      hasArgumentBody: true,
+      bodyHydrated: true,
+    });
+    assert.equal(state.argumentVisible, true);
+    assert.equal(state.interactionMode, "none");
+    assert.equal(state.resultMode, "none");
+  });
+
+  it("mounts the approval interaction without hiding arguments", () => {
+    const state = deriveToolActivitySections({
+      toolCall: toolCall("pending_approval"),
+      argumentRegion: "until-result",
+      hasArgumentBody: true,
+      hasApproval: true,
+      footerItems: [{ tone: "warning" }],
+    });
+    assert.equal(state.interactionMode, "approval");
+    assert.equal(state.argumentVisible, true);
+    assert.equal(state.resultMode, "none");
+    assert.equal(state.footerVisible, false);
+  });
+
+  it("lets HIL views own the result section for every status", () => {
+    const waiting = deriveToolActivitySections({
+      toolCall: toolCall("waiting_for_user"),
+      argumentRegion: "until-result",
+      hasArgumentBody: true,
+      hasInteraction: true,
+      bodyHydrated: true,
+      hasDetailsAction: true,
+    });
+    assert.equal(waiting.resultMode, "output");
+    assert.equal(waiting.argumentVisible, false);
+    assert.equal(waiting.footerVisible, false);
+
+    const resolved = deriveToolActivitySections({
+      toolCall: toolCall("completed"),
+      argumentRegion: "until-result",
+      hasInteraction: true,
+      bodyHydrated: true,
+      hasDetailsAction: true,
+    });
+    assert.equal(resolved.resultMode, "output");
+    assert.equal(resolved.footerVisible, false);
+  });
+
+  it("uses an executing placeholder only for opted-in tools", () => {
+    const plain = deriveToolActivitySections({
+      toolCall: toolCall("running"),
+      argumentRegion: "none",
+    });
+    assert.equal(plain.resultMode, "none");
+
+    const placeholder = deriveToolActivitySections({
+      toolCall: toolCall("running"),
+      argumentRegion: "none",
+      resultPlaceholder: { variant: "list", rows: 3 },
+    });
+    assert.equal(placeholder.resultMode, "placeholder");
+
+    const output = deriveToolActivitySections({
+      toolCall: toolCall("completed"),
+      argumentRegion: "none",
+      resultPlaceholder: { variant: "list", rows: 3 },
+      hasDurableBodyContent: true,
+      bodyHydrated: true,
+    });
+    assert.equal(output.resultMode, "output");
+    assert.notEqual(placeholder.structuralRevision, output.structuralRevision);
+  });
+
+  it("swaps the placeholder for output as soon as live content exists", () => {
+    const live = deriveToolActivitySections({
+      toolCall: toolCall("running"),
+      argumentRegion: "persistent",
+      hasArgumentBody: true,
+      hasDurableBodyContent: true,
+      resultPlaceholder: { variant: "text", rows: 2 },
+      bodyHydrated: true,
+    });
+    assert.equal(live.resultMode, "output");
+    assert.equal(live.argumentVisible, true);
   });
 
   it("tracks body hydration without changing for streamed content", () => {
-    const hidden = deriveToolActivityState({
+    const hidden = deriveToolActivitySections({
       toolCall: toolCall("running"),
+      argumentRegion: "none",
       hasDurableBodyContent: true,
       bodyHydrated: false,
     });
-    const visible = deriveToolActivityState({
+    const visible = deriveToolActivitySections({
       toolCall: toolCall("running"),
+      argumentRegion: "none",
       hasDurableBodyContent: true,
       bodyHydrated: true,
     });
-    assert.equal(hidden.bodyVisible, false);
-    assert.equal(visible.bodyVisible, true);
+    assert.equal(hidden.resultMode, "none");
+    assert.equal(visible.resultMode, "output");
     assert.notEqual(hidden.structuralRevision, visible.structuralRevision);
     assert.equal(
       visible.structuralRevision,
-      deriveToolActivityState({
+      deriveToolActivitySections({
         toolCall: toolCall("completed"),
+        argumentRegion: "none",
         hasDurableBodyContent: true,
         bodyHydrated: true,
       }).structuralRevision,
     );
   });
 
+  it("does not fall back to arguments while completed output is deferred", () => {
+    const deferred = deriveToolActivitySections({
+      toolCall: toolCall("completed"),
+      argumentRegion: "until-result",
+      hasArgumentBody: true,
+      hasDurableBodyContent: true,
+      bodyHydrated: false,
+    });
+    assert.equal(deferred.resultMode, "none");
+    assert.equal(deferred.argumentVisible, false);
+  });
+
   it("changes footer signatures only for structural item changes", () => {
-    const first = deriveToolActivityState({
+    const first = deriveToolActivitySections({
       toolCall: toolCall("completed"),
+      argumentRegion: "none",
       bodyHydrated: true,
       footerItems: [{ tone: "success" }],
       hasDetailsAction: true,
     });
-    const sameShape = deriveToolActivityState({
+    const sameShape = deriveToolActivitySections({
       toolCall: toolCall("completed"),
+      argumentRegion: "none",
       bodyHydrated: true,
       footerItems: [{ tone: "success" }],
       hasDetailsAction: true,
     });
-    const extraItem = deriveToolActivityState({
+    const extraItem = deriveToolActivitySections({
       toolCall: toolCall("completed"),
+      argumentRegion: "none",
       bodyHydrated: true,
       footerItems: [{ tone: "success" }, { mono: true }],
       hasDetailsAction: true,
@@ -210,12 +294,5 @@ describe("deriveToolActivityState", () => {
     assert.equal(first.footerVisible, true);
     assert.equal(first.structuralRevision, sameShape.structuralRevision);
     assert.notEqual(first.structuralRevision, extraItem.structuralRevision);
-
-    const approval = deriveToolActivityState({
-      toolCall: toolCall("pending_approval"),
-      hasApproval: true,
-      footerItems: [{ tone: "warning" }],
-    });
-    assert.equal(approval.footerVisible, false);
   });
 });

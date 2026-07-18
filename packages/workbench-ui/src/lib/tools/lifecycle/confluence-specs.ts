@@ -94,10 +94,8 @@ function pageBodyPresentation(source: ToolArgumentSource): {
 export const confluenceToolLifecycleSpecs = {
   confluence_search_spaces: spec({
     name: "confluence_search_spaces",
-    draftBody: "none",
-    executingBody: "skeleton",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
+    resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "confluence",
     emptyResult: "No spaces found",
     present: (source, stage) => {
@@ -121,10 +119,8 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_search_pages: spec({
     name: "confluence_search_pages",
-    draftBody: "none",
-    executingBody: "skeleton",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
+    resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "confluence",
     emptyResult: "No pages found",
     present: (source, stage) => {
@@ -157,10 +153,8 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_get_page: spec({
     name: "confluence_get_page",
-    draftBody: "none",
-    executingBody: "skeleton",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
+    resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "confluence",
     present: (source, stage) => {
       const page = source.string("page_id") ?? source.string("page_file");
@@ -189,10 +183,8 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_download_pages: spec({
     name: "confluence_download_pages",
-    draftBody: "none",
-    executingBody: "skeleton",
-    approvalDetail: "summary",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
+    resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "confluence",
     emptyResult: "No pages downloaded",
     present: (source, stage) => {
@@ -227,9 +219,7 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_create_page: spec({
     name: "confluence_create_page",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "confluence",
     present: (source) => {
       const space = source.string("space_key") ?? source.string("space_id");
@@ -254,9 +244,7 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_update_page: spec({
     name: "confluence_update_page",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "confluence",
     present: (source) => {
       const page = source.string("page_id") ?? source.string("page_file");
@@ -280,9 +268,7 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_publish_pages: spec({
     name: "confluence_publish_pages",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "confluence",
     present: (source) => {
       const inputPath = source.string("input_path");
@@ -340,9 +326,7 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_upload_attachment: spec({
     name: "confluence_upload_attachment",
-    draftBody: "none",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "none",
     completedView: "confluence",
     present: (source, stage) => {
       const path = source.string("file_path");

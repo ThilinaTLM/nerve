@@ -105,7 +105,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.preview, "recent one\nrecent two");
   });
 
-  it("tails partial write draft previews to the latest 10 completed lines", () => {
+  it("tails partial write draft previews to the latest 6 completed lines", () => {
     const lines = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`);
     const summary = summarizeToolDraft(
       draft("write", {
@@ -114,11 +114,11 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "write");
-    assert.equal(summary.preview, lines.slice(1, 11).join("\n"));
+    assert.equal(summary.preview, lines.slice(5, 11).join("\n"));
     assert.equal(summary.preview?.includes("earlier line"), false);
   });
 
-  it("tails progress write draft previews to the latest 10 lines", () => {
+  it("tails progress write draft previews to the latest 6 lines", () => {
     const lines = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`);
     const summary = summarizeToolDraft(
       draft("write", {
@@ -133,7 +133,7 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "write");
-    assert.equal(summary.preview, lines.slice(-10).join("\n"));
+    assert.equal(summary.preview, lines.slice(-6).join("\n"));
     assert.equal(summary.preview?.includes("earlier line"), false);
   });
 
@@ -162,7 +162,7 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("tails final write draft previews to the latest 10 lines", () => {
+  it("tails final write draft previews to the latest 6 lines", () => {
     const lines = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`);
     const summary = summarizeToolDraft(
       draft("write", {
@@ -173,7 +173,7 @@ describe("summarizeToolDraft", () => {
 
     assert.equal(summary.path, "src/final.ts");
     assert.equal(summary.lineCount, 12);
-    assert.equal(summary.preview, lines.slice(-10).join("\n"));
+    assert.equal(summary.preview, lines.slice(-6).join("\n"));
     assert.equal(summary.preview?.includes("earlier line"), false);
   });
 
@@ -286,7 +286,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.previewLanguage, "diff");
   });
 
-  it("tails final edit diff previews to the latest 10 lines", () => {
+  it("tails final edit diff previews to the latest 6 lines", () => {
     const replacementLines = Array.from(
       { length: 6 },
       (_, index) => `replacement-${index + 1}`,
@@ -320,7 +320,7 @@ describe("summarizeToolDraft", () => {
       ...patchLines,
     ];
     assert.equal(summary.toolName, "edit");
-    assert.equal(summary.preview, generatedLines.slice(-10).join("\n"));
+    assert.equal(summary.preview, generatedLines.slice(-6).join("\n"));
     assert.equal(summary.previewLanguage, "diff");
     assert.equal(summary.preview?.includes("old secret"), false);
     assert.equal(summary.preview?.includes("earlier line"), false);
@@ -340,7 +340,7 @@ describe("summarizeToolDraft", () => {
     assert.equal(summary.inputLineCount, 1);
   });
 
-  it("tails multi-line bash command draft previews to the latest 10 lines", () => {
+  it("tails multi-line bash command draft previews to the latest 6 lines", () => {
     const lines = Array.from({ length: 12 }, (_, index) => `cmd-${index + 1}`);
     const summary = summarizeToolDraft(
       draft("bash", {
@@ -350,7 +350,7 @@ describe("summarizeToolDraft", () => {
 
     assert.equal(summary.kind, "bash");
     assert.equal(summary.inlineInput, undefined);
-    assert.equal(summary.inputPreview, lines.slice(-10).join("\n"));
+    assert.equal(summary.inputPreview, lines.slice(-6).join("\n"));
     assert.equal(summary.inputPreview?.includes("omitted"), false);
     assert.equal(summary.inputLineCount, 12);
   });
@@ -389,7 +389,7 @@ describe("summarizeToolDraft", () => {
     );
   });
 
-  it("tails multi-line Python draft previews to the latest 10 lines", () => {
+  it("tails multi-line Python draft previews to the latest 6 lines", () => {
     const lines = Array.from({ length: 12 }, (_, index) => `py-${index + 1}`);
     const summary = summarizeToolDraft(
       draft("python", {
@@ -399,7 +399,7 @@ describe("summarizeToolDraft", () => {
 
     assert.equal(summary.kind, "python");
     assert.equal(summary.inlineInput, undefined);
-    assert.equal(summary.inputPreview, lines.slice(-10).join("\n"));
+    assert.equal(summary.inputPreview, lines.slice(-6).join("\n"));
     assert.equal(summary.inputPreview?.includes("omitted"), false);
     assert.equal(summary.inputLineCount, 12);
   });
@@ -480,8 +480,6 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "generic");
-    assert.equal(summary.argsPreview, undefined);
-    assert.equal(summary.argsPreviewLanguage, undefined);
     assert.equal(summary.argumentBody?.kind, "checklist");
     if (summary.argumentBody?.kind === "checklist") {
       assert.equal(summary.argumentBody.items.length, 12);
@@ -502,7 +500,6 @@ describe("summarizeToolDraft", () => {
     );
 
     assert.equal(summary.kind, "generic");
-    assert.equal(summary.argsPreview, undefined);
     assert.equal(summary.argumentBody?.kind, "text-summary");
     if (summary.argumentBody?.kind === "text-summary") {
       assert.match(summary.argumentBody.text, /Area 1/);
@@ -528,7 +525,6 @@ describe("summarizeToolDraft", () => {
       search.meta.map((item) => item.text),
       ["2 fields", "max 15"],
     );
-    assert.equal(search.argsPreview, undefined);
     assert.equal(search.argumentBody?.kind, "none");
 
     const transition = summarizeToolDraft(
@@ -576,6 +572,26 @@ describe("summarizeToolDraft", () => {
     );
   });
 
+  it("uses readable structured arguments or bounded JSON for unknown tools", () => {
+    const structured = summarizeToolDraft(
+      draft("removed_extension", {
+        argsText:
+          '{"target":"workspace","items":[1,2,3],"options":{"mode":"safe"}',
+      }),
+    );
+    assert.equal(structured.argumentBody?.kind, "key-values");
+    assert.match(JSON.stringify(structured.argumentBody), /workspace/);
+
+    const raw = summarizeToolDraft(
+      draft("removed_extension", { argsText: "[" }),
+    );
+    assert.equal(raw.argumentBody?.kind, "code");
+    if (raw.argumentBody?.kind === "code") {
+      assert.equal(raw.argumentBody.language, "json");
+      assert.equal(raw.argumentBody.tail, true);
+    }
+  });
+
   it("never exposes JSON previews for representative recognized tools", () => {
     for (const [toolName, args] of [
       [
@@ -602,8 +618,13 @@ describe("summarizeToolDraft", () => {
     ] as const) {
       const summary = summarizeToolDraft(draft(toolName, { args, done: true }));
       assert.equal(summary.kind, "generic", toolName);
-      assert.equal(summary.argsPreview, undefined, toolName);
-      assert.equal(summary.argsPreviewLanguage, undefined, toolName);
+      assert.equal(
+        summary.argumentBody?.kind === "code"
+          ? summary.argumentBody.language
+          : undefined,
+        undefined,
+        toolName,
+      );
       assert.ok(summary.primaryArg, toolName);
     }
   });

@@ -16,7 +16,7 @@ const inlineCodeIsMultiline = $derived(
 </script>
 
 <div class="grid gap-1.5">
-  {#if view.code && inlineCodeIsMultiline}
+  {#if expanded && view.code && inlineCodeIsMultiline}
     <section class="grid gap-1" aria-label="Python script">
       <ToolOutputBlock text={view.code} language="python" {expanded} />
     </section>
@@ -27,7 +27,6 @@ const inlineCodeIsMultiline = $derived(
       <ToolOutputBlock
         text={view.output}
         direction="tail"
-        collapsedLines={10}
         {expanded}
         outputLimits={view.outputLimits}
         terminal
@@ -37,9 +36,5 @@ const inlineCodeIsMultiline = $derived(
     <section class="grid gap-1" aria-label="Python output">
       <p class="m-0 text-xs text-muted-foreground">No output.</p>
     </section>
-  {/if}
-
-  {#if view.live}
-    <p class="m-0 text-xs text-muted-foreground">Streaming live output…</p>
   {/if}
 </div>

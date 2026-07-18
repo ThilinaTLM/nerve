@@ -1,5 +1,5 @@
 import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts";
-import { isKnownToolName } from "../lifecycle/registry";
+import { isKnownToolName, type ToolArgumentBody } from "../lifecycle/registry";
 
 export type DraftArgsPreview = {
   argsPreview?: string;
@@ -100,6 +100,16 @@ function formatPartialJsonish(text: string): string {
   }
 
   return formatted.trimEnd();
+}
+
+export function draftArgsPreviewBody(
+  draft: ConversationLiveToolDraftBlockSnapshot,
+  options: DraftArgsPreviewOptions,
+): ToolArgumentBody | undefined {
+  const preview = draftArgsPreview(draft, options).argsPreview;
+  return preview
+    ? { kind: "code", language: "json", text: preview, tail: true }
+    : undefined;
 }
 
 export function draftArgsPreview(

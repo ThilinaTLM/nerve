@@ -14,7 +14,7 @@ const commandIsMultiline = $derived(Boolean(view.command?.match(/[\r\n]/)));
 </script>
 
 <div class="grid gap-1.5">
-  {#if view.command && commandIsMultiline}
+  {#if expanded && view.command && commandIsMultiline}
     <section class="grid gap-1" aria-label="Bash command">
       <ToolOutputBlock text={view.command} language="bash" {expanded} />
     </section>
@@ -25,16 +25,11 @@ const commandIsMultiline = $derived(Boolean(view.command?.match(/[\r\n]/)));
       <ToolOutputBlock
         text={view.output}
         direction="tail"
-        collapsedLines={10}
         {expanded}
         terminal
       />
     </section>
   {:else if toolCall.status === "completed"}
     <p class="m-0 text-xs text-muted-foreground">No output.</p>
-  {/if}
-
-  {#if view.live}
-    <p class="m-0 text-xs text-muted-foreground">Streaming live output…</p>
   {/if}
 </div>

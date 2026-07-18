@@ -56,7 +56,6 @@ export function hasMeaningfulToolDraftBody(
   return Boolean(
     summary.preview?.length ||
     summary.inputPreview?.length ||
-    summary.argsPreview?.length ||
     meaningfulArgumentBody ||
     (atlassianSummary?.length &&
       !atlassianSummary.includes("Waiting for arguments…")),

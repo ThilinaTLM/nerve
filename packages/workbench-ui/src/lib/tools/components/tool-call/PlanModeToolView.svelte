@@ -10,9 +10,10 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { SplitButton } from "@nervekit/ui-kit/components/ui/split-button";
 import type { MetaItem } from "../../views/tool-presentation";
-import type {
-  ToolCallDisplayRecord,
-  ToolView,
+import {
+  COLLAPSED_LINES,
+  type ToolCallDisplayRecord,
+  type ToolView,
 } from "../../views/tool-result-view";
 import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
 import ToolFooter from "./ToolFooter.svelte";
@@ -120,7 +121,7 @@ const collapsedContent = $derived(
 const preview = $derived(
   expanded
     ? (displayedReview?.content ?? "")
-    : firstLines(collapsedContent, 10),
+    : firstLines(collapsedContent, COLLAPSED_LINES),
 );
 const showPlanCard = $derived(
   toolCall.toolName === "plan_mode_present" && Boolean(displayedReview),

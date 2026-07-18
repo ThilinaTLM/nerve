@@ -24,9 +24,7 @@ export const toolLifecycleRegistry = {
 
 export const unknownToolLifecycleSpec: UnknownToolLifecycleSpec = {
   name: "unknown",
-  draftBody: "meaningful",
-  approvalDetail: "full",
-  executionHandoff: "retain-draft-until-output",
+  argumentRegion: "until-result",
   completedView: "generic",
   emptyResult: "No output",
   present: (source) => {

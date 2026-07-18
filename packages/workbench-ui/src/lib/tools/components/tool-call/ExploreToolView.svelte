@@ -115,9 +115,15 @@ function usageChips(
             {/if}
           </div>
 
-          <div class="grid min-w-0 gap-0.5 text-xs text-muted-foreground">
+          <div
+            class="grid min-h-[1lh] min-w-0 gap-0.5 text-xs text-muted-foreground"
+          >
             {#each recentDisplayLines(task) as line, index (`${line.text}:${index}`)}
-              <p class="m-0 truncate {line.mono ? 'font-mono' : ''}">
+              <p
+                class="m-0 {line.mono ? 'font-mono' : ''}"
+                class:line-clamp-3={task.status === "completed"}
+                class:truncate={task.status !== "completed"}
+              >
                 {line.text}
               </p>
             {/each}

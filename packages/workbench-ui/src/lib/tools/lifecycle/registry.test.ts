@@ -137,35 +137,47 @@ describe("tool lifecycle registry", () => {
     assert.equal(presentation.primaryArg?.openPath, planPath);
   });
 
-  it("encodes interaction, retained-proposal, and immediate-result handoffs", () => {
-    assert.equal(
-      toolLifecycleRegistry.ask_user.executionHandoff,
-      "replace-with-interaction",
-    );
-    assert.equal(
-      toolLifecycleRegistry.plan_mode_present.executionHandoff,
-      "replace-with-interaction",
-    );
+  it("encodes persistent, until-result, and header-only argument regions", () => {
+    for (const name of ["bash", "python"] as const) {
+      assert.equal(toolLifecycleRegistry[name].argumentRegion, "persistent");
+      assert.deepEqual(toolLifecycleRegistry[name].resultPlaceholder, {
+        variant: "text",
+        rows: 2,
+      });
+    }
     for (const name of [
       "write",
       "edit",
-      "bash",
-      "python",
+      "todos_set",
+      "ask_user",
+      "plan_mode_present",
+      "task_start",
+      "explore",
       "jira_create_issue",
       "confluence_update_page",
     ] as const) {
       assert.equal(
-        toolLifecycleRegistry[name].executionHandoff,
-        "retain-draft-until-output",
+        toolLifecycleRegistry[name].argumentRegion,
+        "until-result",
         name,
       );
     }
-    for (const name of ["read", "grep", "find", "ls", "web_search"] as const) {
+    for (const name of ["read", "grep", "find", "ls", "task_logs"] as const) {
+      assert.equal(toolLifecycleRegistry[name].argumentRegion, "none", name);
       assert.equal(
-        toolLifecycleRegistry[name].executionHandoff,
-        "result-immediate",
+        toolLifecycleRegistry[name].resultPlaceholder,
+        undefined,
         name,
       );
+    }
+    for (const name of [
+      "web_search",
+      "web_fetch",
+      "jira_get_issue",
+      "confluence_search_pages",
+    ] as const) {
+      assert.equal(toolLifecycleRegistry[name].argumentRegion, "none", name);
+      assert.ok(toolLifecycleRegistry[name].resultPlaceholder, name);
     }
   });
 

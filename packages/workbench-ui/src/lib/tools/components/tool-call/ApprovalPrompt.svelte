@@ -13,6 +13,8 @@ type Props = {
   approval: ApprovalWithToolCall;
   toolName: string;
   presentation: ToolArgumentPresentation;
+  /** False when the card's argument section already shows the body. */
+  includeBody?: boolean;
   detailsAction?: { label: string; onClick: () => void };
   onGrantApproval?: (id: string) => void | Promise<void>;
   onDenyApproval?: (id: string) => void | Promise<void>;
@@ -21,6 +23,7 @@ let {
   approval,
   toolName,
   presentation,
+  includeBody = true,
   detailsAction,
   onGrantApproval,
   onDenyApproval,
@@ -64,7 +67,7 @@ const meta = $derived<MetaItem[]>([
 </script>
 
 <div class="grid gap-2" aria-label="Tool approval">
-  <ToolApprovalSummary {toolName} {presentation} />
+  <ToolApprovalSummary {toolName} {presentation} {includeBody} />
   {#if approval.reason}
     <p class="m-0 text-sm text-muted-foreground">{approval.reason}</p>
   {/if}

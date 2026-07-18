@@ -224,8 +224,8 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
       const lifecycle = toolLifecycleSpec(block?.toolName ?? "tool");
       return [
         "draft",
-        `body:${lifecycle.draftBody}`,
-        `handoff:${lifecycle.executionHandoff}`,
+        `arg:${lifecycle.argumentRegion}`,
+        `placeholder:${lifecycle.resultPlaceholder?.variant ?? "none"}`,
         block?.argsText.length ?? 0,
         block?.done ? "done" : "open",
         progress?.lineCount ?? 0,
@@ -251,8 +251,8 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
         : undefined;
     return [
       "tool",
-      `body:${lifecycle.draftBody}`,
-      `handoff:${lifecycle.executionHandoff}`,
+      `arg:${lifecycle.argumentRegion}`,
+      `placeholder:${lifecycle.resultPlaceholder?.variant ?? "none"}`,
       node.toolCall.status,
       node.toolCall.updatedAt,
       node.liveOutput?.updatedAt ?? "no-output",

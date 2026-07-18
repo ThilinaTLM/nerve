@@ -91,10 +91,8 @@ function readOnlyBody(
 export const jiraToolLifecycleSpecs = {
   jira_search_users: spec({
     name: "jira_search_users",
-    draftBody: "none",
-    executingBody: "skeleton",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
+    resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "jira",
     emptyResult: "No users found",
     present: (source, stage) => {
@@ -127,10 +125,8 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_search_issues: spec({
     name: "jira_search_issues",
-    draftBody: "none",
-    executingBody: "skeleton",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
+    resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "jira",
     emptyResult: "No issues found",
     present: (source, stage) => {
@@ -155,10 +151,8 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_get_issue: spec({
     name: "jira_get_issue",
-    draftBody: "none",
-    executingBody: "skeleton",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
+    resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "jira",
     present: (source, stage) => {
       const includes = [
@@ -181,10 +175,8 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_get_project: spec({
     name: "jira_get_project",
-    draftBody: "none",
-    executingBody: "skeleton",
-    approvalDetail: "target",
-    executionHandoff: "result-immediate",
+    argumentRegion: "none",
+    resultPlaceholder: { variant: "list", rows: 3 },
     completedView: "jira",
     present: (source, stage) => {
       const project = source.string("project_key") ?? "default project";
@@ -208,9 +200,7 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_create_issue: spec({
     name: "jira_create_issue",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "jira",
     present: (source) => {
       const project = source.string("project_key");
@@ -261,9 +251,7 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_update_issue: spec({
     name: "jira_update_issue",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "jira",
     present: (source) => {
       const description =
@@ -309,9 +297,7 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_add_comment: spec({
     name: "jira_add_comment",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "jira",
     present: (source) => {
       const visibility = source.record("visibility");
@@ -342,9 +328,7 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_transition_issue: spec({
     name: "jira_transition_issue",
-    draftBody: "meaningful",
-    approvalDetail: "full",
-    executionHandoff: "retain-draft-until-output",
+    argumentRegion: "until-result",
     completedView: "jira",
     present: (source) => {
       const transition =
