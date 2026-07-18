@@ -1,5 +1,6 @@
-import type {
-  ContextUsage,
+import {
+  conversationStream,
+  type ContextUsage,
   ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationSnapshot,
@@ -7,7 +8,7 @@ import type {
   ToolCallRecord,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
 
@@ -41,7 +42,7 @@ export function toolRecordIdsFromEntries(
 }
 
 export interface ConversationQueryServiceDeps {
-  events: EventBus;
+  events: StreamLogRegistry;
   state: RuntimeState;
   getConversationEntries: (conversationId: string) => ConversationEntry[];
   getConversationTree: (conversationId: string) => ConversationTree;
@@ -58,7 +59,9 @@ export class ConversationQueryService {
   async getConversationSnapshot(
     conversationId: string,
   ): Promise<ConversationSnapshot> {
-    const cursorSeq = this.deps.events.latestSeq;
+    const cursorSeq = await this.deps.events.latestSeq(
+      conversationStream(conversationId),
+    );
     const contextUsage = await this.deps
       .getContextUsage(conversationId)
       .catch(() => undefined);

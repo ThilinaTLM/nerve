@@ -1,7 +1,8 @@
 import type {
   EventEnvelope,
-  HelloData,
+  EventNotifyData,
   NerveMessage,
+  NotifyEvent,
   OperationName,
   OperationParams,
   OperationResult,
@@ -13,22 +14,19 @@ import type {
   StreamSubscriptionUpdatedData,
   WelcomeData,
 } from "@nervekit/contracts";
-import { ProcessedAckTracker } from "./ack-tracker.js";
+import { STREAM_SUBSCRIPTION_CAPABILITY } from "@nervekit/contracts";
 import {
   applyEventBatch,
   createClientEventStreamState,
   markProcessed,
-  resetClientEventStreamState,
   type ClientEventStreamState,
 } from "./event-stream.js";
 import type { MessageFactory, MessageFactoryOptions } from "./messages.js";
 import type {
-  ProcessedEventSink,
   ProtocolClock,
   ProtocolDiagnosticsPublisher,
   ProtocolIdSource,
   ProtocolTimers,
-  SnapshotRecovery,
 } from "./ports.js";
 import { RpcClient } from "./rpc.js";
 import {
@@ -49,41 +47,22 @@ export interface ClientSessionOptions {
   readonly capabilities?: readonly string[];
   readonly requiredCapabilities?: readonly string[];
   readonly cursors?: () => readonly StreamCursor[];
-  readonly sessionId?: () => string | undefined;
   readonly send: (message: NerveMessage) => void | Promise<void>;
   readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
-  /** Optional host readiness gate resolved before the protocol ready frame. */
   readonly awaitReady?: (welcome: WelcomeData) => void | Promise<void>;
-  /**
-   * Optional host status carried on the ready frame. Return "booting" when the
-   * transport is ready while host startup continues; the server should not
-   * treat the peer as fully operational until it announces readiness.
-   */
   readonly readyStatus?: () => ReadyPeerStatus | undefined;
   readonly onReady?: (welcome: WelcomeData) => void | Promise<void>;
-  readonly onSnapshotRequired?: (welcome: WelcomeData) => void | Promise<void>;
-  readonly onReplayUnavailable?: (
-    message: ProtocolV1Message,
-  ) => void | Promise<void>;
+  readonly onSnapshotRequired?: (stream: string) => void | Promise<void>;
   readonly applyEvent?: (
     stream: string,
     event: EventEnvelope<Record<string, unknown>>,
   ) => void | Promise<void>;
-  readonly onFlowUpdate?: (
-    message: ProtocolV1Message & { kind: "flow.update" },
+  readonly onNotify?: (
+    events: readonly NotifyEvent[],
+    message: ProtocolV1Message & { kind: "event.notify" },
   ) => void | Promise<void>;
   readonly rpcDispatcher?: import("./rpc.js").RpcDispatcher;
-  readonly onAck?: (
-    message: ProtocolV1Message & { kind: "event.ack" },
-  ) => void | Promise<void>;
   readonly onDisconnect?: (error: Error) => void | Promise<void>;
-  readonly snapshotRecovery?: SnapshotRecovery;
-  readonly installSnapshot?: (
-    snapshot: unknown,
-    cursors: readonly StreamCursor[],
-    stateEpoch?: string,
-  ) => void | Promise<void>;
-  readonly processedEvents?: ProcessedEventSink;
   readonly diagnostics?: ProtocolDiagnosticsPublisher;
   readonly clock?: ProtocolClock;
   readonly timers?: ProtocolTimers;
@@ -94,26 +73,14 @@ export interface ClientSessionOptions {
 export class ProtocolClientSession {
   state: ClientSessionState = "idle";
   sessionId?: string;
+
   readonly #options: ClientSessionOptions;
   readonly #streams = new Map<string, ClientEventStreamState>();
-  readonly #acks: ProcessedAckTracker;
+  readonly #activeSubscriptions = new Set<string>();
   readonly #rpc: RpcClient;
-  readonly #replaying = new Map<string, Set<string>>();
-  readonly #liveDuringReplay = new Map<
-    string,
-    Array<ProtocolV1Message & { kind: "event.batch" }>
-  >();
   readonly #clock: ProtocolClock;
   readonly #timers: ProtocolTimers;
   readonly #ids: ProtocolIdSource;
-  #heartbeatInterval?: unknown;
-  #heartbeatWatchdog?: unknown;
-  #lastReceivedAt = 0;
-  #acceptingPeer?: PeerDescriptor;
-  #localPeer?: PeerDescriptor;
-  #addressedPeer?: PeerDescriptor;
-  #negotiatedCapabilities: string[] = [];
-  #activeSubscriptions?: Set<string>;
   readonly #pendingSubscriptions = new Map<
     string,
     {
@@ -124,19 +91,21 @@ export class ProtocolClientSession {
     }
   >();
 
+  #heartbeatInterval?: unknown;
+  #heartbeatWatchdog?: unknown;
+  #lastReceivedAt = 0;
+  #acceptingPeer?: PeerDescriptor;
+  #localPeer?: PeerDescriptor;
+  #addressedPeer?: PeerDescriptor;
+  #negotiatedCapabilities: string[] = [];
+  #resubscribeScheduled = false;
+
   constructor(options: ClientSessionOptions) {
     this.#options = options;
     this.#clock = options.clock ?? systemProtocolClock;
     this.#timers = options.timers ?? systemProtocolTimers;
     this.#ids = options.ids ?? systemProtocolIds;
-    const cursors = options.cursors?.() ?? [];
-    this.#acks = new ProcessedAckTracker(cursors);
-    for (const cursor of cursors) {
-      this.#streams.set(
-        cursor.stream,
-        createClientEventStreamState(cursor.processedSeq),
-      );
-    }
+    this.resetStreams(options.cursors?.() ?? []);
     this.#rpc = new RpcClient({
       createMessage: options.createMessage,
       send: options.send,
@@ -149,24 +118,18 @@ export class ProtocolClientSession {
     if (this.state !== "idle" && this.state !== "closed") {
       throw new Error(`Cannot start a client session from ${this.state}`);
     }
-    const previousSessionId = this.#options.sessionId?.();
-    const streams = this.#options.cursors?.();
-    const data: HelloData = {
+    const capabilities = new Set(this.#options.capabilities ?? []);
+    capabilities.add(STREAM_SUBSCRIPTION_CAPABILITY);
+    const requiredCapabilities = new Set(
+      this.#options.requiredCapabilities ?? [],
+    );
+    requiredCapabilities.add(STREAM_SUBSCRIPTION_CAPABILITY);
+    const hello = this.#options.createMessage("hello", {
       requestedVersion: 1,
-      capabilities: [...(this.#options.capabilities ?? [])],
-      requiredCapabilities: this.#options.requiredCapabilities
-        ? [...this.#options.requiredCapabilities]
-        : undefined,
+      capabilities: [...capabilities],
+      requiredCapabilities: [...requiredCapabilities],
       encodings: ["json"],
-      resume:
-        previousSessionId || streams?.length
-          ? {
-              sessionId: previousSessionId,
-              streams: streams ? [...streams] : undefined,
-            }
-          : undefined,
-    };
-    const hello = this.#options.createMessage("hello", data);
+    });
     this.#localPeer = hello.source;
     this.#addressedPeer = hello.target;
     this.state = "hello_sent";
@@ -176,67 +139,7 @@ export class ProtocolClientSession {
   async receive(message: ProtocolV1Message): Promise<void> {
     this.#lastReceivedAt = this.#clock.now();
     if (this.state === "hello_sent") {
-      if (message.kind === "error") {
-        await this.#options.onMessage?.(message);
-        this.disconnect(new Error(message.data.message));
-        return;
-      }
-      if (message.kind !== "welcome") {
-        throw new SessionStateError(
-          "Expected welcome as the first server message",
-        );
-      }
-      const welcome = message.data;
-      if (
-        !this.#localPeer ||
-        !this.#addressedPeer ||
-        !samePeer(message.target, this.#localPeer) ||
-        !samePeer(message.source, welcome.acceptingPeer) ||
-        !matchesAddressedPeer(this.#addressedPeer, welcome.acceptingPeer)
-      ) {
-        this.state = "closed";
-        throw new SessionStateError(
-          "Welcome peers do not match the addressed client session",
-        );
-      }
-      const missing = (this.#options.requiredCapabilities ?? []).filter(
-        (capability) => !welcome.capabilities.includes(capability),
-      );
-      if (missing.length > 0) {
-        this.state = "closed";
-        throw new SessionStateError(
-          `Server did not negotiate required capabilities: ${missing.join(", ")}`,
-        );
-      }
-      this.sessionId = welcome.sessionId;
-      this.#acceptingPeer = welcome.acceptingPeer;
-      this.#negotiatedCapabilities = [...welcome.capabilities];
-      if (welcome.capabilities.includes("stream.subscription.v1"))
-        this.#activeSubscriptions = new Set(
-          welcome.streams.map((stream) => stream.stream),
-        );
-      await this.#options.awaitReady?.(welcome);
-      await this.#options.send(
-        this.#options.createMessage("ready", {
-          sessionId: welcome.sessionId,
-          streams: this.#options.cursors?.() as StreamCursor[] | undefined,
-          status: this.#options.readyStatus?.(),
-        }),
-      );
-      this.state = "ready";
-      this.#startHeartbeat(welcome.heartbeat);
-      if (welcome.resume.mode === "snapshot_required") {
-        if (this.#options.snapshotRecovery) {
-          await this.#recoverSnapshot(
-            "replay_unavailable",
-            welcome.streams.map((stream) => stream.stream),
-          );
-        } else {
-          await this.#options.onSnapshotRequired?.(welcome);
-        }
-      }
-      await this.#rpc.retryPending();
-      await this.#options.onReady?.(welcome);
+      await this.#receiveWelcome(message);
       return;
     }
     if (this.state !== "ready") {
@@ -249,10 +152,12 @@ export class ProtocolClientSession {
       !this.#localPeer ||
       !samePeer(message.source, this.#acceptingPeer) ||
       !samePeer(message.target, this.#localPeer)
-    )
+    ) {
       throw new SessionStateError(
         "Server message peers do not match the negotiated client session",
       );
+    }
+
     const rpcHandled = this.#rpc.handle(message);
     if (message.kind === "request" && this.#options.rpcDispatcher) {
       const result = await this.#options.rpcDispatcher.dispatch(message);
@@ -260,7 +165,11 @@ export class ProtocolClientSession {
         result.ok
           ? this.#options.createMessage(
               "response",
-              { ok: true, method: message.data.method, result: result.result },
+              {
+                ok: true,
+                method: message.data.method,
+                result: result.result,
+              },
               {
                 target: message.source,
                 replyTo: message.id,
@@ -276,27 +185,15 @@ export class ProtocolClientSession {
       return;
     }
     if (message.kind === "stream.subscription.updated") {
-      if (message.data.sessionId !== this.sessionId)
-        throw new SessionStateError("Subscription session id mismatch");
-      const pending = this.#pendingSubscriptions.get(
-        message.data.subscriptionId,
-      );
-      if (!pending)
-        throw new SessionStateError(
-          `Unexpected subscription response: ${message.data.subscriptionId}`,
-        );
-      this.#pendingSubscriptions.delete(message.data.subscriptionId);
-      this.#timers.clearTimeout(pending.timeout);
-      if (!message.data.accepted) {
-        pending.reject(new StreamSubscriptionError(message.data));
-        return;
-      }
-      this.resetStreams(pending.cursors);
-      pending.resolve(message.data);
+      this.#receiveSubscriptionUpdated(message.data);
       return;
     }
-    if (message.kind === "event.ack") {
-      await this.#options.onAck?.(message);
+    if (message.kind === "event.batch") {
+      await this.#receiveEventBatch(message);
+      return;
+    }
+    if (message.kind === "event.notify") {
+      await this.#options.onNotify?.(message.data.events, message);
       return;
     }
     if (message.kind === "error" && message.data.close) {
@@ -305,73 +202,6 @@ export class ProtocolClientSession {
       return;
     }
     if (rpcHandled) return;
-    if (message.kind === "replay.started") {
-      for (const stream of message.data.streams) {
-        const replayIds = this.#replaying.get(stream.stream) ?? new Set();
-        replayIds.add(message.data.replayId);
-        this.#replaying.set(stream.stream, replayIds);
-      }
-      await this.#options.onMessage?.(message);
-      return;
-    }
-    if (message.kind === "event.batch") {
-      if (
-        message.data.reason === "live" &&
-        (this.#replaying.get(message.data.stream)?.size ?? 0) > 0
-      ) {
-        const buffered = this.#liveDuringReplay.get(message.data.stream) ?? [];
-        buffered.push(message);
-        this.#liveDuringReplay.set(message.data.stream, buffered);
-        return;
-      }
-      await this.#receiveEventBatch(message);
-      return;
-    }
-    if (message.kind === "replay.complete") {
-      for (const stream of message.data.streams) {
-        const replayIds = this.#replaying.get(stream.stream);
-        replayIds?.delete(message.data.replayId);
-        if (replayIds && replayIds.size > 0) continue;
-        this.#replaying.delete(stream.stream);
-        await this.#drainBufferedLive(stream.stream);
-      }
-      await this.#options.onMessage?.(message);
-      return;
-    }
-    if (message.kind === "replay.unavailable") {
-      const completedStreams: string[] = [];
-      for (const stream of message.data.streams) {
-        const replayIds = this.#replaying.get(stream.stream);
-        replayIds?.delete(message.data.replayId);
-        if (!replayIds || replayIds.size === 0) {
-          this.#replaying.delete(stream.stream);
-          completedStreams.push(stream.stream);
-        }
-      }
-      if (this.#options.snapshotRecovery) {
-        const reason = message.data.streams.some(
-          (stream) => stream.reason === "cursor_ahead_of_server",
-        )
-          ? "ahead_cursor"
-          : message.data.streams.some(
-                (stream) => stream.reason === "cursor_too_old",
-              )
-            ? "retention_gap"
-            : "replay_unavailable";
-        await this.#recoverSnapshot(
-          reason,
-          message.data.streams.map((stream) => stream.stream),
-        );
-      }
-      await this.#options.onReplayUnavailable?.(message);
-      for (const stream of completedStreams)
-        await this.#drainBufferedLive(stream);
-      return;
-    }
-    if (message.kind === "flow.update") {
-      await this.#options.onFlowUpdate?.(message);
-      return;
-    }
     if (message.kind === "heartbeat") return;
     if (message.kind === "goodbye") {
       this.disconnect(
@@ -384,22 +214,25 @@ export class ProtocolClientSession {
     await this.#options.onMessage?.(message);
   }
 
-  async setSubscriptions(
+  async subscribe(
     cursors: readonly StreamCursor[],
   ): Promise<StreamSubscriptionUpdatedData> {
-    if (this.state !== "ready" || !this.sessionId)
+    if (this.state !== "ready" || !this.sessionId) {
       throw new SessionStateError(
         "Stream subscriptions require a ready session",
       );
-    if (!this.#negotiatedCapabilities.includes("stream.subscription.v1"))
-      throw new SessionStateError(
-        "Dynamic stream subscriptions were not negotiated",
-      );
+    }
+    if (
+      !this.#negotiatedCapabilities.includes(STREAM_SUBSCRIPTION_CAPABILITY)
+    ) {
+      throw new SessionStateError("Stream subscriptions were not negotiated");
+    }
     const names = cursors.map((cursor) => cursor.stream);
-    if (new Set(names).size !== names.length)
+    if (new Set(names).size !== names.length) {
       throw new SessionStateError(
         "Stream subscriptions must not contain duplicate streams",
       );
+    }
     const subscriptionId = this.#ids.create("sub");
     const result = new Promise<StreamSubscriptionUpdatedData>(
       (resolve, reject) => {
@@ -428,9 +261,7 @@ export class ProtocolClientSession {
       if (pending) {
         this.#pendingSubscriptions.delete(subscriptionId);
         this.#timers.clearTimeout(pending.timeout);
-        pending.reject(
-          error instanceof Error ? error : new Error(String(error)),
-        );
+        pending.reject(toError(error));
       }
     }
     return result;
@@ -439,9 +270,19 @@ export class ProtocolClientSession {
   async publishEventBatch(
     data: Extract<ProtocolV1Message, { kind: "event.batch" }>["data"],
   ): Promise<void> {
-    if (this.state !== "ready")
+    if (this.state !== "ready") {
       throw new SessionStateError("Event publication requires a ready session");
+    }
     await this.#options.send(this.#options.createMessage("event.batch", data));
+  }
+
+  async publishNotify(data: EventNotifyData): Promise<void> {
+    if (this.state !== "ready") {
+      throw new SessionStateError(
+        "Notify publication requires a ready session",
+      );
+    }
+    await this.#options.send(this.#options.createMessage("event.notify", data));
   }
 
   request<M extends OperationName>(
@@ -458,48 +299,154 @@ export class ProtocolClientSession {
         >
       > = {},
   ): Promise<OperationResult<M>> {
-    if (this.state !== "ready")
+    if (this.state !== "ready") {
       throw new SessionStateError("RPC requests require a ready session");
+    }
     return this.#rpc.request(method, params, options);
   }
 
-  /** Atomically installs every cursor returned by snapshot recovery. */
   resetStreams(cursors: readonly StreamCursor[]): void {
     const names = new Set(cursors.map((cursor) => cursor.stream));
-    for (const name of [...this.#streams.keys()]) {
-      if (!names.has(name)) this.#streams.delete(name);
+    for (const stream of [...this.#streams.keys()]) {
+      if (!names.has(stream)) this.#streams.delete(stream);
     }
     for (const cursor of cursors) {
-      const state =
-        this.#streams.get(cursor.stream) ?? createClientEventStreamState();
-      resetClientEventStreamState(state, cursor.processedSeq);
-      this.#streams.set(cursor.stream, state);
-    }
-    this.#acks.reset(cursors);
-    if (this.#activeSubscriptions)
-      this.#activeSubscriptions = new Set(
-        cursors.map((cursor) => cursor.stream),
+      this.#streams.set(
+        cursor.stream,
+        createClientEventStreamState(cursor.processedSeq),
       );
-    this.#replaying.clear();
-    this.#liveDuringReplay.clear();
+    }
   }
 
-  async #drainBufferedLive(stream: string): Promise<void> {
-    const buffered = this.#liveDuringReplay.get(stream) ?? [];
-    this.#liveDuringReplay.delete(stream);
-    for (const batch of buffered) await this.#receiveEventBatch(batch);
+  currentCursors(): StreamCursor[] {
+    return [...this.#streams].map(([stream, state]) => ({
+      stream,
+      processedSeq: state.processedSeq,
+    }));
+  }
+
+  disconnect(error = new Error("Protocol transport disconnected")): void {
+    if (this.state === "closed") return;
+    this.state = "closed";
+    this.#stopHeartbeat();
+    this.#rpc.disconnect(error);
+    this.#rejectPendingSubscriptions(error);
+    this.#activeSubscriptions.clear();
+    void this.#options.onDisconnect?.(error);
+  }
+
+  async close(
+    reason: "client_closing" | "restart_required" | "other" = "client_closing",
+    message?: string,
+  ): Promise<void> {
+    if (this.state === "closed" || this.state === "closing") return;
+    this.state = "closing";
+    this.#stopHeartbeat();
+    if (this.sessionId) {
+      await this.#options.send(
+        this.#options.createMessage("goodbye", {
+          sessionId: this.sessionId,
+          reason,
+          message,
+        }),
+      );
+    }
+    this.disconnect(new Error(message ?? reason));
+  }
+
+  async #receiveWelcome(message: ProtocolV1Message): Promise<void> {
+    if (message.kind === "error") {
+      await this.#options.onMessage?.(message);
+      this.disconnect(new Error(message.data.message));
+      return;
+    }
+    if (message.kind !== "welcome") {
+      throw new SessionStateError(
+        "Expected welcome as the first server message",
+      );
+    }
+    const welcome = message.data;
+    if (
+      !this.#localPeer ||
+      !this.#addressedPeer ||
+      !samePeer(message.target, this.#localPeer) ||
+      !samePeer(message.source, welcome.acceptingPeer) ||
+      !matchesAddressedPeer(this.#addressedPeer, welcome.acceptingPeer)
+    ) {
+      this.state = "closed";
+      throw new SessionStateError(
+        "Welcome peers do not match the addressed client session",
+      );
+    }
+    const required = new Set(this.#options.requiredCapabilities ?? []);
+    required.add(STREAM_SUBSCRIPTION_CAPABILITY);
+    const missing = [...required].filter(
+      (capability) => !welcome.capabilities.includes(capability),
+    );
+    if (missing.length > 0) {
+      this.state = "closed";
+      throw new SessionStateError(
+        `Server did not negotiate required capabilities: ${missing.join(", ")}`,
+      );
+    }
+    this.sessionId = welcome.sessionId;
+    this.#acceptingPeer = welcome.acceptingPeer;
+    this.#negotiatedCapabilities = [...welcome.capabilities];
+    await this.#options.awaitReady?.(welcome);
+    this.state = "ready";
+    await this.#options.send(
+      this.#options.createMessage("ready", {
+        sessionId: welcome.sessionId,
+        status: this.#options.readyStatus?.(),
+      }),
+    );
+    this.#startHeartbeat(welcome.heartbeat);
+    await this.#rpc.retryPending();
+    await this.#options.onReady?.(welcome);
+  }
+
+  #receiveSubscriptionUpdated(data: StreamSubscriptionUpdatedData): void {
+    if (data.sessionId !== this.sessionId) {
+      throw new SessionStateError("Subscription session id mismatch");
+    }
+    const pending = this.#pendingSubscriptions.get(data.subscriptionId);
+    if (!pending) {
+      throw new SessionStateError(
+        `Unexpected subscription response: ${data.subscriptionId}`,
+      );
+    }
+    this.#pendingSubscriptions.delete(data.subscriptionId);
+    this.#timers.clearTimeout(pending.timeout);
+    if (!data.accepted) {
+      pending.reject(new StreamSubscriptionError(data));
+      return;
+    }
+    this.resetStreams(pending.cursors);
+    this.#activeSubscriptions.clear();
+    for (const stream of data.streams) {
+      if (stream.mode === "snapshot_required") {
+        queueMicrotask(
+          () => void this.#options.onSnapshotRequired?.(stream.stream),
+        );
+      } else {
+        this.#activeSubscriptions.add(stream.stream);
+      }
+    }
+    pending.resolve(data);
   }
 
   async #receiveEventBatch(
     message: ProtocolV1Message & { kind: "event.batch" },
   ): Promise<void> {
     const stream = message.data.stream;
-    if (this.#activeSubscriptions && !this.#activeSubscriptions.has(stream))
+    if (!this.#activeSubscriptions.has(stream)) {
       throw new SessionStateError(
-        `Received event for inactive subscription: ${stream}`,
+        `Received event batch for unsubscribed stream ${stream}`,
       );
-    const state = this.#streams.get(stream) ?? createClientEventStreamState(0);
-    this.#streams.set(stream, state);
+    }
+    const state = this.#streams.get(stream);
+    if (!state)
+      throw new SessionStateError(`Missing cursor for stream ${stream}`);
     const events: EventEnvelope<Record<string, unknown>>[] = [];
     const result = applyEventBatch(
       message.data,
@@ -507,102 +454,46 @@ export class ProtocolClientSession {
       (event) => events.push(event),
       stream,
     );
-    this.#acks.markReceived(stream, result.highestReceivedSeq);
-    if (result.replayRequired) {
-      await this.#options.send(
-        this.#options.createMessage("replay.request", {
-          sessionId: this.sessionId,
-          replayId: this.#ids.create("rpl"),
-          streams: [{ stream, fromSeq: result.replayRequired.fromSeq + 1 }],
-          reason: result.replayRequired.reason,
-        }),
+    if (result.gap) {
+      console.warn(
+        `Protocol gap on ${stream}: expected ${result.gap.expectedSeq}, received ${result.gap.receivedSeq}; resubscribing`,
       );
+      await this.#options.diagnostics?.publish({
+        type: "subscription",
+        stream,
+      });
+      this.#scheduleResubscribe();
       return;
     }
     for (const event of events) {
       await this.#options.applyEvent?.(stream, event);
-      if (event.durability === "durable") {
-        markProcessed(state, event.seq);
-        this.#acks.markProcessed(stream, event.seq);
-      }
+      markProcessed(state, event.seq);
     }
-    if (events.some((event) => event.durability === "durable")) {
-      const cursors = this.#acks.cursors();
-      await this.#options.processedEvents?.persist(cursors);
-      await this.#options.send(
-        this.#options.createMessage("event.ack", {
-          sessionId: this.sessionId,
-          ackId: this.#ids.create("ack"),
-          streams: cursors,
-          received: [{ stream, highestSeq: result.highestReceivedSeq }],
-        }),
+  }
+
+  #scheduleResubscribe(): void {
+    if (this.#resubscribeScheduled) return;
+    this.#resubscribeScheduled = true;
+    queueMicrotask(() => {
+      this.#resubscribeScheduled = false;
+      const cursors = this.currentCursors().filter((cursor) =>
+        this.#activeSubscriptions.has(cursor.stream),
       );
-    }
-  }
-
-  disconnect(error = new Error("Protocol transport disconnected")): void {
-    if (this.state === "closed") return;
-    this.#stopHeartbeat();
-    this.#rpc.disconnect(error);
-    this.#rejectPendingSubscriptions(error);
-    this.state = "closed";
-    void this.#options.onDisconnect?.(error);
-  }
-
-  #rejectPendingSubscriptions(error: Error): void {
-    for (const pending of this.#pendingSubscriptions.values()) {
-      this.#timers.clearTimeout(pending.timeout);
-      pending.reject(error);
-    }
-    this.#pendingSubscriptions.clear();
-  }
-
-  async #recoverSnapshot(
-    reason: "retention_gap" | "ahead_cursor" | "replay_unavailable",
-    streams: readonly string[],
-  ): Promise<void> {
-    if (!this.#options.snapshotRecovery || !this.#acceptingPeer) return;
-    const recovered = await this.#options.snapshotRecovery.load({
-      peer: this.#acceptingPeer,
-      reason,
-      streams,
+      void this.subscribe(cursors).catch((error: unknown) => {
+        this.disconnect(toError(error));
+      });
     });
-    await this.#options.installSnapshot?.(
-      recovered.snapshot,
-      recovered.cursors,
-      recovered.stateEpoch,
-    );
-    this.resetStreams(recovered.cursors);
-    await this.#options.processedEvents?.persist(recovered.cursors);
-    await this.#options.diagnostics?.publish({
-      type: "snapshot",
-      count: recovered.cursors.length,
-    });
-    if (this.state === "ready" && recovered.cursors.length > 0) {
-      await this.#options.send(
-        this.#options.createMessage("replay.request", {
-          sessionId: this.sessionId,
-          replayId: this.#ids.create("rpl"),
-          streams: recovered.cursors.map((cursor) => ({
-            stream: cursor.stream,
-            fromSeq: cursor.processedSeq + 1,
-          })),
-          reason: "snapshot_delta",
-        }),
-      );
-    }
   }
 
   #startHeartbeat(heartbeat: { intervalMs: number; timeoutMs: number }): void {
     this.#stopHeartbeat();
     this.#lastReceivedAt = this.#clock.now();
     this.#heartbeatInterval = this.#timers.setInterval(() => {
-      if (this.state !== "ready") return;
+      if (this.state !== "ready" || !this.sessionId) return;
       void this.#options.send(
         this.#options.createMessage("heartbeat", {
           sessionId: this.sessionId,
           sentAt: this.#clock.isoNow(),
-          processed: this.#acks.cursors(),
         }),
       );
     }, heartbeat.intervalMs);
@@ -612,11 +503,10 @@ export class ProtocolClientSession {
           this.state === "ready" &&
           this.#clock.now() - this.#lastReceivedAt > heartbeat.timeoutMs
         ) {
-          void this.#options.diagnostics?.publish({ type: "heartbeat" });
           this.disconnect(new Error("Protocol heartbeat timed out"));
         }
       },
-      Math.min(heartbeat.intervalMs, heartbeat.timeoutMs),
+      Math.max(1, heartbeat.intervalMs),
     );
   }
 
@@ -629,52 +519,38 @@ export class ProtocolClientSession {
     this.#heartbeatWatchdog = undefined;
   }
 
-  async close(
-    reason: "client_closing" | "protocol_error" = "client_closing",
-  ): Promise<void> {
-    if (this.state === "closed") return;
-    this.state = "closing";
-    this.#stopHeartbeat();
-    await this.#options.send(
-      this.#options.createMessage("goodbye", {
-        sessionId: this.sessionId,
-        reason,
-        finalCursors: this.#acks.cursors(),
-      }),
-    );
-    this.#rpc.close();
-    this.#rejectPendingSubscriptions(new Error("Protocol session closed"));
-    this.state = "closed";
+  #rejectPendingSubscriptions(error: Error): void {
+    for (const pending of this.#pendingSubscriptions.values()) {
+      this.#timers.clearTimeout(pending.timeout);
+      pending.reject(error);
+    }
+    this.#pendingSubscriptions.clear();
   }
+}
+
+function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {
+  return left.role === right.role && left.id === right.id;
 }
 
 function matchesAddressedPeer(
   addressed: PeerDescriptor,
-  accepting: PeerDescriptor,
+  actual: PeerDescriptor,
 ): boolean {
   return (
-    addressed.role === accepting.role &&
-    (addressed.id === undefined || addressed.id === accepting.id) &&
-    (addressed.instanceId === undefined ||
-      addressed.instanceId === accepting.instanceId) &&
-    (addressed.name === undefined || addressed.name === accepting.name)
+    addressed.role === actual.role &&
+    (!addressed.id || addressed.id === actual.id)
   );
 }
 
-function samePeer(left: PeerDescriptor, right: PeerDescriptor): boolean {
-  return (
-    left.role === right.role &&
-    left.id === right.id &&
-    left.instanceId === right.instanceId &&
-    left.name === right.name
-  );
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 export class StreamSubscriptionError extends Error {
   readonly response: StreamSubscriptionUpdatedData;
 
   constructor(response: StreamSubscriptionUpdatedData) {
-    super(response.reason ?? `Stream subscription ${response.mode}`);
+    super(response.reason ?? "Stream subscription rejected");
     this.name = "StreamSubscriptionError";
     this.response = response;
   }

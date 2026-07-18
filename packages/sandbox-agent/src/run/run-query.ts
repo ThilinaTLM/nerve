@@ -9,10 +9,15 @@ import { mapRunStatusToSandbox } from "./run-status.js";
  * daemon run summaries and snapshots; no incumbent run store is consulted.
  */
 export class SandboxRunQueryAdapter {
-  constructor(private readonly unitOfWork: SandboxRunUnitOfWork) {}
+  constructor(
+    private readonly unitOfWork: SandboxRunUnitOfWork,
+    private readonly readSettled: <T>(read: () => Promise<T>) => Promise<T> = (
+      read,
+    ) => read(),
+  ) {}
 
   async states(): Promise<readonly RunHydratedState[]> {
-    return this.unitOfWork.list();
+    return this.readSettled(() => this.unitOfWork.list());
   }
 
   async runLikes(): Promise<RunLike[]> {

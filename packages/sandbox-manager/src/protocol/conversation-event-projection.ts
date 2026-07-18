@@ -11,10 +11,10 @@ import {
 import type { StoredSandboxEvent } from "../state/event-store.js";
 
 /**
- * Rebuilds a read-only {@link ConversationSnapshot} from the manager's durable
- * sandbox event log. This is the transport-neutral fallback used when the
+ * Rebuilds a read-only {@link ConversationSnapshot} from the manager's
+ * sequenced sandbox event log. This is the transport-neutral fallback used when the
  * sandbox controller session is disconnected (or unresponsive) and the daemon
- * cannot serve `sandbox.conversation.snapshot.get` directly. The durable log
+ * cannot serve `sandbox.conversation.snapshot.get` directly. The stream log
  * carries enough state (`run.transcript.appended` / `conversation.entry.appended`
  * for entries, `toolCall.updated` for tool calls) to render the
  * transcript without contacting the container.
@@ -85,7 +85,6 @@ function collectEntries(
 ): CollectedEntry[] {
   const out: CollectedEntry[] = [];
   for (const event of events) {
-    if (event.durability === "transient") continue;
     const payload = asRecord(event.payload);
     if (!payload) continue;
     const entry =
@@ -98,7 +97,7 @@ function collectEntries(
     if (filter.agentId && entry.agentId && entry.agentId !== filter.agentId)
       continue;
     if (filter.runId && entry.runId && entry.runId !== filter.runId) continue;
-    out.push({ seq: event.seq ?? 0, entry });
+    out.push({ seq: event.seq, entry });
   }
   return out;
 }
@@ -354,7 +353,6 @@ export function projectSandboxSummariesFromEvents(input: {
   >();
 
   for (const event of input.events) {
-    if (event.durability === "transient") continue;
     const payload = asRecord(event.payload);
     if (!payload) continue;
     const entry = asRecord(payload.entry);
@@ -368,7 +366,7 @@ export function projectSandboxSummariesFromEvents(input: {
       stringField(payload, "runId") ??
       (entry ? stringField(entry, "runId") : undefined);
     if (!conversationId) continue;
-    const ts = event.ts ?? new Date().toISOString();
+    const ts = event.ts;
     const conversation = ensureSummaryConversation(
       conversations,
       conversationId,

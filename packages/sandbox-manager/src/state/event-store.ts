@@ -1,61 +1,64 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import type { PostgresPool } from "../db/postgres.js";
 import { dbTables } from "../db/tables.js";
 import { atomicWriteFile, isNotFound } from "./atomic-write.js";
 
+/** One complete sequenced event stored in a dense sandbox or manager stream. */
 export type StoredSandboxEvent = {
   sandboxId: string;
-  seq?: number;
-  id?: string;
+  seq: number;
+  id: string;
   type: string;
-  ts?: string;
-  durability?: "durable" | "transient";
+  ts: string;
   payload: unknown;
 };
+
 type StoredEventRow = {
   sandbox_id: string | null;
   event_id: string | null;
   seq: string | number | null;
   type: string | null;
   ts: Date | string | null;
-  durability: "durable" | "transient" | null;
   payload: unknown;
 };
 
 export type SandboxEventStreamState = {
   latestSeq: number;
-  durableSeq: number;
-  /** Lowest durable seq still stored, when any durable events exist. */
-  firstDurableSeq?: number;
+  earliestAvailableSeq: number;
 };
 
-export type DurableEventRange = {
+export type EventRange = SandboxEventStreamState & {
   events: StoredSandboxEvent[];
-  previousDurableSeq: number;
-  complete: boolean;
-  nextSeq: number;
+};
+
+export type SandboxEpochResetResult = SandboxEventStreamState & {
+  reset: boolean;
+  previousLatestSeq: number;
 };
 
 export interface SandboxEventStore {
   append(event: StoredSandboxEvent): Promise<boolean>;
-  appendDurableBatch(events: readonly StoredSandboxEvent[]): Promise<void>;
-  findDurableConflicts(
+  appendBatch(events: readonly StoredSandboxEvent[]): Promise<void>;
+  findConflicts(
     sandboxId: string,
     candidates: readonly Pick<StoredSandboxEvent, "id" | "seq">[],
   ): Promise<StoredSandboxEvent[]>;
-  readDurableRange(
+  readRange(
     sandboxId: string,
     fromSeq: number,
-    toSeq: number | undefined,
     limit: number,
-  ): Promise<DurableEventRange>;
+  ): Promise<EventRange>;
   list(sandboxId: string): Promise<StoredSandboxEvent[]>;
-  /**
-   * Aggregate stream cursors without materializing the event history. Used on
-   * every UI protocol connect, so it must stay O(1) relative to history size.
-   */
+  /** Aggregate dense stream bounds without materializing event history. */
   streamState(sandboxId: string): Promise<SandboxEventStreamState>;
+  /** Archive and clear a stale manager epoch when the agent high-water regresses. */
+  archiveEpochIfAhead(
+    sandboxId: string,
+    agentLatestSeq: number,
+  ): Promise<SandboxEpochResetResult>;
+  /** Remove all journal rows owned by a deleted sandbox. */
+  deleteAll(sandboxId: string): Promise<void>;
 }
 
 export class PostgresEventStore implements SandboxEventStore {
@@ -64,48 +67,46 @@ export class PostgresEventStore implements SandboxEventStore {
   async append(event: StoredSandboxEvent): Promise<boolean> {
     const result = await this.pool.query(
       `insert into ${dbTables.sandboxEvents}
-        (sandbox_id, event_id, seq, type, ts, durability, payload)
-       values ($1, $2, $3, $4, $5, $6, $7::jsonb)
+        (sandbox_id, event_id, seq, type, ts, payload)
+       values ($1, $2, $3, $4, $5, $6::jsonb)
        on conflict do nothing`,
       [
         event.sandboxId,
-        event.id ?? null,
-        event.seq ?? null,
+        event.id,
+        event.seq,
         event.type,
-        event.ts ?? null,
-        event.durability ?? "durable",
+        event.ts,
         JSON.stringify(event.payload),
       ],
     );
     return (result.rowCount ?? 0) > 0;
   }
 
-  async appendDurableBatch(
-    events: readonly StoredSandboxEvent[],
-  ): Promise<void> {
+  async appendBatch(events: readonly StoredSandboxEvent[]): Promise<void> {
     if (events.length === 0) return;
+    const sandboxId = events[0]?.sandboxId;
+    if (!sandboxId || events.some((event) => event.sandboxId !== sandboxId))
+      throw new Error("Event batch must target one stream");
     await this.pool.query(
       `insert into ${dbTables.sandboxEvents}
-        (sandbox_id, event_id, seq, type, ts, durability, payload)
-       select sandbox_id, event_id, seq, type, ts, durability, payload
+        (sandbox_id, event_id, seq, type, ts, payload)
+       select sandbox_id, event_id, seq, type, ts, payload
        from jsonb_to_recordset($1::jsonb) as record(
          sandbox_id text,
          event_id text,
          seq bigint,
          type text,
          ts timestamptz,
-         durability text,
          payload jsonb
        )`,
       [
         JSON.stringify(
           events.map((event) => ({
             sandbox_id: event.sandboxId,
-            event_id: event.id ?? null,
-            seq: event.seq ?? null,
+            event_id: event.id,
+            seq: event.seq,
             type: event.type,
-            ts: event.ts ?? null,
-            durability: event.durability ?? "durable",
+            ts: event.ts,
             payload: event.payload,
           })),
         ),
@@ -113,126 +114,134 @@ export class PostgresEventStore implements SandboxEventStore {
     );
   }
 
-  async findDurableConflicts(
+  async findConflicts(
     sandboxId: string,
     candidates: readonly Pick<StoredSandboxEvent, "id" | "seq">[],
   ): Promise<StoredSandboxEvent[]> {
     if (candidates.length === 0) return [];
-    const ids = candidates
-      .map((candidate) => candidate.id)
-      .filter((id): id is string => id !== undefined);
-    const sequences = candidates
-      .map((candidate) => candidate.seq)
-      .filter((seq): seq is number => seq !== undefined);
     const result = await this.pool.query<StoredEventRow>(
-      `select sandbox_id, event_id, seq, type, ts, durability, payload
+      `select sandbox_id, event_id, seq, type, ts, payload
        from ${dbTables.sandboxEvents}
        where sandbox_id = $1
-         and durability <> 'transient'
          and (event_id = any($2::text[]) or seq = any($3::bigint[]))
        order by seq`,
-      [sandboxId, ids, sequences],
+      [
+        sandboxId,
+        candidates.map((candidate) => candidate.id),
+        candidates.map((candidate) => candidate.seq),
+      ],
     );
     return result.rows.map(storedEventFromRow);
   }
 
-  async readDurableRange(
+  async readRange(
     sandboxId: string,
     fromSeq: number,
-    toSeq: number | undefined,
     limit: number,
-  ): Promise<DurableEventRange> {
-    const result = await this.pool.query<
-      StoredEventRow & { previous_durable_seq: string | number | null }
-    >(
-      `with previous as (
-         select max(seq) as previous_durable_seq
+  ): Promise<EventRange> {
+    const [state, result] = await Promise.all([
+      this.streamState(sandboxId),
+      this.pool.query<StoredEventRow>(
+        `select sandbox_id, event_id, seq, type, ts, payload
          from ${dbTables.sandboxEvents}
-         where sandbox_id = $1 and durability <> 'transient' and seq < $2
-       ), page as (
-         select sandbox_id, event_id, seq, type, ts, durability, payload
-         from ${dbTables.sandboxEvents}
-         where sandbox_id = $1
-           and durability <> 'transient'
-           and seq >= $2
-           and ($3::bigint is null or seq <= $3)
+         where sandbox_id = $1 and seq >= $2
          order by seq
-         limit $4
-       )
-       select page.*, previous.previous_durable_seq
-       from previous left join page on true
-       order by page.seq`,
-      [sandboxId, fromSeq, toSeq ?? null, limit + 1],
-    );
-    const previousDurableSeq = Number(
-      result.rows[0]?.previous_durable_seq ?? 0,
-    );
-    const availableRows = result.rows.filter(
-      (row) => row.sandbox_id !== null && row.seq !== null,
-    );
-    const complete = availableRows.length <= limit;
-    const events = availableRows.slice(0, limit).map(storedEventFromRow);
-    return {
-      events,
-      previousDurableSeq,
-      complete,
-      nextSeq: (events.at(-1)?.seq ?? fromSeq - 1) + 1,
-    };
+         limit $3`,
+        [sandboxId, fromSeq, limit],
+      ),
+    ]);
+    return { ...state, events: result.rows.map(storedEventFromRow) };
   }
 
   async streamState(sandboxId: string): Promise<SandboxEventStreamState> {
     const result = await this.pool.query<{
       latest_seq: string | number | null;
-      durable_seq: string | number | null;
-      first_durable_seq: string | number | null;
+      earliest_seq: string | number | null;
     }>(
-      `select
-         max(seq) as latest_seq,
-         max(seq) filter (where durability <> 'transient') as durable_seq,
-         min(seq) filter (where durability <> 'transient') as first_durable_seq
+      `select max(seq) as latest_seq, min(seq) as earliest_seq
        from ${dbTables.sandboxEvents}
        where sandbox_id = $1`,
       [sandboxId],
     );
-    const row = result.rows[0];
+    const latestSeq = Number(result.rows[0]?.latest_seq ?? 0);
     return {
-      latestSeq: row?.latest_seq === null ? 0 : Number(row?.latest_seq ?? 0),
-      durableSeq: row?.durable_seq === null ? 0 : Number(row?.durable_seq ?? 0),
-      firstDurableSeq:
-        row?.first_durable_seq === null || row?.first_durable_seq === undefined
-          ? undefined
-          : Number(row.first_durable_seq),
+      latestSeq,
+      earliestAvailableSeq: Number(result.rows[0]?.earliest_seq ?? 1),
     };
   }
 
   async list(sandboxId: string): Promise<StoredSandboxEvent[]> {
     const result = await this.pool.query<StoredEventRow>(
-      `select sandbox_id, event_id, seq, type, ts, durability, payload
+      `select sandbox_id, event_id, seq, type, ts, payload
        from ${dbTables.sandboxEvents}
        where sandbox_id = $1
-       order by coalesce(seq, 0), id`,
+       order by seq`,
       [sandboxId],
     );
     return result.rows.map(storedEventFromRow);
   }
+
+  async archiveEpochIfAhead(
+    sandboxId: string,
+    agentLatestSeq: number,
+  ): Promise<SandboxEpochResetResult> {
+    const result = await this.pool.query<{ seq: string | number }>(
+      `with stream as (
+         select max(seq) as latest_seq
+         from ${dbTables.sandboxEvents}
+         where sandbox_id = $1
+       ), removed as (
+         delete from ${dbTables.sandboxEvents}
+         where sandbox_id = $1
+           and (select coalesce(latest_seq, 0) from stream) > $2
+         returning id, sandbox_id, event_id, seq, type, ts, payload, received_at
+       )
+       insert into ${dbTables.sandboxEventsArchive}
+         (source_id, sandbox_id, event_id, seq, type, ts, payload,
+          received_at, archived_at, archive_reason, agent_head_seq)
+       select id, sandbox_id, event_id, seq, type, ts, payload,
+              received_at, now(), 'agent_epoch_reset', $2
+       from removed
+       returning seq`,
+      [sandboxId, agentLatestSeq],
+    );
+    if (result.rows.length > 0) {
+      return {
+        reset: true,
+        previousLatestSeq: Math.max(
+          ...result.rows.map((row) => Number(row.seq)),
+        ),
+        latestSeq: 0,
+        earliestAvailableSeq: 1,
+      };
+    }
+    const state = await this.streamState(sandboxId);
+    return { reset: false, previousLatestSeq: state.latestSeq, ...state };
+  }
+
+  async deleteAll(sandboxId: string): Promise<void> {
+    await this.pool.query(
+      `delete from ${dbTables.sandboxEvents} where sandbox_id = $1`,
+      [sandboxId],
+    );
+  }
 }
 
-export class EventStore {
+/** File-backed implementation used by focused tests and local fixtures. */
+export class EventStore implements SandboxEventStore {
   private readonly queues = new Map<string, Promise<unknown>>();
 
   constructor(private readonly rootDir: string) {}
+
   async append(event: StoredSandboxEvent): Promise<boolean> {
     await mkdir(this.rootDir, { recursive: true });
     return this.withSandboxQueue(event.sandboxId, async () => {
       const existing = await this.list(event.sandboxId);
       if (
-        existing.some(
-          (item) =>
-            (event.id && item.id === event.id) ||
-            (event.seq !== undefined && item.seq === event.seq),
-        )
+        existing.some((item) => item.id === event.id || item.seq === event.seq)
       )
         return false;
+      assertAppendContinuity(existing, [event]);
       existing.push(event);
       await writeJson(
         path.join(this.rootDir, `${event.sandboxId}.json`),
@@ -241,86 +250,68 @@ export class EventStore {
       return true;
     });
   }
-  async appendDurableBatch(
-    events: readonly StoredSandboxEvent[],
-  ): Promise<void> {
+
+  async appendBatch(events: readonly StoredSandboxEvent[]): Promise<void> {
     if (events.length === 0) return;
-    const sandboxId = events[0]?.sandboxId as string;
-    if (events.some((event) => event.sandboxId !== sandboxId))
-      throw new Error("Durable batch must target one sandbox stream");
+    const sandboxId = events[0]?.sandboxId;
+    if (!sandboxId || events.some((event) => event.sandboxId !== sandboxId))
+      throw new Error("Event batch must target one stream");
     await mkdir(this.rootDir, { recursive: true });
     await this.withSandboxQueue(sandboxId, async () => {
       const existing = await this.list(sandboxId);
-      for (const event of events) {
-        if (
-          existing.some(
-            (item) =>
-              (event.id && item.id === event.id) ||
-              (event.seq !== undefined && item.seq === event.seq),
-          )
-        )
-          throw new Error("Sandbox durable event conflict");
-        existing.push(event);
-      }
-      await writeJson(path.join(this.rootDir, `${sandboxId}.json`), existing);
+      const ids = new Set(existing.map((event) => event.id));
+      const sequences = new Set(existing.map((event) => event.seq));
+      if (events.some((event) => ids.has(event.id) || sequences.has(event.seq)))
+        throw new Error("Sandbox event conflict");
+      assertAppendContinuity(existing, events);
+      await writeJson(path.join(this.rootDir, `${sandboxId}.json`), [
+        ...existing,
+        ...events,
+      ]);
     });
   }
 
-  async findDurableConflicts(
+  async findConflicts(
     sandboxId: string,
     candidates: readonly Pick<StoredSandboxEvent, "id" | "seq">[],
   ): Promise<StoredSandboxEvent[]> {
-    const ids = new Set(candidates.flatMap((candidate) => candidate.id ?? []));
-    const sequences = new Set(
-      candidates.flatMap((candidate) => candidate.seq ?? []),
-    );
+    const ids = new Set(candidates.map((candidate) => candidate.id));
+    const sequences = new Set(candidates.map((candidate) => candidate.seq));
     return (await this.list(sandboxId)).filter(
-      (event) =>
-        event.durability !== "transient" &&
-        ((event.id !== undefined && ids.has(event.id)) ||
-          (event.seq !== undefined && sequences.has(event.seq))),
+      (event) => ids.has(event.id) || sequences.has(event.seq),
     );
   }
 
-  async readDurableRange(
+  async readRange(
     sandboxId: string,
     fromSeq: number,
-    toSeq: number | undefined,
     limit: number,
-  ): Promise<DurableEventRange> {
-    const durable = (await this.list(sandboxId))
-      .filter(
-        (event) =>
-          event.durability !== "transient" &&
-          (event.seq ?? 0) >= fromSeq &&
-          (toSeq === undefined || (event.seq ?? 0) <= toSeq),
-      )
-      .sort((left, right) => (left.seq ?? 0) - (right.seq ?? 0));
-    const events = durable.slice(0, limit);
-    const previousDurableSeq = Math.max(
-      0,
-      ...(await this.list(sandboxId))
-        .filter(
-          (event) =>
-            event.durability !== "transient" && (event.seq ?? 0) < fromSeq,
-        )
-        .map((event) => event.seq ?? 0),
-    );
+  ): Promise<EventRange> {
+    const events = await this.list(sandboxId);
     return {
-      events,
-      previousDurableSeq,
-      complete: events.length === durable.length,
-      nextSeq: (events.at(-1)?.seq ?? fromSeq - 1) + 1,
+      ...eventStreamState(events),
+      events: events.filter((event) => event.seq >= fromSeq).slice(0, limit),
     };
   }
 
   async list(sandboxId: string): Promise<StoredSandboxEvent[]> {
     try {
-      const raw = await readFile(
-        path.join(this.rootDir, `${sandboxId}.json`),
-        "utf8",
-      );
-      return JSON.parse(raw) as StoredSandboxEvent[];
+      const file = path.join(this.rootDir, `${sandboxId}.json`);
+      const raw = await readFile(file, "utf8");
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed))
+        throw new Error("Event store must be an array");
+      if (parsed.some(isLegacyEvent)) {
+        const archiveDir = path.join(
+          this.rootDir,
+          "archive",
+          `pre-dense-${new Date().toISOString().replaceAll(/[:.]/g, "-")}`,
+        );
+        await mkdir(archiveDir, { recursive: true });
+        await rename(file, path.join(archiveDir, path.basename(file)));
+        return [];
+      }
+      return parsed as StoredSandboxEvent[];
     } catch (error) {
       if (isNotFound(error)) return [];
       throw error;
@@ -329,6 +320,45 @@ export class EventStore {
 
   async streamState(sandboxId: string): Promise<SandboxEventStreamState> {
     return eventStreamState(await this.list(sandboxId));
+  }
+
+  async archiveEpochIfAhead(
+    sandboxId: string,
+    agentLatestSeq: number,
+  ): Promise<SandboxEpochResetResult> {
+    return this.withSandboxQueue(sandboxId, async () => {
+      const events = await this.list(sandboxId);
+      const previous = eventStreamState(events);
+      if (previous.latestSeq <= agentLatestSeq) {
+        return {
+          reset: false,
+          previousLatestSeq: previous.latestSeq,
+          ...previous,
+        };
+      }
+      const file = path.join(this.rootDir, `${sandboxId}.json`);
+      const archiveDir = path.join(this.rootDir, "archive", "epochs");
+      await mkdir(archiveDir, { recursive: true });
+      await rename(
+        file,
+        path.join(
+          archiveDir,
+          `${sandboxId}-${new Date().toISOString().replaceAll(/[:.]/g, "-")}-head-${agentLatestSeq}.json`,
+        ),
+      );
+      return {
+        reset: true,
+        previousLatestSeq: previous.latestSeq,
+        latestSeq: 0,
+        earliestAvailableSeq: 1,
+      };
+    });
+  }
+
+  async deleteAll(sandboxId: string): Promise<void> {
+    await this.withSandboxQueue(sandboxId, () =>
+      rm(path.join(this.rootDir, `${sandboxId}.json`), { force: true }),
+    );
   }
 
   private async withSandboxQueue<T>(
@@ -347,45 +377,62 @@ export class EventStore {
     return next;
   }
 }
+
 async function writeJson(file: string, value: unknown): Promise<void> {
   await atomicWriteFile(file, `${JSON.stringify(value, null, 2)}\n`, 0o600);
 }
 
 function storedEventFromRow(row: StoredEventRow): StoredSandboxEvent {
-  if (!row.sandbox_id || !row.type || !row.durability)
-    throw new Error("Event store returned an incomplete row");
+  if (
+    !row.sandbox_id ||
+    !row.event_id ||
+    row.seq === null ||
+    !row.type ||
+    row.ts === null
+  )
+    throw new Error("Event store returned an incomplete sequenced event");
   return {
     sandboxId: row.sandbox_id,
-    id: row.event_id ?? undefined,
-    seq: row.seq === null ? undefined : Number(row.seq),
+    id: row.event_id,
+    seq: Number(row.seq),
     type: row.type,
-    ts:
-      row.ts instanceof Date
-        ? row.ts.toISOString()
-        : row.ts === null
-          ? undefined
-          : row.ts,
-    durability: row.durability,
+    ts: row.ts instanceof Date ? row.ts.toISOString() : row.ts,
     payload: row.payload,
   };
 }
 
-/** Derive stream cursors from an in-memory event list (file-backed stores). */
+function assertAppendContinuity(
+  existing: readonly StoredSandboxEvent[],
+  events: readonly StoredSandboxEvent[],
+): void {
+  let expected = (existing.at(-1)?.seq ?? 0) + 1;
+  for (const event of events) {
+    if (event.seq !== expected)
+      throw new Error(
+        `Dense event sequence expected ${expected}, received ${event.seq}`,
+      );
+    expected += 1;
+  }
+}
+
+function isLegacyEvent(value: unknown): boolean {
+  if (!value || typeof value !== "object") return true;
+  const event = value as Record<string, unknown>;
+  return (
+    "durability" in event ||
+    typeof event.id !== "string" ||
+    typeof event.seq !== "number" ||
+    typeof event.ts !== "string"
+  );
+}
+
+/** Derive dense stream bounds from an in-memory event list. */
 export function eventStreamState(
   events: readonly StoredSandboxEvent[],
 ): SandboxEventStreamState {
-  const durable = events.filter((event) => event.durability !== "transient");
-  const durableSeqs = durable
-    .map((event) => event.seq)
-    .filter((seq): seq is number => seq !== undefined);
+  const sequences = events.map((event) => event.seq);
   return {
-    latestSeq: Math.max(
-      0,
-      ...events
-        .map((event) => event.seq)
-        .filter((seq): seq is number => seq !== undefined),
-    ),
-    durableSeq: Math.max(0, ...durableSeqs),
-    firstDurableSeq: durableSeqs.length ? Math.min(...durableSeqs) : undefined,
+    latestSeq: Math.max(0, ...sequences),
+    earliestAvailableSeq: sequences.length ? Math.min(...sequences) : 1,
   };
 }

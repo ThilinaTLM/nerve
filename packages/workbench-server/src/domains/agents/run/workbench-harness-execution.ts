@@ -152,7 +152,7 @@ export async function executeWorkbenchHarness(
     const liveToolDraftReconciler = new LiveToolDraftReconciler({
       conversationRuntime: this.deps.state.conversationRuntime,
       publish: async (type, data) => {
-        await this.deps.events.publish(type, data, { durability: "transient" });
+        await this.deps.events.publish(type, data);
       },
       runId,
       getTurnId: () => currentTurnId,
@@ -202,18 +202,14 @@ export async function executeWorkbenchHarness(
     const startLiveTurn = async () => {
       const turn = this.deps.state.conversationRuntime.startTurn(runId);
       currentTurnId = turn.turnId;
-      await this.deps.events.publish(
-        "conversation.live.turn.started",
-        {
-          conversationId: conversation.id,
-          agentId: agent.id,
-          projectId: project.id,
-          runId,
-          turnId: turn.turnId,
-          ordinal: turn.ordinal,
-        },
-        { durability: "transient" },
-      );
+      await this.deps.events.publish("conversation.live.turn.started", {
+        conversationId: conversation.id,
+        agentId: agent.id,
+        projectId: project.id,
+        runId,
+        turnId: turn.turnId,
+        ordinal: turn.ordinal,
+      });
       return turn.turnId;
     };
     harness.subscribe(async (event) => {
@@ -312,7 +308,6 @@ export async function executeWorkbenchHarness(
         await this.deps.events.publish(
           "conversation.live.message.started",
           started,
-          { durability: "transient" },
         );
         return;
       }
@@ -331,7 +326,6 @@ export async function executeWorkbenchHarness(
           await this.deps.events.publish(
             "conversation.live.content.delta",
             data,
-            { durability: "transient" },
           );
         } else if (update.type === "thinking_delta") {
           const data = this.deps.state.conversationRuntime.applyContentDelta({
@@ -345,7 +339,6 @@ export async function executeWorkbenchHarness(
           await this.deps.events.publish(
             "conversation.live.content.delta",
             data,
-            { durability: "transient" },
           );
         } else if (update.type === "text_end") {
           const data = this.deps.state.conversationRuntime.finishContent({
@@ -359,9 +352,6 @@ export async function executeWorkbenchHarness(
           await this.deps.events.publish(
             "conversation.live.content.done",
             data,
-            {
-              durability: "transient",
-            },
           );
         } else if (update.type === "thinking_end") {
           const data = this.deps.state.conversationRuntime.finishContent({
@@ -379,9 +369,6 @@ export async function executeWorkbenchHarness(
           await this.deps.events.publish(
             "conversation.live.content.done",
             data,
-            {
-              durability: "transient",
-            },
           );
         } else if (update.type === "toolcall_start") {
           const draft = assistantToolCallDraft(
@@ -412,7 +399,6 @@ export async function executeWorkbenchHarness(
           await this.deps.events.publish(
             "conversation.live.tool_draft.started",
             data,
-            { durability: "transient" },
           );
         } else if (update.type === "toolcall_delta") {
           const draft = assistantToolCallDraft(
@@ -448,7 +434,6 @@ export async function executeWorkbenchHarness(
             await this.deps.events.publish(
               "conversation.live.tool_draft.delta",
               data,
-              { durability: "transient" },
             );
             return;
           }
@@ -473,7 +458,6 @@ export async function executeWorkbenchHarness(
           await this.deps.events.publish(
             "conversation.live.tool_draft.progress",
             data,
-            { durability: "transient" },
           );
         } else if (update.type === "toolcall_end") {
           liveToolDraftNames.delete(update.contentIndex);
@@ -498,7 +482,6 @@ export async function executeWorkbenchHarness(
           await this.deps.events.publish(
             "conversation.live.tool_draft.done",
             data,
-            { durability: "transient" },
           );
         }
         return;
@@ -556,8 +539,45 @@ export async function executeWorkbenchHarness(
             );
           });
         }
-        if (event.message.role === "assistant")
+        if (
+          event.message.role === "assistant" &&
+          currentTurnId &&
+          currentLiveMessageId
+        ) {
+          if (
+            event.message.stopReason === "error" ||
+            event.message.stopReason === "aborted"
+          ) {
+            this.deps.state.conversationRuntime.failAssistantMessage(
+              runId,
+              currentTurnId,
+              currentLiveMessageId,
+            );
+          } else {
+            this.deps.state.conversationRuntime.completeAssistantMessage(
+              runId,
+              currentTurnId,
+              currentLiveMessageId,
+            );
+          }
           currentLiveMessageId = undefined;
+        }
+        return;
+      }
+      if (event.type === "turn_end" && currentTurnId) {
+        if (
+          event.message.role === "assistant" &&
+          (event.message.stopReason === "error" ||
+            event.message.stopReason === "aborted")
+        ) {
+          this.deps.state.conversationRuntime.failTurn(runId, currentTurnId);
+        } else {
+          this.deps.state.conversationRuntime.completeTurn(
+            runId,
+            currentTurnId,
+          );
+        }
+        currentTurnId = undefined;
         return;
       }
     });

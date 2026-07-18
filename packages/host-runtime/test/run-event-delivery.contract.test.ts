@@ -75,7 +75,7 @@ function intent(id: string, second: number): RunPublicEventIntent {
   return {
     id,
     type: "run.started",
-    durability: "durable",
+    delivery: "sequenced",
     occurredAt: `2026-07-12T00:00:${String(second).padStart(2, "0")}.000Z`,
     data: {},
   };

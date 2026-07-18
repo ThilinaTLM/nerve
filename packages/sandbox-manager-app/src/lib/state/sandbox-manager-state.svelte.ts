@@ -46,6 +46,7 @@ import { protocolRequest } from "../api/manager-protocol-client";
 import {
   ManagerWsClient,
   type ManagerStreamEventEnvelope,
+  type ManagerStreamNotifyEvent,
   type ManagerWsConnectionState,
 } from "../api/manager-ws-client.svelte";
 import {
@@ -202,15 +203,13 @@ export class SandboxManagerStore {
   constructor() {
     this.ws = new ManagerWsClient({
       onEvent: (envelope) => this.handleEvent(envelope),
+      onNotify: (event) => this.handleNotify(event),
       onConnectionChange: (state, error) => {
         this.connection = state;
         this.connectionError = error;
       },
       onSnapshotRecovery: () =>
         this.recoverProtocolSnapshot(this.selectedSandboxId),
-      onFlowUpdate: (message) => {
-        this.connectionError = `${message.data.mode}: ${message.data.reason}`;
-      },
     });
   }
 
@@ -1525,6 +1524,31 @@ export class SandboxManagerStore {
     if (detail) detail.record = record;
   }
 
+  private handleNotify(event: ManagerStreamNotifyEvent): void {
+    if (event.type === "sandbox.activity.changed") {
+      const parsed = sandboxActivitySummarySchema.safeParse(event.data);
+      if (parsed.success) {
+        this.activityById = {
+          ...this.activityById,
+          [parsed.data.sandboxId]: parsed.data,
+        };
+      }
+      return;
+    }
+    const sandboxId = event.sandboxId;
+    if (!sandboxId) return;
+    const detail = this.details[sandboxId];
+    if (!detail) return;
+    applySandboxEvent(detail, {
+      stream: event.stream,
+      id: event.id,
+      ts: event.ts,
+      type: event.type,
+      data: event.data,
+      sandboxId,
+    });
+  }
+
   private handleEvent(envelope: ManagerStreamEventEnvelope): void {
     if (envelope.stream === "manager") {
       if (envelope.type === "sandbox.activity.changed") {
@@ -1554,7 +1578,6 @@ export class SandboxManagerStore {
       id: envelope.id,
       ts: envelope.ts,
       type: envelope.type,
-      durability: envelope.durability,
       data: envelope.data,
       sandboxId,
     };
@@ -1594,7 +1617,6 @@ export class SandboxManagerStore {
       id?: string;
       ts: string;
       type: string;
-      durability?: "durable" | "transient";
       data?: unknown;
     },
   ): void {
@@ -1617,7 +1639,6 @@ export class SandboxManagerStore {
         seq: event.seq,
         ts: event.ts,
         type: event.type,
-        durability: event.durability ?? "durable",
         data: event.data as EventEnvelope["data"],
       },
       {

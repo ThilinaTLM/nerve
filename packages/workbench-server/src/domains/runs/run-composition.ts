@@ -8,14 +8,14 @@ import {
 import type { AgentRecord } from "@nervekit/contracts";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { ToolService } from "../tools/tool-service.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import { WorkbenchRunCancellation } from "./run-cancellation.js";
 import {
   WorkbenchRunEventPublisher,
-  WorkbenchRunTransientPublisher,
+  WorkbenchRunNotifyPublisher,
 } from "./run-event-publisher.js";
 import {
   WorkbenchRunExecutionFactory,
@@ -39,7 +39,7 @@ export interface WorkbenchRunRuntime {
 export function createWorkbenchRunRuntime(input: {
   home: string;
   state: RuntimeState;
-  events: EventBus;
+  events: StreamLogRegistry;
   tools: ToolService;
   tasks: WorkbenchTaskService;
   harnessStorage: ConversationHarnessStorage;
@@ -60,7 +60,7 @@ export function createWorkbenchRunRuntime(input: {
   const unitOfWork = new WorkbenchRunUnitOfWork(input.home);
   const integrity = new WorkbenchRunIntegrity();
   const publisher = new WorkbenchRunEventPublisher(input.events);
-  const transient = new WorkbenchRunTransientPublisher(input.events);
+  const notify = new WorkbenchRunNotifyPublisher(input.events);
   const references = new WorkbenchRunReferences(
     unitOfWork,
     input.harnessStorage,
@@ -93,7 +93,7 @@ export function createWorkbenchRunRuntime(input: {
     ids: { next: () => randomUUID() },
     integrity,
     publisher,
-    transient,
+    notify,
     retryPolicy: input.retryPolicy,
     transitionObserver: statusProjector,
     diagnostics: diagnostics(input.logger),

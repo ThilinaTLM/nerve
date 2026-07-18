@@ -301,7 +301,7 @@ function setupTimelineKey(
   if (phase === "boot") {
     const phaseKey =
       extra.index !== undefined ? String(extra.index) : extra.name;
-    return `boot:${phaseKey ?? event.seq}`;
+    return `boot:${phaseKey ?? event.seq ?? event.id ?? event.ts}`;
   }
   return phase;
 }
@@ -452,7 +452,7 @@ function applyTranscriptAppended(
     text: textOf(data.content),
     createdAt: typeof data.createdAt === "string" ? data.createdAt : "",
   });
-  // Durable transcript supersedes transient streaming text for the run.
+  // Sequenced transcript supersedes best-effort notify text for the run.
   const runId = String(data.runId ?? "");
   if (runId && data.role === "assistant" && detail.liveRuns[runId])
     detail.liveRuns[runId].deltaText = "";

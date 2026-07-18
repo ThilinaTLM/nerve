@@ -3,11 +3,13 @@ import type { PeerRole } from "../protocol/envelope.schema.js";
 import { publicEventDataGuardSchema } from "./bounded-public-data.schema.js";
 
 export type EventCoalescing = "latest_by_scope" | "concat_delta";
+export type EventDelivery = "sequenced" | "ephemeral";
 
 export interface PublicEventDefinition {
   readonly name: string;
   readonly payloadSchema: z.ZodType;
-  readonly durability: "durable" | "transient";
+  readonly delivery: EventDelivery;
+  readonly supersedable: boolean;
   readonly allowedSourceRoles: readonly PeerRole[];
   readonly coalescing?: EventCoalescing;
   readonly scope: readonly string[];
@@ -25,9 +27,11 @@ export function definePublicEvent(
     payloadSchema: publicEventDataGuardSchema.transform((value) =>
       payloadSchema.parse(value),
     ),
-    durability: options.durability ?? "durable",
+    delivery: options.delivery ?? "sequenced",
+    supersedable: options.supersedable ?? false,
     allowedSourceRoles: options.allowedSourceRoles ?? hostRoles,
-    coalescing: options.coalescing,
+    coalescing:
+      options.delivery === "ephemeral" ? options.coalescing : undefined,
     scope: options.scope ?? [],
   };
 }

@@ -10,7 +10,7 @@ import {
   toPlanReviewPreview,
   type ToolCallRecord,
 } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {
   appendJsonLine,
@@ -52,7 +52,7 @@ export class PlanService {
 
   constructor(
     private readonly storage: InitializedStorage,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
     private readonly getAgent: (agentId: string) => AgentRecord,
     private readonly setAgentMode: SetAgentMode,
   ) {}

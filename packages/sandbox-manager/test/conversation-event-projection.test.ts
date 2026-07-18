@@ -15,7 +15,6 @@ function event(
     seq,
     type,
     ts: new Date(Date.parse(ts) + seq * 1000).toISOString(),
-    durability: "durable",
     payload,
   };
 }

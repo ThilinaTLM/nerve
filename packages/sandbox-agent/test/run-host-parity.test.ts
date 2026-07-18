@@ -364,7 +364,7 @@ class SandboxParityAdapter implements RealHostRunMatrixFixture {
       .map((event) => ({
         id: event.id,
         type: event.type,
-        durability: event.durability,
+        delivery: event.delivery,
         runId,
         sequence: event.seq,
       }));

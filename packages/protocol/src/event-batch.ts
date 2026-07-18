@@ -2,53 +2,28 @@ import {
   type EventBatchData,
   type EventBatchReason,
   type EventEnvelope,
-  type SkippedNonDurableRange,
   eventBatchDataSchema,
 } from "@nervekit/contracts";
 
 export interface BuildEventBatchOptions {
   stream: string;
   reason: EventBatchReason;
-  previousDurableSeq?: number;
-  skippedNonDurableRanges?: readonly SkippedNonDurableRange[];
-  replay?: EventBatchData["replay"];
+  batchId?: string;
 }
 
 export function buildEventBatch(
-  events: EventEnvelope[],
+  events: readonly EventEnvelope[],
   options: BuildEventBatchOptions,
 ): EventBatchData {
-  const sorted = [...events].sort((a, b) => a.seq - b.seq);
-  const durable = sorted.filter((event) => event.durability === "durable");
-  const transient = sorted.filter((event) => event.durability === "transient");
-  const range: EventBatchData["range"] = {
-    firstSeq: sorted[0]?.seq ?? null,
-    lastSeq: sorted.at(-1)?.seq ?? null,
-    durableCount: durable.length,
-    transientCount: transient.length,
-    skippedNonDurableRanges: options.skippedNonDurableRanges?.length
-      ? [...options.skippedNonDurableRanges]
-      : undefined,
-  };
-
-  if (durable.length > 0) {
-    const firstDurable = durable[0] as EventEnvelope;
-    const lastDurable = durable.at(-1) as EventEnvelope;
-    range.durableFirstSeq = firstDurable.seq;
-    range.durableLastSeq = lastDurable.seq;
-    range.previousDurableSeq = options.previousDurableSeq ?? 0;
-    range.durableCompleteThroughSeq = lastDurable.seq;
-  }
-
+  const ordered = [...events];
   const data: EventBatchData = {
     stream: options.stream,
-    batchId: globalThis.crypto.randomUUID(),
+    batchId: options.batchId ?? `batch_${globalThis.crypto.randomUUID()}`,
     reason: options.reason,
-    events: sorted,
-    range,
-    replay: options.replay,
+    events: ordered,
+    firstSeq: ordered[0]?.seq ?? null,
+    lastSeq: ordered.at(-1)?.seq ?? null,
   };
-
   return eventBatchDataSchema.parse(data) as EventBatchData;
 }
 
@@ -59,8 +34,9 @@ export function estimateProtocolMessageBytes(
   return encodedBytes({ kind, data });
 }
 
+/** Splits on limits and on any defensive discontinuity in the input. */
 export function chunkEvents(
-  events: EventEnvelope[],
+  events: readonly EventEnvelope[],
   maxEvents: number,
   maxBytes = Number.POSITIVE_INFINITY,
 ): EventEnvelope[][] {
@@ -69,10 +45,13 @@ export function chunkEvents(
   let currentBytes = 0;
   for (const event of events) {
     const eventBytes = encodedBytes(event);
+    const previous = current.at(-1);
+    const discontinuity =
+      previous !== undefined && event.seq !== previous.seq + 1;
     const wouldExceedCount = current.length >= maxEvents;
     const wouldExceedBytes =
       current.length > 0 && currentBytes + eventBytes > maxBytes;
-    if (wouldExceedCount || wouldExceedBytes) {
+    if (discontinuity || wouldExceedCount || wouldExceedBytes) {
       chunks.push(current);
       current = [];
       currentBytes = 0;

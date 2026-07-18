@@ -1,6 +1,6 @@
 import type { ToolCallRecord, UserQuestionRecord } from "@nervekit/contracts";
 import { createId } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import { optionalStringArg, stringArg } from "./tool-args.js";
 import { ToolExecutionSuspended } from "./tool-execution-suspension.js";
 import type { ToolRequestOptions } from "./tool-service.js";
@@ -8,7 +8,7 @@ import type { UserQuestionRepository } from "./user-question.repository.js";
 
 export interface InteractionSessionDeps {
   userQuestionRepository: UserQuestionRepository;
-  events: EventBus;
+  events: StreamLogRegistry;
   updateToolCall(
     toolCallId: string,
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
@@ -68,6 +68,10 @@ export class InteractionSessionService {
       question.id,
       options.signal,
     );
+    const resumedToolCall = await this.deps.updateToolCall(toolCall.id, {
+      status: "running",
+    });
+    await this.deps.publishToolCallUpdated(resumedToolCall);
     return this.userQuestionResult(resolved);
   }
 

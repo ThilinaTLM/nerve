@@ -1,4 +1,4 @@
-import { mkdir, open, readFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export class JsonlStore<T> {
@@ -17,6 +17,22 @@ export class JsonlStore<T> {
     } finally {
       await handle.close();
     }
+  }
+
+  async replace(records: readonly T[]): Promise<void> {
+    await mkdir(path.dirname(this.filePath), { recursive: true });
+    const parsed = records.map((record) =>
+      this.schema ? this.schema.parse(record) : record,
+    );
+    const temporary = `${this.filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    await writeFile(
+      temporary,
+      parsed.length > 0
+        ? `${parsed.map((record) => JSON.stringify(record)).join("\n")}\n`
+        : "",
+      { mode: 0o600 },
+    );
+    await rename(temporary, this.filePath);
   }
 
   async readAll(): Promise<T[]> {

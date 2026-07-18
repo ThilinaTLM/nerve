@@ -46,7 +46,7 @@ export const sandboxManagerEventDefinitions = [
   ),
   definePublicEvent("sandbox.activity.changed", sandboxActivitySummarySchema, {
     allowedSourceRoles: managerRoles,
-    durability: "transient",
+    delivery: "ephemeral",
     coalescing: "latest_by_scope",
     scope: ["sandboxId"],
   }),

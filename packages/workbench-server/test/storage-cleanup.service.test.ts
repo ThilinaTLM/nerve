@@ -9,7 +9,7 @@ import {
   StorageUsageService,
 } from "../src/domains/storage/index.js";
 import { ApplicationLogger } from "../src/infrastructure/diagnostics/index.js";
-import { EventBus } from "../src/infrastructure/events/index.js";
+import { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import { storagePaths } from "../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
@@ -60,7 +60,7 @@ function makeService(
     },
   };
   const usage = new StorageUsageService({ paths, getRegistry: () => registry });
-  const events = new EventBus(home);
+  const events = new StreamLogRegistry(home);
   const logger = new ApplicationLogger({
     dataDir: home,
     source: "orchestrator",

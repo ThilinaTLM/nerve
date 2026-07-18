@@ -232,7 +232,15 @@ export class SandboxDaemon {
     );
     this.router.register("sandbox.status.get", async () => {
       const runs = (await this.runRuntime?.query.runLikes()) ?? [];
-      const ack = await this.state?.events.ackState();
+      const eventCursor = {
+        streams: [
+          {
+            stream: `sandbox:${this.identity.sandboxId}`,
+            processedSeq: this.state?.events.latestSeq() ?? 0,
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      };
       const modelSummaries = this.modelSummaries();
       const waits = (await this.runRuntime?.query.waits()) ?? [];
       const startup = summarizeSandboxStartupEvents(
@@ -252,7 +260,7 @@ export class SandboxDaemon {
         skills: this.recovered.skills,
         toolGroups: this.toolRuntime?.groups() ?? [],
         models: modelSummaries,
-        cursors: ack,
+        cursors: eventCursor,
         connectivity: { state: "connected", connectedAt: this.startedAt },
         conversations: summarizeConversations(runs),
         agents: summarizeAgents(runs, modelSummaries[0]),
@@ -714,7 +722,6 @@ export class SandboxDaemon {
         });
         await this.state?.events.append({
           type: "planReview.updated",
-          durability: "durable",
           conversationId: scope.conversationId,
           agentId: scope.agentId,
           runId: scope.runId,

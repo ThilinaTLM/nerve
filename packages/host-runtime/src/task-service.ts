@@ -583,9 +583,9 @@ export class TaskService {
     await this.publish(
       "task.output",
       { taskId: id, stream, text: bounded },
-      "transient",
+      "ephemeral",
     );
-    // This callback is intentionally transient and receives only process output.
+    // This callback is intentionally ephemeral and receives only process output.
     // Durable state remains owned by the log and repository ports.
     this.startCallbacks.get(id)?.({ kind: "output", stream, chunk: text });
   }
@@ -729,12 +729,12 @@ export class TaskService {
   private publish(
     type: string,
     data: unknown,
-    durability: "durable" | "transient" = "durable",
+    delivery: "sequenced" | "ephemeral" = "sequenced",
   ): Promise<void> {
     return this.ports.events.publish({
       type,
       data,
-      durability,
+      delivery,
       occurredAt: this.now(),
     });
   }

@@ -1,7 +1,10 @@
-# Sandbox events
+# Sandbox event schemas
 
-Event types and payloads come from the shared event catalog in `@nervekit/contracts`. Sandbox lifecycle, setup, conversation, interaction, run, tool, task, Git-related invalidation, and diagnostic events are typed before publication and again at manager ingestion.
+Sandbox event payloads and source-role permissions are defined in `packages/contracts/src/domains/sandbox/` and the shared public-event catalog.
 
-Durability is catalog-defined. Durable transition events are written to the sandbox outbox before delivery and retain their sequence in manager storage. High-volume progress such as model/tool deltas and `task.output` is transient and bounded. Durable task output is the task log store queried through task log APIs, not the transient event.
+Catalog delivery is authoritative:
 
-Each envelope includes stream identity through its containing batch. Sandbox payloads include entity IDs needed by reducers but never credentials or raw launch environments. Manager lifecycle data is emitted on `manager`; daemon data is emitted on `sandbox:<id>`.
+- `sequenced` transition/state events enter the sandbox's dense outbox, receive a positive stream-local sequence, and are persisted by the manager without rewriting;
+- `ephemeral` progress such as `run.delta`, `task.output`, usage, and activity uses unsequenced `event.notify` and never enters the outbox or advances a cursor.
+
+Task output history is owned by the task log store and queried through task APIs; the notification is only a best-effort live signal.

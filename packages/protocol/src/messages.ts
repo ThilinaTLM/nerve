@@ -12,7 +12,6 @@ export interface MessageFactoryOptions {
   readonly causationId?: string;
   readonly traceId?: string;
   readonly replyTo?: string;
-  readonly requiresAck?: boolean;
   readonly meta?: SafeMetadata;
 }
 
@@ -43,7 +42,6 @@ export function createMessageFactory(
     causationId: options.causationId,
     traceId: options.traceId,
     replyTo: options.replyTo,
-    requiresAck: options.requiresAck,
     meta: options.meta,
     data,
   });

@@ -1,11 +1,11 @@
 import type { AgentRecord } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 
 export async function setAgentStatus(
   agent: AgentRecord,
   status: AgentRecord["status"],
   updateAgent: (agent: AgentRecord) => Promise<void>,
-  events: EventBus,
+  events: StreamLogRegistry,
 ): Promise<void> {
   const updated = { ...agent, status, updatedAt: new Date().toISOString() };
   await updateAgent(updated);

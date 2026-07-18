@@ -102,7 +102,7 @@ export function initialStateFiles(paths: SandboxRuntimePaths): string[] {
     path.join(paths.controllerDir, "idempotency", "records.jsonl"),
     path.join(paths.controllerDir, "idempotency", "conflicts.jsonl"),
     path.join(paths.eventsDir, "outbox.jsonl"),
-    path.join(paths.eventsDir, "ack.json"),
+    path.join(paths.eventsDir, "meta.json"),
     path.join(paths.skillsDir, "context-files.json"),
     path.join(paths.skillsDir, "loaded.json"),
     path.join(paths.skillsDir, "diagnostics.jsonl"),

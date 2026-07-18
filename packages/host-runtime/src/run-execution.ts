@@ -34,7 +34,7 @@ export interface RunExecutionSink {
   waitMany(
     commands: readonly WaitCommand[],
   ): Promise<readonly RunInteractionRecord[]>;
-  /** Publish a bounded transient progress/delta on a non-authoritative port. */
+  /** Publish a bounded ephemeral progress/delta on the notify port. */
   progress(event: RunProgressEvent): void;
 }
 

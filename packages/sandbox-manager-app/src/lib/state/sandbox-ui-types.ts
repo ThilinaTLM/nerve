@@ -46,11 +46,10 @@ export function defaultAgentControls(): SandboxAgentControls {
 
 export type SandboxUiEvent = {
   stream: string;
-  seq: number;
+  seq?: number;
   id?: string;
   ts: string;
   type: string;
-  durability?: "durable" | "transient";
   data?: unknown;
   sandboxId?: string;
 };

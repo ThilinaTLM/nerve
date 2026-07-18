@@ -72,11 +72,7 @@ export async function runBootPlan(
     resolver?: SecretResolver;
     redactor?: Redactor;
     eventSink?: {
-      append(input: {
-        type: string;
-        durability: "durable" | "transient";
-        data: unknown;
-      }): Promise<unknown>;
+      append(input: { type: string; data: unknown }): Promise<unknown>;
     };
     sandboxId?: string;
     instanceId?: string;
@@ -105,7 +101,6 @@ export async function runBootPlan(
     });
     await opts.eventSink?.append({
       type: "sandbox.boot.started",
-      durability: "durable",
       data: {
         sandboxId: opts.sandboxId,
         instanceId: opts.instanceId ?? "unknown",
@@ -175,7 +170,6 @@ export async function runBootPlan(
     await attempts.append(record);
     await opts.eventSink?.append({
       type: "sandbox.boot.completed",
-      durability: "durable",
       data: {
         sandboxId: opts.sandboxId,
         instanceId: opts.instanceId ?? "unknown",

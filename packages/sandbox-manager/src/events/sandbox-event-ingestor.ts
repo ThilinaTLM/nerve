@@ -1,10 +1,14 @@
 import {
+  notifyEventSchema,
   parsePublicEventEnvelope,
   publicEventDefinition,
+  validatePublicEvent,
   type EventEnvelope,
+  type NotifyEvent,
   type StructuredLogger,
 } from "@nervekit/contracts";
 import type {
+  SandboxEpochResetResult,
   SandboxEventStore,
   StoredSandboxEvent,
 } from "../state/event-store.js";
@@ -22,17 +26,29 @@ export class SandboxEventIngestor {
     private readonly logger?: StructuredLogger,
   ) {}
 
+  async establishAgentEpoch(
+    sandboxId: string,
+    agentLatestSeq: number,
+  ): Promise<SandboxEpochResetResult> {
+    return this.withSandboxQueue(sandboxId, async () => {
+      const result = await this.store.archiveEpochIfAhead(
+        sandboxId,
+        agentLatestSeq,
+      );
+      if (result.reset) {
+        this.logger?.warn("Sandbox agent event epoch reset", {
+          sandboxId,
+          previousLatestSeq: result.previousLatestSeq,
+          agentLatestSeq,
+        });
+      }
+      return result;
+    });
+  }
+
   async ingestBatch(
     sandboxId: string,
-    previousDurableSeq: number,
-    events: Array<{
-      id?: string;
-      seq?: number;
-      type: string;
-      ts?: string;
-      durability?: "durable" | "transient";
-      [key: string]: unknown;
-    }>,
+    events: readonly EventEnvelope[],
   ): Promise<{
     processedSeq: number;
     accepted: number;
@@ -40,77 +56,52 @@ export class SandboxEventIngestor {
   }> {
     return this.withSandboxQueue(sandboxId, async () => {
       const startedAt = Date.now();
-      const parsed = events.map((raw) => parseSandboxEnvelope(sandboxId, raw));
+      const parsed = events.map((raw) => parseSandboxEnvelope(raw));
       for (let index = 1; index < parsed.length; index += 1) {
-        if ((parsed[index]?.seq ?? 0) <= (parsed[index - 1]?.seq ?? 0))
+        if (parsed[index]?.seq !== (parsed[index - 1]?.seq ?? 0) + 1)
           throw new Error(
-            "Sandbox event batch must be in ascending sequence order",
+            "Sandbox event batch must use consecutive sequence numbers",
           );
       }
+
       const candidates = parsed.map((envelope) =>
         toStored(sandboxId, envelope),
       );
-      const durableCandidates = candidates.filter(
-        (event) => event.durability === "durable",
-      );
       const [streamState, conflicts] = await Promise.all([
         this.store.streamState(sandboxId),
-        this.store.findDurableConflicts(sandboxId, durableCandidates),
+        this.store.findConflicts(sandboxId, candidates),
       ]);
-      let processedSeq = streamState.durableSeq;
-      if (previousDurableSeq > processedSeq)
-        throw new Error(
-          "Agent durable predecessor is ahead of manager storage",
-        );
-
-      const conflictById = new Map(
-        conflicts.flatMap((event) =>
-          event.id ? [[event.id, event] as const] : [],
-        ),
-      );
+      const conflictById = new Map(conflicts.map((event) => [event.id, event]));
       const conflictBySeq = new Map(
-        conflicts.flatMap((event) =>
-          event.seq === undefined ? [] : ([[event.seq, event]] as const),
-        ),
+        conflicts.map((event) => [event.seq, event]),
       );
-      let provenReplaySeq = previousDurableSeq;
+      let processedSeq = streamState.latestSeq;
       const acceptedEvents: StoredSandboxEvent[] = [];
-      const durableToInsert: StoredSandboxEvent[] = [];
 
-      for (const stored of candidates) {
-        if (stored.durability === "durable") {
+      for (const candidate of candidates) {
+        if (candidate.seq <= processedSeq) {
           const duplicate =
-            (stored.id ? conflictById.get(stored.id) : undefined) ??
-            (stored.seq === undefined
-              ? undefined
-              : conflictBySeq.get(stored.seq));
-          if (duplicate) {
-            assertSameDurableEvent(duplicate, stored);
-            provenReplaySeq = Math.max(provenReplaySeq, stored.seq ?? 0);
-            continue;
-          }
-          if (provenReplaySeq !== processedSeq)
-            throw new Error(
-              "Sandbox durable replay does not reach manager cursor",
-            );
-          if ((stored.seq ?? 0) <= processedSeq)
-            throw new Error("Sandbox durable event sequence regressed");
-          durableToInsert.push(stored);
-          processedSeq = stored.seq as number;
-          provenReplaySeq = processedSeq;
+            conflictById.get(candidate.id) ?? conflictBySeq.get(candidate.seq);
+          if (!duplicate) throw new Error("Sandbox event sequence regressed");
+          assertSameEvent(duplicate, candidate);
+          continue;
         }
-        acceptedEvents.push(stored);
+        if (candidate.seq !== processedSeq + 1)
+          throw new Error(
+            `Sandbox event gap: expected ${processedSeq + 1}, received ${candidate.seq}`,
+          );
+        acceptedEvents.push(candidate);
+        processedSeq = candidate.seq;
       }
 
-      // One atomic database statement: no event becomes visible until the
-      // complete durable portion of this batch commits.
-      await this.store.appendDurableBatch(durableToInsert);
+      // One atomic database statement: no sequenced event becomes visible until
+      // the complete new suffix commits.
+      await this.store.appendBatch(acceptedEvents);
       for (const stored of acceptedEvents) this.publish(sandboxId, stored);
       this.logger?.debug("Sandbox event batch ingested", {
         sandboxId,
         durationMs: Date.now() - startedAt,
-        acceptedDurable: durableToInsert.length,
-        acceptedTransient: acceptedEvents.length - durableToInsert.length,
+        accepted: acceptedEvents.length,
         processedSeq,
       });
       return {
@@ -121,22 +112,41 @@ export class SandboxEventIngestor {
     });
   }
 
+  ingestNotify(sandboxId: string, events: readonly NotifyEvent[]): void {
+    for (const raw of events) {
+      const definition = publicEventDefinition(raw.type);
+      if (!definition || definition.delivery !== "ephemeral")
+        throw new Error(`Event ${raw.type} cannot use event.notify`);
+      const event = notifyEventSchema.parse({
+        ...raw,
+        data: validatePublicEvent(
+          raw.type,
+          redactManagerEvent(raw.data),
+          "sandbox_agent",
+        ),
+      }) as NotifyEvent<Record<string, unknown>>;
+      this.bus?.notify({
+        stream: `sandbox:${sandboxId}`,
+        sandboxId,
+        event,
+      });
+      this.activity?.observe(sandboxId, {
+        type: event.type,
+        ts: event.ts,
+        payload: event.data,
+      });
+    }
+  }
+
   private publish(sandboxId: string, stored: StoredSandboxEvent): void {
-    if (
-      !stored.id ||
-      stored.seq === undefined ||
-      !stored.ts ||
-      !stored.durability ||
-      !isRecord(stored.payload)
-    )
-      throw new Error("Manager event publication requires a complete envelope");
+    if (!isRecord(stored.payload))
+      throw new Error("Manager event publication requires object data");
     this.bus?.publish({
       type: stored.type,
       stream: `sandbox:${sandboxId}`,
       sandboxId,
       seq: stored.seq,
       id: stored.id,
-      durability: stored.durability,
       payload: stored.payload,
       ts: stored.ts,
     });
@@ -163,31 +173,12 @@ export class SandboxEventIngestor {
 }
 
 function parseSandboxEnvelope(
-  sandboxId: string,
-  event: {
-    id?: string;
-    seq?: number;
-    type: string;
-    ts?: string;
-    durability?: "durable" | "transient";
-    [key: string]: unknown;
-  },
+  event: EventEnvelope,
 ): EventEnvelope<Record<string, unknown>> {
-  const definition = publicEventDefinition(event.type);
-  if (!definition) throw new Error(`Unknown public event: ${event.type}`);
-  if (!event.id || !event.seq)
-    throw new Error("Sandbox events require an id and positive sequence");
-  const durability = event.durability ?? definition.durability;
-  if (durability !== definition.durability)
-    throw new Error(`Event ${event.type} must use ${definition.durability}`);
   return parsePublicEventEnvelope(
     {
-      id: event.id,
-      seq: event.seq,
-      type: event.type,
-      ts: event.ts ?? new Date().toISOString(),
-      durability,
-      data: redactManagerEvent(event.data ?? event),
+      ...event,
+      data: redactManagerEvent(event.data),
     },
     "sandbox_agent",
   ) as EventEnvelope<Record<string, unknown>>;
@@ -203,12 +194,11 @@ function toStored(
     seq: envelope.seq,
     type: envelope.type,
     ts: envelope.ts,
-    durability: envelope.durability,
     payload: envelope.data,
   };
 }
 
-function assertSameDurableEvent(
+function assertSameEvent(
   existing: StoredSandboxEvent,
   candidate: StoredSandboxEvent,
 ): void {
@@ -216,9 +206,10 @@ function assertSameDurableEvent(
     existing.seq !== candidate.seq ||
     existing.id !== candidate.id ||
     existing.type !== candidate.type ||
+    existing.ts !== candidate.ts ||
     canonicalJson(existing.payload) !== canonicalJson(candidate.payload)
   )
-    throw new Error("Conflicting durable sandbox event replay");
+    throw new Error("Conflicting sandbox event replay");
 }
 
 function canonicalJson(value: unknown): string {

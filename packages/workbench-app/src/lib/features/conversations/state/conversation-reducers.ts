@@ -1,10 +1,15 @@
-import { toolCallTranscriptRecordSchema } from "@nervekit/contracts";
+import {
+  conversationStream,
+  LifecycleTransitionError,
+  toolCallTranscriptRecordSchema,
+} from "@nervekit/contracts";
 import { applyConversationEvent } from "@nervekit/workbench-ui/state";
 import type {
   ConversationEntry,
   EventEnvelope,
   ToolCallTranscriptRecord,
 } from "$lib/api";
+import { removeEventStream } from "$lib/core/events/stream-cursors.svelte";
 import { conversationViewKey } from "$lib/core/state/state-keys";
 import type { ConversationViewState } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
@@ -100,15 +105,36 @@ export function handleConversationEvent(
     event.seq > view.cursorSeq &&
     !entryBelongsToActiveBranch(view, entry)
   ) {
-    view.cursorSeq = event.seq;
-    void refreshConversationView(conversationId);
+    recoverCorruptedConversation(
+      view,
+      conversationId,
+      new Error("Conversation branch diverged from the active snapshot"),
+    );
     scheduleContextUsageRefresh(conversationId);
     return;
   }
 
-  const applied = applyConversationEvent(view, event, {
-    onGap: () => void refreshConversationView(conversationId),
-  }) as ConversationViewState;
+  let gapDetected = false;
+  let applied: ConversationViewState;
+  try {
+    applied = applyConversationEvent(view, event, {
+      onGap: () => {
+        gapDetected = true;
+      },
+    }) as ConversationViewState;
+  } catch (error) {
+    if (!(error instanceof LifecycleTransitionError)) throw error;
+    recoverCorruptedConversation(view, conversationId, error);
+    return;
+  }
+  if (gapDetected) {
+    recoverCorruptedConversation(
+      view,
+      conversationId,
+      new Error(`Conversation event gap at ${event.type}`),
+    );
+    return;
+  }
   let next = view;
   if (applied !== view) {
     const key = conversationViewKey(conversationId);
@@ -119,6 +145,20 @@ export function handleConversationEvent(
 
   applyAppEffects(next, event, entry);
   syncActiveView(next);
+}
+
+function recoverCorruptedConversation(
+  view: ConversationViewState,
+  conversationId: string,
+  error: unknown,
+): void {
+  view.error = "Conversation state corrupted — resyncing";
+  console.error("Conversation event invariant violated", {
+    conversationId,
+    error,
+  });
+  removeEventStream(conversationStream(conversationId));
+  void refreshConversationView(conversationId);
 }
 
 function applyAppEffects(

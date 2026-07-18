@@ -68,7 +68,7 @@ describe("sandbox manager reconciliation gc and orphan handling", () => {
             id: "evt_1",
             ts: "2026-07-07T17:06:08.000Z",
             type: "sandbox.boot.started",
-            durability: "durable",
+            delivery: "sequenced",
             data: { phase: "boot", startedAt: "2026-07-07T17:06:08.000Z" },
           }),
           JSON.stringify({
@@ -76,7 +76,7 @@ describe("sandbox manager reconciliation gc and orphan handling", () => {
             id: "evt_2",
             ts: "2026-07-07T17:06:10.000Z",
             type: "sandbox.boot.completed",
-            durability: "durable",
+            delivery: "sequenced",
             data: {
               phase: "boot",
               status: "failed",

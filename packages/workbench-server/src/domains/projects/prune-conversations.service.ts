@@ -7,7 +7,7 @@ import type {
   TaskRecord,
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationRepository } from "../conversations/index.js";
 
 export interface PruneConversationsTaskPort {
@@ -37,7 +37,7 @@ export interface PruneProjectConversationsServiceDeps {
   conversationRepository: ConversationRepository;
   removeConversation: (conversationId: string) => Promise<void>;
   rebuildIndex: () => Promise<void>;
-  events: EventBus;
+  events: StreamLogRegistry;
   logger: ApplicationLogger;
 }
 
@@ -125,16 +125,6 @@ export class PruneProjectConversationsService {
     await this.deps.plans.removeReviewsForConversations(prunedIds);
     for (const conversation of pruned)
       await this.deps.removeConversation(conversation.id);
-    // removeConversation publishes a deletion event into the per-conversation
-    // log, which recreates the directory. Remove the final persisted trace.
-    await Promise.all(
-      prunedIds.map((conversationId) =>
-        this.deps.conversationRepository
-          .remove(conversationId)
-          .catch(() => undefined),
-      ),
-    );
-    await this.deps.events.removeEventsForConversations(prunedIds);
     await this.deps.logger.removeLogsForConversations(prunedIds);
     if (prunedIds.length > 0) await this.deps.rebuildIndex();
 

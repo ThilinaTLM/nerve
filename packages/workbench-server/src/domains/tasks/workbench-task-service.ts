@@ -14,7 +14,7 @@ import {
   type TaskRuntime,
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {
@@ -105,7 +105,7 @@ export class WorkbenchTaskService extends TaskService {
 
   constructor(
     readonly storage: InitializedStorage,
-    readonly events: EventBus,
+    readonly events: StreamLogRegistry,
     readonly index: IndexStore,
     readonly logger?: ApplicationLogger,
     options: WorkbenchTaskServiceOptions = {},

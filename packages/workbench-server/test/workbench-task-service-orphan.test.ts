@@ -25,7 +25,9 @@ describe("task manager orphan cleanup", () => {
     assert.equal(stopped.signal, "SIGTERM");
     assert.deepEqual(runtimeTerminateSignals, ["SIGTERM"]);
     assert.ok(
-      events.replaySince(0).some((event) => event.type === "task.cancelled"),
+      (await events.readStream("workspace", 1, 5_000)).events.some(
+        (event) => event.type === "task.cancelled",
+      ),
     );
   });
 

@@ -13,7 +13,7 @@ import {
   type RespondOAuthFlowRequest,
 } from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "./auth-manager.js";
 
 type PendingResponse = {
@@ -99,7 +99,7 @@ export class OAuthFlowManager {
 
   constructor(
     private readonly auth: AuthManager,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
   ) {}
 
   get(flowId: string): OAuthFlowInfo {

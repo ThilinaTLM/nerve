@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { WorkbenchTaskService } from "../src/domains/tasks/workbench-task-service.js";
-import { EventBus } from "../src/infrastructure/events/index.js";
+import { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import { readJsonFile } from "../src/infrastructure/storage/index.js";
 import {
   createManager,
@@ -35,7 +35,9 @@ describe("task manager launch env", () => {
     assert.equal("env" in persisted, false);
     assert.deepEqual(launchConfig?.env, env);
     assert.equal(
-      JSON.stringify(events.replaySince(0)).includes("secret"),
+      JSON.stringify(
+        (await events.readStream("workspace", 1, 5_000)).events,
+      ).includes("secret"),
       false,
     );
   });
@@ -75,7 +77,9 @@ describe("task manager launch env", () => {
     assert.equal(manager.listTasks().length, 2);
     assert.equal(restarted.restartedFromTaskId, task.id);
     assert.equal(
-      events.replaySince(0).some((event) => event.type === "task.cancelled"),
+      (await events.readStream("workspace", 1, 5_000)).events.some(
+        (event) => event.type === "task.cancelled",
+      ),
       true,
     );
   });
@@ -163,7 +167,7 @@ describe("task manager launch env", () => {
     });
     const hydrated = new WorkbenchTaskService(
       storage,
-      new EventBus(storage.paths.home, index),
+      new StreamLogRegistry(storage.paths.home),
       index,
       undefined,
       { supervisor, launchConfigs },
@@ -228,7 +232,7 @@ describe("task manager launch env", () => {
 
     const hydrated = new WorkbenchTaskService(
       storage,
-      new EventBus(storage.paths.home, index),
+      new StreamLogRegistry(storage.paths.home),
       index,
       undefined,
       { supervisor: fakeSupervisor({ runtime }).supervisor, launchConfigs },
@@ -267,7 +271,7 @@ describe("task manager launch env", () => {
     });
     const hydrated = new WorkbenchTaskService(
       storage,
-      new EventBus(storage.paths.home, index),
+      new StreamLogRegistry(storage.paths.home),
       index,
       undefined,
       { supervisor, launchConfigs },

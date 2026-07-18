@@ -1,3 +1,4 @@
+import { SvelteMap } from "svelte/reactivity";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -23,14 +24,8 @@ export const workspaceState = $state({
   status: undefined as StatusResponse | undefined,
   config: undefined as ClientConfig | undefined,
   connection: "connecting",
-  receivedEventSeq: 0,
-  processedEventSeq: 0,
+  eventCursors: new SvelteMap<string, number>(),
   protocolSessionId: undefined as string | undefined,
-  protocolFlowMode: "normal" as
-    | "normal"
-    | "catching_up"
-    | "degraded"
-    | "resync_required",
   error: undefined as string | undefined,
   projects: [] as ProjectRecord[],
   conversations: [] as ConversationRecord[],

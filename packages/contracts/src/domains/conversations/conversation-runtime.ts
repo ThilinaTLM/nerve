@@ -1,4 +1,11 @@
 import { createId } from "../../core/index.js";
+import {
+  assertTransition,
+  liveMessageTransitions,
+  turnTransitions,
+  type LiveMessageStatus,
+  type TurnStatus,
+} from "../events/lifecycles.js";
 import type { QueuedPromptRecord } from "../agents/index.js";
 import type {
   AgentMessageContentKind,
@@ -70,6 +77,8 @@ export class ConversationRuntime {
     string,
     ToolAnchor
   >();
+  private readonly turnStatuses = new Map<string, TurnStatus>();
+  private readonly liveMessageStatuses = new Map<string, LiveMessageStatus>();
 
   startRun(input: StartRunInput): ConversationActiveRunSnapshot {
     const startedAt = input.startedAt ?? new Date().toISOString();
@@ -144,13 +153,33 @@ export class ConversationRuntime {
   }
 
   completeRun(runId: string): void {
+    this.finishRun(runId, "completed");
+  }
+
+  failRun(runId: string): void {
+    this.finishRun(runId, "failed");
+  }
+
+  private finishRun(runId: string, terminal: "completed" | "failed"): void {
     const run = this.runsByRunId.get(runId);
     if (!run) return;
+    for (const turn of run.turns) {
+      for (const message of turn.messages) {
+        if (this.liveMessageStatuses.get(message.liveMessageId) === "started") {
+          this.transitionLiveMessage(message.liveMessageId, terminal, runId);
+        }
+      }
+      if (this.turnStatuses.get(turn.turnId) === "started") {
+        this.transitionTurn(turn.turnId, terminal, runId);
+      }
+    }
     this.runsByRunId.delete(runId);
     this.runIdByAgentId.delete(run.agentId);
     this.runIdByConversationId.delete(run.conversationId);
     for (const turn of run.turns) {
+      this.turnStatuses.delete(turn.turnId);
       for (const message of turn.messages) {
+        this.liveMessageStatuses.delete(message.liveMessageId);
         for (const block of message.blocks) {
           if (block.kind === "tool_call_draft" && block.providerToolCallId) {
             this.draftAnchorByProviderToolCallId.delete(
@@ -162,10 +191,6 @@ export class ConversationRuntime {
     }
   }
 
-  failRun(runId: string): void {
-    this.completeRun(runId);
-  }
-
   startTurn(runId: string): ConversationLiveTurnSnapshot {
     const run = this.requireRun(runId);
     const turn: MutableTurn = {
@@ -174,7 +199,18 @@ export class ConversationRuntime {
       messages: [],
     };
     run.turns.push(turn);
+    this.turnStatuses.set(turn.turnId, "started");
     return cloneTurn(turn);
+  }
+
+  completeTurn(runId: string, turnId: string): void {
+    this.requireTurn(this.requireRun(runId), turnId);
+    this.transitionTurn(turnId, "completed", runId);
+  }
+
+  failTurn(runId: string, turnId: string): void {
+    this.requireTurn(this.requireRun(runId), turnId);
+    this.transitionTurn(turnId, "failed", runId);
   }
 
   /**
@@ -217,6 +253,7 @@ export class ConversationRuntime {
       blocks: [],
     };
     turn.messages.push(message);
+    this.liveMessageStatuses.set(message.liveMessageId, "started");
     return {
       conversationId: run.conversationId,
       agentId: run.agentId,
@@ -227,6 +264,24 @@ export class ConversationRuntime {
       messageOrdinal: message.messageOrdinal,
       startedAt,
     };
+  }
+
+  completeAssistantMessage(
+    runId: string,
+    turnId: string,
+    liveMessageId: string,
+  ): void {
+    this.requireMessage({ runId, turnId, liveMessageId });
+    this.transitionLiveMessage(liveMessageId, "completed", runId);
+  }
+
+  failAssistantMessage(
+    runId: string,
+    turnId: string,
+    liveMessageId: string,
+  ): void {
+    this.requireMessage({ runId, turnId, liveMessageId });
+    this.transitionLiveMessage(liveMessageId, "failed", runId);
   }
 
   applyContentDelta(input: {
@@ -533,6 +588,35 @@ export class ConversationRuntime {
       contentIndex: input.contentIndex,
       providerToolCallId,
     });
+  }
+
+  private transitionTurn(
+    turnId: string,
+    to: "completed" | "failed",
+    context: string,
+  ): void {
+    const from = this.turnStatuses.get(turnId);
+    if (!from)
+      throw new Error(`Conversation turn lifecycle not found: ${turnId}`);
+    assertTransition(turnTransitions, from, to, `turn ${turnId} in ${context}`);
+    this.turnStatuses.set(turnId, to);
+  }
+
+  private transitionLiveMessage(
+    liveMessageId: string,
+    to: "completed" | "failed",
+    context: string,
+  ): void {
+    const from = this.liveMessageStatuses.get(liveMessageId);
+    if (!from)
+      throw new Error(`Live message lifecycle not found: ${liveMessageId}`);
+    assertTransition(
+      liveMessageTransitions,
+      from,
+      to,
+      `live message ${liveMessageId} in ${context}`,
+    );
+    this.liveMessageStatuses.set(liveMessageId, to);
   }
 
   private requireRun(runId: string): MutableRun {

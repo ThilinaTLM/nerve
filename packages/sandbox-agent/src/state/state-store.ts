@@ -211,8 +211,8 @@ async function writeInitialStateFiles(
     ],
     [path.join(paths.eventsDir, "outbox.jsonl"), { data: "" }],
     [
-      path.join(paths.eventsDir, "ack.json"),
-      { data: `${JSON.stringify({ streams: [], updatedAt: now }, null, 2)}\n` },
+      path.join(paths.eventsDir, "meta.json"),
+      { data: `${JSON.stringify({ lastSeq: 0 }, null, 2)}\n` },
     ],
     [
       path.join(paths.skillsDir, "context-files.json"),

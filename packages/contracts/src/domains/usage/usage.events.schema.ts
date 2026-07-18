@@ -6,7 +6,7 @@ const workbenchRoles = ["workbench_server"] as const;
 export const usageEventDefinitions = [
   definePublicEvent("usage.subscription.updated", subscriptionUsageSchema, {
     allowedSourceRoles: workbenchRoles,
-    durability: "transient",
+    delivery: "ephemeral",
     coalescing: "latest_by_scope",
     scope: ["provider"],
   }),

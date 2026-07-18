@@ -8,7 +8,7 @@ import type {
   PromptSuggestionStatus,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import { evaluatePromptSuggestions } from "./prompt-suggestion-evaluator.js";
 import { loadPromptSuggestionDefinitions } from "./prompt-suggestion-loader.js";
@@ -19,7 +19,7 @@ const NERVE_DIR_NAME = ".nerve";
 
 export type PromptSuggestionServiceDeps = {
   storage: InitializedStorage;
-  events: EventBus;
+  events: StreamLogRegistry;
   trustRepository: PromptSuggestionTrustRepository;
   git: GitService;
   getProject: (projectId: string) => ProjectRecord;

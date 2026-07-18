@@ -13,7 +13,7 @@ import type {
 } from "@nervekit/contracts";
 import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { AppendEntryInput } from "../../runtime/types.js";
 import type { WorkbenchLiveExecutions } from "../runs/run-live-executions.js";
 import type { WorkbenchRunUnitOfWork } from "../runs/run-transition.repository.js";
@@ -27,7 +27,7 @@ import {
 
 export interface TaskNotificationServiceDeps {
   tasks: WorkbenchTaskService;
-  events: EventBus;
+  events: StreamLogRegistry;
   liveRuns: WorkbenchLiveExecutions;
   runUnitOfWork: WorkbenchRunUnitOfWork;
   appendEntry(

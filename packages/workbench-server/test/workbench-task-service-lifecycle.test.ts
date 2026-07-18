@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import type { TaskRecord } from "@nervekit/contracts";
 import { WorkbenchTaskService } from "../src/domains/tasks/workbench-task-service.js";
-import { EventBus } from "../src/infrastructure/events/index.js";
+import { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import { readJsonFile } from "../src/infrastructure/storage/index.js";
 import {
   createManager,
@@ -140,7 +140,7 @@ describe("task manager runtime metadata", () => {
 
     const hydrated = new WorkbenchTaskService(
       storage,
-      new EventBus(storage.paths.home, index),
+      new StreamLogRegistry(storage.paths.home),
       index,
       undefined,
       {

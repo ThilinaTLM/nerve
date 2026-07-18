@@ -9,7 +9,7 @@ import type {
 } from "@nervekit/host-runtime";
 import type { StartTaskRequest, TaskRecord } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import {
@@ -162,7 +162,7 @@ export type WorkbenchTaskAdapterOptions = {
 
 export function createWorkbenchTaskResources(
   storage: InitializedStorage,
-  events: EventBus,
+  events: StreamLogRegistry,
   index: IndexStore,
   logger: ApplicationLogger | undefined,
   options: WorkbenchTaskAdapterOptions,

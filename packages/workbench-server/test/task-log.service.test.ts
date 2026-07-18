@@ -13,7 +13,7 @@ import {
   MAX_BUFFERED_LOG_LINE_CHARS,
   TaskLogService,
 } from "../src/domains/tasks/task-log.service.js";
-import { EventBus } from "../src/infrastructure/events/index.js";
+import { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 
 const roots: string[] = [];
 
@@ -261,7 +261,7 @@ async function createFixture(): Promise<{
     updatedAt: now,
   };
   const emitted: TaskLogEvent[] = [];
-  const service = new TaskLogService(new EventBus(root));
+  const service = new TaskLogService(new StreamLogRegistry(root));
   return {
     record,
     service,

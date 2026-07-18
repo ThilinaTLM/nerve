@@ -32,7 +32,6 @@ describe("shared conversation adapters", () => {
       seq: 1,
       ts: "2026-01-01T00:00:00.000Z",
       type: "toolCall.updated",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -51,11 +50,29 @@ describe("shared conversation adapters", () => {
     });
 
     state = applyConversationEvent(state, {
-      id: "evt_tool_2",
+      id: "evt_tool_running",
       seq: 2,
+      ts: "2026-01-01T00:00:00.500Z",
+      type: "toolCall.updated",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        providerToolCallId: "call_raw",
+        toolCall: {
+          ...base,
+          status: "running",
+          updatedAt: "2026-01-01T00:00:00.500Z",
+        },
+      },
+    });
+
+    state = applyConversationEvent(state, {
+      id: "evt_tool_3",
+      seq: 3,
       ts: "2026-01-01T00:00:01.000Z",
       type: "toolCall.updated",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -82,6 +99,28 @@ describe("shared conversation adapters", () => {
     assert.equal(state.toolCalls[0]?.turnId, "turn_test");
     assert.equal(state.toolCalls[0]?.liveMessageId, "msg_test");
     assert.equal(state.toolCalls[0]?.contentIndex, 1);
+
+    assert.throws(
+      () =>
+        applyConversationEvent(state, {
+          id: "evt_tool_invalid",
+          seq: 4,
+          ts: "2026-01-01T00:00:02.000Z",
+          type: "toolCall.updated",
+          data: {
+            conversationId: "conv_test",
+            agentId: "agent_test",
+            projectId: "proj_test",
+            runId: "run_test",
+            toolCall: {
+              ...base,
+              status: "running",
+              updatedAt: "2026-01-01T00:00:02.000Z",
+            },
+          },
+        }),
+      /Illegal lifecycle transition/,
+    );
   });
 
   it("clears active and queued state when a run is cancelled", () => {
@@ -91,7 +130,6 @@ describe("shared conversation adapters", () => {
       seq: 1,
       ts: "2026-01-01T00:00:00.000Z",
       type: "run.started",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -121,7 +159,6 @@ describe("shared conversation adapters", () => {
       seq: 2,
       ts: "2026-01-01T00:00:01.000Z",
       type: "run.cancelled",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -145,7 +182,6 @@ describe("shared conversation adapters", () => {
       seq: 1,
       ts: "2026-01-01T00:00:00.000Z",
       type: "run.started",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -159,7 +195,6 @@ describe("shared conversation adapters", () => {
       seq: 2,
       ts: "2026-01-01T00:00:01.000Z",
       type: "run.failed",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -186,7 +221,6 @@ describe("shared conversation adapters", () => {
       seq: 3,
       ts: "2026-01-01T00:00:02.000Z",
       type: "run.resumed",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -210,7 +244,6 @@ describe("shared conversation adapters", () => {
       seq: 1,
       ts: "2026-01-01T00:00:00.000Z",
       type: "run.started",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -224,7 +257,6 @@ describe("shared conversation adapters", () => {
       seq: 2,
       ts: "2026-01-01T00:00:01.000Z",
       type: "run.failed",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -249,7 +281,6 @@ describe("shared conversation adapters", () => {
       seq: 1,
       ts: "2026-01-01T00:00:00.000Z",
       type: "run.started",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -263,7 +294,6 @@ describe("shared conversation adapters", () => {
       seq: 2,
       ts: "2026-01-01T00:00:01.000Z",
       type: "conversation.live.message.started",
-      durability: "transient",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -280,7 +310,6 @@ describe("shared conversation adapters", () => {
       seq: 3,
       ts: "2026-01-01T00:00:02.000Z",
       type: "conversation.live.content.delta",
-      durability: "transient",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -305,7 +334,6 @@ describe("shared conversation adapters", () => {
       seq: 4,
       ts: "2026-01-01T00:00:03.000Z",
       type: "conversation.entry.appended",
-      durability: "durable",
       data: {
         conversationId: "conv_test",
         agentId: "agent_test",
@@ -338,18 +366,13 @@ describe("shared conversation adapters", () => {
       projectId: "proj_test",
       runId: "run_test",
     };
-    const apply = (
-      type: string,
-      data: Record<string, unknown>,
-      durability: "durable" | "transient" = "transient",
-    ) => {
+    const apply = (type: string, data: Record<string, unknown>) => {
       seq += 1;
       state = applyConversationEvent(state, {
         id: `evt_${seq}`,
         seq,
         ts: `2026-01-01T00:00:${String(seq).padStart(2, "0")}.000Z`,
         type,
-        durability,
         data,
       } as EventEnvelope);
     };
@@ -386,35 +409,27 @@ describe("shared conversation adapters", () => {
       });
     };
 
-    apply(
-      "run.started",
-      { ...base, startedAt: "2026-01-01T00:00:00.000Z" },
-      "durable",
-    );
+    apply("run.started", { ...base, startedAt: "2026-01-01T00:00:00.000Z" });
 
     streamMessage("msg_1", 0, "thinking about A");
     // Entry materializes msg_1 but without its liveMessageId (correlation
     // miss); only turnId + messageOrdinal identify the message.
-    apply(
-      "conversation.entry.appended",
-      {
+    apply("conversation.entry.appended", {
+      conversationId: "conv_test",
+      entry: {
+        id: "entry_a1",
         conversationId: "conv_test",
-        entry: {
-          id: "entry_a1",
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          runId: "run_test",
-          turnId: "turn_test",
-          messageOrdinal: 0,
-          role: "assistant",
-          kind: "message",
-          text: "Answer A",
-          details: { thinkingBlocks: [{ text: "thinking about A" }] },
-          createdAt: "2026-01-01T00:00:04.000Z",
-        },
+        agentId: "agent_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        messageOrdinal: 0,
+        role: "assistant",
+        kind: "message",
+        text: "Answer A",
+        details: { thinkingBlocks: [{ text: "thinking about A" }] },
+        createdAt: "2026-01-01T00:00:04.000Z",
       },
-      "durable",
-    );
+    });
 
     streamMessage("msg_2", 1, "thinking about B");
 

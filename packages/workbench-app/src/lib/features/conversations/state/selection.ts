@@ -3,11 +3,12 @@ import { fromConversationSnapshot } from "@nervekit/workbench-ui/state";
 import {
   type AgentRecord,
   type ConversationRecord,
-  getConversationSnapshot,
+  getConversationSnapshotWithCursor,
   getProject,
   type ProjectRecord,
 } from "$lib/api";
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
+import { installEventCursors } from "$lib/core/events/stream-cursors.svelte";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
@@ -81,7 +82,8 @@ export async function refreshConversationView(conversationId: string) {
   const view = ensureConversationView(conversationId);
   view.loading = true;
   try {
-    const snapshot = await getConversationSnapshot(conversationId);
+    const response = await getConversationSnapshotWithCursor(conversationId);
+    const snapshot = response.snapshot;
     // Canonical state comes straight from the shared snapshot ingestion
     // (which drains already-materialized active-run messages).
     const canonical = fromConversationSnapshot(snapshot);
@@ -107,6 +109,7 @@ export async function refreshConversationView(conversationId: string) {
         candidate.id === conversationId ? snapshot.conversation : candidate,
     );
     view.sending = Boolean(snapshot.activeRun);
+    installEventCursors(response.cursor.streams);
     if (selection.conversationId === conversationId) {
       selection.entryId = snapshot.tree.activeEntryId;
     }

@@ -45,13 +45,17 @@ export const streamSubscriptionSetMessageSchema = typedMessageSchema(
   streamSubscriptionSetDataSchema,
 );
 
+export const subscribedStreamStateSchema = streamStateSchema.extend({
+  mode: streamSubscriptionModeSchema,
+});
+export type SubscribedStreamState = z.infer<typeof subscribedStreamStateSchema>;
+
 export const streamSubscriptionUpdatedDataSchema = z
   .object({
     sessionId: z.string().min(1),
     subscriptionId: z.string().min(1),
     accepted: z.boolean(),
-    mode: streamSubscriptionModeSchema,
-    streams: uniqueStreams(streamStateSchema),
+    streams: uniqueStreams(subscribedStreamStateSchema),
     reason: z.string().min(1).max(1_024).optional(),
   })
   .strict();

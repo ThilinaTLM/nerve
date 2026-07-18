@@ -214,7 +214,7 @@ export async function handleProtocolMethod(
         counts: state.index.counts(),
       };
     case "storage.rebuildIndex":
-      await state.registry.rebuildIndex({ reindexEvents: true });
+      await state.registry.rebuildIndex();
       return { ok: true, counts: state.index.counts() };
     case "storage.usage.get":
       return state.storageUsage.computeUsage();

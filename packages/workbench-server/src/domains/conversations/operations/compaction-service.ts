@@ -15,7 +15,7 @@ import type {
   ProjectRecord,
 } from "@nervekit/contracts";
 import { HttpError } from "../../../http/errors.js";
-import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
 import { buildExtractiveSummary } from "./summary.js";
 
@@ -80,7 +80,7 @@ export class CompactionService {
     private readonly appendEntry: AppendConversationEntry,
     private readonly harnessStorage: ConversationHarnessStorage,
     private readonly rebuildConversations: () => Promise<void>,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
     private readonly summarize?: CompactionSummarizer,
   ) {}
 
@@ -247,19 +247,15 @@ export class CompactionService {
     } catch (error) {
       if (started) {
         await this.events
-          .publish(
-            "conversation.compaction.failed",
-            {
-              conversationId,
-              agentId: options.agentId,
-              runId: options.runId,
-              reason,
-              failedAt: new Date().toISOString(),
-              message: errorMessage(error),
-              failedEntryId: options.failedEntryId,
-            },
-            { durability: "transient" },
-          )
+          .publish("conversation.compaction.failed", {
+            conversationId,
+            agentId: options.agentId,
+            runId: options.runId,
+            reason,
+            failedAt: new Date().toISOString(),
+            message: errorMessage(error),
+            failedEntryId: options.failedEntryId,
+          })
           .catch(() => undefined);
       }
       throw error;

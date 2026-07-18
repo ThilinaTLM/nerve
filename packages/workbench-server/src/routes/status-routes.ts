@@ -10,11 +10,17 @@ export function createStatusRoutes(state: OrchestratorState): Hono {
   app.get("/status", (c) => c.json(statusResponse(state)));
   app.get("/events", async (c) => {
     const since = Number(c.req.query("since") ?? "0");
+    const stream = c.req.query("stream") ?? "workspace";
+    const read = await state.events.readStream(
+      stream,
+      (Number.isFinite(since) ? since : 0) + 1,
+      5_000,
+    );
     return c.json({
-      events: await state.events.replayPersistedSince(
-        Number.isFinite(since) ? since : 0,
-      ),
-      cursorSeq: state.events.latestSeq,
+      stream,
+      events: read.events,
+      cursorSeq: read.latestSeq,
+      earliestAvailableSeq: read.earliestAvailableSeq,
     });
   });
   app.get("/client-config", (c) =>

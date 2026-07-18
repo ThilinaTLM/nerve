@@ -63,7 +63,7 @@ import { WorkbenchRunCompletionService } from "../domains/runs/workbench-run-com
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../infrastructure/events/index.js";
 import type { IndexStore } from "../infrastructure/index-store/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage/index.js";
@@ -72,7 +72,7 @@ import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 
 export interface RuntimeDeps {
   storage: InitializedStorage;
-  events: EventBus;
+  events: StreamLogRegistry;
   index: IndexStore;
   auth: AuthManager;
   secrets: SecretProvider;

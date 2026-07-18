@@ -7,7 +7,7 @@ import {
   type WorkerRecord,
   workerRecordSchema,
 } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import {
   atomicWriteJson,
@@ -28,7 +28,7 @@ export class WorkerManager {
 
   constructor(
     private readonly storage: InitializedStorage,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
     private readonly index: IndexStore,
   ) {}
 

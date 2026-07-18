@@ -1,7 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  type SandboxAckState,
   type SandboxAgentState,
   type SandboxControllerConnectivityRecord,
   type SandboxCredentialStatusFile,
@@ -12,7 +11,6 @@ import {
   type SandboxSkillContextFile,
   type SandboxSkillLoadedFile,
   type SandboxStateLayoutVersion,
-  sandboxAckStateSchema,
   sandboxAgentStateSchema,
   sandboxControllerConnectivityRecordSchema,
   sandboxCredentialStatusFileSchema,
@@ -40,8 +38,7 @@ export type RecoveredSandboxState = {
   configDigest: string;
   priorConfigDigest?: string;
   configChanged: boolean;
-  ack: SandboxAckState;
-  unackedEvents: SandboxOutboxRecord[];
+  pendingEvents: SandboxOutboxRecord[];
   connectivity?: SandboxControllerConnectivityRecord;
   credentials?: SandboxCredentialStatusFile;
   secretStores?: SandboxSecretStoreStatusFile;
@@ -69,17 +66,7 @@ export async function recoverSandboxState(
     path.join(paths.eventsDir, "outbox.jsonl"),
     sandboxOutboxRecordSchema,
   );
-  const ack = (await readJsonOptional(
-    path.join(paths.eventsDir, "ack.json"),
-    sandboxAckStateSchema,
-  )) ?? { streams: [], updatedAt: new Date().toISOString() };
-  const processedSeq = Math.max(
-    0,
-    ...ack.streams.map((stream) => stream.processedSeq),
-  );
-  const unackedEvents = events.filter(
-    (event) => event.durability === "durable" && event.seq > processedSeq,
-  );
+  const pendingEvents = events;
   const [connectivity, credentials, secretStores, setup, context, loaded] =
     await Promise.all([
       readJsonOptional(
@@ -110,8 +97,7 @@ export async function recoverSandboxState(
     configDigest,
     priorConfigDigest: priorConfigDigest?.trim() || undefined,
     configChanged: (priorConfigDigest?.trim() || configDigest) !== configDigest,
-    ack,
-    unackedEvents,
+    pendingEvents,
     connectivity,
     credentials,
     secretStores,

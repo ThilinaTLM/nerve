@@ -1,4 +1,3 @@
-import type { EventDurability } from "../events/index.js";
 import type { ToolCallTranscriptRecord } from "../tools/index.js";
 import type {
   ConversationEventType,
@@ -16,7 +15,6 @@ export interface ConversationEventScope {
 
 export interface ConversationEventPayload<T extends Record<string, unknown>> {
   type: ConversationEventType;
-  durability: EventDurability;
   data: T;
 }
 
@@ -34,20 +32,8 @@ export function conversationScopeData(scope: ConversationEventScope) {
 export function conversationEvent<T extends Record<string, unknown>>(input: {
   type: ConversationEventType;
   data: T;
-  durability?: EventDurability;
 }): ConversationEventPayload<T> {
-  return {
-    type: input.type,
-    durability:
-      input.durability ?? defaultConversationEventDurability(input.type),
-    data: input.data,
-  };
-}
-
-export function defaultConversationEventDurability(
-  type: ConversationEventType,
-): EventDurability {
-  return type.startsWith("conversation.live.") ? "transient" : "durable";
+  return input;
 }
 
 export function conversationToolCallUpdatedData(input: {

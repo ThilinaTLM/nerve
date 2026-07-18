@@ -20,7 +20,7 @@ import { SandboxPendingInteractions } from "./pending-interactions.js";
 import { SandboxRunCancellation } from "./run-cancellation.js";
 import {
   SandboxRunEventPublisher,
-  SandboxRunTransientPublisher,
+  SandboxRunNotifyPublisher,
 } from "./run-event-publisher.js";
 import { SandboxRunExecutionFactory } from "./run-execution.js";
 import { SandboxRunIntegrity } from "./run-integrity.js";
@@ -61,7 +61,7 @@ export function createSandboxRunRuntime(
   const unitOfWork = new SandboxRunUnitOfWork(deps.stateDir);
   const integrity = new SandboxRunIntegrity();
   const publisher = new SandboxRunEventPublisher(deps.outbox);
-  const transient = new SandboxRunTransientPublisher(deps.outbox);
+  const notify = new SandboxRunNotifyPublisher(deps.outbox);
   const references = new SandboxRunReferences(unitOfWork, deps.harnessFactory);
   const live = new SandboxLiveHarnessRegistry();
   const channel = new SandboxInteractionChannel();
@@ -93,7 +93,7 @@ export function createSandboxRunRuntime(
     ids: { next: () => randomUUID() },
     integrity,
     publisher,
-    transient,
+    notify,
     retryPolicy: deps.retryPolicy,
     diagnostics: toDiagnostics(deps.logger),
   });
@@ -106,7 +106,9 @@ export function createSandboxRunRuntime(
         : undefined;
     },
   };
-  const query = new SandboxRunQueryAdapter(unitOfWork);
+  const query = new SandboxRunQueryAdapter(unitOfWork, (read) =>
+    coordinator.readSettled(read),
+  );
   return {
     coordinator,
     unitOfWork,

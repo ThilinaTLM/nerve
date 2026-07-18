@@ -79,6 +79,10 @@ export class SandboxHarnessEventProjector {
     }
     if (event.type === "message_end" && event.message.role === "assistant") {
       const text = messageText(event.message);
+      liveProjector.finishAssistantMessage(
+        event.message.stopReason === "error" ||
+          event.message.stopReason === "aborted",
+      );
       const materialized = liveProjector.materializeAssistantMessage();
       if (!text) return;
       await sink.appendEntries([
@@ -96,6 +100,14 @@ export class SandboxHarnessEventProjector {
           createdAt: new Date().toISOString(),
         },
       ]);
+      return;
+    }
+    if (event.type === "turn_end") {
+      liveProjector.finishTurn(
+        event.message.role === "assistant" &&
+          (event.message.stopReason === "error" ||
+            event.message.stopReason === "aborted"),
+      );
     }
   }
 }

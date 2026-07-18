@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -33,7 +33,7 @@ describe("sandbox agent image durable state foundations", () => {
     }
   });
 
-  it("persists RPC idempotency outcomes and event ack state", async () => {
+  it("persists RPC idempotency outcomes and a dense sequenced outbox", async () => {
     const dir = await mkdtemp(
       path.join(os.tmpdir(), "nerve-sandbox-agent-state-"),
     );
@@ -120,13 +120,17 @@ describe("sandbox agent image durable state foundations", () => {
 
       const outbox = new EventOutbox(
         path.join(dir, "outbox.jsonl"),
+        path.join(dir, "meta.json"),
         path.join(dir, "ack.json"),
       );
       await outbox.load();
-      const durableEvent = await outbox.append({
+      let notifyDeliveries = 0;
+      const unsubscribeNotify = outbox.subscribeNotify(() => {
+        notifyDeliveries += 1;
+      });
+      const sequencedEvent = await outbox.append({
         id: "evt_deterministic",
         type: "run.started",
-        durability: "durable",
         data: {
           conversationId: "conv_1",
           agentId: "agent_1",
@@ -137,7 +141,6 @@ describe("sandbox agent image durable state foundations", () => {
       });
       await outbox.append({
         type: "run.delta",
-        durability: "transient",
         data: {
           conversationId: "conv_1",
           agentId: "agent_1",
@@ -150,19 +153,18 @@ describe("sandbox agent image durable state foundations", () => {
       const duplicateEvent = await outbox.append({
         id: "evt_deterministic",
         type: "run.started",
-        durability: "durable",
-        data: durableEvent.data,
+        data: sequencedEvent.data,
       });
-      assert.equal(duplicateEvent.seq, durableEvent.seq);
-      assert.equal(outbox.all().length, 2);
-      let transientDeliveries = 0;
-      const unsubscribe = outbox.subscribe((record) => {
-        if (record.durability === "transient") transientDeliveries += 1;
-      });
+      assert.equal("seq" in duplicateEvent, true);
+      assert.equal(
+        "seq" in duplicateEvent ? duplicateEvent.seq : undefined,
+        "seq" in sequencedEvent ? sequencedEvent.seq : undefined,
+      );
+      assert.equal(outbox.all().length, 1);
+      assert.equal(outbox.latestSeq(), 1);
       for (let index = 0; index < 1_000; index += 1) {
         await outbox.append({
           type: "run.delta",
-          durability: "transient",
           data: {
             conversationId: "conv_1",
             agentId: "agent_1",
@@ -173,22 +175,69 @@ describe("sandbox agent image durable state foundations", () => {
           },
         });
       }
-      unsubscribe();
-      assert.equal(transientDeliveries, 1_000);
-      assert.equal(outbox.all().length, 257);
-      assert.equal(outbox.unacked(0).length, 1);
-      assert.equal(outbox.unacked(0).length, 1);
-      const ack = await outbox.ack("sandbox", 1);
-      assert.equal(ack.streams[0]?.processedSeq, 1);
-      const staleAck = await outbox.ack("sandbox", 0);
-      assert.equal(staleAck.streams[0]?.processedSeq, 1);
+      unsubscribeNotify();
+      assert.equal(notifyDeliveries, 1_001);
+      assert.equal(outbox.all().length, 1);
+      await outbox.truncateThrough(1);
+      assert.equal(outbox.all().length, 0);
+
       const reloadedOutbox = new EventOutbox(
         path.join(dir, "outbox.jsonl"),
+        path.join(dir, "meta.json"),
         path.join(dir, "ack.json"),
       );
       await reloadedOutbox.load();
-      assert.equal(reloadedOutbox.all().length, 1);
-      assert.equal(reloadedOutbox.unacked(0).length, 1);
+      assert.equal(reloadedOutbox.all().length, 0);
+      assert.equal(reloadedOutbox.latestSeq(), 1);
+      const next = await reloadedOutbox.append({
+        id: "evt_deterministic_2",
+        type: "run.started",
+        data: {
+          conversationId: "conv_1",
+          agentId: "agent_1",
+          projectId: "proj_1",
+          runId: "run_2",
+          startedAt: new Date().toISOString(),
+        },
+      });
+      assert.equal("seq" in next ? next.seq : undefined, 2);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("archives the pre-dense outbox epoch and resets sequence allocation", async () => {
+    const dir = await mkdtemp(
+      path.join(os.tmpdir(), "nerve-sandbox-agent-migration-"),
+    );
+    try {
+      const outboxPath = path.join(dir, "events", "outbox.jsonl");
+      const metaPath = path.join(dir, "events", "meta.json");
+      const ackPath = path.join(dir, "events", "ack.json");
+      await mkdir(path.dirname(outboxPath), { recursive: true });
+      await writeFile(
+        outboxPath,
+        `${JSON.stringify({
+          id: "evt_old",
+          seq: 41,
+          type: "run.started",
+          ts: "2026-01-01T00:00:00.000Z",
+          durability: "durable",
+          data: {},
+        })}\n`,
+      );
+      await writeFile(ackPath, `${JSON.stringify({ processedSeq: 40 })}\n`);
+
+      const outbox = new EventOutbox(outboxPath, metaPath, ackPath);
+      await outbox.load();
+      assert.equal(outbox.latestSeq(), 0);
+      assert.deepEqual(outbox.all(), []);
+      const epochs = await readdir(path.join(dir, "events", "archive"));
+      assert.equal(epochs.length, 1);
+      assert.deepEqual(
+        (await readdir(path.join(dir, "events", "archive", epochs[0]!))).sort(),
+        ["ack.json", "outbox.jsonl"],
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -222,7 +271,7 @@ describe("sandbox agent image durable state foundations", () => {
       );
       const recovered = await recoverSandboxState(digest, paths);
       assert.equal(recovered.configDigest, digest);
-      assert.equal(recovered.ack.streams.length, 0);
+      assert.equal(recovered.pendingEvents.length, 0);
       for (const directory of [
         paths.pnpmHomeDir,
         paths.npmCacheDir,

@@ -108,7 +108,6 @@ export class ManagerState {
         .publish({
           type: "sandbox.activity.changed",
           sandboxId: summary.sandboxId,
-          durability: "transient",
           payload: summary,
           ts: summary.updatedAt,
         })

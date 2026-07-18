@@ -32,7 +32,7 @@ export interface DomainEventIntent<
 > {
   readonly type: TName;
   readonly data: TData;
-  readonly durability: "durable" | "transient";
+  readonly delivery: "sequenced" | "ephemeral";
   readonly occurredAt: string;
 }
 

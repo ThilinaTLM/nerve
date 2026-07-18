@@ -11,7 +11,7 @@ import type {
 import { toPlanReviewPreview, validatePublicEvent } from "@nervekit/contracts";
 
 /**
- * Bounded, non-authoritative transient progress/delta emitted by a live
+ * Bounded, non-authoritative notify progress/delta emitted by a live
  * execution. It never mutates durable run state and is delivered on a
  * best-effort basis distinct from durable event intents.
  */
@@ -22,10 +22,10 @@ export interface RunProgressEvent {
 }
 
 /**
- * Non-authoritative transient progress/delta port. Host adapters use this to
+ * Non-authoritative ephemeral progress/delta port. Host adapters use this to
  * surface UI-only streaming without touching durable run state.
  */
-export interface RunTransientEventPort {
+export interface RunNotifyEventPort {
   publish(event: RunProgressEvent): void;
 }
 
@@ -51,7 +51,7 @@ export class RunEventFactory {
     return {
       id: `evt_${run.runId.slice(4)}_${run.revision}_${type.replaceAll(".", "_")}${suffix}`,
       type,
-      durability: "durable",
+      delivery: "sequenced",
       occurredAt,
       data,
     };

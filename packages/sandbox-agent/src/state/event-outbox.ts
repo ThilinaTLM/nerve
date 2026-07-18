@@ -1,123 +1,198 @@
+import { access, mkdir, rename } from "node:fs/promises";
+import path from "node:path";
 import {
-  type SandboxAckState,
+  type NotifyEvent,
   type SandboxOutboxRecord,
   publicEventDefinition,
-  sandboxAckStateSchema,
   sandboxOutboxRecordSchema,
   validatePublicEvent,
 } from "@nervekit/contracts";
 import { JsonStore } from "./json-store.js";
 import { JsonlStore } from "./jsonl-store.js";
 
+export interface OutboxEventInput {
+  readonly type: string;
+  readonly data: unknown;
+  readonly id?: string;
+  readonly ts?: string;
+  readonly conversationId?: string;
+  readonly agentId?: string;
+  readonly runId?: string;
+}
+
+export type SandboxPublishedEvent = SandboxOutboxRecord | NotifyEvent;
+
 export class EventOutbox {
-  private readonly outbox: JsonlStore<SandboxOutboxRecord>;
-  private readonly ackStore: JsonStore<SandboxAckState>;
-  private records: SandboxOutboxRecord[] = [];
-  private transientRecords: SandboxOutboxRecord[] = [];
-  private nextSeq = 1;
-  private listeners = new Set<(record: SandboxOutboxRecord) => void>();
-  private appendTail: Promise<unknown> = Promise.resolve();
-  constructor(outboxPath: string, ackPath: string) {
-    this.outbox = new JsonlStore(outboxPath, sandboxOutboxRecordSchema);
-    this.ackStore = new JsonStore(ackPath, sandboxAckStateSchema);
+  readonly #outbox: JsonlStore<SandboxOutboxRecord>;
+  readonly #meta: JsonStore<{ lastSeq: number }>;
+  readonly #records: SandboxOutboxRecord[] = [];
+  readonly #notifyById = new Map<string, NotifyEvent>();
+  readonly #listeners = new Set<(record: SandboxOutboxRecord) => void>();
+  readonly #notifyListeners = new Set<(event: NotifyEvent) => void>();
+  #nextSeq = 1;
+  #appendTail: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private readonly outboxPath: string,
+    private readonly metaPath: string,
+    private readonly legacyAckPath?: string,
+  ) {
+    this.#outbox = new JsonlStore(outboxPath, sandboxOutboxRecordSchema);
+    this.#meta = new JsonStore(metaPath);
   }
+
   async load(): Promise<void> {
-    this.records = await this.outbox.readAll();
-    this.transientRecords = [];
-    this.nextSeq = Math.max(0, ...this.records.map((record) => record.seq)) + 1;
+    await this.#archiveLegacyEpoch();
+    this.#records.splice(
+      0,
+      this.#records.length,
+      ...(await this.#outbox.readAll()),
+    );
+    const meta = await this.#meta.read({ lastSeq: 0 });
+    const lastSeq = Math.max(meta.lastSeq, this.#records.at(-1)?.seq ?? 0);
+    this.#nextSeq = lastSeq + 1;
+    if (meta.lastSeq !== lastSeq) await this.#meta.write({ lastSeq });
   }
-  append(
-    input: Omit<SandboxOutboxRecord, "seq" | "id" | "ts"> & {
-      id?: string;
-      ts?: string;
-    },
-  ): Promise<SandboxOutboxRecord> {
-    const next = this.appendTail
+
+  append(input: OutboxEventInput): Promise<SandboxPublishedEvent> {
+    const next = this.#appendTail
       .catch(() => undefined)
-      .then(() => this.appendSerialized(input));
-    this.appendTail = next.catch(() => undefined);
+      .then(() => this.#appendSerialized(input));
+    this.#appendTail = next.catch(() => undefined);
     return next;
   }
 
-  private async appendSerialized(
-    input: Omit<SandboxOutboxRecord, "seq" | "id" | "ts"> & {
-      id?: string;
-      ts?: string;
-    },
-  ): Promise<SandboxOutboxRecord> {
-    const definition = publicEventDefinition(input.type);
-    if (!definition) throw new Error(`Unknown public event: ${input.type}`);
-    if (input.durability !== definition.durability) {
-      throw new Error(`Event ${input.type} must use ${definition.durability}`);
-    }
-    const data = validatePublicEvent(input.type, input.data, "sandbox_agent");
-    if (input.id) {
-      const existing = [...this.records, ...this.transientRecords].find(
-        (record) => record.id === input.id,
-      );
-      if (existing) {
-        if (
-          existing.type !== input.type ||
-          existing.durability !== input.durability ||
-          JSON.stringify(existing.data) !== JSON.stringify(data)
-        ) {
-          throw new Error(`Conflicting event intent id: ${input.id}`);
-        }
-        return existing;
-      }
-    }
-    const record: SandboxOutboxRecord = {
-      ...input,
-      data,
-      seq: this.nextSeq++,
-      id: input.id ?? `evt_${Date.now()}_${this.nextSeq}`,
-      ts: input.ts ?? new Date().toISOString(),
-    };
-    if (record.durability === "durable") {
-      await this.outbox.append(record);
-      this.records.push(record);
-    } else {
-      if (this.transientRecords.length >= 256) this.transientRecords.shift();
-      this.transientRecords.push(record);
-    }
-    for (const listener of this.listeners) listener(record);
-    return record;
-  }
   subscribe(listener: (record: SandboxOutboxRecord) => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
   }
-  async ack(stream: string, processedSeq: number): Promise<SandboxAckState> {
-    const current = await this.ackStore.read({
-      streams: [],
-      updatedAt: new Date().toISOString(),
-    });
-    const previous = current.streams.find((entry) => entry.stream === stream);
-    const nextProcessedSeq = Math.max(
-      previous?.processedSeq ?? 0,
-      processedSeq,
-    );
-    const streams = current.streams.filter((entry) => entry.stream !== stream);
-    streams.push({ stream, processedSeq: nextProcessedSeq });
-    streams.sort((left, right) => left.stream.localeCompare(right.stream));
-    const next = { streams, updatedAt: new Date().toISOString() };
-    await this.ackStore.write(next);
+
+  subscribeNotify(listener: (event: NotifyEvent) => void): () => void {
+    this.#notifyListeners.add(listener);
+    return () => this.#notifyListeners.delete(listener);
+  }
+
+  since(processedSeq = 0): SandboxOutboxRecord[] {
+    return this.#records.filter((record) => record.seq > processedSeq);
+  }
+
+  all(): SandboxOutboxRecord[] {
+    return [...this.#records];
+  }
+
+  async drain(): Promise<void> {
+    await this.#appendTail;
+  }
+
+  latestSeq(): number {
+    return this.#nextSeq - 1;
+  }
+
+  truncateThrough(processedSeq: number): Promise<void> {
+    const next = this.#appendTail
+      .catch(() => undefined)
+      .then(async () => {
+        const retained = this.#records.filter(
+          (record) => record.seq > processedSeq,
+        );
+        if (retained.length === this.#records.length) return;
+        await this.#outbox.replace(retained);
+        this.#records.splice(0, this.#records.length, ...retained);
+      });
+    this.#appendTail = next.catch(() => undefined);
     return next;
   }
-  async ackState(): Promise<SandboxAckState> {
-    return this.ackStore.read({
-      streams: [],
-      updatedAt: new Date().toISOString(),
+
+  async #appendSerialized(
+    input: OutboxEventInput,
+  ): Promise<SandboxPublishedEvent> {
+    const definition = publicEventDefinition(input.type);
+    if (!definition) throw new Error(`Unknown public event: ${input.type}`);
+    const data = validatePublicEvent(input.type, input.data, "sandbox_agent");
+    const id = input.id ?? `evt_${Date.now()}_${crypto.randomUUID()}`;
+    const existing =
+      this.#records.find((record) => record.id === id) ??
+      this.#notifyById.get(id);
+    if (existing) {
+      if (
+        existing.type !== input.type ||
+        JSON.stringify(existing.data) !== JSON.stringify(data)
+      ) {
+        throw new Error(`Conflicting event intent id: ${id}`);
+      }
+      return existing;
+    }
+
+    const ts = input.ts ?? new Date().toISOString();
+    if (definition.delivery === "ephemeral") {
+      const event: NotifyEvent = { id, ts, type: input.type, data };
+      this.#notifyById.set(id, event);
+      if (this.#notifyById.size > 256) {
+        const oldest = this.#notifyById.keys().next().value as
+          | string
+          | undefined;
+        if (oldest) this.#notifyById.delete(oldest);
+      }
+      for (const listener of this.#notifyListeners) listener(event);
+      return event;
+    }
+
+    const record = sandboxOutboxRecordSchema.parse({
+      seq: this.#nextSeq,
+      id,
+      ts,
+      type: input.type,
+      delivery: "sequenced",
+      data,
+      conversationId: input.conversationId,
+      agentId: input.agentId,
+      runId: input.runId,
     });
+    this.#nextSeq += 1;
+    await this.#outbox.append(record);
+    await this.#meta.write({ lastSeq: record.seq });
+    this.#records.push(record);
+    for (const listener of this.#listeners) listener(record);
+    return record;
   }
-  unacked(processedSeq = 0): SandboxOutboxRecord[] {
-    return this.records.filter(
-      (record) => record.durability === "durable" && record.seq > processedSeq,
+
+  async #archiveLegacyEpoch(): Promise<void> {
+    if (await exists(this.metaPath)) return;
+    const hasOutbox = await exists(this.outboxPath);
+    const hasLegacyAck = Boolean(
+      this.legacyAckPath && (await exists(this.legacyAckPath)),
     );
+    if (!hasOutbox && !hasLegacyAck) {
+      await this.#meta.write({ lastSeq: 0 });
+      return;
+    }
+    const archiveDir = path.join(
+      path.dirname(this.outboxPath),
+      "archive",
+      `pre-dense-${new Date().toISOString().replaceAll(/[:.]/g, "-")}`,
+    );
+    await mkdir(archiveDir, { recursive: true });
+    if (hasOutbox) {
+      await rename(
+        this.outboxPath,
+        path.join(archiveDir, path.basename(this.outboxPath)),
+      );
+    }
+    if (this.legacyAckPath && hasLegacyAck) {
+      await rename(
+        this.legacyAckPath,
+        path.join(archiveDir, path.basename(this.legacyAckPath)),
+      );
+    }
+    await this.#meta.write({ lastSeq: 0 });
   }
-  all(): SandboxOutboxRecord[] {
-    return [...this.records, ...this.transientRecords].sort(
-      (left, right) => left.seq - right.seq,
-    );
+}
+
+async function exists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
   }
 }

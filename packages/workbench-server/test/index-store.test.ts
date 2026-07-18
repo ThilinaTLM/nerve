@@ -8,7 +8,6 @@ import type {
   AgentRecord,
   ApprovalRecord,
   ConversationRecord,
-  EventEnvelope,
   ProjectRecord,
   TaskRecord,
   ToolCallRecord,
@@ -33,7 +32,7 @@ async function tempDbPath(): Promise<string> {
 }
 
 describe("IndexStore", () => {
-  it("bulk rebuilds records and event references", async () => {
+  it("bulk rebuilds repository-derived records", async () => {
     const path = await tempDbPath();
     const store = new IndexStore(path);
     store.initialize();
@@ -138,22 +137,6 @@ describe("IndexStore", () => {
       requestedAt: now,
       updatedAt: now,
     };
-    const event: EventEnvelope = {
-      seq: 1,
-      id: "evt_indexstore",
-      ts: now,
-      type: "conversation.entry.appended",
-      durability: "durable",
-      data: {
-        projectId: project.id,
-        entry: {
-          conversationId: conversation.id,
-          agentId: agent.id,
-          runId: "run_indexstore",
-        },
-      },
-    };
-
     store.rebuild({
       projects: [project],
       conversations: [conversation],
@@ -164,14 +147,10 @@ describe("IndexStore", () => {
       approvals: [approval],
       userQuestions: [question],
     });
-    // Events are indexed incrementally, not as part of rebuild().
-    store.insertEvent(event);
-
     assert.deepEqual(store.counts(), {
       projects: 1,
       conversations: 1,
       agents: 1,
-      events: 1,
       tasks: 1,
       workers: 1,
       userQuestions: 1,
@@ -180,20 +159,6 @@ describe("IndexStore", () => {
 
     const db = new DatabaseSync(path);
     try {
-      const eventRow = db
-        .prepare(
-          "SELECT project_id, conversation_id, agent_id, run_id FROM events_index WHERE seq = ?",
-        )
-        .get(event.seq) as {
-        project_id: string;
-        conversation_id: string;
-        agent_id: string;
-        run_id: string;
-      };
-      assert.equal(eventRow.project_id, project.id);
-      assert.equal(eventRow.conversation_id, conversation.id);
-      assert.equal(eventRow.agent_id, agent.id);
-      assert.equal(eventRow.run_id, "run_indexstore");
       const staleProject = db
         .prepare("SELECT id FROM projects WHERE id = ?")
         .get("proj_stale");

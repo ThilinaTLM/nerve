@@ -6,7 +6,7 @@ import type {
   ProjectRecord,
 } from "@nervekit/contracts";
 import { HttpError } from "../../../http/errors.js";
-import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
 import type { AppendConversationEntry } from "./compaction-service.js";
 import { buildExtractiveSummary } from "./summary.js";
@@ -24,7 +24,7 @@ export class NavigationService {
     private readonly appendEntry: AppendConversationEntry,
     private readonly harnessStorage: ConversationHarnessStorage,
     private readonly rebuildConversations: () => Promise<void>,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
   ) {}
 
   async navigateConversation(

@@ -1,15 +1,24 @@
 import { z } from "zod";
 
-export type EventDurability = "durable" | "transient";
+export const eventEnvelopeSchema = z
+  .object({
+    seq: z.number().int().positive().safe(),
+    id: z.string().startsWith("evt_"),
+    ts: z.string().datetime(),
+    type: z.string().min(1),
+    data: z.unknown(),
+  })
+  .strict();
 
-export const eventEnvelopeSchema = z.object({
-  seq: z.number().int().positive().safe(),
-  id: z.string().startsWith("evt_"),
-  ts: z.string().datetime(),
-  type: z.string().min(1),
-  durability: z.enum(["durable", "transient"]).default("durable"),
-  data: z.unknown(),
-});
+export const notifyEventSchema = eventEnvelopeSchema
+  .omit({ seq: true })
+  .strict();
+export type NotifyEvent<T = unknown> = Omit<
+  z.infer<typeof notifyEventSchema>,
+  "data"
+> & {
+  data: T;
+};
 export type EventEnvelope<T = unknown> = Omit<
   z.infer<typeof eventEnvelopeSchema>,
   "data"

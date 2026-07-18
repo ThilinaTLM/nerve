@@ -110,7 +110,7 @@ export function normalizedToolProjection(state: RunHydratedState) {
 export function normalizedEventProjection(events: RealHostEventObservation[]) {
   return events.map((event) => ({
     type: event.type,
-    durability: event.durability,
+    delivery: event.delivery,
     sequence: event.sequence,
   }));
 }

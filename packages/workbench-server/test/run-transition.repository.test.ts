@@ -69,7 +69,7 @@ function transitions() {
         {
           id: "intent_cache_test",
           type: "run.started",
-          durability: "durable",
+          delivery: "sequenced",
           occurredAt: startedAt,
           data: {},
         },

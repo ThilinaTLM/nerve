@@ -24,7 +24,7 @@ import {
   type ToolName,
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage/index.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import type { AuthManager } from "../../auth/index.js";
@@ -49,7 +49,7 @@ import type { WorkbenchLiveExecutionControl } from "../../runs/run-live-executio
 
 export interface WorkbenchAgentMechanicsDeps {
   storage: InitializedStorage;
-  events: EventBus;
+  events: StreamLogRegistry;
   auth: AuthManager;
   tools: ToolService;
   tasks: WorkbenchTaskService;

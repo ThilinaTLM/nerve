@@ -23,6 +23,7 @@ import { eventEnvelopeSchema } from "./envelope.schema.js";
 
 export type {
   EventCoalescing,
+  EventDelivery,
   PublicEventDefinition,
 } from "./event-definition.schema.js";
 
@@ -90,10 +91,8 @@ export function parsePublicEventEnvelope(
       `Event ${envelope.type} cannot be emitted by ${sourceRole}`,
     );
   }
-  if (envelope.durability !== item.durability) {
-    throw new Error(
-      `Event ${envelope.type} must use ${item.durability} durability`,
-    );
+  if (item.delivery !== "sequenced") {
+    throw new Error(`Ephemeral event ${envelope.type} cannot use event.batch`);
   }
   return {
     ...envelope,

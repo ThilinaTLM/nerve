@@ -29,7 +29,6 @@ class TestEvents {
       id: `evt_test_${this.seq}`,
       ts: new Date().toISOString(),
       type,
-      durability: "durable",
       data,
     };
     for (const listener of this.listeners) listener(event as EventEnvelope);

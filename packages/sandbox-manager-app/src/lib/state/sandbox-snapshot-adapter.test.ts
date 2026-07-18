@@ -60,7 +60,6 @@ describe("sandbox snapshot adapter", () => {
       seq: 30,
       ts: "2026-06-26T12:00:20.000Z",
       type: "run.delta",
-      durability: "transient",
       data: {
         instanceId: "inst_active",
         conversationId: "conv_active",

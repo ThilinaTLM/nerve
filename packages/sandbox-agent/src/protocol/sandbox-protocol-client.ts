@@ -1,6 +1,7 @@
 import {
   allOperationDefinitions,
   createLogger,
+  STREAM_SUBSCRIPTION_CAPABILITY,
   operationNameSchema,
   type NerveMessage,
   type OperationName,
@@ -37,9 +38,8 @@ export type SandboxProtocolClientState =
 const REQUIRED_CAPABILITIES = [
   "encoding.json",
   "event.batch",
-  "event.replay",
-  "event.ack.processed",
-  "flow.backpressure",
+  "event.notify",
+  STREAM_SUBSCRIPTION_CAPABILITY,
   "sandbox.runtime.v1",
   "sandbox.events.v1",
   "sandbox.snapshots.v1",
@@ -85,7 +85,6 @@ export class SandboxProtocolClient {
   private outageGeneration = 0;
   private outageActive = false;
   private exitTimer?: NodeJS.Timeout;
-  private resumeCursors: Array<{ stream: string; processedSeq: number }> = [];
   private acceptedCapabilities: string[] = [];
   private readonly logger: StructuredLogger;
   private readonly eventRelay: SandboxEventRelay;
@@ -129,7 +128,6 @@ export class SandboxProtocolClient {
   }
 
   async start(): Promise<void> {
-    this.resumeCursors = [...(await this.stores.events.ackState()).streams];
     this.eventRelay.start();
     const token = await new SecretResolver(
       this.config,
@@ -168,12 +166,10 @@ export class SandboxProtocolClient {
           failure: safeError(error),
         }),
       createSession: ({ send, onDisconnect }) => {
-        let relayGeneration = 0;
         const session = new ProtocolClientSession({
           createMessage: messages,
           capabilities: sandboxDaemonCapabilities(this.config),
           requiredCapabilities: REQUIRED_CAPABILITIES,
-          cursors: () => this.resumeCursors,
           send,
           onDisconnect,
           rpcDispatcher: this.rpcDispatcher,
@@ -186,35 +182,32 @@ export class SandboxProtocolClient {
             this.welcomed = true;
           },
           readyStatus: () => this.readyStatus ?? "booting",
-          onReady: async (welcome) => {
+          onReady: (welcome) => {
             this.activeSession = session;
-            relayGeneration = await this.eventRelay.attach(
-              session,
-              welcome.limits,
-            );
-            this.connectedAt = new Date().toISOString();
-            this.state = "connected";
-            this.reconnectAttempts = 0;
-            this.outageActive = false;
-            ++this.outageGeneration;
-            if (this.exitTimer) clearTimeout(this.exitTimer);
-            this.exitTimer = undefined;
-            await this.persistConnectivity("connected");
+            // Subscription responses are received on the same serialized
+            // connection loop, so activation must continue after this welcome
+            // handler returns.
+            void Promise.resolve()
+              .then(async () => {
+                await this.eventRelay.attach(session, welcome.limits);
+                this.connectedAt = new Date().toISOString();
+                this.state = "connected";
+                this.reconnectAttempts = 0;
+                this.outageActive = false;
+                ++this.outageGeneration;
+                if (this.exitTimer) clearTimeout(this.exitTimer);
+                this.exitTimer = undefined;
+                await this.persistConnectivity("connected");
+              })
+              .catch((error: unknown) => {
+                this.logger.warn("sandbox event relay activation failed", {
+                  failure: safeError(error),
+                });
+                session.disconnect(
+                  error instanceof Error ? error : new Error(String(error)),
+                );
+              });
           },
-          onAck: async (message) => {
-            const expected = `sandbox:${this.identity.sandboxId}`;
-            const cursor = message.data.streams.find(
-              (item) => item.stream === expected,
-            );
-            if (cursor) {
-              const processedSeq = await this.eventRelay.acknowledge(
-                message,
-                relayGeneration,
-              );
-              this.resumeCursors = [{ stream: expected, processedSeq }];
-            }
-          },
-          onFlowUpdate: (message) => this.eventRelay.handleFlow(message),
         });
         this.activeSession = session;
         return session;

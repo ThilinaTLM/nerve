@@ -1,24 +1,17 @@
-import type {
-  ConversationSnapshot,
-  ConversationSnapshotResponse,
-  WorkspaceSnapshotResponse,
+import {
+  conversationStream,
+  type ConversationSnapshot,
+  type ConversationSnapshotResponse,
+  type WorkspaceSnapshotResponse,
+  WORKSPACE_STREAM,
 } from "@nervekit/contracts";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { planReviewPreview } from "../domains/plans/plan-service.js";
-import { GLOBAL_STREAM } from "./constants.js";
 
-export function protocolSnapshotCursor(state: OrchestratorState) {
-  return {
-    streams: [
-      { stream: GLOBAL_STREAM, processedSeq: state.events.latestDurableSeq },
-    ],
-  };
-}
-
-export function getWorkspaceSnapshotResponse(
+export async function getWorkspaceSnapshotResponse(
   state: OrchestratorState,
-): WorkspaceSnapshotResponse {
-  const snapshot = {
+): Promise<WorkspaceSnapshotResponse> {
+  const captured = await state.events.withCursor(WORKSPACE_STREAM, () => ({
     projects: state.registry.listProjects(),
     conversations: state.registry
       .listConversations()
@@ -31,10 +24,10 @@ export function getWorkspaceSnapshotResponse(
       .listPlanReviews("pending")
       .map(planReviewPreview),
     workers: state.registry.listWorkers(),
-  };
+  }));
   return {
-    snapshot,
-    cursor: protocolSnapshotCursor(state),
+    snapshot: captured.value,
+    cursor: { streams: [captured.cursor] },
     generatedAt: new Date().toISOString(),
   };
 }
@@ -43,10 +36,13 @@ export async function getConversationSnapshotResponse(
   state: OrchestratorState,
   conversationId: string,
 ): Promise<ConversationSnapshotResponse<ConversationSnapshot>> {
-  const snapshot = await state.registry.getConversationSnapshot(conversationId);
+  const stream = conversationStream(conversationId);
+  const captured = await state.events.withCursor(stream, () =>
+    state.registry.getConversationSnapshot(conversationId),
+  );
   return {
-    snapshot,
-    cursor: protocolSnapshotCursor(state),
+    snapshot: { ...captured.value, cursorSeq: captured.cursor.processedSeq },
+    cursor: { streams: [captured.cursor] },
     generatedAt: new Date().toISOString(),
   };
 }

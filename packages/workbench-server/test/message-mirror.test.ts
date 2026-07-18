@@ -6,7 +6,7 @@ import {
   validatePublicEvent,
 } from "@nervekit/contracts";
 import type { JsonlConversationStorage } from "@nervekit/host-runtime/harness";
-import type { EventBus } from "../src/infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import type { RuntimeState } from "../src/runtime/runtime-state.js";
 import {
   type AppendEntryInput,
@@ -98,7 +98,7 @@ function createMirror(storageEntries: unknown[]) {
       } as ConversationEntry;
     },
     updateConversation: async () => {},
-    events: { publish: async () => {} } as unknown as EventBus,
+    events: { publish: async () => {} } as unknown as StreamLogRegistry,
   });
   const storage = {
     getEntries: async () => storageEntries,

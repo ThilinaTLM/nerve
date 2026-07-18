@@ -10,7 +10,7 @@ import {
   applyRunTransition,
   createRunRuntime,
   reduceRunTransitions,
-  type BufferedRunTransientEventPort,
+  type BufferedRunNotifyEventPort,
   type RunExecution,
   type RunExecutionOutcome,
   type RunExecutionSink,
@@ -114,7 +114,7 @@ function fixture(
   const ordering: string[] = [];
   const published = new Map<string, { eventId: string; sequence: number }>();
   const observed: RunTransitionRecord[] = [];
-  const transientEvents: RunProgressEvent[] = [];
+  const notifyEvents: RunProgressEvent[] = [];
   let attempts = 0;
   let id = 0;
   let finishExecution!: (value: RunExecutionOutcome) => void;
@@ -122,12 +122,12 @@ function fixture(
     finishExecution = resolve;
   });
 
-  const transient: BufferedRunTransientEventPort = {
+  const notify: BufferedRunNotifyEventPort = {
     publish: (event) => {
-      transientEvents.push(event);
+      notifyEvents.push(event);
     },
     flush: async () => {
-      ordering.push("transient-flush");
+      ordering.push("notify-flush");
     },
   };
 
@@ -145,7 +145,7 @@ function fixture(
         return value;
       },
     },
-    transient,
+    notify,
     execution: {
       create: async (_run, sink) => {
         attempts += 1;
@@ -202,7 +202,7 @@ function fixture(
     ordering,
     published,
     observed,
-    transientEvents,
+    notifyEvents,
     finishExecution,
   };
 }
@@ -217,16 +217,16 @@ function start(harness: ReturnType<typeof fixture>) {
   });
 }
 
-test("delivers durable intents before flushing the transient tail", async () => {
+test("delivers sequenced intents before flushing the notify tail", async () => {
   const harness = fixture();
   await start(harness);
-  const flushIndex = harness.ordering.indexOf("transient-flush");
-  const durableIndex = harness.ordering.indexOf("durable:run.started");
-  assert.ok(durableIndex >= 0, "run.started must be delivered durably");
-  assert.ok(flushIndex >= 0, "transient tail must be flushed");
+  const flushIndex = harness.ordering.indexOf("notify-flush");
+  const sequencedIndex = harness.ordering.indexOf("durable:run.started");
+  assert.ok(sequencedIndex >= 0, "run.started must be delivered in sequence");
+  assert.ok(flushIndex >= 0, "notify tail must be flushed");
   assert.ok(
-    durableIndex < flushIndex,
-    "durable intents must land before the transient flush",
+    sequencedIndex < flushIndex,
+    "sequenced intents must land before the notify flush",
   );
 });
 

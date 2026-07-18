@@ -1,5 +1,7 @@
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
 import { protocolRequest } from "@nervekit/protocol";
+import { conversationStream } from "@nervekit/contracts";
+import { removeEventStream } from "$lib/core/events/stream-cursors.svelte";
 import {
   conversationViewKey,
   pendingConversationKey,
@@ -79,6 +81,7 @@ export async function closeConversationTab(conversationId: string) {
   delete conversationState.conversationViews[
     conversationViewKey(conversationId)
   ];
+  removeEventStream(conversationStream(conversationId));
 
   const closingActiveCenter =
     workspaceState.activeCenterTab?.kind === "conversation" &&
@@ -136,10 +139,12 @@ export async function removeConversationTabs(conversationIds: string[]) {
       (tab) => tab.kind !== "conversation" || !removing.has(tab.id),
     ),
   );
-  for (const conversationId of removing)
+  for (const conversationId of removing) {
     delete conversationState.conversationViews[
       conversationViewKey(conversationId)
     ];
+    removeEventStream(conversationStream(conversationId));
+  }
 
   if (!activeRemoved) {
     persistConversationTabs();

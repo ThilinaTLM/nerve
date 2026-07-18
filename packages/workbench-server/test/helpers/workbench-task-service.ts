@@ -21,7 +21,7 @@ import type {
   TaskSupervisor,
   TerminateTaskResult,
 } from "../../src/domains/tasks/task-supervisor.js";
-import { EventBus } from "../../src/infrastructure/events/index.js";
+import { StreamLogRegistry } from "../../src/infrastructure/events/index.js";
 import { IndexStore } from "../../src/infrastructure/index-store/index.js";
 import {
   atomicWriteJson,
@@ -87,7 +87,7 @@ export async function createManager(
 ): Promise<{
   manager: WorkbenchTaskService;
   storage: InitializedStorage;
-  events: EventBus;
+  events: StreamLogRegistry;
   index: IndexStore;
   launchConfigs: MemoryTaskLaunchConfigStore;
 }> {
@@ -95,7 +95,7 @@ export async function createManager(
   const index = new IndexStore(storage.paths.sqlitePath);
   index.initialize();
   indexes.push(index);
-  const events = new EventBus(storage.paths.home, index);
+  const events = new StreamLogRegistry(storage.paths.home);
   return {
     manager: new WorkbenchTaskService(storage, events, index, undefined, {
       supervisor,
@@ -229,7 +229,7 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
 }
 
 export function waitForTaskEvent(
-  events: EventBus,
+  events: StreamLogRegistry,
   type: string,
   taskId?: string,
 ): Promise<TaskRecord> {

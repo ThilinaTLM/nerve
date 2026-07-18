@@ -19,7 +19,7 @@ import {
 } from "../domains/storage/index.js";
 import { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
-import { EventBus } from "../infrastructure/events/index.js";
+import { StreamLogRegistry } from "../infrastructure/events/index.js";
 import { IndexStore } from "../infrastructure/index-store/index.js";
 import {
   EncryptedFileSecretProvider,
@@ -36,7 +36,7 @@ export interface OrchestratorState {
   port: number;
   mobileHttps?: MobileHttpsInfo & { caCertPem: string; hosts: string[] };
   storage: InitializedStorage;
-  events: EventBus;
+  events: StreamLogRegistry;
   logger: ApplicationLogger;
   registry: RuntimeRegistry;
   index: IndexStore;
@@ -57,7 +57,7 @@ export function createOrchestratorState(
 ): OrchestratorState {
   const index = new IndexStore(storage.paths.sqlitePath);
   index.initialize();
-  const events = new EventBus(storage.paths.home, index);
+  const events = new StreamLogRegistry(storage.paths.home);
   const logger = new ApplicationLogger({
     dataDir: storage.paths.home,
     source: "orchestrator",
@@ -138,6 +138,7 @@ export async function shutdownOrchestratorState(
   await state.registry.shutdown();
   state.subscriptionUsage.stop();
   await state.storageCleanup.shutdown().catch(() => undefined);
+  await state.events.shutdown();
   await state.logger.flush();
   state.index.close();
 }

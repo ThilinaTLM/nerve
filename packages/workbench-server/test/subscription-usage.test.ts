@@ -12,7 +12,7 @@ import {
   parseCodexUsageResponse,
 } from "../src/domains/usage/codex-client.js";
 import { SubscriptionUsageService } from "../src/domains/usage/subscription-usage-service.js";
-import type { EventBus } from "../src/infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 
 function testUsage(
   provider: SubscriptionUsage["provider"],
@@ -55,7 +55,7 @@ function fakeEvents() {
       async publish(type: string, data: unknown) {
         published.push({ type, data });
       },
-    } as unknown as EventBus,
+    } as unknown as StreamLogRegistry,
   };
 }
 

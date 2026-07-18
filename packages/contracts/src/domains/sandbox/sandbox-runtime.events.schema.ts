@@ -8,8 +8,8 @@ export const sandboxRuntimeEventDefinitions = Object.entries(
     allowedSourceRoles: name.startsWith("run.")
       ? ["workbench_server", "sandbox_agent"]
       : ["sandbox_agent"],
-    durability: name === "run.delta" ? "transient" : "durable",
-    coalescing: name.endsWith(".delta") ? "concat_delta" : undefined,
+    delivery: name === "run.delta" ? "ephemeral" : "sequenced",
+    coalescing: name === "run.delta" ? "concat_delta" : undefined,
     scope: sandboxEventScope(),
   }),
 );

@@ -17,7 +17,7 @@ import {
   finishCancellation,
   requestCancellation,
 } from "./run-cancellation.js";
-import { RunEventFactory, type RunTransientEventPort } from "./run-events.js";
+import { RunEventFactory, type RunNotifyEventPort } from "./run-events.js";
 import {
   InvalidRunStateError,
   RunConflictError,
@@ -82,7 +82,7 @@ export interface RunCoordinatorPorts {
   ids: IdPort;
   integrity: RunIntegrityPort;
   flushEvents(transition: RunTransitionRecord): Promise<void>;
-  transient?: RunTransientEventPort;
+  notify?: RunNotifyEventPort;
   diagnostics?: DiagnosticPort;
   retryPolicy?: RunRetryPolicyPort;
   retryDelay?(delayMs: number, signal: AbortSignal): Promise<void>;
@@ -92,6 +92,8 @@ export interface RunCoordinatorPorts {
 export class RunCoordinator {
   private readonly locks = new KeyedSerialLock();
   private readonly live = new LiveExecutionRegistry();
+  private readonly pendingCommits = new Set<Promise<void>>();
+  private commitGeneration = 0;
   private readonly events: RunEventFactory;
   private readonly prompts: RunPromptCoordinator;
 
@@ -652,6 +654,25 @@ export class RunCoordinator {
     return this.ports.unitOfWork.load(runId);
   }
 
+  /**
+   * Runs a query at a commit-settled point. If a producer commit overlaps the
+   * read, retry after that complete commit pipeline (projection and event
+   * publication included) settles.
+   */
+  async readSettled<T>(read: () => Promise<T>): Promise<T> {
+    for (;;) {
+      await Promise.all([...this.pendingCommits]);
+      const generation = this.commitGeneration;
+      const value = await read();
+      if (
+        this.pendingCommits.size === 0 &&
+        generation === this.commitGeneration
+      ) {
+        return value;
+      }
+    }
+  }
+
   private sink(runId: string): RunExecutionSink {
     return {
       appendEntries: (entries) =>
@@ -666,7 +687,7 @@ export class RunCoordinator {
       checkpoint: (command) => this.checkpoint(runId, command),
       wait: (command) => this.wait(runId, command),
       waitMany: (commands) => this.waitMany(runId, commands),
-      progress: (event) => this.ports.transient?.publish(event),
+      progress: (event) => this.ports.notify?.publish(event),
     };
   }
 
@@ -1036,37 +1057,55 @@ export class RunCoordinator {
       this.ports.ids,
       this.ports.integrity,
     );
-    const committed = await this.ports.unitOfWork.commit(
-      expectedRevision,
-      transition,
-    );
+    const finishCommit = this.beginCommit();
     try {
-      await this.ports.transitionObserver?.committed(transition);
-    } catch (error) {
-      this.ports.diagnostics?.error("run transition observer failed", {
-        runId: run.runId,
-        revision: transition.revision,
-        error: errorMessage(error),
-      });
+      const committed = await this.ports.unitOfWork.commit(
+        expectedRevision,
+        transition,
+      );
+      try {
+        await this.ports.transitionObserver?.committed(transition);
+      } catch (error) {
+        this.ports.diagnostics?.error("run transition observer failed", {
+          runId: run.runId,
+          revision: transition.revision,
+          error: errorMessage(error),
+        });
+      }
+      try {
+        await this.ports.unitOfWork.materialize(committed);
+      } catch (error) {
+        this.ports.diagnostics?.error("run projection materialization failed", {
+          runId: run.runId,
+          revision: transition.revision,
+          error: errorMessage(error),
+        });
+      }
+      try {
+        await this.ports.flushEvents(transition);
+      } catch (error) {
+        this.ports.diagnostics?.warn("run event delivery deferred", {
+          runId: run.runId,
+          revision: transition.revision,
+          error: errorMessage(error),
+        });
+      }
+    } finally {
+      finishCommit();
     }
-    try {
-      await this.ports.unitOfWork.materialize(committed);
-    } catch (error) {
-      this.ports.diagnostics?.error("run projection materialization failed", {
-        runId: run.runId,
-        revision: transition.revision,
-        error: errorMessage(error),
-      });
-    }
-    try {
-      await this.ports.flushEvents(transition);
-    } catch (error) {
-      this.ports.diagnostics?.warn("run event delivery deferred", {
-        runId: run.runId,
-        revision: transition.revision,
-        error: errorMessage(error),
-      });
-    }
+  }
+
+  private beginCommit(): () => void {
+    let resolve!: () => void;
+    const pending = new Promise<void>((settled) => {
+      resolve = settled;
+    });
+    this.commitGeneration += 1;
+    this.pendingCommits.add(pending);
+    return () => {
+      this.pendingCommits.delete(pending);
+      resolve();
+    };
   }
 
   private async require(runId: string): Promise<RunHydratedState> {

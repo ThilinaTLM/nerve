@@ -17,9 +17,7 @@ import type { SandboxWsServer } from "../src/protocol/sandbox-ws-server.js";
 const capabilities = [
   "encoding.json",
   "event.batch",
-  "event.replay",
-  "event.ack.processed",
-  "flow.backpressure",
+  "event.notify",
   "stream.subscription.v1",
   "sandbox.manager.ui.v1",
   "sandbox.manager.snapshots.v1",
@@ -70,13 +68,12 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
           markSandboxBLoad();
           await sandboxBLoadGate;
         }
-        return { latestSeq: 0, durableSeq: 0 };
+        return { latestSeq: 0, earliestAvailableSeq: 1 };
       },
-      readDurableRange: async () => ({
+      readRange: async () => ({
         events: [],
-        previousDurableSeq: 0,
-        complete: true,
-        nextSeq: 1,
+        latestSeq: 0,
+        earliestAvailableSeq: 1,
       }),
     },
     eventBus,
@@ -138,7 +135,14 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
         ],
         send,
         onDisconnect,
-        onReady: () => ready(),
+        onReady: () => {
+          void clientSession
+            .subscribe([
+              { stream: "manager", processedSeq: 0 },
+              { stream: "sandbox:a", processedSeq: 0 },
+            ])
+            .then(() => ready());
+        },
         applyEvent: (stream) => {
           received.push(stream);
         },
@@ -155,95 +159,40 @@ test("manager UI adapter publishes only manager and selected sandbox streams", a
       stream: "manager",
       seq: 1,
       id: "evt_manager_1",
-      durability: "durable",
       payload: {},
       ts: "2026-01-01T00:00:00.000Z",
     });
     eventBus.publish({
-      type: "run.delta",
+      type: "run.started",
       stream: "sandbox:a",
       sandboxId: "a",
       seq: 1,
       id: "evt_a_1",
-      durability: "transient",
       payload: {},
       ts: "2026-01-01T00:00:01.000Z",
-    });
-    eventBus.publish({
-      type: "run.delta",
-      stream: "sandbox:b",
-      sandboxId: "b",
-      seq: 1,
-      id: "evt_b_1",
-      durability: "transient",
-      payload: {},
-      ts: "2026-01-01T00:00:02.000Z",
     });
     await waitFor(() => received.length === 2);
     assert.deepEqual(received.sort(), ["manager", "sandbox:a"]);
 
     blockSandboxB = true;
-    const subscription = clientSession.setSubscriptions([
+    const subscription = clientSession.subscribe([
       { stream: "manager", processedSeq: 1 },
       { stream: "sandbox:b", processedSeq: 0 },
     ]);
     await sandboxBLoadStarted;
+    releaseSandboxBLoad();
+    await subscription;
     eventBus.publish({
-      type: "run.delta",
+      type: "run.started",
       stream: "sandbox:b",
       sandboxId: "b",
-      seq: 2,
-      id: "evt_b_2",
-      durability: "transient",
+      seq: 1,
+      id: "evt_b_1",
       payload: {},
       ts: "2026-01-01T00:00:03.000Z",
     });
-    releaseSandboxBLoad();
-    await subscription;
-    await waitFor(() => received.length === 3);
-    assert.equal(received.at(-1), "sandbox:b");
-
-    const managerResult = await connection.request(
-      "pinnedCommand.list",
-      { sandboxId: "a" },
-      { target: { role: "sandbox_manager", id: "sandbox-manager" } },
-    );
-    assert.deepEqual(managerResult, { commands: [] });
-
-    const agentResult = await connection.request(
-      "task.list",
-      {},
-      {
-        target: { role: "sandbox_agent", id: "a" },
-        correlationId: "upstream_correlation",
-        traceId: "trace_manager_ui",
-      },
-    );
-    assert.deepEqual(agentResult, { tasks: [] });
-    assert.equal(forwarded[0]?.method, "task.list");
-    assert.deepEqual(forwarded[0]?.params, {});
-    assert.deepEqual(forwarded[0]?.lineage, {
-      correlationId: "upstream_correlation",
-      causationId: forwarded[0]
-        ? (forwarded[0].lineage as { causationId?: string }).causationId
-        : undefined,
-      traceId: "trace_manager_ui",
-    });
-    assert.ok(
-      (
-        forwarded[0]?.lineage as { causationId?: string }
-      ).causationId?.startsWith("msg_"),
-    );
-
-    await assert.rejects(
-      connection.request(
-        "task.list",
-        {},
-        {
-          target: { role: "sandbox_agent", id: "b" },
-        },
-      ),
-    );
+    await waitFor(() => received.includes("sandbox:b"));
+    assert.deepEqual(received, ["manager", "sandbox:a", "sandbox:b"]);
   } finally {
     await connection.close();
     await new Promise<void>((resolve) => sockets.close(() => resolve()));

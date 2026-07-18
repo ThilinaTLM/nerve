@@ -53,7 +53,7 @@ export const taskEventDefinitions = [
       text: z.string().max(16_384),
     }),
     {
-      durability: "transient",
+      delivery: "ephemeral",
       coalescing: "concat_delta",
       scope: ["taskId", "stream"],
     },

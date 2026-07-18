@@ -26,7 +26,7 @@ import {
   type ToolCallRecord,
   type ToolName,
 } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
 import type { PythonRuntimeService } from "../runtime/python-runtime-service.js";
@@ -70,7 +70,7 @@ const MAX_BASH_TIMEOUT_MS = 86_400_000;
 
 export interface OrchestrationToolDispatcherDeps {
   storage: InitializedStorage;
-  events: EventBus;
+  events: StreamLogRegistry;
   tasks: WorkbenchTaskService;
   pythonRuntime: PythonRuntimeService;
   startTask: TaskStarter;

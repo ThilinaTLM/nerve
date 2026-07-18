@@ -8,4 +8,4 @@ Compose shared contracts and runtime services rather than adding host-specific l
 4. manager UI loads manager/selection snapshots and uses independent processed cursors;
 5. built images preserve the non-root filesystem and health contracts.
 
-Test the protocol conformance suite, manager-agent integration, reconnect/replay, snapshot cursors, state recovery, idempotency, host parity, process-group cleanup, static UI serving, and both images. Never add alternate wire frames or state readers to make disposable development data load.
+Test the protocol conformance suite, manager-agent integration, subscription reconnect/recovery, snapshot cursors, state recovery, idempotency, host parity, process-group cleanup, static UI serving, and both images. Never add alternate wire frames or state readers to make disposable development data load.

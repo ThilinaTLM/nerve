@@ -6,7 +6,6 @@ import type {
 
 export type StartupEventSink = (input: {
   type: string;
-  durability: "durable" | "transient";
   data: Record<string, unknown>;
 }) => Promise<unknown>;
 
@@ -131,7 +130,6 @@ export class StartupReporter {
     if (!this.sink) return;
     await this.sink({
       type: event.type,
-      durability: "durable",
       data: {
         ...this.identity,
         configDigest: this.configDigest,

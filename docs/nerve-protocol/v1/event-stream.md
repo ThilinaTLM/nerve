@@ -1,15 +1,55 @@
 # Event streams
 
-An `event.batch` contains an ordered range for one stream and catalog-valid event envelopes. Each event has a sequence, durability (`durable` or `transient`), type, timestamp, and typed data.
+## Sequenced events
 
-Implemented streams are:
+An `event.batch` carries one stream and a dense ordered list of catalog-valid envelopes:
 
-- `local`, written by the workbench server;
-- `manager`, written by sandbox-manager lifecycle/state services;
-- one `sandbox:<id>` stream per sandbox, written by that sandbox daemon and ingested without sequence rewriting.
+```ts
+type EventBatch = {
+  stream: string;
+  batchId: string;
+  reason: "replay" | "live" | "snapshot_delta";
+  events: Array<{
+    id: string;
+    seq: number;
+    type: string;
+    ts: string;
+    data: unknown;
+  }>;
+  firstSeq: number | null;
+  lastSeq: number | null;
+};
+```
 
-There is exactly one sequence writer per stream, and it assigns a positive stream-local sequence to every durable and transient event. Transient sequences are not persisted, so after restart a writer may resume from its last durable sequence. Consumers deduplicate durable recovery by stream and sequence. Durable events are reducer/state transitions and are recoverable. Transient events, including `task.output`, are bounded live signals; durable task logs are stored by the task service and queried with `task.logs` or the host's large-log HTTP surface.
+Every adjacent event satisfies `next.seq === previous.seq + 1`. Empty batches use null bounds. Only catalog events with `delivery: "sequenced"` may appear.
 
-Live queues retain ascending sequence order across mixed durability; a later durable event never jumps ahead of an already queued transient delta. Catalog-approved transient coalescing or dropping may create holes recorded in `skippedNonDurableRanges`, while durable predecessor continuity remains based only on durable events.
+Implemented stream routing is deterministic:
 
-A client applies each retained event in order. It advances the processed durable cursor only after the reducer and any required durable application complete. Reducer failure prevents ACK and triggers recovery rather than acknowledging lost state.
+| Stream                  | Owner and contents                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `workspace`             | Workbench workspace facts such as conversation lifecycle, settings, agents, projects, and plans    |
+| `conv/<conversationId>` | Conversation, run, turn, live-message, and tool-call events carrying that conversation ID          |
+| `manager`               | Sandbox-manager lifecycle and fleet facts                                                          |
+| `sandbox:<id>`          | Sequenced events written by one authenticated sandbox daemon and stored without sequence rewriting |
+
+One WebSocket can carry several subscribed streams. Opening a conversation or selecting a sandbox changes the exact subscription set; it does not open another socket.
+
+A client skips exact duplicates, rejects gaps, applies each event, and advances that stream's cursor only after the reducer succeeds. A reducer invariant violation triggers snapshot recovery rather than cursor advancement.
+
+## Notifications
+
+Catalog events with `delivery: "ephemeral"` use `event.notify`:
+
+```ts
+type NotifyEvent = { id: string; type: string; ts: string; data: unknown };
+```
+
+Notifications are never persisted in stream logs, never replayed, and never consume sequence numbers. Catalog-approved `latest_by_scope` notifications may coalesce while queued. Examples include task output, usage updates, activity, and streaming progress whose authoritative state is available from a snapshot or query.
+
+## Persistence and retention
+
+Workbench logs are per stream and maintain dense local high-water metadata. Supersedable deltas use a 25 ms/64-event group-commit window; lifecycle events force an immediate flush and fsync. On restart, the next sequence is `max(meta.lastSeq, logTailSeq) + 1`.
+
+Retention truncates whole prefixes, normally keeping the latest 5,000 events and at most 8 MiB per workbench stream. Truncation never renumbers retained events. A cursor below `earliestAvailableSeq - 1` therefore requires a repository-derived snapshot followed by a new subscription.
+
+The manager stores dense `manager` and `sandbox:<id>` histories. A sandbox outbox assigns numbers only to sequenced events, reconciles the manager cursor through stream subscriptions, and prunes the confirmed prefix. Legacy sparse/global epochs are archived and reset instead of being translated through a compatibility layer.

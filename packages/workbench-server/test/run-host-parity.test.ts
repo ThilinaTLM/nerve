@@ -299,7 +299,17 @@ class WorkbenchParityAdapter implements RealHostRunMatrixFixture {
         ? true
         : undefined;
     }, `${runId} durable event delivery`);
-    const events = await this.orchestrator.events.replayPersistedSince(0);
+    const state = await this.unitOfWork.load(runId);
+    const conversationId = state?.transitions.at(-1)?.run.conversationId;
+    const events = conversationId
+      ? (
+          await this.orchestrator.events.readStream(
+            `conv/${conversationId}`,
+            1,
+            5_000,
+          )
+        ).events
+      : [];
     return events
       .filter(
         (event) =>
@@ -308,7 +318,7 @@ class WorkbenchParityAdapter implements RealHostRunMatrixFixture {
       .map((event) => ({
         id: event.id,
         type: event.type,
-        durability: event.durability,
+        delivery: "sequenced",
         runId,
         sequence: event.seq,
       }));

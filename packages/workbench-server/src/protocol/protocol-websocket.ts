@@ -5,13 +5,11 @@ import {
   ProtocolConnection,
   ProtocolServerSession,
   websocketTransport,
-  type ReplaySource,
   type WebSocketLike,
 } from "@nervekit/protocol";
-import type {
-  EventEnvelope,
-  ProtocolV1Message,
-  StreamState,
+import {
+  parseConversationStream,
+  type ProtocolV1Message,
 } from "@nervekit/contracts";
 import type WebSocket from "ws";
 import type { WebSocketServer } from "ws";
@@ -21,12 +19,12 @@ import {
   PROTOCOL_CAPABILITIES,
   PROTOCOL_HEARTBEAT,
   PROTOCOL_SESSION_LIMITS,
-  GLOBAL_STREAM,
+  WORKSPACE_STREAM,
+  conversationStream,
 } from "./constants.js";
 import { workbenchWebSocketRpcDispatcher } from "./http-dispatcher.js";
 import { orchestratorSource } from "./messages.js";
 
-/** Host binding for the shared server lifecycle. */
 export interface LocalProtocolSession {
   dispose(): void;
   shutdown(message?: string): Promise<void>;
@@ -83,19 +81,23 @@ export function createLocalProtocolSession(
     target: { role: "ui" },
   });
   const transport = websocketTransport(ws as unknown as WebSocketLike);
-  let unsubscribe: () => void = () => undefined;
+  let unsubscribeSequenced: () => void = () => undefined;
+  let unsubscribeNotify: () => void = () => undefined;
+
   let disposed = false;
   const dispose = () => {
     if (disposed) return;
     disposed = true;
-    unsubscribe();
+    unsubscribeSequenced();
+    unsubscribeNotify();
     session.dispose();
-    connection?.dispose();
+    connection.dispose();
     onDispose();
   };
   const closeProtocolError = async () => {
     if (disposed) return;
-    unsubscribe();
+    unsubscribeSequenced();
+    unsubscribeNotify();
     try {
       await session.shutdown("protocol_error", "Invalid protocol frame");
       connection.dispose();
@@ -104,47 +106,49 @@ export function createLocalProtocolSession(
       dispose();
     }
   };
+
   const session: ProtocolServerSession = new ProtocolServerSession({
     acceptingPeer: peer,
     allowedPeerRoles: ["ui"],
     createMessage: messages,
     capabilities: PROTOCOL_CAPABILITIES,
-    streams: () => [
-      {
-        stream: GLOBAL_STREAM,
-        latestSeq: state.events.latestSeq,
-        durableSeq: state.events.latestDurableSeq,
-        replayAvailableFromSeq: state.events.replayAvailableFromSeq,
-      },
-    ],
     limits: PROTOCOL_SESSION_LIMITS,
     heartbeat: PROTOCOL_HEARTBEAT,
     sessionId: () => `ses_${crypto.randomUUID()}`,
     send: async (message): Promise<void> => {
       await connection.send(message as ProtocolV1Message);
     },
+    close: async (code, reason) => transport.close(code, reason),
     rpcDispatcher: ({ capabilities }) =>
       workbenchWebSocketRpcDispatcher(state, capabilities),
-    replaySource: localReplaySource(state),
-    resume: async (hello) => {
-      const cursor = hello.resume?.streams?.find(
-        (item) => item.stream === GLOBAL_STREAM,
-      );
-      if (!cursor) return { accepted: false, mode: "fresh" as const };
-      if (cursor.processedSeq === state.events.latestDurableSeq)
-        return { accepted: true, mode: "live" as const };
-      const replay = await state.events.canReplayDurableRange(
-        cursor.processedSeq,
-        state.events.latestDurableSeq,
-      );
-      if (!replay.available)
-        return {
-          accepted: false,
-          mode: "snapshot_required" as const,
-          reason: `Durable replay unavailable: ${replay.reason ?? "retention_gap"}`,
-        };
-      return { accepted: true, mode: "replay" as const };
+    subscriptions: {
+      async resolve(cursors) {
+        try {
+          const streams = await Promise.all(
+            cursors.map(async (cursor) => {
+              if (cursor.stream === WORKSPACE_STREAM) {
+                return state.events.bounds(cursor.stream);
+              }
+              const conversationId = parseConversationStream(cursor.stream);
+              if (!conversationId) {
+                throw new Error(`Unknown stream ${cursor.stream}`);
+              }
+              state.registry.getConversation(conversationId);
+              return state.events.bounds(cursor.stream);
+            }),
+          );
+          return { accepted: true, streams };
+        } catch (error) {
+          return {
+            accepted: false,
+            streams: [],
+            reason: boundedError(error),
+          };
+        }
+      },
     },
+    readStream: (stream, fromSeq, limit) =>
+      state.events.readStream(stream, fromSeq, limit),
   });
   const connection = new ProtocolConnection({
     transport,
@@ -164,20 +168,38 @@ export function createLocalProtocolSession(
       dispose();
     },
   });
-  unsubscribe = state.events.subscribe((event) => {
-    session.publish(GLOBAL_STREAM, event).catch((error: unknown) => {
+  unsubscribeSequenced = state.events.subscribeSequenced((stream, event) => {
+    void session.publish(stream, event).catch((error: unknown) => {
       if (disposed) return;
       state.logger.warn("Protocol event publication failed", {
         error: boundedError(error),
       });
       dispose();
     });
+    if (event.type === "conversation.deleted") {
+      const conversationId = (event.data as { conversationId?: unknown })
+        .conversationId;
+      if (typeof conversationId === "string") {
+        session.removeStream(conversationStream(conversationId));
+      }
+    }
   });
+  unsubscribeNotify = state.events.subscribeNotify((event) => {
+    void session.notify(event).catch((error: unknown) => {
+      if (disposed) return;
+      state.logger.warn("Protocol notify publication failed", {
+        error: boundedError(error),
+      });
+      dispose();
+    });
+  });
+
   return {
     dispose,
     async shutdown(message = "Daemon shutting down") {
       if (disposed) return;
-      unsubscribe();
+      unsubscribeSequenced();
+      unsubscribeNotify();
       try {
         await session.shutdown("server_shutdown", message);
         await connection.close(1001, message);
@@ -190,58 +212,4 @@ export function createLocalProtocolSession(
 
 function boundedError(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 512);
-}
-
-function localReplaySource(state: OrchestratorState): ReplaySource {
-  return {
-    streams(): readonly StreamState[] {
-      return [
-        {
-          stream: GLOBAL_STREAM,
-          latestSeq: state.events.latestSeq,
-          durableSeq: state.events.latestDurableSeq,
-          replayAvailableFromSeq: state.events.replayAvailableFromSeq,
-        },
-      ];
-    },
-    async read(request) {
-      if (request.stream !== GLOBAL_STREAM)
-        return {
-          available: false,
-          reason: "stream_not_found" as const,
-          latestSeq: 0,
-        };
-      const toSeq = request.toSeq ?? state.events.latestDurableSeq;
-      const availability = await state.events.canReplayDurableRange(
-        request.fromSeq - 1,
-        toSeq,
-      );
-      if (!availability.available)
-        return {
-          available: false,
-          reason: availability.reason ?? ("snapshot_required" as const),
-          earliestAvailableSeq: state.events.replayAvailableFromSeq,
-          latestSeq: state.events.latestDurableSeq,
-          recovery: { action: "load_snapshot" as const },
-        };
-      const replay = await state.events.replayForProtocolSince(
-        request.fromSeq - 1,
-        {
-          toSeq: request.toSeq,
-          includeTransientIfAvailable: true,
-        },
-      );
-      const events = replay.events.slice(0, request.limit) as EventEnvelope[];
-      const last = events.at(-1)?.seq;
-      return {
-        available: true,
-        events,
-        previousDurableSeq: await state.events.previousDurableSeqBefore(
-          request.fromSeq,
-        ),
-        complete: events.length === replay.events.length,
-        nextSeq: last === undefined ? request.fromSeq : last + 1,
-      };
-    },
-  };
 }

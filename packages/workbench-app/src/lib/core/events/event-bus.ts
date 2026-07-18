@@ -1,6 +1,8 @@
-import type { EventEnvelope } from "$lib/api";
+import type { EventEnvelope, NotifyEvent } from "@nervekit/contracts";
 
-export type WorkbenchEvent = EventEnvelope<Record<string, unknown>>;
+export type SequencedWorkbenchEvent = EventEnvelope<Record<string, unknown>>;
+export type WorkbenchNotifyEvent = NotifyEvent<Record<string, unknown>>;
+export type WorkbenchEvent = SequencedWorkbenchEvent | WorkbenchNotifyEvent;
 export type WorkbenchEventHandler = (
   event: WorkbenchEvent,
 ) => void | Promise<void>;
@@ -10,13 +12,19 @@ const anyHandlers = new Set<WorkbenchEventHandler>();
 export type EventsFlushedHandler = (events: WorkbenchEvent[]) => void;
 const flushHandlers = new Set<EventsFlushedHandler>();
 
+export function isSequencedEvent(
+  event: WorkbenchEvent,
+): event is SequencedWorkbenchEvent {
+  return "seq" in event;
+}
+
 export function onEventsFlushed(handler: EventsFlushedHandler): () => void {
   flushHandlers.add(handler);
   return () => flushHandlers.delete(handler);
 }
 
-export function pendingEventCount(): number {
-  return eventQueue.length;
+export function pendingNotifyCount(): number {
+  return notifyQueue.length;
 }
 
 export function onEvent(
@@ -37,9 +45,7 @@ export function onEvent(
 
 export function onAnyEvent(handler: WorkbenchEventHandler): () => void {
   anyHandlers.add(handler);
-  return () => {
-    anyHandlers.delete(handler);
-  };
+  return () => anyHandlers.delete(handler);
 }
 
 export function dispatchEvent(event: WorkbenchEvent): void {
@@ -60,16 +66,11 @@ export function clearEventHandlers(): void {
   handlersByType.clear();
   anyHandlers.clear();
   flushHandlers.clear();
-  eventQueue.length = 0;
+  notifyQueue.length = 0;
   flushScheduled = false;
 }
 
-// --- Coalesced delivery -----------------------------------------------------
-// Incoming envelopes are buffered and flushed once per animation frame so a
-// burst of streaming deltas (content/tool output) collapses into a single
-// reactive pass instead of one render per frame-event. FIFO order is preserved.
-
-const eventQueue: WorkbenchEvent[] = [];
+const notifyQueue: WorkbenchNotifyEvent[] = [];
 let flushScheduled = false;
 
 function scheduleFlush(): void {
@@ -77,7 +78,7 @@ function scheduleFlush(): void {
   flushScheduled = true;
   const run = () => {
     flushScheduled = false;
-    flushEvents();
+    flushNotifyEvents();
   };
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(run);
@@ -86,45 +87,36 @@ function scheduleFlush(): void {
   }
 }
 
-/**
- * Buffer an event for batched delivery on the next animation frame. Use this
- * for high-frequency transport events; ordering and per-batch atomicity are
- * preserved by {@link flushEvents}.
- */
-export function enqueueEvent(event: WorkbenchEvent): void {
-  eventQueue.push(event);
+/** Buffer best-effort notify delivery until the next animation frame. */
+export function enqueueNotify(event: WorkbenchNotifyEvent): void {
+  notifyQueue.push(event);
   scheduleFlush();
 }
 
-/**
- * Applies one transport event and waits for every reducer before returning.
- * Protocol durable acknowledgements must use this path rather than the
- * animation-frame queue, whose handlers deliberately isolate failures.
- */
-export async function applyEventAndFlush(event: WorkbenchEvent): Promise<void> {
+/** Apply one durable event and await all reducers before cursor advancement. */
+export async function applyEventAndFlush(
+  event: SequencedWorkbenchEvent,
+): Promise<void> {
   const handlers = [...(handlersByType.get(event.type) ?? []), ...anyHandlers];
   for (const handler of handlers) await handler(event);
   for (const handler of flushHandlers) handler([event]);
 }
 
-/**
- * Synchronously drain the buffered event queue in FIFO order. Safe to call for
- * deterministic teardown (disconnect) and in tests.
- */
-export function flushEvents(): void {
-  const delivered: WorkbenchEvent[] = [];
-  for (let index = 0; index < eventQueue.length; index += 1) {
-    const event = eventQueue[index] as WorkbenchEvent;
+/** Synchronously drain the best-effort notify queue in FIFO order. */
+export function flushNotifyEvents(): void {
+  const delivered: WorkbenchNotifyEvent[] = [];
+  for (let index = 0; index < notifyQueue.length; index += 1) {
+    const event = notifyQueue[index] as WorkbenchNotifyEvent;
     delivered.push(event);
     dispatchEvent(event);
   }
-  eventQueue.length = 0;
+  notifyQueue.length = 0;
   if (delivered.length === 0) return;
   for (const handler of flushHandlers) {
     try {
       handler(delivered);
     } catch (caught) {
-      console.error("Workbench event flush handler failed", caught);
+      console.error("Workbench notify flush handler failed", caught);
     }
   }
 }
@@ -132,7 +124,7 @@ export function flushEvents(): void {
 function reportHandlerError(event: WorkbenchEvent, error: unknown): void {
   console.error("Workbench event handler failed", {
     type: event.type,
-    seq: event.seq,
+    seq: isSequencedEvent(event) ? event.seq : undefined,
     error,
   });
 }

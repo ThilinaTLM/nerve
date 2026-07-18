@@ -48,11 +48,12 @@ export class AutoCompactionRunner {
     runId: string,
   ): Promise<void> {
     const contextUsage = await this.getContextUsage(conversationId);
-    await this.deps.events.publish(
-      "conversation.context.updated",
-      { conversationId, agentId, runId, contextUsage },
-      { durability: "transient" },
-    );
+    await this.deps.events.publish("conversation.context.updated", {
+      conversationId,
+      agentId,
+      runId,
+      contextUsage,
+    });
   }
 
   async maybeAutoCompact(

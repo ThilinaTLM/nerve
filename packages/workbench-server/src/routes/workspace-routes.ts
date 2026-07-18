@@ -5,8 +5,8 @@ import { getWorkspaceSnapshotResponse } from "../protocol/snapshots.js";
 export function createWorkspaceRoutes(state: OrchestratorState): Hono {
   const app = new Hono();
 
-  app.get("/workspace/snapshot", (c) =>
-    c.json(getWorkspaceSnapshotResponse(state)),
+  app.get("/workspace/snapshot", async (c) =>
+    c.json(await getWorkspaceSnapshotResponse(state)),
   );
 
   return app;

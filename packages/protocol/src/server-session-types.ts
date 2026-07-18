@@ -1,6 +1,6 @@
 import type {
-  HelloData,
   NerveMessage,
+  NotifyEvent,
   OperationName,
   OperationParams,
   OperationResult,
@@ -18,7 +18,7 @@ import type {
   ProtocolDiagnosticsPublisher,
   ProtocolIdSource,
   ProtocolTimers,
-  ReplaySource,
+  StreamReader,
 } from "./ports.js";
 import type { RpcDispatcher } from "./rpc.js";
 
@@ -29,26 +29,18 @@ export type ServerSessionState =
   | "closing"
   | "closed";
 
-export interface SessionResumeDecision {
-  readonly accepted: boolean;
-  readonly mode: "live" | "replay" | "snapshot_required" | "fresh";
-  readonly reason?: string;
-}
-
 export interface StreamSubscriptionDecision {
   readonly accepted: boolean;
-  /** Resolved states for the requested exact stream set. */
+  /** Authorized log bounds for the requested exact stream set. */
   readonly streams: readonly StreamState[];
   readonly reason?: string;
 }
 
-/** Host authorization and lazy stream-state resolution for dynamic subscriptions. */
 export interface ServerStreamSubscriptionPort {
   resolve(
     cursors: readonly StreamCursor[],
     peer: PeerDescriptor,
   ): StreamSubscriptionDecision | Promise<StreamSubscriptionDecision>;
-  /** Called only after the protocol has atomically accepted the exact set. */
   activate?(
     cursors: readonly StreamCursor[],
     states: readonly StreamState[],
@@ -60,19 +52,17 @@ export interface ServerSessionOptions {
   readonly allowedPeerRoles?: readonly PeerRole[];
   readonly createMessage: MessageFactory;
   readonly capabilities?: readonly string[];
-  readonly streams: () => readonly StreamState[];
   readonly limits: ProtocolLimits;
   readonly heartbeat: {
     readonly intervalMs: number;
     readonly timeoutMs: number;
   };
-  readonly resume?: (
-    hello: HelloData,
-    source: PeerDescriptor,
-  ) => SessionResumeDecision | Promise<SessionResumeDecision>;
   readonly sessionId: () => string;
   readonly send: (message: NerveMessage) => void | Promise<void>;
-  /** Authorizes post-handshake targets; defaults to the target addressed by hello. */
+  readonly close?: (code: number, reason: string) => void | Promise<void>;
+  readonly maxBufferedEvents?: number;
+  readonly maxBufferedBytes?: number;
+  readonly notifyQueueLimit?: number;
   readonly authorizeTarget?: (
     message: ProtocolV1Message,
     context: {
@@ -85,32 +75,21 @@ export interface ServerSessionOptions {
     message: ProtocolV1Message & { kind: "ready" },
   ) => void | Promise<void>;
   readonly onMessage?: (message: ProtocolV1Message) => void | Promise<void>;
-  /** Applies a peer-owned event batch before the shared session acknowledges it. */
   readonly onEventBatch?: (
     message: ProtocolV1Message & { kind: "event.batch" },
-  ) =>
-    | {
-        readonly streams: readonly StreamCursor[];
-        readonly appliedEvents?: number;
-      }
-    | Promise<{
-        readonly streams: readonly StreamCursor[];
-        readonly appliedEvents?: number;
-      }>;
+  ) => unknown | Promise<unknown>;
+  readonly onNotify?: (
+    events: readonly NotifyEvent[],
+    message: ProtocolV1Message & { kind: "event.notify" },
+  ) => void | Promise<void>;
   readonly rpcDispatcher?:
     | RpcDispatcher
     | ((context: {
         readonly capabilities: readonly string[];
         readonly peer: PeerDescriptor;
       }) => RpcDispatcher);
-  readonly onAck?: (
-    message: ProtocolV1Message & { kind: "event.ack" },
-  ) => void | Promise<void>;
-  readonly replaySource?: ReplaySource;
+  readonly readStream?: StreamReader["readStream"];
   readonly subscriptions?: ServerStreamSubscriptionPort;
-  readonly onReplayRequest?: (
-    message: ProtocolV1Message & { kind: "replay.request" },
-  ) => void | Promise<void>;
   readonly diagnostics?: ProtocolDiagnosticsPublisher;
   readonly clock?: ProtocolClock;
   readonly timers?: ProtocolTimers;

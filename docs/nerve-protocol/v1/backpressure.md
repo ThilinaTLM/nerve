@@ -1,12 +1,10 @@
-# Backpressure
+# Backpressure and overflow
 
-Protocol limits are negotiated in `welcome`: maximum message bytes, batch events/bytes, inflight batches, and unacknowledged durable events. Local queue implementations also enforce event-count and byte budgets.
+`welcome.limits` negotiates maximum message bytes, batch event count, and batch bytes. Server sessions also enforce local event-count and byte budgets for pending replay/live delivery.
 
-`flow.update` communicates queue scope, mode, reason, statistics, and requested action. Under pressure:
+- Sequenced events are never silently dropped or coalesced by transport.
+- Ephemeral notifications may use catalog-declared `latest_by_scope` coalescing and a bounded queue; oldest best-effort notifications may be discarded under pressure.
+- Replay and live batches are chunked to negotiated limits.
+- If preserving sequenced ordering would exceed the outgoing budget, the server sends goodbye with `resync_required` and closes. The client reconnects, loads a snapshot when required, and reinstalls subscriptions.
 
-- coalescible transient updates may replace older updates for the same key without reordering retained events;
-- other transient updates may be dropped and reported through both `flow.update` counters and event-batch skipped non-durable ranges;
-- durable events are never silently dropped;
-- durable hard overflow, invalid ACK progress, or inability to preserve ordering terminates the session so reconnect/replay or snapshot recovery can restore correctness.
-
-Batching and replay are chunked to negotiated bounds. Heartbeat load fields are diagnostic only and never authorize clients to exceed server limits.
+There is no wire-level flow-control message and no event-progress acknowledgement window. Subscription cursors and bounded reconnect recovery are the only event-stream control plane.

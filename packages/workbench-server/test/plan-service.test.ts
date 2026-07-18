@@ -12,7 +12,7 @@ import {
   PlanService,
   planReviewPreview,
 } from "../src/domains/plans/plan-service.js";
-import { EventBus } from "../src/infrastructure/events/index.js";
+import { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import type { InitializedStorage } from "../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
@@ -38,7 +38,7 @@ async function fixture() {
     settings: {} as InitializedStorage["settings"],
     localToken: "nt_test",
   } satisfies InitializedStorage;
-  const events = new EventBus(root);
+  const events = new StreamLogRegistry(root);
   const plans = new PlanService(
     storage,
     events,

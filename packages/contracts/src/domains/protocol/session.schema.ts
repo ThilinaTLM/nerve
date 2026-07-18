@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { peerDescriptorSchema, typedMessageSchema } from "./envelope.schema.js";
-import {
-  streamCursorSchema,
-  streamStateSchema,
-} from "./event-stream.schema.js";
+
+export const STREAM_SUBSCRIPTION_CAPABILITY = "stream.subscription.v1";
+export const RESYNC_REQUIRED_CLOSE_REASON = "resync_required";
 
 export const jsonEncodingSchema = z.literal("json");
 
@@ -16,32 +15,16 @@ export const batchPreferencesSchema = z
   .strict();
 export type BatchPreferences = z.infer<typeof batchPreferencesSchema>;
 
-export const replayPreferencesSchema = z
-  .object({
-    preferSnapshot: z.boolean().optional(),
-    maxReplayEvents: z.number().int().positive().safe().optional(),
-  })
-  .strict();
-export type ReplayPreferences = z.infer<typeof replayPreferencesSchema>;
-
 export const helloDataSchema = z
   .object({
     requestedVersion: z.literal(1),
     capabilities: z.array(z.string().min(1).max(128)),
     requiredCapabilities: z.array(z.string().min(1).max(128)).optional(),
     encodings: z.array(jsonEncodingSchema).min(1),
-    resume: z
-      .object({
-        sessionId: z.string().min(1).optional(),
-        streams: z.array(streamCursorSchema).optional(),
-      })
-      .strict()
-      .optional(),
     preferences: z
       .object({
         batch: batchPreferencesSchema.optional(),
         heartbeatIntervalMs: z.number().int().positive().safe().optional(),
-        replay: replayPreferencesSchema.optional(),
       })
       .strict()
       .optional(),
@@ -55,8 +38,6 @@ export const protocolLimitsSchema = z
     maxMessageBytes: z.number().int().positive().safe(),
     maxBatchEvents: z.number().int().positive().safe(),
     maxBatchBytes: z.number().int().positive().safe(),
-    maxInflightBatches: z.number().int().positive().safe(),
-    maxUnackedDurableEvents: z.number().int().positive().safe(),
   })
   .strict();
 export type ProtocolLimits = z.infer<typeof protocolLimitsSchema>;
@@ -68,19 +49,11 @@ export const welcomeDataSchema = z
     acceptedVersion: z.literal(1),
     capabilities: z.array(z.string().min(1).max(128)),
     encoding: jsonEncodingSchema,
-    streams: z.array(streamStateSchema),
     limits: protocolLimitsSchema,
     heartbeat: z
       .object({
         intervalMs: z.number().int().positive().safe(),
         timeoutMs: z.number().int().positive().safe(),
-      })
-      .strict(),
-    resume: z
-      .object({
-        accepted: z.boolean(),
-        mode: z.enum(["live", "replay", "snapshot_required", "fresh"]),
-        reason: z.string().min(1).max(1_024).optional(),
       })
       .strict(),
   })
@@ -91,18 +64,13 @@ export const welcomeMessageSchema = typedMessageSchema(
   welcomeDataSchema,
 );
 
-/**
- * Host status carried on the ready frame. "ready" means the peer is fully
- * operational; "booting" means the transport/event streaming is ready while
- * host startup continues (readiness is then announced via domain events).
- */
+/** Host status carried on the ready frame. */
 export const readyPeerStatusSchema = z.enum(["booting", "ready", "degraded"]);
 export type ReadyPeerStatus = z.infer<typeof readyPeerStatusSchema>;
 
 export const readyDataSchema = z
   .object({
     sessionId: z.string().min(1),
-    streams: z.array(streamCursorSchema).optional(),
     status: readyPeerStatusSchema.optional(),
   })
   .strict();
@@ -113,14 +81,6 @@ export const heartbeatDataSchema = z
   .object({
     sessionId: z.string().min(1),
     sentAt: z.string().datetime(),
-    processed: z.array(streamCursorSchema).optional(),
-    load: z
-      .object({
-        eventQueueDepth: z.number().int().nonnegative().safe().optional(),
-        replayQueueDepth: z.number().int().nonnegative().safe().optional(),
-      })
-      .strict()
-      .optional(),
   })
   .strict();
 export type HeartbeatData = z.infer<typeof heartbeatDataSchema>;
@@ -139,11 +99,11 @@ export const goodbyeDataSchema = z
       "auth_expired",
       "protocol_error",
       "idle_timeout",
+      "resync_required",
       "other",
     ]),
     message: z.string().min(1).max(1_024).optional(),
     retryAfterMs: z.number().int().nonnegative().safe().optional(),
-    finalCursors: z.array(streamCursorSchema).optional(),
   })
   .strict();
 export type GoodbyeData = z.infer<typeof goodbyeDataSchema>;

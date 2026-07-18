@@ -186,7 +186,9 @@ describe("RuntimeRegistry conversation lifecycle", () => {
       });
 
       const result = await state.registry.compactConversation(conversation.id);
-      const events = state.events.replaySince(0);
+      const events = (
+        await state.events.readStream(`conv/${conversation.id}`, 1, 5_000)
+      ).events;
       const started = events.find(
         (event) => event.type === "conversation.compaction.started",
       );

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -101,15 +101,86 @@ describe("sandbox manager driver and event foundations", () => {
     assert.equal(provider?.baseUrl, profile.baseUrl);
   });
 
-  it("ACKs only a manager-proven durable chain across transient holes", async () => {
+  it("archives a cursor-ahead manager epoch and re-ingests a fresh agent from seq 1", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-manager-epoch-"));
+    try {
+      const store = new EventStore(dir);
+      await store.appendBatch([
+        {
+          sandboxId: "sbx_epoch",
+          id: "evt_old_1",
+          seq: 1,
+          type: "old.event",
+          ts: "2026-01-01T00:00:00.000Z",
+          payload: {},
+        },
+        {
+          sandboxId: "sbx_epoch",
+          id: "evt_old_2",
+          seq: 2,
+          type: "old.event",
+          ts: "2026-01-01T00:00:01.000Z",
+          payload: {},
+        },
+      ]);
+      const ingestor = new SandboxEventIngestor(store);
+
+      const established = await ingestor.establishAgentEpoch("sbx_epoch", 0);
+      assert.deepEqual(established, {
+        reset: true,
+        previousLatestSeq: 2,
+        latestSeq: 0,
+        earliestAvailableSeq: 1,
+      });
+      assert.deepEqual(await store.list("sbx_epoch"), []);
+      const archiveFiles = await readdir(path.join(dir, "archive", "epochs"));
+      assert.equal(archiveFiles.length, 1);
+      const archived = JSON.parse(
+        await readFile(
+          path.join(dir, "archive", "epochs", archiveFiles[0]!),
+          "utf8",
+        ),
+      ) as Array<{ id: string }>;
+      assert.deepEqual(
+        archived.map((event) => event.id),
+        ["evt_old_1", "evt_old_2"],
+      );
+
+      const fresh = await ingestor.ingestBatch("sbx_epoch", [
+        {
+          id: "evt_fresh_1",
+          seq: 1,
+          type: "run.started",
+          ts: "2026-01-02T00:00:00.000Z",
+          data: {
+            conversationId: "conv_fresh",
+            agentId: "agent_fresh",
+            projectId: "proj_fresh",
+            runId: "run_fresh",
+            startedAt: "2026-01-02T00:00:00.000Z",
+          },
+        },
+      ]);
+      assert.equal(fresh.processedSeq, 1);
+      assert.deepEqual(
+        (await store.list("sbx_epoch")).map((event) => event.id),
+        ["evt_fresh_1"],
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps sequenced ingestion dense while notify bypasses the cursor", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-manager-chain-"));
     try {
       const ingestor = new SandboxEventIngestor(new EventStore(dir));
-      const first = await ingestor.ingestBatch("sbx_chain", 0, [
+      const first = await ingestor.ingestBatch("sbx_chain", [
         {
           id: "evt_chain_1",
           seq: 1,
           type: "run.started",
+          ts: "2026-01-01T00:00:00.000Z",
           data: {
             conversationId: "conv_1",
             agentId: "agent_1",
@@ -120,11 +191,11 @@ describe("sandbox manager driver and event foundations", () => {
         },
       ]);
       assert.equal(first.processedSeq, 1);
-      const second = await ingestor.ingestBatch("sbx_chain", 1, [
+      ingestor.ingestNotify("sbx_chain", [
         {
-          id: "evt_chain_transient",
-          seq: 2,
+          id: "evt_chain_notify",
           type: "run.delta",
+          ts: "2026-01-01T00:00:30.000Z",
           data: {
             conversationId: "conv_1",
             agentId: "agent_1",
@@ -134,10 +205,13 @@ describe("sandbox manager driver and event foundations", () => {
             text: "working",
           },
         },
+      ]);
+      const second = await ingestor.ingestBatch("sbx_chain", [
         {
-          id: "evt_chain_3",
-          seq: 3,
+          id: "evt_chain_2",
+          seq: 2,
           type: "run.completed",
+          ts: "2026-01-01T00:01:00.000Z",
           data: {
             conversationId: "conv_1",
             agentId: "agent_1",
@@ -148,10 +222,25 @@ describe("sandbox manager driver and event foundations", () => {
           },
         },
       ]);
-      assert.equal(second.processedSeq, 3);
+      assert.equal(second.processedSeq, 2);
       await assert.rejects(
-        ingestor.ingestBatch("sbx_chain", 4, []),
-        /ahead of manager storage/,
+        ingestor.ingestBatch("sbx_chain", [
+          {
+            id: "evt_chain_4",
+            seq: 4,
+            type: "run.completed",
+            ts: "2026-01-01T00:02:00.000Z",
+            data: {
+              conversationId: "conv_1",
+              agentId: "agent_1",
+              projectId: "proj_1",
+              runId: "run_1",
+              completedAt: "2026-01-01T00:02:00.000Z",
+              status: "completed",
+            },
+          },
+        ]),
+        /expected 3, received 4/,
       );
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -165,11 +254,12 @@ describe("sandbox manager driver and event foundations", () => {
       const ingestor = new SandboxEventIngestor(new EventStore(dir));
       assert.equal(
         (
-          await ingestor.ingestBatch("sbx_1", 0, [
+          await ingestor.ingestBatch("sbx_1", [
             {
               id: "evt_1",
               seq: 1,
               type: "run.started",
+              ts: startedAt,
               data: {
                 conversationId: "conv_1",
                 agentId: "agent_1",
@@ -184,11 +274,12 @@ describe("sandbox manager driver and event foundations", () => {
       );
       assert.equal(
         (
-          await ingestor.ingestBatch("sbx_1", 0, [
+          await ingestor.ingestBatch("sbx_1", [
             {
               id: "evt_1",
               seq: 1,
               type: "run.started",
+              ts: startedAt,
               data: {
                 conversationId: "conv_1",
                 agentId: "agent_1",

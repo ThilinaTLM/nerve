@@ -1,5 +1,8 @@
-import type { EventEnvelope } from "$lib/api";
-import { onAnyEvent } from "$lib/core/events/event-bus";
+import {
+  isSequencedEvent,
+  onAnyEvent,
+  type WorkbenchEvent,
+} from "$lib/core/events/event-bus";
 import { refreshConversationView } from "$lib/features/conversations/state/conversation-flow.svelte";
 import {
   conversationIdFromEvent,
@@ -15,9 +18,8 @@ export function registerConversationEventHandlers(): () => void {
   return onAnyEvent(handleConversationBusEvent);
 }
 
-function handleConversationBusEvent(
-  event: EventEnvelope<Record<string, unknown>>,
-): void {
+function handleConversationBusEvent(event: WorkbenchEvent): void {
+  if (!isSequencedEvent(event)) return;
   if (isConversationRuntimeEvent(event.type)) {
     handleConversationEvent(event);
     return;

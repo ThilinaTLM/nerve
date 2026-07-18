@@ -7,7 +7,7 @@ import type {
 } from "@nervekit/contracts";
 import { taskLogEventSchema } from "@nervekit/contracts";
 import { queryTaskLogEvents } from "@nervekit/host-runtime";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import {
   appendJsonLine,
   readJsonLines,
@@ -33,7 +33,7 @@ export function createTaskLogCursor(logSeq = 0): TaskLogCursor {
 
 export class TaskLogService {
   constructor(
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
     private readonly options: { publishOutputEvents?: boolean } = {},
   ) {}
 

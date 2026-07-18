@@ -36,7 +36,7 @@ export interface NormalizedHostRunSnapshot {
 export interface RealHostEventObservation {
   id: string;
   type: string;
-  durability: string;
+  delivery: string;
   runId?: string;
   sequence: number;
 }

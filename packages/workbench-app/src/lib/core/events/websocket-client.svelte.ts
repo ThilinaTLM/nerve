@@ -1,14 +1,18 @@
 import { SvelteURL } from "svelte/reactivity";
 import {
-  createMessageFactory,
   browserWebSocketTransportFactory,
+  createMessageFactory,
   ProtocolClientConnection,
   ProtocolClientSession,
   protocolClientId,
   protocolInstanceId,
   type ProtocolClientConnectionState,
 } from "@nervekit/protocol";
-import type { PeerDescriptor, StreamCursor } from "@nervekit/contracts";
+import {
+  parseConversationStream,
+  STREAM_SUBSCRIPTION_CAPABILITY,
+  type PeerDescriptor,
+} from "@nervekit/contracts";
 import { getClientConfig } from "$lib/api";
 import {
   applyTheme,
@@ -16,15 +20,24 @@ import {
 } from "$lib/app/layout/layout-state.svelte";
 import {
   applyEventAndFlush,
-  enqueueEvent,
-  flushEvents,
-  pendingEventCount,
+  enqueueNotify,
+  flushNotifyEvents,
+  pendingNotifyCount,
+  type WorkbenchNotifyEvent,
 } from "$lib/core/events/event-bus";
+import {
+  advanceEventCursor,
+  bindSubscriptionSync,
+  currentEventCursors,
+  installEventCursors,
+  requestSubscriptionSync,
+} from "$lib/core/events/stream-cursors.svelte";
 import {
   clientLog,
   installClientLogging,
 } from "$lib/core/logger/client-logger";
 import { restoreConversationTabs } from "$lib/features/conversations/state/conversation-flow.svelte";
+import { refreshConversationView } from "$lib/features/conversations/state/selection";
 import {
   loadSettingsPanel,
   refreshSubscriptionUsage,
@@ -32,7 +45,6 @@ import {
 import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
 import {
   loadSlashCommands,
-  loadWorkspaceState,
   recoverWorkspaceSnapshotFromNetwork,
 } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
@@ -40,20 +52,22 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
 const PROTOCOL_CAPABILITIES = [
   "encoding.json",
   "event.batch",
-  "event.replay",
-  "event.ack.processed",
-  "flow.backpressure",
+  "event.notify",
+  STREAM_SUBSCRIPTION_CAPABILITY,
   "snapshot.workspace",
 ];
 const STARTUP_RETRY_DELAYS_MS = [250, 500, 1_000, 1_500, 2_500, 4_000, 5_000];
 const SUBSCRIPTION_USAGE_POLL_MS = 10_000;
 const protocolTarget: PeerDescriptor = { role: "workbench_server" };
 let connection: ProtocolClientConnection | undefined;
+let unbindSubscriptionSync: (() => void) | undefined;
 let intentionallyDisconnected = false;
+let workspaceSnapshotLoaded = false;
 let subscriptionUsagePollTimer: ReturnType<typeof setInterval> | undefined;
 
 export async function initializeWorkbench(): Promise<void> {
   intentionallyDisconnected = false;
+  workspaceSnapshotLoaded = false;
   try {
     installClientLogging();
     applyTheme(loadThemePreference());
@@ -64,15 +78,11 @@ export async function initializeWorkbench(): Promise<void> {
     workspaceState.status = workspaceState.config.status;
     workspaceState.error = undefined;
     composerDraft.projectDir = workspaceState.config.status.storage.home;
-    const [cursor] = await Promise.all([
-      loadWorkspaceState(),
-      loadSlashCommands(),
-    ]);
-    installCursors(cursor.streams);
+    await loadSlashCommands();
+    await connectWebsocket(workspaceState.config.wsUrl);
     await restoreConversationTabs();
     await loadSettingsPanel();
     startSubscriptionUsagePolling();
-    connectWebsocket(workspaceState.config.wsUrl);
     clientLog("info", "workbench", "Workbench initialized");
   } catch (caught) {
     workspaceState.error = errorMessage(caught);
@@ -92,12 +102,20 @@ function protocolSource(): PeerDescriptor {
   };
 }
 
-function connectWebsocket(wsUrl: string): void {
-  void connection?.close();
+async function connectWebsocket(wsUrl: string): Promise<void> {
+  await connection?.close();
+  unbindSubscriptionSync?.();
   const messages = createMessageFactory({
     source: protocolSource(),
     target: protocolTarget,
   });
+  let resolveInitialReady!: () => void;
+  let rejectInitialReady!: (error: unknown) => void;
+  const initialReady = new Promise<void>((resolve, reject) => {
+    resolveInitialReady = resolve;
+    rejectInitialReady = reject;
+  });
+
   connection = new ProtocolClientConnection({
     transport: browserWebSocketTransportFactory(resolveWebsocketUrl(wsUrl)),
     onStateChange: setConnectionState,
@@ -106,77 +124,66 @@ function connectWebsocket(wsUrl: string): void {
         workspaceState.error = errorMessage(error);
         clientLog("warn", "websocket", "Protocol transport error", { error });
       }
+      if (!workspaceSnapshotLoaded) rejectInitialReady(error);
     },
     createSession: ({ send, onDisconnect }) =>
       new ProtocolClientSession({
         createMessage: messages,
         capabilities: PROTOCOL_CAPABILITIES,
         requiredCapabilities: PROTOCOL_CAPABILITIES,
-        cursors: currentCursors,
+        cursors: currentEventCursors,
         send,
         onDisconnect,
-        onReady: (welcome) => {
+        onReady: async (welcome) => {
           workspaceState.protocolSessionId = welcome.sessionId;
-          workspaceState.connection = "live";
-        },
-        onFlowUpdate: (message) => {
-          if (message.kind === "flow.update")
-            workspaceState.protocolFlowMode = message.data.mode;
-        },
-        applyEvent: async (_stream, event) => {
-          if (event.durability === "durable") {
-            // Preserve FIFO order: apply all buffered transient events first,
-            // then apply the durable event and wait for every reducer so the
-            // session's processed-cursor ack reflects real application.
-            flushEvents();
-            await applyEventAndFlush(event);
-            workspaceState.processedEventSeq = Math.max(
-              workspaceState.processedEventSeq,
-              event.seq,
-            );
-          } else {
-            // High-frequency transient events (live deltas) coalesce per frame.
-            enqueueEvent(event);
-          }
-          workspaceState.receivedEventSeq = Math.max(
-            workspaceState.receivedEventSeq,
-            event.seq,
-          );
-        },
-        processedEvents: {
-          persist(cursors) {
-            installCursors(cursors);
-          },
-        },
-        snapshotRecovery: {
-          async load() {
-            // loadWorkspaceState applies the complete snapshot before returning its cursor.
+          if (!workspaceSnapshotLoaded) {
             const cursor = await recoverWorkspaceSnapshotFromNetwork();
-            return { snapshot: undefined, cursors: cursor.streams };
-          },
+            installEventCursors(cursor.streams, { replace: true, sync: false });
+            workspaceSnapshotLoaded = true;
+          }
+          workspaceState.connection = "live";
+          requestSubscriptionSync();
+          resolveInitialReady();
         },
-        installSnapshot: () => undefined,
+        onSnapshotRequired: async (stream) => {
+          if (stream === "workspace") {
+            const cursor = await recoverWorkspaceSnapshotFromNetwork();
+            installEventCursors(cursor.streams, { sync: false });
+            requestSubscriptionSync();
+            return;
+          }
+          const conversationId = parseConversationStream(stream);
+          if (conversationId) await refreshConversationView(conversationId);
+        },
+        applyEvent: async (stream, event) => {
+          flushNotifyEvents();
+          await applyEventAndFlush(event);
+          advanceEventCursor(stream, event.seq);
+        },
+        onNotify: (events) => {
+          for (const event of events) {
+            enqueueNotify(event as WorkbenchNotifyEvent);
+          }
+        },
         diagnostics: {
           publish(diagnostic) {
             clientLog("warn", "websocket", "Protocol diagnostic", {
-              context: { ...diagnostic, pendingEvents: pendingEventCount() },
+              context: {
+                ...diagnostic,
+                pendingNotifyEvents: pendingNotifyCount(),
+              },
             });
           },
         },
       }),
   });
-  void connection.start();
-}
-
-function currentCursors(): readonly StreamCursor[] {
-  return [{ stream: "local", processedSeq: workspaceState.processedEventSeq }];
-}
-
-function installCursors(cursors: readonly StreamCursor[]): void {
-  const local = cursors.find((cursor) => cursor.stream === "local");
-  if (!local) return;
-  workspaceState.processedEventSeq = local.processedSeq;
-  workspaceState.receivedEventSeq = local.processedSeq;
+  unbindSubscriptionSync = bindSubscriptionSync(async (cursors) => {
+    const session = connection?.session;
+    if (!session || session.state !== "ready") return;
+    await session.subscribe(cursors);
+  });
+  void connection.start().catch(rejectInitialReady);
+  await initialReady;
 }
 
 function setConnectionState(state: ProtocolClientConnectionState): void {
@@ -234,16 +241,18 @@ function startSubscriptionUsagePolling(): void {
 }
 
 function stopSubscriptionUsagePolling(): void {
-  if (subscriptionUsagePollTimer !== undefined)
+  if (subscriptionUsagePollTimer !== undefined) {
     clearInterval(subscriptionUsagePollTimer);
+  }
   subscriptionUsagePollTimer = undefined;
 }
 
 export function disconnectWorkbench(): void {
   intentionallyDisconnected = true;
   stopSubscriptionUsagePolling();
-  // Apply any buffered transient events deterministically before teardown.
-  flushEvents();
+  flushNotifyEvents();
+  unbindSubscriptionSync?.();
+  unbindSubscriptionSync = undefined;
   void connection?.close();
   connection = undefined;
   workspaceState.protocolSessionId = undefined;

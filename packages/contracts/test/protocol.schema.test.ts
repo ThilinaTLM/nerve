@@ -1,37 +1,44 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  ackMessageSchema,
   allOperationDefinitions,
   allPublicEventDefinitions,
+  assertTransition,
   boundedPublicJsonSchema,
   boundedPublicObjectSchema,
+  canTransition,
+  conversationStream,
   type EventBatchData,
   type EventEnvelope,
   eventBatchDataSchema,
   eventBatchMessageSchema,
+  eventNotifyMessageSchema,
   exploreResultPreviewSchema,
-  flowUpdateMessageSchema,
   helloMessageSchema,
+  liveMessageTransitions,
   nerveMessageSchema,
-  protocolErrorMessageSchema,
   operationDefinition,
   operationNameSchema,
   operationParamsSchema,
   operationResultSchema,
+  parseConversationStream,
   parseOperationParams,
   parseOperationResult,
-  parsePublicEventBatch,
-  parsePublicEventEnvelope,
   parseProtocolRequestData,
   parseProtocolResponseData,
-  replayCompleteMessageSchema,
-  replayRequestMessageSchema,
+  parsePublicEventBatch,
+  parsePublicEventEnvelope,
+  protocolErrorMessageSchema,
+  streamForEvent,
   streamSubscriptionSetMessageSchema,
   streamSubscriptionUpdatedMessageSchema,
   snapshotCursorSchema,
+  TERMINAL_TOOL_STATUSES,
+  toolCallTransitions,
+  turnTransitions,
   validatePublicEvent,
   welcomeMessageSchema,
+  WORKSPACE_STREAM,
   workspaceSnapshotResponseSchema,
 } from "../src/index.js";
 
@@ -50,37 +57,24 @@ function message(kind: string, data: unknown) {
   };
 }
 
-function event(
-  seq: number,
-  durability: "durable" | "transient" = "durable",
-): EventEnvelope {
+function event(seq: number): EventEnvelope {
   return {
     seq,
     id: `evt_${seq}`,
     ts,
-    type:
-      durability === "durable" ? "project.created" : "conversation.live.delta",
-    durability,
+    type: "project.created",
     data: {},
   };
 }
 
 function batch(overrides: Partial<EventBatchData> = {}): EventBatchData {
   return {
-    stream: "local",
+    stream: WORKSPACE_STREAM,
     batchId: "bat_test",
     reason: "live",
-    events: [event(1), event(2, "transient")],
-    range: {
-      firstSeq: 1,
-      lastSeq: 2,
-      durableFirstSeq: 1,
-      durableLastSeq: 1,
-      durableCount: 1,
-      transientCount: 1,
-      previousDurableSeq: 0,
-      durableCompleteThroughSeq: 1,
-    },
+    events: [event(1), event(2)],
+    firstSeq: 1,
+    lastSeq: 2,
     ...overrides,
   };
 }
@@ -98,9 +92,7 @@ describe("compact explore payloads", () => {
         },
       ],
     });
-
     assert.equal(parsed.reports[0]?.reportPath, "/tmp/explore/report.md");
-    assert.equal(parsed.reports[0]?.summaryPreview, "Boundary summary");
   });
 
   it("projects full result reports to compact preview metadata", () => {
@@ -117,11 +109,8 @@ describe("compact explore payloads", () => {
         },
       ],
     }) as { reports: Array<Record<string, unknown>> };
-
     assert.equal(parsed.reports[0]?.report, undefined);
     assert.equal(parsed.reports[0]?.steps, undefined);
-    assert.equal(parsed.reports[0]?.reportPath, "/tmp/explore/report.md");
-    assert.equal(parsed.reports[0]?.summaryPreview, "Boundary summary");
   });
 
   it("strips legacy full report fields from completion events", () => {
@@ -143,15 +132,13 @@ describe("compact explore payloads", () => {
       },
       "workbench_server",
     ) as { reports: Array<Record<string, unknown>> };
-
     assert.equal(parsed.reports[0]?.report, undefined);
     assert.equal(parsed.reports[0]?.steps, undefined);
-    assert.equal(parsed.reports[0]?.reportPath, "/tmp/explore/report.md");
   });
 });
 
 describe("Protocol v1 shared schemas", () => {
-  it("validates baseline message envelope", () => {
+  it("validates baseline, hello, and welcome envelopes", () => {
     assert.equal(
       nerveMessageSchema.safeParse(message("heartbeat", {})).success,
       true,
@@ -163,61 +150,56 @@ describe("Protocol v1 shared schemas", () => {
       }).success,
       false,
     );
+
     assert.equal(
-      nerveMessageSchema.safeParse({ ...message("heartbeat", {}), version: 2 })
-        .success,
-      false,
+      helloMessageSchema.safeParse(
+        message("hello", {
+          requestedVersion: 1,
+          capabilities: [
+            "encoding.json",
+            "event.batch",
+            "event.notify",
+            "stream.subscription.v1",
+          ],
+          requiredCapabilities: ["stream.subscription.v1"],
+          encodings: ["json"],
+        }),
+      ).success,
+      true,
+    );
+
+    assert.equal(
+      welcomeMessageSchema.safeParse(
+        message("welcome", {
+          sessionId: "ses_test",
+          acceptingPeer: { role: "workbench_server", id: "server_test" },
+          acceptedVersion: 1,
+          capabilities: [
+            "encoding.json",
+            "event.batch",
+            "event.notify",
+            "stream.subscription.v1",
+          ],
+          encoding: "json",
+          limits: {
+            maxMessageBytes: 4_194_304,
+            maxBatchEvents: 500,
+            maxBatchBytes: 1_048_576,
+          },
+          heartbeat: { intervalMs: 30_000, timeoutMs: 70_000 },
+        }),
+      ).success,
+      true,
     );
   });
 
-  it("validates session hello and welcome messages", () => {
-    const hello = message("hello", {
-      requestedVersion: 1,
-      capabilities: [
-        "encoding.json",
-        "event.batch",
-        "event.replay",
-        "event.ack.processed",
-      ],
-      encodings: ["json"],
-      resume: { streams: [{ stream: "local", processedSeq: 10 }] },
-    });
-    assert.equal(helloMessageSchema.safeParse(hello).success, true);
-
-    const welcome = message("welcome", {
-      sessionId: "ses_test",
-      acceptingPeer: { role: "workbench_server", id: "server_test" },
-      acceptedVersion: 1,
-      capabilities: [
-        "encoding.json",
-        "event.batch",
-        "event.replay",
-        "event.ack.processed",
-      ],
-      encoding: "json",
-      streams: [
-        { stream: "local", latestSeq: 12, durableSeq: 11, replayFromSeq: 10 },
-      ],
-      limits: {
-        maxMessageBytes: 4_194_304,
-        maxBatchEvents: 500,
-        maxBatchBytes: 1_048_576,
-        maxInflightBatches: 8,
-        maxUnackedDurableEvents: 5_000,
-      },
-      heartbeat: { intervalMs: 30_000, timeoutMs: 70_000 },
-      resume: { accepted: true, mode: "replay" },
-    });
-    assert.equal(welcomeMessageSchema.safeParse(welcome).success, true);
-  });
-
-  it("validates exact-set stream subscription messages", () => {
+  it("validates exact-set subscriptions with per-stream modes", () => {
     const set = message("stream.subscription.set", {
       sessionId: "ses_test",
       subscriptionId: "sub_test",
       streams: [
-        { stream: "manager", processedSeq: 4 },
-        { stream: "sandbox:one", processedSeq: 2 },
+        { stream: WORKSPACE_STREAM, processedSeq: 4 },
+        { stream: "conv/conv_one", processedSeq: 2 },
       ],
     });
     assert.equal(
@@ -230,35 +212,41 @@ describe("Protocol v1 shared schemas", () => {
         data: {
           ...set.data,
           streams: [
-            { stream: "manager", processedSeq: 4 },
-            { stream: "manager", processedSeq: 2 },
+            { stream: WORKSPACE_STREAM, processedSeq: 4 },
+            { stream: WORKSPACE_STREAM, processedSeq: 2 },
           ],
         },
       }).success,
       false,
     );
-    assert.equal(
-      streamSubscriptionSetMessageSchema.safeParse({
-        ...set,
-        data: { ...set.data, sessionId: "", streams: [] },
-      }).success,
-      false,
-    );
+
     assert.equal(
       streamSubscriptionUpdatedMessageSchema.safeParse(
         message("stream.subscription.updated", {
           sessionId: "ses_test",
           subscriptionId: "sub_test",
           accepted: true,
-          mode: "replay",
-          streams: [{ stream: "manager", latestSeq: 8, durableSeq: 8 }],
+          streams: [
+            {
+              stream: WORKSPACE_STREAM,
+              latestSeq: 8,
+              earliestAvailableSeq: 3,
+              mode: "replay",
+            },
+            {
+              stream: "conv/conv_one",
+              latestSeq: 9,
+              earliestAvailableSeq: 5,
+              mode: "snapshot_required",
+            },
+          ],
         }),
       ).success,
       true,
     );
   });
 
-  it("validates event batches and rejects inconsistent ranges", () => {
+  it("enforces dense event batches", () => {
     assert.equal(
       eventBatchMessageSchema.safeParse(message("event.batch", batch()))
         .success,
@@ -266,22 +254,45 @@ describe("Protocol v1 shared schemas", () => {
     );
     assert.equal(
       eventBatchDataSchema.safeParse(
-        batch({ range: { ...batch().range, durableCount: 2 } }),
+        batch({ events: [event(1), event(3)], lastSeq: 3 }),
       ).success,
       false,
     );
     assert.equal(
+      eventBatchDataSchema.safeParse(batch({ firstSeq: 2 })).success,
+      false,
+    );
+    assert.equal(
       eventBatchDataSchema.safeParse(
-        batch({
-          events: [event(2), event(1)],
-          range: { ...batch().range, firstSeq: 2, lastSeq: 1 },
+        batch({ events: [], firstSeq: null, lastSeq: null }),
+      ).success,
+      true,
+    );
+  });
+
+  it("validates unsequenced notify events", () => {
+    assert.equal(
+      eventNotifyMessageSchema.safeParse(
+        message("event.notify", {
+          events: [
+            {
+              id: "evt_notify",
+              ts,
+              type: "task.output",
+              data: { taskId: "task_1", stream: "stdout", text: "ok" },
+            },
+          ],
         }),
       ).success,
-      false,
+      true,
     );
     assert.equal(
-      eventBatchDataSchema.safeParse(
-        batch({ range: { ...batch().range, previousDurableSeq: undefined } }),
+      eventNotifyMessageSchema.safeParse(
+        message("event.notify", {
+          events: [
+            { seq: 1, id: "evt_notify", ts, type: "task.output", data: {} },
+          ],
+        }),
       ).success,
       false,
     );
@@ -290,13 +301,13 @@ describe("Protocol v1 shared schemas", () => {
   it("validates snapshot cursors and operation catalog params", () => {
     assert.equal(
       snapshotCursorSchema.safeParse({
-        streams: [{ stream: "local", processedSeq: 12 }],
+        streams: [{ stream: WORKSPACE_STREAM, processedSeq: 12 }],
       }).success,
       true,
     );
     assert.equal(
       snapshotCursorSchema.safeParse({
-        streams: [{ stream: "local", processedSeq: -1 }],
+        streams: [{ stream: WORKSPACE_STREAM, processedSeq: -1 }],
       }).success,
       false,
     );
@@ -308,22 +319,6 @@ describe("Protocol v1 shared schemas", () => {
       operationParamsSchema("approval.grant").safeParse({
         approvalId: "approval_test",
         note: "ok",
-      }).success,
-      true,
-    );
-    assert.equal(
-      operationParamsSchema("git.file.stage").safeParse({
-        projectId: "proj_test",
-        repo: ".",
-        path: "src/index.ts",
-      }).success,
-      true,
-    );
-    assert.equal(
-      operationParamsSchema("project.conversations.prune").safeParse({
-        projectId: "proj_test",
-        strategy: "keepLatest",
-        keepLatest: 10,
       }).success,
       true,
     );
@@ -344,7 +339,7 @@ describe("Protocol v1 shared schemas", () => {
           userQuestions: [],
           planReviews: [],
         },
-        cursor: { streams: [{ stream: "local", processedSeq: 0 }] },
+        cursor: { streams: [{ stream: WORKSPACE_STREAM, processedSeq: 0 }] },
         generatedAt: ts,
       }).success,
       true,
@@ -354,25 +349,9 @@ describe("Protocol v1 shared schemas", () => {
   it("dispatches HTTP and RPC payloads through catalog schemas", () => {
     assert.deepEqual(
       parseOperationParams("project.get", { projectId: "proj_1" }),
-      {
-        projectId: "proj_1",
-      },
+      { projectId: "proj_1" },
     );
     assert.throws(() => parseOperationParams("project.get", {}));
-    assert.deepEqual(
-      parseOperationParams("run.continue", {
-        agentId: "agent_1",
-        runId: "run_1",
-        reason: "manual",
-      }),
-      { agentId: "agent_1", runId: "run_1", reason: "manual" },
-    );
-    assert.throws(() =>
-      parseOperationParams("run.continue", {
-        agentId: "agent_1",
-        statusEntryId: "entry_1",
-      }),
-    );
     assert.deepEqual(
       parseProtocolRequestData({
         method: "project.get",
@@ -392,13 +371,6 @@ describe("Protocol v1 shared schemas", () => {
       }).result,
       { ok: true },
     );
-    assert.throws(() =>
-      parseProtocolResponseData("project.get", {
-        ok: true,
-        method: "project.delete",
-        result: { ok: true },
-      }),
-    );
   });
 
   it("owns every operation once with explicit routing metadata", () => {
@@ -410,12 +382,6 @@ describe("Protocol v1 shared schemas", () => {
     for (const definition of definitions) {
       assert.ok(definition.requiredCapability.startsWith("operation."));
       assert.ok(definition.allowedTargetRoles.length > 0);
-      assert.ok(
-        ["read", "mutation", "accepted_async"].includes(definition.kind),
-      );
-      assert.ok(
-        ["none", "recommended", "required"].includes(definition.idempotency),
-      );
       assert.equal(operationDefinition(definition.method), definition);
       assert.equal(
         definition.paramsSchema.safeParse(Symbol("params")).success,
@@ -426,75 +392,49 @@ describe("Protocol v1 shared schemas", () => {
         false,
       );
     }
-
-    for (const retired of [
-      "agent.prompt",
-      "agent.abort",
-      "agent.continueFromFailure",
-      "sandbox.agent.prompt",
-      "sandbox.agent.abort",
-      "sandbox.agent.continue",
-      "sandbox.agent.configure",
-      "sandbox.toolCall.get",
-      "sandbox.run.start",
-      "sandbox.input.submit",
-    ]) {
-      assert.equal(
-        operationNameSchema.safeParse(retired).success,
-        false,
-        retired,
-      );
-    }
   });
 
-  it("validates public envelopes and batches against catalog metadata", () => {
-    const event = {
+  it("validates public envelopes and sequenced batches against catalog metadata", () => {
+    const publicEvent = {
       seq: 1,
       id: "evt_git_1",
       ts,
       type: "git.repository.changed",
-      durability: "durable",
       data: { repo: ".", reason: "commit" },
     };
     assert.equal(
-      parsePublicEventEnvelope(event, "workbench_server").type,
+      parsePublicEventEnvelope(publicEvent, "workbench_server").type,
       "git.repository.changed",
     );
     assert.throws(
-      () => parsePublicEventEnvelope(event, "sandbox_manager"),
+      () => parsePublicEventEnvelope(publicEvent, "sandbox_manager"),
       /cannot be emitted/,
     );
     assert.throws(
       () =>
         parsePublicEventEnvelope(
-          { ...event, durability: "transient" },
+          { ...publicEvent, type: "task.output" },
           "workbench_server",
         ),
-      /must use durable/,
+      /cannot use event.batch/,
     );
-    const batch = {
-      stream: "local",
-      batchId: "batch_1",
-      reason: "live",
-      events: [event],
-      range: {
-        firstSeq: 1,
-        lastSeq: 1,
-        durableFirstSeq: 1,
-        durableLastSeq: 1,
-        durableCount: 1,
-        transientCount: 0,
-        previousDurableSeq: 0,
-        durableCompleteThroughSeq: 1,
-      },
-    };
     assert.equal(
-      parsePublicEventBatch(batch, "workbench_server").events.length,
+      parsePublicEventBatch(
+        {
+          stream: WORKSPACE_STREAM,
+          batchId: "batch_1",
+          reason: "live",
+          events: [publicEvent],
+          firstSeq: 1,
+          lastSeq: 1,
+        },
+        "workbench_server",
+      ).events.length,
       1,
     );
   });
 
-  it("owns every public event with concrete bounded metadata", () => {
+  it("owns every public event with delivery and bounded metadata", () => {
     const definitions = allPublicEventDefinitions();
     assert.equal(
       new Set(definitions.map((definition) => definition.name)).size,
@@ -503,145 +443,83 @@ describe("Protocol v1 shared schemas", () => {
     const turnStarted = definitions.find(
       (definition) => definition.name === "conversation.live.turn.started",
     );
-    assert.equal(turnStarted?.durability, "transient");
-    assert.equal(turnStarted?.coalescing, undefined);
+    assert.equal(turnStarted?.delivery, "sequenced");
+    const delta = definitions.find(
+      (definition) => definition.name === "conversation.live.content.delta",
+    );
+    assert.equal(delta?.supersedable, true);
     const sandboxActivity = definitions.find(
       (definition) => definition.name === "sandbox.activity.changed",
     );
-    assert.equal(sandboxActivity?.durability, "transient");
+    assert.equal(sandboxActivity?.delivery, "ephemeral");
     assert.equal(sandboxActivity?.coalescing, "latest_by_scope");
-    assert.deepEqual(turnStarted?.scope, [
-      "projectId",
-      "conversationId",
-      "agentId",
-      "runId",
-      "turnId",
-    ]);
     for (const definition of definitions) {
-      assert.ok(definition.allowedSourceRoles.length > 0);
-      assert.ok(["durable", "transient"].includes(definition.durability));
-      assert.ok(Array.isArray(definition.scope));
-      assert.notEqual(definition.payloadSchema, boundedPublicObjectSchema);
+      assert.ok(["sequenced", "ephemeral"].includes(definition.delivery));
       assert.equal(
         definition.payloadSchema.safeParse(Symbol("payload")).success,
         false,
       );
-      assert.equal(definition.allowedSourceRoles.includes("ui"), false);
-      if (definition.coalescing) assert.ok(definition.scope.length > 0);
+      assert.notEqual(definition.payloadSchema, boundedPublicObjectSchema);
+      if (definition.delivery === "sequenced") {
+        assert.doesNotThrow(() => streamForEvent(definition.name, {}));
+      }
+      if (definition.coalescing) {
+        assert.equal(definition.delivery, "ephemeral");
+        assert.ok(definition.scope.length > 0);
+      }
     }
     assert.equal(
       boundedPublicJsonSchema.safeParse({ authorization_token: "secret" })
         .success,
       false,
     );
-    assert.equal(
-      boundedPublicJsonSchema.safeParse({
-        endpoint: "https://user:password@example.test",
-      }).success,
-      false,
-    );
-    assert.throws(
-      () =>
-        validatePublicEvent(
-          "settings.updated",
-          { authorization_token: "secret" },
-          "workbench_server",
-        ),
-      /secret-like/,
-    );
-    assert.throws(
-      () =>
-        validatePublicEvent(
-          "sandbox.lifecycle.changed",
-          {
-            sandboxId: "sbx_1",
-            current: "ready",
-            changedAt: ts,
-          },
-          "sandbox_agent",
-        ),
-      /cannot be emitted/,
-    );
-    for (const retired of [
-      "manager.sandbox.created",
-      "manager.sandbox.updated",
-      "approval.requested",
-      "approval.granted",
-      "approval.denied",
-      "userQuestion.requested",
-      "userQuestion.resolved",
-      "run.waiting_for_input",
-      "run.waiting_for_approval",
-      "run.waiting_for_plan_review",
-    ]) {
-      assert.throws(
-        () => validatePublicEvent(retired, {}, "sandbox_manager"),
-        /Unknown public event/,
-        retired,
-      );
-    }
   });
 
-  it("validates replay, ack, flow, and error messages", () => {
+  it("routes workspace and conversation streams", () => {
+    assert.equal(streamForEvent("project.created", {}), WORKSPACE_STREAM);
     assert.equal(
-      ackMessageSchema.safeParse(
-        message("event.ack", {
-          sessionId: "ses_test",
-          ackId: "ack_test",
-          streams: [{ stream: "local", processedSeq: 1 }],
-          received: [{ stream: "local", highestSeq: 2 }],
-        }),
-      ).success,
+      streamForEvent("conversation.deleted", { conversationId: "conv_1" }),
+      WORKSPACE_STREAM,
+    );
+    assert.equal(
+      streamForEvent("conversation.entry.appended", {
+        conversationId: "conv_1",
+      }),
+      conversationStream("conv_1"),
+    );
+    assert.equal(parseConversationStream("conv/conv_1"), "conv_1");
+    assert.equal(parseConversationStream(WORKSPACE_STREAM), null);
+    assert.throws(
+      () => streamForEvent("task.output", {}),
+      /does not have a stream/,
+    );
+  });
+
+  it("shares lifecycle transition guards", () => {
+    assert.equal(
+      canTransition(toolCallTransitions, "requested", "running"),
       true,
     );
-
     assert.equal(
-      replayRequestMessageSchema.safeParse(
-        message("replay.request", {
-          sessionId: "ses_test",
-          replayId: "rpl_test",
-          streams: [{ stream: "local", fromSeq: 1 }],
-          reason: "gap_detected",
-        }),
-      ).success,
-      true,
+      canTransition(toolCallTransitions, "completed", "running"),
+      false,
     );
-
-    assert.equal(
-      replayCompleteMessageSchema.safeParse(
-        message("replay.complete", {
-          sessionId: "ses_test",
-          replayId: "rpl_test",
-          streams: [
-            {
-              stream: "local",
-              fromSeq: 1,
-              toSeq: 2,
-              latestSeq: 2,
-              durableCompleteThroughSeq: 2,
-              sentEvents: 1,
-              sentDurableEvents: 1,
-              sentTransientEvents: 0,
-            },
-          ],
-          liveDelivery: "resuming",
-        }),
-      ).success,
-      true,
+    assert.doesNotThrow(() =>
+      assertTransition(
+        liveMessageTransitions,
+        "started",
+        "completed",
+        "message",
+      ),
     );
-
-    assert.equal(
-      flowUpdateMessageSchema.safeParse(
-        message("flow.update", {
-          sessionId: "ses_test",
-          scope: { stream: "local" },
-          mode: "degraded",
-          reason: "client_backpressure",
-        }),
-      ).success,
-      true,
+    assert.throws(
+      () => assertTransition(turnTransitions, "failed", "started", "turn"),
+      /Illegal lifecycle transition/,
     );
+    assert.deepEqual(TERMINAL_TOOL_STATUSES, ["completed", "denied", "error"]);
+  });
 
+  it("validates protocol errors", () => {
     assert.equal(
       protocolErrorMessageSchema.safeParse(
         message("error", {

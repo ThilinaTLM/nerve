@@ -19,7 +19,6 @@ describe("sandbox startup telemetry", () => {
         seq: 1,
         ts,
         type: "sandbox.startup.stage.completed",
-        durability: "durable",
         data: {
           instanceId: "inst_1",
           stage: "preflight",
@@ -39,7 +38,6 @@ describe("sandbox startup telemetry", () => {
         seq: 2,
         ts,
         type: "sandbox.controller.disconnected",
-        durability: "durable",
         data: {
           instanceId: "inst_1",
           disconnectedAt: ts,

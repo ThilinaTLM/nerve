@@ -212,7 +212,7 @@ export type RunPromptRecord = z.infer<typeof runPromptRecordSchema>;
 export const runPublicEventIntentSchema = z.object({
   id: z.string().min(1).max(512),
   type: publicEventNameSchema,
-  durability: z.enum(["durable", "transient"]),
+  delivery: z.enum(["sequenced", "ephemeral"]),
   occurredAt: isoDateTimeSchema,
   data: z.unknown(),
 });

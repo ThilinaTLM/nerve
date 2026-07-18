@@ -346,12 +346,12 @@ test("terminal persistence failures remain visible and retryable", async () => {
   assert.deepEqual(service.pendingTerminalFailureIds(), []);
 });
 
-test("process output is bounded, transient, and delegated to durable logs", async () => {
+test("process output is bounded, ephemeral, and delegated to retained logs", async () => {
   const { service, events, callbacks } = fixture();
   await service.start({ cwd: "/workspace", command: "echo hello" });
   await callbacks()?.onOutput?.("stdout", "x".repeat(20_000));
   const output = events.find((event) => event.type === "task.output");
-  assert.equal(output?.durability, "transient");
+  assert.equal(output?.delivery, "ephemeral");
   assert.equal(
     (output?.data as { text: string } | undefined)?.text.length,
     16_384,

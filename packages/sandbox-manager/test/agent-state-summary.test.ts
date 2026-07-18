@@ -31,7 +31,7 @@ function event(seq: number, type: string, data: unknown) {
     id: `evt_${seq}`,
     ts: `2026-07-07T17:06:${String(10 + seq).padStart(2, "0")}.000Z`,
     type,
-    durability: "durable",
+    delivery: "sequenced",
     data,
   });
 }

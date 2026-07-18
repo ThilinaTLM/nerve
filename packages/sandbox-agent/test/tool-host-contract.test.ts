@@ -86,6 +86,10 @@ describe("sandbox shared tool host contract", () => {
     roots.push(root);
     const stores = new SandboxStateStores(root);
     await stores.load();
+    const notifyEvents: string[] = [];
+    const unsubscribeNotify = stores.events.subscribeNotify((event) => {
+      notifyEvents.push(event.type);
+    });
     const taskService = new SandboxTaskService({
       stateDir: root,
       workspaceDir: process.cwd(),
@@ -146,11 +150,12 @@ describe("sandbox shared tool host contract", () => {
       2,
     );
     assert.ok(taskEvents.some((event) => event.type === "task.completed"));
-    assert.ok(
-      taskEvents.some(
-        (event) =>
-          event.type === "task.output" && event.durability === "transient",
-      ),
+    assert.ok(notifyEvents.includes("task.output"));
+    assert.equal(
+      taskEvents.some((event) => event.type === "task.output"),
+      false,
     );
+    unsubscribeNotify();
+    await taskService.drain();
   });
 });

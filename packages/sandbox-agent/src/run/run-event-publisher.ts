@@ -1,8 +1,8 @@
 import type { RunPublicEventIntent } from "@nervekit/contracts";
 import type {
   IdempotentRunEventPublisherPort,
+  RunNotifyEventPort,
   RunProgressEvent,
-  RunTransientEventPort,
 } from "@nervekit/host-runtime";
 import type { EventOutbox } from "../state/event-outbox.js";
 
@@ -25,38 +25,35 @@ function scopeOf(data: unknown): IntentScope {
   };
 }
 
-/**
- * Idempotent publication of durable run event intents onto the sandbox
- * EventOutbox. The intent id is the outbox record id, so redelivery after a
- * crash between commit and delivery-marker is a no-op (EventOutbox.append is
- * idempotent by id).
- */
 export class SandboxRunEventPublisher implements IdempotentRunEventPublisherPort {
   constructor(private readonly outbox: EventOutbox) {}
 
   async publish(
     intent: RunPublicEventIntent,
   ): Promise<{ eventId: string; sequence: number }> {
+    if (intent.delivery !== "sequenced") {
+      throw new Error(`Run intent ${intent.id} must use sequenced delivery`);
+    }
     const scope = scopeOf(intent.data);
     const record = await this.outbox.append({
       id: intent.id,
       type: intent.type,
-      durability: intent.durability,
       data: intent.data,
       ts: intent.occurredAt,
       conversationId: scope.conversationId,
       agentId: scope.agentId,
       runId: scope.runId,
     });
+    if (!("seq" in record)) {
+      throw new Error(
+        `Run intent ${intent.id} did not enter the sequenced outbox`,
+      );
+    }
     return { eventId: record.id, sequence: record.seq };
   }
 }
 
-/**
- * Bounded, non-authoritative transient progress delivered directly to the
- * outbox as a transient record. Never persisted; never part of run state.
- */
-export class SandboxRunTransientPublisher implements RunTransientEventPort {
+export class SandboxRunNotifyPublisher implements RunNotifyEventPort {
   private tail: Promise<void> = Promise.resolve();
 
   constructor(private readonly outbox: EventOutbox) {}
@@ -67,7 +64,6 @@ export class SandboxRunTransientPublisher implements RunTransientEventPort {
       .then(async () => {
         await this.outbox.append({
           type: event.type,
-          durability: "transient",
           data: event.data,
           ts: event.occurredAt,
           conversationId: scope.conversationId,

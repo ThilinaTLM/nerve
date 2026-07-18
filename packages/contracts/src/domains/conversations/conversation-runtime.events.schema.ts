@@ -5,16 +5,9 @@ export const conversationRuntimeEventDefinitions = Object.entries(
   conversationEventPayloadSchemas,
 ).map(([name, payloadSchema]) =>
   definePublicEvent(name, payloadSchema, {
-    durability:
-      name === "conversation.context.updated" ||
-      name.startsWith("conversation.live.")
-        ? "transient"
-        : "durable",
-    coalescing: name.endsWith(".delta")
-      ? "concat_delta"
-      : name === "conversation.context.updated"
-        ? "latest_by_scope"
-        : undefined,
+    delivery: "sequenced",
+    supersedable:
+      name.endsWith(".delta") || name === "conversation.context.updated",
     scope: conversationEventScope(name),
   }),
 );

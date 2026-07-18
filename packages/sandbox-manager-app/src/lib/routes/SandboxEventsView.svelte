@@ -48,7 +48,7 @@ const events = $derived(
       <p class="p-4 text-sm text-muted-foreground">No events captured yet.</p>
     {:else}
       <ul class="flex flex-col divide-y">
-        {#each events as event (event.stream + ":" + event.seq)}
+        {#each events as event (event.stream + ":" + (event.seq ?? event.id))}
           <li>
             <button
               type="button"
@@ -56,14 +56,11 @@ const events = $derived(
               onclick={() => (selected = event)}
             >
               <Badge tone="neutral" size="xs" class="font-mono"
-                >#{event.seq}</Badge
+                >{event.seq === undefined ? "notify" : `#${event.seq}`}</Badge
               >
               <span class="min-w-0 flex-1 truncate font-mono text-xs"
                 >{event.type}</span
               >
-              {#if event.durability === "transient"}
-                <Badge tone="warn" size="xs">transient</Badge>
-              {/if}
               <span class="font-mono text-xs text-muted-foreground"
                 >{event.ts}</span
               >

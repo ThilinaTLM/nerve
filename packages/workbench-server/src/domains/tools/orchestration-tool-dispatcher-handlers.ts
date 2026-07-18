@@ -309,9 +309,7 @@ export function publishExploreProgress(
     stream: "stdout",
     delta: `${JSON.stringify(update)}\n`,
   });
-  void this.deps.events.publish("conversation.live.tool_output.delta", data, {
-    durability: "transient",
-  });
+  void this.deps.events.publish("conversation.live.tool_output.delta", data);
 }
 
 export function publishToolExecutionUpdate(
@@ -336,9 +334,7 @@ export function publishToolExecutionUpdate(
     stream: update.stream,
     delta: update.chunk,
   });
-  void this.deps.events.publish("conversation.live.tool_output.delta", data, {
-    durability: "transient",
-  });
+  void this.deps.events.publish("conversation.live.tool_output.delta", data);
 }
 
 export async function requestPlanReview(
@@ -377,7 +373,15 @@ export async function requestPlanReview(
   });
   await this.deps.publishToolCallUpdated(updatedToolCall);
   if (!options.durableSuspend) {
-    return this.deps.plans.waitForPlanReviewResult(review.id, options.signal);
+    const result = await this.deps.plans.waitForPlanReviewResult(
+      review.id,
+      options.signal,
+    );
+    const resumedToolCall = await this.deps.updateToolCall(toolCall.id, {
+      status: "running",
+    });
+    await this.deps.publishToolCallUpdated(resumedToolCall);
+    return result;
   }
   throw new ToolExecutionSuspended();
 }

@@ -179,7 +179,9 @@ export async function removeManagedSandbox(
   if (params.removeVolumes)
     await state.volumeProvider.remove?.(params.sandboxId, params);
   // Keep the durable record until all requested cleanup succeeds so a failed
-  // volume deletion remains retryable instead of becoming an orphaned 500.
+  // volume or journal deletion remains retryable instead of becoming an
+  // orphaned 500.
+  await state.events.deleteAll(params.sandboxId);
   await state.sandboxes.delete(params.sandboxId);
   await recordManagerLifecycleEvent(state, {
     type: "sandbox.lifecycle.changed",

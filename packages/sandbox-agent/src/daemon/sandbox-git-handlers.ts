@@ -10,7 +10,6 @@ export function registerSandboxGitHandlers(
   workspaceDir = "/workspace",
   publish?: (event: {
     type: "git.repository.changed";
-    durability: "durable";
     data: { repo: string; reason: string };
   }) => Promise<unknown>,
 ): void {
@@ -18,7 +17,7 @@ export function registerSandboxGitHandlers(
     GitService.forWorkspace(workspaceDir, "workspace"),
     {
       publish: async (type, data) => {
-        await publish?.({ type, durability: "durable", data });
+        await publish?.({ type, data });
       },
     },
   );

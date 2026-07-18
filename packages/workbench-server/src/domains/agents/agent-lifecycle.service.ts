@@ -8,7 +8,7 @@ import {
   type UpdateAgentRequest,
 } from "@nervekit/contracts";
 import { HttpError } from "../../http/errors.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
@@ -47,7 +47,7 @@ export class AgentLifecycleService {
 
   constructor(
     private readonly storage: InitializedStorage,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
     private readonly index: IndexStore,
     private readonly state: RuntimeState,
     private readonly agentRepository: AgentRepository,

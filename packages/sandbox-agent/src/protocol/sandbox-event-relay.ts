@@ -1,8 +1,9 @@
-import type {
-  ProtocolLimits,
-  ProtocolV1Message,
-  SandboxOutboxRecord,
-  StructuredLogger,
+import {
+  type NotifyEvent,
+  type ProtocolLimits,
+  type SandboxOutboxRecord,
+  type StructuredLogger,
+  publicEventDefinition,
 } from "@nervekit/contracts";
 import {
   buildEventBatch,
@@ -12,26 +13,19 @@ import {
 import type { EventOutbox } from "../state/event-outbox.js";
 
 const DEFAULT_COALESCE_DELAY_MS = 12;
-const MAX_PENDING_TRANSIENT = 256;
-
-type InFlightBatch = {
-  highestDurableSeq?: number;
-  sentAt: number;
-};
+const MAX_PENDING_NOTIFY = 256;
 
 export class SandboxEventRelay {
   readonly #queue: SandboxOutboxRecord[] = [];
   readonly #queuedSeqs = new Set<number>();
-  readonly #inFlight = new Map<string, InFlightBatch>();
+  readonly #notifyQueue: NotifyEvent[] = [];
   #session?: ProtocolClientSession;
   #limits?: ProtocolLimits;
   #unsubscribe?: () => void;
+  #unsubscribeNotify?: () => void;
   #tail: Promise<unknown> = Promise.resolve();
   #timer?: NodeJS.Timeout;
   #generation = 0;
-  #persistedAck = 0;
-  #sentDurableHighWater = 0;
-  #pausedTransient = false;
 
   constructor(
     private readonly outbox: EventOutbox,
@@ -48,6 +42,13 @@ export class SandboxEventRelay {
         this.#scheduleDrain();
       });
     });
+    this.#unsubscribeNotify ??= this.outbox.subscribeNotify((event) => {
+      void this.#serialize(async () => {
+        if (!this.#session) return;
+        this.#enqueueNotify(event);
+        this.#scheduleDrain();
+      });
+    });
   }
 
   async attach(
@@ -58,13 +59,37 @@ export class SandboxEventRelay {
       this.#resetConnectionState();
       this.#session = session;
       this.#limits = limits;
-      const ack = await this.outbox.ackState();
-      this.#persistedAck =
-        ack.streams.find((cursor) => cursor.stream === this.stream)
-          ?.processedSeq ?? 0;
-      this.#sentDurableHighWater = this.#persistedAck;
-      for (const record of this.outbox.unacked(this.#persistedAck))
-        this.#enqueue(record);
+      const agentLatestSeq = this.outbox.latestSeq();
+      // Report the agent's durable high-water before reconciling. The manager
+      // can archive a stale journal epoch and return its reset cursor here.
+      const subscription = await session.subscribe([
+        { stream: this.stream, processedSeq: agentLatestSeq },
+      ]);
+      const managerState = subscription.streams.find(
+        (candidate) => candidate.stream === this.stream,
+      );
+      if (!managerState)
+        throw new Error("Manager omitted the sandbox stream state");
+      const managerProcessedSeq = managerState.latestSeq;
+      if (managerProcessedSeq > agentLatestSeq)
+        throw new Error(
+          "Manager sandbox cursor remained ahead after epoch reconciliation",
+        );
+      const pending = this.outbox.since(managerProcessedSeq);
+      let expectedSeq = managerProcessedSeq + 1;
+      for (const record of pending) {
+        if (record.seq !== expectedSeq)
+          throw new Error(
+            `Agent outbox gap: expected ${expectedSeq}, received ${record.seq}`,
+          );
+        expectedSeq += 1;
+      }
+      if (expectedSeq !== agentLatestSeq + 1)
+        throw new Error(
+          `Agent outbox gap: expected ${expectedSeq}, high-water is ${agentLatestSeq}`,
+        );
+      await this.outbox.truncateThrough(managerProcessedSeq);
+      for (const record of pending) this.#enqueue(record);
       const generation = this.#generation;
       await this.#drain(generation, "replay");
       return generation;
@@ -72,89 +97,37 @@ export class SandboxEventRelay {
   }
 
   disconnect(): void {
-    void this.#serialize(() => {
-      this.#resetConnectionState();
-    });
+    void this.#serialize(() => this.#resetConnectionState());
   }
 
   stop(): void {
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
+    this.#unsubscribeNotify?.();
+    this.#unsubscribeNotify = undefined;
     this.disconnect();
   }
 
-  async acknowledge(
-    message: ProtocolV1Message & { kind: "event.ack" },
-    generation: number,
-  ): Promise<number> {
-    return this.#serialize(async () => {
-      if (generation !== this.#generation) return this.#persistedAck;
-      const cursor = message.data.streams.find(
-        (candidate) => candidate.stream === this.stream,
-      );
-      if (!cursor) return this.#persistedAck;
-      const processedSeq = Math.max(this.#persistedAck, cursor.processedSeq);
-      if (processedSeq > this.#persistedAck) {
-        await this.outbox.ack(this.stream, processedSeq);
-        this.#persistedAck = processedSeq;
-      }
-      let ackLatencyMs: number | undefined;
-      for (const [batchId, batch] of this.#inFlight) {
-        if (
-          batchId === message.data.ackId ||
-          (batch.highestDurableSeq !== undefined &&
-            batch.highestDurableSeq <= processedSeq)
-        ) {
-          ackLatencyMs = Math.max(ackLatencyMs ?? 0, Date.now() - batch.sentAt);
-          this.#inFlight.delete(batchId);
-        }
-      }
-      this.logger?.debug("sandbox event relay ACK", {
-        stream: this.stream,
-        generation,
-        processedSeq,
-        sentDurableHighWater: this.#sentDurableHighWater,
-        inflightBatches: this.#inFlight.size,
-        ackLatencyMs,
-      });
-      await this.#drain(generation, "live");
-      return this.#persistedAck;
-    });
-  }
-
-  handleFlow(message: ProtocolV1Message & { kind: "flow.update" }): void {
-    void this.#serialize(async () => {
-      if (
-        message.data.scope.stream &&
-        message.data.scope.stream !== this.stream
-      )
-        return;
-      this.#pausedTransient = message.data.action?.type === "pause_transient";
-      if (this.#pausedTransient) this.#dropPendingTransient();
-      this.logger?.warn("sandbox event relay flow control", {
-        stream: this.stream,
-        mode: message.data.mode,
-        reason: message.data.reason,
-        action: message.data.action?.type,
-        queueDepth: this.#queue.length,
-        inflightBatches: this.#inFlight.size,
-      });
-    });
-  }
-
   #enqueue(record: SandboxOutboxRecord): void {
-    if (record.seq <= this.#persistedAck || this.#queuedSeqs.has(record.seq))
-      return;
-    if (record.durability === "transient" && this.#pausedTransient) return;
-    if (
-      record.durability === "durable" &&
-      record.seq <= this.#sentDurableHighWater
-    )
-      return;
+    if (this.#queuedSeqs.has(record.seq)) return;
     this.#queue.push(record);
     this.#queue.sort((left, right) => left.seq - right.seq);
     this.#queuedSeqs.add(record.seq);
-    this.#boundTransientQueue();
+  }
+
+  #enqueueNotify(event: NotifyEvent): void {
+    const definition = publicEventDefinition(event.type);
+    if (definition?.coalescing === "latest_by_scope") {
+      const key = notifyKey(event, definition.scope);
+      const existing = this.#notifyQueue.findIndex(
+        (candidate) => notifyKey(candidate, definition.scope) === key,
+      );
+      if (existing >= 0) this.#notifyQueue.splice(existing, 1);
+    }
+    this.#notifyQueue.push(event);
+    while (this.#notifyQueue.length > MAX_PENDING_NOTIFY) {
+      this.#notifyQueue.shift();
+    }
   }
 
   #scheduleDrain(): void {
@@ -183,80 +156,50 @@ export class SandboxEventRelay {
       !session ||
       session.state !== "ready" ||
       !limits
-    )
-      return;
-    while (
-      this.#queue.length > 0 &&
-      this.#inFlight.size < limits.maxInflightBatches &&
-      generation === this.#generation &&
-      session.state === "ready"
     ) {
+      return;
+    }
+    let sentThroughSeq: number | undefined;
+    while (this.#queue.length > 0 && generation === this.#generation) {
       const chunks = chunkEvents(
         this.#queue.map(toProtocolEvent),
         limits.maxBatchEvents,
         limits.maxBatchBytes,
       );
       const events = chunks[0] ?? [];
-      if (events.length === 0) return;
+      if (events.length === 0) break;
       const records = this.#queue.splice(0, events.length);
       for (const record of records) this.#queuedSeqs.delete(record.seq);
-      const data = buildEventBatch(events, {
-        stream: this.stream,
-        reason,
-        previousDurableSeq: this.#sentDurableHighWater,
-      });
-      const durable = records.filter(
-        (record) => record.durability === "durable",
+      await session.publishEventBatch(
+        buildEventBatch(events, { stream: this.stream, reason }),
       );
-      const highestDurableSeq = durable.at(-1)?.seq;
-      this.#inFlight.set(data.batchId, {
-        highestDurableSeq,
-        sentAt: Date.now(),
-      });
-      if (highestDurableSeq !== undefined)
-        this.#sentDurableHighWater = highestDurableSeq;
-      try {
-        await session.publishEventBatch(data);
-      } catch (error) {
-        this.#inFlight.delete(data.batchId);
-        throw error;
-      }
+      sentThroughSeq = events.at(-1)?.seq;
       this.logger?.debug("sandbox event relay batch sent", {
         stream: this.stream,
         generation,
         reason,
         events: events.length,
-        durableEvents: durable.length,
         queueDepth: this.#queue.length,
-        inflightBatches: this.#inFlight.size,
-        sentDurableHighWater: this.#sentDurableHighWater,
       });
     }
-  }
-
-  #boundTransientQueue(): void {
-    let transientCount = this.#queue.reduce(
-      (count, record) => count + (record.durability === "transient" ? 1 : 0),
-      0,
-    );
-    if (transientCount <= MAX_PENDING_TRANSIENT) return;
-    for (let index = 0; index < this.#queue.length;) {
-      const record = this.#queue[index] as SandboxOutboxRecord;
-      if (record.durability === "transient") {
-        this.#queue.splice(index, 1);
-        this.#queuedSeqs.delete(record.seq);
-        transientCount -= 1;
-        if (transientCount <= MAX_PENDING_TRANSIENT) break;
-      } else index += 1;
+    if (sentThroughSeq !== undefined && generation === this.#generation) {
+      const updated = await session.subscribe([
+        { stream: this.stream, processedSeq: sentThroughSeq },
+      ]);
+      const managerState = updated.streams.find(
+        (stream) => stream.stream === this.stream,
+      );
+      if (!managerState)
+        throw new Error(
+          "Manager omitted the sandbox stream subscription state",
+        );
+      if (managerState.latestSeq > sentThroughSeq)
+        throw new Error("Manager sandbox cursor is ahead of the agent outbox");
+      await this.outbox.truncateThrough(managerState.latestSeq);
     }
-  }
-
-  #dropPendingTransient(): void {
-    for (let index = this.#queue.length - 1; index >= 0; index -= 1) {
-      const record = this.#queue[index] as SandboxOutboxRecord;
-      if (record.durability !== "transient") continue;
-      this.#queue.splice(index, 1);
-      this.#queuedSeqs.delete(record.seq);
+    while (this.#notifyQueue.length > 0 && generation === this.#generation) {
+      const events = this.#notifyQueue.splice(0, limits.maxBatchEvents);
+      await session.publishNotify({ events });
     }
   }
 
@@ -268,9 +211,7 @@ export class SandboxEventRelay {
     this.#limits = undefined;
     this.#queue.length = 0;
     this.#queuedSeqs.clear();
-    this.#inFlight.clear();
-    this.#sentDurableHighWater = this.#persistedAck;
-    this.#pausedTransient = false;
+    this.#notifyQueue.length = 0;
   }
 
   #serialize<T>(operation: () => T | Promise<T>): Promise<T> {
@@ -286,9 +227,21 @@ function toProtocolEvent(record: SandboxOutboxRecord) {
     seq: record.seq,
     type: record.type,
     ts: record.ts,
-    durability: record.durability,
     data: record.data,
   };
+}
+
+function notifyKey(event: NotifyEvent, scope: readonly string[]): string {
+  return `${event.type}:${scope.map((path) => JSON.stringify(readPath(event.data, path))).join(":")}`;
+}
+
+function readPath(value: unknown, path: string): unknown {
+  let current = value;
+  for (const segment of path.split(".")) {
+    if (!current || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
 }
 
 function boundedError(error: unknown): string {

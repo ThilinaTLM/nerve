@@ -10,13 +10,15 @@ import { EventStore } from "../src/state/event-store.js";
 
 const changedAt = "2026-01-01T00:00:00.000Z";
 
-test("manager journal serializes durable and transient sequence ownership", async () => {
+test("manager journal sequences persisted events while notify bypasses the log", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-manager-journal-"));
   try {
     const store = new EventStore(dir);
     const bus = new ManagerEventBus();
     const delivered: number[] = [];
+    const notified: string[] = [];
     bus.subscribe((event) => delivered.push(event.seq));
+    bus.subscribeNotify((event) => notified.push(event.event.type));
     const journal = new ManagerEventJournal(store, bus);
     await journal.init();
 
@@ -29,7 +31,6 @@ test("manager journal serializes durable and transient sequence ownership", asyn
       journal.publish({
         type: "sandbox.activity.changed",
         sandboxId: "sbx_one",
-        durability: "transient",
         payload: {
           runStatus: "running",
           updatedAt: changedAt,
@@ -42,11 +43,19 @@ test("manager journal serializes durable and transient sequence ownership", asyn
       }),
     ]);
 
-    assert.deepEqual([first.seq, activity.seq, third.seq], [1, 2, 3]);
-    assert.deepEqual(delivered, [1, 2, 3]);
+    assert.deepEqual(
+      [
+        "seq" in first ? first.seq : undefined,
+        "seq" in activity ? activity.seq : undefined,
+        "seq" in third ? third.seq : undefined,
+      ],
+      [1, undefined, 2],
+    );
+    assert.deepEqual(delivered, [1, 2]);
+    assert.deepEqual(notified, ["sandbox.activity.changed"]);
     assert.deepEqual(
       (await store.list(MANAGER_EVENT_STORE_ID)).map((event) => event.seq),
-      [1, 3],
+      [1, 2],
     );
 
     const restarted = new ManagerEventJournal(store, bus);
@@ -60,7 +69,7 @@ test("manager journal serializes durable and transient sequence ownership", asyn
         changedAt,
       },
     });
-    assert.equal(afterRestart.seq, 4);
+    assert.equal("seq" in afterRestart ? afterRestart.seq : undefined, 3);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

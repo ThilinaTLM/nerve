@@ -252,9 +252,12 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
       state.exit = exit;
       if (state.stopping)
         await this.waitForRuntimeExit(state.runtime, state.knownDescendants);
-      this.children.delete(input.taskId);
-      settle(exit);
-      await callbacks.onExit?.(exit);
+      try {
+        await callbacks.onExit?.(exit);
+      } finally {
+        this.children.delete(input.taskId);
+        settle(exit);
+      }
     };
     child.on("error", (error) => {
       this.observeCallback(
@@ -578,8 +581,9 @@ export class SandboxTaskService {
     return cancelled;
   }
 
-  drain(options: { childTimeoutMs?: number } = {}): Promise<void> {
-    return this.adapter.drain(options.childTimeoutMs);
+  async drain(options: { childTimeoutMs?: number } = {}): Promise<void> {
+    await this.adapter.drain(options.childTimeoutMs);
+    await this.options.events.drain();
   }
 
   private async publish(event: DomainEventIntent): Promise<void> {
@@ -587,7 +591,6 @@ export class SandboxTaskService {
     const task = data.task;
     await this.options.events.append({
       type: event.type,
-      durability: event.durability,
       data: event.data,
       conversationId: task?.conversationId,
       agentId: task?.agentId,

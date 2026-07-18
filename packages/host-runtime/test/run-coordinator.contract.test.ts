@@ -120,6 +120,7 @@ function fixture(
     ) => Promise<RunExecutionOutcome>;
     retryPolicy?: { enabled: boolean; maxRetries: number; baseDelayMs: number };
     observerFails?: boolean;
+    beforeFlushEvents?: (transition: RunTransitionRecord) => Promise<void>;
     retryDelay?: (delayMs: number, signal: AbortSignal) => Promise<void>;
     removeQueuedPrompt?: (promptId: string) => boolean | Promise<boolean>;
   } = {},
@@ -134,7 +135,7 @@ function fixture(
   const removedPromptIds: string[] = [];
   const executions: RunExecution[] = [];
   const sinks: RunExecutionSink[] = [];
-  const transient: RunProgressEvent[] = [];
+  const notifyEvents: RunProgressEvent[] = [];
   const executionInputs: Parameters<RunExecution["execute"]>[0][] = [];
   const observed: RunTransitionRecord[] = [];
   let id = 0;
@@ -166,7 +167,7 @@ function fixture(
   const coordinator = new RunCoordinator({
     unitOfWork,
     sourceRole: options.sourceRole ?? "sandbox_agent",
-    transient: { publish: (event) => transient.push(event) },
+    notify: { publish: (event) => notifyEvents.push(event) },
     execution: {
       create: async (_run, sink) => {
         sinks.push(sink);
@@ -247,7 +248,10 @@ function fixture(
         if (options.observerFails) throw new Error("observer unavailable");
       },
     },
-    flushEvents: (transition) => delivery.flushTransition(transition),
+    flushEvents: async (transition) => {
+      await options.beforeFlushEvents?.(transition);
+      await delivery.flushTransition(transition);
+    },
   });
   return {
     coordinator,
@@ -261,7 +265,7 @@ function fixture(
     removedPromptIds,
     executions,
     sinks,
-    transient,
+    notifyEvents,
     executionInputs,
     observed,
     finishExecution,
@@ -964,6 +968,64 @@ test("projection and publication failure do not lose committed transition", asyn
   assert.equal((await harness.unitOfWork.pendingEventIntents()).length, 1);
 });
 
+test("settled reads hide terminal state until its complete commit pipeline settles", async () => {
+  let releaseTerminal!: () => void;
+  const terminalGate = new Promise<void>((resolve) => {
+    releaseTerminal = resolve;
+  });
+  let markTerminalFlushStarted!: () => void;
+  const terminalFlushStarted = new Promise<void>((resolve) => {
+    markTerminalFlushStarted = resolve;
+  });
+  const harness = fixture({
+    execute: async (_attempt, input, sink) => {
+      await sink.appendEntries([
+        {
+          id: "entry_settled_user",
+          conversationId: input.run.conversationId,
+          agentId: input.run.agentId,
+          runId: input.run.runId,
+          role: "user",
+          kind: "message",
+          text: "committed before completion",
+          createdAt: "2026-07-12T00:00:30.000Z",
+        },
+      ]);
+      return { status: "completed" };
+    },
+    beforeFlushEvents: async (transition) => {
+      if (transition.kind !== "completed") return;
+      markTerminalFlushStarted();
+      await terminalGate;
+    },
+  });
+  const run = await start(harness.coordinator);
+  await terminalFlushStarted;
+  assert.equal(
+    (await harness.unitOfWork.load(run.runId))?.run.status,
+    "completed",
+    "the old interleaving exposed this authoritative terminal commit",
+  );
+
+  let readFinished = false;
+  const read = harness.coordinator
+    .readSettled(() => harness.unitOfWork.list())
+    .then((states) => {
+      readFinished = true;
+      return states;
+    });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(readFinished, false);
+
+  releaseTerminal();
+  const states = await read;
+  assert.equal(states[0]?.run.status, "completed");
+  assert.equal(
+    states[0]?.transitions.flatMap((item) => item.entries).length,
+    1,
+  );
+});
+
 test("resolves an interaction once and rejects conflicting resolution", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);
@@ -1360,7 +1422,7 @@ test("execution sink journals and publishes durable entry events once", async ()
   }
 });
 
-test("execution sink publishes bounded transient progress off the durable path", async () => {
+test("execution sink publishes bounded notify progress off the sequenced path", async () => {
   const harness = fixture();
   await start(harness.coordinator);
   harness.sinks[0]!.progress({
@@ -1368,9 +1430,9 @@ test("execution sink publishes bounded transient progress off the durable path",
     occurredAt: "2026-07-12T00:00:10.000Z",
     data: { text: "partial" },
   });
-  assert.equal(harness.transient.length, 1);
-  assert.equal(harness.transient[0]?.type, "assistant.delta");
-  // Transient progress never becomes a durable intent.
+  assert.equal(harness.notifyEvents.length, 1);
+  assert.equal(harness.notifyEvents[0]?.type, "assistant.delta");
+  // Notify progress never becomes a sequenced intent.
   assert.equal(
     [...harness.published.keys()].some((id) => id.endsWith("assistant.delta")),
     false,

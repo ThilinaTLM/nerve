@@ -13,35 +13,24 @@ import {
 
 const ts = "2026-07-07T00:00:00.000Z";
 
-function evt(
-  seq: number,
-  type: string,
-  data: unknown,
-  durability: "durable" | "transient" = "transient",
-): EventEnvelope {
+function evt(seq: number, type: string, data: unknown): EventEnvelope {
   return {
     id: `evt_${seq}`,
     seq,
     ts,
     type,
-    durability,
     data,
   };
 }
 
 function startRun(seq = 1): EventEnvelope {
-  return evt(
-    seq,
-    "run.started",
-    {
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      runId: "run_test",
-      projectId: "proj_test",
-      startedAt: ts,
-    },
-    "durable",
-  );
+  return evt(seq, "run.started", {
+    conversationId: "conv_test",
+    agentId: "agent_test",
+    runId: "run_test",
+    projectId: "proj_test",
+    startedAt: ts,
+  });
 }
 
 function startTurn(seq = 2, turnId = "turn_test", ordinal = 0): EventEnvelope {
@@ -223,25 +212,20 @@ describe("conversation event reducer", () => {
 
     state = applyConversationEvent(
       state,
-      evt(
-        2,
-        "conversation.entry.appended",
-        {
+      evt(6, "conversation.entry.appended", {
+        conversationId: "conv_test",
+        liveMessageId: "msg_test",
+        entry: {
+          id: "entry_test",
           conversationId: "conv_test",
-          liveMessageId: "msg_test",
-          entry: {
-            id: "entry_test",
-            conversationId: "conv_test",
-            agentId: "agent_test",
-            runId: "run_test",
-            role: "assistant",
-            kind: "message",
-            text: "No tool call",
-            createdAt: ts,
-          },
+          agentId: "agent_test",
+          runId: "run_test",
+          role: "assistant",
+          kind: "message",
+          text: "No tool call",
+          createdAt: ts,
         },
-        "durable",
-      ),
+      }),
     );
     assert.deepEqual(state.activeRun?.turns[0]?.messages, []);
   });
@@ -273,24 +257,19 @@ describe("conversation event reducer", () => {
 
     state = applyConversationEvent(
       state,
-      evt(
-        2,
-        "toolCall.updated",
-        {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
+      evt(4, "toolCall.updated", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        providerToolCallId: "call_test",
+        toolCall: toolCall({
           providerToolCallId: "call_test",
-          toolCall: toolCall({
-            providerToolCallId: "call_test",
-            turnId: "turn_test",
-            liveMessageId: "msg_test",
-            contentIndex: 1,
-          }),
-        },
-        "durable",
-      ),
+          turnId: "turn_test",
+          liveMessageId: "msg_test",
+          contentIndex: 1,
+        }),
+      }),
     );
 
     // The draft block survives for the presentation handoff; the timeline
@@ -373,27 +352,22 @@ describe("conversation event reducer", () => {
     // envelope supplies exact correlation even though the entry omits it.
     state = applyConversationEvent(
       state,
-      evt(
-        2,
-        "conversation.entry.appended",
-        {
+      evt(2, "conversation.entry.appended", {
+        conversationId: "conv_test",
+        liveMessageId: "msg_test",
+        entry: {
+          id: "entry_assistant",
           conversationId: "conv_test",
-          liveMessageId: "msg_test",
-          entry: {
-            id: "entry_assistant",
-            conversationId: "conv_test",
-            agentId: "agent_test",
-            runId: "run_test",
-            turnId: "turn_test",
-            messageOrdinal: 0,
-            role: "assistant",
-            kind: "message",
-            text: "[Tool call: bash]",
-            createdAt: ts,
-          },
+          agentId: "agent_test",
+          runId: "run_test",
+          turnId: "turn_test",
+          messageOrdinal: 0,
+          role: "assistant",
+          kind: "message",
+          text: "[Tool call: bash]",
+          createdAt: ts,
         },
-        "durable",
-      ),
+      }),
     );
     assert.deepEqual(
       state.activeRun?.turns[0]?.messages[0]?.blocks.map((block) => block.kind),
@@ -407,25 +381,20 @@ describe("conversation event reducer", () => {
     ) => {
       state = applyConversationEvent(
         state,
-        evt(
-          seq,
-          "toolCall.updated",
-          {
-            conversationId: "conv_test",
-            agentId: "agent_test",
-            projectId: "proj_test",
-            runId: "run_test",
-            providerToolCallId: "call_test",
-            toolCall: toolCall({
-              status,
-              turnId: "turn_test",
-              liveMessageId: "msg_test",
-              contentIndex: 1,
-              updatedAt: `2026-07-07T00:00:0${seq}.000Z`,
-            }),
-          },
-          "durable",
-        ),
+        evt(seq, "toolCall.updated", {
+          conversationId: "conv_test",
+          agentId: "agent_test",
+          projectId: "proj_test",
+          runId: "run_test",
+          providerToolCallId: "call_test",
+          toolCall: toolCall({
+            status,
+            turnId: "turn_test",
+            liveMessageId: "msg_test",
+            contentIndex: 1,
+            updatedAt: `2026-07-07T00:00:0${seq}.000Z`,
+          }),
+        }),
       );
       assertOneSlot();
     };
@@ -436,46 +405,36 @@ describe("conversation event reducer", () => {
 
     state = applyConversationEvent(
       state,
-      evt(
-        7,
-        "conversation.entry.appended",
-        {
+      evt(7, "conversation.entry.appended", {
+        conversationId: "conv_test",
+        entry: {
+          id: "entry_tool_result",
           conversationId: "conv_test",
-          entry: {
-            id: "entry_tool_result",
-            conversationId: "conv_test",
-            agentId: "agent_test",
-            runId: "run_test",
-            role: "system",
-            kind: "message",
-            text: "/workspace",
-            details: {
-              toolCallId: "call_test",
-              toolRecordId: "tool_test",
-              toolName: "bash",
-            },
-            createdAt: ts,
+          agentId: "agent_test",
+          runId: "run_test",
+          role: "system",
+          kind: "message",
+          text: "/workspace",
+          details: {
+            toolCallId: "call_test",
+            toolRecordId: "tool_test",
+            toolName: "bash",
           },
+          createdAt: ts,
         },
-        "durable",
-      ),
+      }),
     );
     assertOneSlot();
 
     state = applyConversationEvent(
       state,
-      evt(
-        8,
-        "run.completed",
-        {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
-          completedAt: ts,
-        },
-        "durable",
-      ),
+      evt(8, "run.completed", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        completedAt: ts,
+      }),
     );
     assert.equal(state.activeRun, undefined);
     assertOneSlot();
@@ -487,36 +446,26 @@ describe("conversation event reducer", () => {
     const prompt = queuedPrompt();
     state = applyConversationEvent(
       state,
-      evt(
-        2,
-        "conversation.prompt.queued",
-        {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
-          queuedPrompt: prompt,
-        },
-        "durable",
-      ),
+      evt(2, "conversation.prompt.queued", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        queuedPrompt: prompt,
+      }),
     );
     assert.equal(state.queuedPrompts?.length, 1);
     assert.equal(state.activeRun?.queuedPrompts.length, 1);
 
     state = applyConversationEvent(
       state,
-      evt(
-        3,
-        "conversation.prompt.dequeued",
-        {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
-          queuedPrompt: prompt,
-        },
-        "durable",
-      ),
+      evt(3, "conversation.prompt.dequeued", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        queuedPrompt: prompt,
+      }),
     );
     assert.deepEqual(state.queuedPrompts, []);
     assert.deepEqual(state.activeRun?.queuedPrompts, []);
@@ -539,23 +488,18 @@ describe("conversation event reducer", () => {
     state.activeEntryIds = ["entry_failed"];
     state = applyConversationEvent(
       state,
-      evt(
-        1,
-        "run.retrying",
-        {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
-          attempt: 2,
-          maxRetries: 3,
-          delayMs: 100,
-          retryAt: ts,
-          errorMessage: "rate limited",
-          failedEntryId: "entry_failed",
-        },
-        "durable",
-      ),
+      evt(1, "run.retrying", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        attempt: 2,
+        maxRetries: 3,
+        delayMs: 100,
+        retryAt: ts,
+        errorMessage: "rate limited",
+        failedEntryId: "entry_failed",
+      }),
     );
 
     const render = buildConversationRenderProjection(state);
@@ -581,23 +525,18 @@ describe("conversation event reducer", () => {
     }));
     state.activeEntryIds = ["entry_failed_1", "entry_failed_2"];
     const retrying = (seq: number, attempt: number, failedEntryId: string) =>
-      evt(
-        seq,
-        "run.retrying",
-        {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
-          attempt,
-          maxRetries: 3,
-          delayMs: 100,
-          retryAt: ts,
-          errorMessage: "rate limited",
-          failedEntryId,
-        },
-        "durable",
-      );
+      evt(seq, "run.retrying", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        attempt,
+        maxRetries: 3,
+        delayMs: 100,
+        retryAt: ts,
+        errorMessage: "rate limited",
+        failedEntryId,
+      });
     state = applyConversationEvent(state, retrying(1, 1, "entry_failed_1"));
     state = applyConversationEvent(state, retrying(2, 2, "entry_failed_2"));
 
@@ -627,39 +566,29 @@ describe("conversation event reducer", () => {
     );
     state = applyConversationEvent(
       state,
-      evt(
-        2,
-        "run.retrying",
-        {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
-          attempt: 1,
-          maxRetries: 3,
-          delayMs: 100,
-          retryAt: ts,
-          errorMessage: "rate limited",
-        },
-        "durable",
-      ),
+      evt(2, "run.retrying", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        attempt: 1,
+        maxRetries: 3,
+        delayMs: 100,
+        retryAt: ts,
+        errorMessage: "rate limited",
+      }),
     );
     state = applyConversationEvent(
       state,
-      evt(
-        3,
-        "run.resumed",
-        {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
-          attempt: 2,
-          resumeKind: "interaction",
-          resumedAt: ts,
-        },
-        "durable",
-      ),
+      evt(3, "run.resumed", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        attempt: 2,
+        resumeKind: "interaction",
+        resumedAt: ts,
+      }),
     );
 
     assert.equal(state.activeRun?.status, "running");
@@ -679,22 +608,17 @@ describe("conversation event reducer", () => {
 
     const next = applyConversationEvent(
       state,
-      evt(
-        5,
-        "conversation.entry.appended",
-        {
+      evt(5, "conversation.entry.appended", {
+        conversationId: "conv_test",
+        entry: {
+          id: "entry_stale",
           conversationId: "conv_test",
-          entry: {
-            id: "entry_stale",
-            conversationId: "conv_test",
-            role: "user",
-            kind: "message",
-            text: "stale",
-            createdAt: ts,
-          },
+          role: "user",
+          kind: "message",
+          text: "stale",
+          createdAt: ts,
         },
-        "durable",
-      ),
+      }),
     );
 
     assert.equal(next, state);

@@ -135,7 +135,7 @@ export function buildTimeline(
 
   const timeline: SandboxTimelineRow[] = rows.map((entry) => entry.row);
 
-  // Live streaming assistant text (transient) after durable content.
+  // Live best-effort assistant text after sequenced content.
   for (const run of Object.values(detail.liveRuns)) {
     if (conversationId && run.conversationId !== conversationId) continue;
     if (run.deltaText.length === 0) continue;

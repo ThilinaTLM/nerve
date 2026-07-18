@@ -1,18 +1,11 @@
 import { z } from "zod";
-import { flowUpdateMessageSchema } from "./backpressure.schema.js";
 import { protocolErrorMessageSchema } from "./errors.schema.js";
 import { eventBatchMessageSchema } from "./event-stream.schema.js";
 import {
   protocolRequestMessageSchema,
   protocolResponseMessageSchema,
 } from "./http.schema.js";
-import {
-  ackMessageSchema,
-  replayCompleteMessageSchema,
-  replayRequestMessageSchema,
-  replayStartedMessageSchema,
-  replayUnavailableMessageSchema,
-} from "./replay.schema.js";
+import { eventNotifyMessageSchema } from "./notify.schema.js";
 import {
   goodbyeMessageSchema,
   heartbeatMessageSchema,
@@ -35,12 +28,7 @@ export const protocolV1MessageSchema = z.discriminatedUnion("kind", [
   protocolResponseMessageSchema,
   protocolErrorMessageSchema,
   eventBatchMessageSchema,
-  ackMessageSchema,
-  replayRequestMessageSchema,
-  replayStartedMessageSchema,
-  replayCompleteMessageSchema,
-  replayUnavailableMessageSchema,
-  flowUpdateMessageSchema,
+  eventNotifyMessageSchema,
   streamSubscriptionSetMessageSchema,
   streamSubscriptionUpdatedMessageSchema,
 ]);

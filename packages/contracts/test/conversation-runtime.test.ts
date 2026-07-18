@@ -288,6 +288,31 @@ describe("ConversationRuntime", () => {
     assert.equal(snapshot?.turns[0]?.messages.length, 1);
   });
 
+  it("guards live message and turn terminal transitions", () => {
+    const runtime = new ConversationRuntime();
+    const { run, turn, message } = start(runtime);
+
+    runtime.completeAssistantMessage(
+      run.runId,
+      turn.turnId,
+      message.liveMessageId,
+    );
+    assert.throws(
+      () =>
+        runtime.failAssistantMessage(
+          run.runId,
+          turn.turnId,
+          message.liveMessageId,
+        ),
+      /Illegal lifecycle transition completed -> failed/,
+    );
+    runtime.completeTurn(run.runId, turn.turnId);
+    assert.throws(
+      () => runtime.failTurn(run.runId, turn.turnId),
+      /Illegal lifecycle transition completed -> failed/,
+    );
+  });
+
   it("removes active run state on completion", () => {
     const runtime = new ConversationRuntime();
     const { run } = start(runtime);

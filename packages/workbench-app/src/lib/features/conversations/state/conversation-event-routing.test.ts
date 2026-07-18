@@ -53,7 +53,6 @@ describe("conversation event routing", () => {
       seq: 1,
       type: "run.started",
       ts: "2026-01-01T00:00:00.000Z",
-      durability: "durable" as const,
     };
     assert.equal(
       conversationIdFromEvent({ ...base, data: { conversationId: "conv_a" } }),

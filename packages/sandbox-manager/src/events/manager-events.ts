@@ -7,7 +7,6 @@ export type ManagerLifecycleEventInput = {
   type: string;
   sandboxId?: string;
   payload?: unknown;
-  durability?: "durable" | "transient";
   ts?: string;
 };
 

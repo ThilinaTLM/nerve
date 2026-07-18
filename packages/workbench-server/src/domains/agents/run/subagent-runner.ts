@@ -22,7 +22,7 @@ import type {
 } from "@nervekit/contracts";
 import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import {
   type InitializedStorage,
   pathExists,
@@ -138,7 +138,7 @@ export interface ExploreReport {
 
 export interface SubagentRunnerDeps {
   storage: InitializedStorage;
-  events: EventBus;
+  events: StreamLogRegistry;
   auth: AuthManager;
   tools: ToolService;
   harnessStorage: ConversationHarnessStorage;

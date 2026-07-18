@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
+  STREAM_SUBSCRIPTION_CAPABILITY,
   allOperationDefinitions,
   operationNameSchema,
   type ManagedSandboxRecord,
@@ -36,9 +37,8 @@ type ManagerHttpAuthorizer = (
 const CONTROLLER_CAPABILITIES = new Set([
   "encoding.json",
   "event.batch",
-  "event.replay",
-  "event.ack.processed",
-  "flow.backpressure",
+  "event.notify",
+  STREAM_SUBSCRIPTION_CAPABILITY,
   "sandbox.runtime.v1",
   "sandbox.events.v1",
   "sandbox.snapshots.v1",
@@ -117,23 +117,19 @@ export class SandboxWsServer {
       // Finish durable session lookup before completing the WebSocket upgrade.
       // A protocol client sends hello immediately after open; awaiting storage
       // after upgrade would leave a window where that first frame is lost.
-      const persistedEvents = await this.state.events.list(sandboxId);
       this.wss.handleUpgrade(req, socket, head, (ws) => {
-        void this.acceptAgentConnection(
-          sandboxId,
-          ws,
-          record,
-          persistedEvents,
-        ).catch((error) => {
-          this.state.logger.warn("Sandbox protocol connection setup failed", {
-            sandboxId,
-            error: (error instanceof Error
-              ? error.message
-              : String(error)
-            ).slice(0, 512),
-          });
-          ws.close(1011, "session_setup_failed");
-        });
+        void this.acceptAgentConnection(sandboxId, ws, record).catch(
+          (error) => {
+            this.state.logger.warn("Sandbox protocol connection setup failed", {
+              sandboxId,
+              error: (error instanceof Error
+                ? error.message
+                : String(error)
+              ).slice(0, 512),
+            });
+            ws.close(1011, "session_setup_failed");
+          },
+        );
       });
     } catch {
       rejectUpgrade(socket, 500, "Upgrade failed");
@@ -144,7 +140,6 @@ export class SandboxWsServer {
     sandboxId: string,
     ws: WebSocket,
     preparedRecord?: ManagedSandboxRecord,
-    preparedEvents?: readonly StoredSandboxEvent[],
   ): Promise<void> {
     const record =
       preparedRecord ?? (await this.state.sandboxes.get(sandboxId));
@@ -160,61 +155,82 @@ export class SandboxWsServer {
     const transport = websocketTransport(ws as unknown as WebSocketLike);
     let connected: ConnectedSandboxSession | undefined;
     let disposed = false;
-    const persistedEvents =
-      preparedEvents ?? (await this.state.events.list(sandboxId));
-    const managerProcessedSeq = Math.max(
-      0,
-      ...persistedEvents
-        .filter((event) => event.durability !== "transient")
-        .map((event) => event.seq ?? 0),
-    );
     const agentStream = `sandbox:${sandboxId}`;
     const protocolSession: ProtocolServerSession = new ProtocolServerSession({
       acceptingPeer: peer,
       allowedPeerRoles: ["sandbox_agent"],
       createMessage: messages,
       capabilities: [...CONTROLLER_CAPABILITIES],
-      streams: () => [
-        {
-          stream: agentStream,
-          latestSeq: managerProcessedSeq,
-          durableSeq: managerProcessedSeq,
-          replayAvailableFromSeq: managerProcessedSeq,
-        },
-      ],
       limits: {
         maxMessageBytes: 1_000_000,
         maxBatchEvents: 1_000,
         maxBatchBytes: 1_000_000,
-        maxInflightBatches: 16,
-        maxUnackedDurableEvents: 10_000,
       },
       heartbeat: { intervalMs: 15_000, timeoutMs: 45_000 },
       sessionId: () => `sess_${randomUUID()}`,
       send: async (message) => {
         await connection.send(message as ProtocolV1Message);
       },
-      resume: (hello, source) => {
-        if (source.id !== sandboxId || !source.instanceId)
-          throw new Error("Sandbox agent identity does not match the endpoint");
-        const claimedCursor =
-          hello.resume?.streams?.find((cursor) => cursor.stream === agentStream)
-            ?.processedSeq ?? 0;
-        if (claimedCursor > managerProcessedSeq)
-          throw new Error("Agent resume cursor is ahead of manager ingestion");
-        if (
-          record.instanceId &&
-          record.instanceId !== source.instanceId &&
-          record.desiredState !== "running" &&
-          record.desiredState !== "created"
-        )
-          throw new Error("Sandbox instance is not current");
-        return { accepted: true, mode: "live" as const };
+      close: (code, reason) => transport.close(code, reason),
+      readStream: async (stream, fromSeq, limit) => {
+        if (stream !== agentStream)
+          throw new Error("Sandbox agent may only inspect its own stream");
+        const range = await this.state.events.readRange(
+          sandboxId,
+          fromSeq,
+          limit,
+        );
+        return {
+          stream,
+          latestSeq: range.latestSeq,
+          earliestAvailableSeq: range.earliestAvailableSeq,
+          events: range.events.map((event) => ({
+            id: event.id,
+            seq: event.seq,
+            type: event.type,
+            ts: event.ts,
+            data: event.payload,
+          })),
+        };
+      },
+      subscriptions: {
+        resolve: async (cursors, source) => {
+          if (
+            source.id !== sandboxId ||
+            cursors.length !== 1 ||
+            cursors[0]?.stream !== agentStream
+          )
+            return {
+              accepted: false,
+              streams: [],
+              reason: "Sandbox agent may only subscribe to its own stream",
+            };
+          // The sandbox agent uses its subscription cursor to report the
+          // durable outbox high-water during attach. A lower agent head means
+          // the same sandbox ID now belongs to a fresh agent state epoch.
+          const streamState = await this.ingestor.establishAgentEpoch(
+            sandboxId,
+            cursors[0].processedSeq,
+          );
+          return {
+            accepted: true,
+            streams: [{ stream: agentStream, ...streamState }],
+          };
+        },
       },
       onReady: async (ready) => {
         const instanceId = protocolSession.peer?.instanceId;
         if (!instanceId || !protocolSession.sessionId)
           throw new Error("Sandbox identity/session missing at ready");
+        if (protocolSession.peer?.id !== sandboxId)
+          throw new Error("Sandbox agent identity does not match the endpoint");
+        if (
+          record.instanceId &&
+          record.instanceId !== instanceId &&
+          record.desiredState !== "running" &&
+          record.desiredState !== "created"
+        )
+          throw new Error("Sandbox instance is not current");
         const now = new Date().toISOString();
         const sessionId = protocolSession.sessionId;
         // The protocol ready frame means "transport + event streaming ready".
@@ -258,7 +274,13 @@ export class SandboxWsServer {
           connectedAt: now,
           readyAt,
           agentStatus,
-          cursors: ready.data.streams,
+          cursors: [
+            {
+              stream: agentStream,
+              processedSeq: (await this.state.events.streamState(sandboxId))
+                .latestSeq,
+            },
+          ],
           capabilities: protocolSession.peer
             ? [...CONTROLLER_CAPABILITIES]
             : [],
@@ -296,7 +318,6 @@ export class SandboxWsServer {
           );
         const result = await this.ingestor.ingestBatch(
           sandboxId,
-          message.data.range.previousDurableSeq ?? 0,
           message.data.events,
         );
         await this.applyStartupSignals(sandboxId, result.acceptedEvents).catch(
@@ -310,12 +331,10 @@ export class SandboxWsServer {
             });
           },
         );
-        return {
-          streams: [
-            { stream: expectedStream, processedSeq: result.processedSeq },
-          ],
-          appliedEvents: result.accepted,
-        };
+        return result;
+      },
+      onNotify: (events) => {
+        this.ingestor.ingestNotify(sandboxId, events);
       },
     });
     const dispose = () => {

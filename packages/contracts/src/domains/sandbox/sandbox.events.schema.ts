@@ -378,9 +378,9 @@ export const sandboxEventEnvelopeSchema = z
     seq: z.number().int().positive().safe(),
     type: z.string().min(1),
     ts: isoDateTimeSchema,
-    durability: z.enum(["durable", "transient"]).default("durable"),
     data: boundedPublicJsonSchema,
   })
+  .strict()
   .superRefine((event, context) => {
     const schema =
       sandboxOperationalEventPayloadSchemas[

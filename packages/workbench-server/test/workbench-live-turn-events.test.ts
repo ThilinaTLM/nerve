@@ -62,18 +62,15 @@ describe("workbench live turn events", () => {
       assert.equal(messageEvents.length, 2);
       assert.deepEqual(
         turnEvents.map((event) => ({
-          durability: event.durability,
           turnId: eventData(event).turnId,
           ordinal: eventData(event).ordinal,
         })),
         [
           {
-            durability: "transient",
             turnId: eventData(messageEvents[0]!).turnId,
             ordinal: 0,
           },
           {
-            durability: "transient",
             turnId: eventData(messageEvents[1]!).turnId,
             ordinal: 1,
           },

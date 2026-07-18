@@ -1,25 +1,21 @@
-/* eslint-disable max-lines -- IndexStore centralizes the rebuildable SQLite index schema and queries. */
 import { existsSync, renameSync, rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type {
   AgentRecord,
   ApprovalRecord,
   ConversationRecord,
-  EventEnvelope,
   ProjectRecord,
   TaskRecord,
   ToolCallRecord,
   UserQuestionRecord,
   WorkerRecord,
 } from "@nervekit/contracts";
-import { refsForEvent } from "./event-refs.js";
 import { INDEX_STORE_SCHEMA_SQL } from "./schema.js";
 
 export interface IndexCounts {
   projects: number;
   conversations: number;
   agents: number;
-  events: number;
   tasks: number;
   workers: number;
   userQuestions: number;
@@ -424,167 +420,9 @@ export class IndexStore {
     });
   }
 
-  insertEvent(event: EventEnvelope): void {
+  dropLegacyEventIndex(): void {
     this.guard(() => {
-      const refs = refsForEvent(event);
-      this.db
-        .prepare(
-          `INSERT OR IGNORE INTO events_index (
-             seq, id, ts, type, project_id, conversation_id, agent_id, run_id, json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          event.seq,
-          event.id,
-          event.ts,
-          event.type,
-          refs.projectId ?? null,
-          refs.conversationId ?? null,
-          refs.agentId ?? null,
-          refs.runId ?? null,
-          JSON.stringify(event),
-        );
-    });
-  }
-
-  eventById(id: string): EventEnvelope | undefined {
-    return this.guard(() => {
-      const row = this.db
-        .prepare("SELECT json FROM events_index WHERE id = ? LIMIT 1")
-        .get(id) as { json: string } | undefined;
-      return row ? (JSON.parse(row.json) as EventEnvelope) : undefined;
-    });
-  }
-
-  /**
-   * Newest persisted event sequence, or 0 when the index holds no events.
-   */
-  latestEventSeq(): number {
-    return this.guard(() => {
-      const row = this.db
-        .prepare("SELECT seq FROM events_index ORDER BY seq DESC LIMIT 1")
-        .get() as { seq: number } | undefined;
-      return row?.seq ?? 0;
-    });
-  }
-
-  /**
-   * Most recent `limit` events ordered by ascending seq. Used to seed the
-   * EventBus in-memory ring without reading the full on-disk log.
-   */
-  recentEvents(limit: number): EventEnvelope[] {
-    return this.guard(() => {
-      const rows = this.db
-        .prepare("SELECT json FROM events_index ORDER BY seq DESC LIMIT ?")
-        .all(limit) as Array<{ json: string }>;
-      return rows.map((row) => JSON.parse(row.json) as EventEnvelope).reverse();
-    });
-  }
-
-  /**
-   * All events with seq greater than `seq`, ordered ascending. Replaces
-   * re-reading and re-parsing the entire global event log on reconnect.
-   */
-  eventsSince(seq: number): EventEnvelope[] {
-    return this.guard(() => {
-      const rows = this.db
-        .prepare("SELECT json FROM events_index WHERE seq > ? ORDER BY seq ASC")
-        .all(seq) as Array<{ json: string }>;
-      return rows.map((row) => JSON.parse(row.json) as EventEnvelope);
-    });
-  }
-
-  previousEventSeqBefore(seq: number): number {
-    return this.guard(() => {
-      const row = this.db
-        .prepare(
-          "SELECT seq FROM events_index WHERE seq < ? ORDER BY seq DESC LIMIT 1",
-        )
-        .get(seq) as { seq: number } | undefined;
-      return row?.seq ?? 0;
-    });
-  }
-
-  eventStatsBetween(
-    fromExclusive: number,
-    toInclusive: number,
-  ): { firstSeq?: number; lastSeq?: number; count: number } {
-    return this.guard(() => {
-      const row = this.db
-        .prepare(
-          `SELECT MIN(seq) AS firstSeq, MAX(seq) AS lastSeq, COUNT(*) AS count
-           FROM events_index WHERE seq > ? AND seq <= ?`,
-        )
-        .get(fromExclusive, toInclusive) as {
-        firstSeq: number | null;
-        lastSeq: number | null;
-        count: number;
-      };
-      return {
-        firstSeq: row.firstSeq ?? undefined,
-        lastSeq: row.lastSeq ?? undefined,
-        count: row.count,
-      };
-    });
-  }
-
-  deleteEventsForConversations(conversationIds: Iterable<string>): void {
-    const ids = [...conversationIds];
-    if (ids.length === 0) return;
-    this.guard(() => {
-      const stmt = this.db.prepare(
-        "DELETE FROM events_index WHERE conversation_id = ?",
-      );
-      this.db.exec("BEGIN IMMEDIATE");
-      try {
-        for (const id of ids) stmt.run(id);
-        this.db.exec("COMMIT");
-      } catch (error) {
-        this.db.exec("ROLLBACK");
-        throw error;
-      }
-    });
-  }
-
-  clearEvents(): void {
-    this.guard(() => {
-      this.db.exec("DELETE FROM events_index");
-    });
-  }
-
-  /**
-   * Insert a bounded batch of events in a single transaction. Callers stream
-   * the durable log in batches so memory stays bounded during reconcile/reindex.
-   */
-  insertEventsBatch(events: EventEnvelope[]): void {
-    if (events.length === 0) return;
-    this.guard(() => {
-      const stmt = this.db.prepare(
-        `INSERT OR IGNORE INTO events_index (
-           seq, id, ts, type, project_id, conversation_id, agent_id, run_id, json
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      );
-      this.db.exec("BEGIN IMMEDIATE");
-      try {
-        for (const event of events) {
-          const refs = refsForEvent(event);
-          stmt.run(
-            event.seq,
-            event.id,
-            event.ts,
-            event.type,
-            refs.projectId ?? null,
-            refs.conversationId ?? null,
-            refs.agentId ?? null,
-            refs.runId ?? null,
-            JSON.stringify(event),
-          );
-        }
-        this.db.exec("COMMIT");
-      } catch (error) {
-        this.db.exec("ROLLBACK");
-        throw error;
-      }
+      this.db.exec("DROP TABLE IF EXISTS events_index");
     });
   }
 
@@ -768,7 +606,6 @@ export class IndexStore {
       projects: this.countTable("projects"),
       conversations: this.countTable("conversations"),
       agents: this.countTable("agents"),
-      events: this.countTable("events_index"),
       tasks: this.countTable("tasks"),
       workers: this.countTable("workers"),
       userQuestions: this.countTable("user_questions"),

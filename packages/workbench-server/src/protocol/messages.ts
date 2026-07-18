@@ -12,7 +12,6 @@ export interface ProtocolMessageOptions {
   causationId?: string;
   traceId?: string;
   replyTo?: string;
-  requiresAck?: boolean;
   meta?: SafeMetadata;
 }
 

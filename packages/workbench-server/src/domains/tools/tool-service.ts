@@ -6,6 +6,7 @@ import {
 import {
   type AgentRecord,
   type ApprovalRecord,
+  assertTransition,
   type ConversationRuntime,
   createId,
   type Mode,
@@ -15,11 +16,12 @@ import {
   type ToolAnchor,
   type ToolCallRecord,
   type ToolName,
+  toolCallTransitions,
   type UserQuestionRecord,
   type UserQuestionStatus,
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
@@ -158,7 +160,7 @@ export class ToolService {
 
   constructor(
     private readonly storage: InitializedStorage,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
     index: IndexStore,
     private readonly tasks: WorkbenchTaskService,
     private readonly pythonRuntime: PythonRuntimeService,
@@ -504,13 +506,7 @@ export class ToolService {
     return toolCall;
   }
 
-  /**
-   * Terminalize tool calls left in a non-terminal *execution* state when a run
-   * ends abnormally (aborted/failed/interrupted). Only `running` and
-   * `requested` calls are reconciled; `pending_approval` and `waiting_for_user`
-   * are intentional pauses resumed via approval / suspension flows and are left
-   * untouched.
-   */
+  /** Terminalize every live tool call before its run becomes terminal. */
   async terminateNonTerminalToolCallsForRun(
     runId: string,
     errorMessage: string,
@@ -519,9 +515,7 @@ export class ToolService {
     const stale = this.toolCallRepository
       .list()
       .filter(
-        (toolCall) =>
-          toolCall.runId === runId &&
-          (toolCall.status === "running" || toolCall.status === "requested"),
+        (toolCall) => toolCall.runId === runId && !isTerminalToolCall(toolCall),
       );
     const terminated: ToolCallRecord[] = [];
     for (const toolCall of stale) {
@@ -551,10 +545,11 @@ export class ToolService {
           toolCall.status === "requested" || toolCall.status === "running",
       );
     for (const toolCall of interrupted) {
-      await this.updateToolCall(
+      const failed = await this.updateToolCall(
         toolCall.id,
         interruptedToolCallPatch(HOST_RESTART_TOOL_ERROR),
       );
+      await this.publishToolCallUpdated(failed);
     }
   }
 
@@ -631,6 +626,16 @@ export class ToolService {
     return this.interactionSessions.userQuestionResult(question);
   }
 
+  async resumeToolCall(toolCallId: string): Promise<ToolCallRecord> {
+    const current = this.getToolCall(toolCallId);
+    if (current.status !== "waiting_for_user") return current;
+    const resumed = await this.updateToolCall(toolCallId, {
+      status: "running",
+    });
+    await this.publishToolCallUpdated(resumed);
+    return resumed;
+  }
+
   async completeToolCall(
     toolCallId: string,
     result: unknown,
@@ -657,6 +662,14 @@ export class ToolService {
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
   ): Promise<ToolCallRecord> {
     const current = this.getToolCall(toolCallId);
+    if (patch.status && patch.status !== current.status) {
+      assertTransition(
+        toolCallTransitions,
+        current.status,
+        patch.status,
+        `tool call ${toolCallId}`,
+      );
+    }
     const updated: ToolCallRecord = {
       ...current,
       ...patch,
@@ -722,6 +735,10 @@ function interruptedToolCallPatch(errorMessage: string) {
   return {
     status: "error" as const,
     error: errorMessage,
+    errorDetails: {
+      code: "interrupted",
+      message: errorMessage,
+    },
     result: {
       content: errorMessage,
       contentBlocks: [{ type: "text" as const, text: errorMessage }],

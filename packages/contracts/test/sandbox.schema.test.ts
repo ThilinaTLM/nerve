@@ -10,7 +10,6 @@ import {
   operationDefinition,
   operationParamsSchema,
   runtimeDriverResourceOptionsSchema,
-  sandboxAckStateSchema,
   sandboxCanonicalJson,
   sandboxConfigV1Schema,
   sandboxConfigYamlResultSchema,
@@ -822,11 +821,6 @@ describe("Sandbox shared schemas", () => {
       }).success,
       true,
     );
-    assert.equal(
-      sandboxAckStateSchema.safeParse({ stream: "sandbox", processedSeq: 1 })
-        .success,
-      false,
-    );
   });
 
   it("validates known protocol event payloads and rejects unknown event types", () => {
@@ -836,7 +830,6 @@ describe("Sandbox shared schemas", () => {
         seq: 1,
         ts,
         type: "sandbox.ready",
-        durability: "durable",
         data: { invalid: true },
       }).success,
       false,
@@ -847,7 +840,6 @@ describe("Sandbox shared schemas", () => {
         seq: 1,
         ts,
         type: "future.event",
-        durability: "durable",
         data: { anything: true },
       }).success,
       false,
@@ -971,7 +963,6 @@ describe("Sandbox shared schemas", () => {
       seq: 1,
       ts,
       type: "run.cancelled",
-      durability: "durable" as const,
     };
     assert.equal(
       parsePublicEventEnvelope(
@@ -1024,7 +1015,6 @@ describe("Sandbox shared schemas", () => {
         seq: 2,
         ts,
         type: "conversation.live.content.delta",
-        durability: "transient",
         data: {
           ...liveScope,
           kind: "thinking",
@@ -1040,7 +1030,6 @@ describe("Sandbox shared schemas", () => {
         seq: 3,
         ts,
         type: "conversation.live.tool_draft.started",
-        durability: "transient",
         data: {
           ...liveScope,
           providerToolCallId: "call_1",
@@ -1055,7 +1044,6 @@ describe("Sandbox shared schemas", () => {
         seq: 4,
         ts,
         type: "conversation.live.tool_draft.delta",
-        durability: "transient",
         data: {
           ...liveScope,
           providerToolCallId: "call_1",
@@ -1072,7 +1060,6 @@ describe("Sandbox shared schemas", () => {
         seq: 5,
         ts,
         type: "conversation.live.tool_draft.done",
-        durability: "transient",
         data: {
           ...liveScope,
           providerToolCallId: "call_1",

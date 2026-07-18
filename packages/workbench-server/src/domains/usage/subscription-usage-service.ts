@@ -3,7 +3,7 @@ import {
   type SubscriptionUsage,
   type SubscriptionUsageProvider,
 } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "../auth/index.js";
 import { fetchAnthropicUsage as defaultFetchAnthropicUsage } from "./anthropic-client.js";
 import {
@@ -26,7 +26,7 @@ type FetchUsage = (
 
 export interface SubscriptionUsageServiceDeps {
   auth: AuthManager;
-  events: EventBus;
+  events: StreamLogRegistry;
   /** Directory for persisted usage caches (e.g. `<dataDir>/cache/usage`). */
   cacheDir: string;
   fetchAnthropicUsage?: FetchUsage;
@@ -91,9 +91,7 @@ export class SubscriptionUsageService {
     );
     this.#snapshots.set("openai-codex", merged);
     void writeCodexUsageCache(this.#deps.cacheDir, merged);
-    void this.#deps.events.publish(SUBSCRIPTION_USAGE_EVENT, merged, {
-      durability: "transient",
-    });
+    void this.#deps.events.publish(SUBSCRIPTION_USAGE_EVENT, merged);
   }
 
   private async configuredSnapshots(): Promise<SubscriptionUsage[]> {
@@ -148,9 +146,7 @@ export class SubscriptionUsageService {
       const previous = this.#snapshots.get(provider);
       this.#snapshots.set(provider, data);
       if (!previous || hasChanged(previous, data)) {
-        await this.#deps.events.publish(SUBSCRIPTION_USAGE_EVENT, data, {
-          durability: "transient",
-        });
+        await this.#deps.events.publish(SUBSCRIPTION_USAGE_EVENT, data);
       }
     } catch {
       // transient failure; keep last-known snapshot

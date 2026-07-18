@@ -10,7 +10,7 @@ import {
   type ConversationRecord,
   toolNameSchema,
 } from "@nervekit/contracts";
-import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { RuntimeState } from "../../../runtime/runtime-state.js";
 import { deriveConversationTitle } from "../../conversations/operations/index.js";
 
@@ -44,7 +44,7 @@ export interface MessageMirrorDeps {
   state: RuntimeState;
   appendEntry: AppendEntryFn;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
-  events: EventBus;
+  events: StreamLogRegistry;
 }
 
 /**

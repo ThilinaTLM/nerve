@@ -1,11 +1,9 @@
-# Manager–sandbox protocol link
+# Sandbox WebSocket control
 
-The sandbox daemon connects as `sandbox_agent`; the accepting peer is `sandbox_manager`. Transport authentication precedes the shared `ProtocolClientSession`/`ProtocolServerSession` hello/welcome/ready lifecycle.
+The daemon connects as `sandbox_agent` to its authenticated manager endpoint. Both peers require `stream.subscription.v1` and negotiate the shared event-batch and notification capabilities.
 
-The sandbox resumes exactly `sandbox:<sandboxId>` from its persisted processed controller cursor and durable outbox. The manager's replay source is its persisted event store. Live events are buffered during replay; ACK advances only after manager ingestion. Reconnect reuses the exact sandbox cursor.
+After ready, the daemon subscribes to exactly `sandbox:<sandboxId>` using its local high-water cursor. The manager reports its persisted stream bounds. The daemon publishes the missing dense outbox suffix, then reinstalls the subscription to reconcile manager progress and safely truncates the delivered prefix.
 
-Requests from the manager target `{ role: "sandbox_agent", id: sandboxId }`. The daemon validates target identity and operation catalog capability. Responses preserve reply/lineage IDs. The manager never rewrites method names or params.
+Sequenced batches are persisted atomically and must continue at manager sequence + 1; exact duplicate prefixes are accepted only when IDs, sequences, types, and payloads match. Ephemeral events use `event.notify` and bypass both stores.
 
-A sandbox event retains the daemon-assigned sequence when ingested and forwarded to the UI. The manager separately emits lifecycle events on `manager`. Snapshot recovery returns cursor-bearing manager and sandbox state; the client installs state before atomically replacing cursors.
-
-Queue, replay, heartbeat, processed ACK, transient coalescing/drop, and durable-overflow behavior are the shared Protocol v1 rules in `docs/nerve-protocol/v1/`.
+Manager-to-agent commands use catalog RPC on the same session. The manager verifies endpoint identity and target authorization. Reconnect repeats subscription reconciliation; an unavailable retained range requires snapshot/reset recovery rather than sparse sequence repair.

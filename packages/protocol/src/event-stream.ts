@@ -1,42 +1,30 @@
 import {
   type EventBatchData,
   type EventEnvelope,
+  WORKSPACE_STREAM,
   eventBatchDataSchema,
 } from "@nervekit/contracts";
 
 export interface ClientEventStreamState {
   processedSeq: number;
-  continuitySeq: number;
-  highestReceivedSeq: number;
-  replayBlocked: boolean;
 }
 
 export interface EventBatchResult {
   appliedEvents: number;
   duplicateEvents: number;
-  durableEventsQueued: number;
-  highestDurableQueuedSeq: number;
   highestReceivedSeq: number;
-  replayRequired?: {
-    fromSeq: number;
-    reason: "gap_detected";
-  };
+  gap?: { expectedSeq: number; receivedSeq: number };
 }
 
 export function createClientEventStreamState(
   processedSeq = 0,
 ): ClientEventStreamState {
-  return {
-    processedSeq,
-    continuitySeq: processedSeq,
-    highestReceivedSeq: processedSeq,
-    replayBlocked: false,
-  };
+  return { processedSeq };
 }
 
 export function processedSeqFromCursor(
   cursor: { streams: Array<{ stream: string; processedSeq: number }> },
-  streamName = "local",
+  streamName = WORKSPACE_STREAM,
 ): number {
   return (
     cursor.streams.find((stream) => stream.stream === streamName)
@@ -47,7 +35,7 @@ export function processedSeqFromCursor(
 export function resetClientEventStreamStateFromCursor(
   state: ClientEventStreamState,
   cursor: { streams: Array<{ stream: string; processedSeq: number }> },
-  streamName = "local",
+  streamName = WORKSPACE_STREAM,
 ): number {
   const processedSeq = processedSeqFromCursor(cursor, streamName);
   resetClientEventStreamState(state, processedSeq);
@@ -59,72 +47,48 @@ export function resetClientEventStreamState(
   processedSeq: number,
 ): void {
   state.processedSeq = processedSeq;
-  state.continuitySeq = processedSeq;
-  state.highestReceivedSeq = Math.max(state.highestReceivedSeq, processedSeq);
-  state.replayBlocked = false;
 }
 
+/**
+ * Filters duplicates and verifies dense continuity. Cursor advancement remains
+ * explicit so callers can apply reducers before committing progress.
+ */
 export function applyEventBatch(
   raw: unknown,
   state: ClientEventStreamState,
   enqueue: (event: EventEnvelope<Record<string, unknown>>) => void,
-  streamName = "local",
+  streamName = WORKSPACE_STREAM,
 ): EventBatchResult {
   const batch = eventBatchDataSchema.parse(raw) as EventBatchData;
   if (batch.stream !== streamName) {
-    state.replayBlocked = true;
-    return replayRequired(state);
+    throw new Error(`Received ${batch.stream} batch for ${streamName}`);
   }
 
-  const durableEvents = batch.events.filter(
-    (event) => event.durability === "durable",
-  );
-  const firstNonDuplicateDurable = durableEvents.find(
-    (event) => event.seq > state.processedSeq,
-  );
-  if (firstNonDuplicateDurable) {
-    const previousDurableSeq = batch.range.previousDurableSeq;
-    if (previousDurableSeq === undefined || previousDurableSeq === null) {
-      state.replayBlocked = true;
-      return replayRequired(state);
-    }
-    if (previousDurableSeq > state.continuitySeq) {
-      state.replayBlocked = true;
-      return replayRequired(state);
-    }
-  }
-
-  if (state.replayBlocked) return replayRequired(state);
-
-  let appliedEvents = 0;
+  let expectedSeq = state.processedSeq + 1;
   let duplicateEvents = 0;
-  let durableEventsQueued = 0;
-  let highestDurableQueuedSeq = state.continuitySeq;
-
+  let appliedEvents = 0;
   for (const event of batch.events) {
-    state.highestReceivedSeq = Math.max(state.highestReceivedSeq, event.seq);
-    if (event.durability === "durable" && event.seq <= state.processedSeq) {
+    if (event.seq <= state.processedSeq) {
       duplicateEvents += 1;
       continue;
     }
+    if (event.seq !== expectedSeq) {
+      return {
+        appliedEvents: 0,
+        duplicateEvents,
+        highestReceivedSeq: batch.lastSeq ?? state.processedSeq,
+        gap: { expectedSeq, receivedSeq: event.seq },
+      };
+    }
     enqueue(event as EventEnvelope<Record<string, unknown>>);
     appliedEvents += 1;
-    if (event.durability === "durable") {
-      durableEventsQueued += 1;
-      highestDurableQueuedSeq = Math.max(highestDurableQueuedSeq, event.seq);
-    }
-  }
-
-  if (durableEventsQueued > 0) {
-    state.continuitySeq = highestDurableQueuedSeq;
+    expectedSeq += 1;
   }
 
   return {
     appliedEvents,
     duplicateEvents,
-    durableEventsQueued,
-    highestDurableQueuedSeq,
-    highestReceivedSeq: state.highestReceivedSeq,
+    highestReceivedSeq: batch.lastSeq ?? state.processedSeq,
   };
 }
 
@@ -132,17 +96,11 @@ export function markProcessed(
   state: ClientEventStreamState,
   processedSeq: number,
 ): void {
-  state.processedSeq = Math.max(state.processedSeq, processedSeq);
-  state.continuitySeq = Math.max(state.continuitySeq, state.processedSeq);
-}
-
-function replayRequired(state: ClientEventStreamState): EventBatchResult {
-  return {
-    appliedEvents: 0,
-    duplicateEvents: 0,
-    durableEventsQueued: 0,
-    highestDurableQueuedSeq: state.processedSeq,
-    highestReceivedSeq: state.highestReceivedSeq,
-    replayRequired: { fromSeq: state.processedSeq, reason: "gap_detected" },
-  };
+  if (processedSeq <= state.processedSeq) return;
+  if (processedSeq !== state.processedSeq + 1) {
+    throw new Error(
+      `Cannot advance stream cursor from ${state.processedSeq} to ${processedSeq}`,
+    );
+  }
+  state.processedSeq = processedSeq;
 }

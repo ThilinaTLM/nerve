@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { AgentRecord, ToolCallRecord } from "@nervekit/contracts";
 import { defaultSettings } from "@nervekit/contracts";
 import { ToolService } from "../src/domains/tools/tool-service.js";
+import { StreamLogRegistry } from "../src/infrastructure/events/stream-log-registry.js";
 import { storagePaths } from "../src/infrastructure/storage/index.js";
 
 describe("tool service lifecycle", () => {
@@ -129,7 +130,7 @@ describe("tool service lifecycle", () => {
     assert.match(rawLog, /Validation failed for tool edit/);
   });
 
-  it("reconciles interrupted executable states during hydration without events", async () => {
+  it("reconciles interrupted executable states during hydration and emits facts", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-hydrate-"));
     const testAgent = agent("autonomous");
     const records = [
@@ -148,7 +149,10 @@ describe("tool service lifecycle", () => {
 
     const first = buildToolService(home, testAgent);
     await first.service.hydrate();
-    assert.deepEqual(first.events, []);
+    assert.deepEqual(
+      first.events.map((event) => event.type),
+      ["toolCall.updated", "toolCall.updated"],
+    );
     for (const id of ["tool_requested", "tool_running"]) {
       const repaired = first.service.getToolCall(id);
       assert.equal(repaired.status, "error");
@@ -191,6 +195,50 @@ describe("tool service lifecycle", () => {
       .trim()
       .split("\n");
     assert.equal(afterSecondHydrate.length, records.length + 2);
+  });
+
+  it("restarts a running tool into an interrupted fact that replays from its conversation stream", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-stream-restart-"));
+    try {
+      const testAgent = agent("autonomous");
+      const running = toolRecord({
+        id: "tool_running_restart",
+        status: "running",
+        runId: "run_01H00000000000000000000000",
+      });
+      await mkdir(join(home, "logs"), { recursive: true });
+      await writeFile(
+        join(home, "logs", "tool-calls.jsonl"),
+        `${JSON.stringify(running)}\n`,
+        "utf8",
+      );
+
+      const firstRegistry = new StreamLogRegistry(home);
+      await firstRegistry.hydrate();
+      const first = buildToolService(home, testAgent, {
+        publish: (type, data) => firstRegistry.publish(type, data),
+      });
+      await first.service.hydrate();
+      await firstRegistry.shutdown();
+
+      const restartedRegistry = new StreamLogRegistry(home);
+      await restartedRegistry.hydrate();
+      const replay = await restartedRegistry.readStream(
+        `conv/${running.conversationId}`,
+        1,
+        100,
+      );
+      assert.equal(replay.latestSeq, 1);
+      assert.equal(replay.events[0]?.type, "toolCall.updated");
+      const toolCall = (replay.events[0]?.data as { toolCall?: ToolCallRecord })
+        ?.toolCall;
+      assert.equal(toolCall?.status, "error");
+      assert.equal(toolCall?.errorDetails?.code, "interrupted");
+      assert.equal(replay.events[0]?.seq, 1);
+      await restartedRegistry.shutdown();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 
   it("force-stages policy-allowed tools for approval", async () => {
@@ -276,7 +324,7 @@ describe("tool service lifecycle", () => {
     );
   });
 
-  it("terminalizes lingering running/requested tool calls when a run ends", async () => {
+  it("terminalizes every non-terminal tool call when a run ends", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-reconcile-"));
     const testAgent = agent("autonomous");
     const { service, events } = buildToolService(home, testAgent);
@@ -314,32 +362,32 @@ describe("tool service lifecycle", () => {
     );
 
     assert.deepEqual(terminated.map((toolCall) => toolCall.id).sort(), [
+      "tool_pending",
       "tool_requested",
       "tool_running",
+      "tool_waiting",
     ]);
     for (const toolCall of terminated) {
       assert.equal(toolCall.status, "error");
       assert.equal(toolCall.error, "interrupted");
+      assert.equal(toolCall.errorDetails?.code, "interrupted");
     }
     assert.equal(service.getToolCall("tool_running").status, "error");
     assert.equal(service.getToolCall("tool_requested").status, "error");
-    // Intentional pauses and already-terminal/other-run calls are untouched.
-    assert.equal(
-      service.getToolCall("tool_pending").status,
-      "pending_approval",
-    );
-    assert.equal(
-      service.getToolCall("tool_waiting").status,
-      "waiting_for_user",
-    );
+    assert.equal(service.getToolCall("tool_pending").status, "error");
+    assert.equal(service.getToolCall("tool_waiting").status, "error");
     assert.equal(service.getToolCall("tool_completed").status, "completed");
     assert.equal(service.getToolCall("tool_other_run").status, "running");
     const updates = events.filter((event) => event.type === "toolCall.updated");
-    assert.equal(updates.length, 2);
+    assert.equal(updates.length, 4);
   });
 });
 
-function buildToolService(home: string, testAgent: AgentRecord) {
+function buildToolService(
+  home: string,
+  testAgent: AgentRecord,
+  publisher?: { publish(type: string, data: unknown): Promise<unknown> },
+) {
   const events: Array<{ type: string; data: unknown }> = [];
   const service = new ToolService(
     {
@@ -347,10 +395,10 @@ function buildToolService(home: string, testAgent: AgentRecord) {
       settings: defaultSettings,
       localToken: "test",
     },
-    {
+    (publisher ?? {
       publish: async (type: string, data: unknown) =>
         events.push({ type, data }),
-    } as never,
+    }) as never,
     {
       upsertToolCall: () => undefined,
       upsertApproval: () => undefined,

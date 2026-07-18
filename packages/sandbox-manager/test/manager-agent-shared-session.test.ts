@@ -9,15 +9,14 @@ import { SandboxWsServer } from "../src/protocol/sandbox-ws-server.js";
 const agentCapabilities = [
   "encoding.json",
   "event.batch",
-  "event.replay",
-  "event.ack.processed",
-  "flow.backpressure",
+  "event.notify",
+  "stream.subscription.v1",
   "sandbox.runtime.v1",
   "sandbox.events.v1",
   "sandbox.snapshots.v1",
 ];
 
-test("manager agent adapter rejects an agent cursor ahead of persisted ingestion", async () => {
+test("manager agent adapter rejects an identity that does not match its endpoint", async () => {
   const state = {
     sandboxes: {
       get: async () => ({
@@ -55,10 +54,26 @@ test("manager agent adapter rejects an agent cursor ahead of persisted ingestion
   const messages = createMessageFactory({
     source: {
       role: "sandbox_agent",
-      id: "sbx_test",
+      id: "sbx_other",
       instanceId: "instance_test",
     },
     target: { role: "sandbox_manager", id: "sandbox-manager" },
+  });
+  socket.on("message", (raw) => {
+    const message = JSON.parse(String(raw)) as {
+      kind: string;
+      data: { sessionId?: string };
+    };
+    if (message.kind === "welcome" && message.data.sessionId) {
+      socket.send(
+        JSON.stringify(
+          messages("ready", {
+            sessionId: message.data.sessionId,
+            status: "ready",
+          }),
+        ),
+      );
+    }
   });
   socket.send(
     JSON.stringify(
@@ -67,9 +82,6 @@ test("manager agent adapter rejects an agent cursor ahead of persisted ingestion
         capabilities: agentCapabilities,
         requiredCapabilities: agentCapabilities,
         encodings: ["json"],
-        resume: {
-          streams: [{ stream: "sandbox:sbx_test", processedSeq: 5 }],
-        },
       }),
     ),
   );

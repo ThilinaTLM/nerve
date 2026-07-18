@@ -123,14 +123,9 @@ export async function runSandboxEntrypoint(
   );
   if (!stores) throw new Error("Sandbox state stores were not initialized");
   const stateStores = stores;
-  const emitStartup = async (
-    type: string,
-    data: Record<string, unknown>,
-    durability: "durable" | "transient" = "durable",
-  ) => {
+  const emitStartup = async (type: string, data: Record<string, unknown>) => {
     await stateStores.events.append({
       type,
-      durability,
       data: { ...identity, configDigest, ...data },
     });
   };
@@ -358,9 +353,16 @@ export async function runSandboxEntrypoint(
       await emitStartup("sandbox.ready", {
         status,
         readyAt: new Date().toISOString(),
-        recovered: recoveredState.unackedEvents.length > 0,
+        recovered: recoveredState.pendingEvents.length > 0,
         daemonStatus: daemon.status.status,
-        cursor: { streams: (await stateStores.events.ackState()).streams },
+        cursor: {
+          streams: [
+            {
+              stream: `sandbox:${identity.sandboxId}`,
+              processedSeq: stateStores.events.latestSeq(),
+            },
+          ],
+        },
       });
       await session.markReady(status);
     },
@@ -384,11 +386,7 @@ async function runSetupStage<
     limitations?: string[];
   },
 >(
-  emit: (
-    type: string,
-    data: Record<string, unknown>,
-    durability?: "durable" | "transient",
-  ) => Promise<void>,
+  emit: (type: string, data: Record<string, unknown>) => Promise<void>,
   name: "sandbox.setup.git" | "sandbox.setup.github",
   run: () => Promise<T>,
 ): Promise<T> {

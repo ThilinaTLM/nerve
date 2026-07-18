@@ -517,6 +517,7 @@ export class HumanInputResolutionService {
     },
   ): Promise<void> {
     const toolCall = this.deps.tools.getToolCall(toolCallId);
+    await this.deps.tools.resumeToolCall(toolCallId);
     if (!toolCall.runId) {
       await this.deps.tools.completeToolCall(toolCallId, result);
       return;

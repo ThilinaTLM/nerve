@@ -15,9 +15,8 @@ import { SandboxWsServer } from "../src/protocol/sandbox-ws-server.js";
 const agentCapabilities = [
   "encoding.json",
   "event.batch",
-  "event.replay",
-  "event.ack.processed",
-  "flow.backpressure",
+  "event.notify",
+  "stream.subscription.v1",
   "sandbox.runtime.v1",
   "sandbox.events.v1",
   "sandbox.snapshots.v1",
@@ -48,6 +47,7 @@ type TestState = {
   state: ManagerState;
   records: Map<string, ManagedSandboxRecord>;
   sessions: Map<string, Record<string, unknown>>;
+  events: Map<string, StoredSandboxEvent[]>;
 };
 
 function createTestState(record: ManagedSandboxRecord): TestState {
@@ -85,21 +85,54 @@ function createTestState(record: ManagedSandboxRecord): TestState {
         eventsByStore.set(event.sandboxId, bucket);
         return true;
       },
-      appendDurableBatch: async (events: StoredSandboxEvent[]) => {
+      appendBatch: async (events: StoredSandboxEvent[]) => {
         for (const event of events) {
           const bucket = eventsByStore.get(event.sandboxId) ?? [];
           bucket.push(event);
           eventsByStore.set(event.sandboxId, bucket);
         }
       },
-      findDurableConflicts: async () => [],
-      streamState: async (storeId: string) => {
+      findConflicts: async () => [],
+      readRange: async (storeId: string, fromSeq: number, limit: number) => {
         const events = eventsByStore.get(storeId) ?? [];
-        const sequences = events.flatMap((event) => event.seq ?? []);
+        const sequences = events.map((event) => event.seq);
         return {
           latestSeq: Math.max(0, ...sequences),
-          durableSeq: Math.max(0, ...sequences),
+          earliestAvailableSeq: sequences.length ? Math.min(...sequences) : 1,
+          events: events
+            .filter((event) => event.seq >= fromSeq)
+            .slice(0, limit),
         };
+      },
+      streamState: async (storeId: string) => {
+        const events = eventsByStore.get(storeId) ?? [];
+        const sequences = events.map((event) => event.seq);
+        return {
+          latestSeq: Math.max(0, ...sequences),
+          earliestAvailableSeq: sequences.length ? Math.min(...sequences) : 1,
+        };
+      },
+      archiveEpochIfAhead: async (storeId: string, agentLatestSeq: number) => {
+        const events = eventsByStore.get(storeId) ?? [];
+        const latestSeq = Math.max(0, ...events.map((event) => event.seq));
+        if (latestSeq <= agentLatestSeq) {
+          return {
+            reset: false,
+            previousLatestSeq: latestSeq,
+            latestSeq,
+            earliestAvailableSeq: events.length ? events[0]!.seq : 1,
+          };
+        }
+        eventsByStore.set(storeId, []);
+        return {
+          reset: true,
+          previousLatestSeq: latestSeq,
+          latestSeq: 0,
+          earliestAvailableSeq: 1,
+        };
+      },
+      deleteAll: async (storeId: string) => {
+        eventsByStore.delete(storeId);
       },
     },
     eventBus: { publish: () => undefined },
@@ -108,7 +141,7 @@ function createTestState(record: ManagedSandboxRecord): TestState {
     config: { reconnectTimeoutMs: 360_000 },
     logger,
   } as unknown as ManagerState;
-  return { state, records, sessions };
+  return { state, records, sessions, events: eventsByStore };
 }
 
 async function withAgentSession(
@@ -188,6 +221,95 @@ async function waitFor(predicate: () => boolean, label: string): Promise<void> {
   }
 }
 
+test("a fresh agent head resets a cursor-ahead manager epoch before ingestion", async () => {
+  const context = createTestState(baseRecord());
+  context.events.set("sbx_test", [
+    {
+      sandboxId: "sbx_test",
+      id: "evt_old_1",
+      seq: 1,
+      type: "old.event",
+      ts: "2026-01-01T00:00:00.000Z",
+      payload: {},
+    },
+    {
+      sandboxId: "sbx_test",
+      id: "evt_old_2",
+      seq: 2,
+      type: "old.event",
+      ts: "2026-01-01T00:00:01.000Z",
+      payload: {},
+    },
+  ]);
+  await withAgentSession(context, async ({ send, nextMessage, messages }) => {
+    send(
+      messages("hello", {
+        requestedVersion: 1,
+        capabilities: agentCapabilities,
+        requiredCapabilities: agentCapabilities,
+        encodings: ["json"],
+      }),
+    );
+    const welcome = await nextMessage();
+    const sessionId = welcome.data.sessionId as string;
+    send(messages("ready", { sessionId, status: "booting" }));
+    await waitFor(
+      () =>
+        context.records.get("sbx_test")?.lifecycleState === "daemon_connected",
+      "daemon_connected",
+    );
+
+    send(
+      messages("stream.subscription.set", {
+        sessionId,
+        subscriptionId: "sub_fresh_epoch",
+        streams: [{ stream: "sandbox:sbx_test", processedSeq: 0 }],
+      }),
+    );
+    const updated = await nextMessage();
+    assert.equal(updated.kind, "stream.subscription.updated");
+    assert.equal(updated.data.accepted, true);
+    assert.deepEqual(updated.data.streams, [
+      {
+        stream: "sandbox:sbx_test",
+        latestSeq: 0,
+        earliestAvailableSeq: 1,
+        mode: "live",
+      },
+    ]);
+    assert.deepEqual(context.events.get("sbx_test"), []);
+
+    const now = "2026-01-02T00:00:00.000Z";
+    send(
+      messages(
+        "event.batch",
+        buildEventBatch(
+          [
+            {
+              id: "evt_fresh_1",
+              seq: 1,
+              type: "run.started",
+              ts: now,
+              data: {
+                conversationId: "conv_fresh",
+                agentId: "agent_fresh",
+                projectId: "proj_fresh",
+                runId: "run_fresh",
+                startedAt: now,
+              },
+            },
+          ],
+          { stream: "sandbox:sbx_test", reason: "replay" },
+        ),
+      ),
+    );
+    await waitFor(
+      () => context.events.get("sbx_test")?.[0]?.id === "evt_fresh_1",
+      "fresh epoch event",
+    );
+  });
+});
+
 test("a booting ready frame connects the daemon and live events drive lifecycle to ready", async () => {
   const context = createTestState(baseRecord());
   await withAgentSession(context, async ({ send, nextMessage, messages }) => {
@@ -197,7 +319,6 @@ test("a booting ready frame connects the daemon and live events drive lifecycle 
         capabilities: agentCapabilities,
         requiredCapabilities: agentCapabilities,
         encodings: ["json"],
-        resume: { streams: [{ stream: "sandbox:sbx_test", processedSeq: 0 }] },
       }),
     );
     const welcome = await nextMessage();
@@ -223,7 +344,6 @@ test("a booting ready frame connects the daemon and live events drive lifecycle 
               seq: 1,
               type: "sandbox.startup.stage.started",
               ts: now,
-              durability: "durable",
               data: {
                 sandboxId: "sbx_test",
                 instanceId: "instance_test",
@@ -235,7 +355,6 @@ test("a booting ready frame connects the daemon and live events drive lifecycle 
           ],
           {
             stream: "sandbox:sbx_test",
-            previousDurableSeq: 0,
             reason: "live",
           },
         ),
@@ -255,7 +374,6 @@ test("a booting ready frame connects the daemon and live events drive lifecycle 
               seq: 2,
               type: "sandbox.ready",
               ts: now,
-              durability: "durable",
               data: {
                 sandboxId: "sbx_test",
                 instanceId: "instance_test",
@@ -269,7 +387,6 @@ test("a booting ready frame connects the daemon and live events drive lifecycle 
           ],
           {
             stream: "sandbox:sbx_test",
-            previousDurableSeq: 1,
             reason: "live",
           },
         ),
@@ -293,7 +410,6 @@ test("a failed startup stage records the stage error on the sandbox record", asy
         capabilities: agentCapabilities,
         requiredCapabilities: agentCapabilities,
         encodings: ["json"],
-        resume: { streams: [{ stream: "sandbox:sbx_test", processedSeq: 0 }] },
       }),
     );
     const welcome = await nextMessage();
@@ -315,7 +431,6 @@ test("a failed startup stage records the stage error on the sandbox record", asy
               seq: 1,
               type: "sandbox.startup.stage.completed",
               ts: now,
-              durability: "durable",
               data: {
                 sandboxId: "sbx_test",
                 instanceId: "instance_test",
@@ -331,7 +446,6 @@ test("a failed startup stage records the stage error on the sandbox record", asy
           ],
           {
             stream: "sandbox:sbx_test",
-            previousDurableSeq: 0,
             reason: "live",
           },
         ),
@@ -361,9 +475,6 @@ test("a ready frame without status is a protocol error that rejects the session"
           capabilities: agentCapabilities,
           requiredCapabilities: agentCapabilities,
           encodings: ["json"],
-          resume: {
-            streams: [{ stream: "sandbox:sbx_test", processedSeq: 0 }],
-          },
         }),
       );
       const welcome = await nextMessage();

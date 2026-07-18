@@ -15,14 +15,15 @@ type NerveMessage<T> = {
   causationId?: string;
   traceId?: string;
   replyTo?: string;
-  requiresAck?: boolean;
   meta?: Record<string, string | number | boolean | null>;
   data: T;
 };
 ```
 
-Unknown top-level fields are rejected. IDs and kinds are bounded; kinds use lower-case dotted identifiers. Metadata is limited to 32 entries, keys to 64 characters, values to 1,024 characters, and secret-like keys are rejected.
+Unknown top-level fields are rejected. IDs, kinds, metadata, and error details are bounded. Secret-like metadata keys are rejected.
 
-`request` carries `{ method, params, idempotencyKey?, timeoutMs? }`; `response` and `error` reply through `replyTo`. Request methods and data are parsed with the contract operation catalog. Event batches carry catalog-valid event envelopes. Processed acknowledgements use message kind `event.ack`.
+`request` carries `{ method, params, idempotencyKey?, timeoutMs?, expect? }`; `response` and `error` reply through `replyTo`. Operations are parsed with the contract catalog.
 
-Canonical roles are listed in [overview](overview.md). The role is in the envelope peer descriptor, not duplicated in `hello.data`.
+Sequenced delivery uses `event.batch`; each contained envelope is `{ id, seq, type, ts, data }`. Ephemeral delivery uses `event.notify`; each notification is `{ id, type, ts, data }` and deliberately has no sequence.
+
+The peer role exists only in the envelope descriptors, not in `hello.data`.

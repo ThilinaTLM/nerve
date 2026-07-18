@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- Shared reducer covers the full live conversation event surface. */
 import {
+  assertTransition,
   conversationEventTypes,
   type ConversationActiveRunSnapshot,
   ConversationCompactedData,
@@ -35,6 +36,7 @@ import {
   QueuedPromptRecord,
   SandboxConversationViewSnapshot,
   ToolCallTranscriptRecord,
+  toolCallTransitions,
 } from "@nervekit/contracts";
 import {
   drainMaterializedActiveRunMessages,
@@ -129,12 +131,18 @@ export function applyConversationEvent(
   options: ApplyConversationEventOptions = {},
 ): ConversationRenderState {
   if (!conversationEventTypeSet.has(event.type)) return state;
-  if (event.durability === "durable" && event.seq <= state.cursorSeq) {
+  if (event.seq <= state.cursorSeq) return state;
+  if (event.seq !== state.cursorSeq + 1) {
+    reportGap(
+      options,
+      event.data as { conversationId?: string; runId?: string },
+      event.type,
+    );
     return state;
   }
 
   const next = cloneRenderState(state);
-  if (event.durability === "durable") next.cursorSeq = event.seq;
+  next.cursorSeq = event.seq;
 
   const type = event.type as ConversationEventType;
   switch (type) {
@@ -457,6 +465,17 @@ function applyToolCallUpdated(
   data: ConversationToolCallUpdatedData,
 ): void {
   const toolCall = data.toolCall;
+  const existing = state.toolCalls.find(
+    (candidate) => candidate.id === toolCall.id,
+  );
+  if (existing && existing.status !== toolCall.status) {
+    assertTransition(
+      toolCallTransitions,
+      existing.status,
+      toolCall.status,
+      `conversation reducer tool call ${toolCall.id}`,
+    );
+  }
   if (toolCall.hidden) {
     state.toolCalls = state.toolCalls.filter(
       (candidate) => candidate.id !== toolCall.id,

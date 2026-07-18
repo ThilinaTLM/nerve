@@ -20,17 +20,15 @@ import {
 } from "./sandbox.common.schema.js";
 
 export const sandboxOutboxRecordSchema = z.object({
-  seq: z.number().int().nonnegative().safe(),
+  seq: z.number().int().positive().safe(),
   id: z.string().min(1),
   ts: isoDateTimeSchema,
   type: z.string().min(1),
-  durability: z.enum(["durable", "transient"]),
+  delivery: z.literal("sequenced"),
   data: z.unknown(),
   conversationId: sandboxConversationIdSchema.optional(),
   agentId: sandboxAgentIdSchema.optional(),
   runId: sandboxRunIdSchema.optional(),
-  sentAt: isoDateTimeSchema.optional(),
-  ackedAt: isoDateTimeSchema.optional(),
 });
 export type SandboxOutboxRecord = z.infer<typeof sandboxOutboxRecordSchema>;
 
@@ -332,17 +330,6 @@ export const sandboxControllerSessionRecordSchema = z.object({
 export type SandboxControllerSessionRecord = z.infer<
   typeof sandboxControllerSessionRecordSchema
 >;
-
-export const sandboxAckStateSchema = z.object({
-  streams: z.array(
-    z.object({
-      stream: z.string().min(1),
-      processedSeq: z.number().int().nonnegative().safe(),
-    }),
-  ),
-  updatedAt: isoDateTimeSchema,
-});
-export type SandboxAckState = z.infer<typeof sandboxAckStateSchema>;
 
 export const sandboxCheckpointRecordSchema = z.object({
   checkpointId: z.string().min(1),

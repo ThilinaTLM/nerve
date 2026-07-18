@@ -36,7 +36,7 @@ import type { ProviderCatalogStore } from "../domains/providers/index.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { HttpError } from "../http/errors.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../infrastructure/events/index.js";
 import type { IndexStore } from "../infrastructure/index-store/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage/index.js";
@@ -95,7 +95,7 @@ export class RuntimeRegistry {
 
   constructor(
     storage: InitializedStorage,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
     private readonly index: IndexStore,
     auth: AuthManager,
     secrets: SecretProvider,
@@ -151,14 +151,8 @@ export class RuntimeRegistry {
     await this.services.taskNotifications.recoverPendingNotifications();
   }
 
-  /**
-   * Rebuild the derived (non-event) index tables from the in-memory records.
-   * The events_index is maintained incrementally (on publish, on prune, and
-   * reconciled at boot), so it is intentionally not touched here. Pass
-   * `{ reindexEvents: true }` to additionally rebuild the events index from the
-   * durable log (streamed in bounded batches).
-   */
-  async rebuildIndex(options?: { reindexEvents?: boolean }): Promise<void> {
+  /** Rebuild the disposable derived SQLite index from repositories. */
+  async rebuildIndex(): Promise<void> {
     this.index.rebuild({
       projects: this.listProjects(),
       conversations: this.listConversations(),
@@ -169,9 +163,6 @@ export class RuntimeRegistry {
       approvals: this.tools.listApprovals(),
       userQuestions: this.tools.listUserQuestions(),
     });
-    if (options?.reindexEvents) {
-      await this.events.reindexPersistedInto(this.index);
-    }
   }
 
   async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {
@@ -271,11 +262,11 @@ export class RuntimeRegistry {
   async rebuildSearchIndex(): Promise<void> {
     const replacement = this.index.beginFreshReplacement();
     try {
-      await this.rebuildIndex({ reindexEvents: true });
+      await this.rebuildIndex();
       this.index.commitFreshReplacement(replacement);
     } catch (error) {
       this.index.rollbackFreshReplacement(replacement);
-      await this.rebuildIndex({ reindexEvents: true }).catch(() => undefined);
+      await this.rebuildIndex().catch(() => undefined);
       throw error;
     }
   }

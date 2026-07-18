@@ -1,11 +1,18 @@
 import { randomUUID } from "node:crypto";
 import {
+  notifyEventSchema,
   parsePublicEventEnvelope,
   publicEventDefinition,
+  validatePublicEvent,
   type EventEnvelope,
+  type NotifyEvent,
 } from "@nervekit/contracts";
 import type { SandboxEventStore } from "../state/event-store.js";
-import type { ManagerEvent, ManagerEventBus } from "./manager-event-bus.js";
+import type {
+  ManagerEvent,
+  ManagerEventBus,
+  ManagerNotify,
+} from "./manager-event-bus.js";
 import {
   MANAGER_EVENT_STORE_ID,
   MANAGER_EVENT_STREAM,
@@ -13,7 +20,9 @@ import {
 } from "./manager-events.js";
 import { redactManagerEvent } from "./redaction.js";
 
-/** Serialized sequence owner and durable writer for the manager event stream. */
+export type ManagerPublishedEvent = ManagerEvent | ManagerNotify;
+
+/** Serialized sequence owner and writer for the manager stream. */
 export class ManagerEventJournal {
   #nextSeq = 1;
   #hydrate?: Promise<void>;
@@ -28,12 +37,12 @@ export class ManagerEventJournal {
     this.#hydrate ??= this.store
       .streamState(MANAGER_EVENT_STORE_ID)
       .then((state) => {
-        this.#nextSeq = state.durableSeq + 1;
+        this.#nextSeq = state.latestSeq + 1;
       });
     await this.#hydrate;
   }
 
-  publish(input: ManagerLifecycleEventInput): Promise<ManagerEvent> {
+  publish(input: ManagerLifecycleEventInput): Promise<ManagerPublishedEvent> {
     const next = this.#tail
       .catch(() => undefined)
       .then(async () => {
@@ -44,37 +53,53 @@ export class ManagerEventJournal {
     return next;
   }
 
-  async #append(input: ManagerLifecycleEventInput): Promise<ManagerEvent> {
+  async #append(
+    input: ManagerLifecycleEventInput,
+  ): Promise<ManagerPublishedEvent> {
     const definition = publicEventDefinition(input.type);
     if (!definition) throw new Error(`Unknown manager event: ${input.type}`);
     const payload = redactManagerEvent({
       ...(isObject(input.payload) ? input.payload : { value: input.payload }),
       sandboxId: input.sandboxId,
     });
+    const id = `evt_${randomUUID()}`;
+    const ts = input.ts ?? new Date().toISOString();
+
+    if (definition.delivery === "ephemeral") {
+      const event = notifyEventSchema.parse({
+        id,
+        type: input.type,
+        ts,
+        data: validatePublicEvent(input.type, payload, "sandbox_manager"),
+      }) as NotifyEvent<Record<string, unknown>>;
+      const notification: ManagerNotify = {
+        stream: MANAGER_EVENT_STREAM,
+        sandboxId: input.sandboxId,
+        event,
+      };
+      this.bus.notify(notification);
+      return notification;
+    }
+
     const envelope = parsePublicEventEnvelope(
       {
-        id: `evt_${randomUUID()}`,
+        id,
         seq: this.#nextSeq,
         type: input.type,
-        ts: input.ts ?? new Date().toISOString(),
-        durability: input.durability ?? definition.durability,
+        ts,
         data: payload,
       },
       "sandbox_manager",
     ) as EventEnvelope<Record<string, unknown>>;
-
-    if (envelope.durability === "durable") {
-      const inserted = await this.store.append({
-        sandboxId: MANAGER_EVENT_STORE_ID,
-        id: envelope.id,
-        seq: envelope.seq,
-        type: envelope.type,
-        ts: envelope.ts,
-        durability: envelope.durability,
-        payload: envelope.data,
-      });
-      if (!inserted) throw new Error("Manager event was not persisted");
-    }
+    const inserted = await this.store.append({
+      sandboxId: MANAGER_EVENT_STORE_ID,
+      id: envelope.id,
+      seq: envelope.seq,
+      type: envelope.type,
+      ts: envelope.ts,
+      payload: envelope.data,
+    });
+    if (!inserted) throw new Error("Manager event was not persisted");
 
     this.#nextSeq += 1;
     const event: ManagerEvent = {
@@ -84,7 +109,6 @@ export class ManagerEventJournal {
       seq: envelope.seq,
       type: envelope.type,
       ts: envelope.ts,
-      durability: envelope.durability,
       payload: envelope.data,
     };
     this.bus.publish(event);

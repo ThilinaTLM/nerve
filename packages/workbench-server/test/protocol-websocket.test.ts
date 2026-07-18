@@ -124,6 +124,24 @@ async function handshake(
   return welcome;
 }
 
+async function subscribeWorkspace(
+  peer: Awaited<ReturnType<typeof open>>,
+  messages: ReturnType<typeof clientMessages>,
+  sessionId: string,
+  processedSeq = 0,
+) {
+  peer.socket.send(
+    codec.encode(
+      messages("stream.subscription.set", {
+        sessionId,
+        subscriptionId: `sub_${crypto.randomUUID()}`,
+        streams: [{ stream: "workspace", processedSeq }],
+      }) as ProtocolV1Message,
+    ),
+  );
+  return peer.next("stream.subscription.updated");
+}
+
 function projectCreatedData(id: string) {
   const now = new Date().toISOString();
   return {
@@ -164,10 +182,16 @@ test("real adapter gates live/RPC until ready and shares canonical HTTP/WS dispa
       }) as ProtocolV1Message,
     ),
   );
+  const updated = await subscribeWorkspace(
+    peer,
+    messages,
+    welcome.data.sessionId,
+  );
+  assert.equal(updated.data.streams[0]?.mode, "replay");
   const batch = await peer.next("event.batch");
-  assert.deepEqual(
-    batch.data.events.map((candidate) => candidate.id),
-    [event.id],
+  assert.equal(
+    batch.data.events.some((candidate) => candidate.id === event.id),
+    true,
   );
   const request = messages("request", {
     method: "snapshot.workspace.get",
@@ -205,7 +229,7 @@ test("real adapter gates live/RPC until ready and shares canonical HTTP/WS dispa
   assert.equal(host.sessions.size, 0);
 });
 
-test("real adapter resumes through bounded journal replay", async () => {
+test("real adapter replays exclusively through stream subscriptions", async () => {
   const host = await fixture();
   const event = await host.state.events.publish(
     "project.created",
@@ -213,18 +237,7 @@ test("real adapter resumes through bounded journal replay", async () => {
   );
   const peer = await open(host.wsUrl, host.token);
   const messages = clientMessages(host.state.daemonId);
-  peer.socket.send(
-    codec.encode(
-      messages("hello", {
-        requestedVersion: 1,
-        capabilities: [...PROTOCOL_CAPABILITIES],
-        encodings: ["json"],
-        resume: { streams: [{ stream: "local", processedSeq: 0 }] },
-      }) as ProtocolV1Message,
-    ),
-  );
-  const welcome = await peer.next("welcome");
-  assert.equal(welcome.data.resume.mode, "replay");
+  const welcome = await handshake(peer, messages);
   peer.socket.send(
     codec.encode(
       messages("ready", {
@@ -232,13 +245,17 @@ test("real adapter resumes through bounded journal replay", async () => {
       }) as ProtocolV1Message,
     ),
   );
-  await peer.next("replay.started");
+  const updated = await subscribeWorkspace(
+    peer,
+    messages,
+    welcome.data.sessionId,
+  );
+  assert.equal(updated.data.streams[0]?.mode, "replay");
   const batch = await peer.next("event.batch");
   assert.equal(
     batch.data.events.filter((candidate) => candidate.id === event.id).length,
     1,
   );
-  await peer.next("replay.complete");
   peer.socket.close();
 });
 

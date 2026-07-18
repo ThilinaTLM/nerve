@@ -76,7 +76,6 @@ export const nerveMessageSchema = z
     causationId: z.string().min(1).max(256).optional(),
     traceId: z.string().min(1).max(256).optional(),
     replyTo: z.string().min(1).max(256).optional(),
-    requiresAck: z.boolean().optional(),
     meta: safeMetadataSchema.optional(),
     data: z.unknown(),
   })

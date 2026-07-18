@@ -9,7 +9,7 @@ export const storageEventDefinitions = [
     storageCleanupUpdatedEventSchema,
     {
       allowedSourceRoles: workbenchRoles,
-      durability: "transient",
+      delivery: "ephemeral",
       coalescing: "latest_by_scope",
       scope: ["operation.id"],
     },

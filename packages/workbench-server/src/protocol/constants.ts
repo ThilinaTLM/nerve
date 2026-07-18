@@ -1,4 +1,9 @@
-import { allOperationDefinitions } from "@nervekit/contracts";
+import {
+  STREAM_SUBSCRIPTION_CAPABILITY,
+  WORKSPACE_STREAM,
+  allOperationDefinitions,
+  conversationStream,
+} from "@nervekit/contracts";
 
 const WORKBENCH_OPERATION_CAPABILITIES = allOperationDefinitions()
   .filter((definition) =>
@@ -10,9 +15,8 @@ const WORKBENCH_OPERATION_CAPABILITIES = allOperationDefinitions()
 export const PROTOCOL_CAPABILITIES = [
   "encoding.json",
   "event.batch",
-  "event.replay",
-  "event.ack.processed",
-  "flow.backpressure",
+  "event.notify",
+  STREAM_SUBSCRIPTION_CAPABILITY,
   "snapshot.workspace",
   "operation.snapshot.workspace.get",
   ...WORKBENCH_OPERATION_CAPABILITIES,
@@ -21,36 +25,13 @@ export const PROTOCOL_CAPABILITIES = [
 export const REQUIRED_PROTOCOL_CAPABILITIES = [
   "encoding.json",
   "event.batch",
-  "event.replay",
-  "event.ack.processed",
+  STREAM_SUBSCRIPTION_CAPABILITY,
 ] as const;
 
-export const PROTOCOL_LIMITS = {
+export const PROTOCOL_SESSION_LIMITS = {
   maxMessageBytes: 4 * 1024 * 1024,
   maxBatchEvents: 500,
   maxBatchBytes: 1024 * 1024,
-  maxInflightBatches: 8,
-  maxUnackedDurableEvents: 10_000,
-  maxReplayEvents: 10_000,
-  maxReplayBytes: 4 * 1024 * 1024,
-  maxQueuedDurableBeforeCatchup: 1_000,
-  maxQueuedDurableBeforeResync: 10_000,
-  maxQueuedTransient: 2_000,
-  maxQueuedBytes: 16 * 1024 * 1024,
-  transportBufferedWarningBytes: 1024 * 1024,
-  transportBufferedHighBytes: 8 * 1024 * 1024,
-  transportBufferedCriticalBytes: 32 * 1024 * 1024,
-  clientMessagesPerWindow: 100,
-  clientMessageWindowMs: 10_000,
-  malformedMessageStrikes: 3,
-} as const;
-
-export const PROTOCOL_SESSION_LIMITS = {
-  maxMessageBytes: PROTOCOL_LIMITS.maxMessageBytes,
-  maxBatchEvents: PROTOCOL_LIMITS.maxBatchEvents,
-  maxBatchBytes: PROTOCOL_LIMITS.maxBatchBytes,
-  maxInflightBatches: PROTOCOL_LIMITS.maxInflightBatches,
-  maxUnackedDurableEvents: PROTOCOL_LIMITS.maxUnackedDurableEvents,
 } as const;
 
 export const PROTOCOL_HEARTBEAT = {
@@ -58,4 +39,4 @@ export const PROTOCOL_HEARTBEAT = {
   timeoutMs: 70_000,
 } as const;
 
-export const GLOBAL_STREAM = "local";
+export { WORKSPACE_STREAM, conversationStream };

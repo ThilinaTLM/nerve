@@ -3,36 +3,42 @@ import test from "node:test";
 import { ManagerEventBus } from "../src/events/manager-event-bus.js";
 import { SandboxEventIngestor } from "../src/events/sandbox-event-ingestor.js";
 import type {
-  DurableEventRange,
+  EventRange,
   SandboxEventStore,
   StoredSandboxEvent,
 } from "../src/state/event-store.js";
 
 const ts = "2026-01-01T00:00:00.000Z";
 
-test("ingestion publishes nothing and advances no ACK when atomic storage fails", async () => {
+test("ingestion publishes nothing when atomic dense storage fails", async () => {
   const calls = { state: 0, conflicts: 0, insert: 0 };
   const store: SandboxEventStore = {
     streamState: async () => {
       calls.state += 1;
-      return { latestSeq: 0, durableSeq: 0 };
+      return { latestSeq: 0, earliestAvailableSeq: 1 };
     },
-    findDurableConflicts: async () => {
+    findConflicts: async () => {
       calls.conflicts += 1;
       return [];
     },
-    appendDurableBatch: async () => {
+    appendBatch: async () => {
       calls.insert += 1;
       throw new Error("transaction rolled back");
     },
     append: async () => false,
     list: async () => [],
-    readDurableRange: async (): Promise<DurableEventRange> => ({
+    readRange: async (): Promise<EventRange> => ({
       events: [],
-      previousDurableSeq: 0,
-      complete: true,
-      nextSeq: 1,
+      latestSeq: 0,
+      earliestAvailableSeq: 1,
     }),
+    archiveEpochIfAhead: async () => ({
+      reset: false,
+      previousLatestSeq: 0,
+      latestSeq: 0,
+      earliestAvailableSeq: 1,
+    }),
+    deleteAll: async () => undefined,
   };
   const bus = new ManagerEventBus();
   const published: StoredSandboxEvent[] = [];
@@ -43,20 +49,18 @@ test("ingestion publishes nothing and advances no ACK when atomic storage fails"
       seq: event.seq,
       type: event.type,
       ts: event.ts,
-      durability: event.durability,
       payload: event.payload,
     }),
   );
   const ingestor = new SandboxEventIngestor(store, bus);
 
   await assert.rejects(
-    ingestor.ingestBatch("sbx_atomic", 0, [
+    ingestor.ingestBatch("sbx_atomic", [
       {
         id: "evt_atomic_1",
         seq: 1,
         type: "run.started",
         ts,
-        durability: "durable",
         data: {
           conversationId: "conv_1",
           agentId: "agent_1",

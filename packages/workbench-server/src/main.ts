@@ -18,6 +18,7 @@ import {
   writeCrashReportSync,
   writeNodeDiagnosticReport,
 } from "./infrastructure/diagnostics/index.js";
+import { migrateLegacyEventLogs } from "./infrastructure/events/index.js";
 import {
   initializeStorage,
   resolveDataDir,
@@ -152,12 +153,18 @@ async function main() {
     context: { dataDir: storage.paths.home, host, port },
   });
   const eventHydrateStartedAt = Date.now();
+  const archivedEventLogs = await migrateLegacyEventLogs(
+    storage.paths.home,
+    state.index,
+  );
   await state.events.hydrate();
-  await state.logger.info("Event log hydrated", {
+  const workspaceBounds = await state.events.bounds("workspace");
+  await state.logger.info("Event streams hydrated", {
     durationMs: Date.now() - eventHydrateStartedAt,
     context: {
-      latestSeq: state.events.latestSeq,
-      bufferedEvents: state.events.replaySince(0).length,
+      latestSeq: workspaceBounds.latestSeq,
+      earliestAvailableSeq: workspaceBounds.earliestAvailableSeq,
+      archivedEventLogs,
     },
   });
   const registryHydrateStartedAt = Date.now();
@@ -175,8 +182,6 @@ async function main() {
     durationMs: Date.now() - registryHydrateStartedAt,
   });
   const indexRebuildStartedAt = Date.now();
-  // The events index is maintained incrementally and reconciled during
-  // hydrate(); only the derived tables need rebuilding on boot.
   await state.registry.rebuildIndex();
   await state.logger.info("Index rebuilt", {
     durationMs: Date.now() - indexRebuildStartedAt,

@@ -18,9 +18,8 @@ function event(
   seq: number,
   type: string,
   data: Record<string, unknown>,
-  durability: "durable" | "transient" = "durable",
 ): SandboxUiEvent {
-  return { stream: "sandbox:sbx_1", seq, ts, type, durability, data };
+  return { stream: "sandbox:sbx_1", seq, ts, type, data };
 }
 
 describe("applySandboxEvent", () => {
@@ -61,21 +60,21 @@ describe("applySandboxEvent", () => {
 
     applySandboxEvent(
       detail,
-      event(
-        2,
-        "run.delta",
-        { ...scope, deltaId: "d1", role: "assistant", text: "Hel" },
-        "transient",
-      ),
+      event(2, "run.delta", {
+        ...scope,
+        deltaId: "d1",
+        role: "assistant",
+        text: "Hel",
+      }),
     );
     applySandboxEvent(
       detail,
-      event(
-        3,
-        "run.delta",
-        { ...scope, deltaId: "d2", role: "assistant", text: "lo" },
-        "transient",
-      ),
+      event(3, "run.delta", {
+        ...scope,
+        deltaId: "d2",
+        role: "assistant",
+        text: "lo",
+      }),
     );
     assert.equal(detail.liveRuns.run_1.deltaText, "Hello");
 
@@ -91,7 +90,7 @@ describe("applySandboxEvent", () => {
       }),
     );
     assert.equal(detail.appendedTranscript.length, 1);
-    // Durable transcript clears transient streaming text for the run.
+    // Sequenced transcript clears best-effort notify text for the run.
     assert.equal(detail.liveRuns.run_1.deltaText, "");
 
     applySandboxEvent(

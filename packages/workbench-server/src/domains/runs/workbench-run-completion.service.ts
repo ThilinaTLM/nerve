@@ -1,5 +1,5 @@
 import type { EventEnvelope } from "@nervekit/contracts";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 
 export class WorkbenchRunCompletionService {
@@ -8,7 +8,7 @@ export class WorkbenchRunCompletionService {
   private unsubscribe?: () => void;
 
   constructor(
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
     private readonly maybeAutoCompact: (
       conversationId: string,
       agentId: string,
@@ -28,7 +28,7 @@ export class WorkbenchRunCompletionService {
   }
 
   private onEvent(event: EventEnvelope): void {
-    if (event.type !== "run.completed" || event.durability !== "durable") {
+    if (event.type !== "run.completed") {
       return;
     }
     const data = event.data as {

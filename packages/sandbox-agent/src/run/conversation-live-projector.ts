@@ -72,6 +72,26 @@ export class SandboxConversationLiveProjector {
     this.emit("conversation.live.message.started", started);
   }
 
+  finishAssistantMessage(failed = false): void {
+    if (!this.currentTurnId || !this.currentMessage) return;
+    const coordinates = [
+      this.scope.runId,
+      this.currentTurnId,
+      this.currentMessage.liveMessageId,
+    ] as const;
+    if (failed) this.runtime.failAssistantMessage(...coordinates);
+    else this.runtime.completeAssistantMessage(...coordinates);
+  }
+
+  finishTurn(failed = false): void {
+    if (!this.currentTurnId) return;
+    if (failed) this.runtime.failTurn(this.scope.runId, this.currentTurnId);
+    else this.runtime.completeTurn(this.scope.runId, this.currentTurnId);
+    this.currentTurnId = undefined;
+    this.currentMessage = undefined;
+    this.toolNamesByContentIndex.clear();
+  }
+
   updateAssistantMessage(event: MessageUpdateEvent): void {
     if (!this.currentTurnId || !this.currentMessage) return;
     const update = event.assistantMessageEvent;

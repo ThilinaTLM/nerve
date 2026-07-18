@@ -1,5 +1,11 @@
+import { conversationStream } from "@nervekit/contracts";
 import type { AgentRecord } from "$lib/api";
-import { onAnyEvent, type WorkbenchEvent } from "$lib/core/events/event-bus";
+import {
+  isSequencedEvent,
+  onAnyEvent,
+  type WorkbenchEvent,
+} from "$lib/core/events/event-bus";
+import { removeEventStream } from "$lib/core/events/stream-cursors.svelte";
 import { queryClient, queryKeys } from "$lib/core/query";
 import {
   applyEntityEvent,
@@ -20,8 +26,15 @@ export function registerWorkspaceEventHandlers(): () => void {
 }
 
 function handleWorkspaceEvent(event: WorkbenchEvent): void {
-  applyEntityEvent(event);
-  patchRuntimeAgentStatus(event);
+  if (isSequencedEvent(event)) {
+    applyEntityEvent(event);
+    patchRuntimeAgentStatus(event);
+  }
+
+  if (event.type === "conversation.deleted") {
+    const conversationId = stringValue(event.data?.conversationId);
+    if (conversationId) removeEventStream(conversationStream(conversationId));
+  }
 
   if (isAgentRecordEvent(event.type)) {
     const agent = agentRecordFromEvent(event.data?.agent);

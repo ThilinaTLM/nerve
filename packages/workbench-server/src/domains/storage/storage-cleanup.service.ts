@@ -8,7 +8,7 @@ import {
   type StorageCleanupTarget,
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { EventBus } from "../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { StoragePaths } from "../../infrastructure/storage/index.js";
 import type { StorageCleanupRepository } from "./storage-cleanup.repository.js";
 import { dirSize, fileSize } from "./storage-files.js";
@@ -30,7 +30,7 @@ export interface StorageCleanupServiceDeps {
   paths: StoragePaths;
   repository: StorageCleanupRepository;
   usage: StorageUsageService;
-  events: EventBus;
+  events: StreamLogRegistry;
   logger: ApplicationLogger;
   getRegistry: () => StorageCleanupRegistryPort;
 }
@@ -457,11 +457,9 @@ export class StorageCleanupService {
     const updated = { ...operation, updatedAt: new Date().toISOString() };
     await this.deps.repository.write(updated);
     this.#operation = updated;
-    await this.deps.events.publish(
-      "storage.cleanup.updated",
-      { operation: updated },
-      { durability: "transient" },
-    );
+    await this.deps.events.publish("storage.cleanup.updated", {
+      operation: updated,
+    });
     return updated;
   }
 }

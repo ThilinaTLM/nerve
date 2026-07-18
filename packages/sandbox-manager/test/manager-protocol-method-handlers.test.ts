@@ -51,7 +51,6 @@ describe("manager protocol method handlers", () => {
             id: "evt_manager_7",
             seq: 7,
             type: "sandbox.lifecycle.changed",
-            durability: "durable",
             payload: {},
           },
         ],
@@ -350,15 +349,13 @@ function context(
               Number((event as { seq?: number }).seq ?? 0),
             ),
           ),
-          durableSeq: Math.max(
-            0,
-            ...(options.events ?? [])
-              .filter(
-                (event) =>
-                  (event as { durability?: string }).durability !== "transient",
+          earliestAvailableSeq: (options.events ?? []).length
+            ? Math.min(
+                ...(options.events ?? []).map((event) =>
+                  Number((event as { seq?: number }).seq ?? 0),
+                ),
               )
-              .map((event) => Number((event as { seq?: number }).seq ?? 0)),
-          ),
+            : 1,
         }),
       },
       logger: { debug: () => undefined },
@@ -407,7 +404,6 @@ function toolCallUpdateEvent(
     seq,
     type: "toolCall.updated",
     ts: `2026-07-05T21:23:1${seq}.000Z`,
-    durability: "durable",
     payload: {
       conversationId: "conv_1",
       agentId: "agent_main",
@@ -501,7 +497,6 @@ function transcriptEvent(
     seq,
     type: "run.transcript.appended",
     ts,
-    durability: "durable",
     payload: {
       role,
       index: seq,
@@ -524,7 +519,6 @@ function transcriptEvents() {
       seq: 20,
       type: "run.transcript.appended",
       ts: "2026-07-05T21:23:17.212Z",
-      durability: "durable",
       payload: {
         role: "user",
         index: 0,
@@ -542,7 +536,6 @@ function transcriptEvents() {
       seq: 21,
       type: "run.transcript.appended",
       ts: "2026-07-05T21:23:18.232Z",
-      durability: "durable",
       payload: {
         role: "assistant",
         index: 6,

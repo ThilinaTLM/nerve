@@ -10,7 +10,7 @@ import {
   type ImportConversationRequest,
   type ProjectRecord,
 } from "@nervekit/contracts";
-import type { EventBus } from "../../../infrastructure/events/index.js";
+import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { AppendConversationEntry } from "./compaction-service.js";
 
 export class ImportService {
@@ -29,7 +29,7 @@ export class ImportService {
     ) => ConversationRecord,
     private readonly appendEntry: AppendConversationEntry,
     private readonly rebuildConversations: () => Promise<void>,
-    private readonly events: EventBus,
+    private readonly events: StreamLogRegistry,
   ) {}
 
   async importConversation(request: ImportConversationRequest): Promise<{

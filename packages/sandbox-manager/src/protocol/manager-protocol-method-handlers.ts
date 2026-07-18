@@ -135,7 +135,7 @@ async function managerRecoverySnapshot(
   const cursors = [
     {
       stream: "manager",
-      processedSeq: managerStream.durableSeq,
+      processedSeq: managerStream.latestSeq,
     },
   ];
   const sandboxes = await listManagedSandboxes(context.state);
@@ -150,7 +150,7 @@ async function managerRecoverySnapshot(
   });
   cursors.push({
     stream: `sandbox:${params.sandboxId}`,
-    processedSeq: lastDurableSeq(sandboxEvents),
+    processedSeq: lastSeq(sandboxEvents),
   });
   const selectedSandbox = sandboxSnapshotResultSchema.parse(
     await managerDerivedSnapshot(context.state, params.sandboxId),
@@ -189,15 +189,8 @@ async function managerRecoverySnapshot(
   };
 }
 
-function lastDurableSeq(
-  events: readonly { seq?: number; durability?: "durable" | "transient" }[],
-): number {
-  return Math.max(
-    0,
-    ...events
-      .filter((event) => event.durability !== "transient")
-      .map((event) => event.seq ?? 0),
-  );
+function lastSeq(events: readonly { seq: number }[]): number {
+  return Math.max(0, ...events.map((event) => event.seq));
 }
 
 async function sandboxSnapshot(
@@ -257,7 +250,7 @@ async function sandboxConversationSnapshot(
       });
     } catch (error) {
       // The controller session exists but is unresponsive (timeout) or failed.
-      // Degrade to the durable-event projection instead of hanging/500ing the
+      // Degrade to the sequenced-event projection instead of hanging/500ing the
       // UI so the transcript still renders in a read-only stale view.
       return derivedConversationView(context.state, sandboxId, params, {
         connected: true,
@@ -310,7 +303,7 @@ async function derivedConversationView(
       runs: isRecord(base) && Array.isArray(base.runs) ? base.runs : [],
       readOnly: true,
       reason: snapshot
-        ? `${options.reason} (transcript reconstructed from durable events)`
+        ? `${options.reason} (transcript reconstructed from sequenced events)`
         : options.reason,
     },
     generatedAt: new Date().toISOString(),
