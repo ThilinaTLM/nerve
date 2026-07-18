@@ -43,6 +43,7 @@ export * from "./harness/prompt-templates.js";
 export * from "./harness/skills.js";
 export * from "./harness/system-prompt.js";
 export * from "./harness/types.js";
+export { registerManagedProvider } from "./pi-ai-models.js";
 export * from "./proxy.js";
 export * from "./runtime.js";
 export * from "./suspension.js";

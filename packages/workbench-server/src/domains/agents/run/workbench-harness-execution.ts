@@ -1,5 +1,6 @@
 import {
   AgentHarness,
+  type AnyModel,
   buildConversationContext,
   Conversation,
   convertToLlm,
@@ -161,11 +162,8 @@ export async function executeWorkbenchHarness(
     let currentProviderForResponse: string | undefined;
     const harnessFactory = new HostHarnessFactory({
       resolveModel: async () => model,
-      resolveCredentials: async () => async (provider: string) => {
-        if (provider === "nerve-faux") return undefined;
-        const apiKey = await this.deps.auth.getApiKey(provider);
-        return apiKey ? { apiKey } : undefined;
-      },
+      resolveCredentials: async () => (requestModel: AnyModel) =>
+        this.deps.auth.requestAuthForPiModel(requestModel),
       resolvePolicy: async () => ({
         tools: createAgentToolsForAgent(agent, this.deps.tools, {
           runId,
@@ -190,8 +188,7 @@ export async function executeWorkbenchHarness(
           activeToolNames: environment.policy.activeToolNames,
           model: environment.model,
           thinkingLevel: agent.thinkingLevel,
-          getApiKeyAndHeaders: async (requestModel) =>
-            environment.credentials(requestModel.provider),
+          getApiKeyAndHeaders: environment.credentials,
           systemPrompt: composeLatestSystemPrompt,
         }),
     });

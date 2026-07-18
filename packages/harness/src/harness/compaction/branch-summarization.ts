@@ -59,6 +59,8 @@ export interface GenerateBranchSummaryOptions {
   apiKey: string;
   /** Optional request headers forwarded to the provider. */
   headers?: Record<string, string>;
+  /** Provider-scoped environment values forwarded to the provider. */
+  env?: Record<string, string>;
   /** Abort signal for the summarization request. */
   signal: AbortSignal;
   /** Optional instructions appended to or replacing the default prompt. */
@@ -235,6 +237,7 @@ export async function generateBranchSummary(
     model,
     apiKey,
     headers,
+    env,
     signal,
     customInstructions,
     replaceInstructions,
@@ -277,7 +280,7 @@ export async function generateBranchSummary(
       systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
       messages: summarizationMessages,
     },
-    { apiKey, headers, signal, maxTokens: 2048 },
+    { apiKey, headers, env, signal, maxTokens: 2048 },
   );
   if (response.stopReason === "aborted") {
     return err(

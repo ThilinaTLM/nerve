@@ -97,7 +97,7 @@ export class RuntimeRegistry {
     storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
     private readonly index: IndexStore,
-    auth: AuthManager,
+    private readonly auth: AuthManager,
     secrets: SecretProvider,
     private readonly subscriptionUsage: SubscriptionUsageService,
     logger: ApplicationLogger,
@@ -131,6 +131,8 @@ export class RuntimeRegistry {
   }
 
   async hydrate(): Promise<void> {
+    await this.auth.refreshModels({ allowNetwork: false });
+    await this.auth.refreshModels().catch(() => undefined);
     await this.providerCatalog.load();
     await this.workers.hydrate();
     await this.promptSuggestions.hydrate();

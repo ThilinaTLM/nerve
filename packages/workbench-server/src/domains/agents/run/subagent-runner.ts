@@ -363,11 +363,8 @@ export class SubagentRunner {
         activeToolNames,
         model,
         thinkingLevel: child.thinkingLevel,
-        getApiKeyAndHeaders: async (requestModel) => {
-          if (requestModel.provider === "nerve-faux") return undefined;
-          const apiKey = await this.deps.auth.getApiKey(requestModel.provider);
-          return apiKey ? { apiKey } : undefined;
-        },
+        getApiKeyAndHeaders: (requestModel) =>
+          this.deps.auth.requestAuthForPiModel(requestModel),
         systemPrompt: () => spec.systemPrompt,
       });
       harness.subscribe((event) => {

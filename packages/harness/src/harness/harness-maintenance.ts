@@ -112,12 +112,13 @@ export async function compactHarnessConversation<
       ? { ok: true as const, value: provided }
       : await compact(
           preparation,
-          model,
-          auth.apiKey,
+          auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model,
+          auth.apiKey ?? "",
           auth.headers,
           customInstructions,
           undefined,
           context.getThinkingLevel(),
+          auth.env,
         );
     if (!compactResult.ok) throw compactResult.error;
     const result = compactResult.value;
@@ -213,9 +214,10 @@ export async function navigateHarnessTree<
         );
       }
       const branchSummary = await generateBranchSummary(entries, {
-        model,
-        apiKey: auth.apiKey,
+        model: auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model,
+        apiKey: auth.apiKey ?? "",
         headers: auth.headers,
+        env: auth.env,
         signal: new AbortController().signal,
         customInstructions:
           hookResult?.customInstructions ?? options?.customInstructions,

@@ -67,6 +67,7 @@ export type HarnessCreateOptions = {
 type SandboxHarnessCredentials = (provider: string) => Promise<
   | {
       apiKey: string;
+      baseUrl?: string;
       headers?: Record<string, string>;
       env?: Record<string, string>;
     }
@@ -298,6 +299,7 @@ export class HarnessFactory {
   private async getApiKeyAndHeaders(providerId: string): Promise<
     | {
         apiKey: string;
+        baseUrl?: string;
         headers?: Record<string, string>;
         env?: Record<string, string>;
       }
@@ -305,10 +307,11 @@ export class HarnessFactory {
   > {
     const provider = this.providerConfig(providerId);
     const headers = { ...(provider?.headers ?? {}) };
+    const baseUrl = provider?.baseUrl;
     const env = provider?.env ? { ...provider.env } : undefined;
     if (!provider?.credential)
       return Object.keys(headers).length || env
-        ? { apiKey: "", headers, env }
+        ? { apiKey: "", baseUrl, headers, env }
         : undefined;
     if (!this.options.secretResolver)
       throw new Error("UNAVAILABLE: secret resolver is not configured");
@@ -316,26 +319,27 @@ export class HarnessFactory {
       provider.credential,
       this.options.secretResolver,
     );
-    if (resolved.apiKey) return { apiKey: resolved.apiKey, headers, env };
+    if (resolved.apiKey)
+      return { apiKey: resolved.apiKey, baseUrl, headers, env };
     if (resolved.bearerToken) {
       if (providerUsesApiKeySlotForBearer(providerId)) {
-        return { apiKey: resolved.bearerToken, headers, env };
+        return { apiKey: resolved.bearerToken, baseUrl, headers, env };
       }
       headers.authorization = `Bearer ${resolved.bearerToken}`;
-      return { apiKey: "", headers, env };
+      return { apiKey: "", baseUrl, headers, env };
     }
     if (resolved.username || resolved.password) {
       headers.authorization = `Basic ${Buffer.from(
         `${resolved.username ?? ""}:${resolved.password ?? ""}`,
       ).toString("base64")}`;
-      return { apiKey: "", headers, env };
+      return { apiKey: "", baseUrl, headers, env };
     }
     if (resolved.accessToken) {
       headers.authorization = `Bearer ${resolved.accessToken}`;
-      return { apiKey: "", headers, env };
+      return { apiKey: "", baseUrl, headers, env };
     }
     return Object.keys(headers).length || env
-      ? { apiKey: "", headers, env }
+      ? { apiKey: "", baseUrl, headers, env }
       : undefined;
   }
 

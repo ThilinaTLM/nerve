@@ -779,6 +779,21 @@ async function refreshProfile(profileId: string): Promise<void> {
                   <p class="text-sm font-medium">{oauthFlow.flow.message}</p>
                 {/if}
 
+                {#if oauthFlow.flow.links?.length}
+                  <div class="flex flex-wrap gap-2">
+                    {#each oauthFlow.flow.links as link (link.url)}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onclick={() => oauthFlow.openExternal(link.url)}
+                      >
+                        <ExternalLink class="size-4" />
+                        {link.label ?? "Open link"}
+                      </Button>
+                    {/each}
+                  </div>
+                {/if}
+
                 {#if oauthFlow.flow.status === "auth_url" && oauthFlow.flow.authUrl}
                   <Button
                     variant="outline"

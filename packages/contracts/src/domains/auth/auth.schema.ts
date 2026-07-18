@@ -80,7 +80,23 @@ export const oauthFlowInfoSchema = z.object({
   message: z.string().optional(),
   authUrl: z.string().optional(),
   instructions: z.string().optional(),
-  options: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
+  options: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        description: z.string().optional(),
+      }),
+    )
+    .optional(),
+  links: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        label: z.string().optional(),
+      }),
+    )
+    .optional(),
   deviceCode: z
     .object({
       userCode: z.string(),

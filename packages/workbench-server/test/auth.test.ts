@@ -35,6 +35,26 @@ describe("AuthManager", () => {
     assert.equal(await auth.credentialType("openai-codex"), "oauth");
     assert.equal(await auth.getApiKey("openai-codex"), "access-token");
   });
+  it("preserves provider-derived request routing for subscriptions", async () => {
+    const auth = new AuthManager(
+      new EncryptedFileSecretProvider(await tempHome()),
+    );
+    await auth.setOAuth("github-copilot", {
+      access:
+        "tid=test;proxy-ep=proxy.business.githubcopilot.com;exp=9999999999;",
+      refresh: "github-token",
+      expires: Date.now() + 60_000,
+      enterpriseUrl: "github.example.com",
+    });
+    const model = auth.models.getModels("github-copilot")[0];
+    assert.ok(model);
+
+    const resolved = await auth.requestAuthForPiModel(model);
+
+    assert.equal(resolved?.apiKey?.startsWith("tid=test"), true);
+    assert.equal(resolved?.baseUrl, "https://api.business.githubcopilot.com");
+  });
+
   it("treats API keys and OAuth credentials as mutually exclusive", async () => {
     const auth = new AuthManager(
       new EncryptedFileSecretProvider(await tempHome()),
@@ -49,6 +69,26 @@ describe("AuthManager", () => {
 
     assert.equal(await auth.credentialType("anthropic"), "api_key");
     assert.equal(await auth.getApiKey("anthropic"), "sk-ant-api-test");
+  });
+
+  it("advertises every pi-ai subscription provider", async () => {
+    const auth = new AuthManager(
+      new EncryptedFileSecretProvider(await tempHome()),
+    );
+
+    const providers = await auth.listProviderMetadata([]);
+    const subscriptions = providers
+      .filter((provider) => provider.supportsOAuth)
+      .map((provider) => provider.provider)
+      .sort();
+
+    assert.deepEqual(subscriptions, [
+      "anthropic",
+      "github-copilot",
+      "openai-codex",
+      "radius",
+      "xai",
+    ]);
   });
 
   it("includes Atlassian provider metadata", async () => {

@@ -6,13 +6,13 @@ import { AutoCompactionRunner } from "../src/domains/agents/run/auto-compaction-
 it("uses the selected model context window for threshold compaction", async () => {
   const active = agentRecord(
     "agent_active_large_window",
-    "anthropic",
-    "claude-sonnet-4-5",
+    "openai",
+    "gpt-5.6-sol",
   );
   const selected = agentRecord(
     "agent_selected_small_window",
     "xai",
-    "grok-code-fast-1",
+    "grok-build-0.1",
   );
   const timestamp = "2026-07-18T00:00:00.000Z";
   const branch = [
@@ -28,13 +28,13 @@ it("uses the selected model context window for threshold compaction", async () =
         ],
         api: "openai-completions",
         provider: "xai",
-        model: "grok-code-fast-1",
+        model: "grok-build-0.1",
         usage: {
-          input: 30_000,
+          input: 240_000,
           output: 0,
           cacheRead: 0,
           cacheWrite: 0,
-          totalTokens: 30_000,
+          totalTokens: 240_000,
           cost: {
             input: 0,
             output: 0,
@@ -95,8 +95,8 @@ it("uses the selected model context window for threshold compaction", async () =
   );
   assert.equal(compactions.length, 1);
   assert.equal(compactions[0]?.agentId, selected.id);
-  assert.equal(compactions[0]?.contextWindow, 32_768);
-  assert.equal(compactions[0]?.thresholdTokens, 29_491);
+  assert.equal(compactions[0]?.contextWindow, 256_000);
+  assert.equal(compactions[0]?.thresholdTokens, 230_400);
   assert.deepEqual(continuations, [selected.id]);
 
   await runner.maybeAutoCompact(selected.conversationId);

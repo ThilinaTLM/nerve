@@ -231,6 +231,7 @@ export async function generateSummary(
   customInstructions?: string,
   previousSummary?: string,
   thinkingLevel?: ThinkingLevel,
+  env?: Record<string, string>,
 ): Promise<Result<string, CompactionError>> {
   const maxTokens = Math.min(
     Math.floor(0.8 * reserveTokens),
@@ -260,8 +261,8 @@ export async function generateSummary(
 
   const completionOptions =
     model.reasoning && thinkingLevel && thinkingLevel !== "off"
-      ? { maxTokens, signal, apiKey, headers, reasoning: thinkingLevel }
-      : { maxTokens, signal, apiKey, headers };
+      ? { maxTokens, signal, apiKey, headers, env, reasoning: thinkingLevel }
+      : { maxTokens, signal, apiKey, headers, env };
 
   const response = await completeSimpleWithModel(
     model,
@@ -418,6 +419,7 @@ export async function compact(
   customInstructions?: string,
   signal?: AbortSignal,
   thinkingLevel?: ThinkingLevel,
+  env?: Record<string, string>,
 ): Promise<Result<CompactionResult, CompactionError>> {
   const {
     firstKeptEntryId,
@@ -454,6 +456,7 @@ export async function compact(
             customInstructions,
             previousSummary,
             thinkingLevel,
+            env,
           )
         : Promise.resolve(ok<string, CompactionError>("No prior history.")),
       generateTurnPrefixSummary(
@@ -464,6 +467,7 @@ export async function compact(
         headers,
         signal,
         thinkingLevel,
+        env,
       ),
     ]);
     if (!historyResult.ok) return err(historyResult.error);
@@ -480,6 +484,7 @@ export async function compact(
       customInstructions,
       previousSummary,
       thinkingLevel,
+      env,
     );
     if (!summaryResult.ok) return err(summaryResult.error);
     summary = summaryResult.value;
@@ -503,6 +508,7 @@ async function generateTurnPrefixSummary(
   headers?: Record<string, string>,
   signal?: AbortSignal,
   thinkingLevel?: ThinkingLevel,
+  env?: Record<string, string>,
 ): Promise<Result<string, CompactionError>> {
   const maxTokens = Math.min(
     Math.floor(0.5 * reserveTokens),
@@ -526,8 +532,8 @@ async function generateTurnPrefixSummary(
       messages: summarizationMessages,
     },
     model.reasoning && thinkingLevel && thinkingLevel !== "off"
-      ? { maxTokens, signal, apiKey, headers, reasoning: thinkingLevel }
-      : { maxTokens, signal, apiKey, headers },
+      ? { maxTokens, signal, apiKey, headers, env, reasoning: thinkingLevel }
+      : { maxTokens, signal, apiKey, headers, env },
   );
   if (response.stopReason === "aborted") {
     return err(

@@ -16,6 +16,7 @@ export const piApiSchema = z.enum([
   "google-generative-ai",
   "google-vertex",
   "mistral-conversations",
+  "pi-messages",
 ]);
 export type PiApi = z.infer<typeof piApiSchema>;
 

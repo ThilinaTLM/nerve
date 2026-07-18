@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { setCustomModelProvider } from "@nervekit/host-runtime/harness";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
+import {
+  registerManagedProvider,
+  setCustomModelProvider,
+} from "@nervekit/host-runtime/harness";
 import {
   createId,
   type DaemonFile,
@@ -11,6 +15,8 @@ import {
   CredentialKeyService,
   OAuthFlowManager,
 } from "../domains/auth/index.js";
+import { PiAiCredentialStore } from "../domains/auth/pi-ai-credential-store.js";
+import { PiAiModelsStore } from "../domains/auth/pi-ai-models-store.js";
 import { ProviderCatalogStore } from "../domains/providers/index.js";
 import {
   StorageCleanupRepository,
@@ -67,7 +73,20 @@ export function createOrchestratorState(
     maxBufferedLogs: storage.settings.logging.maxBufferedLogs,
   });
   const secrets = new EncryptedFileSecretProvider(storage.paths.home);
-  const auth = new AuthManager(secrets);
+  const piCredentials = new PiAiCredentialStore(secrets);
+  const piModels = builtinModels({
+    credentials: piCredentials,
+    modelsStore: new PiAiModelsStore(
+      join(storage.paths.home, "cache", "pi-ai-models.json"),
+    ),
+  });
+  for (const provider of piModels.getProviders()) {
+    registerManagedProvider(provider);
+  }
+  const auth = new AuthManager(secrets, {
+    credentials: piCredentials,
+    models: piModels,
+  });
   const providerCatalog = new ProviderCatalogStore(storage.paths.providersPath);
   setCustomModelProvider(() => providerCatalog.resolvedModels());
   const credentialKey = new CredentialKeyService();

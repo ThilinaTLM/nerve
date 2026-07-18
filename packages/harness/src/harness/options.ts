@@ -114,7 +114,8 @@ export interface AgentHarnessOptions<
       }) => string | Promise<string>);
   getApiKeyAndHeaders?: (model: AnyModel) => Promise<
     | {
-        apiKey: string;
+        apiKey?: string;
+        baseUrl?: string;
         headers?: Record<string, string>;
         env?: Record<string, string>;
       }

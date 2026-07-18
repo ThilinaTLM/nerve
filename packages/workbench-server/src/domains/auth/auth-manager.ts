@@ -1,8 +1,15 @@
-import type {
-  OAuthCredentials,
-  OAuthProviderInterface,
-} from "@earendil-works/pi-ai/oauth";
-import { getOAuthApiKey, getOAuthProviders } from "@earendil-works/pi-ai/oauth";
+import {
+  type Api,
+  type AuthInteraction,
+  type AuthResult,
+  type Credential,
+  type CredentialStore,
+  type Model,
+  type MutableModels,
+  type OAuthCredentials,
+  type Provider,
+} from "@earendil-works/pi-ai";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type {
   AgentRequestAuth,
   AuthProviderMetadata,
@@ -10,6 +17,13 @@ import type {
   ModelSelection,
 } from "@nervekit/contracts";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
+import {
+  PiAiCredentialStore,
+  providerApiKeySecretName,
+  providerOAuthSecretName,
+} from "./pi-ai-credential-store.js";
+
+export { providerApiKeySecretName, providerOAuthSecretName };
 
 export type ApiKeyCredential = {
   type: "api_key";
@@ -24,14 +38,6 @@ export type ProviderCredential = ApiKeyCredential | OAuthCredential;
 
 const ANTHROPIC_OAUTH_WARNING =
   "Anthropic subscription auth may use paid extra usage outside normal Claude plan limits.";
-
-export function providerApiKeySecretName(provider: string): string {
-  return `provider:${provider}:apiKey`;
-}
-
-export function providerOAuthSecretName(provider: string): string {
-  return `provider:${provider}:oauth`;
-}
 
 function displayNameForProvider(provider: string): string {
   const known: Record<string, string> = {
@@ -49,6 +55,7 @@ export function providerEnvVarName(provider: string): string {
     groq: "GROQ_API_KEY",
     openai: "OPENAI_API_KEY",
     openrouter: "OPENROUTER_API_KEY",
+    radius: "RADIUS_API_KEY",
     confluence: "CONFLUENCE_API_TOKEN",
     jira: "JIRA_API_TOKEN",
     tavily: "TAVILY_API_KEY",
@@ -60,65 +67,98 @@ export function providerEnvVarName(provider: string): string {
   );
 }
 
-export function supportsStoredApiKey(provider: string): boolean {
-  return provider !== "openai-codex" && provider !== "github-copilot";
+function asProviderCredential(
+  credential: Credential | undefined,
+): ProviderCredential | undefined {
+  if (!credential) return undefined;
+  if (credential.type === "oauth") return credential;
+  return credential.key ? { type: "api_key", key: credential.key } : undefined;
 }
 
-function parseOAuthCredential(
-  value: string | undefined,
-): OAuthCredential | undefined {
-  if (!value) return undefined;
-  const parsed = JSON.parse(value) as OAuthCredential;
-  if (parsed.type !== "oauth") return undefined;
-  return parsed;
+function requestAuth(
+  resolution: AuthResult | undefined,
+): AgentRequestAuth | undefined {
+  if (!resolution) return undefined;
+  const headers = resolution.auth.headers
+    ? Object.fromEntries(
+        Object.entries(resolution.auth.headers).filter(
+          (entry): entry is [string, string] => entry[1] !== null,
+        ),
+      )
+    : undefined;
+  const result: AgentRequestAuth = {
+    apiKey: resolution.auth.apiKey,
+    baseUrl: resolution.auth.baseUrl,
+    headers,
+    env: resolution.env,
+  };
+  return Object.values(result).some((value) => value !== undefined)
+    ? result
+    : undefined;
 }
 
-function oauthProvidersById(): Map<string, OAuthProviderInterface> {
-  return new Map(
-    getOAuthProviders().map((provider) => [provider.id, provider]),
-  );
-}
+export type AuthManagerOptions = {
+  credentials?: CredentialStore;
+  models?: MutableModels;
+};
 
 export class AuthManager {
-  private readonly refreshLocks = new Map<
-    string,
-    Promise<string | undefined>
-  >();
+  readonly credentials: CredentialStore;
+  readonly models: MutableModels;
 
-  constructor(private readonly secrets: SecretProvider) {}
+  constructor(
+    private readonly secrets: SecretProvider,
+    options: AuthManagerOptions = {},
+  ) {
+    this.credentials = options.credentials ?? new PiAiCredentialStore(secrets);
+    this.models =
+      options.models ?? builtinModels({ credentials: this.credentials });
+  }
+
+  getProvider(providerId: string): Provider | undefined {
+    return this.models.getProvider(providerId);
+  }
 
   async getCredential(
     provider: string,
   ): Promise<ProviderCredential | undefined> {
-    const oauth = parseOAuthCredential(
-      await this.secrets.get(providerOAuthSecretName(provider)),
-    );
-    if (oauth) return oauth;
-
-    const key = await this.secrets.get(providerApiKeySecretName(provider));
-    return key ? { type: "api_key", key } : undefined;
+    return asProviderCredential(await this.credentials.read(provider));
   }
 
   async setApiKey(provider: string, apiKey: string): Promise<void> {
-    await this.secrets.set(providerApiKeySecretName(provider), apiKey);
-    await this.secrets.delete(providerOAuthSecretName(provider));
+    await this.credentials.modify(provider, async () => ({
+      type: "api_key",
+      key: apiKey,
+    }));
   }
 
   async setOAuth(
     provider: string,
     credential: OAuthCredentials,
   ): Promise<void> {
-    const stored: OAuthCredential = { type: "oauth", ...credential };
-    await this.secrets.set(
-      providerOAuthSecretName(provider),
-      JSON.stringify(stored),
-    );
-    await this.secrets.delete(providerApiKeySecretName(provider));
+    await this.credentials.modify(provider, async () => ({
+      type: "oauth",
+      ...credential,
+    }));
+  }
+
+  async loginOAuth(
+    provider: string,
+    interaction: AuthInteraction,
+  ): Promise<OAuthCredential> {
+    const credential = await this.models.login(provider, "oauth", interaction);
+    if (credential.type !== "oauth") {
+      throw new Error(
+        `OAuth login for ${provider} returned a non-OAuth credential`,
+      );
+    }
+    await this.models.refresh({ force: true, signal: interaction.signal });
+    return credential;
   }
 
   async deleteCredential(provider: string): Promise<void> {
-    await this.secrets.delete(providerApiKeySecretName(provider));
-    await this.secrets.delete(providerOAuthSecretName(provider));
+    if (this.models.getProvider(provider)) await this.models.logout(provider);
+    else await this.credentials.delete(provider);
   }
 
   async credentialType(
@@ -128,79 +168,84 @@ export class AuthManager {
   }
 
   async getApiKey(provider: string): Promise<string | undefined> {
+    const knownProvider = this.models.getProvider(provider);
+    if (knownProvider) {
+      return (await this.models.getAuth(provider))?.auth.apiKey;
+    }
     const credential = await this.getCredential(provider);
-    if (!credential) return undefined;
-    if (credential.type === "api_key") return credential.key;
-
-    const oauthProvider = oauthProvidersById().get(provider);
-    if (!oauthProvider) return undefined;
-    if (Date.now() < credential.expires)
-      return oauthProvider.getApiKey(credential);
-
-    const existing = this.refreshLocks.get(provider);
-    if (existing) return existing;
-
-    const refresh = this.refreshOAuth(provider).finally(() => {
-      this.refreshLocks.delete(provider);
-    });
-    this.refreshLocks.set(provider, refresh);
-    return refresh;
+    return credential?.type === "api_key" ? credential.key : credential?.access;
   }
 
   async requestAuthForModel(
     model: ModelSelection | undefined,
   ): Promise<AgentRequestAuth | undefined> {
     if (!model || model.provider === "nerve-faux") return undefined;
+    const registered = this.models.getModel(model.provider, model.modelId);
+    if (registered) return this.requestAuthForPiModel(registered);
     const apiKey = await this.getApiKey(model.provider);
     return apiKey ? { apiKey } : undefined;
+  }
+
+  async requestAuthForPiModel(
+    model: Model<Api>,
+  ): Promise<AgentRequestAuth | undefined> {
+    if (model.provider === "nerve-faux") return undefined;
+    if (this.models.getProvider(model.provider)) {
+      return requestAuth(await this.models.getAuth(model));
+    }
+    const apiKey = await this.getApiKey(model.provider);
+    return apiKey ? { apiKey } : undefined;
+  }
+
+  async refreshModels(options: { allowNetwork?: boolean } = {}): Promise<void> {
+    await this.models.refresh({ allowNetwork: options.allowNetwork ?? true });
   }
 
   async listProviderMetadata(
     models: ModelInfo[],
     customProviderNames?: ReadonlyMap<string, string>,
   ): Promise<AuthProviderMetadata[]> {
-    const oauthProviders = oauthProvidersById();
-    const providers = new Set<string>();
+    const runtimeProviders = new Map(
+      this.models.getProviders().map((provider) => [provider.id, provider]),
+    );
+    const providers = new Set<string>(runtimeProviders.keys());
     for (const model of models) {
       if (model.provider !== "nerve-faux") providers.add(model.provider);
     }
     providers.add("tavily");
     providers.add("jira");
     providers.add("confluence");
-    for (const provider of oauthProviders.keys()) {
-      if (provider === "openai-codex" || provider === "anthropic") {
-        providers.add(provider);
-      }
-    }
-    for (const name of await this.secrets.list()) {
-      const apiKeyMatch = /^provider:(.+):apiKey$/.exec(name);
-      const oauthMatch = /^provider:(.+):oauth$/.exec(name);
-      if (apiKeyMatch) providers.add(apiKeyMatch[1]);
-      if (oauthMatch) providers.add(oauthMatch[1]);
+    for (const credential of await this.credentials.list()) {
+      providers.add(credential.providerId);
     }
 
     const items = await Promise.all(
-      [...providers].sort().map(async (provider) => {
-        const oauthProvider = oauthProviders.get(provider);
-        const credential = await this.getCredential(provider);
+      [...providers].sort().map(async (providerId) => {
+        const provider = runtimeProviders.get(providerId);
+        const credential = await this.getCredential(providerId);
+        const checked = provider
+          ? await this.models.checkAuth(providerId).catch(() => undefined)
+          : undefined;
+        const supportsApiKey = provider ? Boolean(provider.auth.apiKey) : true;
+        const supportsOAuth = Boolean(provider?.auth.oauth);
         return {
-          provider,
+          provider: providerId,
           displayName:
-            oauthProvider?.name ??
-            customProviderNames?.get(provider) ??
-            displayNameForProvider(provider),
-          supportsApiKey: supportsStoredApiKey(provider),
-          supportsOAuth:
-            provider === "openai-codex" || provider === "anthropic",
-          oauthName: oauthProvider?.name,
-          configured: Boolean(credential),
-          credentialType: credential?.type,
+            provider?.name ??
+            customProviderNames?.get(providerId) ??
+            displayNameForProvider(providerId),
+          supportsApiKey,
+          supportsOAuth,
+          oauthName:
+            provider?.auth.oauth?.loginLabel ?? provider?.auth.oauth?.name,
+          configured: Boolean(credential ?? checked),
+          credentialType: credential?.type ?? checked?.type,
           envVar:
-            supportsStoredApiKey(provider) && provider !== "tavily"
-              ? providerEnvVarName(provider)
+            supportsApiKey && providerId !== "tavily"
+              ? providerEnvVarName(providerId)
               : undefined,
           warning:
-            provider === "anthropic" && credential?.type === "oauth"
+            providerId === "anthropic" && credential?.type === "oauth"
               ? ANTHROPIC_OAUTH_WARNING
               : undefined,
         } satisfies AuthProviderMetadata;
@@ -208,20 +253,5 @@ export class AuthManager {
     );
 
     return items.filter((item) => item.supportsApiKey || item.supportsOAuth);
-  }
-
-  private async refreshOAuth(provider: string): Promise<string | undefined> {
-    const oauthCredentials: Record<string, OAuthCredentials> = {};
-    for (const name of await this.secrets.list()) {
-      const match = /^provider:(.+):oauth$/.exec(name);
-      if (!match) continue;
-      const credential = parseOAuthCredential(await this.secrets.get(name));
-      if (credential) oauthCredentials[match[1]] = credential;
-    }
-
-    const result = await getOAuthApiKey(provider, oauthCredentials);
-    if (!result) return undefined;
-    await this.setOAuth(provider, result.newCredentials);
-    return result.apiKey;
   }
 }

@@ -93,8 +93,21 @@ const llmSubscriptions: ProviderOption[] = [
     "github_copilot_oauth",
     "GitHub Copilot subscription",
     "github-copilot",
-    "Import a GitHub Copilot OAuth bundle for Copilot-backed models.",
+    "Connect a GitHub Copilot subscription for Copilot-backed models.",
     "gpt-5.1-codex-max",
+  ),
+  oauthProvider(
+    "xai_oauth",
+    "xAI subscription",
+    "xai",
+    "Connect a SuperGrok or X Premium subscription.",
+    "grok-4.5",
+  ),
+  oauthProvider(
+    "radius_oauth",
+    "Radius subscription",
+    "radius",
+    "Connect to Radius and load its available model catalog.",
   ),
 ];
 
@@ -290,6 +303,12 @@ const llmApiKeys: ProviderOption[] = [
     "openai/gpt-5.1",
   ),
   apiProvider(
+    "radius_api_key",
+    "Radius",
+    "radius",
+    "Radius gateway API key. Models are loaded dynamically after authentication.",
+  ),
+  apiProvider(
     "openrouter_api_key",
     "OpenRouter",
     "openrouter",
@@ -317,13 +336,7 @@ const llmApiKeys: ProviderOption[] = [
       },
     },
   ),
-  apiProvider(
-    "xai_api_key",
-    "xAI",
-    "xai",
-    "xAI Grok API key.",
-    "grok-code-fast-1",
-  ),
+  apiProvider("xai_api_key", "xAI", "xai", "xAI Grok API key.", "grok-4.5"),
   apiProvider(
     "xiaomi_api_key",
     "Xiaomi MiMo",
@@ -582,7 +595,7 @@ function apiProvider(
   label: string,
   provider: string,
   detail: string,
-  defaultModel: string,
+  defaultModel?: string,
   extras: Partial<ProviderOption> = {},
 ): ProviderOption {
   return {
@@ -592,7 +605,7 @@ function apiProvider(
     kind: "model_provider",
     provider,
     secretMode: "apiKey",
-    defaultModel,
+    ...(defaultModel ? { defaultModel } : {}),
     ...extras,
   };
 }
@@ -602,7 +615,7 @@ function oauthProvider(
   label: string,
   provider: string,
   detail: string,
-  defaultModel: string,
+  defaultModel?: string,
 ): ProviderOption {
   return {
     providerKind,
@@ -611,7 +624,7 @@ function oauthProvider(
     kind: "model_provider",
     provider,
     secretMode: "oauth",
-    defaultModel,
+    ...(defaultModel ? { defaultModel } : {}),
     multiline: true,
   };
 }

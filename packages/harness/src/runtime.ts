@@ -152,7 +152,9 @@ export interface AgentPromptInput {
   messages: Message[];
   model?: AgentModelSelection;
   apiKey?: string;
+  baseUrl?: string;
   headers?: Record<string, string>;
+  env?: Record<string, string>;
   signal?: AbortSignal;
 }
 
@@ -325,7 +327,10 @@ export function streamAgentPrompt(
   input: AgentPromptInput,
 ): AsyncIterable<AssistantMessageEvent> {
   return (async function* streamNormalizedPrompt() {
-    const model = resolveAgentModel(input.model);
+    const resolvedModel = resolveAgentModel(input.model);
+    const model = input.baseUrl
+      ? { ...resolvedModel, baseUrl: input.baseUrl }
+      : resolvedModel;
     const context: Context = {
       systemPrompt: input.systemPrompt,
       messages: await normalizeImagesForModel(input.messages, model),
@@ -334,18 +339,20 @@ export function streamAgentPrompt(
       signal: input.signal,
       apiKey: input.apiKey,
       headers: input.headers,
+      env: input.env,
       maxTokens: 4096,
     });
   })();
 }
 
 const COMPLETE_MODEL_LIST_PROVIDERS = new Set<string>([
-  // Nerve supports subscription OAuth for Anthropic and OpenAI Codex, and
-  // current models sort after older catalog entries. Truncating these provider
-  // lists also hides direct OpenAI models such as the GPT-5.6 variants.
+  // Subscription-backed and first-party providers expose the complete catalog.
   "anthropic",
+  "github-copilot",
   "openai",
   "openai-codex",
+  "radius",
+  "xai",
 ]);
 
 function visibleModelsForProvider(provider: string): readonly Model<string>[] {

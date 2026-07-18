@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Api, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
-import { withNerveSimpleStreamDefaults } from "../src/pi-ai-models.js";
+import {
+  type Api,
+  fauxAssistantMessage,
+  fauxProvider,
+  type Model,
+  type SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
+import {
+  registerManagedProvider,
+  streamSimpleWithModel,
+  withNerveSimpleStreamDefaults,
+} from "../src/pi-ai-models.js";
 
 function model(api: Api): Model<Api> {
   return {
@@ -30,6 +40,41 @@ async function applyPayload(
 }
 
 describe("pi-ai model stream defaults", () => {
+  it("accepts pre-resolved auth for isolated OAuth-only workers", async () => {
+    const faux = fauxProvider({
+      provider: "oauth-only",
+      models: [{ id: "subscription-model", name: "Subscription Model" }],
+    });
+    faux.setResponses([fauxAssistantMessage("authenticated")]);
+    registerManagedProvider({
+      ...faux.provider,
+      auth: {
+        oauth: {
+          name: "OAuth only",
+          login: async () => {
+            throw new Error("not used");
+          },
+          refresh: async (credential) => credential,
+          toAuth: async (credential) => ({ apiKey: credential.access }),
+        },
+      },
+    });
+    const result = await streamSimpleWithModel(
+      faux.getModel("subscription-model"),
+      {
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "hello" }],
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      { apiKey: "subscription-token" },
+    ).result();
+    assert.equal(result.stopReason, "stop", result.errorMessage);
+  });
+
   it("requests detailed reasoning summaries from OpenAI Codex", async () => {
     const codex = model("openai-codex-responses");
     const payload = {

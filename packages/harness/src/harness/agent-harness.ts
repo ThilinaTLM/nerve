@@ -230,6 +230,9 @@ export class AgentHarness<
     return async (model, context, streamOptions) => {
       const turnState = getTurnState();
       const auth = await this.getApiKeyAndHeaders?.(model);
+      const requestModel = auth?.baseUrl
+        ? { ...model, baseUrl: auth.baseUrl }
+        : model;
       const snapshotOptions: AgentHarnessStreamOptions = {
         ...turnState.streamOptions,
         headers: mergeHeaders(turnState.streamOptions.headers, auth?.headers),
@@ -241,11 +244,11 @@ export class AgentHarness<
       if (Object.keys(snapshotOptions.env ?? {}).length === 0)
         snapshotOptions.env = undefined;
       const requestOptions = await this.emitBeforeProviderRequest(
-        model,
+        requestModel,
         turnState.conversationId,
         snapshotOptions,
       );
-      return streamSimpleWithModel(model, context, {
+      return streamSimpleWithModel(requestModel, context, {
         cacheRetention: requestOptions.cacheRetention,
         headers: requestOptions.headers,
         maxRetries: requestOptions.maxRetries,
@@ -253,7 +256,7 @@ export class AgentHarness<
         metadata: requestOptions.metadata,
         env: requestOptions.env,
         onPayload: async (payload) =>
-          await this.emitBeforeProviderPayload(model, payload),
+          await this.emitBeforeProviderPayload(requestModel, payload),
         onResponse: async (response) => {
           const headers = { ...(response.headers as Record<string, string>) };
           await this.emitOwn(

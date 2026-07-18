@@ -1,12 +1,9 @@
 import type {
-  OAuthAuthInfo,
-  OAuthDeviceCodeInfo,
-  OAuthLoginCallbacks,
-  OAuthPrompt,
-  OAuthProviderInterface,
-  OAuthSelectPrompt,
-} from "@earendil-works/pi-ai/oauth";
-import { getOAuthProvider } from "@earendil-works/pi-ai/oauth";
+  AuthEvent,
+  AuthInteraction,
+  AuthPrompt,
+  Provider,
+} from "@earendil-works/pi-ai";
 import {
   createId,
   type OAuthFlowInfo,
@@ -20,14 +17,21 @@ type PendingResponse = {
   promptId: string;
   resolve: (response: RespondOAuthFlowRequest) => void;
   reject: (error: Error) => void;
+  cleanup?: () => void;
+};
+
+type OAuthProvider = Provider & {
+  auth: Provider["auth"] & { oauth: NonNullable<Provider["auth"]["oauth"]> };
 };
 
 type FlowRecord = {
   info: OAuthFlowInfo;
-  provider: OAuthProviderInterface;
+  provider: OAuthProvider;
   abortController: AbortController;
   pending?: PendingResponse;
 };
+
+const CALLBACK_PROVIDER_IDS = new Set(["anthropic", "openai-codex", "radius"]);
 
 function now(): string {
   return new Date().toISOString();
@@ -92,6 +96,12 @@ function terminal(status: OAuthFlowInfo["status"]): boolean {
   );
 }
 
+function isOAuthProvider(
+  provider: Provider | undefined,
+): provider is OAuthProvider {
+  return Boolean(provider?.auth.oauth);
+}
+
 export class OAuthFlowManager {
   private readonly flows = new Map<string, FlowRecord>();
   private readonly activeByProvider = new Map<string, string>();
@@ -122,22 +132,15 @@ export class OAuthFlowManager {
       }
     }
 
-    const provider = getOAuthProvider(providerId);
-    if (!provider) {
+    const provider = this.auth.getProvider(providerId);
+    if (!isOAuthProvider(provider)) {
       throw new HttpError(
         404,
         "OAUTH_PROVIDER_NOT_FOUND",
         "OAuth provider not found.",
       );
     }
-    if (providerId !== "openai-codex" && providerId !== "anthropic") {
-      throw new HttpError(
-        400,
-        "OAUTH_PROVIDER_UNSUPPORTED",
-        "This OAuth provider is not enabled in Nerve yet.",
-      );
-    }
-    if (provider.usesCallbackServer && this.activeCallbackFlowId) {
+    if (CALLBACK_PROVIDER_IDS.has(providerId) && this.activeCallbackFlowId) {
       throw new HttpError(
         409,
         "OAUTH_CALLBACK_FLOW_ACTIVE",
@@ -162,8 +165,9 @@ export class OAuthFlowManager {
 
     this.flows.set(flow.info.flowId, flow);
     this.activeByProvider.set(provider.id, flow.info.flowId);
-    if (provider.usesCallbackServer)
+    if (CALLBACK_PROVIDER_IDS.has(providerId)) {
       this.activeCallbackFlowId = flow.info.flowId;
+    }
 
     void this.run(flow).catch((error) => {
       void this.fail(
@@ -192,6 +196,7 @@ export class OAuthFlowManager {
       );
     }
     flow.pending = undefined;
+    pending.cleanup?.();
     pending.resolve(response);
     return flow.info;
   }
@@ -202,6 +207,7 @@ export class OAuthFlowManager {
       throw new HttpError(404, "OAUTH_FLOW_NOT_FOUND", "OAuth flow not found.");
     if (terminal(flow.info.status)) return flow.info;
     flow.abortController.abort();
+    flow.pending?.cleanup?.();
     flow.pending?.reject(new Error("Login cancelled"));
     flow.pending = undefined;
     await this.update(flow, {
@@ -209,6 +215,7 @@ export class OAuthFlowManager {
       message: "Login cancelled.",
       promptId: undefined,
       options: undefined,
+      links: undefined,
       authUrl: undefined,
       instructions: undefined,
       deviceCode: undefined,
@@ -220,43 +227,22 @@ export class OAuthFlowManager {
   }
 
   private async run(flow: FlowRecord): Promise<void> {
-    const callbacks: OAuthLoginCallbacks = {
-      onAuth: (info) => {
-        void this.handleAuth(flow, info);
-      },
-      onDeviceCode: (info) => {
-        void this.update(flow, {
-          status: "device_code",
-          message: "Complete login using the device code.",
-          deviceCode: normalizeDeviceCode(info),
-          promptId: undefined,
-          options: undefined,
-          authUrl: undefined,
-          instructions: undefined,
-        });
-      },
-      onPrompt: (prompt) => this.handlePrompt(flow, prompt),
-      onProgress: (message) => {
-        void this.update(flow, {
-          status: "progress",
-          message,
-          authUrl: flow.info.authUrl,
-          instructions: flow.info.instructions,
-        });
-      },
-      onManualCodeInput: () => this.waitForManualCode(flow),
-      onSelect: (prompt) => this.handleSelect(flow, prompt),
+    const interaction: AuthInteraction = {
       signal: flow.abortController.signal,
+      prompt: (prompt) => this.handlePrompt(flow, prompt),
+      notify: (event) => {
+        void this.handleEvent(flow, event);
+      },
     };
 
-    const credentials = await flow.provider.login(callbacks);
+    await this.auth.loginOAuth(flow.provider.id, interaction);
     if (flow.abortController.signal.aborted) throw new Error("Login cancelled");
-    await this.auth.setOAuth(flow.provider.id, credentials);
     await this.update(flow, {
       status: "succeeded",
       message: `Logged in to ${flow.provider.name}.`,
       promptId: undefined,
       options: undefined,
+      links: undefined,
       authUrl: undefined,
       instructions: undefined,
       deviceCode: undefined,
@@ -270,96 +256,126 @@ export class OAuthFlowManager {
     await this.events.publish("auth.providers_changed", {
       provider: flow.provider.id,
     });
-    this.release(flow);
-  }
-
-  private async handleSelect(
-    flow: FlowRecord,
-    prompt: OAuthSelectPrompt,
-  ): Promise<string | undefined> {
-    const response = await this.waitForResponse(flow, {
-      status: "select",
-      message: prompt.message,
-      options: prompt.options,
-      promptId: createId("authflow"),
-      authUrl: undefined,
-      instructions: undefined,
-      deviceCode: undefined,
-      placeholder: undefined,
+    await this.events.publish("providers.catalog_changed", {
+      provider: flow.provider.id,
     });
-    return response.selectedId;
+    this.release(flow);
   }
 
   private async handlePrompt(
     flow: FlowRecord,
-    prompt: OAuthPrompt,
+    prompt: AuthPrompt,
   ): Promise<string> {
-    const response = await this.waitForResponse(flow, {
-      status: "prompt",
-      message: prompt.message,
-      placeholder: prompt.placeholder,
-      allowEmpty: prompt.allowEmpty,
-      promptId: createId("authflow"),
-      options: undefined,
-      authUrl: undefined,
-      instructions: undefined,
-      deviceCode: undefined,
-    });
-    return response.value ?? "";
+    if (prompt.type === "select") {
+      const response = await this.waitForResponse(
+        flow,
+        {
+          status: "select",
+          message: prompt.message,
+          options: prompt.options.map((option) => ({ ...option })),
+          promptId: createId("authflow"),
+          links: undefined,
+          authUrl: undefined,
+          instructions: undefined,
+          deviceCode: undefined,
+          placeholder: undefined,
+          allowEmpty: undefined,
+        },
+        prompt.signal,
+      );
+      return response.selectedId ?? response.value ?? "";
+    }
+
+    const manual = prompt.type === "manual_code";
+    const response = await this.waitForResponse(
+      flow,
+      {
+        status: "prompt",
+        message: prompt.message,
+        placeholder: prompt.placeholder,
+        allowEmpty: false,
+        promptId: createId("authflow"),
+        options: undefined,
+        links: undefined,
+        authUrl: manual ? flow.info.authUrl : undefined,
+        instructions: manual
+          ? oauthManualFallbackInstructions(flow.info.instructions)
+          : undefined,
+        deviceCode: undefined,
+      },
+      prompt.signal,
+    );
+    return response.value ?? response.selectedId ?? "";
   }
 
-  private async handleAuth(
-    flow: FlowRecord,
-    info: OAuthAuthInfo,
-  ): Promise<void> {
+  private async handleEvent(flow: FlowRecord, event: AuthEvent): Promise<void> {
+    if (event.type === "auth_url") {
+      await this.update(flow, {
+        status: "auth_url",
+        message:
+          "Open the login URL, then complete authentication in your browser.",
+        authUrl: event.url,
+        instructions: oauthManualFallbackInstructions(event.instructions),
+        links: undefined,
+        promptId: undefined,
+        options: undefined,
+        deviceCode: undefined,
+        placeholder: undefined,
+      });
+      return;
+    }
+    if (event.type === "device_code") {
+      await this.update(flow, {
+        status: "device_code",
+        message: "Complete login using the device code.",
+        deviceCode: {
+          userCode: event.userCode,
+          verificationUri: event.verificationUri,
+          intervalSeconds: event.intervalSeconds,
+          expiresInSeconds: event.expiresInSeconds,
+        },
+        links: undefined,
+        promptId: undefined,
+        options: undefined,
+        authUrl: undefined,
+        instructions: undefined,
+      });
+      return;
+    }
+    if (event.type === "info") {
+      await this.update(flow, {
+        status: "progress",
+        message: event.message,
+        links: event.links?.map((link) => ({ ...link })),
+      });
+      return;
+    }
     await this.update(flow, {
-      status: "auth_url",
-      message:
-        "Open the login URL, then complete authentication in your browser. You can also paste the final redirect URL or authorization code here if the browser callback does not complete.",
-      authUrl: info.url,
-      instructions: oauthManualFallbackInstructions(info.instructions),
-      promptId: undefined,
-      options: undefined,
-      deviceCode: undefined,
-      placeholder: undefined,
+      status: "progress",
+      message: event.message,
     });
-  }
-
-  private async waitForManualCode(flow: FlowRecord): Promise<string> {
-    const promptId = createId("authflow");
-    const response = await this.waitForResponse(flow, {
-      status: "prompt",
-      message:
-        "Paste the final redirect URL or authorization code if the browser callback does not complete.",
-      promptId,
-      placeholder: "Paste redirect URL or authorization code",
-      options: undefined,
-      authUrl: flow.info.authUrl,
-      instructions: oauthManualFallbackInstructions(flow.info.instructions),
-      deviceCode: undefined,
-      allowEmpty: undefined,
-    });
-    return response.value ?? "";
   }
 
   private async waitForResponse(
     flow: FlowRecord,
     patch: Partial<OAuthFlowInfo> & { promptId: string },
+    signal?: AbortSignal,
   ): Promise<RespondOAuthFlowRequest> {
     await this.update(flow, patch);
-    return this.waitForPending(flow, patch.promptId);
-  }
-
-  private waitForPending(
-    flow: FlowRecord,
-    promptId: string,
-  ): Promise<RespondOAuthFlowRequest> {
     return new Promise((resolve, reject) => {
-      flow.pending = { promptId, resolve, reject };
-      if (flow.abortController.signal.aborted) {
+      const onAbort = () => {
+        if (flow.pending?.promptId !== patch.promptId) return;
         flow.pending = undefined;
-        reject(new Error("Login cancelled"));
-      }
+        reject(new Error("Login prompt cancelled"));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+      flow.pending = {
+        promptId: patch.promptId,
+        resolve,
+        reject,
+        cleanup: () => signal?.removeEventListener("abort", onAbort),
+      };
+      if (flow.abortController.signal.aborted || signal?.aborted) onAbort();
     });
   }
 
@@ -371,6 +387,7 @@ export class OAuthFlowManager {
       message: `Login failed: ${formatOAuthLoginFailure(flow.provider.id, message)}`,
       promptId: undefined,
       options: undefined,
+      links: undefined,
       authUrl: undefined,
       instructions: undefined,
       deviceCode: undefined,
@@ -388,11 +405,7 @@ export class OAuthFlowManager {
     flow: FlowRecord,
     patch: Partial<OAuthFlowInfo>,
   ): Promise<void> {
-    flow.info = {
-      ...flow.info,
-      ...patch,
-      updatedAt: now(),
-    };
+    flow.info = { ...flow.info, ...patch, updatedAt: now() };
     await this.publish(flow);
   }
 
@@ -407,17 +420,7 @@ export class OAuthFlowManager {
     if (this.activeCallbackFlowId === flow.info.flowId) {
       this.activeCallbackFlowId = undefined;
     }
+    flow.pending?.cleanup?.();
     flow.pending = undefined;
   }
-}
-
-function normalizeDeviceCode(
-  info: OAuthDeviceCodeInfo,
-): OAuthFlowInfo["deviceCode"] {
-  return {
-    userCode: info.userCode,
-    verificationUri: info.verificationUri,
-    intervalSeconds: info.intervalSeconds,
-    expiresInSeconds: info.expiresInSeconds,
-  };
 }

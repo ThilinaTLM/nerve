@@ -128,6 +128,20 @@ function handleOpenChange(next: boolean) {
             <p class="oauth-message">{flowController.flow.message}</p>
           {/if}
 
+          {#if flowController.flow.links?.length}
+            <div class="oauth-options">
+              {#each flowController.flow.links as link (link.url)}
+                <Button
+                  variant="outline"
+                  onclick={() => flowController.openExternal(link.url)}
+                >
+                  <ExternalLink size={15} strokeWidth={2} />
+                  {link.label ?? "Open link"}
+                </Button>
+              {/each}
+            </div>
+          {/if}
+
           {#if flowController.flow.status === "auth_url" && flowController.flow.authUrl}
             <Button
               variant="outline"

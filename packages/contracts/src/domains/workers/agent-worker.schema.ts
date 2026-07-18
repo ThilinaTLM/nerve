@@ -3,7 +3,9 @@ import { modelSelectionSchema } from "../models/index.js";
 
 export const agentRequestAuthSchema = z.object({
   apiKey: z.string().optional(),
+  baseUrl: z.string().url().optional(),
   headers: z.record(z.string(), z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
 });
 export type AgentRequestAuth = z.infer<typeof agentRequestAuthSchema>;
 

@@ -35,7 +35,7 @@
   "dependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.1081.0",
     "@aws-sdk/client-ecs": "^3.1081.0",
-    "@earendil-works/pi-ai": "0.80.7",
+    "@earendil-works/pi-ai": "0.80.10",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/protocol": "workspace:*",
     "node-pg-migrate": "8.0.4",

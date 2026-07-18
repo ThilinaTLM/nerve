@@ -1,14 +1,17 @@
 import { createSign } from "node:crypto";
 import {
-  getOAuthApiKey,
+  InMemoryCredentialStore,
+  type OAuthCredential,
   type OAuthCredentials,
-} from "@earendil-works/pi-ai/oauth";
+} from "@earendil-works/pi-ai";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { ManagerCredentialResolveResponse } from "@nervekit/contracts";
 import type { PostgresPool } from "../db/postgres.js";
 import { dbTables } from "../db/tables.js";
 import type { PostgresKvSecretStore } from "../secrets/postgres-kv-secret-store.js";
 import type { PostgresCredentialProfileStore } from "./credential-profile-store.js";
 import { isCredentialSecretKey } from "./credential-secret-keys.js";
+import { registerSandboxManagerProvider } from "./model-catalog.js";
 
 const DEFAULT_MIN_TTL_MS = 5 * 60_000;
 
@@ -103,65 +106,53 @@ export class CredentialResolver {
     const bundle = parseOAuthBundle(
       (await this.secrets.resolve({ key: secretKey })).value,
     );
-    let current = bundle;
     let error: unknown;
     try {
-      if (needsRefresh(bundle, options.minTtlMs ?? DEFAULT_MIN_TTL_MS)) {
-        const refreshed = await refreshOAuth(
-          profile.provider ?? profile.providerKind,
-          bundle,
-        );
-        if (refreshed) {
-          current = refreshed.newCredentials as OAuthBundle;
-          const expiresAt = expiresAtForBundle(current);
-          await this.secrets.set(
-            secretKey,
-            JSON.stringify({ type: "oauth", ...current }),
-            {
-              expiresAt,
-              version: new Date().toISOString(),
-            },
-          );
-          await this.profiles.put({
-            ...profile,
-            status: "configured",
-            expiresAt,
-            refreshAfter: refreshAfter(expiresAt),
-            lastRefreshAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-          await this.recordRefresh(
-            profileId,
-            profile.providerKind,
-            "refreshed",
-            startedAt,
-            expiresAt,
-          );
-          return {
-            value: refreshed.apiKey,
-            credentialType: "bearer",
-            expiresAt,
-            refreshAfter: refreshAfter(expiresAt),
-            cacheTtlMs: cacheTtlMs(expiresAt, options.minTtlMs),
-            metadata: {
-              profileId,
-              providerKind: profile.providerKind,
-              authType: "oauth",
-            },
-          };
-        }
-      }
-      const value = oauthAccessValue(current);
+      const refreshRequired = needsRefresh(
+        bundle,
+        options.minTtlMs ?? DEFAULT_MIN_TTL_MS,
+      );
+      const resolved = await resolveOAuthWithModels(
+        profile.provider ?? profile.providerKind,
+        bundle,
+        refreshRequired,
+      );
+      if (!resolved) throw new Error("OAuth provider is not available");
+      const current = refreshRequired
+        ? (resolved.newCredentials as OAuthBundle)
+        : bundle;
       const expiresAt = expiresAtForBundle(current);
+
+      if (refreshRequired) {
+        await this.secrets.set(
+          secretKey,
+          JSON.stringify(resolved.newCredentials),
+          {
+            expiresAt,
+            version: new Date().toISOString(),
+          },
+        );
+      }
+      await this.profiles.put({
+        ...profile,
+        baseUrl: resolved.baseUrl ?? profile.baseUrl,
+        headers: resolved.headers ?? profile.headers,
+        env: resolved.env ?? profile.env,
+        status: "configured",
+        expiresAt,
+        refreshAfter: refreshAfter(expiresAt),
+        ...(refreshRequired ? { lastRefreshAt: new Date().toISOString() } : {}),
+        updatedAt: new Date().toISOString(),
+      });
       await this.recordRefresh(
         profileId,
         profile.providerKind,
-        "unchanged",
+        refreshRequired ? "refreshed" : "unchanged",
         startedAt,
         expiresAt,
       );
       return {
-        value,
+        value: resolved.apiKey,
         credentialType: "bearer",
         expiresAt,
         refreshAfter: refreshAfter(expiresAt),
@@ -328,28 +319,79 @@ function parseOAuthBundle(value: string): OAuthBundle {
   return JSON.parse(value) as OAuthBundle;
 }
 
-async function refreshOAuth(
+async function resolveOAuthWithModels(
   provider: string,
   bundle: OAuthBundle,
-): Promise<{ apiKey: string; newCredentials: OAuthCredentials } | undefined> {
-  if (!bundle.refreshToken && !bundle.refresh_token && !bundle.refresh)
-    return undefined;
-  const result = await getOAuthApiKey(provider, {
-    [provider]: bundle as OAuthCredentials,
-  });
-  return result ?? undefined;
+  forceRefresh: boolean,
+): Promise<
+  | {
+      apiKey: string;
+      newCredentials: OAuthCredential;
+      baseUrl?: string;
+      headers?: Record<string, string>;
+      env?: Record<string, string>;
+    }
+  | undefined
+> {
+  const credential = canonicalOAuthCredential(bundle);
+  if (!credential.refresh) return undefined;
+  const credentials = new InMemoryCredentialStore();
+  await credentials.modify(provider, async () => ({
+    ...credential,
+    // Nerve may require a larger minimum TTL than the provider's own skew.
+    // Present the token as expired only when that policy requires a refresh.
+    expires: forceRefresh ? 0 : credential.expires,
+  }));
+  const models = builtinModels({ credentials });
+  const resolution = await models.getAuth(provider);
+  await models.refresh({ force: true });
+  const runtimeProvider = models.getProvider(provider);
+  if (runtimeProvider) registerSandboxManagerProvider(runtimeProvider);
+  const refreshed = await credentials.read(provider);
+  if (!resolution?.auth.apiKey || refreshed?.type !== "oauth") return undefined;
+  return {
+    apiKey: resolution.auth.apiKey,
+    newCredentials: refreshed,
+    baseUrl: resolution.auth.baseUrl,
+    headers: stringHeaders(resolution.auth.headers),
+    env: resolution.env,
+  };
+}
+
+function stringHeaders(
+  headers: Record<string, string | null> | undefined,
+): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  return Object.fromEntries(
+    Object.entries(headers).filter(
+      (entry): entry is [string, string] => entry[1] !== null,
+    ),
+  );
+}
+
+function canonicalOAuthCredential(bundle: OAuthBundle): OAuthCredential {
+  const access = bundle.accessToken ?? bundle.access_token ?? bundle.access;
+  const refresh = bundle.refreshToken ?? bundle.refresh_token ?? bundle.refresh;
+  const expires = expiresTime(bundle);
+  if (typeof access !== "string")
+    throw new Error("OAuth credential has no access token");
+  if (typeof refresh !== "string")
+    throw new Error("OAuth credential has no refresh token");
+  if (typeof expires !== "number")
+    throw new Error("OAuth credential has no expiration time");
+  return {
+    ...bundle,
+    type: "oauth",
+    access,
+    refresh,
+    expires,
+  };
 }
 
 function needsRefresh(bundle: OAuthBundle, minTtlMs: number): boolean {
   const expires = expiresTime(bundle);
   if (!expires) return false;
   return expires - Date.now() <= minTtlMs;
-}
-
-function oauthAccessValue(bundle: OAuthBundle): string {
-  const value = bundle.accessToken ?? bundle.access_token ?? bundle.access;
-  if (typeof value === "string") return value;
-  throw new Error("OAuth credential has no access token");
 }
 
 function expiresAtForBundle(bundle: OAuthBundle): string | undefined {

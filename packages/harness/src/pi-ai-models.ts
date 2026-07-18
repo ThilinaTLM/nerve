@@ -8,6 +8,7 @@ import {
   type FauxProviderHandle,
   fauxProvider,
   type Model,
+  type Provider,
   type ProviderStreams,
   type RegisterFauxProviderOptions,
   type SimpleStreamOptions,
@@ -21,13 +22,13 @@ import { mistralConversationsApi } from "@earendil-works/pi-ai/api/mistral-conve
 import { openAICodexResponsesApi } from "@earendil-works/pi-ai/api/openai-codex-responses.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
-import {
-  builtinModels,
-  getBuiltinProviders,
-} from "@earendil-works/pi-ai/providers/all";
+import { piMessagesApi } from "@earendil-works/pi-ai/api/pi-messages.lazy";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 
 const models = builtinModels();
-const builtinProviderIds = new Set<string>(getBuiltinProviders());
+const builtinProviderIds = new Set<string>(
+  models.getProviders().map((provider) => provider.id),
+);
 const customProviderModels = new Map<string, Map<string, Model<Api>>>();
 
 const apiStreams: Partial<Record<Api, ProviderStreams>> = {
@@ -40,6 +41,7 @@ const apiStreams: Partial<Record<Api, ProviderStreams>> = {
   "openai-codex-responses": openAICodexResponsesApi(),
   "openai-completions": openAICompletionsApi(),
   "openai-responses": openAIResponsesApi(),
+  "pi-messages": piMessagesApi(),
 };
 
 export type ManagedFauxProviderHandle = FauxProviderHandle & {
@@ -79,6 +81,16 @@ export function isBuiltinProvider(provider: string): boolean {
 
 export function getBuiltinProviderIds(): string[] {
   return Array.from(builtinProviderIds);
+}
+
+/**
+ * Installs an application-owned provider object into the harness runtime.
+ * Dynamic provider model state is shared, while request credentials remain
+ * resolved by the application and passed explicitly to streams.
+ */
+export function registerManagedProvider(provider: Provider): void {
+  models.setProvider(provider);
+  builtinProviderIds.add(provider.id);
 }
 
 export function getRegisteredModel(
@@ -167,11 +179,15 @@ export function streamSimpleWithModel(
   options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
   ensureProviderForModel(model);
-  return models.streamSimple(
-    model,
-    context,
-    withNerveSimpleStreamDefaults(model, options),
-  );
+  const streamOptions = withNerveSimpleStreamDefaults(model, options);
+  const provider = models.getProvider(model.provider);
+  if (options?.apiKey !== undefined && provider && !provider.auth.apiKey) {
+    // Isolated workers receive already-resolved request auth but do not own the
+    // persistent OAuth credential store. Dispatch the provider directly after
+    // the application has applied credential-derived model fields.
+    return provider.streamSimple(model, context, streamOptions);
+  }
+  return models.streamSimple(model, context, streamOptions);
 }
 
 export async function completeSimpleWithModel(
@@ -179,10 +195,5 @@ export async function completeSimpleWithModel(
   context: Context,
   options?: SimpleStreamOptions,
 ): Promise<AssistantMessage> {
-  ensureProviderForModel(model);
-  return await models.completeSimple(
-    model,
-    context,
-    withNerveSimpleStreamDefaults(model, options),
-  );
+  return await streamSimpleWithModel(model, context, options).result();
 }

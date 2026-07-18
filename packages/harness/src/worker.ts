@@ -48,7 +48,9 @@ async function runPrompt(message: AgentWorkerPromptMessage): Promise<void> {
       messages: message.messages as Message[],
       model: message.model,
       apiKey: message.auth?.apiKey,
+      baseUrl: message.auth?.baseUrl,
       headers: message.auth?.headers,
+      env: message.auth?.env,
       signal: abortController.signal,
     })) {
       if (event.type === "text_delta") {

@@ -209,18 +209,22 @@ export function composeRuntime(
     if (!agent) return undefined;
     const model = resolveAgentModel(agent.model);
     if (model.provider === "nerve-faux") return undefined;
-    const apiKey = await auth.getApiKey(model.provider);
-    if (!apiKey) return undefined;
+    const requestAuth = await auth.requestAuthForPiModel(model);
+    if (!requestAuth) return undefined;
+    const requestModel = requestAuth.baseUrl
+      ? { ...model, baseUrl: requestAuth.baseUrl }
+      : model;
     const result = await generateSummary(
       messages,
-      model,
+      requestModel,
       DEFAULT_COMPACTION_SETTINGS.reserveTokens,
-      apiKey,
-      undefined,
+      requestAuth.apiKey ?? "",
+      requestAuth.headers,
       signal,
       instructions,
       previousSummary,
       agent.thinkingLevel,
+      requestAuth.env,
     );
     return result.ok ? result.value : undefined;
   };
