@@ -96,6 +96,9 @@ const elapsedLabel = $derived(
   background-size: 200% 100%;
   background-clip: text;
   color: transparent;
+  /* background-position cannot be composited, so bound its per-frame repaint to
+   * the label box instead of promoting a useless layer. */
+  contain: paint;
   animation: text-shimmer 2.2s linear infinite;
 }
 
@@ -104,7 +107,8 @@ const elapsedLabel = $derived(
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
   opacity: 0.8;
-  animation: transcript-live-enter 180ms ease-out both;
+  animation: transcript-live-enter var(--motion-enter-duration)
+    var(--motion-enter-easing) both;
 }
 
 /* The global reduced-motion rule freezes animations; also drop the gradient so

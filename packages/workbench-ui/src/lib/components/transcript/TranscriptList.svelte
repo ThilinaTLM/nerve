@@ -381,6 +381,7 @@ const showEmptyRun = $derived(
   padding: 0.75rem;
   /* Delay avoids flashing the activity line for responses that begin almost
      * immediately. The row still owns a stable one-line virtual height. */
-  animation: transcript-live-enter 180ms ease-out 120ms both;
+  animation: transcript-live-enter var(--motion-enter-duration)
+    var(--motion-enter-easing) 120ms both;
 }
 </style>

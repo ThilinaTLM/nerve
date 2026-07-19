@@ -241,7 +241,9 @@ $effect(() => {
 }
 
 .transcript-row-content.live-entering {
-  animation: transcript-live-enter 180ms ease-out;
+  animation: transcript-live-enter var(--motion-enter-duration)
+    var(--motion-enter-easing);
+  will-change: transform, opacity;
 }
 
 .transcript-entry {
