@@ -85,6 +85,8 @@ export const WORKBENCH_OPERATION_METHODS = [
   "pinnedCommand.create",
   "pinnedCommand.update",
   "pinnedCommand.delete",
+  "scratchNote.get",
+  "scratchNote.update",
   "task.list",
   "task.start",
   "task.get",
@@ -539,6 +541,21 @@ export async function handleProtocolMethod(
         (params as { commandId: string }).commandId,
       );
       return { ok: true };
+    case "scratchNote.get":
+      return {
+        note: await state.registry.getScratchNote(
+          (params as { projectId: string }).projectId,
+        ),
+      };
+    case "scratchNote.update": {
+      const request = params as { projectId: string; content: string };
+      return {
+        note: await state.registry.updateScratchNote(
+          request.projectId,
+          request,
+        ),
+      };
+    }
     case "task.list":
       return { tasks: state.registry.listTasks() };
     case "task.start":

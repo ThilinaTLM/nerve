@@ -18,6 +18,7 @@ import { projectsOperationDefinitions } from "../projects/project.operations.sch
 import { promptSuggestionsOperationDefinitions } from "../prompt-suggestions/prompt-suggestion.operations.schema.js";
 import { providersOperationDefinitions } from "../providers/provider.operations.schema.js";
 import { sandboxOperationDefinitions } from "../sandbox/sandbox.operations.schema.js";
+import { scratchNotesOperationDefinitions } from "../scratch-notes/scratch-note.operations.schema.js";
 import { settingsOperationDefinitions } from "../settings/settings.operations.schema.js";
 import { snapshotsOperationDefinitions } from "../snapshots/snapshot.operations.schema.js";
 import { storageOperationDefinitions } from "../storage/storage.operations.schema.js";
@@ -41,6 +42,7 @@ const methodDefinitions = [
   ...promptSuggestionsOperationDefinitions,
   ...providersOperationDefinitions,
   ...sandboxOperationDefinitions,
+  ...scratchNotesOperationDefinitions,
   ...settingsOperationDefinitions,
   ...snapshotsOperationDefinitions,
   ...storageOperationDefinitions,

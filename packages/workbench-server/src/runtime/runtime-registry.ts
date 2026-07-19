@@ -29,6 +29,7 @@ import type {
   ToolName,
   UpdateAgentRequest,
   UpdatePinnedCommandRequest,
+  UpdateScratchNoteRequest,
   UserQuestionStatus,
 } from "@nervekit/contracts";
 import type { AuthManager } from "../domains/auth/index.js";
@@ -490,6 +491,14 @@ export class RuntimeRegistry {
 
   removePinnedCommand(projectId: string, commandId: string) {
     return this.services.pinnedCommands.remove(projectId, commandId);
+  }
+
+  getScratchNote(projectId: string) {
+    return this.services.scratchNotes.get(projectId);
+  }
+
+  updateScratchNote(projectId: string, request: UpdateScratchNoteRequest) {
+    return this.services.scratchNotes.update(projectId, request);
   }
 
   startTask(request: StartTaskRequest) {

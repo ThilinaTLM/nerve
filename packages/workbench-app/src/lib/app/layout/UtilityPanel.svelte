@@ -1,6 +1,7 @@
 <script lang="ts">
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Info from "@lucide/svelte/icons/info";
+import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Terminal from "@lucide/svelte/icons/terminal";
 import { WorkbenchUtilityPanel } from "@nervekit/workbench-ui/components/workbench";
 import type {
@@ -13,9 +14,10 @@ import type {
 import type { TabItem } from "@nervekit/ui-kit/components/ui/tabs-bar";
 import ContextTab from "$lib/features/conversations/components/ContextUtilityPanel.svelte";
 import GitTab from "$lib/features/git/components/GitUtilityPanel.svelte";
+import ScratchNotesTab from "$lib/features/scratch-notes/components/ScratchNotesUtilityPanel.svelte";
 import TasksTab from "$lib/features/tasks/components/TaskUtilityPanel.svelte";
 
-type UtilityTab = "tasks" | "info" | "git";
+type UtilityTab = "tasks" | "info" | "git" | "notes";
 
 type Props = {
   activeTab?: UtilityTab;
@@ -80,6 +82,7 @@ const tabs = $derived<TabItem[]>([
   { value: "git", label: "Git", icon: GitBranch },
   { value: "tasks", label: "Tasks", icon: Terminal, count: runningTaskCount },
   { value: "info", label: "Context", icon: Info },
+  { value: "notes", label: "Notes", icon: NotebookPen },
 ]);
 </script>
 
@@ -103,6 +106,8 @@ const tabs = $derived<TabItem[]>([
       />
     {:else if tab === "git"}
       <GitTab {activeProject} {activeAgent} />
+    {:else if tab === "notes"}
+      <ScratchNotesTab {activeProject} />
     {:else if tab === "tasks"}
       <TasksTab
         {activeProject}

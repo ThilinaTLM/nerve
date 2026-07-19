@@ -46,6 +46,10 @@ import {
 } from "../domains/prompt-suggestions/index.js";
 import { PythonRuntimeService } from "../domains/runtime/python-runtime-service.js";
 import {
+  ScratchNoteRepository,
+  ScratchNoteService,
+} from "../domains/scratch-notes/index.js";
+import {
   SecretTaskLaunchConfigStore,
   TaskNotificationService,
 } from "../domains/tasks/index.js";
@@ -88,6 +92,7 @@ export interface RuntimeServices {
   git: GitService;
   promptSuggestions: PromptSuggestionService;
   pinnedCommands: PinnedCommandService;
+  scratchNotes: ScratchNoteService;
   harnessStorage: ConversationHarnessStorage;
   conversationService: ConversationService;
   compactionService: CompactionService;
@@ -173,6 +178,11 @@ export function composeRuntime(
   const pinnedCommandRepository = new PinnedCommandRepository(storage);
   services.pinnedCommands = new PinnedCommandService(
     pinnedCommandRepository,
+    getProject,
+  );
+  const scratchNoteRepository = new ScratchNoteRepository(storage);
+  services.scratchNotes = new ScratchNoteService(
+    scratchNoteRepository,
     getProject,
   );
   const conversationRepository = new ConversationRepository(storage);

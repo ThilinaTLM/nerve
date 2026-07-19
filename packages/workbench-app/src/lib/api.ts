@@ -63,6 +63,7 @@ export type {
   PruneProjectConversationsResponse,
   QueuedPromptRecord,
   RespondOAuthFlowRequest,
+  ScratchNote,
   Settings,
   SnapshotCursor,
   StartTaskRequest,
@@ -88,6 +89,7 @@ export type {
   ToolCallTranscriptRecord,
   UpdatePinnedCommandRequest,
   UpdatePromptSuggestionTrustRequest,
+  UpdateScratchNoteRequest,
   UpdateSettingsRequest,
   UserQuestionRecord,
 } from "@nervekit/contracts";
@@ -112,6 +114,7 @@ export * from "./features/git/api/git.api";
 export * from "./features/logs/api/logs.api";
 export * from "./features/projects/api/projects.api";
 export * from "./features/prompt-suggestions/api/prompt-suggestions.api";
+export * from "./features/scratch-notes/api/scratch-notes.api";
 export * from "./features/settings/api/settings.api";
 export * from "./features/tasks/api/tasks.api";
 export * from "./features/tools/api/tools.api";

@@ -16,6 +16,7 @@ export * from "./domains/protocol/index.js";
 export * from "./domains/providers/index.js";
 export * from "./domains/runs/index.js";
 export * from "./domains/sandbox/index.js";
+export * from "./domains/scratch-notes/index.js";
 export * from "./domains/settings/index.js";
 export * from "./domains/status/index.js";
 export * from "./domains/storage/index.js";
