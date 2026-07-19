@@ -64,6 +64,7 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
     label: "Close pane",
     category: "Panes",
     defaultBinding: { key: "w", mod: true },
+    allowInEditable: true,
   },
   {
     id: "pane.closeOthers",

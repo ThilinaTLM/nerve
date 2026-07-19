@@ -212,11 +212,15 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
       matchesShortcut(event, candidate.defaultBinding),
     );
     if (!command) return;
+
+    const consumesNativeDefault = command.id === "pane.close";
+    if (consumesNativeDefault) event.preventDefault();
     if (isEditableTarget(event.target) && !command.allowInEditable) return;
 
     const handled = runShortcutCommand(command.id);
     if (!handled) return;
     if (
+      !consumesNativeDefault &&
       command.id !== "composer.focus" &&
       command.id !== "composer.cancelMic"
     ) {
