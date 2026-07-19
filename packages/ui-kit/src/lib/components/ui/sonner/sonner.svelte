@@ -4,11 +4,11 @@ import {
   type ToasterProps as SonnerProps,
 } from "svelte-sonner";
 import { mode } from "mode-watcher";
-import Loader2Icon from "@lucide/svelte/icons/loader-2";
 import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
 import OctagonXIcon from "@lucide/svelte/icons/octagon-x";
 import InfoIcon from "@lucide/svelte/icons/info";
 import TriangleAlertIcon from "@lucide/svelte/icons/triangle-alert";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 
 let { ...restProps }: SonnerProps = $props();
 </script>
@@ -20,7 +20,7 @@ let { ...restProps }: SonnerProps = $props();
   {...restProps}
 >
   {#snippet loadingIcon()}
-    <Loader2Icon class="size-4 animate-spin" />
+    <Spinner class="size-4" />
   {/snippet}
   {#snippet successIcon()}
     <CircleCheckIcon class="size-4" />

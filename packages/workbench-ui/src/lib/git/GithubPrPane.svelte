@@ -79,7 +79,7 @@ $effect(() => {
       </div>
     {:else if view.loading && !detail}
       <div class="pr-empty">
-        <RefreshCw class="spin" size={28} strokeWidth={1.7} />
+        <Spinner class="size-7" />
         <strong>Loading pull request</strong>
         <p>#{view.number}</p>
       </div>

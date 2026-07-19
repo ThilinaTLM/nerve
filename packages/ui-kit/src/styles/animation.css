@@ -12,6 +12,16 @@
   }
 }
 
+/* Uniform-thickness ring spinner (ui-kit spinner.svelte).
+ * Solid color, symmetric, GPU-composited to avoid sub-pixel wobble at small
+ * sizes. transform-box:fill-box pins rotation to the circle's geometric center. */
+.spinner-ring {
+  animation: spin 1s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform;
+}
+
 /* Hard blink shared by streaming carets / pending indicators.
  * Components keep their own `animation:` shorthand (timings differ) and only
  * reference this keyframe. */

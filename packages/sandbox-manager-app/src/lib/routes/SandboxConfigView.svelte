@@ -2,6 +2,7 @@
 import { FileCog, RefreshCw } from "@lucide/svelte";
 import type { ManagedSandboxRecord } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { CodeViewer } from "@nervekit/workbench-ui/components/workbench";
 import { useSandboxManagerStore } from "../state/sandbox-manager-state.svelte";
 
@@ -34,10 +35,7 @@ $effect(() => {
     <div
       class="grid flex-1 place-content-center gap-1 text-center text-muted-foreground"
     >
-      <RefreshCw
-        class="mx-auto size-7 animate-spin text-primary"
-        strokeWidth={1.7}
-      />
+      <Spinner class="mx-auto size-7 text-primary" />
       <p class="text-sm">Loading config YAML…</p>
     </div>
   {:else if detail?.configYamlError}

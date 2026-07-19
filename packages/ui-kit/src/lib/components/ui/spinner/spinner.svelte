@@ -1,26 +1,32 @@
 <script lang="ts">
 import { cn } from "@nervekit/ui-kit/core/utils";
-import Loader2Icon from "@lucide/svelte/icons/loader-2";
 import type { SVGAttributes } from "svelte/elements";
 
 let {
   class: className,
   role = "status",
-  // we add name, color, and stroke for compatibility with different icon libraries props
-  name,
-  color,
-  stroke,
   "aria-label": ariaLabel = "Loading",
   ...restProps
 }: SVGAttributes<SVGSVGElement> = $props();
 </script>
 
-<Loader2Icon
+<svg
+  viewBox="0 0 24 24"
+  fill="none"
   {role}
-  name={name === null ? undefined : name}
-  color={color === null ? undefined : color}
-  stroke={stroke === null ? undefined : stroke}
   aria-label={ariaLabel}
-  class={cn("size-4 animate-spin", className)}
+  class={cn("spinner-ring size-4", className)}
   {...restProps}
-/>
+>
+  <circle
+    cx="12"
+    cy="12"
+    r="9"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="butt"
+    pathLength="100"
+    stroke-dasharray="88 12"
+  />
+</svg>

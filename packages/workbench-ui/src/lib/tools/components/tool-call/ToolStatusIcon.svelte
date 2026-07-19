@@ -4,7 +4,7 @@ import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleX from "@lucide/svelte/icons/circle-x";
-import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import { cn } from "@nervekit/ui-kit/core/utils";
 
@@ -38,7 +38,7 @@ const colorClass: Record<StatusTone, string> = {
 };
 
 const terminalIcon = {
-  running: LoaderCircle,
+  running: Circle,
   good: CircleCheck,
   warn: CircleAlert,
   danger: CircleX,
@@ -46,13 +46,7 @@ const terminalIcon = {
   accent: Circle,
 } satisfies Record<StatusTone, typeof Circle>;
 
-const Icon = $derived(
-  waitingForUser
-    ? CircleQuestionMark
-    : spin
-      ? LoaderCircle
-      : terminalIcon[tone],
-);
+const Icon = $derived(waitingForUser ? CircleQuestionMark : terminalIcon[tone]);
 const visualKey = $derived(
   `${waitingForUser ? "waiting" : spin ? "spin" : "static"}:${tone}`,
 );
@@ -67,13 +61,22 @@ const visualKey = $derived(
     <span
       class="tool-status-glyph inline-flex size-full items-center justify-center"
     >
-      <Icon
-        {size}
-        strokeWidth={2.2}
-        class={cn("block", colorClass[tone], spin && "animate-spin")}
-        aria-hidden={label ? undefined : "true"}
-        aria-label={label}
-      />
+      {#if spin}
+        <Spinner
+          style={`width:${size}px;height:${size}px`}
+          class={cn("block", colorClass[tone])}
+          aria-hidden={label ? undefined : "true"}
+          aria-label={label}
+        />
+      {:else}
+        <Icon
+          {size}
+          strokeWidth={2.2}
+          class={cn("block", colorClass[tone])}
+          aria-hidden={label ? undefined : "true"}
+          aria-label={label}
+        />
+      {/if}
     </span>
   {/key}
 </span>
