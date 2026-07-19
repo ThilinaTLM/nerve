@@ -11,6 +11,7 @@ import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import ScratchNoteTitleDialog from "./ScratchNoteTitleDialog.svelte";
 import {
   createScratchNote,
+  ensureScratchNotesProject,
   flushScratchNote,
   getScratchNotesProject,
   loadScratchNotes,
@@ -35,7 +36,9 @@ let noteToRename = $state<ScratchNoteEntry | undefined>();
 let noteToDelete = $state<ScratchNoteEntry | undefined>();
 
 $effect(() => {
-  if (projectId) loadScratchNotes(projectId);
+  if (!projectId) return;
+  ensureScratchNotesProject(projectId);
+  void loadScratchNotes(projectId);
 });
 
 function statusLabel(note: ScratchNoteEntry): string {
@@ -57,24 +60,26 @@ function statusLabel(note: ScratchNoteEntry): string {
     <p class="px-1 text-xs text-muted-foreground">
       Select a project to take notes.
     </p>
-  {:else if !project || project.loadStatus === "idle" || project.loadStatus === "loading"}
-    <div
-      class="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground"
-    >
-      <Spinner class="size-3.5" /> Loading scratch notes…
-    </div>
-  {:else if project.loadStatus === "error"}
-    <div class="rounded-md border border-dashed p-3">
-      <p class="text-xs text-muted-foreground">Could not load scratch notes.</p>
-      <Button
-        size="xs"
-        variant="outline"
-        class="mt-2"
-        onclick={() => loadScratchNotes(projectId, true)}>Retry</Button
-      >
-    </div>
   {:else}
-    {#if project.notes.length === 0}
+    {#if !project || project.loadStatus === "idle" || project.loadStatus === "loading"}
+      <div
+        class="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground"
+      >
+        <Spinner class="size-3.5" /> Loading scratch notes…
+      </div>
+    {:else if project.loadStatus === "error"}
+      <div class="rounded-md border border-dashed p-3">
+        <p class="text-xs text-muted-foreground">
+          Could not load scratch notes.
+        </p>
+        <Button
+          size="xs"
+          variant="outline"
+          class="mt-2"
+          onclick={() => void loadScratchNotes(projectId, true)}>Retry</Button
+        >
+      </div>
+    {:else if project.notes.length === 0}
       <p
         class="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground"
       >
@@ -133,10 +138,10 @@ function statusLabel(note: ScratchNoteEntry): string {
     <Button
       variant="outline"
       class="w-full border-dashed text-muted-foreground"
-      disabled={project.creating}
+      disabled={project?.creating}
       onclick={() => void createScratchNote(projectId)}
     >
-      {#if project.creating}
+      {#if project?.creating}
         <Spinner class="size-4" /> Creating…
       {:else}
         <Plus class="size-4" /> Add note

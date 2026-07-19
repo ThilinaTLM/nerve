@@ -1,4 +1,5 @@
 import type { ScratchNote } from "@nervekit/contracts";
+import { SvelteMap } from "svelte/reactivity";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   createScratchNote as createScratchNoteRequest,
@@ -34,11 +35,14 @@ const store = $state({
   projects: {} as Record<string, ScratchNotesProjectEntry>,
 });
 const mutationQueue = new KeyedSerialQueue();
+const loadPromises = new SvelteMap<string, Promise<void>>();
 
 /** Shared scratch-note state that survives utility-tab and project switches. */
 export const scratchNotesUi = store;
 
-function ensureProject(projectId: string): ScratchNotesProjectEntry {
+export function ensureScratchNotesProject(
+  projectId: string,
+): ScratchNotesProjectEntry {
   let project = store.projects[projectId];
   if (!project) {
     project = {
@@ -78,18 +82,19 @@ export function getScratchNotesProject(
   return store.projects[projectId];
 }
 
-export function loadScratchNotes(projectId: string, force = false): void {
-  const project = ensureProject(projectId);
-  if (
-    !force &&
-    (project.loadStatus === "loading" || project.loadStatus === "loaded")
-  ) {
-    return;
+export function loadScratchNotes(
+  projectId: string,
+  force = false,
+): Promise<void> {
+  const project = ensureScratchNotesProject(projectId);
+  if (!force && project.loadStatus === "loaded") return Promise.resolve();
+  if (!force && project.loadStatus === "loading") {
+    return loadPromises.get(projectId) ?? Promise.resolve();
   }
 
   const token = ++project.loadToken;
   project.loadStatus = "loading";
-  void listScratchNotes(projectId)
+  const promise = listScratchNotes(projectId)
     .then((notes) => {
       if (token !== project.loadToken) return;
       project.notes = notes.map(toEntry);
@@ -99,14 +104,22 @@ export function loadScratchNotes(projectId: string, force = false): void {
       if (token !== project.loadToken) return;
       project.loadStatus = "error";
       notify.error("Could not load scratch notes");
+    })
+    .finally(() => {
+      if (loadPromises.get(projectId) === promise) {
+        loadPromises.delete(projectId);
+      }
     });
+  loadPromises.set(projectId, promise);
+  return promise;
 }
 
 export async function createScratchNote(projectId: string): Promise<void> {
-  const project = ensureProject(projectId);
+  const project = ensureScratchNotesProject(projectId);
   if (project.creating) return;
   project.creating = true;
   try {
+    await loadScratchNotes(projectId);
     const note = await createScratchNoteRequest(projectId);
     project.notes.push(toEntry(note));
     project.loadStatus = "loaded";
