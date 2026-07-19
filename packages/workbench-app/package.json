@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/workbench-app",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Browser workbench entrypoint served by the workbench server and desktop shell.",
   "private": true,
   "author": "ThilinaTLM",
