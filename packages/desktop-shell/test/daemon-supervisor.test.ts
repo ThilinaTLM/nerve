@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { OutputBuffer } from "../src/daemon/diagnostics.ts";
+import {
+  DaemonStartupError,
+  isDaemonStartupErrorCode,
+  OutputBuffer,
+} from "../src/daemon/diagnostics.ts";
 import {
   DAEMON_RESTART_BACKOFF_MS,
   shouldResetRestartBudget,
@@ -58,6 +62,31 @@ describe("daemon supervisor", () => {
     assert.equal(world.launches.length, 1);
     assert.equal(world.parentExitHooks.length, 1, "parent exit hook installed");
     await daemon.stop();
+  });
+
+  it("preserves classified daemon output when a child exits during startup", async () => {
+    const world = fakeDaemonWorld({ discovery: [undefined] });
+    const startup = ownedSupervisor(world).startOwned();
+    world.children[0]?.emitOutput(
+      "stderr",
+      "RunRevisionConflictError: invalid lineage\ncode: 'RUN_REVISION_CONFLICT'\n",
+    );
+    world.children[0]?.exit(1);
+    const rejected = assert.rejects(startup, (error) => {
+      assert.ok(error instanceof DaemonStartupError);
+      assert.match(error.message, /exited before it became ready with code 1/);
+      assert.match(error.message, /Startup timeout: 1000ms/);
+      assert.match(error.message, /Crash report: \/crash\/1.json/);
+      assert.match(error.daemonOutput, /RunRevisionConflictError/);
+      assert.equal(
+        isDaemonStartupErrorCode(error, "RUN_REVISION_CONFLICT"),
+        true,
+      );
+      return true;
+    });
+    await world.scheduler.advance(1_000);
+    await rejected;
+    assert.equal(world.crashReports[0]?.kind, "startupExit");
   });
 
   it("restarts after an owned child exit and reports crash details", async () => {

@@ -31,6 +31,29 @@ export function formatExit(exit: ChildExit): string {
   return "";
 }
 
+export class DaemonStartupError extends Error {
+  constructor(
+    message: string,
+    readonly daemonOutput: string,
+  ) {
+    super(message);
+    this.name = "DaemonStartupError";
+  }
+
+  hasDaemonErrorCode(code: string): boolean {
+    return this.daemonOutput
+      .split(/[^A-Z0-9_]+/)
+      .some((token) => token === code);
+  }
+}
+
+export function isDaemonStartupErrorCode(
+  error: unknown,
+  code: string,
+): error is DaemonStartupError {
+  return error instanceof DaemonStartupError && error.hasDaemonErrorCode(code);
+}
+
 export function daemonStartupError(
   message: string,
   output: OutputBuffer,
@@ -39,7 +62,7 @@ export function daemonStartupError(
     readinessTimeoutMs?: number;
     crashReportPath?: string;
   },
-): Error {
+): DaemonStartupError {
   const diagnostics = [
     context?.readinessTimeoutMs
       ? `Startup timeout: ${context.readinessTimeoutMs}ms`
@@ -57,11 +80,13 @@ export function daemonStartupError(
       : undefined,
   ].filter((line): line is string => Boolean(line));
 
-  return new Error(
-    `${message}\n\nDaemon output:\n${output.tail()}${
+  const daemonOutput = output.tail();
+  return new DaemonStartupError(
+    `${message}\n\nDaemon output:\n${daemonOutput}${
       diagnostics.length > 0
         ? `\n\nDiagnostics:\n${diagnostics.map((line) => `- ${line}`).join("\n")}`
         : ""
     }`,
+    daemonOutput,
   );
 }

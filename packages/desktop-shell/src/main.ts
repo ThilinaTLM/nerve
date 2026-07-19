@@ -7,6 +7,7 @@ import {
   resolveElectronFontRenderHinting,
 } from "./app/cli-options.js";
 import { prepareDesktopDataDirectory } from "./app/data-directory-migration.js";
+import { startWithRunRuntimeRecovery } from "./app/run-runtime-recovery.js";
 import {
   type DaemonStatus,
   type DaemonStatusInfo,
@@ -296,10 +297,28 @@ async function openMainWindow(): Promise<void> {
   await window.loadURL(createDataUrl(loadingHtml()));
 
   try {
-    managedDaemon ??= await ensureDaemon({
-      webDistPath: resolvePackagedWebDistPath(),
-      ...desktopOptions,
-    });
+    if (!managedDaemon) {
+      const startup = await startWithRunRuntimeRecovery(
+        {
+          home: desktopDataDir,
+          start: () =>
+            ensureDaemon({
+              webDistPath: resolvePackagedWebDistPath(),
+              ...desktopOptions,
+            }),
+        },
+        { showMessageBox: (options) => dialog.showMessageBox(options) },
+      );
+      managedDaemon = startup.value;
+      if (startup.recovery) {
+        void desktopLog(
+          "warn",
+          "storage",
+          "Inconsistent run data backed up before daemon retry",
+          { context: { backupPath: startup.recovery.backupPath } },
+        );
+      }
+    }
     void desktopLog("info", "daemon", "Daemon connection established", {
       context: {
         url: managedDaemon.url,
