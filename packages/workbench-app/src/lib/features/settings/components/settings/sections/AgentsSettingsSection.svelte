@@ -305,21 +305,6 @@ function onRememberLastSelectionChange(checked: boolean) {
     </div>
   {/if}
 
-  <Switch
-    class="settings-full-switch"
-    checked={settingsDraft.defaultApprovalPolicy.autoApproveReadOnly}
-    label="Auto-approve read-only tools in supervised mode"
-    description="Let supervised agents read files, search, list directories, and inspect task status without prompting."
-    onCheckedChange={(autoApproveReadOnly) => {
-      settingsDraft.defaultApprovalPolicy.autoApproveReadOnly =
-        autoApproveReadOnly;
-      onSettingsChange?.(
-        { defaultApprovalPolicy: { autoApproveReadOnly } },
-        { immediate: true },
-      );
-    }}
-  />
-
   <div class="settings-control-stack">
     <div class="settings-row settings-row-stacked">
       <div class="settings-copy">
@@ -359,6 +344,21 @@ function onRememberLastSelectionChange(checked: boolean) {
         }}
       />
     </div>
+
+    <Switch
+      class="settings-full-switch"
+      checked={settingsDraft.defaultApprovalPolicy.autoApproveReadOnly}
+      label="Auto-approve read-only tools in supervised mode"
+      description="Let supervised agents read files, search, list directories, and inspect task status without prompting."
+      onCheckedChange={(autoApproveReadOnly) => {
+        settingsDraft.defaultApprovalPolicy.autoApproveReadOnly =
+          autoApproveReadOnly;
+        onSettingsChange?.(
+          { defaultApprovalPolicy: { autoApproveReadOnly } },
+          { immediate: true },
+        );
+      }}
+    />
   </div>
 
   <div class="settings-model-summary">
