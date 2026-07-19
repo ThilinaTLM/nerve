@@ -269,10 +269,16 @@ const badge = $derived(
     draft?.block.toolName ??
     "tool",
 );
+// For HIL interactive tools (ask_user, plan_mode present) the durable
+// presentation is authoritative and deliberately omits the header arg so the
+// question/plan is not duplicated in the interactive body. Skip the lifecycle
+// fallback in that case; other tools keep the streaming-arg fallback.
 const primaryArg = $derived(
-  presentation?.primaryArg ??
-    lifecycleArgumentPresentation?.primaryArg ??
-    draftArg,
+  hilInteractive
+    ? presentation?.primaryArg
+    : (presentation?.primaryArg ??
+        lifecycleArgumentPresentation?.primaryArg ??
+        draftArg),
 );
 // A prepared draft only means argument generation finished; execution has not.
 // Keep it visibly in-flight until a durable terminal status takes ownership.
