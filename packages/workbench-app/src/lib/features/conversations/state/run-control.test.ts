@@ -65,6 +65,29 @@ describe("abort active run", () => {
     await result;
   });
 
+  it("cancels the exact run captured before the local projection", async () => {
+    const calls: Array<{ agentId: string; runId?: string }> = [];
+    const view: AbortableConversationView = {
+      conversationId: "conv_1",
+      sending: true,
+      stopping: false,
+      activeRun: activeRun(),
+      queuedPrompts: [],
+    };
+    const abort = createAbortActiveRun({
+      agentId: () => "agent_1",
+      view: () => view,
+      cancelRun: async (agentId, runId) => {
+        calls.push({ agentId, runId });
+      },
+      notifyError: () => undefined,
+    });
+
+    await abort();
+
+    assert.deepEqual(calls, [{ agentId: "agent_1", runId: "run_1" }]);
+  });
+
   it("suppresses duplicate Stop clicks while cancellation is in flight", async () => {
     const cancellation = deferred<void>();
     let calls = 0;

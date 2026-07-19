@@ -19,6 +19,7 @@ function fixture(
 ) {
   const records = new Map<string, TaskRecord>();
   const events: DomainEventIntent[] = [];
+  const signals: Array<string | undefined> = [];
   let callbacks: TaskProcessCallbacks | undefined;
   const ports: TaskServicePorts = {
     repository: {
@@ -32,7 +33,9 @@ function fixture(
         callbacks = nextCallbacks;
         return { pid: 42, startedAt: "2026-07-11T00:00:00.000Z" };
       },
-      signal: async () => undefined,
+      signal: async (_task, cancelOptions) => {
+        signals.push(cancelOptions.signal);
+      },
       inspect: async () => "running",
       waitForExit: async () => options.waitForExit ?? "timeout",
     },
@@ -56,6 +59,7 @@ function fixture(
     service: new TaskService(ports),
     records,
     events,
+    signals,
     callbacks: () => callbacks,
   };
 }
@@ -129,6 +133,20 @@ test("cancellation is terminal only after process-exit evidence", async () => {
     (await exited.service.cancel("task_contract")).status,
     "cancelled",
   );
+});
+
+test("hard cancellation escalates a task that is already stopping", async () => {
+  const harness = fixture({ waitForExit: "timeout" });
+  await harness.service.start({ cwd: "/workspace", command: "sleep 60" });
+  await harness.service.cancel("task_contract");
+  harness.signals.length = 0;
+
+  const stopping = await harness.service.cancel("task_contract", {
+    signal: "SIGKILL",
+  });
+
+  assert.equal(stopping.status, "stopping");
+  assert.deepEqual(harness.signals, ["SIGKILL"]);
 });
 
 test("readiness timeout records failure without pretending process exit", async () => {

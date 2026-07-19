@@ -81,6 +81,7 @@ export class ExploreRuntime {
   async execute(input: ExploreRequest): Promise<ExploreResult> {
     const task = input.task.trim();
     if (!task) throw new Error("VALIDATION_FAILED: explore task is required");
+    if (input.signal?.aborted) throw new ExploreCancelledError();
     if (task.length > 16_000)
       throw new Error("VALIDATION_FAILED: explore task is too large");
     if ((input.context?.length ?? 0) > 32_000)
@@ -132,8 +133,9 @@ export class ExploreRuntime {
     await this.persist(relationship);
 
     const abortController = new AbortController();
-    const abortFromParent = () => abortController.abort();
+    const abortFromParent = () => abortController.abort(input.signal?.reason);
     input.signal?.addEventListener("abort", abortFromParent, { once: true });
+    if (input.signal?.aborted) abortFromParent();
     const active: ActiveChild = {
       key: activeKey(parentScope, childRunId),
       conversationId: parentScope.conversationId,
@@ -146,6 +148,7 @@ export class ExploreRuntime {
     };
     this.active.set(active.key, active);
     try {
+      if (abortController.signal.aborted) throw new ExploreCancelledError();
       relationship = await this.transition(relationship, "running", {
         text: bound(this.redactor.redactText(`Running: ${task}`), 500),
       });
@@ -220,26 +223,33 @@ export class ExploreRuntime {
         entry.parentAgentId === scope.agentId &&
         entry.parentRunId === scope.runId,
     );
-    for (const entry of entries) {
-      if (entry.status === "cancelled") continue;
+    const active = entries.filter((entry) => entry.status !== "cancelled");
+    for (const entry of active) {
       entry.status = "cancelled";
       entry.abortController.abort();
-      await entry.harness?.abort().catch(() => undefined);
-      await this.options.readOnlyToolRuntime?.cancelRun({
-        conversationId: entry.conversationId,
-        agentId: entry.childAgentId,
-        runId: entry.childRunId,
-      });
-      const existing = await this.readRelationship(
-        entry.conversationId,
-        entry.parentAgentId,
-        entry.childAgentId,
-      );
-      if (existing)
-        await this.transition(existing, "cancelled", {
-          text: "Explore cancelled.",
-        });
     }
+    await Promise.all(
+      active.map(async (entry) => {
+        await Promise.all([
+          entry.harness?.abort().catch(() => undefined),
+          this.options.readOnlyToolRuntime?.cancelRun({
+            conversationId: entry.conversationId,
+            agentId: entry.childAgentId,
+            runId: entry.childRunId,
+          }),
+        ]);
+        const existing = await this.readRelationship(
+          entry.conversationId,
+          entry.parentAgentId,
+          entry.childAgentId,
+        );
+        if (existing) {
+          await this.transition(existing, "cancelled", {
+            text: "Explore cancelled.",
+          });
+        }
+      }),
+    );
   }
 
   async listRelationships(conversationId: string, parentAgentId: string) {

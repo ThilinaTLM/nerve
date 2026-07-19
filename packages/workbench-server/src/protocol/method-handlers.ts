@@ -479,10 +479,21 @@ export async function handleProtocolMethod(
       };
     }
     case "run.cancel": {
-      const request = params as { agentId?: string };
-      if (!request.agentId) throw new Error("run.cancel requires agentId");
-      await state.registry.abortAgent(request.agentId);
-      return { accepted: true, agentId: request.agentId, status: "cancelled" };
+      const request = params as {
+        agentId?: string;
+        runId?: string;
+        reason?: string;
+      };
+      if (!request.agentId && !request.runId) {
+        throw new Error("run.cancel requires agentId or runId");
+      }
+      await state.registry.abortRun(request);
+      return {
+        accepted: true,
+        agentId: request.agentId,
+        runId: request.runId,
+        status: "cancelled",
+      };
     }
     case "project.create":
       return { project: await state.registry.createProject(params as never) };

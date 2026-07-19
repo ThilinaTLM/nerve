@@ -565,20 +565,25 @@ export class SandboxTaskService {
     agentId: string;
     runId: string;
   }) {
-    const cancelled: TaskRecord[] = [];
-    for (const task of await this.service.list({
-      conversationId: scope.conversationId,
-      agentId: scope.agentId,
-    })) {
-      if (
-        !isActive(task) ||
-        task.origin.kind !== "agent_tool" ||
-        task.origin.runId !== scope.runId
-      )
-        continue;
-      cancelled.push(await this.service.cancel(task.id));
-    }
-    return cancelled;
+    const matching = (
+      await this.service.list({
+        conversationId: scope.conversationId,
+        agentId: scope.agentId,
+      })
+    ).filter(
+      (task) =>
+        isActive(task) &&
+        task.origin.kind === "agent_tool" &&
+        task.origin.runId === scope.runId,
+    );
+    return Promise.all(
+      matching.map((task) =>
+        this.service.cancel(task.id, {
+          signal: "SIGKILL",
+          reason: "Run cancelled.",
+        }),
+      ),
+    );
   }
 
   async drain(options: { childTimeoutMs?: number } = {}): Promise<void> {

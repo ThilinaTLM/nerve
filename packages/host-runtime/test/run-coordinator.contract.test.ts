@@ -111,6 +111,9 @@ class MemoryUnitOfWork implements RunUnitOfWorkPort {
 function fixture(
   options: {
     cancelToolsFails?: boolean;
+    cancelTarget?: (
+      target: "model" | "tool" | "task" | "subagent" | "interaction",
+    ) => Promise<"confirmed" | "not_running">;
     publicationFails?: boolean;
     sourceRole?: PeerRole;
     execute?: (
@@ -221,14 +224,16 @@ function fixture(
       },
     },
     cancellation: {
-      cancelModel: async () => "confirmed",
+      cancelModel: async () => options.cancelTarget?.("model") ?? "confirmed",
       cancelTools: async () => {
         if (options.cancelToolsFails) throw new Error("tool still running");
-        return "confirmed";
+        return options.cancelTarget?.("tool") ?? "confirmed";
       },
-      cancelTasks: async () => "not_running",
-      cancelSubagents: async () => "not_running",
-      cancelInteraction: async () => "not_running",
+      cancelTasks: async () => options.cancelTarget?.("task") ?? "not_running",
+      cancelSubagents: async () =>
+        options.cancelTarget?.("subagent") ?? "not_running",
+      cancelInteraction: async () =>
+        options.cancelTarget?.("interaction") ?? "not_running",
     },
     clock: {
       now: () =>
@@ -1339,6 +1344,39 @@ test("continues only from a checkpoint whose complete references match", async (
         | undefined
     )?.resumeKind,
     "manual",
+  );
+});
+
+test("starts every cancellation target before awaiting target cleanup", async () => {
+  let releaseModel!: () => void;
+  const modelBlocked = new Promise<void>((resolve) => {
+    releaseModel = resolve;
+  });
+  const started: string[] = [];
+  const harness = fixture({
+    cancelTarget: async (target) => {
+      started.push(target);
+      if (target === "model") await modelBlocked;
+      return target === "model" || target === "tool"
+        ? "confirmed"
+        : "not_running";
+    },
+  });
+  const run = await start(harness.coordinator);
+  const cancellation = harness.coordinator.cancel(run.runId);
+
+  await waitUntil(() => Promise.resolve(started.length === 5));
+  assert.deepEqual(
+    new Set(started),
+    new Set(["model", "tool", "task", "subagent", "interaction"]),
+  );
+  releaseModel();
+
+  const cancelled = await cancellation;
+  assert.equal(cancelled.status, "cancelled");
+  assert.deepEqual(
+    cancelled.cancellationEvidence.map((item) => item.target),
+    ["model", "tool", "task", "subagent", "interaction"],
   );
 });
 

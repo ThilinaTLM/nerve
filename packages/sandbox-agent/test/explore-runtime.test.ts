@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
+import { ExploreRuntime } from "../src/agent/explore-runtime.js";
 import { SandboxDaemon } from "../src/daemon/sandbox-daemon.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
 
@@ -30,6 +31,30 @@ function config(provider = "nerve-scripted-explore") {
 }
 
 describe("explore runtime", () => {
+  it("does not start a child harness for an already-aborted parent", async () => {
+    const abort = new AbortController();
+    abort.abort();
+    let createCalls = 0;
+    const runtime = new ExploreRuntime({
+      config: config(),
+      createChildHarness: async () => {
+        createCalls += 1;
+        return undefined as never;
+      },
+    });
+
+    await assert.rejects(
+      runtime.execute({
+        conversationId: "conv_abort",
+        agentId: "agent_abort",
+        runId: "run_abort",
+        task: "Do not start",
+        signal: abort.signal,
+      }),
+    );
+    assert.equal(createCalls, 0);
+  });
+
   it("executes a read-only child harness and persists a completed relationship", async () => {
     const provider = "nerve-scripted-explore-complete";
     const registration = registerAgentScriptedProvider({

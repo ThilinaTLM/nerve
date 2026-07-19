@@ -197,7 +197,9 @@ export class WorkbenchTaskService extends TaskService {
     const record = this.getTask(taskId);
     if (record.status === "orphaned")
       return this.cleanupOrphanedTask(record.id, request);
-    if (this.managed.get(taskId)?.stopping) return record;
+    if (this.managed.get(taskId)?.stopping && request.signal !== "SIGKILL") {
+      return record;
+    }
     return this.cancel(taskId, request);
   }
 

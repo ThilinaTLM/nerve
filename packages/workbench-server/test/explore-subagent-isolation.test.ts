@@ -9,6 +9,7 @@ import {
   shutdownOrchestratorState,
 } from "../src/app/orchestrator-state.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
+import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
 
 describe("explore subagent transcript isolation", () => {
   it("keeps child harness messages and tools out of the parent conversation", async () => {
@@ -129,4 +130,91 @@ describe("explore subagent transcript isolation", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("cancels all parallel explore children with their parent run", async () => {
+    const provider = "nerve-scripted-explore-cancellation";
+    const registration = registerAgentScriptedProvider({
+      provider,
+      steps: [
+        {
+          type: "toolCall",
+          id: "explore_cancel_parallel",
+          name: "explore",
+          args: {
+            tasks: [
+              { task: "Wait for cancellation", label: "first" },
+              { task: "Also wait for cancellation", label: "second" },
+            ],
+            context: "Both children must remain active until Stop is used.",
+            split_rationale:
+              "These independent cancellation probes must run in parallel so Stop can be verified across every child.",
+          },
+        },
+        { type: "waitForAbort" },
+        { type: "waitForAbort" },
+      ],
+    });
+    const root = await mkdtemp(join(tmpdir(), "nerve-explore-cancellation-"));
+    const storage = await initializeStorage(root);
+    storage.settings.exploreAgent = {
+      ...storage.settings.exploreAgent,
+      model: { provider, modelId: "scripted-fast" },
+    };
+    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    try {
+      await orchestrator.registry.hydrate();
+      const project = await orchestrator.registry.createProject({ dir: root });
+      const conversation = await orchestrator.registry.createConversation({
+        projectId: project.id,
+      });
+      const parent = await orchestrator.registry.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        model: { provider, modelId: "scripted-fast" },
+      });
+
+      await orchestrator.registry.promptAgent(parent.id, {
+        text: "Start both explore children.",
+      });
+      await waitUntil(() => {
+        const children = orchestrator.registry
+          .listAgents()
+          .filter((agent) => agent.parentAgentId === parent.id);
+        return (
+          children.length === 2 &&
+          children.every((agent) => agent.status === "running")
+        );
+      });
+      await orchestrator.registry.abortAgent(parent.id);
+
+      const children = orchestrator.registry
+        .listAgents()
+        .filter((agent) => agent.parentAgentId === parent.id);
+      assert.equal(children.length, 2);
+      assert.ok(children.every((agent) => agent.status === "aborted"));
+      const [run] = (
+        await new WorkbenchRunUnitOfWork(storage.paths.home, 0).list()
+      ).filter((state) => state.run.agentId === parent.id);
+      assert.equal(run?.run.status, "cancelled");
+      assert.equal(
+        run?.run.cancellationEvidence.find(
+          (evidence) => evidence.target === "subagent",
+        )?.status,
+        "confirmed",
+      );
+    } finally {
+      registration.unregister();
+      await shutdownOrchestratorState(orchestrator);
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
+
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Timed out waiting for explore children");
+}

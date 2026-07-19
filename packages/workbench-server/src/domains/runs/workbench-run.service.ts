@@ -32,7 +32,7 @@ export interface WorkbenchRunFeatureMechanics {
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; parentRunId?: string },
   ): Promise<{
     reports: ExploreReport[];
     contentBlocks: [{ type: "text"; text: string }];
@@ -132,11 +132,34 @@ export class WorkbenchRunService {
     await this.coordinator.continue(runId);
   }
 
+  async abortRun(input: {
+    agentId?: string;
+    runId?: string;
+    reason?: string;
+  }): Promise<void> {
+    const agent = input.agentId ? this.requireAgent(input.agentId) : undefined;
+    const state = input.runId
+      ? await this.unitOfWork.load(input.runId)
+      : agent
+        ? await this.unitOfWork.findActive(this.scopeId(agent))
+        : undefined;
+    if (!state) {
+      if (input.runId) {
+        throw new HttpError(404, "RUN_NOT_FOUND", "Run not found.");
+      }
+      return;
+    }
+    if (agent && state.run.agentId !== agent.id) {
+      throw new HttpError(404, "RUN_NOT_FOUND", "Run not found.");
+    }
+    await this.coordinator.cancel(
+      state.run.runId,
+      input.reason ?? "user requested abort",
+    );
+  }
+
   async abortAgent(agentId: string): Promise<void> {
-    const agent = this.requireAgent(agentId);
-    const state = await this.unitOfWork.findActive(this.scopeId(agent));
-    if (!state) return;
-    await this.coordinator.cancel(state.run.runId, "user requested abort");
+    await this.abortRun({ agentId });
   }
 
   async interactionResolutionStateForToolCall(
@@ -356,7 +379,7 @@ export class WorkbenchRunService {
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; parentRunId?: string },
   ): Promise<{
     reports: ExploreReport[];
     contentBlocks: [{ type: "text"; text: string }];

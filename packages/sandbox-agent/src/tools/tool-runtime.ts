@@ -568,35 +568,49 @@ export class SandboxToolRuntime {
         entry.agentId === scope.agentId &&
         entry.runId === scope.runId,
     );
-    for (const entry of matching) {
-      if (entry.latestStatus === "cancelled") continue;
+    const active = matching.filter(
+      (entry) => entry.latestStatus !== "cancelled",
+    );
+    for (const entry of active) {
       entry.latestStatus = "cancelled";
       entry.lifecycleSeq = Math.max(entry.lifecycleSeq + 1, 3);
       entry.abortController.abort();
-      await entry.cancel?.();
-      await this.record(
-        {
-          toolCallId: entry.toolCallId,
-          toolName: entry.toolName,
-          status: "cancelled",
-          lifecycleSeq: entry.lifecycleSeq,
-        },
-        scope,
-      );
     }
-    for (const task of (await this.options.taskService?.cancelRun(scope)) ??
-      []) {
-      if (task.origin.kind !== "agent_tool") continue;
-      await this.record(
-        {
-          toolCallId: task.origin.toolCallId,
-          toolName: "task_start",
-          status: "cancelled",
-          lifecycleSeq: 3,
-        },
-        scope,
-      );
-    }
+    const entryCancellation = Promise.all(
+      active.map(async (entry) => {
+        await entry.cancel?.();
+        await this.record(
+          {
+            toolCallId: entry.toolCallId,
+            toolName: entry.toolName,
+            status: "cancelled",
+            lifecycleSeq: entry.lifecycleSeq,
+          },
+          scope,
+        );
+      }),
+    );
+    const taskCancellation =
+      this.options.taskService?.cancelRun(scope) ?? Promise.resolve([]);
+    const [, tasks] = await Promise.all([entryCancellation, taskCancellation]);
+    await Promise.all(
+      tasks
+        .filter((task) => task.origin.kind === "agent_tool")
+        .map((task) =>
+          this.record(
+            {
+              toolCallId:
+                task.origin.kind === "agent_tool"
+                  ? task.origin.toolCallId
+                  : undefined,
+              toolName: "task_start",
+              status: "cancelled",
+              lifecycleSeq: 3,
+            },
+            scope,
+          ),
+        ),
+    );
   }
 
   private registerActive(

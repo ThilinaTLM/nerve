@@ -131,6 +131,7 @@ export type ExploreRunner = (
   options?: {
     onProgress?: (update: ExploreProgressUpdate) => void;
     signal?: AbortSignal;
+    parentRunId?: string;
   },
 ) => Promise<ExploreRunResult>;
 

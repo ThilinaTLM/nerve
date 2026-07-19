@@ -36,7 +36,7 @@ export async function runCancellationScenarios(
           name: "bash",
           args: {
             command:
-              'node -e "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)"',
+              "node -e \"process.on('SIGTERM',()=>{}); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,5000)\"",
             timeout: 10,
           },
         },
@@ -45,7 +45,12 @@ export async function runCancellationScenarios(
     },
     async (session, runId) => {
       await session.waitForToolStatus(runId, "running");
+      const startedAt = Date.now();
       await session.cancel(runId);
+      invariant(
+        Date.now() - startedAt < 2_000,
+        "Run cancellation waited for graceful process timeout",
+      );
     },
   );
   assertions += 4;

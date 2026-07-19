@@ -333,11 +333,12 @@ export class TaskService {
   ): Promise<TaskRecord> {
     let requested = false;
     const initial = await this.transition(id, async (task) => {
-      if (
-        (isTerminalTaskStatus(task.status) && task.status !== "orphaned") ||
-        task.status === "stopping"
-      )
+      if (isTerminalTaskStatus(task.status) && task.status !== "orphaned") {
         return task;
+      }
+      const hardEscalation =
+        task.status === "stopping" && options.signal === "SIGKILL";
+      if (task.status === "stopping" && !hardEscalation) return task;
       requested = true;
       this.stopReasons.set(id, "cancelled");
       task.status = "stopping";
@@ -354,7 +355,7 @@ export class TaskService {
     await this.ports.process.signal(initial, options);
     const timeoutMs = options.timeoutMs ?? this.ports.stopTimeoutMs ?? 5_000;
     let evidence = await this.waitForExit(initial, timeoutMs);
-    if (evidence === "timeout") {
+    if (evidence === "timeout" && options.signal !== "SIGKILL") {
       await this.ports.process.signal(initial, {
         ...options,
         signal: "SIGKILL",

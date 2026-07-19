@@ -1,6 +1,6 @@
 import type { RunRecord } from "@nervekit/contracts";
 import type { RunCancellationPort } from "@nervekit/host-runtime";
-import type { RuntimeState } from "../../runtime/runtime-state.js";
+import type { WorkbenchSubagentExecutions } from "../agents/run/workbench-subagent-executions.js";
 import { isActiveTaskStatus } from "../tasks/index.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import type { ToolService } from "../tools/tool-service.js";
@@ -10,21 +10,13 @@ import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 type Evidence = "confirmed" | "not_running";
 
 export class WorkbenchRunCancellation implements RunCancellationPort {
-  private cancelRun?: (runId: string, reason?: string) => Promise<unknown>;
-
   constructor(
     private readonly live: WorkbenchLiveExecutions,
     private readonly tools: ToolService,
     private readonly tasks: WorkbenchTaskService,
-    private readonly state: RuntimeState,
+    private readonly subagents: WorkbenchSubagentExecutions,
     private readonly unitOfWork: WorkbenchRunUnitOfWork,
   ) {}
-
-  bindCancelRun(
-    cancelRun: (runId: string, reason?: string) => Promise<unknown>,
-  ) {
-    this.cancelRun = cancelRun;
-  }
 
   async cancelModel(run: RunRecord): Promise<Evidence> {
     const control = this.live.get(run.runId);
@@ -70,40 +62,30 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
           isActiveTaskStatus(task.status),
       );
     if (active.length === 0) return "not_running";
-    for (const task of active) {
-      await this.tasks.cancelTask(task.id, { timeoutMs: 5000 });
-      if (isActiveTaskStatus(this.tasks.getTask(task.id).status)) {
-        throw new Error(
-          `Task ${task.id} did not produce process-exit evidence`,
-        );
-      }
+    const cancelled = await Promise.all(
+      active.map((task) =>
+        this.tasks.cancelTask(task.id, {
+          signal: "SIGKILL",
+          timeoutMs: 5000,
+          reason: "Run cancelled.",
+        }),
+      ),
+    );
+    const unconfirmed = cancelled.find((task) =>
+      isActiveTaskStatus(this.tasks.getTask(task.id).status),
+    );
+    if (unconfirmed) {
+      throw new Error(
+        `Task ${unconfirmed.id} did not produce process-exit evidence`,
+      );
     }
     return "confirmed";
   }
 
   async cancelSubagents(run: RunRecord): Promise<Evidence> {
-    const childAgents = [...this.state.agents.values()].filter(
-      (agent) => agent.parentAgentId === run.agentId,
-    );
-    if (childAgents.length === 0) return "not_running";
-    // Check each child's active scope directly instead of listing all runs.
-    const children = [];
-    for (const child of childAgents) {
-      const active = await this.unitOfWork.findActive(
-        `${child.conversationId}:${child.id}`,
-      );
-      if (active) children.push(active);
-    }
-    if (children.length === 0) return "not_running";
-    if (!this.cancelRun)
-      throw new Error("Child run cancellation is unavailable");
-    for (const child of children) {
-      await this.cancelRun(
-        child.run.runId,
-        `parent run ${run.runId} cancelled`,
-      );
-    }
-    return "confirmed";
+    return (await this.subagents.cancelRun(run.runId)) > 0
+      ? "confirmed"
+      : "not_running";
   }
 
   async cancelInteraction(run: RunRecord): Promise<Evidence> {

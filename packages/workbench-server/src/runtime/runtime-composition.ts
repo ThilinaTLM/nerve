@@ -13,6 +13,7 @@ import {
   MessageMirror,
 } from "../domains/agents/run/index.js";
 import type { AuthManager } from "../domains/auth/index.js";
+import { WorkbenchSubagentExecutions } from "../domains/agents/run/workbench-subagent-executions.js";
 import { ConversationService } from "../domains/conversations/conversation-service.js";
 import { ConversationHarnessStorage } from "../domains/conversations/conversation-harness-storage.js";
 import {
@@ -120,6 +121,7 @@ export function composeRuntime(
   const { storage, events, index, auth, secrets, subscriptionUsage, logger } =
     deps;
   const services = {} as RuntimeServices;
+  const subagentExecutions = new WorkbenchSubagentExecutions();
 
   const getProject = (projectId: string) =>
     services.projectLifecycle.getProject(projectId);
@@ -400,6 +402,7 @@ export function composeRuntime(
     messageMirror: services.messageMirror,
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
+    subagentExecutions,
   });
   services.runRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
@@ -408,6 +411,7 @@ export function composeRuntime(
     tools: services.tools,
     tasks: services.tasks,
     harnessStorage: services.harnessStorage,
+    subagentExecutions,
     execution: (references) =>
       new WorkbenchAgentExecutionAdapter(services.agentMechanics, references),
     retryPolicy: {

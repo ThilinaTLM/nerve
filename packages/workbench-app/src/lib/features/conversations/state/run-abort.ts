@@ -14,7 +14,7 @@ export interface AbortableConversationView {
 export interface AbortActiveRunDeps {
   agentId(): string | undefined;
   view(conversationId?: string): AbortableConversationView | undefined;
-  cancelRun(agentId: string): Promise<void>;
+  cancelRun(agentId: string, runId?: string): Promise<void>;
   notifyError(title: string, options: { description: string }): void;
 }
 
@@ -55,7 +55,7 @@ export function createAbortActiveRun(
     }
     cancellationsInFlight.add(agentId);
     try {
-      await deps.cancelRun(agentId);
+      await deps.cancelRun(agentId, targetRunId);
     } catch (caught) {
       const current = conversationId ? deps.view(conversationId) : undefined;
       const targetStillProjected = Boolean(

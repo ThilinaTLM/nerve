@@ -202,6 +202,7 @@ export class OrchestrationToolDispatcher {
                 onProgress: (message) =>
                   this.publishExploreProgress(toolCall, message, options.runId),
                 signal,
+                parentRunId: toolCall.runId,
               },
             ),
           ),

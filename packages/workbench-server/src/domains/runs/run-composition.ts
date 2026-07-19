@@ -10,6 +10,7 @@ import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
+import type { WorkbenchSubagentExecutions } from "../agents/run/workbench-subagent-executions.js";
 import type { ToolService } from "../tools/tool-service.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
 import { WorkbenchRunCancellation } from "./run-cancellation.js";
@@ -43,6 +44,7 @@ export function createWorkbenchRunRuntime(input: {
   tools: ToolService;
   tasks: WorkbenchTaskService;
   harnessStorage: ConversationHarnessStorage;
+  subagentExecutions: WorkbenchSubagentExecutions;
   execution:
     | WorkbenchRunExecutionAdapter
     | ((references: WorkbenchRunReferences) => WorkbenchRunExecutionAdapter);
@@ -71,7 +73,7 @@ export function createWorkbenchRunRuntime(input: {
     live,
     input.tools,
     input.tasks,
-    input.state,
+    input.subagentExecutions,
     unitOfWork,
   );
   const adapter =
@@ -98,9 +100,6 @@ export function createWorkbenchRunRuntime(input: {
     transitionObserver: statusProjector,
     diagnostics: diagnostics(input.logger),
   });
-  cancellation.bindCancelRun((runId, reason) =>
-    coordinator.cancel(runId, reason),
-  );
   return {
     coordinator,
     unitOfWork,

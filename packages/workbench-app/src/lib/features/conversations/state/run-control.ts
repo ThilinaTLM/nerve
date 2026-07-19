@@ -99,10 +99,10 @@ export const abortActiveRun = createAbortActiveRun({
     conversationId
       ? conversationState.conversationViews[conversationViewKey(conversationId)]
       : undefined,
-  cancelRun: async (agentId) => {
+  cancelRun: async (agentId, runId) => {
     await protocolRequest(
       "run.cancel",
-      { agentId },
+      { agentId, runId },
       { idempotencyKey: crypto.randomUUID() },
     );
   },

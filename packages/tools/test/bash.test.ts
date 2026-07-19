@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { executeBash } from "../src/execution/index.js";
 import { createTempProject, writeExecutable } from "./helpers.js";
@@ -13,6 +14,30 @@ describe("bash executor", () => {
       /command.*non-empty string/,
     );
   });
+
+  async function waitForFile(path: string): Promise<string> {
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline) {
+      const value = await readFile(path, "utf8").catch(() => undefined);
+      if (value) return value;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error(`Timed out waiting for ${path}`);
+  }
+
+  async function waitForProcessExit(pid: number): Promise<void> {
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline) {
+      try {
+        process.kill(pid, 0);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error(`Process ${pid} survived abort`);
+  }
 
   it("uses non-interactive pager-safe environment defaults", async () => {
     const project = await createTempProject();
@@ -175,6 +200,29 @@ describe("bash executor", () => {
     assert.match(result.content ?? "", /timed out/);
     const details = result.details as { timedOut?: boolean };
     assert.equal(details.timedOut, true);
+  });
+
+  it("force-kills the process tree when execution is aborted", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX process-group assertion");
+      return;
+    }
+    const project = await createTempProject();
+    const pidPath = join(project.root, "abort.pid");
+    const abort = new AbortController();
+    const execution = executeBash(
+      {
+        command: `${node} -e ${JSON.stringify(
+          `require("node:fs").writeFileSync(${JSON.stringify(pidPath)}, String(process.pid)); process.on("SIGTERM", () => {}); setInterval(() => {}, 1000);`,
+        )}`,
+      },
+      { cwd: project.root, signal: abort.signal },
+    );
+    const pid = Number(await waitForFile(pidPath));
+
+    abort.abort();
+    await assert.rejects(execution, /aborted/i);
+    await waitForProcessExit(pid);
   });
 
   it("normalizes non-zero commands instead of throwing", async () => {

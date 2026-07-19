@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { boundLiveOutputChunk } from "../common/output-budget.js";
+import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
 import { pathNotFoundMessage, resolveToolPath } from "../filesystem/path.js";
 
@@ -416,7 +417,7 @@ async function runPythonProcess({
     };
     const onAbort = () => {
       if (settled) return;
-      kill();
+      forceKillProcessTree(child);
       settled = true;
       cleanup();
       reject(new Error("Python execution aborted."));

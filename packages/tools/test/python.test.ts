@@ -23,6 +23,30 @@ async function runtimeOrSkip(
   };
 }
 
+async function waitForFile(path: string): Promise<string> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const value = await readFile(path, "utf8").catch(() => undefined);
+    if (value) return value;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for ${path}`);
+}
+
+async function waitForProcessExit(pid: number): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Process ${pid} survived abort`);
+}
+
 describe("python executor", () => {
   it("rejects missing, empty, or conflicting source inputs", async (t) => {
     const runtime = await runtimeOrSkip(t);
@@ -428,6 +452,38 @@ describe("python executor", () => {
       .artifacts;
     assert.equal(artifacts?.length, 1);
     assert.equal(await readFile(artifacts?.[0]?.path ?? "", "utf8"), "ok");
+  });
+
+  it("force-kills Python when execution is aborted", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX process-group assertion");
+      return;
+    }
+    const runtime = await runtimeOrSkip(t);
+    if (!runtime) return;
+    const project = await createTempProject();
+    const pidPath = join(project.root, "abort.pid");
+    const abort = new AbortController();
+    const execution = executePython(
+      {
+        code: [
+          "import os, signal, time",
+          "open('abort.pid', 'w').write(str(os.getpid()))",
+          "signal.signal(signal.SIGTERM, lambda *_: None)",
+          "while True: time.sleep(1)",
+        ].join("\n"),
+      },
+      {
+        cwd: project.root,
+        pythonRuntime: runtime,
+        signal: abort.signal,
+      },
+    );
+    const pid = Number(await waitForFile(pidPath));
+
+    abort.abort();
+    await assert.rejects(execution, /aborted/i);
+    await waitForProcessExit(pid);
   });
 
   it("times out long-running code with structured metadata", async (t) => {

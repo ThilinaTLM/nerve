@@ -570,8 +570,16 @@ export class RuntimeRegistry {
     return this.workbenchRun.promptAgent(agentId, request);
   }
 
+  async abortRun(input: {
+    agentId?: string;
+    runId?: string;
+    reason?: string;
+  }): Promise<void> {
+    return this.workbenchRun.abortRun(input);
+  }
+
   async abortAgent(agentId: string): Promise<void> {
-    return this.workbenchRun.abortAgent(agentId);
+    return this.abortRun({ agentId });
   }
 
   async continueRun(agentId: string, runId: string): Promise<void> {

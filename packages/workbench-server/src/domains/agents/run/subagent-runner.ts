@@ -38,6 +38,7 @@ import type {
   ToolService,
 } from "../../tools/tool-service.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
+import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 
 export { exploreRunPlanArg, exploreSystemPrompt } from "./explore-helpers.js";
@@ -89,6 +90,7 @@ export interface SubagentRunSpec {
   taskCount?: number;
   onProgress?: (update: ExploreProgressUpdate) => void;
   signal?: AbortSignal;
+  parentRunId?: string;
 }
 
 export type ExploreStatus = "completed" | "failed" | "aborted";
@@ -154,6 +156,7 @@ export interface SubagentRunnerDeps {
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
+  executions: WorkbenchSubagentExecutions;
 }
 
 export class SubagentRunner {
@@ -165,6 +168,7 @@ export class SubagentRunner {
     options: {
       onProgress?: (update: ExploreProgressUpdate) => void;
       signal?: AbortSignal;
+      parentRunId?: string;
     } = {},
   ): Promise<{
     reports: ExploreReport[];
@@ -221,6 +225,7 @@ export class SubagentRunner {
           taskCount: tasks.length,
           onProgress: options.onProgress,
           signal: options.signal,
+          parentRunId: options.parentRunId,
         });
         const reportPath = await this.writeExploreReport({
           batchId,
@@ -331,15 +336,33 @@ export class SubagentRunner {
     });
 
     const runId = createId("run");
+    const abortController = new AbortController();
+    const abortFromParent = () => abortController.abort(spec.signal?.reason);
+    if (spec.signal?.aborted) abortFromParent();
+    else
+      spec.signal?.addEventListener("abort", abortFromParent, { once: true });
+    const signal = abortController.signal;
     const steps: ExploreStepPayload[] = [];
     let usage = emptyExploreUsage();
     let modelId: string | undefined;
     let stopReason: string | undefined;
     let errorMessage: string | undefined;
     let abortRequested = false;
-    let removeSignalListener: (() => void) | undefined;
+    let harness: AgentHarness | undefined;
+    let abortPromise: Promise<unknown> | undefined;
+    const abortRun = async () => {
+      abortRequested = true;
+      abortController.abort();
+      if (harness) {
+        abortPromise ??= harness.abort();
+        await abortPromise;
+      }
+    };
+    const unregister = spec.parentRunId
+      ? this.deps.executions.register(spec.parentRunId, runId, abortRun)
+      : undefined;
     try {
-      throwIfAborted(spec.signal);
+      throwIfAborted(signal);
       await this.deps.setAgentStatus(child, "running");
       const storage = await this.openChildStorage(child, spec.historyMode);
       const conversation = new Conversation(storage);
@@ -351,7 +374,7 @@ export class SubagentRunner {
       });
       const resources = await loadHarnessResources(child.projectDir);
       const activeToolNames = activeToolNamesForExploreAgent();
-      const harness = new AgentHarness({
+      harness = new AgentHarness({
         env,
         conversation,
         resources: { skills: resources.skills },
@@ -398,21 +421,12 @@ export class SubagentRunner {
           if (metadata.errorMessage) errorMessage = metadata.errorMessage;
         }
       });
-      let abortPromise: Promise<unknown> | undefined;
-      const abortRun = async () => {
-        abortRequested = true;
-        abortPromise ??= harness.abort();
-        await abortPromise;
-      };
       const onSignalAbort = () => {
-        void abortRun();
+        abortRequested = true;
+        void harness?.abort();
       };
-      if (spec.signal) {
-        spec.signal.addEventListener("abort", onSignalAbort, { once: true });
-        removeSignalListener = () =>
-          spec.signal?.removeEventListener("abort", onSignalAbort);
-      }
-      throwIfAborted(spec.signal);
+      signal.addEventListener("abort", onSignalAbort, { once: true });
+      throwIfAborted(signal);
       const assistant = await harness.prompt(spec.prompt);
       if (usage.turns === 0) {
         const metadata = exploreAssistantMetadata(assistant);
@@ -450,7 +464,7 @@ export class SubagentRunner {
         steps,
       };
     } catch (error) {
-      const aborted = abortRequested || spec.signal?.aborted === true;
+      const aborted = abortRequested || signal.aborted;
       await this.deps
         .setAgentStatus(child, aborted ? "aborted" : "error")
         .catch(() => undefined);
@@ -489,7 +503,8 @@ export class SubagentRunner {
         steps,
       };
     } finally {
-      removeSignalListener?.();
+      unregister?.();
+      spec.signal?.removeEventListener("abort", abortFromParent);
       await this.deps.updateConversation({
         ...this.deps.getConversation(spec.parent.conversationId),
         activeAgentId: spec.parent.id,

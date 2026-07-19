@@ -46,6 +46,7 @@ import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
 import type { WorkbenchLiveExecutionControl } from "../../runs/run-live-executions.js";
+import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 
 export interface WorkbenchAgentMechanicsDeps {
   storage: InitializedStorage;
@@ -72,6 +73,7 @@ export interface WorkbenchAgentMechanicsDeps {
   messageMirror: MessageMirror;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
+  subagentExecutions: WorkbenchSubagentExecutions;
 }
 
 export class WorkbenchAgentMechanics {
@@ -93,6 +95,7 @@ export class WorkbenchAgentMechanics {
       updateConversation: deps.updateConversation,
       subscriptionUsage: deps.subscriptionUsage,
       logger: deps.logger.child({ component: "subagent-runner" }),
+      executions: deps.subagentExecutions,
     });
     this.inlineCommands = new InlineCommandRunner(deps);
     this.autoCompaction = new AutoCompactionRunner(deps);
@@ -141,6 +144,7 @@ export class WorkbenchAgentMechanics {
     options: {
       onProgress?: (update: ExploreProgressUpdate) => void;
       signal?: AbortSignal;
+      parentRunId?: string;
     } = {},
   ): Promise<{
     reports: ExploreReport[];

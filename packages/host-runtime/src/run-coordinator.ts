@@ -598,26 +598,28 @@ export class RunCoordinator {
     });
     if (TERMINAL_STATUSES.has(requested.status)) return requested;
     this.live.get(runId)?.abort.abort(reason);
-    const evidence: RunRecord["cancellationEvidence"] = [];
-    for (const target of targets) {
-      try {
-        const status = await cancelRunTarget(
-          target,
-          requested,
-          this.ports.cancellation,
-          this.live.get(runId)?.execution,
-          reason,
-        );
-        evidence.push({ target, status, checkedAt: this.now() });
-      } catch (error) {
-        evidence.push({
-          target,
-          status: "failed" as const,
-          checkedAt: this.now(),
-          message: errorMessage(error).slice(0, 500),
-        });
-      }
-    }
+    const execution = this.live.get(runId)?.execution;
+    const evidence = await Promise.all(
+      targets.map(async (target) => {
+        try {
+          const status = await cancelRunTarget(
+            target,
+            requested,
+            this.ports.cancellation,
+            execution,
+            reason,
+          );
+          return { target, status, checkedAt: this.now() };
+        } catch (error) {
+          return {
+            target,
+            status: "failed" as const,
+            checkedAt: this.now(),
+            message: errorMessage(error).slice(0, 500),
+          };
+        }
+      }),
+    );
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);
       if (TERMINAL_STATUSES.has(state.run.status)) return state.run;
