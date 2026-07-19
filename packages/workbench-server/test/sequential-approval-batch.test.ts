@@ -8,7 +8,7 @@ import type {
   RunInteractionRecord,
   ToolCallRecord,
 } from "@nervekit/contracts";
-import { waitForSequentialToolApprovalBatch } from "../src/domains/agents/run/sequential-tool-approval-batch.js";
+import { waitForSequentialToolInteractionBatch } from "../src/domains/agents/run/sequential-tool-approval-batch.js";
 import { HumanInputResolutionService } from "../src/domains/human-input/human-input-resolution.service.js";
 import type { ApprovalInteractionBatch } from "../src/domains/runs/workbench-run.service.js";
 
@@ -26,7 +26,7 @@ describe("sequential approval batches", () => {
     > = [];
     const requestOptions: Array<Record<string, unknown>> = [];
 
-    await waitForSequentialToolApprovalBatch({
+    await waitForSequentialToolInteractionBatch({
       agent: testAgent,
       runId: "run_batch",
       suspension: {
@@ -109,6 +109,128 @@ describe("sequential approval batches", () => {
       ["tool_first", "tool_second"],
     );
     assert.deepEqual(waitBatches[0]?.[0]?.batchToolCallIds, [
+      "tool_first",
+      "tool_second",
+    ]);
+  });
+
+  it("stages every ask_user call as an actionable question in one wait batch", async () => {
+    const primary = {
+      ...toolCall("tool_first", "provider_first"),
+      toolName: "ask_user" as const,
+      status: "waiting_for_user" as const,
+      approvalId: undefined,
+      args: { question: "First?" },
+    };
+    const staged = {
+      ...toolCall("tool_second", "provider_second"),
+      toolName: "ask_user" as const,
+      status: "waiting_for_user" as const,
+      approvalId: undefined,
+      args: { question: "Second?" },
+    };
+    const questions = [
+      {
+        id: "question_first",
+        toolCallId: primary.id,
+        question: "First?",
+        context: undefined,
+        placeholder: undefined,
+      },
+      {
+        id: "question_second",
+        toolCallId: staged.id,
+        question: "Second?",
+        context: "Second context",
+        placeholder: "Second answer",
+      },
+    ];
+    const waitBatches: Array<
+      readonly {
+        kind: string;
+        interactionId?: string;
+        toolCallId: string;
+        batchToolCallIds?: readonly string[];
+      }[]
+    > = [];
+    let forceApproval: unknown;
+
+    await waitForSequentialToolInteractionBatch({
+      agent: testAgent,
+      runId: "run_batch",
+      suspension: {
+        toolCallId: primary.id,
+        toolName: primary.toolName,
+        reason: "Waiting for first answer",
+        remainingToolCalls: [
+          {
+            type: "toolCall",
+            id: "provider_second",
+            name: "ask_user",
+            arguments: { question: "Second?" },
+          },
+        ],
+      },
+      deps: {
+        tools: {
+          getToolCall: () => primary,
+          requestTool: async (
+            _agent: AgentRecord,
+            _toolName: string,
+            _args: Record<string, unknown>,
+            options: Record<string, unknown>,
+          ) => {
+            forceApproval = options.forceApproval;
+            return { toolCall: staged };
+          },
+          listApprovals: () => [],
+          listUserQuestions: () => questions,
+        },
+        plans: { listPlanReviews: () => [] },
+        state: {
+          conversationRuntime: {
+            resolveToolAnchor: () => undefined,
+          },
+        },
+      } as never,
+      sink: {
+        upsertToolCalls: async () => undefined,
+        waitMany: async (commands: readonly never[]) => {
+          waitBatches.push(commands);
+          return [];
+        },
+      } as never,
+      checkpointCommand: async () => ({
+        boundary: "suspension",
+        transcriptCursor: 0,
+        entryIds: [],
+        harnessLeafId: null,
+        harnessSavePointId: "save_batch",
+        toolCalls: [],
+      }),
+    });
+
+    assert.equal(forceApproval, false);
+    assert.deepEqual(
+      waitBatches[0]?.map((command) => ({
+        kind: command.kind,
+        interactionId: command.interactionId,
+        toolCallId: command.toolCallId,
+      })),
+      [
+        {
+          kind: "question",
+          interactionId: "question_first",
+          toolCallId: "tool_first",
+        },
+        {
+          kind: "question",
+          interactionId: "question_second",
+          toolCallId: "tool_second",
+        },
+      ],
+    );
+    assert.deepEqual(waitBatches[0]?.[1]?.batchToolCallIds, [
       "tool_first",
       "tool_second",
     ]);

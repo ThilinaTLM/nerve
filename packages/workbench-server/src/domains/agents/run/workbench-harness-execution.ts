@@ -44,7 +44,7 @@ import {
   isRetryableAssistantError,
 } from "./harness-execution-shared.js";
 import { expandExecutablePromptBlocks } from "./prompt-block-expansion.js";
-import { waitForSequentialToolApprovalBatch } from "./sequential-tool-approval-batch.js";
+import { waitForSequentialToolInteractionBatch } from "./sequential-tool-approval-batch.js";
 import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,
@@ -734,7 +734,7 @@ export async function executeWorkbenchHarness(
     };
   } catch (error) {
     if (isAgentToolSuspension(error)) {
-      await waitForSequentialToolApprovalBatch({
+      await waitForSequentialToolInteractionBatch({
         agent,
         runId,
         suspension: error.data,

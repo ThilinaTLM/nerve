@@ -3,4 +3,4 @@
 - Keep shared API, event, policy, and storage schemas in `packages/contracts`; keep protocol types transport-neutral.
 - Use the official shadcn-svelte components in `packages/ui-kit/src/lib/components/ui`; style only with shadcn theme tokens and Tailwind token utilities (+ `success`/`warning`/`info`) for colors, typography, spacing, radius, and shadows. Avoid hard-coded colors, font sizes, spacing, and one-off visual constants unless there is a documented exception. Use `@lucide/svelte` for icons and keep mono for code/logs/paths only. Shared global CSS and design tokens live in `packages/ui-kit/src/styles/` (entry `app.css`); apps import that entry and add only app-specific partials. See `packages/workbench-app/AGENTS.md` for the full styling conventions (two-tier model, escape-hatch list, `:global` policy).
 - Before completing code changes, run `pnpm fix && pnpm check && pnpm test` in one Bash tool call, fix any failures, then rerun the full chain.
-- Not everything needs to have unit tests but the important parts.
+- Keep the automated test suite limited to only the important parts. Not everything needs to have automated tests.

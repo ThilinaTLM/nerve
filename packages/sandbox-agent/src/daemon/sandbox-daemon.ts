@@ -590,12 +590,24 @@ export class SandboxDaemon {
         // Resolve the durable interaction, then resume from its checkpoint. The
         // harness re-runs ask_user, whose resolve callback reads this durable
         // resolution and returns the answer without a manual transcript write.
-        await coordinator.resolveInteraction(interaction.runId, {
-          interactionId: input.questionId,
-          resolutionRequestId: accepted.requestId,
-          resolution: { text: input.answer },
-        });
-        await coordinator.continue(interaction.runId);
+        const resolved = await coordinator.resolveInteraction(
+          interaction.runId,
+          {
+            interactionId: input.questionId,
+            resolutionRequestId: accepted.requestId,
+            resolution: { text: input.answer },
+          },
+        );
+        const state = await this.runRuntime!.references.loadRun(
+          interaction.runId,
+        );
+        const hasPendingSibling = state?.interactions.some(
+          (candidate) =>
+            candidate.id !== resolved.id &&
+            candidate.checkpointId === resolved.checkpointId &&
+            candidate.status === "pending",
+        );
+        if (!hasPendingSibling) await coordinator.continue(interaction.runId);
       } catch (error) {
         if (error instanceof SandboxOperationError) throw error;
         const mapped = mapWaitError(error, "UNKNOWN_INPUT_REQUEST");
@@ -624,15 +636,27 @@ export class SandboxDaemon {
         );
         if (!interaction || interaction.kind !== "question")
           throw new Error(`Unknown input request: ${input.questionId}`);
-        await coordinator.resolveInteraction(interaction.runId, {
-          interactionId: input.questionId,
-          resolutionRequestId: accepted.requestId,
-          resolution: {
-            dismissed: true,
-            dismissedReason: input.reason ?? "Dismissed by user.",
+        const resolved = await coordinator.resolveInteraction(
+          interaction.runId,
+          {
+            interactionId: input.questionId,
+            resolutionRequestId: accepted.requestId,
+            resolution: {
+              dismissed: true,
+              dismissedReason: input.reason ?? "Dismissed by user.",
+            },
           },
-        });
-        await coordinator.continue(interaction.runId);
+        );
+        const state = await this.runRuntime!.references.loadRun(
+          interaction.runId,
+        );
+        const hasPendingSibling = state?.interactions.some(
+          (candidate) =>
+            candidate.id !== resolved.id &&
+            candidate.checkpointId === resolved.checkpointId &&
+            candidate.status === "pending",
+        );
+        if (!hasPendingSibling) await coordinator.continue(interaction.runId);
       } catch (error) {
         if (error instanceof SandboxOperationError) throw error;
         throw mapWaitError(error, "UNKNOWN_INPUT_REQUEST");
@@ -744,16 +768,28 @@ export class SandboxDaemon {
         });
         // Resolve the durable interaction and resume from its checkpoint; the
         // harness re-runs plan_mode_present, which returns the review result.
-        await coordinator.resolveInteraction(interaction.runId, {
-          interactionId: input.reviewId,
-          resolutionRequestId: accepted.requestId,
-          resolution: {
-            decision,
-            feedback: input.feedback,
-            planReview: planRecord?.review,
+        const resolved = await coordinator.resolveInteraction(
+          interaction.runId,
+          {
+            interactionId: input.reviewId,
+            resolutionRequestId: accepted.requestId,
+            resolution: {
+              decision,
+              feedback: input.feedback,
+              planReview: planRecord?.review,
+            },
           },
-        });
-        await coordinator.continue(interaction.runId);
+        );
+        const state = await this.runRuntime!.references.loadRun(
+          interaction.runId,
+        );
+        const hasPendingSibling = state?.interactions.some(
+          (candidate) =>
+            candidate.id !== resolved.id &&
+            candidate.checkpointId === resolved.checkpointId &&
+            candidate.status === "pending",
+        );
+        if (!hasPendingSibling) await coordinator.continue(interaction.runId);
         const resultEnvelope = {
           accepted: true,
           ...scope,
@@ -804,15 +840,27 @@ export class SandboxDaemon {
         );
         if (!interaction)
           throw new Error(`Unknown approval request: ${input.approvalId}`);
-        await coordinator.resolveInteraction(interaction.runId, {
-          interactionId: input.approvalId,
-          resolutionRequestId: accepted.requestId,
-          resolution: {
-            decision: decision === "grant" ? "allow" : "deny",
-            selectedScope: input.selectedScope,
+        const resolved = await coordinator.resolveInteraction(
+          interaction.runId,
+          {
+            interactionId: input.approvalId,
+            resolutionRequestId: accepted.requestId,
+            resolution: {
+              decision: decision === "grant" ? "allow" : "deny",
+              selectedScope: input.selectedScope,
+            },
           },
-        });
-        await coordinator.continue(interaction.runId);
+        );
+        const state = await this.runRuntime!.references.loadRun(
+          interaction.runId,
+        );
+        const hasPendingSibling = state?.interactions.some(
+          (candidate) =>
+            candidate.id !== resolved.id &&
+            candidate.checkpointId === resolved.checkpointId &&
+            candidate.status === "pending",
+        );
+        if (!hasPendingSibling) await coordinator.continue(interaction.runId);
       } catch (error) {
         if (error instanceof SandboxOperationError) throw error;
         const mapped = mapWaitError(error, "UNKNOWN_APPROVAL");

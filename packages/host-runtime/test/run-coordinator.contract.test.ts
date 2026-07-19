@@ -1072,7 +1072,7 @@ test("resolves an interaction once and rejects conflicting resolution", async ()
   );
 });
 
-test("waits for and resolves an approval batch atomically in assistant order", async () => {
+test("keeps an interaction batch waiting until every member resolves", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);
   const batchToolCallIds = ["tool_first", "tool_second"];
@@ -1116,52 +1116,43 @@ test("waits for and resolves an approval batch atomically in assistant order", a
       ?.events.filter((event) => event.type === "run.waiting").length,
     2,
   );
-  await assert.rejects(
-    harness.coordinator.resolveInteraction(run.runId, {
-      interactionId: "approval_second",
-      resolutionRequestId: "partial",
-      resolution: { decision: "allow" },
-    }),
-    /resolved together/,
-  );
+  const second = await harness.coordinator.resolveInteraction(run.runId, {
+    interactionId: "approval_second",
+    resolutionRequestId: "partial",
+    resolution: { decision: "allow" },
+  });
+  assert.equal(second.status, "resolved");
+  state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.status, "waiting");
+  assert.equal(state?.run.activeInteractionId, "approval_first");
+  assert.deepEqual(harness.controlContinues, []);
   await assert.rejects(
     harness.coordinator.continue(run.runId),
     /All interactions must be resolved/,
   );
-  assert.deepEqual(harness.controlContinues, []);
 
-  const commands = [
-    {
-      interactionId: "approval_first",
-      resolutionRequestId: "batch_request",
-      resolution: { decision: "allow" },
-    },
-    {
-      interactionId: "approval_second",
-      resolutionRequestId: "batch_request",
-      resolution: { decision: "deny" },
-    },
-  ];
-  const resolved = await harness.coordinator.resolveInteractionBatch(
-    run.runId,
-    commands,
-  );
-  assert.deepEqual(
-    resolved.map((interaction) => interaction.toolCallId),
-    batchToolCallIds,
-  );
+  await harness.coordinator.resolveInteraction(run.runId, {
+    interactionId: "approval_first",
+    resolutionRequestId: "final",
+    resolution: { decision: "deny" },
+  });
   state = await harness.coordinator.get(run.runId);
   assert.equal(state?.run.status, "suspended");
   assert.equal(state?.run.activeInteractionId, undefined);
   assert.deepEqual(harness.controlContinues, [1]);
 
-  await harness.coordinator.resolveInteractionBatch(run.runId, commands);
+  await harness.coordinator.resolveInteraction(run.runId, {
+    interactionId: "approval_first",
+    resolutionRequestId: "final",
+    resolution: { decision: "deny" },
+  });
   assert.deepEqual(harness.controlContinues, [1]);
   await assert.rejects(
-    harness.coordinator.resolveInteractionBatch(run.runId, [
-      commands[0]!,
-      { ...commands[1]!, resolution: { decision: "allow" } },
-    ]),
+    harness.coordinator.resolveInteraction(run.runId, {
+      interactionId: "approval_second",
+      resolutionRequestId: "conflict",
+      resolution: { decision: "deny" },
+    }),
     RunConflictError,
   );
 });

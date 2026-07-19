@@ -223,6 +223,99 @@ describe("sandbox input wait/recovery with scripted provider", () => {
     }
   });
 
+  it("waits for every ask_user call in a provider batch before continuing", async () => {
+    const registration = registerAgentScriptedProvider({
+      steps: [
+        {
+          type: "toolCalls",
+          calls: [
+            {
+              id: "ask_first",
+              name: "ask_user",
+              args: { question: "First value?" },
+            },
+            {
+              id: "ask_second",
+              name: "ask_user",
+              args: { question: "Second value?" },
+            },
+          ],
+        },
+        { type: "assistantText", text: "Both values received." },
+      ],
+    });
+    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-input-batch-"));
+    try {
+      const stores = new SandboxStateStores(dir);
+      await stores.load();
+      const daemon = new SandboxDaemon(
+        config(),
+        "sha256:test",
+        "inst_batch",
+        stores,
+        { workspaceDir: process.cwd() },
+      );
+      daemon.start();
+      const start = (await daemon.router.dispatch(
+        "run.start",
+        { text: "Ask both questions" },
+        { idempotencyKey: "cmd_start_input_batch" },
+      )) as { conversationId: string; agentId: string; runId: string };
+      await waitForRun(daemon, start.runId, "waiting_for_input");
+
+      const waiting = (await daemon.router.dispatch(
+        "sandbox.conversation.snapshot.get",
+        {
+          conversationId: start.conversationId,
+          agentId: start.agentId,
+          runId: start.runId,
+        },
+      )) as {
+        snapshot?: {
+          toolCalls: Array<{ toolName: string; status: string }>;
+        };
+      };
+      assert.equal(
+        waiting.snapshot?.toolCalls.filter(
+          (tool) =>
+            tool.toolName === "ask_user" && tool.status === "waiting_for_user",
+        ).length,
+        2,
+      );
+
+      await daemon.router.dispatch(
+        "userQuestion.answer",
+        { questionId: "ask_second", answer: "second" },
+        { idempotencyKey: "cmd_answer_second" },
+      );
+      await waitForRun(daemon, start.runId, "waiting_for_input");
+
+      await daemon.router.dispatch(
+        "userQuestion.dismiss",
+        { questionId: "ask_first", reason: "skip first" },
+        { idempotencyKey: "cmd_dismiss_first" },
+      );
+      await waitForRun(daemon, start.runId, "completed");
+
+      const transitionFile = path.join(
+        dir,
+        "run-runtime",
+        "runs",
+        start.runId,
+        "transitions.jsonl",
+      );
+      const transitions = await readFile(transitionFile, "utf8");
+      assert.equal(
+        transitions.match(/"kind":"interaction_resolved"/g)?.length,
+        2,
+      );
+      assert.equal(transitions.match(/"kind":"resumed"/g)?.length, 1);
+    } finally {
+      registration.unregister();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("projects approval suspensions as actionable pending tool calls", async () => {
     const registration = registerAgentScriptedProvider({
       steps: [

@@ -569,6 +569,13 @@ export class HumanInputResolutionService {
     },
   ): Promise<void> {
     const toolCall = this.deps.tools.getToolCall(toolCallId);
+    const batch =
+      toolCall.runId && toolCall.toolName === "ask_user"
+        ? await this.deps.runs.interactionBatchForToolCall(
+            toolCallId,
+            toolCall.runId,
+          )
+        : undefined;
     await this.deps.tools.resumeToolCall(toolCallId);
     if (!toolCall.runId) {
       await this.deps.tools.completeToolCall(toolCallId, result);
@@ -578,8 +585,32 @@ export class HumanInputResolutionService {
       toolCallId,
       result,
     );
-    const entries = [await this.appendToolResultForToolCall(completed, false)];
-    if (options.followUpUserMessage) {
+    const hasPendingSibling = batch?.interactions.some(
+      (interaction) =>
+        interaction.toolCallId !== toolCallId &&
+        interaction.status === "pending",
+    );
+    const orderedToolCalls = hasPendingSibling
+      ? [completed]
+      : (batch?.batchToolCallIds ?? [toolCallId]).map((id) =>
+          this.deps.tools.getToolCall(id),
+        );
+    const entries: ConversationEntry[] = [];
+    if (!hasPendingSibling) {
+      for (const batchToolCall of orderedToolCalls) {
+        const existing = batch
+          ? this.existingToolResultEntry(batchToolCall)
+          : undefined;
+        entries.push(
+          existing ??
+            (await this.appendToolResultForToolCall(
+              batchToolCall,
+              batchToolCall.status !== "completed",
+            )),
+        );
+      }
+    }
+    if (options.followUpUserMessage && !hasPendingSibling) {
       entries.push(
         await this.appendUserInstructionForAgent(
           completed.agentId,
@@ -602,7 +633,7 @@ export class HumanInputResolutionService {
       resolutionRequestId,
       resolution,
       entries,
-      toolCalls: [toToolCallTranscriptRecord(completed)],
+      toolCalls: orderedToolCalls.map(toToolCallTranscriptRecord),
       continueRun: options.continueAgent,
       completeRun: options.completeRun,
     });

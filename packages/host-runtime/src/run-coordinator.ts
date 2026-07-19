@@ -350,17 +350,24 @@ export class RunCoordinator {
         if (!current || current.runId !== runId) {
           throw new InvalidRunStateError("Interaction does not belong to run");
         }
+        const checkpointSiblings = state.interactions.filter(
+          (item) =>
+            item.id !== current.id &&
+            item.checkpointId === current.checkpointId,
+        );
         if (
-          current.batchToolCallIds ||
-          state.interactions.some(
-            (item) =>
-              item.id !== current.id &&
-              item.checkpointId === current.checkpointId &&
-              item.status === "pending",
-          )
+          checkpointSiblings.length > 0 &&
+          (!current.batchToolCallIds ||
+            checkpointSiblings.some(
+              (item) =>
+                !sameStrings(
+                  item.batchToolCallIds ?? [],
+                  current.batchToolCallIds ?? [],
+                ),
+            ))
         ) {
           throw new InvalidRunStateError(
-            "Batched interactions must be resolved together",
+            "Interaction batch metadata does not match",
           );
         }
         const resolutionHash = this.ports.integrity.checksum(
@@ -384,11 +391,26 @@ export class RunCoordinator {
           resolution: command.resolution,
           resolvedAt: now,
         };
-        const next = revise(state.run, { status: "suspended" }, now);
+        const pendingSiblings = checkpointSiblings.filter(
+          (item) => item.status === "pending",
+        );
+        const nextPending = current.batchToolCallIds
+          ?.map((toolCallId) =>
+            pendingSiblings.find((item) => item.toolCallId === toolCallId),
+          )
+          .find((item) => item !== undefined);
+        const wake = pendingSiblings.length === 0;
+        const next = revise(
+          state.run,
+          wake
+            ? { status: "suspended", activeInteractionId: undefined }
+            : { status: "waiting", activeInteractionId: nextPending?.id },
+          now,
+        );
         await this.commit(state, next, "interaction_resolved", {
           interactions: [record],
         });
-        return { resolved: record, wake: true };
+        return { resolved: record, wake };
       },
     );
     // Wake the live execution outside the state lock so control resumption

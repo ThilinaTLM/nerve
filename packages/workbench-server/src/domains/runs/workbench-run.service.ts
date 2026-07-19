@@ -184,7 +184,7 @@ export class WorkbenchRunService {
     }
   }
 
-  async approvalBatchForToolCall(
+  async interactionBatchForToolCall(
     toolCallId: string,
     runId?: string,
   ): Promise<ApprovalInteractionBatch> {
@@ -215,12 +215,21 @@ export class WorkbenchRunService {
       );
       return interaction ? [interaction] : [];
     });
+    return {
+      runId: state.run.runId,
+      checkpointId: target.checkpointId,
+      batchToolCallIds,
+      interactions,
+    };
+  }
+
+  async approvalBatchForToolCall(
+    toolCallId: string,
+    runId?: string,
+  ): Promise<ApprovalInteractionBatch> {
+    const batch = await this.interactionBatchForToolCall(toolCallId, runId);
     if (
-      interactions.some(
-        (interaction) =>
-          interaction.kind !== "approval" ||
-          interaction.checkpointId !== target.checkpointId,
-      )
+      batch.interactions.some((interaction) => interaction.kind !== "approval")
     ) {
       throw new HttpError(
         409,
@@ -228,12 +237,7 @@ export class WorkbenchRunService {
         "The run approval batch is invalid.",
       );
     }
-    return {
-      runId: state.run.runId,
-      checkpointId: target.checkpointId,
-      batchToolCallIds,
-      interactions,
-    };
+    return batch;
   }
 
   async resolveInteractionBatchForToolCalls(input: {
@@ -325,8 +329,20 @@ export class WorkbenchRunService {
       );
       return;
     }
-    await this.coordinator.resolveInteraction(state.run.runId, command);
-    if (input.continueRun) await this.coordinator.continue(state.run.runId);
+    const resolved = await this.coordinator.resolveInteraction(
+      state.run.runId,
+      command,
+    );
+    if (input.continueRun) {
+      const latest = await this.unitOfWork.load(state.run.runId);
+      const hasPendingSibling = latest?.interactions.some(
+        (candidate) =>
+          candidate.id !== resolved.id &&
+          candidate.checkpointId === resolved.checkpointId &&
+          candidate.status === "pending",
+      );
+      if (!hasPendingSibling) await this.coordinator.continue(state.run.runId);
+    }
   }
 
   getContextUsage(conversationId: string): Promise<ContextUsage> {

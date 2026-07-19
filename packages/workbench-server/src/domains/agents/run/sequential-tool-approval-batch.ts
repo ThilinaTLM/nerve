@@ -13,7 +13,7 @@ import { toToolCallTranscriptRecord } from "../../tools/tool-call-transcript-pre
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import { recordFromUnknown } from "./harness-execution-shared.js";
 
-interface SequentialToolApprovalBatchInput {
+interface SequentialToolInteractionBatchInput {
   agent: AgentRecord;
   runId: string;
   suspension: AgentToolSuspensionData;
@@ -25,67 +25,73 @@ interface SequentialToolApprovalBatchInput {
   ): Promise<CheckpointCommand>;
 }
 
-export async function waitForSequentialToolApprovalBatch(
-  input: SequentialToolApprovalBatchInput,
+export async function waitForSequentialToolInteractionBatch(
+  input: SequentialToolInteractionBatchInput,
 ): Promise<void> {
   const { agent, runId, suspension, deps, sink } = input;
   const primaryToolCall = deps.tools.getToolCall(suspension.toolCallId);
   const toolCalls = [primaryToolCall];
-  if (primaryToolCall.status === "pending_approval") {
-    for (const remaining of suspension.remainingToolCalls ?? []) {
-      const parsedToolName = toolNameSchema.safeParse(remaining.name);
-      if (!parsedToolName.success) {
-        throw new Error(`Unknown sequential tool: ${remaining.name}`);
-      }
-      const args = recordFromUnknown(remaining.arguments);
-      let staged: ToolCallRecord;
-      try {
-        const response = await deps.tools.requestTool(
-          agent,
-          parsedToolName.data,
-          args,
-          {
-            sourceToolCallId: remaining.id,
-            providerToolCallId: remaining.id,
-            runId,
-            anchor: deps.state.conversationRuntime.resolveToolAnchor(
-              runId,
-              remaining.id,
-            ),
-            forceApproval: true,
-            durableSuspend: true,
-            onLifecycle: (toolCall) =>
-              sink.upsertToolCalls([toToolCallTranscriptRecord(toolCall)]),
-          },
-        );
-        staged = response.toolCall;
-      } catch (stagingError) {
-        staged = await deps.tools.recordProviderToolCallError(
-          agent,
-          parsedToolName.data,
-          args,
-          stagingError instanceof Error
-            ? stagingError.message
-            : String(stagingError),
-          {
-            sourceToolCallId: remaining.id,
-            providerToolCallId: remaining.id,
-            runId,
-            anchor: deps.state.conversationRuntime.resolveToolAnchor(
-              runId,
-              remaining.id,
-            ),
-          },
-        );
-        await sink.upsertToolCalls([toToolCallTranscriptRecord(staged)]);
-      }
-      if (!isStagedToolCall(staged)) {
-        throw new Error(
-          `Sequential tool ${remaining.name} was not durably staged.`,
-        );
-      }
-      toolCalls.push(staged);
+  for (const remaining of suspension.remainingToolCalls ?? []) {
+    const parsedToolName = toolNameSchema.safeParse(remaining.name);
+    if (!parsedToolName.success) {
+      throw new Error(`Unknown sequential tool: ${remaining.name}`);
     }
+    if (
+      primaryToolCall.status === "waiting_for_user" &&
+      !isNativeInteractionTool(parsedToolName.data)
+    ) {
+      break;
+    }
+    const args = recordFromUnknown(remaining.arguments);
+    let staged: ToolCallRecord;
+    try {
+      const response = await deps.tools.requestTool(
+        agent,
+        parsedToolName.data,
+        args,
+        {
+          sourceToolCallId: remaining.id,
+          providerToolCallId: remaining.id,
+          runId,
+          anchor: deps.state.conversationRuntime.resolveToolAnchor(
+            runId,
+            remaining.id,
+          ),
+          forceApproval:
+            primaryToolCall.status === "pending_approval" ||
+            !isNativeInteractionTool(parsedToolName.data),
+          durableSuspend: true,
+          onLifecycle: (toolCall) =>
+            sink.upsertToolCalls([toToolCallTranscriptRecord(toolCall)]),
+        },
+      );
+      staged = response.toolCall;
+    } catch (stagingError) {
+      staged = await deps.tools.recordProviderToolCallError(
+        agent,
+        parsedToolName.data,
+        args,
+        stagingError instanceof Error
+          ? stagingError.message
+          : String(stagingError),
+        {
+          sourceToolCallId: remaining.id,
+          providerToolCallId: remaining.id,
+          runId,
+          anchor: deps.state.conversationRuntime.resolveToolAnchor(
+            runId,
+            remaining.id,
+          ),
+        },
+      );
+      await sink.upsertToolCalls([toToolCallTranscriptRecord(staged)]);
+    }
+    if (!isStagedToolCall(staged)) {
+      throw new Error(
+        `Sequential tool ${remaining.name} was not durably staged.`,
+      );
+    }
+    toolCalls.push(staged);
   }
 
   const primaryInteractionId = interactionIdForToolCall(primaryToolCall, deps);
@@ -96,7 +102,9 @@ export async function waitForSequentialToolApprovalBatch(
     primaryInteractionId,
   );
   const waits = toolCalls
-    .filter((toolCall) => toolCall.status === "pending_approval")
+    .filter((toolCall) =>
+      ["pending_approval", "waiting_for_user"].includes(toolCall.status),
+    )
     .map((toolCall) =>
       canonicalWaitCommand(
         interactionIdForToolCall(toolCall, deps),
@@ -128,9 +136,17 @@ export async function waitForSequentialToolApprovalBatch(
 }
 
 function isStagedToolCall(toolCall: ToolCallRecord): boolean {
-  return ["pending_approval", "completed", "denied", "error"].includes(
-    toolCall.status,
-  );
+  return [
+    "pending_approval",
+    "waiting_for_user",
+    "completed",
+    "denied",
+    "error",
+  ].includes(toolCall.status);
+}
+
+function isNativeInteractionTool(toolName: string): boolean {
+  return toolName === "ask_user" || toolName === "plan_mode_present";
 }
 
 function interactionIdForToolCall(

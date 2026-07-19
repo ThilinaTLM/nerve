@@ -220,10 +220,7 @@ class SandboxRunExecution implements RunExecution {
       return { status: "completed" };
     } catch (error) {
       if (isAgentToolSuspension(error)) {
-        await this.continuation.enterWait(
-          error.data.toolCallId,
-          error.data.toolName,
-        );
+        await this.continuation.enterWaitBatch(error.data);
         return { status: "suspended" };
       }
       const serialized = this.continuation.serializedSuspension(error);
