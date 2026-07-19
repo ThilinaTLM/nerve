@@ -14,6 +14,7 @@ import { planReviewPreview } from "../domains/plans/plan-service.js";
 import { toToolCallTranscriptRecord } from "../domains/tools/tool-call-transcript-preview.js";
 import { writeSettings } from "../infrastructure/storage/index.js";
 import { directoryListing } from "../routes/filesystem-routes.js";
+import { handleScratchNoteMethod } from "./scratch-note-method-handler.js";
 import {
   getConversationSnapshotResponse,
   getWorkspaceSnapshotResponse,
@@ -85,8 +86,10 @@ export const WORKBENCH_OPERATION_METHODS = [
   "pinnedCommand.create",
   "pinnedCommand.update",
   "pinnedCommand.delete",
-  "scratchNote.get",
+  "scratchNote.list",
+  "scratchNote.create",
   "scratchNote.update",
+  "scratchNote.delete",
   "task.list",
   "task.start",
   "task.get",
@@ -541,21 +544,11 @@ export async function handleProtocolMethod(
         (params as { commandId: string }).commandId,
       );
       return { ok: true };
-    case "scratchNote.get":
-      return {
-        note: await state.registry.getScratchNote(
-          (params as { projectId: string }).projectId,
-        ),
-      };
-    case "scratchNote.update": {
-      const request = params as { projectId: string; content: string };
-      return {
-        note: await state.registry.updateScratchNote(
-          request.projectId,
-          request,
-        ),
-      };
-    }
+    case "scratchNote.list":
+    case "scratchNote.create":
+    case "scratchNote.update":
+    case "scratchNote.delete":
+      return handleScratchNoteMethod(state, method, params);
     case "task.list":
       return { tasks: state.registry.listTasks() };
     case "task.start":

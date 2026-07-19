@@ -1,12 +1,25 @@
 <script lang="ts">
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
-import {
-  getScratchNote,
-  updateScratchNote,
-  type ProjectRecord,
-} from "$lib/api";
+import Plus from "@lucide/svelte/icons/plus";
+import Trash2 from "@lucide/svelte/icons/trash-2";
+import type { ProjectRecord } from "$lib/api";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
+import ScratchNoteTitleDialog from "./ScratchNoteTitleDialog.svelte";
+import {
+  createScratchNote,
+  flushScratchNote,
+  getScratchNotesProject,
+  loadScratchNotes,
+  removeScratchNote,
+  renameScratchNote,
+  setScratchNoteContent,
+  setScratchNoteOpen,
+  type ScratchNoteEntry,
+} from "../state/scratch-notes-state.svelte";
 
 type Props = {
   activeProject?: ProjectRecord;
@@ -14,138 +27,149 @@ type Props = {
 
 let { activeProject }: Props = $props();
 
-type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
-
-const SAVE_DEBOUNCE_MS = 700;
-const EPOCH = new Date(0).toISOString();
-
-let content = $state("");
-let savedContent = $state("");
-let status = $state<SaveStatus>("idle");
-let updatedAt = $state<string | undefined>(undefined);
-
-let loadToken = 0;
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
-
 const projectId = $derived(activeProject?.id);
-
-const statusLabel = $derived.by(() => {
-  switch (status) {
-    case "loading":
-      return "Loading…";
-    case "saving":
-      return "Saving…";
-    case "error":
-      return "Save failed";
-    case "saved":
-      return "Saved";
-    default:
-      return updatedAt && updatedAt !== EPOCH
-        ? `Saved ${new Date(updatedAt).toLocaleString()}`
-        : "";
-  }
-});
+const project = $derived(
+  projectId ? getScratchNotesProject(projectId) : undefined,
+);
+let noteToRename = $state<ScratchNoteEntry | undefined>();
+let noteToDelete = $state<ScratchNoteEntry | undefined>();
 
 $effect(() => {
-  const id = projectId;
-  const token = ++loadToken;
-  clearTimeout(saveTimer);
-  saveTimer = undefined;
-  content = "";
-  savedContent = "";
-  updatedAt = undefined;
-
-  if (!id) {
-    status = "idle";
-    return;
-  }
-
-  status = "loading";
-  void getScratchNote(id)
-    .then((note) => {
-      if (token !== loadToken) return;
-      content = note.content;
-      savedContent = note.content;
-      updatedAt = note.updatedAt;
-      status = "idle";
-    })
-    .catch(() => {
-      if (token !== loadToken) return;
-      status = "error";
-      notify.error("Could not load scratch notes");
-    });
-
-  return () => clearTimeout(saveTimer);
+  if (projectId) loadScratchNotes(projectId);
 });
 
-async function save(): Promise<void> {
-  const id = projectId;
-  if (!id) return;
-  if (content === savedContent) {
-    status = "idle";
-    return;
+function statusLabel(note: ScratchNoteEntry): string {
+  switch (note.saveStatus) {
+    case "saving":
+      return "Saving…";
+    case "saved":
+      return "Saved";
+    case "error":
+      return "Save failed";
+    default:
+      return "";
   }
-  const token = loadToken;
-  const pending = content;
-  status = "saving";
-  try {
-    const note = await updateScratchNote(id, pending);
-    if (token !== loadToken) return;
-    savedContent = pending;
-    updatedAt = note.updatedAt;
-    status = "saved";
-  } catch {
-    if (token !== loadToken) return;
-    status = "error";
-    notify.error("Could not save scratch notes");
-  }
-}
-
-function scheduleSave(): void {
-  if (!projectId) return;
-  status = "saving";
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => void save(), SAVE_DEBOUNCE_MS);
-}
-
-function flushSave(): void {
-  if (!projectId) return;
-  clearTimeout(saveTimer);
-  if (content !== savedContent) void save();
 }
 </script>
 
-<div class="flex min-h-full flex-col gap-2 p-2">
-  <div class="flex items-center justify-between gap-2 px-1">
-    <div
-      class="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-foreground"
-    >
-      <NotebookPen
-        size={13}
-        strokeWidth={2.2}
-        class="shrink-0 text-muted-foreground"
-      />
-      <span class="truncate">Scratch Notes</span>
-    </div>
-    {#if projectId && statusLabel}
-      <span class="shrink-0 truncate text-xs text-muted-foreground"
-        >{statusLabel}</span
-      >
-    {/if}
-  </div>
-
-  {#if projectId}
-    <Textarea
-      bind:value={content}
-      oninput={scheduleSave}
-      onblur={flushSave}
-      spellcheck={false}
-      placeholder="Jot down notes for this project…"
-      class="min-h-0 flex-1 resize-none text-sm leading-relaxed [field-sizing:fixed]"
-    />
-  {:else}
+<div class="flex flex-col gap-2 p-2">
+  {#if !projectId}
     <p class="px-1 text-xs text-muted-foreground">
       Select a project to take notes.
     </p>
+  {:else if !project || project.loadStatus === "idle" || project.loadStatus === "loading"}
+    <div
+      class="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground"
+    >
+      <Spinner class="size-3.5" /> Loading scratch notes…
+    </div>
+  {:else if project.loadStatus === "error"}
+    <div class="rounded-md border border-dashed p-3">
+      <p class="text-xs text-muted-foreground">Could not load scratch notes.</p>
+      <Button
+        size="xs"
+        variant="outline"
+        class="mt-2"
+        onclick={() => loadScratchNotes(projectId, true)}>Retry</Button
+      >
+    </div>
+  {:else}
+    {#if project.notes.length === 0}
+      <p
+        class="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground"
+      >
+        No scratch notes yet.
+      </p>
+    {:else}
+      {#each project.notes as note (note.id)}
+        <PanelSection
+          title={note.title}
+          icon={NotebookPen}
+          open={note.open}
+          onOpenChange={(open) => setScratchNoteOpen(projectId, note.id, open)}
+          onTitleDoubleClick={() => (noteToRename = note)}
+          titleHint="Double-click to rename"
+        >
+          {#snippet meta()}
+            {#if statusLabel(note)}
+              <span class="truncate">{statusLabel(note)}</span>
+            {/if}
+          {/snippet}
+          {#snippet actions()}
+            <button
+              type="button"
+              class="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+              title={`Delete ${note.title}`}
+              aria-label={`Delete ${note.title}`}
+              disabled={note.deleting}
+              onclick={() => (noteToDelete = note)}
+            >
+              {#if note.deleting}
+                <Spinner class="size-3" />
+              {:else}
+                <Trash2 size={13} strokeWidth={2.3} />
+              {/if}
+            </button>
+          {/snippet}
+
+          <Textarea
+            value={note.draftContent}
+            oninput={(event) =>
+              setScratchNoteContent(
+                projectId,
+                note.id,
+                event.currentTarget.value,
+              )}
+            onblur={() => void flushScratchNote(projectId, note.id)}
+            spellcheck={false}
+            disabled={note.deleting}
+            placeholder="Jot down notes for this project…"
+            class="min-h-36 resize-none text-sm leading-relaxed [field-sizing:content]"
+          />
+        </PanelSection>
+      {/each}
+    {/if}
+
+    <Button
+      variant="outline"
+      class="w-full border-dashed text-muted-foreground"
+      disabled={project.creating}
+      onclick={() => void createScratchNote(projectId)}
+    >
+      {#if project.creating}
+        <Spinner class="size-4" /> Creating…
+      {:else}
+        <Plus class="size-4" /> Add note
+      {/if}
+    </Button>
   {/if}
 </div>
+
+<ScratchNoteTitleDialog
+  open={Boolean(noteToRename)}
+  title={noteToRename?.title}
+  onSave={(title) =>
+    noteToRename && projectId
+      ? renameScratchNote(projectId, noteToRename.id, title)
+      : Promise.resolve(false)}
+  onOpenChange={(open) => {
+    if (!open) noteToRename = undefined;
+  }}
+/>
+
+<ConfirmDialog
+  open={Boolean(noteToDelete)}
+  destructive
+  title="Delete scratch note?"
+  description={`This permanently deletes “${noteToDelete?.title ?? ""}”.`}
+  confirmLabel="Delete"
+  onConfirm={() => {
+    if (projectId && noteToDelete) {
+      void removeScratchNote(projectId, noteToDelete.id);
+    }
+  }}
+  onCancel={() => (noteToDelete = undefined)}
+  onOpenChange={(open) => {
+    if (!open) noteToDelete = undefined;
+  }}
+/>

@@ -13,6 +13,7 @@ import type {
   CreateConversationRequest,
   CreatePinnedCommandRequest,
   CreateProjectRequest,
+  CreateScratchNoteRequest,
   ImportConversationRequest,
   ModelInfo,
   NavigateConversationRequest,
@@ -493,12 +494,24 @@ export class RuntimeRegistry {
     return this.services.pinnedCommands.remove(projectId, commandId);
   }
 
-  getScratchNote(projectId: string) {
-    return this.services.scratchNotes.get(projectId);
+  listScratchNotes(projectId: string) {
+    return this.services.scratchNotes.list(projectId);
   }
 
-  updateScratchNote(projectId: string, request: UpdateScratchNoteRequest) {
-    return this.services.scratchNotes.update(projectId, request);
+  createScratchNote(projectId: string, request: CreateScratchNoteRequest) {
+    return this.services.scratchNotes.create(projectId, request);
+  }
+
+  updateScratchNote(
+    projectId: string,
+    noteId: string,
+    request: UpdateScratchNoteRequest,
+  ) {
+    return this.services.scratchNotes.update(projectId, noteId, request);
+  }
+
+  removeScratchNote(projectId: string, noteId: string) {
+    return this.services.scratchNotes.remove(projectId, noteId);
   }
 
   startTask(request: StartTaskRequest) {
