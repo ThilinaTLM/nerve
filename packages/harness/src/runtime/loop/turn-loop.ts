@@ -85,6 +85,7 @@ export async function runLoop(
       toolResults,
       context: currentContext,
       newMessages,
+      hasMoreToolCalls,
     };
     const nextTurnSnapshot = await config.prepareNextTurn?.(nextTurnContext);
     if (nextTurnSnapshot) {
@@ -117,6 +118,9 @@ export async function runLoop(
     }
 
     if (hasMoreToolCalls) continue;
+
+    pendingMessages = (await config.getFollowUpMessages?.()) || [];
+    if (pendingMessages.length > 0) continue;
     break;
   }
 

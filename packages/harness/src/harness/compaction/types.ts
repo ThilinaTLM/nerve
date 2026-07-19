@@ -1,3 +1,7 @@
+import type {
+  AutoCompactionSettings,
+  CompactionProfile,
+} from "@nervekit/contracts";
 import type { AgentMessage } from "../../types.js";
 import type { FileOperations } from "./utils.js";
 
@@ -35,13 +39,18 @@ export type AutoCompactionReason = "threshold" | "overflow" | "manual";
 
 export interface AutoCompactionPolicy {
   enabled: boolean;
+  profile: CompactionProfile;
   contextWindow: number;
   thresholdPercent: number;
+  keepRecentPercent: number;
   thresholdTokens: number;
   triggerReserveTokens: number;
   keepRecentTokens: number;
   summaryReserveTokens: number;
+  safetyHeadroomTokens: number;
 }
+
+export type AutoCompactionConfiguration = AutoCompactionSettings;
 
 /** Estimated context-token usage for a message list. */
 export interface ContextUsageEstimate {

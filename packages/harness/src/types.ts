@@ -140,7 +140,10 @@ export interface AgentLoopTurnUpdate {
   thinkingLevel?: ThinkingLevel;
 }
 
-export type PrepareNextTurnContext = ShouldStopAfterTurnContext;
+export interface PrepareNextTurnContext extends ShouldStopAfterTurnContext {
+  /** Whether completed tool execution naturally requires another provider turn. */
+  hasMoreToolCalls: boolean;
+}
 
 export interface AgentLoopConfig extends SimpleStreamOptions {
   model: AnyModel;

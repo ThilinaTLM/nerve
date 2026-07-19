@@ -49,62 +49,144 @@ it("uses the selected model context window for threshold compaction", async () =
     },
   ];
   const compactions: Array<Record<string, unknown>> = [];
-  const continuations: string[] = [];
   const agents = new Map([
     [active.id, active],
     [selected.id, selected],
   ]);
-  const runner = new AutoCompactionRunner(
-    {
-      state: {
-        getConversation: () => ({
-          id: selected.conversationId,
-          projectId: selected.projectId,
-          activeAgentId: active.id,
-        }),
-        getProject: () => ({ id: selected.projectId, dir: "/tmp/project" }),
-        agents,
-      },
-      storage: { settings: { compaction: { auto: true } } },
-      harnessStorage: {
-        openStorage: async () => ({
-          getLeafId: async () => "entry_context_usage",
-          getPathToRoot: async () => branch,
-        }),
-      },
-      compactionService: {
-        compactConversation: async (
-          _conversationId: string,
-          _request: unknown,
-          options: Record<string, unknown>,
-        ) => {
-          compactions.push(options);
+  const runner = new AutoCompactionRunner({
+    state: {
+      getConversation: () => ({
+        id: selected.conversationId,
+        projectId: selected.projectId,
+        activeAgentId: active.id,
+      }),
+      getProject: () => ({ id: selected.projectId, dir: "/tmp/project" }),
+      agents,
+    },
+    storage: {
+      settings: {
+        compaction: {
+          auto: true,
+          profile: "balanced",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
         },
       },
-    } as never,
-    new Map(),
-    async (agent) => {
-      continuations.push(agent.id);
     },
-  );
+    harnessStorage: {
+      openStorage: async () => ({
+        getLeafId: async () => "entry_context_usage",
+        getPathToRoot: async () => branch,
+      }),
+    },
+    compactionService: {
+      compactConversation: async (
+        _conversationId: string,
+        _request: unknown,
+        options: Record<string, unknown>,
+      ) => {
+        compactions.push(options);
+      },
+    },
+    logger: { warn: async () => undefined },
+  } as never);
 
-  await runner.maybeAutoCompact(
-    selected.conversationId,
-    selected.id,
-    "run_selected",
-  );
+  await runner.maybeCompactAtIteration({
+    conversationId: selected.conversationId,
+    agentId: selected.id,
+    runId: "run_selected",
+  });
   assert.equal(compactions.length, 1);
   assert.equal(compactions[0]?.agentId, selected.id);
   assert.equal(compactions[0]?.contextWindow, 256_000);
-  assert.equal(compactions[0]?.thresholdTokens, 230_400);
-  assert.deepEqual(continuations, [selected.id]);
+  assert.equal(compactions[0]?.thresholdTokens, 204_800);
+  assert.equal(compactions[0]?.keepRecentTokens, 38_400);
+});
 
-  await runner.maybeAutoCompact(selected.conversationId);
+it("compacts projected prompt usage before the first provider iteration", async () => {
+  const agent = agentRecord("agent_preflight", "xai", "grok-build-0.1");
+  const timestamp = "2026-07-18T00:00:00.000Z";
+  const branch = [
+    {
+      type: "message",
+      id: "entry_preflight_usage",
+      parentId: null,
+      timestamp,
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Near the balanced threshold." }],
+        api: "openai-completions",
+        provider: "xai",
+        model: "grok-build-0.1",
+        usage: {
+          input: 200_000,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 200_000,
+          cost: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            total: 0,
+          },
+        },
+        stopReason: "stop",
+        timestamp: Date.parse(timestamp),
+      },
+    },
+  ];
+  const compactions: Array<Record<string, unknown>> = [];
+  const runner = new AutoCompactionRunner({
+    state: {
+      getConversation: () => ({
+        id: agent.conversationId,
+        projectId: agent.projectId,
+        activeAgentId: agent.id,
+      }),
+      getProject: () => ({ id: agent.projectId, dir: "/tmp/project" }),
+      agents: new Map([[agent.id, agent]]),
+    },
+    storage: {
+      settings: {
+        compaction: {
+          auto: true,
+          profile: "balanced",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        },
+      },
+    },
+    harnessStorage: {
+      openStorage: async () => ({
+        getLeafId: async () => "entry_preflight_usage",
+        getPathToRoot: async () => branch,
+      }),
+    },
+    compactionService: {
+      compactConversation: async (
+        _conversationId: string,
+        _request: unknown,
+        options: Record<string, unknown>,
+      ) => {
+        compactions.push(options);
+      },
+    },
+    logger: { warn: async () => undefined },
+  } as never);
+
   assert.equal(
-    compactions.length,
-    1,
-    "the active model's larger window should remain below threshold",
+    await runner.maybeCompactBeforePrompt({
+      conversationId: agent.conversationId,
+      agentId: agent.id,
+      runId: "run_preflight",
+      text: "x".repeat(20_000),
+    }),
+    true,
   );
+  assert.equal(compactions.length, 1);
+  assert.equal(compactions[0]?.contextTokens, 205_000);
 });
 
 function agentRecord(

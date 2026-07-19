@@ -75,6 +75,24 @@ const toolSettingsSchema = z.object({
   confluence: confluenceToolSettingsSchema.default({ enabled: false }),
 });
 
+export const compactionProfileSchema = z.enum([
+  "aggressive",
+  "balanced",
+  "conservative",
+  "custom",
+]);
+export type CompactionProfile = z.infer<typeof compactionProfileSchema>;
+
+export const autoCompactionSettingsSchema = z.object({
+  auto: z.boolean().default(true),
+  profile: compactionProfileSchema.default("balanced"),
+  customTriggerPercent: z.number().int().min(60).max(90).default(80),
+  customKeepRecentPercent: z.number().int().min(5).max(40).default(15),
+});
+export type AutoCompactionSettings = z.infer<
+  typeof autoCompactionSettingsSchema
+>;
+
 export const settingsSchema = z.object({
   defaultMode: modeSchema,
   defaultPermissionLevel: permissionLevelSchema,
@@ -104,9 +122,7 @@ export const settingsSchema = z.object({
   desktop: z.object({
     closeToTray: z.boolean().default(true),
   }),
-  compaction: z.object({
-    auto: z.boolean().default(true),
-  }),
+  compaction: autoCompactionSettingsSchema,
   logging: z.object({
     level: applicationLogLevelSchema.default("info"),
     retentionDays: z.number().int().positive().default(14),
@@ -157,6 +173,9 @@ export const defaultSettings: Settings = {
   },
   compaction: {
     auto: true,
+    profile: "balanced",
+    customTriggerPercent: 80,
+    customKeepRecentPercent: 15,
   },
   logging: {
     level: "info",
@@ -221,6 +240,9 @@ export const updateSettingsRequestSchema = z.object({
   compaction: z
     .object({
       auto: z.boolean().optional(),
+      profile: compactionProfileSchema.optional(),
+      customTriggerPercent: z.number().int().min(60).max(90).optional(),
+      customKeepRecentPercent: z.number().int().min(5).max(40).optional(),
     })
     .optional(),
   logging: z

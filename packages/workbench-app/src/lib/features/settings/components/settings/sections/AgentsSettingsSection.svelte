@@ -12,6 +12,7 @@ import RadioGroup from "@nervekit/ui-kit/components/ui/radio-group-field";
 import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { clampThinkingLevelForModel } from "$lib/features/conversations/state/agent-selection-defaults";
 import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
 import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
@@ -66,6 +67,29 @@ const effectiveApprovalPolicy = $derived(
     : settingsDraft.defaultApprovalPolicy,
 );
 let modelDialogOpen = $state(false);
+
+const compactionProfileItems = [
+  {
+    value: "aggressive",
+    label: "Aggressive",
+    detail: "Compact at 70% and retain about 10% recent context",
+  },
+  {
+    value: "balanced",
+    label: "Balanced",
+    detail: "Compact at 80% and retain about 15% recent context",
+  },
+  {
+    value: "conservative",
+    label: "Conservative",
+    detail: "Compact at 90% and retain about 25% recent context",
+  },
+  {
+    value: "custom",
+    label: "Custom",
+    detail: "Choose trigger and recent-context percentages",
+  },
+];
 
 const fallbackThinkingLevels = $derived<Settings["defaultThinkingLevel"][]>(
   defaultModelInfo?.supportedThinkingLevels?.length
@@ -144,6 +168,24 @@ function onAutoCompactionChange(checked: boolean) {
   onSettingsChange?.({ compaction: { auto: checked } }, { immediate: true });
 }
 
+function onCompactionProfileChange(value: string) {
+  const profile = value as Settings["compaction"]["profile"];
+  settingsDraft.compaction.profile = profile;
+  onSettingsChange?.({ compaction: { profile } }, { immediate: true });
+}
+
+function updateCustomCompactionPercent(
+  field: "customTriggerPercent" | "customKeepRecentPercent",
+  value: string,
+) {
+  const parsed = Number(value);
+  const [minimum, maximum] =
+    field === "customTriggerPercent" ? [60, 90] : [5, 40];
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) return;
+  settingsDraft.compaction[field] = parsed;
+  onSettingsChange?.({ compaction: { [field]: parsed } }, { debounceMs: 350 });
+}
+
 function onRememberLastSelectionChange(checked: boolean) {
   settingsDraft.rememberLastAgentSelection = checked;
   if (!checked) {
@@ -189,9 +231,79 @@ function onRememberLastSelectionChange(checked: boolean) {
     class="settings-full-switch"
     checked={settingsDraft.compaction.auto}
     label="Auto-compact long conversations"
-    description="Summarize older context as the model approaches its context window."
+    description="Checkpoint completed and remaining work between agent iterations before the model runs out of context."
     onCheckedChange={onAutoCompactionChange}
   />
+
+  {#if settingsDraft.compaction.auto}
+    <div class="settings-control-stack rounded-md border border-border/60 p-3">
+      <div class="settings-copy">
+        <strong>Compaction profile</strong>
+        <span>Thresholds scale with the selected model's context window.</span>
+      </div>
+      <RadioGroup
+        class="grid gap-2 sm:grid-cols-2"
+        items={compactionProfileItems}
+        value={settingsDraft.compaction.profile}
+        orientation="vertical"
+        ariaLabel="Compaction profile"
+        onValueChange={onCompactionProfileChange}
+      />
+
+      {#if settingsDraft.compaction.profile === "custom"}
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="grid gap-1.5" for="compaction-trigger-percent">
+            <span class="text-sm font-medium">Compact at</span>
+            <span class="flex items-center gap-2">
+              <Input
+                id="compaction-trigger-percent"
+                type="number"
+                min="60"
+                max="90"
+                step="1"
+                size="sm"
+                value={String(settingsDraft.compaction.customTriggerPercent)}
+                ariaLabel="Compaction trigger percent"
+                oninput={(event) =>
+                  updateCustomCompactionPercent(
+                    "customTriggerPercent",
+                    (event.currentTarget as HTMLInputElement).value,
+                  )}
+              />
+              <span class="text-sm text-muted-foreground">%</span>
+            </span>
+            <span class="text-xs text-muted-foreground"
+              >60–90% context used</span
+            >
+          </label>
+          <label class="grid gap-1.5" for="compaction-keep-recent-percent">
+            <span class="text-sm font-medium">Retain recent</span>
+            <span class="flex items-center gap-2">
+              <Input
+                id="compaction-keep-recent-percent"
+                type="number"
+                min="5"
+                max="40"
+                step="1"
+                size="sm"
+                value={String(settingsDraft.compaction.customKeepRecentPercent)}
+                ariaLabel="Recent context retained percent"
+                oninput={(event) =>
+                  updateCustomCompactionPercent(
+                    "customKeepRecentPercent",
+                    (event.currentTarget as HTMLInputElement).value,
+                  )}
+              />
+              <span class="text-sm text-muted-foreground">%</span>
+            </span>
+            <span class="text-xs text-muted-foreground"
+              >5–40% kept verbatim</span
+            >
+          </label>
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <Switch
     class="settings-full-switch"

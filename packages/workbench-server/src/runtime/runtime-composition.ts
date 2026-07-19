@@ -1,5 +1,4 @@
 import {
-  DEFAULT_COMPACTION_SETTINGS,
   generateSummary,
   resolveAgentModel,
 } from "@nervekit/host-runtime/harness";
@@ -59,7 +58,6 @@ import {
 import { WorkbenchAgentExecutionAdapter } from "../domains/runs/workbench-agent-execution.js";
 import { WorkbenchRunService } from "../domains/runs/workbench-run.service.js";
 import { WorkbenchRunQuery } from "../domains/runs/workbench-run-query.js";
-import { WorkbenchRunCompletionService } from "../domains/runs/workbench-run-completion.service.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
@@ -101,7 +99,6 @@ export interface RuntimeServices {
   runRuntime: WorkbenchRunRuntime;
   runQuery: WorkbenchRunQuery;
   workbenchRun: WorkbenchRunService;
-  runCompletion: WorkbenchRunCompletionService;
   editors: ProjectEditorService;
   projectLifecycle: ProjectLifecycleService;
   conversationLifecycle: ConversationLifecycleService;
@@ -199,6 +196,7 @@ export function composeRuntime(
     messages,
     previousSummary,
     instructions,
+    summaryReserveTokens,
     signal,
   }) => {
     const conversation = getConversation(conversationId);
@@ -217,7 +215,7 @@ export function composeRuntime(
     const result = await generateSummary(
       messages,
       requestModel,
-      DEFAULT_COMPACTION_SETTINGS.reserveTokens,
+      summaryReserveTokens,
       requestAuth.apiKey ?? "",
       requestAuth.headers,
       signal,
@@ -226,7 +224,9 @@ export function composeRuntime(
       agent.thinkingLevel,
       requestAuth.env,
     );
-    return result.ok ? result.value : undefined;
+    return result.ok
+      ? { text: result.value, generatedBy: "model" as const }
+      : undefined;
   };
   services.compactionService = new CompactionService(
     getConversation,
@@ -390,15 +390,6 @@ export function composeRuntime(
     messageMirror: services.messageMirror,
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
-    startAutomaticRun: async (agent, prompt) => {
-      await services.runRuntime.coordinator.start({
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        projectId: agent.projectId,
-        scopeId: `${agent.conversationId}:${agent.id}`,
-        prompt,
-      });
-    },
   });
   services.runRuntime = createWorkbenchRunRuntime({
     home: storage.paths.home,
@@ -437,19 +428,10 @@ export function composeRuntime(
         services.agentMechanics.activeToolNamesFor(agent),
       getContextUsage: (conversationId) =>
         services.agentMechanics.getContextUsage(conversationId),
-      resetAutoContinuationCount: (conversationId) =>
-        services.agentMechanics.resetAutoContinuationCount(conversationId),
       runExplore: (parent, args, options) =>
         services.agentMechanics.runExplore(parent, args, options),
     },
   );
-  services.runCompletion = new WorkbenchRunCompletionService(
-    events,
-    (conversationId, agentId, runId) =>
-      services.agentMechanics.maybeAutoCompact(conversationId, agentId, runId),
-    logger.child({ component: "run-completion" }),
-  );
-  services.runCompletion.start();
   services.taskNotifications = new TaskNotificationService({
     tasks: services.tasks,
     events,

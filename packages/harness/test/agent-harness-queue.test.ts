@@ -22,6 +22,7 @@ const model = {
 type QueueTestHarness = {
   phase: "turn";
   steerQueue: InboundQueuedMessage[];
+  followUpQueue: InboundQueuedMessage[];
   drainQueuedMessages(
     queue: InboundQueuedMessage[],
     mode: QueueMode,
@@ -63,6 +64,22 @@ describe("AgentHarness queued message lifecycle", () => {
     );
     assert.equal(messages.length, 1);
     assert.deepEqual(drained, [["promptq_follow_up"]]);
+  });
+
+  it("keeps follow-ups separate from steering until natural completion", async () => {
+    const harness = createHarness();
+    const internal = harness as unknown as QueueTestHarness;
+    internal.phase = "turn";
+
+    await harness.followUp("after current work", { id: "promptq_follow_up" });
+
+    assert.equal(internal.steerQueue.length, 0);
+    assert.equal(internal.followUpQueue.length, 1);
+    const messages = await internal.drainQueuedMessages(
+      internal.followUpQueue,
+      "one-at-a-time",
+    );
+    assert.equal(messages.length, 1);
   });
 
   it("does not drain a queued prompt removed by id", async () => {

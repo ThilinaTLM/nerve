@@ -4,6 +4,7 @@ import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import {
   computeContextUsage,
   estimateContextTokens,
+  getCompactionDecisionTokens,
 } from "../src/harness/compaction/compaction.js";
 import { buildConversationContext } from "../src/harness/conversation/conversation.js";
 import type { ConversationTreeEntry } from "../src/harness/conversation/entries.js";
@@ -58,6 +59,7 @@ function compactionEntry(
   id: string,
   firstKeptEntryId: string,
   parentId: string | null = null,
+  details?: unknown,
 ): ConversationTreeEntry {
   return {
     type: "compaction",
@@ -67,6 +69,7 @@ function compactionEntry(
     summary: "summary",
     firstKeptEntryId,
     tokensBefore: 195_000,
+    details,
   };
 }
 
@@ -102,6 +105,21 @@ describe("context usage", () => {
       contextWindow,
       percent: null,
     });
+  });
+
+  it("uses persisted post-compaction estimates for immediate decisions", () => {
+    const keptUserId = "entry_3";
+    const entries = [
+      messageEntry(keptUserId, user("second")),
+      messageEntry("entry_4", assistant("response2", 195_000), keptUserId),
+      compactionEntry("entry_5", keptUserId, "entry_4", {
+        tokensAfter: 20_000,
+      }),
+      messageEntry("entry_6", user("third"), "entry_5"),
+    ];
+    const messages = buildConversationContext(entries).messages;
+
+    assert.equal(getCompactionDecisionTokens(messages, entries), 20_002);
   });
 
   it("uses post-compaction assistant usage instead of stale kept usage", () => {

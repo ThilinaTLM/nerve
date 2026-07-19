@@ -1,29 +1,25 @@
+import type { ImageContent } from "@earendil-works/pi-ai";
 import {
   buildConversationContext,
   computeContextUsage,
   deriveAutoCompactionPolicy,
+  estimateTokens,
+  getCompactionDecisionTokens,
   getModelContextWindow,
   shouldAutoCompact,
 } from "@nervekit/host-runtime/harness";
 import type { AgentRecord, ContextUsage } from "@nervekit/contracts";
 import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
 
-/** Max consecutive auto-continuations per conversation before stopping. */
-const MAX_AUTO_CONTINUATIONS = 3;
+const MAX_AUTO_CONTINUATIONS_PER_RUN = 3;
 
-/** Fixed handover instruction pushed after automatic compaction. */
-const AUTO_CONTINUE_MESSAGE =
-  "Continue the work using the context checkpoint above. Resume from the Next Steps and keep going until the task is complete. If everything is already finished, briefly confirm completion and stop.";
+export const AUTO_COMPACTION_CONTINUE_MESSAGE =
+  "Context was compacted into the checkpoint above. Continue this task in the same run: read Work Remaining, Current Working State, and Continuation Plan first; do not repeat Work Completed. Execute the remaining steps, validate the result, and stop when the task is complete.";
 
 export class AutoCompactionRunner {
-  constructor(
-    readonly deps: WorkbenchAgentMechanicsDeps,
-    readonly autoContinuationCounts: Map<string, number>,
-    readonly startAutomaticRun: (
-      agent: AgentRecord,
-      prompt: string,
-    ) => Promise<void>,
-  ) {}
+  private readonly continuationCounts = new Map<string, number>();
+
+  constructor(readonly deps: WorkbenchAgentMechanicsDeps) {}
 
   /** Compute compaction-aware context-window usage for a conversation. */
   async getContextUsage(conversationId: string): Promise<ContextUsage> {
@@ -56,20 +52,66 @@ export class AutoCompactionRunner {
     });
   }
 
-  async maybeAutoCompact(
-    conversationId: string,
-    agentId?: string,
-    runId?: string,
-  ): Promise<void> {
-    if (!this.deps.storage.settings.compaction.auto) return;
-    const conversation = this.deps.state.getConversation(conversationId);
-    const agent =
-      (agentId ? this.deps.state.agents.get(agentId) : undefined) ??
-      (conversation.activeAgentId
-        ? this.deps.state.agents.get(conversation.activeAgentId)
-        : undefined);
+  async maybeCompactBeforePrompt(input: {
+    conversationId: string;
+    agentId: string;
+    runId: string;
+    text: string;
+    images?: ImageContent[];
+  }): Promise<boolean> {
+    const promptTokens = estimateTokens({
+      role: "user",
+      content: [{ type: "text", text: input.text }, ...(input.images ?? [])],
+      timestamp: Date.now(),
+    });
+    return this.maybeCompact({
+      conversationId: input.conversationId,
+      agentId: input.agentId,
+      runId: input.runId,
+      additionalTokens: promptTokens,
+      instructions:
+        "Preventive compaction before a pending user prompt reaches the selected model context limit.",
+    });
+  }
+
+  async maybeCompactAtIteration(input: {
+    conversationId: string;
+    agentId: string;
+    runId: string;
+  }): Promise<boolean> {
+    return this.maybeCompact({
+      ...input,
+      additionalTokens: 0,
+      instructions:
+        "Automatic compaction at an agent iteration boundary before the next provider request.",
+    });
+  }
+
+  takeContinuation(runId: string): string | undefined {
+    const count = this.continuationCounts.get(runId) ?? 0;
+    if (count >= MAX_AUTO_CONTINUATIONS_PER_RUN) return undefined;
+    this.continuationCounts.set(runId, count + 1);
+    return AUTO_COMPACTION_CONTINUE_MESSAGE;
+  }
+
+  finishRun(runId: string): void {
+    this.continuationCounts.delete(runId);
+  }
+
+  private async maybeCompact(input: {
+    conversationId: string;
+    agentId: string;
+    runId: string;
+    additionalTokens: number;
+    instructions: string;
+  }): Promise<boolean> {
+    const settings = this.deps.storage.settings.compaction;
+    if (!settings.auto) return false;
+    const conversation = this.deps.state.getConversation(input.conversationId);
+    const agent = this.resolveAgent(conversation.activeAgentId, input.agentId);
     const contextWindow = getModelContextWindow(agent?.model);
-    if (contextWindow <= 0) return;
+    const policy = deriveAutoCompactionPolicy(contextWindow, settings);
+    if (!policy.enabled || contextWindow <= 0) return false;
 
     const project = this.deps.state.getProject(conversation.projectId);
     const storage = await this.deps.harnessStorage.openStorage(
@@ -78,48 +120,68 @@ export class AutoCompactionRunner {
     );
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const messages = buildConversationContext(branch).messages;
-    const contextUsage = computeContextUsage(messages, branch, contextWindow);
-    if (contextUsage.tokens === null) return;
+    const contextTokens =
+      getCompactionDecisionTokens(messages, branch) + input.additionalTokens;
+    if (!shouldAutoCompact(contextTokens, policy)) return false;
 
-    const policy = deriveAutoCompactionPolicy(
-      contextWindow,
-      this.deps.storage.settings.compaction.auto,
-    );
-    if (!shouldAutoCompact(contextUsage.tokens, policy)) return;
-    await this.deps.compactionService.compactConversation(
-      conversationId,
-      {
-        instructions:
-          "Automatic compaction after the selected model approached its context window.",
-      },
-      {
-        reason: "threshold",
-        agentId: agent?.id,
-        runId,
-        contextWindow: policy.contextWindow,
-        contextTokens: contextUsage.tokens,
-        thresholdTokens: policy.thresholdTokens,
-        triggerReserveTokens: policy.triggerReserveTokens,
-        keepRecentTokens: policy.keepRecentTokens,
-      },
-    );
-    // Compaction succeeded: hand the work back to the agent so it continues
-    // from the fresh context checkpoint instead of stopping.
-    if (agent) await this.continueAfterAutoCompaction(agent);
+    try {
+      await this.deps.compactionService.compactConversation(
+        input.conversationId,
+        { instructions: input.instructions },
+        this.compactionOptions(
+          policy,
+          input.agentId,
+          input.runId,
+          contextTokens,
+        ),
+      );
+      return true;
+    } catch (error) {
+      await this.deps.logger.warn("Automatic context compaction failed", {
+        agentId: input.agentId,
+        conversationId: input.conversationId,
+        runId: input.runId,
+        context: {
+          contextTokens,
+          thresholdTokens: policy.thresholdTokens,
+          profile: policy.profile,
+        },
+        error,
+      });
+      return false;
+    }
   }
 
-  /**
-   * Push a normal handover user message and start a continuation run after an
-   * automatic compaction, bounded by a per-conversation runaway guard.
-   */
-  async continueAfterAutoCompaction(agent: AgentRecord): Promise<void> {
-    const count = this.autoContinuationCounts.get(agent.conversationId) ?? 0;
-    if (count >= MAX_AUTO_CONTINUATIONS) return;
-    this.autoContinuationCounts.set(agent.conversationId, count + 1);
-    await this.startAutomaticRun(agent, AUTO_CONTINUE_MESSAGE);
+  private resolveAgent(
+    activeAgentId: string | undefined,
+    selectedAgentId: string,
+  ): AgentRecord | undefined {
+    return (
+      this.deps.state.agents.get(selectedAgentId) ??
+      (activeAgentId ? this.deps.state.agents.get(activeAgentId) : undefined)
+    );
   }
 
-  resetContinuationCount(conversationId: string): void {
-    this.autoContinuationCounts.delete(conversationId);
+  private compactionOptions(
+    policy: ReturnType<typeof deriveAutoCompactionPolicy>,
+    agentId: string,
+    runId: string,
+    contextTokens: number,
+  ) {
+    return {
+      reason: "threshold" as const,
+      agentId,
+      runId,
+      contextWindow: policy.contextWindow,
+      contextTokens,
+      thresholdTokens: policy.thresholdTokens,
+      triggerReserveTokens: policy.triggerReserveTokens,
+      keepRecentTokens: policy.keepRecentTokens,
+      summaryReserveTokens: policy.summaryReserveTokens,
+      profile: policy.profile,
+      thresholdPercent: policy.thresholdPercent,
+      keepRecentPercent: policy.keepRecentPercent,
+      safetyHeadroomTokens: policy.safetyHeadroomTokens,
+    };
   }
 }

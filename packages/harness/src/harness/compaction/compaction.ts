@@ -117,12 +117,16 @@ function getMessageFromEntryForCompaction(
 export { findCutPoint, findTurnStartIndex } from "./cut-points.js";
 export { isContextOverflowAssistantMessage } from "./overflow.js";
 export {
+  AUTO_COMPACTION_PROFILES,
+  DEFAULT_AUTO_COMPACTION_SETTINGS,
   DEFAULT_COMPACTION_SETTINGS,
   deriveAutoCompactionPolicy,
+  resolveAutoCompactionPercentages,
   shouldAutoCompact,
   shouldCompact,
 } from "./policy.js";
 export type {
+  AutoCompactionConfiguration,
   AutoCompactionPolicy,
   AutoCompactionReason,
   CompactionDetails,
@@ -137,6 +141,7 @@ export {
   computeContextUsage,
   estimateContextTokens,
   estimateTokens,
+  getCompactionDecisionTokens,
   getLastAssistantUsage,
   getLatestCompactionEntry,
 } from "./usage.js";
@@ -145,80 +150,88 @@ export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assi
 
 Do NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.`;
 
-const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize. Another agent will read ONLY this summary (not the original transcript) and immediately continue the work, so write it as a handover that lets them resume without re-reading anything.
+const REQUIRED_SUMMARY_HEADINGS = [
+  "Goal",
+  "Requirements and Constraints",
+  "Work Completed",
+  "Work Remaining",
+  "Key Decisions",
+  "Current Working State",
+  "Continuation Plan",
+  "Critical References",
+] as const;
 
-Prioritize what is needed to continue. Keep finished work terse, and drop abandoned tangents, superseded approaches, and dead ends.
-
-Use this EXACT format:
-
-## Goal
-[What is the user trying to accomplish? Can be multiple items if the conversation covers different tasks.]
-
-## Constraints & Preferences
-- [Any constraints, preferences, or requirements mentioned by user that still apply]
-- [Or "(none)" if none were mentioned]
-
-## Progress
-### Done
-- [x] [Completed tasks/changes - ONE terse line each, no narration]
-
-### In Progress
-- [ ] [Current work, with enough detail to pick it back up]
-
-### Blocked
-- [Issues preventing progress, if any]
-
-## Key Decisions
-- **[Decision]**: [Brief rationale - only decisions that still constrain the remaining work]
-
-## Next Steps
-1. [Concrete, ordered list of exactly what to do next to finish the task]
-
-## Critical Context
-- [Data, examples, exact file paths, function names, commands, or error messages needed to continue]
-- [Or "(none)" if not applicable]
-
-Keep each section concise. Expand detail for unfinished work and Next Steps; compress everything already done. Preserve exact file paths, function names, commands, and error messages verbatim.`;
-
-const UPDATE_SUMMARIZATION_PROMPT = `The messages above are NEW conversation messages to incorporate into the existing summary provided in <previous-summary> tags.
-
-Another agent will read ONLY this summary (not the original transcript) and immediately continue the work, so keep it a tight handover focused on what remains.
-
-Update the existing structured summary with new information. RULES:
-- PRESERVE information still needed to continue; compress or drop details about work that is finished or no longer relevant
-- ADD new progress, decisions, and context from the new messages
-- UPDATE the Progress section: move items from "In Progress" to "Done" (and keep Done terse, one line each)
-- UPDATE "Next Steps" so they are the concrete, ordered actions to finish the task
-- PRESERVE exact file paths, function names, commands, and error messages verbatim
-
-Use this EXACT format:
+const SUMMARY_FORMAT = `Use this EXACT format:
 
 ## Goal
-[Preserve existing goals, add new ones if the task expanded]
+[The user's objective and intended outcome.]
 
-## Constraints & Preferences
-- [Preserve existing, add new ones discovered]
+## Requirements and Constraints
+- [All still-relevant user requirements, technical constraints, and preferences.]
+- [Or "(none)".]
 
-## Progress
-### Done
-- [x] [Include previously done items AND newly completed items]
+## Work Completed
+- [x] [Concrete completed work with enough implementation detail to avoid repeating it. Include exact files, symbols, behavior, and validation when relevant.]
+- [Do not mark an item complete without evidence.]
 
-### In Progress
-- [ ] [Current work - update based on progress]
-
-### Blocked
-- [Current blockers - remove if resolved]
+## Work Remaining
+- [ ] [Every unfinished or partially finished item, with current status or blocker.]
+- [Use "(none)" only when the task is actually complete.]
 
 ## Key Decisions
-- **[Decision]**: [Brief rationale] (preserve all previous, add new)
+- **[Decision]**: [Rationale and implications that still constrain the work.]
 
-## Next Steps
-1. [Concrete, ordered list of exactly what to do next to finish the task]
+## Current Working State
+- [Partial/uncommitted edits, current files and symbols, test/build status, failures, commands, and errors needed to resume safely.]
 
-## Critical Context
-- [Preserve context still needed to continue; add new if needed]
+## Continuation Plan
+1. [Exact, ordered execution steps for completing and validating the remaining work.]
 
-Keep each section concise. Expand detail for unfinished work and Next Steps; compress everything already done. Preserve exact file paths, function names, commands, and error messages verbatim.`;
+## Critical References
+- [Exact paths, identifiers, commands, errors, data, and examples that must not be lost.]
+- [Or "(none)".]`;
+
+export const SUMMARIZATION_PROMPT = `The messages above are a conversation to summarize. Another agent will read ONLY this checkpoint and immediately continue the work, so make it a precise handover that prevents both lost steps and duplicated work.
+
+Rules:
+- Clearly separate work already completed from work remaining; never mix their status.
+- Preserve enough completed implementation detail to avoid redoing it, including exact files, symbols, changed behavior, and validation already run.
+- Make remaining work exhaustive, actionable, ordered, and honest about partial completion or blockers.
+- Never mark work complete without evidence and never invent remaining work when the task is done.
+- Preserve all still-relevant requirements, decisions, unfinished edits, test failures, commands, errors, paths, and identifiers.
+- Identify the exact current working state and make the Continuation Plan the next execution sequence.
+- Drop only irrelevant narration, huge logs, abandoned tangents, and explicitly superseded approaches.
+- Summarize only. Do not answer questions or continue the original task in this response.
+
+${SUMMARY_FORMAT}`;
+
+export const UPDATE_SUMMARIZATION_PROMPT = `The messages above are NEW conversation messages to reconcile with the existing checkpoint in <previous-summary> tags. Another agent will read ONLY the updated checkpoint.
+
+Rules:
+- Preserve every still-relevant requirement, decision, completed implementation detail, and unfinished item from the previous checkpoint.
+- Add new work, evidence, decisions, errors, and context from the new messages.
+- Move an item from Work Remaining to Work Completed only when the new messages prove completion.
+- Keep partial work in Work Remaining and describe its exact current state.
+- Remove information only when it is explicitly superseded or no longer relevant.
+- Clearly separate completed work from remaining work so the next agent neither repeats completed steps nor loses unfinished ones.
+- Make Continuation Plan an exact, ordered sequence for finishing and validating the task.
+- Preserve exact file paths, symbols, commands, identifiers, and error messages.
+- Summarize only. Do not answer questions or continue the original task in this response.
+
+${SUMMARY_FORMAT}`;
+
+export function missingCompactionSummaryHeadings(summary: string): string[] {
+  return REQUIRED_SUMMARY_HEADINGS.filter(
+    (heading) => !new RegExp(`^## ${heading}\\s*$`, "m").test(summary),
+  );
+}
+
+export function isStructuredCompactionSummary(summary: string): boolean {
+  return (
+    summary.trim().length > 0 &&
+    missingCompactionSummaryHeadings(summary).length === 0
+  );
+}
 
 /** Generate or update a conversation summary for compaction. */
 export async function generateSummary(
@@ -251,48 +264,71 @@ export async function generateSummary(
   }
   promptText += basePrompt;
 
-  const summarizationMessages = [
-    {
-      role: "user" as const,
-      content: [{ type: "text" as const, text: promptText }],
-      timestamp: Date.now(),
-    },
-  ];
-
   const completionOptions =
     model.reasoning && thinkingLevel && thinkingLevel !== "off"
       ? { maxTokens, signal, apiKey, headers, env, reasoning: thinkingLevel }
       : { maxTokens, signal, apiKey, headers, env };
 
-  const response = await completeSimpleWithModel(
-    model,
-    {
-      systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
-      messages: summarizationMessages,
-    },
-    completionOptions,
-  );
-  if (response.stopReason === "aborted") {
-    return err(
-      new CompactionError(
+  const requestSummary = (text: string) =>
+    completeSimpleWithModel(
+      model,
+      {
+        systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user" as const,
+            content: [{ type: "text" as const, text }],
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      completionOptions,
+    );
+  const readText = (response: Awaited<ReturnType<typeof requestSummary>>) =>
+    response.content
+      .filter((c): c is { type: "text"; text: string } => c.type === "text")
+      .map((c) => c.text)
+      .join("\n")
+      .trim();
+  const responseError = (
+    response: Awaited<ReturnType<typeof requestSummary>>,
+  ): CompactionError | undefined => {
+    if (response.stopReason === "aborted") {
+      return new CompactionError(
         "aborted",
         response.errorMessage || "Summarization aborted",
-      ),
+      );
+    }
+    if (response.stopReason === "error") {
+      return new CompactionError(
+        "summarization_failed",
+        `Summarization failed: ${response.errorMessage || "Unknown error"}`,
+      );
+    }
+    return undefined;
+  };
+
+  let response = await requestSummary(promptText);
+  let failure = responseError(response);
+  if (failure) return err(failure);
+  let textContent = readText(response);
+  const missingHeadings = missingCompactionSummaryHeadings(textContent);
+  if (missingHeadings.length > 0) {
+    response = await requestSummary(
+      `${promptText}\n\n<draft-summary>\n${textContent}\n</draft-summary>\n\nThe draft is structurally incomplete. Rewrite the entire checkpoint using the exact required format and include these missing sections: ${missingHeadings.join(", ")}.`,
     );
+    failure = responseError(response);
+    if (failure) return err(failure);
+    textContent = readText(response);
   }
-  if (response.stopReason === "error") {
+  if (!isStructuredCompactionSummary(textContent)) {
     return err(
       new CompactionError(
         "summarization_failed",
-        `Summarization failed: ${response.errorMessage || "Unknown error"}`,
+        `Summarization omitted required sections: ${missingCompactionSummaryHeadings(textContent).join(", ")}`,
       ),
     );
   }
-
-  const textContent = response.content
-    .filter((c): c is { type: "text"; text: string } => c.type === "text")
-    .map((c) => c.text)
-    .join("\n");
 
   return ok(textContent);
 }
@@ -393,20 +429,23 @@ export function prepareCompaction(
   });
 }
 
-const TURN_PREFIX_SUMMARIZATION_PROMPT = `This is the PREFIX of a turn that was too large to keep. The SUFFIX (recent work) is retained.
+const TURN_PREFIX_SUMMARIZATION_PROMPT = `This is the PREFIX of a turn that was too large to keep. The SUFFIX is retained verbatim. Summarize the prefix as a precise bridge into that suffix.
 
-Summarize the prefix to provide context for the retained suffix:
+Use this exact format:
 
 ## Original Request
-[What did the user ask for in this turn?]
+[What the user asked for and the relevant constraints.]
 
-## Early Progress
-- [Key decisions and work done in the prefix]
+## Work Completed in This Prefix
+- [Concrete completed actions, exact files/symbols, decisions, and validation.]
 
-## Context for Suffix
-- [Information needed to understand the retained recent work]
+## Work Still Remaining at the Split
+- [Every unfinished step or partial edit the retained suffix must continue.]
 
-Be concise. Focus on what's needed to understand the kept suffix.`;
+## State Needed by the Retained Suffix
+- [Exact current state, paths, identifiers, errors, and ordered next action.]
+
+Clearly distinguish completed work from remaining work. Do not omit unfinished steps, do not mark work complete without evidence, and do not continue the task.`;
 
 export { serializeConversation } from "./utils.js";
 

@@ -29,7 +29,6 @@ export interface ApprovalBatchResolutionMember {
 export interface WorkbenchRunFeatureMechanics {
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
   getContextUsage(conversationId: string): Promise<ContextUsage>;
-  resetAutoContinuationCount(conversationId: string): void;
   runExplore(
     parent: AgentRecord,
     args: Record<string, unknown>,
@@ -109,7 +108,6 @@ export class WorkbenchRunService {
       }
       return;
     }
-    this.features.resetAutoContinuationCount(agent.conversationId);
     await this.coordinator.start({
       conversationId: agent.conversationId,
       agentId: agent.id,

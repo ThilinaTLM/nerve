@@ -196,6 +196,20 @@ export async function executeWorkbenchHarness(
       scope: { conversationId: conversation.id, agentId: agent.id, runId },
       context: undefined,
     });
+    harness.on("iteration_boundary", async (event) => {
+      const compacted = await this.maybeAutoCompactAtIteration(
+        agent.conversationId,
+        agent.id,
+        runId,
+      );
+      if (!compacted || event.hasMoreToolCalls) return undefined;
+      const hadToolCalls = event.message.content.some(
+        (content) => content.type === "toolCall",
+      );
+      if (hadToolCalls) return undefined;
+      const followUp = this.takeAutoCompactionContinuation(runId);
+      return followUp ? { followUp } : undefined;
+    });
     const startLiveTurn = async () => {
       const turn = this.deps.state.conversationRuntime.startTurn(runId);
       currentTurnId = turn.turnId;
@@ -741,5 +755,7 @@ export async function executeWorkbenchHarness(
             retryable: true,
           },
         };
+  } finally {
+    this.finishAutoCompactionRun?.(runId);
   }
 }

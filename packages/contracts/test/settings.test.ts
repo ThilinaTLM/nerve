@@ -31,7 +31,12 @@ describe("settings schema", () => {
     });
     assert.equal(settings.tools.jira.enabled, false);
     assert.equal(settings.tools.confluence.enabled, false);
-    assert.equal(settings.compaction.auto, true);
+    assert.deepEqual(settings.compaction, {
+      auto: true,
+      profile: "balanced",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    });
   });
 
   it("backfills new defaults for older config files", () => {
@@ -66,7 +71,31 @@ describe("settings schema", () => {
     assert.equal(settings.tools.confluence.enabled, false);
   });
 
-  it("strips legacy compaction token fields while backfilling auto default", () => {
+  it("backfills configurable compaction defaults and preserves the old auto toggle", () => {
+    const enabled = settingsSchema.parse({
+      ...defaultSettings,
+      compaction: { auto: true },
+    });
+    const disabled = settingsSchema.parse({
+      ...defaultSettings,
+      compaction: { auto: false },
+    });
+
+    assert.deepEqual(enabled.compaction, {
+      auto: true,
+      profile: "balanced",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    });
+    assert.deepEqual(disabled.compaction, {
+      auto: false,
+      profile: "balanced",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    });
+  });
+
+  it("strips legacy compaction token fields while backfilling defaults", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
       compaction: {
@@ -75,7 +104,41 @@ describe("settings schema", () => {
       },
     });
 
-    assert.deepEqual(settings.compaction, { auto: true });
+    assert.deepEqual(settings.compaction, {
+      auto: true,
+      profile: "balanced",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    });
+  });
+
+  it("validates custom compaction updates", () => {
+    assert.deepEqual(
+      updateSettingsRequestSchema.parse({
+        compaction: {
+          profile: "custom",
+          customTriggerPercent: 75,
+          customKeepRecentPercent: 20,
+        },
+      }),
+      {
+        compaction: {
+          profile: "custom",
+          customTriggerPercent: 75,
+          customKeepRecentPercent: 20,
+        },
+      },
+    );
+    assert.throws(() =>
+      updateSettingsRequestSchema.parse({
+        compaction: { customTriggerPercent: 59 },
+      }),
+    );
+    assert.throws(() =>
+      updateSettingsRequestSchema.parse({
+        compaction: { customKeepRecentPercent: 41 },
+      }),
+    );
   });
 
   it("backfills tool provider defaults when older configs only have disabled tools", () => {

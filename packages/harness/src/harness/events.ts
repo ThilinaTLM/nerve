@@ -1,4 +1,9 @@
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import type {
+  AssistantMessage,
+  ImageContent,
+  TextContent,
+  ToolResultMessage,
+} from "@earendil-works/pi-ai";
 import type {
   AgentEvent,
   AgentMessage,
@@ -48,6 +53,20 @@ export interface QueueDrainedEvent {
 export interface SavePointEvent {
   type: "save_point";
   hadPendingMutations: boolean;
+}
+
+/** Safe point after a durable turn and before the next context is rebuilt. */
+export interface IterationBoundaryEvent {
+  type: "iteration_boundary";
+  message: AssistantMessage;
+  toolResults: ToolResultMessage[];
+  hasMoreToolCalls: boolean;
+  signal: AbortSignal;
+}
+
+export interface IterationBoundaryResult {
+  /** Internal user-style message to process only if the run would otherwise end. */
+  followUp?: string;
 }
 
 export interface AbortEvent {
@@ -179,6 +198,7 @@ export type AgentHarnessOwnEvent<
   | QueueUpdateEvent
   | QueueDrainedEvent
   | SavePointEvent
+  | IterationBoundaryEvent
   | AbortEvent
   | SettledEvent
   | BeforeAgentStartEvent<TSkill, TPromptTemplate>
@@ -252,6 +272,7 @@ export type AgentHarnessEventResultMap = {
   after_provider_response: undefined;
   tool_call: ToolCallResult | undefined;
   tool_result: ToolResultPatch | undefined;
+  iteration_boundary: IterationBoundaryResult | undefined;
   conversation_before_compact: ConversationBeforeCompactResult | undefined;
   conversation_compact: undefined;
   conversation_before_tree: ConversationBeforeTreeResult | undefined;

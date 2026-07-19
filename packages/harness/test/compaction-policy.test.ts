@@ -41,39 +41,81 @@ function assistant(overrides: Partial<AssistantMessage>): AssistantMessage {
 }
 
 describe("auto-compaction policy", () => {
-  it("derives model-aware threshold and retention for a 200k context", () => {
+  it("derives the balanced model-aware policy for a 200k context", () => {
     const policy = deriveAutoCompactionPolicy(200_000);
 
-    assert.equal(policy.thresholdTokens, 180_000);
-    assert.equal(policy.triggerReserveTokens, 20_000);
-    assert.equal(policy.keepRecentTokens, 20_000);
-    assert.equal(policy.summaryReserveTokens, 16_384);
+    assert.equal(policy.profile, "balanced");
+    assert.equal(policy.thresholdPercent, 80);
+    assert.equal(policy.keepRecentPercent, 15);
+    assert.equal(policy.thresholdTokens, 160_000);
+    assert.equal(policy.triggerReserveTokens, 40_000);
+    assert.equal(policy.keepRecentTokens, 30_000);
+    assert.equal(policy.summaryReserveTokens, 16_000);
+    assert.equal(policy.safetyHeadroomTokens, 20_000);
   });
 
-  it("caps retention for very large context windows", () => {
-    assert.equal(
-      deriveAutoCompactionPolicy(1_000_000).keepRecentTokens,
-      50_000,
+  it("resolves aggressive, conservative, and custom profiles", () => {
+    assert.deepEqual(
+      pickPercentages(
+        deriveAutoCompactionPolicy(200_000, {
+          auto: true,
+          profile: "aggressive",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        }),
+      ),
+      [70, 10],
+    );
+    assert.deepEqual(
+      pickPercentages(
+        deriveAutoCompactionPolicy(200_000, {
+          auto: true,
+          profile: "conservative",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        }),
+      ),
+      [90, 25],
+    );
+    assert.deepEqual(
+      pickPercentages(
+        deriveAutoCompactionPolicy(200_000, {
+          auto: true,
+          profile: "custom",
+          customTriggerPercent: 75,
+          customKeepRecentPercent: 20,
+        }),
+      ),
+      [75, 20],
     );
   });
 
-  it("keeps at least 4k tokens for small context windows without exceeding half", () => {
-    const policy = deriveAutoCompactionPolicy(8_192);
-
-    assert.equal(policy.thresholdTokens, 7_372);
-    assert.equal(policy.triggerReserveTokens, 820);
-    assert.equal(policy.keepRecentTokens, 4_000);
-    assert.ok(
-      policy.keepRecentTokens <= Math.floor(policy.contextWindow * 0.5),
-    );
+  it("keeps summary, retained context, and safety within the threshold", () => {
+    for (const contextWindow of [4_096, 8_192, 200_000, 1_000_000]) {
+      const policy = deriveAutoCompactionPolicy(contextWindow);
+      assert.ok(policy.summaryReserveTokens <= 16_384);
+      assert.ok(
+        policy.keepRecentTokens +
+          policy.summaryReserveTokens +
+          policy.safetyHeadroomTokens <=
+          policy.thresholdTokens,
+      );
+    }
   });
 
-  it("does not auto-compact unknown usage or unknown context windows", () => {
-    const policy = deriveAutoCompactionPolicy(0);
+  it("does not auto-compact unknown usage, unknown windows, or when disabled", () => {
+    const unknown = deriveAutoCompactionPolicy(0);
+    const disabled = deriveAutoCompactionPolicy(200_000, {
+      auto: false,
+      profile: "balanced",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    });
 
-    assert.equal(shouldAutoCompact(null, policy), false);
-    assert.equal(shouldAutoCompact(undefined, policy), false);
-    assert.equal(shouldAutoCompact(1_000_000, policy), false);
+    assert.equal(shouldAutoCompact(null, unknown), false);
+    assert.equal(shouldAutoCompact(undefined, unknown), false);
+    assert.equal(shouldAutoCompact(1_000_000, unknown), false);
+    assert.equal(shouldAutoCompact(200_000, disabled), false);
   });
 
   it("triggers at the derived threshold", () => {
@@ -94,6 +136,13 @@ describe("auto-compaction policy", () => {
     );
   });
 });
+
+function pickPercentages(policy: {
+  thresholdPercent: number;
+  keepRecentPercent: number;
+}): [number, number] {
+  return [policy.thresholdPercent, policy.keepRecentPercent];
+}
 
 describe("context overflow detection", () => {
   it("detects Anthropic prompt-too-long errors", () => {

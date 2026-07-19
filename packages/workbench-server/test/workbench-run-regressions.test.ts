@@ -547,28 +547,21 @@ describe("workbench coordinator behavior regressions", () => {
     assert.deepEqual(fixture.statusUpdates, ["idle"]);
   });
 
-  it("bounds automatic fresh-run handovers at three and resets only externally", async () => {
-    const starts: string[] = [];
-    const counts = new Map<string, number>();
-    const runner = new AutoCompactionRunner(
-      {} as never,
-      counts,
-      async (_agent, prompt) => {
-        starts.push(prompt);
-      },
-    );
-    const agent = agentRecord();
-    await runner.continueAfterAutoCompaction(agent);
-    await runner.continueAfterAutoCompaction(agent);
-    await runner.continueAfterAutoCompaction(agent);
-    await runner.continueAfterAutoCompaction(agent);
-    assert.equal(starts.length, 3);
-    assert.equal(counts.get(agent.conversationId), 3);
-    assert.match(starts[0]!, /context checkpoint above/);
+  it("bounds automatic same-run continuations at three and resets on run finish", () => {
+    const runner = new AutoCompactionRunner({} as never);
+    const runId = "run_compaction_guard";
+    const continuations = [
+      runner.takeContinuation(runId),
+      runner.takeContinuation(runId),
+      runner.takeContinuation(runId),
+      runner.takeContinuation(runId),
+    ];
+    assert.equal(continuations.filter(Boolean).length, 3);
+    assert.equal(continuations[3], undefined);
+    assert.match(continuations[0]!, /Work Remaining/);
 
-    runner.resetContinuationCount(agent.conversationId);
-    await runner.continueAfterAutoCompaction(agent);
-    assert.equal(starts.length, 4);
+    runner.finishRun(runId);
+    assert.ok(runner.takeContinuation(runId));
   });
 });
 

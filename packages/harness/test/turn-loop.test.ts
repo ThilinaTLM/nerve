@@ -85,6 +85,53 @@ function textOf(message: Message): string {
     .join("\n");
 }
 
+describe("agent loop follow-up queue", () => {
+  it("runs a follow-up only after a response would otherwise finish", async () => {
+    const providerContexts: Context[] = [];
+    let providerCalls = 0;
+    let followUpCalls = 0;
+    const streamFn: StreamFn = (_model, context) => {
+      providerContexts.push(context);
+      providerCalls += 1;
+      return streamMessage(
+        assistant([{ type: "text", text: `response ${providerCalls}` }]),
+      );
+    };
+
+    await runAgentLoop(
+      [{ role: "user", content: "start", timestamp: Date.now() }],
+      { systemPrompt: "", messages: [] },
+      {
+        model,
+        convertToLlm,
+        getSteeringMessages: async () => [],
+        getFollowUpMessages: async () => {
+          followUpCalls += 1;
+          return followUpCalls === 1
+            ? [
+                {
+                  role: "user",
+                  content: "continue from checkpoint",
+                  timestamp: Date.now(),
+                },
+              ]
+            : [];
+        },
+      },
+      async () => undefined,
+      undefined,
+      streamFn,
+    );
+
+    assert.equal(providerCalls, 2);
+    assert.equal(followUpCalls, 2);
+    assert.match(
+      textOf(providerContexts[1]?.messages.at(-1) as Message),
+      /continue from checkpoint/,
+    );
+  });
+});
+
 describe("agent loop steering queue", () => {
   it("drains harness messages before stop and before the next LLM request", async () => {
     const providerContexts: Context[] = [];

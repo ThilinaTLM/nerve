@@ -72,14 +72,12 @@ export interface WorkbenchAgentMechanicsDeps {
   messageMirror: MessageMirror;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
-  startAutomaticRun(agent: AgentRecord, prompt: string): Promise<void>;
 }
 
 export class WorkbenchAgentMechanics {
   readonly subagents: SubagentRunner;
   readonly inlineCommands: InlineCommandRunner;
   readonly autoCompaction: AutoCompactionRunner;
-  readonly autoContinuationCounts = new Map<string, number>();
 
   constructor(readonly deps: WorkbenchAgentMechanicsDeps) {
     this.subagents = new SubagentRunner({
@@ -97,11 +95,7 @@ export class WorkbenchAgentMechanics {
       logger: deps.logger.child({ component: "subagent-runner" }),
     });
     this.inlineCommands = new InlineCommandRunner(deps);
-    this.autoCompaction = new AutoCompactionRunner(
-      deps,
-      this.autoContinuationCounts,
-      deps.startAutomaticRun,
-    );
+    this.autoCompaction = new AutoCompactionRunner(deps);
   }
 
   async activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]> {
@@ -203,6 +197,15 @@ export class WorkbenchAgentMechanics {
   }): Promise<AssistantMessage> {
     const latestAgent = () =>
       this.deps.state.agents.get(input.agent.id) ?? input.agent;
+    if (!input.continue) {
+      await this.autoCompaction.maybeCompactBeforePrompt({
+        conversationId: input.agent.conversationId,
+        agentId: input.agent.id,
+        runId: input.runId,
+        text: input.request.text,
+        images: input.request.images,
+      });
+    }
     let assistant = input.continue
       ? await input.harness.continue()
       : await input.harness.prompt(input.request.text, {
@@ -241,7 +244,7 @@ export class WorkbenchAgentMechanics {
     const failedParentId = leaf.parentId;
     const policy = deriveAutoCompactionPolicy(
       contextWindow,
-      this.deps.storage.settings.compaction.auto,
+      this.deps.storage.settings.compaction,
     );
     try {
       await input.conversation.moveTo(failedParentId);
@@ -260,6 +263,11 @@ export class WorkbenchAgentMechanics {
           thresholdTokens: policy.thresholdTokens,
           triggerReserveTokens: policy.triggerReserveTokens,
           keepRecentTokens: policy.keepRecentTokens,
+          summaryReserveTokens: policy.summaryReserveTokens,
+          profile: policy.profile,
+          thresholdPercent: policy.thresholdPercent,
+          keepRecentPercent: policy.keepRecentPercent,
+          safetyHeadroomTokens: policy.safetyHeadroomTokens,
           failedEntryId,
         },
       );
@@ -305,19 +313,23 @@ export class WorkbenchAgentMechanics {
     );
   }
 
-  async maybeAutoCompact(
+  async maybeAutoCompactAtIteration(
     conversationId: string,
-    agentId?: string,
-    runId?: string,
-  ): Promise<void> {
-    return this.autoCompaction.maybeAutoCompact(conversationId, agentId, runId);
+    agentId: string,
+    runId: string,
+  ): Promise<boolean> {
+    return this.autoCompaction.maybeCompactAtIteration({
+      conversationId,
+      agentId,
+      runId,
+    });
   }
 
-  async continueAfterAutoCompaction(agent: AgentRecord): Promise<void> {
-    return this.autoCompaction.continueAfterAutoCompaction(agent);
+  takeAutoCompactionContinuation(runId: string): string | undefined {
+    return this.autoCompaction.takeContinuation(runId);
   }
 
-  resetAutoContinuationCount(conversationId: string): void {
-    this.autoCompaction.resetContinuationCount(conversationId);
+  finishAutoCompactionRun(runId: string): void {
+    this.autoCompaction.finishRun(runId);
   }
 }

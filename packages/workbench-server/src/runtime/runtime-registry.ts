@@ -119,7 +119,6 @@ export class RuntimeRegistry {
    * event-journal publications to settle so no writer races teardown.
    */
   async shutdown(): Promise<void> {
-    this.services.runCompletion.stop();
     this.services.taskNotifications.stop();
     await this.services.runRuntime.delivery.settled();
     await this.events.settled();

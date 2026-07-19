@@ -52,8 +52,9 @@ export type CompactionSummarizer = (input: {
   messages: AgentMessage[];
   previousSummary?: string;
   instructions?: string;
+  summaryReserveTokens: number;
   signal?: AbortSignal;
-}) => Promise<string | undefined>;
+}) => Promise<{ text: string; generatedBy: "model" } | undefined>;
 
 export interface CompactConversationOptions {
   reason?: ConversationCompactionReason;
@@ -64,6 +65,11 @@ export interface CompactConversationOptions {
   thresholdTokens?: number;
   triggerReserveTokens?: number;
   keepRecentTokens?: number;
+  summaryReserveTokens?: number;
+  profile?: string;
+  thresholdPercent?: number;
+  keepRecentPercent?: number;
+  safetyHeadroomTokens?: number;
   failedEntryId?: string;
 }
 
@@ -98,9 +104,13 @@ export class CompactionService {
     );
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const branchLeafId = branch.at(-1)?.id ?? null;
+    const summaryReserveTokens =
+      options.summaryReserveTokens && options.summaryReserveTokens > 0
+        ? options.summaryReserveTokens
+        : DEFAULT_COMPACTION_SETTINGS.reserveTokens;
     const settings = {
       ...DEFAULT_COMPACTION_SETTINGS,
-      reserveTokens: DEFAULT_COMPACTION_SETTINGS.reserveTokens,
+      reserveTokens: summaryReserveTokens,
       keepRecentTokens:
         request.keepRecentTokens ??
         (options.keepRecentTokens && options.keepRecentTokens > 0
@@ -157,19 +167,24 @@ export class CompactionService {
       });
       started = true;
 
+      const modelSummary = await this.summarizeWithFallback(
+        conversationId,
+        options.agentId,
+        messagesToSummarize,
+        preparation.previousSummary,
+        request.instructions,
+        summaryReserveTokens,
+      );
+      const generatedBy =
+        modelSummary?.generatedBy ?? "orchestrator-extractive";
       const summary =
-        (await this.summarizeWithFallback(
-          conversationId,
-          options.agentId,
-          messagesToSummarize,
-          preparation.previousSummary,
-          request.instructions,
-        )) ||
+        modelSummary?.text ??
         buildExtractiveSummary({
           title: "Context checkpoint",
           messages: messagesToSummarize,
           previousSummary: preparation.previousSummary,
           instructions: request.instructions,
+          maxChars: Math.max(1_000, Math.floor(summaryReserveTokens * 3.2)),
         });
       const tokensAfter = estimatePostCompactionTokens(
         branch,
@@ -177,6 +192,13 @@ export class CompactionService {
         summary,
         preparation.tokensBefore,
       );
+      if (reason !== "manual" && tokensAfter >= preparation.tokensBefore) {
+        throw new HttpError(
+          409,
+          "INEFFECTIVE_COMPACTION",
+          "Compaction would not reduce context usage.",
+        );
+      }
       const freedTokens = Math.max(0, preparation.tokensBefore - tokensAfter);
       const fileOps = {
         read: [...preparation.fileOps.read].sort(),
@@ -184,7 +206,7 @@ export class CompactionService {
         edited: [...preparation.fileOps.edited].sort(),
       };
       const details = {
-        generatedBy: "orchestrator-extractive",
+        generatedBy,
         compactedMessages: messagesToSummarize.length,
         splitTurn: preparation.isSplitTurn,
         tokensAfter,
@@ -195,6 +217,11 @@ export class CompactionService {
           thresholdTokens: options.thresholdTokens,
           triggerReserveTokens: options.triggerReserveTokens,
           keepRecentTokens: settings.keepRecentTokens,
+          summaryReserveTokens,
+          profile: options.profile,
+          thresholdPercent: options.thresholdPercent,
+          keepRecentPercent: options.keepRecentPercent,
+          safetyHeadroomTokens: options.safetyHeadroomTokens,
         },
         fileOps,
         readFiles: fileOps.read,
@@ -268,7 +295,8 @@ export class CompactionService {
     messages: AgentMessage[],
     previousSummary: string | undefined,
     instructions: string | undefined,
-  ): Promise<string | undefined> {
+    summaryReserveTokens: number,
+  ): Promise<{ text: string; generatedBy: "model" } | undefined> {
     if (!this.summarize) return undefined;
     try {
       const summary = await this.summarize({
@@ -277,8 +305,11 @@ export class CompactionService {
         messages,
         previousSummary,
         instructions,
+        summaryReserveTokens,
       });
-      return summary?.trim() ? summary : undefined;
+      return summary?.text.trim()
+        ? { text: summary.text.trim(), generatedBy: summary.generatedBy }
+        : undefined;
     } catch {
       return undefined;
     }

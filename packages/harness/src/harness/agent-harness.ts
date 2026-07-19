@@ -68,8 +68,11 @@ import {
 import {
   appendExternalHarnessMessage,
   appendHarnessMessage,
+  enqueueAutomaticFollowUp,
   enqueueHarnessMessage as enqueueHarnessQueueMessage,
   enqueueNextTurn,
+  followUpHarness,
+  hasQueuedHarnessInput,
   type HarnessQueueState,
   type InboundQueuedMessage,
   removeQueuedHarnessMessage,
@@ -359,8 +362,22 @@ export class AgentHarness<
             }
           : undefined;
       },
-      prepareNextTurn: async () => {
+      prepareNextTurn: async (context) => {
         await this.flushPendingConversationWrites();
+        const boundaryResult = await this.emitHook({
+          type: "iteration_boundary",
+          message: context.message,
+          toolResults: context.toolResults,
+          hasMoreToolCalls: context.hasMoreToolCalls,
+          signal:
+            this.runAbortController?.signal ?? new AbortController().signal,
+        });
+        if (boundaryResult?.followUp && !context.hasMoreToolCalls) {
+          await enqueueAutomaticFollowUp(
+            this.queueState(),
+            boundaryResult.followUp,
+          );
+        }
         const nextTurnState = await this.createTurnState();
         setTurnState(nextTurnState);
         return {
@@ -371,7 +388,8 @@ export class AgentHarness<
       },
       getSteeringMessages: async () =>
         this.drainQueuedMessages(this.steerQueue, this.steeringQueueMode),
-      getFollowUpMessages: async () => [],
+      getFollowUpMessages: async () =>
+        this.drainQueuedMessages(this.followUpQueue, this.followUpQueueMode),
     };
   }
 
@@ -630,7 +648,11 @@ export class AgentHarness<
     text: string,
     options?: { images?: ImageContent[]; id?: string },
   ): Promise<void> {
-    return this.steer(text, options);
+    return followUpHarness(this.queueState(), text, options);
+  }
+
+  hasQueuedInput(): boolean {
+    return hasQueuedHarnessInput(this.queueState());
   }
 
   async removeQueuedMessage(id: string): Promise<boolean> {

@@ -1,6 +1,7 @@
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import type { ContextUsage } from "@nervekit/contracts";
 import type { AgentMessage } from "../../types.js";
+import { buildConversationContext } from "../conversation/conversation.js";
 import type {
   CompactionEntry,
   ConversationTreeEntry,
@@ -92,6 +93,57 @@ export function estimateContextTokens(
     trailingTokens,
     lastUsageIndex: usageInfo.index,
   };
+}
+
+/**
+ * Return context tokens suitable for an automatic-compaction decision.
+ *
+ * Unlike the public UI usage value, this provides a conservative baseline
+ * immediately after compaction by using the persisted post-compaction estimate
+ * plus structurally estimated trailing messages. Provider usage from a fresh
+ * post-compaction assistant response remains authoritative.
+ */
+export function getCompactionDecisionTokens(
+  messages: AgentMessage[],
+  entries: ConversationTreeEntry[],
+): number {
+  const latestCompaction = getLatestCompactionEntry(entries);
+  if (!latestCompaction) return estimateContextTokens(messages).tokens;
+
+  const compactionIndex = entries.lastIndexOf(latestCompaction);
+  for (let i = entries.length - 1; i > compactionIndex; i--) {
+    const entry = entries[i];
+    if (entry.type !== "message") continue;
+    const usage = getAssistantUsage(entry.message as AgentMessage);
+    if (usage && calculateContextTokens(usage) > 0) {
+      return estimateContextTokens(messages).tokens;
+    }
+  }
+
+  const details = latestCompaction.details;
+  const tokensAfter =
+    details &&
+    typeof details === "object" &&
+    "tokensAfter" in details &&
+    typeof details.tokensAfter === "number" &&
+    Number.isFinite(details.tokensAfter) &&
+    details.tokensAfter >= 0
+      ? Math.floor(details.tokensAfter)
+      : undefined;
+  if (tokensAfter !== undefined) {
+    const trailingMessages = buildConversationContext(
+      entries.slice(compactionIndex + 1),
+    ).messages;
+    return (
+      tokensAfter +
+      trailingMessages.reduce(
+        (sum, message) => sum + estimateTokens(message),
+        0,
+      )
+    );
+  }
+
+  return messages.reduce((sum, message) => sum + estimateTokens(message), 0);
 }
 
 /** Return the most recent compaction entry in a branch, if any. */
