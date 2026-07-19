@@ -245,34 +245,42 @@ export class OrchestrationToolDispatcher {
     executionContext: ToolExecutionContext,
   ): Promise<unknown> {
     delete args.cwd;
-    if (toolCall.toolName === "bash" && options.useForegroundBash !== false) {
-      const agent = this.deps.getAgent(toolCall.agentId);
-      const autoPromotion = this.deps.storage.settings.tools.bash.autoPromotion;
-      const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
-        command: stringArg(args, "command"),
-        cwd: toolCall.cwd,
-        workerId: agent.workerId,
-        projectId: toolCall.projectId,
-        conversationId: toolCall.conversationId,
-        agentId: toolCall.agentId,
-        timeoutMs: bashTimeoutMs(args.timeout),
-        autoPromoteAfterMs: autoPromotion.enabled
-          ? autoPromotion.afterMs
-          : undefined,
-        signal: options.signal,
-        onOutput: executionContext.onUpdate,
-        origin: {
-          kind: "agent_tool",
-          toolCallId: toolCall.id,
-          providerToolCallId: toolCall.providerToolCallId,
-          runId: toolCall.runId,
-          turnId: toolCall.turnId,
-          liveMessageId: toolCall.liveMessageId,
-          contentIndex: toolCall.contentIndex,
-        },
-        continueAfterPromotion: options.continueAfterPromotedTask !== false,
-      });
-      return promoted.result;
+    if (toolCall.toolName === "bash") {
+      if (options.useForegroundBash !== false) {
+        const agent = this.deps.getAgent(toolCall.agentId);
+        const autoPromotion =
+          this.deps.storage.settings.tools.bash.autoPromotion;
+        const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
+          command: stringArg(args, "command"),
+          cwd: toolCall.cwd,
+          workerId: agent.workerId,
+          projectId: toolCall.projectId,
+          conversationId: toolCall.conversationId,
+          agentId: toolCall.agentId,
+          timeoutMs: bashTimeoutMs(args.timeout),
+          autoPromoteAfterMs: autoPromotion.enabled
+            ? autoPromotion.afterMs
+            : undefined,
+          signal: options.signal,
+          onOutput: executionContext.onUpdate,
+          origin: {
+            kind: "agent_tool",
+            toolCallId: toolCall.id,
+            providerToolCallId: toolCall.providerToolCallId,
+            runId: toolCall.runId,
+            turnId: toolCall.turnId,
+            liveMessageId: toolCall.liveMessageId,
+            contentIndex: toolCall.contentIndex,
+          },
+          continueAfterPromotion: options.continueAfterPromotedTask !== false,
+        });
+        return promoted.result;
+      }
+      const definition = toolDefinitionByName("bash");
+      if (definition?.executionKind !== "local") {
+        throw new Error("Bash tool executor is unavailable.");
+      }
+      return definition.executor(args, executionContext);
     }
     if (toolCall.toolName === "python") {
       const agent = this.deps.getAgent(toolCall.agentId);

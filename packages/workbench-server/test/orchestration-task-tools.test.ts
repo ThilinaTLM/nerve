@@ -312,6 +312,26 @@ describe("orchestration task tools", () => {
     assert.equal(captured?.workerId, "worker_test");
   });
 
+  it("executes Bash locally when foreground task promotion is disabled", async () => {
+    let foregroundCalled = false;
+    const dispatcher = await createDispatcher([], {
+      runForegroundBashWithPromotion: async () => {
+        foregroundCalled = true;
+        throw new Error("Foreground Bash should not be used.");
+      },
+    });
+
+    const result = (await dispatcher.execute(
+      { ...toolCall("bash"), cwd: tmpdir() },
+      { command: "printf direct-bash-ok" },
+      { useForegroundBash: false },
+    )) as { content?: string; exitCode?: number };
+
+    assert.equal(foregroundCalled, false);
+    assert.equal(result.content, "direct-bash-ok");
+    assert.equal(result.exitCode, 0);
+  });
+
   it("passes custom and disabled Bash auto-promotion settings", async () => {
     const settings = structuredClone(defaultSettings);
     let captured: Record<string, unknown> | undefined;
@@ -511,7 +531,7 @@ async function createDispatcher(
       paths: { home: root },
       settings: overrides.settings ?? defaultSettings,
     },
-    events: {},
+    events: { publish: async () => undefined },
     tasks,
     pythonRuntime: {},
     startTask: async () => task({ id: "task_started" }),
@@ -529,7 +549,9 @@ async function createDispatcher(
       projectDir: root,
       mode: "coding",
     }),
-    conversationRuntime: {},
+    conversationRuntime: {
+      applyToolOutputDelta: (data: unknown) => data,
+    },
     todoState: { set() {}, get: () => [] },
     interactionSessions: {},
     updateToolCall: async (id: string, patch: Partial<ToolCallRecord>) => ({
