@@ -94,6 +94,18 @@ describe("Git panel selectors", () => {
     );
   });
 
+  it("prioritizes the current branch, then the base branch", () => {
+    const branches: GitBranchSummary[] = [
+      { name: "feature/z", current: false, remote: false, upstream: null },
+      { name: "main", current: false, remote: false, upstream: null },
+      { name: "feature/a", current: true, remote: false, upstream: null },
+    ];
+    assert.deepEqual(
+      filterAndSortBranches(branches, "", "main").map((branch) => branch.name),
+      ["feature/a", "main", "feature/z"],
+    );
+  });
+
   it("sorts the current branch PR first and remaining PRs by update time", () => {
     const pr = (
       number: number,

@@ -18,7 +18,7 @@ let { model, actions }: { model: GitPanelModel; actions: GitPanelActions } =
 let repoSectionOpen = $state(true);
 let changesSectionOpen = $state(true);
 let prsSectionOpen = $state(true);
-let branchPopoverOpen = $state(false);
+let branchDialogOpen = $state(false);
 let branchFilter = $state("");
 let newBranchName = $state("");
 let expandedPr = $state<number | undefined>(undefined);
@@ -32,7 +32,16 @@ let discardCandidate = $state<
 
 const fileGroups = $derived(gitFileGroups(model.changes?.files ?? []));
 const filteredBranches = $derived(
-  filterAndSortBranches(model.branches, branchFilter),
+  filterAndSortBranches(
+    model.branches,
+    branchFilter,
+    model.repositorySummary?.baseBranch,
+  ),
+);
+const baseBranchSummary = $derived(
+  model.branches.find(
+    (branch) => branch.name === model.repositorySummary?.baseBranch,
+  ),
 );
 const currentBranchName = $derived(
   model.repositorySummary?.currentBranch ?? null,
@@ -65,7 +74,7 @@ async function switchBranch(
 ): Promise<void> {
   const switched = await actions.switchBranch(repository, branch);
   if (switched === false) return;
-  branchPopoverOpen = false;
+  branchDialogOpen = false;
   branchFilter = "";
   newBranchName = "";
 }
@@ -75,7 +84,7 @@ async function createBranch(repository: string): Promise<void> {
   if (!name) return;
   const created = await actions.createBranch(repository, name);
   if (created === false) return;
-  branchPopoverOpen = false;
+  branchDialogOpen = false;
   branchFilter = "";
   newBranchName = "";
 }
@@ -85,10 +94,12 @@ function selectExpandedPullRequest(number: number | undefined): void {
   void actions.selectPullRequest(number);
 }
 
-$effect(() => {
-  if (!branchPopoverOpen || model.repositories.length === 0) return;
+function openBranchDialog(): void {
+  branchDialogOpen = true;
+  branchFilter = "";
+  newBranchName = "";
   void actions.refreshBranches(model.selectedRepository);
-});
+}
 </script>
 
 <div class="p-2">
@@ -139,9 +150,11 @@ $effect(() => {
         capabilities={model.capabilities}
         bind:branchFilter
         bind:newBranchName
-        bind:branchPopoverOpen
+        bind:branchDialogOpen
+        {baseBranchSummary}
         bind:open={repoSectionOpen}
         onSelectRepo={selectRepository}
+        onOpenBranchDialog={openBranchDialog}
         onSwitchBranch={(repository, branch) =>
           void switchBranch(repository, branch)}
         onCreateBranch={(repository) => void createBranch(repository)}

@@ -22,12 +22,16 @@ export function gitFileGroups(files: readonly GitFileChange[]): {
 export function filterAndSortBranches(
   branches: readonly GitBranchSummary[],
   filter: string,
+  baseBranch?: string,
 ): GitBranchSummary[] {
   const query = filter.trim().toLocaleLowerCase();
   return branches
     .filter((branch) => branch.name.toLocaleLowerCase().includes(query))
     .sort((left, right) => {
       if (left.current !== right.current) return left.current ? -1 : 1;
+      const leftBase = baseBranch !== undefined && left.name === baseBranch;
+      const rightBase = baseBranch !== undefined && right.name === baseBranch;
+      if (leftBase !== rightBase) return leftBase ? -1 : 1;
       return left.name.localeCompare(right.name);
     });
 }
