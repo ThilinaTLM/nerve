@@ -26,7 +26,12 @@ import {
   groupConsecutiveThinking,
   type TranscriptDisplayNode,
 } from "./transcript-presentation";
-import { TranscriptEntryMotionLedger } from "./transcript-entry-motion";
+import {
+  TranscriptEntryMotionLedger,
+  type TranscriptEntranceMotion,
+} from "./transcript-entry-motion";
+import { ConversationMotionBudget } from "./conversation-motion-budget";
+import { provideConversationMotionBudget } from "./conversation-motion-context.svelte";
 import { toolLifecycleSpec } from "../../tools/lifecycle/registry";
 import { hasTranscriptContent } from "./transcript-content";
 
@@ -35,7 +40,7 @@ type TranscriptRowItem =
       kind: "timeline";
       key: string;
       node: TranscriptDisplayNode;
-      entranceToken?: string;
+      entranceMotion?: TranscriptEntranceMotion;
     }
   | { kind: "waiting"; key: string }
   | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
@@ -140,7 +145,12 @@ let {
   toolMenu,
 }: Props = $props();
 
-const entranceLedger = new TranscriptEntryMotionLedger();
+const motionBudget = new ConversationMotionBudget();
+provideConversationMotionBudget(motionBudget);
+const entranceLedger = new TranscriptEntryMotionLedger((count) =>
+  motionBudget.allocateBatch(count),
+);
+let motionScope: string | undefined;
 
 function entranceEligible(node: TranscriptDisplayNode): boolean {
   if (node.kind === "message") return Boolean(node.item.live);
@@ -158,8 +168,13 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
     key: uniqueRowKey(node.key, seenKeys),
     node,
   }));
-  const entranceTokens = entranceLedger.project(
-    heightCacheKey ?? "__default-transcript__",
+  const scope = heightCacheKey ?? "__default-transcript__";
+  if (scope !== motionScope) {
+    motionScope = scope;
+    motionBudget.reset();
+  }
+  const entranceMotions = entranceLedger.project(
+    scope,
     timelineRows.map((row) => ({
       key: row.key,
       eligible: entranceEligible(row.node),
@@ -167,7 +182,7 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
   );
   const result: TranscriptRowItem[] = timelineRows.map((row) => ({
     ...row,
-    entranceToken: entranceTokens.get(row.key),
+    entranceMotion: entranceMotions.get(row.key),
   }));
   // This is a per-turn pre-output row. Turn-scoped output stays true across
   // the live-to-durable handoff, so it cannot reappear after the final message.
@@ -328,7 +343,7 @@ const showEmptyRun = $derived(
       {#if item.kind === "timeline"}
         <TranscriptRow
           node={item.node}
-          entranceToken={item.entranceToken}
+          entranceMotion={item.entranceMotion}
           onClaimEntrance={(token) => claimEntrance(item.key, token)}
           {sending}
           hydrateToolBodies={active}

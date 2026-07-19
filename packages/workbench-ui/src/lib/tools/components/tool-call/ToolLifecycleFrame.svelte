@@ -1,34 +1,35 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
+import { getConversationMotionBudget } from "../../../components/transcript/conversation-motion-context.svelte";
 import {
-  createToolActivityMotion,
-  type ToolActivityMotionController,
-} from "./tool-activity-motion";
+  createToolLifecycleMotion,
+  type ToolLifecycleMotionController,
+} from "./tool-lifecycle-motion";
 
 type Props = {
   revision: string;
-  visible: boolean;
   children?: Snippet;
 };
 
-let { revision, visible, children }: Props = $props();
+let { revision, children }: Props = $props();
 
+const motionBudget = getConversationMotionBudget();
 let region: HTMLDivElement | undefined = $state();
 let content: HTMLDivElement | undefined = $state();
-let motion: ToolActivityMotionController | undefined;
+let motion: ToolLifecycleMotionController | undefined;
 let previousRevision: string | undefined;
 let capturedHeight: number | undefined;
 
-function ensureMotion(): ToolActivityMotionController | undefined {
+function ensureMotion(): ToolLifecycleMotionController | undefined {
   if (!motion && region && content) {
-    motion = createToolActivityMotion(region, content);
+    motion = createToolLifecycleMotion(region, content);
   }
   return motion;
 }
 
-// Capture the outgoing visual height before a structural DOM update. During an
-// interrupted animation getBoundingClientRect() returns the current frame.
+// Capture the currently displayed height before Svelte commits a lifecycle
+// milestone. During interruption this is the in-progress visual height.
 $effect.pre(() => {
   const nextRevision = revision;
   if (previousRevision === undefined) {
@@ -40,14 +41,18 @@ $effect.pre(() => {
   previousRevision = nextRevision;
 });
 
-// Effects run after Svelte has applied the new body/footer structure, so the
-// controller can measure the latest intrinsic inner height.
 $effect(() => {
   void revision;
   if (capturedHeight === undefined) return;
   const fromHeight = capturedHeight;
   capturedHeight = undefined;
-  ensureMotion()?.transition(fromHeight, prefersReducedMotion.current);
+  const reducedMotion = prefersReducedMotion.current;
+  const visible = Boolean(region?.getClientRects().length);
+  const profile =
+    !reducedMotion && visible
+      ? (motionBudget?.claim() ?? "standard")
+      : "standard";
+  ensureMotion()?.transition(fromHeight, reducedMotion, profile);
 });
 
 $effect(() => {
@@ -58,10 +63,7 @@ $effect(() => () => motion?.destroy());
 </script>
 
 <div bind:this={region} class="min-w-0">
-  <div
-    bind:this={content}
-    class={`grid min-w-0 gap-1.5${visible ? " pt-1.5" : ""}`}
-  >
+  <div bind:this={content} class="min-w-0">
     {#if children}{@render children()}{/if}
   </div>
 </div>

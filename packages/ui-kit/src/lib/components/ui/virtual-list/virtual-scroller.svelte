@@ -1,6 +1,6 @@
 <script lang="ts" generics="T">
 import { createVirtualizer } from "@tanstack/svelte-virtual";
-import { SvelteSet } from "svelte/reactivity";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { get } from "svelte/store";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { getRowHeightCache } from "./row-height-cache";
@@ -17,6 +17,7 @@ import type {
   VirtualScrollerController,
   VirtualScrollerProps,
 } from "./virtual-scroller-types";
+import { shouldCommitVirtualMeasurement } from "./virtual-measurement";
 
 /* eslint-disable no-useless-assignment -- $bindable defaults declare parent bindings before later reactive updates. */
 let {
@@ -53,6 +54,17 @@ const DEFAULT_ESTIMATE = 64;
 const heightCache = $derived(
   heightCacheKey ? getRowHeightCache(heightCacheKey) : undefined,
 );
+const committedMeasurementHeights = new SvelteMap<
+  VirtualScrollerItemKey,
+  number
+>();
+let committedMeasurementScope: string | undefined;
+$effect(() => {
+  const scope = heightCacheKey;
+  if (scope === committedMeasurementScope) return;
+  committedMeasurementScope = scope;
+  committedMeasurementHeights.clear();
+});
 
 let itemKeySnapshot: readonly VirtualScrollerItemKey[] = Object.freeze([]);
 
@@ -263,11 +275,20 @@ function flushMeasurements() {
 
   // Phase 2: resize only the index/key pairs proven current above.
   const cache = heightCache;
+  let committedCount = 0;
   for (const { index, key, height } of measurements) {
+    const previousHeight =
+      committedMeasurementHeights.get(key) ?? cache?.get(key);
+    if (!shouldCommitVirtualMeasurement(previousHeight, height)) {
+      committedMeasurementHeights.set(key, height);
+      continue;
+    }
     instance.resizeItem(index, height);
     cache?.set(key, height);
+    committedMeasurementHeights.set(key, height);
+    committedCount += 1;
   }
-  if (measurements.length > 0) scheduleFollowToEnd(3);
+  if (committedCount > 0) scheduleFollowToEnd(3);
 }
 
 function queueMeasure(node: HTMLElement) {
@@ -317,6 +338,7 @@ $effect(() => {
     resizeObserver = undefined;
     registeredMeasureNodes.clear();
     pendingMeasureNodes.clear();
+    committedMeasurementHeights.clear();
   };
 });
 </script>

@@ -23,6 +23,7 @@ import TaskEventCard from "./TaskEventCard.svelte";
 import RunStatusCard from "./RunStatusCard.svelte";
 import ThinkingGroup from "./ThinkingGroup.svelte";
 import type { TranscriptDisplayNode } from "./transcript-presentation";
+import type { TranscriptEntranceMotion } from "./transcript-entry-motion";
 
 type Props = {
   node: TranscriptDisplayNode;
@@ -32,7 +33,7 @@ type Props = {
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;
   hydrateToolBodies?: boolean;
-  entranceToken?: string;
+  entranceMotion?: TranscriptEntranceMotion;
   onClaimEntrance?: (token: string) => boolean;
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
@@ -68,7 +69,7 @@ let {
   pendingUserQuestion,
   pendingPlanReview,
   hydrateToolBodies = true,
-  entranceToken,
+  entranceMotion,
   onClaimEntrance,
   planReviewModels = [],
   planReviewModelKey = "",
@@ -111,20 +112,34 @@ const messageState = $derived.by<"running" | "complete" | "static">(() => {
 });
 
 let entering = $state(false);
+let activeEntrance = $state<TranscriptEntranceMotion>();
 let claimedEntranceToken: string | undefined;
 $effect(() => {
-  const token = entranceToken;
-  if (!token || token === claimedEntranceToken) return;
-  claimedEntranceToken = token;
-  if (onClaimEntrance?.(token)) entering = true;
+  const motion = entranceMotion;
+  if (!motion || motion.token === claimedEntranceToken) return;
+  claimedEntranceToken = motion.token;
+  if (onClaimEntrance?.(motion.token)) {
+    activeEntrance = motion;
+    entering = true;
+  }
 });
 </script>
 
 <div
   class="transcript-row-content"
-  class:live-entering={entering}
+  class:transcript-enter-standard={entering &&
+    activeEntrance?.profile === "standard"}
+  class:transcript-enter-compact={entering &&
+    activeEntrance?.profile === "compact"}
+  class:transcript-enter-minimal={entering &&
+    activeEntrance?.profile === "minimal"}
+  style:--transcript-enter-delay={activeEntrance
+    ? `${activeEntrance.delayMs}ms`
+    : undefined}
   onanimationend={(event) => {
-    if (event.target === event.currentTarget) entering = false;
+    if (event.target !== event.currentTarget) return;
+    entering = false;
+    activeEntrance = undefined;
   }}
 >
   {#if node.kind === "tool"}
@@ -238,12 +253,6 @@ $effect(() => {
 <style>
 .transcript-row-content {
   min-width: 0;
-}
-
-.transcript-row-content.live-entering {
-  animation: transcript-live-enter var(--motion-enter-duration)
-    var(--motion-enter-easing);
-  will-change: transform, opacity;
 }
 
 .transcript-entry {

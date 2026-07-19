@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import type { ToolCallTranscriptRecord } from "$lib/api";
@@ -22,6 +23,7 @@ import ConversationWelcome from "./ConversationWelcome.svelte";
 
 setConversationUiCapabilities(workbenchConversationUiCapabilities());
 import { messageMenu, toolMenu } from "./conversation-menus";
+import { createConversationRenderProjection } from "../state/conversation-render-projection.svelte";
 
 let {
   activeProject,
@@ -98,26 +100,70 @@ const conversationOpen = $derived(
 const activeProjectLabel = $derived(
   activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined,
 );
+const scrollConversationId = $derived(
+  activeConversation?.id ??
+    (pendingConversationActive
+      ? (activePendingConversation?.id ?? "pending")
+      : undefined),
+);
+
+function transcriptRenderInputs() {
+  return {
+    entries,
+    optimisticMessages,
+    toolCalls,
+    activeRun,
+    transient,
+    queuedPrompts,
+    sending,
+    approvals,
+    pendingUserQuestion,
+    pendingPlanReview,
+  };
+}
+
+// Protocol reducers and composer state remain immediate. Only the visual
+// transcript projection is coalesced, so a burst produces one child render per
+// frame without delaying event cursors, approvals, or harness execution.
+const renderProjection = createConversationRenderProjection({
+  initialScope: untrack(() => scrollConversationId),
+  initialActive: untrack(() => active),
+  initialValue: untrack(transcriptRenderInputs),
+});
+$effect(() => {
+  renderProjection.update(
+    scrollConversationId,
+    active,
+    transcriptRenderInputs(),
+  );
+});
+$effect(() => () => renderProjection.destroy());
+const rendered = $derived(renderProjection.current);
+
 // Incremental projection: `committed` only recomputes when entries/optimistic
 // rows/toolCalls identity changes (i.e. not during pure text streaming), so
 // streaming tokens only re-run the small active-run tail.
 const transcript = $derived.by(() => [
-  ...entriesToTranscript(entries),
-  ...optimisticMessages,
+  ...entriesToTranscript(rendered.entries),
+  ...rendered.optimisticMessages,
 ]);
 const committed = $derived.by(() =>
-  buildCommittedTimeline(transcript, toolCalls, {
-    includeUnanchoredTerminalToolCalls: !activeRun,
+  buildCommittedTimeline(transcript, rendered.toolCalls, {
+    includeUnanchoredTerminalToolCalls: !rendered.activeRun,
   }),
 );
 const liveItems = $derived.by(() =>
-  buildActiveRunTimeline(activeRun, transient, committed.context),
+  buildActiveRunTimeline(
+    rendered.activeRun,
+    rendered.transient,
+    committed.context,
+  ),
 );
 const visibleCommitted = $derived(
   selectVisibleCommitted(
     committed.items,
-    activeRun,
-    transient,
+    rendered.activeRun,
+    rendered.transient,
     committed.context,
   ),
 );
@@ -126,7 +172,7 @@ const compacting = $derived(transient?.compaction?.state === "running");
 const stopping = $derived(
   stoppingRequested || activeRun?.status === "aborting",
 );
-const streamingText = $derived(activeRunStreamingText(activeRun));
+const streamingText = $derived(activeRunStreamingText(rendered.activeRun));
 const treeEntriesById = $derived(
   new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
 );
@@ -136,13 +182,7 @@ const parentEntryIdById = $derived(
 // Latest-turn output remains true when a live row materializes into its durable
 // entry, while a newly started empty turn re-enables the waiting indicator.
 const hasActiveTurnOutput = $derived(
-  hasActiveTurnTimelineOutput(timeline, activeRun),
-);
-const scrollConversationId = $derived(
-  activeConversation?.id ??
-    (pendingConversationActive
-      ? (activePendingConversation?.id ?? "pending")
-      : undefined),
+  hasActiveTurnTimelineOutput(timeline, rendered.activeRun),
 );
 
 async function copyText(text: string, label = "message") {
@@ -196,12 +236,12 @@ function menuForTool(
     active,
     timeline,
     streamingText,
-    sending,
+    sending: rendered.sending,
     hasActiveTurnOutput,
-    queuedPrompts,
-    approvals,
-    pendingUserQuestion,
-    pendingPlanReview,
+    queuedPrompts: rendered.queuedPrompts,
+    approvals: rendered.approvals,
+    pendingUserQuestion: rendered.pendingUserQuestion,
+    pendingPlanReview: rendered.pendingPlanReview,
     activeProject,
     activeProjectLabel,
     planReviewModels,

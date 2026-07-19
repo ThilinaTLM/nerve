@@ -2,9 +2,9 @@
 import type { Snippet } from "svelte";
 import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import type { MetaItem, PrimaryArg } from "../../views/tool-presentation";
-import ToolStatusIcon from "./ToolStatusIcon.svelte";
 import ToolFooter from "./ToolFooter.svelte";
-import ToolActivityRegion from "./ToolActivityRegion.svelte";
+import ToolCardHeader from "./ToolCardHeader.svelte";
+import ToolLifecycleFrame from "./ToolLifecycleFrame.svelte";
 
 type Props = {
   status?: string;
@@ -81,102 +81,39 @@ const activityVisible = $derived(
 );
 </script>
 
-<article class="tool-card" data-state={draftPhase ?? lifecycle}>
-  <div class="tool-header">
-    <ToolStatusIcon
-      tone={dotTone}
-      pulse={dotPulse}
+<ToolLifecycleFrame revision={layoutRevision}>
+  <article class="tool-card" data-state={draftPhase ?? lifecycle}>
+    <ToolCardHeader
+      {dotTone}
+      {dotPulse}
       waitingForUser={status === "waiting_for_user" ||
         status === "pending_approval"}
-      label={statusLabel}
-      size={14}
-      class="mr-1.5 align-middle"
+      {statusLabel}
+      {badge}
+      {arg}
+      {onOpenFile}
     />
-    <span class="badge">{badge}</span>
-    {#if arg}
-      {#if arg.openPath}
-        <button
-          class="arg link"
-          class:whitespace-pre-wrap={arg.preserveWhitespace}
-          type="button"
-          title={arg.text}
-          onclick={() => onOpenFile?.(arg.openPath!, arg.line)}
-          >{arg.text}</button
-        >
-      {:else if arg.href}
-        <a
-          class="arg link"
-          class:whitespace-pre-wrap={arg.preserveWhitespace}
-          href={arg.href}
-          target="_blank"
-          rel="noreferrer noopener"
-          title={arg.text}>{arg.text}</a
-        >
-      {:else}
-        <span
-          class="arg"
-          class:whitespace-pre-wrap={arg.preserveWhitespace}
-          title={arg.text}>{arg.text}</span
-        >
+
+    <div class={`grid min-w-0 gap-1.5${activityVisible ? " pt-1.5" : ""}`}>
+      {#if error}
+        <pre class="tool-error">{error}</pre>
       {/if}
-    {/if}
-  </div>
 
-  <ToolActivityRegion revision={layoutRevision} visible={activityVisible}>
-    {#if error}
-      <pre class="tool-error">{error}</pre>
-    {/if}
+      {#if bodyVisible && children}
+        <div class="tool-body grid gap-1.5">{@render children()}</div>
+      {/if}
 
-    {#if bodyVisible && children}
-      <div class="tool-body grid gap-1.5">{@render children()}</div>
-    {/if}
-
-    {#if footerVisible}
-      <ToolFooter {meta} {detailsAction} {onOpenFile} />
-    {/if}
-  </ToolActivityRegion>
-</article>
+      {#if footerVisible}
+        <ToolFooter {meta} {detailsAction} {onOpenFile} />
+      {/if}
+    </div>
+  </article>
+</ToolLifecycleFrame>
 
 <style>
 .tool-card {
   width: 100%;
   padding: 0.6rem 0;
-}
-
-/* Inline flow so a long arg wraps flush to the left edge (no hanging indent). */
-.tool-header {
-  min-width: 0;
-  line-height: 1.5;
-}
-
-.badge {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 650;
-  color: var(--foreground);
-}
-
-.arg {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--muted-foreground);
-  margin-left: 0.5rem;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.arg.link {
-  border: 0;
-  background: transparent;
-  color: var(--primary);
-  cursor: pointer;
-  padding: 0;
-  text-align: left;
-  text-decoration: none;
-}
-
-.arg.link:hover {
-  text-decoration: underline;
 }
 
 .tool-body {

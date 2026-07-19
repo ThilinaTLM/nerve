@@ -36,9 +36,11 @@
   --chart-5: oklch(0.5608 0.1348 42.0584);
   --radius: 0.625rem;
 
-  /* Motion: shared one-shot entrance timing for live transcript content. */
+  /* Motion: adaptive one-shot timing for live transcript content. */
   --motion-enter-duration: 180ms;
-  --motion-enter-easing: ease-out;
+  --motion-enter-compact-duration: 120ms;
+  --motion-enter-minimal-duration: 90ms;
+  --motion-enter-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   --sidebar: oklch(0.9663 0.008 98.8792);
   --sidebar-foreground: oklch(0.359 0.0051 106.6524);

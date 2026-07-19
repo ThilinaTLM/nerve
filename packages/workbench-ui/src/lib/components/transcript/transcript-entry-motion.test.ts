@@ -34,7 +34,7 @@ describe("TranscriptEntryMotionLedger", () => {
       .project("conversation-a", [live("live-1")])
       .get("live-1");
     assert.ok(token);
-    assert.equal(ledger.claim("live-1", token), true);
+    assert.equal(ledger.claim("live-1", token.token), true);
     ledger.project("conversation-a", []);
     assert.equal(
       ledger.project("conversation-a", [live("live-1")]).has("live-1"),
@@ -63,8 +63,35 @@ describe("TranscriptEntryMotionLedger", () => {
       .project("conversation-a", [live("live-1")])
       .get("live-1");
     assert.ok(token);
-    assert.equal(ledger.claim("live-1", token), true);
-    assert.equal(ledger.claim("live-1", token), false);
+    assert.equal(ledger.claim("live-1", token.token), true);
+    assert.equal(ledger.claim("live-1", token.token), false);
+  });
+
+  it("assigns one adaptive profile and deterministic delays to a batch", () => {
+    const ledger = new TranscriptEntryMotionLedger((count) => ({
+      profile: count >= 4 ? "compact" : "standard",
+      delaysMs: Array.from({ length: count }, (_, index) => index * 12),
+    }));
+    ledger.project("conversation-a", []);
+    const motions = ledger.project("conversation-a", [
+      live("live-1"),
+      live("live-2"),
+      live("live-3"),
+      live("live-4"),
+    ]);
+
+    assert.deepEqual(
+      [...motions.values()].map(({ profile, delayMs }) => ({
+        profile,
+        delayMs,
+      })),
+      [
+        { profile: "compact", delayMs: 0 },
+        { profile: "compact", delayMs: 12 },
+        { profile: "compact", delayMs: 24 },
+        { profile: "compact", delayMs: 36 },
+      ],
+    );
   });
 
   it("resets and seeds when conversation scope changes", () => {

@@ -5,7 +5,10 @@ import type {
   ToolCallStatus,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
-import { deriveToolActivitySections } from "./tool-activity-state";
+import {
+  deriveToolActivitySections,
+  deriveToolLifecycleVisualStage,
+} from "./tool-activity-state";
 
 function draft(done = false): ConversationLiveToolDraftBlockSnapshot {
   return {
@@ -24,6 +27,47 @@ function toolCall(
 ): Pick<ToolCallTranscriptRecord, "status" | "error"> {
   return { status, error };
 }
+
+describe("deriveToolLifecycleVisualStage", () => {
+  it("maps the complete draft, interaction, execution, and terminal lifecycle", () => {
+    assert.equal(
+      deriveToolLifecycleVisualStage({ draft: draft() }),
+      "drafting",
+    );
+    assert.equal(
+      deriveToolLifecycleVisualStage({ draft: draft(true) }),
+      "prepared",
+    );
+    assert.equal(
+      deriveToolLifecycleVisualStage({
+        toolCall: toolCall("pending_approval"),
+      }),
+      "approval",
+    );
+    assert.equal(
+      deriveToolLifecycleVisualStage({
+        toolCall: toolCall("waiting_for_user"),
+      }),
+      "interaction",
+    );
+    for (const status of ["requested", "running"] as const) {
+      assert.equal(
+        deriveToolLifecycleVisualStage({ toolCall: toolCall(status) }),
+        "executing",
+      );
+    }
+    assert.equal(
+      deriveToolLifecycleVisualStage({ toolCall: toolCall("completed") }),
+      "completed",
+    );
+    for (const status of ["error", "denied"] as const) {
+      assert.equal(
+        deriveToolLifecycleVisualStage({ toolCall: toolCall(status) }),
+        "failed",
+      );
+    }
+  });
+});
 
 describe("deriveToolActivitySections", () => {
   it("keeps an empty draft header-only and mounts argument bodies", () => {

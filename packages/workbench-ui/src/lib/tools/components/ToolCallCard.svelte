@@ -28,9 +28,13 @@ import {
   type ToolLifecycleStage,
 } from "../lifecycle/registry";
 import { isInputValidationFailure } from "../lifecycle/failure-context";
-import { deriveToolActivitySections } from "../views/tool-activity-state";
+import {
+  deriveToolActivitySections,
+  deriveToolLifecycleVisualStage,
+} from "../views/tool-activity-state";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
+import { toolCardLayoutRevision } from "../views/tool-card-layout";
 import CardShell from "./tool-call/CardShell.svelte";
 import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
 import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
@@ -280,6 +284,17 @@ const primaryArg = $derived(
         lifecycleArgumentPresentation?.primaryArg ??
         draftArg),
 );
+const visualStage = $derived(
+  deriveToolLifecycleVisualStage({ draft: draft?.block, toolCall }),
+);
+const layoutRevision = $derived(
+  toolCardLayoutRevision({
+    stage: visualStage,
+    activityRevision: activitySections.structuralRevision,
+    badge,
+    arg: primaryArg,
+  }),
+);
 // A prepared draft only means argument generation finished; execution has not.
 // Keep it visibly in-flight until a durable terminal status takes ownership.
 const dotTone = $derived(presentation?.dotTone ?? "running");
@@ -361,7 +376,7 @@ async function openDetails() {
   bodyVisible={activitySections.argumentVisible ||
     activitySections.interactionMode !== "none" ||
     activitySections.resultMode !== "none"}
-  layoutRevision={activitySections.structuralRevision}
+  {layoutRevision}
   {detailsAction}
   {onOpenFile}
 >

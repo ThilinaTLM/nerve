@@ -48,6 +48,18 @@
   }
 }
 
+/* Stable tool-status glyph swap inside its fixed-size icon box. */
+@keyframes tool-status-enter {
+  from {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* Compaction progress indicator pulse (CompactionCard.svelte). */
 @keyframes compaction-progress {
   0%,
@@ -72,10 +84,35 @@
 /* One-shot entrance for genuinely new live transcript content and the
  * short-lived waiting row. Applied inside virtual rows so their translated
  * positioning remains owned by the virtualizer. */
+.transcript-enter-standard,
+.transcript-enter-compact,
+.transcript-enter-minimal {
+  animation-name: transcript-live-enter;
+  animation-timing-function: var(--motion-enter-easing);
+  animation-delay: var(--transcript-enter-delay, 0ms);
+  animation-fill-mode: both;
+  will-change: transform, opacity;
+}
+
+.transcript-enter-standard {
+  --transcript-enter-offset: 0.25rem;
+  animation-duration: var(--motion-enter-duration);
+}
+
+.transcript-enter-compact {
+  --transcript-enter-offset: 0.125rem;
+  animation-duration: var(--motion-enter-compact-duration);
+}
+
+.transcript-enter-minimal {
+  --transcript-enter-offset: 0;
+  animation-duration: var(--motion-enter-minimal-duration);
+}
+
 @keyframes transcript-live-enter {
   from {
     opacity: 0;
-    transform: translateY(0.25rem);
+    transform: translateY(var(--transcript-enter-offset, 0.25rem));
   }
   to {
     opacity: 1;
@@ -83,14 +120,23 @@
   }
 }
 
-/* Text sheen sweeping across the transcript waiting label
- * (WorkingIndicator.svelte). Consumers set the gradient; this only moves it. */
-@keyframes text-shimmer {
-  from {
-    background-position: 130% 0;
+@media (prefers-reduced-motion: reduce) {
+  .transcript-enter-standard,
+  .transcript-enter-compact,
+  .transcript-enter-minimal {
+    animation-delay: 0ms !important;
+    will-change: auto;
   }
-  to {
-    background-position: -70% 0;
+}
+
+/* Compositor-friendly working-label activity (WorkingIndicator.svelte). */
+@keyframes working-label-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
   }
 }
 

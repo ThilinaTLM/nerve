@@ -53,17 +53,34 @@ const Icon = $derived(
       ? LoaderCircle
       : terminalIcon[tone],
 );
+const visualKey = $derived(
+  `${waitingForUser ? "waiting" : spin ? "spin" : "static"}:${tone}`,
+);
 </script>
 
-<Icon
-  {size}
-  strokeWidth={2.2}
-  class={cn(
-    "inline-block",
-    colorClass[tone],
-    spin && "animate-spin",
-    className,
-  )}
-  aria-hidden={label ? undefined : "true"}
-  aria-label={label}
-/>
+<span
+  class={cn("inline-flex shrink-0 items-center justify-center", className)}
+  style:width={`${size}px`}
+  style:height={`${size}px`}
+>
+  {#key visualKey}
+    <span
+      class="tool-status-glyph inline-flex size-full items-center justify-center"
+    >
+      <Icon
+        {size}
+        strokeWidth={2.2}
+        class={cn("block", colorClass[tone], spin && "animate-spin")}
+        aria-hidden={label ? undefined : "true"}
+        aria-label={label}
+      />
+    </span>
+  {/key}
+</span>
+
+<style>
+.tool-status-glyph {
+  animation: tool-status-enter var(--motion-enter-compact-duration)
+    var(--motion-enter-easing);
+}
+</style>

@@ -15,6 +15,15 @@ export type ToolActivityInteractionMode = "none" | "approval";
 
 export type ToolActivityResultMode = "none" | "placeholder" | "output";
 
+export type ToolLifecycleVisualStage =
+  | "drafting"
+  | "prepared"
+  | "approval"
+  | "interaction"
+  | "executing"
+  | "completed"
+  | "failed";
+
 export type ToolActivitySections = {
   phase: ToolActivityPhase;
   /** Persistent argument section (command/diff/content from tool args). */
@@ -46,6 +55,27 @@ type DeriveToolActivitySectionsInput = {
   >[];
   hasDetailsAction?: boolean;
 };
+
+export function deriveToolLifecycleVisualStage(input: {
+  draft?: Pick<ConversationLiveToolDraftBlockSnapshot, "done">;
+  toolCall?: Pick<ToolCallTranscriptRecord, "status">;
+}): ToolLifecycleVisualStage {
+  if (!input.toolCall) return input.draft?.done ? "prepared" : "drafting";
+  switch (input.toolCall.status) {
+    case "pending_approval":
+      return "approval";
+    case "waiting_for_user":
+      return "interaction";
+    case "requested":
+    case "running":
+      return "executing";
+    case "completed":
+      return "completed";
+    case "error":
+    case "denied":
+      return "failed";
+  }
+}
 
 function footerStructure(
   items: DeriveToolActivitySectionsInput["footerItems"],

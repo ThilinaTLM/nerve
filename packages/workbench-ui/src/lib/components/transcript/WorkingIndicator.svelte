@@ -87,19 +87,8 @@ const elapsedLabel = $derived(
 }
 
 .label {
-  background: linear-gradient(
-    90deg,
-    var(--muted-foreground) 35%,
-    var(--foreground) 50%,
-    var(--muted-foreground) 65%
-  );
-  background-size: 200% 100%;
-  background-clip: text;
-  color: transparent;
-  /* background-position cannot be composited, so bound its per-frame repaint to
-   * the label box instead of promoting a useless layer. */
-  contain: paint;
-  animation: text-shimmer 2.2s linear infinite;
+  color: var(--muted-foreground);
+  animation: working-label-pulse 2.2s ease-in-out infinite;
 }
 
 .elapsed {
@@ -109,14 +98,5 @@ const elapsedLabel = $derived(
   opacity: 0.8;
   animation: transcript-live-enter var(--motion-enter-duration)
     var(--motion-enter-easing) both;
-}
-
-/* The global reduced-motion rule freezes animations; also drop the gradient so
- * the label reads as plain text instead of a frozen sheen. */
-@media (prefers-reduced-motion: reduce) {
-  .label {
-    background: none;
-    color: var(--muted-foreground);
-  }
 }
 </style>
