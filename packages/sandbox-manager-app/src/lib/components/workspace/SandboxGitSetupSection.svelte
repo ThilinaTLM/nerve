@@ -18,13 +18,15 @@ let {
   record,
   detail,
   onOpenDiagnosticTab,
+  open = $bindable(true),
+  onOpenChange,
 }: {
   record: ManagedSandboxRecord;
   detail?: SandboxDetailState;
   onOpenDiagnosticTab?: (id: SandboxDiagnosticTabId) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 } = $props();
-
-let open = $state(false);
 const status = $derived(detail?.status ?? detail?.snapshot);
 const config = $derived(asRecord(status?.config));
 const gitConfig = $derived(asRecord(config.git));
@@ -65,7 +67,7 @@ function formatSetup(value: StartupSetupStatus | undefined): string {
 }
 </script>
 
-<PanelSection title="Git setup" icon={Settings} bind:open>
+<PanelSection title="Git setup" icon={Settings} bind:open {onOpenChange}>
   <div class="flex flex-col gap-3">
     <div class="flex flex-wrap gap-1.5">
       <Badge tone={setupTone(status?.setup?.git)} size="xs">

@@ -34,6 +34,7 @@ type Props = {
   loadingOverview: boolean;
   capabilities: GitPanelCapabilities;
   open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onMutateFile: (
     repo: string,
     file: GitFileChange,
@@ -53,6 +54,7 @@ let {
   loadingOverview,
   capabilities,
   open = $bindable(true),
+  onOpenChange,
   onMutateFile,
   onBulkStage,
   onRequestDiscard,
@@ -136,6 +138,7 @@ let {
   icon={FilePen}
   contentClass="px-2 py-1.5"
   bind:open
+  {onOpenChange}
 >
   {#snippet meta()}
     {#if changes}

@@ -22,6 +22,7 @@ import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import { utilitySectionPreferences } from "$lib/app/layout/utility-section-preferences.svelte";
 
 type Props = {
   status?: StatusResponse;
@@ -47,9 +48,11 @@ let {
 
 const systemPromptHref = $derived(systemPromptUrl?.());
 
-let activeContextOpen = $state(true);
-let agentsOpen = $state(true);
-let exportOpen = $state(true);
+const activeContextOpen = $derived(
+  utilitySectionPreferences.isOpen("context.active"),
+);
+const agentsOpen = $derived(utilitySectionPreferences.isOpen("context.agents"));
+const exportOpen = $derived(utilitySectionPreferences.isOpen("context.export"));
 
 const fields = $derived([
   { label: "Project", value: activeProject?.name },
@@ -120,7 +123,9 @@ $effect(() => {
   <PanelSection
     title="Active Context"
     icon={Layers}
-    bind:open={activeContextOpen}
+    open={activeContextOpen}
+    onOpenChange={(open) =>
+      utilitySectionPreferences.setOpen("context.active", open)}
   >
     {#snippet actions()}
       <Button
@@ -147,7 +152,13 @@ $effect(() => {
     </dl>
   </PanelSection>
 
-  <PanelSection title="Agents" icon={Bot} bind:open={agentsOpen}>
+  <PanelSection
+    title="Agents"
+    icon={Bot}
+    open={agentsOpen}
+    onOpenChange={(open) =>
+      utilitySectionPreferences.setOpen("context.agents", open)}
+  >
     <div class="-mx-3 -my-2.5 flex flex-col">
       {#if conversationAgents.length === 0}
         <p class="px-3 py-2.5 text-xs text-muted-foreground">
@@ -256,8 +267,14 @@ $effect(() => {
     </div>
   </PanelSection>
 
-  {#if activeConversation}
-    <PanelSection title="Export" icon={Download} bind:open={exportOpen}>
+  <PanelSection
+    title="Export"
+    icon={Download}
+    open={exportOpen}
+    onOpenChange={(open) =>
+      utilitySectionPreferences.setOpen("context.export", open)}
+  >
+    {#if activeConversation}
       <div class="flex flex-col gap-3">
         <div class="flex flex-col gap-1.5">
           <span
@@ -303,6 +320,10 @@ $effect(() => {
           {/if}
         </div>
       </div>
-    </PanelSection>
-  {/if}
+    {:else}
+      <p class="text-xs text-muted-foreground">
+        No active conversation to export.
+      </p>
+    {/if}
+  </PanelSection>
 </div>

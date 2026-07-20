@@ -22,6 +22,7 @@ import type {
   SandboxUiEvent,
 } from "../../state/sandbox-ui-types";
 import { modelKey } from "../../utils/model-display";
+import { sandboxUtilitySectionPreferences } from "../../state/sandbox-utility-section-preferences.svelte";
 
 type ContextFileSummary = {
   path: string;
@@ -80,9 +81,15 @@ const contextWindow = $derived(
 );
 const contextFiles = $derived(extractLatestContextFiles(detail?.events ?? []));
 
-let runtimeOpen = $state(true);
-let contextOpen = $state(true);
-let configOpen = $state(false);
+const runtimeOpen = $derived(
+  sandboxUtilitySectionPreferences.isOpen("context.runtime"),
+);
+const contextOpen = $derived(
+  sandboxUtilitySectionPreferences.isOpen("context.details"),
+);
+const configOpen = $derived(
+  sandboxUtilitySectionPreferences.isOpen("context.config"),
+);
 
 const runtimeCapabilities = $derived(
   runtime
@@ -141,7 +148,13 @@ function extractLatestContextFiles(
 </script>
 
 <div class="flex flex-col gap-2 p-2">
-  <PanelSection title="Runtime" icon={Box} bind:open={runtimeOpen}>
+  <PanelSection
+    title="Runtime"
+    icon={Box}
+    open={runtimeOpen}
+    onOpenChange={(open) =>
+      sandboxUtilitySectionPreferences.setOpen("context.runtime", open)}
+  >
     <div class="flex flex-col gap-3">
       {#if progress.state === "provisioning" || progress.state === "booting" || progress.state === "reconnecting" || progress.state === "failed"}
         <SandboxLaunchProgress
@@ -218,7 +231,13 @@ function extractLatestContextFiles(
     </div>
   </PanelSection>
 
-  <PanelSection title="Context" icon={Layers} bind:open={contextOpen}>
+  <PanelSection
+    title="Context"
+    icon={Layers}
+    open={contextOpen}
+    onOpenChange={(open) =>
+      sandboxUtilitySectionPreferences.setOpen("context.details", open)}
+  >
     <div class="flex flex-col gap-3">
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
         <dt class="text-xs text-muted-foreground">Model</dt>
@@ -293,7 +312,13 @@ function extractLatestContextFiles(
     </div>
   </PanelSection>
 
-  <PanelSection title="Config & setup" icon={FileCode2} bind:open={configOpen}>
+  <PanelSection
+    title="Config & setup"
+    icon={FileCode2}
+    open={configOpen}
+    onOpenChange={(open) =>
+      sandboxUtilitySectionPreferences.setOpen("context.config", open)}
+  >
     <div class="flex flex-col gap-2">
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
         <dt class="text-xs text-muted-foreground">Config</dt>

@@ -37,6 +37,7 @@ type Props = {
   capabilities: GitPanelCapabilities;
   expandedPr?: number;
   open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onExpandedPrChange?: (number: number | undefined) => void;
   onRefreshPrs: () => void;
   onOpenFilters: () => void;
@@ -55,6 +56,7 @@ let {
   capabilities,
   expandedPr = $bindable(undefined),
   open = $bindable(true),
+  onOpenChange,
   onExpandedPrChange,
   onRefreshPrs,
   onOpenFilters,
@@ -64,7 +66,12 @@ let {
 const activeFilterCount = $derived(activeGitPrFilterCount(filters));
 </script>
 
-<PanelSection title="PRs (GitHub)" icon={GitPullRequest} bind:open>
+<PanelSection
+  title="PRs (GitHub)"
+  icon={GitPullRequest}
+  bind:open
+  {onOpenChange}
+>
   {#snippet actions()}
     {#if selectedRepoHasGithubRemote && github?.authenticated}
       <Button

@@ -18,7 +18,6 @@ type ScratchNoteEntry = ScratchNote & {
   draftContent: string;
   savedContent: string;
   saveStatus: ScratchNoteSaveStatus;
-  open: boolean;
   deleting: boolean;
   contentSaveFailed: boolean;
   saveTimer?: ReturnType<typeof setTimeout>;
@@ -62,7 +61,6 @@ function toEntry(note: ScratchNote): ScratchNoteEntry {
     draftContent: note.content,
     savedContent: note.content,
     saveStatus: "idle",
-    open: true,
     deleting: false,
     contentSaveFailed: false,
     saveTimer: undefined,
@@ -261,15 +259,6 @@ export async function removeScratchNote(
     notify.error("Could not delete scratch note");
     return false;
   }
-}
-
-export function setScratchNoteOpen(
-  projectId: string,
-  noteId: string,
-  open: boolean,
-): void {
-  const note = findNote(projectId, noteId);
-  if (note) note.open = open;
 }
 
 export type { ScratchNoteEntry, ScratchNotesProjectEntry };

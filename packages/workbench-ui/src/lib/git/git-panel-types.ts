@@ -62,6 +62,18 @@ export interface GitPanelOperationState {
   readonly bulkMutation?: BulkFileMutation;
 }
 
+export type GitPanelSectionState = {
+  readonly repository: boolean;
+  readonly changes: boolean;
+  readonly pullRequests: boolean;
+};
+
+export const defaultGitPanelSectionState: GitPanelSectionState = {
+  repository: true,
+  changes: true,
+  pullRequests: true,
+};
+
 export interface GitPanelModel {
   readonly availability:
     | { readonly available: true }

@@ -11,14 +11,27 @@ import {
   gitFileGroups,
   limitPullRequests,
 } from "./git-panel-controller.js";
-import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
+import {
+  defaultGitPanelSectionState,
+  type GitPanelActions,
+  type GitPanelModel,
+  type GitPanelSectionState,
+} from "./git-panel-types.js";
 
-let { model, actions }: { model: GitPanelModel; actions: GitPanelActions } =
-  $props();
-
-let repoSectionOpen = $state(true);
-let changesSectionOpen = $state(true);
-let prsSectionOpen = $state(true);
+let {
+  model,
+  actions,
+  sectionState = defaultGitPanelSectionState,
+  onSectionOpenChange,
+}: {
+  model: GitPanelModel;
+  actions: GitPanelActions;
+  sectionState?: GitPanelSectionState;
+  onSectionOpenChange?: (
+    section: keyof GitPanelSectionState,
+    open: boolean,
+  ) => void;
+} = $props();
 let branchDialogOpen = $state(false);
 let prFilterDialogOpen = $state(false);
 let branchFilter = $state("");
@@ -104,114 +117,118 @@ function openBranchDialog(): void {
 </script>
 
 <div class="p-2">
-  {#if !model.availability.available}
-    <p
-      class="rounded-md border border-dashed px-2 py-2 text-xs text-muted-foreground"
-    >
-      {model.availability.message}
-    </p>
-  {:else if model.cachedError && model.repositories.length === 0}
-    <Card class="gap-0 overflow-hidden p-0">
-      <div class="px-3 py-3 text-xs text-destructive">{model.cachedError}</div>
-    </Card>
-  {:else if model.initialLoading}
-    <div
-      class="flex items-center justify-center gap-2 px-1 py-6 text-xs text-muted-foreground"
-    >
-      <Spinner class="size-3.5" /> Loading Git repositories…
-    </div>
-  {:else if model.repositories.length === 0}
-    <p class="px-1 py-6 text-center text-xs text-muted-foreground">
-      {model.emptyMessage ?? "No Git repositories found."}
-    </p>
-  {:else}
-    <div class="flex flex-col gap-2">
-      {#if model.cachedError}
-        <Card class="gap-0 overflow-hidden p-0">
-          <div class="px-3 py-2 text-xs text-warning">
-            Using cached Git data. Refresh failed: {model.cachedError}
-          </div>
-        </Card>
-      {/if}
+  <div class="flex flex-col gap-2">
+    {#if !model.availability.available}
+      <p
+        class="rounded-md border border-dashed px-2 py-2 text-xs text-muted-foreground"
+      >
+        {model.availability.message}
+      </p>
+    {:else if model.cachedError && model.repositories.length === 0}
+      <Card class="gap-0 overflow-hidden p-0">
+        <div class="px-3 py-3 text-xs text-destructive">
+          {model.cachedError}
+        </div>
+      </Card>
+    {:else if model.initialLoading}
+      <div
+        class="flex items-center justify-center gap-2 px-1 py-6 text-xs text-muted-foreground"
+      >
+        <Spinner class="size-3.5" /> Loading Git repositories…
+      </div>
+    {:else if model.repositories.length === 0}
+      <p class="px-1 py-2 text-center text-xs text-muted-foreground">
+        {model.emptyMessage ?? "No Git repositories found."}
+      </p>
+    {/if}
 
-      <GitRepoBranchSection
-        repoSummary={model.repositorySummary}
-        repos={[...model.repositories]}
-        selectedRepo={model.selectedRepository}
-        {filteredBranches}
-        loadingBranches={model.loadingBranches}
-        switchingBranch={model.operations.switchingBranch}
-        creatingBranch={model.operations.creatingBranch}
-        fetching={model.operations.fetching}
-        pulling={model.operations.pulling}
-        pushing={model.operations.pushing}
-        syncing={model.operations.syncing}
-        switchingBaseAndPulling={model.operations.switchingBaseAndPulling}
-        refreshing={model.refreshing}
-        capabilities={model.capabilities}
-        bind:branchFilter
-        bind:newBranchName
-        bind:branchDialogOpen
-        {baseBranchSummary}
-        bind:open={repoSectionOpen}
-        onSelectRepo={selectRepository}
-        onOpenBranchDialog={openBranchDialog}
-        onSwitchBranch={(repository, branch) =>
-          void switchBranch(repository, branch)}
-        onCreateBranch={(repository) => void createBranch(repository)}
-        onFetch={(repository) =>
-          void actions.runRemoteOperation(repository, "fetch")}
-        onPull={(repository) =>
-          void actions.runRemoteOperation(repository, "pull")}
-        onPush={(repository) =>
-          void actions.runRemoteOperation(repository, "push")}
-        onSync={(repository) =>
-          void actions.runRemoteOperation(repository, "sync")}
-        onSwitchBaseAndPull={(repository) =>
-          void actions.runRemoteOperation(repository, "switch-base-and-pull")}
-      />
+    {#if model.cachedError && model.repositories.length > 0}
+      <Card class="gap-0 overflow-hidden p-0">
+        <div class="px-3 py-2 text-xs text-warning">
+          Using cached Git data. Refresh failed: {model.cachedError}
+        </div>
+      </Card>
+    {/if}
 
-      <GitChangesSection
-        changes={model.changes}
-        stagedFiles={fileGroups.staged}
-        unstagedFiles={fileGroups.unstaged}
-        fileMutation={model.operations.fileMutation}
-        bulkMutation={model.operations.bulkMutation}
-        selectedRepo={model.selectedRepository}
-        loadingOverview={model.loadingOverview}
-        capabilities={model.capabilities}
-        bind:open={changesSectionOpen}
-        onMutateFile={(repository, file, action) =>
-          void actions.mutateFile(repository, file, action)}
-        onBulkStage={(repository, action) =>
-          void actions.bulkMutateFiles(repository, action)}
-        onRequestDiscard={(file) =>
-          (discardCandidate = { repository: model.selectedRepository, file })}
-      />
+    <GitRepoBranchSection
+      repoSummary={model.repositorySummary}
+      repos={[...model.repositories]}
+      selectedRepo={model.selectedRepository}
+      {filteredBranches}
+      loadingBranches={model.loadingBranches}
+      switchingBranch={model.operations.switchingBranch}
+      creatingBranch={model.operations.creatingBranch}
+      fetching={model.operations.fetching}
+      pulling={model.operations.pulling}
+      pushing={model.operations.pushing}
+      syncing={model.operations.syncing}
+      switchingBaseAndPulling={model.operations.switchingBaseAndPulling}
+      refreshing={model.refreshing}
+      capabilities={model.capabilities}
+      bind:branchFilter
+      bind:newBranchName
+      bind:branchDialogOpen
+      {baseBranchSummary}
+      open={sectionState.repository}
+      onOpenChange={(open) => onSectionOpenChange?.("repository", open)}
+      onSelectRepo={selectRepository}
+      onOpenBranchDialog={openBranchDialog}
+      onSwitchBranch={(repository, branch) =>
+        void switchBranch(repository, branch)}
+      onCreateBranch={(repository) => void createBranch(repository)}
+      onFetch={(repository) =>
+        void actions.runRemoteOperation(repository, "fetch")}
+      onPull={(repository) =>
+        void actions.runRemoteOperation(repository, "pull")}
+      onPush={(repository) =>
+        void actions.runRemoteOperation(repository, "push")}
+      onSync={(repository) =>
+        void actions.runRemoteOperation(repository, "sync")}
+      onSwitchBaseAndPull={(repository) =>
+        void actions.runRemoteOperation(repository, "switch-base-and-pull")}
+    />
 
-      <GitPrSection
-        displayedPrs={displayedPullRequests}
-        prs={[...model.pullRequests]}
-        filters={model.pullRequestFilters}
-        selectedRepoSummary={model.repositorySummary}
-        github={model.github}
-        {selectedRepoHasGithubRemote}
-        loadingPrs={model.loadingPullRequests}
-        {currentBranchName}
-        capabilities={model.capabilities}
-        {expandedPr}
-        onExpandedPrChange={selectExpandedPullRequest}
-        bind:open={prsSectionOpen}
-        onRefreshPrs={() =>
-          void actions.refreshPullRequests(model.selectedRepository)}
-        onOpenFilters={() => (prFilterDialogOpen = true)}
-        onOpenPr={(number) =>
-          void actions.openPullRequest(model.selectedRepository, number)}
-      />
-    </div>
-  {/if}
+    <GitChangesSection
+      changes={model.changes}
+      stagedFiles={fileGroups.staged}
+      unstagedFiles={fileGroups.unstaged}
+      fileMutation={model.operations.fileMutation}
+      bulkMutation={model.operations.bulkMutation}
+      selectedRepo={model.selectedRepository}
+      loadingOverview={model.loadingOverview}
+      capabilities={model.capabilities}
+      open={sectionState.changes}
+      onOpenChange={(open) => onSectionOpenChange?.("changes", open)}
+      onMutateFile={(repository, file, action) =>
+        void actions.mutateFile(repository, file, action)}
+      onBulkStage={(repository, action) =>
+        void actions.bulkMutateFiles(repository, action)}
+      onRequestDiscard={(file) =>
+        (discardCandidate = { repository: model.selectedRepository, file })}
+    />
+
+    <GitPrSection
+      displayedPrs={displayedPullRequests}
+      prs={[...model.pullRequests]}
+      filters={model.pullRequestFilters}
+      selectedRepoSummary={model.repositorySummary}
+      github={model.github}
+      {selectedRepoHasGithubRemote}
+      loadingPrs={model.loadingPullRequests}
+      {currentBranchName}
+      capabilities={model.capabilities}
+      {expandedPr}
+      onExpandedPrChange={selectExpandedPullRequest}
+      open={sectionState.pullRequests}
+      onOpenChange={(open) => onSectionOpenChange?.("pullRequests", open)}
+      onRefreshPrs={() =>
+        void actions.refreshPullRequests(model.selectedRepository)}
+      onOpenFilters={() => (prFilterDialogOpen = true)}
+      onOpenPr={(number) =>
+        void actions.openPullRequest(model.selectedRepository, number)}
+    />
+  </div>
 </div>
-
 <GitPrFilterDialog
   bind:open={prFilterDialogOpen}
   filters={model.pullRequestFilters}

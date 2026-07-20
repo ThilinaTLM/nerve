@@ -29,6 +29,20 @@ export interface TaskPanelCapabilities {
   readonly managePinned: FeatureCapability;
 }
 
+export type TaskPanelSectionState = {
+  readonly pinned: boolean;
+  readonly running: boolean;
+  readonly needsCleanup: boolean;
+  readonly finished: boolean;
+};
+
+export const defaultTaskPanelSectionState: TaskPanelSectionState = {
+  pinned: true,
+  running: true,
+  needsCleanup: true,
+  finished: true,
+};
+
 export interface TaskPanelModel {
   readonly availability:
     | { readonly available: true }

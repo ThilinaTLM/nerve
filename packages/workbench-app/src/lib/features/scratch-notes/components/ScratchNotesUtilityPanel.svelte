@@ -18,9 +18,9 @@ import {
   removeScratchNote,
   renameScratchNote,
   setScratchNoteContent,
-  setScratchNoteOpen,
   type ScratchNoteEntry,
 } from "../state/scratch-notes-state.svelte";
+import { utilitySectionPreferences } from "$lib/app/layout/utility-section-preferences.svelte";
 
 type Props = {
   activeProject?: ProjectRecord;
@@ -90,8 +90,9 @@ function statusLabel(note: ScratchNoteEntry): string {
         <PanelSection
           title={note.title}
           icon={NotebookPen}
-          open={note.open}
-          onOpenChange={(open) => setScratchNoteOpen(projectId, note.id, open)}
+          open={utilitySectionPreferences.isOpen(`notes.${note.id}`)}
+          onOpenChange={(open) =>
+            utilitySectionPreferences.setOpen(`notes.${note.id}`, open)}
           onTitleDoubleClick={() => (noteToRename = note)}
           titleHint="Double-click to rename"
         >

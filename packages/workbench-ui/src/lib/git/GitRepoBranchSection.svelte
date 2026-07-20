@@ -48,6 +48,7 @@ type Props = {
   branchDialogOpen?: boolean;
   baseBranchSummary?: GitBranchSummary;
   open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onSelectRepo: (value: string) => void;
   onOpenBranchDialog: () => void;
   onSwitchBranch: (repo: string, branch: GitBranchSummary) => void;
@@ -79,6 +80,7 @@ let {
   branchDialogOpen = $bindable(false),
   baseBranchSummary,
   open = $bindable(true),
+  onOpenChange,
   onSelectRepo,
   onOpenBranchDialog,
   onSwitchBranch,
@@ -117,6 +119,7 @@ function showBasePull(repo: GitRepoSummary): boolean {
   icon={GitBranch}
   actions={repoRefreshActions}
   bind:open
+  {onOpenChange}
 >
   {#if repoSummary}
     {@const repo = repoSummary}

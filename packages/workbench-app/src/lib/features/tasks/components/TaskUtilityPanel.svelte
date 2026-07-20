@@ -1,7 +1,11 @@
 <script lang="ts">
 import type { ProjectRecord, TaskRecord } from "$lib/api";
 import { createWorkbenchTaskPanelAdapter } from "$lib/features/tasks/state/workbench-task-panel-adapter.svelte";
-import { TaskUtilityPanelView } from "@nervekit/workbench-ui";
+import {
+  TaskUtilityPanelView,
+  type TaskPanelSectionState,
+} from "@nervekit/workbench-ui";
+import { utilitySectionPreferences } from "$lib/app/layout/utility-section-preferences.svelte";
 
 type Props = {
   activeProject?: ProjectRecord;
@@ -46,6 +50,18 @@ const adapter = createWorkbenchTaskPanelAdapter(
     runCommand: (input) => onRunCommand?.(input),
   },
 );
+const sectionState = $derived<TaskPanelSectionState>({
+  pinned: utilitySectionPreferences.isOpen("tasks.pinned"),
+  running: utilitySectionPreferences.isOpen("tasks.running"),
+  needsCleanup: utilitySectionPreferences.isOpen("tasks.needsCleanup"),
+  finished: utilitySectionPreferences.isOpen("tasks.finished"),
+});
 </script>
 
-<TaskUtilityPanelView model={adapter.model} actions={adapter.actions} />
+<TaskUtilityPanelView
+  model={adapter.model}
+  actions={adapter.actions}
+  {sectionState}
+  onSectionOpenChange={(section, open) =>
+    utilitySectionPreferences.setOpen(`tasks.${section}`, open)}
+/>

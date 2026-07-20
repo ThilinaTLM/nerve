@@ -17,25 +17,30 @@ import PinnedCommandDialog from "./PinnedCommandDialog.svelte";
 import PinnedCommandItem from "./PinnedCommandItem.svelte";
 import TaskListItem from "./TaskListItem.svelte";
 import { groupTasks } from "./task-panel-controller.js";
-import type {
-  NormalizedPinnedCommand,
-  TaskPanelActions,
-  TaskPanelModel,
+import {
+  defaultTaskPanelSectionState,
+  type NormalizedPinnedCommand,
+  type TaskPanelActions,
+  type TaskPanelModel,
+  type TaskPanelSectionState,
 } from "./task-panel-types.js";
 
 let {
   model,
   actions: panelActions,
-}: { model: TaskPanelModel; actions: TaskPanelActions } = $props();
+  sectionState = defaultTaskPanelSectionState,
+  onSectionOpenChange,
+}: {
+  model: TaskPanelModel;
+  actions: TaskPanelActions;
+  sectionState?: TaskPanelSectionState;
+  onSectionOpenChange?: (
+    section: keyof TaskPanelSectionState,
+    open: boolean,
+  ) => void;
+} = $props();
 
 const groups = $derived(groupTasks(model.tasks));
-const hasRunningTasks = $derived(groups.running.length > 0);
-
-let pinnedSectionOpen = $state(true);
-let previousHasRunningTasks = $state<boolean | undefined>(undefined);
-let runningSectionOpen = $state(true);
-let orphanedSectionOpen = $state(true);
-let finishedSectionOpen = $state(false);
 let confirmPruneOpen = $state(false);
 let addPinOpen = $state(false);
 let savingPin = $state(false);
@@ -44,19 +49,12 @@ let pinToEdit = $state<NormalizedPinnedCommand | undefined>(undefined);
 let editPinOpen = $state(false);
 let savingEditPin = $state(false);
 
-$effect(() => {
-  const current = hasRunningTasks;
-  if (previousHasRunningTasks === current) return;
-  previousHasRunningTasks = current;
-  pinnedSectionOpen = !current;
-});
-
 async function createPin(input: CreatePinnedCommandRequest): Promise<void> {
   savingPin = true;
   try {
     await panelActions.createPinned(input);
     addPinOpen = false;
-    pinnedSectionOpen = true;
+    onSectionOpenChange?.("pinned", true);
   } finally {
     savingPin = false;
   }
@@ -96,157 +94,174 @@ async function removePin(
       >
         {model.availability.message}
       </p>
-    {:else}
-      {#if model.notice}
-        <p
-          class="rounded-md border border-dashed px-2 py-2 text-xs text-muted-foreground"
-        >
-          {model.notice}
-        </p>
-      {/if}
-
-      <PanelSection title="Pinned" icon={Pin} bind:open={pinnedSectionOpen}>
-        {#snippet meta()}<span class="font-mono"
-            >{model.pinnedCommands.length}</span
-          >{/snippet}
-        {#snippet actions()}
-          <button
-            class="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            title={model.capabilities.managePinned.enabled
-              ? "Pin a command"
-              : model.capabilities.managePinned.reason}
-            aria-label="Pin a command"
-            type="button"
-            disabled={!model.capabilities.managePinned.enabled}
-            onclick={() => (addPinOpen = true)}
-          >
-            <Plus size={13} strokeWidth={2.3} />
-          </button>
-        {/snippet}
-        <div class="flex flex-col gap-1.5">
-          {#if model.pinnedLoading && model.pinnedCommands.length === 0}
-            <p class="px-1 py-1 text-xs text-muted-foreground">Loading…</p>
-          {:else if model.pinnedCommands.length === 0}
-            <p class="px-1 py-1 text-xs text-muted-foreground">
-              No pinned commands. Add one to run it anytime.
-            </p>
-          {:else}
-            {#each model.pinnedCommands as command (command.id)}
-              <PinnedCommandItem
-                {command}
-                cwd={model.defaultCwd}
-                running={model.runningPinnedId === command.id}
-                runCapability={model.capabilities.start}
-                manageCapability={model.capabilities.managePinned}
-                onRun={(item) => void panelActions.runPinned(item)}
-                onEdit={editPin}
-                onRemove={(item) => (pinToDelete = item)}
-              />
-            {/each}
-          {/if}
-        </div>
-      </PanelSection>
-
-      {#if groups.running.length > 0}
-        <PanelSection
-          title="Running"
-          icon={Play}
-          bind:open={runningSectionOpen}
-        >
-          {#snippet meta()}<span class="font-mono">{groups.running.length}</span
-            >{/snippet}
-          <div class="flex flex-col gap-1.5">
-            {#each groups.running as task (task.id)}
-              <TaskListItem
-                {task}
-                selected={task.id === model.selectedTask?.id}
-                capabilities={model.capabilities}
-                onOpenTaskOutput={(id) => void panelActions.openTaskOutput(id)}
-                onCancelTask={(id) => void panelActions.cancelTask(id)}
-                onRestartTask={(id) => void panelActions.restartTask(id)}
-                onRemoveTask={(id) => void panelActions.removeTask(id)}
-                onPinTask={(item) => void panelActions.pinTask(item)}
-                onCopyCommand={(command) =>
-                  void panelActions.copyCommand(command)}
-              />
-            {/each}
-          </div>
-        </PanelSection>
-      {/if}
-
-      {#if groups.orphaned.length > 0}
-        <PanelSection
-          title="Needs cleanup"
-          icon={TriangleAlert}
-          bind:open={orphanedSectionOpen}
-        >
-          {#snippet meta()}<span class="font-mono"
-              >{groups.orphaned.length}</span
-            >{/snippet}
-          <div class="flex flex-col gap-1.5">
-            {#each groups.orphaned as task (task.id)}
-              <TaskListItem
-                {task}
-                selected={task.id === model.selectedTask?.id}
-                capabilities={model.capabilities}
-                onOpenTaskOutput={(id) => void panelActions.openTaskOutput(id)}
-                onCancelTask={(id) => void panelActions.cancelTask(id)}
-                onRestartTask={(id) => void panelActions.restartTask(id)}
-                onRemoveTask={(id) => void panelActions.removeTask(id)}
-                onPinTask={(item) => void panelActions.pinTask(item)}
-                onCopyCommand={(command) =>
-                  void panelActions.copyCommand(command)}
-              />
-            {/each}
-          </div>
-        </PanelSection>
-      {/if}
-
-      {#if groups.finished.length > 0}
-        <PanelSection
-          title="Finished"
-          icon={Square}
-          bind:open={finishedSectionOpen}
-        >
-          {#snippet meta()}<span class="font-mono"
-              >{groups.finished.length}</span
-            >{/snippet}
-          {#snippet actions()}
-            <Button
-              size="xs"
-              variant="ghost"
-              class="h-6 gap-1 text-muted-foreground hover:text-destructive"
-              disabled={!model.capabilities.prune.enabled}
-              title={model.capabilities.prune.enabled
-                ? "Prune finished tasks"
-                : model.capabilities.prune.reason}
-              onclick={() => (confirmPruneOpen = true)}
-            >
-              <Trash2 size={12} strokeWidth={2.3} />Prune
-            </Button>
-          {/snippet}
-          <div class="flex flex-col gap-1.5">
-            {#each groups.finished as task (task.id)}
-              <TaskListItem
-                {task}
-                selected={task.id === model.selectedTask?.id}
-                capabilities={model.capabilities}
-                onOpenTaskOutput={(id) => void panelActions.openTaskOutput(id)}
-                onCancelTask={(id) => void panelActions.cancelTask(id)}
-                onRestartTask={(id) => void panelActions.restartTask(id)}
-                onRemoveTask={(id) => void panelActions.removeTask(id)}
-                onPinTask={(item) => void panelActions.pinTask(item)}
-                onCopyCommand={(command) =>
-                  void panelActions.copyCommand(command)}
-              />
-            {/each}
-          </div>
-        </PanelSection>
-      {/if}
     {/if}
+    {#if model.notice}
+      <p
+        class="rounded-md border border-dashed px-2 py-2 text-xs text-muted-foreground"
+      >
+        {model.notice}
+      </p>
+    {/if}
+
+    <PanelSection
+      title="Pinned"
+      icon={Pin}
+      open={sectionState.pinned}
+      onOpenChange={(open) => onSectionOpenChange?.("pinned", open)}
+    >
+      {#snippet meta()}<span class="font-mono"
+          >{model.pinnedCommands.length}</span
+        >{/snippet}
+      {#snippet actions()}
+        <button
+          class="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+          title={model.capabilities.managePinned.enabled
+            ? "Pin a command"
+            : model.capabilities.managePinned.reason}
+          aria-label="Pin a command"
+          type="button"
+          disabled={!model.capabilities.managePinned.enabled}
+          onclick={() => (addPinOpen = true)}
+        >
+          <Plus size={13} strokeWidth={2.3} />
+        </button>
+      {/snippet}
+      <div class="flex flex-col gap-1.5">
+        {#if model.pinnedLoading && model.pinnedCommands.length === 0}
+          <p class="px-1 py-1 text-xs text-muted-foreground">Loading…</p>
+        {:else if model.pinnedCommands.length === 0}
+          <p class="px-1 py-1 text-xs text-muted-foreground">
+            No pinned commands. Add one to run it anytime.
+          </p>
+        {:else}
+          {#each model.pinnedCommands as command (command.id)}
+            <PinnedCommandItem
+              {command}
+              cwd={model.defaultCwd}
+              running={model.runningPinnedId === command.id}
+              runCapability={model.capabilities.start}
+              manageCapability={model.capabilities.managePinned}
+              onRun={(item) => void panelActions.runPinned(item)}
+              onEdit={editPin}
+              onRemove={(item) => (pinToDelete = item)}
+            />
+          {/each}
+        {/if}
+      </div>
+    </PanelSection>
+
+    <PanelSection
+      title="Running"
+      icon={Play}
+      open={sectionState.running}
+      onOpenChange={(open) => onSectionOpenChange?.("running", open)}
+    >
+      {#snippet meta()}<span class="font-mono">{groups.running.length}</span
+        >{/snippet}
+      <div class="flex flex-col gap-1.5">
+        {#if groups.running.length === 0}
+          <p class="px-1 py-1 text-xs text-muted-foreground">
+            No running tasks.
+          </p>
+        {:else}
+          {#each groups.running as task (task.id)}
+            <TaskListItem
+              {task}
+              selected={task.id === model.selectedTask?.id}
+              capabilities={model.capabilities}
+              onOpenTaskOutput={(id) => void panelActions.openTaskOutput(id)}
+              onCancelTask={(id) => void panelActions.cancelTask(id)}
+              onRestartTask={(id) => void panelActions.restartTask(id)}
+              onRemoveTask={(id) => void panelActions.removeTask(id)}
+              onPinTask={(item) => void panelActions.pinTask(item)}
+              onCopyCommand={(command) =>
+                void panelActions.copyCommand(command)}
+            />
+          {/each}
+        {/if}
+      </div>
+    </PanelSection>
+
+    <PanelSection
+      title="Needs cleanup"
+      icon={TriangleAlert}
+      open={sectionState.needsCleanup}
+      onOpenChange={(open) => onSectionOpenChange?.("needsCleanup", open)}
+    >
+      {#snippet meta()}<span class="font-mono">{groups.orphaned.length}</span
+        >{/snippet}
+      <div class="flex flex-col gap-1.5">
+        {#if groups.orphaned.length === 0}
+          <p class="px-1 py-1 text-xs text-muted-foreground">
+            No tasks need cleanup.
+          </p>
+        {:else}
+          {#each groups.orphaned as task (task.id)}
+            <TaskListItem
+              {task}
+              selected={task.id === model.selectedTask?.id}
+              capabilities={model.capabilities}
+              onOpenTaskOutput={(id) => void panelActions.openTaskOutput(id)}
+              onCancelTask={(id) => void panelActions.cancelTask(id)}
+              onRestartTask={(id) => void panelActions.restartTask(id)}
+              onRemoveTask={(id) => void panelActions.removeTask(id)}
+              onPinTask={(item) => void panelActions.pinTask(item)}
+              onCopyCommand={(command) =>
+                void panelActions.copyCommand(command)}
+            />
+          {/each}
+        {/if}
+      </div>
+    </PanelSection>
+
+    <PanelSection
+      title="Finished"
+      icon={Square}
+      open={sectionState.finished}
+      onOpenChange={(open) => onSectionOpenChange?.("finished", open)}
+    >
+      {#snippet meta()}<span class="font-mono">{groups.finished.length}</span
+        >{/snippet}
+      {#snippet actions()}
+        <Button
+          size="xs"
+          variant="ghost"
+          class="h-6 gap-1 text-muted-foreground hover:text-destructive"
+          disabled={!model.capabilities.prune.enabled ||
+            groups.finished.length === 0}
+          title={model.capabilities.prune.enabled
+            ? "Prune finished tasks"
+            : model.capabilities.prune.reason}
+          onclick={() => (confirmPruneOpen = true)}
+        >
+          <Trash2 size={12} strokeWidth={2.3} />Prune
+        </Button>
+      {/snippet}
+      <div class="flex flex-col gap-1.5">
+        {#if groups.finished.length === 0}
+          <p class="px-1 py-1 text-xs text-muted-foreground">
+            No finished tasks.
+          </p>
+        {:else}
+          {#each groups.finished as task (task.id)}
+            <TaskListItem
+              {task}
+              selected={task.id === model.selectedTask?.id}
+              capabilities={model.capabilities}
+              onOpenTaskOutput={(id) => void panelActions.openTaskOutput(id)}
+              onCancelTask={(id) => void panelActions.cancelTask(id)}
+              onRestartTask={(id) => void panelActions.restartTask(id)}
+              onRemoveTask={(id) => void panelActions.removeTask(id)}
+              onPinTask={(item) => void panelActions.pinTask(item)}
+              onCopyCommand={(command) =>
+                void panelActions.copyCommand(command)}
+            />
+          {/each}
+        {/if}
+      </div>
+    </PanelSection>
   </div>
 </Tooltip.Provider>
-
 <PinnedCommandDialog
   bind:open={addPinOpen}
   projectCwd={model.defaultCwd}
