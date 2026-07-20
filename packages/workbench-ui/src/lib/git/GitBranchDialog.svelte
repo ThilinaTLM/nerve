@@ -6,7 +6,7 @@ import Search from "@lucide/svelte/icons/search";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
+import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 
@@ -64,25 +64,27 @@ const isValidName = $derived(
     !/[\u0000-\u001f~^:?*[\\]/.test(trimmedName),
 );
 const showNameError = $derived(trimmedName.length > 0 && !isValidName);
+const dialogTitle = $derived(
+  view === "switch" ? "Switch branch" : "Create branch",
+);
+const dialogDescription = $derived(
+  view === "switch"
+    ? `Current branch: ${currentBranchLabel}`
+    : `Create from: ${currentBranchLabel}`,
+);
 </script>
 
-<Dialog.Root
+<Dialog
   bind:open
+  title={dialogTitle}
+  description={dialogDescription}
+  class="max-w-md"
   onOpenChange={(next) => {
     if (!next) view = "switch";
   }}
 >
-  <Dialog.Content class="max-w-md gap-4">
-    {#if view === "switch"}
-      <Dialog.Header>
-        <Dialog.Title>Switch branch</Dialog.Title>
-        <Dialog.Description>
-          Current: <span class="font-mono text-foreground"
-            >{currentBranchLabel}</span
-          >
-        </Dialog.Description>
-      </Dialog.Header>
-
+  {#if view === "switch"}
+    <div class="grid gap-4 p-4">
       {#if showBaseQuickSwitch}
         <div
           class="flex items-center gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2"
@@ -124,6 +126,7 @@ const showNameError = $derived(trimmedName.length > 0 && !isValidName);
           bind:value={branchFilter}
           placeholder="Filter branches"
           class="h-8 pl-7 text-xs"
+          aria-label="Filter branches"
         />
       </div>
 
@@ -166,65 +169,54 @@ const showNameError = $derived(trimmedName.length > 0 && !isValidName);
           {/each}
         {/if}
       </div>
+    </div>
+  {:else}
+    <form
+      class="grid gap-1.5 p-4"
+      onsubmit={(event) => {
+        event.preventDefault();
+        if (isValidName && !creatingBranch) onCreateBranch(selectedRepo);
+      }}
+    >
+      <Input
+        bind:value={newBranchName}
+        placeholder="feature/branch-name"
+        autofocus
+        class="h-9 font-mono text-sm"
+        aria-label="New branch name"
+        aria-invalid={showNameError}
+      />
+      {#if showNameError}
+        <p class="text-xs text-destructive">
+          Enter a valid branch name (no spaces or special characters).
+        </p>
+      {:else}
+        <p class="text-xs text-muted-foreground">
+          The new branch is created from the current branch.
+        </p>
+      {/if}
+    </form>
+  {/if}
 
-      <Dialog.Footer>
-        <Button
-          variant="outline"
-          disabled={!branchesEnabled}
-          onclick={() => (view = "create")}
-        >
-          <GitBranchPlus /> New branch
-        </Button>
-      </Dialog.Footer>
+  {#snippet footer()}
+    {#if view === "switch"}
+      <Button variant="ghost" onclick={() => (open = false)}>Close</Button>
+      <Button disabled={!branchesEnabled} onclick={() => (view = "create")}>
+        <GitBranchPlus /> New branch
+      </Button>
     {:else}
-      <Dialog.Header>
-        <Dialog.Title>Create branch</Dialog.Title>
-        <Dialog.Description>
-          From <span class="font-mono text-foreground"
-            >{currentBranchLabel}</span
-          >
-        </Dialog.Description>
-      </Dialog.Header>
-
-      <form
-        class="flex flex-col gap-1.5"
-        onsubmit={(event) => {
-          event.preventDefault();
-          if (isValidName && !creatingBranch) onCreateBranch(selectedRepo);
-        }}
+      <Button variant="ghost" onclick={() => (view = "switch")}>Back</Button>
+      <Button
+        disabled={!branchesEnabled || creatingBranch || !isValidName}
+        onclick={() => onCreateBranch(selectedRepo)}
       >
-        <Input
-          bind:value={newBranchName}
-          placeholder="feature/branch-name"
-          autofocus
-          class="h-9 font-mono text-sm"
-          aria-invalid={showNameError}
-        />
-        {#if showNameError}
-          <p class="text-xs text-destructive">
-            Enter a valid branch name (no spaces or special characters).
-          </p>
+        {#if creatingBranch}
+          <Spinner />
         {:else}
-          <p class="text-xs text-muted-foreground">
-            The new branch is created from the current branch.
-          </p>
+          <GitBranch />
         {/if}
-      </form>
-
-      <Dialog.Footer>
-        <Button variant="ghost" onclick={() => (view = "switch")}>Back</Button>
-        <Button
-          disabled={!branchesEnabled || creatingBranch || !isValidName}
-          onclick={() => onCreateBranch(selectedRepo)}
-        >
-          {#if creatingBranch}
-            <Spinner />
-          {:else}
-            <GitBranch />
-          {/if}
-          Create
-        </Button>
-      </Dialog.Footer>
+        Create
+      </Button>
     {/if}
-  </Dialog.Content>
-</Dialog.Root>
+  {/snippet}
+</Dialog>
