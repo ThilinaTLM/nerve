@@ -23,6 +23,31 @@ async function tempHome(): Promise<string> {
 
 const gitData = (reason: string) => ({ repo: ".", reason });
 
+const contextData = (conversationId: string, tokens: number) => ({
+  conversationId,
+  contextUsage: { tokens, contextWindow: 10_000, percent: tokens / 100 },
+});
+
+const compactionStartedData = (conversationId: string) => ({
+  conversationId,
+  reason: "threshold" as const,
+  startedAt: "2026-07-20T00:00:00.000Z",
+  contextWindow: 10_000,
+  contextTokens: 9_000,
+  thresholdTokens: 8_500,
+});
+
+function deferred(): {
+  promise: Promise<void>;
+  resolve: () => void;
+} {
+  let resolve!: () => void;
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
 describe("StreamLogRegistry", () => {
   it("assigns independent dense sequences and routes conversations", async () => {
     const home = await tempHome();
@@ -118,6 +143,168 @@ describe("StreamLogRegistry", () => {
       assert.ok(fsyncs >= 2);
     } finally {
       await registry.shutdown();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("does not block supersedable publishes on an active disk flush", async () => {
+    const home = await tempHome();
+    const renameStarted = deferred();
+    const releaseRename = deferred();
+    let holdConversationMeta = false;
+    let heldConversationMeta = false;
+    const registry = new StreamLogRegistry(home, {
+      flushDelayMs: 0,
+      renameDependencies: {
+        rename: async (source, target) => {
+          if (
+            holdConversationMeta &&
+            !heldConversationMeta &&
+            target.endsWith("events.meta.json")
+          ) {
+            heldConversationMeta = true;
+            renameStarted.resolve();
+            await releaseRename.promise;
+          }
+          await rename(source, target);
+        },
+      },
+    });
+    try {
+      await registry.bounds("conv/conv_slow_flush");
+      holdConversationMeta = true;
+      await registry.publish(
+        "conversation.context.updated",
+        contextData("conv_slow_flush", 100),
+      );
+      await renameStarted.promise;
+
+      let supersedableResolved = false;
+      const supersedable = registry
+        .publish(
+          "conversation.context.updated",
+          contextData("conv_slow_flush", 200),
+        )
+        .then(() => {
+          supersedableResolved = true;
+        });
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(supersedableResolved, true);
+
+      let lifecycleResolved = false;
+      const lifecycle = registry
+        .publish(
+          "conversation.compaction.started",
+          compactionStartedData("conv_slow_flush"),
+        )
+        .then(() => {
+          lifecycleResolved = true;
+        });
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(lifecycleResolved, false);
+
+      releaseRename.resolve();
+      await Promise.all([supersedable, lifecycle]);
+      assert.equal(lifecycleResolved, true);
+      await registry.shutdown();
+
+      const restored = new StreamLogRegistry(home);
+      try {
+        const replay = await restored.readStream("conv/conv_slow_flush", 1, 10);
+        assert.deepEqual(
+          replay.events.map((event) => event.seq),
+          [1, 2, 3],
+        );
+        const next = await restored.publish(
+          "conversation.context.updated",
+          contextData("conv_slow_flush", 300),
+        );
+        assert.equal("seq" in next && next.seq, 4);
+      } finally {
+        await restored.shutdown();
+      }
+    } finally {
+      releaseRename.resolve();
+      await registry.shutdown().catch(() => undefined);
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("applies retention only through each completed queued flush", async () => {
+    const home = await tempHome();
+    const renameStarted = deferred();
+    const releaseRename = deferred();
+    let holdConversationMeta = false;
+    let heldConversationMeta = false;
+    const registry = new StreamLogRegistry(home, {
+      retentionEvents: 2,
+      flushDelayMs: 0,
+      renameDependencies: {
+        rename: async (source, target) => {
+          if (
+            holdConversationMeta &&
+            !heldConversationMeta &&
+            target.endsWith("events.meta.json")
+          ) {
+            heldConversationMeta = true;
+            renameStarted.resolve();
+            await releaseRename.promise;
+          }
+          await rename(source, target);
+        },
+      },
+    });
+    try {
+      await registry.bounds("conv/conv_retention_queue");
+      holdConversationMeta = true;
+      await registry.publish(
+        "conversation.context.updated",
+        contextData("conv_retention_queue", 100),
+      );
+      await renameStarted.promise;
+      await registry.publish(
+        "conversation.context.updated",
+        contextData("conv_retention_queue", 200),
+      );
+      await registry.publish(
+        "conversation.context.updated",
+        contextData("conv_retention_queue", 300),
+      );
+
+      releaseRename.resolve();
+      await registry.shutdown();
+
+      const replay = await registry.readStream(
+        "conv/conv_retention_queue",
+        1,
+        10,
+      );
+      assert.deepEqual(
+        replay.events.map((event) => event.seq),
+        [2, 3],
+      );
+      const conversationDir = join(
+        home,
+        "conversations",
+        "conv_retention_queue",
+      );
+      const persisted = (
+        await readFile(join(conversationDir, "events.jsonl"), "utf8")
+      )
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as { seq: number });
+      assert.deepEqual(
+        persisted.map((event) => event.seq),
+        [2, 3],
+      );
+      assert.equal(
+        (await readdir(conversationDir)).some((name) => name.endsWith(".tmp")),
+        false,
+      );
+    } finally {
+      releaseRename.resolve();
+      await registry.shutdown().catch(() => undefined);
       await rm(home, { recursive: true, force: true });
     }
   });

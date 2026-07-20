@@ -78,10 +78,6 @@ export class StreamLog {
       return existing;
     }
     if (this.#closed) throw new Error(`Stream log ${this.stream} is closed`);
-    // A delayed flush may be active while a new supersedable event arrives.
-    // Do not let that flush write metadata or retention state that includes an
-    // event whose JSONL append has not completed yet.
-    await this.#flushTail;
     const event = eventEnvelopeSchema.parse({
       seq: this.#lastSeq + 1,
       id: intentId,
@@ -93,8 +89,10 @@ export class StreamLog {
     this.#events.push(event);
     this.#pending.push(event);
 
-    if (!supersedable || this.#pending.length >= this.#flushEventThreshold) {
+    if (!supersedable) {
       await this.flush();
+    } else if (this.#pending.length >= this.#flushEventThreshold) {
+      this.#flushInBackground();
     } else {
       this.#scheduleFlush();
     }
@@ -127,7 +125,9 @@ export class StreamLog {
       await this.#flushTail;
       return;
     }
-    this.#flushTail = this.#flushTail.then(async () => {
+    const durableThroughSeq = pending.at(-1)?.seq;
+    if (durableThroughSeq === undefined) return;
+    const flush = this.#flushTail.then(async () => {
       await mkdir(dirname(this.logPath), { recursive: true });
       const handle = await open(this.logPath, "a", 0o600);
       try {
@@ -143,13 +143,14 @@ export class StreamLog {
       }
       await writeMeta(
         this.metaPath,
-        this.#lastSeq,
+        durableThroughSeq,
         this.#onFsync,
         this.#renameDependencies,
       );
-      await this.#applyRetention();
+      await this.#applyRetention(durableThroughSeq);
     });
-    await this.#flushTail;
+    this.#flushTail = flush;
+    await flush;
   }
 
   async truncateBelow(seq: number): Promise<void> {
@@ -197,45 +198,59 @@ export class StreamLog {
         this.#renameDependencies,
       );
     }
-    await this.#applyRetention();
+    await this.#applyRetention(this.#lastSeq);
   }
 
   #scheduleFlush(): void {
     if (this.#flushTimer) return;
     this.#flushTimer = setTimeout(() => {
       this.#flushTimer = undefined;
-      void this.flush().catch((error: unknown) => {
-        process.emitWarning(
-          `Failed to flush stream ${this.stream}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
+      this.#flushInBackground();
     }, this.#flushDelayMs);
     this.#flushTimer.unref?.();
   }
 
-  async #applyRetention(): Promise<void> {
-    let bytes = this.#events.reduce(
+  #flushInBackground(): void {
+    void this.flush().catch((error: unknown) => {
+      process.emitWarning(
+        `Failed to flush stream ${this.stream}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
+
+  async #applyRetention(durableThroughSeq: number): Promise<void> {
+    const durableEvents = this.#events.filter(
+      (event) => event.seq <= durableThroughSeq,
+    );
+    let bytes = durableEvents.reduce(
       (total, event) => total + Buffer.byteLength(`${JSON.stringify(event)}\n`),
       0,
     );
-    let removed = false;
+    let removeCount = 0;
     while (
-      this.#events.length > 1 &&
-      (this.#events.length > this.#retentionEvents ||
+      durableEvents.length - removeCount > 1 &&
+      (durableEvents.length - removeCount > this.#retentionEvents ||
         bytes > this.#retentionBytes)
     ) {
-      const event = this.#events.shift() as EventEnvelope;
+      const event = durableEvents[removeCount] as EventEnvelope;
       bytes -= Buffer.byteLength(`${JSON.stringify(event)}\n`);
-      removed = true;
+      removeCount += 1;
     }
-    if (removed) {
-      await rewriteLog(
-        this.logPath,
-        this.#events,
-        this.#onFsync,
-        this.#renameDependencies,
-      );
-    }
+    if (removeCount === 0) return;
+
+    const retainedDurableEvents = durableEvents.slice(removeCount);
+    const firstRetainedSeq = retainedDurableEvents[0]?.seq;
+    if (firstRetainedSeq === undefined) return;
+    const retainedEvents = this.#events.filter(
+      (event) => event.seq >= firstRetainedSeq,
+    );
+    this.#events.splice(0, this.#events.length, ...retainedEvents);
+    await rewriteLog(
+      this.logPath,
+      retainedDurableEvents,
+      this.#onFsync,
+      this.#renameDependencies,
+    );
   }
 }
 
