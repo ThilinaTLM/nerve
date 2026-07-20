@@ -23,6 +23,15 @@ function revisionConflictError(): DaemonStartupError {
   return daemonStartupError("Daemon exited.", output);
 }
 
+function corruptRunJournalError(): DaemonStartupError {
+  const output = new OutputBuffer();
+  output.append(
+    "stderr",
+    "Error: Corrupt run journal C:\\Users\\test\\.nerve\\run-runtime\\runs\\run_test\\transitions.jsonl:1\n",
+  );
+  return daemonStartupError("Daemon exited.", output);
+}
+
 function dialogs(response = 0) {
   const shown: MessageBoxOptions[] = [];
   return {
@@ -101,6 +110,42 @@ describe("run-runtime startup recovery", () => {
     ]);
     assert.equal(recorded.shown[0]?.defaultId, 1);
     assert.equal(recorded.shown[0]?.cancelId, 1);
+  });
+
+  it("offers run-data recovery for unreadable journals", async () => {
+    const recorded = dialogs(0);
+    const renames: Array<{ source: string; destination: string }> = [];
+    const home = "/home/test/.nerve";
+    let starts = 0;
+
+    const result = await startWithRunRuntimeRecovery(
+      {
+        home,
+        start: async () => {
+          starts += 1;
+          if (starts === 1) throw corruptRunJournalError();
+          return "ready";
+        },
+      },
+      {
+        ...recorded,
+        now: () => new Date("2026-07-19T12:34:56.000Z"),
+        pathExists: async () => false,
+        rename: async (source, destination) => {
+          renames.push({ source, destination });
+        },
+      },
+    );
+
+    assert.equal(result.value, "ready");
+    assert.equal(recorded.shown.length, 1);
+    assert.match(recorded.shown[0]?.message ?? "", /unreadable/);
+    assert.deepEqual(renames, [
+      {
+        source: join(home, "run-runtime"),
+        destination: join(home, "run-runtime-bk-20260719-123456"),
+      },
+    ]);
   });
 
   it("moves the complete runtime to a retained backup and retries once", async () => {

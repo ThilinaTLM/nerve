@@ -32,6 +32,12 @@ export interface DaemonRuntimeMonitor {
 
 const runtimeHeartbeatIntervalMs = 5000;
 
+export function nodeDiagnosticReportSignal(
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.Signals | undefined {
+  return platform === "win32" ? undefined : "SIGUSR2";
+}
+
 export function installNodeDiagnosticReports(
   dataDir: string,
 ): string | undefined {
@@ -42,8 +48,9 @@ export function installNodeDiagnosticReports(
     process.report.filename = "";
     process.report.reportOnFatalError = true;
     process.report.reportOnUncaughtException = true;
-    process.report.reportOnSignal = true;
-    process.report.signal = "SIGUSR2";
+    const signal = nodeDiagnosticReportSignal();
+    process.report.reportOnSignal = signal !== undefined;
+    if (signal) process.report.signal = signal;
     return dir;
   } catch (error) {
     console.error("[nerve] failed to configure node diagnostic reports", error);

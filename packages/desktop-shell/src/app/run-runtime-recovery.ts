@@ -1,9 +1,13 @@
 import { access, rename } from "node:fs/promises";
 import { join } from "node:path";
 import type { MessageBoxOptions, MessageBoxReturnValue } from "electron";
-import { isDaemonStartupErrorCode } from "../daemon/diagnostics.js";
+import {
+  DaemonStartupError,
+  isDaemonStartupErrorCode,
+} from "../daemon/diagnostics.js";
 
 const RUN_REVISION_CONFLICT = "RUN_REVISION_CONFLICT";
+const CORRUPT_RUN_JOURNAL = "Corrupt run journal";
 
 export interface RunRuntimeRecoveryResult<T> {
   value: T;
@@ -33,12 +37,12 @@ export async function startWithRunRuntimeRecovery<T>(
   try {
     return { value: await input.start() };
   } catch (error) {
-    if (!isDaemonStartupErrorCode(error, RUN_REVISION_CONFLICT)) throw error;
+    if (!isRecoverableRunRuntimeStartupError(error)) throw error;
 
     const confirmation = await dependencies.showMessageBox({
       type: "warning",
       title: "Repair Nerve run data",
-      message: "Nerve found inconsistent local run history.",
+      message: "Nerve found inconsistent or unreadable local run history.",
       detail: [
         "Nerve can move the complete run-runtime directory to a retained timestamped backup, then retry startup with fresh run data.",
         "Settings, projects, conversations, providers, and authentication will not be changed.",
@@ -66,6 +70,14 @@ export async function startWithRunRuntimeRecovery<T>(
       recovery: { backupPath },
     };
   }
+}
+
+function isRecoverableRunRuntimeStartupError(error: unknown): boolean {
+  return (
+    isDaemonStartupErrorCode(error, RUN_REVISION_CONFLICT) ||
+    (error instanceof DaemonStartupError &&
+      error.daemonOutput.includes(CORRUPT_RUN_JOURNAL))
+  );
 }
 
 async function backupRunRuntime(
