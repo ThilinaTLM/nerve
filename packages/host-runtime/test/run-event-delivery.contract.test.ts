@@ -167,6 +167,67 @@ test("a targeted failure forces a serialized full sweep before later targets", a
   );
 });
 
+test("recovery isolates a failed run and continues unrelated runs", async () => {
+  const unitOfWork = new DeliveryUnitOfWork();
+  const failedFirst = intent("intent_failed_first", 1);
+  const failedLater = intent("intent_failed_later", 2);
+  const healthy = intent("intent_healthy", 3);
+  let publisherAvailableForFailedRun = false;
+  const attempts: string[] = [];
+  const service = new RunEventDeliveryService(
+    unitOfWork,
+    {
+      publish: async (event) => {
+        attempts.push(event.id);
+        if (
+          event.id.startsWith("intent_failed") &&
+          !publisherAvailableForFailedRun
+        ) {
+          throw new Error("failed run stream unavailable");
+        }
+        return { eventId: `event_${event.id}`, sequence: attempts.length };
+      },
+    },
+    () => "2026-07-12T00:00:20.000Z",
+  );
+
+  await assert.rejects(service.flushTransition(transition(1, [failedFirst])));
+  unitOfWork.pending = [
+    { runId: "run_failed", revision: 1, intent: failedFirst },
+    { runId: "run_failed", revision: 2, intent: failedLater },
+    { runId: "run_healthy", revision: 1, intent: healthy },
+  ];
+
+  await assert.rejects(
+    service.flushTransition({
+      ...transition(1, [healthy]),
+      runId: "run_healthy",
+    }),
+    AggregateError,
+  );
+
+  assert.deepEqual(attempts, [
+    "intent_failed_first",
+    "intent_failed_first",
+    "intent_healthy",
+  ]);
+  assert.deepEqual(
+    unitOfWork.deliveries.map((delivery) => delivery.intentId),
+    ["intent_healthy"],
+  );
+
+  publisherAvailableForFailedRun = true;
+  unitOfWork.pending = [
+    { runId: "run_failed", revision: 1, intent: failedFirst },
+    { runId: "run_failed", revision: 2, intent: failedLater },
+  ];
+  await service.flush();
+  assert.deepEqual(
+    unitOfWork.deliveries.map((delivery) => delivery.intentId),
+    ["intent_healthy", "intent_failed_first", "intent_failed_later"],
+  );
+});
+
 test("publication success followed by marker failure redelivers idempotently", async () => {
   const unitOfWork = new DeliveryUnitOfWork();
   const current = intent("intent_marker_retry", 1);

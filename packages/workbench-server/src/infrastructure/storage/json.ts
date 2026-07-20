@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { constants, createReadStream, createWriteStream } from "node:fs";
+import { constants, createReadStream } from "node:fs";
 import {
   access,
   chmod,
@@ -7,12 +6,16 @@ import {
   open,
   readdir,
   readFile,
-  rename,
   stat,
   writeFile,
 } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline";
+import {
+  atomicReplaceFile,
+  atomicWriteFile,
+  withFileMutation,
+} from "./file-mutations.js";
 
 export async function pathExists(path: string): Promise<boolean> {
   try {
@@ -123,45 +126,35 @@ export async function filterJsonLinesToFile<T>(
   mode?: number,
 ): Promise<number> {
   if (!(await pathExists(path))) return 0;
-  await mkdir(dirname(path), { recursive: true });
-  const tempPath = `${path}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
-  const input = createReadStream(path, { encoding: "utf8" });
-  const rl = createInterface({ input, crlfDelay: Infinity });
-  const output = createWriteStream(tempPath, { mode });
   let kept = 0;
-  let index = 0;
-  try {
-    for await (const line of rl) {
-      index += 1;
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      let value: T;
-      try {
-        value = JSON.parse(trimmed) as T;
-      } catch (error) {
-        process.emitWarning(
-          `Skipping invalid JSONL line ${path}:${index}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-        continue;
+  await atomicReplaceFile(
+    path,
+    async (output) => {
+      const input = createReadStream(path, { encoding: "utf8" });
+      const rl = createInterface({ input, crlfDelay: Infinity });
+      let index = 0;
+      for await (const line of rl) {
+        index += 1;
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        let value: T;
+        try {
+          value = JSON.parse(trimmed) as T;
+        } catch (error) {
+          process.emitWarning(
+            `Skipping invalid JSONL line ${path}:${index}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          continue;
+        }
+        if (!predicate(value)) continue;
+        await output.write(`${JSON.stringify(value)}\n`, undefined, "utf8");
+        kept += 1;
       }
-      if (!predicate(value)) continue;
-      const ok = output.write(`${JSON.stringify(value)}\n`);
-      if (!ok) {
-        await new Promise<void>((resolve) => output.once("drain", resolve));
-      }
-      kept += 1;
-    }
-    await new Promise<void>((resolve, reject) => {
-      output.end((error?: Error | null) => (error ? reject(error) : resolve()));
-    });
-  } catch (error) {
-    output.destroy();
-    throw error;
-  }
-  await rename(tempPath, path);
-  if (mode !== undefined) await chmod(path, mode).catch(() => undefined);
+    },
+    { mode },
+  );
   return kept;
 }
 
@@ -179,11 +172,9 @@ export async function atomicWriteJson(
   value: unknown,
   mode?: number,
 ): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const tempPath = `${path}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
-  await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, { mode });
-  await rename(tempPath, path);
-  if (mode !== undefined) await chmod(path, mode);
+  await atomicWriteFile(path, `${JSON.stringify(value, null, 2)}\n`, {
+    mode,
+  });
 }
 
 export async function writeTextFileIfMissing(
@@ -197,44 +188,23 @@ export async function writeTextFileIfMissing(
   if (mode !== undefined) await chmod(path, mode);
 }
 
-const appendJsonLineQueues = new Map<string, Promise<void>>();
-
-export async function appendJsonLine(
+export function appendJsonLine(
   path: string,
   value: unknown,
   mode?: number,
 ): Promise<void> {
-  const previous = appendJsonLineQueues.get(path) ?? Promise.resolve();
-  const queued = previous
-    .catch(() => undefined)
-    .then(() => appendJsonLineDirect(path, value, mode));
-  appendJsonLineQueues.set(path, queued);
-  try {
-    await queued;
-  } finally {
-    if (appendJsonLineQueues.get(path) === queued) {
-      appendJsonLineQueues.delete(path);
-    }
-  }
+  return withFileMutation(path, (resolvedPath) =>
+    appendJsonLineDirect(resolvedPath, value, mode),
+  );
 }
 
-export async function rewriteJsonLines(
+export function rewriteJsonLines(
   path: string,
   values: unknown[],
   mode?: number,
 ): Promise<void> {
-  const previous = appendJsonLineQueues.get(path) ?? Promise.resolve();
-  const queued = previous
-    .catch(() => undefined)
-    .then(() => rewriteJsonLinesDirect(path, values, mode));
-  appendJsonLineQueues.set(path, queued);
-  try {
-    await queued;
-  } finally {
-    if (appendJsonLineQueues.get(path) === queued) {
-      appendJsonLineQueues.delete(path);
-    }
-  }
+  const text = values.map((value) => JSON.stringify(value)).join("\n");
+  return atomicWriteFile(path, text ? `${text}\n` : "", { mode });
 }
 
 async function appendJsonLineDirect(
@@ -250,19 +220,6 @@ async function appendJsonLineDirect(
   } finally {
     await handle.close();
   }
-  if (mode !== undefined) await chmod(path, mode).catch(() => undefined);
-}
-
-async function rewriteJsonLinesDirect(
-  path: string,
-  values: unknown[],
-  mode?: number,
-): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const tempPath = `${path}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
-  const text = values.map((value) => JSON.stringify(value)).join("\n");
-  await writeFile(tempPath, text ? `${text}\n` : "", { mode });
-  await rename(tempPath, path);
   if (mode !== undefined) await chmod(path, mode).catch(() => undefined);
 }
 

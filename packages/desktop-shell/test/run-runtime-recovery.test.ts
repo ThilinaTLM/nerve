@@ -32,6 +32,10 @@ function corruptRunJournalError(): DaemonStartupError {
   return daemonStartupError("Daemon exited.", output);
 }
 
+function codedError(code: string): NodeJS.ErrnoException {
+  return Object.assign(new Error(code), { code });
+}
+
 function dialogs(response = 0) {
   const shown: MessageBoxOptions[] = [];
   return {
@@ -222,6 +226,67 @@ describe("run-runtime startup recovery", () => {
     assert.deepEqual(renames, [
       { source: join(home, "run-runtime"), destination: `${base}-3` },
     ]);
+  });
+
+  it("retries transient native-host failures while moving run data", async () => {
+    const recorded = dialogs(0);
+    let starts = 0;
+    let renameAttempts = 0;
+    const delays: number[] = [];
+
+    const result = await startWithRunRuntimeRecovery(
+      {
+        home: "/home/test/.nerve",
+        start: async () => {
+          starts += 1;
+          if (starts === 1) throw revisionConflictError();
+          return "ready";
+        },
+      },
+      {
+        ...recorded,
+        pathExists: async () => false,
+        rename: async () => {
+          renameAttempts += 1;
+          if (renameAttempts < 3) throw codedError("EPERM");
+        },
+        delay: async (milliseconds) => {
+          delays.push(milliseconds);
+        },
+      },
+    );
+
+    assert.equal(result.value, "ready");
+    assert.equal(renameAttempts, 3);
+    assert.deepEqual(delays, [10, 20]);
+  });
+
+  it("bounds transient run-data move retries", async () => {
+    const recorded = dialogs(0);
+    let attempts = 0;
+    await assert.rejects(
+      startWithRunRuntimeRecovery(
+        {
+          home: "/home/test/.nerve",
+          start: async () => {
+            throw revisionConflictError();
+          },
+        },
+        {
+          ...recorded,
+          pathExists: async () => false,
+          rename: async () => {
+            attempts += 1;
+            throw codedError("EBUSY");
+          },
+          delay: async () => undefined,
+        },
+      ),
+      (error) =>
+        error instanceof RunRuntimeRecoveryError &&
+        (error.cause as NodeJS.ErrnoException).code === "EBUSY",
+    );
+    assert.equal(attempts, 8);
   });
 
   it("reports a backup failure without retrying startup", async () => {

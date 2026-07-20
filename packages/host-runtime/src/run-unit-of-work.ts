@@ -155,8 +155,27 @@ export class RunEventDeliveryService {
   }
 
   private async flushPending(): Promise<void> {
+    const failedRuns = new Set<string>();
+    const failures: unknown[] = [];
     for (const pending of await this.unitOfWork.pendingEventIntents()) {
-      await this.deliver(pending);
+      if (failedRuns.has(pending.runId)) continue;
+      try {
+        await this.deliver(pending);
+      } catch (error) {
+        failedRuns.add(pending.runId);
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      const firstFailure = failures[0];
+      const detail =
+        firstFailure instanceof Error
+          ? firstFailure.message
+          : String(firstFailure);
+      throw new AggregateError(
+        failures,
+        `Event delivery recovery failed for ${failedRuns.size} run(s): ${detail}`,
+      );
     }
   }
 

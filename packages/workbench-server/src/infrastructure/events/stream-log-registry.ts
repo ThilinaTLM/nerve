@@ -10,6 +10,7 @@ import {
   streamForEvent,
   validatePublicEvent,
 } from "@nervekit/contracts";
+import type { RenameDependencies } from "../storage/index.js";
 import { StreamLog } from "./stream-log.js";
 
 export type PublishedEvent<T = unknown> = EventEnvelope<T> | NotifyEvent<T>;
@@ -20,6 +21,7 @@ export interface StreamLogRegistryOptions {
   readonly flushDelayMs?: number;
   readonly flushEventThreshold?: number;
   readonly onFsync?: () => void;
+  readonly renameDependencies?: RenameDependencies;
 }
 
 export class StreamLogRegistry {

@@ -1,6 +1,6 @@
 # Release checklist
 
-Nerve publishes exactly one npm package, `@nervekit/desktop`, and builds two private runtime images. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path.
+Nerve publishes exactly one npm package, `@nervekit/desktop`, and builds two private runtime images. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path. Native-host filesystem and process requirements are documented in [Cross-platform reliability](architecture/cross-platform-reliability.md).
 
 ## Requirements
 
@@ -65,7 +65,7 @@ The deterministic errors are `Incompatible Nerve state at <path>...`, `Incompati
 
 ## npm publication, migration, and OIDC
 
-Tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The existing trusted publisher for `@nervekit/desktop` continues to use `.github/workflows/release.yml` in `ThilinaTLM/nerve`. The workflow must not publish until checks, tests, cross-platform package verification, Linux built-artifact smokes, manager-agent smoke, and both image smokes pass. An already-published matching version may be skipped only after the expected local tarball is verified.
+Tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The existing trusted publisher for `@nervekit/desktop` continues to use `.github/workflows/release.yml` in `ThilinaTLM/nerve`. The workflow must not publish until checks, the host/desktop tests and package verification pass on Linux, Windows, and macOS, Linux built-artifact smokes pass, and manager-agent plus both image smokes pass. An already-published matching version may be skipped only after the expected local tarball is verified.
 
 After `@nervekit/desktop@0.8.0` is published and clean-machine startup is verified, confirm npm `latest` points to it. Then deprecate versions `<=0.7.0` of `@nervekit/shared`, `@nervekit/tools`, `@nervekit/agent`, and `@nervekit/orchestrator` with `Internal legacy package retained for @nervekit/desktop <=0.7.0. Install @nervekit/desktop@latest instead.` Deprecate `@nervekit/desktop@<=0.7.0` with `Legacy multi-package release. Upgrade to @nervekit/desktop@latest.` Do not unpublish these versions: pinned legacy desktop installs still need them.
 

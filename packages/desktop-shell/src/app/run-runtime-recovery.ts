@@ -19,6 +19,7 @@ export interface RunRuntimeRecoveryDependencies {
     options: MessageBoxOptions,
   ) => Promise<Pick<MessageBoxReturnValue, "response">>;
   rename?: (source: string, destination: string) => Promise<void>;
+  delay?: (milliseconds: number) => Promise<void>;
   pathExists?: (path: string) => Promise<boolean>;
   now?: () => Date;
 }
@@ -90,7 +91,7 @@ async function backupRunRuntime(
     (dependencies.now ?? (() => new Date()))(),
     dependencies.pathExists ?? pathExists,
   );
-  await (dependencies.rename ?? rename)(source, backupPath);
+  await retryRename(source, backupPath, dependencies);
   return backupPath;
 }
 
@@ -117,6 +118,33 @@ function formatBackupTimestamp(value: Date): string {
   }
   const compact = value.toISOString().replaceAll(/[-:]/g, "");
   return `${compact.slice(0, 8)}-${compact.slice(9, 15)}`;
+}
+
+async function retryRename(
+  source: string,
+  destination: string,
+  dependencies: RunRuntimeRecoveryDependencies,
+): Promise<void> {
+  const renamePath = dependencies.rename ?? rename;
+  const wait = dependencies.delay ?? delay;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await renamePath(source, destination);
+      return;
+    } catch (error) {
+      if (!isRetriableRenameError(error) || attempt === 7) throw error;
+      await wait(10 * 2 ** attempt);
+    }
+  }
+}
+
+function isRetriableRenameError(error: unknown): boolean {
+  const code = errorCode(error);
+  return code === "EPERM" || code === "EACCES" || code === "EBUSY";
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function pathExists(path: string): Promise<boolean> {

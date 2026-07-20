@@ -4,6 +4,8 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
+  rename,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -158,6 +160,47 @@ describe("StreamLogRegistry", () => {
       );
       assert.equal(read.earliestAvailableSeq, 2);
       assert.equal(read.latestSeq, 3);
+    } finally {
+      await registry.shutdown();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("retries transient replacements and leaves no stream temp files", async () => {
+    const home = await tempHome();
+    let renameAttempts = 0;
+    const registry = new StreamLogRegistry(home, {
+      retentionEvents: 2,
+      renameDependencies: {
+        rename: async (source, target) => {
+          renameAttempts += 1;
+          if (renameAttempts <= 2) {
+            throw Object.assign(new Error("temporarily locked"), {
+              code: "EPERM",
+            });
+          }
+          await rename(source, target);
+        },
+        delay: async () => undefined,
+      },
+    });
+    try {
+      await registry.publish("git.repository.changed", gitData("one"));
+      await registry.publish("git.repository.changed", gitData("two"));
+      await registry.publish("git.repository.changed", gitData("three"));
+      assert.ok(renameAttempts > 2);
+      assert.deepEqual(
+        (await registry.readStream("workspace", 1, 10)).events.map(
+          (event) => event.seq,
+        ),
+        [2, 3],
+      );
+      assert.equal(
+        (await readdir(join(home, "logs"))).some((name) =>
+          name.endsWith(".tmp"),
+        ),
+        false,
+      );
     } finally {
       await registry.shutdown();
       await rm(home, { recursive: true, force: true });

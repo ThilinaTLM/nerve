@@ -1,12 +1,16 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, readFile, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
   eventEnvelopeSchema,
   type EventEnvelope,
   type StreamState,
 } from "@nervekit/contracts";
-import { pathExists, readJsonLines } from "../storage/index.js";
+import {
+  atomicWriteFile,
+  pathExists,
+  readJsonLines,
+  type RenameDependencies,
+} from "../storage/index.js";
 
 export interface StreamLogOptions {
   readonly stream: string;
@@ -17,6 +21,7 @@ export interface StreamLogOptions {
   readonly flushDelayMs?: number;
   readonly flushEventThreshold?: number;
   readonly onFsync?: () => void;
+  readonly renameDependencies?: RenameDependencies;
 }
 
 export class StreamLog {
@@ -29,6 +34,7 @@ export class StreamLog {
   readonly #flushDelayMs: number;
   readonly #flushEventThreshold: number;
   readonly #onFsync?: () => void;
+  readonly #renameDependencies?: RenameDependencies;
   readonly #events: EventEnvelope[] = [];
   readonly #pending: EventEnvelope[] = [];
 
@@ -46,6 +52,7 @@ export class StreamLog {
     this.#flushDelayMs = options.flushDelayMs ?? 25;
     this.#flushEventThreshold = options.flushEventThreshold ?? 64;
     this.#onFsync = options.onFsync;
+    this.#renameDependencies = options.renameDependencies;
   }
 
   static async open(options: StreamLogOptions): Promise<StreamLog> {
@@ -134,7 +141,12 @@ export class StreamLog {
       } finally {
         await handle.close();
       }
-      await writeMeta(this.metaPath, this.#lastSeq, this.#onFsync);
+      await writeMeta(
+        this.metaPath,
+        this.#lastSeq,
+        this.#onFsync,
+        this.#renameDependencies,
+      );
       await this.#applyRetention();
     });
     await this.#flushTail;
@@ -144,7 +156,12 @@ export class StreamLog {
     await this.flush();
     const retained = this.#events.filter((event) => event.seq >= seq);
     this.#events.splice(0, this.#events.length, ...retained);
-    await rewriteLog(this.logPath, retained, this.#onFsync);
+    await rewriteLog(
+      this.logPath,
+      retained,
+      this.#onFsync,
+      this.#renameDependencies,
+    );
   }
 
   async close(): Promise<void> {
@@ -173,7 +190,12 @@ export class StreamLog {
     const meta = await readMeta(this.metaPath);
     this.#lastSeq = Math.max(meta, parsed.at(-1)?.seq ?? 0);
     if (!(await pathExists(this.metaPath))) {
-      await writeMeta(this.metaPath, this.#lastSeq, this.#onFsync);
+      await writeMeta(
+        this.metaPath,
+        this.#lastSeq,
+        this.#onFsync,
+        this.#renameDependencies,
+      );
     }
     await this.#applyRetention();
   }
@@ -206,7 +228,14 @@ export class StreamLog {
       bytes -= Buffer.byteLength(`${JSON.stringify(event)}\n`);
       removed = true;
     }
-    if (removed) await rewriteLog(this.logPath, this.#events, this.#onFsync);
+    if (removed) {
+      await rewriteLog(
+        this.logPath,
+        this.#events,
+        this.#onFsync,
+        this.#renameDependencies,
+      );
+    }
   }
 }
 
@@ -228,35 +257,25 @@ async function writeMeta(
   path: string,
   lastSeq: number,
   onFsync?: () => void,
+  renameDependencies?: RenameDependencies,
 ): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  const handle = await open(temporary, "w", 0o600);
-  try {
-    await handle.write(`${JSON.stringify({ lastSeq })}\n`, undefined, "utf8");
-    await handle.sync();
-    onFsync?.();
-  } finally {
-    await handle.close();
-  }
-  await rename(temporary, path);
+  await atomicWriteFile(path, `${JSON.stringify({ lastSeq })}\n`, {
+    mode: 0o600,
+    onFsync,
+    ...renameDependencies,
+  });
 }
 
 async function rewriteLog(
   path: string,
   events: readonly EventEnvelope[],
   onFsync?: () => void,
+  renameDependencies?: RenameDependencies,
 ): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  const handle = await open(temporary, "w", 0o600);
-  try {
-    const contents = events.map((event) => JSON.stringify(event)).join("\n");
-    await handle.write(contents ? `${contents}\n` : "", undefined, "utf8");
-    await handle.sync();
-    onFsync?.();
-  } finally {
-    await handle.close();
-  }
-  await rename(temporary, path);
+  const contents = events.map((event) => JSON.stringify(event)).join("\n");
+  await atomicWriteFile(path, contents ? `${contents}\n` : "", {
+    mode: 0o600,
+    onFsync,
+    ...renameDependencies,
+  });
 }

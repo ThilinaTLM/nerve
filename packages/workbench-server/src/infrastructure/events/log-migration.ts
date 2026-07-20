@@ -1,6 +1,6 @@
-import { mkdir, readdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { pathExists } from "../storage/index.js";
+import { pathExists, retryRename } from "../storage/index.js";
 
 const DENSE_STREAM_MARKER = ".dense-streams-v1";
 
@@ -68,5 +68,5 @@ export async function migrateLegacyEventLogs(
 
 async function move(source: string, target: string): Promise<void> {
   await mkdir(dirname(target), { recursive: true });
-  await rename(source, target);
+  await retryRename(source, target);
 }

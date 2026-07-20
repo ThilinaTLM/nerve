@@ -1,8 +1,9 @@
-import { readFile, rename, rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { daemonFileSchema } from "@nervekit/contracts";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
 import { initializeStorage } from "./initialize.js";
+import { retryRename } from "./file-mutations.js";
 import { atomicWriteJson, pathExists } from "./json.js";
 import {
   type LegacyPortableState,
@@ -84,7 +85,7 @@ export async function migrateLegacyWorkbenchHome(
     home,
     (options.now ?? (() => new Date()))(),
   );
-  await rename(home, backupPath).catch((cause: unknown) => {
+  await retryRename(home, backupPath).catch((cause: unknown) => {
     throw new LegacyHomeMigrationError(
       `Could not move the legacy Nerve home to ${backupPath}. No data was changed.`,
       "MIGRATION_FAILED",
@@ -200,7 +201,7 @@ async function rollbackMigration(
 ): Promise<never> {
   try {
     await rm(home, { recursive: true, force: true });
-    await rename(backupPath, home);
+    await retryRename(backupPath, home);
   } catch (rollbackCause) {
     throw new LegacyHomeMigrationError(
       `Nerve could not finish preparing ${home}, and automatic rollback also failed. The legacy backup remains at ${backupPath}.`,

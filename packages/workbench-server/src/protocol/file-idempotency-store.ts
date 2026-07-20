@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type {
   IdempotencyExecution,
@@ -7,6 +7,7 @@ import type {
 } from "@nervekit/protocol";
 import { hashParams } from "@nervekit/protocol";
 import { z } from "zod";
+import { retryRename } from "../infrastructure/storage/file-mutations.js";
 import { atomicWriteJson } from "../infrastructure/storage/json.js";
 import { redactProtocolValue } from "./protocol-errors.js";
 
@@ -108,7 +109,9 @@ export class FileIdempotencyStore implements IdempotencyStorePort {
     } catch (error) {
       this.#entries = [];
       if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-        await rename(this.path, `${this.path}.corrupt`).catch(() => undefined);
+        await retryRename(this.path, `${this.path}.corrupt`).catch(
+          () => undefined,
+        );
     }
   }
 
