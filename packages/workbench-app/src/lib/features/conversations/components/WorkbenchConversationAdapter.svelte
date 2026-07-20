@@ -33,8 +33,8 @@ let {
   homeDir,
   pendingConversationActive = false,
   approvals = [],
-  pendingUserQuestion,
-  pendingPlanReview,
+  pendingUserQuestions = [],
+  pendingPlanReviews = [],
   active = true,
   entries = [],
   optimisticMessages = [],
@@ -117,8 +117,8 @@ function transcriptRenderInputs() {
     queuedPrompts,
     sending,
     approvals,
-    pendingUserQuestion,
-    pendingPlanReview,
+    pendingUserQuestions,
+    pendingPlanReviews,
   };
 }
 
@@ -240,8 +240,8 @@ function menuForTool(
     hasActiveTurnOutput,
     queuedPrompts: rendered.queuedPrompts,
     approvals: rendered.approvals,
-    pendingUserQuestion: rendered.pendingUserQuestion,
-    pendingPlanReview: rendered.pendingPlanReview,
+    pendingUserQuestions: rendered.pendingUserQuestions,
+    pendingPlanReviews: rendered.pendingPlanReviews,
     activeProject,
     activeProjectLabel,
     planReviewModels,
@@ -296,8 +296,8 @@ function menuForTool(
       {activePendingConversation}
       {pendingConversationActive}
       {approvals}
-      {pendingUserQuestion}
-      {pendingPlanReview}
+      {pendingUserQuestions}
+      {pendingPlanReviews}
       interactive={active}
       {live}
       {sending}

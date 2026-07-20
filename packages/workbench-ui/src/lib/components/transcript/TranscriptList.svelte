@@ -61,8 +61,8 @@ type Props = {
   activeProject?: ProjectRecord;
   activeProjectLabel?: string;
   approvals?: ApprovalWithToolCall[];
-  pendingUserQuestion?: UserQuestionRecord;
-  pendingPlanReview?: PlanReviewRecord;
+  pendingUserQuestions?: UserQuestionRecord[];
+  pendingPlanReviews?: PlanReviewRecord[];
   active?: boolean;
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
@@ -123,8 +123,8 @@ let {
   activeProject,
   activeProjectLabel,
   approvals = [],
-  pendingUserQuestion,
-  pendingPlanReview,
+  pendingUserQuestions = [],
+  pendingPlanReviews = [],
   active = true,
   planReviewModels = [],
   planReviewModelKey = "",
@@ -256,14 +256,12 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
     const approval = approvals.find(
       (candidate) => candidate.toolCallId === toolCallId,
     );
-    const question =
-      pendingUserQuestion?.toolCallId === toolCallId
-        ? pendingUserQuestion
-        : undefined;
-    const plan =
-      pendingPlanReview?.toolCallId === toolCallId
-        ? pendingPlanReview
-        : undefined;
+    const question = pendingUserQuestions.find(
+      (candidate) => candidate.toolCallId === toolCallId,
+    );
+    const plan = pendingPlanReviews.find(
+      (candidate) => candidate.toolCallId === toolCallId,
+    );
     return [
       "tool",
       `arg:${lifecycle.argumentRegion}`,
@@ -349,8 +347,8 @@ const showEmptyRun = $derived(
           hydrateToolBodies={active}
           {activeProject}
           {approvals}
-          {pendingUserQuestion}
-          {pendingPlanReview}
+          {pendingUserQuestions}
+          {pendingPlanReviews}
           {lastTimelineKey}
           {planReviewModels}
           {planReviewModelKey}

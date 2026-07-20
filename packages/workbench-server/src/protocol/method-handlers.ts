@@ -9,6 +9,7 @@ import {
   providerApiKeySecretName,
   providerOAuthSecretName,
 } from "../domains/auth/index.js";
+import { listAvailableSkills } from "../domains/agents/prompting/resource-loader.js";
 import { FileCompletionService } from "../domains/completions/index.js";
 import { planReviewPreview } from "../domains/plans/plan-service.js";
 import { toToolCallTranscriptRecord } from "../domains/tools/tool-call-transcript-preview.js";
@@ -25,6 +26,7 @@ export const WORKBENCH_OPERATION_METHODS = [
   "snapshot.conversation.get",
   "settings.get",
   "settings.update",
+  "skill.list",
   "auth.providers.list",
   "providerCatalog.get",
   "providerCatalog.custom.upsert",
@@ -170,6 +172,16 @@ export async function handleProtocolMethod(
       return state.storage.settings;
     case "settings.update":
       return updateSettings(state, params as Record<string, unknown>);
+    case "skill.list": {
+      const projectId = (params as { projectId?: string } | undefined)
+        ?.projectId;
+      const projectDir = projectId
+        ? state.registry.getProject(projectId).dir
+        : undefined;
+      return listAvailableSkills(projectDir, {
+        storageHome: state.storage.paths.home,
+      });
+    }
     case "auth.providers.list":
       return {
         providers: await state.auth.listProviderMetadata(

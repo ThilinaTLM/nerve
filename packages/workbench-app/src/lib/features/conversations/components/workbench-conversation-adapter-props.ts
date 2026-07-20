@@ -33,8 +33,8 @@ export type WorkbenchConversationAdapterProps = {
   agents?: AgentRecord[];
   homeDir?: string;
   approvals?: ApprovalWithToolCall[];
-  pendingUserQuestion?: UserQuestionRecord;
-  pendingPlanReview?: PlanReviewRecord;
+  pendingUserQuestions?: UserQuestionRecord[];
+  pendingPlanReviews?: PlanReviewRecord[];
   active?: boolean;
   entries?: ConversationEntry[];
   optimisticMessages?: TranscriptItem[];

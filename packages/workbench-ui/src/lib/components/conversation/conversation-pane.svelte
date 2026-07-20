@@ -35,6 +35,16 @@ const pendingApprovals = $derived(
 );
 const pendingApprovalId = $derived(pendingApprovals[0]?.id);
 const pendingApprovalCount = $derived(pendingApprovals.length);
+const pendingQuestionIds = $derived(
+  model.pendingUserQuestions
+    ?.filter((question) => question.status === "pending")
+    .map((question) => question.id) ?? [],
+);
+const pendingPlanReviewIds = $derived(
+  model.pendingPlanReviews
+    ?.filter((review) => review.status === "pending")
+    .map((review) => review.id) ?? [],
+);
 const transcriptHasContent = $derived(
   hasTranscriptContent({
     timelineLength: model.timeline.length,
@@ -64,12 +74,8 @@ const scroll = createConversationScrollController({
       sending={model.sending}
       {pendingApprovalId}
       {pendingApprovalCount}
-      pendingQuestionId={model.pendingUserQuestion?.status === "pending"
-        ? model.pendingUserQuestion.id
-        : undefined}
-      pendingPlanReviewId={model.pendingPlanReview?.status === "pending"
-        ? model.pendingPlanReview.id
-        : undefined}
+      {pendingQuestionIds}
+      {pendingPlanReviewIds}
     />
   {/snippet}
   {#snippet transcript()}
@@ -94,8 +100,8 @@ const scroll = createConversationScrollController({
           activeProject={model.activeProject}
           activeProjectLabel={model.activeProjectLabel}
           approvals={model.approvals}
-          pendingUserQuestion={model.pendingUserQuestion}
-          pendingPlanReview={model.pendingPlanReview}
+          pendingUserQuestions={model.pendingUserQuestions}
+          pendingPlanReviews={model.pendingPlanReviews}
           {active}
           planReviewModels={model.planReviewModels}
           planReviewModelKey={model.planReviewModelKey}

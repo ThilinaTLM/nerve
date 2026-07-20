@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import type { AvailableSkillsResponse } from "@nervekit/contracts";
 import {
   loadSkills,
   NodeExecutionEnv,
@@ -22,6 +23,12 @@ export interface LoadedHarnessResources {
 
 export interface LoadHarnessResourcesOptions {
   storageHome?: string;
+  disabledSkillNames?: readonly string[];
+}
+
+interface DiscoveredSkillGroups {
+  globalSkills: Skill[];
+  projectSkills: Skill[];
 }
 
 export async function loadHarnessResources(
@@ -32,16 +39,20 @@ export async function loadHarnessResources(
   const agentDir = join(resolveDataDir(options.storageHome), "agent");
   const env = new NodeExecutionEnv({ cwd: resolvedCwd });
 
-  const [contextFiles, skills, systemPrompt, appendSystemPrompt] =
+  const [contextFiles, skillGroups, systemPrompt, appendSystemPrompt] =
     await Promise.all([
       loadProjectContextFiles(resolvedCwd, agentDir),
-      loadProjectSkills(env, resolvedCwd, agentDir),
+      discoverSkillGroups(env, resolvedCwd, agentDir),
       loadFirstExistingText([
         join(resolvedCwd, NERVE_DIR_NAME, "SYSTEM.md"),
         join(agentDir, "SYSTEM.md"),
       ]),
       loadAppendSystemPrompt(resolvedCwd, agentDir),
     ]);
+  const disabledSkillNames = new Set(options.disabledSkillNames ?? []);
+  const skills = effectiveSkills(skillGroups).filter(
+    (skill) => !disabledSkillNames.has(skill.name),
+  );
 
   return { contextFiles, skills, systemPrompt, appendSystemPrompt };
 }
@@ -89,21 +100,53 @@ async function loadContextFileFromDir(
   return undefined;
 }
 
-async function loadProjectSkills(
+export async function listAvailableSkills(
+  cwd: string | undefined,
+  options: Pick<LoadHarnessResourcesOptions, "storageHome"> = {},
+): Promise<AvailableSkillsResponse> {
+  const agentDir = join(resolveDataDir(options.storageHome), "agent");
+  const resolvedCwd = cwd ? resolve(cwd) : undefined;
+  const env = new NodeExecutionEnv({ cwd: resolvedCwd ?? agentDir });
+  const groups = await discoverSkillGroups(env, resolvedCwd, agentDir);
+  const toMetadata = ({ name, description, filePath }: Skill) => ({
+    name,
+    description,
+    filePath,
+  });
+  return {
+    globalSkills: groups.globalSkills.map(toMetadata),
+    projectSkills: groups.projectSkills.map(toMetadata),
+  };
+}
+
+async function discoverSkillGroups(
   env: NodeExecutionEnv,
-  cwd: string,
+  cwd: string | undefined,
   agentDir: string,
-): Promise<Skill[]> {
+): Promise<DiscoveredSkillGroups> {
   const globalAgentsSkillDir = join(homedir(), AGENTS_DIR_NAME, "skills");
-  const dirs = [
-    join(cwd, NERVE_DIR_NAME, "skills"),
-    ...ancestorAgentsSkillDirs(cwd, globalAgentsSkillDir),
-    join(agentDir, "skills"),
-    globalAgentsSkillDir,
-  ];
-  const loaded = await loadSkills(env, dirs);
+  const [project, global] = await Promise.all([
+    cwd
+      ? loadSkills(env, [
+          join(cwd, NERVE_DIR_NAME, "skills"),
+          ...ancestorAgentsSkillDirs(cwd, globalAgentsSkillDir),
+        ])
+      : Promise.resolve({ skills: [], diagnostics: [] }),
+    loadSkills(env, [join(agentDir, "skills"), globalAgentsSkillDir]),
+  ]);
+  return {
+    projectSkills: deduplicateSkills(project.skills),
+    globalSkills: deduplicateSkills(global.skills),
+  };
+}
+
+function effectiveSkills(groups: DiscoveredSkillGroups): Skill[] {
+  return deduplicateSkills([...groups.projectSkills, ...groups.globalSkills]);
+}
+
+function deduplicateSkills(skills: readonly Skill[]): Skill[] {
   const byName = new Map<string, Skill>();
-  for (const skill of loaded.skills) {
+  for (const skill of skills) {
     if (!byName.has(skill.name)) byName.set(skill.name, skill);
   }
   return [...byName.values()];

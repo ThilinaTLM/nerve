@@ -41,6 +41,7 @@ export function createAgentRoutes(state: OrchestratorState): Hono {
         storageHome: state.storage.paths.home,
         pythonAvailable,
         disabledToolNames: state.storage.settings.tools.disabled,
+        disabledSkillNames: state.storage.settings.skills.disabled,
         jiraEnabled: state.storage.settings.tools.jira.enabled,
         confluenceEnabled: state.storage.settings.tools.confluence.enabled,
         tasks: state.registry.tasks.listTasks(),

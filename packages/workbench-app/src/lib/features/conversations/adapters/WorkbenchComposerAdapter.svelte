@@ -28,8 +28,8 @@ let {
   activePendingConversation,
   pendingConversationActive = false,
   approvals = [],
-  pendingUserQuestion,
-  pendingPlanReview,
+  pendingUserQuestions = [],
+  pendingPlanReviews = [],
   interactive = true,
   sending = false,
   stopping = false,
@@ -105,8 +105,8 @@ const voiceBusyElsewhere = $derived(
 );
 
 const pendingApproval = $derived(approvals.length > 0);
-const pendingQuestion = $derived(Boolean(pendingUserQuestion));
-const pendingPlan = $derived(Boolean(pendingPlanReview));
+const pendingQuestion = $derived(pendingUserQuestions.length > 0);
+const pendingPlan = $derived(pendingPlanReviews.length > 0);
 const blockedForReview = $derived(
   pendingApproval || pendingQuestion || pendingPlan,
 );

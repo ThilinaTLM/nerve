@@ -50,13 +50,13 @@ export function conversationHasContent(
 
 export function conversationReviewBlocked(input: {
   approvals?: readonly ApprovalWithToolCall[];
-  pendingUserQuestion?: UserQuestionRecord;
-  pendingPlanReview?: PlanReviewRecord;
+  pendingUserQuestions?: readonly UserQuestionRecord[];
+  pendingPlanReviews?: readonly PlanReviewRecord[];
 }): boolean {
   return Boolean(
     input.approvals?.length ||
-    input.pendingUserQuestion ||
-    input.pendingPlanReview,
+    input.pendingUserQuestions?.length ||
+    input.pendingPlanReviews?.length,
   );
 }
 

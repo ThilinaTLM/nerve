@@ -25,8 +25,8 @@ export type PromptComposerProps = {
   activePendingConversation?: PendingConversationState;
   pendingConversationActive?: boolean;
   approvals?: ApprovalWithToolCall[];
-  pendingUserQuestion?: UserQuestionRecord;
-  pendingPlanReview?: PlanReviewRecord;
+  pendingUserQuestions?: UserQuestionRecord[];
+  pendingPlanReviews?: PlanReviewRecord[];
   interactive?: boolean;
   live?: boolean;
   sending?: boolean;

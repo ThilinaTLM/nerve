@@ -3,9 +3,13 @@ export type TranscriptAnnouncementState = {
   sending: boolean;
   pendingApprovalId?: string;
   pendingApprovalCount?: number;
-  pendingQuestionId?: string;
-  pendingPlanReviewId?: string;
+  pendingQuestionIds?: readonly string[];
+  pendingPlanReviewIds?: readonly string[];
 };
+
+function normalizedIds(ids: readonly string[] | undefined): string {
+  return [...(ids ?? [])].sort().join("\0");
+}
 
 export function transcriptAnnouncementForTransition(
   previous: TranscriptAnnouncementState | undefined,
@@ -22,17 +26,27 @@ export function transcriptAnnouncementForTransition(
       ? "1 approval required."
       : `${pendingApprovalCount} approvals required.`;
   }
+
+  const pendingQuestionCount = current.pendingQuestionIds?.length ?? 0;
   if (
-    current.pendingQuestionId &&
-    current.pendingQuestionId !== previous.pendingQuestionId
+    pendingQuestionCount > 0 &&
+    normalizedIds(current.pendingQuestionIds) !==
+      normalizedIds(previous.pendingQuestionIds)
   ) {
-    return "Nerve is waiting for your answer.";
+    return pendingQuestionCount === 1
+      ? "Nerve is waiting for your answer."
+      : `${pendingQuestionCount} answers required.`;
   }
+
+  const pendingPlanReviewCount = current.pendingPlanReviewIds?.length ?? 0;
   if (
-    current.pendingPlanReviewId &&
-    current.pendingPlanReviewId !== previous.pendingPlanReviewId
+    pendingPlanReviewCount > 0 &&
+    normalizedIds(current.pendingPlanReviewIds) !==
+      normalizedIds(previous.pendingPlanReviewIds)
   ) {
-    return "A plan is ready for review.";
+    return pendingPlanReviewCount === 1
+      ? "A plan is ready for review."
+      : `${pendingPlanReviewCount} plans are ready for review.`;
   }
   if (current.sending && !previous.sending) return "Nerve is responding.";
   if (!current.sending && previous.sending) return "Response complete.";

@@ -23,6 +23,7 @@ export async function buildAgentSystemPrompt(
     storageHome?: string;
     pythonAvailable?: boolean;
     disabledToolNames?: readonly UserConfigurableToolName[];
+    disabledSkillNames?: readonly string[];
     jiraEnabled?: boolean;
     confluenceEnabled?: boolean;
     tasks?: readonly TaskRecord[];
@@ -37,6 +38,7 @@ export async function buildAgentSystemPrompt(
   const promptMetadata = toolPromptMetadata(activeToolNames);
   const resources = await loadHarnessResources(agent.projectDir, {
     storageHome: options.storageHome,
+    disabledSkillNames: options.disabledSkillNames,
   });
   return composeAgentSystemPrompt(
     agent,

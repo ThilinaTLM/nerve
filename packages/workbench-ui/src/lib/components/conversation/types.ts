@@ -85,8 +85,8 @@ export type ConversationPaneModel = {
   hasActiveTurnOutput: boolean;
   queuedPrompts: QueuedPromptRecord[];
   approvals?: ApprovalWithToolCall[];
-  pendingUserQuestion?: UserQuestionRecord;
-  pendingPlanReview?: PlanReviewRecord;
+  pendingUserQuestions?: UserQuestionRecord[];
+  pendingPlanReviews?: PlanReviewRecord[];
   activeProject?: ProjectRecord;
   activeProjectLabel?: string;
   planReviewModels?: ModelInfo[];

@@ -140,6 +140,11 @@ export const settingsSchema = z.object({
     jira: { enabled: false },
     confluence: { enabled: false },
   }),
+  skills: z
+    .object({ disabled: z.array(z.string().min(1)).default([]) })
+    .default({
+      disabled: [],
+    }),
   scopedModels: z.array(modelSelectionSchema).default([]),
 });
 export type Settings = z.infer<typeof settingsSchema>;
@@ -194,6 +199,7 @@ export const defaultSettings: Settings = {
     jira: { enabled: false },
     confluence: { enabled: false },
   },
+  skills: { disabled: [] },
   scopedModels: [],
 };
 
@@ -263,6 +269,11 @@ export const updateSettingsRequestSchema = z.object({
     .object({
       pythonExecutablePath: z.string().trim().min(1).nullable().optional(),
       shellPath: z.string().trim().min(1).nullable().optional(),
+    })
+    .optional(),
+  skills: z
+    .object({
+      disabled: z.array(z.string().min(1)).optional(),
     })
     .optional(),
   tools: z

@@ -7,7 +7,8 @@ import type { StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import { WorkbenchFooterbar } from "@nervekit/workbench-ui/components/workbench";
 import {
   pendingApprovalRecords,
-  pendingUserQuestionRecord,
+  pendingPlanReviewRecords,
+  pendingUserQuestionRecords,
 } from "../../state/sandbox-review-records";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 
@@ -37,8 +38,11 @@ const richState = $derived(
     : Object.values(detail?.conversationViewsById ?? {})[0],
 );
 const approvals = $derived(pendingApprovalRecords(detail, richState));
-const question = $derived(pendingUserQuestionRecord(detail, richState));
-const pendingReviewCount = $derived(approvals.length + (question ? 1 : 0));
+const questions = $derived(pendingUserQuestionRecords(detail, richState));
+const planReviews = $derived(pendingPlanReviewRecords(detail, richState));
+const pendingReviewCount = $derived(
+  approvals.length + questions.length + planReviews.length,
+);
 const pendingOps = $derived(
   Object.values(store.pendingOperations).filter(
     (operation) =>

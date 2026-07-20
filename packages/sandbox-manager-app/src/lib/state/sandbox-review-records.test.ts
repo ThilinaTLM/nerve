@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ConversationRenderState } from "@nervekit/workbench-ui/state";
 import {
-  pendingPlanReviewRecord,
-  pendingUserQuestionRecord,
+  pendingPlanReviewRecords,
+  pendingUserQuestionRecords,
 } from "./sandbox-review-records";
 import { createSandboxDetailState } from "./sandbox-ui-types";
 
@@ -56,15 +56,48 @@ describe("sandbox review projections", () => {
       },
       createdAt: ts,
     };
+    detail.waitsById.plan_review_2 = {
+      waitId: "plan_review_2",
+      kind: "plan_review",
+      status: "waiting",
+      toolCallId: "tool_plan_2",
+      planReview: {
+        id: "plan_review_2",
+        toolCallId: "tool_plan_2",
+        agentId: "agent_1",
+        conversationId: "conv_1",
+        projectId: "proj_1",
+        slug: "feature-two",
+        planPath: "/state/plans/feature-two.md",
+        content: "# Feature two",
+        status: "pending",
+        requestedAt: ts,
+        updatedAt: ts,
+      },
+      createdAt: ts,
+    };
+    detail.waitsById.plan_review_other = {
+      ...detail.waitsById.plan_review_2,
+      waitId: "plan_review_other",
+      planReview: {
+        ...detail.waitsById.plan_review_2.planReview!,
+        id: "plan_review_other",
+        conversationId: "conv_other",
+      },
+    };
+    assert.equal(pendingPlanReviewRecords(detail, richState).length, 2);
     assert.equal(
-      pendingPlanReviewRecord(detail, richState)?.toolCallId,
+      pendingPlanReviewRecords(detail, richState)[0]?.toolCallId,
       "tool_normalized",
     );
     detail.waitsById.plan_review_1.status = "submitted";
-    assert.equal(pendingPlanReviewRecord(detail, richState), undefined);
+    assert.deepEqual(
+      pendingPlanReviewRecords(detail, richState).map((review) => review.id),
+      ["plan_review_2"],
+    );
   });
 
-  it("removes the ask-user prompt after submission", () => {
+  it("projects every ask-user prompt and removes only submitted prompts", () => {
     const detail = createSandboxDetailState("sbx_1");
     detail.waitsById.ask_1 = {
       waitId: "ask_1",
@@ -74,8 +107,22 @@ describe("sandbox review projections", () => {
       question: { text: "Proceed?" },
       createdAt: ts,
     };
-    assert.equal(pendingUserQuestionRecord(detail)?.question, "Proceed?");
-    detail.waitsById.ask_1.status = "submitted";
-    assert.equal(pendingUserQuestionRecord(detail), undefined);
+    detail.waitsById.ask_2 = {
+      waitId: "ask_2",
+      kind: "input",
+      status: "waiting",
+      toolCallId: "ask_2",
+      question: { text: "Which option?" },
+      createdAt: ts,
+    };
+    assert.deepEqual(
+      pendingUserQuestionRecords(detail).map((question) => question.question),
+      ["Proceed?", "Which option?"],
+    );
+    detail.waitsById.ask_2.status = "submitted";
+    assert.deepEqual(
+      pendingUserQuestionRecords(detail).map((question) => question.question),
+      ["Proceed?"],
+    );
   });
 });

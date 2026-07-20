@@ -75,63 +75,71 @@ export function pendingApprovalRecords(
 }
 
 /**
- * Build the single pending ask-user question rendered by `TranscriptList`. As
- * with approvals, this is reconstructed from `waitsById`; the wait id equals the
- * daemon's `requestId` (and the ask-user tool-call id).
+ * Build every pending plan review and ask-user question rendered by
+ * `TranscriptList`. As with approvals, these records are reconstructed from
+ * `waitsById` and normalized to the matching transcript tool-call ids.
  */
-export function pendingPlanReviewRecord(
+export function pendingPlanReviewRecords(
   detail: SandboxDetailState | undefined,
   richState?: ConversationRenderState,
-): PlanReviewRecord | undefined {
-  if (!detail) return undefined;
-  const wait = Object.values(detail.waitsById).find(
-    (candidate) =>
-      candidate.kind === "plan_review" &&
-      candidate.status === "waiting" &&
-      candidate.planReview?.status === "pending" &&
-      (!richState ||
-        candidate.planReview.conversationId === richState.conversationId),
-  );
-  if (!wait?.planReview) return undefined;
-  const toolCallId = wait.toolCallId ?? wait.waitId;
-  const toolCall = toolCallForWait(richState, toolCallId);
-  return {
-    ...wait.planReview,
-    toolCallId: toolCall?.id ?? wait.planReview.toolCallId,
-  };
+): PlanReviewRecord[] {
+  if (!detail) return [];
+  return Object.values(detail.waitsById)
+    .filter(
+      (candidate) =>
+        candidate.kind === "plan_review" &&
+        candidate.status === "waiting" &&
+        candidate.planReview?.status === "pending" &&
+        (!richState ||
+          candidate.planReview.conversationId === richState.conversationId),
+    )
+    .flatMap((wait) => {
+      if (!wait.planReview) return [];
+      const toolCallId = wait.toolCallId ?? wait.waitId;
+      const toolCall = toolCallForWait(richState, toolCallId);
+      return [
+        {
+          ...wait.planReview,
+          toolCallId: toolCall?.id ?? wait.planReview.toolCallId,
+        },
+      ];
+    });
 }
 
-export function pendingUserQuestionRecord(
+export function pendingUserQuestionRecords(
   detail: SandboxDetailState | undefined,
   richState?: ConversationRenderState,
-): UserQuestionRecord | undefined {
-  if (!detail) return undefined;
-  const wait = Object.values(detail.waitsById).find(
-    (candidate) => candidate.kind === "input" && candidate.status === "waiting",
-  );
-  if (!wait) return undefined;
-  const toolCallId = wait.toolCallId ?? wait.waitId;
-  const toolCall = toolCallForWait(richState, toolCallId);
-  return {
-    id: wait.waitId,
-    toolCallId: toolCall?.id ?? toolCallId,
-    agentId:
-      toolCall?.agentId ??
-      richState?.activeRun?.agentId ??
-      detail.selectedAgentId ??
-      FALLBACK_AGENT_ID,
-    conversationId:
-      toolCall?.conversationId ??
-      richState?.conversationId ??
-      detail.selectedConversationId ??
-      FALLBACK_CONVERSATION_ID,
-    projectId:
-      toolCall?.projectId ??
-      richState?.activeRun?.projectId ??
-      FALLBACK_PROJECT_ID,
-    question: wait.question?.text ?? "The agent is waiting for your input.",
-    status: "pending",
-    requestedAt: wait.createdAt,
-    updatedAt: wait.createdAt,
-  } satisfies UserQuestionRecord;
+): UserQuestionRecord[] {
+  if (!detail) return [];
+  return Object.values(detail.waitsById)
+    .filter(
+      (candidate) =>
+        candidate.kind === "input" && candidate.status === "waiting",
+    )
+    .map((wait) => {
+      const toolCallId = wait.toolCallId ?? wait.waitId;
+      const toolCall = toolCallForWait(richState, toolCallId);
+      return {
+        id: wait.waitId,
+        toolCallId: toolCall?.id ?? toolCallId,
+        agentId:
+          toolCall?.agentId ??
+          richState?.activeRun?.agentId ??
+          detail.selectedAgentId ??
+          FALLBACK_AGENT_ID,
+        conversationId:
+          toolCall?.conversationId ??
+          richState?.conversationId ??
+          detail.selectedConversationId ??
+          FALLBACK_CONVERSATION_ID,
+        projectId:
+          toolCall?.projectId ??
+          richState?.activeRun?.projectId ??
+          FALLBACK_PROJECT_ID,
+        question: wait.question?.text ?? "The agent is waiting for your input.",
+        status: "pending",
+        requestedAt: wait.createdAt,
+        updatedAt: wait.createdAt,
+      } satisfies UserQuestionRecord;
+    });
 }

@@ -11,8 +11,8 @@ let {
   sending,
   pendingApprovalId,
   pendingApprovalCount,
-  pendingQuestionId,
-  pendingPlanReviewId,
+  pendingQuestionIds,
+  pendingPlanReviewIds,
 }: Props = $props();
 
 let announcement = $state("");
@@ -25,8 +25,8 @@ $effect(() => {
     sending,
     pendingApprovalId,
     pendingApprovalCount,
-    pendingQuestionId,
-    pendingPlanReviewId,
+    pendingQuestionIds,
+    pendingPlanReviewIds,
   };
   const next = transcriptAnnouncementForTransition(previous, current);
   previous = current;

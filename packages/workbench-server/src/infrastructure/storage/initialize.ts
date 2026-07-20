@@ -200,6 +200,7 @@ export async function writeSettings(
     retry: { ...storage.settings.retry, ...(patch.retry ?? {}) },
     runtime: { ...storage.settings.runtime, ...(runtimePatch ?? {}) },
     tools: { ...storage.settings.tools, ...(toolsPatch ?? {}) },
+    skills: { ...storage.settings.skills, ...(patch.skills ?? {}) },
   });
   await atomicWriteJson(storage.paths.configPath, next, 0o600);
   storage.settings = next;

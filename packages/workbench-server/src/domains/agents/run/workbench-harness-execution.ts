@@ -129,7 +129,10 @@ export async function executeWorkbenchHarness(
     this.deps.subscriptionUsage.touchProvider(model.provider);
     const shellPath = this.deps.storage.settings.runtime.shellPath;
     const env = new NodeExecutionEnv({ cwd: agent.projectDir, shellPath });
-    const resources = await loadHarnessResources(agent.projectDir);
+    const resources = await loadHarnessResources(agent.projectDir, {
+      storageHome: this.deps.storage.paths.home,
+      disabledSkillNames: this.deps.storage.settings.skills.disabled,
+    });
     const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
     const composeLatestSystemPrompt = () => {
       const currentAgent = latestAgent();

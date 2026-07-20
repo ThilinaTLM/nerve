@@ -32,8 +32,8 @@ import {
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 import {
   pendingApprovalRecords,
-  pendingPlanReviewRecord,
-  pendingUserQuestionRecord,
+  pendingPlanReviewRecords,
+  pendingUserQuestionRecords,
 } from "../../state/sandbox-review-records";
 import { resolveToolCallDetails } from "../../state/sandbox-tool-call-details";
 import { modelKey } from "../../utils/model-display";
@@ -95,14 +95,16 @@ const snapshotMessage = $derived(
     "Transcript reconstructed from durable manager events.",
 );
 const approvals = $derived(pendingApprovalRecords(detail, richState));
-const pendingUserQuestion = $derived(
-  pendingUserQuestionRecord(detail, richState),
+const pendingUserQuestions = $derived(
+  pendingUserQuestionRecords(detail, richState),
 );
-const pendingPlanReview = $derived(pendingPlanReviewRecord(detail, richState));
+const pendingPlanReviews = $derived(
+  pendingPlanReviewRecords(detail, richState),
+);
 const blockedForReview = $derived(
   approvals.length > 0 ||
-    Boolean(pendingUserQuestion) ||
-    Boolean(pendingPlanReview),
+    pendingUserQuestions.length > 0 ||
+    pendingPlanReviews.length > 0,
 );
 const composerText = $derived(activeComposerText(detail));
 const queuedPrompt = $derived(activeQueuedPrompt(detail));
@@ -280,8 +282,8 @@ $effect(() => {
     hasActiveTurnOutput: render.hasActiveTurnOutput,
     queuedPrompts: [...localQueuedPrompts, ...render.queuedPrompts],
     approvals,
-    pendingUserQuestion,
-    pendingPlanReview,
+    pendingUserQuestions,
+    pendingPlanReviews,
     planReviewModels: composerModels,
     planReviewModelKey: selectedModelKey,
     planReviewThinkingLevel: controls?.thinkingLevel ?? "off",

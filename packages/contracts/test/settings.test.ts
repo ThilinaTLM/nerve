@@ -25,6 +25,7 @@ describe("settings schema", () => {
     });
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
+    assert.deepEqual(settings.skills.disabled, []);
     assert.deepEqual(settings.tools.bash.autoPromotion, {
       enabled: true,
       afterMs: 120_000,
@@ -47,6 +48,7 @@ describe("settings schema", () => {
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
       tools: undefined,
+      skills: undefined,
     });
 
     assert.equal(settings.defaultThinkingLevel, "off");
@@ -63,6 +65,7 @@ describe("settings schema", () => {
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
+    assert.deepEqual(settings.skills.disabled, []);
     assert.deepEqual(settings.tools.bash.autoPromotion, {
       enabled: true,
       afterMs: 120_000,
@@ -181,6 +184,7 @@ describe("settings schema", () => {
       lastAgentSelection: {
         approvalPolicy: { autoApproveReadOnly: false },
       },
+      skills: { disabled: ["diagram", "imagegen"] },
       tools: {
         disabled: ["web_search", "web_fetch", "python"],
         bash: {
@@ -215,6 +219,7 @@ describe("settings schema", () => {
       "web_fetch",
       "python",
     ]);
+    assert.deepEqual(parsed.skills?.disabled, ["diagram", "imagegen"]);
     assert.deepEqual(parsed.tools?.bash?.autoPromotion, {
       enabled: false,
       afterMs: 240_000,

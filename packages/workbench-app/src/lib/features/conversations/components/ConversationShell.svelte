@@ -115,17 +115,17 @@ const activeProject = $derived.by(() => {
     : undefined;
 });
 const pendingConversationActive = $derived(Boolean(activePendingConversation));
-const pendingUserQuestion = $derived.by(() => {
+const pendingUserQuestions = $derived.by(() => {
   const agentId = activeAgent?.id;
-  return workspaceState.userQuestions.find((question) => {
+  return workspaceState.userQuestions.filter((question) => {
     if (conversationId && question.conversationId === conversationId)
       return true;
     return Boolean(agentId && question.agentId === agentId);
   });
 });
-const pendingPlanReview = $derived.by(() => {
+const pendingPlanReviews = $derived.by(() => {
   const agentId = activeAgent?.id;
-  return workspaceState.planReviews.find((review) => {
+  return workspaceState.planReviews.filter((review) => {
     if (conversationId && review.conversationId === conversationId) return true;
     return Boolean(agentId && review.agentId === agentId);
   });
@@ -139,9 +139,9 @@ const activeApprovals = $derived.by(() => {
   });
 });
 const planReviewAgent = $derived(
-  pendingPlanReview
+  pendingPlanReviews[0]
     ? workspaceState.agents.find(
-        (agent) => agent.id === pendingPlanReview.agentId,
+        (agent) => agent.id === pendingPlanReviews[0]?.agentId,
       )
     : undefined,
 );
@@ -381,8 +381,8 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   agents={workspaceState.agents}
   homeDir={workspaceState.status?.storage.home}
   approvals={activeApprovals}
-  {pendingUserQuestion}
-  {pendingPlanReview}
+  {pendingUserQuestions}
+  {pendingPlanReviews}
   entries={view?.entries ?? []}
   optimisticMessages={view?.optimisticMessages ?? []}
   toolCalls={view?.toolCalls ?? []}

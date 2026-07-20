@@ -30,8 +30,8 @@ type Props = {
   sending: boolean;
   activeProject?: ProjectRecord;
   approvals?: ApprovalWithToolCall[];
-  pendingUserQuestion?: UserQuestionRecord;
-  pendingPlanReview?: PlanReviewRecord;
+  pendingUserQuestions?: UserQuestionRecord[];
+  pendingPlanReviews?: PlanReviewRecord[];
   hydrateToolBodies?: boolean;
   entranceMotion?: TranscriptEntranceMotion;
   onClaimEntrance?: (token: string) => boolean;
@@ -66,8 +66,8 @@ let {
   sending,
   activeProject,
   approvals = [],
-  pendingUserQuestion,
-  pendingPlanReview,
+  pendingUserQuestions = [],
+  pendingPlanReviews = [],
   hydrateToolBodies = true,
   entranceMotion,
   onClaimEntrance,
@@ -164,9 +164,17 @@ $effect(() => {
                   approval.status === "pending",
               )
             : undefined}
-          {pendingUserQuestion}
+          pendingUserQuestion={node.toolCall
+            ? pendingUserQuestions.find(
+                (question) => question.toolCallId === node.toolCall?.id,
+              )
+            : undefined}
           hydrateBody={hydrateToolBodies}
-          {pendingPlanReview}
+          pendingPlanReview={node.toolCall
+            ? pendingPlanReviews.find(
+                (review) => review.toolCallId === node.toolCall?.id,
+              )
+            : undefined}
           {onOpenFile}
           {planReviewModels}
           {planReviewModelKey}

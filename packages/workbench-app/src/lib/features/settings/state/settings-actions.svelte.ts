@@ -8,6 +8,7 @@ import {
   getClientConfig,
   getModels,
   getSettings,
+  listAvailableSkills,
   getSubscriptionUsage,
   type UpdateSettingsRequest,
   updateSettings,
@@ -44,6 +45,7 @@ let pendingSettingsPatch: UpdateSettingsRequest | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let saveInFlight = false;
 let savedServerSettingsSinceLoad = false;
+let skillsRequestId = 0;
 
 function currentActiveAgent(): AgentRecord | undefined {
   return workspaceState.agents.find((agent) => agent.id === selection.agentId);
@@ -83,12 +85,32 @@ export async function refreshSubscriptionUsage() {
   return subscriptionUsage;
 }
 
+export async function loadSettingsSkills(projectId = selection.projectId) {
+  const requestId = ++skillsRequestId;
+  settingsState.skillsLoading = true;
+  settingsState.skillsError = undefined;
+  settingsState.skillsProjectId = projectId ?? null;
+  try {
+    const result = await listAvailableSkills(projectId);
+    if (requestId !== skillsRequestId) return;
+    settingsState.globalSkills = result.globalSkills;
+    settingsState.projectSkills = result.projectSkills;
+  } catch (error) {
+    if (requestId !== skillsRequestId) return;
+    settingsState.skillsError =
+      error instanceof Error ? error.message : "Could not load skills.";
+  } finally {
+    if (requestId === skillsRequestId) settingsState.skillsLoading = false;
+  }
+}
+
 export async function loadSettingsPanel() {
   const [settings, modelList, auth, subscriptionUsage] = await Promise.all([
     getSettings(),
     getModels(),
     getAuthProviders(),
     getSubscriptionUsage().catch(() => []),
+    loadSettingsSkills(),
   ]);
   settingsState.settingsDraft = settings;
   applyZoomLevel(settings.ui.zoomLevel);
@@ -196,6 +218,12 @@ function mergeSettingsPatch(
     next.runtime = {
       ...(base?.runtime ?? {}),
       ...(patch.runtime ?? {}),
+    };
+  }
+  if (base?.skills || patch.skills) {
+    next.skills = {
+      ...(base?.skills ?? {}),
+      ...(patch.skills ?? {}),
     };
   }
   if (base?.tools || patch.tools) {

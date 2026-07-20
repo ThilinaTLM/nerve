@@ -372,7 +372,10 @@ export class SubagentRunner {
         cwd: child.projectDir,
         shellPath: this.deps.storage.settings.runtime.shellPath,
       });
-      const resources = await loadHarnessResources(child.projectDir);
+      const resources = await loadHarnessResources(child.projectDir, {
+        storageHome: this.deps.storage.paths.home,
+        disabledSkillNames: this.deps.storage.settings.skills.disabled,
+      });
       const activeToolNames = activeToolNamesForExploreAgent();
       harness = new AgentHarness({
         env,
