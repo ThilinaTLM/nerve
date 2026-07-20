@@ -16,6 +16,7 @@ import {
   eventNotifyMessageSchema,
   exploreResultPreviewSchema,
   helloMessageSchema,
+  githubPrListRequestSchema,
   liveMessageTransitions,
   nerveMessageSchema,
   operationDefinition,
@@ -79,6 +80,44 @@ function batch(overrides: Partial<EventBatchData> = {}): EventBatchData {
     ...overrides,
   };
 }
+
+describe("GitHub pull request list filters", () => {
+  it("applies defaults and normalizes labels", () => {
+    const parsed = githubPrListRequestSchema.parse({ repo: "." });
+    assert.deepEqual(parsed.filters, {
+      author: "any",
+      drafts: "include",
+      title: "",
+      labels: [],
+      sort: "updated-desc",
+    });
+
+    const filtered = githubPrListRequestSchema.parse({
+      repo: ".",
+      filters: {
+        author: "username",
+        username: " octocat ",
+        drafts: "only",
+        title: " fix windows ",
+        head: "feature/git-panel",
+        labels: ["bug", "bug", "windows"],
+        sort: "updated-asc",
+      },
+    });
+    assert.equal(filtered.filters.username, "octocat");
+    assert.equal(filtered.filters.title, "fix windows");
+    assert.deepEqual(filtered.filters.labels, ["bug", "windows"]);
+  });
+
+  it("requires a username for username author filters", () => {
+    assert.throws(() =>
+      githubPrListRequestSchema.parse({
+        repo: ".",
+        filters: { author: "username" },
+      }),
+    );
+  });
+});
 
 describe("compact explore payloads", () => {
   it("accepts compact result previews without full report fields", () => {

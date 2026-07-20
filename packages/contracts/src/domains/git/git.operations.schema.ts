@@ -8,6 +8,7 @@ import {
   gitRemoteOpRequestSchema,
   githubPrCheckoutResponseSchema,
   githubPrDetailSchema,
+  githubPrListRequestSchema,
   githubPrListResponseSchema,
   githubStatusResponseSchema,
   switchBranchRequestSchema,
@@ -31,6 +32,9 @@ const gitFileActionParamsSchema = projectIdParamsSchema.merge(
 );
 const gitRemoteOpParamsSchema = projectIdParamsSchema.merge(
   gitRemoteOpRequestSchema,
+);
+const githubPrListParamsSchema = projectIdParamsSchema.merge(
+  githubPrListRequestSchema,
 );
 const githubPrParamsSchema = gitRepoParamsSchema.extend({
   number: z.number().int().positive(),
@@ -165,7 +169,7 @@ export const gitOperationDefinitions = [
   ),
   defineOperation(
     "github.pr.list",
-    gitRepoParamsSchema,
+    githubPrListParamsSchema,
     githubPrListResponseSchema,
     "read",
     "none",

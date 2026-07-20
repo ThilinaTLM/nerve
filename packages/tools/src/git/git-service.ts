@@ -6,6 +6,7 @@ import type {
   GitDiscoveryResponse,
   GithubPrCheckoutResponse,
   GithubPrDetail,
+  GithubPrListFilters,
   GithubPrListResponse,
   GithubStatusResponse,
   GitMutationResponse,
@@ -102,19 +103,15 @@ export class GitService {
   async repoRemoteState(
     repoDir: string,
   ): Promise<{ hasRemote: boolean; hasGithubRemote: boolean }> {
-    const hasRemote = await this.runGit(repoDir, ["remote"])
-      .then(({ stdout }) => stdout.trim().length > 0)
-      .catch(() => false);
-    if (!hasRemote) return { hasRemote: false, hasGithubRemote: false };
-
     try {
       const { stdout } = await this.runGit(repoDir, ["remote", "-v"]);
+      const urls = parseGitRemoteUrls(stdout);
       return {
-        hasRemote: true,
-        hasGithubRemote: parseGitRemoteUrls(stdout).some(isGithubRemoteUrl),
+        hasRemote: stdout.trim().length > 0,
+        hasGithubRemote: urls.some(isGithubRemoteUrl),
       };
     } catch {
-      return { hasRemote: true, hasGithubRemote: false };
+      return { hasRemote: false, hasGithubRemote: false };
     }
   }
 
@@ -151,14 +148,26 @@ export class GitService {
 
     const repoDirs = await this.walkForRepos(root, root, 0);
     const repos: GitRepoSummary[] = [];
-    for (const dir of repoDirs) {
-      const relativePath = dir.slice(root.length + 1) || ".";
-      try {
-        repos.push(await this.summarizeRepo(dir, relativePath, basename(dir)));
-      } catch {
-        // Skip repos we cannot summarize (corrupt/unreadable).
+    let nextIndex = 0;
+    const summarizeNext = async (): Promise<void> => {
+      while (nextIndex < repoDirs.length) {
+        const dir = repoDirs[nextIndex++];
+        if (!dir) continue;
+        const relativePath = dir.slice(root.length + 1) || ".";
+        try {
+          repos.push(
+            await this.summarizeRepo(dir, relativePath, basename(dir)),
+          );
+        } catch {
+          // Skip repos we cannot summarize (corrupt/unreadable).
+        }
       }
-    }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(4, repoDirs.length) }, async () =>
+        summarizeNext(),
+      ),
+    );
     repos.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
     return { projectIsRepo: false, repos };
   }
@@ -194,15 +203,18 @@ export class GitService {
     repoDir: string,
     relativePath: string,
     name: string,
+    statusOutput?: string,
   ): Promise<GitRepoSummary> {
-    const { stdout } = await this.runGit(repoDir, [
-      "status",
-      "--porcelain=v2",
-      "--branch",
+    const [stdout, baseBranch, remoteState] = await Promise.all([
+      statusOutput === undefined
+        ? this.runGit(repoDir, ["status", "--porcelain=v2", "--branch"]).then(
+            (result) => result.stdout,
+          )
+        : Promise.resolve(statusOutput),
+      this.detectBaseBranch(repoDir),
+      this.repoRemoteState(repoDir),
     ]);
     const { branch, files } = parsePorcelainV2(stdout);
-    const baseBranch = await this.detectBaseBranch(repoDir);
-    const remoteState = await this.repoRemoteState(repoDir);
     const onBaseBranch = branch.head === baseBranch;
     return {
       relativePath,
@@ -240,16 +252,27 @@ export class GitService {
     relativePath: string,
   ): Promise<GitOverviewResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const repo = await this.summarizeRepo(
-      repoDir,
-      relativePath,
-      this.repoName(projectId, relativePath),
-    );
-
-    const { stdout: statusOut } = await this.runGit(repoDir, [
+    const statusPromise = this.runGit(repoDir, [
       "status",
       "--porcelain=v2",
+      "--branch",
     ]);
+    const repoPromise = statusPromise.then(({ stdout }) =>
+      this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+        stdout,
+      ),
+    );
+    const [repo, { stdout: statusOut }, unstagedResult, stagedResult, recent] =
+      await Promise.all([
+        repoPromise,
+        statusPromise,
+        this.runGit(repoDir, ["diff", "--shortstat"]),
+        this.runGit(repoDir, ["diff", "--staged", "--shortstat"]),
+        this.recentCommits(repoDir),
+      ]);
     const { files } = parsePorcelainV2(statusOut);
 
     const stagedCount = files.filter((f) => f.staged).length;
@@ -257,13 +280,8 @@ export class GitService {
     const unstagedCount = files.filter(
       (f) => !f.untracked && f.worktree !== " ",
     ).length;
-
-    const unstaged = parseShortstat(
-      (await this.runGit(repoDir, ["diff", "--shortstat"])).stdout,
-    );
-    const staged = parseShortstat(
-      (await this.runGit(repoDir, ["diff", "--staged", "--shortstat"])).stdout,
-    );
+    const unstaged = parseShortstat(unstagedResult.stdout);
+    const staged = parseShortstat(stagedResult.stdout);
 
     return {
       repo,
@@ -275,7 +293,7 @@ export class GitService {
       untrackedCount,
       insertions: unstaged.insertions + staged.insertions,
       deletions: unstaged.deletions + staged.deletions,
-      recentCommits: await this.recentCommits(repoDir),
+      recentCommits: recent,
     };
   }
 
@@ -691,8 +709,14 @@ export class GitService {
   async listOpenPrs(
     projectId: string,
     relativePath: string,
+    filters: GithubPrListFilters,
   ): Promise<GithubPrListResponse> {
-    return listGithubOpenPrs(this.githubContext(), projectId, relativePath);
+    return listGithubOpenPrs(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      filters,
+    );
   }
 
   async prDetail(
@@ -771,4 +795,5 @@ export {
   parseGithubChecks,
   parseGitRemoteUrls,
   summarizeChecks,
+  summarizeStatusCheckRollup,
 } from "./git-github-parsers.js";

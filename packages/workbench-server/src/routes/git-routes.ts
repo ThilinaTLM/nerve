@@ -2,6 +2,7 @@ import {
   createBranchRequestSchema,
   gitFileActionRequestSchema,
   gitRemoteOpRequestSchema,
+  githubPrListFiltersSchema,
   switchBranchRequestSchema,
 } from "@nervekit/contracts";
 import { Hono } from "hono";
@@ -217,6 +218,15 @@ export function createGitRoutes(state: OrchestratorState): Hono {
         await state.registry.git.listOpenPrs(
           routeParam(c, "projectId"),
           repoParam(c.req.query("repo")),
+          githubPrListFiltersSchema.parse({
+            author: c.req.query("author"),
+            username: c.req.query("username"),
+            drafts: c.req.query("drafts"),
+            title: c.req.query("title"),
+            head: c.req.query("head"),
+            labels: c.req.queries("label") ?? [],
+            sort: c.req.query("sort"),
+          }),
         ),
       ),
     ),

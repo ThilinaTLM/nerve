@@ -12,6 +12,11 @@ import {
   gitRepoStateKey,
 } from "$lib/core/state/state-keys";
 import type { GitContext } from "$lib/core/types/state-types";
+import {
+  defaultGitPrFilterConfig,
+  normalizeGitPrFilterConfig,
+  type GitPrFilterConfig,
+} from "@nervekit/workbench-ui";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
 import {
@@ -51,12 +56,14 @@ export type GitPanelRepoState = {
   recentCommits: GitRecentCommit[];
   github?: GithubStatusResponse;
   prs: GithubPr[];
+  prFilters: GitPrFilterConfig;
   branches: GitBranchSummary[];
   operations: GitPanelOperationsState;
   loadingOverview: boolean;
   loadingPrs: boolean;
   loadingBranches: boolean;
   prsRequestInFlight: boolean;
+  prsRequestSeq: number;
   overviewRequestInFlight: boolean;
   lastRepoSummaryFingerprint?: string;
   lastChangesFingerprint?: string;
@@ -120,19 +127,24 @@ function createOperationsState(): GitPanelOperationsState {
   };
 }
 
-function createRepoState(): GitPanelRepoState {
+function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
   return {
     repoSummary: undefined,
     changes: undefined,
     recentCommits: [],
     github: undefined,
     prs: [],
+    prFilters:
+      projectId && repo
+        ? storedPrFilters(projectId, repo)
+        : defaultGitPrFilterConfig,
     branches: [],
     operations: createOperationsState(),
     loadingOverview: false,
     loadingPrs: false,
     loadingBranches: false,
     prsRequestInFlight: false,
+    prsRequestSeq: 0,
     overviewRequestInFlight: false,
     lastRepoSummaryFingerprint: undefined,
     lastChangesFingerprint: undefined,
@@ -170,6 +182,58 @@ function repoStorageKey(projectId: string): string {
   return `nerve.git.repo.${projectId}`;
 }
 
+function prFiltersStorageKey(projectId: string, repo: string): string {
+  return `nerve.git.prFilters.${projectId}.${encodeURIComponent(repo)}`;
+}
+
+function isPrFilterConfig(value: unknown): value is GitPrFilterConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const config = value as Record<string, unknown>;
+  return (
+    ["any", "me", "username"].includes(String(config.author)) &&
+    typeof config.username === "string" &&
+    ["include", "exclude", "only"].includes(String(config.drafts)) &&
+    typeof config.title === "string" &&
+    typeof config.currentBranchOnly === "boolean" &&
+    Array.isArray(config.labels) &&
+    config.labels.every((label) => typeof label === "string") &&
+    ["updated-desc", "updated-asc"].includes(String(config.sort))
+  );
+}
+
+export function storedPrFilters(
+  projectId: string,
+  repo: string,
+): GitPrFilterConfig {
+  if (typeof localStorage === "undefined") return defaultGitPrFilterConfig;
+  try {
+    const raw = localStorage.getItem(prFiltersStorageKey(projectId, repo));
+    if (!raw) return defaultGitPrFilterConfig;
+    const parsed: unknown = JSON.parse(raw);
+    return isPrFilterConfig(parsed)
+      ? normalizeGitPrFilterConfig(parsed)
+      : defaultGitPrFilterConfig;
+  } catch {
+    return defaultGitPrFilterConfig;
+  }
+}
+
+export function savePrFilters(
+  projectId: string,
+  repo: string,
+  filters: GitPrFilterConfig,
+): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(
+      prFiltersStorageKey(projectId, repo),
+      JSON.stringify(normalizeGitPrFilterConfig(filters)),
+    );
+  } catch {
+    // Storage is best effort; active in-memory filters still apply.
+  }
+}
+
 function touchProject(projectId: string): void {
   const state = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!state) return;
@@ -204,7 +268,7 @@ export function ensureGitRepoState(
   const project = gitPanelState.projects[gitProjectStateKey(projectId)];
   if (!project) return createRepoState();
   const key = gitRepoStateKey(repo);
-  project.repoStates[key] ??= createRepoState();
+  project.repoStates[key] ??= createRepoState(projectId, repo);
   return project.repoStates[key];
 }
 

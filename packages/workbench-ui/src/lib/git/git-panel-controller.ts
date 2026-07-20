@@ -6,6 +6,7 @@ import type {
 import type {
   GitPanelActions,
   GitPanelModel,
+  GitPrFilterConfig,
   GitRemoteOperation,
 } from "./git-panel-types.js";
 
@@ -36,18 +37,60 @@ export function filterAndSortBranches(
     });
 }
 
-export function sortPullRequests(
+export const defaultGitPrFilterConfig: GitPrFilterConfig = {
+  author: "any",
+  username: "",
+  drafts: "include",
+  title: "",
+  currentBranchOnly: false,
+  labels: [],
+  sort: "updated-desc",
+};
+
+export function normalizeGitPrFilterConfig(
+  filters: GitPrFilterConfig,
+): GitPrFilterConfig {
+  const labels = [...new Set(filters.labels.map((label) => label.trim()))]
+    .filter(Boolean)
+    .slice(0, 20);
+  return {
+    author: filters.author,
+    username: filters.username.trim(),
+    drafts: filters.drafts,
+    title: filters.title.trim(),
+    currentBranchOnly: filters.currentBranchOnly,
+    labels,
+    sort: filters.sort,
+  };
+}
+
+export function activeGitPrFilterCount(filters: GitPrFilterConfig): number {
+  const normalized = normalizeGitPrFilterConfig(filters);
+  return (
+    Number(normalized.author !== defaultGitPrFilterConfig.author) +
+    Number(normalized.drafts !== defaultGitPrFilterConfig.drafts) +
+    Number(normalized.title.length > 0) +
+    Number(normalized.currentBranchOnly) +
+    normalized.labels.length
+  );
+}
+
+export function hasActiveGitPrFilters(filters: GitPrFilterConfig): boolean {
+  const normalized = normalizeGitPrFilterConfig(filters);
+  return (
+    normalized.author !== defaultGitPrFilterConfig.author ||
+    normalized.drafts !== defaultGitPrFilterConfig.drafts ||
+    normalized.title !== defaultGitPrFilterConfig.title ||
+    normalized.currentBranchOnly ||
+    normalized.labels.length > 0 ||
+    normalized.sort !== defaultGitPrFilterConfig.sort
+  );
+}
+
+export function limitPullRequests(
   pullRequests: readonly GithubPr[],
-  currentBranch: string | null,
 ): GithubPr[] {
-  return [...pullRequests].sort((left, right) => {
-    const leftCurrent =
-      currentBranch !== null && left.headRefName === currentBranch;
-    const rightCurrent =
-      currentBranch !== null && right.headRefName === currentBranch;
-    if (leftCurrent !== rightCurrent) return leftCurrent ? -1 : 1;
-    return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
-  });
+  return pullRequests.slice(0, 10);
 }
 
 /**
@@ -78,6 +121,14 @@ export function createGitPanelActions(
     refreshPullRequests: (repository) => {
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshPullRequests(repository);
+    },
+    configurePullRequests: (repository, filters) => {
+      if (available() && model().capabilities.refresh.enabled)
+        return host.configurePullRequests(repository, filters);
+    },
+    resetPullRequestConfig: (repository) => {
+      if (available() && model().capabilities.refresh.enabled)
+        return host.resetPullRequestConfig(repository);
     },
     selectRepository: (repository) => {
       if (available() && model().capabilities.selectRepository.enabled)

@@ -3,6 +3,7 @@ import type {
   GitDiscoveryResponse,
   GithubPrCheckoutResponse,
   GithubPrDetail,
+  GithubPrListFilters,
   GithubPrListResponse,
   GithubStatusResponse,
   GitMutationResponse,
@@ -169,11 +170,13 @@ export async function getGithubStatus(
 export async function listGithubPrs(
   projectId: string,
   repo: string,
+  filters: GithubPrListFilters,
 ): Promise<GithubPrListResponse> {
   return (
     await protocolRequest("github.pr.list", {
       projectId,
       repo,
+      filters,
     })
   ).result;
 }

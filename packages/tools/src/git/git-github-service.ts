@@ -1,16 +1,20 @@
 import type {
-  GithubChecksSummary,
   GithubPr,
   GithubPrCheckoutResponse,
   GithubPrCommit,
   GithubPrDetail,
   GithubPrFile,
+  GithubPrListFilters,
   GithubPrListResponse,
   GithubStatusResponse,
   GitRepoSummary,
 } from "@nervekit/contracts";
 import { GitWorkflowError } from "./git-errors.js";
-import { noChecksSummary, parseGithubChecks } from "./git-github-parsers.js";
+import {
+  noChecksSummary,
+  parseGithubChecks,
+  summarizeStatusCheckRollup,
+} from "./git-github-parsers.js";
 import { parsePorcelainV2 } from "./git-status.js";
 
 type ExecResult = { stdout: string; stderr: string };
@@ -99,24 +103,41 @@ export async function githubStatus(
   }
 }
 
+export function githubPrListArgs(filters: GithubPrListFilters): string[] {
+  const args = ["pr", "list", "--state", "open", "--limit", "10"];
+  if (filters.author === "me") args.push("--author", "@me");
+  if (filters.author === "username" && filters.username) {
+    args.push("--author", filters.username);
+  }
+  if (filters.head) args.push("--head", filters.head);
+  for (const label of filters.labels) args.push("--label", label);
+
+  const search = [`sort:${filters.sort}`];
+  if (filters.title) search.push(`in:title ${quoteSearchValue(filters.title)}`);
+  if (filters.drafts === "exclude") search.push("draft:false");
+  if (filters.drafts === "only") search.push("draft:true");
+  args.push("--search", search.join(" "));
+  args.push(
+    "--json",
+    "number,title,url,state,isDraft,headRefName,baseRefName,updatedAt,statusCheckRollup",
+  );
+  return args;
+}
+
+function quoteSearchValue(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
 export async function listOpenPrs(
   context: GithubServiceContext,
   projectId: string,
   relativePath: string,
+  filters: GithubPrListFilters,
 ): Promise<GithubPrListResponse> {
   const repoDir = context.resolveRepoDir(projectId, relativePath);
   await context.ensureGithubRemote(repoDir);
   const { stdout } = await context.mapGh(() =>
-    context.runGh(repoDir, [
-      "pr",
-      "list",
-      "--state",
-      "open",
-      "--limit",
-      "50",
-      "--json",
-      "number,title,url,state,isDraft,headRefName,baseRefName,updatedAt",
-    ]),
+    context.runGh(repoDir, githubPrListArgs(filters)),
   );
   const raw = JSON.parse(stdout || "[]") as Array<{
     number: number;
@@ -127,11 +148,11 @@ export async function listOpenPrs(
     headRefName: string;
     baseRefName: string;
     updatedAt: string;
+    statusCheckRollup?: unknown[] | null;
   }>;
-  const prs = await Promise.all(
-    raw.map(async (pr): Promise<GithubPr> => {
-      const checks = await prChecks(context, repoDir, pr.number);
-      return {
+  return {
+    prs: raw.slice(0, 10).map(
+      (pr): GithubPr => ({
         number: pr.number,
         title: pr.title,
         url: pr.url,
@@ -140,18 +161,17 @@ export async function listOpenPrs(
         headRefName: pr.headRefName,
         baseRefName: pr.baseRefName,
         updatedAt: pr.updatedAt,
-        checks,
-      };
-    }),
-  );
-  return { prs };
+        checks: summarizeStatusCheckRollup(pr.statusCheckRollup),
+      }),
+    ),
+  };
 }
 
 async function prChecks(
   context: GithubServiceContext,
   repoDir: string,
   number: number,
-): Promise<GithubChecksSummary> {
+): Promise<ReturnType<typeof noChecksSummary>> {
   try {
     const { stdout } = await context.runGh(repoDir, [
       "pr",

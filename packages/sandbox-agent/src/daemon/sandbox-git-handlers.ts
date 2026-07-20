@@ -82,7 +82,13 @@ export function registerSandboxGitHandlers(
     run(() => git.githubStatus(SANDBOX_PROJECT_ID, repo(params))),
   );
   router.register("github.pr.list", (params) =>
-    run(() => git.listOpenPrs(SANDBOX_PROJECT_ID, repo(params))),
+    run(() =>
+      git.listOpenPrs(
+        SANDBOX_PROJECT_ID,
+        repo(params),
+        filters(params) as Parameters<typeof git.listOpenPrs>[2],
+      ),
+    ),
   );
   router.register("github.pr.get", (params) =>
     run(() => git.prDetail(SANDBOX_PROJECT_ID, repo(params), prNumber(params))),
@@ -108,6 +114,10 @@ function filePath(params: unknown): string {
 
 function prNumber(params: unknown): number {
   return record(params).number as number;
+}
+
+function filters(params: unknown): unknown {
+  return record(params).filters;
 }
 
 function record(params: unknown): Record<string, unknown> {

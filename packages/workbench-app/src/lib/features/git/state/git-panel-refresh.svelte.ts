@@ -1,4 +1,5 @@
 import type { ProjectRecord } from "$lib/api";
+import type { GithubPrListFilters } from "@nervekit/contracts";
 import {
   discoverGitRepos,
   getGithubStatus,
@@ -182,23 +183,43 @@ export async function refreshPrs(
   projectId: string,
   repo: string,
   silent = false,
+  force = false,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   if (!repoHasGithubRemote(projectId, repo)) {
     clearGithubState(projectId, state);
     return;
   }
-  if (state.prsRequestInFlight) return;
+  if (state.prsRequestInFlight && !force) return;
+  const requestSeq = state.prsRequestSeq + 1;
+  state.prsRequestSeq = requestSeq;
   state.prsRequestInFlight = true;
   if (!silent) state.loadingPrs = true;
   try {
-    const result = await listGithubPrs(projectId, repo);
-    setPrsIfChanged(state, result.prs);
+    const filters: GithubPrListFilters = {
+      author: state.prFilters.author,
+      ...(state.prFilters.author === "username"
+        ? { username: state.prFilters.username }
+        : {}),
+      drafts: state.prFilters.drafts,
+      title: state.prFilters.title,
+      ...(state.prFilters.currentBranchOnly && state.repoSummary?.currentBranch
+        ? { head: state.repoSummary.currentBranch }
+        : {}),
+      labels: [...state.prFilters.labels],
+      sort: state.prFilters.sort,
+    };
+    const result = await listGithubPrs(projectId, repo, filters);
+    if (state.prsRequestSeq === requestSeq) setPrsIfChanged(state, result.prs);
   } catch (error) {
-    if (!silent) notify.error(`Could not list PRs: ${errorMessage(error)}`);
+    if (state.prsRequestSeq === requestSeq && !silent) {
+      notify.error(`Could not list PRs: ${errorMessage(error)}`);
+    }
   } finally {
-    if (!silent) state.loadingPrs = false;
-    state.prsRequestInFlight = false;
+    if (state.prsRequestSeq === requestSeq) {
+      if (!silent) state.loadingPrs = false;
+      state.prsRequestInFlight = false;
+    }
   }
 }
 

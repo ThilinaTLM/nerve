@@ -2,6 +2,7 @@
 import Check from "@lucide/svelte/icons/check";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+import ListFilter from "@lucide/svelte/icons/list-filter";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import X from "@lucide/svelte/icons/x";
@@ -15,11 +16,19 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import { checksTone } from "./git-change-format";
-import type { GitPanelCapabilities } from "./git-panel-types";
+import type {
+  GitPanelCapabilities,
+  GitPrFilterConfig,
+} from "./git-panel-types";
+import {
+  activeGitPrFilterCount,
+  hasActiveGitPrFilters,
+} from "./git-panel-controller.js";
 
 type Props = {
-  sortedPrs: GithubPr[];
+  displayedPrs: GithubPr[];
   prs: GithubPr[];
+  filters: GitPrFilterConfig;
   selectedRepoSummary?: GitRepoSummary;
   github?: GithubStatusResponse;
   selectedRepoHasGithubRemote: boolean;
@@ -30,12 +39,14 @@ type Props = {
   open?: boolean;
   onExpandedPrChange?: (number: number | undefined) => void;
   onRefreshPrs: () => void;
+  onOpenFilters: () => void;
   onOpenPr: (prNumber: number) => void;
 };
 
 let {
-  sortedPrs,
+  displayedPrs,
   prs,
+  filters,
   selectedRepoSummary,
   github,
   selectedRepoHasGithubRemote,
@@ -46,13 +57,38 @@ let {
   open = $bindable(true),
   onExpandedPrChange,
   onRefreshPrs,
+  onOpenFilters,
   onOpenPr,
 }: Props = $props();
+
+const activeFilterCount = $derived(activeGitPrFilterCount(filters));
 </script>
 
 <PanelSection title="PRs (GitHub)" icon={GitPullRequest} bind:open>
   {#snippet actions()}
     {#if selectedRepoHasGithubRemote && github?.authenticated}
+      <Button
+        size="icon-xs"
+        variant={hasActiveGitPrFilters(filters) ? "secondary" : "ghost"}
+        class="relative overflow-visible"
+        ariaLabel={activeFilterCount > 0
+          ? `Configure pull request filters · ${activeFilterCount} active`
+          : "Configure pull request filters"}
+        title={activeFilterCount > 0
+          ? `${activeFilterCount} active ${activeFilterCount === 1 ? "filter" : "filters"}`
+          : "Configure filters and sorting"}
+        onclick={onOpenFilters}
+      >
+        <ListFilter />
+        {#if activeFilterCount > 0}
+          <Badge
+            variant="default"
+            class="pointer-events-none absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-xs"
+            aria-hidden="true"
+            >{activeFilterCount > 9 ? "9+" : activeFilterCount}</Badge
+          >
+        {/if}
+      </Button>
       <Button
         size="icon-xs"
         variant="ghost"
@@ -86,13 +122,18 @@ let {
     </div>
   {:else if loadingPrs && prs.length === 0}
     <div class="py-1 text-xs text-muted-foreground">Loading…</div>
-  {:else if sortedPrs.length === 0}
+  {:else if displayedPrs.length === 0}
     <div class="py-1 text-xs text-muted-foreground">
-      No open PRs for this repository.
+      {hasActiveGitPrFilters(filters)
+        ? "No pull requests match these filters."
+        : "No open PRs for this repository."}
     </div>
   {:else}
     <div class="flex flex-col gap-1.5">
-      {#each sortedPrs as pr (pr.number)}
+      <div class="text-xs text-muted-foreground">
+        Showing {displayedPrs.length} of up to 10
+      </div>
+      {#each displayedPrs as pr (pr.number)}
         {@const currentPr =
           currentBranchName !== null && pr.headRefName === currentBranchName}
         <div

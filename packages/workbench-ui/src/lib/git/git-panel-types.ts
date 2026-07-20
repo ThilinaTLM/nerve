@@ -23,6 +23,16 @@ export type GitRemoteOperation =
   | "sync"
   | "switch-base-and-pull";
 
+export type GitPrFilterConfig = {
+  readonly author: "any" | "me" | "username";
+  readonly username: string;
+  readonly drafts: "include" | "exclude" | "only";
+  readonly title: string;
+  readonly currentBranchOnly: boolean;
+  readonly labels: readonly string[];
+  readonly sort: "updated-desc" | "updated-asc";
+};
+
 export interface GitPanelCapabilities {
   readonly refresh: FeatureCapability;
   readonly selectRepository: FeatureCapability;
@@ -64,6 +74,7 @@ export interface GitPanelModel {
   readonly branches: readonly GitBranchSummary[];
   readonly github?: GithubStatusResponse;
   readonly pullRequests: readonly GithubPr[];
+  readonly pullRequestFilters: GitPrFilterConfig;
   readonly selectedPullRequestNumber?: number;
   readonly initialLoading: boolean;
   readonly cachedError?: string;
@@ -80,6 +91,11 @@ export interface GitPanelActions {
   readonly refreshRepository: (repository: string) => void | Promise<void>;
   readonly refreshBranches: (repository: string) => void | Promise<void>;
   readonly refreshPullRequests: (repository: string) => void | Promise<void>;
+  readonly configurePullRequests: (
+    repository: string,
+    filters: GitPrFilterConfig,
+  ) => void | Promise<void>;
+  readonly resetPullRequestConfig: (repository: string) => void | Promise<void>;
   readonly selectRepository: (repository: string) => void | Promise<void>;
   readonly createBranch: (
     repository: string,

@@ -1,6 +1,8 @@
 import {
   createGitPanelActions,
+  defaultGitPrFilterConfig,
   disabledCapability,
+  normalizeGitPrFilterConfig,
   enabledCapability,
   type GitPanelActions,
   type GitPanelModel,
@@ -20,6 +22,7 @@ import {
   fetchGitRepo,
   gitPanelState,
   mutateGitFile,
+  savePrFilters,
   pullGitRepo,
   pushGitRepo,
   refreshBranches,
@@ -99,6 +102,7 @@ export function createWorkbenchGitPanelAdapter(
         branches: current?.branches ?? [],
         github: current?.github,
         pullRequests: current?.prs ?? [],
+        pullRequestFilters: current?.prFilters ?? defaultGitPrFilterConfig,
         initialLoading:
           Boolean(project && !projectState) ||
           Boolean(projectState?.loadingRepos) ||
@@ -148,6 +152,30 @@ export function createWorkbenchGitPanelAdapter(
     refreshPullRequests: (repository) => {
       const project = activeProject();
       if (project) return refreshPrs(project.id, repository);
+    },
+    configurePullRequests: (repository, filters) => {
+      const project = activeProject();
+      if (!project) return;
+      const state =
+        gitPanelState.projects[gitProjectStateKey(project.id)]?.repoStates[
+          gitRepoStateKey(repository)
+        ];
+      if (!state) return;
+      state.prFilters = normalizeGitPrFilterConfig(filters);
+      savePrFilters(project.id, repository, state.prFilters);
+      return refreshPrs(project.id, repository, false, true);
+    },
+    resetPullRequestConfig: (repository) => {
+      const project = activeProject();
+      if (!project) return;
+      const state =
+        gitPanelState.projects[gitProjectStateKey(project.id)]?.repoStates[
+          gitRepoStateKey(repository)
+        ];
+      if (!state) return;
+      state.prFilters = defaultGitPrFilterConfig;
+      savePrFilters(project.id, repository, state.prFilters);
+      return refreshPrs(project.id, repository, false, true);
     },
     selectRepository: (repository) => {
       const project = activeProject();

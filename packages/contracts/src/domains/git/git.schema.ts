@@ -181,6 +181,42 @@ export const githubPrListResponseSchema = z.object({
 });
 export type GithubPrListResponse = z.infer<typeof githubPrListResponseSchema>;
 
+export const githubPrListFiltersSchema = z
+  .object({
+    author: z.enum(["any", "me", "username"]).default("any"),
+    username: z.string().trim().min(1).max(100).optional(),
+    drafts: z.enum(["include", "exclude", "only"]).default("include"),
+    title: z.string().trim().max(256).default(""),
+    head: z.string().trim().min(1).max(255).optional(),
+    labels: z
+      .array(z.string().trim().min(1).max(100))
+      .max(20)
+      .default([])
+      .transform((labels) => [...new Set(labels)]),
+    sort: z.enum(["updated-desc", "updated-asc"]).default("updated-desc"),
+  })
+  .superRefine((filters, context) => {
+    if (filters.author === "username" && !filters.username) {
+      context.addIssue({
+        code: "custom",
+        path: ["username"],
+        message: "A GitHub username is required for username author filters.",
+      });
+    }
+  });
+export type GithubPrListFilters = z.infer<typeof githubPrListFiltersSchema>;
+
+export const githubPrListRequestSchema = gitRemoteOpRequestSchema.extend({
+  filters: githubPrListFiltersSchema.default({
+    author: "any",
+    drafts: "include",
+    title: "",
+    labels: [],
+    sort: "updated-desc",
+  }),
+});
+export type GithubPrListRequest = z.infer<typeof githubPrListRequestSchema>;
+
 export const githubPrFileSchema = z.object({
   path: z.string(),
   additions: z.number().int().nonnegative(),

@@ -1,5 +1,6 @@
 import type {
   CompletionItem,
+  GithubPrListFilters,
   ModelSelection,
   OperationName,
   ThinkingLevel,
@@ -683,6 +684,7 @@ export async function handleProtocolMethod(
       return state.registry.git.listOpenPrs(
         (params as { projectId: string }).projectId,
         repo(params),
+        (params as { filters: GithubPrListFilters }).filters,
       );
     case "github.pr.get":
       return state.registry.git.prDetail(

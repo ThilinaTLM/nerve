@@ -3,12 +3,13 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Card } from "@nervekit/ui-kit/components/ui/card";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import GitChangesSection from "./GitChangesSection.svelte";
+import GitPrFilterDialog from "./GitPrFilterDialog.svelte";
 import GitPrSection from "./GitPrSection.svelte";
 import GitRepoBranchSection from "./GitRepoBranchSection.svelte";
 import {
   filterAndSortBranches,
   gitFileGroups,
-  sortPullRequests,
+  limitPullRequests,
 } from "./git-panel-controller.js";
 import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 
@@ -19,6 +20,7 @@ let repoSectionOpen = $state(true);
 let changesSectionOpen = $state(true);
 let prsSectionOpen = $state(true);
 let branchDialogOpen = $state(false);
+let prFilterDialogOpen = $state(false);
 let branchFilter = $state("");
 let newBranchName = $state("");
 let expandedPr = $state<number | undefined>(undefined);
@@ -46,9 +48,7 @@ const baseBranchSummary = $derived(
 const currentBranchName = $derived(
   model.repositorySummary?.currentBranch ?? null,
 );
-const sortedPullRequests = $derived(
-  sortPullRequests(model.pullRequests, currentBranchName),
-);
+const displayedPullRequests = $derived(limitPullRequests(model.pullRequests));
 const selectedRepoHasGithubRemote = $derived(
   Boolean(
     model.repositorySummary?.hasRemote &&
@@ -60,6 +60,7 @@ function resetRepositoryUi(): void {
   branchFilter = "";
   newBranchName = "";
   expandedPr = undefined;
+  prFilterDialogOpen = false;
 }
 
 function selectRepository(repository: string): void {
@@ -189,8 +190,9 @@ function openBranchDialog(): void {
       />
 
       <GitPrSection
-        sortedPrs={sortedPullRequests}
+        displayedPrs={displayedPullRequests}
         prs={[...model.pullRequests]}
+        filters={model.pullRequestFilters}
         selectedRepoSummary={model.repositorySummary}
         github={model.github}
         {selectedRepoHasGithubRemote}
@@ -202,12 +204,22 @@ function openBranchDialog(): void {
         bind:open={prsSectionOpen}
         onRefreshPrs={() =>
           void actions.refreshPullRequests(model.selectedRepository)}
+        onOpenFilters={() => (prFilterDialogOpen = true)}
         onOpenPr={(number) =>
           void actions.openPullRequest(model.selectedRepository, number)}
       />
     </div>
   {/if}
 </div>
+
+<GitPrFilterDialog
+  bind:open={prFilterDialogOpen}
+  filters={model.pullRequestFilters}
+  hasCurrentBranch={currentBranchName !== null}
+  onApply={(filters) =>
+    void actions.configurePullRequests(model.selectedRepository, filters)}
+  onReset={() => void actions.resetPullRequestConfig(model.selectedRepository)}
+/>
 
 <ConfirmDialog
   open={Boolean(discardCandidate)}

@@ -10,10 +10,13 @@ import type {
 import { notify } from "@nervekit/ui-kit/core/notify";
 import {
   createGitPanelActions,
+  defaultGitPrFilterConfig,
   disabledCapability,
   enabledCapability,
   gitFileGroups,
+  normalizeGitPrFilterConfig,
   type GitPanelActions,
+  type GitPrFilterConfig,
   type GitPanelModel,
   type GitRemoteOperation,
 } from "@nervekit/workbench-ui";
@@ -35,6 +38,50 @@ const disconnected = disabledCapability(
   "Start or reconnect the sandbox to use Git operations.",
 );
 
+function prFiltersStorageKey(sandboxId: string, repo: string): string {
+  return `nerve.git.prFilters.sandbox.${sandboxId}.${encodeURIComponent(repo)}`;
+}
+
+function storedPrFilters(sandboxId: string, repo: string): GitPrFilterConfig {
+  if (typeof localStorage === "undefined") return defaultGitPrFilterConfig;
+  try {
+    const raw = localStorage.getItem(prFiltersStorageKey(sandboxId, repo));
+    if (!raw) return defaultGitPrFilterConfig;
+    const value = JSON.parse(raw) as Partial<GitPrFilterConfig>;
+    if (
+      !["any", "me", "username"].includes(String(value.author)) ||
+      typeof value.username !== "string" ||
+      !["include", "exclude", "only"].includes(String(value.drafts)) ||
+      typeof value.title !== "string" ||
+      typeof value.currentBranchOnly !== "boolean" ||
+      !Array.isArray(value.labels) ||
+      !value.labels.every((label) => typeof label === "string") ||
+      !["updated-desc", "updated-asc"].includes(String(value.sort))
+    ) {
+      return defaultGitPrFilterConfig;
+    }
+    return normalizeGitPrFilterConfig(value as GitPrFilterConfig);
+  } catch {
+    return defaultGitPrFilterConfig;
+  }
+}
+
+function savePrFilters(
+  sandboxId: string,
+  repo: string,
+  filters: GitPrFilterConfig,
+): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(
+      prFiltersStorageKey(sandboxId, repo),
+      JSON.stringify(filters),
+    );
+  } catch {
+    // Persistence is best effort.
+  }
+}
+
 function errorMessage(value: unknown): string {
   return value instanceof Error ? value.message : String(value);
 }
@@ -50,11 +97,13 @@ export function createSandboxGitPanelAdapter(
   let branches = $state<GitBranchSummary[]>([]);
   let github = $state<GithubStatusResponse | undefined>(undefined);
   let pullRequests = $state<GithubPr[]>([]);
+  let prFilters = $state<GitPrFilterConfig>(defaultGitPrFilterConfig);
   let error = $state<string | undefined>(undefined);
   let loadingRepositories = $state(false);
   let loadingOverview = $state(false);
   let loadingBranches = $state(false);
   let loadingPullRequests = $state(false);
+  let prRequestSeq = 0;
   let refreshing = $state(false);
   let switchingBranch = $state<string | undefined>(undefined);
   let creatingBranch = $state(false);
@@ -96,6 +145,7 @@ export function createSandboxGitPanelAdapter(
         branches,
         github,
         pullRequests,
+        pullRequestFilters: prFilters,
         initialLoading: loadingRepositories && repositories.length === 0,
         cachedError: error,
         refreshing,
@@ -171,17 +221,41 @@ export function createSandboxGitPanelAdapter(
   async function refreshPullRequests(
     repository = selectedRepository,
   ): Promise<void> {
+    const requestSeq = ++prRequestSeq;
     loadingPullRequests = true;
+    const currentBranch =
+      (overview?.repo.relativePath === repository
+        ? overview.repo.currentBranch
+        : undefined) ??
+      repositories.find((candidate) => candidate.relativePath === repository)
+        ?.currentBranch;
     try {
-      pullRequests = (
-        await listSandboxGithubPrs(record().sandboxId, repository)
-      ).prs;
+      const result = await listSandboxGithubPrs(
+        record().sandboxId,
+        repository,
+        {
+          author: prFilters.author,
+          ...(prFilters.author === "username"
+            ? { username: prFilters.username }
+            : {}),
+          drafts: prFilters.drafts,
+          title: prFilters.title,
+          ...(prFilters.currentBranchOnly && currentBranch
+            ? { head: currentBranch }
+            : {}),
+          labels: [...prFilters.labels],
+          sort: prFilters.sort,
+        },
+      );
+      if (requestSeq === prRequestSeq) pullRequests = result.prs;
     } catch (caught) {
-      notify.error("Could not load pull requests", {
-        description: errorMessage(caught),
-      });
+      if (requestSeq === prRequestSeq) {
+        notify.error("Could not load pull requests", {
+          description: errorMessage(caught),
+        });
+      }
     } finally {
-      loadingPullRequests = false;
+      if (requestSeq === prRequestSeq) loadingPullRequests = false;
     }
   }
 
@@ -198,6 +272,7 @@ export function createSandboxGitPanelAdapter(
 
   async function refreshRepository(repository: string): Promise<void> {
     selectedRepository = repository;
+    prFilters = storedPrFilters(record().sandboxId, repository);
     await Promise.all([
       refreshOverview(repository),
       refreshBranches(repository),
@@ -240,6 +315,16 @@ export function createSandboxGitPanelAdapter(
     refreshRepository,
     refreshBranches,
     refreshPullRequests,
+    configurePullRequests: async (repository, filters) => {
+      prFilters = normalizeGitPrFilterConfig(filters);
+      savePrFilters(record().sandboxId, repository, prFilters);
+      await refreshPullRequests(repository);
+    },
+    resetPullRequestConfig: async (repository) => {
+      prFilters = defaultGitPrFilterConfig;
+      savePrFilters(record().sandboxId, repository, prFilters);
+      await refreshPullRequests(repository);
+    },
     selectRepository: refreshRepository,
     createBranch: async (repository, name) => {
       creatingBranch = true;
@@ -350,6 +435,8 @@ export function createSandboxGitPanelAdapter(
     branches = [];
     github = undefined;
     pullRequests = [];
+    prFilters = defaultGitPrFilterConfig;
+    prRequestSeq += 1;
     error = undefined;
   });
 

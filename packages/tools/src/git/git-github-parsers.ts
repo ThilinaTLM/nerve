@@ -102,6 +102,40 @@ export function parseGithubChecks(stdout: string): GithubChecksSummary {
   return summarizeChecks(raw);
 }
 
+export function summarizeStatusCheckRollup(
+  rollup: readonly unknown[] | null | undefined,
+): GithubChecksSummary {
+  if (!rollup) return noChecksSummary();
+  const runs: GithubCheckRunRaw[] = [];
+  for (const value of rollup) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const check = value as Record<string, unknown>;
+    const name = stringValue(check.name) ?? stringValue(check.context);
+    if (!name) continue;
+    const status = stringValue(check.status)?.toUpperCase();
+    const conclusion = stringValue(check.conclusion)?.toUpperCase();
+    const state = stringValue(check.state)?.toUpperCase();
+    runs.push({
+      name,
+      state:
+        state ??
+        (status && status !== "COMPLETED" ? status : conclusion) ??
+        status ??
+        "PENDING",
+      link:
+        stringValue(check.detailsUrl) ??
+        stringValue(check.targetUrl) ??
+        stringValue(check.link) ??
+        undefined,
+    });
+  }
+  return summarizeChecks(runs);
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 export function summarizeChecks(
   runs: GithubCheckRunRaw[],
 ): GithubChecksSummary {

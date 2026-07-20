@@ -5,6 +5,7 @@ import type {
   GitFileActionRequest,
   GithubPrCheckoutResponse,
   GithubPrDetail,
+  GithubPrListFilters,
   GithubPrListResponse,
   GithubStatusResponse,
   GitMutationResponse,
@@ -135,12 +136,14 @@ export async function getSandboxGithubStatus(
 
 export async function listSandboxGithubPrs(
   sandboxId: string,
-  repo = ".",
+  repo: string,
+  filters: GithubPrListFilters,
 ): Promise<GithubPrListResponse> {
   return (
     await sandboxProtocolRequest(sandboxId, "github.pr.list", {
       projectId: SANDBOX_PROJECT_ID,
       repo,
+      filters,
     })
   ).result;
 }
