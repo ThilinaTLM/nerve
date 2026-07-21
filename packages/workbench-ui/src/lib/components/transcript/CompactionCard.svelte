@@ -92,6 +92,32 @@ const chips = $derived.by<MetaItem[]>(() => {
 const errorMessage = $derived(
   notice.errorMessage?.trim() || "Could not compact this conversation.",
 );
+
+let now = $state(Date.now());
+$effect(() => {
+  if (notice.state !== "running") return;
+  const interval = setInterval(() => {
+    now = Date.now();
+  }, 250);
+  return () => clearInterval(interval);
+});
+
+const startedAtMs = $derived(
+  notice.createdAt ? Date.parse(notice.createdAt) : Number.NaN,
+);
+const elapsedSeconds = $derived.by(() => {
+  if (notice.state !== "running" || Number.isNaN(startedAtMs)) return undefined;
+  return Math.max(0, Math.floor((now - startedAtMs) / 1000));
+});
+const elapsedLabel = $derived(
+  elapsedSeconds === undefined
+    ? undefined
+    : `${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`,
+);
+// Delay appearance so an instant compaction does not flash a "0:00".
+const showElapsed = $derived(
+  elapsedSeconds !== undefined && elapsedSeconds >= 1,
+);
 const bodyVisible = $derived(
   notice.state === "running" ||
     (notice.state === "completed" && Boolean(summaryLead)),
@@ -104,6 +130,7 @@ const layoutRevision = $derived(
     notice.state === "completed" && chips.length > 0
       ? `footer:${chips.length}`
       : "no-footer",
+    showElapsed ? "elapsed" : "no-elapsed",
   ].join("|"),
 );
 </script>
@@ -121,7 +148,10 @@ const layoutRevision = $derived(
     {layoutRevision}
   >
     {#if notice.state === "running"}
-      <p class="lead">Summarizing recent work…</p>
+      <div class="running-line">
+        <span class="running-text">Summarizing recent work…</span>
+        {#if showElapsed}<span class="elapsed">{elapsedLabel}</span>{/if}
+      </div>
     {:else if notice.state === "completed" && summaryLead}
       <p class="lead">{summaryLead}</p>
     {/if}
@@ -132,6 +162,29 @@ const layoutRevision = $derived(
 /* Set the compaction block apart with the same rhythm as message turns. */
 .compaction-block {
   margin-block: 0.5rem;
+}
+
+.running-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.running-text {
+  min-width: 0;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.elapsed {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
 }
 
 .lead {

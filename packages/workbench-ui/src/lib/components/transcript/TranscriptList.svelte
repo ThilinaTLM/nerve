@@ -160,6 +160,14 @@ function entranceEligible(node: TranscriptDisplayNode): boolean {
   return node.kind === "tool" && Boolean(node.draft);
 }
 
+// The running CompactionCard is the sole activity indicator for that phase;
+// the generic per-turn waiting row must not double up beneath it.
+const compactionRunning = $derived(
+  timeline.some(
+    (item) => item.kind === "compaction" && item.notice.state === "running",
+  ),
+);
+
 const rows = $derived.by<TranscriptRowItem[]>(() => {
   const seenKeys = new Map<string, number>();
   const displayNodes = groupConsecutiveThinking(timeline);
@@ -186,7 +194,7 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
   }));
   // This is a per-turn pre-output row. Turn-scoped output stays true across
   // the live-to-durable handoff, so it cannot reappear after the final message.
-  if (sending && !hasActiveTurnOutput) {
+  if (sending && !hasActiveTurnOutput && !compactionRunning) {
     result.push({ kind: "waiting", key: "__waiting__" });
   }
   for (const prompt of queuedPrompts) {
