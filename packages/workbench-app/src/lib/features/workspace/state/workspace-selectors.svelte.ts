@@ -268,8 +268,11 @@ export const workspaceSelectors = {
             kind: "settings" as const,
             id: "settings" as const,
             active: activeTabMatches("settings", "settings"),
-            sending: false,
-            error: settingsState.settingsMessage,
+            sending: settingsState.settingsSaveStatus === "saving",
+            error:
+              settingsState.settingsSaveStatus === "error"
+                ? settingsState.settingsMessage
+                : undefined,
           },
         ]
       : [];
