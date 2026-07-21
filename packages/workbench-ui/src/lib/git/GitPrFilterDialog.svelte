@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
@@ -6,8 +7,10 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField from "@nervekit/ui-kit/components/ui/select-field";
 import {
+  applyGitPrFilterDraft,
+  createGitPrFilterDraft,
   defaultGitPrFilterConfig,
-  normalizeGitPrFilterConfig,
+  gitPrFilterConfigsEqual,
 } from "./git-panel-controller.js";
 import type { GitPrFilterConfig } from "./git-panel-types.js";
 
@@ -29,42 +32,23 @@ let {
   onOpenChange,
 }: Props = $props();
 
-let author = $state<GitPrFilterConfig["author"]>("any");
-let username = $state("");
-let drafts = $state<GitPrFilterConfig["drafts"]>("include");
-let title = $state("");
-let currentBranchOnly = $state(false);
-let labels = $state("");
-let sort = $state<GitPrFilterConfig["sort"]>("updated-desc");
+let draft = $state(createGitPrFilterDraft(defaultGitPrFilterConfig));
 
-const canApply = $derived(author !== "username" || username.trim().length > 0);
+const canApply = $derived(
+  draft.author !== "username" || draft.username.trim().length > 0,
+);
+const canReset = $derived(
+  !gitPrFilterConfigsEqual(filters, defaultGitPrFilterConfig),
+);
 
-$effect(() => {
+$effect.pre(() => {
   if (!open) return;
-  author = filters.author;
-  username = filters.username;
-  drafts = filters.drafts;
-  title = filters.title;
-  currentBranchOnly = hasCurrentBranch && filters.currentBranchOnly;
-  labels = filters.labels.join(", ");
-  sort = filters.sort;
+  draft = untrack(() => createGitPrFilterDraft(filters));
 });
 
 function apply(): void {
   if (!canApply) return;
-  onApply(
-    normalizeGitPrFilterConfig({
-      author,
-      username,
-      drafts,
-      title,
-      currentBranchOnly: hasCurrentBranch
-        ? currentBranchOnly
-        : filters.currentBranchOnly,
-      labels: labels.split(","),
-      sort,
-    }),
-  );
+  onApply(applyGitPrFilterDraft(draft, hasCurrentBranch));
   open = false;
 }
 </script>
@@ -80,9 +64,7 @@ function apply(): void {
     <div class="grid gap-1.5">
       <Label for="pr-filter-author">Author</Label>
       <SelectField
-        value={author}
-        onValueChange={(value) =>
-          (author = value as GitPrFilterConfig["author"])}
+        bind:value={draft.author}
         ariaLabel="Pull request author"
         items={[
           { value: "any", label: "Any author" },
@@ -92,14 +74,14 @@ function apply(): void {
       />
     </div>
 
-    {#if author === "username"}
+    {#if draft.author === "username"}
       <div class="grid gap-1.5">
         <Label for="pr-filter-username">GitHub username</Label>
         <Input
           id="pr-filter-username"
-          bind:value={username}
+          bind:value={draft.username}
           placeholder="octocat"
-          aria-invalid={username.trim().length === 0}
+          aria-invalid={draft.username.trim().length === 0}
         />
       </div>
     {/if}
@@ -107,9 +89,7 @@ function apply(): void {
     <div class="grid gap-1.5">
       <Label for="pr-filter-drafts">Drafts</Label>
       <SelectField
-        value={drafts}
-        onValueChange={(value) =>
-          (drafts = value as GitPrFilterConfig["drafts"])}
+        bind:value={draft.drafts}
         ariaLabel="Draft pull requests"
         items={[
           { value: "include", label: "Include drafts" },
@@ -123,7 +103,7 @@ function apply(): void {
       <Label for="pr-filter-title">Title contains</Label>
       <Input
         id="pr-filter-title"
-        bind:value={title}
+        bind:value={draft.title}
         placeholder="Search titles"
       />
     </div>
@@ -132,7 +112,7 @@ function apply(): void {
       <Label for="pr-filter-labels">Labels</Label>
       <Input
         id="pr-filter-labels"
-        bind:value={labels}
+        bind:value={draft.labels}
         placeholder="bug, needs-review"
       />
       <p class="text-xs text-muted-foreground">
@@ -143,7 +123,7 @@ function apply(): void {
     <div class="flex items-start gap-2">
       <Checkbox
         id="pr-filter-current-branch"
-        bind:checked={currentBranchOnly}
+        bind:checked={draft.currentBranchOnly}
         disabled={!hasCurrentBranch}
       />
       <div class="grid gap-1">
@@ -159,8 +139,7 @@ function apply(): void {
     <div class="grid gap-1.5">
       <Label for="pr-filter-sort">Sort by updated</Label>
       <SelectField
-        value={sort}
-        onValueChange={(value) => (sort = value as GitPrFilterConfig["sort"])}
+        bind:value={draft.sort}
         ariaLabel="Pull request sort order"
         items={[
           { value: "updated-desc", label: "Newest first" },
@@ -177,8 +156,7 @@ function apply(): void {
         onReset();
         open = false;
       }}
-      disabled={JSON.stringify(filters) ===
-        JSON.stringify(defaultGitPrFilterConfig)}>Reset defaults</Button
+      disabled={!canReset}>Reset defaults</Button
     >
     <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
     <Button onclick={apply} disabled={!canApply}>Apply filters</Button>

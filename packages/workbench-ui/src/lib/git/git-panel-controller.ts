@@ -47,6 +47,10 @@ export const defaultGitPrFilterConfig: GitPrFilterConfig = {
   sort: "updated-desc",
 };
 
+export type GitPrFilterDraft = Omit<GitPrFilterConfig, "labels"> & {
+  labels: string;
+};
+
 export function normalizeGitPrFilterConfig(
   filters: GitPrFilterConfig,
 ): GitPrFilterConfig {
@@ -64,6 +68,47 @@ export function normalizeGitPrFilterConfig(
   };
 }
 
+export function createGitPrFilterDraft(
+  filters: GitPrFilterConfig,
+): GitPrFilterDraft {
+  const normalized = normalizeGitPrFilterConfig(filters);
+  return {
+    ...normalized,
+    labels: normalized.labels.join(", "),
+  };
+}
+
+export function applyGitPrFilterDraft(
+  draft: GitPrFilterDraft,
+  hasCurrentBranch: boolean,
+): GitPrFilterConfig {
+  return normalizeGitPrFilterConfig({
+    ...draft,
+    currentBranchOnly: hasCurrentBranch && draft.currentBranchOnly,
+    labels: draft.labels.split(","),
+  });
+}
+
+export function gitPrFilterConfigsEqual(
+  left: GitPrFilterConfig,
+  right: GitPrFilterConfig,
+): boolean {
+  const normalizedLeft = normalizeGitPrFilterConfig(left);
+  const normalizedRight = normalizeGitPrFilterConfig(right);
+  return (
+    normalizedLeft.author === normalizedRight.author &&
+    normalizedLeft.username === normalizedRight.username &&
+    normalizedLeft.drafts === normalizedRight.drafts &&
+    normalizedLeft.title === normalizedRight.title &&
+    normalizedLeft.currentBranchOnly === normalizedRight.currentBranchOnly &&
+    normalizedLeft.sort === normalizedRight.sort &&
+    normalizedLeft.labels.length === normalizedRight.labels.length &&
+    normalizedLeft.labels.every(
+      (label, index) => label === normalizedRight.labels[index],
+    )
+  );
+}
+
 export function activeGitPrFilterCount(filters: GitPrFilterConfig): number {
   const normalized = normalizeGitPrFilterConfig(filters);
   return (
@@ -71,7 +116,8 @@ export function activeGitPrFilterCount(filters: GitPrFilterConfig): number {
     Number(normalized.drafts !== defaultGitPrFilterConfig.drafts) +
     Number(normalized.title.length > 0) +
     Number(normalized.currentBranchOnly) +
-    normalized.labels.length
+    normalized.labels.length +
+    Number(normalized.sort !== defaultGitPrFilterConfig.sort)
   );
 }
 

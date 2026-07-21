@@ -3,7 +3,10 @@ import { describe, it } from "node:test";
 import type { GithubPr } from "@nervekit/contracts";
 import {
   activeGitPrFilterCount,
+  applyGitPrFilterDraft,
+  createGitPrFilterDraft,
   defaultGitPrFilterConfig,
+  gitPrFilterConfigsEqual,
   hasActiveGitPrFilters,
   limitPullRequests,
   normalizeGitPrFilterConfig,
@@ -51,7 +54,60 @@ describe("Git PR filter config", () => {
         ...defaultGitPrFilterConfig,
         sort: "updated-asc",
       }),
-      0,
+      1,
+    );
+  });
+
+  it("round trips applied filters through an editable draft", () => {
+    const applied = normalizeGitPrFilterConfig({
+      ...defaultGitPrFilterConfig,
+      author: "username",
+      username: " octocat ",
+      drafts: "only",
+      title: " windows ",
+      currentBranchOnly: true,
+      labels: [" bug ", "bug", "", "needs-review"],
+      sort: "updated-asc",
+    });
+
+    const draft = createGitPrFilterDraft(applied);
+    assert.equal(draft.labels, "bug, needs-review");
+    assert.equal(
+      gitPrFilterConfigsEqual(applyGitPrFilterDraft(draft, true), applied),
+      true,
+    );
+  });
+
+  it("normalizes draft labels and clears an unavailable branch filter", () => {
+    const applied = applyGitPrFilterDraft(
+      {
+        ...createGitPrFilterDraft(defaultGitPrFilterConfig),
+        currentBranchOnly: true,
+        labels: " bug, , bug, needs-review ",
+      },
+      false,
+    );
+
+    assert.equal(applied.currentBranchOnly, false);
+    assert.deepEqual(applied.labels, ["bug", "needs-review"]);
+  });
+
+  it("compares normalized configs without depending on object identity", () => {
+    assert.equal(
+      gitPrFilterConfigsEqual(defaultGitPrFilterConfig, {
+        ...defaultGitPrFilterConfig,
+        username: "  ",
+        title: " ",
+        labels: [""],
+      }),
+      true,
+    );
+    assert.equal(
+      gitPrFilterConfigsEqual(defaultGitPrFilterConfig, {
+        ...defaultGitPrFilterConfig,
+        sort: "updated-asc",
+      }),
+      false,
     );
   });
 
