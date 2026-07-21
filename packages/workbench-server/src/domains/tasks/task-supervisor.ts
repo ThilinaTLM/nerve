@@ -307,13 +307,15 @@ async function terminateWindowsTaskTree(
       });
     });
     helper.once("close", (code, closeSignal) => {
+      // taskkill returns 128 when the requested PID is already absent. The
+      // desired stopped state has already been reached in that case.
+      const stopped = code === 0 || code === 128;
       finish({
         attempted: true,
         method: "taskkill",
-        error:
-          code === 0
-            ? undefined
-            : `taskkill exited with code ${code}${closeSignal ? ` and signal ${closeSignal}` : ""}`,
+        error: stopped
+          ? undefined
+          : `taskkill exited with code ${code}${closeSignal ? ` and signal ${closeSignal}` : ""}`,
       });
     });
   });

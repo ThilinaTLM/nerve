@@ -33,6 +33,7 @@ export interface FakeChild extends ChildProcess {
   stdout: EventEmitter;
   stderr: EventEmitter;
   killSignals: Array<NodeJS.Signals | number | undefined>;
+  emitExit(exitCode: number | null, signal: NodeJS.Signals | null): void;
   emitClose(exitCode: number | null, signal: NodeJS.Signals | null): void;
 }
 
@@ -120,7 +121,11 @@ export function fakeChild(pid = 1234): FakeChild {
       killSignals.push(signal);
       return true;
     },
+    emitExit(exitCode: number | null, signal: NodeJS.Signals | null) {
+      child.emit("exit", exitCode, signal);
+    },
     emitClose(exitCode: number | null, signal: NodeJS.Signals | null) {
+      child.emit("exit", exitCode, signal);
       child.emit("close", exitCode, signal);
     },
   });

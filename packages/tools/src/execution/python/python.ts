@@ -405,12 +405,13 @@ async function runPythonProcess({
       signal?.removeEventListener("abort", onAbort);
     };
     const kill = (killSignal: NodeJS.Signals = "SIGTERM") => {
+      if (process.platform === "win32") {
+        forceKillProcessTree(child);
+        return;
+      }
       try {
-        if (process.platform !== "win32" && child.pid) {
-          process.kill(-child.pid, killSignal);
-        } else {
-          child.kill(killSignal);
-        }
+        if (child.pid) process.kill(-child.pid, killSignal);
+        else child.kill(killSignal);
       } catch {
         child.kill(killSignal);
       }

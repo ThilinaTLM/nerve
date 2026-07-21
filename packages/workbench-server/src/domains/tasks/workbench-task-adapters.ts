@@ -129,6 +129,10 @@ export type WorkbenchManagedTask = TaskLogCursor & {
   child?: ChildProcess;
   stopping: boolean;
   finalized: boolean;
+  exitPromise?: Promise<{
+    exitCode: number | null;
+    signal: NodeJS.Signals | null;
+  }>;
   closePromise?: Promise<{
     exitCode: number | null;
     signal: NodeJS.Signals | null;
@@ -292,6 +296,14 @@ export function createWorkbenchTaskResources(
             resolveTerminal = resolve;
           },
         );
+        const exitPromise = new Promise<{
+          exitCode: number | null;
+          signal: NodeJS.Signals | null;
+        }>((resolve) =>
+          child.once("exit", (exitCode, signal) =>
+            resolve({ exitCode, signal }),
+          ),
+        );
         const closePromise = new Promise<{
           exitCode: number | null;
           signal: NodeJS.Signals | null;
@@ -309,6 +321,7 @@ export function createWorkbenchTaskResources(
           child,
           stopping: false,
           finalized: false,
+          exitPromise,
           closePromise,
           terminalPromise,
           resolveTerminal,
@@ -384,13 +397,13 @@ export function createWorkbenchTaskResources(
           : "exited";
       },
       waitForExit: async (task, timeoutMs) => {
-        const close = managed.get(task.id)?.closePromise;
-        if (!close) return "unavailable";
+        const processExit = managed.get(task.id)?.exitPromise;
+        if (!processExit) return "unavailable";
         const result = await new Promise<
           "timeout" | { exitCode: number | null; signal: NodeJS.Signals | null }
         >((resolve) => {
           const timer = setTimeout(() => resolve("timeout"), timeoutMs);
-          void close.then((exit) => {
+          void processExit.then((exit) => {
             clearTimeout(timer);
             resolve(exit);
           });

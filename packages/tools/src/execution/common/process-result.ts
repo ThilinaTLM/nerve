@@ -133,7 +133,7 @@ export async function buildProcessResult({
   const stdout = Buffer.concat(stdoutChunks).toString("utf8");
   const stderr = Buffer.concat(stderrChunks).toString("utf8");
   const combined = Buffer.concat(combinedChunks).toString("utf8");
-  const exitCode = code ?? (timedOut ? 124 : signal ? 128 : 0);
+  const exitCode = timedOut ? 124 : (code ?? (signal ? 128 : 0));
   const combinedStats = outputStats(combined);
   const hasOutput = combined.length > 0;
   const largeOutput = hasOutput && exceedsInlineLimits(combinedStats);

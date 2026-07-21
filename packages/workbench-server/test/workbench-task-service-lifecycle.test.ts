@@ -66,6 +66,26 @@ describe("task manager cancel lifecycle", () => {
     assert.deepEqual(terminateSignals, ["SIGTERM"]);
   });
 
+  it("uses process exit evidence when inherited stdio remains open", async () => {
+    const child = fakeChild();
+    const { supervisor, terminateSignals } = fakeSupervisor({
+      child,
+      onTerminate(signal) {
+        if (signal === "SIGTERM") child.emitExit(0, "SIGTERM");
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const task = await startFakeTask(manager, storage);
+
+    const stopped = await manager.cancelTask(task.id, { timeoutMs: 1000 });
+
+    assert.equal(stopped.status, "cancelled");
+    assert.equal(stopped.exitCode, 0);
+    assert.equal(stopped.signal, "SIGTERM");
+    assert.equal(manager.managed.get(task.id)?.finalized, false);
+    assert.deepEqual(terminateSignals, ["SIGTERM"]);
+  });
+
   it("is idempotent while cancellation is awaiting exit evidence", async () => {
     const child = fakeChild();
     const { supervisor, terminateSignals } = fakeSupervisor({ child });
@@ -98,6 +118,10 @@ describe("task manager active restart lifecycle", () => {
     const task = await startFakeTask(manager, storage);
     const oldManaged = manager.managed.get(task.id);
     assert.ok(oldManaged);
+    oldManaged.exitPromise = Promise.resolve({
+      exitCode: 0,
+      signal: "SIGTERM",
+    });
     oldManaged.closePromise = Promise.resolve({
       exitCode: 0,
       signal: "SIGTERM",

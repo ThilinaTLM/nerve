@@ -208,6 +208,25 @@ describe("task supervisor termination", () => {
     assert.deepEqual(child.killSignals, []);
   });
 
+  it("accepts taskkill code 128 when the Windows process is already absent", async () => {
+    const child = fakeChild(1234);
+    const helper = fakeChild(5678);
+    const fakeSpawn = (() => helper) as typeof spawn;
+
+    const resultPromise = terminateTask(child, "SIGKILL", {
+      platform: "win32",
+      spawnCommand: fakeSpawn,
+    });
+    helper.emit("close", 128, null);
+    const result = await resultPromise;
+
+    assert.deepEqual(result, {
+      attempted: true,
+      method: "taskkill",
+      error: undefined,
+    });
+  });
+
   it("bounds the Windows taskkill helper wait", async () => {
     const child = fakeChild(1234);
     const helper = fakeChild(5678);

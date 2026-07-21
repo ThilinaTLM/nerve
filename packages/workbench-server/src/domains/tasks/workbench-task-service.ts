@@ -80,6 +80,10 @@ export interface ManagedTask extends TaskLogCursor {
   child?: ChildProcess;
   stopping: boolean;
   finalized: boolean;
+  exitPromise?: Promise<{
+    exitCode: number | null;
+    signal: NodeJS.Signals | null;
+  }>;
   closePromise?: Promise<{
     exitCode: number | null;
     signal: NodeJS.Signals | null;

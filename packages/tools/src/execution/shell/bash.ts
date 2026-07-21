@@ -68,12 +68,13 @@ export async function executeBash(
       context.signal?.removeEventListener("abort", onAbort);
     };
     const kill = (signal: NodeJS.Signals = "SIGTERM") => {
+      if (process.platform === "win32") {
+        forceKillProcessTree(child);
+        return;
+      }
       try {
-        if (process.platform !== "win32" && child.pid) {
-          process.kill(-child.pid, signal);
-        } else {
-          child.kill(signal);
-        }
+        if (child.pid) process.kill(-child.pid, signal);
+        else child.kill(signal);
       } catch {
         child.kill(signal);
       }
