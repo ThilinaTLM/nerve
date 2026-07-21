@@ -120,120 +120,66 @@ $effect(() => {
 </script>
 
 <div class="flex flex-col gap-2 p-2">
-  <PanelSection
-    title="Active Context"
-    icon={Layers}
-    open={activeContextOpen}
-    onOpenChange={(open) =>
-      utilitySectionPreferences.setOpen("context.active", open)}
-  >
-    {#snippet actions()}
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        ariaLabel="Copy active context"
-        title="Copy active context"
-        onclick={() => void copyActiveContext()}
-      >
-        <Copy />
-      </Button>
-    {/snippet}
-
-    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-      {#each fields as field (field.label)}
-        <dt class="font-mono text-xs text-muted-foreground">{field.label}</dt>
-        <dd
-          class="truncate font-mono text-xs text-foreground"
-          title={field.value}
+  {#if !activeProject}
+    <p class="px-1 text-xs text-muted-foreground">
+      Select a project to view context.
+    </p>
+  {:else}
+    <PanelSection
+      title="Active Context"
+      icon={Layers}
+      open={activeContextOpen}
+      onOpenChange={(open) =>
+        utilitySectionPreferences.setOpen("context.active", open)}
+    >
+      {#snippet actions()}
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          ariaLabel="Copy active context"
+          title="Copy active context"
+          onclick={() => void copyActiveContext()}
         >
-          {field.value ?? "—"}
-        </dd>
-      {/each}
-    </dl>
-  </PanelSection>
+          <Copy />
+        </Button>
+      {/snippet}
 
-  <PanelSection
-    title="Agents"
-    icon={Bot}
-    open={agentsOpen}
-    onOpenChange={(open) =>
-      utilitySectionPreferences.setOpen("context.agents", open)}
-  >
-    <div class="-mx-3 -my-2.5 flex flex-col">
-      {#if conversationAgents.length === 0}
-        <p class="px-3 py-2.5 text-xs text-muted-foreground">
-          No agents in the active conversation.
-        </p>
-      {/if}
-
-      {#if mainAgents.length > 0}
-        <div class="px-3 pt-2.5 pb-1">
-          <h4
-            class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+      <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+        {#each fields as field (field.label)}
+          <dt class="font-mono text-xs text-muted-foreground">{field.label}</dt>
+          <dd
+            class="truncate font-mono text-xs text-foreground"
+            title={field.value}
           >
-            Main agent
-          </h4>
-        </div>
-        {#each sortAgents(mainAgents) as agent (agent.id)}
-          <button
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/60 {agent.id ===
-            activeAgent?.id
-              ? 'bg-muted/60'
-              : ''}"
-            type="button"
-            title={agent.id}
-            onclick={() => onSelectAgent?.(agent)}
-          >
-            <StatusDot
-              tone={agentActivityTone(agent.status, false, agent.mode)}
-              pulse={agentActivityPulse(agent.status)}
-            />
-            <div class="min-w-0 flex-1">
-              <div
-                class="flex items-center gap-1.5 truncate text-xs text-foreground"
-              >
-                <span>Main agent</span>
-                <span class="font-mono text-xs text-muted-foreground"
-                  >{shortAgentId(agent.id)}</span
-                >
-              </div>
-              <div class="truncate text-xs text-muted-foreground">
-                {agent.status} · {agent.mode} · {agent.permissionLevel}
-              </div>
-            </div>
-          </button>
+            {field.value ?? "—"}
+          </dd>
         {/each}
-      {/if}
+      </dl>
+    </PanelSection>
 
-      {#if subagents.length > 0}
-        <button
-          class="flex w-full items-center gap-1 px-3 pt-2.5 pb-1 text-left"
-          type="button"
-          onclick={() => (subagentsOpen = !subagentsOpen)}
-        >
-          {#if subagentsOpen}
-            <ChevronDown
-              size={13}
-              strokeWidth={2.2}
-              class="shrink-0 text-muted-foreground"
-            />
-          {:else}
-            <ChevronRight
-              size={13}
-              strokeWidth={2.2}
-              class="shrink-0 text-muted-foreground"
-            />
-          {/if}
-          <h4
-            class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-          >
-            Subagents
-          </h4>
-          <span class="text-xs text-muted-foreground">· {subagents.length}</span
-          >
-        </button>
-        {#if subagentsOpen}
-          {#each sortAgents(subagents) as agent (agent.id)}
+    <PanelSection
+      title="Agents"
+      icon={Bot}
+      open={agentsOpen}
+      onOpenChange={(open) =>
+        utilitySectionPreferences.setOpen("context.agents", open)}
+    >
+      <div class="-mx-3 -my-2.5 flex flex-col">
+        {#if conversationAgents.length === 0}
+          <p class="px-3 py-2.5 text-xs text-muted-foreground">
+            No agents in the active conversation.
+          </p>
+        {/if}
+
+        {#if mainAgents.length > 0}
+          <div class="px-3 pt-2.5 pb-1">
+            <h4
+              class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            >
+              Main agent
+            </h4>
+          </div>
+          {#each sortAgents(mainAgents) as agent (agent.id)}
             <button
               class="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/60 {agent.id ===
               activeAgent?.id
@@ -251,7 +197,7 @@ $effect(() => {
                 <div
                   class="flex items-center gap-1.5 truncate text-xs text-foreground"
                 >
-                  <span>Subagent</span>
+                  <span>Main agent</span>
                   <span class="font-mono text-xs text-muted-foreground"
                     >{shortAgentId(agent.id)}</span
                   >
@@ -263,67 +209,129 @@ $effect(() => {
             </button>
           {/each}
         {/if}
-      {/if}
-    </div>
-  </PanelSection>
 
-  <PanelSection
-    title="Export"
-    icon={Download}
-    open={exportOpen}
-    onOpenChange={(open) =>
-      utilitySectionPreferences.setOpen("context.export", open)}
-  >
-    {#if activeConversation}
-      <div class="flex flex-col gap-3">
-        <div class="flex flex-col gap-1.5">
-          <span
-            class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-            >Conversation</span
+        {#if subagents.length > 0}
+          <button
+            class="flex w-full items-center gap-1 px-3 pt-2.5 pb-1 text-left"
+            type="button"
+            onclick={() => (subagentsOpen = !subagentsOpen)}
           >
-          <div class="flex flex-wrap gap-1.5">
-            <Badge
-              href={exportUrl?.("json")}
-              download={`conversation-${activeConversation.id}.json`}
-              variant="outline"
-              size="sm">JSON</Badge
+            {#if subagentsOpen}
+              <ChevronDown
+                size={13}
+                strokeWidth={2.2}
+                class="shrink-0 text-muted-foreground"
+              />
+            {:else}
+              <ChevronRight
+                size={13}
+                strokeWidth={2.2}
+                class="shrink-0 text-muted-foreground"
+              />
+            {/if}
+            <h4
+              class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
             >
-            <Badge
-              href={exportUrl?.("md")}
-              download={`conversation-${activeConversation.id}.md`}
-              variant="outline"
-              size="sm">Markdown</Badge
+              Subagents
+            </h4>
+            <span class="text-xs text-muted-foreground"
+              >· {subagents.length}</span
             >
-            <Badge
-              href={exportUrl?.("html")}
-              download={`conversation-${activeConversation.id}.html`}
-              variant="outline"
-              size="sm">HTML</Badge
+          </button>
+          {#if subagentsOpen}
+            {#each sortAgents(subagents) as agent (agent.id)}
+              <button
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/60 {agent.id ===
+                activeAgent?.id
+                  ? 'bg-muted/60'
+                  : ''}"
+                type="button"
+                title={agent.id}
+                onclick={() => onSelectAgent?.(agent)}
+              >
+                <StatusDot
+                  tone={agentActivityTone(agent.status, false, agent.mode)}
+                  pulse={agentActivityPulse(agent.status)}
+                />
+                <div class="min-w-0 flex-1">
+                  <div
+                    class="flex items-center gap-1.5 truncate text-xs text-foreground"
+                  >
+                    <span>Subagent</span>
+                    <span class="font-mono text-xs text-muted-foreground"
+                      >{shortAgentId(agent.id)}</span
+                    >
+                  </div>
+                  <div class="truncate text-xs text-muted-foreground">
+                    {agent.status} · {agent.mode} · {agent.permissionLevel}
+                  </div>
+                </div>
+              </button>
+            {/each}
+          {/if}
+        {/if}
+      </div>
+    </PanelSection>
+
+    <PanelSection
+      title="Export"
+      icon={Download}
+      open={exportOpen}
+      onOpenChange={(open) =>
+        utilitySectionPreferences.setOpen("context.export", open)}
+    >
+      {#if activeConversation}
+        <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-1.5">
+            <span
+              class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >Conversation</span
             >
+            <div class="flex flex-wrap gap-1.5">
+              <Badge
+                href={exportUrl?.("json")}
+                download={`conversation-${activeConversation.id}.json`}
+                variant="outline"
+                size="sm">JSON</Badge
+              >
+              <Badge
+                href={exportUrl?.("md")}
+                download={`conversation-${activeConversation.id}.md`}
+                variant="outline"
+                size="sm">Markdown</Badge
+              >
+              <Badge
+                href={exportUrl?.("html")}
+                download={`conversation-${activeConversation.id}.html`}
+                variant="outline"
+                size="sm">HTML</Badge
+              >
+            </div>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <span
+              class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >System prompt</span
+            >
+            {#if systemPromptHref}
+              <a
+                class="inline-flex w-fit items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/60"
+                href={systemPromptHref}
+                download
+              >
+                <ScrollText size={13} strokeWidth={2.2} />Export system prompt
+              </a>
+            {:else}
+              <span class="text-xs text-muted-foreground">No active agent.</span
+              >
+            {/if}
           </div>
         </div>
-        <div class="flex flex-col gap-1.5">
-          <span
-            class="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-            >System prompt</span
-          >
-          {#if systemPromptHref}
-            <a
-              class="inline-flex w-fit items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/60"
-              href={systemPromptHref}
-              download
-            >
-              <ScrollText size={13} strokeWidth={2.2} />Export system prompt
-            </a>
-          {:else}
-            <span class="text-xs text-muted-foreground">No active agent.</span>
-          {/if}
-        </div>
-      </div>
-    {:else}
-      <p class="text-xs text-muted-foreground">
-        No active conversation to export.
-      </p>
-    {/if}
-  </PanelSection>
+      {:else}
+        <p class="text-xs text-muted-foreground">
+          No active conversation to export.
+        </p>
+      {/if}
+    </PanelSection>
+  {/if}
 </div>
