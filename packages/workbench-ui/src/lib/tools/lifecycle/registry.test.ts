@@ -12,7 +12,7 @@ import {
 const cases: Array<[ToolName, Record<string, unknown>, string]> = [
   ["read", { path: "src/app.ts" }, "src/app.ts"],
   ["bash", { command: "pnpm test" }, "pnpm test"],
-  ["python", { path: "scripts/report.py" }, "scripts/report.py"],
+  ["python_exec", { path: "scripts/report.py" }, "scripts/report.py"],
   ["edit", { path: "src/app.ts", patch: "-old\n+new" }, "src/app.ts"],
   ["write", { path: "src/new.ts", content: "hello" }, "src/new.ts"],
   ["grep", { pattern: "TODO" }, "TODO"],
@@ -138,7 +138,7 @@ describe("tool lifecycle registry", () => {
   });
 
   it("encodes persistent, until-result, and header-only argument regions", () => {
-    for (const name of ["bash", "python"] as const) {
+    for (const name of ["bash", "python_exec"] as const) {
       assert.equal(toolLifecycleRegistry[name].argumentRegion, "persistent");
       assert.deepEqual(toolLifecycleRegistry[name].resultPlaceholder, {
         variant: "text",
@@ -258,7 +258,7 @@ describe("tool lifecycle registry", () => {
       "failed",
     );
     const python = presentToolArguments(
-      "python",
+      "python_exec",
       { args: { code: "print('start')\nraise RuntimeError('boom')" } },
       "failed",
     );

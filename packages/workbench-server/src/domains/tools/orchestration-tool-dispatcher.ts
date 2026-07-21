@@ -6,6 +6,7 @@ import {
   type HostToolFactory,
   createInteractionHandlers,
   createPlanHandlers,
+  resolveCommandCwd,
   createTaskHandlers,
   createTodoHandlers,
   type ToolExecutionContext,
@@ -245,15 +246,16 @@ export class OrchestrationToolDispatcher {
     options: ToolRequestOptions,
     executionContext: ToolExecutionContext,
   ): Promise<unknown> {
-    delete args.cwd;
     if (toolCall.toolName === "bash") {
+      const cwd = await resolveCommandCwd(toolCall.cwd, args.cwd);
+      delete args.cwd;
       if (options.useForegroundBash !== false) {
         const agent = this.deps.getAgent(toolCall.agentId);
         const autoPromotion =
           this.deps.storage.settings.tools.bash.autoPromotion;
         const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
           command: stringArg(args, "command"),
-          cwd: toolCall.cwd,
+          cwd,
           workerId: agent.workerId,
           projectId: toolCall.projectId,
           conversationId: toolCall.conversationId,
@@ -281,9 +283,11 @@ export class OrchestrationToolDispatcher {
       if (definition?.executionKind !== "local") {
         throw new Error("Bash tool executor is unavailable.");
       }
-      return definition.executor(args, executionContext);
+      return definition.executor(args, { ...executionContext, cwd });
     }
-    if (toolCall.toolName === "python") {
+    if (toolCall.toolName === "python_exec") {
+      const cwd = await resolveCommandCwd(toolCall.cwd, args.cwd);
+      delete args.cwd;
       const agent = this.deps.getAgent(toolCall.agentId);
       const runtime = await this.deps.pythonRuntime.runtimeForProject(
         agent.projectDir,
@@ -294,11 +298,11 @@ export class OrchestrationToolDispatcher {
         allowNetwork: true,
         allowFileWrite: agent.mode !== "planning",
       };
-      const definition = toolDefinitionByName("python");
+      const definition = toolDefinitionByName("python_exec");
       if (definition?.executionKind !== "local") {
         throw new Error("Python tool executor is unavailable.");
       }
-      return definition.executor(args, executionContext);
+      return definition.executor(args, { ...executionContext, cwd });
     }
     throw new Error(`No local override for '${toolCall.toolName}'.`);
   }

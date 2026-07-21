@@ -186,7 +186,7 @@ describe("settings schema", () => {
       },
       skills: { disabled: ["diagram", "imagegen"] },
       tools: {
-        disabled: ["web_search", "web_fetch", "python"],
+        disabled: ["web_search", "web_fetch", "python_exec"],
         bash: {
           autoPromotion: { enabled: false, afterMs: 240_000 },
         },
@@ -217,13 +217,19 @@ describe("settings schema", () => {
     assert.deepEqual(parsed.tools?.disabled, [
       "web_search",
       "web_fetch",
-      "python",
+      "python_exec",
     ]);
     assert.deepEqual(parsed.skills?.disabled, ["diagram", "imagegen"]);
     assert.deepEqual(parsed.tools?.bash?.autoPromotion, {
       enabled: false,
       afterMs: 240_000,
     });
+    assert.equal(
+      updateSettingsRequestSchema.safeParse({
+        tools: { disabled: ["python"] },
+      }).success,
+      false,
+    );
     assert.equal(parsed.tools?.jira?.enabled, true);
     assert.equal(parsed.tools?.jira?.siteUrl, "https://example.atlassian.net");
     assert.equal(parsed.tools?.jira?.email, "user@example.com");

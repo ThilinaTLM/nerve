@@ -26,7 +26,7 @@ describe("read-only tool availability and permissions", () => {
     }
     const expectedExcluded = [
       "bash",
-      "python",
+      "python_exec",
       "edit",
       "write",
       "web_search",

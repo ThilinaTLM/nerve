@@ -106,6 +106,22 @@ describe("python executor", () => {
     assert.equal(details.streams?.stdout?.truncated, false);
   });
 
+  it("runs inline code in an optional relative working directory", async (t) => {
+    const runtime = await runtimeOrSkip(t);
+    if (!runtime) return;
+    const project = await createTempProject();
+    await project.write("packages/app/marker.txt", "ok");
+    const result = await executePython(
+      {
+        code: "from pathlib import Path; print(Path.cwd(), end='')",
+        cwd: "packages/app",
+      },
+      { cwd: project.root, pythonRuntime: runtime },
+    );
+
+    assert.equal(result.stdout, join(project.root, "packages", "app"));
+  });
+
   it("executes a Python script file by path", async (t) => {
     const runtime = await runtimeOrSkip(t);
     if (!runtime) return;
@@ -150,7 +166,7 @@ describe("python executor", () => {
         { path: "missing.py" },
         { cwd: project.root, pythonRuntime: runtime },
       ),
-      /python path not found/,
+      /python_exec path not found/,
     );
     await assert.rejects(
       executePython(

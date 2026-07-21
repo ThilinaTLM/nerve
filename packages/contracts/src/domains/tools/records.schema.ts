@@ -56,7 +56,7 @@ export type ToolTrait = z.infer<typeof toolTraitSchema>;
 export const coreToolNameSchema = z.enum([
   "read",
   "bash",
-  "python",
+  "python_exec",
   "edit",
   "write",
   "grep",
@@ -89,7 +89,7 @@ export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 export const userConfigurableToolNameSchema = z.enum([
   "web_search",
   "web_fetch",
-  "python",
+  "python_exec",
 ]);
 export type UserConfigurableToolName = z.infer<
   typeof userConfigurableToolNameSchema

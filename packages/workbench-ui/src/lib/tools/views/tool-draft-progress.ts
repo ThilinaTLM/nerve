@@ -687,7 +687,7 @@ function summarizePythonDraft(
   if (hasPath && !hasCode) meta.push({ text: "file", tone: "info" });
   return {
     kind: "python",
-    toolName: "python",
+    toolName: "python_exec",
     path: inputMode === "file" ? path : undefined,
     statusText:
       inputMode === "file"
@@ -764,7 +764,7 @@ export function summarizeToolDraft(
   if (draft.toolName === "bash") {
     return withLifecyclePresentation(summarizeBashDraft(draft), draft, cwd);
   }
-  if (draft.toolName === "python") {
+  if (draft.toolName === "python_exec") {
     return withLifecyclePresentation(
       summarizePythonDraft(draft, cwd),
       draft,

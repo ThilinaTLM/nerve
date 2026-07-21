@@ -37,6 +37,36 @@ export interface InitializedStorage {
   localToken: string;
 }
 
+function migrateLegacyToolNames(value: unknown): {
+  value: unknown;
+  changed: boolean;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { value, changed: false };
+  }
+  const settings = value as Record<string, unknown>;
+  const tools = settings.tools;
+  if (!tools || typeof tools !== "object" || Array.isArray(tools)) {
+    return { value, changed: false };
+  }
+  const disabled = (tools as Record<string, unknown>).disabled;
+  if (!Array.isArray(disabled) || !disabled.includes("python")) {
+    return { value, changed: false };
+  }
+  const migrated = [
+    ...new Set(
+      disabled.map((name) => (name === "python" ? "python_exec" : name)),
+    ),
+  ];
+  return {
+    value: {
+      ...settings,
+      tools: { ...tools, disabled: migrated },
+    },
+    changed: true,
+  };
+}
+
 export async function initializeStorage(
   home = resolveDataDir(),
 ): Promise<InitializedStorage> {
@@ -56,10 +86,14 @@ export async function initializeStorage(
   }
 
   const rawSettings = await readJsonFile<unknown>(paths.configPath);
+  const normalizedSettings = migrateLegacyToolNames(rawSettings);
   const settings = settingsSchema.parse({
     ...defaultSettings,
-    ...(rawSettings as object),
+    ...(normalizedSettings.value as object),
   });
+  if (normalizedSettings.changed) {
+    await atomicWriteJson(paths.configPath, settings, 0o600);
+  }
 
   await writeTextFileIfMissing(paths.sqlitePath, "", 0o600);
 

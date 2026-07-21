@@ -342,8 +342,8 @@ export const coreToolLifecycleSpecs = {
     emptyResult: "No output",
     present: bashPresentation,
   }),
-  python: defineToolLifecycleSpec({
-    name: "python",
+  python_exec: defineToolLifecycleSpec({
+    name: "python_exec",
     argumentRegion: "persistent",
     completedView: "python",
     resultPlaceholder: { variant: "text", rows: 2 },
@@ -568,7 +568,7 @@ export const coreToolLifecycleSpecs = {
     CoreToolName,
     | "read"
     | "bash"
-    | "python"
+    | "python_exec"
     | "edit"
     | "write"
     | "grep"

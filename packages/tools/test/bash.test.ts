@@ -72,6 +72,20 @@ describe("bash executor", () => {
     assert.equal(result.exitCode, 0);
   });
 
+  it("runs in an optional relative working directory", async () => {
+    const project = await createTempProject();
+    await project.write("packages/app/marker.txt", "ok");
+    const result = await executeBash(
+      {
+        command: `${node} -e "process.stdout.write(process.cwd())"`,
+        cwd: "packages/app",
+      },
+      { cwd: project.root },
+    );
+
+    assert.equal(result.stdout, join(project.root, "packages", "app"));
+  });
+
   it("returns stdout, stderr, and exitCode for successful commands", async () => {
     const project = await createTempProject();
     const result = await executeBash(

@@ -275,11 +275,11 @@ describe("tool policy", () => {
     );
   });
 
-  it("handles python as a command tool with planning-mode guardrails", () => {
+  it("handles python_exec as a command tool with planning-mode guardrails", () => {
     assert.equal(
       evaluateToolPolicy(
         agent("autonomous"),
-        "python",
+        "python_exec",
         { code: "print('ok')" },
         { dataDir: "/tmp/nerve" },
       ).decision,
@@ -288,7 +288,7 @@ describe("tool policy", () => {
     assert.equal(
       evaluateToolPolicy(
         agent("supervised"),
-        "python",
+        "python_exec",
         { code: "print('ok')" },
         { dataDir: "/tmp/nerve" },
       ).decision,
@@ -297,7 +297,7 @@ describe("tool policy", () => {
     assert.equal(
       evaluateToolPolicy(
         agent("read_only"),
-        "python",
+        "python_exec",
         { code: "print('ok')" },
         { dataDir: "/tmp/nerve" },
       ).decision,
@@ -305,7 +305,7 @@ describe("tool policy", () => {
     );
     const planning = evaluateToolPolicy(
       agent("autonomous", "planning"),
-      "python",
+      "python_exec",
       { code: "print('ok')" },
       { dataDir: "/tmp/nerve" },
     );
@@ -314,7 +314,7 @@ describe("tool policy", () => {
     assert.equal(
       evaluateToolPolicy(
         agent("supervised", "planning"),
-        "python",
+        "python_exec",
         { code: "print('ok')" },
         { dataDir: "/tmp/nerve" },
       ).decision,

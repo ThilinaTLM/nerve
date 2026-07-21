@@ -18,7 +18,7 @@ describe("tool draft argument streaming policy", () => {
   it("streams representative small operational tool arguments", () => {
     for (const toolName of [
       "bash",
-      "python",
+      "python_exec",
       "read",
       "grep",
       "task_logs",
@@ -31,7 +31,7 @@ describe("tool draft argument streaming policy", () => {
   it("publishes sanitized progress for write/edit drafts only", () => {
     assert.equal(shouldPublishToolDraftProgress("write"), true);
     assert.equal(shouldPublishToolDraftProgress("edit"), true);
-    assert.equal(shouldPublishToolDraftProgress("python"), false);
+    assert.equal(shouldPublishToolDraftProgress("python_exec"), false);
     assert.equal(shouldPublishToolDraftProgress("bash"), false);
     assert.equal(shouldPublishToolDraftProgress(undefined), false);
   });

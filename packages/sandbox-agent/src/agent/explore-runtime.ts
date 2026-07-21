@@ -159,7 +159,7 @@ export class ExploreRuntime {
           this.options.config.agent.defaultModel,
         toolRuntime: this.options.readOnlyToolRuntime,
         systemPromptAmendment:
-          "Explore subagent mode: perform a read-only investigation only. Do not modify files, start long-running tasks, ask the user, or use write/shell/python/task/edit tools. Return a concise answer with relevant file paths.",
+          "Explore subagent mode: perform a read-only investigation only. Do not modify files, start long-running tasks, ask the user, or use write/shell/python_exec/task/edit tools. Return a concise answer with relevant file paths.",
         followUpMode: "one-at-a-time",
         steeringMode: "one-at-a-time",
       });

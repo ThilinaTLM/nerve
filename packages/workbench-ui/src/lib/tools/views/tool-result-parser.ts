@@ -296,7 +296,8 @@ export function parseToolView(
       };
     }
 
-    case "python": {
+    case "python":
+    case "python_exec": {
       const code = stringField(args.code);
       const scriptInputPath = stringField(args.path);
       const details = pythonResultDetailsSchema.safeParse(result?.details);

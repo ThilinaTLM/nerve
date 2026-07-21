@@ -40,7 +40,7 @@ describe("executeTool dispatch", () => {
     }
   });
 
-  it("dispatches python when a runtime is provided", async (t) => {
+  it("dispatches python_exec when a runtime is provided", async (t) => {
     const project = await createTempProject();
     const status = await resolvePythonRuntime({ cwd: project.root });
     if (!status.available) {
@@ -55,7 +55,7 @@ describe("executeTool dispatch", () => {
       source: status.source,
     };
     const result = await executeTool(
-      "python",
+      "python_exec",
       { code: "print('ok', end='')" },
       {
         cwd: project.root,
@@ -66,7 +66,7 @@ describe("executeTool dispatch", () => {
 
     await project.write("script.py", "print('file', end='')");
     const fileResult = await executeTool(
-      "python",
+      "python_exec",
       { path: "script.py" },
       { cwd: project.root, pythonRuntime },
     );

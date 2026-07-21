@@ -46,7 +46,7 @@ const tavilyProviderId = "tavily";
 const configurableToolOrder: ConfigurableToolName[] = [
   "web_search",
   "web_fetch",
-  "python",
+  "python_exec",
 ];
 
 const fileInspectionTools: ToolSummary[] = [
@@ -137,7 +137,7 @@ const shellTools: ToolSummary[] = [
 ];
 const pythonTools: ToolSummary[] = [
   {
-    name: "python",
+    name: "python_exec",
     description: "Run short Python scripts or files for data work.",
   },
 ];
@@ -162,7 +162,7 @@ const disabledTools = $derived(new Set(settingsDraft.tools?.disabled ?? []));
 const webEnabled = $derived(
   !disabledTools.has("web_search") && !disabledTools.has("web_fetch"),
 );
-const pythonEnabled = $derived(!disabledTools.has("python"));
+const pythonEnabled = $derived(!disabledTools.has("python_exec"));
 const python = $derived(status?.runtime.python);
 const manualPath = $derived(settingsDraft.runtime?.pythonExecutablePath ?? "");
 const sourceLabel = $derived(
@@ -305,7 +305,7 @@ async function removeTavilyKey() {
   <ToggleSwitch
     checked={pythonEnabled}
     aria-label="Enable Python tool"
-    onCheckedChange={(checked) => setToolsEnabled(["python"], checked)}
+    onCheckedChange={(checked) => setToolsEnabled(["python_exec"], checked)}
   />
 {/snippet}
 

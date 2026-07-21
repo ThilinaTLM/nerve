@@ -10,6 +10,12 @@ import type { CoreToolDefinition } from "../types.js";
 const bashParameters = Type.Object(
   {
     command: Type.String({ description: "Bash-compatible command to execute" }),
+    cwd: Type.Optional(
+      Type.String({
+        description:
+          "Working directory relative to the agent's current directory, or absolute. Defaults to the current directory.",
+      }),
+    ),
     timeout: Type.Optional(
       Type.Number({
         description: "Timeout in seconds, capped by the executor",

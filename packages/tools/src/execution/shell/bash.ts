@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
+import { resolveCommandCwd } from "../common/command-cwd.js";
 import { boundLiveOutputChunk } from "../common/output-budget.js";
 import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
@@ -27,6 +28,7 @@ export async function executeBash(
     throw new Error("Tool argument 'command' must be a non-empty string.");
   }
 
+  const cwd = await resolveCommandCwd(context.cwd, args.cwd);
   const timeoutSeconds =
     typeof args.timeout === "number"
       ? Math.max(0, numberArg(args.timeout, 0))
@@ -49,7 +51,7 @@ export async function executeBash(
       shellConfig.shell,
       [...shellConfig.args, args.command as string],
       {
-        cwd: context.cwd,
+        cwd,
         detached: process.platform !== "win32",
         env: nonInteractiveShellEnv(),
         stdio: ["ignore", "pipe", "pipe"],

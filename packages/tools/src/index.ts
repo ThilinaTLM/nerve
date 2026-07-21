@@ -31,6 +31,7 @@ export {
   type PythonRuntimeStatus,
   type ResolveBashShellConfigOptions,
   resolveBashShellConfig,
+  resolveCommandCwd,
   resolvePythonRuntime,
   resolveToolPath,
   type ShellConfig,

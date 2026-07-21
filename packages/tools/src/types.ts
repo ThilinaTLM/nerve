@@ -59,6 +59,7 @@ export type EditToolArgs = ToolPathArgs & {
 
 export type BashToolArgs = {
   command?: unknown;
+  cwd?: unknown;
   timeout?: unknown;
 };
 

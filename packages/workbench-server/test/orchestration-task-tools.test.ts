@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -310,6 +310,41 @@ describe("orchestration task tools", () => {
     assert.equal(captured?.conversationId, "conv_test");
     assert.equal(captured?.agentId, "agent_test");
     assert.equal(captured?.workerId, "worker_test");
+  });
+
+  it("resolves and validates a per-call Bash cwd before foreground execution", async () => {
+    const base = await mkdtemp(join(tmpdir(), "nerve-bash-cwd-"));
+    roots.push(base);
+    const nested = join(base, "packages", "app");
+    await mkdir(nested, { recursive: true });
+    let captured: Record<string, unknown> | undefined;
+    const dispatcher = await createDispatcher([], {
+      runForegroundBashWithPromotion: async (input) => {
+        captured = input as Record<string, unknown>;
+        return {
+          kind: "completed_foreground",
+          result: { content: "ok", contentBlocks: [] },
+        };
+      },
+    });
+    const call = { ...toolCall("bash"), cwd: base };
+
+    await dispatcher.execute(call, { command: "pwd", cwd: "packages/app" });
+    assert.equal(captured?.cwd, nested);
+
+    await dispatcher.execute(call, { command: "pwd", cwd: nested });
+    assert.equal(captured?.cwd, nested);
+
+    await assert.rejects(
+      dispatcher.execute(call, { command: "pwd", cwd: "missing" }),
+      /Tool argument 'cwd' does not exist/,
+    );
+    const file = join(base, "not-a-directory");
+    await writeFile(file, "content", "utf8");
+    await assert.rejects(
+      dispatcher.execute(call, { command: "pwd", cwd: file }),
+      /Tool argument 'cwd' is not a directory/,
+    );
   });
 
   it("executes Bash locally when foreground task promotion is disabled", async () => {

@@ -137,7 +137,7 @@ export async function executeWorkbenchHarness(
     const composeLatestSystemPrompt = () => {
       const currentAgent = latestAgent();
       const currentActiveToolNames = activeToolNamesForAgent(currentAgent, {
-        pythonAvailable: activeToolNames.includes("python"),
+        pythonAvailable: activeToolNames.includes("python_exec"),
         disabledToolNames: this.deps.storage.settings.tools.disabled,
         jiraEnabled: this.deps.storage.settings.tools.jira.enabled,
         confluenceEnabled: this.deps.storage.settings.tools.confluence.enabled,

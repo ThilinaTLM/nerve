@@ -620,7 +620,8 @@ export function toToolCallTranscriptRecord(
       break;
     }
 
-    case "python": {
+    case "python":
+    case "python_exec": {
       const code = firstLines(stringField(argsRecord.code));
       argsPreview =
         code.value === undefined

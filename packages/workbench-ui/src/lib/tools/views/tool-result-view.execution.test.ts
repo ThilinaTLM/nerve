@@ -46,7 +46,7 @@ describe("parseToolView bash/python execution", () => {
 
     const pythonView = parseToolView(
       toolCall(
-        "python",
+        "python_exec",
         { code: "print('first')\nprint('second')" },
         { content: "first\nsecond\n", exitCode: 0 },
       ),
@@ -107,7 +107,7 @@ describe("parseToolView bash/python execution", () => {
   it("parses python exit code, output, policy details, and saved-output path", () => {
     const view = parseToolView(
       toolCall(
-        "python",
+        "python_exec",
         { code: "print('hello')\nprint('done')" },
         {
           content: "hello\ndone",
@@ -171,7 +171,7 @@ describe("parseToolView bash/python execution", () => {
   it("parses python script path arguments and file-mode result details", () => {
     const view = parseToolView(
       toolCall(
-        "python",
+        "python_exec",
         { path: "scripts/report.py" },
         {
           content: "ok",
@@ -194,7 +194,7 @@ describe("parseToolView bash/python execution", () => {
     assert.equal(view.output, "ok");
   });
 
-  it("parses serialized python arguments and text content blocks", () => {
+  it("parses historical python arguments and text content blocks", () => {
     const view = parseToolView(
       toolCall("python", JSON.stringify({ code: "print('from block')" }), {
         contentBlocks: [
@@ -213,7 +213,7 @@ describe("parseToolView bash/python execution", () => {
   it("falls back to python stdout and stderr when content is absent", () => {
     const view = parseToolView(
       toolCall(
-        "python",
+        "python_exec",
         { code: "import sys\nprint('out')\nprint('err', file=sys.stderr)" },
         { stdout: "out\n", stderr: "err\n", exitCode: 0 },
       ),

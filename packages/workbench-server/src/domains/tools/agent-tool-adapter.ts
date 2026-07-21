@@ -93,7 +93,7 @@ export function activeToolNamesForAgent(
   } = {},
 ): ToolName[] {
   const unavailable: ToolName[] = [];
-  if (options.pythonAvailable !== true) unavailable.push("python");
+  if (options.pythonAvailable !== true) unavailable.push("python_exec");
   if (options.jiraEnabled !== true) {
     unavailable.push(
       ...toolDefinitionsByGroup("jira").map((tool) => tool.name),

@@ -286,7 +286,7 @@ function evaluatePlanningModePolicy(
     };
   }
 
-  if (toolName === "python") {
+  if (toolName === "python_exec") {
     if (agent.permissionLevel === "read_only") {
       return {
         decision: "deny",

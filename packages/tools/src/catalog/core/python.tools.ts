@@ -16,7 +16,7 @@ const pythonParameters = Type.Object(
     cwd: Type.Optional(
       Type.String({
         description:
-          "Working directory relative to the project directory. Defaults to the project directory.",
+          "Working directory relative to the agent's current directory, or absolute. Defaults to the current directory.",
       }),
     ),
     timeout: Type.Optional(
@@ -36,21 +36,21 @@ const pythonParameters = Type.Object(
 
 export const pythonToolDefinitions = [
   {
-    name: "python",
+    name: "python_exec",
     group: "python",
     baseRisk: "command",
     traits: ["write_capable"],
     executionKind: "local",
     executor: executePython,
-    label: "python",
+    label: "python_exec",
     description:
-      "Run inline Python or a script. Returns bounded output plus artifact/transcript paths when needed.",
+      "Execute inline Python or a script. Returns bounded output plus artifact/transcript paths when needed.",
     promptSnippet:
       "Execute short Python snippets or scripts for parsing, calculations, data inspection, and one-off transformations.",
     promptGuidelines: [
-      "Use python for short scripts/data work; provide exactly one of code or path.",
+      "Use python_exec for short scripts/data work; provide exactly one of code or path.",
       'Write large outputs under os.environ["NERVE_PYTHON_ARTIFACT_DIR"]; never pass secrets via env.',
-      "Do not use python for servers, watchers, daemons, or scripts that wait for stdin.",
+      "Do not use python_exec for servers, watchers, daemons, or scripts that wait for stdin.",
     ],
     parameters: pythonParameters,
     executionMode: "sequential",

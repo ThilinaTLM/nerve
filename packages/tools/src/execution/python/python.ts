@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
+import { resolveCommandCwd } from "../common/command-cwd.js";
 import { boundLiveOutputChunk } from "../common/output-budget.js";
 import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
@@ -38,9 +39,9 @@ allow_filewrite = bool(policy.get("allowFileWrite", True))
 artifact_dir_value = policy.get("artifactDir")
 artifact_dir = os.path.abspath(artifact_dir_value) if isinstance(artifact_dir_value, str) and artifact_dir_value else None
 
-STDIN_ERROR = "stdin is not available to the python tool."
-FILEWRITE_ERROR = "file writes are disabled for the python tool in planning mode. Write generated artifacts under NERVE_PYTHON_ARTIFACT_DIR instead."
-NETWORK_ERROR = "network access is disabled for the python tool."
+STDIN_ERROR = "stdin is not available to the python_exec tool."
+FILEWRITE_ERROR = "file writes are disabled for the python_exec tool in planning mode. Write generated artifacts under NERVE_PYTHON_ARTIFACT_DIR instead."
+NETWORK_ERROR = "network access is disabled for the python_exec tool."
 
 class _NoStdin:
     encoding = "utf-8"
@@ -261,7 +262,8 @@ export async function executePython(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
-  const source = await pythonSourceArg(args, context.cwd);
+  const cwd = await resolveCommandCwd(context.cwd, args.cwd);
+  const source = await pythonSourceArg(args, cwd);
   const runtime = context.pythonRuntime;
   if (!runtime) throw new Error("Python runtime is not available.");
 
@@ -292,7 +294,7 @@ export async function executePython(
       runtime,
       policy,
       timeoutSeconds,
-      cwd: context.cwd,
+      cwd,
       runnerPath,
       userPath,
       artifactDir,
@@ -530,7 +532,7 @@ async function pythonSourceArg(
   const path = resolveToolPath(cwd, args.path);
   const info = await stat(path).catch((error: unknown) => {
     throw new Error(
-      pathNotFoundMessage("python", args.path, path),
+      pathNotFoundMessage("python_exec", args.path, path),
       error instanceof Error ? { cause: error } : undefined,
     );
   });
@@ -571,7 +573,7 @@ function envOverridesArg(value: unknown): Record<string, string> {
     }
     if (SENSITIVE_ENV_KEY_PATTERN.test(key)) {
       throw new Error(
-        `Tool argument 'env' contains sensitive-looking key '${key}'. The python tool only accepts non-secret env overrides.`,
+        `Tool argument 'env' contains sensitive-looking key '${key}'. The python_exec tool only accepts non-secret env overrides.`,
       );
     }
     output[key] = raw;

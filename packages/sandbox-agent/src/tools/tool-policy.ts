@@ -66,7 +66,7 @@ export async function enforceToolPolicy(
       await assertToolPathAllowed(checked, runtime.planDir);
     }
   }
-  if (tool === "python") {
+  if (tool === "python_exec") {
     const cwd = typeof args.cwd === "string" ? args.cwd : workspaceDir;
     await assertToolPathAllowed(
       path.isAbsolute(cwd) ? cwd : path.join(workspaceDir, cwd),
