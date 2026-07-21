@@ -34,6 +34,7 @@ export type GithubServiceContext = {
   runGh(repoDir: string, args: string[]): Promise<ExecResult>;
   runGit(repoDir: string, args: string[]): Promise<ExecResult>;
   ensureGithubRemote(repoDir: string): Promise<void>;
+  invalidateStableMetadata(repoDir: string): void;
   mapGh<T>(fn: () => Promise<T>): Promise<T>;
   summarizeRepo(
     repoDir: string,
@@ -292,6 +293,7 @@ export async function checkoutPr(
   await context.mapGh(() =>
     context.runGh(repoDir, ["pr", "checkout", String(number)]),
   );
+  context.invalidateStableMetadata(repoDir);
   return {
     repo: await context.summarizeRepo(
       repoDir,

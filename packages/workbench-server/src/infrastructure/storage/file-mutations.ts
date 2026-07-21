@@ -8,9 +8,15 @@ const INITIAL_RENAME_DELAY_MS = 10;
 let temporaryFileCounter = 0;
 const fileMutationQueues = new Map<string, Promise<void>>();
 
+export interface RenameRetryObservation {
+  readonly attempt: number;
+  readonly delayMs: number;
+}
+
 export interface RenameDependencies {
   readonly rename?: (source: string, target: string) => Promise<void>;
   readonly delay?: (milliseconds: number) => Promise<void>;
+  readonly onRenameRetry?: (observation: RenameRetryObservation) => void;
 }
 
 export interface AtomicReplaceOptions extends RenameDependencies {
@@ -102,7 +108,13 @@ export async function retryRename(
       if (!isRetriableRenameError(error) || attempt === RENAME_ATTEMPTS - 1) {
         throw error;
       }
-      await wait(INITIAL_RENAME_DELAY_MS * 2 ** attempt);
+      const delayMs = INITIAL_RENAME_DELAY_MS * 2 ** attempt;
+      try {
+        dependencies.onRenameRetry?.({ attempt: attempt + 1, delayMs });
+      } catch {
+        // Diagnostics must never affect file replacement.
+      }
+      await wait(delayMs);
     }
   }
   throw lastError;

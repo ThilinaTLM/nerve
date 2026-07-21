@@ -45,6 +45,7 @@ export * from "./git/git-command.js";
 export * from "./git/git-errors.js";
 export * from "./git/git-github-parsers.js";
 export * from "./git/git-github-service.js";
+export * from "./git/git-observability.js";
 export * from "./git/git-service.js";
 export * from "./git/git-status.js";
 export * from "./runtime/index.js";

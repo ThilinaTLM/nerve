@@ -15,6 +15,7 @@ import {
   gitProjectStateKey,
   gitRepoStateKey,
 } from "$lib/core/state/state-keys";
+import { GIT_OVERVIEW_AUTO_REFRESH_MS } from "./git-context-helpers";
 import {
   autoRefreshGitOverview,
   bulkStageGitFiles,
@@ -36,7 +37,6 @@ import {
   syncGitRepo,
 } from "./git-panel.svelte";
 
-const GIT_OVERVIEW_AUTO_REFRESH_MS = 5_000;
 const GITHUB_CHECKS_POLL_MS = 10_000;
 const unsupported = disabledCapability(
   "Select a project to use Git operations.",
@@ -240,11 +240,19 @@ export function createWorkbenchGitPanelAdapter(
       !model.selectedRepository
     )
       return;
-    const interval = window.setInterval(
-      () => autoRefreshGitOverview(project.id, model.selectedRepository),
-      GIT_OVERVIEW_AUTO_REFRESH_MS,
-    );
-    return () => window.clearInterval(interval);
+    const refresh = () =>
+      autoRefreshGitOverview(project.id, model.selectedRepository);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const interval = window.setInterval(refresh, GIT_OVERVIEW_AUTO_REFRESH_MS);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   });
 
   $effect(() => {

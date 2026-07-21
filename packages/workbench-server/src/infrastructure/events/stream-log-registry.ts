@@ -11,7 +11,7 @@ import {
   validatePublicEvent,
 } from "@nervekit/contracts";
 import type { RenameDependencies } from "../storage/index.js";
-import { StreamLog } from "./stream-log.js";
+import { StreamLog, type StreamFlushObservation } from "./stream-log.js";
 
 export type PublishedEvent<T = unknown> = EventEnvelope<T> | NotifyEvent<T>;
 
@@ -21,6 +21,7 @@ export interface StreamLogRegistryOptions {
   readonly flushDelayMs?: number;
   readonly flushEventThreshold?: number;
   readonly onFsync?: () => void;
+  readonly onFlushCompleted?: (observation: StreamFlushObservation) => void;
   readonly renameDependencies?: RenameDependencies;
 }
 
@@ -32,7 +33,8 @@ export class StreamLogRegistry {
   >();
   readonly #eventListeners = new Set<(event: EventEnvelope) => void>();
   readonly #notifyListeners = new Set<(event: NotifyEvent) => void>();
-  #publishTail: Promise<unknown> = Promise.resolve();
+  readonly #streamTails = new Map<string, Promise<unknown>>();
+  readonly #intentTails = new Map<string, Promise<unknown>>();
 
   constructor(
     private readonly home: string,
@@ -44,11 +46,10 @@ export class StreamLogRegistry {
   }
 
   publish<T>(type: string, data: T): Promise<PublishedEvent<T>> {
-    const task = this.#publishTail.then(() =>
-      this.#publishNow(createId("evt"), type, data),
+    const normalized = validatePublicEvent(type, data, "workbench_server") as T;
+    return this.#enqueueStream(eventQueueKey(type, normalized), () =>
+      this.#publishNow(createId("evt"), type, normalized, true),
     );
-    this.#publishTail = task.catch(() => undefined);
-    return task;
   }
 
   publishWithId<T>(
@@ -56,35 +57,33 @@ export class StreamLogRegistry {
     type: string,
     data: T,
   ): Promise<PublishedEvent<T>> {
-    const task = this.#publishTail.then(async () => {
-      const existing = this.#intentResults.get(intentId);
-      const normalized = validatePublicEvent(type, data, "workbench_server");
-      if (existing) {
-        if (
-          existing.type !== type ||
-          JSON.stringify(existing.data) !== JSON.stringify(normalized)
-        ) {
-          throw new Error(`Conflicting event intent id: ${intentId}`);
+    const normalized = validatePublicEvent(type, data, "workbench_server") as T;
+    return this.#enqueueIntent(intentId, () =>
+      this.#enqueueStream(eventQueueKey(type, normalized), async () => {
+        const existing = this.#intentResults.get(intentId);
+        if (existing) {
+          if (
+            existing.type !== type ||
+            JSON.stringify(existing.data) !== JSON.stringify(normalized)
+          ) {
+            throw new Error(`Conflicting event intent id: ${intentId}`);
+          }
+          return existing as PublishedEvent<T>;
         }
-        return existing as PublishedEvent<T>;
-      }
-      return this.#publishNow(intentId, type, normalized as T, true);
-    });
-    this.#publishTail = task.catch(() => undefined);
-    return task;
+        return this.#publishNow(intentId, type, normalized, true);
+      }),
+    );
   }
 
-  async withCursor<T>(
+  withCursor<T>(
     stream: string,
     build: () => T | Promise<T>,
   ): Promise<{ value: T; cursor: { stream: string; processedSeq: number } }> {
-    const task = this.#publishTail.then(async () => {
+    return this.#enqueueStream(stream, async () => {
       const value = await build();
       const processedSeq = (await this.#log(stream)).bounds().latestSeq;
       return { value, cursor: { stream, processedSeq } };
     });
-    this.#publishTail = task.catch(() => undefined);
-    return task;
   }
 
   async readStream(
@@ -121,16 +120,23 @@ export class StreamLogRegistry {
     return () => this.#notifyListeners.delete(listener);
   }
 
-  async removeConversationStream(conversationId: string): Promise<void> {
+  removeConversationStream(conversationId: string): Promise<void> {
     const stream = `conv/${conversationId}`;
-    const pending = this.#logs.get(stream);
-    this.#logs.delete(stream);
-    const log = pending ? await pending : await this.#openLog(stream);
-    await log.remove();
+    return this.#enqueueStream(stream, async () => {
+      const pending = this.#logs.get(stream);
+      this.#logs.delete(stream);
+      const log = pending ? await pending : await this.#openLog(stream);
+      await log.remove();
+    });
   }
 
   async settled(): Promise<void> {
-    await this.#publishTail.catch(() => undefined);
+    while (this.#streamTails.size > 0 || this.#intentTails.size > 0) {
+      await Promise.allSettled([
+        ...this.#streamTails.values(),
+        ...this.#intentTails.values(),
+      ]);
+    }
   }
 
   async flush(): Promise<void> {
@@ -199,6 +205,14 @@ export class StreamLogRegistry {
     return event;
   }
 
+  #enqueueStream<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    return enqueue(this.#streamTails, key, operation);
+  }
+
+  #enqueueIntent<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    return enqueue(this.#intentTails, key, operation);
+  }
+
   #log(stream: string): Promise<StreamLog> {
     const existing = this.#logs.get(stream);
     if (existing) return existing;
@@ -240,6 +254,34 @@ function streamPaths(
     logPath: join(home, "logs", `${safeStream}-events.jsonl`),
     metaPath: join(home, "logs", `${safeStream}-events.meta.json`),
   };
+}
+
+const EPHEMERAL_QUEUE = "@ephemeral";
+
+function eventQueueKey(type: string, data: unknown): string {
+  const definition = publicEventDefinition(type);
+  if (!definition) throw new Error(`Unknown public event: ${type}`);
+  return definition.delivery === "ephemeral"
+    ? EPHEMERAL_QUEUE
+    : streamForEvent(type, data);
+}
+
+function enqueue<T>(
+  tails: Map<string, Promise<unknown>>,
+  key: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = tails.get(key) ?? Promise.resolve();
+  const task = previous.catch(() => undefined).then(operation);
+  const tail = task.then(
+    () => undefined,
+    () => undefined,
+  );
+  tails.set(key, tail);
+  void tail.finally(() => {
+    if (tails.get(key) === tail) tails.delete(key);
+  });
+  return task;
 }
 
 function safelyNotify(callback: () => void, type: string): void {

@@ -347,7 +347,30 @@ export function composeRuntime(
     (agentId, mode, reason) =>
       services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
   );
-  services.git = withGitMutationEvents(new GitService(getProject), events);
+  const gitLogger = logger.child({ component: "git" });
+  services.git = withGitMutationEvents(
+    new GitService(getProject, {
+      onCommandCompleted: (observation) => {
+        if (observation.durationMs < 250) return;
+        void gitLogger.warn("Slow Git command", {
+          durationMs: Math.round(observation.durationMs),
+          context: {
+            bin: observation.bin,
+            command: observation.command,
+            succeeded: observation.succeeded,
+          },
+        });
+      },
+      onOverviewCompleted: (observation) => {
+        if (observation.durationMs < 500) return;
+        void gitLogger.warn("Slow Git overview", {
+          durationMs: Math.round(observation.durationMs),
+          context: { succeeded: observation.succeeded },
+        });
+      },
+    }),
+    events,
+  );
   const promptSuggestionTrustRepository = new PromptSuggestionTrustRepository(
     storage,
     index,

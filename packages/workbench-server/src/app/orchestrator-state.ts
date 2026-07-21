@@ -63,7 +63,6 @@ export function createOrchestratorState(
 ): OrchestratorState {
   const index = new IndexStore(storage.paths.sqlitePath);
   index.initialize();
-  const events = new StreamLogRegistry(storage.paths.home);
   const logger = new ApplicationLogger({
     dataDir: storage.paths.home,
     source: "orchestrator",
@@ -71,6 +70,30 @@ export function createOrchestratorState(
     level: storage.settings.logging.level,
     retentionDays: storage.settings.logging.retentionDays,
     maxBufferedLogs: storage.settings.logging.maxBufferedLogs,
+  });
+  const events = new StreamLogRegistry(storage.paths.home, {
+    onFlushCompleted: (observation) => {
+      if (observation.durationMs < 50) return;
+      void logger.warn("Slow event stream flush", {
+        durationMs: Math.round(observation.durationMs),
+        context: {
+          stream: observation.stream,
+          eventCount: observation.eventCount,
+          succeeded: observation.succeeded,
+        },
+      });
+    },
+    renameDependencies: {
+      onRenameRetry: (observation) => {
+        if (observation.attempt < 2) return;
+        void logger.warn("Event stream rename retry", {
+          context: {
+            attempt: observation.attempt,
+            delayMs: observation.delayMs,
+          },
+        });
+      },
+    },
   });
   const secrets = new EncryptedFileSecretProvider(storage.paths.home);
   const piCredentials = new PiAiCredentialStore(secrets);

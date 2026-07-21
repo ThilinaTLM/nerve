@@ -38,7 +38,13 @@ export async function refreshGitProject(
   options: GitPanelRefreshOptions = {},
 ): Promise<void> {
   const state = ensureGitProjectState(project);
-  if (state.reposRequestInFlight && !options.force) return;
+  if (state.reposRequestInFlight) {
+    if (options.force) {
+      state.projectRefreshQueued = true;
+      state.queuedRefreshLoadsDetails ||= options.loadDetails !== false;
+    }
+    return;
+  }
   const requestSeq = state.requestSeq + 1;
   state.requestSeq = requestSeq;
   state.reposRequestInFlight = true;
@@ -82,7 +88,7 @@ export async function refreshGitProject(
     if (changed || state.loadedAt === undefined) state.loadedAt = Date.now();
     applyGitContextFromProject(project.id);
 
-    if (result.repos.length > 0) {
+    if (result.repos.length > 0 && options.loadDetails !== false) {
       const repoState = ensureGitRepoState(project.id, state.selectedRepo);
       const refreshOptions = repoState.loaded
         ? { silent: true, onlyIfChanged: true }
@@ -101,6 +107,20 @@ export async function refreshGitProject(
       state.loadingRepos = false;
       state.refreshingRepos = false;
       state.reposRequestInFlight = false;
+      if (state.projectRefreshQueued) {
+        const loadDetails = state.queuedRefreshLoadsDetails;
+        state.projectRefreshQueued = false;
+        state.queuedRefreshLoadsDetails = false;
+        queueMicrotask(
+          () =>
+            void refreshGitProject(project, {
+              force: false,
+              silent: true,
+              onlyIfChanged: true,
+              loadDetails,
+            }),
+        );
+      }
     }
   }
 }
@@ -111,7 +131,10 @@ export async function refreshGitOverview(
   options: GitPanelRefreshOptions = {},
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  if (state.overviewRequestInFlight && !options.force) return;
+  if (state.overviewRequestInFlight) {
+    if (options.force) state.overviewRefreshQueued = true;
+    return;
+  }
   const requestSeq = state.requestSeq + 1;
   state.requestSeq = requestSeq;
   state.overviewRequestInFlight = true;
@@ -128,6 +151,16 @@ export async function refreshGitOverview(
     if (state.requestSeq === requestSeq) {
       if (!options.silent) state.loadingOverview = false;
       state.overviewRequestInFlight = false;
+      if (state.overviewRefreshQueued) {
+        state.overviewRefreshQueued = false;
+        queueMicrotask(
+          () =>
+            void refreshGitOverview(projectId, repo, {
+              silent: true,
+              onlyIfChanged: true,
+            }),
+        );
+      }
     }
   }
 }
@@ -272,28 +305,35 @@ export function selectGitRepo(projectId: string, repo: string): void {
   applyGitContextFromProject(projectId);
 }
 
-export function invalidateGitPanel(projectId?: string, repo?: string): void {
+export async function invalidateGitPanel(
+  projectId?: string,
+  repo?: string,
+): Promise<void> {
   const projects = projectId
     ? [gitPanelState.projects[gitProjectStateKey(projectId)]].filter(
         (project): project is GitPanelProjectState => Boolean(project),
       )
     : Object.values(gitPanelState.projects);
-  for (const project of projects) {
-    const id = project.projectId;
-    if (repo) {
-      void refreshGitOverview(id, repo, { force: true });
-      void refreshGithub(id, repo);
-    } else {
-      void refreshGitProject(
-        {
-          id,
-          dir: project.projectDir,
-          name: project.projectDir,
-          createdAt: "",
-          updatedAt: "",
-        },
-        { force: true, silent: project.loaded },
-      );
-    }
-  }
+  await Promise.all(
+    projects.map(async (project) => {
+      const id = project.projectId;
+      if (repo) {
+        await Promise.all([
+          refreshGitOverview(id, repo, { force: true }),
+          refreshGithub(id, repo),
+        ]);
+      } else {
+        await refreshGitProject(
+          {
+            id,
+            dir: project.projectDir,
+            name: project.projectDir,
+            createdAt: "",
+            updatedAt: "",
+          },
+          { force: true, silent: project.loaded },
+        );
+      }
+    }),
+  );
 }

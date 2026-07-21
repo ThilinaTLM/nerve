@@ -35,31 +35,84 @@ import {
   githubStatus as getGithubStatus,
   listOpenPrs as listGithubOpenPrs,
 } from "./git-github-service.js";
-import { parsePorcelainV2, parseShortstat } from "./git-status.js";
+import type {
+  GitCommandObservation,
+  GitOverviewObservation,
+  GitServiceOptions,
+  GitWorkspaceRef,
+} from "./git-observability.js";
+import {
+  overview as getOverview,
+  recentCommits as getRecentCommits,
+  summarizeRepo as getRepoSummary,
+} from "./git-overview.js";
+import {
+  GitRepositoryMetadataCache,
+  type StableRepoMetadata,
+} from "./git-repository-metadata.js";
+import { parsePorcelainV2 } from "./git-status.js";
 
 const MAX_DISCOVERY_DEPTH = 2;
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next"]);
 
-export type GitWorkspaceRef = {
-  dir: string;
-  name: string;
-};
-
 export class GitService {
-  constructor(readonly getProject: (projectId: string) => GitWorkspaceRef) {}
+  readonly #stableMetadataCache: GitRepositoryMetadataCache;
+
+  constructor(
+    readonly getProject: (projectId: string) => GitWorkspaceRef,
+    readonly options: GitServiceOptions = {},
+  ) {
+    this.#stableMetadataCache = new GitRepositoryMetadataCache(
+      this,
+      options.stableMetadataTtlMs ?? 30_000,
+      options.now ?? Date.now,
+    );
+  }
 
   static forWorkspace(rootDir: string, name = basename(rootDir)): GitService {
     return new GitService(() => ({ dir: rootDir, name }));
   }
-
-  // --- low-level exec ---
 
   async run(
     bin: "git" | "gh",
     cwd: string,
     args: string[],
   ): Promise<ExecResult> {
-    return runGitCommand(bin, cwd, args);
+    const startedAt = performance.now();
+    try {
+      const result = await runGitCommand(bin, cwd, args);
+      this.observeCommand({
+        bin,
+        command: args[0] ?? "unknown",
+        durationMs: performance.now() - startedAt,
+        succeeded: true,
+      });
+      return result;
+    } catch (error) {
+      this.observeCommand({
+        bin,
+        command: args[0] ?? "unknown",
+        durationMs: performance.now() - startedAt,
+        succeeded: false,
+      });
+      throw error;
+    }
+  }
+
+  private observeCommand(observation: GitCommandObservation): void {
+    try {
+      this.options.onCommandCompleted?.(observation);
+    } catch {
+      // Diagnostics must never affect Git operations.
+    }
+  }
+
+  private observeOverview(observation: GitOverviewObservation): void {
+    try {
+      this.options.onOverviewCompleted?.(observation);
+    } catch {
+      // Diagnostics must never affect Git operations.
+    }
   }
 
   runGit(cwd: string, args: string[]): Promise<ExecResult> {
@@ -116,7 +169,7 @@ export class GitService {
   }
 
   async ensureGithubRemote(repoDir: string): Promise<void> {
-    const remoteState = await this.repoRemoteState(repoDir);
+    const remoteState = (await this.stableRepoMetadata(repoDir)).remoteState;
     if (!remoteState.hasRemote) {
       throw new GitWorkflowError(
         409,
@@ -133,7 +186,13 @@ export class GitService {
     }
   }
 
-  // --- discovery ---
+  stableRepoMetadata(repoDir: string): Promise<StableRepoMetadata> {
+    return this.#stableMetadataCache.get(repoDir);
+  }
+
+  invalidateStableRepoMetadata(repoDir?: string): void {
+    this.#stableMetadataCache.invalidate(repoDir);
+  }
 
   async discoverRepos(projectId: string): Promise<GitDiscoveryResponse> {
     const project = this.getProject(projectId);
@@ -199,45 +258,13 @@ export class GitService {
     return found;
   }
 
-  async summarizeRepo(
+  summarizeRepo(
     repoDir: string,
     relativePath: string,
     name: string,
     statusOutput?: string,
   ): Promise<GitRepoSummary> {
-    const [stdout, baseBranch, remoteState] = await Promise.all([
-      statusOutput === undefined
-        ? this.runGit(repoDir, ["status", "--porcelain=v2", "--branch"]).then(
-            (result) => result.stdout,
-          )
-        : Promise.resolve(statusOutput),
-      this.detectBaseBranch(repoDir),
-      this.repoRemoteState(repoDir),
-    ]);
-    const { branch, files } = parsePorcelainV2(stdout);
-    const onBaseBranch = branch.head === baseBranch;
-    return {
-      relativePath,
-      absDir: repoDir,
-      name,
-      isRepo: true,
-      currentBranch: branch.head,
-      detached: branch.detached,
-      ahead: branch.upstream ? (branch.ahead ?? 0) : null,
-      behind: branch.upstream ? (branch.behind ?? 0) : null,
-      hasUpstream: branch.upstream !== null,
-      hasRemote: remoteState.hasRemote,
-      hasGithubRemote: remoteState.hasGithubRemote,
-      baseBranch,
-      onBaseBranch,
-      mergedToBase: await this.mergedToBase(repoDir, baseBranch, {
-        currentBranch: branch.head,
-        detached: branch.detached,
-        onBaseBranch,
-      }),
-      dirty: files.length > 0,
-      changeCount: files.length,
-    };
+    return getRepoSummary(this, repoDir, relativePath, name, statusOutput);
   }
 
   repoName(projectId: string, relativePath: string): string {
@@ -245,80 +272,26 @@ export class GitService {
     return basename(relativePath);
   }
 
-  // --- overview ---
-
   async overview(
     projectId: string,
     relativePath: string,
   ): Promise<GitOverviewResponse> {
-    const repoDir = this.resolveRepoDir(projectId, relativePath);
-    const statusPromise = this.runGit(repoDir, [
-      "status",
-      "--porcelain=v2",
-      "--branch",
-    ]);
-    const repoPromise = statusPromise.then(({ stdout }) =>
-      this.summarizeRepo(
-        repoDir,
-        relativePath,
-        this.repoName(projectId, relativePath),
-        stdout,
-      ),
-    );
-    const [repo, { stdout: statusOut }, unstagedResult, stagedResult, recent] =
-      await Promise.all([
-        repoPromise,
-        statusPromise,
-        this.runGit(repoDir, ["diff", "--shortstat"]),
-        this.runGit(repoDir, ["diff", "--staged", "--shortstat"]),
-        this.recentCommits(repoDir),
-      ]);
-    const { files } = parsePorcelainV2(statusOut);
-
-    const stagedCount = files.filter((f) => f.staged).length;
-    const untrackedCount = files.filter((f) => f.untracked).length;
-    const unstagedCount = files.filter(
-      (f) => !f.untracked && f.worktree !== " ",
-    ).length;
-    const unstaged = parseShortstat(unstagedResult.stdout);
-    const staged = parseShortstat(stagedResult.stdout);
-
-    return {
-      repo,
-      baseBranch: repo.baseBranch,
-      onBaseBranch: repo.onBaseBranch,
-      files,
-      stagedCount,
-      unstagedCount,
-      untrackedCount,
-      insertions: unstaged.insertions + staged.insertions,
-      deletions: unstaged.deletions + staged.deletions,
-      recentCommits: recent,
-    };
+    const startedAt = performance.now();
+    let succeeded = false;
+    try {
+      const result = await getOverview(this, projectId, relativePath);
+      succeeded = true;
+      return result;
+    } finally {
+      this.observeOverview({
+        durationMs: performance.now() - startedAt,
+        succeeded,
+      });
+    }
   }
 
-  async recentCommits(repoDir: string): Promise<GitRecentCommit[]> {
-    try {
-      const { stdout } = await this.runGit(repoDir, [
-        "log",
-        "-n",
-        "10",
-        "--pretty=%h%x00%s%x00%cr",
-      ]);
-      return stdout
-        .split("\n")
-        .filter((line) => line.length > 0)
-        .map((line) => {
-          const [hash, subject, relativeDate] = line.split("\u0000");
-          return {
-            hash: hash ?? "",
-            subject: subject ?? "",
-            relativeDate: relativeDate ?? "",
-          };
-        });
-    } catch {
-      return [];
-    }
+  recentCommits(repoDir: string): Promise<GitRecentCommit[]> {
+    return getRecentCommits(this, repoDir);
   }
 
   async listBranches(
@@ -350,7 +323,31 @@ export class GitService {
   ): Promise<boolean> {
     return await mergedToBaseImpl.call(this, repoDir, baseBranch, state);
   }
-  // --- workflow mutations ---
+
+  async mergedToBaseRef(
+    repoDir: string,
+    baseRef: string,
+    state: {
+      currentBranch: string | null;
+      detached: boolean;
+      onBaseBranch: boolean;
+    },
+  ): Promise<boolean> {
+    if (state.detached || state.onBaseBranch || !state.currentBranch) {
+      return false;
+    }
+    try {
+      await this.runGit(repoDir, [
+        "merge-base",
+        "--is-ancestor",
+        "HEAD",
+        baseRef,
+      ]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   async createBranch(
     projectId: string,
@@ -368,6 +365,7 @@ export class GitService {
       );
     }
     await this.mapGit(() => this.runGit(repoDir, ["switch", "-c", name]));
+    this.invalidateStableRepoMetadata(repoDir);
     return {
       repo: await this.summarizeRepo(
         repoDir,
@@ -394,6 +392,7 @@ export class GitService {
     }
     const args = target.remote ? ["switch", "--track", name] : ["switch", name];
     await this.mapGit(() => this.runGit(repoDir, args));
+    this.invalidateStableRepoMetadata(repoDir);
     return {
       repo: await this.summarizeRepo(
         repoDir,
@@ -493,6 +492,7 @@ export class GitService {
     }
 
     await this.mapGit(() => this.runGit(repoDir, ["fetch", "--prune"]));
+    this.invalidateStableRepoMetadata(repoDir);
     repo = await this.summarizeRepo(repoDir, relativePath, repoName);
 
     if (!repo.hasUpstream) {
@@ -553,29 +553,18 @@ export class GitService {
       );
     }
 
-    const baseBranch = await this.detectBaseBranch(repoDir);
-    const localBaseExists = await this.runGit(repoDir, [
-      "rev-parse",
-      "--verify",
-      "--quiet",
+    const stable = await this.stableRepoMetadata(repoDir);
+    const baseBranch = stable.baseBranch;
+    const localBaseExists = stable.refSnapshot.refs.has(
       `refs/heads/${baseBranch}`,
-    ]).then(
-      () => true,
-      () => false,
     );
 
     if (localBaseExists) {
       await this.mapGit(() => this.runGit(repoDir, ["switch", baseBranch]));
     } else {
-      const remoteBaseExists = await this.runGit(repoDir, [
-        "rev-parse",
-        "--verify",
-        "--quiet",
-        `refs/remotes/origin/${baseBranch}`,
-      ]).then(
-        () => true,
-        () => false,
-      );
+      const remoteBaseExists =
+        stable.refSnapshot.refs.has(`refs/remotes/origin/${baseBranch}`) ||
+        stable.refSnapshot.originHead === `refs/remotes/origin/${baseBranch}`;
       if (!remoteBaseExists) {
         throw new GitWorkflowError(
           404,
@@ -596,6 +585,7 @@ export class GitService {
       );
     }
     await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
+    this.invalidateStableRepoMetadata(repoDir);
     return {
       repo: await this.summarizeRepo(
         repoDir,
@@ -627,6 +617,7 @@ export class GitService {
       ? ["push"]
       : ["push", "-u", "origin", branch];
     await this.mapGit(() => this.runGit(repoDir, args));
+    this.invalidateStableRepoMetadata(repoDir);
     return {
       repo: await this.summarizeRepo(
         repoDir,
@@ -659,6 +650,7 @@ export class GitService {
       );
     }
     await this.mapGit(() => this.runGit(repoDir, ["pull", "--ff-only"]));
+    this.invalidateStableRepoMetadata(repoDir);
     return {
       repo: await this.summarizeRepo(
         repoDir,
@@ -674,6 +666,7 @@ export class GitService {
   ): Promise<GitMutationResponse> {
     const repoDir = this.resolveRepoDir(projectId, relativePath);
     await this.mapGit(() => this.runGit(repoDir, ["fetch", "--prune"]));
+    this.invalidateStableRepoMetadata(repoDir);
     return {
       repo: await this.summarizeRepo(
         repoDir,
@@ -696,8 +689,6 @@ export class GitService {
       return false;
     }
   }
-
-  // --- GitHub via gh ---
 
   async githubStatus(
     projectId: string,
@@ -749,10 +740,13 @@ export class GitService {
     return {
       resolveRepoDir: (projectId, relativePath) =>
         this.resolveRepoDir(projectId, relativePath),
-      repoRemoteState: (repoDir) => this.repoRemoteState(repoDir),
+      repoRemoteState: async (repoDir) =>
+        (await this.stableRepoMetadata(repoDir)).remoteState,
       runGh: (repoDir, args) => this.runGh(repoDir, args),
       runGit: (repoDir, args) => this.runGit(repoDir, args),
       ensureGithubRemote: (repoDir) => this.ensureGithubRemote(repoDir),
+      invalidateStableMetadata: (repoDir) =>
+        this.invalidateStableRepoMetadata(repoDir),
       mapGh: (fn) => this.mapGh(fn),
       summarizeRepo: (repoDir, relativePath, name) =>
         this.summarizeRepo(repoDir, relativePath, name),
@@ -762,8 +756,6 @@ export class GitService {
         error instanceof GitCommandError,
     };
   }
-
-  // --- error mapping ---
 
   async mapGit<T>(fn: () => Promise<T>): Promise<T> {
     try {

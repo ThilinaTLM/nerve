@@ -65,6 +65,7 @@ export type GitPanelRepoState = {
   prsRequestInFlight: boolean;
   prsRequestSeq: number;
   overviewRequestInFlight: boolean;
+  overviewRefreshQueued: boolean;
   lastRepoSummaryFingerprint?: string;
   lastChangesFingerprint?: string;
   lastRecentCommitsFingerprint?: string;
@@ -87,6 +88,8 @@ export type GitPanelProjectState = {
   loadingRepos: boolean;
   refreshingRepos: boolean;
   reposRequestInFlight: boolean;
+  projectRefreshQueued: boolean;
+  queuedRefreshLoadsDetails: boolean;
   lastReposFingerprint?: string;
   loaded: boolean;
   loadedAt?: number;
@@ -111,6 +114,7 @@ export type GitPanelRefreshOptions = {
   silent?: boolean;
   force?: boolean;
   onlyIfChanged?: boolean;
+  loadDetails?: boolean;
 };
 
 function createOperationsState(): GitPanelOperationsState {
@@ -146,6 +150,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     prsRequestInFlight: false,
     prsRequestSeq: 0,
     overviewRequestInFlight: false,
+    overviewRefreshQueued: false,
     lastRepoSummaryFingerprint: undefined,
     lastChangesFingerprint: undefined,
     lastRecentCommitsFingerprint: undefined,
@@ -170,6 +175,8 @@ function createProjectState(project: ProjectRecord): GitPanelProjectState {
     loadingRepos: false,
     refreshingRepos: false,
     reposRequestInFlight: false,
+    projectRefreshQueued: false,
+    queuedRefreshLoadsDetails: false,
     lastReposFingerprint: undefined,
     loaded: false,
     loadedAt: undefined,

@@ -7,10 +7,16 @@ import {
 } from "@nervekit/contracts";
 import {
   atomicWriteFile,
-  pathExists,
   readJsonLines,
   type RenameDependencies,
 } from "../storage/index.js";
+
+export interface StreamFlushObservation {
+  readonly stream: string;
+  readonly eventCount: number;
+  readonly durationMs: number;
+  readonly succeeded: boolean;
+}
 
 export interface StreamLogOptions {
   readonly stream: string;
@@ -21,6 +27,7 @@ export interface StreamLogOptions {
   readonly flushDelayMs?: number;
   readonly flushEventThreshold?: number;
   readonly onFsync?: () => void;
+  readonly onFlushCompleted?: (observation: StreamFlushObservation) => void;
   readonly renameDependencies?: RenameDependencies;
 }
 
@@ -34,6 +41,7 @@ export class StreamLog {
   readonly #flushDelayMs: number;
   readonly #flushEventThreshold: number;
   readonly #onFsync?: () => void;
+  readonly #onFlushCompleted?: (observation: StreamFlushObservation) => void;
   readonly #renameDependencies?: RenameDependencies;
   readonly #events: EventEnvelope[] = [];
   readonly #pending: EventEnvelope[] = [];
@@ -52,6 +60,7 @@ export class StreamLog {
     this.#flushDelayMs = options.flushDelayMs ?? 25;
     this.#flushEventThreshold = options.flushEventThreshold ?? 64;
     this.#onFsync = options.onFsync;
+    this.#onFlushCompleted = options.onFlushCompleted;
     this.#renameDependencies = options.renameDependencies;
   }
 
@@ -128,26 +137,32 @@ export class StreamLog {
     const durableThroughSeq = pending.at(-1)?.seq;
     if (durableThroughSeq === undefined) return;
     const flush = this.#flushTail.then(async () => {
-      await mkdir(dirname(this.logPath), { recursive: true });
-      const handle = await open(this.logPath, "a", 0o600);
+      const startedAt = performance.now();
+      let succeeded = false;
       try {
-        await handle.write(
-          pending.map((event) => `${JSON.stringify(event)}\n`).join(""),
-          undefined,
-          "utf8",
-        );
-        await handle.sync();
-        this.#onFsync?.();
+        await mkdir(dirname(this.logPath), { recursive: true });
+        const handle = await open(this.logPath, "a", 0o600);
+        try {
+          await handle.write(
+            pending.map((event) => `${JSON.stringify(event)}\n`).join(""),
+            undefined,
+            "utf8",
+          );
+          await handle.sync();
+          this.#onFsync?.();
+        } finally {
+          await handle.close();
+        }
+        await this.#applyRetention(durableThroughSeq);
+        succeeded = true;
       } finally {
-        await handle.close();
+        safelyObserveFlush(this.#onFlushCompleted, {
+          stream: this.stream,
+          eventCount: pending.length,
+          durationMs: performance.now() - startedAt,
+          succeeded,
+        });
       }
-      await writeMeta(
-        this.metaPath,
-        durableThroughSeq,
-        this.#onFsync,
-        this.#renameDependencies,
-      );
-      await this.#applyRetention(durableThroughSeq);
     });
     this.#flushTail = flush;
     await flush;
@@ -157,6 +172,14 @@ export class StreamLog {
     await this.flush();
     const retained = this.#events.filter((event) => event.seq >= seq);
     this.#events.splice(0, this.#events.length, ...retained);
+    if (retained.length === 0 && this.#lastSeq > 0) {
+      await writeMeta(
+        this.metaPath,
+        this.#lastSeq,
+        this.#onFsync,
+        this.#renameDependencies,
+      );
+    }
     await rewriteLog(
       this.logPath,
       retained,
@@ -190,14 +213,6 @@ export class StreamLog {
     this.#events.push(...parsed);
     const meta = await readMeta(this.metaPath);
     this.#lastSeq = Math.max(meta, parsed.at(-1)?.seq ?? 0);
-    if (!(await pathExists(this.metaPath))) {
-      await writeMeta(
-        this.metaPath,
-        this.#lastSeq,
-        this.#onFsync,
-        this.#renameDependencies,
-      );
-    }
     await this.#applyRetention(this.#lastSeq);
   }
 
@@ -251,6 +266,17 @@ export class StreamLog {
       this.#onFsync,
       this.#renameDependencies,
     );
+  }
+}
+
+function safelyObserveFlush(
+  observer: ((observation: StreamFlushObservation) => void) | undefined,
+  observation: StreamFlushObservation,
+): void {
+  try {
+    observer?.(observation);
+  } catch {
+    // Diagnostics must never affect event durability.
   }
 }
 

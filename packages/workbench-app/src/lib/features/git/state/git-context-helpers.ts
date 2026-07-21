@@ -1,5 +1,8 @@
 import type { GitContext } from "$lib/core/types/state-types";
 
+export const GIT_CONTEXT_FOCUS_STALE_MS = 30_000;
+export const GIT_OVERVIEW_AUTO_REFRESH_MS = 30_000;
+
 export function gitContextFingerprint(ctx: GitContext): string {
   return JSON.stringify({
     projectId: ctx.projectId,

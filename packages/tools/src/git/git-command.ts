@@ -33,6 +33,7 @@ export async function runGitCommand(
       timeout: COMMAND_TIMEOUT_MS,
       maxBuffer: MAX_BUFFER,
       encoding: "utf8",
+      windowsHide: true,
     });
     return { stdout, stderr };
   } catch (error) {

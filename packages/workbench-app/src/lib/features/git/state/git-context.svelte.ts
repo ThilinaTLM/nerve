@@ -4,6 +4,7 @@ import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import {
+  GIT_CONTEXT_FOCUS_STALE_MS,
   gitContextFingerprint,
   shouldRefreshGitContextOnFocus,
 } from "./git-context-helpers";
@@ -19,11 +20,9 @@ export {
 } from "./git-context-helpers";
 export { buildGitSuggestions, type GitSuggestion } from "./git-suggestions";
 
-const GIT_CONTEXT_AUTO_REFRESH_MS = 10_000;
-const GIT_CONTEXT_FOCUS_STALE_MS = 5_000;
 const GIT_CONTEXT_MIN_REFRESH_MS = 2_000;
 
-type GitContextRefreshReason = "project" | "invalidate" | "poll" | "focus";
+type GitContextRefreshReason = "project" | "focus";
 
 type GitContextRefreshOptions = {
   force?: boolean;
@@ -31,19 +30,9 @@ type GitContextRefreshOptions = {
 };
 
 const inFlight = new SvelteSet<string>();
-let autoRefreshInterval: number | undefined;
+let autoRefreshStarted = false;
 let pendingRefreshTimer: number | undefined;
 let lastRefreshStartedAt = 0;
-
-function hiddenForPolling(
-  reason: GitContextRefreshReason | undefined,
-): boolean {
-  return (
-    reason === "poll" &&
-    typeof document !== "undefined" &&
-    document.visibilityState !== "visible"
-  );
-}
 
 function clearPendingRefresh(): void {
   if (pendingRefreshTimer === undefined || typeof window === "undefined")
@@ -91,6 +80,7 @@ async function loadGitContext(
     force: options.force,
     silent: true,
     onlyIfChanged: !options.force,
+    loadDetails: false,
   });
   applyGitContextFromProject(projectId);
   const context = gitState.gitContext;
@@ -102,7 +92,7 @@ export async function refreshGitContext(
   options: GitContextRefreshOptions = {},
 ): Promise<void> {
   const id = projectId ?? selection.projectId;
-  if (!id || hiddenForPolling(options.reason)) return;
+  if (!id) return;
 
   if (options.force) clearPendingRefresh();
 
@@ -168,11 +158,8 @@ function refreshIfStale(): void {
 
 export function startGitContextAutoRefresh(): () => void {
   if (typeof window === "undefined") return stopGitContextAutoRefresh;
-  if (autoRefreshInterval !== undefined) return stopGitContextAutoRefresh;
-
-  autoRefreshInterval = window.setInterval(() => {
-    void refreshGitContext(selection.projectId, { reason: "poll" });
-  }, GIT_CONTEXT_AUTO_REFRESH_MS);
+  if (autoRefreshStarted) return stopGitContextAutoRefresh;
+  autoRefreshStarted = true;
 
   window.addEventListener("focus", refreshIfStale);
   if (typeof document !== "undefined") {
@@ -184,10 +171,7 @@ export function startGitContextAutoRefresh(): () => void {
 
 export function stopGitContextAutoRefresh(): void {
   if (typeof window === "undefined") return;
-  if (autoRefreshInterval !== undefined) {
-    window.clearInterval(autoRefreshInterval);
-    autoRefreshInterval = undefined;
-  }
+  autoRefreshStarted = false;
   clearPendingRefresh();
   window.removeEventListener("focus", refreshIfStale);
   if (typeof document !== "undefined") {
@@ -201,6 +185,5 @@ export function stopGitContextAutoRefresh(): void {
  * mutation: GitTab commit/branch/PR/sync, and PR pane checkout.
  */
 export function invalidateGit(projectId?: string): void {
-  invalidateGitPanel(projectId);
-  void refreshGitContext(projectId, { reason: "invalidate", force: true });
+  void invalidateGitPanel(projectId);
 }

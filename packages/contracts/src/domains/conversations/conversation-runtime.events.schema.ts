@@ -6,11 +6,17 @@ export const conversationRuntimeEventDefinitions = Object.entries(
 ).map(([name, payloadSchema]) =>
   definePublicEvent(name, payloadSchema, {
     delivery: "sequenced",
-    supersedable:
-      name.endsWith(".delta") || name === "conversation.context.updated",
+    supersedable: isBufferedConversationEvent(name),
     scope: conversationEventScope(name),
   }),
 );
+
+function isBufferedConversationEvent(name: string): boolean {
+  return (
+    name.startsWith("conversation.live.") ||
+    name === "conversation.context.updated"
+  );
+}
 
 function conversationEventScope(name: string): readonly string[] {
   if (name === "conversation.live.turn.started") {

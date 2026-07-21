@@ -4,6 +4,13 @@ import type {
 } from "@nervekit/contracts";
 import type { GitService } from "./git-service.js";
 
+const BASE_BRANCH_CANDIDATES = ["main", "master", "develop"] as const;
+
+export interface GitRefSnapshot {
+  readonly refs: ReadonlySet<string>;
+  readonly originHead?: string;
+}
+
 export async function listBranches(
   this: GitService,
   projectId: string,
@@ -41,26 +48,71 @@ export async function listBranches(
   return { branches };
 }
 
+export async function readRefSnapshot(
+  this: GitService,
+  repoDir: string,
+): Promise<GitRefSnapshot> {
+  try {
+    const { stdout } = await this.runGit(repoDir, [
+      "for-each-ref",
+      "--format=%(refname)%00%(symref)",
+      "refs/heads",
+      "refs/remotes/origin",
+    ]);
+    const refs = new Set<string>();
+    let originHead: string | undefined;
+    for (const line of stdout.split("\n")) {
+      if (!line) continue;
+      const [refname, symref] = line.split("\u0000");
+      if (!refname) continue;
+      refs.add(refname);
+      if (refname === "refs/remotes/origin/HEAD" && symref) {
+        originHead = symref;
+      }
+    }
+    return { refs, originHead };
+  } catch {
+    return { refs: new Set() };
+  }
+}
+
+export function baseBranchFromRefSnapshot(
+  snapshot: GitRefSnapshot,
+): string | undefined {
+  const prefix = "refs/remotes/origin/";
+  if (snapshot.originHead?.startsWith(prefix)) {
+    return snapshot.originHead.slice(prefix.length);
+  }
+  for (const candidate of BASE_BRANCH_CANDIDATES) {
+    if (
+      snapshot.refs.has(`refs/heads/${candidate}`) ||
+      snapshot.refs.has(`refs/remotes/origin/${candidate}`)
+    ) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+export function comparisonBaseRefFromSnapshot(
+  snapshot: GitRefSnapshot,
+  baseBranch: string,
+): string {
+  const remote = `refs/remotes/origin/${baseBranch}`;
+  if (snapshot.refs.has(remote) || snapshot.originHead === remote)
+    return remote;
+  const local = `refs/heads/${baseBranch}`;
+  if (snapshot.refs.has(local)) return local;
+  return baseBranch;
+}
+
 export async function detectBaseBranch(
   this: GitService,
   repoDir: string,
 ): Promise<string> {
-  try {
-    const { stdout } = await this.runGit(repoDir, [
-      "symbolic-ref",
-      "--quiet",
-      "refs/remotes/origin/HEAD",
-    ]);
-    const ref = stdout.trim();
-    if (ref.startsWith("refs/remotes/origin/")) {
-      return ref.slice("refs/remotes/origin/".length);
-    }
-  } catch {
-    // fall through to probing
-  }
-  for (const candidate of ["main", "master", "develop"]) {
-    if (await this.branchExists(repoDir, candidate)) return candidate;
-  }
+  const snapshot = await readRefSnapshot.call(this, repoDir);
+  const detected = baseBranchFromRefSnapshot(snapshot);
+  if (detected) return detected;
   try {
     const { stdout } = await this.runGit(repoDir, [
       "rev-parse",
@@ -78,27 +130,11 @@ export async function branchExists(
   repoDir: string,
   name: string,
 ): Promise<boolean> {
-  try {
-    await this.runGit(repoDir, [
-      "rev-parse",
-      "--verify",
-      "--quiet",
-      `refs/heads/${name}`,
-    ]);
-    return true;
-  } catch {
-    try {
-      await this.runGit(repoDir, [
-        "rev-parse",
-        "--verify",
-        "--quiet",
-        `refs/remotes/origin/${name}`,
-      ]);
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  const snapshot = await readRefSnapshot.call(this, repoDir);
+  return (
+    snapshot.refs.has(`refs/heads/${name}`) ||
+    snapshot.refs.has(`refs/remotes/origin/${name}`)
+  );
 }
 
 export async function comparisonBaseRef(
@@ -106,24 +142,8 @@ export async function comparisonBaseRef(
   repoDir: string,
   baseBranch: string,
 ): Promise<string> {
-  for (const candidate of [
-    `refs/remotes/origin/${baseBranch}`,
-    `refs/heads/${baseBranch}`,
-    baseBranch,
-  ]) {
-    try {
-      await this.runGit(repoDir, [
-        "rev-parse",
-        "--verify",
-        "--quiet",
-        `${candidate}^{commit}`,
-      ]);
-      return candidate;
-    } catch {
-      // Try the next possible ref.
-    }
-  }
-  return baseBranch;
+  const snapshot = await readRefSnapshot.call(this, repoDir);
+  return comparisonBaseRefFromSnapshot(snapshot, baseBranch);
 }
 
 export async function mergedToBase(

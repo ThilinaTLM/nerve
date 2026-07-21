@@ -500,6 +500,15 @@ describe("Protocol v1 shared schemas", () => {
       (definition) => definition.name === "conversation.live.turn.started",
     );
     assert.equal(turnStarted?.delivery, "sequenced");
+    assert.equal(turnStarted?.supersedable, true);
+    const liveDone = definitions.find(
+      (definition) => definition.name === "conversation.live.content.done",
+    );
+    assert.equal(liveDone?.supersedable, true);
+    const canonicalLifecycle = definitions.find(
+      (definition) => definition.name === "conversation.compaction.started",
+    );
+    assert.equal(canonicalLifecycle?.supersedable, false);
     const delta = definitions.find(
       (definition) => definition.name === "conversation.live.content.delta",
     );

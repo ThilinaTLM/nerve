@@ -33,15 +33,23 @@ function generateSandboxConfigJsonSchema(): string {
 }
 
 function formatJson(content: string): string {
-  return execFileSync(
-    "pnpm",
-    ["exec", "oxfmt", "--stdin-filepath", schemaPath],
-    {
-      cwd: packageDir,
-      encoding: "utf8",
-      input: content,
-    },
-  );
+  const pnpmExecutable = process.env.npm_execpath;
+  const isNodeScript = pnpmExecutable
+    ? /\.(?:c?js|mjs)$/i.test(pnpmExecutable)
+    : false;
+  const command = isNodeScript ? process.execPath : (pnpmExecutable ?? "pnpm");
+  const args = [
+    ...(isNodeScript && pnpmExecutable ? [pnpmExecutable] : []),
+    "exec",
+    "oxfmt",
+    "--stdin-filepath",
+    schemaPath,
+  ];
+  return execFileSync(command, args, {
+    cwd: packageDir,
+    encoding: "utf8",
+    input: content,
+  });
 }
 
 async function main(): Promise<void> {

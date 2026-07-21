@@ -22,6 +22,7 @@ describe("file mutations", () => {
     for (const code of ["EPERM", "EACCES", "EBUSY"]) {
       let attempts = 0;
       const delays: number[] = [];
+      const observed: Array<{ attempt: number; delayMs: number }> = [];
       await retryRename("source", "target", {
         rename: async () => {
           attempts += 1;
@@ -30,9 +31,14 @@ describe("file mutations", () => {
         delay: async (milliseconds) => {
           delays.push(milliseconds);
         },
+        onRenameRetry: (observation) => observed.push(observation),
       });
       assert.equal(attempts, 3);
       assert.deepEqual(delays, [10, 20]);
+      assert.deepEqual(observed, [
+        { attempt: 1, delayMs: 10 },
+        { attempt: 2, delayMs: 20 },
+      ]);
     }
   });
 

@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   migrateLegacyEventLogs,
+  StreamLog,
   StreamLogRegistry,
 } from "../src/infrastructure/events/index.js";
 
@@ -122,9 +123,16 @@ describe("StreamLogRegistry", () => {
   it("delays supersedable fsync and forces lifecycle fsync", async () => {
     const home = await tempHome();
     let fsyncs = 0;
+    const flushes: Array<{
+      stream: string;
+      eventCount: number;
+      succeeded: boolean;
+    }> = [];
     const registry = new StreamLogRegistry(home, {
       flushDelayMs: 60_000,
       onFsync: () => (fsyncs += 1),
+      onFlushCompleted: ({ stream, eventCount, succeeded }) =>
+        flushes.push({ stream, eventCount, succeeded }),
     });
     try {
       await registry.hydrate();
@@ -136,33 +144,37 @@ describe("StreamLogRegistry", () => {
       });
       assert.equal(fsyncs, 0);
       await registry.flush();
-      assert.ok(fsyncs >= 2);
+      assert.equal(fsyncs, 1);
 
       fsyncs = 0;
       await registry.publish("git.repository.changed", gitData("lifecycle"));
-      assert.ok(fsyncs >= 2);
+      assert.equal(fsyncs, 1);
+      assert.deepEqual(flushes, [
+        { stream: "conv/conv_one", eventCount: 1, succeeded: true },
+        { stream: "workspace", eventCount: 1, succeeded: true },
+      ]);
     } finally {
       await registry.shutdown();
       await rm(home, { recursive: true, force: true });
     }
   });
 
-  it("does not block supersedable publishes on an active disk flush", async () => {
+  it("does not let a slow conversation stream block other streams", async () => {
     const home = await tempHome();
     const renameStarted = deferred();
     const releaseRename = deferred();
-    let holdConversationMeta = false;
-    let heldConversationMeta = false;
+    let holdConversationRewrite = false;
+    let heldConversationRewrite = false;
     const registry = new StreamLogRegistry(home, {
-      flushDelayMs: 0,
+      retentionEvents: 1,
       renameDependencies: {
         rename: async (source, target) => {
           if (
-            holdConversationMeta &&
-            !heldConversationMeta &&
-            target.endsWith("events.meta.json")
+            holdConversationRewrite &&
+            !heldConversationRewrite &&
+            target.endsWith("events.jsonl")
           ) {
-            heldConversationMeta = true;
+            heldConversationRewrite = true;
             renameStarted.resolve();
             await releaseRename.promise;
           }
@@ -171,58 +183,34 @@ describe("StreamLogRegistry", () => {
       },
     });
     try {
-      await registry.bounds("conv/conv_slow_flush");
-      holdConversationMeta = true;
       await registry.publish(
-        "conversation.context.updated",
-        contextData("conv_slow_flush", 100),
+        "conversation.compaction.started",
+        compactionStartedData("conv_slow_flush"),
       );
+      holdConversationRewrite = true;
+      const blocked = registry.publish("conversation.compaction.failed", {
+        conversationId: "conv_slow_flush",
+        reason: "threshold",
+        failedAt: "2026-07-20T00:00:01.000Z",
+        message: "fixture failure",
+      });
       await renameStarted.promise;
 
-      let supersedableResolved = false;
-      const supersedable = registry
-        .publish(
-          "conversation.context.updated",
-          contextData("conv_slow_flush", 200),
-        )
-        .then(() => {
-          supersedableResolved = true;
-        });
-      await new Promise((resolve) => setImmediate(resolve));
-      assert.equal(supersedableResolved, true);
-
-      let lifecycleResolved = false;
-      const lifecycle = registry
+      let sameStreamResolved = false;
+      const sameStream = registry
         .publish(
           "conversation.compaction.started",
           compactionStartedData("conv_slow_flush"),
         )
         .then(() => {
-          lifecycleResolved = true;
+          sameStreamResolved = true;
         });
-      await new Promise((resolve) => setImmediate(resolve));
-      assert.equal(lifecycleResolved, false);
+      await registry.publish("git.repository.changed", gitData("parallel"));
+      assert.equal(sameStreamResolved, false);
 
       releaseRename.resolve();
-      await Promise.all([supersedable, lifecycle]);
-      assert.equal(lifecycleResolved, true);
-      await registry.shutdown();
-
-      const restored = new StreamLogRegistry(home);
-      try {
-        const replay = await restored.readStream("conv/conv_slow_flush", 1, 10);
-        assert.deepEqual(
-          replay.events.map((event) => event.seq),
-          [1, 2, 3],
-        );
-        const next = await restored.publish(
-          "conversation.context.updated",
-          contextData("conv_slow_flush", 300),
-        );
-        assert.equal("seq" in next && next.seq, 4);
-      } finally {
-        await restored.shutdown();
-      }
+      await Promise.all([blocked, sameStream]);
+      assert.equal(sameStreamResolved, true);
     } finally {
       releaseRename.resolve();
       await registry.shutdown().catch(() => undefined);
@@ -234,19 +222,19 @@ describe("StreamLogRegistry", () => {
     const home = await tempHome();
     const renameStarted = deferred();
     const releaseRename = deferred();
-    let holdConversationMeta = false;
-    let heldConversationMeta = false;
+    let holdConversationRewrite = false;
+    let heldConversationRewrite = false;
     const registry = new StreamLogRegistry(home, {
       retentionEvents: 2,
       flushDelayMs: 0,
       renameDependencies: {
         rename: async (source, target) => {
           if (
-            holdConversationMeta &&
-            !heldConversationMeta &&
-            target.endsWith("events.meta.json")
+            holdConversationRewrite &&
+            !heldConversationRewrite &&
+            target.endsWith("events.jsonl")
           ) {
-            heldConversationMeta = true;
+            heldConversationRewrite = true;
             renameStarted.resolve();
             await releaseRename.promise;
           }
@@ -255,20 +243,24 @@ describe("StreamLogRegistry", () => {
       },
     });
     try {
-      await registry.bounds("conv/conv_retention_queue");
-      holdConversationMeta = true;
       await registry.publish(
         "conversation.context.updated",
         contextData("conv_retention_queue", 100),
       );
-      await renameStarted.promise;
       await registry.publish(
         "conversation.context.updated",
         contextData("conv_retention_queue", 200),
       );
+      await registry.flush();
+      holdConversationRewrite = true;
       await registry.publish(
         "conversation.context.updated",
         contextData("conv_retention_queue", 300),
+      );
+      await renameStarted.promise;
+      await registry.publish(
+        "conversation.context.updated",
+        contextData("conv_retention_queue", 400),
       );
 
       releaseRename.resolve();
@@ -281,7 +273,7 @@ describe("StreamLogRegistry", () => {
       );
       assert.deepEqual(
         replay.events.map((event) => event.seq),
-        [2, 3],
+        [3, 4],
       );
       const conversationDir = join(
         home,
@@ -296,7 +288,7 @@ describe("StreamLogRegistry", () => {
         .map((line) => JSON.parse(line) as { seq: number });
       assert.deepEqual(
         persisted.map((event) => event.seq),
-        [2, 3],
+        [3, 4],
       );
       assert.equal(
         (await readdir(conversationDir)).some((name) => name.endsWith(".tmp")),
@@ -305,6 +297,46 @@ describe("StreamLogRegistry", () => {
     } finally {
       releaseRename.resolve();
       await registry.shutdown().catch(() => undefined);
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("writes metadata only when an empty rewrite needs a sequence floor", async () => {
+    const home = await tempHome();
+    const logPath = join(home, "events.jsonl");
+    const metaPath = join(home, "events.meta.json");
+    const log = await StreamLog.open({
+      stream: "test",
+      logPath,
+      metaPath,
+    });
+    try {
+      await log.append("evt_1", "test.event", { value: 1 }, false);
+      assert.equal(
+        await readdir(home).then((names) => names.includes("events.meta.json")),
+        false,
+      );
+      await log.truncateBelow(2);
+      assert.equal(JSON.parse(await readFile(metaPath, "utf8")).lastSeq, 1);
+    } finally {
+      await log.close();
+    }
+
+    const restored = await StreamLog.open({
+      stream: "test",
+      logPath,
+      metaPath,
+    });
+    try {
+      const next = await restored.append(
+        "evt_2",
+        "test.event",
+        { value: 2 },
+        false,
+      );
+      assert.equal(next.seq, 2);
+    } finally {
+      await restored.close();
       await rm(home, { recursive: true, force: true });
     }
   });
