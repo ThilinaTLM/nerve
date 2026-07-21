@@ -34,6 +34,7 @@ import type {
   UserQuestionStatus,
 } from "@nervekit/contracts";
 import type { AuthManager } from "../domains/auth/index.js";
+import type { AgentBrowserSkillCatalog } from "../domains/agents/prompting/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../domains/providers/index.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { HttpError } from "../http/errors.js";
@@ -103,6 +104,7 @@ export class RuntimeRegistry {
     secrets: SecretProvider,
     private readonly subscriptionUsage: SubscriptionUsageService,
     logger: ApplicationLogger,
+    agentBrowserSkills: AgentBrowserSkillCatalog,
     private readonly providerCatalog: ProviderCatalogStore,
   ) {
     this.services = composeRuntime(this.state, {
@@ -113,6 +115,7 @@ export class RuntimeRegistry {
       secrets,
       subscriptionUsage,
       logger,
+      agentBrowserSkills,
     });
   }
 

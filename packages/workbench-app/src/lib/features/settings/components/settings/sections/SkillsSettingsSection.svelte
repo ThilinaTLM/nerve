@@ -19,6 +19,7 @@ type SettingsChange = (
 type Props = {
   settingsDraft: Settings;
   activeProject?: ProjectRecord;
+  agentBrowserSkills?: AvailableSkill[];
   globalSkills?: AvailableSkill[];
   projectSkills?: AvailableSkill[];
   loading?: boolean;
@@ -30,6 +31,7 @@ type Props = {
 let {
   settingsDraft,
   activeProject,
+  agentBrowserSkills = [],
   globalSkills = [],
   projectSkills = [],
   loading = false,
@@ -38,6 +40,9 @@ let {
   onSettingsChange,
 }: Props = $props();
 
+const sortedAgentBrowserSkills = $derived(
+  agentBrowserSkills.toSorted((a, b) => a.name.localeCompare(b.name)),
+);
 const sortedGlobalSkills = $derived(
   globalSkills.toSorted((a, b) => a.name.localeCompare(b.name)),
 );
@@ -45,6 +50,12 @@ const sortedProjectSkills = $derived(
   projectSkills.toSorted((a, b) => a.name.localeCompare(b.name)),
 );
 const disabledSkills = $derived(new Set(settingsDraft.skills.disabled));
+const enabledAgentBrowserSkills = $derived(
+  new Set(settingsDraft.skills.agentBrowser.enabled),
+);
+const overriddenAgentBrowserNames = $derived(
+  new Set([...projectSkills, ...globalSkills].map((skill) => skill.name)),
+);
 const duplicateNames = $derived(
   new Set(
     globalSkills
@@ -63,9 +74,25 @@ function setSkillEnabled(name: string, enabled: boolean) {
   settingsDraft.skills.disabled = disabled;
   onSettingsChange?.({ skills: { disabled } }, { immediate: true });
 }
+
+function setAgentBrowserSkillEnabled(name: string, enabled: boolean) {
+  const next = new SvelteSet(settingsDraft.skills.agentBrowser.enabled);
+  if (enabled) next.add(name);
+  else next.delete(name);
+  const enabledNames = [...next].sort((a, b) => a.localeCompare(b));
+  settingsDraft.skills.agentBrowser.enabled = enabledNames;
+  onSettingsChange?.(
+    { skills: { agentBrowser: { enabled: enabledNames } } },
+    { immediate: true },
+  );
+}
 </script>
 
-{#snippet skillList(skills: AvailableSkill[], emptyMessage: string)}
+{#snippet skillList(
+  skills: AvailableSkill[],
+  emptyMessage: string,
+  source: "file" | "agentBrowser" = "file",
+)}
   {#if loading}
     <div class="flex items-center gap-2 py-3 text-sm text-muted-foreground">
       <Spinner class="size-4" />
@@ -87,7 +114,13 @@ function setSkillEnabled(name: string, enabled: boolean) {
           <div class="min-w-0 space-y-1">
             <div class="flex flex-wrap items-center gap-2">
               <h3 class="text-sm font-medium text-foreground">{skill.name}</h3>
-              {#if duplicateNames.has(skill.name)}
+              {#if source === "agentBrowser" && overriddenAgentBrowserNames.has(skill.name)}
+                <span
+                  class="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                >
+                  File skill takes precedence
+                </span>
+              {:else if source === "file" && duplicateNames.has(skill.name)}
                 <span
                   class="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                 >
@@ -104,15 +137,32 @@ function setSkillEnabled(name: string, enabled: boolean) {
             </p>
           </div>
           <ToggleSwitch
-            checked={!disabledSkills.has(skill.name)}
+            checked={source === "agentBrowser"
+              ? enabledAgentBrowserSkills.has(skill.name)
+              : !disabledSkills.has(skill.name)}
             aria-label={`Enable ${skill.name} skill`}
-            onCheckedChange={(checked) => setSkillEnabled(skill.name, checked)}
+            onCheckedChange={(checked) =>
+              source === "agentBrowser"
+                ? setAgentBrowserSkillEnabled(skill.name, checked)
+                : setSkillEnabled(skill.name, checked)}
           />
         </div>
       {/each}
     </div>
   {/if}
 {/snippet}
+
+<SettingsSectionCard
+  section="agent-browser-skills"
+  title="Agent Browser"
+  description="Skills provided by the agent-browser CLI. They are disabled by default and apply to subsequent agent runs."
+>
+  {@render skillList(
+    sortedAgentBrowserSkills,
+    "Agent Browser is not available on the daemon PATH, or it provides no skills.",
+    "agentBrowser",
+  )}
+</SettingsSectionCard>
 
 <SettingsSectionCard
   section="global-skills"

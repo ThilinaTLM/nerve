@@ -12,6 +12,7 @@ import {
   WorkbenchAgentMechanics,
   MessageMirror,
 } from "../domains/agents/run/index.js";
+import type { AgentBrowserSkillCatalog } from "../domains/agents/prompting/agent-browser-skills.js";
 import type { AuthManager } from "../domains/auth/index.js";
 import { WorkbenchSubagentExecutions } from "../domains/agents/run/workbench-subagent-executions.js";
 import { ConversationService } from "../domains/conversations/conversation-service.js";
@@ -81,6 +82,7 @@ export interface RuntimeDeps {
   secrets: SecretProvider;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
+  agentBrowserSkills: AgentBrowserSkillCatalog;
 }
 
 export interface RuntimeServices {
@@ -425,6 +427,7 @@ export function composeRuntime(
     messageMirror: services.messageMirror,
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
+    agentBrowserSkills: deps.agentBrowserSkills,
     subagentExecutions,
   });
   services.runRuntime = createWorkbenchRunRuntime({

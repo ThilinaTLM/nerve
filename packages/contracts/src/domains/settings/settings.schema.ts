@@ -141,9 +141,15 @@ export const settingsSchema = z.object({
     confluence: { enabled: false },
   }),
   skills: z
-    .object({ disabled: z.array(z.string().min(1)).default([]) })
+    .object({
+      disabled: z.array(z.string().min(1)).default([]),
+      agentBrowser: z
+        .object({ enabled: z.array(z.string().min(1)).default([]) })
+        .default({ enabled: [] }),
+    })
     .default({
       disabled: [],
+      agentBrowser: { enabled: [] },
     }),
   scopedModels: z.array(modelSelectionSchema).default([]),
 });
@@ -199,7 +205,7 @@ export const defaultSettings: Settings = {
     jira: { enabled: false },
     confluence: { enabled: false },
   },
-  skills: { disabled: [] },
+  skills: { disabled: [], agentBrowser: { enabled: [] } },
   scopedModels: [],
 };
 
@@ -274,6 +280,11 @@ export const updateSettingsRequestSchema = z.object({
   skills: z
     .object({
       disabled: z.array(z.string().min(1)).optional(),
+      agentBrowser: z
+        .object({
+          enabled: z.array(z.string().min(1)).optional(),
+        })
+        .optional(),
     })
     .optional(),
   tools: z

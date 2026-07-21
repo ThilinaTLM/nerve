@@ -208,6 +208,19 @@ export async function writeSettings(
           : {}),
       }
     : undefined;
+  const skillsPatch = patch.skills
+    ? {
+        ...patch.skills,
+        ...(patch.skills.agentBrowser
+          ? {
+              agentBrowser: {
+                ...storage.settings.skills.agentBrowser,
+                ...patch.skills.agentBrowser,
+              },
+            }
+          : {}),
+      }
+    : undefined;
   const next = settingsSchema.parse({
     ...storage.settings,
     ...patch,
@@ -234,7 +247,7 @@ export async function writeSettings(
     retry: { ...storage.settings.retry, ...(patch.retry ?? {}) },
     runtime: { ...storage.settings.runtime, ...(runtimePatch ?? {}) },
     tools: { ...storage.settings.tools, ...(toolsPatch ?? {}) },
-    skills: { ...storage.settings.skills, ...(patch.skills ?? {}) },
+    skills: { ...storage.settings.skills, ...(skillsPatch ?? {}) },
   });
   await atomicWriteJson(storage.paths.configPath, next, 0o600);
   storage.settings = next;

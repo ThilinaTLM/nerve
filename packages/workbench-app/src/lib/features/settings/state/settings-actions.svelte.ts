@@ -93,6 +93,7 @@ export async function loadSettingsSkills(projectId = selection.projectId) {
   try {
     const result = await listAvailableSkills(projectId);
     if (requestId !== skillsRequestId) return;
+    settingsState.agentBrowserSkills = result.agentBrowserSkills;
     settingsState.globalSkills = result.globalSkills;
     settingsState.projectSkills = result.projectSkills;
   } catch (error) {
@@ -224,6 +225,14 @@ function mergeSettingsPatch(
     next.skills = {
       ...(base?.skills ?? {}),
       ...(patch.skills ?? {}),
+      ...(base?.skills?.agentBrowser || patch.skills?.agentBrowser
+        ? {
+            agentBrowser: {
+              ...(base?.skills?.agentBrowser ?? {}),
+              ...(patch.skills?.agentBrowser ?? {}),
+            },
+          }
+        : {}),
     };
   }
   if (base?.tools || patch.tools) {

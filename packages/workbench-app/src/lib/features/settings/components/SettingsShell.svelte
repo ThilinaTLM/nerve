@@ -28,6 +28,7 @@ $effect(() => {
   models={settingsState.models}
   authProviders={settingsState.authProviders}
   {activeProject}
+  agentBrowserSkills={settingsState.agentBrowserSkills}
   globalSkills={settingsState.globalSkills}
   projectSkills={settingsState.projectSkills}
   skillsLoading={settingsState.skillsLoading}

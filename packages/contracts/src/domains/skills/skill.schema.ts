@@ -8,6 +8,7 @@ export const availableSkillSchema = z.object({
 export type AvailableSkill = z.infer<typeof availableSkillSchema>;
 
 export const availableSkillsResponseSchema = z.object({
+  agentBrowserSkills: z.array(availableSkillSchema),
   globalSkills: z.array(availableSkillSchema),
   projectSkills: z.array(availableSkillSchema),
 });

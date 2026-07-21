@@ -8,6 +8,7 @@ import type {
 export const settingsState = $state({
   models: [] as ModelInfo[],
   authProviders: [] as AuthProviderMetadata[],
+  agentBrowserSkills: [] as AvailableSkill[],
   globalSkills: [] as AvailableSkill[],
   projectSkills: [] as AvailableSkill[],
   skillsLoading: false,

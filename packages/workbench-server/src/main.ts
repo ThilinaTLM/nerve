@@ -152,6 +152,19 @@ async function main() {
   await state.logger.info("Daemon storage initialized", {
     context: { dataDir: storage.paths.home, host, port },
   });
+  await state.agentBrowserSkills
+    .initialize()
+    .then(async () => {
+      const count = state.agentBrowserSkills.skills.length;
+      if (count > 0) {
+        await state.logger.info("Agent Browser skills initialized", {
+          context: { count },
+        });
+      }
+    })
+    .catch((error) =>
+      state.logger.warn("Agent Browser skill discovery failed", { error }),
+    );
   const eventHydrateStartedAt = Date.now();
   const archivedEventLogs = await migrateLegacyEventLogs(
     storage.paths.home,

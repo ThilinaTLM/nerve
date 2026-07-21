@@ -26,6 +26,7 @@ describe("settings schema", () => {
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
     assert.deepEqual(settings.skills.disabled, []);
+    assert.deepEqual(settings.skills.agentBrowser.enabled, []);
     assert.deepEqual(settings.tools.bash.autoPromotion, {
       enabled: true,
       afterMs: 120_000,
@@ -66,6 +67,7 @@ describe("settings schema", () => {
     assert.deepEqual(settings.runtime, {});
     assert.deepEqual(settings.tools.disabled, []);
     assert.deepEqual(settings.skills.disabled, []);
+    assert.deepEqual(settings.skills.agentBrowser.enabled, []);
     assert.deepEqual(settings.tools.bash.autoPromotion, {
       enabled: true,
       afterMs: 120_000,
@@ -184,7 +186,10 @@ describe("settings schema", () => {
       lastAgentSelection: {
         approvalPolicy: { autoApproveReadOnly: false },
       },
-      skills: { disabled: ["diagram", "imagegen"] },
+      skills: {
+        disabled: ["diagram", "imagegen"],
+        agentBrowser: { enabled: ["core", "dogfood"] },
+      },
       tools: {
         disabled: ["web_search", "web_fetch", "python_exec"],
         bash: {
@@ -220,6 +225,7 @@ describe("settings schema", () => {
       "python_exec",
     ]);
     assert.deepEqual(parsed.skills?.disabled, ["diagram", "imagegen"]);
+    assert.deepEqual(parsed.skills?.agentBrowser?.enabled, ["core", "dogfood"]);
     assert.deepEqual(parsed.tools?.bash?.autoPromotion, {
       enabled: false,
       afterMs: 240_000,

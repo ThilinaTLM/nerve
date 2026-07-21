@@ -48,6 +48,7 @@ type SectionId =
   | "prompt-suggestions"
   | "models"
   | "tools"
+  | "agent-browser-skills"
   | "global-skills"
   | "project-skills"
   | "server"
@@ -81,6 +82,7 @@ type Props = {
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
   activeProject?: ProjectRecord;
+  agentBrowserSkills?: AvailableSkill[];
   globalSkills?: AvailableSkill[];
   projectSkills?: AvailableSkill[];
   skillsLoading?: boolean;
@@ -141,7 +143,10 @@ const baseGroups: SettingsGroup[] = [
     id: "skills",
     label: "Skills",
     icon: Library,
-    sections: [{ id: "global-skills", label: "Global skills" }],
+    sections: [
+      { id: "agent-browser-skills", label: "Agent Browser" },
+      { id: "global-skills", label: "Global skills" },
+    ],
   },
   {
     id: "storage",
@@ -166,6 +171,7 @@ let {
   models = [],
   authProviders = [],
   activeProject,
+  agentBrowserSkills = [],
   globalSkills = [],
   projectSkills = [],
   skillsLoading = false,
@@ -184,10 +190,14 @@ const groups = $derived<SettingsGroup[]>(
           ...group,
           sections: activeProject
             ? [
+                { id: "agent-browser-skills", label: "Agent Browser" },
                 { id: "global-skills", label: "Global skills" },
                 { id: "project-skills", label: "Project skills" },
               ]
-            : [{ id: "global-skills", label: "Global skills" }],
+            : [
+                { id: "agent-browser-skills", label: "Agent Browser" },
+                { id: "global-skills", label: "Global skills" },
+              ],
         }
       : group,
   ),
@@ -257,6 +267,7 @@ function statusText() {
         <SkillsSettingsSection
           {settingsDraft}
           {activeProject}
+          {agentBrowserSkills}
           {globalSkills}
           {projectSkills}
           loading={skillsLoading}

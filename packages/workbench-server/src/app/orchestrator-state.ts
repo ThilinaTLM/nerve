@@ -17,6 +17,7 @@ import {
 } from "../domains/auth/index.js";
 import { PiAiCredentialStore } from "../domains/auth/pi-ai-credential-store.js";
 import { PiAiModelsStore } from "../domains/auth/pi-ai-models-store.js";
+import { AgentBrowserSkillCatalog } from "../domains/agents/prompting/agent-browser-skills.js";
 import { ProviderCatalogStore } from "../domains/providers/index.js";
 import {
   StorageCleanupRepository,
@@ -54,6 +55,7 @@ export interface OrchestratorState {
   credentialKey: CredentialKeyService;
   oauthFlows: OAuthFlowManager;
   subscriptionUsage: SubscriptionUsageService;
+  agentBrowserSkills: AgentBrowserSkillCatalog;
 }
 
 export function createOrchestratorState(
@@ -119,6 +121,7 @@ export function createOrchestratorState(
     events,
     cacheDir: join(storage.paths.home, "cache", "usage"),
   });
+  const agentBrowserSkills = new AgentBrowserSkillCatalog();
   const registry = new RuntimeRegistry(
     storage,
     events,
@@ -127,6 +130,7 @@ export function createOrchestratorState(
     secrets,
     subscriptionUsage,
     logger,
+    agentBrowserSkills,
     providerCatalog,
   );
   const storageUsage = new StorageUsageService({
@@ -160,6 +164,7 @@ export function createOrchestratorState(
     providerCatalog,
     credentialKey,
     oauthFlows,
+    agentBrowserSkills,
     subscriptionUsage,
   };
 }
@@ -178,6 +183,7 @@ export async function shutdownOrchestratorState(
   if (shutdownStates.has(state)) return;
   shutdownStates.add(state);
   await state.registry.shutdown();
+  await state.agentBrowserSkills.shutdown().catch(() => undefined);
   state.subscriptionUsage.stop();
   await state.storageCleanup.shutdown().catch(() => undefined);
   await state.events.shutdown();

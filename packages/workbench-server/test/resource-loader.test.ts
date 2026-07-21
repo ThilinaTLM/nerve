@@ -27,6 +27,13 @@ async function writeSkill(
 }
 
 describe("Workbench skill resources", () => {
+  const agentBrowserCore = {
+    name: "core",
+    description: "Agent Browser core description",
+    content: "Agent Browser core instructions",
+    filePath: "/tmp/agent-browser/core/SKILL.md",
+  };
+
   it("lists global and project skills separately and preserves project precedence", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-resource-loader-"));
     const projectDir = join(root, "project");
@@ -78,6 +85,65 @@ describe("Workbench skill resources", () => {
         effectiveShared[0]?.content.includes("Project instructions"),
         true,
       );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("lists Agent Browser skills separately and keeps them opt-in with file precedence", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-resource-loader-"));
+    const projectDir = join(root, "project");
+    try {
+      await mkdir(projectDir, { recursive: true });
+      const projectCorePath = await writeSkill(
+        join(projectDir, ".nerve", "skills"),
+        "core",
+        "core",
+        "Project core description",
+        "Project core instructions",
+      );
+
+      const available = await listAvailableSkills(projectDir, {
+        agentBrowserSkills: [agentBrowserCore],
+      });
+      assert.deepEqual(available.agentBrowserSkills, [
+        {
+          name: "core",
+          description: "Agent Browser core description",
+          filePath: agentBrowserCore.filePath,
+        },
+      ]);
+
+      const defaultResources = await loadHarnessResources(projectDir, {
+        agentBrowserSkills: [agentBrowserCore],
+      });
+      assert.equal(
+        defaultResources.skills.some(
+          (skill) => skill.filePath === agentBrowserCore.filePath,
+        ),
+        false,
+      );
+
+      const projectWins = await loadHarnessResources(projectDir, {
+        agentBrowserSkills: [agentBrowserCore],
+        enabledAgentBrowserSkillNames: ["core"],
+      });
+      const projectCoreSkills = projectWins.skills.filter(
+        (skill) => skill.name === "core",
+      );
+      assert.equal(projectCoreSkills.length, 1);
+      assert.equal(projectCoreSkills[0]?.filePath, projectCorePath);
+
+      const builtinFallback = await loadHarnessResources(projectDir, {
+        disabledSkillNames: ["core"],
+        agentBrowserSkills: [agentBrowserCore],
+        enabledAgentBrowserSkillNames: ["core"],
+      });
+      const fallbackCoreSkills = builtinFallback.skills.filter(
+        (skill) => skill.name === "core",
+      );
+      assert.equal(fallbackCoreSkills.length, 1);
+      assert.equal(fallbackCoreSkills[0]?.filePath, agentBrowserCore.filePath);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

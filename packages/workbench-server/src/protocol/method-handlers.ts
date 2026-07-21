@@ -181,6 +181,7 @@ export async function handleProtocolMethod(
         : undefined;
       return listAvailableSkills(projectDir, {
         storageHome: state.storage.paths.home,
+        agentBrowserSkills: state.agentBrowserSkills.skills,
       });
     }
     case "auth.providers.list":

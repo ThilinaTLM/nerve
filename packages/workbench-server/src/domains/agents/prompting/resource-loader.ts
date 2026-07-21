@@ -24,6 +24,8 @@ export interface LoadedHarnessResources {
 export interface LoadHarnessResourcesOptions {
   storageHome?: string;
   disabledSkillNames?: readonly string[];
+  enabledAgentBrowserSkillNames?: readonly string[];
+  agentBrowserSkills?: readonly Skill[];
 }
 
 interface DiscoveredSkillGroups {
@@ -49,10 +51,7 @@ export async function loadHarnessResources(
       ]),
       loadAppendSystemPrompt(resolvedCwd, agentDir),
     ]);
-  const disabledSkillNames = new Set(options.disabledSkillNames ?? []);
-  const skills = effectiveSkills(skillGroups).filter(
-    (skill) => !disabledSkillNames.has(skill.name),
-  );
+  const skills = effectiveSkills(skillGroups, options);
 
   return { contextFiles, skills, systemPrompt, appendSystemPrompt };
 }
@@ -102,7 +101,10 @@ async function loadContextFileFromDir(
 
 export async function listAvailableSkills(
   cwd: string | undefined,
-  options: Pick<LoadHarnessResourcesOptions, "storageHome"> = {},
+  options: Pick<
+    LoadHarnessResourcesOptions,
+    "storageHome" | "agentBrowserSkills"
+  > = {},
 ): Promise<AvailableSkillsResponse> {
   const agentDir = join(resolveDataDir(options.storageHome), "agent");
   const resolvedCwd = cwd ? resolve(cwd) : undefined;
@@ -114,6 +116,7 @@ export async function listAvailableSkills(
     filePath,
   });
   return {
+    agentBrowserSkills: (options.agentBrowserSkills ?? []).map(toMetadata),
     globalSkills: groups.globalSkills.map(toMetadata),
     projectSkills: groups.projectSkills.map(toMetadata),
   };
@@ -140,8 +143,22 @@ async function discoverSkillGroups(
   };
 }
 
-function effectiveSkills(groups: DiscoveredSkillGroups): Skill[] {
-  return deduplicateSkills([...groups.projectSkills, ...groups.globalSkills]);
+function effectiveSkills(
+  groups: DiscoveredSkillGroups,
+  options: LoadHarnessResourcesOptions,
+): Skill[] {
+  const disabledSkillNames = new Set(options.disabledSkillNames ?? []);
+  const enabledAgentBrowserSkillNames = new Set(
+    options.enabledAgentBrowserSkillNames ?? [],
+  );
+  const fileSkills = deduplicateSkills([
+    ...groups.projectSkills,
+    ...groups.globalSkills,
+  ]).filter((skill) => !disabledSkillNames.has(skill.name));
+  const agentBrowserSkills = (options.agentBrowserSkills ?? []).filter(
+    (skill) => enabledAgentBrowserSkillNames.has(skill.name),
+  );
+  return deduplicateSkills([...fileSkills, ...agentBrowserSkills]);
 }
 
 function deduplicateSkills(skills: readonly Skill[]): Skill[] {

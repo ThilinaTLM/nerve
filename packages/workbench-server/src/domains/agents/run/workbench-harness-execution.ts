@@ -132,6 +132,9 @@ export async function executeWorkbenchHarness(
     const resources = await loadHarnessResources(agent.projectDir, {
       storageHome: this.deps.storage.paths.home,
       disabledSkillNames: this.deps.storage.settings.skills.disabled,
+      enabledAgentBrowserSkillNames:
+        this.deps.storage.settings.skills.agentBrowser.enabled,
+      agentBrowserSkills: this.deps.agentBrowserSkills.skills,
     });
     const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
     const composeLatestSystemPrompt = () => {

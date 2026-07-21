@@ -39,6 +39,7 @@ import type {
 } from "../../tools/tool-service.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
+import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 
 export { exploreRunPlanArg, exploreSystemPrompt } from "./explore-helpers.js";
@@ -157,6 +158,7 @@ export interface SubagentRunnerDeps {
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   executions: WorkbenchSubagentExecutions;
+  agentBrowserSkills: AgentBrowserSkillCatalog;
 }
 
 export class SubagentRunner {
@@ -375,6 +377,9 @@ export class SubagentRunner {
       const resources = await loadHarnessResources(child.projectDir, {
         storageHome: this.deps.storage.paths.home,
         disabledSkillNames: this.deps.storage.settings.skills.disabled,
+        enabledAgentBrowserSkillNames:
+          this.deps.storage.settings.skills.agentBrowser.enabled,
+        agentBrowserSkills: this.deps.agentBrowserSkills.skills,
       });
       const activeToolNames = activeToolNamesForExploreAgent();
       harness = new AgentHarness({
