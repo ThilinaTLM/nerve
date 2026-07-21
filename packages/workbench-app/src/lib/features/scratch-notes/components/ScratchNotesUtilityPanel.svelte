@@ -1,5 +1,6 @@
 <script lang="ts">
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
+import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ProjectRecord } from "$lib/api";
@@ -93,8 +94,6 @@ function statusLabel(note: ScratchNoteEntry): string {
           open={utilitySectionPreferences.isOpen(`notes.${note.id}`)}
           onOpenChange={(open) =>
             utilitySectionPreferences.setOpen(`notes.${note.id}`, open)}
-          onTitleDoubleClick={() => (noteToRename = note)}
-          titleHint="Double-click to rename"
         >
           {#snippet meta()}
             {#if statusLabel(note)}
@@ -102,6 +101,17 @@ function statusLabel(note: ScratchNoteEntry): string {
             {/if}
           {/snippet}
           {#snippet actions()}
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              class="text-muted-foreground"
+              title={`Edit title for ${note.title}`}
+              ariaLabel={`Edit title for ${note.title}`}
+              disabled={note.deleting}
+              onclick={() => (noteToRename = note)}
+            >
+              <Pencil class="size-3" strokeWidth={2.3} />
+            </Button>
             <button
               type="button"
               class="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"

@@ -11,8 +11,6 @@ let {
   meta,
   actions,
   onOpenChange,
-  onTitleDoubleClick,
-  titleHint,
   contentClass,
   children,
 }: {
@@ -22,8 +20,6 @@ let {
   meta?: Snippet;
   actions?: Snippet;
   onOpenChange?: (open: boolean) => void;
-  onTitleDoubleClick?: () => void;
-  titleHint?: string;
   contentClass?: string;
   children: Snippet;
 } = $props();
@@ -41,16 +37,6 @@ function toggle(): void {
       class="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 py-0.5 text-left text-xs font-semibold text-foreground transition-colors hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       aria-expanded={open}
       onclick={toggle}
-      ondblclick={(event) => {
-        const target = event.target as HTMLElement;
-        if (
-          !onTitleDoubleClick ||
-          !target.closest("[data-panel-section-title]")
-        ) {
-          return;
-        }
-        onTitleDoubleClick();
-      }}
     >
       {#if open}
         <ChevronDown
@@ -72,11 +58,7 @@ function toggle(): void {
           class="shrink-0 text-muted-foreground"
         />
       {/if}
-      <span
-        data-panel-section-title
-        class={cn("truncate", onTitleDoubleClick && "cursor-default")}
-        title={titleHint}>{title}</span
-      >
+      <span class="truncate">{title}</span>
     </button>
     {#if meta}
       <div
