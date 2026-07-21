@@ -76,7 +76,7 @@ const activeFilterCount = $derived(activeGitPrFilterCount(filters));
     {#if selectedRepoHasGithubRemote && github?.authenticated}
       <Button
         size="icon-xs"
-        variant={hasActiveGitPrFilters(filters) ? "secondary" : "ghost"}
+        variant="ghost"
         class="relative overflow-visible"
         ariaLabel={activeFilterCount > 0
           ? `Configure pull request filters · ${activeFilterCount} active`
