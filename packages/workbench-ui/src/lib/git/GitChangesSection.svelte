@@ -2,6 +2,7 @@
 import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import FilePen from "@lucide/svelte/icons/file-pen";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import X from "@lucide/svelte/icons/x";
 import type { GitFileChange } from "@nervekit/contracts";
@@ -41,6 +42,7 @@ type Props = {
     action: "stage" | "unstage" | "discard",
   ) => void;
   onBulkStage: (repo: string, action: "stage-all" | "unstage-all") => void;
+  onRefresh: (repo: string) => void;
   onRequestDiscard: (file: GitFileChange) => void;
 };
 
@@ -57,6 +59,7 @@ let {
   onOpenChange,
   onMutateFile,
   onBulkStage,
+  onRefresh,
   onRequestDiscard,
 }: Props = $props();
 </script>
@@ -142,10 +145,37 @@ let {
 >
   {#snippet meta()}
     {#if changes}
-      <span>{changes.stagedCount} staged</span>
+      <span
+        class="flex items-center gap-0.5"
+        aria-label={`${changes.stagedCount} staged`}
+        title={`${changes.stagedCount} staged`}
+      >
+        <ArrowUpFromLine class="size-3" aria-hidden="true" />
+        <span>{changes.stagedCount}</span>
+      </span>
       <span class="text-muted-foreground/50">·</span>
-      <span>{changes.unstagedCount + changes.untrackedCount} unstaged</span>
+      <span
+        class="flex items-center gap-0.5"
+        aria-label={`${changes.unstagedCount + changes.untrackedCount} unstaged`}
+        title={`${changes.unstagedCount + changes.untrackedCount} unstaged`}
+      >
+        <ArrowDownToLine class="size-3" aria-hidden="true" />
+        <span>{changes.unstagedCount + changes.untrackedCount}</span>
+      </span>
     {/if}
+  {/snippet}
+
+  {#snippet actions()}
+    <Button
+      size="icon-xs"
+      variant="ghost"
+      ariaLabel="Refresh changes"
+      title="Refresh changes"
+      disabled={!capabilities.refresh.enabled || loadingOverview}
+      onclick={() => onRefresh(selectedRepo)}
+    >
+      <RefreshCw class={loadingOverview ? "animate-spin" : ""} />
+    </Button>
   {/snippet}
 
   {#if loadingOverview && !changes}

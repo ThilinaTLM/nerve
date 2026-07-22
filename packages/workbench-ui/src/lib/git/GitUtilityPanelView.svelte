@@ -202,6 +202,7 @@ function openBranchDialog(): void {
           void actions.mutateFile(repository, file, action)}
         onBulkStage={(repository, action) =>
           void actions.bulkMutateFiles(repository, action)}
+        onRefresh={(repository) => void actions.refreshRepository(repository)}
         onRequestDiscard={(file) =>
           (discardCandidate = { repository: model.selectedRepository, file })}
       />
