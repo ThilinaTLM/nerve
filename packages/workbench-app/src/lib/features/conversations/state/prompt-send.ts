@@ -61,13 +61,14 @@ export function setActiveComposerText(value: string) {
 }
 
 export async function ensureAgent(): Promise<string> {
-  if (selection.agentId) {
-    const agentId = selection.agentId;
+  const agent = currentActiveAgent();
+  if (agent) {
+    const agentId = agent.id;
+    selection.agentId = agentId;
     // First flush an already-published local intent. Only compute a fallback
     // delta afterward, avoiding a redundant duplicate configuration request
     // based on the still-stale authoritative agent record.
     await flushAgentConfigChanges(agentId);
-    const agent = currentActiveAgent();
     const {
       desired,
       thinkingLevel,

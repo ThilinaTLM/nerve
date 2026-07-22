@@ -1,6 +1,6 @@
 # Security Policy
 
-Nerve is alpha software. Please avoid exposing the daemon to untrusted networks unless you understand the risks and have configured access controls appropriately.
+Nerve is beta software. Please avoid exposing the daemon to untrusted networks unless you understand the risks and have configured access controls appropriately.
 
 ## Reporting a Vulnerability
 

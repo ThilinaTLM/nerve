@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in Nerve. The project is currently alpha, so small, focused changes are easiest to review.
+Thanks for your interest in Nerve. The project is currently beta, so small, focused changes are easiest to review.
 
 ## Development
 

@@ -15,13 +15,22 @@ import { queueSettingsSave } from "$lib/features/settings/state/settings-actions
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { mainAgentForConversation } from "./main-agent";
 import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,
 } from "./agent-selection-defaults";
 
 export function currentActiveAgent(): AgentRecord | undefined {
-  return workspaceState.agents.find((agent) => agent.id === selection.agentId);
+  const conversation = workspaceState.conversations.find(
+    (candidate) => candidate.id === selection.conversationId,
+  );
+  if (!conversation) return undefined;
+  return mainAgentForConversation(
+    conversation,
+    workspaceState.agents,
+    selection.agentId,
+  );
 }
 
 export function selectedModel(): ModelSelection | undefined {
@@ -91,8 +100,9 @@ export function setComposerModel(key: string) {
     ...(model ? { model } : {}),
     thinkingLevel,
   });
-  if (pending || !selection.agentId) return;
-  queueAgentConfigChange(selection.agentId, {
+  const agentId = currentActiveAgent()?.id;
+  if (pending || !agentId) return;
+  queueAgentConfigChange(agentId, {
     model: model ?? null,
     thinkingLevel,
   });
@@ -104,8 +114,9 @@ export function setComposerThinkingLevel(level: AgentRecord["thinkingLevel"]) {
   const pending = activePendingComposerConversation();
   if (pending) pending.thinkingLevel = thinkingLevel;
   rememberLastAgentSelection({ thinkingLevel });
-  if (pending || !selection.agentId) return;
-  queueAgentConfigChange(selection.agentId, { thinkingLevel });
+  const agentId = currentActiveAgent()?.id;
+  if (pending || !agentId) return;
+  queueAgentConfigChange(agentId, { thinkingLevel });
 }
 
 export function setComposerMode(mode: AgentRecord["mode"]) {
@@ -113,8 +124,9 @@ export function setComposerMode(mode: AgentRecord["mode"]) {
   const pending = activePendingComposerConversation();
   if (pending) pending.mode = mode;
   rememberLastAgentSelection({ mode });
-  if (pending || !selection.agentId) return;
-  queueAgentConfigChange(selection.agentId, { mode });
+  const agentId = currentActiveAgent()?.id;
+  if (pending || !agentId) return;
+  queueAgentConfigChange(agentId, { mode });
 }
 
 export function setComposerPermission(
@@ -124,8 +136,9 @@ export function setComposerPermission(
   const pending = activePendingComposerConversation();
   if (pending) pending.permissionLevel = permissionLevel;
   rememberLastAgentSelection({ permissionLevel });
-  if (pending || !selection.agentId) return;
-  queueAgentConfigChange(selection.agentId, { permissionLevel });
+  const agentId = currentActiveAgent()?.id;
+  if (pending || !agentId) return;
+  queueAgentConfigChange(agentId, { permissionLevel });
 }
 
 export function setComposerApprovalPolicy(
@@ -135,8 +148,9 @@ export function setComposerApprovalPolicy(
   const pending = activePendingComposerConversation();
   if (pending) pending.approvalPolicy = approvalPolicy;
   rememberLastAgentSelection({ approvalPolicy });
-  if (pending || !selection.agentId) return;
-  queueAgentConfigChange(selection.agentId, { approvalPolicy });
+  const agentId = currentActiveAgent()?.id;
+  if (pending || !agentId) return;
+  queueAgentConfigChange(agentId, { approvalPolicy });
 }
 
 function approvalPoliciesEqual(

@@ -20,21 +20,12 @@ import {
   selection,
 } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { mainAgentForConversation } from "./main-agent";
 import {
   clearActiveSelection,
   ensureConversationView,
   persistConversationTabs,
 } from "./state";
-
-function agentForConversation(
-  conversation: ConversationRecord,
-): AgentRecord | undefined {
-  return workspaceState.agents.find(
-    (agent) =>
-      agent.id === conversation.activeAgentId ||
-      agent.conversationId === conversation.id,
-  );
-}
 
 async function projectForConversation(
   conversation: ConversationRecord,
@@ -51,8 +42,11 @@ export async function applyActiveConversationSelection(
 ) {
   selection.conversationId = conversation.id;
   selection.projectId = conversation.projectId;
-  const conversationAgent = agentForConversation(conversation);
-  selection.agentId = conversation.activeAgentId ?? conversationAgent?.id;
+  const conversationAgent = mainAgentForConversation(
+    conversation,
+    workspaceState.agents,
+  );
+  selection.agentId = conversationAgent?.id;
   selection.entryId = conversation.activeEntryId;
   const project = await projectForConversation(conversation);
   composerDraft.projectDir = project.dir;
