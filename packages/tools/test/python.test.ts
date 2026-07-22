@@ -292,7 +292,10 @@ describe("python executor", () => {
       };
     };
     assert.ok(details.fullOutputPath);
-    assert.match(details.fullOutputPath, /tmp\/tool-outputs\/nerve-python-/);
+    assert.match(
+      details.fullOutputPath,
+      /tmp[\\/]tool-outputs[\\/]nerve-python-/,
+    );
     assert.equal(details.artifactDir, undefined);
     assert.equal(details.truncation?.truncated, true);
     assert.equal(details.truncation?.direction, "head_tail");

@@ -69,11 +69,7 @@ export async function executeBash(
       if (forceKillTimeout) clearTimeout(forceKillTimeout);
       context.signal?.removeEventListener("abort", onAbort);
     };
-    const kill = (signal: NodeJS.Signals = "SIGTERM") => {
-      if (process.platform === "win32") {
-        forceKillProcessTree(child);
-        return;
-      }
+    const killPosix = (signal: NodeJS.Signals) => {
       try {
         if (child.pid) process.kill(-child.pid, signal);
         else child.kill(signal);
@@ -81,12 +77,27 @@ export async function executeBash(
         child.kill(signal);
       }
     };
-    const onAbort = () => {
+    const rejectTerminationFailure = (error: unknown) => {
       if (settled) return;
-      forceKillProcessTree(child);
       settled = true;
       cleanup();
-      reject(new Error("Command aborted."));
+      reject(
+        new Error(
+          `Failed to terminate command process tree: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    };
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      void forceKillProcessTree(child).then(
+        () => reject(new Error("Command aborted.")),
+        () =>
+          reject(
+            new Error("Command aborted after process termination failed."),
+          ),
+      );
     };
 
     context.signal?.addEventListener("abort", onAbort, { once: true });
@@ -95,9 +106,15 @@ export async function executeBash(
         if (settled) return;
         timedOut = true;
         timeoutKilled = true;
-        kill("SIGTERM");
+        if (process.platform === "win32") {
+          void forceKillProcessTree(child).catch(rejectTerminationFailure);
+          return;
+        }
+        killPosix("SIGTERM");
         forceKillTimeout = setTimeout(() => {
-          if (!settled) kill("SIGKILL");
+          if (!settled) {
+            void forceKillProcessTree(child).catch(rejectTerminationFailure);
+          }
         }, FORCE_KILL_AFTER_MS);
       }, timeoutSeconds * 1000);
     }

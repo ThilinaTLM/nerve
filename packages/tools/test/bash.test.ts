@@ -56,7 +56,11 @@ describe("bash executor", () => {
     assert.equal(env.CI, process.env.CI ?? "1");
   });
 
-  it("uses configured shellPath instead of the platform default shell", async () => {
+  it("uses configured shellPath instead of the platform default shell", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("Executable fixture scripts use POSIX shebangs.");
+      return;
+    }
     const project = await createTempProject();
     const shellPath = await writeExecutable(
       project.root,
@@ -132,7 +136,10 @@ describe("bash executor", () => {
       };
     };
     assert.ok(details.fullOutputPath);
-    assert.match(details.fullOutputPath, /tmp\/tool-outputs\/nerve-bash-/);
+    assert.match(
+      details.fullOutputPath,
+      /tmp[\\/]tool-outputs[\\/]nerve-bash-/,
+    );
     assert.equal(details.truncation?.truncated, true);
     assert.equal(details.truncation?.direction, "head_tail");
     assert.equal(details.streams?.stdout?.truncated, true);

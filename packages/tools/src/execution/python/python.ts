@@ -406,11 +406,7 @@ async function runPythonProcess({
       if (forceKillTimeout) clearTimeout(forceKillTimeout);
       signal?.removeEventListener("abort", onAbort);
     };
-    const kill = (killSignal: NodeJS.Signals = "SIGTERM") => {
-      if (process.platform === "win32") {
-        forceKillProcessTree(child);
-        return;
-      }
+    const killPosix = (killSignal: NodeJS.Signals) => {
       try {
         if (child.pid) process.kill(-child.pid, killSignal);
         else child.kill(killSignal);
@@ -418,12 +414,29 @@ async function runPythonProcess({
         child.kill(killSignal);
       }
     };
-    const onAbort = () => {
+    const rejectTerminationFailure = (error: unknown) => {
       if (settled) return;
-      forceKillProcessTree(child);
       settled = true;
       cleanup();
-      reject(new Error("Python execution aborted."));
+      reject(
+        new Error(
+          `Failed to terminate Python process tree: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    };
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      void forceKillProcessTree(child).then(
+        () => reject(new Error("Python execution aborted.")),
+        () =>
+          reject(
+            new Error(
+              "Python execution aborted after process termination failed.",
+            ),
+          ),
+      );
     };
 
     signal?.addEventListener("abort", onAbort, { once: true });
@@ -431,9 +444,15 @@ async function runPythonProcess({
       if (settled) return;
       timedOut = true;
       timeoutKilled = true;
-      kill("SIGTERM");
+      if (process.platform === "win32") {
+        void forceKillProcessTree(child).catch(rejectTerminationFailure);
+        return;
+      }
+      killPosix("SIGTERM");
       forceKillTimeout = setTimeout(() => {
-        if (!settled) kill("SIGKILL");
+        if (!settled) {
+          void forceKillProcessTree(child).catch(rejectTerminationFailure);
+        }
       }, FORCE_KILL_AFTER_MS);
     }, timeoutSeconds * 1000);
 

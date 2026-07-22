@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { describe, it, type TestContext } from "node:test";
 import { walkFiles } from "../src/execution/common/search-utils.js";
 import { executeFind, executeGrep } from "../src/execution/index.js";
 import { createTempProject, withPath, writeExecutable } from "./helpers.js";
+
+function requireExecutableFixtures(t: TestContext): boolean {
+  if (process.platform !== "win32") return true;
+  t.skip("Executable fixture scripts use POSIX shebangs.");
+  return false;
+}
 
 describe("find and grep executors", () => {
   it("falls back to Node find implementation and skips dependency/control directories", async () => {
@@ -47,7 +53,8 @@ describe("find and grep executors", () => {
     );
   });
 
-  it("uses fd fast path with file-only semantics", async () => {
+  it("uses fd fast path with file-only semantics", async (t) => {
+    if (!requireExecutableFixtures(t)) return;
     const project = await createTempProject();
     const bin = join(project.root, "bin");
     await mkdir(bin);
@@ -71,7 +78,8 @@ if (!fileOnly) console.log(root + "/src");
     });
   });
 
-  it("caps overlong find result lines while preserving structured entries", async () => {
+  it("caps overlong find result lines while preserving structured entries", async (t) => {
+    if (!requireExecutableFixtures(t)) return;
     const project = await createTempProject();
     const bin = join(project.root, "bin");
     await mkdir(bin);
@@ -199,7 +207,8 @@ console.log(root + "/" + "a".repeat(6000) + ".ts");
     });
   });
 
-  it("parses rg fast-path output into relative matches", async () => {
+  it("parses rg fast-path output into relative matches", async (t) => {
+    if (!requireExecutableFixtures(t)) return;
     const project = await createTempProject();
     const bin = join(project.root, "bin");
     await mkdir(bin);
@@ -312,7 +321,8 @@ emit("match", root + "/other.ts", 4, "another needle");
     });
   });
 
-  it("treats ripgrep exit code 1 as no matches without fallback rescanning", async () => {
+  it("treats ripgrep exit code 1 as no matches without fallback rescanning", async (t) => {
+    if (!requireExecutableFixtures(t)) return;
     const project = await createTempProject();
     const bin = join(project.root, "bin");
     await mkdir(bin);
@@ -335,7 +345,8 @@ emit("match", root + "/other.ts", 4, "another needle");
     assert.equal(await readFile(marker, "utf8"), "called\n");
   });
 
-  it("bounds high-volume ripgrep output at the requested global limit", async () => {
+  it("bounds high-volume ripgrep output at the requested global limit", async (t) => {
+    if (!requireExecutableFixtures(t)) return;
     const project = await createTempProject();
     const bin = join(project.root, "bin");
     await mkdir(bin);
@@ -366,7 +377,8 @@ for (let line = 1; line <= 100000; line += 1) {
     });
   });
 
-  it("parses colon-containing filenames from ripgrep JSON", async () => {
+  it("parses colon-containing filenames from ripgrep JSON", async (t) => {
+    if (!requireExecutableFixtures(t)) return;
     const project = await createTempProject();
     const bin = join(project.root, "bin");
     await mkdir(bin);
@@ -393,7 +405,8 @@ console.log(JSON.stringify({
     });
   });
 
-  it("aborts ripgrep and waits for child-process cleanup", async () => {
+  it("aborts ripgrep and waits for child-process cleanup", async (t) => {
+    if (!requireExecutableFixtures(t)) return;
     const project = await createTempProject();
     const bin = join(project.root, "bin");
     await mkdir(bin);
@@ -428,7 +441,8 @@ setInterval(() => {}, 1000);
     assert.equal(await readFile(marker, "utf8"), "started\nstopped");
   });
 
-  it("greps a single file with rg fast path", async () => {
+  it("greps a single file with rg fast path", async (t) => {
+    if (!requireExecutableFixtures(t)) return;
     const project = await createTempProject();
     const bin = join(project.root, "bin");
     await mkdir(bin);

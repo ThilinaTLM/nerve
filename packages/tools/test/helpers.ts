@@ -1,4 +1,11 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after } from "node:test";
@@ -12,7 +19,7 @@ export type TempProject = {
 export async function createTempProject(
   prefix = "nerve-tools-",
 ): Promise<TempProject> {
-  const root = await mkdtemp(join(tmpdir(), prefix));
+  const root = await realpath(await mkdtemp(join(tmpdir(), prefix)));
   const cleanup = () => rm(root, { recursive: true, force: true });
   after(cleanup);
   return {
