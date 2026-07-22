@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { EOL } from "node:os";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
 import { executePython, resolvePythonRuntime } from "../src/execution/index.js";
@@ -146,7 +147,7 @@ describe("python executor", () => {
 
     assert.equal(
       result.stdout,
-      `${project.root.split(/[\\/]/).pop()}\nhelper\n file`,
+      `${project.root.split(/[\\/]/).pop()}${EOL}helper${EOL} file`,
     );
     assert.equal(result.exitCode, 0);
     const details = result.details as {

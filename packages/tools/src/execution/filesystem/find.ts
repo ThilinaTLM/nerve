@@ -100,8 +100,8 @@ async function fallbackFind(
     root,
     limit,
     async (_absolutePath, relativePath) => {
-      if (regex.test(relativePath))
-        results.push(relativePath.replaceAll("\\", "/"));
+      const normalizedPath = relativePath.replaceAll("\\", "/");
+      if (regex.test(normalizedPath)) results.push(normalizedPath);
     },
     () => results.length >= limit,
   );
