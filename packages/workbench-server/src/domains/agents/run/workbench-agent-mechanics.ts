@@ -92,9 +92,6 @@ export class WorkbenchAgentMechanics {
       harnessStorage: deps.harnessStorage,
       createAgent: deps.createAgent,
       setAgentStatus: deps.setAgentStatus,
-      getConversation: (conversationId) =>
-        deps.state.getConversation(conversationId),
-      updateConversation: deps.updateConversation,
       subscriptionUsage: deps.subscriptionUsage,
       logger: deps.logger.child({ component: "subagent-runner" }),
       executions: deps.subagentExecutions,

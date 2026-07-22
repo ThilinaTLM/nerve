@@ -145,11 +145,13 @@ export class AgentLifecycleService {
     this.state.agents.set(agent.id, agent);
     this.index.upsertAgent(agent);
     await this.writeAgent(agent);
-    await this.updateConversation({
-      ...conversation,
-      activeAgentId: agent.id,
-      updatedAt: now,
-    });
+    if (!parent) {
+      await this.updateConversation({
+        ...conversation,
+        activeAgentId: agent.id,
+        updatedAt: now,
+      });
+    }
     await this.events.publish("agent.created", { agent, task: request.task });
     return agent;
   }
@@ -183,6 +185,13 @@ export class AgentLifecycleService {
     request: UpdateAgentRequest,
   ): Promise<AgentRecord> {
     const agent = this.getAgent(agentId);
+    if (agent.parentAgentId) {
+      throw new HttpError(
+        409,
+        "SUBAGENT_NOT_INTERACTIVE",
+        "Sub-agents are managed by their parent run and cannot be configured directly.",
+      );
+    }
     const activeRunId = await this.activeRunId(agent);
     if (activeRunId) {
       if (isModeOnlyUpdate(request)) {
@@ -298,6 +307,40 @@ export class AgentLifecycleService {
       this.index.upsertAgent(agent);
       if (needsStatusRecovery || needsWorkerBackfill)
         await this.writeAgent(agent);
+    }
+    await this.repairActiveAgentReferences();
+  }
+
+  private async repairActiveAgentReferences(): Promise<void> {
+    for (const conversation of this.state.conversations.values()) {
+      if (!conversation.activeAgentId) continue;
+      const active = this.state.agents.get(conversation.activeAgentId);
+      if (
+        active &&
+        !active.parentAgentId &&
+        active.conversationId === conversation.id
+      ) {
+        continue;
+      }
+
+      const root = active?.parentAgentId
+        ? this.state.agents.get(active.rootAgentId)
+        : undefined;
+      const repairedAgent =
+        root && !root.parentAgentId && root.conversationId === conversation.id
+          ? root
+          : [...this.state.agents.values()]
+              .filter(
+                (agent) =>
+                  agent.conversationId === conversation.id &&
+                  !agent.parentAgentId,
+              )
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      await this.updateConversation({
+        ...conversation,
+        activeAgentId: repairedAgent?.id,
+        updatedAt: new Date().toISOString(),
+      });
     }
   }
 

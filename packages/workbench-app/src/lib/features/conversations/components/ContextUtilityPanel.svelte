@@ -240,14 +240,9 @@ $effect(() => {
           </button>
           {#if subagentsOpen}
             {#each sortAgents(subagents) as agent (agent.id)}
-              <button
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/60 {agent.id ===
-                activeAgent?.id
-                  ? 'bg-muted/60'
-                  : ''}"
-                type="button"
+              <div
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-left"
                 title={agent.id}
-                onclick={() => onSelectAgent?.(agent)}
               >
                 <StatusDot
                   tone={agentActivityTone(agent.status, false, agent.mode)}
@@ -266,7 +261,7 @@ $effect(() => {
                     {agent.status} · {agent.mode} · {agent.permissionLevel}
                   </div>
                 </div>
-              </button>
+              </div>
             {/each}
           {/if}
         {/if}

@@ -83,6 +83,13 @@ export class WorkbenchRunService {
 
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.requireAgent(agentId);
+    if (agent.parentAgentId) {
+      throw new HttpError(
+        409,
+        "SUBAGENT_NOT_INTERACTIVE",
+        "Sub-agents are managed by their parent run and cannot receive direct prompts.",
+      );
+    }
     const scopeId = this.scopeId(agent);
     const active = await this.unitOfWork.findActive(scopeId);
     if (active) {

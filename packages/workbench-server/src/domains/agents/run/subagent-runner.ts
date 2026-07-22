@@ -10,7 +10,6 @@ import {
 } from "@nervekit/host-runtime/harness";
 import type {
   AgentRecord,
-  ConversationRecord,
   CreateAgentRequest,
   ExploreStepPayload,
   ExploreUsageStatsPayload,
@@ -153,8 +152,6 @@ export interface SubagentRunnerDeps {
     agent: AgentRecord,
     status: AgentRecord["status"],
   ) => Promise<void>;
-  getConversation: (conversationId: string) => ConversationRecord;
-  updateConversation: (conversation: ConversationRecord) => Promise<void>;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   executions: WorkbenchSubagentExecutions;
@@ -513,11 +510,6 @@ export class SubagentRunner {
     } finally {
       unregister?.();
       spec.signal?.removeEventListener("abort", abortFromParent);
-      await this.deps.updateConversation({
-        ...this.deps.getConversation(spec.parent.conversationId),
-        activeAgentId: spec.parent.id,
-        updatedAt: new Date().toISOString(),
-      });
     }
   }
   private async openChildStorage(

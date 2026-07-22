@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -124,9 +124,83 @@ describe("explore subagent transcript isolation", () => {
         snapshot.toolCalls.some((toolCall) => toolCall.agentId === child.id),
         false,
       );
+      await assert.rejects(
+        orchestrator.registry.promptAgent(child.id, { text: "Continue." }),
+        hasErrorCode("SUBAGENT_NOT_INTERACTIVE"),
+      );
+      await assert.rejects(
+        orchestrator.registry.configureAgent(child.id, { mode: "planning" }),
+        hasErrorCode("SUBAGENT_NOT_INTERACTIVE"),
+      );
+      assert.equal(
+        orchestrator.registry.getConversation(conversation.id).activeAgentId,
+        parent.id,
+      );
     } finally {
       registration.unregister();
       await shutdownOrchestratorState(orchestrator);
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("repairs a persisted child active-agent reference during hydration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-explore-recovery-"));
+    const storage = await initializeStorage(root);
+    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    let restarted: ReturnType<typeof createOrchestratorState> | undefined;
+    try {
+      await orchestrator.registry.hydrate();
+      const project = await orchestrator.registry.createProject({ dir: root });
+      const conversation = await orchestrator.registry.createConversation({
+        projectId: project.id,
+      });
+      const parent = await orchestrator.registry.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+      });
+      const child = await orchestrator.registry.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        parentAgentId: parent.id,
+        task: "Recovery fixture",
+      });
+      assert.equal(
+        orchestrator.registry.getConversation(conversation.id).activeAgentId,
+        parent.id,
+      );
+
+      await shutdownOrchestratorState(orchestrator);
+      const conversationPath = join(
+        root,
+        "conversations",
+        conversation.id,
+        "conversation.json",
+      );
+      await writeFile(
+        conversationPath,
+        `${JSON.stringify({
+          ...orchestrator.registry.getConversation(conversation.id),
+          activeAgentId: child.id,
+        })}\n`,
+        "utf8",
+      );
+
+      const restartedStorage = await initializeStorage(root);
+      restarted = createOrchestratorState(restartedStorage, "127.0.0.1", 0);
+      await restarted.registry.hydrate();
+      assert.equal(
+        restarted.registry.getConversation(conversation.id).activeAgentId,
+        parent.id,
+      );
+      const persisted = JSON.parse(
+        await readFile(conversationPath, "utf8"),
+      ) as {
+        activeAgentId?: string;
+      };
+      assert.equal(persisted.activeAgentId, parent.id);
+    } finally {
+      await shutdownOrchestratorState(orchestrator);
+      if (restarted) await shutdownOrchestratorState(restarted);
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -185,6 +259,10 @@ describe("explore subagent transcript isolation", () => {
           children.every((agent) => agent.status === "running")
         );
       });
+      assert.equal(
+        orchestrator.registry.getConversation(conversation.id).activeAgentId,
+        parent.id,
+      );
       await orchestrator.registry.abortAgent(parent.id);
 
       const children = orchestrator.registry
@@ -209,6 +287,16 @@ describe("explore subagent transcript isolation", () => {
     }
   });
 });
+
+function hasErrorCode(expected: string): (error: unknown) => boolean {
+  return (error) =>
+    Boolean(
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === expected,
+    );
+}
 
 async function waitUntil(predicate: () => boolean): Promise<void> {
   const deadline = Date.now() + 5_000;
