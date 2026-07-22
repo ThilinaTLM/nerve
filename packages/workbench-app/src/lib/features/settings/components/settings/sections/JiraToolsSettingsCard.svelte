@@ -211,6 +211,7 @@ async function removeToken() {
 
 {#snippet jiraSwitch()}
   <ToggleSwitch
+    size="settings"
     checked={jiraSettings.enabled}
     disabled={!hasRequiredConfig}
     aria-label="Enable Jira tools"

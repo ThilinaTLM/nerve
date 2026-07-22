@@ -289,11 +289,12 @@ async function removeTavilyKey() {
 </script>
 
 {#snippet alwaysOnSwitch(label: string)}
-  <ToggleSwitch checked disabled aria-label={label} />
+  <ToggleSwitch checked disabled size="settings" aria-label={label} />
 {/snippet}
 
 {#snippet webSwitch()}
   <ToggleSwitch
+    size="settings"
     checked={webEnabled}
     aria-label="Enable web access tools"
     onCheckedChange={(checked) =>
@@ -303,6 +304,7 @@ async function removeTavilyKey() {
 
 {#snippet pythonSwitch()}
   <ToggleSwitch
+    size="settings"
     checked={pythonEnabled}
     aria-label="Enable Python tool"
     onCheckedChange={(checked) => setToolsEnabled(["python_exec"], checked)}
@@ -439,6 +441,7 @@ async function removeTavilyKey() {
       </p>
     </div>
     <ToggleSwitch
+      size="settings"
       checked={settingsDraft.tools.bash.autoPromotion.enabled}
       aria-label="Enable automatic Bash backgrounding"
       onCheckedChange={setBashAutoPromotionEnabled}

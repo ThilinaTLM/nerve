@@ -213,6 +213,7 @@ async function removeToken() {
 
 {#snippet confluenceSwitch()}
   <ToggleSwitch
+    size="settings"
     checked={confluenceSettings.enabled}
     disabled={!hasRequiredConfig}
     aria-label="Enable Confluence tools"

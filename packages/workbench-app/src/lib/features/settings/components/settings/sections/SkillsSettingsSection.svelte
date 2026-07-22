@@ -137,6 +137,7 @@ function setAgentBrowserSkillEnabled(name: string, enabled: boolean) {
             </p>
           </div>
           <ToggleSwitch
+            size="settings"
             checked={source === "agentBrowser"
               ? enabledAgentBrowserSkills.has(skill.name)
               : !disabledSkills.has(skill.name)}
