@@ -68,5 +68,5 @@ jobs:
       - name: Build native desktop runtime
         run: pnpm build:workbench-runtime && pnpm --filter @nervekit/desktop-shell build
 
-      - name: Run host and desktop tests
-        run: pnpm --filter @nervekit/tools --filter @nervekit/host-runtime --filter @nervekit/workbench-server --filter @nervekit/desktop-shell test
+      - name: Run native tool and desktop tests
+        run: pnpm --filter @nervekit/tools --filter @nervekit/desktop-shell test

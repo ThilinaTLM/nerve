@@ -167,6 +167,23 @@ test("workbench run journals reuse hot state and cold-hydrate equivalently", asy
   );
 });
 
+test("fresh loads replace stale cached run state from the journal", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-fresh-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const cached = new WorkbenchRunUnitOfWork(home);
+  const writer = new WorkbenchRunUnitOfWork(home);
+  const records = transitions();
+
+  const first = await cached.commit(0, records.first);
+  await writer.commit(1, records.second);
+
+  assert.equal((await cached.load(runId))?.run.revision, first.run.revision);
+  const fresh = await cached.loadFresh(runId);
+  assert.equal(fresh?.run.revision, 2);
+  assert.equal(fresh?.prompts[0]?.status, "delivered");
+  assert.equal(await cached.load(runId), fresh);
+});
+
 function scopedRun(input: {
   runId: string;
   scopeId: string;

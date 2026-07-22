@@ -51,6 +51,17 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     return state;
   }
 
+  async loadFresh(runId: string): Promise<RunHydratedState | undefined> {
+    return this.exclusive(runId, async () => {
+      const state = await this.hydrate(runId);
+      if (state) {
+        this.cache.set(state);
+        this.lookup.observe(state);
+      }
+      return state;
+    });
+  }
+
   async findActive(scopeId: string): Promise<RunHydratedState | undefined> {
     return this.lookup.findActive(scopeId);
   }

@@ -200,7 +200,7 @@ export class WorkbenchRunService {
     // Prefer the known run ID; the interaction lookup covers callers that
     // only carry a tool-call ID.
     const state = runId
-      ? await this.unitOfWork.load(runId)
+      ? await this.unitOfWork.loadFresh(runId)
       : await this.unitOfWork.findByInteractionToolCallId(toolCallId);
     const interaction = state?.interactions.find(
       (candidate) => candidate.toolCallId === toolCallId,
@@ -219,7 +219,7 @@ export class WorkbenchRunService {
     runId?: string,
   ): Promise<ApprovalInteractionBatch> {
     const state = runId
-      ? await this.unitOfWork.load(runId)
+      ? await this.unitOfWork.loadFresh(runId)
       : await this.unitOfWork.findByInteractionToolCallId(toolCallId);
     const target = state?.interactions.find(
       (interaction) => interaction.toolCallId === toolCallId,
