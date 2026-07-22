@@ -1,13 +1,6 @@
 import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
-import { join } from "node:path";
-
-export type PythonRuntimeSource =
-  | "manual"
-  | "project_venv"
-  | "path"
-  | "windows_launcher"
-  | "uv";
+export type PythonRuntimeSource = "manual" | "path" | "windows_launcher" | "uv";
 
 export type PythonRuntime = {
   command: string;
@@ -100,15 +93,14 @@ async function pythonCandidates(
   }
 
   const candidates: Candidate[] = [];
-  for (const path of projectVenvCandidates(cwd)) {
-    if (await pathExists(path)) {
-      candidates.push({
-        command: path,
-        args: [],
-        source: "project_venv",
-        mustExist: true,
-      });
-    }
+  const uvPython = await findUvPython(cwd);
+  if (uvPython) {
+    candidates.push({
+      command: uvPython,
+      args: [],
+      source: "uv",
+      mustExist: true,
+    });
   }
 
   if (process.platform === "win32") {
@@ -125,36 +117,19 @@ async function pythonCandidates(
     );
   }
 
-  const uvPython = await findUvPython(cwd);
-  if (uvPython) {
-    candidates.push({
-      command: uvPython,
-      args: [],
-      source: "uv",
-      mustExist: true,
-    });
-  }
-
   return candidates;
 }
 
-function projectVenvCandidates(cwd: string): string[] {
-  if (process.platform === "win32") {
-    return [
-      join(cwd, ".venv", "Scripts", "python.exe"),
-      join(cwd, "venv", "Scripts", "python.exe"),
-    ];
-  }
-  return [
-    join(cwd, ".venv", "bin", "python"),
-    join(cwd, "venv", "bin", "python"),
-  ];
-}
-
 async function findUvPython(cwd: string): Promise<string | undefined> {
-  const result = await runCommand("uv", ["python", "find"], 5000, cwd, {
-    UV_PYTHON_DOWNLOADS: "never",
-  });
+  const result = await runCommand(
+    "uv",
+    ["python", "find", "--no-project"],
+    5000,
+    cwd,
+    {
+      UV_PYTHON_DOWNLOADS: "never",
+    },
+  );
   if (result.status !== 0) return undefined;
   const first = result.stdout.trim().split(/\r?\n/)[0]?.trim();
   return first || undefined;

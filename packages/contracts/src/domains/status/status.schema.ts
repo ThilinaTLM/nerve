@@ -2,14 +2,7 @@ import { z } from "zod";
 
 export const pythonRuntimeStatusSchema = z.object({
   available: z.boolean(),
-  source: z.enum([
-    "manual",
-    "project_venv",
-    "path",
-    "windows_launcher",
-    "uv",
-    "unavailable",
-  ]),
+  source: z.enum(["manual", "path", "windows_launcher", "uv", "unavailable"]),
   executable: z.string().optional(),
   version: z.string().optional(),
   error: z.string().optional(),

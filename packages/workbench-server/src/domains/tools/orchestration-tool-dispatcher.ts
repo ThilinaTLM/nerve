@@ -125,7 +125,10 @@ export class OrchestrationToolDispatcher {
               request.options,
               context,
             )) as ToolExecutionResult;
-          return { bash: localOverride, python: localOverride };
+          return {
+            bash: localOverride,
+            python_exec: localOverride,
+          } satisfies ToolHandlerRegistry;
         },
       },
     });

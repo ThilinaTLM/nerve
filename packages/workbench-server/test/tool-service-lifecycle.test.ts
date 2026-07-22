@@ -241,6 +241,26 @@ describe("tool service lifecycle", () => {
     }
   });
 
+  it("routes python_exec through the workbench runtime override", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-python-"));
+    const testAgent = agent("autonomous");
+    const runtimeProjects: string[] = [];
+    const { service } = buildToolService(home, testAgent, undefined, {
+      runtimeForProject: async (projectDir: string) => {
+        runtimeProjects.push(projectDir);
+        return undefined;
+      },
+    });
+
+    const response = await service.requestTool(testAgent, "python_exec", {
+      code: "print('ok')",
+    });
+
+    assert.deepEqual(runtimeProjects, [testAgent.projectDir]);
+    assert.equal(response.toolCall.status, "error");
+    assert.equal(response.toolCall.error, "Python runtime is not available.");
+  });
+
   it("force-stages policy-allowed tools for approval", async () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-tool-force-approval-"));
     const testAgent = agent("autonomous");
@@ -387,6 +407,9 @@ function buildToolService(
   home: string,
   testAgent: AgentRecord,
   publisher?: { publish(type: string, data: unknown): Promise<unknown> },
+  pythonRuntime?: {
+    runtimeForProject(projectDir: string): Promise<undefined>;
+  },
 ) {
   const events: Array<{ type: string; data: unknown }> = [];
   const service = new ToolService(
@@ -404,7 +427,7 @@ function buildToolService(
       upsertApproval: () => undefined,
     } as never,
     {} as never,
-    {
+    (pythonRuntime ?? {
       runtimeForProject: async () => undefined,
       isAvailableForProject: async () => false,
       statusSnapshot: () => ({
@@ -417,7 +440,7 @@ function buildToolService(
         source: "unavailable",
         error: "not used",
       }),
-    } as never,
+    }) as never,
     async () => {
       throw new Error("not used");
     },
