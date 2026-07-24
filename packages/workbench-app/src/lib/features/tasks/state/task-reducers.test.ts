@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { TaskRecord } from "$lib/api";
-import { applyVisibleTaskRecord } from "./task-reducers";
+import { applyVisibleTaskRecord, resolveSelectedTaskId } from "./task-reducers";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 
@@ -25,6 +25,30 @@ function task(
     ...rest,
   };
 }
+
+describe("resolveSelectedTaskId", () => {
+  const first = task({ id: "task_first" });
+  const second = task({ id: "task_second" });
+
+  it("preserves a selection present in the authoritative task list", () => {
+    assert.equal(resolveSelectedTaskId([first, second], second.id), second.id);
+  });
+
+  it("replaces a stale selection with the first available task", () => {
+    assert.equal(
+      resolveSelectedTaskId([first, second], "task_missing"),
+      first.id,
+    );
+  });
+
+  it("selects the first available task when no task is selected", () => {
+    assert.equal(resolveSelectedTaskId([first, second], undefined), first.id);
+  });
+
+  it("clears selection when no tasks are available", () => {
+    assert.equal(resolveSelectedTaskId([], "task_missing"), undefined);
+  });
+});
 
 describe("applyVisibleTaskRecord", () => {
   it("does not add foreground task records", () => {

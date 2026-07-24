@@ -26,10 +26,12 @@ import {
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { loadTaskLogWindow } from "$lib/features/tasks/state/task-logs.svelte";
+import { resolveSelectedTaskId } from "$lib/features/tasks/state/task-reducers";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
+import { closeCenterTabs } from "./center-tab-actions.svelte";
 export async function loadWorkspaceState() {
   const snapshot = await queryClient.fetchQuery({
     queryKey: queryKeys.workspace,
@@ -58,6 +60,23 @@ async function applyWorkspaceSnapshot(
   workspaceState.conversations = snapshot.snapshot.conversations;
   workspaceState.agents = agents;
   taskState.tasks = snapshot.snapshot.tasks;
+  const taskIds = new SvelteSet(taskState.tasks.map((task) => task.id));
+  const staleOpenTaskIds = taskState.openTaskTabIds.filter(
+    (taskId) => !taskIds.has(taskId),
+  );
+  if (staleOpenTaskIds.length) {
+    await closeCenterTabs(
+      staleOpenTaskIds.map((id) => ({ kind: "task" as const, id })),
+    );
+  }
+  const selectedTaskId = resolveSelectedTaskId(
+    taskState.tasks,
+    taskState.selectedTaskId,
+  );
+  if (selectedTaskId !== taskState.selectedTaskId) {
+    taskState.selectedTaskId = selectedTaskId;
+    taskState.taskLogs = undefined;
+  }
   workspaceState.approvals = snapshot.snapshot.approvals;
   workspaceState.userQuestions = snapshot.snapshot.userQuestions;
   workspaceState.planReviews = snapshot.snapshot.planReviews;
@@ -69,10 +88,7 @@ async function applyWorkspaceSnapshot(
     (conversationId) => !conversationIds.has(conversationId),
   );
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
-  taskState.selectedTaskId = taskState.selectedTaskId ?? taskState.tasks[0]?.id;
-  if (taskState.selectedTaskId) {
-    await loadTaskLogWindow(taskState.selectedTaskId);
-  }
+  if (selectedTaskId) await loadTaskLogWindow(selectedTaskId);
   return snapshot.cursor;
 }
 

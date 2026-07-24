@@ -1,5 +1,15 @@
 import type { TaskRecord } from "$lib/api";
 
+export function resolveSelectedTaskId(
+  tasks: TaskRecord[],
+  selectedTaskId: string | undefined,
+): string | undefined {
+  if (selectedTaskId && tasks.some((task) => task.id === selectedTaskId)) {
+    return selectedTaskId;
+  }
+  return tasks[0]?.id;
+}
+
 export function applyVisibleTaskRecord(
   tasks: TaskRecord[],
   task: TaskRecord,
