@@ -5,7 +5,7 @@ Nerve publishes exactly one npm package, `@nervekit/desktop`, and builds two pri
 ## Requirements
 
 - Node.js 24+
-- pnpm 11.8.0
+- pnpm 11.17.0
 - Docker or Podman for the required image gate
 - PostgreSQL for manager integration/image smoke
 

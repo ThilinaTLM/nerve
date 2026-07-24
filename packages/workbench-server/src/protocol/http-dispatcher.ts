@@ -4,7 +4,6 @@ import {
   type NerveErrorCode,
   type NerveMessage,
   operationDefinition,
-  operationNameSchema,
   type ProtocolErrorData,
   type ProtocolRequestData,
   protocolRequestMessageSchema,
@@ -19,7 +18,7 @@ import { HttpError } from "../http/errors.js";
 import { FileIdempotencyStore } from "./file-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import {
-  handleProtocolMethod,
+  bindWorkbenchOperationHandlers,
   WORKBENCH_OPERATION_METHODS,
 } from "./method-handlers.js";
 import { protocolErrorData, redactProtocolValue } from "./protocol-errors.js";
@@ -28,7 +27,6 @@ export const PROTOCOL_HTTP_CONTENT_TYPE =
   "application/vnd.nerve.protocol.v1+json";
 const MAX_PROTOCOL_HTTP_BODY_BYTES = 4 * 1024 * 1024;
 const workbenchDispatchers = new WeakMap<OrchestratorState, RpcDispatcher>();
-const workbenchMethods = new Set<string>(WORKBENCH_OPERATION_METHODS);
 const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
   (method) => operationDefinition(method).requiredCapability,
 ).filter((capability): capability is string => Boolean(capability));
@@ -154,17 +152,7 @@ export class ProtocolHttpDispatcher {
 export function workbenchOperationHandlers(
   state: OrchestratorState,
 ): Partial<OperationHandlerRegistry> {
-  return new Proxy<Partial<OperationHandlerRegistry>>(
-    {},
-    {
-      get(_target, property) {
-        if (typeof property !== "string" || !workbenchMethods.has(property))
-          return undefined;
-        const method = operationNameSchema.parse(property);
-        return (params: unknown) => handleProtocolMethod(state, method, params);
-      },
-    },
-  );
+  return bindWorkbenchOperationHandlers(state);
 }
 
 export function workbenchRpcDispatcher(

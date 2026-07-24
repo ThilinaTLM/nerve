@@ -191,7 +191,7 @@ Daemon logs are written under `~/.nerve/logs`. Crash diagnostics are written und
 Requirements:
 
 - Node.js `>=24.0.0`
-- pnpm `11.x` (`packageManager` pins `pnpm@11.8.0`)
+- pnpm `11.x` (`packageManager` pins `pnpm@11.17.0`)
 
 Install dependencies and start the desktop app:
 
