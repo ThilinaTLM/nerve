@@ -85,7 +85,9 @@ describe("AuthManager", () => {
     assert.deepEqual(subscriptions, [
       "anthropic",
       "github-copilot",
+      "kimi-coding",
       "openai-codex",
+      "openrouter",
       "radius",
       "xai",
     ]);

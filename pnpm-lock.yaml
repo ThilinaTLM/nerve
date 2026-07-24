@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.80.10
-        version: 0.80.10(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.82.0
+        version: 0.82.0(ws@8.21.0)(zod@4.1.12)
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -84,8 +84,8 @@ importers:
   packages/harness:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.80.10
-        version: 0.80.10(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.82.0
+        version: 0.82.0(ws@8.21.0)(zod@4.1.12)
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -190,8 +190,8 @@ importers:
         specifier: ^3.1081.0
         version: 3.1081.0
       '@earendil-works/pi-ai':
-        specifier: 0.80.10
-        version: 0.80.10(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.82.0
+        version: 0.82.0(ws@8.21.0)(zod@4.1.12)
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -474,8 +474,8 @@ importers:
   packages/workbench-server:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.80.10
-        version: 0.80.10(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.82.0
+        version: 0.82.0(ws@8.21.0)(zod@4.1.12)
       '@hono/node-server':
         specifier: 1.19.14
         version: 1.19.14(hono@4.12.25)
@@ -1225,8 +1225,8 @@ packages:
   '@dagrejs/graphlib@4.0.1':
     resolution: {integrity: sha512-IvcV6FduIIAmLwnH+yun+QtV36SC7mERqa86aClNqmMN09WhmPPYU8ckHrZBozErf+UvHPWOTJYaGYiIcs0DgA==}
 
-  '@earendil-works/pi-ai@0.80.10':
-    resolution: {integrity: sha512-Moe/H8c87yacDGK9dPbWphZNjVsrb3nTrIHycOQJAkFEnY9PYxOOd74+ny44kATfPU9Dm7aTHefar3pZF+UKUA==}
+  '@earendil-works/pi-ai@0.82.0':
+    resolution: {integrity: sha512-8MvW9+zno13sXDuT2kFMnWeTNUufUhPeZDRVO+igGoBRCDWgn7Xh2FkRQI1mRuet6QhF4ENQuLYdIAOyG6BhNw==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
@@ -6596,7 +6596,7 @@ snapshots:
 
   '@dagrejs/graphlib@4.0.1': {}
 
-  '@earendil-works/pi-ai@0.80.10(ws@8.21.0)(zod@4.1.12)':
+  '@earendil-works/pi-ai@0.82.0(ws@8.21.0)(zod@4.1.12)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.1.12)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
