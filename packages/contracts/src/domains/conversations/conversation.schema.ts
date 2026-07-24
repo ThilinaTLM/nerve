@@ -178,6 +178,15 @@ export interface ConversationCompactionFailedData {
   failedEntryId?: string;
 }
 
+export interface ConversationCompactionCancelledData {
+  conversationId: string;
+  agentId?: string;
+  runId?: string;
+  reason: ConversationCompactionReason;
+  cancelledAt: string;
+  failedEntryId?: string;
+}
+
 export interface ConversationCompactedData {
   conversationId: string;
   entry: ConversationEntry;
@@ -379,6 +388,7 @@ export type ConversationEventData =
   | ConversationEntryAppendedData
   | ConversationCompactionStartedData
   | ConversationCompactionFailedData
+  | ConversationCompactionCancelledData
   | ConversationCompactedData
   | ConversationContextUpdatedData
   | ConversationToolCallUpdatedData
@@ -751,6 +761,15 @@ const conversationCompactionFailedDataSchema = z.object({
   failedEntryId: z.string().startsWith("entry_").optional(),
 });
 
+const conversationCompactionCancelledDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: runIdSchema.optional(),
+  reason: z.enum(["manual", "threshold", "overflow"]),
+  cancelledAt: z.string().datetime(),
+  failedEntryId: z.string().startsWith("entry_").optional(),
+});
+
 const conversationCompactedDataSchema = z.object({
   conversationId: z.string().startsWith("conv_"),
   entry: conversationEntrySchema,
@@ -891,6 +910,8 @@ export const conversationEventPayloadSchemas = {
   "conversation.entry.appended": conversationEntryAppendedDataSchema,
   "conversation.compaction.started": conversationCompactionStartedDataSchema,
   "conversation.compaction.failed": conversationCompactionFailedDataSchema,
+  "conversation.compaction.cancelled":
+    conversationCompactionCancelledDataSchema,
   "conversation.compacted": conversationCompactedDataSchema,
   "conversation.context.updated": conversationContextUpdatedDataSchema,
   "toolCall.updated": conversationToolCallUpdatedDataSchema,
@@ -932,6 +953,7 @@ export const conversationEventTypes = [
   "conversation.entry.appended",
   "conversation.compaction.started",
   "conversation.compaction.failed",
+  "conversation.compaction.cancelled",
   "conversation.compacted",
   "conversation.context.updated",
   "toolCall.updated",

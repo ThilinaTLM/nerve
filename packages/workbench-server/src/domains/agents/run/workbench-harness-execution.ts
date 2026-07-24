@@ -207,6 +207,8 @@ export async function executeWorkbenchHarness(
         agent.conversationId,
         agent.id,
         runId,
+        harnessConversation,
+        event.signal,
       );
       if (!compacted || event.hasMoreToolCalls) return undefined;
       const hadToolCalls = event.message.content.some(
@@ -687,6 +689,7 @@ export async function executeWorkbenchHarness(
       continue: options.continue === true,
       runId,
       agent,
+      signal: runAbortController.signal,
     });
     const branch = await storage.getPathToRoot(await storage.getLeafId());
     const messages = convertToLlm(buildConversationContext(branch).messages);

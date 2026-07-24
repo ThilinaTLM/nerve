@@ -201,7 +201,9 @@ $effect(() => {
       {onContinueFromFailure}
     />
   {:else if node.kind === "compaction"}
-    <CompactionCard notice={node.notice} />
+    <div class="relative min-w-0 px-3">
+      <CompactionCard notice={node.notice} />
+    </div>
   {:else if node.kind === "task_event"}
     <TaskEventCard notice={node.notice} />
   {:else if node.kind === "thinking_group"}

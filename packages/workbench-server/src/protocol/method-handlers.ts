@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Protocol dispatch table is intentionally exhaustive. */
 import type {
   CompletionItem,
   GithubPrListFilters,
@@ -419,6 +420,10 @@ export async function handleProtocolMethod(
         request as never,
       );
     }
+    case "conversation.compaction.cancel":
+      return state.registry.cancelConversationCompaction(
+        (params as { conversationId: string }).conversationId,
+      );
     case "agent.create":
       return { agent: await state.registry.createAgent(params as never) };
     case "agent.list":

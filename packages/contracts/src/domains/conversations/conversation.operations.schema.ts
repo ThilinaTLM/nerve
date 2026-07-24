@@ -118,4 +118,13 @@ export const conversationsOperationDefinitions = [
     ["workbench_server", "sandbox_agent"] as const,
     "operation.conversation.compact",
   ),
+  defineOperation(
+    "conversation.compaction.cancel",
+    conversationIdParamsSchema,
+    okResultSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server", "sandbox_agent"] as const,
+    "operation.conversation.compaction.cancel",
+  ),
 ] as const;

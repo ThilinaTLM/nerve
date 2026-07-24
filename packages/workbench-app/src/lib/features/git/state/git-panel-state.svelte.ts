@@ -88,6 +88,7 @@ export type GitPanelProjectState = {
   loadingRepos: boolean;
   refreshingRepos: boolean;
   reposRequestInFlight: boolean;
+  activeRequestLoadsDetails: boolean;
   projectRefreshQueued: boolean;
   queuedRefreshLoadsDetails: boolean;
   lastReposFingerprint?: string;
@@ -175,6 +176,7 @@ function createProjectState(project: ProjectRecord): GitPanelProjectState {
     loadingRepos: false,
     refreshingRepos: false,
     reposRequestInFlight: false,
+    activeRequestLoadsDetails: false,
     projectRefreshQueued: false,
     queuedRefreshLoadsDetails: false,
     lastReposFingerprint: undefined,

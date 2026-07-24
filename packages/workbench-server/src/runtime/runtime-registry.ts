@@ -336,6 +336,13 @@ export class RuntimeRegistry {
     );
   }
 
+  async cancelConversationCompaction(
+    conversationId: string,
+  ): Promise<{ ok: true }> {
+    await this.services.compactionService.cancelCompaction(conversationId);
+    return { ok: true };
+  }
+
   exportConversation(conversationId: string) {
     return this.services.exportService.exportConversation(conversationId);
   }

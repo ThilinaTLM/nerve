@@ -81,6 +81,9 @@ export const conversationSelectors = {
   get conversationActiveRun() {
     return activeView()?.activeRun;
   },
+  get compacting() {
+    return activeView()?.transient?.compaction?.state === "running";
+  },
   get entries() {
     return activeView()?.entries ?? [];
   },

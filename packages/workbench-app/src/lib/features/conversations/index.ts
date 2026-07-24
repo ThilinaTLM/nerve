@@ -36,6 +36,7 @@ export { conversationState } from "./state/conversation-state.svelte";
 export { setActiveComposerText } from "./state/prompt-send";
 export {
   abortActiveRun,
+  cancelActiveCompaction,
   compactActiveConversation,
   navigateToEntry,
 } from "./state/run-control";

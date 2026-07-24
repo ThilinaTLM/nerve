@@ -1,4 +1,4 @@
-import { compactConversation } from "$lib/api";
+import { cancelConversationCompaction, compactConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { conversationViewKey } from "$lib/core/state/state-keys";
@@ -32,6 +32,7 @@ export async function navigateToEntry(
 export async function compactActiveConversation() {
   if (!selection.conversationId) return;
   const conversationId = selection.conversationId;
+  compactionCancellationRequested.delete(conversationId);
   const view = ensureConversationView(conversationId);
   const notice: CompactionNotice = {
     id: `local:compaction:${conversationId}:${Date.now()}`,
@@ -49,6 +50,7 @@ export async function compactActiveConversation() {
     await loadWorkspaceState();
     await openConversation(conversationId);
   } catch (caught) {
+    if (compactionCancellationRequested.delete(conversationId)) return;
     const message = caught instanceof Error ? caught.message : String(caught);
     view.transient = {
       ...view.transient,
@@ -59,6 +61,40 @@ export async function compactActiveConversation() {
       },
     };
     notify.error("Compaction failed", { description: message });
+  }
+}
+
+const compactionCancellationsInFlight = new Set<string>();
+const compactionCancellationRequested = new Set<string>();
+
+export async function cancelActiveCompaction(): Promise<void> {
+  if (!selection.conversationId) return;
+  const conversationId = selection.conversationId;
+  const view = ensureConversationView(conversationId);
+  const notice = view.transient?.compaction;
+  if (
+    notice?.state !== "running" ||
+    compactionCancellationsInFlight.has(conversationId)
+  )
+    return;
+
+  compactionCancellationsInFlight.add(conversationId);
+  compactionCancellationRequested.add(conversationId);
+  view.stopping = true;
+  try {
+    await Promise.all([
+      cancelConversationCompaction(conversationId),
+      notice.runId ? abortActiveRun() : Promise.resolve(),
+    ]);
+  } catch (caught) {
+    compactionCancellationRequested.delete(conversationId);
+    const message = caught instanceof Error ? caught.message : String(caught);
+    notify.error("Could not stop compaction", { description: message });
+  } finally {
+    compactionCancellationsInFlight.delete(conversationId);
+    const current =
+      conversationState.conversationViews[conversationViewKey(conversationId)];
+    if (current) current.stopping = false;
   }
 }
 

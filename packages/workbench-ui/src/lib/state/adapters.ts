@@ -4,6 +4,7 @@ import {
   conversationEventTypes,
   type ConversationActiveRunSnapshot,
   ConversationCompactedData,
+  ConversationCompactionCancelledData,
   ConversationCompactionFailedData,
   ConversationCompactionStartedData,
   ConversationEntry,
@@ -203,6 +204,13 @@ export function applyConversationEvent(
       applyCompactionFailed(
         next,
         event.data as ConversationCompactionFailedData,
+        event.ts,
+      );
+      break;
+    case "conversation.compaction.cancelled":
+      applyCompactionCancelled(
+        next,
+        event.data as ConversationCompactionCancelledData,
         event.ts,
       );
       break;
@@ -588,8 +596,11 @@ function applyRunFailed(
   } else if (runMatches(state.activeRun?.runId, data.runId)) {
     state.activeRun = undefined;
   }
-  // A failed compaction notice explains the failure; keep it visible.
-  if (state.transient?.compaction?.state !== "failed") {
+  // Terminal compaction notices explain why no checkpoint was created.
+  if (
+    state.transient?.compaction?.state !== "failed" &&
+    state.transient?.compaction?.state !== "cancelled"
+  ) {
     clearTransientCompaction(state);
   }
   state.queuedPrompts = [];
@@ -625,6 +636,33 @@ function applyCompactionFailed(
     ts,
     transient.compaction,
   );
+}
+
+function applyCompactionCancelled(
+  state: ConversationRenderState,
+  data: ConversationCompactionCancelledData,
+  ts: string,
+): void {
+  const current = state.transient?.compaction;
+  const transient = ensureTransient(state);
+  transient.compaction = {
+    id:
+      current?.id ??
+      liveCompactionId(data.conversationId, data.runId, data.reason),
+    state: "cancelled",
+    reason: data.reason,
+    conversationId: data.conversationId,
+    agentId: data.agentId,
+    runId: data.runId,
+    contextWindow: current?.contextWindow,
+    contextTokens: current?.contextTokens,
+    thresholdTokens: current?.thresholdTokens,
+    triggerReserveTokens: current?.triggerReserveTokens,
+    keepRecentTokens: current?.keepRecentTokens,
+    failedEntryId: data.failedEntryId ?? current?.failedEntryId,
+    createdAt: current?.createdAt ?? ts,
+    completedAt: data.cancelledAt,
+  };
 }
 
 function applyCompacted(

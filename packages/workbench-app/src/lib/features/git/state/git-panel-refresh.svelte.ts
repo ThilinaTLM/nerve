@@ -12,6 +12,7 @@ import {
   gitRepoStateKey,
 } from "$lib/core/state/state-keys";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import { joinGitProjectRefresh } from "./git-panel-refresh-policy";
 import {
   applyGitContextFromProject,
   clearGithubState,
@@ -38,16 +39,18 @@ export async function refreshGitProject(
   options: GitPanelRefreshOptions = {},
 ): Promise<void> {
   const state = ensureGitProjectState(project);
-  if (state.reposRequestInFlight) {
+  const loadDetails = options.loadDetails !== false;
+  if (joinGitProjectRefresh(state, loadDetails)) {
     if (options.force) {
       state.projectRefreshQueued = true;
-      state.queuedRefreshLoadsDetails ||= options.loadDetails !== false;
+      state.queuedRefreshLoadsDetails ||= loadDetails;
     }
     return;
   }
   const requestSeq = state.requestSeq + 1;
   state.requestSeq = requestSeq;
   state.reposRequestInFlight = true;
+  state.activeRequestLoadsDetails = loadDetails;
   state.discoverError = undefined;
   const showFullLoading = !state.loaded && !options.silent;
   state.loadingRepos = showFullLoading;
@@ -88,7 +91,7 @@ export async function refreshGitProject(
     if (changed || state.loadedAt === undefined) state.loadedAt = Date.now();
     applyGitContextFromProject(project.id);
 
-    if (result.repos.length > 0 && options.loadDetails !== false) {
+    if (result.repos.length > 0 && state.activeRequestLoadsDetails) {
       const repoState = ensureGitRepoState(project.id, state.selectedRepo);
       const refreshOptions = repoState.loaded
         ? { silent: true, onlyIfChanged: true }
@@ -107,6 +110,7 @@ export async function refreshGitProject(
       state.loadingRepos = false;
       state.refreshingRepos = false;
       state.reposRequestInFlight = false;
+      state.activeRequestLoadsDetails = false;
       if (state.projectRefreshQueued) {
         const loadDetails = state.queuedRefreshLoadsDetails;
         state.projectRefreshQueued = false;
@@ -277,7 +281,7 @@ export function autoRefreshGitOverview(projectId: string, repo: string): void {
 
 export function selectGitProject(project: ProjectRecord): void {
   const state = ensureGitProjectState(project);
-  if (!state.loaded && !state.reposRequestInFlight) {
+  if (!state.loaded) {
     void refreshGitProject(project);
     return;
   }

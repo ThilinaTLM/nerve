@@ -23,6 +23,7 @@ import {
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import {
   abortActiveRun,
+  cancelActiveCompaction,
   continueFromFailure,
   navigateToEntry,
 } from "$lib/features/conversations/state/run-control";
@@ -420,7 +421,11 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   onAnswerUserQuestion={answerUserQuestionById}
   onDismissUserQuestion={dismissUserQuestionById}
   onAbort={() => {
-    void runActivePaneAction(abortActiveRun);
+    void runActivePaneAction(
+      view?.transient?.compaction?.state === "running"
+        ? cancelActiveCompaction
+        : abortActiveRun,
+    );
   }}
   onOpenProject={openProjectPicker}
   onNewConversationInProject={newConversationInProject}

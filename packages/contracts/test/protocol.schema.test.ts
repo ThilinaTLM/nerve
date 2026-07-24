@@ -420,6 +420,16 @@ describe("Protocol v1 shared schemas", () => {
     });
     assert.throws(() => parseOperationResult("project.delete", { ok: false }));
     assert.deepEqual(
+      parseOperationParams("conversation.compaction.cancel", {
+        conversationId: "conv_1",
+      }),
+      { conversationId: "conv_1" },
+    );
+    assert.deepEqual(
+      parseOperationResult("conversation.compaction.cancel", { ok: true }),
+      { ok: true },
+    );
+    assert.deepEqual(
       parseProtocolResponseData("project.delete", {
         ok: true,
         method: "project.delete",

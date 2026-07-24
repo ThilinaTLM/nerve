@@ -62,6 +62,12 @@ export async function compactConversation(conversationId: string): Promise<{
     .result;
 }
 
+export async function cancelConversationCompaction(
+  conversationId: string,
+): Promise<void> {
+  await protocolRequest("conversation.compaction.cancel", { conversationId });
+}
+
 export async function deleteConversation(
   conversationId: string,
 ): Promise<void> {

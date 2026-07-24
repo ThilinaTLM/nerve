@@ -2,7 +2,11 @@ import type { ConversationEntry } from "@nervekit/contracts";
 
 export type TranscriptDisplayKind = "message" | "thinking";
 
-export type CompactionNoticeState = "running" | "completed" | "failed";
+export type CompactionNoticeState =
+  | "running"
+  | "completed"
+  | "cancelled"
+  | "failed";
 
 export type CompactionNotice = {
   id: string;

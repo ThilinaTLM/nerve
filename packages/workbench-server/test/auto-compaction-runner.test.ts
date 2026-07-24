@@ -91,16 +91,21 @@ it("uses the selected model context window for threshold compaction", async () =
     logger: { warn: async () => undefined },
   } as never);
 
+  const activeConversation = {
+    getBranch: async () => branch,
+  };
   await runner.maybeCompactAtIteration({
     conversationId: selected.conversationId,
     agentId: selected.id,
     runId: "run_selected",
+    conversation: activeConversation as never,
   });
   assert.equal(compactions.length, 1);
   assert.equal(compactions[0]?.agentId, selected.id);
   assert.equal(compactions[0]?.contextWindow, 256_000);
   assert.equal(compactions[0]?.thresholdTokens, 204_800);
   assert.equal(compactions[0]?.keepRecentTokens, 38_400);
+  assert.equal(compactions[0]?.activeConversation, activeConversation);
 });
 
 it("compacts projected prompt usage before the first provider iteration", async () => {
@@ -182,6 +187,7 @@ it("compacts projected prompt usage before the first provider iteration", async 
       agentId: agent.id,
       runId: "run_preflight",
       text: "x".repeat(20_000),
+      conversation: { getBranch: async () => branch } as never,
     }),
     true,
   );

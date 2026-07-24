@@ -95,6 +95,35 @@ function queuedPrompt(overrides: Partial<QueuedPromptRecord> = {}) {
 }
 
 describe("conversation event reducer", () => {
+  it("keeps an intentional compaction cancellation visible", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(
+      state,
+      evt(1, "conversation.compaction.started", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        runId: "run_test",
+        reason: "threshold",
+        startedAt: ts,
+        contextTokens: 220_000,
+        contextWindow: 272_000,
+      }),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(2, "conversation.compaction.cancelled", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        runId: "run_test",
+        reason: "threshold",
+        cancelledAt: ts,
+      }),
+    );
+
+    assert.equal(state.transient?.compaction?.state, "cancelled");
+    assert.equal(state.transient?.compaction?.contextTokens, 220_000);
+  });
+
   it("records explicit turn starts idempotently", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, startRun());

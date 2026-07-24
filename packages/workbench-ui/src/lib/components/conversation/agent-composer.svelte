@@ -73,6 +73,7 @@ function submit(): void {
   showStop={model.showStop ?? model.sending}
   stopping={model.stopping}
   stopDisabled={!actions.onAbort || model.stopping}
+  stopAriaLabel={model.stopAriaLabel}
   stopShortcutAria={model.stopShortcutAria}
   stopTitle={model.stopTitle}
   {submitDisabled}

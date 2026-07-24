@@ -32,6 +32,7 @@ const reasonLabel = $derived.by(() => {
 
 const dotTone = $derived.by<StatusTone>(() => {
   if (notice.state === "failed") return "danger";
+  if (notice.state === "cancelled") return "warn";
   if (notice.state === "running") return "running";
   return "good";
 });
@@ -120,6 +121,7 @@ const showElapsed = $derived(
 );
 const bodyVisible = $derived(
   notice.state === "running" ||
+    notice.state === "cancelled" ||
     (notice.state === "completed" && Boolean(summaryLead)),
 );
 const layoutRevision = $derived(
@@ -135,7 +137,7 @@ const layoutRevision = $derived(
 );
 </script>
 
-<div class="compaction-block">
+<div class="my-2">
   <CardShell
     status={notice.state === "completed" ? undefined : notice.state}
     {dotTone}
@@ -148,54 +150,26 @@ const layoutRevision = $derived(
     {layoutRevision}
   >
     {#if notice.state === "running"}
-      <div class="running-line">
-        <span class="running-text">Summarizing recent work…</span>
-        {#if showElapsed}<span class="elapsed">{elapsedLabel}</span>{/if}
+      <div class="flex min-w-0 items-baseline gap-2">
+        <span class="m-0 min-w-0 text-sm leading-6 text-muted-foreground"
+          >Summarizing recent work…</span
+        >
+        {#if showElapsed}
+          <span class="ml-auto text-xs text-muted-foreground/80 tabular-nums"
+            >{elapsedLabel}</span
+          >
+        {/if}
       </div>
+    {:else if notice.state === "cancelled"}
+      <p class="m-0 text-sm leading-6 text-muted-foreground">
+        Compaction stopped.
+      </p>
     {:else if notice.state === "completed" && summaryLead}
-      <p class="lead">{summaryLead}</p>
+      <p
+        class="m-0 line-clamp-2 overflow-hidden text-sm leading-6 text-muted-foreground"
+      >
+        {summaryLead}
+      </p>
     {/if}
   </CardShell>
 </div>
-
-<style>
-/* Set the compaction block apart with the same rhythm as message turns. */
-.compaction-block {
-  margin-block: 0.5rem;
-}
-
-.running-line {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.running-text {
-  min-width: 0;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
-
-.elapsed {
-  margin-left: auto;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  font-variant-numeric: tabular-nums;
-  opacity: 0.8;
-}
-
-.lead {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
-</style>

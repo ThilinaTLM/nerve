@@ -17,6 +17,7 @@ import {
 } from "$lib/app/layout/layout-state.svelte";
 import {
   abortActiveRun,
+  cancelActiveCompaction,
   conversationSelectors,
   escapeComposer,
   refreshConversationView,
@@ -77,6 +78,7 @@ const selectedThinkingLevel = $derived(
   conversationSelectors.selectedThinkingLevel,
 );
 const sending = $derived(conversationSelectors.sending);
+const compacting = $derived(conversationSelectors.compacting);
 const settingsDraft = $derived(settingsSelectors.settingsDraft);
 const usableModels = $derived(conversationSelectors.usableModels);
 const currentZoomLevel = $derived(
@@ -116,8 +118,9 @@ const appShortcuts = createAppShortcuts({
   focusProjectSearch: focusProjectSearchShortcut,
   hasConversationComposer: () =>
     Boolean(activeConversation || pendingConversationActive),
-  sending: () => sending,
-  abortActiveRun,
+  sending: () => sending || compacting,
+  abortActiveRun: () =>
+    compacting ? cancelActiveCompaction() : abortActiveRun(),
   composerEscape: escapeComposer,
   toggleMic: toggleComposerMic,
   selectedPermissionLevel: () => selectedPermissionLevel,

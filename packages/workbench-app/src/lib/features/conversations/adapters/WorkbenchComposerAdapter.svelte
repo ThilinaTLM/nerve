@@ -303,7 +303,7 @@ function handleMicContextMenu(event: MouseEvent) {
     sending,
     stopping,
     compacting,
-    showStop: (sending || stopping) && !compacting,
+    showStop: sending || stopping || compacting,
     pendingApproval,
     pendingQuestion,
     pendingPlan,
@@ -333,12 +333,19 @@ function handleMicContextMenu(event: MouseEvent) {
     runtimeChangeHint: modelRuntimeChangeHint,
     sendAriaLabel,
     sendTitle,
+    stopAriaLabel: compacting ? "Stop compaction" : "Stop generation",
     stopShortcutAria,
     stopTitle: stopping
-      ? "Stopping generation"
-      : stopShortcut
-        ? `Stop generation (${stopShortcut})`
-        : "Stop generation",
+      ? compacting
+        ? "Stopping compaction"
+        : "Stopping generation"
+      : compacting
+        ? stopShortcut
+          ? `Stop compaction (${stopShortcut})`
+          : "Stop compaction"
+        : stopShortcut
+          ? `Stop generation (${stopShortcut})`
+          : "Stop generation",
     permissionShortcut,
     permissionShortcutAria,
     modeShortcut,

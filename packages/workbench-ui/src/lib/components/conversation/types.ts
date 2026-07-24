@@ -60,6 +60,7 @@ export type ConversationComposerModel = {
   modelDisabled?: boolean;
   runtimeChangeHint?: string;
   sendAriaLabel?: string;
+  stopAriaLabel?: string;
   sendTitle?: string;
   stopShortcutAria?: string;
   stopTitle?: string;

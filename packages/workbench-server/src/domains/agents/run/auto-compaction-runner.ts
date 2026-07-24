@@ -2,6 +2,7 @@ import type { ImageContent } from "@earendil-works/pi-ai";
 import {
   buildConversationContext,
   computeContextUsage,
+  type Conversation,
   deriveAutoCompactionPolicy,
   estimateTokens,
   getCompactionDecisionTokens,
@@ -58,6 +59,8 @@ export class AutoCompactionRunner {
     runId: string;
     text: string;
     images?: ImageContent[];
+    conversation: Conversation;
+    signal?: AbortSignal;
   }): Promise<boolean> {
     const promptTokens = estimateTokens({
       role: "user",
@@ -71,6 +74,8 @@ export class AutoCompactionRunner {
       additionalTokens: promptTokens,
       instructions:
         "Preventive compaction before a pending user prompt reaches the selected model context limit.",
+      conversation: input.conversation,
+      signal: input.signal,
     });
   }
 
@@ -78,6 +83,8 @@ export class AutoCompactionRunner {
     conversationId: string;
     agentId: string;
     runId: string;
+    conversation: Conversation;
+    signal?: AbortSignal;
   }): Promise<boolean> {
     return this.maybeCompact({
       ...input,
@@ -104,6 +111,8 @@ export class AutoCompactionRunner {
     runId: string;
     additionalTokens: number;
     instructions: string;
+    conversation: Conversation;
+    signal?: AbortSignal;
   }): Promise<boolean> {
     const settings = this.deps.storage.settings.compaction;
     if (!settings.auto) return false;
@@ -113,12 +122,7 @@ export class AutoCompactionRunner {
     const policy = deriveAutoCompactionPolicy(contextWindow, settings);
     if (!policy.enabled || contextWindow <= 0) return false;
 
-    const project = this.deps.state.getProject(conversation.projectId);
-    const storage = await this.deps.harnessStorage.openStorage(
-      conversation,
-      project.dir,
-    );
-    const branch = await storage.getPathToRoot(await storage.getLeafId());
+    const branch = await input.conversation.getBranch();
     const messages = buildConversationContext(branch).messages;
     const contextTokens =
       getCompactionDecisionTokens(messages, branch) + input.additionalTokens;
@@ -128,15 +132,20 @@ export class AutoCompactionRunner {
       await this.deps.compactionService.compactConversation(
         input.conversationId,
         { instructions: input.instructions },
-        this.compactionOptions(
-          policy,
-          input.agentId,
-          input.runId,
-          contextTokens,
-        ),
+        {
+          ...this.compactionOptions(
+            policy,
+            input.agentId,
+            input.runId,
+            contextTokens,
+          ),
+          activeConversation: input.conversation,
+          signal: input.signal,
+        },
       );
       return true;
     } catch (error) {
+      if (input.signal?.aborted) return false;
       await this.deps.logger.warn("Automatic context compaction failed", {
         agentId: input.agentId,
         conversationId: input.conversationId,

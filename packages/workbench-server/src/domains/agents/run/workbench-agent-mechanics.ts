@@ -198,6 +198,7 @@ export class WorkbenchAgentMechanics {
     continue: boolean;
     runId: string;
     agent: AgentRecord;
+    signal?: AbortSignal;
   }): Promise<AssistantMessage> {
     const latestAgent = () =>
       this.deps.state.agents.get(input.agent.id) ?? input.agent;
@@ -208,6 +209,8 @@ export class WorkbenchAgentMechanics {
         runId: input.runId,
         text: input.request.text,
         images: input.request.images,
+        conversation: input.conversation,
+        signal: input.signal,
       });
     }
     let assistant = input.continue
@@ -235,6 +238,7 @@ export class WorkbenchAgentMechanics {
       conversation: Conversation;
       runId: string;
       agent: AgentRecord;
+      signal?: AbortSignal;
     },
     assistant: AssistantMessage,
     contextWindow: number,
@@ -273,6 +277,8 @@ export class WorkbenchAgentMechanics {
           keepRecentPercent: policy.keepRecentPercent,
           safetyHeadroomTokens: policy.safetyHeadroomTokens,
           failedEntryId,
+          activeConversation: input.conversation,
+          signal: input.signal,
         },
       );
       await this.deps.logger.info(
@@ -321,11 +327,15 @@ export class WorkbenchAgentMechanics {
     conversationId: string,
     agentId: string,
     runId: string,
+    conversation: Conversation,
+    signal?: AbortSignal,
   ): Promise<boolean> {
     return this.autoCompaction.maybeCompactAtIteration({
       conversationId,
       agentId,
       runId,
+      conversation,
+      signal,
     });
   }
 
