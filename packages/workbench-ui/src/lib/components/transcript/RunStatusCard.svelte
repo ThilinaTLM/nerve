@@ -83,8 +83,9 @@ const bodyText = $derived.by(() => {
     return `${failure}, ${retry}${attempt}`;
   }
   if (notice.state === "interrupted") {
-    const lead = failureText ?? "The run was interrupted.";
-    return `${lead} Click Continue to resume.`;
+    const lead =
+      failureText ?? "Nerve stopped this run after the host restarted.";
+    return `${lead} Nothing will resume until you choose Continue.`;
   }
   const failure = failureText
     ? `Request failed with ${failureText}`

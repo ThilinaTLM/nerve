@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { describe, it } from "node:test";
 import type { ToolName } from "@nervekit/contracts";
 import { executeTool, resolvePythonRuntime } from "../src/execution/index.js";
+import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../src/execution/common/isolated-html-to-markdown.js";
 import { createTempProject } from "./helpers.js";
 
 describe("executeTool dispatch", () => {
@@ -95,6 +96,47 @@ describe("executeTool dispatch", () => {
         (result.details as { converted?: boolean } | undefined)?.converted,
         true,
       );
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it("rejects oversized web_fetch responses before parsing", async () => {
+    const server = createServer((request, response) => {
+      if (request.url === "/declared") {
+        response.writeHead(200, {
+          "content-type": "text/html",
+          "content-length": String(HTML_CONVERSION_MAX_INPUT_BYTES + 1),
+        });
+        response.end();
+        return;
+      }
+      response.writeHead(200, { "content-type": "text/html" });
+      const chunk = Buffer.alloc(1024 * 1024, 120);
+      for (let index = 0; index < 9; index += 1) response.write(chunk);
+      response.end();
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    try {
+      const address = server.address();
+      assert.ok(address && typeof address === "object");
+      for (const path of ["declared", "chunked"]) {
+        await assert.rejects(
+          executeTool(
+            "web_fetch",
+            { url: `http://127.0.0.1:${address.port}/${path}` },
+            { cwd: process.cwd() },
+          ),
+          (error) =>
+            error instanceof Error &&
+            "code" in error &&
+            error.code === "WEB_FETCH_RESPONSE_TOO_LARGE",
+        );
+      }
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),

@@ -5,7 +5,7 @@
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
-  "packageManager": "pnpm@11.8.0",
+  "packageManager": "pnpm@11.17.0",
   "workspaces": [
     "packages/*"
   ],

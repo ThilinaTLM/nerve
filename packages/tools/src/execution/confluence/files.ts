@@ -59,7 +59,7 @@ export async function writePageSidecars(
       await artifactForText(storagePath, body, "Confluence page body"),
     );
     if (options.markdown === true && representation === "storage") {
-      const markdown = storageXmlToMarkdown(body);
+      const markdown = await storageXmlToMarkdown(body, context.signal);
       markdownPath = join(dir, `${safeFilename(title)}-${id}.md`);
       await writeUtf8(markdownPath, markdown);
       artifacts.push(
@@ -113,7 +113,10 @@ export async function writeDownloadBundle(
     let markdownPath: string | undefined;
     if (options.markdown === true && representation === "storage") {
       markdownPath = join(pagesDir, `${baseName}.md`);
-      await writeUtf8(markdownPath, storageXmlToMarkdown(bodyValue));
+      await writeUtf8(
+        markdownPath,
+        await storageXmlToMarkdown(bodyValue, context.signal),
+      );
     }
     const attachmentSummaries = (item.attachments ?? []).flatMap(
       (attachment) => {

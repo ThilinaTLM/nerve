@@ -1317,7 +1317,13 @@ test("continues only from a checkpoint whose complete references match", async (
     harnessLeafId: "entry_a",
     harnessSavePointId: "save_1",
   });
+  const executionCountBeforeRecovery = harness.executions.length;
   await harness.coordinator.recover();
+  assert.equal(
+    harness.executions.length,
+    executionCountBeforeRecovery,
+    "startup recovery must never launch execution",
+  );
   const interrupted = await harness.coordinator.get(run.runId);
   assert.equal(interrupted?.run.lastCheckpointId, checkpoint.checkpointId);
   assert.equal(interrupted?.run.status, "interrupted");
@@ -1331,6 +1337,7 @@ test("continues only from a checkpoint whose complete references match", async (
   );
   const continued = await harness.coordinator.continue(run.runId);
   assert.equal(continued.status, "running");
+  assert.equal(harness.executions.length, executionCountBeforeRecovery + 1);
   const continuedState = await harness.coordinator.get(run.runId);
   assert.equal(continuedState?.transitions.at(-1)?.kind, "resumed");
   assert.equal(
@@ -1378,6 +1385,23 @@ test("starts every cancellation target before awaiting target cleanup", async ()
     cancelled.cancellationEvidence.map((item) => item.target),
     ["model", "tool", "task", "subagent", "interaction"],
   );
+});
+
+test("recovery never resurrects an explicitly cancelled run", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const cancelled = await harness.coordinator.cancel(run.runId);
+  assert.equal(cancelled.status, "cancelled");
+  const executionCountBeforeRecovery = harness.executions.length;
+
+  await harness.coordinator.recover();
+
+  assert.equal(harness.executions.length, executionCountBeforeRecovery);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "cancelled",
+  );
+  await assert.rejects(harness.coordinator.continue(run.runId));
 });
 
 test("partial cancellation is persisted truthfully and is not called cancelled", async () => {

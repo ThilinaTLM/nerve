@@ -2,11 +2,17 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NodeHtmlMarkdown } from "node-html-markdown";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import {
+  HTML_CONVERSION_MAX_INPUT_BYTES,
+  HTML_CONVERSION_TIMEOUT_MS,
+  isolatedHtmlToMarkdown,
+} from "../common/isolated-html-to-markdown.js";
+import { ToolExecutionError } from "../common/tool-error.js";
 import { formatByteSize } from "../common/truncate.js";
 
 const MAX_INLINE_BYTES = 512 * 1024;
+const MAX_RESPONSE_BYTES = HTML_CONVERSION_MAX_INPUT_BYTES;
 
 const CONTENT_TYPE_EXT: Record<string, string> = {
   "text/html": ".html",
@@ -118,6 +124,51 @@ function timeoutSignal(
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
+async function readBoundedResponse(
+  response: Response,
+  signal: AbortSignal,
+): Promise<Buffer> {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ToolExecutionError(
+      "WEB_FETCH_RESPONSE_TOO_LARGE",
+      `Response exceeds the ${formatByteSize(MAX_RESPONSE_BYTES)} download limit.`,
+    );
+  }
+  if (!response.body) return Buffer.alloc(0);
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const onAbort = () => void reader.cancel().catch(() => undefined);
+  signal.addEventListener("abort", onAbort, { once: true });
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      size += value.byteLength;
+      if (size > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new ToolExecutionError(
+          "WEB_FETCH_RESPONSE_TOO_LARGE",
+          `Response exceeds the ${formatByteSize(MAX_RESPONSE_BYTES)} download limit.`,
+        );
+      }
+      chunks.push(value);
+    }
+    if (signal.aborted) {
+      throw signal.reason instanceof Error
+        ? signal.reason
+        : new Error("Web fetch was aborted.");
+    }
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+  return Buffer.concat(chunks, size);
+}
+
 async function saveContent(
   context: ToolExecutionContext,
   url: string,
@@ -137,13 +188,14 @@ export async function executeWebFetch(
   const url = stringArg(args.url, "url");
   const raw = args.raw === true;
 
+  const signal = timeoutSignal(context.signal, 60_000);
   const response = await fetch(url, {
     headers: {
       "User-Agent": "nerve/1.0",
       Accept: "text/html,application/json,text/plain,*/*",
     },
     redirect: "follow",
-    signal: timeoutSignal(context.signal, 60_000),
+    signal,
   });
 
   if (!response.ok) {
@@ -152,7 +204,7 @@ export async function executeWebFetch(
 
   const contentType =
     response.headers.get("content-type") ?? "application/octet-stream";
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const buffer = await readBoundedResponse(response, signal);
   const size = buffer.byteLength;
   const ext = getExtension(contentType);
   const details: Record<string, unknown> & {
@@ -169,6 +221,10 @@ export async function executeWebFetch(
     size,
     converted: false,
     savedTo: undefined,
+    limits: {
+      maxResponseBytes: MAX_RESPONSE_BYTES,
+      htmlConversionTimeoutMs: HTML_CONVERSION_TIMEOUT_MS,
+    },
   };
 
   if (raw) {
@@ -203,7 +259,7 @@ export async function executeWebFetch(
 
   let text = buffer.toString("utf8");
   if (isHtml(contentType)) {
-    text = NodeHtmlMarkdown.translate(text);
+    text = await isolatedHtmlToMarkdown(text, { signal });
     details.converted = true;
   }
 
