@@ -50,6 +50,40 @@ function deferred(): {
 }
 
 describe("StreamLogRegistry", () => {
+  it("contains validation failures for explicit best-effort publication", async () => {
+    const failures: Array<{ type: string; context: string }> = [];
+    const registry = new StreamLogRegistry(await tempHome(), {
+      onPublishFailed: ({ type, context }) =>
+        void failures.push({ type, context }),
+    });
+    const invalid = {
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      projectId: "proj_test",
+      toolCallId: "tool_test",
+      toolName: "bash",
+      stream: "stdout",
+      offset: 0,
+      delta: "x".repeat(70_000),
+    };
+
+    registry.publishBestEffort(
+      "conversation.live.tool_output.delta",
+      invalid,
+      "test.invalid_delta",
+    );
+
+    assert.deepEqual(failures, [
+      {
+        type: "conversation.live.tool_output.delta",
+        context: "test.invalid_delta",
+      },
+    ]);
+    assert.throws(() =>
+      registry.publish("conversation.live.tool_output.delta", invalid),
+    );
+  });
+
   it("assigns independent dense sequences and routes conversations", async () => {
     const home = await tempHome();
     const registry = new StreamLogRegistry(home);

@@ -15,6 +15,12 @@ import { StreamLog, type StreamFlushObservation } from "./stream-log.js";
 
 export type PublishedEvent<T = unknown> = EventEnvelope<T> | NotifyEvent<T>;
 
+export interface EventPublishFailure {
+  readonly type: string;
+  readonly context: string;
+  readonly error: unknown;
+}
+
 export interface StreamLogRegistryOptions {
   readonly retentionEvents?: number;
   readonly retentionBytes?: number;
@@ -22,6 +28,9 @@ export interface StreamLogRegistryOptions {
   readonly flushEventThreshold?: number;
   readonly onFsync?: () => void;
   readonly onFlushCompleted?: (observation: StreamFlushObservation) => void;
+  readonly onPublishFailed?: (
+    failure: EventPublishFailure,
+  ) => void | Promise<void>;
   readonly renameDependencies?: RenameDependencies;
 }
 
@@ -49,6 +58,20 @@ export class StreamLogRegistry {
     const normalized = validatePublicEvent(type, data, "workbench_server") as T;
     return this.#enqueueStream(eventQueueKey(type, normalized), () =>
       this.#publishNow(createId("evt"), type, normalized, true),
+    );
+  }
+
+  /** Publish an intentionally lossy event without leaking a rejected promise. */
+  publishBestEffort<T>(type: string, data: T, context: string): void {
+    let publication: Promise<PublishedEvent<T>>;
+    try {
+      publication = this.publish(type, data);
+    } catch (error) {
+      this.#reportPublishFailure({ type, context, error });
+      return;
+    }
+    void publication.catch((error: unknown) =>
+      this.#reportPublishFailure({ type, context, error }),
     );
   }
 
@@ -220,6 +243,22 @@ export class StreamLogRegistry {
     this.#logs.set(stream, opened);
     opened.catch(() => this.#logs.delete(stream));
     return opened;
+  }
+
+  #reportPublishFailure(failure: EventPublishFailure): void {
+    const report = this.options.onPublishFailed;
+    if (!report) {
+      process.emitWarning(
+        `Best-effort event publication failed for ${failure.type} (${failure.context})`,
+      );
+      return;
+    }
+    try {
+      void Promise.resolve(report(failure)).catch(() => undefined);
+    } catch {
+      // Diagnostics must not turn a contained publication failure back into an
+      // unhandled process error.
+    }
   }
 
   #openLog(stream: string): Promise<StreamLog> {

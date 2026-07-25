@@ -24,7 +24,7 @@ export type ToolExecutionContext = {
     allowNetwork: boolean;
     allowFileWrite: boolean;
   };
-  onUpdate?: (update: ToolExecutionOutputUpdate) => void;
+  onUpdate?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
 };
 
 // Result contracts live in `@nervekit/contracts` (single source of truth shared with the web UI).

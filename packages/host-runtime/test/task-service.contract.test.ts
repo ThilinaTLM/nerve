@@ -227,6 +227,27 @@ test("launch environments are not reported persisted without storage", async () 
   );
 });
 
+test("large process output is losslessly framed for events and observers", async () => {
+  const { service, events, callbacks } = fixture();
+  const observed: string[] = [];
+  await service.start({
+    cwd: "/workspace",
+    command: "noisy-command",
+    onOutput: async (update) => void observed.push(update.chunk),
+  });
+  const input = `${"x".repeat(70_000)}🙂${"界".repeat(2_000)}`;
+
+  await callbacks()?.onOutput?.("stdout", input);
+
+  const outputEvents = events.filter((event) => event.type === "task.output");
+  const emitted = outputEvents.map(
+    (event) => (event.data as { text: string }).text,
+  );
+  assert.equal(emitted.join(""), input);
+  assert.equal(observed.join(""), input);
+  assert.ok(emitted.every((chunk) => Buffer.byteLength(chunk) <= 8 * 1024));
+});
+
 test("live processes without a supervision handle reconcile as orphaned", async () => {
   const { service, records, events } = fixture();
   await service.start({ cwd: "/workspace", command: "sleep 60" });
@@ -368,10 +389,9 @@ test("process output is bounded, ephemeral, and delegated to retained logs", asy
   const { service, events, callbacks } = fixture();
   await service.start({ cwd: "/workspace", command: "echo hello" });
   await callbacks()?.onOutput?.("stdout", "x".repeat(20_000));
-  const output = events.find((event) => event.type === "task.output");
-  assert.equal(output?.delivery, "ephemeral");
-  assert.equal(
-    (output?.data as { text: string } | undefined)?.text.length,
-    16_384,
-  );
+  const output = events.filter((event) => event.type === "task.output");
+  assert.ok(output.every((event) => event.delivery === "ephemeral"));
+  const chunks = output.map((event) => (event.data as { text: string }).text);
+  assert.equal(chunks.join(""), "x".repeat(20_000));
+  assert.ok(chunks.every((chunk) => Buffer.byteLength(chunk) <= 8 * 1024));
 });

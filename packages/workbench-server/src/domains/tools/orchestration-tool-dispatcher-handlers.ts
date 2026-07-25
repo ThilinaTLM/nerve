@@ -294,22 +294,15 @@ export function publishExploreProgress(
   update: ExploreProgressUpdate,
   runId?: string,
 ): void {
-  const data = this.deps.conversationRuntime.applyToolOutputDelta({
-    agentId: toolCall.agentId,
-    runId: runId ?? toolCall.runId,
-    turnId: toolCall.turnId,
-    liveMessageId: toolCall.liveMessageId,
-    contentIndex: toolCall.contentIndex,
-    providerToolCallId:
-      toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
-    conversationId: toolCall.conversationId,
-    projectId: toolCall.projectId,
-    toolCallId: toolCall.id,
-    toolName: toolCall.toolName,
-    stream: "stdout",
-    delta: `${JSON.stringify(update)}\n`,
-  });
-  void this.deps.events.publish("conversation.live.tool_output.delta", data);
+  this.liveOutput.enqueue(
+    toolCall,
+    {
+      kind: "output",
+      stream: "stdout",
+      chunk: `${JSON.stringify(update)}\n`,
+    },
+    runId,
+  );
 }
 
 export function publishToolExecutionUpdate(
@@ -317,24 +310,8 @@ export function publishToolExecutionUpdate(
   toolCall: ToolCallRecord,
   update: ToolExecutionOutputUpdate,
   runId?: string,
-): void {
-  if (update.kind !== "output" || update.chunk.length === 0) return;
-  const data = this.deps.conversationRuntime.applyToolOutputDelta({
-    agentId: toolCall.agentId,
-    runId: runId ?? toolCall.runId,
-    turnId: toolCall.turnId,
-    liveMessageId: toolCall.liveMessageId,
-    contentIndex: toolCall.contentIndex,
-    providerToolCallId:
-      toolCall.providerToolCallId ?? toolCall.sourceToolCallId,
-    conversationId: toolCall.conversationId,
-    projectId: toolCall.projectId,
-    toolCallId: toolCall.id,
-    toolName: toolCall.toolName,
-    stream: update.stream,
-    delta: update.chunk,
-  });
-  void this.deps.events.publish("conversation.live.tool_output.delta", data);
+): Promise<void> {
+  return this.liveOutput.publish(toolCall, update, runId);
 }
 
 export async function requestPlanReview(

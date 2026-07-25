@@ -3,10 +3,11 @@ import { z } from "zod";
 const secretLikeKey =
   /(?:^|[_-])(authorization|cookie|credential|password|passwd|secret|token|api[_-]?key|private[_-]?key)(?:$|[_-])/i;
 const credentialUrl = /^[a-z][a-z0-9+.-]*:\/\/[^/\s]*@/i;
-const maximumBytes = 64 * 1024;
+export const PUBLIC_EVENT_MAX_BYTES = 64 * 1024;
+export const PUBLIC_EVENT_MAX_STRING_CHARS = 16_384;
+
 const maximumDepth = 8;
 const maximumEntries = 256;
-const maximumStringLength = 16_384;
 
 function boundedPublicJson() {
   return z
@@ -22,10 +23,10 @@ function boundedPublicJson() {
         });
         return;
       }
-      if (bytes > maximumBytes) {
+      if (bytes > PUBLIC_EVENT_MAX_BYTES) {
         context.addIssue({
           code: "custom",
-          message: `public data may not exceed ${maximumBytes} bytes`,
+          message: `public data may not exceed ${PUBLIC_EVENT_MAX_BYTES} bytes`,
         });
       }
       validateValue(value, context, [], 0);
@@ -78,7 +79,7 @@ function validateValue(
     return;
   }
   if (typeof value === "string") {
-    if (value.length > maximumStringLength)
+    if (value.length > PUBLIC_EVENT_MAX_STRING_CHARS)
       context.addIssue({
         code: "custom",
         path,

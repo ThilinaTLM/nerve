@@ -1,6 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join, parse } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import type {
   DomainEventPublisherPort,
   TaskProcessExit,
@@ -328,20 +329,51 @@ export function createWorkbenchTaskResources(
           onOutput: input.onOutput,
         };
         managed.set(input.taskId, state);
-        const queueOutput = (stream: "stdout" | "stderr", chunk: unknown) => {
+        const decoders = {
+          stdout: new StringDecoder("utf8"),
+          stderr: new StringDecoder("utf8"),
+        };
+        const queueDecodedOutput = (
+          stream: "stdout" | "stderr",
+          text: string,
+          source?: NodeJS.ReadableStream,
+        ) => {
+          if (!text) return;
+          const canPause = typeof source?.pause === "function";
+          if (canPause) source.pause();
           state.outputPending = (state.outputPending ?? Promise.resolve())
             .catch(() => undefined)
             .then(async () => {
-              await callbacks.onOutput?.(stream, String(chunk));
+              try {
+                await callbacks.onOutput?.(stream, text);
+              } finally {
+                if (canPause && typeof source?.resume === "function") {
+                  source.resume();
+                }
+              }
             });
         };
-        child.stdout?.on("data", (chunk) => queueOutput("stdout", chunk));
-        child.stderr?.on("data", (chunk) => queueOutput("stderr", chunk));
+        child.stdout?.on("data", (chunk: Buffer) =>
+          queueDecodedOutput(
+            "stdout",
+            decoders.stdout.write(chunk),
+            child.stdout ?? undefined,
+          ),
+        );
+        child.stderr?.on("data", (chunk: Buffer) =>
+          queueDecodedOutput(
+            "stderr",
+            decoders.stderr.write(chunk),
+            child.stderr ?? undefined,
+          ),
+        );
         let settled = false;
         const finish = async (exit: TaskProcessExit) => {
           if (settled) return;
           settled = true;
           state.finalized = true;
+          queueDecodedOutput("stdout", decoders.stdout.end());
+          queueDecodedOutput("stderr", decoders.stderr.end());
           await state.outputPending?.catch(() => undefined);
           const current = tasks.get(input.taskId);
           if (current)

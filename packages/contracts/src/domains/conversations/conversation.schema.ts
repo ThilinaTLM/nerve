@@ -1,6 +1,9 @@
 /* eslint-disable max-lines -- Conversation schema centralizes snapshot and live event payload contracts. */
 import { z } from "zod";
-import { boundedPublicObjectSchema } from "../events/bounded-public-data.schema.js";
+import {
+  boundedPublicObjectSchema,
+  PUBLIC_EVENT_MAX_STRING_CHARS,
+} from "../events/bounded-public-data.schema.js";
 import {
   type QueuedPromptRecord,
   queuedPromptRecordSchema,
@@ -23,6 +26,12 @@ export const runIdSchema = z.string().startsWith("run_");
 export const turnIdSchema = z.string().startsWith("turn_");
 export const liveMessageIdSchema = z.string().startsWith("msg_");
 export const contentBlockIdSchema = z.string().startsWith("block_");
+
+/** UTF-8 framing budget for one live-output event, excluding event metadata. */
+export const LIVE_TOOL_OUTPUT_EVENT_MAX_BYTES = 8 * 1024;
+/** Character-based rolling projection limits used by host and UI snapshots. */
+export const LIVE_TOOL_OUTPUT_MAX_CHARS = 32_000;
+export const LIVE_TOOL_OUTPUT_MAX_CHUNKS = 400;
 
 export type AgentMessageContentKind = "text" | "thinking";
 export type RunStatus =
@@ -893,7 +902,7 @@ const conversationLiveToolOutputDeltaDataSchema = z.object({
   toolName: z.string().min(1),
   stream: z.enum(["stdout", "stderr", "combined"]),
   offset: z.number().int().nonnegative(),
-  delta: z.string(),
+  delta: z.string().max(PUBLIC_EVENT_MAX_STRING_CHARS),
 });
 
 export const conversationEventPayloadSchemas = {

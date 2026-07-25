@@ -585,6 +585,7 @@ async function createDispatcher(
       mode: "coding",
     }),
     conversationRuntime: {
+      toolOutputOffset: () => 0,
       applyToolOutputDelta: (data: unknown) => data,
     },
     todoState: { set() {}, get: () => [] },

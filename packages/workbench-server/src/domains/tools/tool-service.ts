@@ -210,6 +210,7 @@ export class ToolService {
       updateToolCall: (id, patch) => this.updateToolCall(id, patch),
       publishToolCallUpdated: (toolCall) =>
         this.publishToolCallUpdated(toolCall),
+      logger: this.logger,
     });
     this.executor = new ToolExecutorService({
       getToolCall: (id) => this.getToolCall(id),

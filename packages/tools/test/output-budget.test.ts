@@ -2,8 +2,26 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   boundContentBlocks,
+  LIVE_OUTPUT_MAX_BYTES,
   MODEL_TOOL_RESULT_MAX_BYTES,
+  splitLiveOutputChunks,
 } from "../src/execution/common/output-budget.js";
+
+describe("live output framing", () => {
+  it("losslessly splits ASCII and multibyte text within the byte budget", () => {
+    const input = `${"x".repeat(20_000)}🙂${"界".repeat(4_000)}`;
+    const chunks = splitLiveOutputChunks(input);
+
+    assert.equal(chunks.join(""), input);
+    assert.ok(chunks.length > 1);
+    assert.ok(
+      chunks.every(
+        (chunk) => Buffer.byteLength(chunk, "utf8") <= LIVE_OUTPUT_MAX_BYTES,
+      ),
+    );
+    assert.ok(chunks.every((chunk) => !chunk.endsWith("\ud83d")));
+  });
+});
 
 describe("aggregate model tool-result output budget", () => {
   it("shares one byte budget across text blocks and emits one notice", () => {

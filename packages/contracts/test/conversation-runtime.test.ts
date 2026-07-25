@@ -137,19 +137,21 @@ describe("ConversationRuntime", () => {
     const runtime = new ConversationRuntime();
     const { run, message } = start(runtime);
 
-    runtime.applyToolOutputDelta({
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      projectId: "proj_test",
-      runId: run.runId,
-      turnId: message.turnId,
-      liveMessageId: message.liveMessageId,
-      contentIndex: 1,
-      toolCallId: "tool_1",
-      toolName: "bash",
-      stream: "stdout",
-      delta: "x".repeat(40_000),
-    });
+    for (let index = 0; index < 5; index += 1) {
+      runtime.applyToolOutputDelta({
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: run.runId,
+        turnId: message.turnId,
+        liveMessageId: message.liveMessageId,
+        contentIndex: 1,
+        toolCallId: "tool_1",
+        toolName: "bash",
+        stream: "stdout",
+        delta: "x".repeat(8_000),
+      });
+    }
 
     const output =
       runtime.snapshotForConversation("conv_test")?.toolOutputsByToolCallId

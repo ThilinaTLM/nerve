@@ -74,6 +74,14 @@ export function createOrchestratorState(
     maxBufferedLogs: storage.settings.logging.maxBufferedLogs,
   });
   const events = new StreamLogRegistry(storage.paths.home, {
+    onPublishFailed: ({ type, context, error }) =>
+      logger.error("Best-effort event publication failed", {
+        context: {
+          eventType: type,
+          operation: context,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }),
     onFlushCompleted: (observation) => {
       if (observation.durationMs < 50) return;
       void logger.warn("Slow event stream flush", {
@@ -120,6 +128,7 @@ export function createOrchestratorState(
     auth,
     events,
     cacheDir: join(storage.paths.home, "cache", "usage"),
+    logger,
   });
   const agentBrowserSkills = new AgentBrowserSkillCatalog();
   const registry = new RuntimeRegistry(

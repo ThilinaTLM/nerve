@@ -63,7 +63,7 @@ export type ForegroundBashPromotionInput = {
   autoPromoteAfterMs?: number;
   origin: Extract<TaskRecord["origin"], { kind: "agent_tool" }>;
   signal?: AbortSignal;
-  onOutput?: (update: ToolExecutionOutputUpdate) => void;
+  onOutput?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
   continueAfterPromotion?: boolean;
 };
 
@@ -96,7 +96,7 @@ export interface ManagedTask extends TaskLogCursor {
   runtimeTimer?: NodeJS.Timeout;
   readinessPattern?: RegExp;
   timedOut?: boolean;
-  onOutput?: (update: ToolExecutionOutputUpdate) => void;
+  onOutput?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
 }
 
 export class WorkbenchTaskService extends TaskService {
@@ -163,7 +163,7 @@ export class WorkbenchTaskService extends TaskService {
       origin?: TaskRecord["origin"];
       completion?: TaskRecord["completion"];
       visibility?: TaskRecord["visibility"];
-      onOutput?: (update: ToolExecutionOutputUpdate) => void;
+      onOutput?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
     },
   ): Promise<TaskRecord> {
     return this.start({

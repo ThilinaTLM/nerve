@@ -26,7 +26,7 @@ export function createAuthRoutes(state: OrchestratorState): Hono {
     "/auth/oauth/flows",
     routeHandler(async (c) => {
       const body = startOAuthFlowRequestSchema.parse(await c.req.json());
-      return c.json({ flow: state.oauthFlows.start(body.provider) });
+      return c.json({ flow: await state.oauthFlows.start(body.provider) });
     }),
   );
   app.get(
