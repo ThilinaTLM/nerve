@@ -8,13 +8,35 @@ on:
       # Pre-releases: v1.2.3-rc.1, v1.2.3-beta.2, etc.
       - "v[0-9]+.[0-9]+.[0-9]+-*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
 jobs:
-  validate:
-    name: Validate release tag and packages
+  verify-tag:
+    name: Verify release tag
     runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Verify release tag
+        run: node scripts/verify-release-tag.mjs "${{ github.ref_name }}"
+
+  quality-and-package:
+    name: Check, test, build, and package (Ubuntu)
+    runs-on: ubuntu-latest
+    needs: verify-tag
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -34,26 +56,47 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify release tag
-        run: pnpm release:verify-tag -- "${{ github.ref_name }}"
-
       - name: Check formatting, lint, and packages
         run: pnpm check
 
-      - name: Run tests
+      - name: Run complete test suite
         run: pnpm test
 
       - name: Build all packages
         run: pnpm build
 
-  npm-smoke:
+      - name: Smoke built workbench HTTP and WebSocket parity
+        run: pnpm release:smoke:workbench
+
+      - name: Smoke desktop resolution and CLI
+        run: pnpm release:smoke:desktop
+
+      - name: Package unpacked desktop bundle
+        run: pnpm --filter @nervekit/desktop-shell package:dir
+
+      - name: Smoke packaged desktop identity and assets
+        run: pnpm release:smoke:desktop-package
+
+      - name: Pack and verify npm tarball
+        run: node scripts/pack-npm.mjs
+
+      - name: Upload verified npm tarball
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-package
+          path: release/npm/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  native-package-smoke:
     name: npm package smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: verify-tag
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+        os: [windows-latest, macos-latest]
 
     steps:
       - name: Check out repository
@@ -85,48 +128,16 @@ jobs:
       - name: Smoke packaged desktop identity and assets
         run: pnpm release:smoke:desktop-package
 
-      - name: Pack npm tarballs
+      - name: Pack and verify npm tarball
         run: node scripts/pack-npm.mjs
 
       - name: Verify built desktop runtime
         run: pnpm release:smoke:desktop
 
-  built-artifact-smoke:
-    name: Built workbench protocol smoke
-    runs-on: ubuntu-latest
-    needs: validate
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 11.17.0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build all packages
-        run: pnpm build
-
-      - name: Smoke built workbench HTTP and WebSocket parity
-        run: pnpm release:smoke:workbench
-
-      - name: Smoke desktop resolution and CLI
-        run: pnpm release:smoke:desktop
-
   image-smoke:
     name: Sandbox ${{ matrix.image }} image build and smoke
     runs-on: ubuntu-latest
-    needs: validate
+    needs: verify-tag
     strategy:
       fail-fast: false
       matrix:
@@ -164,29 +175,19 @@ jobs:
     name: Publish to npmjs.com
     runs-on: ubuntu-latest
     needs:
-      - validate
-      - npm-smoke
-      - built-artifact-smoke
+      - quality-and-package
+      - native-package-smoke
       - image-smoke
     permissions:
       contents: read
       id-token: write
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 11.17.0
-
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: pnpm
 
       - name: Verify Node 24 and npm >= 11.5.1
         shell: bash
@@ -206,21 +207,20 @@ jobs:
             echo "npm: $(npm --version)"
           fi
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Download verified npm tarball
+        uses: actions/download-artifact@v7
+        with:
+          name: npm-package
+          path: release/npm
 
-      - name: Build all packages
-        run: pnpm build
-
-      - name: Pack npm tarballs
-        run: node scripts/pack-npm.mjs
-
-      - name: Publish desktop tarball (skip already-published version)
+      - name: Publish npm tarball
         shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           name="@nervekit/desktop"
-          version="$(node -e "console.log(require('./package.json').version)")"
+          version="${RELEASE_TAG#v}"
           tgz="release/npm/nervekit-desktop-${version}.tgz"
           if [ ! -f "${tgz}" ]; then
             echo "No verified tarball found at ${tgz}" >&2
@@ -230,5 +230,49 @@ jobs:
             echo "Skipping ${name}@${version} (already published)"
             exit 0
           fi
-          echo "Publishing ${tgz} as ${name}@${version}"
-          npm publish "${tgz}" --provenance --access public
+          dist_tag="latest"
+          if [[ "${version}" == *-* ]]; then
+            dist_tag="next"
+          fi
+          echo "Publishing ${tgz} as ${name}@${version} with dist-tag ${dist_tag}"
+          npm publish "${tgz}" --provenance --access public --tag "${dist_tag}"
+
+  github-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: publish-npm
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download verified npm tarball
+        uses: actions/download-artifact@v7
+        with:
+          name: npm-package
+          path: release/npm
+
+      - name: Create release and attach npm tarball
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          tgz="release/npm/nervekit-desktop-${version}.tgz"
+          if [ ! -f "${tgz}" ]; then
+            echo "No verified tarball found at ${tgz}" >&2
+            exit 1
+          fi
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists; refreshing its npm tarball"
+            gh release upload "${RELEASE_TAG}" "${tgz}" --clobber
+            exit 0
+          fi
+
+          release_args=(--verify-tag --generate-notes)
+          if [[ "${version}" == *-* ]]; then
+            release_args+=(--prerelease)
+          fi
+          gh release create "${RELEASE_TAG}" "${tgz}" "${release_args[@]}"
