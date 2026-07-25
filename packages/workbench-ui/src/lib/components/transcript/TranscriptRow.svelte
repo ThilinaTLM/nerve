@@ -6,17 +6,13 @@ import type {
   PlanReviewRecord,
   PlanReviewResolveOptions,
   ProjectRecord,
-  ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "../../state/tool-types";
-import ContextMenu, {
-  type ContextMenuItem,
-} from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { ConversationMenuBuilders } from "../conversation/types.js";
 import ToolCallCard from "../../tools/components/ToolCallCard.svelte";
 import ToolResultErrorCard from "../../tools/components/tool-call/ToolResultErrorCard.svelte";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
-import type { TranscriptItem } from "../../state/transcript-types";
 import CompactionCard from "./CompactionCard.svelte";
 import UserMessageContent from "./UserMessageContent.svelte";
 import TaskEventCard from "./TaskEventCard.svelte";
@@ -24,6 +20,7 @@ import RunStatusCard from "./RunStatusCard.svelte";
 import ThinkingGroup from "./ThinkingGroup.svelte";
 import type { TranscriptDisplayNode } from "./transcript-presentation";
 import type { TranscriptEntranceMotion } from "./transcript-entry-motion";
+import TranscriptContextMenu from "./TranscriptContextMenu.svelte";
 
 type Props = {
   node: TranscriptDisplayNode;
@@ -54,11 +51,7 @@ type Props = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
-  messageMenu: (item: TranscriptItem) => ContextMenuItem[];
-  toolMenu: (
-    anchorEntryId: string | undefined,
-    toolCall: ToolCallTranscriptRecord,
-  ) => ContextMenuItem[];
+  transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
 let {
@@ -84,22 +77,20 @@ let {
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
   onContinueFromFailure,
-  messageMenu,
-  toolMenu,
+  transcriptMenu,
 }: Props = $props();
 
-const messageMenuItems = $derived.by(() => {
-  if (node.kind === "message") return messageMenu(node.item);
-  if (node.kind === "thinking_group") {
-    const first = node.items[0]?.item;
-    if (!first) return [];
-    // Menu actions (copy, etc.) should act on the whole reasoning group.
-    return messageMenu({
+const thinkingMenuTarget = $derived.by(() => {
+  if (node.kind !== "thinking_group") return undefined;
+  const first = node.items[0]?.item;
+  if (!first) return undefined;
+  return {
+    kind: "thinking" as const,
+    item: {
       ...first,
       text: node.items.map((member) => member.item.text).join("\n\n"),
-    });
-  }
-  return [];
+    },
+  };
 });
 
 const messageState = $derived.by<"running" | "complete" | "static">(() => {
@@ -147,8 +138,19 @@ $effect(() => {
       <!-- Keep one stable trigger across the whole tool lifecycle; it is inert
          (not removed) while only a draft exists, so the handoff to the real
          tool menu causes no layout shift. -->
-      <ContextMenu
-        items={node.toolCall ? toolMenu(node.anchorEntryId, node.toolCall) : []}
+      <TranscriptContextMenu
+        target={node.toolCall
+          ? {
+              kind: "tool",
+              anchorEntryId: node.anchorEntryId,
+              toolCall: node.toolCall,
+            }
+          : {
+              kind: "tool_result_error",
+              toolName: node.draft?.block.toolName ?? "tool",
+              error: "",
+            }}
+        menu={transcriptMenu}
         disabled={!node.toolCall}
         triggerClass="block min-w-0"
       >
@@ -187,27 +189,59 @@ $effect(() => {
           {onAcceptPlanReviewInNewChat}
           {onRejectPlanReview}
         />
-      </ContextMenu>
+      </TranscriptContextMenu>
     </div>
   {:else if node.kind === "tool_result_error"}
-    <div class="relative min-w-0 px-3">
-      <ToolResultErrorCard toolName={node.toolName} error={node.error} />
-    </div>
+    <TranscriptContextMenu
+      target={{
+        kind: "tool_result_error",
+        toolName: node.toolName,
+        error: node.error,
+      }}
+      menu={transcriptMenu}
+      triggerClass="block select-text"
+    >
+      <div class="relative min-w-0 px-3">
+        <ToolResultErrorCard toolName={node.toolName} error={node.error} />
+      </div>
+    </TranscriptContextMenu>
   {:else if node.kind === "run_status"}
-    <RunStatusCard
-      notice={node.notice}
-      isLast={node.key === lastTimelineKey}
-      {sending}
-      {onContinueFromFailure}
-    />
+    <TranscriptContextMenu
+      target={{ kind: "run_status", notice: node.notice }}
+      menu={transcriptMenu}
+      triggerClass="block select-text"
+    >
+      <RunStatusCard
+        notice={node.notice}
+        isLast={node.key === lastTimelineKey}
+        {sending}
+        {onContinueFromFailure}
+      />
+    </TranscriptContextMenu>
   {:else if node.kind === "compaction"}
-    <div class="relative min-w-0 px-3">
-      <CompactionCard notice={node.notice} />
-    </div>
+    <TranscriptContextMenu
+      target={{ kind: "compaction", notice: node.notice }}
+      menu={transcriptMenu}
+      triggerClass="block select-text"
+    >
+      <div class="relative min-w-0 px-3">
+        <CompactionCard notice={node.notice} />
+      </div>
+    </TranscriptContextMenu>
   {:else if node.kind === "task_event"}
-    <TaskEventCard notice={node.notice} />
-  {:else if node.kind === "thinking_group"}
-    <ContextMenu items={messageMenuItems} triggerClass="select-text">
+    <TranscriptContextMenu
+      target={{ kind: "task_event", notice: node.notice }}
+      menu={transcriptMenu}
+      triggerClass="block select-text"
+    >
+      <TaskEventCard notice={node.notice} />
+    </TranscriptContextMenu>
+  {:else if node.kind === "thinking_group" && thinkingMenuTarget}
+    <TranscriptContextMenu
+      target={thinkingMenuTarget}
+      menu={transcriptMenu}
+      triggerClass="select-text"
+    >
       <article
         class="transcript-entry assistant thinking-entry"
         data-state="static"
@@ -216,10 +250,11 @@ $effect(() => {
           <ThinkingGroup items={node.items.map((member) => member.item)} />
         </div>
       </article>
-    </ContextMenu>
-  {:else}
-    <ContextMenu
-      items={messageMenuItems}
+    </TranscriptContextMenu>
+  {:else if node.kind === "message"}
+    <TranscriptContextMenu
+      target={{ kind: "message", item: node.item }}
+      menu={transcriptMenu}
       triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}
     >
       <article
@@ -256,7 +291,7 @@ $effect(() => {
           {/if}
         </div>
       </article>
-    </ContextMenu>
+    </TranscriptContextMenu>
   {/if}
 </div>
 

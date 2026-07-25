@@ -8,15 +8,13 @@ import type {
   PlanReviewResolveOptions,
   ProjectRecord,
   QueuedPromptRecord,
-  ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "../../state/tool-types";
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { ConversationMenuBuilders } from "../conversation/types.js";
 import {
   VirtualScroller,
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/ui/virtual-list";
-import type { TranscriptItem } from "../../state/transcript-types";
 import type { TimelineItem } from "../../state/timeline";
 import ConversationSignal from "../conversation/conversation-signal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
@@ -87,11 +85,7 @@ type Props = {
   onMoveQueuedPromptToComposer?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;
-  messageMenu: (item: TranscriptItem) => ContextMenuItem[];
-  toolMenu: (
-    anchorEntryId: string | undefined,
-    toolCall: ToolCallTranscriptRecord,
-  ) => ContextMenuItem[];
+  transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
 // Event replay/recovery can briefly surface duplicate timeline keys. The
@@ -141,8 +135,7 @@ let {
   onContinueFromFailure,
   onDiscardQueuedPrompt,
   onMoveQueuedPromptToComposer,
-  messageMenu,
-  toolMenu,
+  transcriptMenu,
 }: Props = $props();
 
 const motionBudget = new ConversationMotionBudget();
@@ -370,8 +363,7 @@ const showEmptyRun = $derived(
           {onAcceptPlanReviewInNewChat}
           {onRejectPlanReview}
           {onContinueFromFailure}
-          {messageMenu}
-          {toolMenu}
+          {transcriptMenu}
         />
       {:else if item.kind === "waiting"}
         <article class="transcript-entry assistant streaming waiting-entry">
@@ -382,6 +374,7 @@ const showEmptyRun = $derived(
           prompt={item.prompt}
           onDiscard={onDiscardQueuedPrompt}
           onMoveToComposer={onMoveQueuedPromptToComposer}
+          {transcriptMenu}
         />
       {/if}
     {/snippet}

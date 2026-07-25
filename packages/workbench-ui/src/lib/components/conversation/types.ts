@@ -18,7 +18,12 @@ import type {
   ApprovalWithToolCall,
   PlanReviewResolveOptions,
 } from "../../state/tool-types.js";
-import type { TranscriptItem } from "../../state/transcript-types.js";
+import type {
+  CompactionNotice,
+  RunStatusNotice,
+  TaskEventNotice,
+  TranscriptItem,
+} from "../../state/transcript-types.js";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 
 export type ConversationComposerCapabilities = {
@@ -132,10 +137,31 @@ export type ConversationPaneActions = {
   ) => void | Promise<void>;
 };
 
+export type TranscriptMenuTarget =
+  | { kind: "message"; item: TranscriptItem }
+  | { kind: "thinking"; item: TranscriptItem }
+  | {
+      kind: "tool";
+      anchorEntryId?: string;
+      toolCall: ToolCallTranscriptRecord;
+    }
+  | { kind: "tool_result_error"; toolName: string; error: string }
+  | { kind: "run_status"; notice: RunStatusNotice }
+  | { kind: "compaction"; notice: CompactionNotice }
+  | { kind: "task_event"; notice: TaskEventNotice }
+  | {
+      kind: "queued_prompt";
+      prompt: QueuedPromptRecord;
+      busy: boolean;
+      canEdit: boolean;
+      canDiscard: boolean;
+      onEdit: () => void;
+      onDiscard: () => void;
+    };
+
 export type ConversationMenuBuilders = {
-  messageMenu: (item: TranscriptItem) => ContextMenuItem[];
-  toolMenu: (
-    anchorEntryId: string | undefined,
-    toolCall: ToolCallTranscriptRecord,
+  transcriptMenu: (
+    target: TranscriptMenuTarget,
+    selectedText?: string,
   ) => ContextMenuItem[];
 };

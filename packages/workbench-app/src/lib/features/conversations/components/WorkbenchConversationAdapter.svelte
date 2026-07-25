@@ -2,8 +2,6 @@
 import { untrack } from "svelte";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import type { ToolCallTranscriptRecord } from "$lib/api";
-import type { TranscriptItem } from "$lib/core/types/state-types";
 import type { WorkbenchConversationAdapterProps } from "./workbench-conversation-adapter-props";
 import { shortProjectLabel } from "$lib/core/utils/project-tree";
 import {
@@ -22,7 +20,8 @@ import { workbenchConversationUiCapabilities } from "./conversation-capabilities
 import ConversationWelcome from "./ConversationWelcome.svelte";
 
 setConversationUiCapabilities(workbenchConversationUiCapabilities());
-import { messageMenu, toolMenu } from "./conversation-menus";
+import { transcriptMenu } from "./conversation-menus";
+import type { TranscriptMenuTarget } from "@nervekit/workbench-ui/components/conversation";
 import { createConversationRenderProjection } from "../state/conversation-render-projection.svelte";
 
 let {
@@ -176,9 +175,6 @@ const streamingText = $derived(activeRunStreamingText(rendered.activeRun));
 const treeEntriesById = $derived(
   new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
 );
-const parentEntryIdById = $derived(
-  new Map(treeNodes.map((node) => [node.entry.id, node.entry.parentEntryId])),
-);
 // Latest-turn output remains true when a live row materializes into its durable
 // entry, while a newly started empty turn re-enables the waiting indicator.
 const hasActiveTurnOutput = $derived(
@@ -203,23 +199,12 @@ function quoteInComposer(text: string) {
   onComposerChange?.(`${prefix}${quoted}\n\n`);
 }
 
-function menuForMessage(item: TranscriptItem) {
-  return messageMenu(item, {
-    treeEntriesById,
-    parentEntryIdById,
-    copyText,
-    quoteInComposer,
-    onNavigateToEntry,
-    onEditEntry,
-    onOpenHistory,
-  });
-}
-
-function menuForTool(
-  anchorEntryId: string | undefined,
-  toolCall: ToolCallTranscriptRecord,
+function menuForTranscript(
+  target: TranscriptMenuTarget,
+  selectedText?: string,
 ) {
-  return toolMenu(anchorEntryId, toolCall, {
+  return transcriptMenu(target, selectedText, {
+    treeEntriesById,
     copyText,
     quoteInComposer,
     onNavigateToEntry,
@@ -286,7 +271,7 @@ function menuForTool(
     onDiscardQueuedPrompt,
     onMoveQueuedPromptToComposer,
   }}
-  menus={{ messageMenu: menuForMessage, toolMenu: menuForTool }}
+  menus={{ transcriptMenu: menuForTranscript }}
 >
   {#snippet composer()}
     <WorkbenchComposerAdapter

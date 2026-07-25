@@ -25,10 +25,7 @@ import {
 } from "../../state/sandbox-conversation-state";
 import { sandboxAvailableModels } from "../../state/sandbox-manager-selectors.svelte";
 import { isSandboxRunActive } from "../../state/sandbox-prompt-routing";
-import {
-  sandboxMessageMenu,
-  sandboxToolMenu,
-} from "../../state/sandbox-conversation-menus";
+import { sandboxTranscriptMenu } from "../../state/sandbox-conversation-menus";
 import { useSandboxManagerStore } from "../../state/sandbox-manager-state.svelte";
 import {
   pendingApprovalRecords,
@@ -357,8 +354,8 @@ $effect(() => {
       void store.openWorkspaceFile(sandboxId, path, line),
   }}
   menus={{
-    messageMenu: (item) => sandboxMessageMenu(item, { quoteInComposer }),
-    toolMenu: sandboxToolMenu,
+    transcriptMenu: (target, selectedText) =>
+      sandboxTranscriptMenu(target, selectedText, { quoteInComposer }),
   }}
 >
   {#snippet emptyExtension()}

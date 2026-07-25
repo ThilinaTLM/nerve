@@ -118,8 +118,7 @@ const scroll = createConversationScrollController({
           onContinueFromFailure={actions.onContinueFromFailure}
           onDiscardQueuedPrompt={actions.onDiscardQueuedPrompt}
           onMoveQueuedPromptToComposer={actions.onMoveQueuedPromptToComposer}
-          messageMenu={menus.messageMenu}
-          toolMenu={menus.toolMenu}
+          transcriptMenu={menus.transcriptMenu}
         />
       </div>
     </div>

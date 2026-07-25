@@ -2,11 +2,9 @@
 import ListPlus from "@lucide/svelte/icons/list-plus";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import Undo2 from "@lucide/svelte/icons/undo-2";
 import type { QueuedPromptRecord } from "../../state/tool-types";
-import ContextMenu, {
-  type ContextMenuItem,
-} from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { ConversationMenuBuilders } from "../conversation/types.js";
+import TranscriptContextMenu from "./TranscriptContextMenu.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import UserMessageContent from "./UserMessageContent.svelte";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
@@ -15,9 +13,10 @@ type Props = {
   prompt: QueuedPromptRecord;
   onDiscard?: (prompt: QueuedPromptRecord) => void | Promise<void>;
   onMoveToComposer?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
-let { prompt, onDiscard, onMoveToComposer }: Props = $props();
+let { prompt, onDiscard, onMoveToComposer, transcriptMenu }: Props = $props();
 let pendingAction = $state<"edit" | "discard" | undefined>();
 
 async function runAction(action: "edit" | "discard") {
@@ -33,25 +32,22 @@ async function runAction(action: "edit" | "discard") {
   }
 }
 
-const menuItems = $derived<ContextMenuItem[]>([
-  {
-    label: "Cancel & Edit",
-    icon: Undo2,
-    disabled: !onMoveToComposer || Boolean(pendingAction),
-    onSelect: () => void runAction("edit"),
-  },
-  { type: "separator" },
-  {
-    label: "Discard",
-    icon: Trash2,
-    destructive: true,
-    disabled: !onDiscard || Boolean(pendingAction),
-    onSelect: () => void runAction("discard"),
-  },
-]);
+const menuTarget = $derived({
+  kind: "queued_prompt" as const,
+  prompt,
+  busy: Boolean(pendingAction),
+  canEdit: Boolean(onMoveToComposer),
+  canDiscard: Boolean(onDiscard),
+  onEdit: () => void runAction("edit"),
+  onDiscard: () => void runAction("discard"),
+});
 </script>
 
-<ContextMenu items={menuItems} triggerClass="block select-text">
+<TranscriptContextMenu
+  target={menuTarget}
+  menu={transcriptMenu}
+  triggerClass="block select-text"
+>
   <article class="queued-prompt-card" aria-label="Queued user prompt">
     <div
       class="queued-badge"
@@ -102,7 +98,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       <UserMessageContent text={prompt.text} />
     </div>
   </article>
-</ContextMenu>
+</TranscriptContextMenu>
 
 <style>
 .queued-prompt-card {
