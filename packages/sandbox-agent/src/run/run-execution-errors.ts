@@ -1,5 +1,8 @@
 import { RUN_FAILURE_MESSAGE_MAX_LENGTH } from "@nervekit/contracts";
-import type { AgentMessage } from "@nervekit/host-runtime/harness";
+import {
+  isRetryableProviderError,
+  type AgentMessage,
+} from "@nervekit/host-runtime/harness";
 
 export interface SandboxExecutionFailure {
   code: string;
@@ -42,18 +45,10 @@ export function previewResult(result: unknown): unknown {
 /** Classifies a provider error message as retryable or permanent. */
 export function assistantFailure(message?: string): SandboxExecutionFailure {
   const error = message ?? "Provider request failed";
-  const permanent =
-    /NON_RETRYABLE|usage limit|insufficient_quota|out of budget|billing|context.?length|context.?window|maximum context|too many tokens/i.test(
-      error,
-    );
-  const transient =
-    /RETRYABLE|overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|network.?error|connection.?error|fetch failed|socket hang up|timed? out|timeout/i.test(
-      error,
-    );
   return {
     code: "MODEL_REQUEST_FAILED",
     message: error.slice(0, RUN_FAILURE_MESSAGE_MAX_LENGTH),
-    retryable: !permanent && transient,
+    retryable: isRetryableProviderError(message),
   };
 }
 

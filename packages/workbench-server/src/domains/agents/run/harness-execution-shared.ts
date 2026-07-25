@@ -1,4 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { isRetryableProviderError } from "@nervekit/host-runtime/harness";
 
 export function recordFromUnknown(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"
@@ -25,17 +26,9 @@ export function errorTextFromToolResult(
 }
 
 export function isRetryableAssistantError(message: AssistantMessage): boolean {
-  if (message.stopReason !== "error" || !message.errorMessage) return false;
-  const error = message.errorMessage;
-  if (
-    /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|available balance|insufficient_quota|out of budget|quota exceeded|billing|context.?length|context.?window|maximum context|too many tokens/i.test(
-      error,
-    )
-  ) {
-    return false;
-  }
-  return /overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|network.?error|connection.?error|connection.?refused|connection.?lost|websocket.?closed|websocket.?error|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|stream ended before message_stop|http2 request did not get a response|timed? out|timeout|terminated|retry delay/i.test(
-    error,
+  return (
+    message.stopReason === "error" &&
+    isRetryableProviderError(message.errorMessage)
   );
 }
 

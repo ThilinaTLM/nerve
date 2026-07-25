@@ -9,7 +9,10 @@ import {
   shutdownOrchestratorState,
 } from "../src/app/orchestrator-state.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
-import { initializeStorage } from "../src/infrastructure/storage/index.js";
+import {
+  initializeStorage,
+  writeSettings,
+} from "../src/infrastructure/storage/index.js";
 
 describe("workbench coordinator-owned provider retry", () => {
   it("retries a valid checkpoint and projects completion back to idle", async () => {
@@ -66,6 +69,74 @@ describe("workbench coordinator-owned provider retry", () => {
         1,
       );
       assert.equal(orchestrator.registry.agents.get(agent.id)?.status, "idle");
+    } finally {
+      registration.unregister();
+      await shutdownOrchestratorState(orchestrator);
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 20,
+      });
+    }
+  });
+
+  it("exhausts three retries for OpenAI processing errors and remains continuable", async () => {
+    const errorMessage =
+      "Codex error: An error occurred while processing your request. You can retry your request.";
+    const registration = registerAgentScriptedProvider({
+      steps: Array.from({ length: 4 }, () => ({
+        type: "providerError" as const,
+        message: errorMessage,
+      })),
+    });
+    const root = await mkdtemp(
+      join(tmpdir(), "nerve-workbench-retry-exhausted-"),
+    );
+    const storage = await initializeStorage(root);
+    await writeSettings(storage, {
+      retry: { enabled: true, maxRetries: 3, baseDelayMs: 1 },
+    });
+    const orchestrator = createOrchestratorState(storage, "127.0.0.1", 0);
+    try {
+      await orchestrator.registry.hydrate();
+      const project = await orchestrator.registry.createProject({ dir: root });
+      const conversation = await orchestrator.registry.createConversation({
+        projectId: project.id,
+      });
+      const agent = await orchestrator.registry.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        model: { provider: "nerve-scripted", modelId: "scripted-fast" },
+      });
+      await orchestrator.registry.promptAgent(agent.id, {
+        text: "Retry transient OpenAI failure",
+      });
+      const unitOfWork = new WorkbenchRunUnitOfWork(storage.paths.home, 0);
+      let runId: string | undefined;
+      await waitFor(async () => {
+        const states = await unitOfWork.list();
+        runId ??= states.find((state) => state.run.agentId === agent.id)?.run
+          .runId;
+        if (!runId) return false;
+        return (await unitOfWork.load(runId))?.run.status === "interrupted";
+      });
+
+      const state = await unitOfWork.load(runId!);
+      assert.equal(state?.run.attempt, 4);
+      assert.equal(state?.run.recoverability, "checkpoint");
+      assert.equal(state?.run.failure?.retryable, true);
+      assert.equal(state?.run.failure?.continuable, true);
+      assert.match(
+        state?.run.failure?.message ?? "",
+        /processing your request/i,
+      );
+      assert.equal(
+        state?.transitions.filter(
+          (transition) => transition.kind === "retrying",
+        ).length,
+        3,
+      );
     } finally {
       registration.unregister();
       await shutdownOrchestratorState(orchestrator);

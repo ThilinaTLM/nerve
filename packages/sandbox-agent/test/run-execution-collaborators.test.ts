@@ -400,6 +400,12 @@ describe("failure classification", () => {
     assert.equal(assistantFailure("rate limit exceeded 429").retryable, true);
     assert.equal(assistantFailure("service unavailable 503").retryable, true);
     assert.equal(
+      assistantFailure(
+        "Codex error: An error occurred while processing your request. You can retry your request.",
+      ).retryable,
+      true,
+    );
+    assert.equal(
       assistantFailure("insufficient_quota for org").retryable,
       false,
     );
