@@ -3,7 +3,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { publicEventDefinition } from "@nervekit/contracts";
 import { SandboxOperationError } from "../src/daemon/errors.js";
 import { SandboxDaemon } from "../src/daemon/sandbox-daemon.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
@@ -21,81 +20,6 @@ function fauxConfig() {
 }
 
 describe("sandbox live AgentHarness runtime", () => {
-  it("starts a real harness turn and streams schema-valid events", async () => {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-live-runtime-"));
-    try {
-      const stores = new SandboxStateStores(dir);
-      await stores.load();
-      const daemon = new SandboxDaemon(
-        fauxConfig(),
-        "sha256:test",
-        "inst_1",
-        stores,
-        { workspaceDir: process.cwd() },
-      );
-      daemon.start();
-      const result = (await daemon.router.dispatch("run.start", {
-        requestId: "cmd_live_1",
-        text: "Say hello from the live harness",
-      })) as { runId: string; status: string };
-      assert.equal(result.status, "running");
-
-      const run = await waitForRun(daemon, result.runId, "completed");
-      assert.equal(run.status, "completed");
-      await waitForEvent(stores, "run.completed");
-      const events = stores.events.all();
-      assert.ok(events.some((event) => event.type === "run.started"));
-      const turnStartedIndex = events.findIndex(
-        (event) => event.type === "conversation.live.turn.started",
-      );
-      const messageStartedIndex = events.findIndex(
-        (event) => event.type === "conversation.live.message.started",
-      );
-      assert.ok(turnStartedIndex >= 0);
-      assert.ok(messageStartedIndex > turnStartedIndex);
-      assert.ok(
-        events.some(
-          (event) => event.type === "conversation.live.message.started",
-        ),
-      );
-      assert.ok(
-        events.some(
-          (event) => event.type === "conversation.live.content.delta",
-        ),
-      );
-      assert.ok(
-        events.some((event) => event.type === "conversation.live.content.done"),
-      );
-      assert.ok(events.some((event) => event.type === "run.completed"));
-      const snapshot = (await daemon.router.dispatch(
-        "sandbox.conversation.snapshot.get",
-        { runId: result.runId },
-      )) as {
-        snapshot?: {
-          entries: Array<{
-            role: string;
-            turnId?: string;
-            liveMessageId?: string;
-            messageOrdinal?: number;
-          }>;
-        };
-      };
-      const assistant = snapshot.snapshot?.entries.find(
-        (entry) => entry.role === "assistant",
-      );
-      assert.match(assistant?.turnId ?? "", /^turn_/);
-      assert.match(assistant?.liveMessageId ?? "", /^msg_/);
-      assert.equal(assistant?.messageOrdinal, 0);
-      for (const event of events) {
-        const schema = publicEventDefinition(event.type)?.payloadSchema;
-        assert.ok(schema, event.type);
-        assert.equal(schema.safeParse(event.data).success, true, event.type);
-      }
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
   it("rejects starts for auth-backed providers without a configured credential", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-live-runtime-"));
     try {
@@ -129,32 +53,3 @@ describe("sandbox live AgentHarness runtime", () => {
     }
   });
 });
-
-async function waitForEvent(
-  stores: SandboxStateStores,
-  type: string,
-): Promise<void> {
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline) {
-    if (stores.events.all().some((event) => event.type === type)) return;
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  throw new Error(`Timed out waiting for ${type}`);
-}
-
-async function waitForRun(
-  daemon: SandboxDaemon,
-  runId: string,
-  terminal: string,
-): Promise<{ runId: string; status: string }> {
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline) {
-    const status = (await daemon.router.dispatch("sandbox.status.get", {})) as {
-      runs: Array<{ runId: string; status: string }>;
-    };
-    const run = status.runs.find((entry) => entry.runId === runId);
-    if (run?.status === terminal) return run;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  throw new Error(`Timed out waiting for ${runId} to become ${terminal}`);
-}

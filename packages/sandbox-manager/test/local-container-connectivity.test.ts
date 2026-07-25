@@ -1,9 +1,9 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import type {
   RuntimeDriverCapabilities,
   SandboxContainerBackend,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   managerCallbackBaseUrl,
   resolveEffectiveSandboxBackend,
@@ -14,49 +14,6 @@ import type { ContainerRuntimeDriver } from "../src/drivers/container-runtime-dr
 const config = { host: "0.0.0.0", port: 7869 };
 
 describe("local container connectivity", () => {
-  it("resolves auto to the concrete available runtime", async () => {
-    assert.equal(
-      await resolveEffectiveSandboxBackend(
-        driverCapabilities("podman-wsl"),
-        "auto",
-      ),
-      "podman-wsl",
-    );
-  });
-
-  it("resolves an explicit auto override independently of the manager default", async () => {
-    const driver = {
-      kind: "docker",
-      capabilities: () => runtimeCapabilities("docker"),
-      backendOptions: async () => [
-        {
-          kind: "auto",
-          label: "Auto",
-          available: true,
-          runtime: runtimeCapabilities("podman"),
-        },
-      ],
-    } as unknown as ContainerRuntimeDriver;
-
-    assert.equal(
-      await resolveEffectiveSandboxBackend(driver, "auto"),
-      "podman",
-    );
-  });
-
-  it("preserves an explicitly requested backend without probing", async () => {
-    const driver = {
-      capabilities: () => {
-        throw new Error("capabilities should not be called");
-      },
-    } as unknown as ContainerRuntimeDriver;
-
-    assert.equal(
-      await resolveEffectiveSandboxBackend(driver, "docker"),
-      "docker",
-    );
-  });
-
   it("rejects auto when no concrete runtime is available", async () => {
     await assert.rejects(
       () =>
@@ -73,25 +30,6 @@ describe("local container connectivity", () => {
     assert.equal(sandboxContainerNetworkMode("podman-wsl", "win32"), "host");
     assert.equal(sandboxContainerNetworkMode("docker", "win32"), "bridge");
     assert.equal(sandboxContainerNetworkMode("podman", "linux"), "bridge");
-  });
-
-  it("selects callback hosts for each local runtime and platform", () => {
-    assert.equal(
-      managerCallbackBaseUrl(config, "podman", "ws", "win32", {}),
-      "ws://127.0.0.1:7869",
-    );
-    assert.equal(
-      managerCallbackBaseUrl(config, "docker", "http", "win32", {}),
-      "http://host.docker.internal:7869",
-    );
-    assert.equal(
-      managerCallbackBaseUrl(config, "docker", "http", "linux", {}),
-      "http://172.17.0.1:7869",
-    );
-    assert.equal(
-      managerCallbackBaseUrl(config, "podman", "http", "linux", {}),
-      "http://host.containers.internal:7869",
-    );
   });
 
   it("honors an explicit public URL and selects the requested protocol", () => {

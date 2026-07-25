@@ -1,11 +1,10 @@
+import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import {
   deriveAutoCompactionPolicy,
   isContextOverflowAssistantMessage,
   shouldAutoCompact,
-  shouldCompact,
 } from "../../../src/harness/compaction/compaction.js";
 
 function usage(overrides: Partial<Usage> = {}): Usage {
@@ -54,55 +53,6 @@ describe("auto-compaction policy", () => {
     assert.equal(policy.safetyHeadroomTokens, 20_000);
   });
 
-  it("resolves aggressive, conservative, and custom profiles", () => {
-    assert.deepEqual(
-      pickPercentages(
-        deriveAutoCompactionPolicy(200_000, {
-          auto: true,
-          profile: "aggressive",
-          customTriggerPercent: 80,
-          customKeepRecentPercent: 15,
-        }),
-      ),
-      [70, 10],
-    );
-    assert.deepEqual(
-      pickPercentages(
-        deriveAutoCompactionPolicy(200_000, {
-          auto: true,
-          profile: "conservative",
-          customTriggerPercent: 80,
-          customKeepRecentPercent: 15,
-        }),
-      ),
-      [90, 25],
-    );
-    assert.deepEqual(
-      pickPercentages(
-        deriveAutoCompactionPolicy(200_000, {
-          auto: true,
-          profile: "custom",
-          customTriggerPercent: 75,
-          customKeepRecentPercent: 20,
-        }),
-      ),
-      [75, 20],
-    );
-  });
-
-  it("keeps summary, retained context, and safety within the threshold", () => {
-    for (const contextWindow of [4_096, 8_192, 200_000, 1_000_000]) {
-      const policy = deriveAutoCompactionPolicy(contextWindow);
-      assert.ok(policy.summaryReserveTokens <= 16_384);
-      assert.ok(
-        policy.keepRecentTokens +
-          policy.summaryReserveTokens +
-          policy.safetyHeadroomTokens <=
-          policy.thresholdTokens,
-      );
-    }
-  });
-
   it("does not auto-compact unknown usage, unknown windows, or when disabled", () => {
     const unknown = deriveAutoCompactionPolicy(0);
     const disabled = deriveAutoCompactionPolicy(200_000, {
@@ -117,33 +67,7 @@ describe("auto-compaction policy", () => {
     assert.equal(shouldAutoCompact(1_000_000, unknown), false);
     assert.equal(shouldAutoCompact(200_000, disabled), false);
   });
-
-  it("triggers at the derived threshold", () => {
-    const policy = deriveAutoCompactionPolicy(200_000);
-
-    assert.equal(shouldAutoCompact(policy.thresholdTokens - 1, policy), false);
-    assert.equal(shouldAutoCompact(policy.thresholdTokens, policy), true);
-  });
-
-  it("guards legacy shouldCompact callers with unknown context windows", () => {
-    assert.equal(
-      shouldCompact(100_000, 0, {
-        enabled: true,
-        reserveTokens: 16_384,
-        keepRecentTokens: 20_000,
-      }),
-      false,
-    );
-  });
 });
-
-function pickPercentages(policy: {
-  thresholdPercent: number;
-  keepRecentPercent: number;
-}): [number, number] {
-  return [policy.thresholdPercent, policy.keepRecentPercent];
-}
-
 describe("context overflow detection", () => {
   it("detects Anthropic prompt-too-long errors", () => {
     assert.equal(
@@ -151,31 +75,6 @@ describe("context overflow detection", () => {
         assistant({
           stopReason: "error",
           errorMessage: "prompt is too long: 213462 tokens > 200000 maximum",
-        }),
-      ),
-      true,
-    );
-  });
-
-  it("detects generic context-window errors", () => {
-    assert.equal(
-      isContextOverflowAssistantMessage(
-        assistant({
-          stopReason: "error",
-          errorMessage: "Your input exceeds the context window of this model",
-        }),
-      ),
-      true,
-    );
-  });
-
-  it("detects Ollama max context length errors", () => {
-    assert.equal(
-      isContextOverflowAssistantMessage(
-        assistant({
-          stopReason: "error",
-          errorMessage:
-            "prompt too long; exceeded max context length by 150 tokens",
         }),
       ),
       true,

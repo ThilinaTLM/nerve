@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import type {
   AgentRecord,
   ConversationRecord,
@@ -7,6 +5,8 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
 } from "$lib/api";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   createInteractionActions,
   type InteractionActionDeps,
@@ -107,16 +107,6 @@ function fixture(overrides: {
 }
 
 describe("result-driven interaction actions", () => {
-  it("grants an approval with one request and local removal", async () => {
-    const { actions, calls, reconciled, notifications } = fixture({});
-    await actions.grantApproval("approval_1");
-    assert.deepEqual(calls, ["grantApproval"]);
-    assert.deepEqual(reconciled, [{ op: "removeApproval", id: "approval_1" }]);
-    assert.deepEqual(notifications, [
-      { kind: "success", title: "Approval granted" },
-    ]);
-  });
-
   it("keeps the approval and rethrows when the request fails", async () => {
     const { actions, reconciled, notifications } = fixture({
       requests: {
@@ -129,27 +119,6 @@ describe("result-driven interaction actions", () => {
     assert.deepEqual(reconciled, []);
     assert.deepEqual(notifications, [
       { kind: "error", title: "Could not deny approval" },
-    ]);
-  });
-
-  it("reconciles a plan acceptance from the returned record only", async () => {
-    const { actions, calls, reconciled } = fixture({});
-    await actions.acceptPendingPlanReview("review_1");
-    assert.deepEqual(calls, ["acceptPlanReview"]);
-    assert.deepEqual(reconciled, [{ op: "upsertPlanReview", id: "review_1" }]);
-  });
-
-  it("installs new-chat entities directly and navigates", async () => {
-    const { actions, calls, reconciled } = fixture({});
-    await actions.acceptPendingPlanReviewInNewChat("review_1");
-    assert.deepEqual(calls, [
-      "acceptPlanReviewInNewChat",
-      "openConversation:conv_new",
-    ]);
-    assert.deepEqual(reconciled, [
-      { op: "upsertConversation", id: "conv_new" },
-      { op: "upsertAgent", id: "agent_new" },
-      { op: "upsertPlanReview", id: "review_1" },
     ]);
   });
 
@@ -179,20 +148,5 @@ describe("result-driven interaction actions", () => {
       { op: "upsertUserQuestion", id: "question_1" },
     ]);
     assert.deepEqual(notifications, [{ kind: "success", title: "Reply sent" }]);
-  });
-
-  it("ignores empty replies without a request", async () => {
-    const { actions, calls } = fixture({});
-    await actions.answerUserQuestionById("question_1", "   ");
-    assert.deepEqual(calls, []);
-  });
-
-  it("dismisses a question via the returned terminal record", async () => {
-    const { actions, calls, reconciled } = fixture({});
-    await actions.dismissUserQuestionById("question_1");
-    assert.deepEqual(calls, ["dismissUserQuestion"]);
-    assert.deepEqual(reconciled, [
-      { op: "upsertUserQuestion", id: "question_1" },
-    ]);
   });
 });

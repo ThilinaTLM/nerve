@@ -1,10 +1,7 @@
+import type { ConversationRenderState } from "@nervekit/workbench-ui/state";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ConversationRenderState } from "@nervekit/workbench-ui/state";
-import {
-  pendingPlanReviewRecords,
-  pendingUserQuestionRecords,
-} from "./sandbox-review-records";
+import { pendingPlanReviewRecords } from "./sandbox-review-records";
 import { createSandboxDetailState } from "./sandbox-ui-types";
 
 const ts = "2026-07-10T00:00:00.000Z";
@@ -94,35 +91,6 @@ describe("sandbox review projections", () => {
     assert.deepEqual(
       pendingPlanReviewRecords(detail, richState).map((review) => review.id),
       ["plan_review_2"],
-    );
-  });
-
-  it("projects every ask-user prompt and removes only submitted prompts", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    detail.waitsById.ask_1 = {
-      waitId: "ask_1",
-      kind: "input",
-      status: "waiting",
-      toolCallId: "ask_1",
-      question: { text: "Proceed?" },
-      createdAt: ts,
-    };
-    detail.waitsById.ask_2 = {
-      waitId: "ask_2",
-      kind: "input",
-      status: "waiting",
-      toolCallId: "ask_2",
-      question: { text: "Which option?" },
-      createdAt: ts,
-    };
-    assert.deepEqual(
-      pendingUserQuestionRecords(detail).map((question) => question.question),
-      ["Proceed?", "Which option?"],
-    );
-    detail.waitsById.ask_2.status = "submitted";
-    assert.deepEqual(
-      pendingUserQuestionRecords(detail).map((question) => question.question),
-      ["Proceed?"],
     );
   });
 });

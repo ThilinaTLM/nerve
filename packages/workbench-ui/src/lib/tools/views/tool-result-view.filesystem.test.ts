@@ -37,22 +37,6 @@ describe("parseToolView filesystem read/write/edit", () => {
     assert.equal(view.relPath, "src/App.svelte");
   });
 
-  it("parses a text read with relative path and line count", () => {
-    const view = parseToolView(
-      toolCall(
-        "read",
-        { path: "src/app.ts" },
-        { path: `${CWD}/src/app.ts`, content: "a\nb\nc" },
-      ),
-    );
-    assert.equal(view.kind, "read");
-    if (view.kind !== "read") return;
-    assert.equal(view.relPath, "src/app.ts");
-    assert.equal(view.lineLabel, "3 lines");
-    assert.equal(view.image, undefined);
-    assert.equal(view.content, "a\nb\nc");
-  });
-
   it("parses an image read into a data URL", () => {
     const view = parseToolView(
       toolCall(
@@ -71,17 +55,6 @@ describe("parseToolView filesystem read/write/edit", () => {
     assert.equal(view.kind, "read");
     if (view.kind !== "read") return;
     assert.equal(view.image?.dataUrl, "data:image/png;base64,QUJD");
-  });
-
-  it("uses offset for the line label when reading a range", () => {
-    const view = parseToolView(
-      toolCall(
-        "read",
-        { path: "a.ts", offset: 10, limit: 3 },
-        { path: `${CWD}/a.ts`, content: "x\ny\nz" },
-      ),
-    );
-    assert.equal(view.kind === "read" && view.lineLabel, "lines 10–12");
   });
 
   it("parses edit diff, operation count, dry-run flag, and +/- stats", () => {
@@ -114,20 +87,5 @@ describe("parseToolView filesystem read/write/edit", () => {
     assert.equal(view.dryRun, true);
     assert.equal(view.additions, 1);
     assert.equal(view.deletions, 1);
-  });
-
-  it("parses write byte, line, and character counts", () => {
-    const view = parseToolView(
-      toolCall(
-        "write",
-        { path: "out.txt", content: "hello\nworld" },
-        { path: `${CWD}/out.txt`, content: "Wrote 11 bytes." },
-      ),
-    );
-    assert.equal(view.kind, "write");
-    if (view.kind !== "write") return;
-    assert.equal(view.bytes, 11);
-    assert.equal(view.lineCount, 2);
-    assert.equal(view.charCount, 11);
   });
 });

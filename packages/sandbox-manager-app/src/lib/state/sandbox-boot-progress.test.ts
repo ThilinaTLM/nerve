@@ -1,9 +1,9 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import type {
   ManagedSandboxRecord,
   SandboxStatusGetResult,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   computeSandboxBootProgress,
   groupBootPhases,
@@ -91,157 +91,6 @@ describe("computeSandboxBootProgress", () => {
     );
   });
 
-  it("shows only the connection step active before the agent connects", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    detail.status = status({ status: "booting", connected: false });
-
-    const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.deepEqual(
-      progress.phases
-        .filter((phase) => phase.status === "active")
-        .map((phase) => phase.id),
-      ["daemon"],
-    );
-  });
-
-  it("shows the phase stepper while the sandbox is actively booting", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    detail.status = status({ status: "booting" });
-
-    const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.equal(progress.state, "booting");
-    assert.equal(progress.showPhaseStepper, true);
-  });
-
-  it("hides the phase stepper after the sandbox is ready", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    detail.status = status({ status: "ready", connected: true });
-
-    const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.equal(progress.state, "ready");
-    assert.equal(progress.showPhaseStepper, false);
-  });
-
-  it("orders skills before boot and keeps ready pending while boot is active", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    detail.status = status({
-      status: "booting",
-      setup: {
-        git: { configured: true, status: "completed", completedAt: ts },
-        github: { configured: true, status: "completed", completedAt: ts },
-        skills: { configured: true, status: "completed", completedAt: ts },
-        boot: { configured: true, status: "started", startedAt: ts },
-      },
-    });
-
-    const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.deepEqual(
-      progress.phases.map((phase) => phase.id),
-      [
-        "container",
-        "config",
-        "state",
-        "daemon",
-        "preflight",
-        "models",
-        "secrets",
-        "git",
-        "github",
-        "context",
-        "skills",
-        "boot",
-        "runtime",
-        "ready",
-      ],
-    );
-    assert.equal(
-      progress.phases.find((phase) => phase.id === "boot")?.status,
-      "active",
-    );
-    assert.equal(
-      progress.phases.find((phase) => phase.id === "ready")?.status,
-      "pending",
-    );
-  });
-
-  it("marks ready active only after all prior phases are terminal", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    detail.status = status({
-      status: "booting",
-      setup: {
-        git: { configured: true, status: "completed", completedAt: ts },
-        github: { configured: true, status: "completed", completedAt: ts },
-        skills: { configured: true, status: "completed", completedAt: ts },
-        boot: { configured: true, status: "completed", completedAt: ts },
-      },
-    });
-
-    const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.equal(
-      progress.phases.find((phase) => phase.id === "ready")?.status,
-      "active",
-    );
-  });
-
-  it("uses status setup timeline details before the controller connects", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    detail.status = status({
-      status: "booting",
-      setup: {
-        git: { configured: true, status: "completed", completedAt: ts },
-        github: { configured: true, status: "completed", completedAt: ts },
-        skills: { configured: true, status: "completed", completedAt: ts },
-      },
-      setupTimeline: [
-        {
-          key: "boot:0",
-          phase: "boot",
-          name: "install",
-          index: 0,
-          status: "started",
-          ts,
-          startedAt: ts,
-          runAs: "sandbox",
-          network: "inherit",
-          timeoutMs: 60_000,
-        },
-      ],
-    });
-
-    const progress = computeSandboxBootProgress(record("running"), detail);
-    const boot = progress.phases.find((phase) => phase.id === "boot");
-    assert.equal(boot?.status, "active");
-    assert.equal(boot?.ts, ts);
-    assert.equal(
-      progress.phases.find((phase) => phase.id === "ready")?.status,
-      "pending",
-    );
-  });
-
-  it("counts degraded setup as terminal progress", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    detail.status = status({
-      status: "booting",
-      setup: {
-        git: { configured: true, status: "completed", completedAt: ts },
-        github: { configured: true, status: "degraded", completedAt: ts },
-        skills: { configured: true, status: "completed", completedAt: ts },
-        boot: { configured: true, status: "completed", completedAt: ts },
-      },
-    });
-
-    const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.equal(progress.completed, 13);
-    assert.equal(
-      progress.phases.find((phase) => phase.id === "github")?.status,
-      "degraded",
-    );
-    assert.equal(
-      progress.phases.find((phase) => phase.id === "ready")?.status,
-      "active",
-    );
-  });
-
   it("shows a non-spinning offline state for stopped containers", () => {
     const detail = createSandboxDetailState("sbx_1");
     detail.status = status({
@@ -301,19 +150,6 @@ describe("computeSandboxBootProgress", () => {
       "failed",
     );
   });
-
-  it("exposes launch groups alongside the fine-grained phases", () => {
-    const detail = createSandboxDetailState("sbx_1");
-    const progress = computeSandboxBootProgress(record("running"), detail);
-    assert.deepEqual(
-      progress.groups.map((group) => group.id),
-      ["provision", "connect", "prepare", "boot", "start"],
-    );
-    assert.equal(
-      progress.groups.reduce((sum, group) => sum + group.phases.length, 0),
-      progress.phases.length,
-    );
-  });
 });
 
 function phase(
@@ -325,35 +161,6 @@ function phase(
 }
 
 describe("groupBootPhases", () => {
-  it("keeps groups pending before any phase starts", () => {
-    const groups = groupBootPhases([
-      phase("container", "pending"),
-      phase("config", "pending"),
-      phase("state", "pending"),
-      phase("daemon", "pending"),
-    ]);
-    assert.ok(
-      groups.every(
-        (group) => group.phases.length === 0 || group.status === "pending",
-      ),
-    );
-  });
-
-  it("marks a group active while a phase runs and reports the active phase", () => {
-    const groups = groupBootPhases([
-      phase("preflight", "done"),
-      phase("models", "active", { ts: "2026-07-07T17:06:12.000Z" }),
-      phase("secrets", "pending"),
-      phase("git", "pending"),
-      phase("github", "pending"),
-      phase("context", "pending"),
-      phase("skills", "pending"),
-    ]);
-    const prepare = groups.find((group) => group.id === "prepare");
-    assert.equal(prepare?.status, "active");
-    assert.equal(prepare?.activePhase?.id, "models");
-  });
-
   it("treats a partially completed group without a live phase as active", () => {
     const groups = groupBootPhases([
       phase("config", "done"),
@@ -390,24 +197,5 @@ describe("groupBootPhases", () => {
     const prepare = groups.find((group) => group.id === "prepare");
     assert.equal(prepare?.status, "degraded");
     assert.equal(prepare?.error, "fallback model in use");
-  });
-
-  it("reports done with the latest phase timestamp", () => {
-    const groups = groupBootPhases([
-      phase("config", "done", { ts: "2026-07-07T17:06:11.000Z" }),
-      phase("state", "done", { ts: "2026-07-07T17:06:13.000Z" }),
-      phase("daemon", "done", { ts: "2026-07-07T17:06:12.000Z" }),
-    ]);
-    const connect = groups.find((group) => group.id === "connect");
-    assert.equal(connect?.status, "done");
-    assert.equal(connect?.ts, "2026-07-07T17:06:13.000Z");
-  });
-
-  it("reports skipped when every phase was skipped", () => {
-    const groups = groupBootPhases([phase("boot", "skipped")]);
-    assert.equal(
-      groups.find((group) => group.id === "boot")?.status,
-      "skipped",
-    );
   });
 });

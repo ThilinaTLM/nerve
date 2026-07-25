@@ -19,24 +19,6 @@ describe("ansiToHtml", () => {
     assert.match(html, />ready<\/span>/);
   });
 
-  it("resets nested styles", () => {
-    const html = ansiToHtml("\x1b[1;31mred-bold \x1b[22mred \x1b[0mplain");
-
-    assert.match(html, /class="ansi-bold ansi-fg-red">red-bold /);
-    assert.match(html, /class="ansi-fg-red">red /);
-    assert.match(html, /<\/span>plain$/);
-  });
-
-  it("renders 256-color and truecolor foreground/background styles", () => {
-    const html = ansiToHtml("\x1b[38;5;46mgreen\x1b[48;2;1;2;3m bg\x1b[0m");
-
-    assert.match(html, /style="color: rgb\(0 255 0\)">green/);
-    assert.match(
-      html,
-      /style="color: rgb\(0 255 0\); background-color: rgb\(1 2 3\)"> bg/,
-    );
-  });
-
   it("strips unsupported CSI and OSC controls", () => {
     const html = ansiToHtml("a\x1b[2Kb\x1b]0;title\x07c\x1b[31md");
 

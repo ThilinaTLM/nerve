@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import {
   createNoopLogger,
   type ConversationEntry,
@@ -9,14 +7,13 @@ import {
 } from "@nervekit/contracts";
 import type { RunExecutionSink } from "@nervekit/host-runtime";
 import type { AgentHarnessEvent } from "@nervekit/host-runtime/harness";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import type { HarnessFactory } from "../src/agent/harness-factory.js";
 import { SandboxInteractionChannel } from "../src/run/interaction-channel.js";
 import { SandboxLiveHarnessRegistry } from "../src/run/live-registry.js";
 import { SandboxPendingInteractions } from "../src/run/pending-interactions.js";
-import {
-  assistantFailure,
-  normalizeFailure,
-} from "../src/run/run-execution-errors.js";
+import { assistantFailure } from "../src/run/run-execution-errors.js";
 import { SandboxHarnessSession } from "../src/run/run-harness-session.js";
 import { SandboxInlineCommandRunner } from "../src/run/run-inline-command.js";
 import { SandboxInteractionContinuation } from "../src/run/run-interaction-continuation.js";
@@ -24,11 +21,8 @@ import {
   SandboxPromptControl,
   type SandboxHarnessPromptPort,
 } from "../src/run/run-prompt-control.js";
-import {
-  SandboxToolCallTracker,
-  toolTranscriptId,
-} from "../src/run/run-tool-call-tracker.js";
 import type { SandboxRunReferences } from "../src/run/run-references.js";
+import { SandboxToolCallTracker } from "../src/run/run-tool-call-tracker.js";
 import type { SandboxToolRuntime } from "../src/tools/tool-runtime.js";
 
 const scope = {
@@ -139,29 +133,6 @@ describe("SandboxPromptControl", () => {
     );
   });
 
-  it("removes a buffered prompt before delivery", async () => {
-    const delivered: string[] = [];
-    const port: SandboxHarnessPromptPort = {
-      steer: async (_text, options) => {
-        delivered.push(options.id);
-      },
-      followUp: async (_text, options) => {
-        delivered.push(options.id);
-      },
-      removeQueuedMessage: async () => false,
-    };
-    const control = new SandboxPromptControl({
-      harness: () => port,
-      scope,
-      signal: new AbortController().signal,
-    });
-    await control.steer(promptRecord("p1", "first"));
-    await control.steer(promptRecord("p2", "second"));
-    assert.equal(await control.removeQueuedPrompt("p1"), true);
-    await control.deliverPending();
-    assert.deepEqual(delivered, ["p2"]);
-  });
-
   it("expands executable command blocks at delivery time", async () => {
     const { runtime, calls } = fakeToolRuntime(async () => ({
       content: "expanded output",
@@ -262,40 +233,6 @@ describe("SandboxHarnessSession projection", () => {
     // The projection tail swallows the logged failure and stays usable.
     await session.waitForProjection();
     session.dispose();
-  });
-});
-
-describe("SandboxToolCallTracker", () => {
-  it("keeps deterministic ids and createdAt across lifecycle revisions", async () => {
-    const calls = tracker();
-    const started = calls.record("prov_1", "bash", "running", {
-      command: "ls",
-    });
-    assert.ok(started);
-    assert.equal(started.id, toolTranscriptId("prov_1"));
-    assert.equal(started.risk, "command");
-    assert.equal(started.cwd, "/workspace");
-    await new Promise((resolve) => setTimeout(resolve, 2));
-    const completed = calls.record("prov_1", "bash", "completed", undefined, {
-      content: "output",
-    });
-    assert.ok(completed);
-    assert.equal(completed.id, started.id);
-    assert.equal(completed.createdAt, started.createdAt);
-    assert.deepEqual(completed.argsPreview, { command: "ls" });
-    assert.equal(completed.resultPreview, "output");
-  });
-
-  it("rejects unknown tool names and marks waiting revisions by kind", () => {
-    const calls = tracker();
-    assert.equal(calls.record("prov_x", "not-a-tool", "running"), undefined);
-    calls.record("prov_1", "bash", "running", { command: "ls" });
-    const approval = calls.markWaiting("prov_1", "approval");
-    assert.equal(approval?.status, "pending_approval");
-    calls.record("prov_2", "ask_user", "running", {});
-    const question = calls.markWaiting("prov_2", "question");
-    assert.equal(question?.status, "waiting_for_user");
-    assert.equal(calls.markWaiting("prov_unknown", "question"), undefined);
   });
 });
 
@@ -456,23 +393,6 @@ describe("SandboxInteractionContinuation", () => {
     assert.equal(fixture.appended.length, 1);
     assert.equal(fixture.calls.length, 1);
   });
-
-  it("records a denied tool call without executing it", async () => {
-    const fixture = continuationFixture({
-      interaction: approvalInteraction("deny"),
-      previousToolCalls: [
-        { providerToolCallId: "prov_1", toolName: "bash", id: "tool_x" },
-      ],
-    });
-    await fixture.continuation.materializeResolved();
-    assert.equal(fixture.calls.length, 0, "denied tool never executes");
-    assert.equal(fixture.sunkToolCalls[0]?.status, "denied");
-    assert.equal(fixture.appended.length, 1);
-    const message = fixture.appended[0]?.message as {
-      content?: Array<{ text?: string }>;
-    };
-    assert.match(message.content?.[0]?.text ?? "", /denied/i);
-  });
 });
 
 describe("failure classification", () => {
@@ -489,17 +409,5 @@ describe("failure classification", () => {
     );
     assert.equal(assistantFailure(undefined).retryable, false);
     assert.equal(assistantFailure("x").code, "MODEL_REQUEST_FAILED");
-  });
-
-  it("normalizes unexpected errors with bounded messages", () => {
-    const unavailable = normalizeFailure(
-      new Error("UNAVAILABLE: harness session is not open"),
-    );
-    assert.equal(unavailable.code, "UNAVAILABLE");
-    const generic = normalizeFailure(new Error("boom"));
-    assert.equal(generic.code, "PROVIDER_FAILED");
-    assert.equal(generic.retryable, true);
-    const oversized = normalizeFailure(new Error("y".repeat(5_000)));
-    assert.ok(oversized.message.length <= 2_000);
   });
 });

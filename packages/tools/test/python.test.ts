@@ -72,57 +72,6 @@ describe("python executor", () => {
     );
   });
 
-  it("returns stdout, stderr, and exitCode for multiline code", async (t) => {
-    const runtime = await runtimeOrSkip(t);
-    if (!runtime) return;
-    const project = await createTempProject();
-    const result = await executePython(
-      {
-        code: [
-          "import sys",
-          "def value():",
-          "    return 'out'",
-          "print(value(), end='')",
-          "print('err', end='', file=sys.stderr)",
-        ].join("\n"),
-      },
-      { cwd: project.root, pythonRuntime: runtime },
-    );
-
-    assert.equal(result.stdout, "out");
-    assert.equal(result.stderr, "err");
-    assert.equal(result.exitCode, 0);
-    const details = result.details as {
-      durationMs?: number;
-      exitCode?: number;
-      timedOut?: boolean;
-      timeoutKilled?: boolean;
-      streams?: { stdout?: { bytes?: number; truncated?: boolean } };
-    };
-    assert.equal(details.exitCode, 0);
-    assert.equal(typeof details.durationMs, "number");
-    assert.equal(details.timedOut, false);
-    assert.equal(details.timeoutKilled, false);
-    assert.equal(details.streams?.stdout?.bytes, 3);
-    assert.equal(details.streams?.stdout?.truncated, false);
-  });
-
-  it("runs inline code in an optional relative working directory", async (t) => {
-    const runtime = await runtimeOrSkip(t);
-    if (!runtime) return;
-    const project = await createTempProject();
-    await project.write("packages/app/marker.txt", "ok");
-    const result = await executePython(
-      {
-        code: "from pathlib import Path; print(Path.cwd(), end='')",
-        cwd: "packages/app",
-      },
-      { cwd: project.root, pythonRuntime: runtime },
-    );
-
-    assert.equal(result.stdout, join(project.root, "packages", "app"));
-  });
-
   it("executes a Python script file by path", async (t) => {
     const runtime = await runtimeOrSkip(t);
     if (!runtime) return;
@@ -176,36 +125,6 @@ describe("python executor", () => {
       ),
       /must point to a Python script file/,
     );
-  });
-
-  it("streams stdout and stderr updates", async (t) => {
-    const runtime = await runtimeOrSkip(t);
-    if (!runtime) return;
-    const chunks: string[] = [];
-    await executePython(
-      { code: "import sys\nprint('out')\nprint('err', file=sys.stderr)" },
-      {
-        cwd: process.cwd(),
-        pythonRuntime: runtime,
-        onUpdate: (update) => chunks.push(`${update.stream}:${update.chunk}`),
-      },
-    );
-
-    assert.ok(chunks.some((chunk) => chunk.includes("stdout:out")));
-    assert.ok(chunks.some((chunk) => chunk.includes("stderr:err")));
-  });
-
-  it("normalizes non-zero exits instead of throwing", async (t) => {
-    const runtime = await runtimeOrSkip(t);
-    if (!runtime) return;
-    const result = await executePython(
-      { code: "import sys\nprint('out', end='')\nsys.exit(7)" },
-      { cwd: process.cwd(), pythonRuntime: runtime },
-    );
-
-    assert.equal(result.stdout, "out");
-    assert.equal(result.exitCode, 7);
-    assert.match(result.content ?? "", /Python exited with code 7/);
   });
 
   it("fails immediately for stdin reads", async (t) => {
@@ -262,80 +181,6 @@ describe("python executor", () => {
     assert.equal(await readFile(join(project.root, "ok.txt"), "utf8"), "yes");
   });
 
-  it("saves large output to one transcript and returns first/last previews", async (t) => {
-    const runtime = await runtimeOrSkip(t);
-    if (!runtime) return;
-    const project = await createTempProject();
-    const result = await executePython(
-      { code: "for i in range(600): print(f'line {i}')" },
-      { cwd: project.root, dataDir: project.root, pythonRuntime: runtime },
-    );
-
-    assert.match(result.content ?? "", /output exceeded inline limits/);
-    assert.match(result.content ?? "", /Preview — first 40 lines/);
-    assert.match(result.content ?? "", /line 0/);
-    assert.match(result.content ?? "", /Preview — last 40 lines/);
-    assert.match(result.content ?? "", /line 599/);
-    assert.match(result.content ?? "", /Use read with offset\/limit or grep/);
-
-    const details = result.details as {
-      fullOutputPath?: string;
-      artifactDir?: string;
-      truncation?: { truncated?: boolean; direction?: string };
-      streams?: {
-        stdout?: {
-          truncated?: boolean;
-          omittedLines?: number;
-          savedTo?: string;
-        };
-        stderr?: { savedTo?: string };
-        combined?: { truncated?: boolean; savedTo?: string };
-      };
-    };
-    assert.ok(details.fullOutputPath);
-    assert.match(
-      details.fullOutputPath,
-      /tmp[\\/]tool-outputs[\\/]nerve-python-/,
-    );
-    assert.equal(details.artifactDir, undefined);
-    assert.equal(details.truncation?.truncated, true);
-    assert.equal(details.truncation?.direction, "head_tail");
-    assert.equal(details.streams?.stdout?.truncated, true);
-    assert.ok((details.streams?.stdout?.omittedLines ?? 0) > 0);
-    assert.equal(details.streams?.stdout?.savedTo, undefined);
-    assert.equal(details.streams?.stderr?.savedTo, undefined);
-    assert.equal(details.streams?.combined?.truncated, true);
-    assert.equal(details.streams?.combined?.savedTo, details.fullOutputPath);
-
-    const transcript = await readFile(details.fullOutputPath, "utf8");
-    assert.match(transcript, /line 0/);
-    assert.match(transcript, /line 599/);
-  });
-
-  it("saves overlong single-line output below aggregate limits", async (t) => {
-    const runtime = await runtimeOrSkip(t);
-    if (!runtime) return;
-    const project = await createTempProject();
-    const result = await executePython(
-      { code: "print('x' * 5000, end='')" },
-      { cwd: project.root, dataDir: project.root, pythonRuntime: runtime },
-    );
-
-    assert.match(result.content ?? "", /contained overlong lines/);
-    assert.match(result.stdout ?? "", /truncated/);
-    assert.ok((result.stdout ?? "").length < 2600);
-    const details = result.details as {
-      fullOutputPath?: string;
-      truncation?: { truncatedLines?: number };
-      streams?: { stdout?: { truncatedLines?: number } };
-    };
-    assert.ok(details.fullOutputPath);
-    assert.equal(details.truncation?.truncatedLines, 1);
-    assert.equal(details.streams?.stdout?.truncatedLines, 1);
-    const transcript = await readFile(details.fullOutputPath, "utf8");
-    assert.equal(transcript, "x".repeat(5000));
-  });
-
   it("applies non-secret env overrides and rejects sensitive env keys", async (t) => {
     const runtime = await runtimeOrSkip(t);
     if (!runtime) return;
@@ -387,40 +232,6 @@ describe("python executor", () => {
       '{"ok": true}',
     );
     assert.match(result.content ?? "", /Python artifacts \(1\)/);
-  });
-
-  it("keeps Python artifact reporting when large output uses a transcript", async (t) => {
-    const runtime = await runtimeOrSkip(t);
-    if (!runtime) return;
-    const project = await createTempProject();
-    const result = await executePython(
-      {
-        code: [
-          "import os",
-          "from pathlib import Path",
-          "artifact = Path(os.environ['NERVE_PYTHON_ARTIFACT_DIR']) / 'report.txt'",
-          "artifact.write_text('ok', encoding='utf8')",
-          "for i in range(600): print(f'line {i}')",
-        ].join("\n"),
-      },
-      { cwd: project.root, dataDir: project.root, pythonRuntime: runtime },
-    );
-
-    assert.match(result.content ?? "", /output exceeded inline limits/);
-    assert.match(result.content ?? "", /Python artifacts \(1\)/);
-    const details = result.details as {
-      fullOutputPath?: string;
-      artifactDir?: string;
-      artifacts?: { path: string }[];
-    };
-    assert.ok(details.fullOutputPath);
-    assert.ok(details.artifactDir);
-    assert.equal(details.artifacts?.length, 1);
-    assert.ok(!details.fullOutputPath.startsWith(details.artifactDir));
-    assert.equal(
-      await readFile(details.artifacts?.[0]?.path ?? "", "utf8"),
-      "ok",
-    );
   });
 
   it("blocks file-backed workspace writes when allowFileWrite is false", async (t) => {

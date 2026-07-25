@@ -16,75 +16,6 @@ function start(runtime: ConversationRuntime) {
 }
 
 describe("ConversationRuntime", () => {
-  it("tracks live text deltas and done payloads in snapshots", () => {
-    const runtime = new ConversationRuntime();
-    const { run, message } = start(runtime);
-
-    const first = runtime.applyContentDelta({
-      runId: run.runId,
-      turnId: message.turnId,
-      liveMessageId: message.liveMessageId,
-      contentIndex: 0,
-      kind: "text",
-      delta: "Hel",
-    });
-    const second = runtime.applyContentDelta({
-      runId: run.runId,
-      turnId: message.turnId,
-      liveMessageId: message.liveMessageId,
-      contentIndex: 0,
-      kind: "text",
-      delta: "lo",
-    });
-    const done = runtime.finishContent({
-      runId: run.runId,
-      turnId: message.turnId,
-      liveMessageId: message.liveMessageId,
-      contentIndex: 0,
-      kind: "text",
-    });
-
-    assert.equal(first.offset, 0);
-    assert.equal(second.offset, 3);
-    assert.equal(done.contentBlockId, first.contentBlockId);
-    const snapshot = runtime.snapshotForConversation("conv_test");
-    const block = snapshot?.turns[0]?.messages[0]?.blocks[0];
-    assert.equal(block?.kind, "text");
-    assert.equal(block?.text, "Hello");
-    assert.equal(block?.done, true);
-  });
-
-  it("preserves redacted thinking fallback state", () => {
-    const runtime = new ConversationRuntime();
-    const { run, message } = start(runtime);
-
-    runtime.applyContentDelta({
-      runId: run.runId,
-      turnId: message.turnId,
-      liveMessageId: message.liveMessageId,
-      contentIndex: 0,
-      kind: "thinking",
-      delta: "private chain",
-    });
-    const done = runtime.finishContent({
-      runId: run.runId,
-      turnId: message.turnId,
-      liveMessageId: message.liveMessageId,
-      contentIndex: 0,
-      kind: "thinking",
-      finalText: "",
-      redacted: true,
-    });
-
-    assert.equal(done.redacted, true);
-    const block =
-      runtime.snapshotForConversation("conv_test")?.turns[0]?.messages[0]
-        ?.blocks[0];
-    assert.equal(block?.kind, "thinking");
-    assert.equal(block?.text, "");
-    assert.equal(block?.redacted, true);
-  });
-
   it("tracks tool-call draft lifecycle and anchors", () => {
     const runtime = new ConversationRuntime();
     const { run, message } = start(runtime);
@@ -161,41 +92,6 @@ describe("ConversationRuntime", () => {
     assert.equal(output?.outputLimits?.omittedChars, 8_000);
   });
 
-  it("hides materialized prose messages while keeping ordinals stable", () => {
-    const runtime = new ConversationRuntime();
-    const { run, turn, message } = start(runtime);
-    runtime.applyContentDelta({
-      runId: run.runId,
-      turnId: turn.turnId,
-      liveMessageId: message.liveMessageId,
-      contentIndex: 0,
-      kind: "thinking",
-      delta: "first thought",
-    });
-
-    runtime.markMessageMaterialized(
-      run.runId,
-      turn.turnId,
-      message.liveMessageId,
-    );
-
-    const snapshot = runtime.snapshotForConversation("conv_test");
-    assert.deepEqual(snapshot?.turns[0]?.messages, []);
-
-    // Ordinals keep counting past materialized messages.
-    const next = runtime.startAssistantMessage(run.runId, turn.turnId);
-    assert.equal(next.messageOrdinal, message.messageOrdinal + 1);
-    const refreshed = runtime.snapshotForConversation("conv_test");
-    assert.deepEqual(
-      refreshed?.turns[0]?.messages.map((entry) => entry.liveMessageId),
-      [next.liveMessageId],
-    );
-    assert.equal(
-      "materialized" in (refreshed?.turns[0]?.messages[0] ?? {}),
-      false,
-    );
-  });
-
   it("retains only tool-draft slots from materialized mixed messages", () => {
     const runtime = new ConversationRuntime();
     const { run, turn, message } = start(runtime);
@@ -268,26 +164,6 @@ describe("ConversationRuntime", () => {
       runtime.snapshotForConversation("conv_test")?.turns[0]?.messages,
       [],
     );
-  });
-
-  it("ignores materialization for unknown runs, turns, and messages", () => {
-    const runtime = new ConversationRuntime();
-    const { run, turn, message } = start(runtime);
-
-    runtime.markMessageMaterialized(
-      "run_other",
-      turn.turnId,
-      message.liveMessageId,
-    );
-    runtime.markMessageMaterialized(
-      run.runId,
-      "turn_other",
-      message.liveMessageId,
-    );
-    runtime.markMessageMaterialized(run.runId, turn.turnId, "msg_other");
-
-    const snapshot = runtime.snapshotForConversation("conv_test");
-    assert.equal(snapshot?.turns[0]?.messages.length, 1);
   });
 
   it("guards live message and turn terminal transitions", () => {

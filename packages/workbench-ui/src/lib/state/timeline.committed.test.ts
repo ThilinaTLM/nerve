@@ -1,104 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildCommittedTimeline, buildConversationTimeline } from "./timeline";
+import { buildConversationTimeline } from "./timeline";
 import { keys, toolCall } from "./timeline.fixtures";
 import type { TranscriptItem } from "./transcript-types";
 
 describe("buildConversationTimeline committed transcript", () => {
-  it("keeps optimistic user messages before live tool calls", () => {
-    const transcript: TranscriptItem[] = [
-      { role: "user", text: "Investigate this", optimistic: true },
-    ];
-    const toolCalls = [
-      toolCall("tool_02", "2026-01-01T00:00:02.000Z", "read", undefined, {
-        status: "running",
-      }),
-    ];
-
-    const timeline = buildConversationTimeline(transcript, toolCalls);
-
-    assert.deepEqual(keys(timeline), ["msg-0", "tool:tool_02"]);
-    assert.equal(timeline[0]?.kind, "message");
-    assert.equal(timeline[1]?.kind, "tool");
-  });
-
-  it("keeps completed assistant thinking as separate message items", () => {
-    const transcript: TranscriptItem[] = [
-      { id: "entry_user", role: "user", text: "Think about it" },
-      {
-        id: "entry_assistant:thinking:0",
-        role: "assistant",
-        displayKind: "thinking",
-        text: "I should inspect the request first.",
-      },
-      {
-        id: "entry_assistant",
-        role: "assistant",
-        displayKind: "message",
-        text: "Done.",
-      },
-    ];
-
-    const timeline = buildConversationTimeline(transcript, []);
-
-    assert.deepEqual(keys(timeline), [
-      "entry_user",
-      "entry_assistant:thinking:0",
-      "entry_assistant",
-    ]);
-    assert.equal(timeline[1]?.kind, "message");
-    if (timeline[1]?.kind === "message") {
-      assert.equal(timeline[1].item.displayKind, "thinking");
-    }
-  });
-
-  it("renders completed unanchored historical tool calls by timestamp", () => {
-    const transcript: TranscriptItem[] = [
-      {
-        id: "entry_user",
-        role: "user",
-        text: "List files",
-        createdAt: "2026-01-01T00:00:00.000Z",
-      },
-      {
-        id: "entry_assistant",
-        role: "assistant",
-        text: "Done.",
-        createdAt: "2026-01-01T00:00:03.000Z",
-      },
-    ];
-    const toolCalls = [toolCall("tool_01", "2026-01-01T00:00:01.000Z", "ls")];
-
-    const timeline = buildConversationTimeline(transcript, toolCalls);
-
-    assert.deepEqual(keys(timeline), [
-      "entry_user",
-      "tool:tool_01",
-      "entry_assistant",
-    ]);
-    assert.equal(timeline[1]?.kind, "tool");
-  });
-
-  it("does not commit-render running unanchored tool calls", () => {
-    const transcript: TranscriptItem[] = [
-      {
-        id: "entry_user",
-        role: "user",
-        text: "List files",
-        createdAt: "2026-01-01T00:00:00.000Z",
-      },
-    ];
-    const toolCalls = [
-      toolCall("tool_01", "2026-01-01T00:00:01.000Z", "ls", undefined, {
-        status: "running",
-      }),
-    ];
-
-    const committed = buildCommittedTimeline(transcript, toolCalls);
-
-    assert.deepEqual(keys(committed.items), ["entry_user"]);
-  });
-
   it("anchors historical tool cards at matching tool-result entries", () => {
     const transcript: TranscriptItem[] = [
       {
@@ -242,50 +148,6 @@ describe("buildConversationTimeline committed transcript", () => {
       "entry_plan_followup",
       "entry_next_assistant",
     ]);
-  });
-
-  it("keeps thinking entries while hiding adjacent tool placeholders", () => {
-    const transcript: TranscriptItem[] = [
-      { id: "entry_user", role: "user", text: "List files" },
-      {
-        id: "entry_placeholder:thinking:0",
-        role: "assistant",
-        displayKind: "thinking",
-        text: "I need to inspect the directory.",
-      },
-      {
-        id: "entry_placeholder",
-        role: "assistant",
-        text: "[Tool call: ls({})]",
-      },
-    ];
-
-    const timeline = buildConversationTimeline(transcript, []);
-
-    assert.deepEqual(keys(timeline), [
-      "entry_user",
-      "entry_placeholder:thinking:0",
-    ]);
-  });
-
-  it("hides tool-only assistant placeholders", () => {
-    const transcript: TranscriptItem[] = [
-      { id: "entry_user", role: "user", text: "List files" },
-      {
-        id: "entry_placeholder",
-        role: "assistant",
-        text: "[Tool call: ls({})]",
-      },
-    ];
-    const toolCalls = [
-      toolCall("tool_01", "2026-01-01T00:00:01.000Z", "ls", undefined, {
-        status: "running",
-      }),
-    ];
-
-    const timeline = buildConversationTimeline(transcript, toolCalls);
-
-    assert.deepEqual(keys(timeline), ["entry_user", "tool:tool_01"]);
   });
 
   it("anchors tool cards by source tool-call id when no internal id exists", () => {

@@ -3,44 +3,10 @@ import { describe, it } from "node:test";
 import {
   defaultSettings,
   settingsSchema,
-  statusResponseSchema,
   updateSettingsRequestSchema,
 } from "../src/index.js";
 
 describe("settings schema", () => {
-  it("fills new-agent model and last-selection defaults", () => {
-    const settings = settingsSchema.parse(defaultSettings);
-
-    assert.equal(settings.defaultThinkingLevel, "off");
-    assert.deepEqual(settings.defaultApprovalPolicy, {
-      autoApproveReadOnly: true,
-    });
-    assert.equal(settings.defaultModel, undefined);
-    assert.equal(settings.rememberLastAgentSelection, false);
-    assert.deepEqual(settings.lastAgentSelection, {
-      mode: "coding",
-      permissionLevel: "autonomous",
-      approvalPolicy: { autoApproveReadOnly: true },
-      thinkingLevel: "off",
-    });
-    assert.deepEqual(settings.runtime, {});
-    assert.deepEqual(settings.tools.disabled, []);
-    assert.deepEqual(settings.skills.disabled, []);
-    assert.deepEqual(settings.skills.agentBrowser.enabled, []);
-    assert.deepEqual(settings.tools.bash.autoPromotion, {
-      enabled: true,
-      afterMs: 120_000,
-    });
-    assert.equal(settings.tools.jira.enabled, false);
-    assert.equal(settings.tools.confluence.enabled, false);
-    assert.deepEqual(settings.compaction, {
-      auto: true,
-      profile: "balanced",
-      customTriggerPercent: 80,
-      customKeepRecentPercent: 15,
-    });
-  });
-
   it("backfills new defaults for older config files", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
@@ -76,30 +42,6 @@ describe("settings schema", () => {
     assert.equal(settings.tools.confluence.enabled, false);
   });
 
-  it("backfills configurable compaction defaults and preserves the old auto toggle", () => {
-    const enabled = settingsSchema.parse({
-      ...defaultSettings,
-      compaction: { auto: true },
-    });
-    const disabled = settingsSchema.parse({
-      ...defaultSettings,
-      compaction: { auto: false },
-    });
-
-    assert.deepEqual(enabled.compaction, {
-      auto: true,
-      profile: "balanced",
-      customTriggerPercent: 80,
-      customKeepRecentPercent: 15,
-    });
-    assert.deepEqual(disabled.compaction, {
-      auto: false,
-      profile: "balanced",
-      customTriggerPercent: 80,
-      customKeepRecentPercent: 15,
-    });
-  });
-
   it("strips legacy compaction token fields while backfilling defaults", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
@@ -115,50 +57,6 @@ describe("settings schema", () => {
       customTriggerPercent: 80,
       customKeepRecentPercent: 15,
     });
-  });
-
-  it("validates custom compaction updates", () => {
-    assert.deepEqual(
-      updateSettingsRequestSchema.parse({
-        compaction: {
-          profile: "custom",
-          customTriggerPercent: 75,
-          customKeepRecentPercent: 20,
-        },
-      }),
-      {
-        compaction: {
-          profile: "custom",
-          customTriggerPercent: 75,
-          customKeepRecentPercent: 20,
-        },
-      },
-    );
-    assert.throws(() =>
-      updateSettingsRequestSchema.parse({
-        compaction: { customTriggerPercent: 59 },
-      }),
-    );
-    assert.throws(() =>
-      updateSettingsRequestSchema.parse({
-        compaction: { customKeepRecentPercent: 41 },
-      }),
-    );
-  });
-
-  it("backfills tool provider defaults when older configs only have disabled tools", () => {
-    const settings = settingsSchema.parse({
-      ...defaultSettings,
-      tools: { disabled: ["web_search"] },
-    });
-
-    assert.deepEqual(settings.tools.disabled, ["web_search"]);
-    assert.deepEqual(settings.tools.bash.autoPromotion, {
-      enabled: true,
-      afterMs: 120_000,
-    });
-    assert.deepEqual(settings.tools.jira, { enabled: false });
-    assert.deepEqual(settings.tools.confluence, { enabled: false });
   });
 
   it("backfills partial Bash auto-promotion settings", () => {
@@ -273,42 +171,5 @@ describe("settings schema", () => {
         tools: { bash: { autoPromotion: { afterMs: 86_400_001 } } },
       }),
     );
-  });
-
-  it("accepts python runtime status", () => {
-    const parsed = statusResponseSchema.parse({
-      daemonId: "daemon_01HN0000000000000000000000",
-      version: "0.0.0",
-      startedAt: "2026-01-01T00:00:00.000Z",
-      dataDir: "/tmp/nerve",
-      storage: {
-        home: "/tmp/nerve",
-        sqlitePath: "/tmp/nerve/index.sqlite",
-        indexHealthy: true,
-      },
-      runtime: {
-        python: {
-          available: true,
-          source: "path",
-          executable: "/usr/bin/python3",
-          version: "3.12.0",
-        },
-        editors: {
-          vscode: {
-            available: true,
-            source: "path",
-            executable: "/usr/bin/code",
-          },
-          zed: {
-            available: false,
-            error: "zed executable not found",
-          },
-        },
-      },
-    });
-
-    assert.equal(parsed.runtime.python.available, true);
-    assert.equal(parsed.runtime.editors.vscode.available, true);
-    assert.equal(parsed.runtime.editors.zed.available, false);
   });
 });

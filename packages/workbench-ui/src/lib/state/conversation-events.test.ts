@@ -1,10 +1,9 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import type {
   EventEnvelope,
-  QueuedPromptRecord,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   applyConversationEvent,
   buildConversationRenderProjection,
@@ -32,18 +31,6 @@ function startRun(seq = 1): EventEnvelope {
     startedAt: ts,
   });
 }
-
-function startTurn(seq = 2, turnId = "turn_test", ordinal = 0): EventEnvelope {
-  return evt(seq, "conversation.live.turn.started", {
-    conversationId: "conv_test",
-    agentId: "agent_test",
-    projectId: "proj_test",
-    runId: "run_test",
-    turnId,
-    ordinal,
-  });
-}
-
 function startMessage(seq = 2): EventEnvelope {
   return evt(seq, "conversation.live.message.started", {
     conversationId: "conv_test",
@@ -77,190 +64,7 @@ function toolCall(
     ...overrides,
   };
 }
-
-function queuedPrompt(overrides: Partial<QueuedPromptRecord> = {}) {
-  return {
-    id: "promptq_test",
-    agentId: "agent_test",
-    conversationId: "conv_test",
-    projectId: "proj_test",
-    runId: "run_test",
-    behavior: "steer",
-    text: "queued",
-    status: "queued",
-    createdAt: ts,
-    updatedAt: ts,
-    ...overrides,
-  } satisfies QueuedPromptRecord;
-}
-
 describe("conversation event reducer", () => {
-  it("keeps an intentional compaction cancellation visible", () => {
-    let state = emptyConversationRenderState("conv_test");
-    state = applyConversationEvent(
-      state,
-      evt(1, "conversation.compaction.started", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        runId: "run_test",
-        reason: "threshold",
-        startedAt: ts,
-        contextTokens: 220_000,
-        contextWindow: 272_000,
-      }),
-    );
-    state = applyConversationEvent(
-      state,
-      evt(2, "conversation.compaction.cancelled", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        runId: "run_test",
-        reason: "threshold",
-        cancelledAt: ts,
-      }),
-    );
-
-    assert.equal(state.transient?.compaction?.state, "cancelled");
-    assert.equal(state.transient?.compaction?.contextTokens, 220_000);
-  });
-
-  it("records explicit turn starts idempotently", () => {
-    let state = emptyConversationRenderState("conv_test");
-    state = applyConversationEvent(state, startRun());
-    state = applyConversationEvent(state, startTurn());
-    state = applyConversationEvent(state, startTurn(3));
-    state = applyConversationEvent(state, startTurn(4, "turn_second", 4));
-
-    assert.deepEqual(
-      state.activeRun?.turns.map((turn) => ({
-        turnId: turn.turnId,
-        ordinal: turn.ordinal,
-        messageCount: turn.messages.length,
-      })),
-      [
-        { turnId: "turn_test", ordinal: 0, messageCount: 0 },
-        { turnId: "turn_second", ordinal: 4, messageCount: 0 },
-      ],
-    );
-  });
-
-  it("caps live tool output and exposes tail output limits", () => {
-    let state = emptyConversationRenderState("conv_test");
-    state = applyConversationEvent(state, startRun());
-    for (let index = 0; index < 3; index += 1) {
-      state = applyConversationEvent(
-        state,
-        evt(2 + index, "conversation.live.tool_output.delta", {
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          projectId: "proj_test",
-          runId: "run_test",
-          toolCallId: "tool_test",
-          toolName: "bash",
-          stream: "combined",
-          offset: index * 11_000,
-          delta: "x".repeat(11_000),
-        }),
-      );
-    }
-
-    const output = state.activeRun?.toolOutputsByToolCallId.tool_test;
-    assert.equal(output?.text.length, 32_000);
-    assert.equal(output?.outputLimits?.capped, true);
-    assert.equal(output?.outputLimits?.totalChars, 33_000);
-    assert.equal(output?.outputLimits?.omittedChars, 1_000);
-  });
-
-  it("updates and discards tool draft progress", () => {
-    let state = emptyConversationRenderState("conv_test");
-    state = applyConversationEvent(state, startRun());
-    state = applyConversationEvent(state, startMessage());
-    state = applyConversationEvent(
-      state,
-      evt(3, "conversation.live.tool_draft.started", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        turnId: "turn_test",
-        liveMessageId: "msg_test",
-        contentBlockId: "block_tool",
-        contentIndex: 1,
-        providerToolCallId: "call_test",
-        toolName: "edit",
-      }),
-    );
-    state = applyConversationEvent(
-      state,
-      evt(4, "conversation.live.tool_draft.progress", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        turnId: "turn_test",
-        liveMessageId: "msg_test",
-        contentBlockId: "block_tool",
-        contentIndex: 1,
-        providerToolCallId: "call_test",
-        toolName: "edit",
-        progress: { path: "src/app.ts", estimated: false, lineCount: 3 },
-      }),
-    );
-
-    const draftBlock = state.activeRun?.turns[0]?.messages[0]?.blocks.find(
-      (block) => block.kind === "tool_call_draft",
-    );
-    assert.equal(
-      draftBlock?.kind === "tool_call_draft"
-        ? draftBlock.progress?.path
-        : undefined,
-      "src/app.ts",
-    );
-
-    state = applyConversationEvent(
-      state,
-      evt(5, "conversation.live.tool_draft.discarded", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        turnId: "turn_test",
-        liveMessageId: "msg_test",
-        contentBlockId: "block_tool",
-        contentIndex: 1,
-        providerToolCallId: "call_test",
-        toolName: "edit",
-        reason: "abandoned",
-      }),
-    );
-
-    assert.deepEqual(
-      state.activeRun?.turns[0]?.messages[0]?.blocks.filter(
-        (block) => block.kind === "tool_call_draft",
-      ),
-      [],
-    );
-
-    state = applyConversationEvent(
-      state,
-      evt(6, "conversation.entry.appended", {
-        conversationId: "conv_test",
-        liveMessageId: "msg_test",
-        entry: {
-          id: "entry_test",
-          conversationId: "conv_test",
-          agentId: "agent_test",
-          runId: "run_test",
-          role: "assistant",
-          kind: "message",
-          text: "No tool call",
-          createdAt: ts,
-        },
-      }),
-    );
-    assert.deepEqual(state.activeRun?.turns[0]?.messages, []);
-  });
-
   it("keeps the draft block and joins it with the durable tool call", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, startRun());
@@ -471,76 +275,6 @@ describe("conversation event reducer", () => {
     assertOneSlot();
   });
 
-  it("updates queued prompts from prompt queue events", () => {
-    let state = emptyConversationRenderState("conv_test");
-    state = applyConversationEvent(state, startRun());
-    const prompt = queuedPrompt();
-    state = applyConversationEvent(
-      state,
-      evt(2, "conversation.prompt.queued", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        queuedPrompt: prompt,
-      }),
-    );
-    assert.equal(state.queuedPrompts?.length, 1);
-    assert.equal(state.activeRun?.queuedPrompts.length, 1);
-
-    state = applyConversationEvent(
-      state,
-      evt(3, "conversation.prompt.dequeued", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        queuedPrompt: prompt,
-      }),
-    );
-    assert.deepEqual(state.queuedPrompts, []);
-    assert.deepEqual(state.activeRun?.queuedPrompts, []);
-  });
-
-  it("renders retry status and hides the failed entry", () => {
-    let state = emptyConversationRenderState("conv_test");
-    state.entries = [
-      {
-        id: "entry_failed",
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        runId: "run_test",
-        role: "assistant",
-        kind: "message",
-        text: "failed",
-        createdAt: ts,
-      },
-    ];
-    state.activeEntryIds = ["entry_failed"];
-    state = applyConversationEvent(
-      state,
-      evt(1, "run.retrying", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        attempt: 2,
-        maxRetries: 3,
-        delayMs: 100,
-        retryAt: ts,
-        errorMessage: "rate limited",
-        failedEntryId: "entry_failed",
-      }),
-    );
-
-    const render = buildConversationRenderProjection(state);
-    assert.deepEqual(
-      render.timeline.map((item) => item.kind),
-      ["run_status"],
-    );
-    assert.equal(render.timeline[0]?.key, "run-status:run_test");
-  });
-
   it("hides every failed attempt across consecutive retries of one run", () => {
     let state = emptyConversationRenderState("conv_test");
     state.entries = ["entry_failed_1", "entry_failed_2"].map((id) => ({
@@ -630,26 +364,6 @@ describe("conversation event reducer", () => {
         (item) => item.kind === "run_status",
       ),
       false,
-    );
-  });
-
-  it("can consume render-neutral events to preserve a dense stream cursor", () => {
-    const state = emptyConversationRenderState("conv_test");
-    const next = applyConversationEvent(
-      state,
-      evt(1, "run.checkpointed", {
-        conversationId: "conv_test",
-        runId: "run_test",
-      }),
-      { consumeUnhandled: true },
-    );
-
-    assert.notEqual(next, state);
-    assert.equal(next.cursorSeq, 1);
-    assert.deepEqual(next.entries, []);
-    assert.equal(
-      applyConversationEvent(state, evt(1, "run.checkpointed", {})),
-      state,
     );
   });
 

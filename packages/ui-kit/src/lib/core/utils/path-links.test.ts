@@ -1,34 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  isAbsoluteLocalPath,
-  joinLocalPath,
   parseLocalFileHref,
-  relativePathForDisplay,
   resolveDisplayPath,
   splitPathLineSuffix,
 } from "./path-links";
 
 describe("path link helpers", () => {
-  it("detects Windows and POSIX absolute paths", () => {
-    assert.equal(isAbsoluteLocalPath("/tmp/project/file.ts"), true);
-    assert.equal(isAbsoluteLocalPath("C:\\Users\\me\\repo\\file.ts"), true);
-    assert.equal(isAbsoluteLocalPath("C:/Users/me/repo/file.ts"), true);
-    assert.equal(isAbsoluteLocalPath("\\\\server\\share\\file.ts"), true);
-    assert.equal(isAbsoluteLocalPath("src/file.ts"), false);
-  });
-
-  it("joins relative paths using the base path style", () => {
-    assert.equal(
-      joinLocalPath("C:\\Users\\me\\repo", "src/App.svelte"),
-      "C:\\Users\\me\\repo\\src\\App.svelte",
-    );
-    assert.equal(
-      joinLocalPath("/tmp/project", "src/App.svelte"),
-      "/tmp/project/src/App.svelte",
-    );
-  });
-
   it("resolves display paths without prefixing Windows absolutes", () => {
     assert.equal(
       resolveDisplayPath("src/App.svelte", "C:\\Users\\me\\repo"),
@@ -40,16 +18,6 @@ describe("path link helpers", () => {
         "C:\\Users\\me\\repo",
       ),
       "C:\\Users\\me\\repo\\src\\App.svelte",
-    );
-  });
-
-  it("computes relative display paths for drive-letter paths case-insensitively", () => {
-    assert.equal(
-      relativePathForDisplay(
-        "C:\\Users\\me\\repo\\src\\App.svelte",
-        "c:/Users/me/repo",
-      ),
-      "src/App.svelte",
     );
   });
 

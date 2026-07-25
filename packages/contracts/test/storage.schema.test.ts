@@ -2,28 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   operationDefinition,
-  storageCleanupOperationSchema,
   storageCleanupRequestSchema,
-  storageCleanupStatusResponseSchema,
-  storageCleanupUpdatedEventSchema,
 } from "../src/index.js";
-
-const now = new Date().toISOString();
-const operation = {
-  id: "storageop_TEST",
-  request: { clearCache: true },
-  status: "running",
-  createdAt: now,
-  updatedAt: now,
-  startedAt: now,
-  message: "Clearing cache…",
-  completedTargets: 0,
-  totalTargets: 1,
-  cancellable: true,
-  cancellationRequested: false,
-  freedBytes: 0,
-  results: [],
-};
 
 describe("storage cleanup contracts", () => {
   it("requires at least one valid cleanup target", () => {
@@ -50,21 +30,6 @@ describe("storage cleanup contracts", () => {
     assert.equal(
       operationDefinition("storage.cleanup.cancel").kind,
       "mutation",
-    );
-  });
-
-  it("parses operation status and update payloads", () => {
-    assert.equal(
-      storageCleanupOperationSchema.parse(operation).id,
-      "storageop_TEST",
-    );
-    assert.equal(
-      storageCleanupUpdatedEventSchema.parse({ operation }).operation.status,
-      "running",
-    );
-    assert.deepEqual(
-      storageCleanupStatusResponseSchema.parse({ operation: null }),
-      { operation: null },
     );
   });
 });

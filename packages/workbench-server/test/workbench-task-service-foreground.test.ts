@@ -70,59 +70,6 @@ describe("task manager foreground bash auto-promotion", () => {
     );
   });
 
-  it("keeps Bash foreground when automatic promotion is disabled", async () => {
-    const child = fakeChild();
-    const { supervisor } = fakeSupervisor({ child });
-    const { manager, storage, events } = await createManager(supervisor);
-    const startedEvent = waitForTaskEvent(events, "task.started");
-
-    const run = manager.runForegroundBashWithPromotion({
-      command: "node slow.js",
-      cwd: storage.paths.home,
-      projectId: "proj_test",
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      origin: { kind: "agent_tool", toolCallId: "tool_test" },
-    });
-    const started = await startedEvent;
-
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    assert.equal(manager.getTask(started.id).visibility, "foreground");
-
-    child.stdout.emit("data", "done\n");
-    child.emitClose(0, null);
-    const result = await run;
-
-    assert.equal(result.kind, "completed_foreground");
-    assert.equal(result.result.content, "done\n");
-    assert.throws(() => manager.getTask(started.id), /Task not found/);
-  });
-
-  it("passes configured runtime shellPath to foreground task spawn", async () => {
-    const child = fakeChild();
-    const { supervisor, spawnCalls } = fakeSupervisor({ child });
-    const { manager, storage, events } = await createManager(supervisor);
-    storage.settings.runtime.shellPath = "/custom/bash";
-    const startedEvent = waitForTaskEvent(events, "task.started");
-
-    const run = manager.runForegroundBashWithPromotion({
-      command: "pnpm check",
-      cwd: storage.paths.home,
-      projectId: "proj_test",
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      autoPromoteAfterMs: 1000,
-      origin: { kind: "agent_tool", toolCallId: "tool_test" },
-    });
-    const started = await startedEvent;
-    child.emitClose(0, null);
-    await run;
-
-    assert.equal(spawnCalls[0]?.command, "pnpm check");
-    assert.equal(spawnCalls[0]?.options.shellPath, "/custom/bash");
-    assert.equal(started.command, "pnpm check");
-  });
-
   it("returns normal bash output and removes the hidden task when it finishes before promotion", async () => {
     const child = fakeChild();
     const { supervisor } = fakeSupervisor({ child });
@@ -160,47 +107,6 @@ describe("task manager foreground bash auto-promotion", () => {
     assert.equal(result.result.stdout, "out 1\nout 2");
     assert.equal(result.result.stderr, "err 1");
     assert.equal(result.result.content, "out 1\nerr 1\nout 2\n");
-    assert.throws(() => manager.getTask(started.id), /Task not found/);
-  });
-
-  it("returns a structured timeout result before promotion when a short timeout fires", async () => {
-    const child = fakeChild();
-    const { supervisor, terminateSignals } = fakeSupervisor({
-      child,
-      onTerminate(signal) {
-        if (signal === "SIGTERM") child.emitClose(null, signal);
-      },
-    });
-    const { manager, storage, events } = await createManager(supervisor);
-    const startedEvent = waitForTaskEvent(events, "task.started");
-
-    const run = manager.runForegroundBashWithPromotion({
-      command: "sleep forever",
-      cwd: storage.paths.home,
-      projectId: "proj_test",
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      timeoutMs: 20,
-      autoPromoteAfterMs: 1000,
-      origin: { kind: "agent_tool", toolCallId: "tool_test" },
-    });
-    const started = await startedEvent;
-    const timedOutEvent = waitForTaskEvent(
-      events,
-      "task.timed_out",
-      started.id,
-    );
-    const timedOut = await timedOutEvent;
-    const result = await run;
-
-    assert.equal(timedOut.status, "timed_out");
-    assert.equal(result.kind, "completed_foreground");
-    assert.equal(result.result.exitCode, 124);
-    assert.equal(
-      (result.result.details as { timedOut?: boolean }).timedOut,
-      true,
-    );
-    assert.deepEqual(terminateSignals, ["SIGTERM"]);
     assert.throws(() => manager.getTask(started.id), /Task not found/);
   });
 

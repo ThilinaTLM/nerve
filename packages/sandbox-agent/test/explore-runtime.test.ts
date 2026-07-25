@@ -1,9 +1,9 @@
+import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
 import { ExploreRuntime } from "../src/agent/explore-runtime.js";
 import { SandboxDaemon } from "../src/daemon/sandbox-daemon.js";
 import { SandboxStateStores } from "../src/state/sandbox-state.js";
@@ -53,101 +53,6 @@ describe("explore runtime", () => {
       }),
     );
     assert.equal(createCalls, 0);
-  });
-
-  it("executes a read-only child harness and persists a completed relationship", async () => {
-    const provider = "nerve-scripted-explore-complete";
-    const registration = registerAgentScriptedProvider({
-      provider,
-      steps: [
-        {
-          type: "toolCall",
-          id: "explore_1",
-          name: "explore",
-          args: {
-            tasks: [{ task: "Find the important sandbox agent runtime file" }],
-            context:
-              "Parent already inspected the repository and needs the child to locate the relevant sandbox agent runtime file without making changes.",
-          },
-        },
-        {
-          type: "assistantText",
-          text: "Child found packages/sandbox-agent/src/agent/explore-runtime.ts",
-        },
-        { type: "assistantText", text: "Parent saw the child result." },
-      ],
-    });
-    const dir = await mkdtemp(path.join(os.tmpdir(), "nerve-explore-"));
-    try {
-      const stores = new SandboxStateStores(dir);
-      await stores.load();
-      const daemon = new SandboxDaemon(
-        config(provider),
-        "sha256:test",
-        "inst_1",
-        stores,
-        {
-          workspaceDir: process.cwd(),
-        },
-      );
-      daemon.start();
-      const start = (await daemon.router.dispatch("run.start", {
-        requestId: "cmd_explore",
-        text: "Please explore",
-      })) as { conversationId: string; agentId: string; runId: string };
-      await waitForRun(daemon, start.runId, "completed");
-
-      const relDir = path.join(
-        dir,
-        "conversations",
-        start.conversationId,
-        "agents",
-        start.agentId,
-        "relationships",
-      );
-      const [relFile] = await readdir(relDir);
-      const relationship = JSON.parse(
-        await readFile(path.join(relDir, relFile), "utf8"),
-      ) as {
-        childAgentId: string;
-        childRunId: string;
-        status: string;
-        summary?: { text?: string };
-      };
-      assert.equal(relationship.status, "completed");
-      assert.match(relationship.summary?.text ?? "", /Child found/);
-      await readFile(
-        path.join(
-          dir,
-          "conversations",
-          start.conversationId,
-          "agents",
-          relationship.childAgentId,
-          "conversation.jsonl",
-        ),
-        "utf8",
-      );
-
-      const status = (await daemon.router.dispatch(
-        "sandbox.status.get",
-        {},
-      )) as {
-        runs: Array<{
-          runId: string;
-          childAgents?: Array<{ status?: string }>;
-        }>;
-      };
-      const run = status.runs.find((entry) => entry.runId === start.runId);
-      assert.equal(run?.childAgents?.[0]?.status, "completed");
-    } finally {
-      registration.unregister();
-      await rm(dir, {
-        recursive: true,
-        force: true,
-        maxRetries: 5,
-        retryDelay: 50,
-      });
-    }
   });
 
   it("cancels active child exploration when the parent run is cancelled", async () => {

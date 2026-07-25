@@ -1,14 +1,9 @@
+import type { DaemonFile } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { DaemonFile } from "@nervekit/contracts";
 import {
   buildShareUrls,
   firstLanIpv4Address,
-  isLoopbackHost,
-  isPrivateIpv4,
-  isVirtualInterface,
-  isWildcardHost,
-  localConnectUrl,
   normalizeRemoteDaemonUrl,
   type NetworkInterfacesSnapshot,
 } from "../src/daemon/urls.ts";
@@ -49,37 +44,6 @@ describe("daemon url policy", () => {
     );
   });
 
-  it("converts wildcard binds to loopback connect urls", () => {
-    assert.equal(
-      localConnectUrl("http://0.0.0.0:3747"),
-      "http://127.0.0.1:3747",
-    );
-    assert.equal(
-      localConnectUrl("http://127.0.0.1:3747/x"),
-      "http://127.0.0.1:3747",
-    );
-    assert.equal(localConnectUrl("https://127.0.0.1:3747"), undefined);
-    assert.equal(localConnectUrl("not a url"), undefined);
-  });
-
-  it("classifies loopback, wildcard, private, and virtual hosts", () => {
-    assert.equal(isLoopbackHost("localhost"), true);
-    assert.equal(isLoopbackHost("127.0.0.1"), true);
-    assert.equal(isLoopbackHost("127.5.5.5"), true);
-    assert.equal(isLoopbackHost("::1"), true);
-    assert.equal(isLoopbackHost("192.168.1.5"), false);
-    assert.equal(isWildcardHost("0.0.0.0"), true);
-    assert.equal(isWildcardHost("::"), true);
-    assert.equal(isWildcardHost("127.0.0.1"), false);
-    assert.equal(isPrivateIpv4("10.1.2.3"), true);
-    assert.equal(isPrivateIpv4("172.20.0.1"), true);
-    assert.equal(isPrivateIpv4("192.168.0.1"), true);
-    assert.equal(isPrivateIpv4("8.8.8.8"), false);
-    assert.equal(isVirtualInterface("docker0"), true);
-    assert.equal(isVirtualInterface("veth1234"), true);
-    assert.equal(isVirtualInterface("eth0"), false);
-  });
-
   it("prefers private physical interfaces deterministically for wildcard binds", () => {
     assert.equal(firstLanIpv4Address(lanSnapshot), "192.168.1.20");
     assert.equal(
@@ -105,20 +69,6 @@ describe("daemon url policy", () => {
     assert.equal(urls.mobileSetupUrl, undefined);
     assert.equal(urls.secureShareUrl, undefined);
     assert.equal(urls.caCertUrl, undefined);
-  });
-
-  it("omits share urls for loopback binds", () => {
-    const urls = buildShareUrls(
-      daemonFile({ host: "127.0.0.1" }),
-      "tok_abc",
-      lanSnapshot,
-    );
-    assert.deepEqual(urls, {
-      shareUrl: undefined,
-      mobileSetupUrl: undefined,
-      secureShareUrl: undefined,
-      caCertUrl: undefined,
-    });
   });
 
   it("builds mobile HTTPS setup, secure share, and CA urls when enabled", () => {

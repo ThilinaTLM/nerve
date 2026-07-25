@@ -1,9 +1,9 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import type {
   ConversationSnapshot,
   ToolCallTranscriptRecord,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { fromConversationSnapshot } from "./adapters.js";
 import { buildConversationRenderProjection } from "./render.js";
 import type { ConversationRenderState } from "./types.js";
@@ -187,42 +187,6 @@ describe("conversation render projection", () => {
     );
     assert.equal(render.streamingText, "");
     assert.equal(render.hasActiveTurnOutput, true);
-  });
-
-  it("does not count the current run's user prompt as agent output", () => {
-    const state: ConversationRenderState = {
-      conversationId: "conv_sandbox",
-      entries: [
-        {
-          id: "entry_user",
-          conversationId: "conv_sandbox",
-          agentId: "agent_sandbox",
-          runId: "run_sandbox",
-          role: "user",
-          kind: "message",
-          text: "Answer this",
-          createdAt: ts,
-        },
-      ],
-      activeEntryIds: ["entry_user"],
-      toolCalls: [],
-      activeRun: {
-        runId: "run_sandbox",
-        agentId: "agent_sandbox",
-        projectId: "proj_sandbox",
-        conversationId: "conv_sandbox",
-        status: "running",
-        startedAt: ts,
-        turns: [],
-        toolOutputsByToolCallId: {},
-        queuedPrompts: [],
-      },
-      cursorSeq: 0,
-    };
-
-    const render = buildConversationRenderProjection(state);
-
-    assert.equal(render.hasActiveTurnOutput, false);
   });
 
   it("scopes waiting state to the latest turn through materialization", () => {

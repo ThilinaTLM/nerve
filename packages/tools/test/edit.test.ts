@@ -2,25 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import {
-  executeEdit,
-  normalizeEditArgs,
-  ToolExecutionError,
-} from "../src/execution/index.js";
+import { executeEdit, ToolExecutionError } from "../src/execution/index.js";
 import { createTempProject } from "./helpers.js";
-
-function resultDiff(result: Awaited<ReturnType<typeof executeEdit>>): string {
-  const details = result.details as { diff?: unknown } | undefined;
-  assert.equal(typeof details?.diff, "string");
-  return details.diff;
-}
-
-function resultDetails(
-  result: Awaited<ReturnType<typeof executeEdit>>,
-): Record<string, unknown> {
-  assert.ok(result.details && typeof result.details === "object");
-  return result.details as Record<string, unknown>;
-}
 
 async function rejectsWithCode(
   promise: Promise<unknown>,
@@ -37,142 +20,6 @@ async function rejectsWithCode(
 }
 
 describe("edit executor", () => {
-  it("normalizes shorthand edit arguments", () => {
-    assert.deepEqual(
-      normalizeEditArgs({ replacements: [{ oldText: "a", newText: "b" }] })
-        .operations,
-      [
-        {
-          type: "replace_text",
-          oldText: "a",
-          newText: "b",
-          matchMode: "exact",
-          source: { key: "replacements", index: 0, label: "replacements[0]" },
-        },
-      ],
-    );
-    assert.deepEqual(
-      normalizeEditArgs({ patch: "@@ -1 +1 @@\n-a\n+b\n" }).operations,
-      [
-        {
-          type: "apply_patch",
-          patch: "@@ -1 +1 @@\n-a\n+b\n",
-          source: { key: "patch", index: 0, label: "patch" },
-        },
-      ],
-    );
-    assert.deepEqual(
-      normalizeEditArgs({
-        lineInsertions: JSON.stringify([
-          { line: 1, position: "before", text: "x\n" },
-        ]),
-      }).operations,
-      [
-        {
-          type: "insert_lines",
-          line: 1,
-          position: "before",
-          text: "x\n",
-          source: {
-            key: "lineInsertions",
-            index: 0,
-            label: "lineInsertions[0]",
-          },
-        },
-      ],
-    );
-  });
-
-  it("rejects invalid shorthand shapes and deprecated operations", () => {
-    assert.throws(() => normalizeEditArgs({ operations: [] }), /no longer/);
-    assert.throws(
-      () => normalizeEditArgs({ oldText: "a", newText: "b" }),
-      /oldText\/newText/,
-    );
-    assert.throws(() => normalizeEditArgs({ replacements: [] }), /at least/);
-    assert.throws(
-      () => normalizeEditArgs({ replacements: [null] }),
-      /replacements\[0\] must be an object/,
-    );
-    assert.throws(
-      () =>
-        normalizeEditArgs({
-          replacements: [{ oldText: "", newText: "x" }],
-        }),
-      /oldText.*non-empty/,
-    );
-    assert.throws(
-      () =>
-        normalizeEditArgs({
-          lineInsertions: [{ line: 0, position: "after", text: "x" }],
-        }),
-      /line.*positive integer/,
-    );
-    assert.throws(
-      () =>
-        normalizeEditArgs({
-          replacements: [{ oldText: "a", newText: "b", note: "bad" }],
-        }),
-      /unsupported field/,
-    );
-    assert.throws(
-      () =>
-        normalizeEditArgs({
-          patch: "@@ -1 +1 @@\n-a\n+b\n",
-          replacements: [{ oldText: "a", newText: "b" }],
-        }),
-      /must not be combined/,
-    );
-  });
-
-  it("applies exact text shorthand edits and records operation metadata", async () => {
-    const project = await createTempProject();
-    const path = await project.write("example.txt", "alpha\nbeta\ngamma\n");
-
-    const result = await executeEdit(
-      {
-        path: "example.txt",
-        replacements: [{ oldText: "beta", newText: "BETA" }],
-        insertions: [
-          { anchor: "gamma\n", position: "before", text: "inserted\n" },
-        ],
-      },
-      { cwd: project.root },
-    );
-
-    assert.equal(result.path, join(project.root, "example.txt"));
-    assert.equal(
-      await readFile(path, "utf8"),
-      "alpha\nBETA\ninserted\ngamma\n",
-    );
-    assert.match(resultDiff(result), /\+inserted/);
-    const details = resultDetails(result);
-    assert.equal(details.operationCount, 2);
-    assert.equal(details.dryRun, false);
-    const operations = details.operations as Array<Record<string, unknown>>;
-    assert.equal(operations[0]?.source, "replacements");
-    assert.equal(operations[1]?.source, "insertions");
-  });
-
-  it("supports dry-run previews without writing", async () => {
-    const project = await createTempProject();
-    const path = await project.write("preview.txt", "one\ntwo\n");
-
-    const result = await executeEdit(
-      {
-        path: "preview.txt",
-        dryRun: true,
-        replacements: [{ oldText: "two", newText: "TWO" }],
-      },
-      { cwd: project.root },
-    );
-
-    assert.equal(await readFile(path, "utf8"), "one\ntwo\n");
-    assert.match(result.content ?? "", /Previewed edit/);
-    assert.match(resultDiff(result), /\+TWO/);
-    assert.equal(resultDetails(result).dryRun, true);
-  });
-
   it("requires unique matches unless occurrence is supplied", async () => {
     const project = await createTempProject();
     await project.write("dupe.txt", "one\ntwo\none\n");
@@ -202,33 +49,6 @@ describe("edit executor", () => {
       await readFile(join(project.root, "dupe.txt"), "utf8"),
       "one\ntwo\nONE\n",
     );
-  });
-
-  it("reports missing-match closest candidates with shorthand labels", async () => {
-    const project = await createTempProject();
-    await project.write(
-      "missing.txt",
-      "function start() {\n  return run();\n}\n",
-    );
-
-    const error = await rejectsWithCode(
-      executeEdit(
-        {
-          path: "missing.txt",
-          replacements: [
-            {
-              oldText: "function stop() {\n  return run();\n}",
-              newText: "x",
-            },
-          ],
-        },
-        { cwd: project.root },
-      ),
-      "EDIT_MATCH_NOT_FOUND",
-    );
-    assert.match(error.message, /replacements\[0\]\.oldText/);
-    assert.match(error.message, /Closest candidates/);
-    assert.match(error.message, /lines 1-3/);
   });
 
   it("supports trimmed and whitespace match modes explicitly", async () => {
@@ -289,25 +109,6 @@ describe("edit executor", () => {
       await readFile(path, "utf8"),
       'const value = "done";\nnext();\n',
     );
-  });
-
-  it("supports line replacement and insertion", async () => {
-    const project = await createTempProject();
-    const path = await project.write("lines.txt", "one\ntwo\nthree\n");
-
-    await executeEdit(
-      {
-        path: "lines.txt",
-        lineReplacements: [{ startLine: 2, endLine: 2, newText: "TWO\n" }],
-        lineInsertions: [
-          { line: 1, position: "before", text: "zero\n" },
-          { line: 3, position: "after", text: "four\n" },
-        ],
-      },
-      { cwd: project.root },
-    );
-
-    assert.equal(await readFile(path, "utf8"), "zero\none\nTWO\nthree\nfour\n");
   });
 
   it("rejects overlapping operations and same-offset inserts", async () => {

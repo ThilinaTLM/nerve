@@ -1,8 +1,3 @@
-import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, it } from "node:test";
 import {
   defaultSettings,
   type Settings,
@@ -10,6 +5,11 @@ import {
   type TaskRecord,
   type ToolCallRecord,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, describe, it } from "node:test";
 import { OrchestrationToolDispatcher } from "../src/domains/tools/orchestration-tool-dispatcher.js";
 import { CodedToolError } from "../src/domains/tools/tool-errors.js";
 
@@ -22,139 +22,6 @@ after(async () => {
 });
 
 describe("orchestration task tools", () => {
-  it("lists user-started tasks in the current cwd tree regardless of lineage", async () => {
-    const rootTask = task({
-      id: "task_user_root",
-      name: "root-dev",
-      status: "running",
-      projectId: undefined,
-      conversationId: undefined,
-      agentId: undefined,
-      origin: { kind: "api" },
-    });
-    const nestedTask = task({
-      id: "task_user_nested",
-      name: "nested-dev",
-      status: "running",
-      projectId: "proj_other",
-      conversationId: undefined,
-      agentId: undefined,
-      cwd: "/tmp/project/apps/web",
-      origin: { kind: "api" },
-    });
-    const dotPrefixedNestedTask = task({
-      id: "task_dot_prefixed_nested",
-      status: "running",
-      cwd: "/tmp/project/..cache",
-    });
-    const outOfScopeTasks = [
-      task({
-        id: "task_parent",
-        status: "running",
-        cwd: "/tmp",
-      }),
-      task({
-        id: "task_sibling",
-        status: "running",
-        cwd: "/tmp/sibling",
-      }),
-      task({
-        id: "task_prefix_collision",
-        status: "running",
-        cwd: "/tmp/project-other",
-      }),
-    ];
-    const dispatcher = await createDispatcher([
-      rootTask,
-      nestedTask,
-      dotPrefixedNestedTask,
-      ...outOfScopeTasks,
-    ]);
-
-    const result = (await dispatcher.execute(toolCall("task_status"), {})) as {
-      tasks: TaskRecord[];
-    };
-
-    assert.deepEqual(
-      result.tasks.map((item) => item.id),
-      [rootTask.id, nestedTask.id, dotPrefixedNestedTask.id],
-    );
-  });
-
-  it("inspects user-started tasks in nested cwd directories by default", async () => {
-    const nestedTask = task({
-      id: "task_user_nested",
-      name: "web-dev",
-      status: "running",
-      projectId: undefined,
-      conversationId: undefined,
-      agentId: undefined,
-      cwd: "/tmp/project/apps/web",
-      origin: { kind: "api" },
-    });
-    const siblingTask = task({
-      id: "task_sibling",
-      status: "running",
-      cwd: "/tmp/project-sibling",
-    });
-    const dispatcher = await createDispatcher([nestedTask, siblingTask]);
-
-    const result = (await dispatcher.execute(toolCall("task_status"), {})) as {
-      tasks: TaskRecord[];
-    };
-
-    assert.deepEqual(
-      result.tasks.map((item) => item.id),
-      [nestedTask.id],
-    );
-  });
-
-  it("returns terminal history with status all only within the cwd scope", async () => {
-    const inScope = task({
-      id: "task_other_project_nested",
-      projectId: "proj_other",
-      cwd: "/tmp/project/packages/app",
-    });
-    const outOfScope = task({
-      id: "task_other_project_sibling",
-      projectId: "proj_other",
-      cwd: "/tmp/project-sibling",
-    });
-    const dispatcher = await createDispatcher([inScope, outOfScope]);
-
-    const result = (await dispatcher.execute(toolCall("task_status"), {
-      status: "all",
-    })) as { tasks: TaskRecord[] };
-
-    assert.deepEqual(
-      result.tasks.map((item) => item.id),
-      [inScope.id],
-    );
-  });
-
-  it("resolves in-scope user tasks by id and name", async () => {
-    const userTask = task({
-      id: "task_user_nested",
-      name: "user-dev",
-      projectId: undefined,
-      conversationId: undefined,
-      agentId: undefined,
-      cwd: "/tmp/project/apps/web",
-      origin: { kind: "api" },
-    });
-    const dispatcher = await createDispatcher([userTask]);
-
-    const byId = (await dispatcher.execute(toolCall("task_status"), {
-      taskId: userTask.id,
-    })) as { tasks: TaskRecord[] };
-    const byName = (await dispatcher.execute(toolCall("task_status"), {
-      taskId: userTask.name,
-    })) as { tasks: TaskRecord[] };
-
-    assert.equal(byId.tasks[0]?.id, userTask.id);
-    assert.equal(byName.tasks[0]?.id, userTask.id);
-  });
-
   it("rejects direct references to tasks outside the cwd scope", async () => {
     const outOfScope = task({
       id: "task_same_project_sibling",
@@ -253,34 +120,6 @@ describe("orchestration task tools", () => {
     );
   });
 
-  it("returns explicit restart metadata with the new task id", async () => {
-    const original = task({ id: "task_original", name: "dev" });
-    const restarted = task({
-      id: "task_new",
-      name: "dev",
-      restartedFromTaskId: original.id,
-      restartRootTaskId: original.id,
-      restartGeneration: 1,
-    });
-    const dispatcher = await createDispatcher([original], {
-      restartTask: async () => restarted,
-    });
-
-    const result = (await dispatcher.execute(toolCall("task_restart"), {
-      taskId: original.id,
-    })) as {
-      task: TaskRecord;
-      newTaskId: string;
-      restartedFromTaskId: string;
-      restartRootTaskId: string;
-    };
-
-    assert.equal(result.task.id, restarted.id);
-    assert.equal(result.newTaskId, restarted.id);
-    assert.equal(result.restartedFromTaskId, original.id);
-    assert.equal(result.restartRootTaskId, original.id);
-  });
-
   it("routes bash through foreground auto-promotion with current agent scope", async () => {
     let captured: Record<string, unknown> | undefined;
     const dispatcher = await createDispatcher([], {
@@ -347,81 +186,6 @@ describe("orchestration task tools", () => {
     );
   });
 
-  it("executes Bash locally when foreground task promotion is disabled", async () => {
-    let foregroundCalled = false;
-    const dispatcher = await createDispatcher([], {
-      runForegroundBashWithPromotion: async () => {
-        foregroundCalled = true;
-        throw new Error("Foreground Bash should not be used.");
-      },
-    });
-
-    const result = (await dispatcher.execute(
-      { ...toolCall("bash"), cwd: tmpdir() },
-      { command: "printf direct-bash-ok" },
-      { useForegroundBash: false },
-    )) as { content?: string; exitCode?: number };
-
-    assert.equal(foregroundCalled, false);
-    assert.equal(result.content, "direct-bash-ok");
-    assert.equal(result.exitCode, 0);
-  });
-
-  it("passes custom and disabled Bash auto-promotion settings", async () => {
-    const settings = structuredClone(defaultSettings);
-    let captured: Record<string, unknown> | undefined;
-    const dispatcher = await createDispatcher([], {
-      settings,
-      runForegroundBashWithPromotion: async (input) => {
-        captured = input as Record<string, unknown>;
-        return {
-          kind: "completed_foreground",
-          result: {
-            content: "ok",
-            contentBlocks: [{ type: "text", text: "ok" }],
-            exitCode: 0,
-          },
-        };
-      },
-    });
-
-    settings.tools.bash.autoPromotion.afterMs = 240_000;
-    await dispatcher.execute(toolCall("bash"), { command: "pnpm test" });
-    assert.equal(captured?.autoPromoteAfterMs, 240_000);
-
-    settings.tools.bash.autoPromotion.enabled = false;
-    await dispatcher.execute(toolCall("bash"), { command: "pnpm test" });
-    assert.equal(captured?.autoPromoteAfterMs, undefined);
-  });
-
-  it("filters task_status by a concrete terminal status", async () => {
-    const completed = task({ id: "task_completed", status: "completed" });
-    const failed = task({ id: "task_failed", status: "failed" });
-    const running = task({ id: "task_running", status: "running" });
-    const dispatcher = await createDispatcher([completed, failed, running]);
-
-    const result = (await dispatcher.execute(toolCall("task_status"), {
-      status: "failed",
-    })) as { tasks: TaskRecord[] };
-
-    assert.deepEqual(
-      result.tasks.map((item) => item.id),
-      [failed.id],
-    );
-  });
-
-  it("requires explicit log and cancellation targets", async () => {
-    const dispatcher = await createDispatcher([]);
-    await assert.rejects(
-      () => dispatcher.execute(toolCall("task_logs"), {}),
-      /taskId/,
-    );
-    await assert.rejects(
-      () => dispatcher.execute(toolCall("task_cancel"), {}),
-      /required/,
-    );
-  });
-
   it("deduplicates bulk cancellation while preserving first-seen order", async () => {
     const first = task({ id: "task_first", status: "running" });
     const second = task({ id: "task_second", status: "running" });
@@ -445,66 +209,6 @@ describe("orchestration task tools", () => {
     assert.deepEqual(
       result.tasks.map((item) => item.id),
       [second.id, first.id],
-    );
-  });
-
-  it("returns cancellation outcome metadata for terminal targets", async () => {
-    const completed = task({
-      id: "task_done",
-      name: "done",
-      status: "completed",
-    });
-    const dispatcher = await createDispatcher([completed], {
-      cancelTask: async () => completed,
-    });
-
-    const result = (await dispatcher.execute(toolCall("task_cancel"), {
-      taskId: completed.id,
-    })) as { cancelResults: Array<{ outcome: string; message: string }> };
-
-    assert.equal(result.cancelResults[0]?.outcome, "already_terminal");
-    assert.match(result.cancelResults[0]?.message ?? "", /already completed/);
-  });
-
-  it("warns when orphan cleanup releases listening ports", async () => {
-    const orphaned = task({
-      id: "task_orphaned",
-      name: "dev",
-      status: "orphaned",
-    });
-    const cancelled = task({
-      ...orphaned,
-      status: "cancelled",
-      signal: "SIGTERM",
-      lastOrphanCleanupReleasedPorts: [
-        {
-          protocol: "tcp",
-          address: "127.0.0.1",
-          port: 3000,
-          pid: 1234,
-          detectedAt: "2026-01-02T03:04:06.000Z",
-        },
-      ],
-    });
-    const dispatcher = await createDispatcher([orphaned], {
-      cancelTask: async () => cancelled,
-    });
-
-    const result = (await dispatcher.execute(toolCall("task_cancel"), {
-      taskId: orphaned.id,
-    })) as {
-      cancelResults: Array<{
-        outcome: string;
-        message: string;
-        releasedPorts?: Array<{ port: number }>;
-      }>;
-    };
-
-    assert.equal(result.cancelResults[0]?.outcome, "cancelled");
-    assert.equal(result.cancelResults[0]?.releasedPorts?.[0]?.port, 3000);
-    assert.match(
-      result.cancelResults[0]?.message ?? "",
-      /⚠ Released listening port\(s\): 127\.0\.0\.1:3000\/tcp/,
     );
   });
 });

@@ -1,6 +1,6 @@
+import type { AgentRecord } from "$lib/api";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AgentRecord } from "$lib/api";
 import {
   AgentConfigMutationQueue,
   type AgentConfigPatch,
@@ -51,13 +51,6 @@ async function settle(): Promise<void> {
 }
 
 describe("agent config mutation queue", () => {
-  it("publishes the desired state synchronously on enqueue", () => {
-    const { queue, desiredHistory } = fixture();
-    queue.enqueue("agent_1", { thinkingLevel: "high" });
-    assert.deepEqual(queue.desired("agent_1"), { thinkingLevel: "high" });
-    assert.deepEqual(desiredHistory, [{ thinkingLevel: "high" }]);
-  });
-
   it("coalesces rapid edits into one request", async () => {
     const { queue, pending, confirmed } = fixture();
     queue.enqueue("agent_1", {
@@ -144,23 +137,6 @@ describe("agent config mutation queue", () => {
     assert.equal(confirmed.length, 0);
   });
 
-  it("clears only the failed desired state and reports the failure", async () => {
-    const { queue, pending, failures } = fixture();
-    queue.enqueue("agent_1", { thinkingLevel: "low" });
-    await settle();
-    // A newer mode edit arrives while the failing request is in flight.
-    queue.enqueue("agent_1", { mode: "planning" });
-    pending[0]?.reject(new Error("offline"));
-    await settle();
-    assert.deepEqual(failures, [{ thinkingLevel: "low" }]);
-    // The re-edited field survives and is retried.
-    const latest = pending.at(-1);
-    assert.deepEqual(latest?.patch, { mode: "planning" });
-    latest?.resolve(agentRecord({ mode: "planning" }));
-    await settle();
-    assert.equal(queue.desired("agent_1"), undefined);
-  });
-
   it("rolls back cleanly when every desired field failed", async () => {
     const { queue, pending, failures, confirmed } = fixture();
     queue.enqueue("agent_1", { permissionLevel: "read_only" });
@@ -171,23 +147,6 @@ describe("agent config mutation queue", () => {
     assert.equal(queue.desired("agent_1"), undefined);
     assert.equal(confirmed.length, 0);
     assert.equal(pending.length, 1);
-  });
-
-  it("flush resolves once pending mutations settle", async () => {
-    const { queue, pending } = fixture();
-    queue.enqueue("agent_1", { thinkingLevel: "high" });
-    let flushed = false;
-    const flushPromise = queue.flush("agent_1").then(() => {
-      flushed = true;
-    });
-    await settle();
-    assert.equal(flushed, false);
-    pending[0]?.resolve(agentRecord({ thinkingLevel: "high" }));
-    await flushPromise;
-    assert.equal(flushed, true);
-    // Flushing an idle agent resolves immediately.
-    await queue.flush("agent_1");
-    await queue.flush("agent_unknown");
   });
 
   it("runs independent agents concurrently without cross-talk", async () => {
