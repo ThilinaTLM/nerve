@@ -2,7 +2,7 @@ import type {
   AutoCompactionSettings,
   CompactionProfile,
 } from "@nervekit/contracts";
-import type { AgentMessage } from "../../types.js";
+import type { AgentMessage } from "../../agent/types/index.js";
 import type { FileOperations } from "./utils.js";
 
 /** File-operation details stored on generated compaction entries. */

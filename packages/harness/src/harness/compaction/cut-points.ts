@@ -1,4 +1,4 @@
-import type { AgentMessage } from "../../types.js";
+import type { AgentMessage } from "../../agent/types/index.js";
 import type { ConversationTreeEntry } from "../conversation/entries.js";
 import type { CutPointResult } from "./types.js";
 import { estimateTokens } from "./usage.js";

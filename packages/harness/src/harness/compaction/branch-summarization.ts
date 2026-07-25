@@ -1,11 +1,11 @@
-import { completeSimpleWithModel } from "../../pi-ai-models.js";
-import type { AgentMessage, AnyModel } from "../../types.js";
+import { completeSimpleWithModel } from "../../models/provider-registry.js";
+import type { AgentMessage, AnyModel } from "../../agent/types/index.js";
 import type {
   Conversation,
   ConversationTreeEntry,
 } from "../conversation/entries.js";
 import { BranchSummaryError, ConversationError } from "../errors.js";
-import type { BranchSummaryResult } from "../events.js";
+import type { BranchSummaryResult } from "../lifecycle/events.js";
 import {
   convertToLlm,
   createBranchSummaryMessage,

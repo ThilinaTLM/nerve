@@ -1,6 +1,6 @@
 import type { ImageContent, Message, TextContent } from "@earendil-works/pi-ai";
 import type { TaskReadiness, TaskStatus } from "@nervekit/contracts";
-import type { AgentMessage } from "../types.js";
+import type { AgentMessage } from "../agent/types/index.js";
 
 export const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point was compacted into the following summary:
 
@@ -84,7 +84,7 @@ export interface CompactionSummaryMessage {
   timestamp: number;
 }
 
-declare module "../types.js" {
+declare module "../agent/types/messages.js" {
   interface CustomAgentMessages {
     bashExecution: BashExecutionMessage;
     custom: CustomMessage;

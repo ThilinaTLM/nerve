@@ -1,2 +1,2 @@
-export { NodeExecutionEnv } from "./harness/env/nodejs.js";
+export { NodeExecutionEnv } from "./harness/environment/nodejs.js";
 export * from "./index.js";

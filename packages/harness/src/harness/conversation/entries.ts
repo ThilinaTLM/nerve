@@ -1,5 +1,5 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "../../types.js";
+import type { AgentMessage } from "../../agent/types/index.js";
 import type { Conversation } from "./conversation.js";
 
 export interface ConversationTreeEntryBase {

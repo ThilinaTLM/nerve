@@ -1,4 +1,4 @@
-import type { FileSystem } from "../env/types.js";
+import type { FileSystem } from "../environment/types.js";
 import { ConversationError } from "../errors.js";
 import { toError } from "../result.js";
 import type {

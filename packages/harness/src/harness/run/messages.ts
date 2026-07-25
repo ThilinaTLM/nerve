@@ -3,7 +3,7 @@ import type {
   ImageContent,
   UserMessage,
 } from "@earendil-works/pi-ai";
-import type { AnyModel } from "../../types.js";
+import type { AnyModel } from "../../agent/types/index.js";
 
 export function createUserMessage(
   text: string,

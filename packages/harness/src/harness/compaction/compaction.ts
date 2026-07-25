@@ -1,6 +1,10 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import { completeSimpleWithModel } from "../../pi-ai-models.js";
-import type { AgentMessage, AnyModel, ThinkingLevel } from "../../types.js";
+import { completeSimpleWithModel } from "../../models/provider-registry.js";
+import type {
+  AgentMessage,
+  AnyModel,
+  ThinkingLevel,
+} from "../../agent/types/index.js";
 import { buildConversationContext } from "../conversation/conversation.js";
 import type {
   CompactionEntry,
