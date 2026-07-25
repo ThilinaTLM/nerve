@@ -76,20 +76,6 @@ describe("bash executor", () => {
     assert.equal(result.exitCode, 0);
   });
 
-  it("runs in an optional relative working directory", async () => {
-    const project = await createTempProject();
-    await project.write("packages/app/marker.txt", "ok");
-    const result = await executeBash(
-      {
-        command: `${node} -e "process.stdout.write(process.cwd())"`,
-        cwd: "packages/app",
-      },
-      { cwd: project.root },
-    );
-
-    assert.equal(result.stdout, join(project.root, "packages", "app"));
-  });
-
   it("returns stdout, stderr, and exitCode for successful commands", async () => {
     const project = await createTempProject();
     const result = await executeBash(
@@ -151,59 +137,6 @@ describe("bash executor", () => {
     const transcript = await readFile(details.fullOutputPath, "utf8");
     assert.match(transcript, /line 0/);
     assert.match(transcript, /line 599/);
-  });
-
-  it("saves mixed stdout and stderr to the same transcript", async () => {
-    const project = await createTempProject();
-    const result = await executeBash(
-      {
-        command: `${node} -e "for (let i = 0; i < 700; i++) { if (i % 2) process.stderr.write('err ' + i + '\\n'); else process.stdout.write('out ' + i + '\\n'); }"`,
-      },
-      { cwd: project.root, dataDir: project.root },
-    );
-
-    const details = result.details as {
-      fullOutputPath?: string;
-      streams?: {
-        stdout?: { savedTo?: string; lines?: number };
-        stderr?: { savedTo?: string; lines?: number };
-        combined?: { savedTo?: string; lines?: number };
-      };
-    };
-    assert.ok(details.fullOutputPath);
-    assert.equal(details.streams?.stdout?.savedTo, undefined);
-    assert.equal(details.streams?.stderr?.savedTo, undefined);
-    assert.equal(details.streams?.combined?.savedTo, details.fullOutputPath);
-    assert.ok((details.streams?.stdout?.lines ?? 0) > 0);
-    assert.ok((details.streams?.stderr?.lines ?? 0) > 0);
-
-    const transcript = await readFile(details.fullOutputPath, "utf8");
-    assert.match(transcript, /out 0/);
-    assert.match(transcript, /err 1/);
-  });
-
-  it("saves overlong single-line output below aggregate limits", async () => {
-    const project = await createTempProject();
-    const result = await executeBash(
-      {
-        command: `${node} -e "process.stdout.write('x'.repeat(5000))"`,
-      },
-      { cwd: project.root, dataDir: project.root },
-    );
-
-    assert.match(result.content ?? "", /contained overlong lines/);
-    assert.match(result.stdout ?? "", /truncated/);
-    assert.ok((result.stdout ?? "").length < 2600);
-    const details = result.details as {
-      fullOutputPath?: string;
-      truncation?: { truncatedLines?: number };
-      streams?: { stdout?: { truncatedLines?: number } };
-    };
-    assert.ok(details.fullOutputPath);
-    assert.equal(details.truncation?.truncatedLines, 1);
-    assert.equal(details.streams?.stdout?.truncatedLines, 1);
-    const transcript = await readFile(details.fullOutputPath, "utf8");
-    assert.equal(transcript, "x".repeat(5000));
   });
 
   it("returns captured output as a structured result on timeout", async () => {

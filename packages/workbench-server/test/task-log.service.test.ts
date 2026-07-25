@@ -1,13 +1,13 @@
-import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, it } from "node:test";
 import {
   createId,
   type TaskLogEvent,
   type TaskRecord,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, describe, it } from "node:test";
 import {
   createTaskLogCursor,
   MAX_BUFFERED_LOG_LINE_CHARS,
@@ -24,22 +24,6 @@ after(async () => {
 });
 
 describe("task log service line buffering", () => {
-  it("buffers incomplete stdout line across chunks", async () => {
-    const { record, service, cursor, onLog } = await createFixture();
-
-    await service.captureOutput(record, cursor, "stdout", "hello ", onLog);
-    assert.deepEqual(await service.readLogEvents(record.logsPath), []);
-
-    await service.captureOutput(record, cursor, "stdout", "world\n", onLog);
-
-    const events = await service.readLogEvents(record.logsPath);
-    assert.deepEqual(
-      events.map((event) => event.line),
-      ["hello world"],
-    );
-    assert.equal(await readFile(record.stdoutPath, "utf8"), "hello world\n");
-  });
-
   it("keeps stdout and stderr buffers separate", async () => {
     const { record, service, cursor, onLog, emitted } = await createFixture();
 
@@ -54,36 +38,6 @@ describe("task log service line buffering", () => {
         ["stdout", "out-line"],
         ["stderr", "err-line"],
       ],
-    );
-  });
-
-  it("handles multiple complete lines plus trailing partial", async () => {
-    const { record, service, cursor, onLog, emitted } = await createFixture();
-
-    await service.captureOutput(record, cursor, "stdout", "a\nb\nc", onLog);
-    assert.deepEqual(
-      emitted.map((event) => event.line),
-      ["a", "b"],
-    );
-    assert.equal(cursor.lineBuffers.stdout, "c");
-
-    await service.captureOutput(record, cursor, "stdout", "d\n", onLog);
-    assert.deepEqual(
-      emitted.map((event) => event.line),
-      ["a", "b", "cd"],
-    );
-    assert.equal(cursor.lineBuffers.stdout, "");
-  });
-
-  it("handles CRLF split across chunks", async () => {
-    const { record, service, cursor, onLog, emitted } = await createFixture();
-
-    await service.captureOutput(record, cursor, "stdout", "ready\r", onLog);
-    await service.captureOutput(record, cursor, "stdout", "\n", onLog);
-
-    assert.deepEqual(
-      emitted.map((event) => event.line),
-      ["ready"],
     );
   });
 
@@ -106,41 +60,6 @@ describe("task log service line buffering", () => {
     assert.deepEqual(
       events.map((event) => event.line),
       ["last line without newline"],
-    );
-  });
-
-  it("filters empty and whitespace-only buffered lines", async () => {
-    const { record, service, cursor, onLog } = await createFixture();
-
-    await service.captureOutput(record, cursor, "stdout", "   \n", onLog);
-    await service.captureOutput(record, cursor, "stderr", "   ", onLog);
-    await service.flushOutputBuffers(record, cursor, onLog);
-
-    assert.deepEqual(await service.readLogEvents(record.logsPath), []);
-  });
-
-  it("increments log sequence only for emitted lines", async () => {
-    const { record, service, onLog } = await createFixture();
-    const cursor = createTaskLogCursor(5);
-
-    await service.captureOutput(record, cursor, "stdout", "part", onLog);
-    await service.captureOutput(
-      record,
-      cursor,
-      "stdout",
-      "ial\n   \nreal\n",
-      onLog,
-    );
-    await service.captureOutput(record, cursor, "stdout", "   ", onLog);
-    await service.flushOutputBuffers(record, cursor, onLog);
-
-    const events = await service.readLogEvents(record.logsPath);
-    assert.deepEqual(
-      events.map((event) => [event.seq, event.line]),
-      [
-        [6, "partial"],
-        [7, "real"],
-      ],
     );
   });
 

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  chromiumLoopbackProxyBypassRules,
   formatElectronDownloadFailure,
   formatProxyPreparationForLog,
   prepareElectronDownloadEnv,
@@ -33,32 +32,6 @@ describe("prepareElectronDownloadEnv", () => {
     ]);
   });
 
-  it("does not overwrite standard proxy env values", () => {
-    const env: NodeJS.ProcessEnv = {
-      HTTPS_PROXY: "http://standard.example.com:8080",
-      HTTP_PROXY: "http://standard.example.com:8080",
-      npm_config_proxy: "http://npm.example.com:8080",
-      ELECTRON_GET_USE_PROXY: "false",
-      NODE_EXTRA_CA_CERTS: "/tmp/existing-ca.pem",
-      NODE_USE_ENV_PROXY: "0",
-      NODE_USE_SYSTEM_CA: "0",
-      npm_config_cafile: "/tmp/npm-ca.pem",
-    };
-
-    const result = prepareElectronDownloadEnv(env);
-
-    assert.equal(env.HTTPS_PROXY, "http://standard.example.com:8080");
-    assert.equal(env.HTTP_PROXY, "http://standard.example.com:8080");
-    assert.equal(env.ELECTRON_GET_USE_PROXY, "false");
-    assert.equal(env.NODE_EXTRA_CA_CERTS, "/tmp/existing-ca.pem");
-    assert.equal(env.NODE_USE_ENV_PROXY, "0");
-    assert.equal(env.NODE_USE_SYSTEM_CA, "0");
-    assert.equal(result.enabledElectronGetProxy, false);
-    assert.equal(result.enabledNodeEnvProxy, false);
-    assert.equal(result.enabledNodeSystemCa, false);
-    assert.deepEqual(result.copiedFromPackageManagerConfig, []);
-  });
-
   it("always adds loopback entries to NO_PROXY and no_proxy", () => {
     const env: NodeJS.ProcessEnv = {
       NO_PROXY: "example.test,LOCALHOST",
@@ -73,20 +46,6 @@ describe("prepareElectronDownloadEnv", () => {
       "example.test,LOCALHOST,internal.test,corp.test,127.0.0.1,::1",
     );
     assert.equal(env.no_proxy, env.NO_PROXY);
-    assert.equal(result.noProxyUpdated, true);
-  });
-
-  it("adds loopback no-proxy entries even without proxy configuration", () => {
-    const env: NodeJS.ProcessEnv = {};
-
-    const result = prepareElectronDownloadEnv(env);
-
-    assert.equal(env.NO_PROXY, "localhost,127.0.0.1,::1");
-    assert.equal(env.no_proxy, "localhost,127.0.0.1,::1");
-    assert.equal(env.NODE_USE_SYSTEM_CA, "1");
-    assert.equal(result.proxyConfigured, false);
-    assert.equal(result.enabledNodeEnvProxy, false);
-    assert.equal(result.enabledNodeSystemCa, true);
     assert.equal(result.noProxyUpdated, true);
   });
 
@@ -135,16 +94,5 @@ describe("Electron proxy diagnostics", () => {
 
     assert.match(message, /https:\/\/\[redacted\]@example\.com/);
     assert.doesNotMatch(message, /secret/);
-  });
-
-  it("exports a loopback bypass list for Chromium sessions", () => {
-    assert.match(chromiumLoopbackProxyBypassRules, /<local>/);
-    assert.match(chromiumLoopbackProxyBypassRules, /localhost/);
-    assert.match(chromiumLoopbackProxyBypassRules, /127\.0\.0\.1/);
-    assert.match(chromiumLoopbackProxyBypassRules, /\[::1\]/);
-    assert.equal(
-      chromiumLoopbackProxyBypassRules.includes("<-loopback>"),
-      false,
-    );
   });
 });

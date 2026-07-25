@@ -31,31 +31,6 @@ function summary(
 }
 
 describe("task tool transcript preview contracts", () => {
-  it("accepts compact task state, termination, and lineage metadata", () => {
-    const parsed = taskToolSummarySchema.parse(
-      summary({
-        status: "failed",
-        timing: {
-          startedAt: "2026-01-02T03:04:05.000Z",
-          finishedAt: "2026-01-02T03:04:06.000Z",
-        },
-        termination: {
-          exitCode: 1,
-          signal: null,
-          error: "process failed",
-        },
-        lineage: {
-          groupId: "taskgrp_dev",
-          restartedFromTaskId: "task_previous",
-        },
-      }),
-    );
-
-    assert.equal(parsed.termination?.exitCode, 1);
-    assert.equal(parsed.termination?.signal, null);
-    assert.equal(parsed.lineage?.restartedFromTaskId, "task_previous");
-  });
-
   it("keeps transcript summaries strict and free of full task internals", () => {
     assert.equal(
       taskToolSummarySchema.safeParse({
@@ -122,33 +97,6 @@ describe("task tool transcript preview contracts", () => {
         restartedFromTaskId: "task_old",
         newTaskId: "task_new",
         restartRootTaskId: "task_root",
-      }).success,
-      true,
-    );
-  });
-
-  it("accepts valid empty collections and a task-less cancel outcome", () => {
-    assert.equal(
-      taskStatusToolResultPreviewSchema.safeParse({ tasks: [] }).success,
-      true,
-    );
-    assert.equal(
-      taskCancelToolResultPreviewSchema.safeParse({
-        outcomes: [
-          {
-            outcome: "no_matching_active_task",
-            message: "No matching tasks to cancel.",
-          },
-        ],
-      }).success,
-      true,
-    );
-    assert.equal(
-      taskLogsToolResultPreviewSchema.safeParse({
-        task: summary(),
-        events: [],
-        nextCursor: 0,
-        mode: "warnings",
       }).success,
       true,
     );

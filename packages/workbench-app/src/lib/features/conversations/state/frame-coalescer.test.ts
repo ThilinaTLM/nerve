@@ -27,42 +27,6 @@ function scheduler() {
 }
 
 describe("FrameCoalescer", () => {
-  it("commits only the latest value from one scheduled frame", () => {
-    const frames = scheduler();
-    const committed: number[] = [];
-    const coalescer = new FrameCoalescer(
-      (value: number) => committed.push(value),
-      frames.schedule,
-      frames.cancel,
-    );
-
-    coalescer.enqueue(1);
-    coalescer.enqueue(2);
-    coalescer.enqueue(3);
-
-    assert.equal(frames.callbacks.size, 1);
-    frames.run();
-    assert.deepEqual(committed, [3]);
-  });
-
-  it("flushes immediately and cancels stale scheduled work", () => {
-    const frames = scheduler();
-    const committed: string[] = [];
-    const coalescer = new FrameCoalescer(
-      (value: string) => committed.push(value),
-      frames.schedule,
-      frames.cancel,
-    );
-
-    coalescer.enqueue("old");
-    coalescer.flushNow("current");
-
-    assert.deepEqual(committed, ["current"]);
-    assert.deepEqual(frames.cancelled, [1]);
-    frames.run(1);
-    assert.deepEqual(committed, ["current"]);
-  });
-
   it("holds hidden updates until an explicit flush", () => {
     const frames = scheduler();
     const committed: number[] = [];

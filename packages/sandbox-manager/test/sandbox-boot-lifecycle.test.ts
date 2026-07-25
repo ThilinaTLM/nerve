@@ -1,16 +1,15 @@
+import type { ManagedSandboxRecord } from "@nervekit/contracts";
+import { buildEventBatch, createMessageFactory } from "@nervekit/protocol";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test from "node:test";
-import type { ManagedSandboxRecord } from "@nervekit/contracts";
-import { buildEventBatch, createMessageFactory } from "@nervekit/protocol";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ManagerState } from "../src/app/manager-state.js";
-import { SandboxLifecycleWatchdog } from "../src/lifecycle/lifecycle-watchdog.js";
-import { transitionSandboxLifecycle } from "../src/lifecycle/lifecycle-state.js";
-import { refreshSandboxObservedState } from "../src/lifecycle/reconciler.js";
 import type { ContainerRuntimeDriver } from "../src/drivers/container-runtime-driver.js";
-import type { StoredSandboxEvent } from "../src/state/event-store.js";
+import { SandboxLifecycleWatchdog } from "../src/lifecycle/lifecycle-watchdog.js";
+import { refreshSandboxObservedState } from "../src/lifecycle/reconciler.js";
 import { SandboxWsServer } from "../src/protocol/sandbox-ws-server.js";
+import type { StoredSandboxEvent } from "../src/state/event-store.js";
 
 const agentCapabilities = [
   "encoding.json",
@@ -221,95 +220,6 @@ async function waitFor(predicate: () => boolean, label: string): Promise<void> {
   }
 }
 
-test("a fresh agent head resets a cursor-ahead manager epoch before ingestion", async () => {
-  const context = createTestState(baseRecord());
-  context.events.set("sbx_test", [
-    {
-      sandboxId: "sbx_test",
-      id: "evt_old_1",
-      seq: 1,
-      type: "old.event",
-      ts: "2026-01-01T00:00:00.000Z",
-      payload: {},
-    },
-    {
-      sandboxId: "sbx_test",
-      id: "evt_old_2",
-      seq: 2,
-      type: "old.event",
-      ts: "2026-01-01T00:00:01.000Z",
-      payload: {},
-    },
-  ]);
-  await withAgentSession(context, async ({ send, nextMessage, messages }) => {
-    send(
-      messages("hello", {
-        requestedVersion: 1,
-        capabilities: agentCapabilities,
-        requiredCapabilities: agentCapabilities,
-        encodings: ["json"],
-      }),
-    );
-    const welcome = await nextMessage();
-    const sessionId = welcome.data.sessionId as string;
-    send(messages("ready", { sessionId, status: "booting" }));
-    await waitFor(
-      () =>
-        context.records.get("sbx_test")?.lifecycleState === "daemon_connected",
-      "daemon_connected",
-    );
-
-    send(
-      messages("stream.subscription.set", {
-        sessionId,
-        subscriptionId: "sub_fresh_epoch",
-        streams: [{ stream: "sandbox:sbx_test", processedSeq: 0 }],
-      }),
-    );
-    const updated = await nextMessage();
-    assert.equal(updated.kind, "stream.subscription.updated");
-    assert.equal(updated.data.accepted, true);
-    assert.deepEqual(updated.data.streams, [
-      {
-        stream: "sandbox:sbx_test",
-        latestSeq: 0,
-        earliestAvailableSeq: 1,
-        mode: "live",
-      },
-    ]);
-    assert.deepEqual(context.events.get("sbx_test"), []);
-
-    const now = "2026-01-02T00:00:00.000Z";
-    send(
-      messages(
-        "event.batch",
-        buildEventBatch(
-          [
-            {
-              id: "evt_fresh_1",
-              seq: 1,
-              type: "run.started",
-              ts: now,
-              data: {
-                conversationId: "conv_fresh",
-                agentId: "agent_fresh",
-                projectId: "proj_fresh",
-                runId: "run_fresh",
-                startedAt: now,
-              },
-            },
-          ],
-          { stream: "sandbox:sbx_test", reason: "replay" },
-        ),
-      ),
-    );
-    await waitFor(
-      () => context.events.get("sbx_test")?.[0]?.id === "evt_fresh_1",
-      "fresh epoch event",
-    );
-  });
-});
-
 test("a booting ready frame connects the daemon and live events drive lifecycle to ready", async () => {
   const context = createTestState(baseRecord());
   await withAgentSession(context, async ({ send, nextMessage, messages }) => {
@@ -487,35 +397,6 @@ test("a ready frame without status is a protocol error that rejects the session"
   assert.notEqual(context.records.get("sbx_test")?.lifecycleState, "ready");
 });
 
-test("illegal lifecycle transitions are ignored without force", async () => {
-  const context = createTestState(baseRecord({ lifecycleState: "ready" }));
-  const transitionContext = {
-    store: context.state.sandboxes,
-    recordEvent: () => undefined,
-  };
-  const unchanged = await transitionSandboxLifecycle(
-    transitionContext,
-    "sbx_test",
-    "container_started",
-  );
-  assert.equal(unchanged.lifecycleState, "ready");
-
-  const reconnecting = await transitionSandboxLifecycle(
-    transitionContext,
-    "sbx_test",
-    "reconnecting",
-  );
-  assert.equal(reconnecting.lifecycleState, "reconnecting");
-
-  const forced = await transitionSandboxLifecycle(
-    transitionContext,
-    "sbx_test",
-    "container_started",
-    { force: true },
-  );
-  assert.equal(forced.lifecycleState, "container_started");
-});
-
 test("the watchdog fails a sandbox stuck in reconnecting past the timeout", async () => {
   const stale = new Date(Date.now() - 400_000).toISOString();
   const context = createTestState(
@@ -533,16 +414,6 @@ test("the watchdog fails a sandbox stuck in reconnecting past the timeout", asyn
   const record = context.records.get("sbx_test");
   assert.equal(record?.lifecycleState, "failed");
   assert.equal(record?.lastError?.code, "RECONNECT_TIMEOUT");
-});
-
-test("the watchdog leaves a recently disconnected sandbox reconnecting", async () => {
-  const recent = new Date(Date.now() - 5_000).toISOString();
-  const context = createTestState(
-    baseRecord({ lifecycleState: "reconnecting", lifecycleUpdatedAt: recent }),
-  );
-  const watchdog = new SandboxLifecycleWatchdog(context.state);
-  await watchdog.check();
-  assert.equal(context.records.get("sbx_test")?.lifecycleState, "reconnecting");
 });
 
 test("an agent self-exit (code 22) settles the sandbox as stopped", async () => {

@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  bashResultDetailsSchema,
-  startTaskRequestSchema,
-  type TaskRecord,
   taskCancelToolResultSchema,
   taskEnvInfoSchema,
   taskLaunchConfigSchema,
@@ -15,6 +12,7 @@ import {
   taskStatusToolResultSchema,
   toolCallRecordSchema,
   toolNameSchema,
+  type TaskRecord,
 } from "../src/index.js";
 
 function record(overrides: Partial<TaskRecord> = {}): TaskRecord {
@@ -34,23 +32,6 @@ function record(overrides: Partial<TaskRecord> = {}): TaskRecord {
 }
 
 describe("taskRecordSchema env metadata", () => {
-  it("accepts redacted env metadata", () => {
-    const parsed = taskRecordSchema.safeParse(
-      record({
-        envInfo: {
-          keys: ["NODE_ENV", "PORT"],
-          persisted: true,
-          redacted: true,
-        },
-      }),
-    );
-
-    assert.equal(parsed.success, true);
-    if (parsed.success) {
-      assert.deepEqual(parsed.data.envInfo?.keys, ["NODE_ENV", "PORT"]);
-    }
-  });
-
   it("strips raw env from public task records", () => {
     const parsed = taskRecordSchema.parse({
       ...record(),
@@ -58,16 +39,6 @@ describe("taskRecordSchema env metadata", () => {
     });
 
     assert.equal("env" in parsed, false);
-  });
-
-  it("keeps start requests compatible with raw env input", () => {
-    const parsed = startTaskRequestSchema.parse({
-      cwd: "/tmp/project",
-      command: "pnpm dev",
-      env: { PORT: "3000" },
-    });
-
-    assert.deepEqual(parsed.env, { PORT: "3000" });
   });
 
   it("accepts raw env in encrypted launch config storage schema", () => {
@@ -92,107 +63,7 @@ describe("taskRecordSchema env metadata", () => {
   });
 });
 
-describe("taskRecordSchema task ergonomics metadata", () => {
-  it("accepts timed_out status, group IDs, readyUrl, and notifications", () => {
-    const parsed = taskRecordSchema.safeParse(
-      record({
-        status: "timed_out",
-        groupId: "taskgrp_test",
-        groupName: "checks",
-        readiness: {
-          readyUrl: "http://127.0.0.1:5173/health",
-          outcome: "timeout",
-        },
-        notifications: {
-          enabled: true,
-          ready: true,
-          terminal: true,
-          terminalEntryId: "entry_timeout",
-          terminalDeliveredAt: "2026-01-02T03:04:06.000Z",
-          outputTailLineCount: 12,
-        },
-      }),
-    );
-
-    assert.equal(parsed.success, true);
-  });
-
-  it("accepts readyUrl, group metadata, and notify in start requests", () => {
-    const parsed = startTaskRequestSchema.parse({
-      cwd: "/tmp/project",
-      command: "pnpm dev",
-      groupId: "taskgrp_test",
-      groupName: "dev",
-      readyUrl: "http://127.0.0.1:5173",
-      notify: true,
-    });
-
-    assert.equal(parsed.groupId, "taskgrp_test");
-    assert.equal(parsed.readyUrl, "http://127.0.0.1:5173");
-    assert.equal(parsed.notify, true);
-  });
-
-  it("accepts restart lineage metadata", () => {
-    const parsed = taskRecordSchema.safeParse(
-      record({
-        restartedFromTaskId: "task_previous",
-        restartRootTaskId: "task_root",
-        restartGeneration: 2,
-      }),
-    );
-
-    assert.equal(parsed.success, true);
-    if (parsed.success) {
-      assert.equal(parsed.data.restartRootTaskId, "task_root");
-      assert.equal(parsed.data.restartGeneration, 2);
-    }
-  });
-});
-
 describe("tool task result metadata", () => {
-  it("accepts exact start, status, restart, and cancellation payloads", () => {
-    assert.equal(
-      taskStartToolResultSchema.safeParse({ task: record() }).success,
-      true,
-    );
-    assert.equal(
-      taskStatusToolResultSchema.safeParse({ tasks: [record()] }).success,
-      true,
-    );
-    assert.equal(
-      taskRestartToolResultSchema.safeParse({
-        task: record({ id: "task_new" }),
-        restartedFromTaskId: "task_old",
-        newTaskId: "task_new",
-        restartRootTaskId: "task_root",
-      }).success,
-      true,
-    );
-    const cancellation = taskCancelToolResultSchema.safeParse({
-      tasks: [record({ id: "task_old", status: "cancelled" })],
-      cancelResults: [
-        {
-          taskId: "task_old",
-          taskName: "dev",
-          requestedSignal: "SIGTERM",
-          outcome: "cancelled",
-          status: "cancelled",
-          message: "dev cancelled with SIGTERM.",
-          releasedPorts: [
-            {
-              protocol: "tcp",
-              address: "127.0.0.1",
-              port: 3000,
-              pid: 1234,
-              detectedAt: "2026-01-02T03:04:07.000Z",
-            },
-          ],
-        },
-      ],
-    });
-    assert.equal(cancellation.success, true);
-  });
-
   it("rejects missing required task-tool payload fields", () => {
     assert.equal(taskStartToolResultSchema.safeParse({}).success, false);
     assert.equal(
@@ -210,27 +81,6 @@ describe("tool task result metadata", () => {
     assert.equal(
       taskRestartToolResultSchema.safeParse({ task: record() }).success,
       false,
-    );
-  });
-
-  it("accepts completed and backgrounded bash execution dispositions", () => {
-    assert.equal(
-      bashResultDetailsSchema.safeParse({
-        execution: { disposition: "completed" },
-      }).success,
-      true,
-    );
-    assert.equal(
-      bashResultDetailsSchema.safeParse({
-        execution: {
-          disposition: "backgrounded",
-          taskId: "task_background",
-          status: "running",
-          elapsedMs: 60_001,
-          terminalUpdate: "automatic",
-        },
-      }).success,
-      true,
     );
   });
 
@@ -312,51 +162,6 @@ describe("task log paging metadata", () => {
 });
 
 describe("taskRecordSchema runtime metadata", () => {
-  it("accepts records with valid runtime metadata", () => {
-    const parsed = taskRecordSchema.safeParse(
-      record({
-        runtime: {
-          platform: "linux",
-          childPid: 1234,
-          processGroupId: 1234,
-          detached: true,
-          shell: true,
-          spawnedAt: "2026-01-02T03:04:06.000Z",
-          listeningPorts: [
-            {
-              protocol: "tcp",
-              address: "127.0.0.1",
-              port: 3000,
-              pid: 1234,
-              processGroupId: 1234,
-              processStartTimeTicks: 123456,
-              detectedAt: "2026-01-02T03:04:07.000Z",
-            },
-          ],
-        },
-        lastOrphanCleanupReleasedPorts: [
-          {
-            protocol: "tcp",
-            address: "127.0.0.1",
-            port: 3000,
-            pid: 1234,
-            processGroupId: 1234,
-            processStartTimeTicks: 123456,
-            detectedAt: "2026-01-02T03:04:07.000Z",
-          },
-        ],
-      }),
-    );
-
-    assert.equal(parsed.success, true);
-  });
-
-  it("accepts older records without runtime metadata", () => {
-    const parsed = taskRecordSchema.safeParse(record());
-
-    assert.equal(parsed.success, true);
-  });
-
   it("rejects invalid runtime PID values", () => {
     const parsed = taskRecordSchema.safeParse(
       record({

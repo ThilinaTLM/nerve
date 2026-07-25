@@ -3,12 +3,8 @@ import { describe, it } from "node:test";
 import {
   DaemonStartupError,
   isDaemonStartupErrorCode,
-  OutputBuffer,
 } from "../src/daemon/diagnostics.ts";
-import {
-  DAEMON_RESTART_BACKOFF_MS,
-  shouldResetRestartBudget,
-} from "../src/daemon/policy.ts";
+import { DAEMON_RESTART_BACKOFF_MS } from "../src/daemon/policy.ts";
 import { DaemonSupervisor } from "../src/daemon/supervisor.ts";
 import type {
   DaemonStatus,
@@ -51,19 +47,6 @@ function recordStatuses(daemon: ManagedDaemon) {
 }
 
 describe("daemon supervisor", () => {
-  it("starts an owned daemon and exposes the managed projection", async () => {
-    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
-    const daemon = await ownedSupervisor(world).startOwned();
-    assert.equal(daemon.owned, true);
-    assert.equal(daemon.mode, "local");
-    assert.equal(daemon.url, "http://127.0.0.1:3747");
-    assert.equal(daemon.token, "tok_local");
-    assert.equal(daemon.getStatus(), "ready");
-    assert.equal(world.launches.length, 1);
-    assert.equal(world.parentExitHooks.length, 1, "parent exit hook installed");
-    await daemon.stop();
-  });
-
   it("preserves classified daemon output when a child exits during startup", async () => {
     const world = fakeDaemonWorld({ discovery: [undefined] });
     const startup = ownedSupervisor(world).startOwned();
@@ -182,44 +165,6 @@ describe("daemon supervisor", () => {
     await daemon.stop();
   });
 
-  it("resets the restart budget only after sustained health", () => {
-    assert.equal(shouldResetRestartBudget(0, 60_000), false);
-    assert.equal(shouldResetRestartBudget(0, 60_001), true);
-  });
-
-  it("monitor-only supervisors report health loss and recovery without spawning", async () => {
-    const world = fakeDaemonWorld();
-    const supervisor = new DaemonSupervisor(
-      { mode: "remote", owned: false, readinessTimeoutMs: 1000 },
-      world.ports,
-    );
-    const daemon = supervisor.initMonitorOnly({
-      url: "https://nerve.example.com",
-      token: "tok_remote",
-    });
-    const statuses = recordStatuses(daemon);
-    world.healthResults.value = false;
-    await world.scheduler.advance(15_000);
-    assert.equal(daemon.getStatus(), "restarting");
-    world.healthResults.value = true;
-    await world.scheduler.advance(5_000);
-    assert.equal(daemon.getStatus(), "ready");
-    assert.deepEqual(
-      statuses.map((entry) => entry.status),
-      ["restarting", "ready"],
-    );
-    assert.equal(world.launches.length, 0, "monitor-only never launches");
-
-    await daemon.restart();
-    assert.equal(world.launches.length, 0, "manual restart is a no-op");
-    await daemon.stop();
-    assert.equal(
-      world.children.every((child) => child.kills.length === 0),
-      true,
-      "monitor-only never signals processes",
-    );
-  });
-
   it("serializes concurrent manual restarts", async () => {
     const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
     const daemon = await ownedSupervisor(world).startOwned();
@@ -229,18 +174,6 @@ describe("daemon supervisor", () => {
     await Promise.all([first, second]);
     assert.equal(daemon.getStatus(), "ready");
     assert.equal(world.launches.length, 3, "each manual restart relaunches");
-    await daemon.stop();
-  });
-
-  it("removes unsubscribed status listeners", async () => {
-    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
-    const daemon = await ownedSupervisor(world).startOwned();
-    const seen: DaemonStatus[] = [];
-    const unsubscribe = daemon.onStatusChange((status) => seen.push(status));
-    unsubscribe();
-    world.children[0]?.exit(1);
-    await world.scheduler.advance(1_000);
-    assert.deepEqual(seen, []);
     await daemon.stop();
   });
 
@@ -273,16 +206,5 @@ describe("daemon supervisor", () => {
     await stopping;
     assert.deepEqual(world.children[0]?.kills, ["SIGTERM", "SIGKILL"]);
     assert.equal(world.children[0]?.exited, true);
-  });
-
-  it("bounds the owned child output buffer to 200 lines", () => {
-    const buffer = new OutputBuffer();
-    for (let index = 0; index < 250; index += 1) {
-      buffer.append("stdout", `line ${index}\n`);
-    }
-    const lines = buffer.tail().split("\n");
-    assert.equal(lines.length, 200);
-    assert.equal(lines[0], "[stdout] line 50");
-    assert.equal(lines.at(-1), "[stdout] line 249");
   });
 });

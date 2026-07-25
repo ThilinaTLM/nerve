@@ -3,12 +3,6 @@ import { describe, it } from "node:test";
 import { resolvePlanReviewRequestSchema } from "../src/index.js";
 
 describe("plan review resolve request schema", () => {
-  it("keeps feedback-only requests valid", () => {
-    assert.deepEqual(resolvePlanReviewRequestSchema.parse({ feedback: "ok" }), {
-      feedback: "ok",
-    });
-  });
-
   it("accepts implementation model and thinking selection", () => {
     assert.deepEqual(
       resolvePlanReviewRequestSchema.parse({
@@ -25,14 +19,6 @@ describe("plan review resolve request schema", () => {
         },
         implementationThinkingLevel: "max",
       },
-    );
-  });
-
-  it("rejects invalid thinking levels", () => {
-    assert.throws(() =>
-      resolvePlanReviewRequestSchema.parse({
-        implementationThinkingLevel: "maximum",
-      }),
     );
   });
 

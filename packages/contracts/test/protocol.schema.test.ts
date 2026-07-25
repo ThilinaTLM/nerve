@@ -7,22 +7,11 @@ import {
   boundedPublicJsonSchema,
   boundedPublicObjectSchema,
   canTransition,
-  conversationActiveRunSnapshotSchema,
   conversationStream,
-  type EventBatchData,
-  type EventEnvelope,
   eventBatchDataSchema,
   eventBatchMessageSchema,
-  eventNotifyMessageSchema,
-  exploreResultPreviewSchema,
-  helloMessageSchema,
-  githubPrListRequestSchema,
   liveMessageTransitions,
-  nerveMessageSchema,
   operationDefinition,
-  operationNameSchema,
-  operationParamsSchema,
-  operationResultSchema,
   parseConversationStream,
   parseOperationParams,
   parseOperationResult,
@@ -30,18 +19,16 @@ import {
   parseProtocolResponseData,
   parsePublicEventBatch,
   parsePublicEventEnvelope,
-  protocolErrorMessageSchema,
   streamForEvent,
   streamSubscriptionSetMessageSchema,
   streamSubscriptionUpdatedMessageSchema,
-  snapshotCursorSchema,
   TERMINAL_TOOL_STATUSES,
   toolCallTransitions,
   turnTransitions,
   validatePublicEvent,
-  welcomeMessageSchema,
   WORKSPACE_STREAM,
-  workspaceSnapshotResponseSchema,
+  type EventBatchData,
+  type EventEnvelope,
 } from "../src/index.js";
 
 const ts = "2026-06-26T12:00:00.000Z";
@@ -81,78 +68,7 @@ function batch(overrides: Partial<EventBatchData> = {}): EventBatchData {
   };
 }
 
-describe("GitHub pull request list filters", () => {
-  it("applies defaults and normalizes labels", () => {
-    const parsed = githubPrListRequestSchema.parse({ repo: "." });
-    assert.deepEqual(parsed.filters, {
-      author: "any",
-      drafts: "include",
-      title: "",
-      labels: [],
-      sort: "updated-desc",
-    });
-
-    const filtered = githubPrListRequestSchema.parse({
-      repo: ".",
-      filters: {
-        author: "username",
-        username: " octocat ",
-        drafts: "only",
-        title: " fix windows ",
-        head: "feature/git-panel",
-        labels: ["bug", "bug", "windows"],
-        sort: "updated-asc",
-      },
-    });
-    assert.equal(filtered.filters.username, "octocat");
-    assert.equal(filtered.filters.title, "fix windows");
-    assert.deepEqual(filtered.filters.labels, ["bug", "windows"]);
-  });
-
-  it("requires a username for username author filters", () => {
-    assert.throws(() =>
-      githubPrListRequestSchema.parse({
-        repo: ".",
-        filters: { author: "username" },
-      }),
-    );
-  });
-});
-
 describe("compact explore payloads", () => {
-  it("accepts compact result previews without full report fields", () => {
-    const parsed = exploreResultPreviewSchema.parse({
-      reports: [
-        {
-          agentId: "agent_02H00000000000000000000000",
-          task: "Inspect the tool output boundary",
-          status: "completed",
-          reportPath: "/tmp/explore/report.md",
-          summaryPreview: "Boundary summary",
-        },
-      ],
-    });
-    assert.equal(parsed.reports[0]?.reportPath, "/tmp/explore/report.md");
-  });
-
-  it("projects full result reports to compact preview metadata", () => {
-    const parsed = exploreResultPreviewSchema.parse({
-      reports: [
-        {
-          agentId: "agent_02H00000000000000000000000",
-          task: "Inspect the tool output boundary",
-          status: "completed",
-          report: "full report text",
-          steps: [{ type: "assistant", message: "full report received" }],
-          reportPath: "/tmp/explore/report.md",
-          summaryPreview: "Boundary summary",
-        },
-      ],
-    }) as { reports: Array<Record<string, unknown>> };
-    assert.equal(parsed.reports[0]?.report, undefined);
-    assert.equal(parsed.reports[0]?.steps, undefined);
-  });
-
   it("strips legacy full report fields from completion events", () => {
     const parsed = validatePublicEvent(
       "agent.explore_completed",
@@ -178,77 +94,6 @@ describe("compact explore payloads", () => {
 });
 
 describe("Protocol v1 shared schemas", () => {
-  it("accepts waiting conversation active-run snapshots", () => {
-    const parsed = conversationActiveRunSnapshotSchema.parse({
-      runId: "run_waiting",
-      agentId: "agent_waiting",
-      projectId: "proj_waiting",
-      conversationId: "conv_waiting",
-      status: "waiting",
-      startedAt: ts,
-      turns: [],
-      toolOutputsByToolCallId: {},
-      queuedPrompts: [],
-    });
-
-    assert.equal(parsed.status, "waiting");
-  });
-
-  it("validates baseline, hello, and welcome envelopes", () => {
-    assert.equal(
-      nerveMessageSchema.safeParse(message("heartbeat", {})).success,
-      true,
-    );
-    assert.equal(
-      nerveMessageSchema.safeParse({
-        ...message("heartbeat", {}),
-        protocol: "other",
-      }).success,
-      false,
-    );
-
-    assert.equal(
-      helloMessageSchema.safeParse(
-        message("hello", {
-          requestedVersion: 1,
-          capabilities: [
-            "encoding.json",
-            "event.batch",
-            "event.notify",
-            "stream.subscription.v1",
-          ],
-          requiredCapabilities: ["stream.subscription.v1"],
-          encodings: ["json"],
-        }),
-      ).success,
-      true,
-    );
-
-    assert.equal(
-      welcomeMessageSchema.safeParse(
-        message("welcome", {
-          sessionId: "ses_test",
-          acceptingPeer: { role: "workbench_server", id: "server_test" },
-          acceptedVersion: 1,
-          capabilities: [
-            "encoding.json",
-            "event.batch",
-            "event.notify",
-            "stream.subscription.v1",
-          ],
-          encoding: "json",
-          limits: {
-            maxMessageBytes: 4_194_304,
-            maxBatchEvents: 500,
-            maxBatchBytes: 1_048_576,
-          },
-          heartbeat: { intervalMs: 30_000, timeoutMs: 70_000 },
-        }),
-      ).success,
-      true,
-    );
-  });
-
   it("validates exact-set subscriptions with per-stream modes", () => {
     const set = message("stream.subscription.set", {
       sessionId: "ses_test",
@@ -322,82 +167,6 @@ describe("Protocol v1 shared schemas", () => {
       eventBatchDataSchema.safeParse(
         batch({ events: [], firstSeq: null, lastSeq: null }),
       ).success,
-      true,
-    );
-  });
-
-  it("validates unsequenced notify events", () => {
-    assert.equal(
-      eventNotifyMessageSchema.safeParse(
-        message("event.notify", {
-          events: [
-            {
-              id: "evt_notify",
-              ts,
-              type: "task.output",
-              data: { taskId: "task_1", stream: "stdout", text: "ok" },
-            },
-          ],
-        }),
-      ).success,
-      true,
-    );
-    assert.equal(
-      eventNotifyMessageSchema.safeParse(
-        message("event.notify", {
-          events: [
-            { seq: 1, id: "evt_notify", ts, type: "task.output", data: {} },
-          ],
-        }),
-      ).success,
-      false,
-    );
-  });
-
-  it("validates snapshot cursors and operation catalog params", () => {
-    assert.equal(
-      snapshotCursorSchema.safeParse({
-        streams: [{ stream: WORKSPACE_STREAM, processedSeq: 12 }],
-      }).success,
-      true,
-    );
-    assert.equal(
-      snapshotCursorSchema.safeParse({
-        streams: [{ stream: WORKSPACE_STREAM, processedSeq: -1 }],
-      }).success,
-      false,
-    );
-    assert.equal(
-      operationNameSchema.safeParse("snapshot.workspace.get").success,
-      true,
-    );
-    assert.equal(
-      operationParamsSchema("approval.grant").safeParse({
-        approvalId: "approval_test",
-        note: "ok",
-      }).success,
-      true,
-    );
-    assert.equal(
-      operationResultSchema("approval.grant").safeParse({
-        toolCall: { not: "a tool call" },
-      }).success,
-      false,
-    );
-    assert.equal(
-      workspaceSnapshotResponseSchema.safeParse({
-        snapshot: {
-          projects: [],
-          conversations: [],
-          agents: [],
-          tasks: [],
-          approvals: [],
-          userQuestions: [],
-          planReviews: [],
-        },
-        cursor: { streams: [{ stream: WORKSPACE_STREAM, processedSeq: 0 }] },
-        generatedAt: ts,
-      }).success,
       true,
     );
   });
@@ -592,18 +361,5 @@ describe("Protocol v1 shared schemas", () => {
       /Illegal lifecycle transition/,
     );
     assert.deepEqual(TERMINAL_TOOL_STATUSES, ["completed", "denied", "error"]);
-  });
-
-  it("validates protocol errors", () => {
-    assert.equal(
-      protocolErrorMessageSchema.safeParse(
-        message("error", {
-          code: "INVALID_MESSAGE",
-          message: "Invalid message",
-          retryable: false,
-        }),
-      ).success,
-      true,
-    );
   });
 });

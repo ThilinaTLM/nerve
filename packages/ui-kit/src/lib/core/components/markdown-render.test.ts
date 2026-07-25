@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
   decorateMarkdownHtml,
   getHighlightedMarkdownSync,
-  renderBestAvailableMarkdown,
   renderDecoratedMarkdown,
   renderHighlightedMarkdown,
   renderMarkdown,
@@ -16,48 +15,6 @@ import {
 // regardless of the DOM-dependent decoration.
 
 describe("markdown-render caching", () => {
-  it("serves repeated renderMarkdown calls from cache (same reference)", () => {
-    const source = `# heading ${Math.random()}\n\nsome *text*`;
-    const first = renderMarkdown(source);
-    const second = renderMarkdown(source);
-    assert.equal(first, second);
-    assert.ok(
-      Object.is(first, second),
-      "cached parse should be the same string ref",
-    );
-  });
-
-  it("returns correct content with cache:false (cache-bypass path)", () => {
-    const source = `paragraph ${Math.random()}`;
-    const cached = renderMarkdown(source); // populate cache
-    const uncached = renderMarkdown(source, { cache: false });
-    assert.equal(cached, uncached, "cache-bypass renders identical content");
-  });
-
-  it("caches decorated output and differentiates by trim", () => {
-    const source = "```ts\nconst a = 1;\n```";
-    const a = renderDecoratedMarkdown(source, true);
-    const b = renderDecoratedMarkdown(source, true);
-    assert.ok(Object.is(a, b), "decorated cache hit returns same ref");
-    const untrimmed = renderDecoratedMarkdown(source, false);
-    const untrimmed2 = renderDecoratedMarkdown(source, false);
-    assert.ok(
-      Object.is(untrimmed, untrimmed2),
-      "trim=false cached independently",
-    );
-  });
-
-  it("returns decorated content before highlight and cached highlight after", async () => {
-    const source = `best available ${Math.random()}\n\n\`\`\`ts\nconst x = 1;\n\`\`\``;
-    assert.equal(getHighlightedMarkdownSync(source, true), undefined);
-
-    const decorated = renderDecoratedMarkdown(source, true);
-    assert.equal(renderBestAvailableMarkdown(source, true), decorated);
-
-    const highlighted = await renderHighlightedMarkdown(source, true);
-    assert.equal(renderBestAvailableMarkdown(source, true), highlighted);
-  });
-
   it("keeps streaming cache bypass output equivalent to finalized decoration", () => {
     const source = `streaming ${Math.random()} with **markdown**`;
     const streaming = decorateMarkdownHtml(

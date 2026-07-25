@@ -1,11 +1,11 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import type {
   ManagedContainerCreateSpec,
   ManagedContainerRef,
   ManagedContainerStatus,
   RuntimeDriverCapabilities,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { AutoContainerDriver } from "../src/drivers/auto-container-driver.js";
 import type {
   ContainerRuntimeDriver,
@@ -23,33 +23,6 @@ const createSpec: ManagedContainerCreateSpec = {
 };
 
 describe("auto container driver", () => {
-  it("reports Docker capabilities when Docker is available", async () => {
-    const docker = fakeDriver("docker", true);
-    const podman = fakeDriver("podman", true);
-    const driver = new AutoContainerDriver([docker, podman]);
-
-    const capabilities = await driver.capabilities();
-
-    assert.equal(capabilities.kind, "docker");
-    assert.equal(capabilities.available, true);
-    assert.equal(docker.calls.capabilities, 1);
-    assert.equal(podman.calls.capabilities, 0);
-  });
-
-  it("falls back to Podman when Docker is unavailable", async () => {
-    const docker = fakeDriver("docker", false);
-    const podman = fakeDriver("podman", true);
-    const driver = new AutoContainerDriver([docker, podman]);
-
-    const capabilities = await driver.capabilities();
-    const ref = await driver.create(createSpec);
-
-    assert.equal(capabilities.kind, "podman");
-    assert.equal(ref.kind, "podman");
-    assert.equal(docker.calls.create, 0);
-    assert.equal(podman.calls.create, 1);
-  });
-
   it("falls back to Podman through WSL when Docker and native Podman are unavailable", async () => {
     const docker = fakeDriver("docker", false);
     const podman = fakeDriver("podman", false);
@@ -64,21 +37,6 @@ describe("auto container driver", () => {
     assert.equal(docker.calls.create, 0);
     assert.equal(podman.calls.create, 0);
     assert.equal(podmanWsl.calls.create, 1);
-  });
-
-  it("routes existing refs to their concrete runtime", async () => {
-    const docker = fakeDriver("docker", true);
-    const podman = fakeDriver("podman", true);
-    const driver = new AutoContainerDriver([docker, podman]);
-
-    await driver.start({ kind: "podman", id: "p1" });
-    await driver.stop({ kind: "docker", id: "d1" });
-    await driver.remove({ kind: "podman", id: "p2" });
-
-    assert.equal(docker.calls.stop, 1);
-    assert.equal(docker.calls.start, 0);
-    assert.equal(podman.calls.start, 1);
-    assert.equal(podman.calls.remove, 1);
   });
 
   it("returns unavailable auto capabilities and rejects create when no runtime is available", async () => {

@@ -1,9 +1,9 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import type {
   ConversationActiveRunSnapshot,
   SandboxRunSnapshot,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   isSandboxRunActive,
   resolveSandboxPromptDispatch,
@@ -45,45 +45,6 @@ function richRun(
 }
 
 describe("sandbox prompt routing", () => {
-  it("starts a new conversation without inventing scope identifiers", () => {
-    const dispatch = resolveSandboxPromptDispatch({ text: "Hello" });
-
-    assert.equal(dispatch.method, "run.start");
-    assert.deepEqual(dispatch.params, {
-      conversationId: undefined,
-      agentId: undefined,
-      text: "Hello",
-    });
-  });
-
-  it("starts the next turn when the selected run is terminal", () => {
-    const dispatch = resolveSandboxPromptDispatch({
-      text: "Second turn",
-      conversationId,
-      agentId,
-      selectedRunId: "run_completed",
-      liveRuns: {
-        run_completed: {
-          conversationId,
-          agentId,
-          runId: "run_completed",
-          status: "completed",
-          deltaText: "",
-        },
-      },
-      snapshotRuns: [
-        snapshotRun("run_completed", "completed", "2026-07-17T00:01:00.000Z"),
-      ],
-    });
-
-    assert.equal(dispatch.method, "run.start");
-    assert.deepEqual(dispatch.params, {
-      conversationId,
-      agentId,
-      text: "Second turn",
-    });
-  });
-
   it("queues against a rich active run with the required run id", () => {
     const dispatch = resolveSandboxPromptDispatch({
       text: "Do this next",

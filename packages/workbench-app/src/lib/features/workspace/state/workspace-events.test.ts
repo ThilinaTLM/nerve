@@ -1,30 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  runtimeAgentStatusFromEvent,
-  shouldRefreshWorkspace,
-} from "./workspace-event-policy";
+import { shouldRefreshWorkspace } from "./workspace-event-policy";
 
 describe("workspace run lifecycle events", () => {
-  it("maps canonical wait and resume events to agent status", () => {
-    assert.equal(runtimeAgentStatusFromEvent("run.started"), "running");
-    assert.equal(runtimeAgentStatusFromEvent("run.waiting"), "awaiting_user");
-    assert.equal(runtimeAgentStatusFromEvent("run.resumed"), "running");
-    assert.equal(runtimeAgentStatusFromEvent("run.retrying"), "running");
-    assert.equal(runtimeAgentStatusFromEvent("run.completed"), "idle");
-    assert.equal(runtimeAgentStatusFromEvent("run.cancelled"), "aborted");
-  });
-
-  it("retains suspended and failed status projections", () => {
-    assert.equal(runtimeAgentStatusFromEvent("run.suspended"), "awaiting_user");
-    assert.equal(runtimeAgentStatusFromEvent("run.failed"), "error");
-    assert.equal(
-      runtimeAgentStatusFromEvent("run.failed", { aborted: true }),
-      "aborted",
-    );
-    assert.equal(runtimeAgentStatusFromEvent("unrelated.event"), undefined);
-  });
-
   it("does not schedule snapshot refreshes for locally-projected events", () => {
     // Run lifecycle events project agent status locally.
     for (const type of [

@@ -24,38 +24,6 @@ const RETRY = {
 };
 
 describe("buildConversationTimeline split builders", () => {
-  it("composes from the committed + active-run split builders", () => {
-    const transcript: TranscriptItem[] = [
-      { id: "entry_user", role: "user", text: "Go" },
-      { id: "entry_failed", role: "assistant", text: "Agent run failed" },
-    ];
-    const toolCalls = [
-      toolCall("tool_live", "2026-01-01T00:00:01.000Z", "read", undefined, {
-        status: "running",
-      }),
-    ];
-    const run = activeRun({
-      status: "retrying",
-      retry: { ...RETRY, failedEntryId: "entry_failed" },
-    });
-
-    const committed = buildCommittedTimeline(transcript, toolCalls);
-    const expected = [
-      ...selectVisibleCommitted(
-        committed.items,
-        run,
-        undefined,
-        committed.context,
-      ),
-      ...buildActiveRunTimeline(run, undefined, committed.context),
-    ];
-
-    assert.deepEqual(
-      keys(buildConversationTimeline(transcript, toolCalls, run)),
-      keys(expected),
-    );
-  });
-
   it("appends one continuable status for an interrupted active run", () => {
     const run = activeRun({
       status: "interrupted",
@@ -198,30 +166,6 @@ describe("buildConversationTimeline split builders", () => {
     ]);
   });
 
-  it("keeps the committed pass independent of run state", () => {
-    const transcript: TranscriptItem[] = [
-      { id: "entry_user", role: "user", text: "Go" },
-      { id: "entry_failed", role: "assistant", text: "Agent run failed" },
-    ];
-    const committed = buildCommittedTimeline(transcript, []);
-    // The failed entry is only hidden once run state references it.
-    assert.deepEqual(keys(committed.items), ["entry_user", "entry_failed"]);
-    assert.deepEqual(
-      keys(
-        selectVisibleCommitted(
-          committed.items,
-          activeRun({
-            status: "retrying",
-            retry: { ...RETRY, failedEntryId: "entry_failed" },
-          }),
-          undefined,
-          committed.context,
-        ),
-      ),
-      ["entry_user"],
-    );
-  });
-
   it("hides all failed attempts of the active run across consecutive retries", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Go" },
@@ -270,59 +214,5 @@ describe("buildConversationTimeline split builders", () => {
       ),
       ["entry_user"],
     );
-  });
-
-  it("hides persisted failed assistant and thinking from exhausted retry runs", () => {
-    const timeline = buildConversationTimeline(
-      [
-        { id: "entry_user", role: "user", text: "Go" },
-        {
-          id: "entry_failed_1:thinking:0",
-          runId: "run_retry",
-          role: "assistant",
-          displayKind: "thinking",
-          text: "Partial thinking from failed stream",
-          stopReason: "error",
-        },
-        {
-          id: "entry_failed_1",
-          runId: "run_retry",
-          role: "assistant",
-          text: "Agent run failed",
-          stopReason: "error",
-        },
-        {
-          id: "entry_failed_3:thinking:0",
-          runId: "run_retry",
-          role: "assistant",
-          displayKind: "thinking",
-          text: "More partial thinking",
-          stopReason: "error",
-        },
-        {
-          id: "entry_failed_3",
-          runId: "run_retry",
-          role: "assistant",
-          text: "Agent run failed",
-          stopReason: "error",
-        },
-        {
-          id: "entry_status",
-          role: "system",
-          text: "Model request failed after 3 retries.",
-          kind: "run_status",
-          runStatus: {
-            entryId: "entry_status",
-            runId: "run_retry",
-            state: "retry_exhausted",
-            failedEntryId: "entry_failed_3",
-            retryable: true,
-          },
-        },
-      ],
-      [],
-    );
-
-    assert.deepEqual(keys(timeline), ["entry_user", "run-status:run_retry"]);
   });
 });

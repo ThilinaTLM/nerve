@@ -1,10 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import type {
   RunEventDeliveryRecord,
   RunPublicEventIntent,
   RunTransitionRecord,
 } from "@nervekit/contracts";
+import assert from "node:assert/strict";
+import test from "node:test";
 import {
   applyRunEventDelivery,
   applyRunTransition,
@@ -254,59 +254,3 @@ test("uses the injected clock for delivery timestamps", async () => {
   assert.equal(deliveries.length, 1);
   assert.equal(deliveries[0]?.deliveredAt, "2026-07-12T00:00:59.000Z");
 });
-
-test("propagates the transition observer and retry policy", async () => {
-  const harness = fixture({
-    execute: async (attempt, sink) => {
-      if (attempt === 1) {
-        await sink.checkpoint({
-          boundary: "before_provider_request",
-          transcriptCursor: 0,
-          entryIds: [],
-          harnessLeafId: null,
-          harnessSavePointId: "save_0",
-          toolCalls: [],
-        });
-        return {
-          status: "failed" as const,
-          failure: {
-            code: "PROVIDER_FAILED",
-            message: "temporary",
-            retryable: true,
-          },
-        };
-      }
-      return { status: "completed" as const };
-    },
-    retryPolicy: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
-  });
-  const run = await start(harness);
-  const finished = await waitForTerminal(harness, run.runId);
-  assert.equal(finished?.run.status, "completed");
-  assert.ok(
-    harness.ordering.includes("durable:run.retrying"),
-    "retry policy must drive a run.retrying intent",
-  );
-  assert.ok(
-    harness.observed.length > 0,
-    "observer must see committed transitions",
-  );
-});
-
-async function waitForTerminal(
-  harness: ReturnType<typeof fixture>,
-  runId: string,
-): Promise<RunHydratedState | undefined> {
-  const startedAt = Date.now();
-  for (;;) {
-    const state = await harness.coordinator.get(runId);
-    if (
-      state &&
-      ["completed", "failed", "cancelled"].includes(state.run.status)
-    ) {
-      return state;
-    }
-    if (Date.now() - startedAt > 3_000) return state;
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-}

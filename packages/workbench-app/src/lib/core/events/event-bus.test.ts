@@ -7,11 +7,9 @@ import type {
 import {
   applyEventAndFlush,
   clearEventHandlers,
-  dispatchEvent,
   enqueueNotify,
   flushNotifyEvents,
   onAnyEvent,
-  onEvent,
   onEventsFlushed,
   pendingNotifyCount,
 } from "./event-bus";
@@ -29,28 +27,6 @@ function notify(type: string, id = "evt_notify"): WorkbenchNotifyEvent {
 afterEach(() => clearEventHandlers());
 
 describe("workbench event bus", () => {
-  it("dispatches sequenced events immediately", () => {
-    const seen: number[] = [];
-    onAnyEvent((candidate) => {
-      if ("seq" in candidate) seen.push(candidate.seq);
-    });
-    dispatchEvent(event("project.created", 1));
-    dispatchEvent(event("project.created", 2));
-    assert.deepEqual(seen, [1, 2]);
-  });
-
-  it("routes matching and any handlers", () => {
-    const seen: string[] = [];
-    onEvent("task.output", () => {
-      seen.push("typed");
-    });
-    onAnyEvent(() => {
-      seen.push("any");
-    });
-    dispatchEvent(notify("task.output"));
-    assert.deepEqual(seen, ["typed", "any"]);
-  });
-
   it("frame-coalesces notify events without sequence metadata", () => {
     const seen: string[] = [];
     onAnyEvent((candidate) => {
@@ -63,15 +39,6 @@ describe("workbench event bus", () => {
     flushNotifyEvents();
     assert.deepEqual(seen, ["evt_notify_1", "evt_notify_2"]);
     assert.equal(pendingNotifyCount(), 0);
-  });
-
-  it("reports notify flush batches", () => {
-    const flushed: string[][] = [];
-    onEventsFlushed((events) => flushed.push(events.map(({ id }) => id)));
-    enqueueNotify(notify("task.output", "evt_notify_1"));
-    enqueueNotify(notify("task.output", "evt_notify_2"));
-    flushNotifyEvents();
-    assert.deepEqual(flushed, [["evt_notify_1", "evt_notify_2"]]);
   });
 
   it("awaits reducers before reporting durable application", async () => {

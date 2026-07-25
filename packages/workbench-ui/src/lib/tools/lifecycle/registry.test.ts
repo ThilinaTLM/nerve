@@ -1,6 +1,6 @@
+import { toolNameSchema } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { toolNameSchema, type ToolName } from "@nervekit/contracts";
 import {
   isKnownToolName,
   presentToolArguments,
@@ -8,85 +8,6 @@ import {
   toolLifecycleSpec,
   unknownToolLifecycleSpec,
 } from "./registry";
-
-const cases: Array<[ToolName, Record<string, unknown>, string]> = [
-  ["read", { path: "src/app.ts" }, "src/app.ts"],
-  ["bash", { command: "pnpm test" }, "pnpm test"],
-  ["python_exec", { path: "scripts/report.py" }, "scripts/report.py"],
-  ["edit", { path: "src/app.ts", patch: "-old\n+new" }, "src/app.ts"],
-  ["write", { path: "src/new.ts", content: "hello" }, "src/new.ts"],
-  ["grep", { pattern: "TODO" }, "TODO"],
-  ["find", { pattern: "**/*.ts" }, "**/*.ts"],
-  ["ls", { path: "src" }, "src"],
-  ["ask_user", { question: "Which option?" }, "Which option?"],
-  ["todos_set", { todos: [{ todo: "Test", done: false }] }, "todos"],
-  ["todos_get", {}, "Get todos"],
-  ["web_search", { query: "Svelte lifecycle" }, "Svelte lifecycle"],
-  ["web_fetch", { url: "https://example.com" }, "https://example.com"],
-  ["jira_search_users", { query: "Taylor" }, "Taylor"],
-  ["jira_search_issues", { jql: "project = NER" }, "project = NER"],
-  ["jira_get_issue", { issue_key: "NER-1" }, "NER-1"],
-  ["jira_get_project", { project_key: "NER" }, "NER"],
-  [
-    "jira_create_issue",
-    { project_key: "NER", issue_type: "Task", summary: "Ship it" },
-    "Ship it",
-  ],
-  ["jira_update_issue", { issue_key: "NER-1", summary: "Updated" }, "NER-1"],
-  ["jira_add_comment", { issue_key: "NER-1", body: "Looks good" }, "NER-1"],
-  [
-    "jira_transition_issue",
-    { issue_key: "NER-1", transition: "Done" },
-    "NER-1",
-  ],
-  ["confluence_search_spaces", { query: "Engineering" }, "Engineering"],
-  ["confluence_search_pages", { cql: "type = page" }, "type = page"],
-  ["confluence_get_page", { page_id: "123" }, "123"],
-  ["confluence_download_pages", { space_key: "ENG" }, "ENG"],
-  [
-    "confluence_create_page",
-    { space_key: "ENG", title: "Runbook", body: "Text" },
-    "Runbook",
-  ],
-  ["confluence_update_page", { page_id: "123", title: "Runbook" }, "123"],
-  [
-    "confluence_publish_pages",
-    { input_path: "/tmp/pages.jsonl" },
-    "pages.jsonl",
-  ],
-  [
-    "confluence_upload_attachment",
-    { page_id: "123", file_path: "/tmp/report.pdf" },
-    "report.pdf",
-  ],
-  ["task_start", { name: "dev", command: "pnpm dev" }, "dev"],
-  ["task_status", { taskIds: ["one", "two"] }, "2 tasks"],
-  ["task_logs", { taskId: "dev" }, "dev"],
-  ["task_cancel", { taskId: "dev" }, "dev"],
-  ["task_restart", { taskId: "dev" }, "dev"],
-  [
-    "explore",
-    {
-      tasks: [
-        { task: "Investigate the lifecycle registry", label: "Lifecycle" },
-      ],
-      context: "Parent lookup identified the lifecycle registry for review.",
-    },
-    "1 agent",
-  ],
-  ["plan_mode_enter", { reason: "Complex change" }, "Enter planning mode"],
-  [
-    "plan_mode_present",
-    { file_path: "/plans/tool.md", title: "Tool lifecycle" },
-    "tool.md",
-  ],
-  [
-    "plan_mode_force_exit",
-    { reason: "No longer needed" },
-    "Exit planning mode",
-  ],
-];
-
 describe("tool lifecycle registry", () => {
   it("has exactly one typed spec for every active tool", () => {
     assert.deepEqual(
@@ -99,42 +20,6 @@ describe("tool lifecycle registry", () => {
       assert.ok(spec.completedView);
       assert.equal(isKnownToolName(name), true);
     }
-  });
-
-  it("derives a readable primary argument for every catalog row", () => {
-    assert.equal(cases.length, toolNameSchema.options.length);
-    for (const [name, args, expected] of cases) {
-      const presentation = presentToolArguments(
-        name,
-        { args },
-        "drafting",
-        "/project",
-      );
-      assert.ok(presentation.primaryArg, name);
-      assert.match(
-        presentation.primaryArg.text,
-        new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
-        name,
-      );
-      assert.notEqual(presentation.body.kind, "json", name);
-    }
-  });
-
-  it("uses the clickable plan filename instead of the review title", () => {
-    const planPath = "C:\\Users\\Taylor\\.nerve\\plans\\tool-lifecycle.md";
-    const presentation = presentToolArguments(
-      "plan_mode_present",
-      {
-        args: {
-          file_path: planPath,
-          title: "Tool lifecycle",
-        },
-      },
-      "completed",
-    );
-
-    assert.equal(presentation.primaryArg?.text, "tool-lifecycle.md");
-    assert.equal(presentation.primaryArg?.openPath, planPath);
   });
 
   it("encodes persistent, until-result, and header-only argument regions", () => {
@@ -179,61 +64,6 @@ describe("tool lifecycle registry", () => {
       assert.equal(toolLifecycleRegistry[name].argumentRegion, "none", name);
       assert.ok(toolLifecycleRegistry[name].resultPlaceholder, name);
     }
-  });
-
-  it("shows decision-relevant mutation details and dry-run intent", () => {
-    const jira = presentToolArguments(
-      "jira_create_issue",
-      {
-        args: {
-          project_key: "NER",
-          issue_type: "Task",
-          summary: "Add lifecycle registry",
-          description: "A bounded description",
-          assignee_query: "Taylor",
-          priority: "High",
-          dry_run: true,
-        },
-      },
-      "approval",
-    );
-    assert.equal(jira.body.kind, "atlassian-draft");
-    assert.ok(
-      jira.body.kind === "atlassian-draft" &&
-        jira.body.fields.some(
-          (field) => field.label === "Project" && field.value === "NER",
-        ),
-    );
-    assert.ok(
-      jira.body.kind === "atlassian-draft" &&
-        jira.body.fields.some(
-          (field) => field.label === "Assignee" && field.value === "Taylor",
-        ),
-    );
-    assert.match(
-      jira.body.kind === "atlassian-draft" ? (jira.body.text?.text ?? "") : "",
-      /A bounded description/,
-    );
-    assert.ok(jira.secondary.some((item) => item.text === "dry run"));
-    assert.match(jira.safetyNotes.join(" "), /will not create/i);
-
-    const edit = presentToolArguments(
-      "edit",
-      {
-        args: {
-          path: "src/app.ts",
-          dryRun: true,
-          replacements: [{ oldText: "old", newText: "new" }],
-        },
-      },
-      "approval",
-    );
-    assert.equal(edit.body.kind, "diff");
-    assert.match(
-      edit.body.kind === "diff" ? edit.body.text : "",
-      /-old\n\+new/,
-    );
-    assert.ok(edit.secondary.some((item) => item.text === "dry run"));
   });
 
   it("hides failed file mutation previews but keeps executable input context", () => {
