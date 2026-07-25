@@ -31,6 +31,15 @@ export async function readJsonFile<T>(path: string): Promise<T> {
   return JSON.parse(raw) as T;
 }
 
+/**
+ * Read a complete text snapshot after queued in-process file mutations finish.
+ */
+export function readTextFileConsistent(path: string): Promise<string> {
+  return withFileMutation(path, (resolvedPath) =>
+    readFile(resolvedPath, "utf8"),
+  );
+}
+
 export async function readJsonLines<T>(path: string): Promise<T[]> {
   if (!(await pathExists(path))) return [];
   const raw = await readFile(path, "utf8");

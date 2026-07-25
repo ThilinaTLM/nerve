@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   RunEventDeliveryRecord,
@@ -23,6 +22,7 @@ import {
   appendJsonLine,
   atomicWriteJson,
   listChildDirs,
+  readTextFileConsistent,
 } from "../../infrastructure/storage/index.js";
 
 export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
@@ -236,7 +236,7 @@ async function strictJsonLines<T>(
 ): Promise<T[]> {
   let raw: string;
   try {
-    raw = await readFile(path, "utf8");
+    raw = await readTextFileConsistent(path);
   } catch (error) {
     if (isNotFound(error)) return [];
     throw error;
