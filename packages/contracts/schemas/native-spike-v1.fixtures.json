@@ -1,0 +1,460 @@
+{
+  "generatedBy": "packages/contracts/scripts/generate-native-spike-fixtures.ts",
+  "protocolVersion": 1,
+  "validMessages": [
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_hello",
+      "kind": "hello",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "target": {
+        "role": "workbench_server"
+      },
+      "data": {
+        "requestedVersion": 1,
+        "capabilities": [
+          "encoding.json",
+          "event.batch",
+          "event.notify",
+          "stream.subscription.v1",
+          "snapshot.workspace"
+        ],
+        "requiredCapabilities": [
+          "encoding.json",
+          "stream.subscription.v1"
+        ],
+        "encodings": [
+          "json"
+        ]
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_welcome",
+      "kind": "welcome",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "sessionId": "ses_fixture",
+        "acceptingPeer": {
+          "role": "workbench_server"
+        },
+        "acceptedVersion": 1,
+        "capabilities": [
+          "encoding.json",
+          "event.batch",
+          "event.notify",
+          "stream.subscription.v1",
+          "snapshot.workspace"
+        ],
+        "encoding": "json",
+        "limits": {
+          "maxMessageBytes": 1048576,
+          "maxBatchEvents": 256,
+          "maxBatchBytes": 524288
+        },
+        "heartbeat": {
+          "intervalMs": 10000,
+          "timeoutMs": 30000
+        }
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_ready",
+      "kind": "ready",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "sessionId": "ses_fixture",
+        "status": "ready"
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_heartbeat",
+      "kind": "heartbeat",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "sessionId": "ses_fixture",
+        "sentAt": "2026-01-01T00:00:00.000Z"
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_request",
+      "kind": "request",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "target": {
+        "role": "workbench_server"
+      },
+      "data": {
+        "method": "snapshot.workspace.get",
+        "params": {}
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_response",
+      "kind": "response",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "ok": true,
+        "method": "snapshot.workspace.get",
+        "result": {
+          "snapshot": {
+            "projects": [],
+            "conversations": [],
+            "agents": [],
+            "tasks": [],
+            "approvals": [],
+            "userQuestions": [],
+            "planReviews": [],
+            "workers": []
+          },
+          "cursor": {
+            "streams": [
+              {
+                "stream": "workspace",
+                "processedSeq": 0
+              }
+            ]
+          },
+          "generatedAt": "2026-01-01T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_error",
+      "kind": "error",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "code": "RESYNC_REQUIRED",
+        "message": "Snapshot recovery required",
+        "retryable": true,
+        "recovery": {
+          "action": "load_snapshot"
+        }
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_batch",
+      "kind": "event.batch",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "stream": "workspace",
+        "batchId": "batch_fixture",
+        "reason": "replay",
+        "events": [
+          {
+            "seq": 1,
+            "id": "evt_fixture_1",
+            "ts": "2026-01-01T00:00:00.000Z",
+            "type": "daemon.started",
+            "data": {
+              "daemonId": "daemon_fixture"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "evt_fixture_2",
+            "ts": "2026-01-01T00:00:00.000Z",
+            "type": "native.fixture.unknown",
+            "data": {
+              "preserved": true
+            }
+          }
+        ],
+        "firstSeq": 1,
+        "lastSeq": 2
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_notify",
+      "kind": "event.notify",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "events": [
+          {
+            "id": "evt_notify_fixture",
+            "ts": "2026-01-01T00:00:00.000Z",
+            "type": "conversation.output.delta",
+            "data": {
+              "conversationId": "conv_fixture",
+              "text": "stream"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_subscription_set",
+      "kind": "stream.subscription.set",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "target": {
+        "role": "workbench_server"
+      },
+      "data": {
+        "sessionId": "ses_fixture",
+        "subscriptionId": "sub_fixture",
+        "streams": [
+          {
+            "stream": "workspace",
+            "processedSeq": 2
+          },
+          {
+            "stream": "conv/conv_fixture",
+            "processedSeq": 0
+          }
+        ]
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_subscription_updated",
+      "kind": "stream.subscription.updated",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "sessionId": "ses_fixture",
+        "subscriptionId": "sub_fixture",
+        "accepted": true,
+        "streams": [
+          {
+            "stream": "workspace",
+            "latestSeq": 2,
+            "earliestAvailableSeq": 1,
+            "mode": "live"
+          },
+          {
+            "stream": "conv/conv_fixture",
+            "latestSeq": 14,
+            "earliestAvailableSeq": 5,
+            "mode": "snapshot_required"
+          },
+          {
+            "stream": "conv/conv_deleted",
+            "latestSeq": 0,
+            "earliestAvailableSeq": 0,
+            "mode": "unavailable"
+          }
+        ]
+      }
+    }
+  ],
+  "invalidMessages": [
+    {
+      "name": "unsupported protocol version",
+      "input": {
+        "protocol": "nerve",
+        "version": 2,
+        "id": "msg_hello",
+        "kind": "hello",
+        "ts": "2026-01-01T00:00:00.000Z",
+        "source": {
+          "role": "ui",
+          "id": "native_fixture",
+          "name": "Nerve Native Fixture",
+          "instanceId": "instance_fixture"
+        },
+        "target": {
+          "role": "workbench_server"
+        },
+        "data": {
+          "requestedVersion": 1,
+          "capabilities": [
+            "encoding.json",
+            "event.batch",
+            "event.notify",
+            "stream.subscription.v1",
+            "snapshot.workspace"
+          ],
+          "requiredCapabilities": [
+            "encoding.json",
+            "stream.subscription.v1"
+          ],
+          "encodings": [
+            "json"
+          ]
+        }
+      }
+    },
+    {
+      "name": "duplicate subscription stream",
+      "input": {
+        "protocol": "nerve",
+        "version": 1,
+        "id": "msg_invalid_subscription",
+        "kind": "stream.subscription.set",
+        "ts": "2026-01-01T00:00:00.000Z",
+        "source": {
+          "role": "workbench_server"
+        },
+        "target": {
+          "role": "ui",
+          "id": "native_fixture",
+          "name": "Nerve Native Fixture",
+          "instanceId": "instance_fixture"
+        },
+        "data": {
+          "sessionId": "ses_fixture",
+          "subscriptionId": "sub_fixture",
+          "streams": [
+            {
+              "stream": "workspace",
+              "processedSeq": 0
+            },
+            {
+              "stream": "workspace",
+              "processedSeq": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "non-consecutive event batch",
+      "input": {
+        "protocol": "nerve",
+        "version": 1,
+        "id": "msg_invalid_batch",
+        "kind": "event.batch",
+        "ts": "2026-01-01T00:00:00.000Z",
+        "source": {
+          "role": "workbench_server"
+        },
+        "target": {
+          "role": "ui",
+          "id": "native_fixture",
+          "name": "Nerve Native Fixture",
+          "instanceId": "instance_fixture"
+        },
+        "data": {
+          "stream": "workspace",
+          "batchId": "batch_invalid",
+          "reason": "replay",
+          "events": [
+            {
+              "seq": 1,
+              "id": "evt_invalid_1",
+              "ts": "2026-01-01T00:00:00.000Z",
+              "type": "one",
+              "data": {}
+            },
+            {
+              "seq": 3,
+              "id": "evt_invalid_3",
+              "ts": "2026-01-01T00:00:00.000Z",
+              "type": "three",
+              "data": {}
+            }
+          ],
+          "firstSeq": 1,
+          "lastSeq": 3
+        }
+      }
+    }
+  ]
+}

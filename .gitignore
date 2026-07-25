@@ -1,5 +1,7 @@
 node_modules/
 dist/
+target/
+native/benchmark-results/
 .svelte-kit/
 .vite/
 .DS_Store

@@ -225,6 +225,17 @@ For lower-level development, run only the daemon:
 pnpm --filter @nervekit/workbench-server dev
 ```
 
+### Experimental native UI evaluation
+
+A non-shipping Rust/GPUI evaluation client can connect read-only to the existing daemon or run a deterministic 10,000-row transcript scene:
+
+```sh
+pnpm native:dev                 # connect to the local daemon
+pnpm native:dev -- --evaluation # renderer/input evaluation without a daemon
+```
+
+This does not replace the supported Electron/Svelte desktop app. See [`docs/architecture/native-ui-evaluation.md`](docs/architecture/native-ui-evaluation.md) for boundaries, validation, and go/no-go gates.
+
 ### Root scripts
 
 ```sh

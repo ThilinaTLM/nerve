@@ -11,7 +11,10 @@
   "sortTailwindcss": false,
   "sortPackageJson": false,
   "jsdoc": false,
-  "ignorePatterns": ["pnpm-lock.yaml"],
+  "ignorePatterns": [
+    "pnpm-lock.yaml",
+    "packages/contracts/schemas/native-spike-v1.fixtures.json"
+  ],
   "svelte": {
     "allowShorthand": true,
     "indentScriptAndStyle": false,

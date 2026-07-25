@@ -27,9 +27,11 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "check": "tsc -b --pretty false && pnpm schema:check",
+    "check": "tsc -b --pretty false && pnpm schema:check && pnpm schema:native-spike:check",
     "schema:generate": "tsx scripts/generate-sandbox-config-schema.ts",
     "schema:check": "tsx scripts/generate-sandbox-config-schema.ts --check",
+    "schema:native-spike:generate": "tsx scripts/generate-native-spike-fixtures.ts",
+    "schema:native-spike:check": "tsx scripts/generate-native-spike-fixtures.ts --check",
     "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
