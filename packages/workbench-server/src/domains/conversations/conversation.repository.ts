@@ -28,16 +28,19 @@ export class ConversationRepository {
 
   async loadAll(): Promise<ConversationRecord[]> {
     const root = join(this.storage.paths.home, "conversations");
-    const conversations: ConversationRecord[] = [];
-    for (const conversationId of await listChildDirs(root)) {
-      const parsed = conversationRecordSchema.safeParse(
-        await readJsonFile<unknown>(
-          this.conversationPath(conversationId),
-        ).catch(() => undefined),
-      );
-      if (parsed.success) conversations.push(parsed.data);
-    }
-    return conversations;
+    const conversationIds = await listChildDirs(root);
+    const parsed = await Promise.all(
+      conversationIds.map(async (conversationId) =>
+        conversationRecordSchema.safeParse(
+          await readJsonFile<unknown>(
+            this.conversationPath(conversationId),
+          ).catch(() => undefined),
+        ),
+      ),
+    );
+    return parsed
+      .filter((result) => result.success)
+      .map((result) => result.data);
   }
 
   async write(conversation: ConversationRecord): Promise<void> {

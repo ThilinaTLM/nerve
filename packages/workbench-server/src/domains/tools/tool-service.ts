@@ -243,6 +243,21 @@ export class ToolService {
     await this.toolCallRepository.compactPersisted();
   }
 
+  async compactToolCallLogIfAmplified(): Promise<void> {
+    const startedAt = performance.now();
+    const result = await this.toolCallRepository.compactPersistedIfAmplified();
+    if (!result) return;
+    await this.logger?.info("Compacted amplified tool-call history", {
+      durationMs: Math.round(performance.now() - startedAt),
+      context: {
+        beforeBytes: result.before.fileBytes,
+        afterBytes: result.after.fileBytes,
+        beforeRows: result.before.rowCount,
+        uniqueRecords: result.after.uniqueCount,
+      },
+    });
+  }
+
   toolCallLogPath(): string {
     return this.toolCallRepository.persistedPath();
   }

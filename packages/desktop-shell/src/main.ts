@@ -8,6 +8,7 @@ import {
 } from "./app/cli-options.js";
 import { prepareDesktopDataDirectory } from "./app/data-directory-migration.js";
 import { startWithRunRuntimeRecovery } from "./app/run-runtime-recovery.js";
+import { runStartupSequence } from "./app/startup-sequence.js";
 import {
   type DaemonStatus,
   type DaemonStatusInfo,
@@ -39,6 +40,7 @@ import {
   loadingHtml,
 } from "./window/loading-pages.js";
 import { installNavigationGuards } from "./window/navigation-guards.js";
+import { withInitialZoomLevel } from "./window/initial-zoom.js";
 import {
   resolveAppIconPath,
   resolvePackagedWebDistPath,
@@ -63,6 +65,7 @@ let appQuitting = false;
 let closeToTray = true;
 let stopDaemonPromise: Promise<void> | undefined;
 let unsubscribeDaemonStatus: (() => void) | undefined;
+let desktopNetworkReady: Promise<void> = Promise.resolve();
 
 const trayController = createTrayController({
   getMainWindow: () => mainWindow,
@@ -149,7 +152,7 @@ if (!gotSingleInstanceLock) {
           },
         );
       }
-      await configureDesktopNetworkSession();
+      desktopNetworkReady = configureDesktopNetworkSession();
       trayController.ensureTray();
       nativeTheme.on("updated", trayController.updateTrayIcon);
       await openMainWindow();
@@ -294,52 +297,74 @@ async function openMainWindow(): Promise<void> {
     if (mainWindow === window) mainWindow = undefined;
   });
 
-  await window.loadURL(createDataUrl(loadingHtml()));
-
+  const startupStartedAt = Date.now();
+  let initialZoomLevel: number | undefined;
   try {
-    if (!managedDaemon) {
-      const startup = await startWithRunRuntimeRecovery(
-        {
-          home: desktopDataDir,
-          start: () =>
-            ensureDaemon({
-              webDistPath: resolvePackagedWebDistPath(),
-              ...desktopOptions,
-            }),
-        },
-        { showMessageBox: (options) => dialog.showMessageBox(options) },
-      );
-      managedDaemon = startup.value;
-      if (startup.recovery) {
-        void desktopLog(
-          "warn",
-          "storage",
-          "Inconsistent run data backed up before daemon retry",
-          { context: { backupPath: startup.recovery.backupPath } },
-        );
-      }
-    }
-    void desktopLog("info", "daemon", "Daemon connection established", {
+    const result = await runStartupSequence({
+      showLoadingWindow: () => window.loadURL(createDataUrl(loadingHtml())),
+      connectDaemon: async () => {
+        if (!managedDaemon) {
+          const startup = await startWithRunRuntimeRecovery(
+            {
+              home: desktopDataDir,
+              start: () =>
+                ensureDaemon({
+                  webDistPath: resolvePackagedWebDistPath(),
+                  ...desktopOptions,
+                }),
+            },
+            { showMessageBox: (options) => dialog.showMessageBox(options) },
+          );
+          managedDaemon = startup.value;
+          if (startup.recovery) {
+            void desktopLog(
+              "warn",
+              "storage",
+              "Inconsistent run data backed up before daemon retry",
+              { context: { backupPath: startup.recovery.backupPath } },
+            );
+          }
+        }
+        return managedDaemon;
+      },
+      networkReady: desktopNetworkReady,
+      prepareDaemonConnection: async (daemon) => {
+        void desktopLog("info", "daemon", "Daemon connection established", {
+          context: {
+            url: daemon.url,
+            mode: daemon.mode,
+            owned: daemon.owned,
+            shareUrlAvailable: Boolean(daemon.shareUrl),
+            mobileHttpsAvailable: Boolean(daemon.mobileSetupUrl),
+          },
+        });
+        await Promise.all([
+          installDaemonCookie(daemon),
+          refreshDesktopSettingsFromDaemon(daemon).then((settings) => {
+            if (!settings) return;
+            closeToTray = settings.desktop.closeToTray;
+            initialZoomLevel = settings.ui.zoomLevel;
+          }),
+          clearDesktopServiceWorkerStorage(window, daemon.url),
+        ]);
+        subscribeToDaemonStatus(daemon);
+        trayController.updateTrayMenu();
+      },
+      canNavigate: () => !window.isDestroyed(),
+      navigate: (daemon) =>
+        window.loadURL(withInitialZoomLevel(daemon.url, initialZoomLevel)),
+    });
+    void desktopLog("info", "app", "Desktop startup ready", {
+      durationMs: result.timings.totalMs,
       context: {
-        url: managedDaemon.url,
-        mode: managedDaemon.mode,
-        owned: managedDaemon.owned,
-        shareUrlAvailable: Boolean(managedDaemon.shareUrl),
-        mobileHttpsAvailable: Boolean(managedDaemon.mobileSetupUrl),
+        ...result.timings,
+        navigated: result.navigated,
       },
     });
-    await installDaemonCookie(managedDaemon);
-    await refreshDesktopSettingsFromDaemon(managedDaemon, (value) => {
-      closeToTray = value;
-    });
-    await clearDesktopServiceWorkerStorage(window, managedDaemon.url);
-    subscribeToDaemonStatus(managedDaemon);
-    trayController.updateTrayMenu();
-    if (window.isDestroyed()) return;
-    await window.loadURL(managedDaemon.url);
   } catch (error) {
     void desktopLog("error", "daemon", "Failed to open Nerve daemon", {
       error,
+      durationMs: Date.now() - startupStartedAt,
     });
     console.error(error);
     if (!window.isDestroyed())

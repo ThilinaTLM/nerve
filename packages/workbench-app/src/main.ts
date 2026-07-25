@@ -2,8 +2,18 @@
 
 import { registerSW } from "virtual:pwa-register";
 import { mount } from "svelte";
-import "./styles/app.css";
 import Root from "./Root.svelte";
+import { applyZoomLevel } from "./lib/app/layout/layout-state.svelte";
+import "./styles/app.css";
+
+let initialZoomLevel: string | null = null;
+try {
+  initialZoomLevel = window.sessionStorage.getItem("nerve.initialZoomLevel");
+  window.sessionStorage.removeItem("nerve.initialZoomLevel");
+} catch {
+  // Storage can be unavailable in hardened browsers; server settings still win.
+}
+if (initialZoomLevel !== null) applyZoomLevel(Number(initialZoomLevel));
 
 const target = document.getElementById("app");
 if (!target) throw new Error("Missing #app mount target.");

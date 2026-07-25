@@ -51,6 +51,7 @@ export interface IndexReplacementToken {
 export class IndexStore {
   private db: DatabaseSync;
   private healthy = true;
+  private updatesDeferred = false;
 
   constructor(readonly path: string) {
     this.recoverReplacementFiles();
@@ -59,6 +60,18 @@ export class IndexStore {
 
   get isHealthy(): boolean {
     return this.healthy;
+  }
+
+  async withUpdatesDeferred<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.updatesDeferred) {
+      throw new Error("Index updates are already deferred.");
+    }
+    this.updatesDeferred = true;
+    try {
+      return await operation();
+    } finally {
+      this.updatesDeferred = false;
+    }
   }
 
   initialize(): void {
@@ -104,6 +117,7 @@ export class IndexStore {
   }
 
   upsertProject(project: ProjectRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -127,6 +141,7 @@ export class IndexStore {
   }
 
   upsertConversation(conversation: ConversationRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -160,6 +175,7 @@ export class IndexStore {
   }
 
   upsertAgent(agent: AgentRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -195,24 +211,28 @@ export class IndexStore {
   }
 
   removeProject(id: string): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare(`DELETE FROM projects WHERE id = ?`).run(id);
     });
   }
 
   removeConversation(id: string): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare(`DELETE FROM conversations WHERE id = ?`).run(id);
     });
   }
 
   removeAgent(id: string): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare(`DELETE FROM agents WHERE id = ?`).run(id);
     });
   }
 
   upsertTask(task: TaskRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -248,12 +268,14 @@ export class IndexStore {
   }
 
   deleteTask(taskId: string): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare("DELETE FROM tasks WHERE id = ?").run(taskId);
     });
   }
 
   upsertWorker(worker: WorkerRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -280,6 +302,7 @@ export class IndexStore {
   }
 
   upsertToolCall(toolCall: ToolCallRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -292,6 +315,7 @@ export class IndexStore {
   }
 
   upsertApproval(approval: ApprovalRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -304,6 +328,7 @@ export class IndexStore {
   }
 
   upsertUserQuestion(question: UserQuestionRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -316,24 +341,28 @@ export class IndexStore {
   }
 
   deleteToolCall(id: string): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare("DELETE FROM tool_calls WHERE id = ?").run(id);
     });
   }
 
   deleteApproval(id: string): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare("DELETE FROM approvals WHERE id = ?").run(id);
     });
   }
 
   deleteUserQuestion(id: string): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare("DELETE FROM user_questions WHERE id = ?").run(id);
     });
   }
 
   upsertPromptSuggestionTrust(record: PromptSuggestionTrustIndexRecord): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare(
@@ -367,6 +396,7 @@ export class IndexStore {
   }
 
   deletePromptSuggestionTrust(trustId: string): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       this.db
         .prepare("DELETE FROM prompt_suggestion_trust WHERE trust_id = ?")
@@ -388,6 +418,7 @@ export class IndexStore {
   replacePromptSuggestionTrust(
     records: PromptSuggestionTrustIndexRecord[],
   ): void {
+    if (this.updatesDeferred) return;
     this.guard(() => {
       const stmt = this.db.prepare(
         `INSERT INTO prompt_suggestion_trust (

@@ -113,11 +113,14 @@ function mergeNoProxy(value: string): string {
 }
 
 let runtimeMonitor: DaemonRuntimeMonitor | undefined;
+const processStartupStartedAt = performance.now();
 
 async function main() {
   prepareEnterpriseNetworkEnvironment();
   const dataDir = resolveDataDir();
+  const storageStartedAt = performance.now();
   const storage = await initializeStorage(dataDir);
+  const storageDurationMs = Math.round(performance.now() - storageStartedAt);
   installNodeDiagnosticReports(dataDir);
   runtimeMonitor = installDaemonRuntimeMonitor(dataDir);
   const host =
@@ -146,11 +149,22 @@ async function main() {
     throw new Error(`Invalid Nerve HTTPS port: ${String(httpsPort)}`);
   }
   const state = createOrchestratorState(storage, host, port);
+  const loggerHydrateStartedAt = performance.now();
   await state.logger.hydrate();
+  const loggerHydrateDurationMs = Math.round(
+    performance.now() - loggerHydrateStartedAt,
+  );
   installCrashGuards(state.logger, storage.paths.home, runtimeMonitor);
   await state.logger.pruneRetention();
   await state.logger.info("Daemon storage initialized", {
-    context: { dataDir: storage.paths.home, host, port },
+    durationMs: storageDurationMs + loggerHydrateDurationMs,
+    context: {
+      dataDir: storage.paths.home,
+      host,
+      port,
+      storageDurationMs,
+      loggerHydrateDurationMs,
+    },
   });
   await state.agentBrowserSkills
     .initialize()
@@ -180,24 +194,15 @@ async function main() {
       archivedEventLogs,
     },
   });
-  const registryHydrateStartedAt = Date.now();
-  await state.registry.hydrate();
-  await state.storageCleanup.hydrate();
-  await state.registry.pythonRuntime
-    .refresh()
-    .catch((error) =>
-      state.logger.warn("Python runtime discovery failed", { error }),
-    );
-  await state.registry.editors
-    .refresh()
-    .catch((error) => state.logger.warn("Editor discovery failed", { error }));
+  const [registryTimings] = await Promise.all([
+    state.registry.hydrate(),
+    state.storageCleanup.hydrate(),
+  ]);
   await state.logger.info("Registry hydrated", {
-    durationMs: Date.now() - registryHydrateStartedAt,
+    durationMs: registryTimings.stateDurationMs,
   });
-  const indexRebuildStartedAt = Date.now();
-  await state.registry.rebuildIndex();
   await state.logger.info("Index rebuilt", {
-    durationMs: Date.now() - indexRebuildStartedAt,
+    durationMs: registryTimings.indexDurationMs,
     context: { ...state.index.counts() },
   });
   state.subscriptionUsage.start();
@@ -239,6 +244,7 @@ async function main() {
         dataDir: storage.paths.home,
       });
       await state.logger.info("Daemon listening", {
+        durationMs: Math.round(performance.now() - processStartupStartedAt),
         context: {
           url: `http://${state.host}:${state.port}`,
           mobileHttps: state.mobileHttps
@@ -251,6 +257,7 @@ async function main() {
           pid: process.pid,
         },
       });
+      setImmediate(() => state.registry.startBackgroundMaintenance());
     },
   );
 

@@ -32,6 +32,53 @@ async function tempDbPath(): Promise<string> {
 }
 
 describe("IndexStore", () => {
+  it("defers incremental updates within one guarded startup scope", async () => {
+    const path = await tempDbPath();
+    const store = new IndexStore(path);
+    store.initialize();
+    const project: ProjectRecord = {
+      id: "proj_deferred",
+      name: "Deferred",
+      dir: "/tmp/deferred",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await store.withUpdatesDeferred(async () => {
+      store.upsertProject(project);
+      assert.equal(store.counts().projects, 0);
+      await assert.rejects(
+        store.withUpdatesDeferred(async () => undefined),
+        /already deferred/,
+      );
+    });
+
+    store.upsertProject(project);
+    assert.equal(store.counts().projects, 1);
+    store.close();
+  });
+
+  it("restores incremental updates after a deferred operation fails", async () => {
+    const path = await tempDbPath();
+    const store = new IndexStore(path);
+    store.initialize();
+    await assert.rejects(
+      store.withUpdatesDeferred(async () => {
+        throw new Error("hydrate failed");
+      }),
+      /hydrate failed/,
+    );
+    store.upsertProject({
+      id: "proj_after_failure",
+      name: "After failure",
+      dir: "/tmp/after-failure",
+      createdAt: now,
+      updatedAt: now,
+    });
+    assert.equal(store.counts().projects, 1);
+    store.close();
+  });
+
   it("bulk rebuilds repository-derived records", async () => {
     const path = await tempDbPath();
     const store = new IndexStore(path);

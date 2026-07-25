@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -133,6 +133,48 @@ describe("ApplicationLogger", () => {
       remaining.logs.map((log) => log.message),
       ["keep me", "keep warning"],
     );
+  });
+
+  it("hydrates only the recent bounded tail and preserves sequence monotonicity", async () => {
+    const home = await tempHome();
+    const logsDir = join(home, "logs");
+    await mkdir(logsDir, { recursive: true });
+    const record = (seq: number, ts: string) => ({
+      seq,
+      id: `log_${seq}`,
+      ts,
+      level: "info",
+      source: "orchestrator",
+      component: "test",
+      message: `message ${seq}`,
+    });
+    await writeFile(
+      join(logsDir, "application-2026-01-01.jsonl"),
+      `${JSON.stringify(record(1, "2026-01-01T00:00:00.000Z"))}\n`,
+    );
+    await writeFile(
+      join(logsDir, "application-2026-01-02.jsonl"),
+      [
+        record(2, "2026-01-02T00:00:00.000Z"),
+        record(3, "2026-01-02T00:00:01.000Z"),
+        record(4, "2026-01-02T00:00:02.000Z"),
+      ]
+        .map((value) => JSON.stringify(value))
+        .join("\n") + "\n",
+    );
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      maxBufferedLogs: 2,
+      mirrorToConsole: false,
+    });
+
+    await logger.hydrate();
+    await logger.info("after restart");
+
+    const response = await logger.query({ limit: 10 });
+    assert.equal(response.logs.at(-1)?.seq, 5);
+    assert.equal(response.logs.at(-1)?.message, "after restart");
   });
 
   it("serializes concurrent appends in submission order", async () => {

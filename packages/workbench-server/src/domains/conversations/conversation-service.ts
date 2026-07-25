@@ -31,16 +31,18 @@ export class ConversationService {
       [...projects].map((project) => [project.id, project]),
     );
     const conversationMessages = new Map<string, Message[]>();
-    for (const conversation of conversations) {
-      const project = projectsById.get(conversation.projectId);
-      if (!project) continue;
-      const messages = await this.contextMessagesForConversation(
-        conversation,
-        project.dir,
-        entriesByConversationId,
-      );
-      conversationMessages.set(conversation.id, messages);
-    }
+    await Promise.all(
+      [...conversations].map(async (conversation) => {
+        const project = projectsById.get(conversation.projectId);
+        if (!project) return;
+        const messages = await this.contextMessagesForConversation(
+          conversation,
+          project.dir,
+          entriesByConversationId,
+        );
+        conversationMessages.set(conversation.id, messages);
+      }),
+    );
     for (const agent of agents) {
       this.agentConversationCache.set(
         agent.id,

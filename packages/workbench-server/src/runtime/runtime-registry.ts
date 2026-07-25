@@ -47,6 +47,11 @@ import { composeRuntime, type RuntimeServices } from "./runtime-composition.js";
 import { RuntimeState } from "./runtime-state.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 
+export interface RegistryHydrationTimings {
+  stateDurationMs: number;
+  indexDurationMs: number;
+}
+
 export class RuntimeRegistry {
   private readonly state = new RuntimeState();
   readonly projects = this.state.projects;
@@ -59,6 +64,8 @@ export class RuntimeRegistry {
     return this.state.agentConversationMessages;
   }
   private readonly services: RuntimeServices;
+  private readonly backgroundOperations = new Set<Promise<void>>();
+  private shuttingDown = false;
 
   get tasks() {
     return this.services.tasks;
@@ -103,7 +110,7 @@ export class RuntimeRegistry {
     private readonly auth: AuthManager,
     secrets: SecretProvider,
     private readonly subscriptionUsage: SubscriptionUsageService,
-    logger: ApplicationLogger,
+    private readonly logger: ApplicationLogger,
     agentBrowserSkills: AgentBrowserSkillCatalog,
     private readonly providerCatalog: ProviderCatalogStore,
   ) {
@@ -124,7 +131,9 @@ export class RuntimeRegistry {
    * event-journal publications to settle so no writer races teardown.
    */
   async shutdown(): Promise<void> {
+    this.shuttingDown = true;
     this.services.taskNotifications.stop();
+    await Promise.allSettled([...this.backgroundOperations]);
     await this.services.runRuntime.delivery.settled();
     await this.events.settled();
   }
@@ -134,28 +143,75 @@ export class RuntimeRegistry {
     return this.subscriptionUsage.getSnapshots({ refresh: true });
   }
 
-  async hydrate(): Promise<void> {
-    await this.auth.refreshModels({ allowNetwork: false });
-    await this.auth.refreshModels().catch(() => undefined);
-    await this.providerCatalog.load();
-    await this.workers.hydrate();
+  async hydrate(): Promise<RegistryHydrationTimings> {
+    const stateStartedAt = performance.now();
+    await this.index.withUpdatesDeferred(async () => {
+      const workersHydrated = this.workers.hydrate();
+      await settleHydrationOperations([
+        this.auth.refreshModels({ allowNetwork: false }),
+        this.providerCatalog.load(),
+        workersHydrated,
+        this.tasks.hydrate(),
+        this.tools.hydrate(),
+        this.plans.hydrate(),
+        this.loadProjects(),
+        this.loadConversations(),
+      ]);
+      await this.loadAgents();
+      await this.rebuildConversations();
+      await this.services.runRuntime.delivery.flush();
+      await this.services.runRuntime.coordinator.recover();
+      await this.services.humanInput.recoverReadyApprovalBatches();
+      await this.services.humanInput.recoverAcceptedPlanReviews();
+      await this.services.runRuntime.statusProjector.rebuild(
+        await this.services.runRuntime.unitOfWork.list(),
+      );
+      await this.services.runRuntime.delivery.flush();
+      await this.services.taskNotifications.recoverPendingNotifications();
+    });
+    const stateDurationMs = Math.round(performance.now() - stateStartedAt);
+    const indexStartedAt = performance.now();
+    await this.rebuildIndex();
     await this.promptSuggestions.hydrate();
-    await this.tasks.hydrate();
-    await this.tools.hydrate();
-    await this.plans.hydrate();
-    await this.loadProjects();
-    await this.loadConversations();
-    await this.loadAgents();
-    await this.rebuildConversations();
-    await this.services.runRuntime.delivery.flush();
-    await this.services.runRuntime.coordinator.recover();
-    await this.services.humanInput.recoverReadyApprovalBatches();
-    await this.services.humanInput.recoverAcceptedPlanReviews();
-    await this.services.runRuntime.statusProjector.rebuild(
-      await this.services.runRuntime.unitOfWork.list(),
+    return {
+      stateDurationMs,
+      indexDurationMs: Math.round(performance.now() - indexStartedAt),
+    };
+  }
+
+  startBackgroundMaintenance(): void {
+    if (this.shuttingDown) return;
+    const operations = [
+      ["Network model refresh", this.auth.refreshModels()],
+      ["Python runtime discovery", this.pythonRuntime.refresh()],
+      ["Editor discovery", this.editors.refresh()],
+      [
+        "Tool-call history compaction",
+        this.tools.compactToolCallLogIfAmplified(),
+      ],
+    ] as const;
+    this.trackBackgroundOperation(
+      Promise.allSettled(operations.map(([, operation]) => operation)).then(
+        async (results) => {
+          await Promise.all(
+            results.map((result, index) =>
+              result.status === "rejected"
+                ? this.logger.warn(`${operations[index]?.[0]} failed`, {
+                    error: result.reason,
+                  })
+                : undefined,
+            ),
+          );
+        },
+      ),
     );
-    await this.services.runRuntime.delivery.flush();
-    await this.services.taskNotifications.recoverPendingNotifications();
+  }
+
+  private trackBackgroundOperation(operation: Promise<void>): void {
+    this.backgroundOperations.add(operation);
+    void operation
+      .catch(() => undefined)
+      .finally(() => this.backgroundOperations.delete(operation));
   }
 
   /** Rebuild the disposable derived SQLite index from repositories. */
@@ -640,4 +696,14 @@ export class RuntimeRegistry {
       this.entries,
     );
   }
+}
+
+async function settleHydrationOperations(
+  operations: readonly Promise<unknown>[],
+): Promise<void> {
+  const results = await Promise.allSettled(operations);
+  const failure = results.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failure) throw failure.reason;
 }

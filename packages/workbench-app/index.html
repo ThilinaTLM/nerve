@@ -2,6 +2,35 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (() => {
+        const parameter = "nerveInitialZoomLevel";
+        const url = new URL(window.location.href);
+        const rawLevel = url.searchParams.get(parameter);
+        if (rawLevel === null) return;
+        url.searchParams.delete(parameter);
+        window.history.replaceState(
+          {},
+          "",
+          `${url.pathname}${url.search}${url.hash}`,
+        );
+        const parsedLevel = Number(rawLevel);
+        if (!Number.isInteger(parsedLevel)) return;
+        const level = Math.min(8, Math.max(-8, parsedLevel));
+        document.documentElement.style.setProperty(
+          "--nerve-zoom-scale",
+          (1.1 ** level).toFixed(4),
+        );
+        try {
+          window.sessionStorage.setItem(
+            "nerve.initialZoomLevel",
+            String(level),
+          );
+        } catch {
+          // The CSS variable is already applied; storage is only for app state.
+        }
+      })();
+    </script>
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"

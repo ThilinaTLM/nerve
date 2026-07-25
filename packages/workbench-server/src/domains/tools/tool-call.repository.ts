@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ToolCallRecord } from "@nervekit/contracts";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
@@ -8,16 +9,37 @@ import {
   rewriteJsonLines,
 } from "../../infrastructure/storage/index.js";
 
+const DEFAULT_COMPACTION_MINIMUM_BYTES = 16 * 1024 * 1024;
+const DEFAULT_COMPACTION_AMPLIFICATION = 2;
+
+export interface ToolCallHydrationStats {
+  rowCount: number;
+  uniqueCount: number;
+  fileBytes: number;
+}
+
+export interface ToolCallRepositoryOptions {
+  compactionMinimumBytes?: number;
+  compactionAmplification?: number;
+}
+
 export class ToolCallRepository {
   readonly records = new Map<string, ToolCallRecord>();
+  private hydrationStats: ToolCallHydrationStats = {
+    rowCount: 0,
+    uniqueCount: 0,
+    fileBytes: 0,
+  };
 
   constructor(
     private readonly storage: InitializedStorage,
     private readonly index: IndexStore,
+    private readonly options: ToolCallRepositoryOptions = {},
   ) {}
 
   async hydrate(): Promise<ToolCallRecord[]> {
-    const toolCalls = await this.readLatest();
+    const { records: toolCalls, stats } = await this.readLatest();
+    this.hydrationStats = stats;
     for (const toolCall of toolCalls) {
       this.records.set(toolCall.id, toolCall);
       this.index.upsertToolCall(toolCall);
@@ -71,19 +93,63 @@ export class ToolCallRepository {
    * in-memory map. Returns the file size delta (bytes freed).
    */
   async compactPersisted(): Promise<void> {
-    await rewriteJsonLines(this.path(), this.list(), 0o600);
+    const records = this.list();
+    await rewriteJsonLines(this.path(), records, 0o600);
+    this.hydrationStats = {
+      rowCount: records.length,
+      uniqueCount: records.length,
+      fileBytes: await this.fileSize(),
+    };
+  }
+
+  async compactPersistedIfAmplified(): Promise<
+    | { before: ToolCallHydrationStats; after: ToolCallHydrationStats }
+    | undefined
+  > {
+    const before = { ...this.hydrationStats };
+    const minimumBytes =
+      this.options.compactionMinimumBytes ?? DEFAULT_COMPACTION_MINIMUM_BYTES;
+    const amplification =
+      this.options.compactionAmplification ?? DEFAULT_COMPACTION_AMPLIFICATION;
+    if (
+      before.fileBytes < minimumBytes ||
+      before.rowCount < before.uniqueCount * amplification
+    ) {
+      return undefined;
+    }
+    await this.compactPersisted();
+    return { before, after: { ...this.hydrationStats } };
   }
 
   persistedPath(): string {
     return this.path();
   }
 
-  private async readLatest(): Promise<ToolCallRecord[]> {
+  private async readLatest(): Promise<{
+    records: ToolCallRecord[];
+    stats: ToolCallHydrationStats;
+  }> {
     const byId = new Map<string, ToolCallRecord>();
+    let rowCount = 0;
     await forEachJsonLine<ToolCallRecord>(this.path(), (toolCall) => {
+      rowCount += 1;
       byId.set(toolCall.id, toolCall);
     }).catch(() => undefined);
-    return [...byId.values()];
+    return {
+      records: [...byId.values()],
+      stats: {
+        rowCount,
+        uniqueCount: byId.size,
+        fileBytes: await this.fileSize(),
+      },
+    };
+  }
+
+  private fileSize(): Promise<number> {
+    return stat(this.path()).then(
+      (value) => value.size,
+      () => 0,
+    );
   }
 
   private path(): string {

@@ -13,6 +13,7 @@ import {
 import {
   appendJsonLine,
   readJsonLines,
+  readJsonLinesTail,
   rewriteJsonLines,
 } from "../storage/index.js";
 
@@ -106,9 +107,9 @@ export class ApplicationLogger {
   async hydrate(): Promise<void> {
     if (this.root !== this) return this.root.hydrate();
     await mkdir(this.logsDir(), { recursive: true });
-    const logs = await this.readAllLogs();
-    this.#buffer = logs.slice(-this.maxBufferedLogs);
-    this.#seq = logs.reduce((max, log) => Math.max(max, log.seq), 0);
+    const logs = await this.readRecentLogs();
+    this.#buffer = logs;
+    this.#seq = logs.at(-1)?.seq ?? 0;
   }
 
   async pruneRetention(): Promise<void> {
@@ -325,6 +326,25 @@ export class ApplicationLogger {
   async flush(): Promise<void> {
     if (this.root !== this) return this.root.flush();
     await this.#appendTail;
+  }
+
+  private async readRecentLogs(): Promise<ApplicationLogRecord[]> {
+    const files = (await this.applicationLogFiles()).reverse();
+    const recent: ApplicationLogRecord[] = [];
+    for (const file of files) {
+      const remaining = this.maxBufferedLogs - recent.length;
+      if (remaining <= 0) break;
+      const values = await readJsonLinesTail<unknown>(
+        join(this.logsDir(), file),
+        remaining,
+      ).catch(() => []);
+      const parsed = values
+        .map((value) => applicationLogRecordSchema.safeParse(value))
+        .filter((result) => result.success)
+        .map((result) => result.data);
+      recent.unshift(...parsed);
+    }
+    return recent.sort((a, b) => a.seq - b.seq).slice(-this.maxBufferedLogs);
   }
 
   private async readAllLogs(): Promise<ApplicationLogRecord[]> {

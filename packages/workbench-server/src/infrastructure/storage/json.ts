@@ -51,38 +51,80 @@ export async function readJsonLines<T>(path: string): Promise<T[]> {
   return values;
 }
 
+const JSONL_TAIL_CHUNK_BYTES = 64 * 1024;
+
 /**
- * Read only the last `limit` valid JSONL entries from `path`, streaming the
- * file line by line so the whole (potentially huge) file is never held in
- * memory. Returns entries in file order. Invalid lines are skipped.
+ * Read only the last `limit` valid JSONL entries from `path`. The file is read
+ * backwards in bounded chunks, so startup work depends on the requested tail
+ * rather than the total journal size. Returns entries in file order.
  */
 export async function readJsonLinesTail<T>(
   path: string,
   limit: number,
 ): Promise<T[]> {
   if (limit <= 0) return [];
-  if (!(await pathExists(path))) return [];
-  const ring: T[] = [];
-  const stream = createReadStream(path, { encoding: "utf8" });
-  const rl = createInterface({ input: stream, crlfDelay: Infinity });
-  let index = 0;
-  for await (const line of rl) {
-    index += 1;
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    try {
-      const value = JSON.parse(trimmed) as T;
-      ring.push(value);
-      if (ring.length > limit) ring.shift();
-    } catch (error) {
-      process.emitWarning(
-        `Skipping invalid JSONL line ${path}:${index}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+  const handle = await open(path, "r").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!handle) return [];
+
+  const reversed: T[] = [];
+  let position = (await handle.stat()).size;
+  let leadingFragment: Buffer = Buffer.alloc(0);
+  try {
+    while (position > 0 && reversed.length < limit) {
+      const length = Math.min(JSONL_TAIL_CHUNK_BYTES, position);
+      position -= length;
+      const chunk = Buffer.allocUnsafe(length);
+      await handle.read(chunk, 0, length, position);
+      const combined = Buffer.concat([chunk, leadingFragment]);
+      const lines = splitBufferLines(combined);
+      leadingFragment = lines.shift() ?? Buffer.alloc(0);
+      for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const value = parseJsonTailLine<T>(path, lines[index]);
+        if (value !== undefined) reversed.push(value);
+        if (reversed.length >= limit) break;
+      }
     }
+    if (position === 0 && reversed.length < limit) {
+      const value = parseJsonTailLine<T>(path, leadingFragment);
+      if (value !== undefined) reversed.push(value);
+    }
+  } finally {
+    await handle.close();
   }
-  return ring;
+  return reversed.reverse();
+}
+
+function splitBufferLines(value: Buffer): Buffer[] {
+  const lines: Buffer[] = [];
+  let start = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] !== 0x0a) continue;
+    lines.push(value.subarray(start, index));
+    start = index + 1;
+  }
+  lines.push(value.subarray(start));
+  return lines;
+}
+
+function parseJsonTailLine<T>(
+  path: string,
+  line: Buffer | undefined,
+): T | undefined {
+  const trimmed = line?.toString("utf8").trim();
+  if (!trimmed) return undefined;
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch (error) {
+    process.emitWarning(
+      `Skipping invalid JSONL line in tail of ${path}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return undefined;
+  }
 }
 
 /**

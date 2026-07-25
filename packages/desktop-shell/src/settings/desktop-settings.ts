@@ -5,18 +5,21 @@ import { desktopLog } from "../logging.js";
 
 export async function refreshDesktopSettingsFromDaemon(
   daemon: ManagedDaemon,
-  setCloseToTray: (value: boolean) => void,
-): Promise<void> {
+): Promise<Settings | undefined> {
   try {
     const settings = await fetchDaemonSettings(daemon);
-    setCloseToTray(settings.desktop.closeToTray);
     void desktopLog("info", "settings", "Loaded desktop settings", {
-      context: { closeToTray: settings.desktop.closeToTray },
+      context: {
+        closeToTray: settings.desktop.closeToTray,
+        zoomLevel: settings.ui.zoomLevel,
+      },
     });
+    return settings;
   } catch (error) {
     void desktopLog("warn", "settings", "Could not load desktop settings", {
       error,
     });
+    return undefined;
   }
 }
 

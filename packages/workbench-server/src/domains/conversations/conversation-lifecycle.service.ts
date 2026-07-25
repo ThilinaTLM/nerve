@@ -171,29 +171,33 @@ export class ConversationLifecycleService {
   }
 
   async loadConversations(): Promise<void> {
-    for (const storedConversation of await this.conversationRepository.loadAll()) {
-      const entries = await this.entryRepository.loadForConversation(
-        storedConversation.id,
-      );
-      const expandedTitle = expandTruncatedConversationTitle(
-        storedConversation.title,
-        entries.find((entry) => entry.role === "user")?.text ?? "",
-      );
-      const lastUserMessageAt = latestUserEntryCreatedAt(entries);
-      const conversation: ConversationRecord = {
-        ...storedConversation,
-        ...(expandedTitle ? { title: expandedTitle } : {}),
-        ...(lastUserMessageAt ? { lastUserMessageAt } : {}),
-      };
-      const shouldWrite =
-        Boolean(expandedTitle) ||
-        storedConversation.lastUserMessageAt !== conversation.lastUserMessageAt;
+    const storedConversations = await this.conversationRepository.loadAll();
+    await Promise.all(
+      storedConversations.map(async (storedConversation) => {
+        const entries = await this.entryRepository.loadForConversation(
+          storedConversation.id,
+        );
+        const expandedTitle = expandTruncatedConversationTitle(
+          storedConversation.title,
+          entries.find((entry) => entry.role === "user")?.text ?? "",
+        );
+        const lastUserMessageAt = latestUserEntryCreatedAt(entries);
+        const conversation: ConversationRecord = {
+          ...storedConversation,
+          ...(expandedTitle ? { title: expandedTitle } : {}),
+          ...(lastUserMessageAt ? { lastUserMessageAt } : {}),
+        };
+        const shouldWrite =
+          Boolean(expandedTitle) ||
+          storedConversation.lastUserMessageAt !==
+            conversation.lastUserMessageAt;
 
-      this.state.conversations.set(conversation.id, conversation);
-      this.index.upsertConversation(conversation);
-      this.state.entries.set(conversation.id, entries);
-      if (shouldWrite) await this.writeConversation(conversation);
-    }
+        this.state.conversations.set(conversation.id, conversation);
+        this.index.upsertConversation(conversation);
+        this.state.entries.set(conversation.id, entries);
+        if (shouldWrite) await this.writeConversation(conversation);
+      }),
+    );
   }
 
   private async writeConversation(
