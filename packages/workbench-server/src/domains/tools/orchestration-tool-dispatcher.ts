@@ -27,6 +27,7 @@ import {
   type ToolCallRecord,
   type ToolName,
 } from "@nervekit/contracts";
+import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
@@ -38,6 +39,7 @@ import {
   formatTaskStatusSummary,
 } from "../tasks/task-summary-format.js";
 import type { InteractionSessionService } from "./interaction-session.service.js";
+import { LiveToolOutputPublisher } from "./live-tool-output-publisher.js";
 import {
   enterPlanMode as enterPlanModeImpl,
   forceExitPlanMode as forceExitPlanModeImpl,
@@ -91,6 +93,7 @@ export interface OrchestrationToolDispatcherDeps {
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
   ): Promise<ToolCallRecord>;
   publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void>;
+  logger?: ApplicationLogger;
 }
 
 type WorkbenchToolExecution = {
@@ -102,8 +105,14 @@ type WorkbenchToolExecution = {
 
 export class OrchestrationToolDispatcher {
   private readonly hostTools: HostToolFactory<WorkbenchToolExecution>;
+  readonly liveOutput: LiveToolOutputPublisher;
 
   constructor(readonly deps: OrchestrationToolDispatcherDeps) {
+    this.liveOutput = new LiveToolOutputPublisher(
+      deps.events,
+      deps.conversationRuntime,
+      deps.logger,
+    );
     this.hostTools = createHostToolFactory<WorkbenchToolExecution>({
       execution: {
         context: (request) =>
@@ -139,15 +148,19 @@ export class OrchestrationToolDispatcher {
     args: Record<string, unknown>,
     options: ToolRequestOptions = {},
   ): Promise<unknown> {
-    return this.hostTools.execute(
-      {
-        toolName: toolCall.toolName as ToolName,
-        toolCall,
-        options,
-        identity: toolCall,
-      },
-      args,
-    );
+    try {
+      return await this.hostTools.execute(
+        {
+          toolName: toolCall.toolName as ToolName,
+          toolCall,
+          options,
+          identity: toolCall,
+        },
+        args,
+      );
+    } finally {
+      await this.liveOutput.drain(toolCall.id);
+    }
   }
 
   hostHandlers(
@@ -521,8 +534,8 @@ export class OrchestrationToolDispatcher {
     toolCall: ToolCallRecord,
     update: ToolExecutionOutputUpdate,
     runId?: string,
-  ): void {
-    publishToolExecutionUpdateImpl.call(this, toolCall, update, runId);
+  ): Promise<void> {
+    return publishToolExecutionUpdateImpl.call(this, toolCall, update, runId);
   }
   async requestPlanReview(
     toolCall: ToolCallRecord,

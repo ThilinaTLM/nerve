@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
-import { boundLiveOutputChunk } from "../common/output-budget.js";
+import { LiveOutputDelivery } from "../common/live-output.js";
 import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
 import { resolveBashShellConfig } from "./shell-config.js";
@@ -59,6 +59,7 @@ export async function executeBash(
       },
     );
 
+    const liveOutput = new LiveOutputDelivery(context.onUpdate);
     let settled = false;
     let timedOut = false;
     let timeoutKilled = false;
@@ -122,20 +123,12 @@ export async function executeBash(
     child.stdout?.on("data", (chunk: Buffer) => {
       stdoutChunks.push(chunk);
       combinedChunks.push(chunk);
-      context.onUpdate?.({
-        kind: "output",
-        stream: "stdout",
-        chunk: boundLiveOutputChunk(chunk.toString("utf8")),
-      });
+      liveOutput.write("stdout", chunk, child.stdout ?? undefined);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
       stderrChunks.push(chunk);
       combinedChunks.push(chunk);
-      context.onUpdate?.({
-        kind: "output",
-        stream: "stderr",
-        chunk: boundLiveOutputChunk(chunk.toString("utf8")),
-      });
+      liveOutput.write("stderr", chunk, child.stderr ?? undefined);
     });
     child.on("error", (error) => {
       if (settled) return;
@@ -147,23 +140,27 @@ export async function executeBash(
       if (settled) return;
       settled = true;
       cleanup();
-      void buildResult(
-        stdoutChunks,
-        stderrChunks,
-        combinedChunks,
-        code,
-        signal,
-        context.dataDir,
-        {
-          durationMs: Math.round(performance.now() - startedAt),
-          timedOut,
-          timeoutKilled,
-          timeoutMessage:
-            timeoutSeconds !== undefined
-              ? `Command timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`
-              : undefined,
-        },
-      )
+      void liveOutput
+        .end()
+        .then(() =>
+          buildResult(
+            stdoutChunks,
+            stderrChunks,
+            combinedChunks,
+            code,
+            signal,
+            context.dataDir,
+            {
+              durationMs: Math.round(performance.now() - startedAt),
+              timedOut,
+              timeoutKilled,
+              timeoutMessage:
+                timeoutSeconds !== undefined
+                  ? `Command timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`
+                  : undefined,
+            },
+          ),
+        )
         .then(resolve)
         .catch(reject);
     });

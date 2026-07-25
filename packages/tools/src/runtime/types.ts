@@ -58,7 +58,10 @@ export type ToolLifecycleHooks = {
     result: ToolExecutionResult,
   ) => void | Promise<void>;
   failed?: (name: ToolName, error: unknown) => void | Promise<void>;
-  output?: (name: ToolName, update: ToolExecutionOutputUpdate) => void;
+  output?: (
+    name: ToolName,
+    update: ToolExecutionOutputUpdate,
+  ) => void | Promise<void>;
 };
 
 export type SharedPermissionInput = {

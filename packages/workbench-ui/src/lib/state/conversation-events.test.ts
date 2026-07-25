@@ -147,20 +147,22 @@ describe("conversation event reducer", () => {
   it("caps live tool output and exposes tail output limits", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, startRun());
-    state = applyConversationEvent(
-      state,
-      evt(2, "conversation.live.tool_output.delta", {
-        conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        toolCallId: "tool_test",
-        toolName: "bash",
-        stream: "combined",
-        offset: 0,
-        delta: "x".repeat(33_000),
-      }),
-    );
+    for (let index = 0; index < 3; index += 1) {
+      state = applyConversationEvent(
+        state,
+        evt(2 + index, "conversation.live.tool_output.delta", {
+          conversationId: "conv_test",
+          agentId: "agent_test",
+          projectId: "proj_test",
+          runId: "run_test",
+          toolCallId: "tool_test",
+          toolName: "bash",
+          stream: "combined",
+          offset: index * 11_000,
+          delta: "x".repeat(11_000),
+        }),
+      );
+    }
 
     const output = state.activeRun?.toolOutputsByToolCallId.tool_test;
     assert.equal(output?.text.length, 32_000);

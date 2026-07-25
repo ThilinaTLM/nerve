@@ -7,8 +7,10 @@ import {
   type TurnStatus,
 } from "../events/lifecycles.js";
 import type { QueuedPromptRecord } from "../agents/index.js";
-import type {
-  AgentMessageContentKind,
+import {
+  LIVE_TOOL_OUTPUT_MAX_CHARS,
+  LIVE_TOOL_OUTPUT_MAX_CHUNKS,
+  type AgentMessageContentKind,
   ConversationActiveRunSnapshot,
   ConversationLiveContentDeltaData,
   ConversationLiveContentDoneData,
@@ -65,9 +67,6 @@ interface MutableMessage extends ConversationLiveMessageSnapshot {
    */
   materialized?: boolean;
 }
-
-const MAX_LIVE_TOOL_OUTPUT_CHARS = 32_000;
-const MAX_LIVE_TOOL_OUTPUT_CHUNKS = 400;
 
 export class ConversationRuntime {
   private readonly runsByRunId = new Map<string, MutableRun>();
@@ -502,6 +501,13 @@ export class ConversationRuntime {
     };
   }
 
+  toolOutputOffset(runId: string | undefined, toolCallId: string): number {
+    const existing = runId
+      ? this.runsByRunId.get(runId)?.toolOutputsByToolCallId[toolCallId]
+      : undefined;
+    return existing?.outputLimits?.totalChars ?? existing?.text.length ?? 0;
+  }
+
   applyToolOutputDelta(input: {
     conversationId: string;
     agentId: string;
@@ -518,7 +524,8 @@ export class ConversationRuntime {
   }): ConversationLiveToolOutputDeltaData {
     const run = input.runId ? this.runsByRunId.get(input.runId) : undefined;
     const existing = run?.toolOutputsByToolCallId[input.toolCallId];
-    const offset = existing?.text.length ?? 0;
+    const offset =
+      existing?.outputLimits?.totalChars ?? existing?.text.length ?? 0;
     const now = new Date().toISOString();
     if (run) {
       const output: ConversationLiveToolOutputSnapshot = capToolOutput(
@@ -739,16 +746,16 @@ function capToolOutput(
 ): ConversationLiveToolOutputSnapshot {
   const totalChars = totals.totalChars ?? output.text.length;
   let text = output.text;
-  if (text.length > MAX_LIVE_TOOL_OUTPUT_CHARS) {
-    text = text.slice(text.length - MAX_LIVE_TOOL_OUTPUT_CHARS);
+  if (text.length > LIVE_TOOL_OUTPUT_MAX_CHARS) {
+    text = text.slice(text.length - LIVE_TOOL_OUTPUT_MAX_CHARS);
   }
   const chunks =
-    output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS
-      ? output.chunks.slice(output.chunks.length - MAX_LIVE_TOOL_OUTPUT_CHUNKS)
+    output.chunks.length > LIVE_TOOL_OUTPUT_MAX_CHUNKS
+      ? output.chunks.slice(output.chunks.length - LIVE_TOOL_OUTPUT_MAX_CHUNKS)
       : output.chunks;
   const capped =
     totalChars > text.length ||
-    output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS;
+    output.chunks.length > LIVE_TOOL_OUTPUT_MAX_CHUNKS;
   return {
     ...output,
     text,
@@ -756,8 +763,8 @@ function capToolOutput(
     outputLimits: {
       capped,
       direction: "tail",
-      maxChars: MAX_LIVE_TOOL_OUTPUT_CHARS,
-      maxChunks: MAX_LIVE_TOOL_OUTPUT_CHUNKS,
+      maxChars: LIVE_TOOL_OUTPUT_MAX_CHARS,
+      maxChunks: LIVE_TOOL_OUTPUT_MAX_CHUNKS,
       totalChars,
       displayedChars: text.length,
       omittedChars: Math.max(0, totalChars - text.length),

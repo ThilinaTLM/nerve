@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
-import { boundLiveOutputChunk } from "../common/output-budget.js";
+import { LiveOutputDelivery } from "../common/live-output.js";
 import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
 import { pathNotFoundMessage, resolveToolPath } from "../filesystem/path.js";
@@ -395,6 +395,7 @@ async function runPythonProcess({
       },
     );
 
+    const liveOutput = new LiveOutputDelivery(onUpdate);
     let settled = false;
     let timedOut = false;
     let timeoutKilled = false;
@@ -459,20 +460,12 @@ async function runPythonProcess({
     child.stdout?.on("data", (chunk: Buffer) => {
       stdoutChunks.push(chunk);
       combinedChunks.push(chunk);
-      onUpdate?.({
-        kind: "output",
-        stream: "stdout",
-        chunk: boundLiveOutputChunk(chunk.toString("utf8")),
-      });
+      liveOutput.write("stdout", chunk, child.stdout ?? undefined);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
       stderrChunks.push(chunk);
       combinedChunks.push(chunk);
-      onUpdate?.({
-        kind: "output",
-        stream: "stderr",
-        chunk: boundLiveOutputChunk(chunk.toString("utf8")),
-      });
+      liveOutput.write("stderr", chunk, child.stderr ?? undefined);
     });
     child.on("error", (error) => {
       if (settled) return;
@@ -485,7 +478,9 @@ async function runPythonProcess({
       settled = true;
       cleanup();
       const durationMs = Math.round(performance.now() - startedAt);
-      void listArtifacts(artifactDir)
+      void liveOutput
+        .end()
+        .then(() => listArtifacts(artifactDir))
         .then((artifacts) =>
           buildProcessResult({
             stdoutChunks,

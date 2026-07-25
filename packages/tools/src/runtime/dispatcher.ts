@@ -105,9 +105,9 @@ export function createToolDispatcher(
         ...baseContext,
         toolName: name,
         identity,
-        onUpdate: (update) => {
-          options.lifecycle?.output?.(name, update);
-          baseContext.onUpdate?.(update);
+        onUpdate: async (update) => {
+          await options.lifecycle?.output?.(name, update);
+          await baseContext.onUpdate?.(update);
         },
       };
       const handler: ToolHandler | undefined =

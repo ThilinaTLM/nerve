@@ -4,7 +4,7 @@ export {
   type BoundedTextResult,
   boundContentBlocks,
   type ContentBlockLike,
-  boundLiveOutputChunk,
+  splitLiveOutputChunks,
   boundText,
   FILE_OUTPUT_MAX_LINE_CHARS,
   LIVE_OUTPUT_MAX_BYTES,
@@ -19,6 +19,10 @@ export {
   textBoundaryDetails,
   textLimitSnapshot,
 } from "./common/output-budget.js";
+export {
+  type LiveOutputObserver,
+  LiveOutputDelivery,
+} from "./common/live-output.js";
 export {
   buildProcessResult,
   buildProcessTextResult,

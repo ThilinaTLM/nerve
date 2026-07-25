@@ -3,6 +3,7 @@ import {
   type SubscriptionUsage,
   type SubscriptionUsageProvider,
 } from "@nervekit/contracts";
+import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "../auth/index.js";
 import { fetchAnthropicUsage as defaultFetchAnthropicUsage } from "./anthropic-client.js";
@@ -29,6 +30,7 @@ export interface SubscriptionUsageServiceDeps {
   events: StreamLogRegistry;
   /** Directory for persisted usage caches (e.g. `<dataDir>/cache/usage`). */
   cacheDir: string;
+  logger?: ApplicationLogger;
   fetchAnthropicUsage?: FetchUsage;
   fetchCodexUsage?: FetchUsage;
   now?: () => number;
@@ -90,8 +92,21 @@ export class SubscriptionUsageService {
       parsed,
     );
     this.#snapshots.set("openai-codex", merged);
-    void writeCodexUsageCache(this.#deps.cacheDir, merged);
-    void this.#deps.events.publish(SUBSCRIPTION_USAGE_EVENT, merged);
+    void writeCodexUsageCache(this.#deps.cacheDir, merged).catch((error) =>
+      this.#deps.logger
+        ?.warn("Subscription usage cache write failed", {
+          context: {
+            provider: "openai-codex",
+            error: error instanceof Error ? error.message : String(error),
+          },
+        })
+        .catch(() => undefined),
+    );
+    this.#deps.events.publishBestEffort(
+      SUBSCRIPTION_USAGE_EVENT,
+      merged,
+      "subscription_usage.codex_headers",
+    );
   }
 
   private async configuredSnapshots(): Promise<SubscriptionUsage[]> {

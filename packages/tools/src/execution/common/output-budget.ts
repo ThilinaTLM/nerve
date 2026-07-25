@@ -287,16 +287,28 @@ export function boundContentBlocks<T extends ContentBlockLike>(
   };
 }
 
-export function boundLiveOutputChunk(chunk: string): string {
-  const bounded = boundText(chunk, {
-    maxBytes: LIVE_OUTPUT_MAX_BYTES,
-    maxLines: LIVE_OUTPUT_MAX_LINES,
-    maxLineChars: LIVE_OUTPUT_MAX_LINE_CHARS,
-  });
-  return appendBoundedTextNotice(bounded, {
-    label: "live output chunk",
-    recoveryHint: "Full output is preserved for the final result/transcript.",
-  });
+/**
+ * Losslessly frame live text for transport. Unlike model/result bounding this
+ * never omits source text; consumers may independently retain a rolling tail.
+ */
+export function splitLiveOutputChunks(input: string): string[] {
+  if (input.length === 0) return [];
+  const chunks: string[] = [];
+  let start = 0;
+  let index = 0;
+  let bytes = 0;
+  for (const codePoint of input) {
+    const codePointBytes = byteLength(codePoint);
+    if (bytes > 0 && bytes + codePointBytes > LIVE_OUTPUT_MAX_BYTES) {
+      chunks.push(input.slice(start, index));
+      start = index;
+      bytes = 0;
+    }
+    index += codePoint.length;
+    bytes += codePointBytes;
+  }
+  if (start < input.length) chunks.push(input.slice(start));
+  return chunks;
 }
 
 function sanitizePositiveInteger(value: number | undefined, fallback: number) {

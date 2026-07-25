@@ -34,6 +34,8 @@ import {
   ConversationSnapshot,
   ConversationToolCallUpdatedData,
   EventEnvelope,
+  LIVE_TOOL_OUTPUT_MAX_CHARS,
+  LIVE_TOOL_OUTPUT_MAX_CHUNKS,
   QueuedPromptRecord,
   SandboxConversationViewSnapshot,
   ToolCallTranscriptRecord,
@@ -51,9 +53,6 @@ import {
   type ConversationRenderState,
   emptyConversationRenderState,
 } from "./types.js";
-
-export const MAX_LIVE_TOOL_OUTPUT_CHARS = 32_000;
-export const MAX_LIVE_TOOL_OUTPUT_CHUNKS = 400;
 
 const conversationEventTypeSet = new Set<string>(conversationEventTypes);
 
@@ -910,8 +909,8 @@ function applyToolOutputDelta(
       outputLimits: {
         capped: false,
         direction: "tail",
-        maxChars: MAX_LIVE_TOOL_OUTPUT_CHARS,
-        maxChunks: MAX_LIVE_TOOL_OUTPUT_CHUNKS,
+        maxChars: LIVE_TOOL_OUTPUT_MAX_CHARS,
+        maxChunks: LIVE_TOOL_OUTPUT_MAX_CHUNKS,
         totalChars: previousTotal + data.delta.length,
       },
     }),
@@ -1076,16 +1075,16 @@ export function capLiveOutput(
 ): ConversationLiveToolOutputSnapshot {
   const totalChars = output.outputLimits?.totalChars ?? output.text.length;
   let text = output.text;
-  if (text.length > MAX_LIVE_TOOL_OUTPUT_CHARS) {
-    text = text.slice(text.length - MAX_LIVE_TOOL_OUTPUT_CHARS);
+  if (text.length > LIVE_TOOL_OUTPUT_MAX_CHARS) {
+    text = text.slice(text.length - LIVE_TOOL_OUTPUT_MAX_CHARS);
   }
   const chunks =
-    output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS
-      ? output.chunks.slice(output.chunks.length - MAX_LIVE_TOOL_OUTPUT_CHUNKS)
+    output.chunks.length > LIVE_TOOL_OUTPUT_MAX_CHUNKS
+      ? output.chunks.slice(output.chunks.length - LIVE_TOOL_OUTPUT_MAX_CHUNKS)
       : output.chunks;
   const capped =
     totalChars > text.length ||
-    output.chunks.length > MAX_LIVE_TOOL_OUTPUT_CHUNKS;
+    output.chunks.length > LIVE_TOOL_OUTPUT_MAX_CHUNKS;
   return {
     ...output,
     text,
@@ -1093,8 +1092,8 @@ export function capLiveOutput(
     outputLimits: {
       capped,
       direction: "tail",
-      maxChars: MAX_LIVE_TOOL_OUTPUT_CHARS,
-      maxChunks: MAX_LIVE_TOOL_OUTPUT_CHUNKS,
+      maxChars: LIVE_TOOL_OUTPUT_MAX_CHARS,
+      maxChunks: LIVE_TOOL_OUTPUT_MAX_CHUNKS,
       totalChars,
       displayedChars: text.length,
       omittedChars: Math.max(0, totalChars - text.length),

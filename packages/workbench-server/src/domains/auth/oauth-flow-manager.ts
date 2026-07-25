@@ -119,7 +119,7 @@ export class OAuthFlowManager {
     return flow.info;
   }
 
-  start(providerId: string): OAuthFlowInfo {
+  async start(providerId: string): Promise<OAuthFlowInfo> {
     const existing = this.activeByProvider.get(providerId);
     if (existing) {
       const flow = this.flows.get(existing);
@@ -169,13 +169,12 @@ export class OAuthFlowManager {
       this.activeCallbackFlowId = flow.info.flowId;
     }
 
-    void this.run(flow).catch((error) => {
-      void this.fail(
-        flow,
-        error instanceof Error ? error.message : String(error),
-      );
-    });
-    void this.publish(flow);
+    await this.publish(flow);
+    void this.run(flow)
+      .catch((error) =>
+        this.fail(flow, error instanceof Error ? error.message : String(error)),
+      )
+      .catch(() => undefined);
     return flow.info;
   }
 

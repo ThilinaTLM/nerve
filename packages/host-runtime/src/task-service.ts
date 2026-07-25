@@ -5,6 +5,7 @@ import type {
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/contracts";
+import { splitLiveOutputChunks } from "@nervekit/tools";
 import type {
   ClockPort,
   DiagnosticPort,
@@ -139,7 +140,6 @@ export interface TaskServicePorts {
   readonly timers?: TaskTimerPort;
   readonly diagnostics?: DiagnosticPort;
   readonly workspaceRoot: string;
-  readonly outputEventLimit?: number;
   readonly stopTimeoutMs?: number;
 }
 
@@ -155,7 +155,7 @@ export type TaskStartInput = StartTaskRequest & {
     kind: "output";
     stream: "stdout" | "stderr" | "combined";
     chunk: string;
-  }) => void;
+  }) => void | Promise<void>;
 };
 
 const terminalStatuses = new Set<TaskRecord["status"]>([
@@ -579,16 +579,28 @@ export class TaskService {
     const task = await this.get(id);
     if (!task) return;
     await this.ports.logs.append?.(task, stream, text);
-    const limit = Math.min(this.ports.outputEventLimit ?? 16_384, 16_384);
-    const bounded = text.slice(-limit);
-    await this.publish(
-      "task.output",
-      { taskId: id, stream, text: bounded },
-      "ephemeral",
-    );
-    // This callback is intentionally ephemeral and receives only process output.
-    // Durable state remains owned by the log and repository ports.
-    this.startCallbacks.get(id)?.({ kind: "output", stream, chunk: text });
+    for (const chunk of splitLiveOutputChunks(text)) {
+      try {
+        await this.publish(
+          "task.output",
+          { taskId: id, stream, text: chunk },
+          "ephemeral",
+        );
+      } catch (error) {
+        this.reportFailure("output_event", id, error);
+      }
+      // Live observers are projections. Durable truth remains in the task log,
+      // so observer failures must not alter process supervision or terminal state.
+      try {
+        await this.startCallbacks.get(id)?.({
+          kind: "output",
+          stream,
+          chunk,
+        });
+      } catch (error) {
+        this.reportFailure("output_observer", id, error);
+      }
+    }
   }
 
   private async recordExit(id: string, exit: TaskProcessExit): Promise<void> {
