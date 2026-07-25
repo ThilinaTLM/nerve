@@ -32,7 +32,7 @@
     "@nervekit/contracts": "workspace:*",
     "diff": "^8.0.4",
     "node-html-markdown": "^2.0.0",
-    "shell-quote": "^1.8.4",
+    "shell-quote": "^1.10.0",
     "typebox": "1.1.38"
   },
   "devDependencies": {

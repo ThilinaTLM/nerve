@@ -40,11 +40,12 @@
     "@earendil-works/pi-ai": "0.82.1",
     "@nervekit/contracts": "workspace:*",
     "ignore": "7.0.5",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "typebox": "1.1.38",
     "yaml": "2.9.0"
   },
   "devDependencies": {
+    "@types/node": "24.10.1",
     "typescript": "5.9.3"
   },
   "engines": {
