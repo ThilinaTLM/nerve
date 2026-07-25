@@ -1,6 +1,6 @@
 // Copied/adapted Pi agent harness core.
-export * from "./agent.js";
-export * from "./agent-loop.js";
+export * from "./agent/agent.js";
+export * from "./agent/loop/agent-loop.js";
 export * from "./harness/agent-harness.js";
 export {
   type BranchPreparation,
@@ -42,15 +42,24 @@ export * from "./harness/conversation/jsonl-storage.js";
 export * from "./harness/conversation/memory-repo.js";
 export * from "./harness/conversation/repo-utils.js";
 export { uuidv7 } from "./harness/conversation/uuid.js";
-export { NodeExecutionEnv } from "./harness/env/nodejs.js";
+export { NodeExecutionEnv } from "./harness/environment/nodejs.js";
 export * from "./harness/messages.js";
-export * from "./harness/prompt-templates.js";
-export * from "./harness/skills.js";
-export * from "./harness/system-prompt.js";
-export * from "./harness/types.js";
-export { registerManagedProvider } from "./pi-ai-models.js";
-export * from "./proxy.js";
-export * from "./runtime.js";
-export * from "./suspension.js";
-export * from "./tool-adapter.js";
-export * from "./types.js";
+export * from "./harness/resources/prompt-templates.js";
+export * from "./harness/resources/skills/index.js";
+export * from "./harness/resources/system-prompt.js";
+export * from "./harness/configuration/options.js";
+export * from "./harness/conversation/context.js";
+export * from "./harness/conversation/entries.js";
+export * from "./harness/environment/types.js";
+export * from "./harness/errors.js";
+export * from "./harness/lifecycle/events.js";
+export * from "./harness/result.js";
+export { registerManagedProvider } from "./models/provider-registry.js";
+export * from "./transport/proxy.js";
+export * from "./models/prompt-stream.js";
+export * from "./models/resolution.js";
+export { registerAgentScriptedProvider } from "./models/scripted-provider.js";
+export * from "./models/types.js";
+export * from "./agent/suspension.js";
+export * from "./agent/tool-adapter.js";
+export * from "./agent/types/index.js";

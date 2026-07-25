@@ -1,6 +1,6 @@
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import type { ContextUsage } from "@nervekit/contracts";
-import type { AgentMessage } from "../../types.js";
+import type { AgentMessage } from "../../agent/types/index.js";
 import { buildConversationContext } from "../conversation/conversation.js";
 import type {
   CompactionEntry,
