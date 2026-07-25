@@ -21,7 +21,7 @@ GPUI and the spike are Apache-2.0 licensed. `gpui-component` is used for its nat
 
 - `packages/workbench-server` remains authoritative for storage, authentication, agent execution, Git, tasks, and all domain behavior.
 - `packages/contracts` remains authoritative for wire schemas.
-- The Rust application is a read-only Protocol v1 client. It never creates conversations, starts runs, resolves approvals, or mutates settings.
+- The Rust application is a bounded Protocol v1 client. It may create a conversation and default-configured agent, and start text runs for the native conversation/chat vertical slice. It does not create projects, resolve approvals/questions/plans, mutate settings, or control other daemon domains.
 - The spike discovers `NERVE_HOME` (default `~/.nerve`) and reads `daemon.json` plus `auth/local-token`, or accepts `--connect` and `--token`. Credentials are sent as Bearer authentication and redacted from `Debug` output.
 - The spike does not launch, supervise, restart, migrate, package, or terminate the Node daemon.
 - No active native UI profile or cache is stored inside `NERVE_HOME`.
@@ -31,17 +31,18 @@ GPUI and the spike are Apache-2.0 licensed. `gpui-component` is used for its nat
 
 `native/nerve-gpui` currently provides:
 
-- a GPUI native window and tokenized evaluation shell;
-- a variable-height, lazily rendered 10,000-row transcript scene using GPUI `ListState`;
-- a native multiline composer supporting the platform text input path, selection, clipboard, and IME through `gpui-component`;
+- a GPUI native window with project-grouped conversation navigation modeled on the supported workbench;
+- draft-first new conversations from an existing project: the durable conversation and default-configured agent are created on first send;
+- selectable conversation snapshots, a lazily rendered durable/streaming text transcript, and first/subsequent text runs;
+- a native multiline composer supporting the platform text input path, selection, clipboard, IME, a send button, and secondary-Enter submission through `gpui-component`;
+- a separate variable-height, lazily rendered 10,000-row evaluation scene using GPUI `ListState`;
 - local/explicit daemon discovery with authenticated HTTP/WebSocket endpoints;
-- Protocol v1 envelope/frame projections, capability negotiation, ready/request handling, heartbeat replies, request correlation, bounded state projections, and cursor/recovery logic;
-- a read-only workspace snapshot request that populates project/conversation counts in the navigator;
-- workspace/conversation snapshot reducers and tests for cursor advancement after reducer completion;
+- a persistent Protocol v1 session with capability negotiation, request correlation, heartbeat replies, workspace/conversation subscriptions, bounded reconnect, cursor/recovery logic, and snapshot refresh;
+- workspace/conversation snapshot and live-event reducers with cursor advancement only after reducer completion;
 - generated cross-language conformance fixtures in `packages/contracts/schemas/native-spike-v1.fixtures.json`, validated by both TypeScript/Zod and Rust tests;
 - deterministic model-generation benchmark output and a manual interactive-comparison report scaffold.
 
-The current window deliberately continues to show deterministic transcript content after loading workspace navigation. Selected-conversation live rendering, full tool-card parity, production daemon ownership, packaging, notifications, tray behavior, and installers remain outside this initial implementation.
+Full tool-card rendering, approvals, user questions, plan review, attachments, model/settings controls, run steering/cancellation, project creation, production daemon ownership, packaging, notifications, tray behavior, and installers remain outside this implementation. Runs requiring an unsupported interaction must be completed in the supported Web UI.
 
 ## Run
 
@@ -60,19 +61,19 @@ pnpm native:dev
 Run without a daemon against deterministic content:
 
 ```sh
-pnpm native:dev -- --evaluation
+pnpm native:dev --evaluation
 ```
 
 Connect explicitly without persisting the token:
 
 ```sh
-pnpm native:dev -- --connect http://127.0.0.1:3747 --token <token>
+pnpm native:dev --connect http://127.0.0.1:3747 --token <token>
 ```
 
-Validate authenticated Protocol v1 negotiation and a read-only workspace snapshot without opening a window:
+Validate authenticated Protocol v1 negotiation and a workspace snapshot without opening a window:
 
 ```sh
-pnpm native:dev -- --probe-daemon
+pnpm native:dev --probe-daemon
 ```
 
 The token must not be copied into logs, benchmark artifacts, issue reports, or shell history shared with others.

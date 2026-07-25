@@ -30,6 +30,12 @@ pub(crate) const MUTED: Rgba = Rgba {
     b: 0.69,
     a: 1.0,
 };
+pub(crate) const SELECTED: Rgba = Rgba {
+    r: 0.12,
+    g: 0.14,
+    b: 0.18,
+    a: 1.0,
+};
 pub(crate) const ERROR: Rgba = Rgba {
     r: 0.95,
     g: 0.35,

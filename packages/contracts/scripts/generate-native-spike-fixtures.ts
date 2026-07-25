@@ -38,6 +38,12 @@ function message(
   };
 }
 
+const mutationCapabilities = [
+  "operation.conversation.create",
+  "operation.agent.create",
+  "operation.run.start",
+] as const;
+
 const validMessages = [
   message(
     "msg_hello",
@@ -50,8 +56,17 @@ const validMessages = [
         "event.notify",
         "stream.subscription.v1",
         "snapshot.workspace",
+        "operation.snapshot.workspace.get",
+        "operation.snapshot.conversation.get",
+        ...mutationCapabilities,
       ],
-      requiredCapabilities: ["encoding.json", "stream.subscription.v1"],
+      requiredCapabilities: [
+        "encoding.json",
+        "stream.subscription.v1",
+        "operation.snapshot.workspace.get",
+        "operation.snapshot.conversation.get",
+        ...mutationCapabilities,
+      ],
       encodings: ["json"],
     },
     ui,
@@ -67,6 +82,9 @@ const validMessages = [
       "event.notify",
       "stream.subscription.v1",
       "snapshot.workspace",
+      "operation.snapshot.workspace.get",
+      "operation.snapshot.conversation.get",
+      ...mutationCapabilities,
     ],
     encoding: "json",
     limits: {
@@ -109,6 +127,53 @@ const validMessages = [
       generatedAt: timestamp,
     },
   }),
+  message(
+    "msg_conversation_create",
+    "request",
+    {
+      method: "conversation.create",
+      params: { projectId: "proj_fixture", title: "Inspect native chat" },
+      idempotencyKey: "idem_conversation_fixture",
+    },
+    ui,
+    server,
+  ),
+  message(
+    "msg_agent_create",
+    "request",
+    {
+      method: "agent.create",
+      params: {
+        projectId: "proj_fixture",
+        conversationId: "conv_fixture",
+      },
+      idempotencyKey: "idem_agent_fixture",
+    },
+    ui,
+    server,
+  ),
+  message(
+    "msg_run_start",
+    "request",
+    {
+      method: "run.start",
+      params: { agentId: "agent_fixture", text: "Hello from native" },
+      idempotencyKey: "idem_run_fixture",
+    },
+    ui,
+    server,
+  ),
+  message("msg_run_accepted", "response", {
+    ok: true,
+    method: "run.start",
+    result: {
+      accepted: true,
+      conversationId: "conv_fixture",
+      agentId: "agent_fixture",
+      runId: "run_fixture",
+      status: "accepted",
+    },
+  }),
   message("msg_error", "error", {
     code: "RESYNC_REQUIRED",
     message: "Snapshot recovery required",
@@ -133,6 +198,50 @@ const validMessages = [
         ts: timestamp,
         type: "native.fixture.unknown",
         data: { preserved: true },
+      },
+    ],
+    firstSeq: 1,
+    lastSeq: 2,
+  }),
+  message("msg_conversation_batch", "event.batch", {
+    stream: "conv/conv_fixture",
+    batchId: "batch_conversation_fixture",
+    reason: "live",
+    events: [
+      {
+        seq: 1,
+        id: "evt_live_started",
+        ts: timestamp,
+        type: "conversation.live.message.started",
+        data: {
+          conversationId: "conv_fixture",
+          agentId: "agent_fixture",
+          projectId: "proj_fixture",
+          runId: "run_fixture",
+          turnId: "turn_fixture",
+          liveMessageId: "msg_live_fixture",
+          messageOrdinal: 0,
+          startedAt: timestamp,
+        },
+      },
+      {
+        seq: 2,
+        id: "evt_live_delta",
+        ts: timestamp,
+        type: "conversation.live.content.delta",
+        data: {
+          conversationId: "conv_fixture",
+          agentId: "agent_fixture",
+          projectId: "proj_fixture",
+          runId: "run_fixture",
+          turnId: "turn_fixture",
+          liveMessageId: "msg_live_fixture",
+          contentBlockId: "block_fixture",
+          contentIndex: 0,
+          kind: "text",
+          offset: 0,
+          delta: "Streaming reply",
+        },
       },
     ],
     firstSeq: 1,
@@ -190,7 +299,23 @@ const validMessages = [
 ];
 
 for (const input of validMessages) protocolV1MessageSchema.parse(input);
-parseProtocolRequestData({ method: "snapshot.workspace.get", params: {} });
+for (const request of [
+  { method: "snapshot.workspace.get", params: {} },
+  {
+    method: "conversation.create",
+    params: { projectId: "proj_fixture", title: "Inspect native chat" },
+  },
+  {
+    method: "agent.create",
+    params: { projectId: "proj_fixture", conversationId: "conv_fixture" },
+  },
+  {
+    method: "run.start",
+    params: { agentId: "agent_fixture", text: "Hello from native" },
+  },
+]) {
+  parseProtocolRequestData(request);
+}
 streamSubscriptionUpdatedDataSchema.parse(
   (validMessages.at(-1) as { data: unknown }).data,
 );

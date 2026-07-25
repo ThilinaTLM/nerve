@@ -255,6 +255,9 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "snapshot.workspace",
     "operation.snapshot.workspace.get",
     "operation.snapshot.conversation.get",
+    "operation.conversation.create",
+    "operation.agent.create",
+    "operation.run.start",
 ];
 
 #[cfg(test)]

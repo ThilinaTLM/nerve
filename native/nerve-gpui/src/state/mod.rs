@@ -1,6 +1,6 @@
 #![allow(
     dead_code,
-    reason = "snapshot projections are exercised before daemon data is rendered in the evaluation slice"
+    reason = "snapshot projections retain forward-compatible fields beyond the first native slice"
 )]
 
 pub(crate) mod conversation;

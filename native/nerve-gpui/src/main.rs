@@ -9,7 +9,10 @@ use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(name = "nerve-native", about = "Experimental GPUI frontend for Nerve")]
+#[command(
+    name = "nerve-native",
+    about = "Experimental native GPUI workbench for Nerve"
+)]
 pub(crate) struct Options {
     /// Connect to a specific daemon instead of discovering the local daemon.
     #[arg(long)]
@@ -20,7 +23,7 @@ pub(crate) struct Options {
     /// Write deterministic model-generation metrics as JSON and exit without opening a window.
     #[arg(long)]
     benchmark_model_out: Option<std::path::PathBuf>,
-    /// Validate a read-only workspace snapshot connection and exit without opening a window.
+    /// Validate an authenticated workspace snapshot connection and exit without opening a window.
     #[arg(long)]
     probe_daemon: bool,
     /// Open the deterministic renderer evaluation scene without a daemon.

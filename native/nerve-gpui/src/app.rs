@@ -10,7 +10,7 @@ pub(crate) fn run(options: Options) {
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(gpui::TitlebarOptions {
-                    title: Some("Nerve Native Evaluation".into()),
+                    title: Some("Nerve Native (Experimental)".into()),
                     ..Default::default()
                 }),
                 ..Default::default()

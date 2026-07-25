@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.100"
+async-channel = "2.5.0"
 chrono = { version = "0.4.42", default-features = false, features = [
   "clock",
   "serde",

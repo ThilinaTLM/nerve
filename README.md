@@ -227,14 +227,14 @@ pnpm --filter @nervekit/workbench-server dev
 
 ### Experimental native UI evaluation
 
-A non-shipping Rust/GPUI evaluation client can connect read-only to the existing daemon or run a deterministic 10,000-row transcript scene:
+A non-shipping Rust/GPUI client can connect to an already-running, configured daemon for draft-first conversation creation and basic streaming text chat, or run a deterministic 10,000-row transcript scene:
 
 ```sh
 pnpm native:dev                 # connect to the local daemon
-pnpm native:dev -- --evaluation # renderer/input evaluation without a daemon
+pnpm native:dev --evaluation    # renderer/input evaluation without a daemon
 ```
 
-This does not replace the supported Electron/Svelte desktop app. See [`docs/architecture/native-ui-evaluation.md`](docs/architecture/native-ui-evaluation.md) for boundaries, validation, and go/no-go gates.
+The native slice requires an existing project and a usable default model/provider configured through the supported app. It does not yet handle approvals, questions, plans, tool-card parity, settings, or daemon ownership, and does not replace the Electron/Svelte desktop app. See [`docs/architecture/native-ui-evaluation.md`](docs/architecture/native-ui-evaluation.md) for boundaries, validation, and go/no-go gates.
 
 ### Root scripts
 

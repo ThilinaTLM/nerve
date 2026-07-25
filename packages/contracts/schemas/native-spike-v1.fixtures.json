@@ -24,11 +24,21 @@
           "event.batch",
           "event.notify",
           "stream.subscription.v1",
-          "snapshot.workspace"
+          "snapshot.workspace",
+          "operation.snapshot.workspace.get",
+          "operation.snapshot.conversation.get",
+          "operation.conversation.create",
+          "operation.agent.create",
+          "operation.run.start"
         ],
         "requiredCapabilities": [
           "encoding.json",
-          "stream.subscription.v1"
+          "stream.subscription.v1",
+          "operation.snapshot.workspace.get",
+          "operation.snapshot.conversation.get",
+          "operation.conversation.create",
+          "operation.agent.create",
+          "operation.run.start"
         ],
         "encodings": [
           "json"
@@ -61,7 +71,12 @@
           "event.batch",
           "event.notify",
           "stream.subscription.v1",
-          "snapshot.workspace"
+          "snapshot.workspace",
+          "operation.snapshot.workspace.get",
+          "operation.snapshot.conversation.get",
+          "operation.conversation.create",
+          "operation.agent.create",
+          "operation.run.start"
         ],
         "encoding": "json",
         "limits": {
@@ -179,6 +194,105 @@
     {
       "protocol": "nerve",
       "version": 1,
+      "id": "msg_conversation_create",
+      "kind": "request",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "target": {
+        "role": "workbench_server"
+      },
+      "data": {
+        "method": "conversation.create",
+        "params": {
+          "projectId": "proj_fixture",
+          "title": "Inspect native chat"
+        },
+        "idempotencyKey": "idem_conversation_fixture"
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_agent_create",
+      "kind": "request",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "target": {
+        "role": "workbench_server"
+      },
+      "data": {
+        "method": "agent.create",
+        "params": {
+          "projectId": "proj_fixture",
+          "conversationId": "conv_fixture"
+        },
+        "idempotencyKey": "idem_agent_fixture"
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_run_start",
+      "kind": "request",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "target": {
+        "role": "workbench_server"
+      },
+      "data": {
+        "method": "run.start",
+        "params": {
+          "agentId": "agent_fixture",
+          "text": "Hello from native"
+        },
+        "idempotencyKey": "idem_run_fixture"
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_run_accepted",
+      "kind": "response",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "ok": true,
+        "method": "run.start",
+        "result": {
+          "accepted": true,
+          "conversationId": "conv_fixture",
+          "agentId": "agent_fixture",
+          "runId": "run_fixture",
+          "status": "accepted"
+        }
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
       "id": "msg_error",
       "kind": "error",
       "ts": "2026-01-01T00:00:00.000Z",
@@ -236,6 +350,66 @@
             "type": "native.fixture.unknown",
             "data": {
               "preserved": true
+            }
+          }
+        ],
+        "firstSeq": 1,
+        "lastSeq": 2
+      }
+    },
+    {
+      "protocol": "nerve",
+      "version": 1,
+      "id": "msg_conversation_batch",
+      "kind": "event.batch",
+      "ts": "2026-01-01T00:00:00.000Z",
+      "source": {
+        "role": "workbench_server"
+      },
+      "target": {
+        "role": "ui",
+        "id": "native_fixture",
+        "name": "Nerve Native Fixture",
+        "instanceId": "instance_fixture"
+      },
+      "data": {
+        "stream": "conv/conv_fixture",
+        "batchId": "batch_conversation_fixture",
+        "reason": "live",
+        "events": [
+          {
+            "seq": 1,
+            "id": "evt_live_started",
+            "ts": "2026-01-01T00:00:00.000Z",
+            "type": "conversation.live.message.started",
+            "data": {
+              "conversationId": "conv_fixture",
+              "agentId": "agent_fixture",
+              "projectId": "proj_fixture",
+              "runId": "run_fixture",
+              "turnId": "turn_fixture",
+              "liveMessageId": "msg_live_fixture",
+              "messageOrdinal": 0,
+              "startedAt": "2026-01-01T00:00:00.000Z"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "evt_live_delta",
+            "ts": "2026-01-01T00:00:00.000Z",
+            "type": "conversation.live.content.delta",
+            "data": {
+              "conversationId": "conv_fixture",
+              "agentId": "agent_fixture",
+              "projectId": "proj_fixture",
+              "runId": "run_fixture",
+              "turnId": "turn_fixture",
+              "liveMessageId": "msg_live_fixture",
+              "contentBlockId": "block_fixture",
+              "contentIndex": 0,
+              "kind": "text",
+              "offset": 0,
+              "delta": "Streaming reply"
             }
           }
         ],
@@ -369,11 +543,21 @@
             "event.batch",
             "event.notify",
             "stream.subscription.v1",
-            "snapshot.workspace"
+            "snapshot.workspace",
+            "operation.snapshot.workspace.get",
+            "operation.snapshot.conversation.get",
+            "operation.conversation.create",
+            "operation.agent.create",
+            "operation.run.start"
           ],
           "requiredCapabilities": [
             "encoding.json",
-            "stream.subscription.v1"
+            "stream.subscription.v1",
+            "operation.snapshot.workspace.get",
+            "operation.snapshot.conversation.get",
+            "operation.conversation.create",
+            "operation.agent.create",
+            "operation.run.start"
           ],
           "encodings": [
             "json"

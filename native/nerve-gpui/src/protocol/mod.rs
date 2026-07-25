@@ -1,6 +1,6 @@
 #![allow(
     dead_code,
-    reason = "the read-only session surface is broader than the first rendered evaluation slice"
+    reason = "the Protocol v1 session surface includes recovery paths not rendered directly"
 )]
 
 pub(crate) mod client;

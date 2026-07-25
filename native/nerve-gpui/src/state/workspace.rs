@@ -18,6 +18,8 @@ pub(crate) struct Conversation {
     pub(crate) id: String,
     pub(crate) project_id: String,
     pub(crate) title: String,
+    #[serde(default)]
+    pub(crate) active_agent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -45,6 +47,19 @@ struct SnapshotCursor {
 }
 
 impl WorkspaceState {
+    pub(crate) fn conversations_for_project(
+        &self,
+        project_id: &str,
+    ) -> impl Iterator<Item = &Conversation> {
+        self.conversations
+            .iter()
+            .filter(move |conversation| conversation.project_id == project_id)
+    }
+
+    pub(crate) fn upsert_conversation(&mut self, conversation: Conversation) {
+        upsert(&mut self.conversations, conversation, |value| &value.id);
+    }
+
     pub(crate) fn from_snapshot_result(result: Value) -> Result<(Self, Vec<StreamCursor>)> {
         let result: WorkspaceResult =
             serde_json::from_value(result).context("decode workspace snapshot")?;
