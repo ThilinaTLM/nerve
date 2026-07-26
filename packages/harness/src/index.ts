@@ -26,6 +26,7 @@ export {
   findCutPoint,
   findTurnStartIndex,
   generateSummary,
+  type GenerateSummaryInput,
   getCompactionDecisionTokens,
   getLastAssistantUsage,
   getLatestCompactionEntry,
@@ -35,6 +36,7 @@ export {
   serializeConversation,
   shouldAutoCompact,
   shouldCompact,
+  type SummaryStreamProgress,
 } from "./harness/compaction/compaction.js";
 export * from "./harness/conversation/conversation.js";
 export * from "./harness/conversation/jsonl-repo.js";

@@ -212,6 +212,7 @@ export function composeRuntime(
     instructions,
     summaryReserveTokens,
     signal,
+    onProgress,
   }) => {
     const conversation = getConversation(conversationId);
     const resolvedAgentId = agentId ?? conversation.activeAgentId;
@@ -226,18 +227,19 @@ export function composeRuntime(
     const requestModel = requestAuth.baseUrl
       ? { ...model, baseUrl: requestAuth.baseUrl }
       : model;
-    const result = await generateSummary(
+    const result = await generateSummary({
       messages,
-      requestModel,
-      summaryReserveTokens,
-      requestAuth.apiKey ?? "",
-      requestAuth.headers,
+      model: requestModel,
+      reserveTokens: summaryReserveTokens,
+      apiKey: requestAuth.apiKey ?? "",
+      headers: requestAuth.headers,
       signal,
-      instructions,
+      customInstructions: instructions,
       previousSummary,
-      agent.thinkingLevel,
-      requestAuth.env,
-    );
+      thinkingLevel: agent.thinkingLevel,
+      env: requestAuth.env,
+      onProgress,
+    });
     return result.ok
       ? { text: result.value, generatedBy: "model" as const }
       : undefined;

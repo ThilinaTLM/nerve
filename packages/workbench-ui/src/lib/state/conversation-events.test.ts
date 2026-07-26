@@ -453,6 +453,107 @@ describe("conversation event reducer", () => {
     );
   });
 
+  it("tracks streaming compaction previews and drops stale snapshots", () => {
+    const compactionEvent = (
+      seq: number,
+      type: string,
+      data: Record<string, unknown>,
+    ) =>
+      evt(seq, type, {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        runId: "run_test",
+        reason: "threshold",
+        ...data,
+      });
+
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(state, startRun());
+    state = applyConversationEvent(
+      state,
+      compactionEvent(2, "conversation.compaction.started", { startedAt: ts }),
+    );
+    state = applyConversationEvent(
+      state,
+      compactionEvent(3, "conversation.compaction.progress", {
+        sequence: 2,
+        attempt: 1,
+        preview: "## Goal\nFinish",
+        generatedLines: 2,
+        generatedChars: 14,
+      }),
+    );
+
+    assert.equal(state.transient?.compaction?.state, "running");
+    assert.equal(
+      state.transient?.compaction?.summaryPreview,
+      "## Goal\nFinish",
+    );
+    assert.equal(state.transient?.compaction?.generatedLines, 2);
+
+    state = applyConversationEvent(
+      state,
+      compactionEvent(4, "conversation.compaction.progress", {
+        sequence: 1,
+        attempt: 1,
+        preview: "stale",
+        generatedLines: 1,
+        generatedChars: 5,
+      }),
+    );
+    assert.equal(
+      state.transient?.compaction?.summaryPreview,
+      "## Goal\nFinish",
+    );
+
+    state = applyConversationEvent(
+      state,
+      compactionEvent(5, "conversation.compaction.cancelled", {
+        cancelledAt: ts,
+      }),
+    );
+    assert.equal(state.transient?.compaction?.state, "cancelled");
+    assert.equal(state.transient?.compaction?.summaryPreview, undefined);
+
+    state = applyConversationEvent(
+      state,
+      compactionEvent(6, "conversation.compaction.progress", {
+        sequence: 9,
+        attempt: 2,
+        preview: "late",
+        generatedLines: 1,
+        generatedChars: 4,
+      }),
+    );
+    assert.equal(state.transient?.compaction?.state, "cancelled");
+    assert.equal(state.transient?.compaction?.summaryPreview, undefined);
+  });
+
+  it("starts a running compaction notice from a progress snapshot alone", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(
+      state,
+      evt(1, "conversation.compaction.progress", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        runId: "run_test",
+        reason: "threshold",
+        sequence: 7,
+        attempt: 1,
+        preview: "## Goal",
+        generatedLines: 1,
+        generatedChars: 7,
+      }),
+    );
+
+    assert.equal(state.transient?.compaction?.state, "running");
+    assert.equal(state.transient?.compaction?.previewSequence, 7);
+    assert.equal(
+      state.transient?.compaction?.id,
+      "live:compaction:run_test:threshold",
+    );
+  });
+
   it("calls the snapshot recovery hook on offset gaps", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, startRun());

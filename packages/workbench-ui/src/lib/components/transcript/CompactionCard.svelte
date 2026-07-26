@@ -3,7 +3,12 @@ import { type StatusTone } from "@nervekit/ui-kit/components/ui/status-dot";
 import type { CompactionNotice } from "../../state/transcript-types";
 import { formatTokens } from "@nervekit/ui-kit/core/utils/usage";
 import CardShell from "../../tools/components/tool-call/CardShell.svelte";
+import ResultCodeBlock from "../../tools/components/tool-call/ResultCodeBlock.svelte";
 import type { MetaItem } from "../../tools/views/tool-presentation";
+import {
+  COLLAPSED_LINES,
+  splitLogicalLines,
+} from "../../tools/views/tool-view-helpers";
 
 type Props = {
   notice: CompactionNotice;
@@ -43,56 +48,17 @@ const contextPercent = $derived.by(() => {
   return Math.round((used / notice.contextWindow) * 100);
 });
 
-/** First meaningful lines of the summary, stripped of markdown scaffolding. */
-const summaryLead = $derived.by(() => {
-  const text = (notice.summary ?? notice.text ?? "").trim();
-  if (!text) return "";
-  const meaningful: string[] = [];
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#") || line.startsWith("---")) continue;
-    if (/^generated locally/i.test(line)) continue;
-    if (/^treat this as a context checkpoint/i.test(line)) continue;
-    const cleaned = line
-      .replace(/^[-*]\s+/, "")
-      .replace(/^\d+\.\s+/, "")
-      .replace(/^\[[ xX]\]\s+/, "")
-      .replace(/\*\*/g, "")
-      .trim();
-    if (!cleaned) continue;
-    meaningful.push(cleaned);
-    if (meaningful.length >= 2) break;
-  }
-  const lead = meaningful.join(" ");
-  return lead.length > 180 ? `${lead.slice(0, 180).trim()}…` : lead;
+/**
+ * Trailing lines of the checkpoint: the live draft while summarizing, and the
+ * committed summary once done, so the body never jumps at completion.
+ */
+const previewText = $derived.by(() => {
+  if (notice.state === "running") return notice.summaryPreview?.trimEnd() ?? "";
+  if (notice.state !== "completed") return "";
+  const summary = (notice.summary ?? notice.text ?? "").trimEnd();
+  if (!summary) return "";
+  return splitLogicalLines(summary).slice(-COLLAPSED_LINES).join("\n");
 });
-
-const chips = $derived.by<MetaItem[]>(() => {
-  const items: MetaItem[] = [];
-  if (typeof notice.tokensBefore === "number") {
-    items.push({ text: `${formatTokens(notice.tokensBefore)} before` });
-  }
-  if (typeof notice.tokensAfter === "number") {
-    items.push({ text: `≈${formatTokens(notice.tokensAfter)} after` });
-  }
-  if (typeof notice.freedTokens === "number" && notice.freedTokens > 0) {
-    items.push({
-      text: `${formatTokens(notice.freedTokens)} freed`,
-      tone: "success",
-    });
-  }
-  if (typeof compactedMessages === "number") {
-    items.push({ text: `${compactedMessages} messages` });
-  }
-  if (typeof contextPercent === "number") {
-    items.push({ text: `${contextPercent}% context` });
-  }
-  return items;
-});
-
-const errorMessage = $derived(
-  notice.errorMessage?.trim() || "Could not compact this conversation.",
-);
 
 let now = $state(Date.now());
 $effect(() => {
@@ -119,20 +85,72 @@ const elapsedLabel = $derived(
 const showElapsed = $derived(
   elapsedSeconds !== undefined && elapsedSeconds >= 1,
 );
+
+const completedChips = $derived.by<MetaItem[]>(() => {
+  const items: MetaItem[] = [];
+  if (typeof notice.tokensBefore === "number") {
+    items.push({ text: `${formatTokens(notice.tokensBefore)} before` });
+  }
+  if (typeof notice.tokensAfter === "number") {
+    items.push({ text: `≈${formatTokens(notice.tokensAfter)} after` });
+  }
+  if (typeof notice.freedTokens === "number" && notice.freedTokens > 0) {
+    items.push({
+      text: `${formatTokens(notice.freedTokens)} freed`,
+      tone: "success",
+    });
+  }
+  if (typeof compactedMessages === "number") {
+    items.push({ text: `${compactedMessages} messages` });
+  }
+  if (typeof contextPercent === "number") {
+    items.push({ text: `${contextPercent}% context` });
+  }
+  return items;
+});
+
+const runningChips = $derived.by<MetaItem[]>(() => {
+  const items: MetaItem[] = [];
+  const before = notice.contextTokens ?? notice.tokensBefore;
+  if (typeof before === "number") {
+    items.push({ text: `${formatTokens(before)} before` });
+  }
+  if (typeof contextPercent === "number") {
+    items.push({ text: `${contextPercent}% context` });
+  }
+  if (typeof notice.generatedLines === "number" && notice.generatedLines > 0) {
+    items.push({ text: `${notice.generatedLines} lines` });
+  }
+  if (showElapsed && elapsedLabel) {
+    items.push({ text: elapsedLabel });
+  }
+  return items;
+});
+
+const chips = $derived(
+  notice.state === "completed"
+    ? completedChips
+    : notice.state === "running"
+      ? runningChips
+      : [],
+);
+
+const errorMessage = $derived(
+  notice.errorMessage?.trim() || "Could not compact this conversation.",
+);
+
 const bodyVisible = $derived(
   notice.state === "running" ||
     notice.state === "cancelled" ||
-    (notice.state === "completed" && Boolean(summaryLead)),
+    (notice.state === "completed" && previewText.length > 0),
 );
 const layoutRevision = $derived(
   [
     notice.state,
     bodyVisible ? "body" : "no-body",
     notice.state === "failed" ? "error" : "no-error",
-    notice.state === "completed" && chips.length > 0
-      ? `footer:${chips.length}`
-      : "no-footer",
-    showElapsed ? "elapsed" : "no-elapsed",
+    chips.length > 0 ? `footer:${chips.length}` : "no-footer",
+    `preview:${previewText.length}`,
   ].join("|"),
 );
 </script>
@@ -145,30 +163,27 @@ const layoutRevision = $derived(
     badge="compact"
     arg={{ text: reasonLabel }}
     error={notice.state === "failed" ? errorMessage : undefined}
-    meta={notice.state === "completed" ? chips : []}
+    meta={chips}
     {bodyVisible}
     {layoutRevision}
   >
-    {#if notice.state === "running"}
-      <div class="flex min-w-0 items-baseline gap-2">
-        <span class="m-0 min-w-0 text-sm leading-6 text-muted-foreground"
-          >Summarizing recent work…</span
-        >
-        {#if showElapsed}
-          <span class="ml-auto text-xs text-muted-foreground/80 tabular-nums"
-            >{elapsedLabel}</span
-          >
-        {/if}
-      </div>
+    {#if previewText}
+      <ResultCodeBlock
+        code={previewText}
+        language="markdown"
+        trim={false}
+        wrap
+        overflow="hidden"
+        tail
+        fixedRows={COLLAPSED_LINES}
+      />
+    {:else if notice.state === "running"}
+      <p class="m-0 text-sm leading-6 text-muted-foreground">
+        Summarizing recent work…
+      </p>
     {:else if notice.state === "cancelled"}
       <p class="m-0 text-sm leading-6 text-muted-foreground">
         Compaction stopped.
-      </p>
-    {:else if notice.state === "completed" && summaryLead}
-      <p
-        class="m-0 line-clamp-2 overflow-hidden text-sm leading-6 text-muted-foreground"
-      >
-        {summaryLead}
       </p>
     {/if}
   </CardShell>

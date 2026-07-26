@@ -144,6 +144,118 @@ describe("CompactionService", () => {
     assert.ok(events.some((event) => event.type === "conversation.compacted"));
   });
 
+  it("publishes coalesced summary tail snapshots while summarizing", async () => {
+    const events: Array<{ type: string; data: unknown }> = [];
+    const branch = [
+      {
+        type: "message",
+        id: "entry_old",
+        parentId: null,
+        timestamp,
+        message: {
+          role: "user",
+          content: "x".repeat(20_000),
+          timestamp: Date.parse(timestamp),
+        },
+      },
+      {
+        type: "message",
+        id: "entry_recent",
+        parentId: "entry_old",
+        timestamp,
+        message: {
+          role: "user",
+          content: "continue",
+          timestamp: Date.parse(timestamp),
+        },
+      },
+    ];
+    let activeLeafId = "entry_recent";
+    const storage = {
+      getLeafId: async () => activeLeafId,
+      getPathToRoot: async () => branch,
+      appendEntry: async (entry: { id: string }) => {
+        activeLeafId = entry.id;
+      },
+    };
+    const summary = structuredSummary();
+    const service = new CompactionService(
+      () => ({ id: "conv_test", projectId: "proj_test" }) as never,
+      () => ({ id: "proj_test", dir: "/tmp/project" }) as never,
+      async (input) =>
+        ({
+          ...input,
+          id: "entry_compaction",
+          parentEntryId: input.parentEntryId ?? null,
+          kind: input.kind ?? "message",
+          createdAt: input.createdAt ?? timestamp,
+        }) as never,
+      { openStorage: async () => storage } as never,
+      async () => undefined,
+      {
+        publish: async (type: string, data: unknown) => {
+          events.push({ type, data });
+        },
+      } as never,
+      async ({ onProgress }) => {
+        // First attempt streams a draft, then the structural repair restarts it.
+        onProgress?.({ attempt: 1, text: "## Goal\ndraft" });
+        onProgress?.({ attempt: 1, text: "## Goal\ndraft\nmore draft" });
+        onProgress?.({ attempt: 2, text: summary.slice(0, 40) });
+        onProgress?.({ attempt: 2, text: summary });
+        return { text: summary, generatedBy: "model" };
+      },
+    );
+
+    await service.compactConversation(
+      "conv_test",
+      {},
+      {
+        reason: "threshold",
+        agentId: "agent_test",
+        runId: "run_test",
+        activeConversation: { getStorage: () => storage } as never,
+      },
+    );
+
+    const progress = events
+      .filter((event) => event.type === "conversation.compaction.progress")
+      .map(
+        (event) =>
+          event.data as {
+            sequence: number;
+            attempt: number;
+            preview: string;
+            generatedLines: number;
+            generatedChars: number;
+            runId?: string;
+          },
+      );
+    assert.ok(progress.length >= 3);
+    assert.deepEqual(
+      progress.map((snapshot) => snapshot.sequence),
+      progress.map((_snapshot, index) => index + 1),
+    );
+    assert.deepEqual([progress[0].attempt, progress.at(-1)?.attempt], [1, 2]);
+    assert.equal(progress[0].preview, "## Goal\ndraft");
+    assert.equal(progress[0].runId, "run_test");
+    for (const snapshot of progress) {
+      assert.ok(snapshot.preview.split("\n").length <= 6);
+    }
+    const last = progress.at(-1);
+    assert.equal(last?.generatedChars, summary.length);
+    assert.equal(last?.generatedLines, summary.split("\n").length);
+    assert.equal(last?.preview, summary.split("\n").slice(-6).join("\n"));
+
+    const progressIndexes = events.flatMap((event, index) =>
+      event.type === "conversation.compaction.progress" ? [index] : [],
+    );
+    const compactedIndex = events.findIndex(
+      (event) => event.type === "conversation.compacted",
+    );
+    assert.ok(compactedIndex > (progressIndexes.at(-1) ?? -1));
+  });
+
   it("aborts model summarization without creating a checkpoint", async () => {
     const events: Array<{ type: string; data: unknown }> = [];
     let appendCalls = 0;

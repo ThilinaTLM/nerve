@@ -6,6 +6,7 @@ import {
   ConversationCompactedData,
   ConversationCompactionCancelledData,
   ConversationCompactionFailedData,
+  ConversationCompactionProgressData,
   ConversationCompactionStartedData,
   ConversationEntry,
   ConversationEntryAppendedData,
@@ -196,6 +197,13 @@ export function applyConversationEvent(
       applyCompactionStarted(
         next,
         event.data as ConversationCompactionStartedData,
+        event.ts,
+      );
+      break;
+    case "conversation.compaction.progress":
+      applyCompactionProgress(
+        next,
+        event.data as ConversationCompactionProgressData,
         event.ts,
       );
       break;
@@ -622,6 +630,40 @@ function applyCompactionStarted(
     transient.compaction,
   );
   state.error = undefined;
+}
+
+function applyCompactionProgress(
+  state: ConversationRenderState,
+  data: ConversationCompactionProgressData,
+  ts: string,
+): void {
+  const current = state.transient?.compaction;
+  // Terminal states win; a late snapshot must not revive a finished notice.
+  if (current && current.state !== "running") return;
+  if (
+    current?.previewSequence !== undefined &&
+    data.sequence <= current.previewSequence
+  ) {
+    return;
+  }
+  const transient = ensureTransient(state);
+  // A snapshot can arrive first after a resync that started mid-compaction.
+  const base: CompactionNotice = current ?? {
+    id: liveCompactionId(data.conversationId, data.runId, data.reason),
+    state: "running",
+    reason: data.reason,
+    conversationId: data.conversationId,
+    agentId: data.agentId,
+    runId: data.runId,
+    createdAt: ts,
+  };
+  transient.compaction = {
+    ...base,
+    summaryPreview: data.preview,
+    previewSequence: data.sequence,
+    generatedLines: data.generatedLines,
+    generatedChars: data.generatedChars,
+  };
 }
 
 function applyCompactionFailed(

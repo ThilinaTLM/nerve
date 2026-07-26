@@ -18,6 +18,11 @@ import type {
 import { HttpError } from "../../../http/errors.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
+import {
+  CompactionProgressPublisher,
+  type CompactionProgressPublisherOptions,
+  type CompactionProgressReport,
+} from "./compaction-progress-publisher.js";
 import { buildExtractiveSummary } from "./summary.js";
 
 export interface AppendConversationEntryInput {
@@ -55,6 +60,8 @@ export type CompactionSummarizer = (input: {
   instructions?: string;
   summaryReserveTokens: number;
   signal?: AbortSignal;
+  /** Receives the summary text as it streams in, for live UI feedback. */
+  onProgress?: (progress: CompactionProgressReport) => void;
 }) => Promise<{ text: string; generatedBy: "model" } | undefined>;
 
 export interface CompactConversationOptions {
@@ -107,6 +114,7 @@ export class CompactionService {
     private readonly rebuildConversations: () => Promise<void>,
     private readonly events: StreamLogRegistry,
     private readonly summarize?: CompactionSummarizer,
+    private readonly progressOptions: CompactionProgressPublisherOptions = {},
   ) {}
 
   async compactConversation(
@@ -198,6 +206,17 @@ export class CompactionService {
 
       const startedAt = new Date().toISOString();
       let started = false;
+      const progress = new CompactionProgressPublisher(
+        this.events,
+        {
+          conversationId,
+          agentId: options.agentId,
+          runId: options.runId,
+          reason,
+        },
+        this.progressOptions,
+      );
+      const flushProgress = () => progress.flush().catch(() => undefined);
       try {
         await this.events.publish("conversation.compaction.started", {
           conversationId,
@@ -222,7 +241,8 @@ export class CompactionService {
           request.instructions,
           summaryReserveTokens,
           operation.controller.signal,
-        );
+          (report) => progress.report(report),
+        ).finally(flushProgress);
         throwIfCompactionAborted(operation.controller.signal);
         const generatedBy =
           modelSummary?.generatedBy ?? "orchestrator-extractive";
@@ -323,6 +343,7 @@ export class CompactionService {
         });
         return { conversation: this.getConversation(conversationId), entry };
       } catch (error) {
+        await flushProgress();
         if (started) {
           const cancelled =
             operation.controller.signal.aborted && !operation.committing;
@@ -379,6 +400,7 @@ export class CompactionService {
     instructions: string | undefined,
     summaryReserveTokens: number,
     signal: AbortSignal,
+    onProgress?: (progress: CompactionProgressReport) => void,
   ): Promise<{ text: string; generatedBy: "model" } | undefined> {
     if (!this.summarize) return undefined;
     try {
@@ -390,6 +412,7 @@ export class CompactionService {
         instructions,
         summaryReserveTokens,
         signal,
+        onProgress,
       });
       throwIfCompactionAborted(signal);
       return summary?.text.trim()

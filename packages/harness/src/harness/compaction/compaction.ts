@@ -1,5 +1,12 @@
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import { completeSimpleWithModel } from "../../models/provider-registry.js";
+import type {
+  AssistantMessage,
+  ImageContent,
+  TextContent,
+} from "@earendil-works/pi-ai";
+import {
+  completeSimpleWithModel,
+  streamSimpleWithModel,
+} from "../../models/provider-registry.js";
 import type {
   AgentMessage,
   AnyModel,
@@ -237,19 +244,43 @@ export function isStructuredCompactionSummary(summary: string): boolean {
   );
 }
 
+/** Incremental summarization progress for user-facing feedback. */
+export type SummaryStreamProgress = {
+  /** 1 = first summarization request, 2 = structural-repair retry. */
+  attempt: number;
+  /** Accumulated text of the current attempt. */
+  text: string;
+};
+
+export type GenerateSummaryInput = {
+  messages: AgentMessage[];
+  model: AnyModel;
+  reserveTokens: number;
+  apiKey: string;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+  customInstructions?: string;
+  previousSummary?: string;
+  thinkingLevel?: ThinkingLevel;
+  env?: Record<string, string>;
+  /** Called with the accumulated text as the summary streams in. */
+  onProgress?: (progress: SummaryStreamProgress) => void;
+};
+
 /** Generate or update a conversation summary for compaction. */
-export async function generateSummary(
-  currentMessages: AgentMessage[],
-  model: AnyModel,
-  reserveTokens: number,
-  apiKey: string,
-  headers?: Record<string, string>,
-  signal?: AbortSignal,
-  customInstructions?: string,
-  previousSummary?: string,
-  thinkingLevel?: ThinkingLevel,
-  env?: Record<string, string>,
-): Promise<Result<string, CompactionError>> {
+export async function generateSummary({
+  messages: currentMessages,
+  model,
+  reserveTokens,
+  apiKey,
+  headers,
+  signal,
+  customInstructions,
+  previousSummary,
+  thinkingLevel,
+  env,
+  onProgress,
+}: GenerateSummaryInput): Promise<Result<string, CompactionError>> {
   const maxTokens = Math.min(
     Math.floor(0.8 * reserveTokens),
     model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY,
@@ -273,8 +304,11 @@ export async function generateSummary(
       ? { maxTokens, signal, apiKey, headers, env, reasoning: thinkingLevel }
       : { maxTokens, signal, apiKey, headers, env };
 
-  const requestSummary = (text: string) =>
-    completeSimpleWithModel(
+  const requestSummary = async (
+    text: string,
+    attempt: number,
+  ): Promise<AssistantMessage> => {
+    const stream = streamSimpleWithModel(
       model,
       {
         systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
@@ -288,14 +322,26 @@ export async function generateSummary(
       },
       completionOptions,
     );
-  const readText = (response: Awaited<ReturnType<typeof requestSummary>>) =>
+    let accumulated = "";
+    for await (const event of stream) {
+      if (event.type !== "text_delta") continue;
+      accumulated += event.delta;
+      try {
+        onProgress?.({ attempt, text: accumulated });
+      } catch {
+        // Progress reporting is best effort and must never fail summarization.
+      }
+    }
+    return await stream.result();
+  };
+  const readText = (response: AssistantMessage) =>
     response.content
       .filter((c): c is { type: "text"; text: string } => c.type === "text")
       .map((c) => c.text)
       .join("\n")
       .trim();
   const responseError = (
-    response: Awaited<ReturnType<typeof requestSummary>>,
+    response: AssistantMessage,
   ): CompactionError | undefined => {
     if (response.stopReason === "aborted") {
       return new CompactionError(
@@ -312,7 +358,7 @@ export async function generateSummary(
     return undefined;
   };
 
-  let response = await requestSummary(promptText);
+  let response = await requestSummary(promptText, 1);
   let failure = responseError(response);
   if (failure) return err(failure);
   let textContent = readText(response);
@@ -320,6 +366,7 @@ export async function generateSummary(
   if (missingHeadings.length > 0) {
     response = await requestSummary(
       `${promptText}\n\n<draft-summary>\n${textContent}\n</draft-summary>\n\nThe draft is structurally incomplete. Rewrite the entire checkpoint using the exact required format and include these missing sections: ${missingHeadings.join(", ")}.`,
+      2,
     );
     failure = responseError(response);
     if (failure) return err(failure);
@@ -486,13 +533,15 @@ export async function compact(
 
   let summary: string;
 
+  // Summary progress is not streamed from here: the split-turn branch runs two
+  // summarizations concurrently, so their deltas cannot form one ordered draft.
   if (isSplitTurn && turnPrefixMessages.length > 0) {
     const [historyResult, turnPrefixResult] = await Promise.all([
       messagesToSummarize.length > 0
-        ? generateSummary(
-            messagesToSummarize,
+        ? generateSummary({
+            messages: messagesToSummarize,
             model,
-            settings.reserveTokens,
+            reserveTokens: settings.reserveTokens,
             apiKey,
             headers,
             signal,
@@ -500,7 +549,7 @@ export async function compact(
             previousSummary,
             thinkingLevel,
             env,
-          )
+          })
         : Promise.resolve(ok<string, CompactionError>("No prior history.")),
       generateTurnPrefixSummary(
         turnPrefixMessages,
@@ -517,10 +566,10 @@ export async function compact(
     if (!turnPrefixResult.ok) return err(turnPrefixResult.error);
     summary = `${historyResult.value}\n\n---\n\n**Turn Context (split turn):**\n\n${turnPrefixResult.value}`;
   } else {
-    const summaryResult = await generateSummary(
-      messagesToSummarize,
+    const summaryResult = await generateSummary({
+      messages: messagesToSummarize,
       model,
-      settings.reserveTokens,
+      reserveTokens: settings.reserveTokens,
       apiKey,
       headers,
       signal,
@@ -528,7 +577,7 @@ export async function compact(
       previousSummary,
       thinkingLevel,
       env,
-    );
+    });
     if (!summaryResult.ok) return err(summaryResult.error);
     summary = summaryResult.value;
   }
