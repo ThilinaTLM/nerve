@@ -1,11 +1,8 @@
 <script lang="ts">
 import { TaskOutputPane } from "@nervekit/workbench-ui/tasks";
-import { writeClipboardText } from "$lib/core/clipboard";
-import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   loadEarlierTaskLogs,
   loadTaskLogWindow,
-  searchTaskLogHistory,
 } from "$lib/features/tasks/state/task-logs.svelte";
 import {
   setTaskEntryRun,
@@ -27,35 +24,12 @@ const taskLogs = $derived(
     ? taskSelectors.taskLogs
     : undefined,
 );
-const historySearch = $derived(
-  taskState.logHistorySearch?.taskId === activeCenterTask?.id
-    ? taskState.logHistorySearch
-    : undefined,
-);
-const historyNotice = $derived(
-  historySearch
-    ? `History search: ${historySearch.text}${
-        historySearch.truncated ? " (showing newest matches)" : ""
-      }`
-    : undefined,
-);
-
-async function copyOutput(text: string): Promise<void> {
-  try {
-    await writeClipboardText(text);
-    notify.success("Copied task output");
-  } catch {
-    notify.error("Could not copy to clipboard");
-  }
-}
 </script>
 
 <TaskOutputPane
   task={activeCenterTask}
   {taskLogs}
   {runs}
-  {historyNotice}
-  searchingHistory={taskState.logHistorySearching}
   onSelectRun={(taskId) => {
     if (!activeCenterTask) return;
     setTaskEntryRun(taskEntryKey(activeCenterTask.id), taskId);
@@ -66,13 +40,4 @@ async function copyOutput(text: string): Promise<void> {
     activeCenterTask
       ? loadEarlierTaskLogs(activeCenterTask.id)
       : Promise.resolve()}
-  onSearchHistory={(filter) => {
-    if (!activeCenterTask) return;
-    void searchTaskLogHistory(activeCenterTask.id, filter);
-  }}
-  onBackToLive={() => {
-    if (!activeCenterTask) return;
-    void loadTaskLogWindow(activeCenterTask.id);
-  }}
-  onCopyOutput={(text) => void copyOutput(text)}
 />

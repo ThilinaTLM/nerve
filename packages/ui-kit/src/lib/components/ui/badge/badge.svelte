@@ -18,12 +18,12 @@ export const badgeVariants = tv({
     },
     /* Project status tones (paired with icon/text, never color alone). */
     tone: {
-      neutral: "border-border bg-secondary text-muted-foreground",
+      neutral: "border-border bg-secondary text-secondary-foreground",
       accent: "border-border bg-accent text-foreground",
-      running: "border-info/40 bg-info/15 text-info",
-      good: "border-success/40 bg-success/15 text-success",
-      warn: "border-warning/40 bg-warning/15 text-warning",
-      danger: "border-destructive/40 bg-destructive/15 text-destructive",
+      running: "border-info/40 bg-info/8 text-info",
+      good: "border-success/40 bg-success/8 text-success",
+      warn: "border-warning/40 bg-warning/8 text-warning",
+      danger: "border-destructive/40 bg-destructive/8 text-destructive",
     },
     size: {
       xs: "px-1.5 py-px text-xs",

@@ -146,6 +146,7 @@ async function removeDefinition(): Promise<void> {
         >{/if}
     </div>
     <Input
+      size="xs"
       bind:value={query}
       placeholder="Search tasks"
       aria-label="Search tasks"

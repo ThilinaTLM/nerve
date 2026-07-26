@@ -47,7 +47,6 @@ function handleTaskRemovedEvent(event: {
   if (taskState.selectedTaskId === taskId) {
     taskState.selectedTaskId = undefined;
     taskState.taskLogs = undefined;
-    taskState.logHistorySearch = undefined;
   }
 }
 
@@ -59,7 +58,6 @@ function handleTaskLogEvent(event: { data?: Record<string, unknown> }): void {
   const viewingTask =
     workspaceState.activeCenterTab?.kind === "task" &&
     workspaceState.activeCenterTab.id === entryId;
-  if (taskState.logHistorySearch?.taskId === taskId) return;
   if (taskId && taskId === taskState.selectedTaskId && viewingTask) {
     void refreshTaskLogWindow(taskId).catch(() => undefined);
   }
