@@ -14,8 +14,8 @@ type Props = WithElementRef<
       | { type?: InputType; files?: undefined }
     )
 > & {
-  /** Visual height. `sm` is a denser variant for toolbars and dense forms. */
-  size?: "sm" | "default";
+  /** Visual height. `xs`/`sm` are denser variants for toolbars and dense panels. */
+  size?: "xs" | "sm" | "default";
   /** Convenience alias for `aria-label`. */
   ariaLabel?: string;
 };
@@ -32,7 +32,9 @@ let {
   ...restProps
 }: Props = $props();
 
-const sizeClass = $derived(size === "sm" ? "h-8" : "h-9");
+const sizeClass = $derived(
+  size === "xs" ? "h-7 px-2 text-xs md:text-xs" : size === "sm" ? "h-8" : "h-9",
+);
 </script>
 
 {#if type === "file"}

@@ -50,7 +50,7 @@ $effect(() => {
       <Input
         bind:ref={searchRef}
         bind:value={searchValue}
-        size="sm"
+        size="xs"
         {placeholder}
         ariaLabel={searchAriaLabel ?? placeholder}
         aria-keyshortcuts={searchShortcutAria}
