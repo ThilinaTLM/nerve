@@ -15,7 +15,7 @@ import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js
 const MAX_AUTO_CONTINUATIONS_PER_RUN = 3;
 
 export const AUTO_COMPACTION_CONTINUE_MESSAGE =
-  "Context was compacted into the checkpoint above. Continue this task in the same run: read Work Remaining, Current Working State, and Continuation Plan first; do not repeat Work Completed. Execute the remaining steps, validate the result, and stop when the task is complete.";
+  "Context was compacted into the checkpoint above. Continue from it: follow Work Remaining and the Continuation Plan, skip work already completed, then validate and stop when the task is done.";
 
 export class AutoCompactionRunner {
   private readonly continuationCounts = new Map<string, number>();

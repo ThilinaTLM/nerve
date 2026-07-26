@@ -14,7 +14,9 @@ export const conversationRuntimeEventDefinitions = Object.entries(
 function isBufferedConversationEvent(name: string): boolean {
   return (
     name.startsWith("conversation.live.") ||
-    name === "conversation.context.updated"
+    name === "conversation.context.updated" ||
+    // Progress snapshots are idempotent tails; they never need a per-event fsync.
+    name === "conversation.compaction.progress"
   );
 }
 

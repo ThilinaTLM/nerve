@@ -30,6 +30,12 @@ export type CompactionNotice = {
   failedEntryId?: string;
   errorMessage?: string;
   details?: unknown;
+  /** Tail of the summary text while it streams (running state only). */
+  summaryPreview?: string;
+  /** Last applied progress snapshot counter; guards out-of-order snapshots. */
+  previewSequence?: number;
+  generatedLines?: number;
+  generatedChars?: number;
   createdAt?: string;
   completedAt?: string;
 };

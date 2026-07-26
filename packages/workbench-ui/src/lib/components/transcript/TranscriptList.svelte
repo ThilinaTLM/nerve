@@ -279,6 +279,16 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
       plan ? `${plan.id}:${plan.status}` : "no-plan",
     ].join(":");
   }
+  if (node.kind === "compaction") {
+    const notice = node.notice;
+    return [
+      "compaction",
+      notice.state,
+      notice.summaryPreview?.length ?? 0,
+      notice.summary?.length ?? 0,
+      notice.errorMessage?.length ?? 0,
+    ].join(":");
+  }
   return node.key;
 }
 

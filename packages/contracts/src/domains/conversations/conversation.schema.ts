@@ -163,6 +163,11 @@ export interface ConversationEntryAppendedData {
 
 export type ConversationCompactionReason = "manual" | "threshold" | "overflow";
 
+/** Logical lines of generated summary text carried in a compaction progress snapshot. */
+export const COMPACTION_PROGRESS_PREVIEW_LINES = 6;
+/** Hard cap on the preview payload; the trailing characters are kept when longer. */
+export const COMPACTION_PROGRESS_PREVIEW_MAX_CHARS = 1_200;
+
 export interface ConversationCompactionStartedData {
   conversationId: string;
   agentId?: string;
@@ -175,6 +180,23 @@ export interface ConversationCompactionStartedData {
   triggerReserveTokens?: number;
   keepRecentTokens?: number;
   failedEntryId?: string;
+}
+
+export interface ConversationCompactionProgressData {
+  conversationId: string;
+  agentId?: string;
+  runId?: string;
+  reason: ConversationCompactionReason;
+  /** Monotonic per-compaction snapshot counter; stale snapshots are dropped. */
+  sequence: number;
+  /** 1 = first summarization request, 2 = structural-repair retry. */
+  attempt: number;
+  /** Trailing lines of the summary generated so far. */
+  preview: string;
+  /** Logical line count of everything generated so far. */
+  generatedLines: number;
+  /** Character count of everything generated so far. */
+  generatedChars: number;
 }
 
 export interface ConversationCompactionFailedData {
@@ -396,6 +418,7 @@ export type ConversationEventData =
   | ConversationPromptCancelledData
   | ConversationEntryAppendedData
   | ConversationCompactionStartedData
+  | ConversationCompactionProgressData
   | ConversationCompactionFailedData
   | ConversationCompactionCancelledData
   | ConversationCompactedData
@@ -760,6 +783,18 @@ const conversationCompactionStartedDataSchema = z.object({
   failedEntryId: z.string().startsWith("entry_").optional(),
 });
 
+const conversationCompactionProgressDataSchema = z.object({
+  conversationId: z.string().startsWith("conv_"),
+  agentId: z.string().startsWith("agent_").optional(),
+  runId: runIdSchema.optional(),
+  reason: z.enum(["manual", "threshold", "overflow"]),
+  sequence: z.number().int().positive(),
+  attempt: z.number().int().positive(),
+  preview: z.string().max(COMPACTION_PROGRESS_PREVIEW_MAX_CHARS),
+  generatedLines: z.number().int().nonnegative(),
+  generatedChars: z.number().int().nonnegative(),
+});
+
 const conversationCompactionFailedDataSchema = z.object({
   conversationId: z.string().startsWith("conv_"),
   agentId: z.string().startsWith("agent_").optional(),
@@ -918,6 +953,7 @@ export const conversationEventPayloadSchemas = {
   "conversation.prompt.cancelled": conversationPromptQueuedDataSchema,
   "conversation.entry.appended": conversationEntryAppendedDataSchema,
   "conversation.compaction.started": conversationCompactionStartedDataSchema,
+  "conversation.compaction.progress": conversationCompactionProgressDataSchema,
   "conversation.compaction.failed": conversationCompactionFailedDataSchema,
   "conversation.compaction.cancelled":
     conversationCompactionCancelledDataSchema,
@@ -961,6 +997,7 @@ export const conversationEventTypes = [
   "conversation.prompt.cancelled",
   "conversation.entry.appended",
   "conversation.compaction.started",
+  "conversation.compaction.progress",
   "conversation.compaction.failed",
   "conversation.compaction.cancelled",
   "conversation.compacted",

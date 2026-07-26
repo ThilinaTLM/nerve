@@ -288,6 +288,11 @@ describe("Protocol v1 shared schemas", () => {
       (definition) => definition.name === "conversation.compaction.started",
     );
     assert.equal(canonicalLifecycle?.supersedable, false);
+    const compactionProgress = definitions.find(
+      (definition) => definition.name === "conversation.compaction.progress",
+    );
+    assert.equal(compactionProgress?.delivery, "sequenced");
+    assert.equal(compactionProgress?.supersedable, true);
     const delta = definitions.find(
       (definition) => definition.name === "conversation.live.content.delta",
     );
