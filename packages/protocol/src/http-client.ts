@@ -61,13 +61,6 @@ export async function protocolRequest<M extends OperationName>(
       `Operation ${method} cannot target ${target.role}`,
     );
   }
-  if (target.role === "sandbox_agent" && !target.id) {
-    throw new ProtocolRequestError(
-      undefined,
-      "VALIDATION_FAILED",
-      "Sandbox agent requests require a nonempty target id",
-    );
-  }
   if (operation.idempotency === "none" && options.idempotencyKey) {
     throw new ProtocolRequestError(
       undefined,

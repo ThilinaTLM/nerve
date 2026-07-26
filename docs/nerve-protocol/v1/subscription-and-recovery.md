@@ -21,10 +21,10 @@ The client validates dense continuity even after the server accepted a subscript
 
 ## Snapshots
 
-For `snapshot_required`, the application loads the authorized snapshot for that stream, installs snapshot state first, installs the snapshot cursor, and then resubscribes. Workbench recovery uses workspace or conversation snapshots; the manager UI uses manager/sandbox recovery snapshots.
+For `snapshot_required`, the application loads the authorized workspace or conversation snapshot for that stream, installs snapshot state first, installs the snapshot cursor, and then resubscribes.
 
 Reducer lifecycle violations use the same recovery boundary: mark state corrupted, remove or suspend the affected stream, load a fresh snapshot, then subscribe from that snapshot cursor.
 
 ## Retention and migration
 
-Stream readers expose their earliest retained sequence. A retention gap is never represented as a synthetic event or sparse sequence. Legacy sparse logs and manager event tables are archived into a pre-dense epoch and new streams begin from sequence 1.
+Stream readers expose their earliest retained sequence. A retention gap is never represented as a synthetic event or sparse sequence. Legacy sparse workbench logs are archived into a pre-dense epoch and new streams begin from sequence 1.

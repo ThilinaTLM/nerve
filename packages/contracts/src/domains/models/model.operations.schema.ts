@@ -11,7 +11,7 @@ export const modelsOperationDefinitions = [
     z.object({ models: z.array(modelInfoSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.model.list",
   ),
 ] as const;

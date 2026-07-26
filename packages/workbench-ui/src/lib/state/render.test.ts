@@ -17,10 +17,10 @@ function toolCall(
     id: "tool_bash",
     sourceToolCallId: "call_bash",
     providerToolCallId: "call_bash",
-    conversationId: "conv_sandbox",
-    agentId: "agent_sandbox",
-    projectId: "proj_sandbox",
-    runId: "run_sandbox",
+    conversationId: "conv_workbench",
+    agentId: "agent_workbench",
+    projectId: "proj_workbench",
+    runId: "run_workbench",
     toolName: "bash",
     risk: "command",
     cwd: "/workspace",
@@ -34,13 +34,13 @@ function toolCall(
 describe("conversation render projection", () => {
   it("keeps active-run text, tool cards, and trailing text in content-index order", () => {
     const state: ConversationRenderState = {
-      conversationId: "conv_sandbox",
+      conversationId: "conv_workbench",
       entries: [
         {
           id: "entry_user",
-          conversationId: "conv_sandbox",
-          agentId: "agent_sandbox",
-          runId: "run_sandbox",
+          conversationId: "conv_workbench",
+          agentId: "agent_workbench",
+          runId: "run_workbench",
           role: "user",
           kind: "message",
           text: "Run the tool",
@@ -50,25 +50,25 @@ describe("conversation render projection", () => {
       activeEntryIds: ["entry_user"],
       toolCalls: [
         toolCall({
-          turnId: "turn_sandbox",
-          liveMessageId: "msg_sandbox",
+          turnId: "turn_workbench",
+          liveMessageId: "msg_workbench",
           contentIndex: 1,
         }),
       ],
       activeRun: {
-        runId: "run_sandbox",
-        agentId: "agent_sandbox",
-        projectId: "proj_sandbox",
-        conversationId: "conv_sandbox",
+        runId: "run_workbench",
+        agentId: "agent_workbench",
+        projectId: "proj_workbench",
+        conversationId: "conv_workbench",
         status: "running",
         startedAt: ts,
         turns: [
           {
-            turnId: "turn_sandbox",
+            turnId: "turn_workbench",
             ordinal: 0,
             messages: [
               {
-                liveMessageId: "msg_sandbox",
+                liveMessageId: "msg_workbench",
                 messageOrdinal: 0,
                 startedAt: ts,
                 blocks: [
@@ -103,9 +103,9 @@ describe("conversation render projection", () => {
       render.timeline.map((item) => item.key),
       [
         "entry_user",
-        "live:msg_sandbox:text:0",
-        "tool-slot:msg_sandbox:1",
-        "live:msg_sandbox:text:2",
+        "live:msg_workbench:text:0",
+        "tool-slot:msg_workbench:1",
+        "live:msg_workbench:text:2",
       ],
     );
     assert.equal(render.hasActiveTurnOutput, true);
@@ -114,24 +114,24 @@ describe("conversation render projection", () => {
   it("excludes active-run live messages once the durable entry exists", () => {
     const snapshot: ConversationSnapshot = {
       conversation: {
-        id: "conv_sandbox",
-        projectId: "proj_sandbox",
-        title: "Sandbox",
+        id: "conv_workbench",
+        projectId: "proj_workbench",
+        title: "Workbench",
         mode: "coding",
         permissionLevel: "supervised",
         approvalPolicy: { autoApproveReadOnly: true },
         createdAt: ts,
         updatedAt: ts,
       },
-      tree: { conversationId: "conv_sandbox", rootEntryIds: [], nodes: [] },
+      tree: { conversationId: "conv_workbench", rootEntryIds: [], nodes: [] },
       entries: [
         {
           id: "entry_assistant",
-          conversationId: "conv_sandbox",
-          agentId: "agent_sandbox",
-          runId: "run_sandbox",
-          turnId: "turn_sandbox",
-          liveMessageId: "msg_sandbox",
+          conversationId: "conv_workbench",
+          agentId: "agent_workbench",
+          runId: "run_workbench",
+          turnId: "turn_workbench",
+          liveMessageId: "msg_workbench",
           role: "assistant",
           kind: "message",
           text: "Durable answer",
@@ -141,19 +141,19 @@ describe("conversation render projection", () => {
       activeEntryIds: ["entry_assistant"],
       toolCalls: [],
       activeRun: {
-        runId: "run_sandbox",
-        agentId: "agent_sandbox",
-        projectId: "proj_sandbox",
-        conversationId: "conv_sandbox",
+        runId: "run_workbench",
+        agentId: "agent_workbench",
+        projectId: "proj_workbench",
+        conversationId: "conv_workbench",
         status: "running",
         startedAt: ts,
         turns: [
           {
-            turnId: "turn_sandbox",
+            turnId: "turn_workbench",
             ordinal: 0,
             messages: [
               {
-                liveMessageId: "msg_sandbox",
+                liveMessageId: "msg_workbench",
                 messageOrdinal: 0,
                 startedAt: ts,
                 blocks: [
@@ -205,15 +205,15 @@ describe("conversation render projection", () => {
       ],
     };
     const baseState: ConversationRenderState = {
-      conversationId: "conv_sandbox",
+      conversationId: "conv_workbench",
       entries: [],
       activeEntryIds: [],
       toolCalls: [],
       activeRun: {
-        runId: "run_sandbox",
-        agentId: "agent_sandbox",
-        projectId: "proj_sandbox",
-        conversationId: "conv_sandbox",
+        runId: "run_workbench",
+        agentId: "agent_workbench",
+        projectId: "proj_workbench",
+        conversationId: "conv_workbench",
         status: "running",
         startedAt: ts,
         turns: [
@@ -272,9 +272,9 @@ describe("conversation render projection", () => {
       entries: [
         {
           id: "entry_second",
-          conversationId: "conv_sandbox",
-          agentId: "agent_sandbox",
-          runId: "run_sandbox",
+          conversationId: "conv_workbench",
+          agentId: "agent_workbench",
+          runId: "run_workbench",
           turnId: "turn_second",
           liveMessageId: "msg_second",
           messageOrdinal: 0,
@@ -295,13 +295,13 @@ describe("conversation render projection", () => {
 
   it("keeps terminal recovered tool calls visible after activeRun clears", () => {
     const state: ConversationRenderState = {
-      conversationId: "conv_sandbox",
+      conversationId: "conv_workbench",
       entries: [
         {
           id: "entry_user",
-          conversationId: "conv_sandbox",
-          agentId: "agent_sandbox",
-          runId: "run_sandbox",
+          conversationId: "conv_workbench",
+          agentId: "agent_workbench",
+          runId: "run_workbench",
           role: "user",
           kind: "message",
           text: "Run the tool",

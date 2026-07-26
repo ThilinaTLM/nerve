@@ -11,7 +11,7 @@ export const logsOperationDefinitions = [
     applicationLogPruneResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.applicationLog.prune",
   ),
 ] as const;

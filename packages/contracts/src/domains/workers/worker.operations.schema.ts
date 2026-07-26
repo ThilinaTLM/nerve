@@ -13,7 +13,7 @@ export const workersOperationDefinitions = [
     z.object({ workers: z.array(workerRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.worker.list",
   ),
   defineOperation(
@@ -22,7 +22,7 @@ export const workersOperationDefinitions = [
     z.object({ worker: workerRecordSchema }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.worker.get",
   ),
 ] as const;

@@ -30,7 +30,7 @@ export const tasksOperationDefinitions = [
     z.object({ tasks: z.array(taskRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.task.list",
   ),
   defineOperation(
@@ -39,7 +39,7 @@ export const tasksOperationDefinitions = [
     z.object({ task: taskRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.task.start",
   ),
   defineOperation(
@@ -60,7 +60,7 @@ export const tasksOperationDefinitions = [
     z.object({ task: taskRecordSchema }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.task.get",
   ),
   defineOperation(
@@ -69,7 +69,7 @@ export const tasksOperationDefinitions = [
     z.object({ task: taskRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.task.cancel",
   ),
   defineOperation(
@@ -78,7 +78,7 @@ export const tasksOperationDefinitions = [
     z.object({ task: taskRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.task.restart",
   ),
   defineOperation(
@@ -87,7 +87,7 @@ export const tasksOperationDefinitions = [
     z.object({ removed: z.array(taskIdSchema) }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.task.prune",
   ),
   defineOperation(
@@ -96,7 +96,7 @@ export const tasksOperationDefinitions = [
     z.object({ removed: z.literal(true) }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.task.delete",
   ),
   defineOperation(
@@ -105,7 +105,7 @@ export const tasksOperationDefinitions = [
     taskLogQueryResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.task.logs",
   ),
 ] as const;

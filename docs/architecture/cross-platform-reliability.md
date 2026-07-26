@@ -1,6 +1,6 @@
 # Cross-platform reliability
 
-Nerve's native npm launcher and source desktop runtime support Linux, Windows 11, and macOS. Sandbox images remain Linux runtimes. Signed/notarized native installers are not currently part of the release path.
+Nerve's native npm launcher and source desktop runtime support Linux, Windows 11, and macOS. Signed/notarized native installers are not currently part of the release path.
 
 ## Native-host invariants
 
@@ -35,15 +35,13 @@ Pull requests and pushes to `main` run:
 - the complete checks and tests on Ubuntu;
 - tools, host-runtime, workbench-server, and desktop-shell tests on native Windows and macOS after building the desktop runtime.
 
-Tagged release package smoke also runs those host tests and desktop packaging on all three operating systems. Container and image smoke remains Linux-only because the shipped sandbox artifacts are Linux images.
+Tagged release package smoke also runs those host tests and desktop packaging on all three operating systems.
 
 Failure-injection tests remain required in addition to native runners. Native CI catches path and operating-system behavior, while deterministic injection verifies retry limits, cleanup, and non-retriable errors reliably.
 
 ## Follow-up backlog
 
 1. Make SQLite database plus WAL/SHM replacement in `packages/workbench-server/src/infrastructure/index-store/index-store.ts` transactional and resilient to transient native-host file contention.
-2. Consolidate the duplicate sandbox-manager and sandbox-agent atomic-write implementations when Linux container persistence is revisited.
-3. Harden sandbox JSONL replacement and archival paths with the consolidated container primitive.
-4. Configure macOS signing/notarization and macOS installation integration after Apple credentials and distribution requirements are chosen.
-5. Configure Windows code signing if native installers become a supported release artifact.
-6. Periodically test on real machines with Defender/cloud sync enabled, long user paths, case-insensitive filesystems, and nested process cancellation. Hosted CI cannot reproduce every external file-lock or endpoint-security interaction.
+2. Configure macOS signing/notarization and macOS installation integration after Apple credentials and distribution requirements are chosen.
+3. Configure Windows code signing if native installers become a supported release artifact.
+4. Periodically test on real machines with Defender/cloud sync enabled, long user paths, case-insensitive filesystems, and nested process cancellation. Hosted CI cannot reproduce every external file-lock or endpoint-security interaction.

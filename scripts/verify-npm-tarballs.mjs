@@ -13,6 +13,7 @@ const bundledPackages = [
   ["@nervekit/harness", "harness"],
   ["@nervekit/tools", "tools"],
   ["@nervekit/host-runtime", "host-runtime"],
+  ["@nervekit/process-runtime", "process-runtime"],
   ["@nervekit/workbench-server", "workbench-server"],
 ];
 
@@ -175,11 +176,6 @@ function verifyContents(tarball, entries, version, filename) {
 
   requireEntry(
     entries,
-    "package/node_modules/@nervekit/contracts/schemas/sandbox-config-v1.schema.json",
-    filename,
-  );
-  requireEntry(
-    entries,
     "package/node_modules/@nervekit/workbench-server/dist/main.js",
     filename,
   );
@@ -257,7 +253,6 @@ for (const name of packages) {
   await import(name);
 }
 for (const subpath of [
-  "@nervekit/contracts/schemas/sandbox-config-v1.schema.json",
   "@nervekit/harness/node",
   "@nervekit/harness/worker",
   "@nervekit/host-runtime/harness",

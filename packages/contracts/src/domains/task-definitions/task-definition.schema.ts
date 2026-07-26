@@ -5,13 +5,10 @@ export type TaskDefinitionRunPolicy = z.infer<
   typeof taskDefinitionRunPolicySchema
 >;
 
-export const taskDefinitionScopeSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("project"),
-    projectId: z.string().startsWith("proj_"),
-  }),
-  z.object({ kind: z.literal("sandbox"), sandboxId: z.string().min(1) }),
-]);
+export const taskDefinitionScopeSchema = z.object({
+  kind: z.literal("project"),
+  projectId: z.string().startsWith("proj_"),
+});
 export type TaskDefinitionScope = z.infer<typeof taskDefinitionScopeSchema>;
 
 export const taskDefinitionSchema = z.object({

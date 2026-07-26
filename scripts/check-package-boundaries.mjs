@@ -43,25 +43,6 @@ const allowedNerveDependencies = new Map([
     "@nervekit/desktop-shell",
     ["@nervekit/contracts", "@nervekit/workbench-server"],
   ],
-  [
-    "@nervekit/sandbox-agent",
-    [
-      "@nervekit/contracts",
-      "@nervekit/protocol",
-      "@nervekit/host-runtime",
-      "@nervekit/process-runtime",
-    ],
-  ],
-  ["@nervekit/sandbox-manager", ["@nervekit/contracts", "@nervekit/protocol"]],
-  [
-    "@nervekit/sandbox-manager-app",
-    [
-      "@nervekit/contracts",
-      "@nervekit/protocol",
-      "@nervekit/workbench-ui",
-      "@nervekit/ui-kit",
-    ],
-  ],
 ]);
 
 const packageByDirectory = new Map();
@@ -174,21 +155,17 @@ function checkRetiredSurface() {
     "@nervekit/" + "agent-runtime",
     "@nervekit/" + "agent-tools",
     "@nervekit/" + "orchestrator",
-    "@nervekit/" + "sandbox-runtime",
     "packages/" + "agent-runtime",
     "packages/" + "agent-tools",
     "packages/" + "orchestrator",
-    "packages/" + "sandbox-runtime",
   ];
   const retiredPathFragments = [
     "/protocol/" + "session.ts",
     "/protocol/" + "manager-protocol-session.ts",
-    "/protocol/" + "sandbox-socket.ts",
   ];
   const retiredIdentifiers = [
     "class " + "TaskManager",
     "class " + "RunManager",
-    "class " + "SandboxAgentRuntime",
     "class " + "HarnessEventBridge",
     "class " + "AgentRunner",
     "class " + "AgentRunSession",
@@ -276,7 +253,7 @@ function checkWorkbenchFeatureBoundaries() {
 function checkUiStructureAndStyles() {
   const appSource = trackedFiles.filter(
     (file) =>
-      /packages\/(?:workbench-app|sandbox-manager-app)\/src\//.test(file) &&
+      /packages\/workbench-app\/src\//.test(file) &&
       sourceExtensions.test(file),
   );
   for (const file of appSource) {
@@ -311,9 +288,7 @@ function checkRemovedPaths() {
     "packages/workbench-app/src/lib/features/git/components/git-change-format.ts",
     "packages/workbench-app/src/lib/features/git/components/git-remote-actions.ts",
     "packages/workbench-app/src/lib/features/git/components/pr-pane-helpers.ts",
-    "packages/sandbox-manager-app/src/lib/components/composer/SandboxPromptComposer.svelte",
     "packages/workbench-app/components.json",
-    "packages/sandbox-manager-app/components.json",
     "packages/workbench-app/src/lib/core/highlight/highlight.ts",
     "packages/workbench-app/src/lib/core/highlight/highlight.test.ts",
     "packages/workbench-app/src/lib/core/utils/lru-cache.ts",
@@ -355,7 +330,7 @@ function nervePackageName(specifier) {
 }
 
 function forbiddenHostRuntimeImport(specifier) {
-  return /^(?:@nervekit\/(?:protocol|sandbox-manager|sandbox-agent|workbench-server|workbench-app|sandbox-manager-app|desktop-shell)|hono(?:\/|$)|svelte(?:\/|$)|ws$|better-sqlite3$|sqlite3$)/.test(
+  return /^(?:@nervekit\/(?:protocol|workbench-server|workbench-app|desktop-shell)|hono(?:\/|$)|svelte(?:\/|$)|ws$|better-sqlite3$|sqlite3$)/.test(
     specifier,
   );
 }

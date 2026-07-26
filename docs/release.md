@@ -1,19 +1,17 @@
 # Release checklist
 
-Nerve publishes exactly one npm package, `@nervekit/desktop`, and builds two private runtime images. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path. Native-host filesystem and process requirements are documented in [Cross-platform reliability](architecture/cross-platform-reliability.md).
+Nerve publishes one npm package, `@nervekit/desktop`. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path. Native-host filesystem and process requirements are documented in [Cross-platform reliability](architecture/cross-platform-reliability.md).
 
 ## Requirements
 
 - Node.js 24+
 - pnpm 11.17.0
-- Docker or Podman for the required image gate
-- PostgreSQL for manager integration/image smoke
 
 ## Public npm package
 
-Publish only `@nervekit/desktop`. Its generated tarball embeds the private `contracts`, `protocol`, `harness`, `tools`, `host-runtime`, and `workbench-server` runtime workspaces as npm bundled dependencies. Third-party dependencies such as Electron and sharp remain normal dependencies so npm installs the correct platform artifacts.
+Publish only `@nervekit/desktop`. Its generated tarball embeds the private `contracts`, `protocol`, `harness`, `tools`, `host-runtime`, `process-runtime`, and `workbench-server` runtime workspaces as npm bundled dependencies. Third-party dependencies such as Electron and sharp remain normal dependencies so npm installs the correct platform artifacts.
 
-All source workspaces are private. Workbench-server embeds the built workbench web assets. Sandbox-manager embeds the manager web assets in its image rather than an npm publication.
+All source workspaces are private. Workbench-server embeds the built workbench web assets.
 
 ## Version and validation
 
@@ -21,54 +19,38 @@ Keep the root and workspace versions aligned and tag `v<version>`.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm release:verify-tag -- v0.8.0
+pnpm release:verify-tag -- v0.13.0
 pnpm fix
 pnpm check
 pnpm test
 pnpm build
 node scripts/pack-npm.mjs
-pnpm build-image:sandbox-agent
-NERVE_SANDBOX_MANAGER_INSTALL_LOCAL_RUNTIMES=false pnpm build-image:sandbox-manager
 ```
 
-`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. `node scripts/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-0.8.0.tgz`; it verifies exact names, versions, contents, bundled package resolution, the workbench/worker entries, and the desktop launcher through an isolated install.
+`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. `node scripts/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, the workbench/worker entries, and the desktop launcher through an isolated install.
 
-Run the finite built-artifact and image smokes after `pnpm build`:
-
-```sh
-pnpm release:verify-npm            # inspect packed tarballs and isolated install
-pnpm release:smoke:workbench       # built workbench server HTTP/WS parity
-pnpm release:smoke:desktop         # desktop --version/--help and server resolution
-pnpm release:smoke:image:sandbox-agent    # after build-image:sandbox-agent
-pnpm release:smoke:image:sandbox-manager  # after build-image:sandbox-manager
-```
-
-The sandbox and manager-image smokes need PostgreSQL. They use `NERVE_TEST_POSTGRES_URL` when set and otherwise start a disposable `postgres:16-alpine` container through the selected `NERVE_CONTAINER_CLI`. `pnpm build-image:sandbox-agent` and `pnpm build-image:sandbox-manager` run their image smoke automatically after building.
-
-Select a container runtime explicitly when needed:
+Run the finite built-artifact smokes after `pnpm build`:
 
 ```sh
-NERVE_CONTAINER_CLI=docker pnpm build-image:sandbox-agent
-NERVE_CONTAINER_CLI=podman pnpm build-image:sandbox-manager
+pnpm release:verify-npm          # inspect packed tarballs and isolated install
+pnpm release:smoke:workbench     # built workbench server HTTP/WS parity
+pnpm release:smoke:desktop       # desktop --version/--help and server resolution
+pnpm --filter @nervekit/desktop-shell package:dir
+pnpm release:smoke:desktop-package
 ```
 
 ## State reset before testing an incompatible development store
 
-Stop all Nerve processes and containers first.
+Stop all Nerve processes first, then remove the complete `NERVE_HOME` (default `~/.nerve`). Its marker is `nerve-workbench-state` version 2. Clear browser site local and session storage when testing the browser workbench independently.
 
-- Workbench: remove the complete `NERVE_HOME` (default `~/.nerve`). Its marker is `nerve-workbench-state` version 2.
-- Sandbox daemon: recreate the complete `/state` volume. Its marker is `nerve-sandbox-agent-state` version 4.
-- Sandbox manager: reset both its configured storage directory (`nerve-sandbox-manager-state` version 1) and its PostgreSQL database.
-- Browsers: clear site local and session storage, including `nerve.protocol.clientId`, `nerve.protocol.instanceId`, and manager record `nerve.protocol.v1.sandbox-manager-ui` (epoch `protocol-v1`).
+The deterministic workbench error is `Incompatible Nerve state at <path>...`, ending with `Reset this directory before starting Nerve Protocol v1.` The headless workbench has no general migration reader. The desktop has one narrow upgrade path for an unversioned legacy workbench home: after confirmation it retains a timestamped whole-home backup, initializes version 2, and restores only portable user state—validated settings, the custom provider/model catalog, and re-encrypted provider credentials. Malformed settings or catalog data aborts the migration and restores the original home; an undecryptable credential store is reported as a nonfatal failure because the backup retains it. Conversations, agents, projects, logs, plans, run history, SQLite, and daemon/session state remain only in the backup. Nerve never downgrades or automatically resets malformed, unknown, or future versioned stores.
 
-The deterministic errors are `Incompatible Nerve state at <path>...`, `Incompatible sandbox agent state at <path>...`, and `Incompatible sandbox manager state at <path>...`, each ending with `Reset this directory before starting Nerve Protocol v1.` Headless workbench and sandbox startup provide no general migration reader. The desktop has one narrow upgrade path for an unversioned legacy workbench home: after confirmation it retains a timestamped whole-home backup, initializes version 2, and restores only portable user state — validated settings (`config.json` merged with current defaults), the custom provider/model catalog (`providers.json`), and re-encrypted `provider:<id>:(apiKey|oauth)` credentials. Malformed settings or catalog data aborts the migration and restores the original home; an undecryptable credential store is reported as a nonfatal failure because the backup retains it. Conversations, agents, projects, logs, plans, run history, SQLite, and daemon/session state are deliberately not imported and remain only in the backup. It never downgrades or automatically resets malformed, unknown, or future versioned stores.
+## npm publication and OIDC
 
-## npm publication, migration, and OIDC
+Tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The trusted publisher for `@nervekit/desktop` uses `.github/workflows/release.yml` in `ThilinaTLM/nerve`. The workflow must not publish until checks, host/desktop tests, package verification, and built-artifact smokes pass on the configured Linux, Windows, and macOS jobs. An already-published matching version may be skipped only after the expected local tarball is verified.
 
-Tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The existing trusted publisher for `@nervekit/desktop` continues to use `.github/workflows/release.yml` in `ThilinaTLM/nerve`. The workflow must not publish until checks, the host/desktop tests and package verification pass on Linux, Windows, and macOS, Linux built-artifact smokes pass, and manager-agent plus both image smokes pass. An already-published matching version may be skipped only after the expected local tarball is verified.
-
-After `@nervekit/desktop@0.8.0` is published and clean-machine startup is verified, confirm npm `latest` points to it. Then deprecate versions `<=0.7.0` of `@nervekit/shared`, `@nervekit/tools`, `@nervekit/agent`, and `@nervekit/orchestrator` with `Internal legacy package retained for @nervekit/desktop <=0.7.0. Install @nervekit/desktop@latest instead.` Deprecate `@nervekit/desktop@<=0.7.0` with `Legacy multi-package release. Upgrade to @nervekit/desktop@latest.` Do not unpublish these versions: pinned legacy desktop installs still need them.
+After a release is published and clean-machine startup is verified, confirm npm `latest` points to it. Do not unpublish legacy packages or desktop versions: pinned older desktop installs may still require them.
 
 ## Scope and cleanup
 
-The npm launcher supports Linux, Windows, and macOS. Signed/notarized app bundles and native installers remain explicit non-goals. Every smoke must use temporary homes/state/databases/workspaces and random loopback ports, terminate child processes/containers, and remove temporary install projects, volumes, and test images it promises to clean.
+The npm launcher supports Linux, Windows, and macOS. Signed/notarized app bundles and native installers remain explicit non-goals. Every smoke must use temporary homes and workspaces, random loopback ports, terminate child processes, and remove temporary install projects it promises to clean.

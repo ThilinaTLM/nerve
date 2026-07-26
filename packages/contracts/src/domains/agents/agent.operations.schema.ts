@@ -42,7 +42,7 @@ export const agentsOperationDefinitions = [
     z.object({ agent: agentRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.agent.create",
   ),
   defineOperation(
@@ -51,7 +51,7 @@ export const agentsOperationDefinitions = [
     z.object({ agents: z.array(agentRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.agent.list",
   ),
   defineOperation(
@@ -60,7 +60,7 @@ export const agentsOperationDefinitions = [
     z.object({ agent: agentRecordSchema }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.agent.get",
   ),
   defineOperation(
@@ -69,7 +69,7 @@ export const agentsOperationDefinitions = [
     agentConfigureResultSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.agent.configure",
   ),
   defineOperation(
@@ -78,7 +78,7 @@ export const agentsOperationDefinitions = [
     z.object({ queuedPrompts: z.array(queuedPromptRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.agent.promptQueue.list",
   ),
   defineOperation(
@@ -87,7 +87,7 @@ export const agentsOperationDefinitions = [
     z.object({ queuedPrompt: queuedPromptRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.agent.promptQueue.cancel",
   ),
   defineOperation(
@@ -99,7 +99,7 @@ export const agentsOperationDefinitions = [
     }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.agent.requestTool",
   ),
 ] as const;

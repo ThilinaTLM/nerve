@@ -7,8 +7,6 @@ export const peerRoleSchema = z.enum([
   "ui",
   "desktop_shell",
   "cli",
-  "sandbox_manager",
-  "sandbox_agent",
 ]);
 export type PeerRole = z.infer<typeof peerRoleSchema>;
 

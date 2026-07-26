@@ -38,7 +38,6 @@ import {
   LIVE_TOOL_OUTPUT_MAX_CHARS,
   LIVE_TOOL_OUTPUT_MAX_CHUNKS,
   QueuedPromptRecord,
-  SandboxConversationViewSnapshot,
   ToolCallTranscriptRecord,
   toolCallTransitions,
 } from "@nervekit/contracts";
@@ -50,10 +49,7 @@ import type {
   CompactionNotice,
   ConversationTransientState,
 } from "./transcript-types.js";
-import {
-  type ConversationRenderState,
-  emptyConversationRenderState,
-} from "./types.js";
+import type { ConversationRenderState } from "./types.js";
 
 const conversationEventTypeSet = new Set<string>(conversationEventTypes);
 
@@ -105,28 +101,6 @@ function drainedSnapshotActiveRun(
     materializedLiveMessagesFromEntries(entries),
   );
   return cloned;
-}
-
-export function fromSandboxConversationViewSnapshot(
-  view: SandboxConversationViewSnapshot,
-): ConversationRenderState {
-  if (view.snapshot) {
-    return {
-      ...fromConversationSnapshot(view.snapshot),
-      stale: view.stale,
-      readOnly: view.fallback?.readOnly,
-      fallbackReason: view.fallback?.reason,
-    };
-  }
-  return {
-    ...emptyConversationRenderState(view.conversationId),
-    stale: view.stale,
-    readOnly: view.fallback?.readOnly ?? true,
-    fallbackReason: view.fallback?.reason,
-    generatedAt: view.generatedAt,
-    cursorSeq: view.lastEventSeq ?? 0,
-    sending: false,
-  };
 }
 
 export function applyConversationEvent(

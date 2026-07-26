@@ -33,10 +33,7 @@ const desktopOnly = process.argv.includes("--desktop");
 const appIconSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256, 512, 1024];
 const windowsAppIconSizes = [16, 20, 24, 32, 40, 48, 64, 256];
 const windowsTrayIconSizes = [16, 20, 24, 32];
-const browserTargets = [
-  join(repoRoot, "packages", "workbench-app", "public"),
-  join(repoRoot, "packages", "sandbox-manager-app", "public"),
-];
+const browserTargets = [join(repoRoot, "packages", "workbench-app", "public")];
 
 const appIconSvg = await readFile(join(brandDir, "nerve-app-icon.svg"));
 const fullMarkSvg = await readFile(join(brandDir, "nerve-mark.svg"), "utf8");

@@ -18,7 +18,6 @@ import {
   userQuestionRecordSchema,
   userQuestionStatusSchema,
 } from "./index.js";
-import { sandboxToolCallDetailsSchema } from "./tool-call-details.schema.js";
 import { z } from "zod";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 
@@ -79,7 +78,7 @@ export const toolsOperationDefinitions = [
     z.object({ tools: z.array(toolDescriptorSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.tool.list",
   ),
   defineOperation(
@@ -88,19 +87,16 @@ export const toolsOperationDefinitions = [
     z.object({ toolCalls: z.array(toolCallTranscriptRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.toolCall.list",
   ),
   defineOperation(
     "toolCall.get",
     toolCallGetParamsSchema,
-    z.union([
-      z.object({ toolCall: toolCallRecordSchema }),
-      sandboxToolCallDetailsSchema,
-    ]),
+    z.object({ toolCall: toolCallRecordSchema }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.toolCall.get",
   ),
   defineOperation(
@@ -109,7 +105,7 @@ export const toolsOperationDefinitions = [
     z.object({ approvals: z.array(approvalRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.approval.list",
   ),
   defineOperation(
@@ -121,7 +117,7 @@ export const toolsOperationDefinitions = [
     ]),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.approval.grant",
   ),
   defineOperation(
@@ -133,7 +129,7 @@ export const toolsOperationDefinitions = [
     ]),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.approval.deny",
   ),
   defineOperation(
@@ -142,7 +138,7 @@ export const toolsOperationDefinitions = [
     z.object({ questions: z.array(userQuestionRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.userQuestion.list",
   ),
   defineOperation(
@@ -154,7 +150,7 @@ export const toolsOperationDefinitions = [
     ]),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.userQuestion.answer",
   ),
   defineOperation(
@@ -166,7 +162,7 @@ export const toolsOperationDefinitions = [
     ]),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.userQuestion.dismiss",
   ),
   defineOperation(
@@ -175,7 +171,7 @@ export const toolsOperationDefinitions = [
     z.object({ planReviews: z.array(planReviewRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.planReview.list",
   ),
   defineOperation(
@@ -187,7 +183,7 @@ export const toolsOperationDefinitions = [
     ]),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.planReview.accept",
   ),
   defineOperation(
@@ -200,7 +196,7 @@ export const toolsOperationDefinitions = [
     }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.planReview.acceptInNewChat",
   ),
   defineOperation(
@@ -212,7 +208,7 @@ export const toolsOperationDefinitions = [
     ]),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.planReview.requestChanges",
   ),
   defineOperation(
@@ -221,7 +217,7 @@ export const toolsOperationDefinitions = [
     z.object({ planReview: planReviewRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.planReview.reject",
   ),
   defineOperation(
@@ -233,7 +229,7 @@ export const toolsOperationDefinitions = [
     ]),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.planReview.discard",
   ),
 ] as const;

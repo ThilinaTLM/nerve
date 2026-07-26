@@ -62,7 +62,7 @@ export const runAcceptedResultSchema = z.object({
     .optional(),
 });
 
-const hostRoles = ["workbench_server", "sandbox_agent"] as const;
+const hostRoles = ["workbench_server"] as const;
 
 export const runOperationDefinitions = [
   defineOperation(

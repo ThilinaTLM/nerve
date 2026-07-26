@@ -11,7 +11,7 @@ export const usageOperationDefinitions = [
     z.object({ usage: z.array(subscriptionUsageSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.usage.subscription.get",
   ),
 ] as const;

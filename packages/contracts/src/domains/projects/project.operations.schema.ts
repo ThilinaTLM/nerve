@@ -28,7 +28,7 @@ export const projectsOperationDefinitions = [
     z.object({ project: projectRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.project.create",
   ),
   defineOperation(
@@ -37,7 +37,7 @@ export const projectsOperationDefinitions = [
     z.object({ projects: z.array(projectRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.project.list",
   ),
   defineOperation(
@@ -46,7 +46,7 @@ export const projectsOperationDefinitions = [
     z.object({ project: projectRecordSchema }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.project.get",
   ),
   defineOperation(
@@ -55,7 +55,7 @@ export const projectsOperationDefinitions = [
     openProjectInEditorResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.project.openEditor",
   ),
   defineOperation(
@@ -64,7 +64,7 @@ export const projectsOperationDefinitions = [
     pruneProjectConversationsResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.project.conversations.prune",
   ),
   defineOperation(
@@ -73,7 +73,7 @@ export const projectsOperationDefinitions = [
     okResultSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.project.delete",
   ),
 ] as const;

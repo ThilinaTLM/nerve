@@ -14,7 +14,6 @@
   "homepage": "https://github.com/ThilinaTLM/nerve#readme",
   "files": [
     "dist/**",
-    "schemas/**",
     "LICENSE",
     "NOTICE"
   ],
@@ -22,14 +21,11 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./schemas/sandbox-config-v1.schema.json": "./schemas/sandbox-config-v1.schema.json"
+    }
   },
   "scripts": {
     "build": "tsc -b",
-    "check": "tsc -b --pretty false && pnpm schema:check",
-    "schema:generate": "tsx scripts/generate-sandbox-config-schema.ts",
-    "schema:check": "tsx scripts/generate-sandbox-config-schema.ts --check",
+    "check": "tsc -b --pretty false",
     "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {

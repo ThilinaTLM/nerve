@@ -2,13 +2,9 @@
 
 This directory documents the implemented Nerve Protocol v1. The contracts in `packages/contracts/src/domains/protocol/` and the sessions in `packages/protocol/` are authoritative.
 
-Protocol v1 is used on three links:
+Protocol v1 connects the workbench app (`ui`) with the local server (`workbench_server`). The desktop shell and CLI use their own wire roles where they participate in protocol messages.
 
-1. workbench app (`ui`) ↔ local server (`workbench_server`);
-2. sandbox manager app (`ui`) ↔ manager (`sandbox_manager`);
-3. sandbox daemon (`sandbox_agent`) ↔ manager (`sandbox_manager`).
-
-All links use the same strict envelope, catalog-validated RPC, subscription-based stream recovery, unsequenced notifications, snapshots, and bounded delivery behavior. There is one WebSocket dialect.
+The link uses a strict envelope, catalog-validated RPC, subscription-based stream recovery, unsequenced notifications, snapshots, and bounded delivery behavior. HTTP and WebSocket requests share the same operation catalog.
 
 ## Contents
 

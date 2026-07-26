@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { agentEventDefinitions } from "../agents/agent.events.schema.js";
+import { runEventDefinitions } from "../agents/run.events.schema.js";
 import { authEventDefinitions } from "../auth/auth.events.schema.js";
 import { conversationLifecycleEventDefinitions } from "../conversations/conversation.events.schema.js";
 import { conversationRuntimeEventDefinitions } from "../conversations/conversation-runtime.events.schema.js";
@@ -9,8 +10,6 @@ import { promptSuggestionEventDefinitions } from "../prompt-suggestions/prompt-s
 import { projectEventDefinitions } from "../projects/project.events.schema.js";
 import type { PeerRole } from "../protocol/envelope.schema.js";
 import { eventBatchDataSchema } from "../protocol/event-stream.schema.js";
-import { sandboxManagerEventDefinitions } from "../sandbox/sandbox-manager.events.schema.js";
-import { sandboxRuntimeEventDefinitions } from "../sandbox/sandbox-runtime.events.schema.js";
 import { settingsEventDefinitions } from "../settings/settings.events.schema.js";
 import { daemonEventDefinitions } from "../status/daemon.events.schema.js";
 import { storageEventDefinitions } from "../storage/storage.events.schema.js";
@@ -29,14 +28,13 @@ export type {
 } from "./event-definition.schema.js";
 
 const definitions: PublicEventDefinition[] = [
-  ...sandboxRuntimeEventDefinitions,
   ...taskEventDefinitions,
   ...taskDefinitionEventDefinitions,
   ...gitEventDefinitions,
-  ...sandboxManagerEventDefinitions,
   ...conversationLifecycleEventDefinitions,
   ...conversationRuntimeEventDefinitions,
   ...agentEventDefinitions,
+  ...runEventDefinitions,
   ...toolEventDefinitions,
   ...planEventDefinitions,
   ...projectEventDefinitions,

@@ -16,7 +16,6 @@ import { modelsOperationDefinitions } from "../models/model.operations.schema.js
 import { projectsOperationDefinitions } from "../projects/project.operations.schema.js";
 import { promptSuggestionsOperationDefinitions } from "../prompt-suggestions/prompt-suggestion.operations.schema.js";
 import { providersOperationDefinitions } from "../providers/provider.operations.schema.js";
-import { sandboxOperationDefinitions } from "../sandbox/sandbox.operations.schema.js";
 import { scratchNotesOperationDefinitions } from "../scratch-notes/scratch-note.operations.schema.js";
 import { settingsOperationDefinitions } from "../settings/settings.operations.schema.js";
 import { skillOperationDefinitions } from "../skills/skill.operations.schema.js";
@@ -41,7 +40,6 @@ const methodDefinitions = [
   ...projectsOperationDefinitions,
   ...promptSuggestionsOperationDefinitions,
   ...providersOperationDefinitions,
-  ...sandboxOperationDefinitions,
   ...scratchNotesOperationDefinitions,
   ...settingsOperationDefinitions,
   ...skillOperationDefinitions,

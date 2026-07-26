@@ -9,8 +9,8 @@
   "id": "msg_01",
   "kind": "hello",
   "ts": "2026-07-18T12:00:00.000Z",
-  "source": { "role": "ui", "id": "cli_01", "instanceId": "tab_01" },
-  "target": { "role": "sandbox_manager", "id": "sandbox-manager" },
+  "source": { "role": "ui", "id": "client_01", "instanceId": "tab_01" },
+  "target": { "role": "workbench_server" },
   "data": {
     "requestedVersion": 1,
     "capabilities": [
@@ -34,14 +34,14 @@
   "id": "msg_02",
   "kind": "stream.subscription.set",
   "ts": "2026-07-18T12:00:01.000Z",
-  "source": { "role": "ui", "id": "cli_01", "instanceId": "tab_01" },
-  "target": { "role": "sandbox_manager", "id": "sandbox-manager" },
+  "source": { "role": "ui", "id": "client_01", "instanceId": "tab_01" },
+  "target": { "role": "workbench_server" },
   "data": {
     "sessionId": "session_01",
     "subscriptionId": "sub_01",
     "streams": [
-      { "stream": "manager", "processedSeq": 18 },
-      { "stream": "sandbox:sbx_demo", "processedSeq": 42 }
+      { "stream": "workspace", "processedSeq": 18 },
+      { "stream": "conv/conv_1", "processedSeq": 42 }
     ]
   }
 }
@@ -56,10 +56,10 @@
   "id": "msg_03",
   "kind": "event.batch",
   "ts": "2026-07-18T12:00:02.000Z",
-  "source": { "role": "sandbox_manager", "id": "sandbox-manager" },
-  "target": { "role": "ui", "id": "cli_01", "instanceId": "tab_01" },
+  "source": { "role": "workbench_server" },
+  "target": { "role": "ui", "id": "client_01", "instanceId": "tab_01" },
   "data": {
-    "stream": "sandbox:sbx_demo",
+    "stream": "conv/conv_1",
     "batchId": "batch_01",
     "reason": "live",
     "firstSeq": 43,
@@ -73,7 +73,7 @@
         "data": {
           "conversationId": "conv_1",
           "agentId": "agent_1",
-          "projectId": "project_1",
+          "projectId": "proj_1",
           "runId": "run_1",
           "startedAt": "2026-07-18T12:00:02.000Z"
         }
@@ -92,17 +92,18 @@
   "id": "msg_04",
   "kind": "event.notify",
   "ts": "2026-07-18T12:00:03.000Z",
-  "source": { "role": "sandbox_manager", "id": "sandbox-manager" },
-  "target": { "role": "ui", "id": "cli_01", "instanceId": "tab_01" },
+  "source": { "role": "workbench_server" },
+  "target": { "role": "ui", "id": "client_01", "instanceId": "tab_01" },
   "data": {
     "events": [
       {
         "id": "notify_01",
-        "type": "sandbox.activity.changed",
+        "type": "task.output",
         "ts": "2026-07-18T12:00:03.000Z",
         "data": {
-          "sandboxId": "sbx_demo",
-          "updatedAt": "2026-07-18T12:00:03.000Z"
+          "taskId": "task_1",
+          "stream": "stdout",
+          "text": "server ready\n"
         }
       }
     ]

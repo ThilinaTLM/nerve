@@ -15,7 +15,7 @@ export interface PublicEventDefinition {
   readonly scope: readonly string[];
 }
 
-const hostRoles = ["workbench_server", "sandbox_agent"] as const;
+const hostRoles = ["workbench_server"] as const;
 
 export function definePublicEvent(
   name: string,

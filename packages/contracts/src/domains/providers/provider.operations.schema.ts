@@ -20,7 +20,7 @@ export const providersOperationDefinitions = [
     providerCatalogSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.providerCatalog.get",
   ),
   defineOperation(
@@ -29,7 +29,7 @@ export const providersOperationDefinitions = [
     providerCatalogSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.providerCatalog.custom.upsert",
   ),
   defineOperation(
@@ -38,7 +38,7 @@ export const providersOperationDefinitions = [
     providerCatalogSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.providerCatalog.custom.delete",
   ),
   defineOperation(
@@ -47,7 +47,7 @@ export const providersOperationDefinitions = [
     providerCatalogSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.providerCatalog.model.upsert",
   ),
   defineOperation(
@@ -56,7 +56,7 @@ export const providersOperationDefinitions = [
     providerCatalogSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.providerCatalog.model.delete",
   ),
 ] as const;

@@ -169,7 +169,7 @@ function fixture(
   );
   const coordinator = new RunCoordinator({
     unitOfWork,
-    sourceRole: options.sourceRole ?? "sandbox_agent",
+    sourceRole: options.sourceRole ?? "workbench_server",
     notify: { publish: (event) => notifyEvents.push(event) },
     execution: {
       create: async (_run, sink) => {
@@ -1422,7 +1422,7 @@ test("partial cancellation is persisted truthfully and is not called cancelled",
 
 test("execution sink journals and publishes durable entry events once", async () => {
   for (const sourceRole of [
-    "sandbox_agent",
+    "workbench_server",
     "workbench_server",
   ] satisfies PeerRole[]) {
     const harness = fixture({ sourceRole });

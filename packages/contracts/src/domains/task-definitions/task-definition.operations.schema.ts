@@ -7,37 +7,23 @@ import {
 } from "./task-definition.schema.js";
 
 const definitionIdSchema = z.string().startsWith("taskdef_");
-const scopeParamsSchema = z.union([
-  z.object({ projectId: z.string().startsWith("proj_") }),
-  z.object({ sandboxId: z.string().min(1) }),
-]);
-const createParamsSchema = z.union([
-  z
-    .object({ projectId: z.string().startsWith("proj_") })
-    .merge(createTaskDefinitionRequestSchema),
-  z
-    .object({ sandboxId: z.string().min(1) })
-    .merge(createTaskDefinitionRequestSchema),
-]);
-const updateParamsSchema = z.union([
-  z
-    .object({
-      projectId: z.string().startsWith("proj_"),
-      definitionId: definitionIdSchema,
-    })
-    .merge(updateTaskDefinitionRequestSchema),
-  z
-    .object({ sandboxId: z.string().min(1), definitionId: definitionIdSchema })
-    .merge(updateTaskDefinitionRequestSchema),
-]);
-const deleteParamsSchema = z.union([
-  z.object({
+const scopeParamsSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+});
+const createParamsSchema = scopeParamsSchema.merge(
+  createTaskDefinitionRequestSchema,
+);
+const updateParamsSchema = z
+  .object({
     projectId: z.string().startsWith("proj_"),
     definitionId: definitionIdSchema,
-  }),
-  z.object({ sandboxId: z.string().min(1), definitionId: definitionIdSchema }),
-]);
-const hostRoles = ["workbench_server", "sandbox_manager"] as const;
+  })
+  .merge(updateTaskDefinitionRequestSchema);
+const deleteParamsSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+  definitionId: definitionIdSchema,
+});
+const hostRoles = ["workbench_server"] as const;
 
 export const taskDefinitionOperationDefinitions = [
   defineOperation(
