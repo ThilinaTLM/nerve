@@ -203,8 +203,28 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
           runtimeMetadata({ childPid: child.pid });
         spawnCommands.push(command);
         spawnCalls.push({ command, options: spawnOptions });
+        const lifecycle = () =>
+          new Promise<{
+            kind: "closed";
+            exitCode: number | null;
+            signal: NodeJS.Signals | null;
+          }>((resolve) => {
+            child.once("close", (exitCode, signal) =>
+              resolve({ kind: "closed", exitCode, signal }),
+            );
+          });
+        const exited = new Promise<{
+          kind: "closed";
+          exitCode: number | null;
+          signal: NodeJS.Signals | null;
+        }>((resolve) => {
+          child.once("exit", (exitCode, signal) =>
+            resolve({ kind: "closed", exitCode, signal }),
+          );
+        });
+        const closed = lifecycle();
         options.onSpawn?.(command, spawnOptions);
-        return { child, runtime };
+        return { child, runtime, exited, closed };
       },
       async terminate(terminatedChild, signal) {
         assert.ok(children.includes(terminatedChild as FakeChild));

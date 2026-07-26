@@ -1,7 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 import { errorCode, errorMessage, runCommand } from "./command.js";
-import { spawnShell } from "./shell.js";
+import { observeProcessLifecycle, spawnShell } from "./shell.js";
 import type {
   ProcessRuntimeDriver,
   RuntimeInspection,
@@ -133,10 +133,13 @@ async function ports(runtime: TaskRuntime): Promise<TaskListeningPort[]> {
 export const darwinProcessRuntimeDriver: ProcessRuntimeDriver = {
   async spawn(command, options) {
     const child = spawnShell(command, options);
+    const { exited, closed } = observeProcessLifecycle(child);
     if (!child.pid) throw new Error("Spawned process has no PID");
     const current = await fingerprint(child.pid);
     return {
       child,
+      exited,
+      closed,
       runtime: {
         version: 2,
         platform: "darwin",

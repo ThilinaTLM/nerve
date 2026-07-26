@@ -199,14 +199,20 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
       throw new Error(
         `maximum supervised task count exceeded: ${this.options.maxTasks ?? 32}`,
       );
-    const { child, runtime } = await defaultProcessRuntimeDriver.spawn(
-      input.command,
-      { cwd: input.cwd, env: input.env },
-    );
-    let settle!: (exit: TaskProcessExit) => void;
-    const settled = new Promise<TaskProcessExit>(
-      (resolve) => (settle = resolve),
-    );
+    const { child, runtime, exited, closed } =
+      await defaultProcessRuntimeDriver.spawn(input.command, {
+        cwd: input.cwd,
+        env: input.env,
+      });
+    const toTaskExit = (result: Awaited<typeof exited>): TaskProcessExit =>
+      result.kind === "error"
+        ? { exitCode: 127, exitedAt: new Date().toISOString() }
+        : {
+            exitCode: result.exitCode ?? undefined,
+            signal: result.signal ?? undefined,
+            exitedAt: new Date().toISOString(),
+          };
+    const settled = exited.then(toTaskExit);
     const state: ChildState = {
       child,
       runtime,
@@ -234,7 +240,6 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
       if (finished) return;
       finished = true;
       state.exit = exit;
-      settle(exit);
       if (state.stopping)
         await this.waitForRuntimeExit(state.runtime, state.knownDescendants);
       try {
@@ -243,32 +248,22 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
         this.children.delete(input.taskId);
       }
     };
-    child.on("error", (error) => {
-      this.observeCallback(
-        callbacks.onOutput?.(
-          "stderr",
-          error instanceof Error ? error.message : String(error),
-        ),
-        input.taskId,
-        "spawn_error_output",
-      );
-      this.observeCallback(
-        finish({ exitCode: 127, exitedAt: new Date().toISOString() }),
-        input.taskId,
-        "exit",
-      );
+    void closed.then((result) => {
+      if (result.kind === "error") {
+        this.observeCallback(
+          callbacks.onOutput?.("stderr", result.error.message),
+          input.taskId,
+          "spawn_error_output",
+        );
+        this.observeCallback(
+          finish({ exitCode: 127, exitedAt: new Date().toISOString() }),
+          input.taskId,
+          "exit",
+        );
+        return;
+      }
+      this.observeCallback(finish(toTaskExit(result)), input.taskId, "exit");
     });
-    child.on("close", (code, signal) =>
-      this.observeCallback(
-        finish({
-          exitCode: code ?? undefined,
-          signal: signal ?? undefined,
-          exitedAt: new Date().toISOString(),
-        }),
-        input.taskId,
-        "exit",
-      ),
-    );
     return runtime;
   }
 

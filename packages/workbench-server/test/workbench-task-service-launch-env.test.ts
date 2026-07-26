@@ -13,6 +13,25 @@ import {
 } from "./helpers/workbench-task-service.js";
 
 describe("task manager launch env", () => {
+  it("captures a process that closes before supervisor spawn returns", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({
+      child,
+      onSpawn() {
+        child.emitClose(0, null);
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+
+    const task = await startFakeTask(manager, storage);
+    const restarted = await manager.restartTask(task.id);
+
+    assert.ok(
+      ["completed", "cancelled"].includes(manager.getTask(task.id).status),
+    );
+    assert.notEqual(restarted.id, task.id);
+  });
+
   it("stores env config-side and exposes only redacted envInfo", async () => {
     const env = { PORT: "4321", API_TOKEN: "secret" };
     const { supervisor, spawnCalls } = fakeSupervisor({});

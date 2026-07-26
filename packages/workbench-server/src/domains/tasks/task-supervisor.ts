@@ -1,6 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { resolveBashShellConfig } from "@nervekit/host-runtime/tools";
-import { defaultProcessRuntimeDriver } from "@nervekit/process-runtime";
+import {
+  defaultProcessRuntimeDriver,
+  observeProcessLifecycle,
+  type ProcessLifecycleResult,
+} from "@nervekit/process-runtime";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 import {
   inspectPortListeners,
@@ -32,6 +36,8 @@ export interface SpawnManagedTaskOptions {
 export interface SpawnedManagedTask {
   child: ChildProcess;
   runtime: TaskRuntime;
+  exited: Promise<ProcessLifecycleResult>;
+  closed: Promise<ProcessLifecycleResult>;
 }
 
 export interface TerminateTaskOptions {
@@ -81,7 +87,11 @@ export function spawnManagedTask(
     detached: process.platform !== "win32",
     windowsHide: true,
   });
-  return { child, runtime: runtimeForChild(child, process.platform) };
+  return {
+    child,
+    runtime: runtimeForChild(child, process.platform),
+    ...observeProcessLifecycle(child),
+  };
 }
 
 export function runtimeForChild(

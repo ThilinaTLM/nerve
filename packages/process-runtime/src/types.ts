@@ -13,9 +13,19 @@ export interface SpawnProcessOptions {
   shellPath?: string;
 }
 
+export type ProcessLifecycleResult =
+  | {
+      kind: "closed";
+      exitCode: number | null;
+      signal: NodeJS.Signals | null;
+    }
+  | { kind: "error"; error: Error };
+
 export interface SpawnedProcess {
   child: ChildProcess;
   runtime: TaskRuntime;
+  exited: Promise<ProcessLifecycleResult>;
+  closed: Promise<ProcessLifecycleResult>;
 }
 
 export interface TerminationResult {

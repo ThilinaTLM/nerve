@@ -1,7 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 import { errorMessage, runCommand } from "./command.js";
-import { spawnShell } from "./shell.js";
+import { observeProcessLifecycle, spawnShell } from "./shell.js";
 import type {
   ProcessRuntimeDriver,
   RuntimeInspection,
@@ -127,10 +127,13 @@ async function listeningPorts(
 export const windowsProcessRuntimeDriver: ProcessRuntimeDriver = {
   async spawn(command, options) {
     const child = spawnShell(command, options);
+    const { exited, closed } = observeProcessLifecycle(child);
     if (!child.pid) throw new Error("Spawned process has no PID");
     const created = await creationDate(child.pid);
     return {
       child,
+      exited,
+      closed,
       runtime: {
         version: 2,
         platform: "win32",
