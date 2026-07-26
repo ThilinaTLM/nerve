@@ -26,6 +26,7 @@ type Props = {
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;
   conversationAgents?: AgentRecord[];
+  compacting?: boolean;
   tasks?: TaskRecord[];
   selectedTask?: TaskRecord;
   homeDir?: string;
@@ -33,6 +34,7 @@ type Props = {
   systemPromptUrl?: () => string | undefined;
   onTabChange?: (tab: UtilityTab) => void;
   onSelectAgent?: (agent: AgentRecord) => void;
+  onCompact?: () => void;
   onOpenTaskOutput?: (id: string) => void;
   onCancelTask?: (id: string) => void;
   onRestartTask?: (id: string) => void;
@@ -53,6 +55,7 @@ let {
   activeConversation,
   activeAgent,
   conversationAgents = [],
+  compacting = false,
   tasks = [],
   selectedTask,
   homeDir,
@@ -60,6 +63,7 @@ let {
   systemPromptUrl,
   onTabChange,
   onSelectAgent,
+  onCompact,
   onOpenTaskOutput,
   onCancelTask,
   onRestartTask,
@@ -100,9 +104,11 @@ const tabs = $derived<TabItem[]>([
         {activeConversation}
         {activeAgent}
         {conversationAgents}
+        {compacting}
         {exportUrl}
         {systemPromptUrl}
         {onSelectAgent}
+        {onCompact}
       />
     {:else if tab === "git"}
       <GitTab {activeProject} {activeAgent} />

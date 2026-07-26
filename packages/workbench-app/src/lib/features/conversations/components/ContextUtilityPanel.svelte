@@ -4,6 +4,7 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Copy from "@lucide/svelte/icons/copy";
 import Download from "@lucide/svelte/icons/download";
+import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import Layers from "@lucide/svelte/icons/layers";
 import ScrollText from "@lucide/svelte/icons/scroll-text";
 import type {
@@ -18,6 +19,7 @@ import {
 } from "@nervekit/ui-kit/core/utils/status";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
 import { writeClipboardText } from "$lib/core/clipboard";
@@ -30,9 +32,11 @@ type Props = {
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;
   conversationAgents?: AgentRecord[];
+  compacting?: boolean;
   exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
   systemPromptUrl?: () => string | undefined;
   onSelectAgent?: (agent: AgentRecord) => void;
+  onCompact?: () => void;
 };
 
 let {
@@ -41,10 +45,14 @@ let {
   activeConversation,
   activeAgent,
   conversationAgents = [],
+  compacting = false,
   exportUrl,
   systemPromptUrl,
   onSelectAgent,
+  onCompact,
 }: Props = $props();
+
+let confirmCompactOpen = $state(false);
 
 const systemPromptHref = $derived(systemPromptUrl?.());
 
@@ -144,17 +152,36 @@ $effect(() => {
         </Button>
       {/snippet}
 
-      <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-        {#each fields as field (field.label)}
-          <dt class="font-mono text-xs text-muted-foreground">{field.label}</dt>
-          <dd
-            class="truncate font-mono text-xs text-foreground"
-            title={field.value}
-          >
-            {field.value ?? "—"}
-          </dd>
-        {/each}
-      </dl>
+      <div class="flex flex-col gap-3">
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+          {#each fields as field (field.label)}
+            <dt class="font-mono text-xs text-muted-foreground">
+              {field.label}
+            </dt>
+            <dd
+              class="truncate font-mono text-xs text-foreground"
+              title={field.value}
+            >
+              {field.value ?? "—"}
+            </dd>
+          {/each}
+        </dl>
+        <Button
+          class="self-start"
+          size="xs"
+          variant="outline"
+          disabled={!activeConversation || compacting}
+          title={activeConversation
+            ? compacting
+              ? "Conversation compaction is in progress"
+              : "Summarize earlier messages to reduce context usage"
+            : "Select a conversation to compact its context"}
+          onclick={() => (confirmCompactOpen = true)}
+        >
+          <FoldVertical />
+          {compacting ? "Compacting…" : "Compact context"}
+        </Button>
+      </div>
     </PanelSection>
 
     <PanelSection
@@ -330,3 +357,11 @@ $effect(() => {
     </PanelSection>
   {/if}
 </div>
+
+<ConfirmDialog
+  bind:open={confirmCompactOpen}
+  title="Compact conversation"
+  description="This summarizes earlier messages to reduce context size. The full history stays available in the branch tree."
+  confirmLabel="Compact context"
+  onConfirm={() => onCompact?.()}
+/>

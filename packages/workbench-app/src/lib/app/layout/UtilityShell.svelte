@@ -2,7 +2,10 @@
 import UtilityPanel from "$lib/app/layout/UtilityPanel.svelte";
 import { layout } from "$lib/app/layout/layout-state.svelte";
 import type { AgentRecord } from "$lib/api";
-import { conversationSelectors } from "$lib/features/conversations";
+import {
+  compactActiveConversation,
+  conversationSelectors,
+} from "$lib/features/conversations";
 import {
   openTaskTab,
   taskSelectors,
@@ -24,6 +27,7 @@ const activeProject = $derived(workspaceSelectors.activeProject);
 const activeConversation = $derived(conversationSelectors.activeConversation);
 const activeAgent = $derived(conversationSelectors.activeAgent);
 const conversationAgents = $derived(conversationSelectors.conversationAgents);
+const compacting = $derived(conversationSelectors.compacting);
 const tasks = $derived(taskSelectors.scopedTasks);
 const selectedTask = $derived(taskSelectors.selectedTask);
 
@@ -42,6 +46,7 @@ function selectAgent(agent: AgentRecord) {
   {activeConversation}
   {activeAgent}
   {conversationAgents}
+  {compacting}
   {tasks}
   {selectedTask}
   homeDir={status?.storage.home}
@@ -49,6 +54,7 @@ function selectAgent(agent: AgentRecord) {
   {systemPromptUrl}
   onTabChange={(tab) => (layout.utilityTab = tab)}
   onSelectAgent={selectAgent}
+  onCompact={() => void compactActiveConversation()}
   onOpenTaskOutput={(id) => {
     layout.utilityTab = "tasks";
     void openTaskTab(id);
