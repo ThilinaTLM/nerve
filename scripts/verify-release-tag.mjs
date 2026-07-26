@@ -14,9 +14,6 @@ const packagePaths = [
   join("packages", "workbench-ui", "package.json"),
   join("packages", "workbench-app", "package.json"),
   join("packages", "desktop-shell", "package.json"),
-  join("packages", "sandbox-agent", "package.json"),
-  join("packages", "sandbox-manager", "package.json"),
-  join("packages", "sandbox-manager-app", "package.json"),
 ];
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");

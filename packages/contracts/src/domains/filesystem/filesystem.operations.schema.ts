@@ -11,7 +11,7 @@ export const filesystemOperationDefinitions = [
     filesystemDirectoryResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.filesystem.directories.list",
   ),
 ] as const;

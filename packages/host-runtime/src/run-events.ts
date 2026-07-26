@@ -32,7 +32,7 @@ export interface RunNotifyEventPort {
 /**
  * Canonical durable run event construction. Every intent is validated against
  * the public event catalog using the host's own producer role, so both
- * `sandbox_agent` and `workbench_server` publishers are enforced identically.
+ * Workbench publishers are validated against the shared event catalog.
  */
 export class RunEventFactory {
   constructor(private readonly sourceRole: PeerRole) {}

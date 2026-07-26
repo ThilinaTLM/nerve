@@ -21,7 +21,7 @@ export const storageOperationDefinitions = [
     storageInfoSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.storage.info",
   ),
   defineOperation(
@@ -30,7 +30,7 @@ export const storageOperationDefinitions = [
     z.object({ ok: z.literal(true), counts: countsSchema.optional() }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.storage.rebuildIndex",
   ),
   defineOperation(
@@ -39,7 +39,7 @@ export const storageOperationDefinitions = [
     storageUsageResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.storage.usage.get",
   ),
   defineOperation(
@@ -48,7 +48,7 @@ export const storageOperationDefinitions = [
     storageCleanupStartResponseSchema,
     "accepted_async",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.storage.cleanup",
   ),
   defineOperation(
@@ -57,7 +57,7 @@ export const storageOperationDefinitions = [
     storageCleanupStatusResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.storage.cleanup.get",
   ),
   defineOperation(
@@ -66,7 +66,7 @@ export const storageOperationDefinitions = [
     storageCleanupCancelResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.storage.cleanup.cancel",
   ),
 ] as const;

@@ -240,12 +240,6 @@ export class RpcDispatcher {
       return failure("VALIDATION_FAILED", "Invalid request data");
     const { method, params, idempotencyKey } = parsedRequest.data;
     const operation = operationDefinition(method);
-    if (request.target.role === "sandbox_agent" && !request.target.id) {
-      return failure(
-        "VALIDATION_FAILED",
-        "Sandbox agent requests require a nonempty target id",
-      );
-    }
     if (
       operation.allowedTargetRoles &&
       !operation.allowedTargetRoles.includes(request.target.role)

@@ -26,7 +26,7 @@ export const promptSuggestionsOperationDefinitions = [
     promptSuggestionListResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.promptSuggestion.listForProject",
   ),
   defineOperation(
@@ -35,7 +35,7 @@ export const promptSuggestionsOperationDefinitions = [
     z.object({ statuses: z.array(promptSuggestionStatusSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.promptSuggestion.statuses.list",
   ),
   defineOperation(
@@ -44,7 +44,7 @@ export const promptSuggestionsOperationDefinitions = [
     okResultSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.promptSuggestion.trust.update",
   ),
 ] as const;

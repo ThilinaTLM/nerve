@@ -2,17 +2,15 @@
 
 ## Roles and routing
 
-Wire roles are `workbench_server`, `ui`, `desktop_shell`, `cli`, `sandbox_manager`, and `sandbox_agent`. A peer is `{ role, id?, name?, instanceId? }`; every message has explicit `source` and `target`.
+Wire roles are `workbench_server`, `ui`, `desktop_shell`, and `cli`. A peer is `{ role, id?, name?, instanceId? }`; every message has explicit `source` and `target`.
 
-Manager UI requests for a sandbox target `{ role: "sandbox_agent", id: sandboxId }`. The manager forwards the catalog method, parsed params, idempotency key, timeout, and lineage without renaming the operation.
+The operation catalog declares the allowed target roles for every method. The workbench server validates the catalog method, parameters, target, idempotency key, timeout, and lineage before dispatch.
 
-## Links and streams
+## Link and streams
 
-| Link                     | Client                | Server                          | Sequenced streams                                     |
-| ------------------------ | --------------------- | ------------------------------- | ----------------------------------------------------- |
-| workbench UI → server    | shared client session | workbench shared server session | `workspace`, selected `conv/<conversationId>` streams |
-| manager UI → manager     | shared client session | manager shared server session   | `manager`, selected `sandbox:<id>`                    |
-| sandbox daemon → manager | shared client session | manager agent endpoint          | the daemon's `sandbox:<id>`                           |
+| Link                  | Client                | Server                          | Sequenced streams                                     |
+| --------------------- | --------------------- | ------------------------------- | ----------------------------------------------------- |
+| workbench UI → server | shared client session | workbench shared server session | `workspace`, selected `conv/<conversationId>` streams |
 
 Each stream has one sequence owner and a dense positive sequence. Only sequenced events enter stream logs. Ephemeral events use `event.notify`, have no sequence, and never change a cursor.
 

@@ -104,8 +104,6 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
   }),
 });
 
-function projectId(
-  params: { projectId: string } | { sandboxId: string },
-): string {
-  return (params as { projectId: string }).projectId;
+function projectId(params: { projectId: string }): string {
+  return params.projectId;
 }

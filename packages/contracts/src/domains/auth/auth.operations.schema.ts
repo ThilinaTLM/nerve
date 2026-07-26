@@ -11,7 +11,7 @@ export const authOperationDefinitions = [
     z.object({ providers: z.array(authProviderMetadataSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.auth.providers.list",
   ),
 ] as const;

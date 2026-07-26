@@ -23,12 +23,6 @@
       "path": "./packages/workbench-server"
     },
     {
-      "path": "./packages/sandbox-agent"
-    },
-    {
-      "path": "./packages/sandbox-manager"
-    },
-    {
       "path": "./packages/desktop-shell"
     }
   ]

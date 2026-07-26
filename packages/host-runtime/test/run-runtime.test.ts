@@ -132,7 +132,7 @@ function fixture(
   };
 
   const runtime = createRunRuntime({
-    sourceRole: "sandbox_agent",
+    sourceRole: "workbench_server",
     unitOfWork,
     publisher: {
       publish: async (intent: RunPublicEventIntent) => {

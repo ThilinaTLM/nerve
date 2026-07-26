@@ -172,135 +172,6 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/sandbox-agent:
-    dependencies:
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@nervekit/host-runtime':
-        specifier: workspace:*
-        version: link:../host-runtime
-      '@nervekit/process-runtime':
-        specifier: workspace:*
-        version: link:../process-runtime
-      '@nervekit/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      ws:
-        specifier: 8.21.0
-        version: 8.21.0
-      yaml:
-        specifier: 2.9.0
-        version: 2.9.0
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      '@types/ws':
-        specifier: 8.18.1
-        version: 8.18.1
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
-  packages/sandbox-manager:
-    dependencies:
-      '@aws-sdk/client-cloudwatch-logs':
-        specifier: ^3.1081.0
-        version: 3.1081.0
-      '@aws-sdk/client-ecs':
-        specifier: ^3.1081.0
-        version: 3.1081.0
-      '@earendil-works/pi-ai':
-        specifier: 0.82.1
-        version: 0.82.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@nervekit/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      node-pg-migrate:
-        specifier: 8.0.4
-        version: 8.0.4(@types/pg@8.11.11)(pg@8.13.1)
-      pg:
-        specifier: 8.13.1
-        version: 8.13.1
-      ws:
-        specifier: 8.21.0
-        version: 8.21.0
-      yaml:
-        specifier: 2.9.0
-        version: 2.9.0
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      '@types/pg':
-        specifier: 8.11.11
-        version: 8.11.11
-      '@types/ws':
-        specifier: 8.18.1
-        version: 8.18.1
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
-  packages/sandbox-manager-app:
-    dependencies:
-      '@lucide/svelte':
-        specifier: ^1.17.0
-        version: 1.17.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@nervekit/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@nervekit/ui-kit':
-        specifier: workspace:*
-        version: link:../ui-kit
-      '@nervekit/workbench-ui':
-        specifier: workspace:*
-        version: link:../workbench-ui
-      mode-watcher:
-        specifier: ^1.1.0
-        version: 1.1.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
-      svelte:
-        specifier: 5.56.3
-        version: 5.56.3(@typescript-eslint/types@8.63.0)
-      yaml:
-        specifier: 2.9.0
-        version: 2.9.0
-    devDependencies:
-      '@sveltejs/vite-plugin-svelte':
-        specifier: 7.1.2
-        version: 7.1.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
-      '@tailwindcss/vite':
-        specifier: 4.3.1
-        version: 4.3.1(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
-      svelte-check:
-        specifier: 4.3.3
-        version: 4.3.3(picomatch@4.0.4)(svelte@5.56.3(@typescript-eslint/types@8.63.0))(typescript@5.9.3)
-      tailwindcss:
-        specifier: 4.3.1
-        version: 4.3.1
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vite:
-        specifier: 8.0.16
-        version: 8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
-
   packages/tools:
     dependencies:
       '@nervekit/contracts':
@@ -626,14 +497,6 @@ packages:
 
   '@aws-sdk/client-bedrock-runtime@3.1048.0':
     resolution: {integrity: sha512-u+NT61JZEkRFtpL0CAw1N1dwxnaLgwVXQl/zjJxTGgLyS/jTIdg2SdoEoCTHxgDyCnqa1HEi9QOoE9/pYRNpOQ==}
-    engines: {node: '>=20.0.0'}
-
-  '@aws-sdk/client-cloudwatch-logs@3.1081.0':
-    resolution: {integrity: sha512-q5Gvf0MYrd9L3x5JzzEBFYZ4Cf0FDKEOBcY0RENt/MIsKJ7hYcjbwITsTRoaj6rS+SvZO4fbB/Zhhr5ctyLRPg==}
-    engines: {node: '>=20.0.0'}
-
-  '@aws-sdk/client-ecs@3.1081.0':
-    resolution: {integrity: sha512-fvdMh5jE+TfifFsEbWa8KPL8hnlZXezQzo6u9LSUpKFu9osL66y/uSUi0FxkvHpkvFYG6pPlhPRqfgaTIu2t8Q==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/core@3.974.29':
@@ -2590,9 +2453,6 @@ packages:
   '@types/node@25.9.5':
     resolution: {integrity: sha512-OScDchr2fwuUmWdf4kZ9h7PcJiYDVInhJizG/biAq3cAvqwYktuy/TYGGdZNMtNTFUP7rnb0NU4TUdm82kt4Rg==}
 
-  '@types/pg@8.11.11':
-    resolution: {integrity: sha512-kGT1qKM8wJQ5qlawUrEkXgvMSXoV213KfMGXcwfDwUIfUHXqXYXOfS1nE1LINRJVVVx5wCm70XnFlMHaIcQAfw==}
-
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
 
@@ -4352,17 +4212,6 @@ packages:
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
 
-  node-pg-migrate@8.0.4:
-    resolution: {integrity: sha512-HTlJ6fOT/2xHhAUtsqSN85PGMAqSbfGJNRwQF8+ZwQ1+sVGNUTl/ZGEshPsOI3yV22tPIyHXrKXr3S0JxeYLrg==}
-    engines: {node: '>=20.11.0'}
-    hasBin: true
-    peerDependencies:
-      '@types/pg': '>=6.0.0 <9.0.0'
-      pg: '>=4.3.0 <9.0.0'
-    peerDependenciesMeta:
-      '@types/pg':
-        optional: true
-
   node-releases@2.0.48:
     resolution: {integrity: sha512-1uz8041X6LoI6ZSdZacM9lVY28vuzDlSKitnpbSNK0RfKoIJkX29NBPVEFXhnuSuEOA9Ww0xnPJ+ILWbGAv8DA==}
     engines: {node: '>=18'}
@@ -4390,9 +4239,6 @@ packages:
   object.assign@4.1.7:
     resolution: {integrity: sha512-nK28WOo+QIjBkDduTINE4JkF/UJJKyf2EJxvJKfblDpyg0Q+pkOHNTL0Qwy6NP6FhE/EnzV73BxxqcJaXY9anw==}
     engines: {node: '>= 0.4'}
-
-  obuf@1.1.2:
-    resolution: {integrity: sha512-PX1wu0AmAdPqOL1mWhqmlOd8kOIZQwGZw6rh7uby9fTc5lhaOWFLX3I6R1hrF9k3zUY40e6igsLGkDXK92LJNg==}
 
   obug@2.1.1:
     resolution: {integrity: sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ==}
@@ -4508,48 +4354,6 @@ packages:
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
 
-  pg-cloudflare@1.4.0:
-    resolution: {integrity: sha512-Vo7z/6rrQYxpNRylp4Tlob2elzbh+N/MOQbxFVWCxS7oEx6jF53GTJFxK2WWpKuBRkmiin4Mt+xofFDjx09R0A==}
-
-  pg-connection-string@2.14.0:
-    resolution: {integrity: sha512-XwWDGcLRGCXAR8F/AM5bG7Q+A3Wm2s6QeEjlOKZLlH3UYcguiqCWKyWXVag5TLTIjR7oOJUY8kcADaZgWPyLeg==}
-
-  pg-int8@1.0.1:
-    resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
-    engines: {node: '>=4.0.0'}
-
-  pg-numeric@1.0.2:
-    resolution: {integrity: sha512-BM/Thnrw5jm2kKLE5uJkXqqExRUY/toLHda65XgFTBTFYZyopbKjBe29Ii3RbkvlsMoFwD+tHeGaCjjv0gHlyw==}
-    engines: {node: '>=4'}
-
-  pg-pool@3.14.0:
-    resolution: {integrity: sha512-gKtPkFdQPU3DksooVLi9LsjZxrsBUZIpa+7aVx+LV5pNh0KzP4Zleud2po+ConrxbuXGBJ6Hfer6hdgpIBpBaw==}
-    peerDependencies:
-      pg: '>=8.0'
-
-  pg-protocol@1.15.0:
-    resolution: {integrity: sha512-cq9sECI5s0+uPUXjbz8ioyPJni6RzsRib0US67i5IoTZKw8fNeYlVE7u8F4dG7vEJJtc5wdD1K189lCCUwqWTQ==}
-
-  pg-types@2.2.0:
-    resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
-    engines: {node: '>=4'}
-
-  pg-types@4.1.0:
-    resolution: {integrity: sha512-o2XFanIMy/3+mThw69O8d4n1E5zsLhdO+OPqswezu7Z5ekP4hYDqlDjlmOpYMbzY2Br0ufCwJLdDIXeNVwcWFg==}
-    engines: {node: '>=10'}
-
-  pg@8.13.1:
-    resolution: {integrity: sha512-OUir1A0rPNZlX//c7ksiu7crsGZTKSOXJPgtNiHGIlC9H0lO+NC6ZDYksSgBYY/thSWhnSRBv8w1lieNNGATNQ==}
-    engines: {node: '>= 8.0.0'}
-    peerDependencies:
-      pg-native: '>=3.0.1'
-    peerDependenciesMeta:
-      pg-native:
-        optional: true
-
-  pgpass@1.0.6:
-    resolution: {integrity: sha512-lqIfH7bdgsxHAY/ZnUOwm+aCFKrsHBDhSFuk9O0B9uCqJAIkrKTo/+LQqLPLUS4e04+jCmQVikxE3QipH5chPw==}
-
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -4609,41 +4413,6 @@ packages:
   postcss@8.5.23:
     resolution: {integrity: sha512-g50586zr4bZmwFiTlflMu8E0bDTb5I5gertgwAKmsdUlTQIhZtunzUlD1WSzwcVWPoAVpsrA6vlfCD7oXvRwgg==}
     engines: {node: ^10 || ^12 || >=14}
-
-  postgres-array@2.0.0:
-    resolution: {integrity: sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA==}
-    engines: {node: '>=4'}
-
-  postgres-array@3.0.4:
-    resolution: {integrity: sha512-nAUSGfSDGOaOAEGwqsRY27GPOea7CNipJPOA7lPbdEpx5Kg3qzdP0AaWC5MlhTWV9s4hFX39nomVZ+C4tnGOJQ==}
-    engines: {node: '>=12'}
-
-  postgres-bytea@1.0.1:
-    resolution: {integrity: sha512-5+5HqXnsZPE65IJZSMkZtURARZelel2oXUEO8rH83VS/hxH5vv1uHquPg5wZs8yMAfdv971IU+kcPUczi7NVBQ==}
-    engines: {node: '>=0.10.0'}
-
-  postgres-bytea@3.0.0:
-    resolution: {integrity: sha512-CNd4jim9RFPkObHSjVHlVrxoVQXz7quwNFpz7RY1okNNme49+sVyiTvTRobiLV548Hx/hb1BG+iE7h9493WzFw==}
-    engines: {node: '>= 6'}
-
-  postgres-date@1.0.7:
-    resolution: {integrity: sha512-suDmjLVQg78nMK2UZ454hAG+OAW+HQPZ6n++TNDUX+L0+uUlLywnoxJKDou51Zm+zTCjrCl0Nq6J9C5hP9vK/Q==}
-    engines: {node: '>=0.10.0'}
-
-  postgres-date@2.1.0:
-    resolution: {integrity: sha512-K7Juri8gtgXVcDfZttFKVmhglp7epKb1K4pgrkLxehjqkrgPhfG6OO8LHLkfaqkbpjNRnra018XwAr1yQFWGcA==}
-    engines: {node: '>=12'}
-
-  postgres-interval@1.2.0:
-    resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
-    engines: {node: '>=0.10.0'}
-
-  postgres-interval@3.0.0:
-    resolution: {integrity: sha512-BSNDnbyZCXSxgA+1f5UU2GmwhoI0aU5yMxRGO8CdFEcY2BQF9xm/7MqKnYoM1nJDk8nONNWDk9WeSmePFhQdlw==}
-    engines: {node: '>=12'}
-
-  postgres-range@1.1.4:
-    resolution: {integrity: sha512-i/hbxIE9803Alj/6ytL7UHQxRvZkI9O4Sy+J3HGc4F4oo/2eQAjTSNJ0bfxyse3bH0nuVesCk+3IRLaMtG3H6w==}
 
   postject@1.0.0-alpha.6:
     resolution: {integrity: sha512-b9Eb8h2eVqNE8edvKdwqkrY6O7kAwmI8kcnBv1NScolYJbo59XUF0noFq+lxbC1yN20bmC0WBEbDC5H/7ASb0A==}
@@ -5587,10 +5356,6 @@ packages:
     resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
     engines: {node: '>=8.0'}
 
-  xtend@4.0.2:
-    resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
-    engines: {node: '>=0.4'}
-
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -5697,28 +5462,6 @@ snapshots:
       '@aws-sdk/middleware-eventstream': 3.972.16
       '@aws-sdk/middleware-websocket': 3.972.26
       '@aws-sdk/token-providers': 3.1048.0
-      '@aws-sdk/types': 3.973.15
-      '@smithy/core': 3.29.1
-      '@smithy/fetch-http-handler': 5.6.3
-      '@smithy/node-http-handler': 4.9.3
-      '@smithy/types': 4.15.1
-      tslib: 2.8.1
-
-  '@aws-sdk/client-cloudwatch-logs@3.1081.0':
-    dependencies:
-      '@aws-sdk/core': 3.974.29
-      '@aws-sdk/credential-provider-node': 3.972.64
-      '@aws-sdk/types': 3.973.15
-      '@smithy/core': 3.29.1
-      '@smithy/fetch-http-handler': 5.6.3
-      '@smithy/node-http-handler': 4.9.3
-      '@smithy/types': 4.15.1
-      tslib: 2.8.1
-
-  '@aws-sdk/client-ecs@3.1081.0':
-    dependencies:
-      '@aws-sdk/core': 3.974.29
-      '@aws-sdk/credential-provider-node': 3.972.64
       '@aws-sdk/types': 3.973.15
       '@smithy/core': 3.29.1
       '@smithy/fetch-http-handler': 5.6.3
@@ -7826,12 +7569,6 @@ snapshots:
   '@types/node@25.9.5':
     dependencies:
       undici-types: 7.24.6
-
-  '@types/pg@8.11.11':
-    dependencies:
-      '@types/node': 24.10.1
-      pg-protocol: 1.15.0
-      pg-types: 4.1.0
 
   '@types/resolve@1.20.2': {}
 
@@ -10018,14 +9755,6 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pg-migrate@8.0.4(@types/pg@8.11.11)(pg@8.13.1):
-    dependencies:
-      glob: 11.1.0
-      pg: 8.13.1
-      yargs: 17.7.3
-    optionalDependencies:
-      '@types/pg': 8.11.11
-
   node-releases@2.0.48: {}
 
   nopt@8.1.0:
@@ -10050,8 +9779,6 @@ snapshots:
       es-object-atoms: 1.1.2
       has-symbols: 1.1.0
       object-keys: 1.1.1
-
-  obuf@1.1.2: {}
 
   obug@2.1.1: {}
 
@@ -10177,51 +9904,6 @@ snapshots:
 
   pend@1.2.0: {}
 
-  pg-cloudflare@1.4.0:
-    optional: true
-
-  pg-connection-string@2.14.0: {}
-
-  pg-int8@1.0.1: {}
-
-  pg-numeric@1.0.2: {}
-
-  pg-pool@3.14.0(pg@8.13.1):
-    dependencies:
-      pg: 8.13.1
-
-  pg-protocol@1.15.0: {}
-
-  pg-types@2.2.0:
-    dependencies:
-      pg-int8: 1.0.1
-      postgres-array: 2.0.0
-      postgres-bytea: 1.0.1
-      postgres-date: 1.0.7
-      postgres-interval: 1.2.0
-
-  pg-types@4.1.0:
-    dependencies:
-      pg-int8: 1.0.1
-      pg-numeric: 1.0.2
-      postgres-array: 3.0.4
-      postgres-bytea: 3.0.0
-      postgres-date: 2.1.0
-      postgres-interval: 3.0.0
-      postgres-range: 1.1.4
-
-  pg@8.13.1:
-    dependencies:
-      pg-connection-string: 2.14.0
-      pg-pool: 3.14.0(pg@8.13.1)
-      pg-protocol: 1.15.0
-      pg-types: 2.2.0
-      pgpass: 1.0.6
-    optionalDependencies:
-      pg-cloudflare: 1.4.0
-
-  pgpass@1.0.6: {}
-
   picocolors@1.1.1: {}
 
   picomatch@4.0.4: {}
@@ -10276,28 +9958,6 @@ snapshots:
       nanoid: 3.3.16
       picocolors: 1.1.1
       source-map-js: 1.2.1
-
-  postgres-array@2.0.0: {}
-
-  postgres-array@3.0.4: {}
-
-  postgres-bytea@1.0.1: {}
-
-  postgres-bytea@3.0.0:
-    dependencies:
-      obuf: 1.1.2
-
-  postgres-date@1.0.7: {}
-
-  postgres-date@2.1.0: {}
-
-  postgres-interval@1.2.0:
-    dependencies:
-      xtend: 4.0.2
-
-  postgres-interval@3.0.0: {}
-
-  postgres-range@1.1.4: {}
 
   postject@1.0.0-alpha.6:
     dependencies:
@@ -11528,8 +11188,6 @@ snapshots:
   ws@8.21.0: {}
 
   xmlbuilder@15.1.1: {}
-
-  xtend@4.0.2: {}
 
   y18n@5.0.8: {}
 

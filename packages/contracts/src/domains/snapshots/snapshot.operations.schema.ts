@@ -19,7 +19,7 @@ export const snapshotsOperationDefinitions = [
     workspaceSnapshotResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.snapshot.workspace.get",
   ),
   defineOperation(
@@ -28,7 +28,7 @@ export const snapshotsOperationDefinitions = [
     conversationSnapshotResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.snapshot.conversation.get",
   ),
 ] as const;

@@ -31,7 +31,7 @@ export const conversationsOperationDefinitions = [
     z.object({ conversation: conversationRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.create",
   ),
   defineOperation(
@@ -40,7 +40,7 @@ export const conversationsOperationDefinitions = [
     z.object({ conversation: conversationRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.import",
   ),
   defineOperation(
@@ -49,7 +49,7 @@ export const conversationsOperationDefinitions = [
     z.object({ conversations: z.array(conversationRecordSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.list",
   ),
   defineOperation(
@@ -58,7 +58,7 @@ export const conversationsOperationDefinitions = [
     z.object({ conversation: conversationRecordSchema }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.get",
   ),
   defineOperation(
@@ -67,7 +67,7 @@ export const conversationsOperationDefinitions = [
     okResultSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.delete",
   ),
   defineOperation(
@@ -76,7 +76,7 @@ export const conversationsOperationDefinitions = [
     z.object({ entries: z.array(conversationEntrySchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.entries.list",
   ),
   defineOperation(
@@ -85,7 +85,7 @@ export const conversationsOperationDefinitions = [
     z.object({ contextUsage: contextUsageSchema }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.contextUsage.get",
   ),
   defineOperation(
@@ -94,7 +94,7 @@ export const conversationsOperationDefinitions = [
     z.object({ tree: conversationTreeSchema }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.tree.get",
   ),
   defineOperation(
@@ -103,7 +103,7 @@ export const conversationsOperationDefinitions = [
     z.object({ conversation: conversationRecordSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.navigate",
   ),
   defineOperation(
@@ -115,7 +115,7 @@ export const conversationsOperationDefinitions = [
     }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.compact",
   ),
   defineOperation(
@@ -124,7 +124,7 @@ export const conversationsOperationDefinitions = [
     okResultSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.conversation.compaction.cancel",
   ),
 ] as const;

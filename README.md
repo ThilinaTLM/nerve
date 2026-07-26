@@ -207,12 +207,6 @@ pnpm dev
 pnpm dev:ui
 ```
 
-Run the sandbox manager and its UI:
-
-```sh
-pnpm dev:sandbox
-```
-
 For opt-in LAN access with self-signed HTTPS from a source checkout:
 
 ```sh
@@ -232,7 +226,6 @@ pnpm desktop                  # Electron desktop app from source
 pnpm desktop:remote-enabled   # desktop with LAN/mobile HTTPS flags
 pnpm dev                      # local daemon and Web UI
 pnpm dev:ui                   # Web UI against an existing daemon
-pnpm dev:sandbox              # sandbox manager and manager UI
 pnpm build                    # build packages and stage Web assets
 pnpm fix                      # format and apply ESLint fixes
 pnpm check                    # formatting, lint, boundaries, package checks
@@ -258,15 +251,10 @@ Shared foundations keep contracts and runtime behavior independent of the UI:
 - `packages/harness` — model conversation, agent loop, skills, and context compaction.
 - `packages/tools` — coding tool catalog, executors, and policy enforcement.
 - `packages/host-runtime` — environment-neutral Git, task, tool, and run composition.
+- `packages/process-runtime` — cross-platform supervised process launch and cleanup.
 - `packages/ui-kit` — contract-free shadcn-svelte components, theme, and generic renderers.
 
-Nerve also contains a separate sandbox deployment system:
-
-- `packages/sandbox-manager` — PostgreSQL-backed manager, runtime drivers, protocol routing, and static UI host.
-- `packages/sandbox-manager-app` — Svelte manager browser host.
-- `packages/sandbox-agent` — isolated agent daemon with file-first state, tools, tasks, Git, and runs.
-
-Nerve Protocol v1 connects the local workbench UI to `workbench_server`, the sandbox manager UI to `sandbox_manager`, and each `sandbox_agent` to its manager. See [`docs/nerve-protocol/v1/`](docs/nerve-protocol/v1/), [`docs/nerve-sandbox/v1/`](docs/nerve-sandbox/v1/), and [`docs/release.md`](docs/release.md).
+Nerve Protocol v1 connects the local workbench UI to `workbench_server` over HTTP and WebSocket. See [`docs/nerve-protocol/v1/`](docs/nerve-protocol/v1/) and [`docs/release.md`](docs/release.md).
 
 ## Contributing and security
 

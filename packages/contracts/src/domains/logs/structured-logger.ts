@@ -1,10 +1,9 @@
 /**
- * Minimal structured logger for long-lived services (sandbox-manager, the
- * sandbox agent daemon, and other Node processes) that log to stdout/stderr and
- * rely on the container runtime / log collector for persistence. Unlike the
- * orchestrator's file-backed application log, this logger has no storage or
- * query concerns: it emits newline-delimited JSON, gated by level, with
- * inheritable correlation bindings and key-based redaction.
+ * Minimal structured logger for long-lived Node services that log to
+ * stdout/stderr and rely on the host log collector for persistence. This
+ * logger has no storage or query concerns: it emits newline-delimited JSON,
+ * gated by level, with inheritable correlation bindings and key-based
+ * redaction.
  */
 
 export type StructuredLogLevel = "debug" | "info" | "warn" | "error";
@@ -16,7 +15,7 @@ const LEVEL_ORDER: Record<StructuredLogLevel, number> = {
   error: 40,
 };
 
-/** Free-form correlation fields attached to a log line (e.g. sandboxId, method). */
+/** Free-form correlation fields attached to a log line (e.g. projectId, method). */
 export type LogBindings = Record<string, unknown>;
 
 /** Per-call structured context. The `err`/`error` key is serialized specially. */
@@ -36,7 +35,7 @@ export type LogSink = (level: StructuredLogLevel, line: string) => void;
 
 export type StructuredLoggerOptions = {
   level?: StructuredLogLevel;
-  /** Fields merged into every record, e.g. `{ source: "sandbox-manager" }`. */
+  /** Fields merged into every record, e.g. `{ source: "workbench-server" }`. */
   base?: LogBindings;
   /** Override the output target. Defaults to stdout, stderr for warn/error. */
   sink?: LogSink;

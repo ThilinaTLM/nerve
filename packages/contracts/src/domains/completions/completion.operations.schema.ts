@@ -11,7 +11,7 @@ export const completionsOperationDefinitions = [
     z.object({ items: z.array(completionItemSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.completion.slash.list",
   ),
   defineOperation(
@@ -20,7 +20,7 @@ export const completionsOperationDefinitions = [
     z.object({ items: z.array(completionItemSchema) }),
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.completion.files.list",
   ),
 ] as const;

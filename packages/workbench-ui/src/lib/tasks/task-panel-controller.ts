@@ -1,6 +1,5 @@
 import type {
   PinnedCommand,
-  SandboxPinnedCommand,
   TaskDefinition,
   TaskRecord,
 } from "@nervekit/contracts";
@@ -36,7 +35,7 @@ export function groupTasks(tasks: readonly TaskRecord[]): TaskGroups {
 }
 
 export function normalizePinnedCommand(
-  command: PinnedCommand | SandboxPinnedCommand | TaskDefinition,
+  command: PinnedCommand | TaskDefinition,
 ): NormalizedPinnedCommand {
   return {
     id: command.id.replace(/^pin_/, "taskdef_"),

@@ -11,7 +11,7 @@ export const settingsOperationDefinitions = [
     settingsSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.settings.get",
   ),
   defineOperation(
@@ -20,7 +20,7 @@ export const settingsOperationDefinitions = [
     z.object({ settings: settingsSchema }),
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.settings.update",
   ),
 ] as const;

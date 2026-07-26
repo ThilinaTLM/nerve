@@ -47,7 +47,7 @@ export const gitOperationDefinitions = [
     gitDiscoveryResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.repos.discover",
   ),
   defineOperation(
@@ -56,7 +56,7 @@ export const gitOperationDefinitions = [
     gitOverviewResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.overview.get",
   ),
   defineOperation(
@@ -65,7 +65,7 @@ export const gitOperationDefinitions = [
     gitBranchListResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.branches.list",
   ),
   defineOperation(
@@ -74,7 +74,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.branch.create",
   ),
   defineOperation(
@@ -83,7 +83,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.branch.switch",
   ),
   defineOperation(
@@ -92,7 +92,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.file.stage",
   ),
   defineOperation(
@@ -101,7 +101,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.file.unstage",
   ),
   defineOperation(
@@ -110,7 +110,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.file.discard",
   ),
   defineOperation(
@@ -119,7 +119,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.sync",
   ),
   defineOperation(
@@ -128,7 +128,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.push",
   ),
   defineOperation(
@@ -137,7 +137,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.pull",
   ),
   defineOperation(
@@ -146,7 +146,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.fetch",
   ),
   defineOperation(
@@ -155,7 +155,7 @@ export const gitOperationDefinitions = [
     gitMutationResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.git.switchBaseAndPull",
   ),
   defineOperation(
@@ -164,7 +164,7 @@ export const gitOperationDefinitions = [
     githubStatusResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.github.status.get",
   ),
   defineOperation(
@@ -173,7 +173,7 @@ export const gitOperationDefinitions = [
     githubPrListResponseSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.github.pr.list",
   ),
   defineOperation(
@@ -182,7 +182,7 @@ export const gitOperationDefinitions = [
     githubPrDetailSchema,
     "read",
     "none",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.github.pr.get",
   ),
   defineOperation(
@@ -191,7 +191,7 @@ export const gitOperationDefinitions = [
     githubPrCheckoutResponseSchema,
     "mutation",
     "recommended",
-    ["workbench_server", "sandbox_agent"] as const,
+    ["workbench_server"] as const,
     "operation.github.pr.checkout",
   ),
 ] as const;

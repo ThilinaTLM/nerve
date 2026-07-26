@@ -242,10 +242,6 @@ describe("Protocol v1 shared schemas", () => {
       "git.repository.changed",
     );
     assert.throws(
-      () => parsePublicEventEnvelope(publicEvent, "sandbox_manager"),
-      /cannot be emitted/,
-    );
-    assert.throws(
       () =>
         parsePublicEventEnvelope(
           { ...publicEvent, type: "task.output" },
@@ -297,11 +293,6 @@ describe("Protocol v1 shared schemas", () => {
       (definition) => definition.name === "conversation.live.content.delta",
     );
     assert.equal(delta?.supersedable, true);
-    const sandboxActivity = definitions.find(
-      (definition) => definition.name === "sandbox.activity.changed",
-    );
-    assert.equal(sandboxActivity?.delivery, "ephemeral");
-    assert.equal(sandboxActivity?.coalescing, "latest_by_scope");
     for (const definition of definitions) {
       assert.ok(["sequenced", "ephemeral"].includes(definition.delivery));
       assert.equal(

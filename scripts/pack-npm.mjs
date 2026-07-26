@@ -24,6 +24,7 @@ const internalPackages = [
   ["@nervekit/harness", "harness"],
   ["@nervekit/tools", "tools"],
   ["@nervekit/host-runtime", "host-runtime"],
+  ["@nervekit/process-runtime", "process-runtime"],
   ["@nervekit/workbench-server", "workbench-server"],
 ];
 const internalNames = new Set(internalPackages.map(([name]) => name));
@@ -177,11 +178,6 @@ async function stageDesktopDistribution() {
     await cp(join(sourceRoot, "dist"), join(destinationRoot, "dist"), {
       recursive: true,
     });
-    if (directory === "contracts") {
-      await cp(join(sourceRoot, "schemas"), join(destinationRoot, "schemas"), {
-        recursive: true,
-      });
-    }
     for (const filename of ["LICENSE", "NOTICE"]) {
       await cp(join(repoRoot, filename), join(destinationRoot, filename));
     }

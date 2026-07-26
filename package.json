@@ -10,7 +10,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "pnpm -r build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs && node scripts/copy-sandbox-manager-app-dist-to-manager.mjs",
+    "build": "pnpm -r build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs",
     "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs",
     "brand:assets": "node scripts/generate-brand-assets.mjs",
     "fix": "oxfmt && eslint . --fix && oxfmt",
@@ -18,9 +18,6 @@
     "test": "pnpm -r --if-present test",
     "dev": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools --filter @nervekit/host-runtime build && pnpm --parallel --stream --filter @nervekit/workbench-server --filter @nervekit/workbench-app dev",
     "dev:ui": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools --filter @nervekit/host-runtime build && pnpm --filter @nervekit/workbench-app dev",
-    "dev:sandbox": "pnpm --filter @nervekit/contracts build && pnpm --parallel --stream --filter @nervekit/sandbox-manager --filter @nervekit/sandbox-manager-app dev",
-    "build-image:sandbox-agent": "node scripts/build-sandbox-agent-image.mjs",
-    "build-image:sandbox-manager": "node scripts/build-sandbox-manager-image.mjs",
     "desktop": "pnpm --filter @nervekit/desktop-shell dev --",
     "desktop:remote-enabled": "pnpm desktop -- --host 0.0.0.0 --allow-remote --mobile-https",
     "release:verify-tag": "node scripts/verify-release-tag.mjs",
@@ -28,8 +25,6 @@
     "release:smoke:workbench": "node scripts/smoke-workbench-release.mjs",
     "release:smoke:desktop": "node scripts/smoke-desktop-release.mjs",
     "release:smoke:desktop-package": "node scripts/smoke-desktop-package.mjs",
-    "release:smoke:image:sandbox-agent": "node scripts/smoke-sandbox-agent-image.mjs",
-    "release:smoke:image:sandbox-manager": "node scripts/smoke-sandbox-manager-image.mjs",
     "check:boundaries": "node scripts/check-package-boundaries.mjs"
   },
   "dependencies": {

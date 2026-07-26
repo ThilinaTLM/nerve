@@ -4,7 +4,6 @@ import { planReviewRecordSchema } from "./plan-review.schema.js";
 
 const planReviewResolvedEventSchema = z.object({
   instanceId: z.string().min(1).optional(),
-  sandboxId: z.string().min(1).optional(),
   conversationId: z.string().startsWith("conv_"),
   agentId: z.string().startsWith("agent_"),
   runId: z.string().startsWith("run_"),
@@ -28,7 +27,7 @@ export const planReviewUpdatedEventSchema = z.union([
 
 export const planEventDefinitions = [
   definePublicEvent("planReview.updated", planReviewUpdatedEventSchema, {
-    allowedSourceRoles: ["workbench_server", "sandbox_agent"],
+    allowedSourceRoles: ["workbench_server"],
     scope: ["projectId", "conversationId", "agentId", "reviewId"],
   }),
 ];

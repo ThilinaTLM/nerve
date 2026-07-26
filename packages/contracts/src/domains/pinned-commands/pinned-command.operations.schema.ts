@@ -9,56 +9,24 @@ import {
 const okResultSchema = z.object({ ok: z.literal(true) });
 const pinnedCommandIdSchema = z.string().startsWith("pin_");
 const projectIdSchema = z.string().startsWith("proj_");
-const sandboxIdSchema = z.string().min(1);
-const pinnedCommandScopeSchema = z.union([
-  z.object({ projectId: projectIdSchema }),
-  z.object({ sandboxId: sandboxIdSchema }),
-]);
-const pinnedCommandCreateParamsSchema = z.union([
-  z
-    .object({ projectId: projectIdSchema })
-    .merge(createPinnedCommandRequestSchema),
-  z
-    .object({ sandboxId: sandboxIdSchema })
-    .merge(createPinnedCommandRequestSchema),
-]);
-const pinnedCommandUpdateParamsSchema = z.union([
-  z
-    .object({ projectId: projectIdSchema, commandId: pinnedCommandIdSchema })
-    .merge(updatePinnedCommandRequestSchema),
-  z
-    .object({ sandboxId: sandboxIdSchema, commandId: pinnedCommandIdSchema })
-    .merge(updatePinnedCommandRequestSchema),
-]);
-const pinnedCommandDeleteParamsSchema = z.union([
-  z.object({ projectId: projectIdSchema, commandId: pinnedCommandIdSchema }),
-  z.object({ sandboxId: sandboxIdSchema, commandId: pinnedCommandIdSchema }),
-]);
-const sandboxPinnedCommandSchema = z.object({
-  id: pinnedCommandIdSchema,
-  sandboxId: sandboxIdSchema,
-  label: z.string().min(1).optional(),
-  command: z.string().min(1),
-  cwd: z.string().min(1).optional(),
-  runPolicy: z.enum(["single", "concurrent"]).optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+const pinnedCommandScopeSchema = z.object({ projectId: projectIdSchema });
+const pinnedCommandCreateParamsSchema = z
+  .object({ projectId: projectIdSchema })
+  .merge(createPinnedCommandRequestSchema);
+const pinnedCommandUpdateParamsSchema = z
+  .object({ projectId: projectIdSchema, commandId: pinnedCommandIdSchema })
+  .merge(updatePinnedCommandRequestSchema);
+const pinnedCommandDeleteParamsSchema = z.object({
+  projectId: projectIdSchema,
+  commandId: pinnedCommandIdSchema,
 });
-const pinnedCommandResultSchema = z.union([
-  pinnedCommandSchema,
-  sandboxPinnedCommandSchema,
-]);
-const hostRoles = [
-  "workbench_server",
-  "sandbox_agent",
-  "sandbox_manager",
-] as const;
+const hostRoles = ["workbench_server"] as const;
 
 export const pinnedCommandsOperationDefinitions = [
   defineOperation(
     "pinnedCommand.list",
     pinnedCommandScopeSchema,
-    z.object({ commands: z.array(pinnedCommandResultSchema) }),
+    z.object({ commands: z.array(pinnedCommandSchema) }),
     "read",
     "none",
     hostRoles,
@@ -67,7 +35,7 @@ export const pinnedCommandsOperationDefinitions = [
   defineOperation(
     "pinnedCommand.create",
     pinnedCommandCreateParamsSchema,
-    z.object({ command: pinnedCommandResultSchema }),
+    z.object({ command: pinnedCommandSchema }),
     "mutation",
     "recommended",
     hostRoles,
@@ -76,7 +44,7 @@ export const pinnedCommandsOperationDefinitions = [
   defineOperation(
     "pinnedCommand.update",
     pinnedCommandUpdateParamsSchema,
-    z.object({ command: pinnedCommandResultSchema }),
+    z.object({ command: pinnedCommandSchema }),
     "mutation",
     "recommended",
     hostRoles,
