@@ -65,9 +65,6 @@ function selectAgent(agent: AgentRecord) {
   onPruneTasks={() => void pruneFinishedTasks()}
   onRunCommand={(input) => {
     layout.utilityTab = "tasks";
-    void (async () => {
-      const task = await runTaskCommand(input);
-      await openTaskTab(task.id);
-    })();
+    void runTaskCommand(input);
   }}
 />

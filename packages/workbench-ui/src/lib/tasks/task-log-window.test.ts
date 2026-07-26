@@ -5,7 +5,11 @@ import type {
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/contracts";
-import { appendTaskLogPage, prependTaskLogPage } from "./task-log-window.js";
+import {
+  appendTaskLogPage,
+  MAX_TASK_LOG_WINDOW_EVENTS,
+  prependTaskLogPage,
+} from "./task-log-window.js";
 
 const task: TaskRecord = {
   id: "task_test",
@@ -82,5 +86,28 @@ describe("task log window merging", () => {
     assert.equal(merged.nextCursor, 5);
     assert.equal(merged.hasMoreAfter, true);
     assert.equal(merged.hasMoreBefore, false);
+  });
+
+  it("trims the oldest events once the window cap is exceeded", () => {
+    const total = MAX_TASK_LOG_WINDOW_EVENTS + 120;
+    const current = page(
+      Array.from(
+        { length: MAX_TASK_LOG_WINDOW_EVENTS },
+        (_, index) => index + 1,
+      ),
+    );
+    const merged = appendTaskLogPage(
+      current,
+      page(
+        Array.from(
+          { length: 120 },
+          (_, index) => MAX_TASK_LOG_WINDOW_EVENTS + index + 1,
+        ),
+      ),
+    );
+    assert.equal(merged.events.length, MAX_TASK_LOG_WINDOW_EVENTS);
+    assert.equal(merged.events[0]?.seq, 121);
+    assert.equal(merged.events.at(-1)?.seq, total);
+    assert.equal(merged.hasMoreBefore, true);
   });
 });
