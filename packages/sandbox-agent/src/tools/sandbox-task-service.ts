@@ -234,13 +234,13 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
       if (finished) return;
       finished = true;
       state.exit = exit;
+      settle(exit);
       if (state.stopping)
         await this.waitForRuntimeExit(state.runtime, state.knownDescendants);
       try {
         await callbacks.onExit?.(exit);
       } finally {
         this.children.delete(input.taskId);
-        settle(exit);
       }
     };
     child.on("error", (error) => {
