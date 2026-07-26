@@ -401,13 +401,6 @@ async function removeTavilyKey() {
   {/if}
 </SettingsSectionCard>
 
-<JiraToolsSettingsCard {settingsDraft} {authProviders} {onSettingsChange} />
-<ConfluenceToolsSettingsCard
-  {settingsDraft}
-  {authProviders}
-  {onSettingsChange}
-/>
-
 <SettingsSectionCard
   section="tools-tasks"
   title="Task management"
@@ -505,6 +498,13 @@ async function removeTavilyKey() {
     security sandbox.
   </p>
 </SettingsSectionCard>
+
+<JiraToolsSettingsCard {settingsDraft} {authProviders} {onSettingsChange} />
+<ConfluenceToolsSettingsCard
+  {settingsDraft}
+  {authProviders}
+  {onSettingsChange}
+/>
 
 <Dialog.Root bind:open={tavilyDialogOpen}>
   <Dialog.Content class="settings-runtime-dialog">
