@@ -43,6 +43,7 @@ import {
   PruneProjectConversationsService,
 } from "../domains/projects/index.js";
 import {
+  PromptSuggestionEnablementRepository,
   PromptSuggestionService,
   PromptSuggestionTrustRepository,
 } from "../domains/prompt-suggestions/index.js";
@@ -385,6 +386,7 @@ export function composeRuntime(
     storage,
     events,
     trustRepository: promptSuggestionTrustRepository,
+    enablementRepository: new PromptSuggestionEnablementRepository(storage),
     git: services.git,
     getProject,
     listProjects,

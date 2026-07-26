@@ -1,7 +1,26 @@
 import { z } from "zod";
 import { modeSchema, permissionLevelSchema } from "../settings/index.js";
 
-export const promptSuggestionSourceKindSchema = z.enum(["user", "project"]);
+export const PROMPT_SUGGESTION_NAME_MAX_LENGTH = 64;
+export const PROMPT_SUGGESTION_LABEL_MAX_LENGTH = 80;
+export const PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH = 1024;
+export const PROMPT_SUGGESTION_PROMPT_MAX_LENGTH = 100_000;
+
+export const promptSuggestionNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(PROMPT_SUGGESTION_NAME_MAX_LENGTH)
+  .regex(
+    /^(?!-)(?!.*--)[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    "Name must use lowercase letters, numbers, and single hyphens",
+  );
+
+export const promptSuggestionSourceKindSchema = z.enum([
+  "builtin",
+  "user",
+  "project",
+]);
 export type PromptSuggestionSourceKind = z.infer<
   typeof promptSuggestionSourceKindSchema
 >;
@@ -55,6 +74,7 @@ export type PromptSuggestionTrustRequest = z.infer<
 
 export const promptSuggestionStatusSchema = z.object({
   trustId: z.string().min(1).optional(),
+  definitionKey: z.string().min(1),
   name: z.string().min(1),
   label: z.string().min(1),
   description: z.string().optional(),
@@ -63,6 +83,9 @@ export const promptSuggestionStatusSchema = z.object({
   projectId: z.string().startsWith("proj_").optional(),
   requiresTrust: z.boolean(),
   status: promptSuggestionTrustStatusSchema,
+  enabled: z.boolean(),
+  defaultEnabled: z.boolean(),
+  overriddenBy: promptSuggestionSourceKindSchema.optional(),
   predicateHash: z.string().min(1).optional(),
   stale: z.boolean().optional(),
 });
@@ -96,6 +119,54 @@ export const updatePromptSuggestionTrustRequestSchema = z.object({
 });
 export type UpdatePromptSuggestionTrustRequest = z.infer<
   typeof updatePromptSuggestionTrustRequestSchema
+>;
+
+export const updatePromptSuggestionEnabledRequestSchema = z.object({
+  definitionKey: z.string().min(1),
+  enabled: z.boolean(),
+});
+export type UpdatePromptSuggestionEnabledRequest = z.infer<
+  typeof updatePromptSuggestionEnabledRequestSchema
+>;
+
+export const createPromptSuggestionRequestSchema = z
+  .object({
+    scope: z.enum(["user", "project"]),
+    projectId: z.string().startsWith("proj_").optional(),
+    name: promptSuggestionNameSchema,
+    label: z.string().trim().min(1).max(PROMPT_SUGGESTION_LABEL_MAX_LENGTH),
+    description: z
+      .string()
+      .trim()
+      .max(PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH)
+      .optional(),
+    prompt: z.string().trim().min(1).max(PROMPT_SUGGESTION_PROMPT_MAX_LENGTH),
+  })
+  .superRefine((value, ctx) => {
+    if (value.scope === "project" && !value.projectId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["projectId"],
+        message: "Project scope requires a projectId",
+      });
+    }
+    if (value.scope === "user" && value.projectId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["projectId"],
+        message: "User scope must not include a projectId",
+      });
+    }
+  });
+export type CreatePromptSuggestionRequest = z.infer<
+  typeof createPromptSuggestionRequestSchema
+>;
+
+export const createPromptSuggestionResponseSchema = z.object({
+  suggestion: promptSuggestionStatusSchema,
+});
+export type CreatePromptSuggestionResponse = z.infer<
+  typeof createPromptSuggestionResponseSchema
 >;
 
 export const promptSuggestionWhenSchema = z.object({

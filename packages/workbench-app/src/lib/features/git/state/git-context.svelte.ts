@@ -18,7 +18,6 @@ export {
   gitContextFingerprint,
   shouldRefreshGitContextOnFocus,
 } from "./git-context-helpers";
-export { buildGitSuggestions, type GitSuggestion } from "./git-suggestions";
 
 const GIT_CONTEXT_MIN_REFRESH_MS = 2_000;
 

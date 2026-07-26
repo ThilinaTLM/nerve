@@ -1,6 +1,9 @@
 import {
+  createPromptSuggestionRequestSchema,
+  createPromptSuggestionResponseSchema,
   promptSuggestionListResponseSchema,
   promptSuggestionStatusSchema,
+  updatePromptSuggestionEnabledRequestSchema,
   updatePromptSuggestionTrustRequestSchema,
 } from "./index.js";
 import { z } from "zod";
@@ -46,5 +49,23 @@ export const promptSuggestionsOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.promptSuggestion.trust.update",
+  ),
+  defineOperation(
+    "promptSuggestion.enabled.update",
+    updatePromptSuggestionEnabledRequestSchema,
+    okResultSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.promptSuggestion.enabled.update",
+  ),
+  defineOperation(
+    "promptSuggestion.create",
+    createPromptSuggestionRequestSchema,
+    createPromptSuggestionResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.promptSuggestion.create",
   ),
 ] as const;

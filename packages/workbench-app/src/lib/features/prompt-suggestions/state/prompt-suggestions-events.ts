@@ -6,11 +6,19 @@ import {
 } from "./prompt-suggestions-actions.svelte";
 
 export function registerPromptSuggestionEventHandlers(): () => void {
-  return onEvent("prompt_suggestions.trust_updated", () => {
+  const refresh = () => {
     void refreshPromptSuggestionStatuses(selection.projectId);
     void refreshPromptSuggestions(selection.projectId, {
       conversationId: selection.conversationId,
       agentId: selection.agentId,
     });
-  });
+  };
+  const dispose = [
+    onEvent("prompt_suggestions.trust_updated", refresh),
+    onEvent("prompt_suggestions.enabled_updated", refresh),
+    onEvent("prompt_suggestions.created", refresh),
+  ];
+  return () => {
+    for (const unregister of dispose) unregister();
+  };
 }

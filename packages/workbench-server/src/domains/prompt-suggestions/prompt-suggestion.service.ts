@@ -1,17 +1,25 @@
-import { join } from "node:path";
+import { mkdir, open, realpath } from "node:fs/promises";
+import { isAbsolute, join, relative, sep } from "node:path";
 import type { GitService } from "@nervekit/host-runtime/tools";
 import type {
   AgentRecord,
   ConversationRecord,
+  CreatePromptSuggestionRequest,
   ProjectRecord,
   PromptSuggestionListResponse,
   PromptSuggestionStatus,
+  UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
+import { builtinPromptSuggestionDefinitions } from "./prompt-suggestion-builtins.js";
+import type { PromptSuggestionEnablementRepository } from "./prompt-suggestion-enablement.repository.js";
 import { evaluatePromptSuggestions } from "./prompt-suggestion-evaluator.js";
-import { loadPromptSuggestionDefinitions } from "./prompt-suggestion-loader.js";
+import {
+  loadPromptSuggestionDefinitions,
+  serializePromptSuggestionMarkdown,
+} from "./prompt-suggestion-loader.js";
 import type { PromptSuggestionTrustRepository } from "./prompt-suggestion-trust.repository.js";
 import type { PromptSuggestionDefinition } from "./prompt-suggestion-types.js";
 
@@ -21,6 +29,7 @@ export type PromptSuggestionServiceDeps = {
   storage: InitializedStorage;
   events: StreamLogRegistry;
   trustRepository: PromptSuggestionTrustRepository;
+  enablementRepository: PromptSuggestionEnablementRepository;
   git: GitService;
   getProject: (projectId: string) => ProjectRecord;
   listProjects: () => ProjectRecord[];
@@ -40,60 +49,111 @@ export class PromptSuggestionService {
     options: { conversationId?: string; agentId?: string } = {},
   ): Promise<PromptSuggestionListResponse> {
     const project = this.deps.getProject(projectId);
-    const { definitions, diagnostics } = await this.loadDefinitions(project);
+    const loaded = await this.discoverDefinitions(project);
+    const definitions = await this.applyEnablement(loaded.definitions);
+    const effective = effectiveDefinitions(definitions);
     const trustRecords = await this.deps.trustRepository.list();
     const git = await this.gitContext(projectId);
     const conversation = options.conversationId
-      ? safeGet(() =>
-          this.deps.getConversation(options.conversationId as string),
-        )
+      ? safeGet(() => this.deps.getConversation(options.conversationId!))
       : undefined;
     const agent = options.agentId
-      ? safeGet(() => this.deps.getAgent(options.agentId as string))
+      ? safeGet(() => this.deps.getAgent(options.agentId!))
       : undefined;
     const evaluated = evaluatePromptSuggestions(
-      { project, conversation, agent, git, definitions },
+      { project, conversation, agent, git, definitions: effective },
       trustRecords,
     );
     return {
       suggestions: evaluated.suggestions.sort(sortSuggestions),
       trustRequests: evaluated.trustRequests,
       statuses: mergeStatuses(
-        evaluated.statuses,
+        statusesFor(definitions, trustRecords),
         staleStatuses(trustRecords, definitions),
       ),
-      diagnostics: [...diagnostics, ...evaluated.diagnostics],
+      diagnostics: [...loaded.diagnostics, ...evaluated.diagnostics],
     };
   }
 
   async listStatuses(projectId?: string): Promise<PromptSuggestionStatus[]> {
     const project = projectId ? this.deps.getProject(projectId) : undefined;
-    const { definitions } = project
-      ? await this.loadDefinitions(project)
-      : await loadPromptSuggestionDefinitions([
-          { kind: "user", dir: this.userSuggestionsDir() },
-        ]);
+    const loaded = await this.discoverDefinitions(project);
+    const definitions = await this.applyEnablement(loaded.definitions);
     const trustRecords = await this.deps.trustRepository.list();
-    const current = definitions.map((definition) => {
-      const trustRecord = definition.trustId
-        ? trustRecords.find((record) => record.trustId === definition.trustId)
+    return mergeStatuses(
+      statusesFor(definitions, trustRecords),
+      staleStatuses(trustRecords, definitions),
+    );
+  }
+
+  async updateEnabled(
+    request: UpdatePromptSuggestionEnabledRequest,
+  ): Promise<void> {
+    const definition = await this.findDefinitionByKey(request.definitionKey);
+    if (!definition) throw new Error("Prompt suggestion was not found.");
+    await this.deps.enablementRepository.set(
+      request.definitionKey,
+      request.enabled,
+    );
+    await this.deps.events.publish(
+      "prompt_suggestions.enabled_updated",
+      request,
+    );
+  }
+
+  async create(
+    request: CreatePromptSuggestionRequest,
+  ): Promise<PromptSuggestionStatus> {
+    const project =
+      request.scope === "project"
+        ? this.deps.getProject(request.projectId!)
         : undefined;
-      return {
-        trustId: definition.trustId,
-        name: definition.name,
-        label: definition.label,
-        description: definition.description,
-        path: definition.source.path,
-        sourceKind: definition.source.kind,
-        projectId: definition.source.projectId,
-        requiresTrust: Boolean(definition.enableJs),
-        status: definition.enableJs
-          ? (trustRecord?.status ?? "unset")
-          : "not_required",
-        predicateHash: definition.predicateHash,
-      } satisfies PromptSuggestionStatus;
+    const dir = project
+      ? join(project.dir, NERVE_DIR_NAME, "suggestions")
+      : this.userSuggestionsDir();
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    if (project) await assertDirectoryInsideProject(project.dir, dir);
+
+    const path = join(dir, `${request.name}.md`);
+    const file = await open(path, "wx", 0o600).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "EEXIST") {
+          throw new Error(
+            `A prompt suggestion named "${request.name}" already exists in this scope.`,
+          );
+        }
+        throw error;
+      },
+    );
+    try {
+      await file.writeFile(serializePromptSuggestionMarkdown(request), "utf8");
+    } finally {
+      await file.close();
+    }
+
+    const loaded = await loadPromptSuggestionDefinitions([
+      {
+        kind: request.scope,
+        dir,
+        ...(project ? { projectId: project.id } : {}),
+      },
+    ]);
+    const definition = loaded.definitions.find(
+      (candidate) => candidate.name === request.name,
+    );
+    if (!definition) {
+      throw new Error(
+        "The prompt suggestion file was created but could not be loaded.",
+      );
+    }
+    const [status] = statusesFor([definition], []);
+    await this.deps.events.publish("prompt_suggestions.created", {
+      definitionKey: definition.definitionKey,
+      name: definition.name,
+      sourceKind: definition.source.kind,
+      projectId: definition.source.projectId,
     });
-    return mergeStatuses(current, staleStatuses(trustRecords, definitions));
+    return status;
   }
 
   async updateTrust(
@@ -103,7 +163,11 @@ export class PromptSuggestionService {
       await this.deps.trustRepository.remove(request.trustId);
     } else {
       const pending = await this.findDefinitionByTrustId(request.trustId);
-      if (!pending?.trustId || !pending.predicateHash) {
+      if (
+        !pending?.trustId ||
+        !pending.predicateHash ||
+        pending.source.kind === "builtin"
+      ) {
         throw new Error("Prompt suggestion trust target was not found.");
       }
       await this.deps.trustRepository.set({
@@ -122,45 +186,79 @@ export class PromptSuggestionService {
     });
   }
 
+  private async findDefinitionByKey(
+    definitionKey: string,
+  ): Promise<PromptSuggestionDefinition | undefined> {
+    const base = await this.discoverDefinitions();
+    const definitions = [...base.definitions];
+    for (const project of this.deps.listProjects()) {
+      definitions.push(...(await this.discoverProjectDefinitions(project)));
+    }
+    return definitions.find(
+      (definition) => definition.definitionKey === definitionKey,
+    );
+  }
+
   private async findDefinitionByTrustId(
     trustId: string,
   ): Promise<PromptSuggestionDefinition | undefined> {
-    const definitions: PromptSuggestionDefinition[] = [];
-    definitions.push(
-      ...(
-        await loadPromptSuggestionDefinitions([
-          { kind: "user", dir: this.userSuggestionsDir() },
-        ])
-      ).definitions,
-    );
+    const base = await this.discoverDefinitions();
+    const definitions = [...base.definitions];
     for (const project of this.deps.listProjects()) {
-      definitions.push(...(await this.loadDefinitions(project)).definitions);
+      definitions.push(...(await this.discoverProjectDefinitions(project)));
     }
     return definitions.find((definition) => definition.trustId === trustId);
   }
 
-  private async loadDefinitions(project: ProjectRecord): Promise<{
-    definitions: PromptSuggestionDefinition[];
-    diagnostics: Awaited<
-      ReturnType<typeof loadPromptSuggestionDefinitions>
-    >["diagnostics"];
-  }> {
-    const loaded = await loadPromptSuggestionDefinitions([
-      {
-        kind: "project",
-        dir: join(project.dir, NERVE_DIR_NAME, "suggestions"),
-        projectId: project.id,
-      },
-      { kind: "user", dir: this.userSuggestionsDir() },
-    ]);
-    const byName = new Map<string, PromptSuggestionDefinition>();
-    for (const definition of loaded.definitions) {
-      if (!byName.has(definition.name)) byName.set(definition.name, definition);
-    }
+  private async discoverDefinitions(project?: ProjectRecord) {
+    const inputs = [
+      ...(project
+        ? [
+            {
+              kind: "project" as const,
+              dir: join(project.dir, NERVE_DIR_NAME, "suggestions"),
+              projectId: project.id,
+            },
+          ]
+        : []),
+      { kind: "user" as const, dir: this.userSuggestionsDir() },
+    ];
+    const loaded = await loadPromptSuggestionDefinitions(inputs);
     return {
-      definitions: [...byName.values()],
+      definitions: [
+        ...loaded.definitions,
+        ...builtinPromptSuggestionDefinitions(),
+      ],
       diagnostics: loaded.diagnostics,
     };
+  }
+
+  private async discoverProjectDefinitions(project: ProjectRecord) {
+    return (
+      await loadPromptSuggestionDefinitions([
+        {
+          kind: "project",
+          dir: join(project.dir, NERVE_DIR_NAME, "suggestions"),
+          projectId: project.id,
+        },
+      ])
+    ).definitions;
+  }
+
+  private async applyEnablement(
+    definitions: PromptSuggestionDefinition[],
+  ): Promise<PromptSuggestionDefinition[]> {
+    const overrides = new Map(
+      (await this.deps.enablementRepository.list()).map((record) => [
+        record.definitionKey,
+        record.enabled,
+      ]),
+    );
+    return definitions.map((definition) => ({
+      ...definition,
+      enabled:
+        overrides.get(definition.definitionKey) ?? definition.defaultEnabled,
+    }));
   }
 
   private userSuggestionsDir(): string {
@@ -190,6 +288,55 @@ export class PromptSuggestionService {
   }
 }
 
+function effectiveDefinitions(
+  definitions: PromptSuggestionDefinition[],
+): PromptSuggestionDefinition[] {
+  const byName = new Map<string, PromptSuggestionDefinition>();
+  for (const definition of definitions) {
+    if (!byName.has(definition.name)) byName.set(definition.name, definition);
+  }
+  return [...byName.values()];
+}
+
+function statusesFor(
+  definitions: PromptSuggestionDefinition[],
+  trustRecords: Awaited<ReturnType<PromptSuggestionTrustRepository["list"]>>,
+): PromptSuggestionStatus[] {
+  const winnerByName = new Map<string, PromptSuggestionDefinition>();
+  for (const definition of definitions) {
+    if (!winnerByName.has(definition.name)) {
+      winnerByName.set(definition.name, definition);
+    }
+  }
+  return definitions.map((definition) => {
+    const trustRecord = definition.trustId
+      ? trustRecords.find((record) => record.trustId === definition.trustId)
+      : undefined;
+    const winner = winnerByName.get(definition.name);
+    return {
+      trustId: definition.trustId,
+      definitionKey: definition.definitionKey,
+      name: definition.name,
+      label: definition.label,
+      description: definition.description,
+      path: definition.source.path,
+      sourceKind: definition.source.kind,
+      projectId: definition.source.projectId,
+      requiresTrust: Boolean(definition.enableJs),
+      status: definition.enableJs
+        ? (trustRecord?.status ?? "unset")
+        : "not_required",
+      enabled: definition.enabled,
+      defaultEnabled: definition.defaultEnabled,
+      overriddenBy:
+        winner && winner.definitionKey !== definition.definitionKey
+          ? winner.source.kind
+          : undefined,
+      predicateHash: definition.predicateHash,
+    };
+  });
+}
+
 function safeGet<T>(operation: () => T): T | undefined {
   try {
     return operation();
@@ -215,18 +362,20 @@ function mergeStatuses(
 ): PromptSuggestionStatus[] {
   const byKey = new Map<string, PromptSuggestionStatus>();
   for (const status of [...current, ...stale]) {
-    byKey.set(
-      status.trustId ?? `${status.sourceKind}:${status.path}:${status.name}`,
-      status,
-    );
+    byKey.set(status.definitionKey, status);
   }
   return [...byKey.values()].sort(
-    (a, b) =>
-      a.sourceKind.localeCompare(b.sourceKind) ||
-      a.path.localeCompare(b.path) ||
-      a.name.localeCompare(b.name),
+    (left, right) =>
+      sourceOrder(left.sourceKind) - sourceOrder(right.sourceKind) ||
+      left.label.localeCompare(right.label) ||
+      left.path.localeCompare(right.path),
   );
 }
+
+function sourceOrder(kind: PromptSuggestionStatus["sourceKind"]): number {
+  return kind === "builtin" ? 0 : kind === "user" ? 1 : 2;
+}
+
 function staleStatuses(
   trustRecords: Awaited<ReturnType<PromptSuggestionTrustRepository["list"]>>,
   definitions: PromptSuggestionDefinition[],
@@ -238,13 +387,36 @@ function staleStatuses(
     .filter((record) => !currentTrustIds.has(record.trustId))
     .map((record) => ({
       trustId: record.trustId,
+      definitionKey: `stale:${record.trustId}`,
       name: record.name,
       label: record.label,
       path: record.path,
       sourceKind: record.sourceKind,
       requiresTrust: true,
       status: "stale" as const,
+      enabled: false,
+      defaultEnabled: false,
       predicateHash: record.predicateHash,
       stale: true,
     }));
+}
+
+async function assertDirectoryInsideProject(
+  projectDir: string,
+  destinationDir: string,
+): Promise<void> {
+  const [projectRoot, destination] = await Promise.all([
+    realpath(projectDir),
+    realpath(destinationDir),
+  ]);
+  const child = relative(projectRoot, destination);
+  if (
+    child === "" ||
+    (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child))
+  ) {
+    return;
+  }
+  throw new Error(
+    "Prompt suggestion destination escapes the project directory.",
+  );
 }

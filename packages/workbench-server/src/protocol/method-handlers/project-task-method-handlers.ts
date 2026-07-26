@@ -62,6 +62,13 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
     await state.registry.promptSuggestions.updateTrust(params);
     return { ok: true };
   },
+  "promptSuggestion.enabled.update": async (state, params) => {
+    await state.registry.promptSuggestions.updateEnabled(params);
+    return { ok: true };
+  },
+  "promptSuggestion.create": async (state, params) => ({
+    suggestion: await state.registry.promptSuggestions.create(params),
+  }),
   "task.list": (state) => ({ tasks: state.registry.listTasks() }),
   "task.start": async (state, params) => ({
     task: await state.registry.startTask(params),

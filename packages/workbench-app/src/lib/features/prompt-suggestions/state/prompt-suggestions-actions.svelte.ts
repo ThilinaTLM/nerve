@@ -1,7 +1,14 @@
-import type { UpdatePromptSuggestionTrustRequest } from "$lib/api";
+import type {
+  CreatePromptSuggestionRequest,
+  PromptSuggestionStatus,
+  UpdatePromptSuggestionEnabledRequest,
+  UpdatePromptSuggestionTrustRequest,
+} from "$lib/api";
 import {
+  requestPromptSuggestionCreation,
   getPromptSuggestionStatuses,
   getPromptSuggestions,
+  updatePromptSuggestionEnabled,
   updatePromptSuggestionTrust,
 } from "$lib/api";
 import { notify } from "$lib/features/notifications/notify.svelte";
@@ -39,8 +46,39 @@ export async function refreshPromptSuggestions(
 export async function refreshPromptSuggestionStatuses(
   projectId?: string,
 ): Promise<void> {
-  promptSuggestionsState.statuses =
-    await getPromptSuggestionStatuses(projectId);
+  promptSuggestionsState.loading = true;
+  promptSuggestionsState.error = undefined;
+  try {
+    promptSuggestionsState.statuses =
+      await getPromptSuggestionStatuses(projectId);
+  } catch (error) {
+    promptSuggestionsState.error = errorMessage(error);
+  } finally {
+    promptSuggestionsState.loading = false;
+  }
+}
+
+export async function setPromptSuggestionEnabled(
+  request: UpdatePromptSuggestionEnabledRequest,
+  projectId?: string,
+): Promise<void> {
+  await updatePromptSuggestionEnabled(request);
+  await refreshPromptSuggestionStatuses(projectId);
+  notify.success(
+    request.enabled
+      ? "Prompt suggestion enabled"
+      : "Prompt suggestion disabled",
+  );
+}
+
+export async function createPromptSuggestion(
+  request: CreatePromptSuggestionRequest,
+  projectId?: string,
+): Promise<PromptSuggestionStatus> {
+  const result = await requestPromptSuggestionCreation(request);
+  await refreshPromptSuggestionStatuses(projectId);
+  notify.success("Prompt suggestion created");
+  return result.suggestion;
 }
 
 export function dismissPromptSuggestionTrustRequest(trustId: string): void {

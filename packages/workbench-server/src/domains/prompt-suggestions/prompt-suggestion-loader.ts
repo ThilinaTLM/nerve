@@ -2,17 +2,20 @@ import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { promptSuggestionWhenSchema } from "@nervekit/contracts";
-import { parse } from "yaml";
+import {
+  PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH,
+  PROMPT_SUGGESTION_LABEL_MAX_LENGTH,
+  PROMPT_SUGGESTION_NAME_MAX_LENGTH,
+  PROMPT_SUGGESTION_PROMPT_MAX_LENGTH,
+  promptSuggestionWhenSchema,
+  type CreatePromptSuggestionRequest,
+} from "@nervekit/contracts";
+import { parse, stringify } from "yaml";
 import { pathExists } from "../../infrastructure/storage/json.js";
 import type {
   PromptSuggestionDefinition,
   PromptSuggestionDiagnostic,
 } from "./prompt-suggestion-types.js";
-
-const MAX_NAME_LENGTH = 64;
-const MAX_LABEL_LENGTH = 80;
-const MAX_DESCRIPTION_LENGTH = 1024;
 
 type SourceInput = {
   kind: "user" | "project";
@@ -109,6 +112,16 @@ async function loadSuggestionFile(
     return { diagnostics };
   }
 
+  if (raw.length > PROMPT_SUGGESTION_PROMPT_MAX_LENGTH + 10_000) {
+    diagnostics.push({
+      type: "warning",
+      code: "invalid_metadata",
+      message: `suggestion file exceeds the supported size`,
+      path: filePath,
+    });
+    return { diagnostics };
+  }
+
   const fallbackName = basename(filePath).replace(/\.md$/i, "");
   const name =
     typeof parsed.frontmatter.name === "string" &&
@@ -129,11 +142,11 @@ async function loadSuggestionFile(
     parsed.frontmatter.label.trim()
       ? parsed.frontmatter.label.trim()
       : titleFromName(name);
-  if (label.length > MAX_LABEL_LENGTH) {
+  if (label.length > PROMPT_SUGGESTION_LABEL_MAX_LENGTH) {
     diagnostics.push({
       type: "warning",
       code: "invalid_metadata",
-      message: `label exceeds ${MAX_LABEL_LENGTH} characters (${label.length})`,
+      message: `label exceeds ${PROMPT_SUGGESTION_LABEL_MAX_LENGTH} characters (${label.length})`,
       path: filePath,
     });
   }
@@ -143,11 +156,14 @@ async function loadSuggestionFile(
     parsed.frontmatter.description.trim()
       ? parsed.frontmatter.description.trim()
       : undefined;
-  if (description && description.length > MAX_DESCRIPTION_LENGTH) {
+  if (
+    description &&
+    description.length > PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH
+  ) {
     diagnostics.push({
       type: "warning",
       code: "invalid_metadata",
-      message: `description exceeds ${MAX_DESCRIPTION_LENGTH} characters (${description.length})`,
+      message: `description exceeds ${PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH} characters (${description.length})`,
       path: filePath,
     });
   }
@@ -158,6 +174,13 @@ async function loadSuggestionFile(
       type: "warning",
       code: "invalid_metadata",
       message: "prompt body is required",
+      path: filePath,
+    });
+  } else if (body.length > PROMPT_SUGGESTION_PROMPT_MAX_LENGTH) {
+    diagnostics.push({
+      type: "warning",
+      code: "invalid_metadata",
+      message: `prompt exceeds ${PROMPT_SUGGESTION_PROMPT_MAX_LENGTH} characters (${body.length})`,
       path: filePath,
     });
   }
@@ -196,11 +219,16 @@ async function loadSuggestionFile(
   return {
     definition: {
       id: sha256(`${input.kind}\0${absPath}\0${name}`).slice(0, 24),
+      definitionKey:
+        input.kind === "project"
+          ? `project:${input.projectId}:${name}`
+          : `user:${name}`,
       name,
       label,
       description,
       prompt: body,
       order,
+      defaultEnabled: enabled,
       enabled,
       when: whenResult.data,
       enableJs,
@@ -251,8 +279,10 @@ function normalizeEnableJs(frontmatter: Frontmatter): string | undefined {
 function validateName(name: string): string[] {
   const errors: string[] = [];
   if (!name) errors.push("name is required");
-  if (name.length > MAX_NAME_LENGTH) {
-    errors.push(`name exceeds ${MAX_NAME_LENGTH} characters (${name.length})`);
+  if (name.length > PROMPT_SUGGESTION_NAME_MAX_LENGTH) {
+    errors.push(
+      `name exceeds ${PROMPT_SUGGESTION_NAME_MAX_LENGTH} characters (${name.length})`,
+    );
   }
   if (!/^[a-z0-9-]+$/.test(name)) {
     errors.push(
@@ -273,6 +303,18 @@ function titleFromName(name: string): string {
     .filter(Boolean)
     .map((part) => part[0]?.toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function serializePromptSuggestionMarkdown(
+  input: CreatePromptSuggestionRequest,
+): string {
+  const frontmatter = {
+    name: input.name,
+    label: input.label,
+    ...(input.description ? { description: input.description } : {}),
+    order: 100,
+  };
+  return `---\n${stringify(frontmatter).trimEnd()}\n---\n\n${input.prompt.trim()}\n`;
 }
 
 function sha256(value: string): string {
