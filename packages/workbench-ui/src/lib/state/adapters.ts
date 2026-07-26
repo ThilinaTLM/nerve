@@ -3,7 +3,6 @@ import {
   assertTransition,
   conversationEventTypes,
   type ConversationActiveRunSnapshot,
-  ConversationCompactedData,
   ConversationCompactionCancelledData,
   ConversationCompactionFailedData,
   ConversationCompactionProgressData,
@@ -196,7 +195,7 @@ export function applyConversationEvent(
       );
       break;
     case "conversation.compacted":
-      applyCompacted(next, event.data as ConversationCompactedData);
+      applyCompacted(next);
       break;
     case "conversation.live.turn.started":
       applyLiveTurnStarted(
@@ -680,12 +679,7 @@ function applyCompactionCancelled(
   };
 }
 
-function applyCompacted(
-  state: ConversationRenderState,
-  data: ConversationCompactedData,
-): void {
-  state.entries = upsert(state.entries, data.entry.id, data.entry);
-  state.activeEntryIds = nextActiveEntryIds(state.activeEntryIds, data.entry);
+function applyCompacted(state: ConversationRenderState): void {
   clearTransientCompaction(state);
 }
 

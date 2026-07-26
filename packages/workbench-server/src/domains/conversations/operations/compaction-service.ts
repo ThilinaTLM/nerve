@@ -329,7 +329,7 @@ export class CompactionService {
         await this.rebuildConversations();
         await this.events.publish("conversation.compacted", {
           conversationId,
-          entry,
+          entryId: entry.id,
           tokensBefore: preparation.tokensBefore,
           firstKeptEntryId,
           reason,

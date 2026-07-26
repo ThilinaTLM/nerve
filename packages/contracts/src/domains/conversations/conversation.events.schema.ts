@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { definePublicEvent } from "../events/event-definition.schema.js";
 import { projectRecordSchema } from "../projects/project.schema.js";
-import {
-  conversationEntrySchema,
-  conversationRecordSchema,
-} from "./tree.schema.js";
+import { conversationRecordSchema } from "./tree.schema.js";
 
 const workbenchRoles = ["workbench_server"] as const;
 const conversationIdSchema = z.string().startsWith("conv_");
@@ -39,7 +36,6 @@ export const conversationLifecycleEventDefinitions = [
       conversationId: conversationIdSchema,
       activeEntryId: entryIdSchema.optional(),
       targetEntryId: entryIdSchema.optional(),
-      summaryEntry: conversationEntrySchema.optional(),
     }),
     { allowedSourceRoles: workbenchRoles, scope: ["conversationId"] },
   ),
@@ -49,7 +45,7 @@ export const conversationLifecycleEventDefinitions = [
       conversationId: conversationIdSchema,
       fromEntryId: entryIdSchema.optional(),
       targetEntryId: entryIdSchema.optional(),
-      entry: conversationEntrySchema,
+      entryId: entryIdSchema,
     }),
     { allowedSourceRoles: workbenchRoles, scope: ["conversationId"] },
   ),
