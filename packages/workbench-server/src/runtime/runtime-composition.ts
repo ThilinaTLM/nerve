@@ -31,11 +31,11 @@ import {
   NavigationService,
 } from "../domains/conversations/operations/index.js";
 import { HumanInputResolutionService } from "../domains/human-input/index.js";
-import {
-  PinnedCommandRepository,
-  PinnedCommandService,
-} from "../domains/pinned-commands/index.js";
 import { PlanService } from "../domains/plans/plan-service.js";
+import {
+  TaskDefinitionRepository,
+  TaskDefinitionService,
+} from "../domains/task-definitions/index.js";
 import {
   ProjectEditorService,
   ProjectLifecycleService,
@@ -94,7 +94,7 @@ export interface RuntimeServices {
   tools: ToolService;
   git: GitService;
   promptSuggestions: PromptSuggestionService;
-  pinnedCommands: PinnedCommandService;
+  taskDefinitions: TaskDefinitionService;
   scratchNotes: ScratchNoteService;
   harnessStorage: ConversationHarnessStorage;
   conversationService: ConversationService;
@@ -179,10 +179,12 @@ export function composeRuntime(
   };
 
   const projectRepository = new ProjectRepository(storage);
-  const pinnedCommandRepository = new PinnedCommandRepository(storage);
-  services.pinnedCommands = new PinnedCommandService(
-    pinnedCommandRepository,
+  services.taskDefinitions = new TaskDefinitionService(
+    new TaskDefinitionRepository(storage),
     getProject,
+    async (type, data) => {
+      await events.publish(type, data);
+    },
   );
   const scratchNoteRepository = new ScratchNoteRepository(storage);
   services.scratchNotes = new ScratchNoteService(

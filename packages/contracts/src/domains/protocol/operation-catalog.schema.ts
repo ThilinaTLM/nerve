@@ -13,7 +13,6 @@ import { filesystemOperationDefinitions } from "../filesystem/filesystem.operati
 import { gitOperationDefinitions } from "../git/git.operations.schema.js";
 import { logsOperationDefinitions } from "../logs/logs.operations.schema.js";
 import { modelsOperationDefinitions } from "../models/model.operations.schema.js";
-import { pinnedCommandsOperationDefinitions } from "../pinned-commands/pinned-command.operations.schema.js";
 import { projectsOperationDefinitions } from "../projects/project.operations.schema.js";
 import { promptSuggestionsOperationDefinitions } from "../prompt-suggestions/prompt-suggestion.operations.schema.js";
 import { providersOperationDefinitions } from "../providers/provider.operations.schema.js";
@@ -23,6 +22,7 @@ import { settingsOperationDefinitions } from "../settings/settings.operations.sc
 import { skillOperationDefinitions } from "../skills/skill.operations.schema.js";
 import { snapshotsOperationDefinitions } from "../snapshots/snapshot.operations.schema.js";
 import { storageOperationDefinitions } from "../storage/storage.operations.schema.js";
+import { taskDefinitionOperationDefinitions } from "../task-definitions/task-definition.operations.schema.js";
 import { tasksOperationDefinitions } from "../tasks/task.operations.schema.js";
 import { toolsOperationDefinitions } from "../tools/tool.operations.schema.js";
 import { usageOperationDefinitions } from "../usage/usage.operations.schema.js";
@@ -38,7 +38,6 @@ const methodDefinitions = [
   ...gitOperationDefinitions,
   ...logsOperationDefinitions,
   ...modelsOperationDefinitions,
-  ...pinnedCommandsOperationDefinitions,
   ...projectsOperationDefinitions,
   ...promptSuggestionsOperationDefinitions,
   ...providersOperationDefinitions,
@@ -48,6 +47,7 @@ const methodDefinitions = [
   ...skillOperationDefinitions,
   ...snapshotsOperationDefinitions,
   ...storageOperationDefinitions,
+  ...taskDefinitionOperationDefinitions,
   ...tasksOperationDefinitions,
   ...toolsOperationDefinitions,
   ...usageOperationDefinitions,

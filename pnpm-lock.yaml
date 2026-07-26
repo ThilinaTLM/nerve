@@ -131,6 +131,25 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/process-runtime:
+    dependencies:
+      '@nervekit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nervekit/tools':
+        specifier: workspace:*
+        version: link:../tools
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      tsx:
+        specifier: 4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/protocol:
     dependencies:
       '@nervekit/contracts':
@@ -161,6 +180,9 @@ importers:
       '@nervekit/host-runtime':
         specifier: workspace:*
         version: link:../host-runtime
+      '@nervekit/process-runtime':
+        specifier: workspace:*
+        version: link:../process-runtime
       '@nervekit/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -488,6 +510,9 @@ importers:
       '@nervekit/host-runtime':
         specifier: workspace:*
         version: link:../host-runtime
+      '@nervekit/process-runtime':
+        specifier: workspace:*
+        version: link:../process-runtime
       '@nervekit/protocol':
         specifier: workspace:*
         version: link:../protocol

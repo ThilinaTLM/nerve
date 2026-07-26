@@ -110,7 +110,7 @@ describe("task manager foreground bash auto-promotion", () => {
     assert.throws(() => manager.getTask(started.id), /Task not found/);
   });
 
-  it("hydrates active foreground bash tasks as visible orphaned tasks", async () => {
+  it("hydrates exited foreground bash tasks as visible interrupted tasks", async () => {
     const runtime = runtimeMetadata({ childPid: 4321, processGroupId: 4321 });
     const { supervisor } = fakeSupervisor({ runtime });
     const { manager, storage } = await createManager(supervisor);
@@ -134,7 +134,7 @@ describe("task manager foreground bash auto-promotion", () => {
     await manager.hydrate();
 
     const hydrated = manager.getTask(record.id);
-    assert.equal(hydrated.status, "orphaned");
+    assert.equal(hydrated.status, "interrupted");
     assert.equal(hydrated.visibility, "background");
     assert.equal(hydrated.notifications?.enabled, true);
     assert.equal(hydrated.notifications?.terminal, true);

@@ -5,12 +5,13 @@ export function isActiveTaskStatus(status: TaskRecord["status"]): boolean {
     status === "starting" ||
     status === "running" ||
     status === "ready" ||
-    status === "stopping"
+    status === "stopping" ||
+    status === "recovered"
   );
 }
 
 export function isOrphanedTaskStatus(status: TaskRecord["status"]): boolean {
-  return status === "orphaned";
+  return status === "orphaned" || status === "recovery_unknown";
 }
 
 export function isStoppableTaskStatus(status: TaskRecord["status"]): boolean {

@@ -1,20 +1,27 @@
 import type {
-  CreatePinnedCommandRequest,
-  PinnedCommand,
   ProjectRecord,
   StartTaskRequest,
+  TaskDefinition,
   TaskRecord,
-  UpdatePinnedCommandRequest,
 } from "$lib/api";
+import type {
+  CreatePinnedCommandRequest,
+  UpdatePinnedCommandRequest,
+} from "@nervekit/contracts";
 import { writeClipboardText } from "$lib/core/clipboard";
+import { onEvent } from "$lib/core/events/event-bus";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import { getTaskLogs } from "$lib/features/tasks/api/tasks.api";
-import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
-  createPinnedCommand,
-  deletePinnedCommand,
-  getPinnedCommands,
-  updatePinnedCommand,
+  getTaskLogs,
+  launchTaskDefinition,
+} from "$lib/features/tasks/api/tasks.api";
+import { taskState } from "$lib/features/tasks/state/task-state.svelte";
+import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
+import {
+  createTaskDefinition,
+  deleteTaskDefinition,
+  getTaskDefinitions,
+  updateTaskDefinition,
 } from "$lib/api";
 import {
   createTaskPanelActions,
@@ -50,7 +57,7 @@ export function createWorkbenchTaskPanelAdapter(
   selectedTask: () => TaskRecord | undefined,
   hostActions: WorkbenchTaskPanelHostActions,
 ): { readonly model: TaskPanelModel; readonly actions: TaskPanelActions } {
-  let pinned = $state<PinnedCommand[]>([]);
+  let pinned = $state<TaskDefinition[]>([]);
   let loadingPinned = $state(false);
   let runningPinnedId = $state<string | undefined>(undefined);
   let lastLoadedProjectId = $state<string | undefined>(undefined);
@@ -108,7 +115,7 @@ export function createWorkbenchTaskPanelAdapter(
 
   function original(
     command: NormalizedPinnedCommand,
-  ): PinnedCommand | undefined {
+  ): TaskDefinition | undefined {
     return pinned.find((item) => item.id === command.id);
   }
 
@@ -127,19 +134,25 @@ export function createWorkbenchTaskPanelAdapter(
         name: request.name,
       });
     },
-    runPinned: (command) => {
+    runPinned: async (command) => {
       const project = activeProject();
       if (!project) return;
       runningPinnedId = command.id;
-      hostActions.runCommand?.({
-        projectId: project.id,
-        cwd: command.cwd ?? project.dir,
-        command: command.command,
-        name: command.label ?? command.command,
-      });
-      window.setTimeout(() => {
-        if (runningPinnedId === command.id) runningPinnedId = undefined;
-      }, 1_200);
+      try {
+        const result = await launchTaskDefinition(command.id);
+        await loadWorkspaceState();
+        hostActions.openTaskOutput?.(result.task.id);
+        notify.success(
+          result.disposition === "focused_existing"
+            ? "Task is already running"
+            : "Task started",
+          { description: command.label ?? command.command },
+        );
+      } catch (error) {
+        notify.error(`Could not run task: ${errorMessage(error)}`);
+      } finally {
+        runningPinnedId = undefined;
+      }
     },
     cancelTask: (id) => hostActions.cancelTask?.(id),
     restartTask: (id) => hostActions.restartTask?.(id),
@@ -149,15 +162,17 @@ export function createWorkbenchTaskPanelAdapter(
       const project = activeProject();
       if (!project) return;
       try {
-        const created = await createPinnedCommand(project.id, {
+        const created = await createTaskDefinition(project.id, {
           command: task.command,
           label: task.name,
           cwd: task.cwd === project.dir ? undefined : task.cwd,
+          runPolicy: "single",
+          sourceTaskId: task.id,
         });
         pinned = [...pinned, created];
-        notify.success("Command pinned");
+        notify.success("Task saved");
       } catch (error) {
-        notify.error(`Could not pin command: ${errorMessage(error)}`);
+        notify.error(`Could not save task: ${errorMessage(error)}`);
       }
     },
     copyCommand: async (command) => {
@@ -172,11 +187,14 @@ export function createWorkbenchTaskPanelAdapter(
       const project = activeProject();
       if (!project) return;
       try {
-        const created = await createPinnedCommand(project.id, input);
+        const created = await createTaskDefinition(project.id, {
+          ...input,
+          runPolicy: input.runPolicy ?? "single",
+        });
         pinned = [...pinned, created];
-        notify.success("Command pinned");
+        notify.success("Task saved");
       } catch (error) {
-        notify.error(`Could not pin command: ${errorMessage(error)}`);
+        notify.error(`Could not save task: ${errorMessage(error)}`);
         throw error;
       }
     },
@@ -185,13 +203,16 @@ export function createWorkbenchTaskPanelAdapter(
       const item = original(command);
       if (!project || !item) return;
       try {
-        const updated = await updatePinnedCommand(project.id, item.id, input);
+        const updated = await updateTaskDefinition(project.id, item.id, {
+          ...input,
+          runPolicy: input.runPolicy ?? item.runPolicy,
+        });
         pinned = pinned.map((candidate) =>
           candidate.id === updated.id ? updated : candidate,
         );
-        notify.success("Pinned task updated");
+        notify.success("Task updated");
       } catch (error) {
-        notify.error(`Could not update pinned command: ${errorMessage(error)}`);
+        notify.error(`Could not update task: ${errorMessage(error)}`);
         throw error;
       }
     },
@@ -200,11 +221,11 @@ export function createWorkbenchTaskPanelAdapter(
       const item = original(command);
       if (!project || !item) return;
       try {
-        await deletePinnedCommand(project.id, item.id);
+        await deleteTaskDefinition(project.id, item.id);
         pinned = pinned.filter((candidate) => candidate.id !== item.id);
-        notify.success("Pinned task deleted");
+        notify.success("Saved task deleted");
       } catch (error) {
-        notify.error(`Could not remove pinned command: ${errorMessage(error)}`);
+        notify.error(`Could not remove saved task: ${errorMessage(error)}`);
         throw error;
       }
     },
@@ -215,13 +236,42 @@ export function createWorkbenchTaskPanelAdapter(
   adapter.actions = createTaskPanelActions(() => adapter.model, host);
 
   $effect(() => {
+    const disposeCreated = onEvent("taskDefinition.created", (event) => {
+      const definition = event.data?.definition as TaskDefinition | undefined;
+      const projectId = activeProject()?.id;
+      if (
+        definition?.scope.kind === "project" &&
+        definition.scope.projectId === projectId &&
+        !pinned.some((item) => item.id === definition.id)
+      )
+        pinned = [...pinned, definition];
+    });
+    const disposeUpdated = onEvent("taskDefinition.updated", (event) => {
+      const definition = event.data?.definition as TaskDefinition | undefined;
+      if (!definition) return;
+      pinned = pinned.map((item) =>
+        item.id === definition.id ? definition : item,
+      );
+    });
+    const disposeDeleted = onEvent("taskDefinition.deleted", (event) => {
+      const definitionId = String(event.data?.definitionId ?? "");
+      pinned = pinned.filter((item) => item.id !== definitionId);
+    });
+    return () => {
+      disposeCreated();
+      disposeUpdated();
+      disposeDeleted();
+    };
+  });
+
+  $effect(() => {
     const projectId = activeProject()?.id;
     if (projectId === lastLoadedProjectId) return;
     lastLoadedProjectId = projectId;
     pinned = [];
     if (!projectId) return;
     loadingPinned = true;
-    void getPinnedCommands(projectId)
+    void getTaskDefinitions(projectId)
       .then((commands) => {
         if (activeProject()?.id === projectId) pinned = commands;
       })

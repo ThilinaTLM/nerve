@@ -275,6 +275,7 @@ export const sandboxPinnedCommandSchema = z.object({
   label: z.string().min(1).optional(),
   command: z.string().min(1),
   cwd: z.string().min(1).optional(),
+  runPolicy: z.enum(["single", "concurrent"]).optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

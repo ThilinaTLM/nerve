@@ -285,34 +285,24 @@ export function createWorkbenchTaskResources(
           recursive: true,
           mode: 0o755,
         });
-        const spawned = supervisor.spawn(input.command, {
+        const spawned = await supervisor.spawn(input.command, {
           cwd: input.cwd,
           env: input.env,
           shellPath: storage.settings.runtime.shellPath,
         });
-        const { child, runtime } = spawned;
+        const { child, runtime, exited, closed } = spawned;
         let resolveTerminal!: (task: TaskRecord | undefined) => void;
         const terminalPromise = new Promise<TaskRecord | undefined>(
           (resolve) => {
             resolveTerminal = resolve;
           },
         );
-        const exitPromise = new Promise<{
-          exitCode: number | null;
-          signal: NodeJS.Signals | null;
-        }>((resolve) =>
-          child.once("exit", (exitCode, signal) =>
-            resolve({ exitCode, signal }),
-          ),
-        );
-        const closePromise = new Promise<{
-          exitCode: number | null;
-          signal: NodeJS.Signals | null;
-        }>((resolve) =>
-          child.once("close", (exitCode, signal) =>
-            resolve({ exitCode, signal }),
-          ),
-        );
+        const terminalResult = (result: Awaited<typeof exited>) =>
+          result.kind === "error"
+            ? { exitCode: 127, signal: null }
+            : { exitCode: result.exitCode, signal: result.signal };
+        const exitPromise = exited.then(terminalResult);
+        const closePromise = closed.then(terminalResult);
         const state: WorkbenchManagedTask = {
           ...createTaskLogCursor(
             await logs.latestLogSeq(
@@ -385,8 +375,9 @@ export function createWorkbenchTaskResources(
           await callbacks.onExit?.(exit);
           resolveTerminal(tasks.get(input.taskId));
         };
-        child.on("error", () => {
-          void finish({ exitCode: 127, exitedAt: new Date().toISOString() });
+        void closed.then((result) => {
+          if (result.kind === "error")
+            queueDecodedOutput("stderr", result.error.message);
         });
         state.finalizationPromise = closePromise
           .then(async ({ exitCode, signal }) => {
@@ -415,11 +406,13 @@ export function createWorkbenchTaskResources(
         const child = state?.child;
         if (child)
           await supervisor.terminate(child, cancelOptions.signal ?? "SIGTERM");
-        else if (task.runtime)
-          await supervisor.terminateRuntime(
+        else if (task.runtime) {
+          const result = await supervisor.terminateRuntime(
             task.runtime,
             cancelOptions.signal ?? "SIGTERM",
           );
+          if (result.error) throw new Error(result.error);
+        }
       },
       inspect: async (task) => {
         if (managed.get(task.id)?.child) return "running";

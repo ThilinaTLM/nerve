@@ -7,6 +7,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
+import SelectField from "@nervekit/ui-kit/components/ui/select-field";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import type { NormalizedPinnedCommand } from "./task-panel-types";
 
@@ -33,14 +34,15 @@ let {
 let label = $state("");
 let commandText = $state("");
 let cwd = $state("");
+let runPolicy = $state<"single" | "concurrent">("single");
 
-const title = $derived(command ? "Edit pinned task" : "Pin a command");
+const title = $derived(command ? "Edit task" : "Create task");
 const description = $derived(
   command
-    ? "Update the label, command, and optional working directory for this pinned task."
-    : "Create a reusable task shortcut.",
+    ? "Update this task definition and its launch policy. Existing runs keep their original command."
+    : "Create a reusable task definition for this workspace.",
 );
-const submitLabel = $derived(command ? "Save pinned task" : "Pin task");
+const submitLabel = $derived(command ? "Save task" : "Create task");
 const canSave = $derived(!saving && commandText.trim().length > 0);
 
 $effect(() => {
@@ -48,6 +50,7 @@ $effect(() => {
   label = command?.label ?? "";
   commandText = command?.command ?? "";
   cwd = command?.cwd ?? "";
+  runPolicy = command?.runPolicy ?? "single";
 });
 
 function submit() {
@@ -58,6 +61,7 @@ function submit() {
     command: commandText.trim(),
     ...(nextLabel.length > 0 ? { label: nextLabel } : {}),
     ...(nextCwd.length > 0 ? { cwd: nextCwd } : {}),
+    runPolicy,
   });
 }
 </script>
@@ -86,6 +90,23 @@ function submit() {
       />
       <p class="text-xs text-muted-foreground">
         This is the shell command run by the play button.
+      </p>
+    </div>
+
+    <div class="grid gap-1.5">
+      <Label for="task-run-policy">Run policy</Label>
+      <SelectField
+        bind:value={runPolicy}
+        ariaLabel="Task run policy"
+        items={[
+          { value: "single", label: "Single run" },
+          { value: "concurrent", label: "Concurrent runs" },
+        ]}
+        disabled={saving}
+      />
+      <p class="text-xs text-muted-foreground">
+        Single run focuses an existing process. Concurrent runs may start
+        another process.
       </p>
     </div>
 

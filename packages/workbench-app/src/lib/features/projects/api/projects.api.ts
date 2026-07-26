@@ -1,13 +1,13 @@
-import { pinnedCommandSchema } from "@nervekit/contracts";
+import { taskDefinitionSchema } from "@nervekit/contracts";
 import type {
-  CreatePinnedCommandRequest,
+  CreateTaskDefinitionRequest,
   OpenProjectInEditorResponse,
-  PinnedCommand,
   ProjectEditor,
+  TaskDefinition,
   ProjectRecord,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
-  UpdatePinnedCommandRequest,
+  UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
 
@@ -51,51 +51,45 @@ export async function openProjectInEditor(
   ).result;
 }
 
-export async function getPinnedCommands(
+export async function getTaskDefinitions(
   projectId: string,
-): Promise<PinnedCommand[]> {
-  const commands = (
-    await protocolRequest("pinnedCommand.list", {
-      projectId,
-    })
-  ).result.commands;
-  return commands.map((command) => pinnedCommandSchema.parse(command));
+): Promise<TaskDefinition[]> {
+  const definitions = (
+    await protocolRequest("taskDefinition.list", { projectId })
+  ).result.definitions;
+  return definitions.map((definition) =>
+    taskDefinitionSchema.parse(definition),
+  );
 }
 
-export async function createPinnedCommand(
+export async function createTaskDefinition(
   projectId: string,
-  body: CreatePinnedCommandRequest,
-): Promise<PinnedCommand> {
-  const command = (
-    await protocolRequest("pinnedCommand.create", {
+  body: CreateTaskDefinitionRequest,
+): Promise<TaskDefinition> {
+  const definition = (
+    await protocolRequest("taskDefinition.create", { projectId, ...body })
+  ).result.definition;
+  return taskDefinitionSchema.parse(definition);
+}
+
+export async function updateTaskDefinition(
+  projectId: string,
+  definitionId: string,
+  body: UpdateTaskDefinitionRequest,
+): Promise<TaskDefinition> {
+  const definition = (
+    await protocolRequest("taskDefinition.update", {
       projectId,
+      definitionId,
       ...body,
     })
-  ).result.command;
-  return pinnedCommandSchema.parse(command);
+  ).result.definition;
+  return taskDefinitionSchema.parse(definition);
 }
 
-export async function updatePinnedCommand(
+export async function deleteTaskDefinition(
   projectId: string,
-  commandId: string,
-  body: UpdatePinnedCommandRequest,
-): Promise<PinnedCommand> {
-  const command = (
-    await protocolRequest("pinnedCommand.update", {
-      projectId,
-      commandId,
-      ...body,
-    })
-  ).result.command;
-  return pinnedCommandSchema.parse(command);
-}
-
-export async function deletePinnedCommand(
-  projectId: string,
-  commandId: string,
+  definitionId: string,
 ): Promise<void> {
-  await protocolRequest("pinnedCommand.delete", {
-    projectId,
-    commandId,
-  });
+  await protocolRequest("taskDefinition.delete", { projectId, definitionId });
 }

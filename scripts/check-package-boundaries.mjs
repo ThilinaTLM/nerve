@@ -18,11 +18,17 @@ const allowedNerveDependencies = new Map([
     "@nervekit/host-runtime",
     ["@nervekit/contracts", "@nervekit/harness", "@nervekit/tools"],
   ],
+  ["@nervekit/process-runtime", ["@nervekit/contracts", "@nervekit/tools"]],
   ["@nervekit/ui-kit", []],
   ["@nervekit/workbench-ui", ["@nervekit/contracts", "@nervekit/ui-kit"]],
   [
     "@nervekit/workbench-server",
-    ["@nervekit/contracts", "@nervekit/protocol", "@nervekit/host-runtime"],
+    [
+      "@nervekit/contracts",
+      "@nervekit/protocol",
+      "@nervekit/host-runtime",
+      "@nervekit/process-runtime",
+    ],
   ],
   [
     "@nervekit/workbench-app",
@@ -39,7 +45,12 @@ const allowedNerveDependencies = new Map([
   ],
   [
     "@nervekit/sandbox-agent",
-    ["@nervekit/contracts", "@nervekit/protocol", "@nervekit/host-runtime"],
+    [
+      "@nervekit/contracts",
+      "@nervekit/protocol",
+      "@nervekit/host-runtime",
+      "@nervekit/process-runtime",
+    ],
   ],
   ["@nervekit/sandbox-manager", ["@nervekit/contracts", "@nervekit/protocol"]],
   [

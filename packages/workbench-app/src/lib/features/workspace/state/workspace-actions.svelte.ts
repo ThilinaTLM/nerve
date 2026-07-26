@@ -60,9 +60,13 @@ async function applyWorkspaceSnapshot(
   workspaceState.conversations = snapshot.snapshot.conversations;
   workspaceState.agents = agents;
   taskState.tasks = snapshot.snapshot.tasks;
-  const taskIds = new SvelteSet(taskState.tasks.map((task) => task.id));
+  const taskEntryIds = new SvelteSet(
+    taskState.tasks.map(
+      (task) => task.definitionId ?? task.restartRootTaskId ?? task.id,
+    ),
+  );
   const staleOpenTaskIds = taskState.openTaskTabIds.filter(
-    (taskId) => !taskIds.has(taskId),
+    (taskId) => !taskEntryIds.has(taskId),
   );
   if (staleOpenTaskIds.length) {
     await closeCenterTabs(

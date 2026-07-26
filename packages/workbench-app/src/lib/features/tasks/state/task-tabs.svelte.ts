@@ -10,35 +10,58 @@ import {
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 
-function addTaskTab(taskId: string) {
-  addCenterTab({ kind: "task", id: taskId });
+export function taskEntryKey(taskId: string): string {
+  const task = taskState.tasks.find((candidate) => candidate.id === taskId);
+  return task?.definitionId ?? task?.restartRootTaskId ?? task?.id ?? taskId;
+}
+
+export function runForTaskEntry(entryId: string) {
+  const selectedId = taskState.selectedRunByEntry[entryId];
+  const candidates = taskState.tasks
+    .filter(
+      (task) =>
+        (task.definitionId ?? task.restartRootTaskId ?? task.id) === entryId,
+    )
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  return candidates.find((task) => task.id === selectedId) ?? candidates[0];
+}
+
+export function setTaskEntryRun(entryId: string, taskId: string): void {
+  taskState.selectedRunByEntry[entryId] = taskId;
 }
 
 export async function openTaskTab(taskId: string) {
-  addTaskTab(taskId);
-  await selectCenterTaskTab(taskId);
+  const entryId = taskEntryKey(taskId);
+  setTaskEntryRun(entryId, taskId);
+  addCenterTab({ kind: "task", id: entryId });
+  await selectCenterTaskTab(entryId);
 }
 
 export async function selectCenterConversationTab(conversationId: string) {
   await openConversation(conversationId);
 }
 
-export async function selectCenterTaskTab(taskId: string) {
-  addTaskTab(taskId);
-  taskState.selectedTaskId = taskId;
-  setActiveCenterTab({ kind: "task", id: taskId });
-  await loadTaskLogWindow(taskId);
+export async function selectCenterTaskTab(entryId: string) {
+  const task = runForTaskEntry(entryId);
+  addCenterTab({ kind: "task", id: entryId });
+  setActiveCenterTab({ kind: "task", id: entryId });
+  taskState.selectedTaskId = task?.id;
+  if (task) await loadTaskLogWindow(task.id);
 }
 
-export async function closeTaskTab(taskId: string) {
-  const tab = { kind: "task" as const, id: taskId };
+export async function closeTaskTab(entryId: string) {
+  const tab = { kind: "task" as const, id: entryId };
   const closingActive =
     workspaceState.activeCenterTab?.kind === "task" &&
-    workspaceState.activeCenterTab.id === taskId;
+    workspaceState.activeCenterTab.id === entryId;
   const fallback = nextCenterTabAfterClose(tab);
   removeCenterTab(tab);
+  delete taskState.selectedRunByEntry[entryId];
 
-  if (taskState.selectedTaskId === taskId) {
+  if (
+    taskState.selectedTaskId &&
+    taskEntryKey(taskState.selectedTaskId) === entryId
+  ) {
     taskState.selectedTaskId = undefined;
     taskState.taskLogs = undefined;
   }

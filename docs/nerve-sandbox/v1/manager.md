@@ -1,6 +1,6 @@
 # Sandbox manager
 
-The manager requires PostgreSQL through `NERVE_SANDBOX_MANAGER_DATABASE_URL` or `DATABASE_URL`. It runs migrations and stores sandboxes, sessions, events, idempotency, audit records, credentials/policies, pinned commands, and runtime-volume metadata. Its configured storage directory has marker `{ "format": "nerve-sandbox-manager-state", "version": 1 }` and contains backend files such as local volumes.
+The manager requires PostgreSQL through `NERVE_SANDBOX_MANAGER_DATABASE_URL` or `DATABASE_URL`. It runs migrations and stores sandboxes, sessions, events, idempotency, audit records, credentials/policies, task definitions, and runtime-volume metadata. Its configured storage directory has marker `{ "format": "nerve-sandbox-manager-state", "version": 1 }` and contains backend files such as local volumes.
 
 Runtime drivers support local Docker/Podman and ECS/Fargate. Local storage uses bind-mounted workspace/state/secrets/config paths. ECS uses AWS task control with EFS-backed volumes as configured; S3-files/EFS providers are explicit backend choices.
 

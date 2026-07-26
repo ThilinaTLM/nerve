@@ -1,9 +1,9 @@
 import {
-  createPinnedCommandRequestSchema,
   createProjectRequestSchema,
+  createTaskDefinitionRequestSchema,
   openProjectInEditorRequestSchema,
   pruneProjectConversationsRequestSchema,
-  updatePinnedCommandRequestSchema,
+  updateTaskDefinitionRequestSchema,
 } from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
@@ -56,22 +56,22 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
     }),
   );
   app.get(
-    "/:projectId/pinned-commands",
+    "/:projectId/task-definitions",
     routeHandler(async (c) =>
       c.json({
-        commands: await state.registry.listPinnedCommands(
+        definitions: await state.registry.listTaskDefinitions(
           routeParam(c, "projectId"),
         ),
       }),
     ),
   );
   app.post(
-    "/:projectId/pinned-commands",
+    "/:projectId/task-definitions",
     routeHandler(async (c) => {
-      const body = createPinnedCommandRequestSchema.parse(await c.req.json());
+      const body = createTaskDefinitionRequestSchema.parse(await c.req.json());
       return c.json(
         {
-          command: await state.registry.createPinnedCommand(
+          definition: await state.registry.createTaskDefinition(
             routeParam(c, "projectId"),
             body,
           ),
@@ -81,24 +81,24 @@ export function createProjectRoutes(state: OrchestratorState): Hono {
     }),
   );
   app.patch(
-    "/:projectId/pinned-commands/:commandId",
+    "/:projectId/task-definitions/:definitionId",
     routeHandler(async (c) => {
-      const body = updatePinnedCommandRequestSchema.parse(await c.req.json());
+      const body = updateTaskDefinitionRequestSchema.parse(await c.req.json());
       return c.json({
-        command: await state.registry.updatePinnedCommand(
+        definition: await state.registry.updateTaskDefinition(
           routeParam(c, "projectId"),
-          routeParam(c, "commandId"),
+          routeParam(c, "definitionId"),
           body,
         ),
       });
     }),
   );
   app.delete(
-    "/:projectId/pinned-commands/:commandId",
+    "/:projectId/task-definitions/:definitionId",
     routeHandler(async (c) => {
-      await state.registry.removePinnedCommand(
+      await state.registry.removeTaskDefinition(
         routeParam(c, "projectId"),
-        routeParam(c, "commandId"),
+        routeParam(c, "definitionId"),
       );
       return c.body(null, 204);
     }),

@@ -207,13 +207,34 @@ export class WorkbenchTaskService extends TaskService {
     return this.cancel(taskId, request);
   }
 
-  async restartTask(taskId: string): Promise<TaskRecord> {
+  async restartTask(
+    taskId: string,
+    options: { confirmUnverifiedReplacement?: boolean } = {},
+  ): Promise<TaskRecord> {
     const record = this.getTask(taskId);
     if (record.status === "orphaned") {
       await this.envForRestart(record);
       await this.cleanupOrphanedTask(record.id, { timeoutMs: 5000 });
     }
-    return this.restart(taskId);
+    return this.restart(taskId, options);
+  }
+
+  async associateDefinition(
+    sourceTaskId: string,
+    definitionId: string,
+  ): Promise<TaskRecord[]> {
+    const source = this.getTask(sourceTaskId);
+    const root = source.restartRootTaskId ?? source.id;
+    const lineage = this.listTasks({ includeForeground: true }).filter(
+      (task) => (task.restartRootTaskId ?? task.id) === root,
+    );
+    const updated: TaskRecord[] = [];
+    for (const task of lineage) {
+      const next = await this.updateTask(task.id, { definitionId });
+      await this.events.publish("task.updated", { task: next });
+      updated.push(next);
+    }
+    return updated;
   }
 
   async removeTask(taskId: string): Promise<void> {

@@ -80,7 +80,9 @@ export function createSandboxTaskPanelAdapter(
   function original(
     command: NormalizedPinnedCommand,
   ): SandboxPinnedCommand | undefined {
-    return detail()?.pinnedCommands.find((item) => item.id === command.id);
+    return detail()?.pinnedCommands.find(
+      (item) => item.id.replace(/^pin_/, "taskdef_") === command.id,
+    );
   }
 
   const host: TaskPanelActions = {
@@ -96,8 +98,10 @@ export function createSandboxTaskPanelAdapter(
       runningPinnedId = command.id;
       try {
         await store.runSandboxTask(record().sandboxId, {
+          definitionId: command.id,
+          definitionRunPolicy: command.runPolicy ?? "single",
           command: command.command,
-          name: command.label ?? command.command,
+          displayName: command.label ?? command.command,
           cwd: command.cwd ?? "/workspace",
         });
       } catch (error) {
@@ -105,9 +109,7 @@ export function createSandboxTaskPanelAdapter(
           description: errorMessage(error),
         });
       } finally {
-        window.setTimeout(() => {
-          if (runningPinnedId === command.id) runningPinnedId = undefined;
-        }, 800);
+        runningPinnedId = undefined;
       }
     },
     cancelTask: (taskId) => store.cancelSandboxTask(record().sandboxId, taskId),

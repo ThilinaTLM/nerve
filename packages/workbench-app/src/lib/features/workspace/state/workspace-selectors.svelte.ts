@@ -210,7 +210,18 @@ export const workspaceSelectors = {
   get openTaskTabs(): TaskTabModel[] {
     const tabs: TaskTabModel[] = [];
     for (const taskId of taskState.openTaskTabIds) {
-      const task = taskState.tasks.find((candidate) => candidate.id === taskId);
+      const selectedRunId = taskState.selectedRunByEntry[taskId];
+      const candidates = taskState.tasks
+        .filter(
+          (candidate) =>
+            (candidate.definitionId ??
+              candidate.restartRootTaskId ??
+              candidate.id) === taskId,
+        )
+        .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+      const task =
+        candidates.find((candidate) => candidate.id === selectedRunId) ??
+        candidates[0];
       tabs.push({
         kind: "task",
         id: taskId,

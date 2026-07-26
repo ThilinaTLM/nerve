@@ -14,8 +14,11 @@ import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
   activateFallbackCenterTab,
   removeCenterTab,
-  replaceCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
+import {
+  setTaskEntryRun,
+  taskEntryKey,
+} from "$lib/features/tasks/state/task-tabs.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 export async function selectTask(taskId: string) {
@@ -37,13 +40,9 @@ export async function cancelSelectedTask(taskId: string) {
 }
 
 export async function restartSelectedTask(taskId: string) {
+  const entryId = taskEntryKey(taskId);
   const restarted = await restartTask(taskId);
-  if (restarted.id !== taskId) {
-    replaceCenterTab(
-      { kind: "task", id: taskId },
-      { kind: "task", id: restarted.id },
-    );
-  }
+  setTaskEntryRun(entryId, restarted.id);
   taskState.selectedTaskId = restarted.id;
   await loadWorkspaceState();
   await loadTaskLogWindow(restarted.id);
@@ -53,7 +52,16 @@ export async function restartSelectedTask(taskId: string) {
 }
 
 function forgetTask(taskId: string) {
-  removeCenterTab({ kind: "task", id: taskId });
+  const entryId = taskEntryKey(taskId);
+  const remaining = taskState.tasks
+    .filter(
+      (task) =>
+        task.id !== taskId &&
+        (task.definitionId ?? task.restartRootTaskId ?? task.id) === entryId,
+    )
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  if (remaining[0]) setTaskEntryRun(entryId, remaining[0].id);
+  else removeCenterTab({ kind: "task", id: entryId });
   if (
     workspaceState.activeCenterTab?.kind === "task" &&
     workspaceState.activeCenterTab.id === taskId

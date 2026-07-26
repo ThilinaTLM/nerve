@@ -82,28 +82,39 @@ export function createManagerOperationHandlers(
     "sandbox.snapshot.get": (params) => sandboxSnapshot(context, params),
     "sandbox.conversation.snapshot.get": (params) =>
       sandboxConversationSnapshot(context, params),
-    "pinnedCommand.list": async (params) => ({
-      commands: await context.state.pinnedCommands.list(
-        managerPinnedSandboxId(params),
+    "taskDefinition.list": async (params) => ({
+      definitions: await context.state.taskDefinitions.list(
+        managerTaskDefinitionSandboxId(params),
       ),
     }),
-    "pinnedCommand.create": async (params) => ({
-      command: await context.state.pinnedCommands.create(
-        managerPinnedSandboxId(params),
-        { command: params.command, label: params.label, cwd: params.cwd },
+    "taskDefinition.create": async (params) => ({
+      definition: await context.state.taskDefinitions.create(
+        managerTaskDefinitionSandboxId(params),
+        {
+          command: params.command,
+          label: params.label,
+          cwd: params.cwd,
+          runPolicy: params.runPolicy ?? "single",
+          sourceTaskId: params.sourceTaskId,
+        },
       ),
     }),
-    "pinnedCommand.update": async (params) => ({
-      command: await context.state.pinnedCommands.update(
-        managerPinnedSandboxId(params),
-        params.commandId,
-        { command: params.command, label: params.label, cwd: params.cwd },
+    "taskDefinition.update": async (params) => ({
+      definition: await context.state.taskDefinitions.update(
+        managerTaskDefinitionSandboxId(params),
+        params.definitionId,
+        {
+          command: params.command,
+          label: params.label,
+          cwd: params.cwd,
+          runPolicy: params.runPolicy,
+        },
       ),
     }),
-    "pinnedCommand.delete": async (params) => {
-      await context.state.pinnedCommands.delete(
-        managerPinnedSandboxId(params),
-        params.commandId,
+    "taskDefinition.delete": async (params) => {
+      await context.state.taskDefinitions.delete(
+        managerTaskDefinitionSandboxId(params),
+        params.definitionId,
       );
       return { ok: true as const };
     },
@@ -380,7 +391,7 @@ async function connectedLifecycle(
   return record ? lifecycleSummary(record) : undefined;
 }
 
-function managerPinnedSandboxId(
+function managerTaskDefinitionSandboxId(
   params: { sandboxId: string } | { projectId: string },
 ): string {
   if ("sandboxId" in params) return params.sandboxId;

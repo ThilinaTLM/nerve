@@ -13,6 +13,25 @@ import {
 } from "./helpers/workbench-task-service.js";
 
 describe("task manager launch env", () => {
+  it("captures a process that closes before supervisor spawn returns", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({
+      child,
+      onSpawn() {
+        child.emitClose(0, null);
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+
+    const task = await startFakeTask(manager, storage);
+    const restarted = await manager.restartTask(task.id);
+
+    assert.ok(
+      ["completed", "cancelled"].includes(manager.getTask(task.id).status),
+    );
+    assert.notEqual(restarted.id, task.id);
+  });
+
   it("stores env config-side and exposes only redacted envInfo", async () => {
     const env = { PORT: "4321", API_TOKEN: "secret" };
     const { supervisor, spawnCalls } = fakeSupervisor({});
@@ -68,7 +87,7 @@ describe("task manager launch env", () => {
     assert.equal("env" in restarted, false);
   });
 
-  it("preserves env when restarting an orphaned record after cleanup", async () => {
+  it("preserves env when restarting an interrupted recovered record", async () => {
     const env = { API_TOKEN: "secret", PORT: "4321" };
     const runtime = runtimeMetadata({ childPid: 1234, processGroupId: 1234 });
     const replacementRuntime = runtimeMetadata({
@@ -95,7 +114,7 @@ describe("task manager launch env", () => {
 
     const restarted = await hydrated.restartTask(task.id);
 
-    assert.deepEqual(runtimeTerminateSignals, ["SIGTERM"]);
+    assert.deepEqual(runtimeTerminateSignals, []);
     assert.deepEqual(spawnCalls[0]?.options.env, env);
     assert.equal(restarted.restartedFromTaskId, task.id);
     assert.deepEqual(restarted.envInfo, {

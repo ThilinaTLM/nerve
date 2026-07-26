@@ -1,13 +1,13 @@
-import { type ChildProcessByStdio, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import type { Readable } from "node:stream";
 import {
   queryTaskLogEvents,
   TaskService,
   type DiagnosticPort,
   type DomainEventIntent,
   type TaskProcessCallbacks,
+  type TaskProcessEvidence,
   type TaskProcessExit,
   type TaskProcessPort,
   type TaskRepositoryPort,
@@ -23,12 +23,8 @@ import {
 } from "@nervekit/contracts";
 import type { EventOutbox } from "../state/event-outbox.js";
 import { atomicWriteFile } from "../state/json-store.js";
-import {
-  delay,
-  inspectSandboxRuntime,
-  linuxDescendantPids,
-  signalSandboxRuntime,
-} from "./sandbox-task-process.js";
+import { defaultProcessRuntimeDriver } from "@nervekit/process-runtime";
+import { delay } from "./sandbox-task-process.js";
 
 export type SandboxTaskServiceOptions = {
   stateDir: string;
@@ -49,7 +45,7 @@ type StoredLogs = {
 };
 
 type ChildState = {
-  child: ChildProcessByStdio<null, Readable, Readable>;
+  child: ChildProcess;
   runtime: NonNullable<TaskRecord["runtime"]>;
   settled: Promise<TaskProcessExit>;
   stopping: boolean;
@@ -203,26 +199,20 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
       throw new Error(
         `maximum supervised task count exceeded: ${this.options.maxTasks ?? 32}`,
       );
-    const [shell, args] = shellCommand(input.command);
-    const detached = process.platform !== "win32";
-    const child = spawn(shell, args, {
-      cwd: input.cwd,
-      env: input.env ? { ...process.env, ...input.env } : process.env,
-      detached,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let settle!: (exit: TaskProcessExit) => void;
-    const settled = new Promise<TaskProcessExit>(
-      (resolve) => (settle = resolve),
-    );
-    const runtime: NonNullable<TaskRecord["runtime"]> = {
-      platform: process.platform,
-      childPid: child.pid,
-      processGroupId: detached ? child.pid : undefined,
-      detached,
-      shell: true,
-      spawnedAt: new Date().toISOString(),
-    };
+    const { child, runtime, exited, closed } =
+      await defaultProcessRuntimeDriver.spawn(input.command, {
+        cwd: input.cwd,
+        env: input.env,
+      });
+    const toTaskExit = (result: Awaited<typeof exited>): TaskProcessExit =>
+      result.kind === "error"
+        ? { exitCode: 127, exitedAt: new Date().toISOString() }
+        : {
+            exitCode: result.exitCode ?? undefined,
+            signal: result.signal ?? undefined,
+            exitedAt: new Date().toISOString(),
+          };
+    const settled = exited.then(toTaskExit);
     const state: ChildState = {
       child,
       runtime,
@@ -231,14 +221,14 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
       knownDescendants: new Set<number>(),
     };
     this.children.set(input.taskId, state);
-    child.stdout.on("data", (chunk) =>
+    child.stdout?.on("data", (chunk) =>
       this.observeCallback(
         callbacks.onOutput?.("stdout", String(chunk)),
         input.taskId,
         "output",
       ),
     );
-    child.stderr.on("data", (chunk) =>
+    child.stderr?.on("data", (chunk) =>
       this.observeCallback(
         callbacks.onOutput?.("stderr", String(chunk)),
         input.taskId,
@@ -256,35 +246,24 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
         await callbacks.onExit?.(exit);
       } finally {
         this.children.delete(input.taskId);
-        settle(exit);
       }
     };
-    child.on("error", (error) => {
-      this.observeCallback(
-        callbacks.onOutput?.(
-          "stderr",
-          error instanceof Error ? error.message : String(error),
-        ),
-        input.taskId,
-        "spawn_error_output",
-      );
-      this.observeCallback(
-        finish({ exitCode: 127, exitedAt: new Date().toISOString() }),
-        input.taskId,
-        "exit",
-      );
+    void closed.then((result) => {
+      if (result.kind === "error") {
+        this.observeCallback(
+          callbacks.onOutput?.("stderr", result.error.message),
+          input.taskId,
+          "spawn_error_output",
+        );
+        this.observeCallback(
+          finish({ exitCode: 127, exitedAt: new Date().toISOString() }),
+          input.taskId,
+          "exit",
+        );
+        return;
+      }
+      this.observeCallback(finish(toTaskExit(result)), input.taskId, "exit");
     });
-    child.on("close", (code, signal) =>
-      this.observeCallback(
-        finish({
-          exitCode: code ?? undefined,
-          signal: signal ?? undefined,
-          exitedAt: new Date().toISOString(),
-        }),
-        input.taskId,
-        "exit",
-      ),
-    );
     return runtime;
   }
 
@@ -294,29 +273,28 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
   ): Promise<void> {
     const state = this.children.get(task.id);
     if (state) state.stopping = true;
-    const knownDescendants =
-      state?.knownDescendants ?? this.descendantsFor(task.id);
-    for (const pid of linuxDescendantPids(
-      (state?.runtime ?? task.runtime)?.childPid,
-    ))
-      knownDescendants.add(pid);
-    await signalSandboxRuntime(
-      state?.runtime ?? task.runtime,
-      options.signal ?? "SIGTERM",
-      knownDescendants,
-      state?.child,
-    );
+    if (state) {
+      await defaultProcessRuntimeDriver.terminateChild(
+        state.child,
+        options.signal ?? "SIGTERM",
+      );
+    } else if (task.runtime) {
+      const result = await defaultProcessRuntimeDriver.terminate(
+        task.runtime,
+        options.signal ?? "SIGTERM",
+      );
+      if (result.error) throw new Error(result.error);
+    }
   }
 
-  async inspect(
-    task: TaskRecord,
-  ): Promise<"running" | "unsupervised_running" | "exited" | "unknown"> {
+  async inspect(task: TaskRecord): Promise<TaskProcessEvidence> {
     if (this.children.has(task.id)) return "running";
-    const evidence = inspectSandboxRuntime(
-      task.runtime,
-      this.persistedDescendants.get(task.id),
-    );
-    return evidence === "running" ? "unsupervised_running" : evidence;
+    if (!task.runtime) return "exited";
+    const evidence = await defaultProcessRuntimeDriver.inspect(task.runtime);
+    if (evidence.evidence === "alive_verified") return "alive_verified";
+    if (evidence.evidence === "exited_verified") return "exited_verified";
+    if (evidence.evidence === "identity_mismatch") return "identity_mismatch";
+    return "unknown";
   }
 
   async waitForExit(
@@ -388,22 +366,28 @@ class SandboxTaskAdapter implements TaskRepositoryPort, TaskProcessPort {
   ): Promise<TaskProcessExit | "timeout" | "unavailable"> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() <= deadline) {
-      const evidence = inspectSandboxRuntime(
-        task.runtime,
-        this.persistedDescendants.get(task.id),
-      );
-      if (evidence === "exited") return { exitedAt: new Date().toISOString() };
-      if (evidence === "unknown") return "unavailable";
+      if (!task.runtime) return { exitedAt: new Date().toISOString() };
+      const evidence = await defaultProcessRuntimeDriver.inspect(task.runtime);
+      if (
+        evidence.evidence === "exited_verified" ||
+        evidence.evidence === "identity_mismatch"
+      )
+        return { exitedAt: new Date().toISOString() };
+      if (evidence.evidence === "unknown") return "unavailable";
       await delay(Math.min(20, Math.max(1, deadline - Date.now())));
     }
     return "timeout";
   }
 
   private async waitForRuntimeExit(
-    runtime: TaskRecord["runtime"],
+    runtime: NonNullable<TaskRecord["runtime"]>,
     descendants: ReadonlySet<number>,
   ): Promise<void> {
-    while (inspectSandboxRuntime(runtime, descendants) === "running")
+    void descendants;
+    while (
+      (await defaultProcessRuntimeDriver.inspect(runtime)).evidence ===
+      "alive_verified"
+    )
       await delay(20);
   }
 
@@ -525,8 +509,17 @@ export class SandboxTaskService {
     await this.service.reconcileOrphans();
   }
 
-  start(input: TaskStartInput): Promise<TaskRecord> {
+  async start(input: TaskStartInput): Promise<TaskRecord> {
     const timeoutMs = clampTimeout(input.timeoutMs, this.maxTaskRuntimeMs);
+    if (input.definitionId && input.definitionRunPolicy)
+      return (
+        await this.service.launchDefinition({
+          ...input,
+          definitionId: input.definitionId,
+          definitionRunPolicy: input.definitionRunPolicy,
+          timeoutMs,
+        })
+      ).task;
     return this.service.start({ ...input, timeoutMs });
   }
 
@@ -606,13 +599,9 @@ export class SandboxTaskService {
 }
 
 function isActive(task: TaskRecord): boolean {
-  return ["starting", "running", "ready", "stopping"].includes(task.status);
-}
-
-function shellCommand(command: string): [string, string[]] {
-  return process.platform === "win32"
-    ? ["bash", ["-lc", command]]
-    : ["/bin/sh", ["-lc", command]];
+  return ["starting", "running", "ready", "stopping", "recovered"].includes(
+    task.status,
+  );
 }
 
 function splitLogLines(text: string): string[] {

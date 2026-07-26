@@ -10,6 +10,12 @@ import { defineOperation } from "../protocol/operation-definition.schema.js";
 const emptyParamsSchema = z.object({}).optional();
 const taskIdSchema = z.string().startsWith("task_");
 const taskIdParamsSchema = z.object({ taskId: taskIdSchema });
+const taskRestartParamsSchema = taskIdParamsSchema.extend({
+  confirmUnverifiedReplacement: z.boolean().optional(),
+});
+const taskDefinitionLaunchParamsSchema = z.object({
+  definitionId: z.string().startsWith("taskdef_"),
+});
 const taskLogsParamsSchema = taskIdParamsSchema.merge(taskLogQuerySchema);
 const taskCancelParamsSchema = taskIdParamsSchema.extend({
   signal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
@@ -37,6 +43,18 @@ export const tasksOperationDefinitions = [
     "operation.task.start",
   ),
   defineOperation(
+    "task.launchDefinition",
+    taskDefinitionLaunchParamsSchema,
+    z.object({
+      task: taskRecordSchema,
+      disposition: z.enum(["started", "focused_existing"]),
+    }),
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.task.launchDefinition",
+  ),
+  defineOperation(
     "task.get",
     taskIdParamsSchema,
     z.object({ task: taskRecordSchema }),
@@ -56,7 +74,7 @@ export const tasksOperationDefinitions = [
   ),
   defineOperation(
     "task.restart",
-    taskIdParamsSchema,
+    taskRestartParamsSchema,
     z.object({ task: taskRecordSchema }),
     "mutation",
     "recommended",

@@ -14,6 +14,7 @@ import { sandboxRuntimeEventDefinitions } from "../sandbox/sandbox-runtime.event
 import { settingsEventDefinitions } from "../settings/settings.events.schema.js";
 import { daemonEventDefinitions } from "../status/daemon.events.schema.js";
 import { storageEventDefinitions } from "../storage/storage.events.schema.js";
+import { taskDefinitionEventDefinitions } from "../task-definitions/task-definition.events.schema.js";
 import { taskEventDefinitions } from "../tasks/task.events.schema.js";
 import { toolEventDefinitions } from "../tools/tool.events.schema.js";
 import { usageEventDefinitions } from "../usage/usage.events.schema.js";
@@ -30,6 +31,7 @@ export type {
 const definitions: PublicEventDefinition[] = [
   ...sandboxRuntimeEventDefinitions,
   ...taskEventDefinitions,
+  ...taskDefinitionEventDefinitions,
   ...gitEventDefinitions,
   ...sandboxManagerEventDefinitions,
   ...conversationLifecycleEventDefinitions,

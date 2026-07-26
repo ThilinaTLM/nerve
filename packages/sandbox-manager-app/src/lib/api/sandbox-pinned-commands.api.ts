@@ -1,4 +1,4 @@
-import { sandboxPinnedCommandSchema } from "@nervekit/contracts";
+import { taskDefinitionSchema } from "@nervekit/contracts";
 import type {
   CreatePinnedCommandRequest,
   SandboxPinnedCommand,
@@ -6,34 +6,53 @@ import type {
 } from "@nervekit/contracts";
 import { protocolRequest } from "./manager-protocol-client";
 
+function legacyView(
+  definition: ReturnType<typeof taskDefinitionSchema.parse>,
+): SandboxPinnedCommand {
+  return {
+    id: definition.id as `pin_${string}`,
+    sandboxId:
+      definition.scope.kind === "sandbox" ? definition.scope.sandboxId : "",
+    label: definition.label,
+    command: definition.command,
+    cwd: definition.cwd,
+    runPolicy: definition.runPolicy,
+    createdAt: definition.createdAt,
+    updatedAt: definition.updatedAt,
+  };
+}
+
 export async function listSandboxPinnedCommands(
   sandboxId: string,
 ): Promise<SandboxPinnedCommand[]> {
-  const commands = (
+  const definitions = (
     await protocolRequest(
-      "pinnedCommand.list",
+      "taskDefinition.list",
       { sandboxId },
       { target: { role: "sandbox_manager" } },
     )
-  ).result.commands;
-  return commands.map((command) => sandboxPinnedCommandSchema.parse(command));
+  ).result.definitions;
+  return definitions.map((definition) =>
+    legacyView(taskDefinitionSchema.parse(definition)),
+  );
 }
 
 export async function createSandboxPinnedCommand(
   sandboxId: string,
   request: CreatePinnedCommandRequest,
 ): Promise<SandboxPinnedCommand> {
-  const command = (
+  const definition = (
     await protocolRequest(
-      "pinnedCommand.create",
-      { sandboxId, ...request },
+      "taskDefinition.create",
       {
-        idempotencyKey: `sandbox-pin-create-${sandboxId}-${Date.now()}`,
-        target: { role: "sandbox_manager" },
+        sandboxId,
+        ...request,
+        runPolicy: request.runPolicy ?? "single",
       },
+      { target: { role: "sandbox_manager" } },
     )
-  ).result.command;
-  return sandboxPinnedCommandSchema.parse(command);
+  ).result.definition;
+  return legacyView(taskDefinitionSchema.parse(definition));
 }
 
 export async function updateSandboxPinnedCommand(
@@ -41,17 +60,19 @@ export async function updateSandboxPinnedCommand(
   commandId: string,
   request: UpdatePinnedCommandRequest,
 ): Promise<SandboxPinnedCommand> {
-  const command = (
+  const definition = (
     await protocolRequest(
-      "pinnedCommand.update",
-      { sandboxId, commandId, ...request },
+      "taskDefinition.update",
       {
-        idempotencyKey: `sandbox-pin-update-${sandboxId}-${commandId}-${Date.now()}`,
-        target: { role: "sandbox_manager" },
+        sandboxId,
+        definitionId: commandId,
+        ...request,
+        runPolicy: request.runPolicy ?? "single",
       },
+      { target: { role: "sandbox_manager" } },
     )
-  ).result.command;
-  return sandboxPinnedCommandSchema.parse(command);
+  ).result.definition;
+  return legacyView(taskDefinitionSchema.parse(definition));
 }
 
 export async function deleteSandboxPinnedCommand(
@@ -59,11 +80,8 @@ export async function deleteSandboxPinnedCommand(
   commandId: string,
 ): Promise<void> {
   await protocolRequest(
-    "pinnedCommand.delete",
-    { sandboxId, commandId },
-    {
-      idempotencyKey: `sandbox-pin-delete-${sandboxId}-${commandId}-${Date.now()}`,
-      target: { role: "sandbox_manager" },
-    },
+    "taskDefinition.delete",
+    { sandboxId, definitionId: commandId },
+    { target: { role: "sandbox_manager" } },
   );
 }

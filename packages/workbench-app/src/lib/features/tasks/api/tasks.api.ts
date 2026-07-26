@@ -24,12 +24,27 @@ export async function startTask(body: StartTaskRequest): Promise<TaskRecord> {
   return (await protocolRequest("task.start", body)).result.task;
 }
 
+export async function launchTaskDefinition(
+  definitionId: string,
+): Promise<{ task: TaskRecord; disposition: "started" | "focused_existing" }> {
+  return (await protocolRequest("task.launchDefinition", { definitionId }))
+    .result;
+}
+
 export async function cancelTask(taskId: string): Promise<TaskRecord> {
   return (await protocolRequest("task.cancel", { taskId })).result.task;
 }
 
-export async function restartTask(taskId: string): Promise<TaskRecord> {
-  return (await protocolRequest("task.restart", { taskId })).result.task;
+export async function restartTask(
+  taskId: string,
+  confirmUnverifiedReplacement = false,
+): Promise<TaskRecord> {
+  return (
+    await protocolRequest("task.restart", {
+      taskId,
+      confirmUnverifiedReplacement: confirmUnverifiedReplacement || undefined,
+    })
+  ).result.task;
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
