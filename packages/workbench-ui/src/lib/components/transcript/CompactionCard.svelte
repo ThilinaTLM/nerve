@@ -9,6 +9,10 @@ import {
   COLLAPSED_LINES,
   splitLogicalLines,
 } from "../../tools/views/tool-view-helpers";
+import {
+  compactionCardBodyKind,
+  compactionCardLayoutRevision,
+} from "./compaction-card-layout";
 
 type Props = {
   notice: CompactionNotice;
@@ -145,13 +149,15 @@ const bodyVisible = $derived(
     (notice.state === "completed" && previewText.length > 0),
 );
 const layoutRevision = $derived(
-  [
-    notice.state,
-    bodyVisible ? "body" : "no-body",
-    notice.state === "failed" ? "error" : "no-error",
-    chips.length > 0 ? `footer:${chips.length}` : "no-footer",
-    `preview:${previewText.length}`,
-  ].join("|"),
+  compactionCardLayoutRevision({
+    state: notice.state,
+    bodyKind: compactionCardBodyKind({
+      bodyVisible,
+      previewVisible: previewText.length > 0,
+    }),
+    errorVisible: notice.state === "failed",
+    footerItemCount: chips.length,
+  }),
 );
 </script>
 
