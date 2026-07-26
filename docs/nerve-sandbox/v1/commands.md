@@ -1,6 +1,6 @@
 # Sandbox operations
 
-Sandbox operations are the catalog entries in `@nervekit/contracts` whose allowed target includes `sandbox_agent`. They cover recovery/status, conversations/interactions, runs, tools, files, Git/GitHub, tasks/logs, and pinned commands.
+Sandbox operations are the catalog entries in `@nervekit/contracts` whose allowed target includes `sandbox_agent`. They cover recovery/status, conversations/interactions, runs, tools, files, Git/GitHub, task definitions, task runs, and logs.
 
 Every request is a normal Protocol v1 `request` targeted to `{ role: "sandbox_agent", id: sandboxId }`. The manager forwards typed params unchanged. Mutation idempotency follows the catalog; retries require a stable idempotency key. The daemon persists idempotent outcomes/conflicts under `/state` so reconnect or restart does not duplicate accepted mutations.
 

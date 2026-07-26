@@ -15,6 +15,17 @@ export interface NormalizedPinnedCommand {
   readonly cwd?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly runPolicy?: "single" | "concurrent";
+}
+
+export interface TaskPanelEntry {
+  readonly key: string;
+  readonly definition?: NormalizedPinnedCommand;
+  readonly runs: readonly TaskRecord[];
+  readonly activeRuns: readonly TaskRecord[];
+  readonly latestRun?: TaskRecord;
+  readonly inHistory: boolean;
+  readonly needsRecovery: boolean;
 }
 
 export interface TaskPanelCapabilities {

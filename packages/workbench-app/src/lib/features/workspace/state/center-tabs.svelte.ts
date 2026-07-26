@@ -148,7 +148,6 @@ export function removeCenterTab(tab: CenterTabIdentity) {
 export function setActiveCenterTab(tab: CenterTabIdentity | undefined) {
   if (tab) addCenterTab(tab);
   workspaceState.activeCenterTab = tab;
-  if (tab?.kind === "task") taskState.selectedTaskId = tab.id;
 }
 
 export function fallbackCenterTab(

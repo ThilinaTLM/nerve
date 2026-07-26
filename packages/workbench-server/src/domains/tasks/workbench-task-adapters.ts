@@ -285,7 +285,7 @@ export function createWorkbenchTaskResources(
           recursive: true,
           mode: 0o755,
         });
-        const spawned = supervisor.spawn(input.command, {
+        const spawned = await supervisor.spawn(input.command, {
           cwd: input.cwd,
           env: input.env,
           shellPath: storage.settings.runtime.shellPath,
@@ -415,11 +415,13 @@ export function createWorkbenchTaskResources(
         const child = state?.child;
         if (child)
           await supervisor.terminate(child, cancelOptions.signal ?? "SIGTERM");
-        else if (task.runtime)
-          await supervisor.terminateRuntime(
+        else if (task.runtime) {
+          const result = await supervisor.terminateRuntime(
             task.runtime,
             cancelOptions.signal ?? "SIGTERM",
           );
+          if (result.error) throw new Error(result.error);
+        }
       },
       inspect: async (task) => {
         if (managed.get(task.id)?.child) return "running";

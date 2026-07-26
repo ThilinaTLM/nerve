@@ -288,7 +288,10 @@ async function readTasks(
       | "completed"
       | "failed"
       | "cancelled"
-      | "orphaned";
+      | "orphaned"
+      | "recovered"
+      | "interrupted"
+      | "recovery_unknown";
     startedAt?: string;
     completedAt?: string;
     exitCode?: number;
@@ -419,7 +422,8 @@ function normalizeTaskStatus(status: unknown) {
     status === "completed" ||
     status === "failed" ||
     status === "cancelled" ||
-    status === "orphaned"
+    status === "orphaned" ||
+    status === "recovery_unknown"
   )
     return status;
   return "failed" as const;

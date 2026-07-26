@@ -49,6 +49,8 @@ const TERMINAL_TASK_EVENTS = new Map<string, HarnessTaskEvent>([
   ["task.timed_out", "timed_out"],
   ["task.cancelled", "cancelled"],
   ["task.orphaned", "orphaned"],
+  ["task.interrupted", "interrupted"],
+  ["task.recovery_unknown", "recovery_unknown"],
 ]);
 
 export class TaskNotificationService {
@@ -491,6 +493,8 @@ function terminalEventForTask(task: TaskRecord): HarnessTaskEvent | undefined {
     case "timed_out":
     case "cancelled":
     case "orphaned":
+    case "interrupted":
+    case "recovery_unknown":
       return task.status;
     default:
       return undefined;
@@ -514,7 +518,9 @@ function taskEventValue(value: unknown): HarnessTaskEvent | undefined {
     value === "failed" ||
     value === "timed_out" ||
     value === "cancelled" ||
-    value === "orphaned"
+    value === "orphaned" ||
+    value === "interrupted" ||
+    value === "recovery_unknown"
     ? value
     : undefined;
 }

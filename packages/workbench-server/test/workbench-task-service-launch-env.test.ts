@@ -68,7 +68,7 @@ describe("task manager launch env", () => {
     assert.equal("env" in restarted, false);
   });
 
-  it("preserves env when restarting an orphaned record after cleanup", async () => {
+  it("preserves env when restarting an interrupted recovered record", async () => {
     const env = { API_TOKEN: "secret", PORT: "4321" };
     const runtime = runtimeMetadata({ childPid: 1234, processGroupId: 1234 });
     const replacementRuntime = runtimeMetadata({
@@ -95,7 +95,7 @@ describe("task manager launch env", () => {
 
     const restarted = await hydrated.restartTask(task.id);
 
-    assert.deepEqual(runtimeTerminateSignals, ["SIGTERM"]);
+    assert.deepEqual(runtimeTerminateSignals, []);
     assert.deepEqual(spawnCalls[0]?.options.env, env);
     assert.equal(restarted.restartedFromTaskId, task.id);
     assert.deepEqual(restarted.envInfo, {

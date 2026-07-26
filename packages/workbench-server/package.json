@@ -43,7 +43,8 @@
     "yaml": "2.9.0",
     "zod": "4.1.12",
     "@nervekit/protocol": "workspace:*",
-    "@nervekit/host-runtime": "workspace:*"
+    "@nervekit/host-runtime": "workspace:*",
+    "@nervekit/process-runtime": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

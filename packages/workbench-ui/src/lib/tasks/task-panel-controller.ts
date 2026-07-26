@@ -1,11 +1,13 @@
 import type {
   PinnedCommand,
   SandboxPinnedCommand,
+  TaskDefinition,
   TaskRecord,
 } from "@nervekit/contracts";
 import type {
   NormalizedPinnedCommand,
   TaskPanelActions,
+  TaskPanelEntry,
   TaskPanelModel,
 } from "./task-panel-types.js";
 
@@ -34,15 +36,86 @@ export function groupTasks(tasks: readonly TaskRecord[]): TaskGroups {
 }
 
 export function normalizePinnedCommand(
-  command: PinnedCommand | SandboxPinnedCommand,
+  command: PinnedCommand | SandboxPinnedCommand | TaskDefinition,
 ): NormalizedPinnedCommand {
   return {
-    id: command.id,
+    id: command.id.replace(/^pin_/, "taskdef_"),
     label: command.label,
     command: command.command,
     cwd: command.cwd,
     createdAt: command.createdAt,
     updatedAt: command.updatedAt,
+    runPolicy: "runPolicy" in command ? command.runPolicy : "single",
+  };
+}
+
+export function projectTaskPanelEntries(
+  definitions: readonly NormalizedPinnedCommand[],
+  tasks: readonly TaskRecord[],
+): { tasks: TaskPanelEntry[]; history: TaskPanelEntry[] } {
+  const byKey = new Map<string, TaskRecord[]>();
+  for (const task of tasks) {
+    const key = task.definitionId ?? task.restartRootTaskId ?? task.id;
+    const runs = byKey.get(key) ?? [];
+    runs.push(task);
+    byKey.set(key, runs);
+  }
+  const definitionsById = new Map(definitions.map((item) => [item.id, item]));
+  const entries: TaskPanelEntry[] = [];
+  for (const definition of definitions) {
+    entries.push(
+      buildEntry(definition.id, definition, byKey.get(definition.id) ?? []),
+    );
+  }
+  for (const [key, runs] of byKey) {
+    if (definitionsById.has(key)) continue;
+    entries.push(buildEntry(key, undefined, runs));
+  }
+  const main = entries.filter(
+    (entry) =>
+      entry.definition || entry.activeRuns.length > 0 || entry.needsRecovery,
+  );
+  const history = entries.filter(
+    (entry) =>
+      !entry.definition &&
+      entry.activeRuns.length === 0 &&
+      !entry.needsRecovery,
+  );
+  const sort = (left: TaskPanelEntry, right: TaskPanelEntry) =>
+    Number(right.needsRecovery) - Number(left.needsRecovery) ||
+    (
+      right.latestRun?.startedAt ??
+      right.definition?.updatedAt ??
+      ""
+    ).localeCompare(
+      left.latestRun?.startedAt ?? left.definition?.updatedAt ?? "",
+    );
+  return { tasks: main.sort(sort), history: history.sort(sort) };
+}
+
+function buildEntry(
+  key: string,
+  definition: NormalizedPinnedCommand | undefined,
+  runs: readonly TaskRecord[],
+): TaskPanelEntry {
+  const sorted = [...runs].sort((a, b) =>
+    b.startedAt.localeCompare(a.startedAt),
+  );
+  const activeRuns = sorted.filter((task) =>
+    ["starting", "running", "ready", "stopping", "recovered"].includes(
+      task.status,
+    ),
+  );
+  return {
+    key,
+    definition,
+    runs: sorted,
+    activeRuns,
+    latestRun: sorted[0],
+    inHistory: !definition && activeRuns.length === 0,
+    needsRecovery: sorted.some((task) =>
+      ["recovered", "recovery_unknown", "orphaned"].includes(task.status),
+    ),
   };
 }
 

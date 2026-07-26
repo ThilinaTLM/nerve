@@ -13,17 +13,31 @@ let {
 
 const store = useSandboxManagerStore();
 const detail = $derived(store.details[record.sandboxId]);
-const task = $derived(detail?.tasks.find((item) => item.id === taskId));
-const logs = $derived(detail?.taskLogsById[taskId]);
+let selectedRunOverride = $state<string>();
+const selectedRunId = $derived(selectedRunOverride ?? taskId);
+const initialTask = $derived(detail?.tasks.find((item) => item.id === taskId));
+const entryId = $derived(
+  initialTask?.definitionId ?? initialTask?.restartRootTaskId ?? taskId,
+);
+const runs = $derived(
+  detail?.tasks.filter(
+    (item) =>
+      (item.definitionId ?? item.restartRootTaskId ?? item.id) === entryId,
+  ) ?? [],
+);
+const task = $derived(
+  runs.find((item) => item.id === selectedRunId) ?? runs[0] ?? initialTask,
+);
+const logs = $derived(task ? detail?.taskLogsById[task.id] : undefined);
 
 $effect(() => {
   void store
-    .refreshSandboxTaskLogs(record.sandboxId, taskId)
+    .refreshSandboxTaskLogs(record.sandboxId, task?.id ?? taskId)
     .catch(() => undefined);
   const interval = window.setInterval(
     () => {
       void store
-        .refreshSandboxTaskLogs(record.sandboxId, taskId)
+        .refreshSandboxTaskLogs(record.sandboxId, task?.id ?? taskId)
         .catch(() => undefined);
     },
     task && ["starting", "running", "ready", "stopping"].includes(task.status)
@@ -36,7 +50,11 @@ $effect(() => {
 
 <TaskOutputPane
   {task}
+  {runs}
   taskLogs={logs}
+  onSelectRun={(taskId) => (selectedRunOverride = taskId)}
   onLoadEarlier={() =>
-    store.loadEarlierSandboxTaskLogs(record.sandboxId, taskId)}
+    task
+      ? store.loadEarlierSandboxTaskLogs(record.sandboxId, task.id)
+      : Promise.resolve()}
 />

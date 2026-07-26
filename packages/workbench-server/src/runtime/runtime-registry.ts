@@ -11,8 +11,8 @@ import type {
   ConversationTree,
   CreateAgentRequest,
   CreateConversationRequest,
-  CreatePinnedCommandRequest,
   CreateProjectRequest,
+  CreateTaskDefinitionRequest,
   CreateScratchNoteRequest,
   ImportConversationRequest,
   ModelInfo,
@@ -29,8 +29,8 @@ import type {
   TaskLogQuery,
   ToolName,
   UpdateAgentRequest,
-  UpdatePinnedCommandRequest,
   UpdateScratchNoteRequest,
+  UpdateTaskDefinitionRequest,
   UserQuestionStatus,
 } from "@nervekit/contracts";
 import type { AuthManager } from "../domains/auth/index.js";
@@ -540,24 +540,53 @@ export class RuntimeRegistry {
     }
   }
 
-  listPinnedCommands(projectId: string) {
-    return this.services.pinnedCommands.list(projectId);
+  listTaskDefinitions(projectId: string) {
+    return this.services.taskDefinitions.list(projectId);
   }
 
-  createPinnedCommand(projectId: string, request: CreatePinnedCommandRequest) {
-    return this.services.pinnedCommands.create(projectId, request);
-  }
-
-  updatePinnedCommand(
+  async createTaskDefinition(
     projectId: string,
-    commandId: string,
-    request: UpdatePinnedCommandRequest,
+    request: CreateTaskDefinitionRequest,
   ) {
-    return this.services.pinnedCommands.update(projectId, commandId, request);
+    if (request.sourceTaskId) {
+      const source = this.tasks.getTask(request.sourceTaskId);
+      if (source.projectId !== projectId)
+        throw new Error("Source task does not belong to this project.");
+    }
+    const definition = await this.services.taskDefinitions.create(
+      projectId,
+      request,
+    );
+    if (request.sourceTaskId) {
+      try {
+        await this.tasks.associateDefinition(
+          request.sourceTaskId,
+          definition.id,
+        );
+      } catch (error) {
+        await this.services.taskDefinitions
+          .remove(projectId, definition.id)
+          .catch(() => undefined);
+        throw error;
+      }
+    }
+    return definition;
   }
 
-  removePinnedCommand(projectId: string, commandId: string) {
-    return this.services.pinnedCommands.remove(projectId, commandId);
+  updateTaskDefinition(
+    projectId: string,
+    definitionId: string,
+    request: UpdateTaskDefinitionRequest,
+  ) {
+    return this.services.taskDefinitions.update(
+      projectId,
+      definitionId,
+      request,
+    );
+  }
+
+  removeTaskDefinition(projectId: string, definitionId: string) {
+    return this.services.taskDefinitions.remove(projectId, definitionId);
   }
 
   listScratchNotes(projectId: string) {
@@ -584,12 +613,31 @@ export class RuntimeRegistry {
     return this.workers.startTask(request.workerId, this.tasks, request);
   }
 
+  async launchTaskDefinition(definitionId: string) {
+    for (const project of this.listProjects()) {
+      const definition = (
+        await this.services.taskDefinitions.list(project.id)
+      ).find((item) => item.id === definitionId);
+      if (!definition) continue;
+      return this.tasks.launchDefinition({
+        definitionId: definition.id,
+        definitionRunPolicy: definition.runPolicy,
+        projectId: project.id,
+        cwd: definition.cwd ?? project.dir,
+        command: definition.command,
+        displayName: definition.label ?? definition.command,
+        origin: { kind: "utility_panel" },
+      });
+    }
+    throw new Error("Task definition not found.");
+  }
+
   cancelTask(taskId: string, request?: CancelTaskRequest) {
     return this.tasks.cancelTask(taskId, request);
   }
 
-  restartTask(taskId: string) {
-    return this.tasks.restartTask(taskId);
+  restartTask(taskId: string, confirmUnverifiedReplacement = false) {
+    return this.tasks.restartTask(taskId, { confirmUnverifiedReplacement });
   }
 
   removeTask(taskId: string) {

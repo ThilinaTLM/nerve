@@ -22,6 +22,7 @@ export * from "./domains/skills/index.js";
 export * from "./domains/status/index.js";
 export * from "./domains/storage/index.js";
 export * from "./domains/suspensions/index.js";
+export * from "./domains/task-definitions/index.js";
 export * from "./domains/tasks/index.js";
 export * from "./domains/tools/index.js";
 export * from "./domains/transcription/index.js";

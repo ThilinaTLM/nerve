@@ -45,6 +45,11 @@ export async function buildForegroundBashResult(
   });
 }
 
+function commandDisplayName(command: string): string {
+  const firstLine = command.trim().split(/\r?\n/, 1)[0] ?? "Background command";
+  return firstLine.length > 72 ? `${firstLine.slice(0, 69)}…` : firstLine;
+}
+
 export async function runForegroundBashWithPromotion(
   this: WorkbenchTaskService,
   input: ForegroundBashPromotionInput,
@@ -59,6 +64,7 @@ export async function runForegroundBashWithPromotion(
     agentId: input.agentId,
     cwd: input.cwd,
     command: input.command,
+    displayName: commandDisplayName(input.command),
     timeoutMs: input.timeoutMs,
     notify: false,
     origin: input.origin,
@@ -130,7 +136,7 @@ export async function runForegroundBashWithPromotion(
 
   const latestManaged = this.managed.get(task.id);
   if (latestManaged) latestManaged.onOutput = undefined;
-  const promoted = await this.updateTask(task.id, {
+  const promoted = await this.backgroundActiveTask(task.id, {
     visibility: "background",
     completion: {
       inject: input.continueAfterPromotion !== false,
@@ -143,6 +149,11 @@ export async function runForegroundBashWithPromotion(
       outputTailLineCount: 80,
     },
   });
+  if (!isActiveTaskStatus(promoted.status)) {
+    const result = await this.buildForegroundBashResult(promoted.id);
+    await this.removeTask(promoted.id).catch(() => undefined);
+    return { kind: "completed_foreground", result };
+  }
   await this.events.publish("task.promoted", { task: promoted });
   const elapsedMs = Date.now() - startedAt;
   const logs = await this.queryLogs(promoted.id, {

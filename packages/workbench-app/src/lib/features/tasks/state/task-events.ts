@@ -19,6 +19,10 @@ export function registerTaskEventHandlers(): () => void {
     onEvent("task.failed", handleTaskRecordEvent),
     onEvent("task.cancelled", handleTaskRecordEvent),
     onEvent("task.orphaned", handleTaskRecordEvent),
+    onEvent("task.recovered", handleTaskRecordEvent),
+    onEvent("task.interrupted", handleTaskRecordEvent),
+    onEvent("task.recovery_unknown", handleTaskRecordEvent),
+    onEvent("task.updated", handleTaskRecordEvent),
     onEvent("task.orphan_cleanup_succeeded", handleTaskRecordEvent),
   ];
   return () => {
@@ -49,9 +53,11 @@ function handleTaskRemovedEvent(event: {
 function handleTaskLogEvent(event: { data?: Record<string, unknown> }): void {
   handleTaskRecordEvent(event);
   const taskId = String(event.data?.taskId ?? "");
+  const task = taskState.tasks.find((candidate) => candidate.id === taskId);
+  const entryId = task?.definitionId ?? task?.restartRootTaskId ?? taskId;
   const viewingTask =
     workspaceState.activeCenterTab?.kind === "task" &&
-    workspaceState.activeCenterTab.id === taskId;
+    workspaceState.activeCenterTab.id === entryId;
   if (taskId && taskId === taskState.selectedTaskId && viewingTask) {
     void refreshTaskLogWindow(taskId).catch(() => undefined);
   }

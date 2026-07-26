@@ -6,7 +6,7 @@ The daemon composes shared `HostToolFactory`, `TaskService`, `RunCoordinator`, a
 
 ## Data ownership
 
-- Manager PostgreSQL: sandbox/session/lifecycle records, manager and ingested sandbox events, idempotency, audit, credentials/policies, pinned commands, runtime-volume records.
+- Manager PostgreSQL: sandbox/session/lifecycle records, manager and ingested sandbox events, idempotency, audit, credentials/policies, durable task definitions and run history, runtime-volume records.
 - Manager storage directory: version marker and backend volume/config files; local backend bind mounts live below it.
 - Sandbox `/state`: version 4 file-first runtime state, secure launch environment, setup state, run/task state, dense outbox metadata, idempotency, checkpoints, and caches.
 - Sandbox `/workspace`: project files.

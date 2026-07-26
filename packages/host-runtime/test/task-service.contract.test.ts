@@ -248,7 +248,7 @@ test("large process output is losslessly framed for events and observers", async
   assert.ok(emitted.every((chunk) => Buffer.byteLength(chunk) <= 8 * 1024));
 });
 
-test("live processes without a supervision handle reconcile as orphaned", async () => {
+test("verified live processes reconcile as recovered", async () => {
   const { service, records, events } = fixture();
   await service.start({ cwd: "/workspace", command: "sleep 60" });
   const task = records.get("task_contract");
@@ -258,9 +258,9 @@ test("live processes without a supervision handle reconcile as orphaned", async 
     inspect: async () => "unsupervised_running",
   });
   const recovered = new TaskService(ports);
-  const orphaned = await recovered.reconcileOrphans();
-  assert.equal(orphaned.length, 1);
-  assert.equal(records.get("task_contract")?.status, "orphaned");
+  const reconciled = await recovered.reconcileOrphans();
+  assert.equal(reconciled.length, 1);
+  assert.equal(records.get("task_contract")?.status, "recovered");
 });
 
 test("rejected transitions do not break per-task serialization", async () => {

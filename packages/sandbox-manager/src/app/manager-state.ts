@@ -22,7 +22,7 @@ import { PostgresAuditStore } from "../state/audit-store.js";
 import { PostgresEventStore } from "../state/event-store.js";
 import { PostgresIdempotencyStore } from "../state/idempotency-store.js";
 import { PostgresManagerStore } from "../state/manager-store.js";
-import { SandboxPinnedCommandStore } from "../state/sandbox-pinned-command-store.js";
+import { SandboxTaskDefinitionStore } from "../state/sandbox-task-definition-store.js";
 import { ensureManagerStateLayout } from "../state/state-layout.js";
 import { PostgresSessionStore } from "../state/session-store.js";
 import { EfsVolumeProvider } from "../storage/efs-volume-provider.js";
@@ -49,7 +49,7 @@ export class ManagerState {
   readonly idempotency: PostgresIdempotencyStore;
   readonly audit: PostgresAuditStore;
   readonly volumeStore: PostgresRuntimeVolumeStore;
-  readonly pinnedCommands: SandboxPinnedCommandStore;
+  readonly taskDefinitions: SandboxTaskDefinitionStore;
   readonly volumeProvider: RuntimeVolumeProvider;
   readonly driver: ContainerRuntimeDriver;
   readonly eventBus: ManagerEventBus;
@@ -98,7 +98,7 @@ export class ManagerState {
     this.idempotency = new PostgresIdempotencyStore(this.pool);
     this.audit = new PostgresAuditStore(this.pool);
     this.volumeStore = new PostgresRuntimeVolumeStore(this.pool);
-    this.pinnedCommands = new SandboxPinnedCommandStore(this.pool);
+    this.taskDefinitions = new SandboxTaskDefinitionStore(this.pool);
     this.driver = options.driver ?? createContainerDriver(config);
     this.volumeProvider = createVolumeProvider(config, this.driver);
     this.eventBus = new ManagerEventBus();

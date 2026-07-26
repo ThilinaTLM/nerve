@@ -17,26 +17,26 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
     await state.registry.removeProject(params.projectId);
     return { ok: true };
   },
-  "pinnedCommand.list": async (state, params) => ({
-    commands: await state.registry.listPinnedCommands(projectId(params)),
+  "taskDefinition.list": async (state, params) => ({
+    definitions: await state.registry.listTaskDefinitions(projectId(params)),
   }),
-  "pinnedCommand.create": async (state, params) => ({
-    command: await state.registry.createPinnedCommand(
+  "taskDefinition.create": async (state, params) => ({
+    definition: await state.registry.createTaskDefinition(
       projectId(params),
       params as never,
     ),
   }),
-  "pinnedCommand.update": async (state, params) => ({
-    command: await state.registry.updatePinnedCommand(
+  "taskDefinition.update": async (state, params) => ({
+    definition: await state.registry.updateTaskDefinition(
       projectId(params),
-      params.commandId,
+      params.definitionId,
       params as never,
     ),
   }),
-  "pinnedCommand.delete": async (state, params) => {
-    await state.registry.removePinnedCommand(
+  "taskDefinition.delete": async (state, params) => {
+    await state.registry.removeTaskDefinition(
       projectId(params),
-      params.commandId,
+      params.definitionId,
     );
     return { ok: true };
   },
@@ -66,6 +66,8 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
   "task.start": async (state, params) => ({
     task: await state.registry.startTask(params),
   }),
+  "task.launchDefinition": (state, params) =>
+    state.registry.launchTaskDefinition(params.definitionId),
   "task.get": (state, params) => ({
     task: state.registry.getTask(params.taskId),
   }),
@@ -77,7 +79,12 @@ export const projectTaskMethodHandlers = defineWorkbenchMethodHandlers({
   },
   "task.restart": async (state, params) => {
     state.registry.getTask(params.taskId);
-    return { task: await state.registry.restartTask(params.taskId) };
+    return {
+      task: await state.registry.restartTask(
+        params.taskId,
+        params.confirmUnverifiedReplacement ?? false,
+      ),
+    };
   },
   "task.prune": async (state) => ({
     removed: await state.registry.pruneTasks(),

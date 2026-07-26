@@ -45,7 +45,10 @@ export type HarnessTaskEvent =
   | "failed"
   | "timed_out"
   | "cancelled"
-  | "orphaned";
+  | "orphaned"
+  | "recovered"
+  | "interrupted"
+  | "recovery_unknown";
 
 export interface HarnessTaskEventDetails {
   taskId: string;

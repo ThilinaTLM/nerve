@@ -10,6 +10,9 @@ export const taskStatusSchema = z.enum([
   "timed_out",
   "cancelled",
   "orphaned",
+  "recovered",
+  "interrupted",
+  "recovery_unknown",
 ]);
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
 
@@ -45,14 +48,35 @@ export const taskListeningPortSchema = z.object({
 });
 export type TaskListeningPort = z.infer<typeof taskListeningPortSchema>;
 
+export const taskRuntimeIdentitySchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("linux"),
+    startTimeTicks: z.number().int().nonnegative(),
+  }),
+  z.object({ kind: z.literal("darwin"), startFingerprint: z.string().min(1) }),
+  z.object({ kind: z.literal("win32"), creationDate: z.string().min(1) }),
+  z.object({ kind: z.literal("legacy_unverified") }),
+]);
+export type TaskRuntimeIdentity = z.infer<typeof taskRuntimeIdentitySchema>;
+
 export const taskRuntimeSchema = z.object({
+  version: z.literal(2).optional(),
   platform: z.string().min(1),
   childPid: z.number().int().positive().optional(),
   processGroupId: z.number().int().positive().optional(),
   detached: z.boolean(),
   shell: z.boolean(),
   spawnedAt: z.string().datetime(),
+  identity: taskRuntimeIdentitySchema.optional(),
   listeningPorts: z.array(taskListeningPortSchema).optional(),
+  capabilities: z
+    .object({
+      identity: z.boolean(),
+      processTree: z.boolean(),
+      listeningPorts: z.boolean(),
+      detail: z.string().optional(),
+    })
+    .optional(),
 });
 export type TaskRuntime = z.infer<typeof taskRuntimeSchema>;
 
@@ -110,7 +134,9 @@ export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
 
 export const taskRecordSchema = z.object({
   id: z.string().startsWith("task_"),
+  definitionId: z.string().startsWith("taskdef_").optional(),
   name: z.string().min(1).optional(),
+  displayName: z.string().min(1).optional(),
   groupId: z.string().startsWith("taskgrp_").optional(),
   groupName: z.string().min(1).optional(),
   workerId: z.string().startsWith("worker_").optional(),
@@ -146,7 +172,10 @@ export const taskRecordSchema = z.object({
 export type TaskRecord = z.infer<typeof taskRecordSchema>;
 
 export const startTaskRequestSchema = z.object({
+  definitionId: z.string().startsWith("taskdef_").optional(),
+  definitionRunPolicy: z.enum(["single", "concurrent"]).optional(),
   name: z.string().min(1).optional(),
+  displayName: z.string().min(1).optional(),
   groupId: z.string().startsWith("taskgrp_").optional(),
   groupName: z.string().min(1).optional(),
   workerId: z.string().startsWith("worker_").optional(),

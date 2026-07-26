@@ -37,6 +37,10 @@ export const taskEventDefinitions = [
     "task.readiness_failed",
     "task.cancelled",
     "task.orphaned",
+    "task.recovered",
+    "task.interrupted",
+    "task.recovery_unknown",
+    "task.updated",
   ].map((name) =>
     definePublicEvent(name, taskPayloadSchema, { scope: ["task.id"] }),
   ),

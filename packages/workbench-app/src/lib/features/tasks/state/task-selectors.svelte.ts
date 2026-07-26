@@ -20,7 +20,18 @@ export const taskSelectors = {
   get activeCenterTask() {
     const active = workspaceState.activeCenterTab;
     if (active?.kind !== "task") return undefined;
-    return taskState.tasks.find((task) => task.id === active.id);
+    const candidates = taskState.tasks
+      .filter(
+        (task) =>
+          (task.definitionId ?? task.restartRootTaskId ?? task.id) ===
+          active.id,
+      )
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return (
+      candidates.find(
+        (task) => task.id === taskState.selectedRunByEntry[active.id],
+      ) ?? candidates[0]
+    );
   },
   get taskLogs() {
     return taskState.taskLogs;

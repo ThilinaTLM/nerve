@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { resolveBashShellConfig } from "@nervekit/host-runtime/tools";
+import { defaultProcessRuntimeDriver } from "@nervekit/process-runtime";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 import {
   inspectPortListeners,
@@ -47,7 +48,10 @@ export interface TerminateTaskResult {
 }
 
 export interface TaskSupervisor {
-  spawn(command: string, options: SpawnManagedTaskOptions): SpawnedManagedTask;
+  spawn(
+    command: string,
+    options: SpawnManagedTaskOptions,
+  ): SpawnedManagedTask | Promise<SpawnedManagedTask>;
   terminate(
     child: ChildProcess,
     signal: NodeJS.Signals,
@@ -188,11 +192,19 @@ export async function isTaskRuntimeTargetAlive(
 }
 
 export const defaultTaskSupervisor: TaskSupervisor = {
-  spawn: spawnManagedTask,
-  terminate: terminateTask,
-  terminateRuntime: terminateTaskRuntime,
-  isRuntimeTargetAlive: isTaskRuntimeTargetAlive,
-  inspectRuntimeListeningPorts,
+  spawn: (command, options) =>
+    defaultProcessRuntimeDriver.spawn(command, options),
+  terminate: (child, signal) =>
+    defaultProcessRuntimeDriver.terminateChild(child, signal),
+  terminateRuntime: (runtime, signal) =>
+    defaultProcessRuntimeDriver.terminate(runtime, signal),
+  isRuntimeTargetAlive: async (runtime) =>
+    (await defaultProcessRuntimeDriver.inspect(runtime)).evidence ===
+    "alive_verified",
+  inspectRuntimeListeningPorts: async (runtime) => {
+    const shared = await defaultProcessRuntimeDriver.listeningPorts(runtime);
+    return shared.length > 0 ? shared : inspectRuntimeListeningPorts(runtime);
+  },
   inspectPortListeners,
 };
 
