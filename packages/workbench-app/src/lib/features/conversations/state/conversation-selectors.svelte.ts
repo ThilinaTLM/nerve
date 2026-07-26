@@ -8,7 +8,6 @@ import {
   conversationViewKey,
   pendingConversationKey,
 } from "$lib/core/state/state-keys";
-import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { usageState } from "$lib/features/usage/state/usage-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
@@ -105,9 +104,6 @@ export const conversationSelectors = {
       activeView()?.composerText ??
       ""
     );
-  },
-  get gitSuggestions() {
-    return gitSelectors.gitSuggestions;
   },
   get slashCompletions() {
     return conversationState.slashCompletions;

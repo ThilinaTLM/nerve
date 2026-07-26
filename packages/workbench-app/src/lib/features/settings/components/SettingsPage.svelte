@@ -248,7 +248,7 @@ function statusText() {
           {onSettingsChange}
         />
       {:else if activeGroup.id === "suggestions"}
-        <PromptSuggestionsSettingsSection />
+        <PromptSuggestionsSettingsSection {activeProject} />
       {:else if activeGroup.id === "models"}
         <ScopedModelsSettingsSection
           {settingsDraft}

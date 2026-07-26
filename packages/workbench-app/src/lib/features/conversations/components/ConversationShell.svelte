@@ -55,7 +55,6 @@ import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Sparkles from "@lucide/svelte/icons/sparkles";
-import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
@@ -220,25 +219,25 @@ const contextWindow = $derived(
     view?.contextUsage?.contextWindow ??
     0,
 );
-const gitSuggestions = $derived(active ? gitSelectors.gitSuggestions : []);
-const gitSuggestionIcons = {
-  commit: GitCommitHorizontal,
-  "commit-branch": GitBranchPlus,
-  "open-pr": GitPullRequest,
+const builtinSuggestionIcons = {
+  "commit-changes": GitCommitHorizontal,
+  "commit-on-feature-branch": GitBranchPlus,
+  "create-pull-request": GitPullRequest,
 } as const;
-const composerSuggestions = $derived.by<ComposerSuggestion[]>(() => [
-  ...gitSuggestions.map((suggestion) => ({
-    ...suggestion,
-    icon: gitSuggestionIcons[suggestion.id],
-  })),
-  ...promptSuggestionsState.suggestions.map((suggestion) => ({
-    id: `file:${suggestion.id}`,
+const composerSuggestions = $derived.by<ComposerSuggestion[]>(() =>
+  promptSuggestionsState.suggestions.map((suggestion) => ({
+    id: `prompt:${suggestion.id}`,
     label: suggestion.label,
     prompt: suggestion.prompt,
-    icon: Sparkles,
+    icon:
+      suggestion.source.kind === "builtin"
+        ? (builtinSuggestionIcons[
+            suggestion.name as keyof typeof builtinSuggestionIcons
+          ] ?? Sparkles)
+        : Sparkles,
   })),
-]);
-const gitSuggestionRefreshKey = $derived.by(() => {
+);
+const promptSuggestionRefreshKey = $derived.by(() => {
   const ctx = gitState.gitContext;
   return ctx ? `${ctx.projectId}:${gitContextFingerprint(ctx)}` : "none";
 });
@@ -311,7 +310,7 @@ function openToolFile(path: string, line?: number) {
 
 $effect(() => {
   if (!active || !activeProject?.id) return;
-  void gitSuggestionRefreshKey;
+  void promptSuggestionRefreshKey;
   void refreshPromptSuggestions(activeProject.id, {
     conversationId,
     agentId: activeAgent?.id,

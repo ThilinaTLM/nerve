@@ -11,7 +11,6 @@ import { workspaceSelectors } from "$lib/features/workspace/state/workspace-sele
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { gitPanelState } from "./git-panel.svelte";
 import { gitState } from "./git-state.svelte";
-import { buildGitSuggestions, type GitSuggestion } from "./git-suggestions";
 
 function activeView() {
   const conversationId =
@@ -66,12 +65,6 @@ export const gitSelectors = {
       repoName: repo.name,
       repoCount: state.repos.length,
     };
-  },
-  get gitSuggestions(): GitSuggestion[] {
-    const ctx = gitState.gitContext;
-    const projectId = workspaceSelectors.activeProject?.id;
-    if (!ctx || !projectId || ctx.projectId !== projectId) return [];
-    return buildGitSuggestions(ctx);
   },
   get branchDepth() {
     return activeView()?.treeNodes.length ?? 0;

@@ -27,13 +27,18 @@ export type PromptSuggestionDiagnostic = {
 
 export type PromptSuggestionDefinition = {
   id: string;
+  definitionKey: string;
   name: string;
   label: string;
   description?: string;
   prompt: string;
+  buildLabel?: (input: PromptSuggestionEvaluationInput) => string;
+  buildPrompt?: (input: PromptSuggestionEvaluationInput) => string;
   order: number;
+  defaultEnabled: boolean;
   enabled: boolean;
   when?: PromptSuggestionWhen;
+  matches?: (input: PromptSuggestionEvaluationInput) => boolean;
   enableJs?: string;
   predicateHash?: string;
   trustId?: string;

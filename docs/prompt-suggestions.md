@@ -1,15 +1,31 @@
 # Prompt suggestions
 
-Nerve can load composer prompt suggestion chips from Markdown files in:
+Nerve shows reusable prompt chips above the composer. Manage all suggestions in **Settings → Suggestions → Prompt suggestions**.
+
+## Built-in suggestions
+
+Nerve includes three contextual Git suggestions:
+
+- **Commit changes** when a repository has uncommitted changes.
+- **Commit on a feature branch** when changes are on a base branch.
+- **Create a PR** when a relevant GitHub repository is ready and GitHub CLI is authenticated.
+
+The settings page always lists these built-ins, even when their runtime conditions are not currently met. Each can be disabled independently without changing project files.
+
+## Custom suggestions
+
+Create a suggestion from Settings with a name, composer label, optional description, prompt, and scope:
 
 - User suggestions: `~/.nerve/suggestions/*.md` (or `$NERVE_HOME/suggestions/*.md`)
 - Project suggestions: `<project>/.nerve/suggestions/*.md`
 
-Project suggestions take precedence over user suggestions with the same `name`.
+The dialog creates a working Markdown file that can be edited later. Custom suggestions and built-ins are all toggleable in Settings; toggling stores a user preference and does not edit the Markdown file.
+
+When definitions have the same `name`, project suggestions take precedence over user suggestions, and user suggestions take precedence over built-ins. A disabled higher-precedence definition remains authoritative rather than revealing a lower-precedence suggestion. Settings lists shadowed definitions and identifies the overriding scope.
 
 ## Format
 
-Each file is Markdown with optional YAML frontmatter. The Markdown body is the prompt inserted/sent by the chip.
+Each file is Markdown with optional YAML frontmatter. The Markdown body is the prompt inserted or sent by the chip.
 
 ```md
 ---
@@ -30,11 +46,11 @@ Review the current git diff. Call out correctness risks, missing tests, and clea
 
 Fields:
 
-- `name`: optional; defaults to the filename stem. Use lowercase letters, digits, and hyphens.
+- `name`: optional; defaults to the filename stem. Use lowercase letters, digits, and single hyphens.
 - `label`: optional chip label; defaults to a title-cased name.
 - `description`: optional Settings/dialog description.
 - `order`: optional number; lower values appear first.
-- `enabled`: set to `false` to disable the suggestion.
+- `enabled`: file-defined default state. A Settings toggle overrides this value without editing the file.
 - `when`: optional declarative conditions:
   - `gitDirty: boolean`
   - `hasRepos: boolean`
@@ -53,6 +69,6 @@ function enable(context) {
 }
 ```
 
-The predicate gets a JSON-safe context with project, git, conversation, and agent state. It must return `true` to show the suggestion.
+The predicate gets a JSON-safe context with project, Git, conversation, and agent state. It must return `true` to show the suggestion.
 
-JavaScript predicates are not executed until approved. Nerve shows a warning dialog the first time a predicate is discovered. You can allow, deny, or reset trust later in **Settings → Agents → Prompt suggestions**. Trust is tied to the predicate content hash, so editing the JavaScript requires approval again.
+JavaScript predicates are not executed until approved. Nerve shows a warning dialog the first time a predicate is discovered. You can allow, deny, or reset trust later in **Settings → Suggestions → Prompt suggestions**. Trust is tied to the predicate content hash, so editing the JavaScript requires approval again.

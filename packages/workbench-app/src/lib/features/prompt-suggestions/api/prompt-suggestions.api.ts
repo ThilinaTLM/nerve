@@ -1,6 +1,9 @@
 import type {
+  CreatePromptSuggestionRequest,
+  CreatePromptSuggestionResponse,
   PromptSuggestionListResponse,
   PromptSuggestionStatus,
+  UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
@@ -25,6 +28,18 @@ export async function getPromptSuggestionStatuses(
   ).result.statuses;
 }
 
+export async function requestPromptSuggestionCreation(
+  body: CreatePromptSuggestionRequest,
+): Promise<CreatePromptSuggestionResponse> {
+  return (await protocolRequest("promptSuggestion.create", body)).result;
+}
+
+export async function updatePromptSuggestionEnabled(
+  body: UpdatePromptSuggestionEnabledRequest,
+): Promise<void> {
+  await protocolRequest("promptSuggestion.enabled.update", body);
+}
+
 export async function updatePromptSuggestionTrust(
   body: UpdatePromptSuggestionTrustRequest,
 ): Promise<void> {
@@ -32,9 +47,13 @@ export async function updatePromptSuggestionTrust(
 }
 
 export type {
+  CreatePromptSuggestionRequest,
+  CreatePromptSuggestionResponse,
   PromptSuggestion,
   PromptSuggestionListResponse,
+  PromptSuggestionSourceKind,
   PromptSuggestionStatus,
   PromptSuggestionTrustRequest,
+  UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts";

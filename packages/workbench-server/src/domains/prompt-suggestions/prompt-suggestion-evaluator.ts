@@ -36,8 +36,14 @@ export function evaluatePromptSuggestions(
   );
 
   for (const definition of input.definitions) {
-    if (!definition.enabled) continue;
-    if (!matchesWhen(definition, input)) {
+    if (!definition.enabled) {
+      statuses.push(statusFor(definition));
+      continue;
+    }
+    if (
+      !matchesWhen(definition, input) ||
+      (definition.matches !== undefined && !definition.matches(input))
+    ) {
       statuses.push(
         statusFor(definition, trustById.get(definition.trustId ?? "")),
       );
@@ -77,9 +83,9 @@ export function evaluatePromptSuggestions(
     suggestions.push({
       id: definition.id,
       name: definition.name,
-      label: definition.label,
+      label: definition.buildLabel?.(input) ?? definition.label,
       description: definition.description,
-      prompt: definition.prompt,
+      prompt: definition.buildPrompt?.(input) ?? definition.prompt,
       order: definition.order,
       source: definition.source,
       requiresTrust: Boolean(definition.enableJs),
@@ -199,6 +205,7 @@ function statusFor(
 ): PromptSuggestionStatus {
   return {
     trustId: definition.trustId,
+    definitionKey: definition.definitionKey,
     name: definition.name,
     label: definition.label,
     description: definition.description,
@@ -209,6 +216,8 @@ function statusFor(
     status: definition.enableJs
       ? (trustRecord?.status ?? "unset")
       : "not_required",
+    enabled: definition.enabled,
+    defaultEnabled: definition.defaultEnabled,
     predicateHash: definition.predicateHash,
   };
 }

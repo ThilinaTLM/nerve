@@ -1,4 +1,8 @@
-import { updatePromptSuggestionTrustRequestSchema } from "@nervekit/contracts";
+import {
+  createPromptSuggestionRequestSchema,
+  updatePromptSuggestionEnabledRequestSchema,
+  updatePromptSuggestionTrustRequestSchema,
+} from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { routeHandler } from "../http/responses.js";
@@ -31,6 +35,29 @@ export function createPromptSuggestionRoutes(state: OrchestratorState): Hono {
         ),
       }),
     ),
+  );
+
+  app.post(
+    "/prompt-suggestions",
+    routeHandler(async (c) => {
+      const body = createPromptSuggestionRequestSchema.parse(
+        await c.req.json(),
+      );
+      return c.json({
+        suggestion: await state.registry.promptSuggestions.create(body),
+      });
+    }),
+  );
+
+  app.post(
+    "/prompt-suggestions/enabled",
+    routeHandler(async (c) => {
+      const body = updatePromptSuggestionEnabledRequestSchema.parse(
+        await c.req.json(),
+      );
+      await state.registry.promptSuggestions.updateEnabled(body);
+      return c.json({ ok: true });
+    }),
   );
 
   app.post(
