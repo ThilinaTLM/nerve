@@ -9,7 +9,6 @@ import {
 } from "$lib/core/state/state-keys";
 import type { CenterTabIdentity } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { saveConversationTabs } from "$lib/features/conversations/state/conversation-tabs";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
@@ -23,7 +22,13 @@ import {
   centerTabsEqual,
   replaceOpenCenterTabs,
   selectCenterTab,
+  setActiveCenterTab,
 } from "./center-tabs.svelte";
+import {
+  isGlobalCenterTab,
+  mostRecentRemainingTab,
+  removeGlobalTabFromSessions,
+} from "./workspace-tab-sessions";
 
 function tabIndex(tab: CenterTabIdentity): number {
   return workspaceState.openCenterTabs.findIndex((candidate) =>
@@ -48,34 +53,6 @@ function resetConversationSelection() {
   resetSelection();
   workspaceState.error = undefined;
   composerDraft.text = "";
-}
-
-function persistOpenConversationTabs() {
-  saveConversationTabs(
-    conversationState.openConversationTabIds,
-    conversationState.activeConversationTabId,
-  );
-}
-
-function nearestRemainingTab(
-  originalTabs: CenterTabIdentity[],
-  remainingTabs: CenterTabIdentity[],
-  closingIndices: number[],
-): CenterTabIdentity | undefined {
-  if (!remainingTabs.length) return undefined;
-  const firstClosingIndex = Math.min(...closingIndices);
-  const atOrAfter = originalTabs
-    .slice(firstClosingIndex)
-    .find((tab) =>
-      remainingTabs.some((candidate) => centerTabsEqual(candidate, tab)),
-    );
-  if (atOrAfter) return atOrAfter;
-  return originalTabs
-    .slice(0, firstClosingIndex)
-    .reverse()
-    .find((tab) =>
-      remainingTabs.some((candidate) => centerTabsEqual(candidate, tab)),
-    );
 }
 
 export function centerTabsToLeftOf(
@@ -138,7 +115,7 @@ export async function closeCenterTabs(
   );
   const fallback = tabIsInList(fallbackPreferred, remainingTabs)
     ? fallbackPreferred
-    : nearestRemainingTab(originalTabs, remainingTabs, closingIndices);
+    : mostRecentRemainingTab(tabs);
 
   const voiceTargets: VoiceInputTarget[] = [];
   for (const tab of originalTabs) {
@@ -150,6 +127,9 @@ export async function closeCenterTabs(
   }
   await voiceInputSession.cancelIfTargets(voiceTargets);
 
+  for (const tab of tabs) {
+    if (isGlobalCenterTab(tab)) removeGlobalTabFromSessions(tab);
+  }
   replaceOpenCenterTabs(remainingTabs);
 
   for (const tab of originalTabs) {
@@ -200,9 +180,7 @@ export async function closeCenterTabs(
     resetConversationSelection();
   }
 
-  persistOpenConversationTabs();
-
   if (!activeWasClosed) return;
-  workspaceState.activeCenterTab = undefined;
+  setActiveCenterTab(undefined);
   if (fallback) await selectCenterTab(fallback);
 }

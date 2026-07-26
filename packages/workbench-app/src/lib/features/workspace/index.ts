@@ -7,7 +7,11 @@ export {
   centerTabsToRightOf,
   closeCenterTabs,
 } from "./state/center-tab-actions.svelte";
-export { closeCenterTab, selectCenterTab } from "./state/center-tabs.svelte";
+export {
+  closeCenterTab,
+  reorderCenterTab,
+  selectCenterTab,
+} from "./state/center-tabs.svelte";
 export {
   composerDraft,
   eventBuffer,
@@ -18,6 +22,8 @@ export {
   deleteProjectAndRefresh,
   exportUrl,
   newConversation,
+  openProjectDirectory,
+  selectProject,
   systemPromptUrl,
 } from "./state/workspace-actions.svelte";
 export type { CenterTabModel } from "./state/workspace-selectors.svelte";

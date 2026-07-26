@@ -8,10 +8,6 @@ import {
 } from "$lib/core/state/state-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import {
-  filterStoredTabsAgainstConversations,
-  loadStoredConversationTabs,
-} from "$lib/features/conversations/state/conversation-tabs";
-import {
   nextCenterTabAfterClose,
   removeCenterTab,
   replaceOpenCenterTabs,
@@ -38,6 +34,11 @@ export async function openConversation(conversationId: string) {
     ) ??
     (await protocolRequest("conversation.get", { conversationId })).result
       .conversation;
+  if (conversation.projectId !== workspaceState.selectedProjectId) {
+    const { selectProject } =
+      await import("$lib/features/workspace/state/workspace-actions.svelte");
+    await selectProject(conversation.projectId);
+  }
   addConversationTab(conversation.id);
   conversationState.activeConversationTabId = conversation.id;
   setActiveCenterTab({ kind: "conversation", id: conversation.id });
@@ -49,20 +50,17 @@ export async function openConversation(conversationId: string) {
 }
 
 export async function restoreConversationTabs() {
-  const stored = loadStoredConversationTabs();
-  const tabIds = filterStoredTabsAgainstConversations(
-    stored.tabIds,
-    workspaceState.conversations,
-  );
-  replaceOpenCenterTabs(tabIds.map((id) => ({ kind: "conversation", id })));
+  const tabIds = workspaceState.openCenterTabs
+    .filter(
+      (tab): tab is Extract<typeof tab, { kind: "conversation" }> =>
+        tab.kind === "conversation",
+    )
+    .map((tab) => tab.id);
   for (const conversationId of tabIds) ensureConversationView(conversationId);
-  const activeId =
-    stored.activeId && tabIds.includes(stored.activeId)
-      ? stored.activeId
-      : tabIds[0];
-  conversationState.activeConversationTabId = activeId;
-  persistConversationTabs();
-  if (activeId) await openConversation(activeId);
+  const active = workspaceState.activeCenterTab;
+  conversationState.activeConversationTabId =
+    active?.kind === "conversation" ? active.id : tabIds[0];
+  if (active) await selectCenterTab(active);
 }
 
 export async function closeConversationTab(conversationId: string) {

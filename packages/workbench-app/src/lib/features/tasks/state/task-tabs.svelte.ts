@@ -31,6 +31,17 @@ export function setTaskEntryRun(entryId: string, taskId: string): void {
 }
 
 export async function openTaskTab(taskId: string) {
+  const owningTask = taskState.tasks.find(
+    (candidate) => candidate.id === taskId,
+  );
+  if (
+    owningTask?.projectId &&
+    owningTask.projectId !== workspaceState.selectedProjectId
+  ) {
+    const { selectProject } =
+      await import("$lib/features/workspace/state/workspace-actions.svelte");
+    await selectProject(owningTask.projectId);
+  }
   const entryId = taskEntryKey(taskId);
   setTaskEntryRun(entryId, taskId);
   addCenterTab({ kind: "task", id: entryId });

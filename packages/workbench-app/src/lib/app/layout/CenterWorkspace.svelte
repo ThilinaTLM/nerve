@@ -16,6 +16,7 @@ import {
   closeCenterTab,
   closeCenterTabs,
   newConversation,
+  reorderCenterTab,
   selectCenterTab,
   workspaceSelectors,
   workspaceState,
@@ -108,6 +109,7 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
       onToggleFileDisplayMode={toggleFileDisplayMode}
       onToggleFileLineWrap={toggleFileLineWrap}
       onNewConversation={newConversation}
+      onReorder={reorderCenterTab}
     />
   {/snippet}
   {#snippet content()}

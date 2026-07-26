@@ -10,9 +10,25 @@ import {
 import { openAuthPane } from "$lib/features/auth";
 import { openLogsPane } from "$lib/features/logs";
 import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
-import { workspaceSelectors, workspaceState } from "$lib/features/workspace";
+import {
+  selectProject,
+  workspaceSelectors,
+  workspaceState,
+} from "$lib/features/workspace";
+import { quickProjectItems } from "$lib/features/projects";
+import { responsive } from "$lib/app/layout/responsive.svelte";
 
-const activeProject = $derived(workspaceSelectors.activeProject);
+const projectItems = $derived(workspaceSelectors.projectSwitcherItems);
+const quickLimit = $derived(
+  responsive.isPhone ? 1 : responsive.isCompact ? 2 : 5,
+);
+const quickProjects = $derived(
+  quickProjectItems(
+    projectItems,
+    workspaceState.selectedProjectKey,
+    quickLimit,
+  ),
+);
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
 const settingsDraft = $derived(settingsSelectors.settingsDraft);
 const desktopQuitting = $derived(
@@ -43,7 +59,8 @@ async function handleDesktopClose() {
 </script>
 
 <Titlebar
-  {activeProject}
+  projects={quickProjects}
+  activeProjectKey={workspaceState.selectedProjectKey}
   desktop={desktopRuntime.isDesktop}
   maximized={desktopRuntime.windowState.maximized}
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}
@@ -52,6 +69,7 @@ async function handleDesktopClose() {
   authActive={activeCenterTab?.kind === "auth"}
   logsActive={activeCenterTab?.kind === "logs"}
   onOpenProject={openProjectPicker}
+  onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenLogs={() => openLogsPane()}
   onOpenAuth={() => openAuthPane()}
   onOpenSettings={() => void openSettingsPane()}

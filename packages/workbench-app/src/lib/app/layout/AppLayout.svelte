@@ -45,7 +45,7 @@ $effect(() => {
     navDrawerOpen: layout.navDrawerOpen,
     utilityDrawerOpen: layout.utilityDrawerOpen,
     autoSaveId: "nerve.workspace.v3",
-    leftLabel: "Project navigator",
+    leftLabel: "Conversations",
     rightLabel: "Utility panel",
   }}
   actions={{

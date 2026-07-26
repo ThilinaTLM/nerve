@@ -45,6 +45,11 @@ export async function openFilePane(input: {
   path: string;
   line?: number;
 }) {
+  if (input.projectId !== workspaceState.selectedProjectId) {
+    const { selectProject } =
+      await import("$lib/features/workspace/state/workspace-actions.svelte");
+    await selectProject(input.projectId);
+  }
   const id = encodeFileTabId(input.projectId, input.path);
   const key = fileViewKey(id);
   addFileTab(id);

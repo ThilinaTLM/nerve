@@ -9,6 +9,14 @@ import { notify } from "$lib/features/notifications/notify.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import {
+  isGlobalCenterTab,
+  mostRecentRemainingTab,
+  recordTabActivation,
+  recordTabsChanged,
+  removeGlobalTabFromSessions,
+  reorderVisibleTab,
+} from "./workspace-tab-sessions";
 export function centerTabKey(tab: CenterTabIdentity): string {
   return `${tab.kind}:${tab.id}`;
 }
@@ -96,6 +104,7 @@ export function replaceOpenCenterTabs(tabs: CenterTabIdentity[]) {
     return true;
   });
   syncLegacyTabFields();
+  recordTabsChanged();
 }
 
 export function addCenterTab(tab: CenterTabIdentity) {
@@ -119,25 +128,18 @@ export function replaceCenterTab(
     ),
   );
   if (centerTabsEqual(workspaceState.activeCenterTab, previous)) {
-    workspaceState.activeCenterTab = next;
+    setActiveCenterTab(next);
   }
 }
 
 export function nextCenterTabAfterClose(
   tab: CenterTabIdentity,
 ): CenterTabIdentity | undefined {
-  const tabs = workspaceState.openCenterTabs;
-  const closingIndex = tabs.findIndex((candidate) =>
-    centerTabsEqual(candidate, tab),
-  );
-  if (closingIndex === -1) return fallbackCenterTab(tab);
-  const remaining = tabs.filter(
-    (candidate) => !centerTabsEqual(candidate, tab),
-  );
-  return remaining[closingIndex] ?? remaining[closingIndex - 1] ?? remaining[0];
+  return mostRecentRemainingTab(tab);
 }
 
 export function removeCenterTab(tab: CenterTabIdentity) {
+  if (isGlobalCenterTab(tab)) removeGlobalTabFromSessions(tab);
   replaceOpenCenterTabs(
     workspaceState.openCenterTabs.filter(
       (candidate) => !centerTabsEqual(candidate, tab),
@@ -145,9 +147,16 @@ export function removeCenterTab(tab: CenterTabIdentity) {
   );
 }
 
+export function reorderCenterTab(tab: CenterTabIdentity, targetIndex: number) {
+  reorderVisibleTab(tab, targetIndex);
+  syncLegacyTabFields();
+}
+
 export function setActiveCenterTab(tab: CenterTabIdentity | undefined) {
   if (tab) addCenterTab(tab);
   workspaceState.activeCenterTab = tab;
+  if (tab) recordTabActivation(tab);
+  else recordTabsChanged();
 }
 
 export function fallbackCenterTab(
