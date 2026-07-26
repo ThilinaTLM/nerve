@@ -64,6 +64,7 @@ export async function closeTaskTab(entryId: string) {
   ) {
     taskState.selectedTaskId = undefined;
     taskState.taskLogs = undefined;
+    taskState.logHistorySearch = undefined;
   }
 
   if (closingActive) await selectCenterTab(fallback);

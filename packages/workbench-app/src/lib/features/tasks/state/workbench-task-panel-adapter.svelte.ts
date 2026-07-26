@@ -5,8 +5,8 @@ import type {
   TaskRecord,
 } from "$lib/api";
 import type {
-  CreatePinnedCommandRequest,
-  UpdatePinnedCommandRequest,
+  CreateTaskDefinitionRequest,
+  UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { onEvent } from "$lib/core/events/event-bus";
@@ -27,9 +27,9 @@ import {
   createTaskPanelActions,
   disabledCapability,
   enabledCapability,
-  normalizePinnedCommand,
-  type NormalizedPinnedCommand,
+  normalizeTaskDefinition,
   type TaskPanelActions,
+  type TaskPanelDefinition,
   type TaskPanelModel,
 } from "@nervekit/workbench-ui";
 
@@ -57,9 +57,9 @@ export function createWorkbenchTaskPanelAdapter(
   selectedTask: () => TaskRecord | undefined,
   hostActions: WorkbenchTaskPanelHostActions,
 ): { readonly model: TaskPanelModel; readonly actions: TaskPanelActions } {
-  let pinned = $state<TaskDefinition[]>([]);
-  let loadingPinned = $state(false);
-  let runningPinnedId = $state<string | undefined>(undefined);
+  let definitions = $state<TaskDefinition[]>([]);
+  let loadingDefinitions = $state(false);
+  let runningDefinitionId = $state<string | undefined>(undefined);
   let lastLoadedProjectId = $state<string | undefined>(undefined);
 
   const unavailable = (message: string) => disabledCapability(message);
@@ -85,10 +85,10 @@ export function createWorkbenchTaskPanelAdapter(
         selectedTask: selectedTask(),
         selectedLogs: taskState.taskLogs,
         logsLoading: false,
-        pinnedCommands: pinned.map(normalizePinnedCommand),
+        definitions: definitions.map(normalizeTaskDefinition),
         defaultCwd: project?.dir ?? "",
-        pinnedLoading: loadingPinned,
-        runningPinnedId,
+        definitionsLoading: loadingDefinitions,
+        runningDefinitionId,
         capabilities: {
           start:
             project && hostActions.runCommand ? enabledCapability : noRunner,
@@ -100,13 +100,12 @@ export function createWorkbenchTaskPanelAdapter(
             project && hostActions.removeTask ? enabledCapability : noAction,
           prune:
             project && hostActions.pruneTasks ? enabledCapability : noAction,
-          pin: action,
           copy: enabledCapability,
           logs:
             project && hostActions.openTaskOutput
               ? enabledCapability
               : noAction,
-          managePinned: action,
+          manageDefinitions: action,
         },
       };
     },
@@ -114,9 +113,9 @@ export function createWorkbenchTaskPanelAdapter(
   };
 
   function original(
-    command: NormalizedPinnedCommand,
+    definition: TaskPanelDefinition,
   ): TaskDefinition | undefined {
-    return pinned.find((item) => item.id === command.id);
+    return definitions.find((item) => item.id === definition.id);
   }
 
   const host: TaskPanelActions = {
@@ -134,56 +133,38 @@ export function createWorkbenchTaskPanelAdapter(
         name: request.name,
       });
     },
-    runPinned: async (command) => {
+    runDefinition: async (definition) => {
       const project = activeProject();
       if (!project) return;
-      runningPinnedId = command.id;
+      runningDefinitionId = definition.id;
       try {
-        const result = await launchTaskDefinition(command.id);
+        const result = await launchTaskDefinition(definition.id);
         await loadWorkspaceState();
-        hostActions.openTaskOutput?.(result.task.id);
         notify.success(
           result.disposition === "focused_existing"
             ? "Task is already running"
             : "Task started",
-          { description: command.label ?? command.command },
+          { description: definition.label ?? definition.command },
         );
       } catch (error) {
         notify.error(`Could not run task: ${errorMessage(error)}`);
       } finally {
-        runningPinnedId = undefined;
+        runningDefinitionId = undefined;
       }
     },
     cancelTask: (id) => hostActions.cancelTask?.(id),
     restartTask: (id) => hostActions.restartTask?.(id),
     removeTask: (id) => hostActions.removeTask?.(id),
     pruneTasks: () => hostActions.pruneTasks?.(),
-    pinTask: async (task) => {
-      const project = activeProject();
-      if (!project) return;
+    copyText: async (text) => {
       try {
-        const created = await createTaskDefinition(project.id, {
-          command: task.command,
-          label: task.name,
-          cwd: task.cwd === project.dir ? undefined : task.cwd,
-          runPolicy: "single",
-          sourceTaskId: task.id,
-        });
-        pinned = [...pinned, created];
-        notify.success("Task saved");
-      } catch (error) {
-        notify.error(`Could not save task: ${errorMessage(error)}`);
-      }
-    },
-    copyCommand: async (command) => {
-      try {
-        await writeClipboardText(command);
-        notify.success("Copied command");
+        await writeClipboardText(text);
+        notify.success("Copied to clipboard");
       } catch {
         notify.error("Could not copy to clipboard");
       }
     },
-    createPinned: async (input: CreatePinnedCommandRequest) => {
+    createDefinition: async (input: CreateTaskDefinitionRequest) => {
       const project = activeProject();
       if (!project) return;
       try {
@@ -191,23 +172,26 @@ export function createWorkbenchTaskPanelAdapter(
           ...input,
           runPolicy: input.runPolicy ?? "single",
         });
-        pinned = [...pinned, created];
+        definitions = [...definitions, created];
         notify.success("Task saved");
       } catch (error) {
         notify.error(`Could not save task: ${errorMessage(error)}`);
         throw error;
       }
     },
-    updatePinned: async (command, input: UpdatePinnedCommandRequest) => {
+    updateDefinition: async (
+      definition,
+      input: UpdateTaskDefinitionRequest,
+    ) => {
       const project = activeProject();
-      const item = original(command);
+      const item = original(definition);
       if (!project || !item) return;
       try {
         const updated = await updateTaskDefinition(project.id, item.id, {
           ...input,
           runPolicy: input.runPolicy ?? item.runPolicy,
         });
-        pinned = pinned.map((candidate) =>
+        definitions = definitions.map((candidate) =>
           candidate.id === updated.id ? updated : candidate,
         );
         notify.success("Task updated");
@@ -216,13 +200,15 @@ export function createWorkbenchTaskPanelAdapter(
         throw error;
       }
     },
-    deletePinned: async (command) => {
+    deleteDefinition: async (definition) => {
       const project = activeProject();
-      const item = original(command);
+      const item = original(definition);
       if (!project || !item) return;
       try {
         await deleteTaskDefinition(project.id, item.id);
-        pinned = pinned.filter((candidate) => candidate.id !== item.id);
+        definitions = definitions.filter(
+          (candidate) => candidate.id !== item.id,
+        );
         notify.success("Saved task deleted");
       } catch (error) {
         notify.error(`Could not remove saved task: ${errorMessage(error)}`);
@@ -242,20 +228,20 @@ export function createWorkbenchTaskPanelAdapter(
       if (
         definition?.scope.kind === "project" &&
         definition.scope.projectId === projectId &&
-        !pinned.some((item) => item.id === definition.id)
+        !definitions.some((item) => item.id === definition.id)
       )
-        pinned = [...pinned, definition];
+        definitions = [...definitions, definition];
     });
     const disposeUpdated = onEvent("taskDefinition.updated", (event) => {
       const definition = event.data?.definition as TaskDefinition | undefined;
       if (!definition) return;
-      pinned = pinned.map((item) =>
+      definitions = definitions.map((item) =>
         item.id === definition.id ? definition : item,
       );
     });
     const disposeDeleted = onEvent("taskDefinition.deleted", (event) => {
       const definitionId = String(event.data?.definitionId ?? "");
-      pinned = pinned.filter((item) => item.id !== definitionId);
+      definitions = definitions.filter((item) => item.id !== definitionId);
     });
     return () => {
       disposeCreated();
@@ -268,18 +254,18 @@ export function createWorkbenchTaskPanelAdapter(
     const projectId = activeProject()?.id;
     if (projectId === lastLoadedProjectId) return;
     lastLoadedProjectId = projectId;
-    pinned = [];
+    definitions = [];
     if (!projectId) return;
-    loadingPinned = true;
+    loadingDefinitions = true;
     void getTaskDefinitions(projectId)
-      .then((commands) => {
-        if (activeProject()?.id === projectId) pinned = commands;
+      .then((loaded) => {
+        if (activeProject()?.id === projectId) definitions = loaded;
       })
       .catch((error) =>
-        notify.error(`Could not load pinned commands: ${errorMessage(error)}`),
+        notify.error(`Could not load task definitions: ${errorMessage(error)}`),
       )
       .finally(() => {
-        if (activeProject()?.id === projectId) loadingPinned = false;
+        if (activeProject()?.id === projectId) loadingDefinitions = false;
       });
   });
 

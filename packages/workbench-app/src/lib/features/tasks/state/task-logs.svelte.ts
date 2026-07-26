@@ -1,6 +1,8 @@
 import { getTaskLogs } from "$lib/features/tasks/api/tasks.api";
+import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   appendTaskLogPage,
+  MAX_TASK_LOG_WINDOW_EVENTS,
   prependTaskLogPage,
 } from "@nervekit/workbench-ui/tasks";
 import { SvelteMap } from "svelte/reactivity";
@@ -15,12 +17,50 @@ let refreshRequested = false;
 
 export async function loadTaskLogWindow(taskId: string): Promise<void> {
   const request = ++initialRequest;
+  taskState.logHistorySearch = undefined;
   const response = await getTaskLogs(taskId, {
     mode: "recent",
     limit: LOG_PAGE_SIZE,
   });
   if (request !== initialRequest || taskState.selectedTaskId !== taskId) return;
   taskState.taskLogs = response;
+}
+
+/**
+ * Runs a server-side search across the whole retained log. The result replaces the live
+ * window until the caller returns to live output, because filtered cursors cannot be
+ * merged safely with unfiltered incremental pages.
+ */
+export async function searchTaskLogHistory(
+  taskId: string,
+  filter: { text: string; useRegex: boolean },
+): Promise<void> {
+  const text = filter.text.trim();
+  if (!text) return;
+  taskState.logHistorySearching = true;
+  try {
+    const response = await getTaskLogs(taskId, {
+      mode: "recent",
+      limit: LOG_PAGE_SIZE,
+      ...(filter.useRegex ? { regex: text } : { contains: text }),
+    });
+    if (taskState.selectedTaskId !== taskId) return;
+    taskState.taskLogs = response;
+    taskState.logHistorySearch = {
+      taskId,
+      text,
+      useRegex: filter.useRegex,
+      truncated: response.hasMoreBefore,
+    };
+  } catch (error) {
+    notify.error(
+      `Could not search task output: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  } finally {
+    taskState.logHistorySearching = false;
+  }
 }
 
 export function loadEarlierTaskLogs(taskId: string): Promise<void> {
@@ -32,7 +72,9 @@ export function loadEarlierTaskLogs(taskId: string): Promise<void> {
     taskState.selectedTaskId !== taskId ||
     current?.task.id !== taskId ||
     !current.hasMoreBefore ||
-    beforeSeq === undefined
+    beforeSeq === undefined ||
+    taskState.logHistorySearch?.taskId === taskId ||
+    current.events.length >= MAX_TASK_LOG_WINDOW_EVENTS
   ) {
     return Promise.resolve();
   }

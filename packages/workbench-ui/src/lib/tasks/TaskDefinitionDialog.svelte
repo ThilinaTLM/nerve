@@ -1,7 +1,7 @@
 <script lang="ts">
 import type {
-  CreatePinnedCommandRequest,
-  UpdatePinnedCommandRequest,
+  CreateTaskDefinitionRequest,
+  UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
@@ -9,24 +9,32 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField from "@nervekit/ui-kit/components/ui/select-field";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
-import type { NormalizedPinnedCommand } from "./task-panel-types";
+import type { TaskPanelDefinition } from "./task-panel-types";
 
 type Props = {
   open?: boolean;
-  command?: NormalizedPinnedCommand;
+  definition?: TaskPanelDefinition;
+  initial?: { label?: string; command: string; cwd?: string };
   projectCwd?: string;
   saving?: boolean;
+  title?: string;
+  description?: string;
+  submitLabel?: string;
   onSave?: (
-    input: CreatePinnedCommandRequest | UpdatePinnedCommandRequest,
+    input: CreateTaskDefinitionRequest | UpdateTaskDefinitionRequest,
   ) => void;
   onOpenChange?: (open: boolean) => void;
 };
 
 let {
   open = $bindable(false),
-  command,
+  definition,
+  initial,
   projectCwd,
   saving = false,
+  title,
+  description,
+  submitLabel,
   onSave,
   onOpenChange,
 }: Props = $props();
@@ -36,21 +44,27 @@ let commandText = $state("");
 let cwd = $state("");
 let runPolicy = $state<"single" | "concurrent">("single");
 
-const title = $derived(command ? "Edit task" : "Create task");
-const description = $derived(
-  command
-    ? "Update this task definition and its launch policy. Existing runs keep their original command."
-    : "Create a reusable task definition for this workspace.",
+const dialogTitle = $derived(
+  title ?? (definition ? "Edit task" : "Create task"),
 );
-const submitLabel = $derived(command ? "Save task" : "Create task");
+const dialogDescription = $derived(
+  description ??
+    (definition
+      ? "Update this task definition and its launch policy. Existing runs keep their original command."
+      : "Create a reusable task definition for this workspace."),
+);
+const dialogSubmitLabel = $derived(
+  submitLabel ?? (definition ? "Save task" : "Create task"),
+);
 const canSave = $derived(!saving && commandText.trim().length > 0);
 
 $effect(() => {
   if (!open) return;
-  label = command?.label ?? "";
-  commandText = command?.command ?? "";
-  cwd = command?.cwd ?? "";
-  runPolicy = command?.runPolicy ?? "single";
+  const source = definition ?? initial;
+  label = source?.label ?? "";
+  commandText = source?.command ?? "";
+  cwd = source?.cwd ?? "";
+  runPolicy = definition?.runPolicy ?? "single";
 });
 
 function submit() {
@@ -66,12 +80,18 @@ function submit() {
 }
 </script>
 
-<Dialog bind:open {title} {description} class="max-w-xl" {onOpenChange}>
+<Dialog
+  bind:open
+  title={dialogTitle}
+  description={dialogDescription}
+  class="max-w-xl"
+  {onOpenChange}
+>
   <div class="grid gap-4 p-4">
     <div class="grid gap-1.5">
-      <Label for="pinned-command-label">Label</Label>
+      <Label for="task-definition-label">Label</Label>
       <Input
-        id="pinned-command-label"
+        id="task-definition-label"
         bind:value={label}
         placeholder="web-dev"
         disabled={saving}
@@ -79,9 +99,9 @@ function submit() {
     </div>
 
     <div class="grid gap-1.5">
-      <Label for="pinned-command-command">Command</Label>
+      <Label for="task-definition-command">Command</Label>
       <Textarea
-        id="pinned-command-command"
+        id="task-definition-command"
         bind:value={commandText}
         rows={4}
         placeholder="pnpm dev"
@@ -111,9 +131,9 @@ function submit() {
     </div>
 
     <div class="grid gap-1.5">
-      <Label for="pinned-command-cwd">Working directory</Label>
+      <Label for="task-definition-cwd">Working directory</Label>
       <Input
-        id="pinned-command-cwd"
+        id="task-definition-cwd"
         bind:value={cwd}
         placeholder={projectCwd
           ? `Default: ${projectCwd}`
@@ -132,7 +152,7 @@ function submit() {
       >Cancel</Button
     >
     <Button onclick={submit} disabled={!canSave}
-      >{saving ? "Saving…" : submitLabel}</Button
+      >{saving ? "Saving…" : dialogSubmitLabel}</Button
     >
   {/snippet}
 </Dialog>

@@ -7,6 +7,12 @@ import {
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/ui/virtual-list";
 import TerminalText from "../tools/components/tool-call/TerminalText.svelte";
+import {
+  compileTaskLogMatcher,
+  emptyTaskLogFilter,
+  isTaskLogFilterActive,
+  type TaskLogFilterState,
+} from "./task-log-filter.js";
 
 type LogRow =
   | { kind: "history"; key: string }
@@ -18,27 +24,58 @@ type Props = {
   taskId: string;
   taskLogs?: TaskLogQueryResponse;
   command?: string;
+  filter?: TaskLogFilterState;
+  wrap?: boolean;
+  follow?: boolean;
+  onFollowChange?: (follow: boolean) => void;
+  onVisibleEventsChange?: (events: readonly TaskLogEvent[]) => void;
+  onFilterErrorChange?: (error: string | undefined) => void;
   onLoadEarlier?: () => void | Promise<void>;
 };
 
-let { taskId, taskLogs, command, onLoadEarlier }: Props = $props();
+let {
+  taskId,
+  taskLogs,
+  command,
+  filter = emptyTaskLogFilter,
+  wrap = true,
+  follow = true,
+  onFollowChange,
+  onVisibleEventsChange,
+  onFilterErrorChange,
+  onLoadEarlier,
+}: Props = $props();
 let controller = $state<VirtualScrollerController>();
 let atEnd = $state(true);
 let loadingEarlier = $state(false);
 let historyError = $state<string | undefined>(undefined);
 
+const filterActive = $derived(isTaskLogFilterActive(filter));
+const matcher = $derived(compileTaskLogMatcher(filter));
+const allEvents = $derived(taskLogs?.events ?? []);
+const visibleEvents = $derived(
+  filterActive ? allEvents.filter((event) => matcher.match(event)) : allEvents,
+);
+
+$effect(() => onVisibleEventsChange?.(visibleEvents));
+$effect(() => onFilterErrorChange?.(matcher.error));
+
 const rows = $derived.by<LogRow[]>(() => {
   const result: LogRow[] = [{ kind: "history", key: "history" }];
-  if (command) result.push({ kind: "command", key: "command", command });
-  const events = taskLogs?.events ?? [];
-  if (events.length === 0) result.push({ kind: "empty", key: "empty" });
-  for (const event of events) {
+  if (command && !filterActive)
+    result.push({ kind: "command", key: "command", command });
+  if (visibleEvents.length === 0) result.push({ kind: "empty", key: "empty" });
+  for (const event of visibleEvents) {
     result.push({ kind: "event", key: `event:${event.seq}`, event });
   }
   return result;
 });
 
-function lineClass(event: TaskLogEvent): string {
+const lineClass = $derived(
+  wrap ? "whitespace-pre-wrap break-words" : "overflow-x-auto whitespace-pre",
+);
+
+function toneClass(event: TaskLogEvent): string {
   if (event.stream === "stderr" || event.level === "error")
     return "text-destructive";
   if (event.level === "warn") return "text-warning";
@@ -62,10 +99,17 @@ function nearStart(viewport: HTMLDivElement): boolean {
   return viewport.scrollTop <= 48;
 }
 
+// Filtering and wrapping change row heights; drop stale measurements.
+$effect(() => {
+  void filterActive;
+  void wrap;
+  controller?.measureAll();
+});
+
 $effect(() => {
   const viewport = controller?.getViewportElement();
   const canLoad = Boolean(
-    taskLogs?.hasMoreBefore && onLoadEarlier && !historyError,
+    taskLogs?.hasMoreBefore && onLoadEarlier && !historyError && !filterActive,
   );
   if (!viewport || !canLoad) return;
 
@@ -92,12 +136,14 @@ $effect(() => {
     items={rows}
     getKey={(row) => row.key}
     getMeasurementVersion={(row) =>
-      row.kind === "event" ? `${row.event.level}:${row.event.line}` : row.kind}
-    heightCacheKey={`task-log:${taskId}`}
+      row.kind === "event"
+        ? `${row.event.level}:${wrap ? "wrap" : "nowrap"}:${row.event.line}`
+        : `${row.kind}:${wrap ? "wrap" : "nowrap"}`}
+    heightCacheKey={`task-log:${taskId}:${wrap ? "wrap" : "nowrap"}`}
     estimateSize={() => 20}
     overscan={16}
     anchor="end"
-    followOutput={atEnd}
+    followOutput={follow && atEnd}
     scrollEndThreshold={24}
     paddingStart={12}
     paddingEnd={12}
@@ -108,7 +154,9 @@ $effect(() => {
     {#snippet row({ item })}
       {#if item.kind === "history"}
         <div class="pb-2 text-center text-muted-foreground">
-          {#if loadingEarlier}
+          {#if filterActive}
+            Filtered — {visibleEvents.length} of {allEvents.length} lines
+          {:else if loadingEarlier}
             Loading earlier output…
           {:else if historyError}
             <button
@@ -127,14 +175,13 @@ $effect(() => {
           {/if}
         </div>
       {:else if item.kind === "command"}
-        <pre
-          class="pb-2 whitespace-pre-wrap break-words text-foreground">$ {item.command}</pre>
+        <pre class={`pb-2 text-foreground ${lineClass}`}>$ {item.command}</pre>
       {:else if item.kind === "empty"}
-        <pre
-          class="whitespace-pre-wrap break-words text-muted-foreground">No logs captured.</pre>
+        <pre class={`text-muted-foreground ${lineClass}`}>{filterActive
+            ? "No lines match the filter."
+            : "No logs captured."}</pre>
       {:else}
-        <pre
-          class={`whitespace-pre-wrap break-words ${lineClass(item.event)}`}><TerminalText
+        <pre class={`${lineClass} ${toneClass(item.event)}`}><TerminalText
             text={item.event.line}
             stream={item.event.stream}
             level={item.event.level}
@@ -150,7 +197,10 @@ $effect(() => {
       class="absolute right-4 bottom-3 rounded-full shadow-sm"
       ariaLabel="Jump to latest output"
       title="Jump to latest output"
-      onclick={() => controller?.scrollToEnd({ behavior: "smooth" })}
+      onclick={() => {
+        onFollowChange?.(true);
+        controller?.scrollToEnd({ behavior: "smooth" });
+      }}
     >
       <ArrowDown class="size-4" strokeWidth={2.2} />
     </Button>

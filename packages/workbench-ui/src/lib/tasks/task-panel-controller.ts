@@ -1,11 +1,7 @@
+import type { TaskDefinition, TaskRecord } from "@nervekit/contracts";
 import type {
-  PinnedCommand,
-  TaskDefinition,
-  TaskRecord,
-} from "@nervekit/contracts";
-import type {
-  NormalizedPinnedCommand,
   TaskPanelActions,
+  TaskPanelDefinition,
   TaskPanelEntry,
   TaskPanelModel,
 } from "./task-panel-types.js";
@@ -34,22 +30,50 @@ export function groupTasks(tasks: readonly TaskRecord[]): TaskGroups {
   };
 }
 
-export function normalizePinnedCommand(
-  command: PinnedCommand | TaskDefinition,
-): NormalizedPinnedCommand {
+export function normalizeTaskDefinition(
+  definition: TaskDefinition,
+): TaskPanelDefinition {
   return {
-    id: command.id.replace(/^pin_/, "taskdef_"),
-    label: command.label,
-    command: command.command,
-    cwd: command.cwd,
-    createdAt: command.createdAt,
-    updatedAt: command.updatedAt,
-    runPolicy: "runPolicy" in command ? command.runPolicy : "single",
+    id: definition.id,
+    label: definition.label,
+    command: definition.command,
+    cwd: definition.cwd,
+    createdAt: definition.createdAt,
+    updatedAt: definition.updatedAt,
+    runPolicy: definition.runPolicy,
   };
 }
 
+export interface TaskEntryLabel {
+  readonly text: string;
+  readonly isCommand: boolean;
+}
+
+/**
+ * Resolves the single-line row label for a task entry. A saved definition label always
+ * wins so that runs adopted by a definition immediately display its name.
+ */
+export function taskEntryLabel(entry: TaskPanelEntry): TaskEntryLabel {
+  const named =
+    entry.definition?.label ??
+    entry.latestRun?.displayName ??
+    entry.latestRun?.name;
+  if (named && named.trim().length > 0)
+    return { text: named, isCommand: false };
+  const command = taskEntryCommand(entry);
+  return { text: command || "Task", isCommand: command.length > 0 };
+}
+
+export function taskEntryCommand(entry: TaskPanelEntry): string {
+  return entry.definition?.command ?? entry.latestRun?.command ?? "";
+}
+
+export function taskEntryCwd(entry: TaskPanelEntry): string | undefined {
+  return entry.definition?.cwd ?? entry.latestRun?.cwd;
+}
+
 export function projectTaskPanelEntries(
-  definitions: readonly NormalizedPinnedCommand[],
+  definitions: readonly TaskPanelDefinition[],
   tasks: readonly TaskRecord[],
 ): { tasks: TaskPanelEntry[]; history: TaskPanelEntry[] } {
   const byKey = new Map<string, TaskRecord[]>();
@@ -94,7 +118,7 @@ export function projectTaskPanelEntries(
 
 function buildEntry(
   key: string,
-  definition: NormalizedPinnedCommand | undefined,
+  definition: TaskPanelDefinition | undefined,
   runs: readonly TaskRecord[],
 ): TaskPanelEntry {
   const sorted = [...runs].sort((a, b) =>
@@ -134,8 +158,8 @@ export function createTaskPanelActions(
     startTask: (request) => {
       if (enabled("start")) return host.startTask(request);
     },
-    runPinned: (command) => {
-      if (enabled("start")) return host.runPinned(command);
+    runDefinition: (definition) => {
+      if (enabled("start")) return host.runDefinition(definition);
     },
     cancelTask: (taskId) => {
       if (enabled("cancel")) return host.cancelTask(taskId);
@@ -149,20 +173,19 @@ export function createTaskPanelActions(
     pruneTasks: () => {
       if (enabled("prune")) return host.pruneTasks();
     },
-    pinTask: (task) => {
-      if (enabled("pin")) return host.pinTask(task);
+    copyText: (text) => {
+      if (enabled("copy")) return host.copyText(text);
     },
-    copyCommand: (command) => {
-      if (enabled("copy")) return host.copyCommand(command);
+    createDefinition: (input) => {
+      if (enabled("manageDefinitions")) return host.createDefinition(input);
     },
-    createPinned: (input) => {
-      if (enabled("managePinned")) return host.createPinned(input);
+    updateDefinition: (definition, input) => {
+      if (enabled("manageDefinitions"))
+        return host.updateDefinition(definition, input);
     },
-    updatePinned: (command, input) => {
-      if (enabled("managePinned")) return host.updatePinned(command, input);
-    },
-    deletePinned: (command) => {
-      if (enabled("managePinned")) return host.deletePinned(command);
+    deleteDefinition: (definition) => {
+      if (enabled("manageDefinitions"))
+        return host.deleteDefinition(definition);
     },
     loadLogs: (taskId, query) => {
       if (enabled("logs")) return host.loadLogs(taskId, query);

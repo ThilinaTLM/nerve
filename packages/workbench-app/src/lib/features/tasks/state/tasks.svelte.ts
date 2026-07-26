@@ -71,6 +71,7 @@ function forgetTask(taskId: string) {
   if (taskState.selectedTaskId === taskId) {
     taskState.selectedTaskId = undefined;
     taskState.taskLogs = undefined;
+    taskState.logHistorySearch = undefined;
   }
 }
 

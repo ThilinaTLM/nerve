@@ -1,5 +1,11 @@
 import type { TaskLogEvent, TaskLogQueryResponse } from "@nervekit/contracts";
 
+/**
+ * Upper bound for the in-memory log window. Older events stay reachable through
+ * backward paging, so trimming keeps long-running tasks from growing unbounded.
+ */
+export const MAX_TASK_LOG_WINDOW_EVENTS = 5000;
+
 export function prependTaskLogPage(
   current: TaskLogQueryResponse,
   older: TaskLogQueryResponse,
@@ -18,12 +24,15 @@ export function appendTaskLogPage(
   current: TaskLogQueryResponse,
   newer: TaskLogQueryResponse,
 ): TaskLogQueryResponse {
+  const merged = mergeEvents(current.events, newer.events);
+  const overflow = Math.max(0, merged.length - MAX_TASK_LOG_WINDOW_EVENTS);
   return {
     ...current,
     task: newer.task,
-    events: mergeEvents(current.events, newer.events),
+    events: overflow > 0 ? merged.slice(overflow) : merged,
     nextCursor: newer.nextCursor,
     hasMoreAfter: newer.hasMoreAfter,
+    hasMoreBefore: overflow > 0 ? true : current.hasMoreBefore,
     truncated: Boolean(current.truncated || newer.truncated),
     previewPath: newer.previewPath ?? current.previewPath,
   };

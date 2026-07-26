@@ -1,26 +1,26 @@
 import type {
-  CreatePinnedCommandRequest,
+  CreateTaskDefinitionRequest,
   StartTaskRequest,
   TaskLogQuery,
   TaskLogQueryResponse,
   TaskRecord,
-  UpdatePinnedCommandRequest,
+  UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
 import type { FeatureCapability } from "../git/git-panel-types.js";
 
-export interface NormalizedPinnedCommand {
+export interface TaskPanelDefinition {
   readonly id: string;
   readonly label?: string;
   readonly command: string;
   readonly cwd?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
-  readonly runPolicy?: "single" | "concurrent";
+  readonly runPolicy: "single" | "concurrent";
 }
 
 export interface TaskPanelEntry {
   readonly key: string;
-  readonly definition?: NormalizedPinnedCommand;
+  readonly definition?: TaskPanelDefinition;
   readonly runs: readonly TaskRecord[];
   readonly activeRuns: readonly TaskRecord[];
   readonly latestRun?: TaskRecord;
@@ -34,24 +34,20 @@ export interface TaskPanelCapabilities {
   readonly restart: FeatureCapability;
   readonly remove: FeatureCapability;
   readonly prune: FeatureCapability;
-  readonly pin: FeatureCapability;
   readonly copy: FeatureCapability;
   readonly logs: FeatureCapability;
-  readonly managePinned: FeatureCapability;
+  readonly manageDefinitions: FeatureCapability;
 }
 
-export type TaskPanelSectionState = {
-  readonly pinned: boolean;
-  readonly running: boolean;
-  readonly needsCleanup: boolean;
-  readonly finished: boolean;
-};
-
-export const defaultTaskPanelSectionState: TaskPanelSectionState = {
-  pinned: true,
-  running: true,
-  needsCleanup: true,
-  finished: true,
+/** Plain capability flags handed to row components. */
+export type TaskEntryCapabilities = {
+  readonly start: boolean;
+  readonly cancel: boolean;
+  readonly restart: boolean;
+  readonly remove: boolean;
+  readonly logs: boolean;
+  readonly copy: boolean;
+  readonly manageDefinitions: boolean;
 };
 
 export interface TaskPanelModel {
@@ -64,10 +60,10 @@ export interface TaskPanelModel {
   readonly selectedLogs?: TaskLogQueryResponse;
   readonly logsLoading: boolean;
   readonly logsError?: string;
-  readonly pinnedCommands: readonly NormalizedPinnedCommand[];
+  readonly definitions: readonly TaskPanelDefinition[];
   readonly defaultCwd: string;
-  readonly pinnedLoading: boolean;
-  readonly runningPinnedId?: string;
+  readonly definitionsLoading: boolean;
+  readonly runningDefinitionId?: string;
   readonly capabilities: TaskPanelCapabilities;
 }
 
@@ -75,24 +71,23 @@ export interface TaskPanelActions {
   readonly selectTask: (taskId: string | undefined) => void | Promise<void>;
   readonly openTaskOutput: (taskId: string) => void | Promise<void>;
   readonly startTask: (request: StartTaskRequest) => void | Promise<void>;
-  readonly runPinned: (
-    command: NormalizedPinnedCommand,
+  readonly runDefinition: (
+    definition: TaskPanelDefinition,
   ) => void | Promise<void>;
   readonly cancelTask: (taskId: string) => void | Promise<void>;
   readonly restartTask: (taskId: string) => void | Promise<void>;
   readonly removeTask: (taskId: string) => void | Promise<void>;
   readonly pruneTasks: () => void | Promise<void>;
-  readonly pinTask: (task: TaskRecord) => void | Promise<void>;
-  readonly copyCommand: (command: string) => void | Promise<void>;
-  readonly createPinned: (
-    input: CreatePinnedCommandRequest,
+  readonly copyText: (text: string) => void | Promise<void>;
+  readonly createDefinition: (
+    input: CreateTaskDefinitionRequest,
   ) => void | Promise<void>;
-  readonly updatePinned: (
-    command: NormalizedPinnedCommand,
-    input: UpdatePinnedCommandRequest,
+  readonly updateDefinition: (
+    definition: TaskPanelDefinition,
+    input: UpdateTaskDefinitionRequest,
   ) => void | Promise<void>;
-  readonly deletePinned: (
-    command: NormalizedPinnedCommand,
+  readonly deleteDefinition: (
+    definition: TaskPanelDefinition,
   ) => void | Promise<void>;
   readonly loadLogs: (
     taskId: string,
