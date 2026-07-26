@@ -220,7 +220,7 @@ export interface ConversationCompactionCancelledData {
 
 export interface ConversationCompactedData {
   conversationId: string;
-  entry: ConversationEntry;
+  entryId: string;
   tokensBefore: number;
   firstKeptEntryId: string;
   reason?: ConversationCompactionReason;
@@ -816,7 +816,7 @@ const conversationCompactionCancelledDataSchema = z.object({
 
 const conversationCompactedDataSchema = z.object({
   conversationId: z.string().startsWith("conv_"),
-  entry: conversationEntrySchema,
+  entryId: z.string().startsWith("entry_"),
   tokensBefore: z.number().int().nonnegative(),
   firstKeptEntryId: z.string().startsWith("entry_"),
   reason: z.enum(["manual", "threshold", "overflow"]).optional(),

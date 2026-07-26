@@ -34,6 +34,9 @@ describe("workspace run lifecycle events", () => {
     for (const type of [
       "conversation.created",
       "conversation.deleted",
+      "conversation.compacted",
+      "conversation.branch_summarized",
+      "conversation.navigated",
       "agent.created",
       "agent.subagent_started",
       "toolCall.updated",

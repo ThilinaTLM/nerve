@@ -200,6 +200,11 @@ describe("RuntimeRegistry conversation lifecycle", () => {
       assert.equal((started.data as { reason?: string }).reason, "manual");
       assert.ok(compacted);
       assert.equal((compacted.data as { reason?: string }).reason, "manual");
+      assert.equal(
+        (compacted.data as { entryId?: string }).entryId,
+        result.entry.id,
+      );
+      assert.equal((compacted.data as { entry?: unknown }).entry, undefined);
       assert.equal(result.entry.kind, "compaction");
       assert.equal(
         (result.entry.details as { reason?: string }).reason,

@@ -529,6 +529,33 @@ describe("conversation event reducer", () => {
     assert.equal(state.transient?.compaction?.summaryPreview, undefined);
   });
 
+  it("consumes reference-only compaction completion before snapshot refresh", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(
+      state,
+      evt(1, "conversation.compaction.started", {
+        conversationId: "conv_test",
+        runId: "run_test",
+        reason: "manual",
+        startedAt: ts,
+      }),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(2, "conversation.compacted", {
+        conversationId: "conv_test",
+        entryId: "entry_compaction",
+        tokensBefore: 20_000,
+        firstKeptEntryId: "entry_recent",
+        reason: "manual",
+      }),
+    );
+
+    assert.equal(state.transient?.compaction, undefined);
+    assert.equal(state.entries.length, 0);
+    assert.equal(state.cursorSeq, 2);
+  });
+
   it("starts a running compaction notice from a progress snapshot alone", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(

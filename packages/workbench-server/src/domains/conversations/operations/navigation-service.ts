@@ -64,7 +64,6 @@ export class NavigationService {
       conversationId: conversation.id,
       activeEntryId: nextActiveEntryId,
       targetEntryId: activeEntryId,
-      summaryEntry,
     });
     return updated;
   }
@@ -129,7 +128,7 @@ export class NavigationService {
       conversationId: conversation.id,
       fromEntryId: oldLeafId,
       targetEntryId,
-      entry,
+      entryId: entry.id,
     });
     return entry;
   }

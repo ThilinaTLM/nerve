@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { validatePublicEvent } from "@nervekit/contracts";
 import { CompactionService } from "../src/domains/conversations/operations/compaction-service.js";
 
 const timestamp = "2026-07-19T00:00:00.000Z";
@@ -89,6 +90,7 @@ describe("CompactionService", () => {
       async () => undefined,
       {
         publish: async (type: string, data: unknown) => {
+          validatePublicEvent(type, data, "workbench_server");
           events.push({ type, data });
         },
       } as never,
@@ -141,7 +143,95 @@ describe("CompactionService", () => {
     assert.ok(
       events.some((event) => event.type === "conversation.compaction.started"),
     );
-    assert.ok(events.some((event) => event.type === "conversation.compacted"));
+    const compacted = events.find(
+      (event) => event.type === "conversation.compacted",
+    );
+    assert.ok(compacted);
+    assert.equal(
+      (compacted.data as { entryId?: string }).entryId,
+      "entry_compaction",
+    );
+    assert.equal((compacted.data as { entry?: unknown }).entry, undefined);
+  });
+
+  it("publishes a reference event for summaries larger than the public text limit", async () => {
+    const events: Array<{ type: string; data: unknown }> = [];
+    const branch = [
+      {
+        type: "message",
+        id: "entry_old",
+        parentId: null,
+        timestamp,
+        message: {
+          role: "user",
+          content: "source ".repeat(20_000),
+          timestamp: Date.parse(timestamp),
+        },
+      },
+      {
+        type: "message",
+        id: "entry_recent",
+        parentId: "entry_old",
+        timestamp,
+        message: {
+          role: "user",
+          content: "continue",
+          timestamp: Date.parse(timestamp),
+        },
+      },
+    ];
+    let activeLeafId = "entry_recent";
+    const storage = {
+      getLeafId: async () => activeLeafId,
+      getPathToRoot: async () => branch,
+      appendEntry: async (entry: { id: string }) => {
+        activeLeafId = entry.id;
+      },
+    };
+    const largeSummary = `${structuredSummary()}\n${"detail ".repeat(3_000)}`;
+    const service = new CompactionService(
+      () => ({ id: "conv_test", projectId: "proj_test" }) as never,
+      () => ({ id: "proj_test", dir: "/tmp/project" }) as never,
+      async (input) =>
+        ({
+          ...input,
+          id: "entry_compaction",
+          parentEntryId: input.parentEntryId ?? null,
+          kind: input.kind ?? "message",
+          createdAt: input.createdAt ?? timestamp,
+        }) as never,
+      { openStorage: async () => storage } as never,
+      async () => undefined,
+      {
+        publish: async (type: string, data: unknown) => {
+          validatePublicEvent(type, data, "workbench_server");
+          events.push({ type, data });
+        },
+      } as never,
+      async () => ({ text: largeSummary, generatedBy: "model" }),
+    );
+
+    const result = await service.compactConversation(
+      "conv_test",
+      {},
+      {
+        reason: "manual",
+        activeConversation: { getStorage: () => storage } as never,
+      },
+    );
+
+    assert.ok(result.entry.text.length > 16_384);
+    const compacted = events.find(
+      (event) => event.type === "conversation.compacted",
+    );
+    assert.equal(
+      (compacted?.data as { entryId?: string } | undefined)?.entryId,
+      "entry_compaction",
+    );
+    assert.equal(
+      events.some((event) => event.type === "conversation.compaction.failed"),
+      false,
+    );
   });
 
   it("publishes coalesced summary tail snapshots while summarizing", async () => {

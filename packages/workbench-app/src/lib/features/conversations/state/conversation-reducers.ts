@@ -98,8 +98,7 @@ export function handleConversationEvent(
   // Validate branch membership before materializing an appended entry; on
   // divergence the snapshot refresh rebuilds coherent state.
   const entry =
-    event.type === "conversation.entry.appended" ||
-    event.type === "conversation.compacted"
+    event.type === "conversation.entry.appended"
       ? (event.data?.entry as ConversationEntry | undefined)
       : undefined;
   if (
@@ -186,12 +185,6 @@ function applyAppEffects(
       scheduleContextUsageRefresh(conversationId);
       break;
     }
-    case "conversation.compacted":
-      if (entry) {
-        view.activeEntryId = entry.id;
-        updateTreeNodesForEntry(view, entry);
-      }
-      break;
     case "conversation.context.updated":
       clearContextUsageRefresh(conversationId);
       break;

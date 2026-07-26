@@ -93,6 +93,69 @@ describe("compact explore payloads", () => {
   });
 });
 
+describe("summary lifecycle event references", () => {
+  it("keeps generated summary text out of public completion events", () => {
+    const compacted = validatePublicEvent(
+      "conversation.compacted",
+      {
+        conversationId: "conv_test",
+        entryId: "entry_compaction",
+        tokensBefore: 20_000,
+        firstKeptEntryId: "entry_recent",
+      },
+      "workbench_server",
+    ) as Record<string, unknown>;
+    assert.equal(compacted.entryId, "entry_compaction");
+    assert.equal(compacted.entry, undefined);
+
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "conversation.branch_summarized",
+        {
+          conversationId: "conv_test",
+          fromEntryId: "entry_old",
+          targetEntryId: "entry_target",
+          entryId: "entry_summary",
+        },
+        "workbench_server",
+      ),
+    );
+    assert.doesNotThrow(() =>
+      validatePublicEvent(
+        "conversation.navigated",
+        {
+          conversationId: "conv_test",
+          activeEntryId: "entry_summary",
+          targetEntryId: "entry_target",
+        },
+        "workbench_server",
+      ),
+    );
+
+    const oversizedEntry = {
+      id: "entry_summary",
+      conversationId: "conv_test",
+      role: "system",
+      kind: "branch_summary",
+      text: "x".repeat(20_000),
+      summary: "x".repeat(20_000),
+      createdAt: ts,
+    };
+    assert.throws(() =>
+      validatePublicEvent(
+        "conversation.compacted",
+        {
+          conversationId: "conv_test",
+          entry: oversizedEntry,
+          tokensBefore: 20_000,
+          firstKeptEntryId: "entry_recent",
+        },
+        "workbench_server",
+      ),
+    );
+  });
+});
+
 describe("Protocol v1 shared schemas", () => {
   it("validates exact-set subscriptions with per-stream modes", () => {
     const set = message("stream.subscription.set", {
