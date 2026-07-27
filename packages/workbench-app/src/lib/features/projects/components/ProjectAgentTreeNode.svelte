@@ -1,6 +1,6 @@
 <script lang="ts">
 import { type ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { NavigatorItem } from "@nervekit/workbench-ui/components/navigator";
+import { PanelRow } from "@nervekit/workbench-ui/panel";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
 import type { ConversationRow } from "$lib/core/utils/project-tree";
@@ -38,33 +38,25 @@ const mode = $derived(row.agent?.mode ?? row.conversation.mode);
 const permission = $derived(
   row.agent?.permissionLevel ?? row.conversation.permissionLevel,
 );
+const tooltip = $derived(
+  [
+    row.conversation.title,
+    `status: ${status}`,
+    `mode: ${mode} · ${permission}`,
+    `model: ${shortAgentModel(row.agent)}`,
+    `updated: ${dateTimeLabel(row.conversation.updatedAt)}`,
+    row.conversation.id,
+  ].join("\n"),
+);
 </script>
 
-<NavigatorItem
-  title={row.conversation.title}
-  active={isActive}
-  {isOpen}
-  statusTone={dotActivity.tone}
-  statusPulse={dotActivity.pulse}
-  statusLabel={dotActivity.label}
+<PanelRow
+  label={row.conversation.title}
+  title={tooltip}
+  status={dotActivity.tone}
+  pulse={dotActivity.pulse}
+  selected={isActive}
+  active={isOpen}
   {menuItems}
-  tooltipClass="conversation-tooltip"
-  onSelect={() => onOpenConversation?.(row.conversation.id)}
->
-  {#snippet tooltip()}
-    <span class="tt-title">{row.conversation.title}</span>
-    <span class="tt-row"><span class="tt-key">status</span>{status}</span>
-    <span class="tt-row"
-      ><span class="tt-key">mode</span>{mode} · {permission}</span
-    >
-    <span class="tt-row"
-      ><span class="tt-key">model</span>{shortAgentModel(row.agent)}</span
-    >
-    <span class="tt-row"
-      ><span class="tt-key">updated</span>{dateTimeLabel(
-        row.conversation.updatedAt,
-      )}</span
-    >
-    <span class="tt-id">{row.conversation.id}</span>
-  {/snippet}
-</NavigatorItem>
+  onclick={() => onOpenConversation?.(row.conversation.id)}
+/>

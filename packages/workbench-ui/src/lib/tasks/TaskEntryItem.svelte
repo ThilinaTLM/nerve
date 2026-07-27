@@ -9,16 +9,12 @@ import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
 import type { TaskRecord } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import ContextMenuList, {
-  type ContextMenuItem,
-} from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
+import { PanelRow, PanelToolbarButton } from "@nervekit/workbench-ui/panel";
 import {
   taskEntryCommand,
   taskEntryCwd,
@@ -166,61 +162,51 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 });
 </script>
 
-<ContextMenuList items={menuItems} triggerClass="block">
-  <div
-    class="group/row flex items-center gap-2 rounded-md border bg-card pr-1 transition-colors hover:border-ring/40 data-[active=true]:border-primary/60 data-[active=true]:bg-muted/40"
-    data-active={selected}
-  >
-    <button
-      class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left"
-      type="button"
-      title={tooltip}
-      onclick={() => latest && onOpen?.(latest.id)}
-      disabled={!latest}
-    >
-      {#if entry.needsRecovery}<TriangleAlert
-          class="size-3.5 shrink-0 text-warning"
-        />{:else}<StatusDot
-          tone={latest ? taskTone(latest.status) : "neutral"}
-          pulse={latest ? taskPulse(latest.status) : false}
-        />{/if}
-      <span
-        class={`min-w-0 flex-1 truncate text-xs ${
-          label.isCommand
-            ? "font-mono text-muted-foreground"
-            : "font-medium text-foreground"
-        }`}>{label.text}</span
-      >
-      {#if entry.activeRuns.length > 1}<Badge tone="accent" size="xs"
-          >{entry.activeRuns.length} running</Badge
-        >{/if}
-      {#if entry.runs.length > 1}<Badge tone="neutral" size="xs"
-          ><History class="mr-1 size-3" />{entry.runs.length}</Badge
-        >{/if}
-      <Badge tone={latest ? taskTone(latest.status) : "neutral"} size="xs"
-        >{status}</Badge
-      >
-    </button>
-    {#if active}
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        ariaLabel="Stop task"
-        title="Stop task"
-        class="shrink-0 text-muted-foreground hover:text-destructive"
-        disabled={!capabilities.cancel}
-        onclick={() => onCancel?.(active.id)}><Square class="size-3" /></Button
-      >
-    {:else if canStart}
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        ariaLabel={runLabel}
-        title={runLabel}
-        class="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 group-focus-within/row:opacity-100"
-        disabled={!capabilities.start}
-        onclick={() => onRun?.()}><Play class="size-3" /></Button
-      >
+<PanelRow
+  label={label.text}
+  title={tooltip}
+  mono={label.isCommand}
+  tone={label.isCommand ? "muted" : "default"}
+  status={entry.needsRecovery
+    ? "warn"
+    : latest
+      ? taskTone(latest.status)
+      : "neutral"}
+  pulse={latest ? taskPulse(latest.status) : false}
+  {selected}
+  disabled={!latest}
+  indent={1}
+  {menuItems}
+  onclick={() => latest && onOpen?.(latest.id)}
+>
+  {#snippet badges()}
+    {#if entry.activeRuns.length > 1}
+      <Badge tone="accent" size="xs">{entry.activeRuns.length} running</Badge>
     {/if}
-  </div>
-</ContextMenuList>
+    {#if entry.runs.length > 1}
+      <Badge tone="neutral" size="xs">
+        <History class="mr-1 size-3" />{entry.runs.length}
+      </Badge>
+    {/if}
+    <Badge tone={latest ? taskTone(latest.status) : "neutral"} size="xs"
+      >{status}</Badge
+    >
+  {/snippet}
+  {#snippet actions()}
+    {#if active}
+      <PanelToolbarButton
+        icon={Square}
+        label="Stop task"
+        disabled={!capabilities.cancel}
+        onclick={() => onCancel?.(active.id)}
+      />
+    {:else if canStart}
+      <PanelToolbarButton
+        icon={Play}
+        label={runLabel}
+        disabled={!capabilities.start}
+        onclick={() => onRun?.()}
+      />
+    {/if}
+  {/snippet}
+</PanelRow>

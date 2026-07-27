@@ -1,0 +1,52 @@
+import GitBranch from "@lucide/svelte/icons/git-branch";
+import Info from "@lucide/svelte/icons/info";
+import MessagesSquare from "@lucide/svelte/icons/messages-square";
+import NotebookPen from "@lucide/svelte/icons/notebook-pen";
+import Terminal from "@lucide/svelte/icons/terminal";
+import type { PanelViewDescriptor } from "@nervekit/workbench-ui/shell";
+
+/**
+ * The panel view registry is the authority for what can live in a dock. Ids are
+ * persisted in `nerve.layout.v1`; unknown ids are dropped on hydration and new
+ * entries join their default dock automatically.
+ */
+export const panelViewDescriptors: PanelViewDescriptor[] = [
+  {
+    id: "conversations",
+    title: "Conversations",
+    icon: MessagesSquare,
+    defaultDock: "left",
+    defaultOrder: 0,
+    hideable: false,
+  },
+  {
+    id: "git",
+    title: "Git",
+    icon: GitBranch,
+    defaultDock: "right",
+    defaultOrder: 0,
+  },
+  {
+    id: "context",
+    title: "Context",
+    icon: Info,
+    defaultDock: "right",
+    defaultOrder: 1,
+  },
+  {
+    id: "notes",
+    title: "Notes",
+    icon: NotebookPen,
+    defaultDock: "right",
+    defaultOrder: 2,
+  },
+  {
+    id: "tasks",
+    title: "Tasks",
+    icon: Terminal,
+    defaultDock: "bottom",
+    defaultOrder: 0,
+  },
+];
+
+export type PanelViewId = (typeof panelViewDescriptors)[number]["id"];

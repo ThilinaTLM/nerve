@@ -1,0 +1,51 @@
+/* Panel primitives (@nervekit/workbench-ui/panel).
+ * Dense, flat, IDE-style sections/rows/toolbars. These classes cover the parts
+ * utilities cannot express: the shared indent step, sticky section headers, and
+ * the hover-revealed action affordance shared by rows and section headers. */
+
+.panel-view {
+  background: var(--card);
+}
+
+/* The single scroll region owned by PanelView. */
+.panel-scroll {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+
+.panel-section-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card);
+}
+
+.panel-section-header:hover {
+  background: color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+/* One indentation step per nesting level, on top of the base row inset. */
+.panel-row {
+  padding-left: calc(0.375rem + var(--panel-indent, 0) * 0.75rem);
+}
+
+.panel-row:hover {
+  background: color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+.panel-hover-actions {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.panel-row:hover .panel-hover-actions,
+.panel-section-header:hover .panel-hover-actions {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .panel-hover-actions {
+    opacity: 1;
+  }
+}

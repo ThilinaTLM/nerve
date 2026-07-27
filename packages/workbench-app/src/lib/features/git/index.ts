@@ -1,5 +1,5 @@
 export * from "./api/git.api";
-export { default as GitUtilityPanel } from "./components/GitUtilityPanel.svelte";
+export { default as GitPanelView } from "./components/GitPanelView.svelte";
 export { default as PrShell } from "./components/PrShell.svelte";
 export {
   clearGitContext,

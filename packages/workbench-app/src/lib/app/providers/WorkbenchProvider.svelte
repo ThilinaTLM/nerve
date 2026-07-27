@@ -7,14 +7,9 @@ import {
 } from "$lib/features/desktop";
 import { initializeNotifications } from "$lib/features/notifications/notify.svelte";
 import { registerFeatureEventHandlers } from "$lib/features/register-feature-events";
-import {
-  layout,
-  loadSidebarCollapsed,
-  loadUtilityCollapsed,
-  setSidebarCollapsed,
-  setUtilityCollapsed,
-  zoomState,
-} from "$lib/app/layout/layout-state.svelte";
+import { zoomState } from "$lib/app/shell/appearance.svelte";
+import { revealPanelView } from "$lib/app/shell/shell-layout.svelte";
+import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
   abortActiveRun,
   cancelActiveCompaction,
@@ -90,7 +85,7 @@ function openProjectPicker() {
 }
 
 function focusProjectSearchShortcut() {
-  if (layout.sidebarCollapsed) setSidebarCollapsed(false);
+  revealPanelView("conversations", responsive.isCompact);
   focusProjectSearch();
 }
 
@@ -172,8 +167,6 @@ onMount(() => {
       `/${window.location.search}${window.location.hash}`,
     );
   }
-  setSidebarCollapsed(loadSidebarCollapsed());
-  setUtilityCollapsed(loadUtilityCollapsed());
   window.addEventListener("keydown", appShortcuts.handleWorkbenchShortcut, {
     capture: true,
   });

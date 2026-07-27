@@ -1,0 +1,128 @@
+<script lang="ts">
+import Bot from "@lucide/svelte/icons/bot";
+import {
+  agentActivityPulse,
+  agentActivityTone,
+} from "@nervekit/ui-kit/core/utils/status";
+import {
+  PanelList,
+  PanelRow,
+  PanelSection,
+  PanelSectionHeader,
+} from "@nervekit/workbench-ui/panel";
+import type { AgentRecord } from "$lib/api";
+import { panelSectionPreferences } from "$lib/app/shell/panel-section-preferences.svelte";
+
+let {
+  conversationAgents = [],
+  activeAgent,
+  onSelectAgent,
+}: {
+  conversationAgents?: AgentRecord[];
+  activeAgent?: AgentRecord;
+  onSelectAgent?: (agent: AgentRecord) => void;
+} = $props();
+
+const open = $derived(panelSectionPreferences.isOpen("context.agents"));
+
+const mainAgents = $derived(
+  conversationAgents.filter((agent) => !agent.parentAgentId),
+);
+const subagents = $derived(
+  conversationAgents.filter((agent) => agent.parentAgentId),
+);
+
+function shortAgentId(id: string): string {
+  const parts = id.split("_");
+  return parts.length > 1 ? (parts.at(-1) ?? id) : id.slice(-6);
+}
+
+function isAgentLive(agent: AgentRecord): boolean {
+  return agent.status === "running" || agent.status === "awaiting_user";
+}
+
+function sortAgents(agents: AgentRecord[]): AgentRecord[] {
+  return [...agents].sort((a, b) => {
+    const aSelected = a.id === activeAgent?.id ? 1 : 0;
+    const bSelected = b.id === activeAgent?.id ? 1 : 0;
+    if (aSelected !== bSelected) return bSelected - aSelected;
+
+    const aLive = isAgentLive(a) ? 1 : 0;
+    const bLive = isAgentLive(b) ? 1 : 0;
+    if (aLive !== bLive) return bLive - aLive;
+
+    const aUpdated = new Date(a.updatedAt).getTime();
+    const bUpdated = new Date(b.updatedAt).getTime();
+    if (aUpdated !== bUpdated) return bUpdated - aUpdated;
+
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
+let subagentsOpen = $state(false);
+$effect(() => {
+  if (subagents.some(isAgentLive)) subagentsOpen = true;
+});
+
+function agentDescription(agent: AgentRecord): string {
+  return `${agent.status} · ${agent.mode} · ${agent.permissionLevel}`;
+}
+</script>
+
+<PanelSection
+  title="Agents"
+  icon={Bot}
+  count={conversationAgents.length}
+  {open}
+  onOpenChange={(next) =>
+    panelSectionPreferences.setOpen("context.agents", next)}
+>
+  {#if conversationAgents.length === 0}
+    <p class="px-2 py-1 text-xs text-muted-foreground">
+      No agents in the active conversation.
+    </p>
+  {:else}
+    {#if mainAgents.length > 0}
+      <PanelSectionHeader title="Main agent" />
+      <PanelList ariaLabel="Main agents">
+        {#each sortAgents(mainAgents) as agent (agent.id)}
+          <PanelRow
+            label={shortAgentId(agent.id)}
+            description={agentDescription(agent)}
+            title={agent.id}
+            mono
+            indent={1}
+            status={agentActivityTone(agent.status, false, agent.mode)}
+            pulse={agentActivityPulse(agent.status)}
+            selected={agent.id === activeAgent?.id}
+            onclick={() => onSelectAgent?.(agent)}
+          />
+        {/each}
+      </PanelList>
+    {/if}
+
+    {#if subagents.length > 0}
+      <PanelSectionHeader
+        title="Subagents"
+        count={subagents.length}
+        open={subagentsOpen}
+        onToggle={() => (subagentsOpen = !subagentsOpen)}
+      />
+      {#if subagentsOpen}
+        <PanelList ariaLabel="Subagents">
+          {#each sortAgents(subagents) as agent (agent.id)}
+            <PanelRow
+              label={shortAgentId(agent.id)}
+              description={agentDescription(agent)}
+              title={agent.id}
+              mono
+              indent={2}
+              status={agentActivityTone(agent.status, false, agent.mode)}
+              pulse={agentActivityPulse(agent.status)}
+            />
+          {/each}
+        </PanelList>
+      {/if}
+    {/if}
+  {/if}
+</PanelSection>

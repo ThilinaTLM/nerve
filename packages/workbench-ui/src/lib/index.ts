@@ -14,23 +14,8 @@ export type { ScrollFollowDecisionInput } from "./components/transcript/conversa
 export { shouldDisableFollowForScroll } from "./components/transcript/conversation-scroll-intent.js";
 export { default as TranscriptList } from "./components/transcript/TranscriptList.svelte";
 export { default as TranscriptRow } from "./components/transcript/TranscriptRow.svelte";
-export type {
-  WorkbenchTabIcon,
-  WorkbenchTabIdentity,
-  WorkbenchTabMenuBuilder,
-  WorkbenchTabModel,
-  WorkbenchTabStatus,
-  WorkbenchTabToggle,
-  WorkbenchUtilityTabItem,
-} from "./components/workbench";
-export type {
-  WorkbenchLayoutActions,
-  WorkbenchShellModel,
-} from "./components/workbench/index.js";
-export {
-  WorkbenchCenter,
-  WorkbenchShell,
-} from "./components/workbench/index.js";
+export * from "./panel/index.js";
+export * from "./shell/index.js";
 export * from "./context.svelte.js";
 export type {
   WithElementRef,
@@ -39,10 +24,10 @@ export type {
   WithoutChildrenOrChild,
 } from "@nervekit/ui-kit/core/utils";
 export { cn } from "@nervekit/ui-kit/core/utils";
-export { default as GitUtilityPanelView } from "./git/GitUtilityPanelView.svelte";
+export { default as GitPanelView } from "./git/GitPanelView.svelte";
 export * from "./git/git-panel-controller.js";
 export * from "./git/git-panel-types.js";
-export { default as TaskUtilityPanelView } from "./tasks/TaskUtilityPanelView.svelte";
+export { default as TasksPanelView } from "./tasks/TasksPanelView.svelte";
 export * from "./tasks/task-panel-controller.js";
 export * from "./tasks/task-panel-types.js";
 export * from "./state/index.js";

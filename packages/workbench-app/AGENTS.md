@@ -43,6 +43,23 @@ that maps cleanly to utilities. Convert it to Tier 1.
    `transparent` is just opacity — prefer the Tailwind opacity modifier
    (`bg-primary/40`, `border-border/60`) instead.
 
+## Panel views
+
+Dock panel content (Conversations, Git, Context, Notes, Tasks) must be built from
+the `@nervekit/workbench-ui/panel` primitives — `PanelView`, `PanelToolbar`,
+`PanelToolbarButton`/`PanelToolbarGroup`, `PanelSearchInput`, `PanelSection`,
+`PanelSectionHeader`, `PanelList`, `PanelRow`, `PanelPropertyRow`,
+`PanelBanner`, `PanelEmpty`.
+
+- A panel view's root is `PanelView`. It owns the height, the single scroll
+  region, the sticky toolbar, and the banner slot; views must not manage their
+  own `h-full`/`overflow`/padding frame or add a second scroll container.
+- Views are movable between the left, right, and bottom docks, so a view may not
+  assume its width, orientation, or which dock hosts it. Use the container width
+  (not the dock id) when adapting layout.
+- Sections are flat: no bordered cards, no radius, no nested panels. Section
+  open-state is persisted through `app/shell/panel-section-preferences.svelte.ts`.
+
 ## Global CSS lives only in `src/styles/`
 
 Shared theme tokens, base resets, animations, and cross-app component partials

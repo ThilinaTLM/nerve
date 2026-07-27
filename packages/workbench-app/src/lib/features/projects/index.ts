@@ -1,5 +1,5 @@
 export * from "./api/projects.api";
-export { default as ProjectNavigatorShell } from "./components/ProjectNavigatorShell.svelte";
+export { default as ConversationsPanelView } from "./components/ConversationsPanelView.svelte";
 export { default as ProjectSwitcher } from "./components/ProjectSwitcher.svelte";
 export {
   buildProjectSwitcherItems,

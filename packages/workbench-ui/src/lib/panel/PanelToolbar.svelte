@@ -1,0 +1,24 @@
+<script lang="ts">
+import type { Snippet } from "svelte";
+import { cn } from "@nervekit/ui-kit/core/utils";
+
+let {
+  dense = false,
+  class: className,
+  children,
+}: {
+  dense?: boolean;
+  class?: string;
+  children: Snippet;
+} = $props();
+</script>
+
+<div
+  class={cn(
+    "flex shrink-0 items-center gap-1 border-b bg-card px-1.5",
+    dense ? "h-7" : "h-8",
+    className,
+  )}
+>
+  {@render children()}
+</div>

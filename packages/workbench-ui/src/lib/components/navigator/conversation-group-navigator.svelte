@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import PanelSection from "../workbench/panel-section.svelte";
+import PanelSection from "../../panel/PanelSection.svelte";
 import NavigatorItem from "./navigator-item.svelte";
 import NavigatorPanel from "./navigator-panel.svelte";
 import {

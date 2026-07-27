@@ -3,7 +3,6 @@ import Check from "@lucide/svelte/icons/check";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import ListFilter from "@lucide/svelte/icons/list-filter";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import X from "@lucide/svelte/icons/x";
 import type {
@@ -12,9 +11,13 @@ import type {
   GitRepoSummary,
 } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { cn } from "@nervekit/ui-kit/core/utils";
-import { PanelSection } from "@nervekit/workbench-ui/components/workbench";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import {
+  PanelList,
+  PanelRow,
+  PanelSection,
+  PanelToolbarButton,
+} from "@nervekit/workbench-ui/panel";
 import { checksTone } from "./git-change-format";
 import type {
   GitPanelCapabilities,
@@ -64,129 +67,91 @@ let {
 }: Props = $props();
 
 const activeFilterCount = $derived(activeGitPrFilterCount(filters));
+
+function toggleChecks(pr: GithubPr) {
+  expandedPr = expandedPr === pr.number ? undefined : pr.number;
+  onExpandedPrChange?.(expandedPr);
+}
 </script>
 
+{#snippet note(text: string)}
+  <p class="px-2 py-1 text-xs text-muted-foreground">{text}</p>
+{/snippet}
+
 <PanelSection
-  title="PRs (GitHub)"
+  title="Pull Requests"
   icon={GitPullRequest}
+  count={displayedPrs.length > 0 ? displayedPrs.length : undefined}
   bind:open
   {onOpenChange}
 >
   {#snippet actions()}
     {#if selectedRepoHasGithubRemote && github?.authenticated}
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        class="relative overflow-visible"
-        ariaLabel={activeFilterCount > 0
+      <PanelToolbarButton
+        icon={ListFilter}
+        label={activeFilterCount > 0
           ? `Configure pull request filters · ${activeFilterCount} active`
           : "Configure pull request filters"}
         title={activeFilterCount > 0
           ? `${activeFilterCount} active ${activeFilterCount === 1 ? "filter" : "filters"}`
           : "Configure filters and sorting"}
+        active={activeFilterCount > 0}
         onclick={onOpenFilters}
-      >
-        <ListFilter />
-        {#if activeFilterCount > 0}
-          <Badge
-            variant="default"
-            class="pointer-events-none absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-xs"
-            aria-hidden="true"
-            >{activeFilterCount > 9 ? "9+" : activeFilterCount}</Badge
-          >
-        {/if}
-      </Button>
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        ariaLabel="Refresh PRs"
+      />
+      <PanelToolbarButton
+        icon={RefreshCw}
+        label="Refresh PRs"
         title={`Refresh PRs · signed in as ${github.login ?? "unknown"}`}
+        loading={loadingPrs}
         disabled={!capabilities.refresh.enabled || loadingPrs}
         onclick={() => onRefreshPrs()}
-      >
-        <RefreshCw class={loadingPrs ? "animate-spin" : ""} />
-      </Button>
+      />
     {/if}
   {/snippet}
 
   {#if selectedRepoSummary && !selectedRepoSummary.hasRemote}
-    <div class="py-1 text-xs text-muted-foreground">
-      No remote configured for this repository.
-    </div>
+    {@render note("No remote configured for this repository.")}
   {:else if selectedRepoSummary && !selectedRepoSummary.hasGithubRemote}
-    <div class="py-1 text-xs text-muted-foreground">
-      PRs are only available for GitHub remotes.
-    </div>
+    {@render note("PRs are only available for GitHub remotes.")}
   {:else if !github}
-    <div class="py-1 text-xs text-muted-foreground">Checking GitHub CLI…</div>
+    {@render note("Checking GitHub CLI…")}
   {:else if !github.available}
-    <div class="py-1 text-xs text-muted-foreground">
-      {github.reason ?? "GitHub CLI (gh) is not installed."}
-    </div>
+    {@render note(github.reason ?? "GitHub CLI (gh) is not installed.")}
   {:else if !github.authenticated}
-    <div class="py-1 text-xs text-muted-foreground">
-      Not authenticated. Run <code class="font-mono">gh auth login</code>.
-    </div>
+    {@render note("Not authenticated. Run `gh auth login`.")}
   {:else if loadingPrs && prs.length === 0}
-    <div class="py-1 text-xs text-muted-foreground">Loading…</div>
+    {@render note("Loading…")}
   {:else if displayedPrs.length === 0}
-    <div class="py-1 text-xs text-muted-foreground">
-      {hasActiveGitPrFilters(filters)
+    {@render note(
+      hasActiveGitPrFilters(filters)
         ? "No pull requests match these filters."
-        : "No open PRs for this repository."}
-    </div>
+        : "No open PRs for this repository.",
+    )}
   {:else}
-    <div class="flex flex-col gap-1.5">
-      <div class="text-xs text-muted-foreground">
-        Showing {displayedPrs.length} of up to 10
-      </div>
+    <PanelList ariaLabel="Pull requests">
       {#each displayedPrs as pr (pr.number)}
         {@const currentPr =
           currentBranchName !== null && pr.headRefName === currentBranchName}
-        <div
-          class={cn(
-            "rounded-md border px-2 py-1.5",
-            currentPr && "border-accent bg-muted/40",
-          )}
+        <PanelRow
+          label={`#${pr.number}`}
+          description={pr.title}
+          title={capabilities.openPullRequest.enabled
+            ? `${pr.title} · ${pr.baseRefName} ← ${pr.headRefName}`
+            : capabilities.openPullRequest.reason}
+          mono
+          indent={1}
+          active={currentPr}
+          disabled={!capabilities.openPullRequest.enabled}
+          onclick={() => onOpenPr(pr.number)}
         >
-          <div class="flex items-center gap-1.5">
-            <button
-              type="button"
-              class="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-foreground hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
-              disabled={!capabilities.openPullRequest.enabled}
-              title={capabilities.openPullRequest.enabled
-                ? "Open pull request details"
-                : capabilities.openPullRequest.reason}
-              onclick={() => onOpenPr(pr.number)}
-            >
-              <span class="font-mono text-muted-foreground">#{pr.number}</span>
-              <span class="truncate">{pr.title}</span>
-            </button>
-            <a
-              href={pr.url}
-              target="_blank"
-              rel="noreferrer"
-              class="shrink-0 text-muted-foreground hover:text-foreground"
-              title="Open in browser"
-              aria-label="Open in browser"
-            >
-              <ExternalLink size={12} />
-            </a>
-          </div>
-          <div class="mt-1 flex flex-wrap items-center gap-1.5">
-            {#if currentPr}
-              <Badge tone="accent" size="xs">current</Badge>
-            {/if}
+          {#snippet badges()}
             {#if pr.isDraft}
               <Badge tone="neutral" size="xs">draft</Badge>
             {/if}
             <button
               type="button"
               title="Toggle check details"
-              onclick={() => {
-                expandedPr = expandedPr === pr.number ? undefined : pr.number;
-                onExpandedPrChange?.(expandedPr);
-              }}
+              onclick={() => toggleChecks(pr)}
             >
               <Badge tone={checksTone(pr.checks)} size="xs">
                 {#if pr.checks.status === "passing"}
@@ -201,26 +166,31 @@ const activeFilterCount = $derived(activeGitPrFilterCount(filters));
                   : `${pr.checks.passed}/${pr.checks.total}`}
               </Badge>
             </button>
-            <span class="truncate font-mono text-xs text-muted-foreground">
-              {pr.baseRefName} ← {pr.headRefName}
-            </span>
-          </div>
-          {#if expandedPr === pr.number && pr.checks.runs.length > 0}
-            <div
-              class="mt-1.5 flex flex-col gap-1 rounded-md border bg-background px-2 py-1.5"
+          {/snippet}
+          {#snippet actions()}
+            <a
+              href={pr.url}
+              target="_blank"
+              rel="noreferrer"
+              class="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
+              title="Open in browser"
+              aria-label={`Open PR #${pr.number} in browser`}
             >
-              {#each pr.checks.runs as run, index (`${run.name}:${index}`)}
-                <div class="flex items-center gap-1.5 text-xs">
-                  <span class="font-mono text-muted-foreground"
-                    >{run.status}</span
-                  >
-                  <span class="truncate text-foreground">{run.name}</span>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
+              <ExternalLink size={12} />
+            </a>
+          {/snippet}
+        </PanelRow>
+        {#if expandedPr === pr.number && pr.checks.runs.length > 0}
+          {#each pr.checks.runs as run, index (`${run.name}:${index}`)}
+            <PanelRow
+              label={run.name}
+              description={run.status}
+              indent={2}
+              tone="muted"
+            />
+          {/each}
+        {/if}
       {/each}
-    </div>
+    </PanelList>
   {/if}
 </PanelSection>

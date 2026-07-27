@@ -1,5 +1,5 @@
 export * from "./api/conversations.api";
-export { default as ContextUtilityPanel } from "./components/ContextUtilityPanel.svelte";
+export { default as ContextPanelView } from "./components/ContextPanelView.svelte";
 export { default as ConversationShell } from "./components/ConversationShell.svelte";
 export type { NewAgentComposerSelection } from "./state/agent-selection-defaults";
 export {

@@ -19,7 +19,7 @@ setSidebar({
 </script>
 
 <!-- `display: contents` keeps `.project-tree` as the direct pane child so the
-     existing navigator-pane grid/height layout is unaffected. -->
+     existing navigator grid/height layout is unaffected. -->
 <div data-slot="sidebar-provider" style="display: contents;">
   {@render children?.()}
 </div>
