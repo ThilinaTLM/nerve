@@ -2,6 +2,7 @@
 import { type QueuedPromptRecord } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
 import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
 import type { CenterTabIdentity } from "$lib/features/workspace";
@@ -110,9 +111,9 @@ const activeAgent = $derived(
 const activeProject = $derived.by(() => {
   const projectId =
     activePendingConversation?.projectId ?? activeConversation?.projectId;
-  return projectId
-    ? workspaceState.projects.find((project) => project.id === projectId)
-    : undefined;
+  if (projectId)
+    return workspaceState.projects.find((project) => project.id === projectId);
+  return paneTab ? undefined : workspaceSelectors.activeProject;
 });
 const pendingConversationActive = $derived(Boolean(activePendingConversation));
 const pendingUserQuestions = $derived.by(() => {

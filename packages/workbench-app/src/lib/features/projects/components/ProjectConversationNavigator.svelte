@@ -79,9 +79,9 @@ function updateVisibleLimit(rowCount = rows.length) {
     viewportRef.clientHeight - inset * 2,
   );
   const capacity = Math.max(1, Math.floor(availableHeight / rowHeight));
-  // Reserve one compact row for the overflow action plus rounding/inset slack
-  // so the navigator viewport never becomes scrollable by a few pixels.
-  visibleLimit = rowCount > capacity ? Math.max(1, capacity - 2) : capacity;
+  // Reserve one row slot for the compact overflow action so the navigator
+  // viewport remains non-scrollable while using the available height.
+  visibleLimit = rowCount > capacity ? Math.max(1, capacity - 1) : capacity;
 }
 
 $effect(() => {
