@@ -1,5 +1,4 @@
 export * from "./api/git.api";
-export { default as GitPanelView } from "./components/GitPanelView.svelte";
 export { default as PrShell } from "./components/PrShell.svelte";
 export {
   clearGitContext,
@@ -10,3 +9,4 @@ export { gitSelectors } from "./state/git-selectors.svelte";
 export type { GitContext, PrViewState } from "./state/git-state.svelte";
 export { gitState } from "./state/git-state.svelte";
 export { refreshPrPane } from "./state/pr-tabs.svelte";
+export { createWorkbenchGitPanelAdapter } from "./state/workbench-git-panel-adapter.svelte";

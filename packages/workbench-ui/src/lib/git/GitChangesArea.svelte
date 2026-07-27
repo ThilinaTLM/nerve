@@ -1,16 +1,15 @@
 <script lang="ts">
 import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
-import FilePen from "@lucide/svelte/icons/file-pen";
-import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import X from "@lucide/svelte/icons/x";
 import type { GitFileChange } from "@nervekit/contracts";
+import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import {
   PanelList,
   PanelRow,
-  PanelSection,
-  PanelSectionHeader,
   PanelToolbarButton,
 } from "@nervekit/workbench-ui/panel";
 import type { FileMutation, GitPanelCapabilities } from "./git-panel-types";
@@ -36,17 +35,13 @@ type Props = {
   fileMutation?: FileMutation;
   bulkMutation?: string;
   selectedRepo: string;
-  loadingOverview: boolean;
   capabilities: GitPanelCapabilities;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
   onMutateFile: (
     repo: string,
     file: GitFileChange,
     action: "stage" | "unstage" | "discard",
   ) => void;
   onBulkStage: (repo: string, action: "stage-all" | "unstage-all") => void;
-  onRefresh: (repo: string) => void;
   onRequestDiscard: (file: GitFileChange) => void;
 };
 
@@ -57,32 +52,44 @@ let {
   fileMutation,
   bulkMutation,
   selectedRepo,
-  loadingOverview,
   capabilities,
-  open = $bindable(true),
-  onOpenChange,
   onMutateFile,
   onBulkStage,
-  onRefresh,
   onRequestDiscard,
 }: Props = $props();
 
-const changeCount = $derived(changes?.files.length ?? 0);
+let stagedExpanded = $state(true);
+let unstagedExpanded = $state(true);
 </script>
 
 {#snippet changeGroup(
   title: string,
   files: GitFileChange[],
   group: "staged" | "unstaged",
+  expanded: boolean,
+  onToggle: () => void,
 )}
-  <PanelSectionHeader {title} count={files.length}>
+  <PanelRow
+    icon={expanded ? ChevronDown : ChevronRight}
+    label={title}
+    title={`${expanded ? "Collapse" : "Expand"} ${title.toLowerCase()} changes`}
+    dense
+    alwaysShowActions
+    ariaExpanded={expanded}
+    class="font-medium"
+    onclick={onToggle}
+  >
+    {#snippet badges()}
+      <span>{files.length}</span>
+    {/snippet}
     {#snippet actions()}
       <PanelToolbarButton
         icon={group === "staged" ? ArrowDownToLine : ArrowUpFromLine}
         label={group === "staged" ? "Unstage all" : "Stage all"}
         loading={bulkMutation ===
           (group === "staged" ? "unstage-all" : "stage-all")}
-        disabled={!capabilities.bulkMutateFiles.enabled ||
+        disabled={files.length === 0 ||
+          !capabilities.bulkMutateFiles.enabled ||
           Boolean(bulkMutation) ||
           Boolean(fileMutation)}
         onclick={() =>
@@ -92,8 +99,9 @@ const changeCount = $derived(changes?.files.length ?? 0);
           )}
       />
     {/snippet}
-  </PanelSectionHeader>
-  <PanelList ariaLabel={`${title} files`}>
+  </PanelRow>
+
+  {#if expanded}
     {#each files as file (file.path)}
       {@const parts = splitPath(shortenPath(file.path))}
       {@const busy = fileMutation?.path === file.path}
@@ -102,9 +110,11 @@ const changeCount = $derived(changes?.files.length ?? 0);
         description={parts.dir}
         title={`${fileStatusLabel(file, group)} · ${file.path}`}
         mono
+        dense
         indent={1}
+        alwaysShowActions
       >
-        {#snippet badges()}
+        {#snippet leading()}
           <span
             class={cn("font-mono font-semibold", fileTone(file))}
             title={fileStatusLabel(file, group)}
@@ -141,36 +151,36 @@ const changeCount = $derived(changes?.files.length ?? 0);
         {/snippet}
       </PanelRow>
     {/each}
-  </PanelList>
+  {/if}
 {/snippet}
 
-<PanelSection
-  title="Changes"
-  icon={FilePen}
-  count={changeCount}
-  bind:open
-  {onOpenChange}
->
-  {#snippet actions()}
-    <PanelToolbarButton
-      icon={RefreshCw}
-      label="Refresh changes"
-      loading={loadingOverview}
-      disabled={!capabilities.refresh.enabled || loadingOverview}
-      onclick={() => onRefresh(selectedRepo)}
-    />
-  {/snippet}
-
+<div class="flex min-h-0 flex-1 flex-col">
   {#if !changes}
     <p class="px-2 py-1 text-xs text-muted-foreground">Loading…</p>
   {:else if changes.files.length === 0}
     <p class="px-2 py-1 text-xs text-muted-foreground">Working tree clean.</p>
   {:else}
-    {#if stagedFiles.length > 0}
-      {@render changeGroup("Staged", stagedFiles, "staged")}
-    {/if}
-    {#if unstagedFiles.length > 0}
-      {@render changeGroup("Unstaged", unstagedFiles, "unstaged")}
-    {/if}
+    <ScrollArea class="min-h-0 flex-1" viewportClass="min-w-0">
+      <PanelList ariaLabel="Git changes" class="py-0.5">
+        {#if stagedFiles.length > 0}
+          {@render changeGroup(
+            "Staged",
+            stagedFiles,
+            "staged",
+            stagedExpanded,
+            () => (stagedExpanded = !stagedExpanded),
+          )}
+        {/if}
+        {#if unstagedFiles.length > 0}
+          {@render changeGroup(
+            "Unstaged",
+            unstagedFiles,
+            "unstaged",
+            unstagedExpanded,
+            () => (unstagedExpanded = !unstagedExpanded),
+          )}
+        {/if}
+      </PanelList>
+    </ScrollArea>
   {/if}
-</PanelSection>
+</div>

@@ -1,4 +1,5 @@
 import GitBranch from "@lucide/svelte/icons/git-branch";
+import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Info from "@lucide/svelte/icons/info";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
@@ -27,18 +28,25 @@ export const panelViewDescriptors: PanelViewDescriptor[] = [
     defaultOrder: 0,
   },
   {
+    id: "pull-requests",
+    title: "Pull Requests",
+    icon: GitPullRequest,
+    defaultDock: "right",
+    defaultOrder: 1,
+  },
+  {
     id: "context",
     title: "Context",
     icon: Info,
     defaultDock: "right",
-    defaultOrder: 1,
+    defaultOrder: 2,
   },
   {
     id: "notes",
     title: "Notes",
     icon: NotebookPen,
     defaultDock: "right",
-    defaultOrder: 2,
+    defaultOrder: 3,
   },
   {
     id: "tasks",

@@ -22,7 +22,11 @@ let {
   selected = false,
   active = false,
   disabled = false,
+  dense = false,
+  alwaysShowActions = false,
   ariaLabel,
+  ariaExpanded,
+  leading,
   badges,
   actions,
   menuItems,
@@ -44,7 +48,14 @@ let {
   selected?: boolean;
   active?: boolean;
   disabled?: boolean;
+  /** Uses the compact row rhythm intended for dense file/status lists. */
+  dense?: boolean;
+  /** Keeps trailing actions visible instead of revealing them on hover. */
+  alwaysShowActions?: boolean;
   ariaLabel?: string;
+  ariaExpanded?: boolean;
+  /** Compact content rendered before the primary label. */
+  leading?: Snippet;
   badges?: Snippet;
   actions?: Snippet;
   menuItems?: ContextMenuItem[];
@@ -65,7 +76,8 @@ const toneClass = $derived(
 {#snippet body()}
   <div
     class={cn(
-      "panel-row group/panel-row flex h-7 min-w-0 items-center gap-1.5 pr-1.5 text-xs",
+      "panel-row group/panel-row flex min-w-0 items-center text-xs",
+      dense ? "h-6 gap-1 pr-1" : "h-7 gap-1.5 pr-1.5",
       selected && "bg-accent text-accent-foreground",
       className,
     )}
@@ -76,9 +88,13 @@ const toneClass = $derived(
       type="button"
       {disabled}
       aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
       aria-current={active ? "true" : undefined}
       title={title ?? description ?? label}
-      class="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+      class={cn(
+        "flex min-w-0 flex-1 items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50",
+        dense ? "gap-1" : "gap-1.5",
+      )}
       {onclick}
       {ondblclick}
     >
@@ -89,6 +105,11 @@ const toneClass = $derived(
           class="size-3.5 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
+      {/if}
+      {#if leading}
+        <span class="flex shrink-0 items-center text-xs text-muted-foreground">
+          {@render leading()}
+        </span>
       {/if}
       <span
         class={cn(
@@ -113,7 +134,11 @@ const toneClass = $derived(
     {/if}
     {#if actions}
       <div
-        class="panel-hover-actions flex shrink-0 items-center gap-0.5 group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100"
+        class={cn(
+          "flex shrink-0 items-center gap-0.5",
+          !alwaysShowActions &&
+            "panel-hover-actions group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100",
+        )}
       >
         {@render actions()}
       </div>

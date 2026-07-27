@@ -19,11 +19,25 @@ import {
   shellSheets,
   toggleDock,
 } from "$lib/app/shell/shell-layout.svelte";
+import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
 import BrowserNotificationPrompt from "$lib/features/notifications/BrowserNotificationPrompt.svelte";
 import { workspaceSelectors } from "$lib/features/workspace";
 
 const isCompact = $derived(responsive.isCompact);
 const activeEditorTab = $derived(workspaceSelectors.activeCenterTab);
+const gitPanelEnabled = $derived(
+  Object.entries(shellLayout.current.docks).some(([dockId, dock]) => {
+    const gitViewActive =
+      dock.activeViewId === "git" || dock.activeViewId === "pull-requests";
+    if (!gitViewActive) return false;
+    if (!isCompact) return !dock.collapsed;
+    return dockId === "left" ? shellSheets.primary : shellSheets.secondary;
+  }),
+);
+const gitPanel = createWorkbenchGitPanelAdapter(
+  () => workspaceSelectors.activeProject,
+  () => gitPanelEnabled,
+);
 
 let lastTabKey: string | undefined;
 $effect(() => {
@@ -59,7 +73,13 @@ $effect(() => {
 >
   {#snippet titlebar()}<TitlebarContainer />{/snippet}
   {#snippet editor()}<EditorSurface />{/snippet}
-  {#snippet panelView(viewId)}<PanelViewHost {viewId} />{/snippet}
+  {#snippet panelView(viewId)}
+    <PanelViewHost
+      {viewId}
+      gitModel={gitPanel.model}
+      gitActions={gitPanel.actions}
+    />
+  {/snippet}
   {#snippet statusBar()}<StatusBarContainer />{/snippet}
   {#snippet overlays()}
     <BrowserNotificationPrompt />

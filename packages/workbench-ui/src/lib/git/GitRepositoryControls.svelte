@@ -7,7 +7,6 @@ import {
   ToggleGroupItem,
 } from "@nervekit/ui-kit/components/ui/toggle-group";
 import { cn } from "@nervekit/ui-kit/core/utils";
-import { PanelSection } from "@nervekit/workbench-ui/panel";
 import { repoButtonLabel, repoPathLabel } from "./git-change-format";
 import type { GitPanelCapabilities } from "./git-panel-types";
 import GitBranchDialog from "./GitBranchDialog.svelte";
@@ -25,8 +24,6 @@ type Props = {
   newBranchName?: string;
   branchDialogOpen?: boolean;
   baseBranchSummary?: GitBranchSummary;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
   onSelectRepo: (value: string) => void;
   onOpenBranchDialog: () => void;
   onSwitchBranch: (repo: string, branch: GitBranchSummary) => void;
@@ -46,8 +43,6 @@ let {
   newBranchName = $bindable(""),
   branchDialogOpen = $bindable(false),
   baseBranchSummary,
-  open = $bindable(true),
-  onOpenChange,
   onSelectRepo,
   onOpenBranchDialog,
   onSwitchBranch,
@@ -55,13 +50,7 @@ let {
 }: Props = $props();
 </script>
 
-<PanelSection
-  title="Repository"
-  icon={GitBranch}
-  bind:open
-  {onOpenChange}
-  contentClass="gap-1.5 px-2 pt-1"
->
+<div class="flex shrink-0 flex-col gap-1.5 px-1.5 pt-1.5">
   {#if repoSummary}
     {@const repo = repoSummary}
     {#if repos.length > 1}
@@ -102,16 +91,15 @@ let {
         "inline-flex max-w-full min-w-0 items-center gap-1.5 self-start rounded-md border bg-background px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
         repo.detached && "text-muted-foreground",
       )}
-      onclick={() => onOpenBranchDialog()}
+      onclick={onOpenBranchDialog}
     >
-      <GitBranch size={12} strokeWidth={2.2} class="shrink-0" />
+      <GitBranch class="size-3 shrink-0" aria-hidden="true" />
       <span class="truncate font-mono"
         >{repo.currentBranch ?? "(detached)"}</span
       >
       <ChevronDown
-        size={12}
-        strokeWidth={2.2}
-        class="shrink-0 text-muted-foreground"
+        class="size-3 shrink-0 text-muted-foreground"
+        aria-hidden="true"
       />
     </button>
 
@@ -139,4 +127,4 @@ let {
   {:else}
     <p class="text-xs text-muted-foreground">Loading…</p>
   {/if}
-</PanelSection>
+</div>

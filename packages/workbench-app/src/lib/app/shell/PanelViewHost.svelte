@@ -5,7 +5,12 @@ import {
   ContextPanelView,
   conversationSelectors,
 } from "$lib/features/conversations";
-import { GitPanelView } from "$lib/features/git";
+import {
+  GitPanelView,
+  GitPullRequestsPanelView,
+  type GitPanelActions,
+  type GitPanelModel,
+} from "@nervekit/workbench-ui";
 import { ConversationsPanelView } from "$lib/features/projects";
 import { NotesPanelView } from "$lib/features/scratch-notes";
 import {
@@ -30,7 +35,15 @@ import {
   revealPanelView,
 } from "$lib/app/shell/shell-layout.svelte";
 
-let { viewId }: { viewId: string } = $props();
+let {
+  viewId,
+  gitModel,
+  gitActions,
+}: {
+  viewId: string;
+  gitModel: GitPanelModel;
+  gitActions: GitPanelActions;
+} = $props();
 
 const status = $derived(workspaceSelectors.status);
 const activeProject = $derived(workspaceSelectors.activeProject);
@@ -57,7 +70,9 @@ function focusTasks() {
 {#if viewId === "conversations"}
   <ConversationsPanelView />
 {:else if viewId === "git"}
-  <GitPanelView {activeProject} {activeAgent} />
+  <GitPanelView model={gitModel} actions={gitActions} />
+{:else if viewId === "pull-requests"}
+  <GitPullRequestsPanelView model={gitModel} actions={gitActions} />
 {:else if viewId === "context"}
   <ContextPanelView
     {status}

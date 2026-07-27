@@ -4,30 +4,20 @@ import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import {
-  PanelBanner,
   PanelToolbar,
   PanelToolbarButton,
-  PanelToolbarGroup,
   PanelView,
 } from "@nervekit/workbench-ui/panel";
-import GitChangesSection from "./GitChangesSection.svelte";
-import GitPrFilterDialog from "./GitPrFilterDialog.svelte";
-import GitPrSection from "./GitPrSection.svelte";
-import GitRepoBranchSection from "./GitRepoBranchSection.svelte";
+import GitChangesArea from "./GitChangesArea.svelte";
+import GitPanelBanner from "./GitPanelBanner.svelte";
+import GitRepositoryControls from "./GitRepositoryControls.svelte";
 import {
   filterAndSortBranches,
   gitFileGroups,
-  limitPullRequests,
 } from "./git-panel-controller.js";
-import {
-  defaultGitPanelSectionState,
-  type GitPanelActions,
-  type GitPanelModel,
-  type GitPanelSectionState,
-} from "./git-panel-types.js";
+import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 import {
   basePullDisabled,
   pullDisabled,
@@ -41,22 +31,14 @@ import {
 let {
   model,
   actions,
-  sectionState = defaultGitPanelSectionState,
-  onSectionOpenChange,
 }: {
   model: GitPanelModel;
   actions: GitPanelActions;
-  sectionState?: GitPanelSectionState;
-  onSectionOpenChange?: (
-    section: keyof GitPanelSectionState,
-    open: boolean,
-  ) => void;
 } = $props();
+
 let branchDialogOpen = $state(false);
-let prFilterDialogOpen = $state(false);
 let branchFilter = $state("");
 let newBranchName = $state("");
-let expandedPr = $state<number | undefined>(undefined);
 let discardCandidate = $state<
   | {
       repository: string;
@@ -66,6 +48,7 @@ let discardCandidate = $state<
 >(undefined);
 
 const fileGroups = $derived(gitFileGroups(model.changes?.files ?? []));
+const changeCount = $derived(model.changes?.files.length ?? 0);
 const filteredBranches = $derived(
   filterAndSortBranches(
     model.branches,
@@ -78,17 +61,6 @@ const baseBranchSummary = $derived(
     (branch) => branch.name === model.repositorySummary?.baseBranch,
   ),
 );
-const currentBranchName = $derived(
-  model.repositorySummary?.currentBranch ?? null,
-);
-const displayedPullRequests = $derived(limitPullRequests(model.pullRequests));
-const selectedRepoHasGithubRemote = $derived(
-  Boolean(
-    model.repositorySummary?.hasRemote &&
-    model.repositorySummary.hasGithubRemote,
-  ),
-);
-
 const remoteBusy = $derived(
   model.operations.fetching ||
     model.operations.pulling ||
@@ -100,8 +72,6 @@ const remoteBusy = $derived(
 function resetRepositoryUi(): void {
   branchFilter = "";
   newBranchName = "";
-  expandedPr = undefined;
-  prFilterDialogOpen = false;
 }
 
 function selectRepository(repository: string): void {
@@ -117,8 +87,7 @@ async function switchBranch(
   const switched = await actions.switchBranch(repository, branch);
   if (switched === false) return;
   branchDialogOpen = false;
-  branchFilter = "";
-  newBranchName = "";
+  resetRepositoryUi();
 }
 
 async function createBranch(repository: string): Promise<void> {
@@ -127,31 +96,67 @@ async function createBranch(repository: string): Promise<void> {
   const created = await actions.createBranch(repository, name);
   if (created === false) return;
   branchDialogOpen = false;
-  branchFilter = "";
-  newBranchName = "";
-}
-
-function selectExpandedPullRequest(number: number | undefined): void {
-  expandedPr = number;
-  void actions.selectPullRequest(number);
+  resetRepositoryUi();
 }
 
 function openBranchDialog(): void {
   branchDialogOpen = true;
-  branchFilter = "";
-  newBranchName = "";
+  resetRepositoryUi();
   void actions.refreshBranches(model.selectedRepository);
 }
 </script>
 
-<PanelView padded={false}>
-  {#snippet toolbar()}
-    {#if model.availability.available && model.repositorySummary}
+<PanelView padded={false} scroll={false}>
+  {#snippet banner()}<GitPanelBanner {model} />{/snippet}
+
+  {#if model.availability.available && model.repositories.length > 0}
+    <div class="flex h-7 shrink-0 items-center gap-1 px-1.5">
+      <span class="truncate text-xs font-semibold text-foreground"
+        >Git changes</span
+      >
+      <span class="text-xs text-muted-foreground">{changeCount}</span>
+      <div class="ml-auto flex shrink-0 items-center">
+        <PanelToolbarButton
+          icon={RefreshCw}
+          label="Refresh Git changes"
+          loading={model.refreshing}
+          disabled={!model.capabilities.refresh.enabled || model.refreshing}
+          onclick={() =>
+            void actions.refreshRepository(model.selectedRepository)}
+        />
+      </div>
+    </div>
+
+    <GitRepositoryControls
+      repoSummary={model.repositorySummary}
+      repos={[...model.repositories]}
+      selectedRepo={model.selectedRepository}
+      {filteredBranches}
+      loadingBranches={model.loadingBranches}
+      switchingBranch={model.operations.switchingBranch}
+      creatingBranch={model.operations.creatingBranch}
+      capabilities={model.capabilities}
+      bind:branchFilter
+      bind:newBranchName
+      bind:branchDialogOpen
+      {baseBranchSummary}
+      onSelectRepo={selectRepository}
+      onOpenBranchDialog={openBranchDialog}
+      onSwitchBranch={(repository, branch) =>
+        void switchBranch(repository, branch)}
+      onCreateBranch={(repository) => void createBranch(repository)}
+    />
+
+    {#if model.repositorySummary}
       {@const repo = model.repositorySummary}
-      <PanelToolbar>
+      <PanelToolbar
+        dense
+        class="h-auto flex-wrap border-b-0 bg-transparent px-1.5 py-1.5"
+      >
         <PanelToolbarButton
           icon={CloudDownload}
           label="Fetch"
+          variant="outline"
           showLabel
           title={repo.hasRemote
             ? "Fetch from remote and prune deleted refs"
@@ -166,6 +171,7 @@ function openBranchDialog(): void {
           <PanelToolbarButton
             icon={ArrowDown}
             label={`Pull${(repo.behind ?? 0) > 0 ? ` (${repo.behind})` : ""}`}
+            variant="outline"
             showLabel
             title={repo.dirty
               ? "Commit or stash changes before pulling"
@@ -181,6 +187,7 @@ function openBranchDialog(): void {
           <PanelToolbarButton
             icon={ArrowUp}
             label={`Push${(repo.ahead ?? 0) > 0 ? ` (${repo.ahead})` : ""}`}
+            variant="outline"
             showLabel
             title="Push current branch"
             loading={model.operations.pushing}
@@ -193,6 +200,7 @@ function openBranchDialog(): void {
         <PanelToolbarButton
           icon={RefreshCw}
           label="Sync"
+          variant="outline"
           showLabel
           title={!repo.hasRemote
             ? "Add a remote before syncing"
@@ -208,7 +216,9 @@ function openBranchDialog(): void {
         {#if !repo.detached && !repo.onBaseBranch}
           <PanelToolbarButton
             icon={GitCompareArrows}
-            label={`Switch to ${repo.baseBranch} and pull`}
+            label={`${repo.baseBranch} + pull`}
+            variant="outline"
+            showLabel
             title={repo.dirty
               ? "Commit or stash changes before switching branches"
               : `Switch to ${repo.baseBranch} and pull with fast-forward only`}
@@ -222,114 +232,26 @@ function openBranchDialog(): void {
               )}
           />
         {/if}
-        <PanelToolbarGroup trailing>
-          <PanelToolbarButton
-            icon={RefreshCw}
-            label="Refresh Git status"
-            loading={model.refreshing}
-            disabled={!model.capabilities.refresh.enabled || model.refreshing}
-            onclick={() =>
-              void actions.refreshRepository(model.selectedRepository)}
-          />
-        </PanelToolbarGroup>
       </PanelToolbar>
     {/if}
-  {/snippet}
 
-  {#snippet banner()}
-    {#if !model.availability.available}
-      <PanelBanner tone="muted">{model.availability.message}</PanelBanner>
-    {:else if model.cachedError && model.repositories.length === 0}
-      <PanelBanner tone="destructive" icon={TriangleAlert}>
-        {model.cachedError}
-      </PanelBanner>
-    {:else if model.cachedError}
-      <PanelBanner tone="warning" icon={TriangleAlert}>
-        Using cached Git data. Refresh failed: {model.cachedError}
-      </PanelBanner>
-    {:else if model.initialLoading}
-      <PanelBanner tone="muted">Loading Git repositories…</PanelBanner>
-    {:else if model.repositories.length === 0}
-      <PanelBanner tone="muted">
-        {model.emptyMessage ?? "No Git repositories found."}
-      </PanelBanner>
-    {/if}
-  {/snippet}
-
-  {#if model.availability.available && model.repositories.length > 0}
-    <GitRepoBranchSection
-      repoSummary={model.repositorySummary}
-      repos={[...model.repositories]}
-      selectedRepo={model.selectedRepository}
-      {filteredBranches}
-      loadingBranches={model.loadingBranches}
-      switchingBranch={model.operations.switchingBranch}
-      creatingBranch={model.operations.creatingBranch}
-      capabilities={model.capabilities}
-      bind:branchFilter
-      bind:newBranchName
-      bind:branchDialogOpen
-      {baseBranchSummary}
-      open={sectionState.repository}
-      onOpenChange={(open) => onSectionOpenChange?.("repository", open)}
-      onSelectRepo={selectRepository}
-      onOpenBranchDialog={openBranchDialog}
-      onSwitchBranch={(repository, branch) =>
-        void switchBranch(repository, branch)}
-      onCreateBranch={(repository) => void createBranch(repository)}
-    />
-
-    <GitChangesSection
+    <GitChangesArea
       changes={model.changes}
       stagedFiles={fileGroups.staged}
       unstagedFiles={fileGroups.unstaged}
       fileMutation={model.operations.fileMutation}
       bulkMutation={model.operations.bulkMutation}
       selectedRepo={model.selectedRepository}
-      loadingOverview={model.loadingOverview}
       capabilities={model.capabilities}
-      open={sectionState.changes}
-      onOpenChange={(open) => onSectionOpenChange?.("changes", open)}
       onMutateFile={(repository, file, action) =>
         void actions.mutateFile(repository, file, action)}
       onBulkStage={(repository, action) =>
         void actions.bulkMutateFiles(repository, action)}
-      onRefresh={(repository) => void actions.refreshRepository(repository)}
       onRequestDiscard={(file) =>
         (discardCandidate = { repository: model.selectedRepository, file })}
     />
-
-    <GitPrSection
-      displayedPrs={displayedPullRequests}
-      prs={[...model.pullRequests]}
-      filters={model.pullRequestFilters}
-      selectedRepoSummary={model.repositorySummary}
-      github={model.github}
-      {selectedRepoHasGithubRemote}
-      loadingPrs={model.loadingPullRequests}
-      {currentBranchName}
-      capabilities={model.capabilities}
-      {expandedPr}
-      onExpandedPrChange={selectExpandedPullRequest}
-      open={sectionState.pullRequests}
-      onOpenChange={(open) => onSectionOpenChange?.("pullRequests", open)}
-      onRefreshPrs={() =>
-        void actions.refreshPullRequests(model.selectedRepository)}
-      onOpenFilters={() => (prFilterDialogOpen = true)}
-      onOpenPr={(number) =>
-        void actions.openPullRequest(model.selectedRepository, number)}
-    />
   {/if}
 </PanelView>
-
-<GitPrFilterDialog
-  bind:open={prFilterDialogOpen}
-  filters={model.pullRequestFilters}
-  hasCurrentBranch={currentBranchName !== null}
-  onApply={(filters) =>
-    void actions.configurePullRequests(model.selectedRepository, filters)}
-  onReset={() => void actions.resetPullRequestConfig(model.selectedRepository)}
-/>
 
 <ConfirmDialog
   open={Boolean(discardCandidate)}
