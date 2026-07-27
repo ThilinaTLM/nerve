@@ -205,8 +205,8 @@
 
 .close-control:hover,
 .close-control:focus-visible {
-  background: var(--destructive);
-  color: var(--destructive-foreground, var(--primary-foreground));
+  background: var(--destructive-solid);
+  color: var(--destructive-solid-foreground);
 }
 
 .footerbar {

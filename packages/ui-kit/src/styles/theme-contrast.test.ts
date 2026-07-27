@@ -36,6 +36,8 @@ const tokenNames = [
   "info-foreground",
   "destructive",
   "destructive-foreground",
+  "destructive-solid",
+  "destructive-solid-foreground",
 ] as const;
 type TokenName = (typeof tokenNames)[number];
 
@@ -125,6 +127,7 @@ const filledPairs = [
   ["warning", "warning-foreground"],
   ["info", "info-foreground"],
   ["destructive", "destructive-foreground"],
+  ["destructive-solid", "destructive-solid-foreground"],
 ] as const;
 const semanticTokens = ["success", "warning", "info", "destructive"] as const;
 const surfaceTokens = ["background", "card", "popover", "sidebar"] as const;

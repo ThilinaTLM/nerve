@@ -10,7 +10,7 @@ export const statusDotVariants = tv({
       running: "bg-info border-info",
       good: "bg-success border-success",
       warn: "bg-warning border-warning",
-      danger: "bg-destructive border-destructive",
+      danger: "bg-destructive-solid border-destructive-solid",
     },
     size: {
       xs: "size-[0.42rem]",

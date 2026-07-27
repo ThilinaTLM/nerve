@@ -123,7 +123,7 @@
 }
 
 .settings-save-state[data-status="error"] > span {
-  background: var(--destructive);
+  background: var(--destructive-solid);
 }
 
 .settings-save-state p,
