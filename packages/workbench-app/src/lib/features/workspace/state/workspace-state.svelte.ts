@@ -20,6 +20,12 @@ export type CenterTabIdentity =
   | { kind: "auth"; id: "auth" }
   | { kind: "logs"; id: "logs" };
 
+export type ProjectTabSession = {
+  tabs: CenterTabIdentity[];
+  active?: CenterTabIdentity;
+  mru: string[];
+};
+
 export const workspaceState = $state({
   status: undefined as StatusResponse | undefined,
   config: undefined as ClientConfig | undefined,
@@ -33,7 +39,13 @@ export const workspaceState = $state({
   approvals: [] as ApprovalWithToolCall[],
   userQuestions: [] as UserQuestionRecord[],
   planReviews: [] as PlanReviewRecord[],
+  selectedProjectId: undefined as string | undefined,
+  selectedProjectKey: undefined as string | undefined,
+  projectRecency: {} as Record<string, number>,
+  projectTabSessions: {} as Record<string, ProjectTabSession>,
+  globalCenterTabs: [] as CenterTabIdentity[],
   openCenterTabs: [] as CenterTabIdentity[],
   activeCenterTab: undefined as CenterTabIdentity | undefined,
+  centerTabMru: [] as string[],
   projectPickerOpen: false,
 });

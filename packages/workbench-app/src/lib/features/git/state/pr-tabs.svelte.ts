@@ -44,6 +44,11 @@ export async function openPrPane(input: {
   repo: string;
   number: number;
 }) {
+  if (input.projectId !== workspaceState.selectedProjectId) {
+    const { selectProject } =
+      await import("$lib/features/workspace/state/workspace-actions.svelte");
+    await selectProject(input.projectId);
+  }
   const id = encodePrTabId(input.projectId, input.repo, input.number);
   const key = prViewKey(id);
   addPrTab(id);

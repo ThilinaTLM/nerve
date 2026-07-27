@@ -1,5 +1,5 @@
 <script lang="ts">
-import ProjectAgentTree from "$lib/features/projects/components/ProjectAgentTree.svelte";
+import ProjectConversationNavigator from "$lib/features/projects/components/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
 import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
@@ -14,8 +14,11 @@ import {
 } from "$lib/features/workspace/state/workspace-actions.svelte";
 
 const status = $derived(workspaceSelectors.status);
-const projects = $derived(workspaceSelectors.projects);
-const conversations = $derived(workspaceSelectors.conversations);
+const projectIds = $derived(new Set(workspaceSelectors.selectedProjectIds));
+const projects = $derived(
+  workspaceSelectors.projects.filter((project) => projectIds.has(project.id)),
+);
+const conversations = $derived(workspaceSelectors.selectedProjectConversations);
 const agents = $derived(workspaceSelectors.agents);
 const openConversationTabIds = $derived(
   workspaceSelectors.openConversationTabIds,
@@ -25,7 +28,7 @@ const conversationActivityById = $derived(
 );
 </script>
 
-<ProjectAgentTree
+<ProjectConversationNavigator
   {projects}
   {conversations}
   {agents}

@@ -42,6 +42,11 @@ export type WorkbenchTabModel = WorkbenchTabIdentity & {
   draft?: boolean;
 };
 
+export type WorkbenchTabReorderHandler = (
+  tab: WorkbenchTabIdentity,
+  targetIndex: number,
+) => void;
+
 export type WorkbenchTabMenuBuilder = (input: {
   tab: WorkbenchTabModel;
   tabs: WorkbenchTabModel[];

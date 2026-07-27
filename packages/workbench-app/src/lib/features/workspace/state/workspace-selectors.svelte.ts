@@ -1,4 +1,6 @@
 import { SvelteSet } from "svelte/reactivity";
+import { projectKey } from "$lib/core/utils/project-tree";
+import { buildProjectSwitcherItems } from "$lib/features/projects/state/project-switcher";
 import { agentRunningTone } from "@nervekit/ui-kit/core/utils/status";
 import {
   conversationViewKey,
@@ -111,9 +113,35 @@ export const workspaceSelectors = {
     return workspaceState.planReviews;
   },
   get activeProject() {
-    const pending = activePendingConversation();
-    const projectId = pending?.projectId ?? selection.projectId;
-    return workspaceState.projects.find((project) => project.id === projectId);
+    return (
+      workspaceState.projects.find(
+        (project) => project.id === workspaceState.selectedProjectId,
+      ) ??
+      workspaceState.projects.find(
+        (project) => projectKey(project) === workspaceState.selectedProjectKey,
+      )
+    );
+  },
+  get selectedProjectIds() {
+    const key = workspaceState.selectedProjectKey;
+    return workspaceState.projects
+      .filter((project) => key && projectKey(project) === key)
+      .map((project) => project.id);
+  },
+  get selectedProjectConversations() {
+    const ids = new SvelteSet(this.selectedProjectIds);
+    return workspaceState.conversations.filter((conversation) =>
+      ids.has(conversation.projectId),
+    );
+  },
+  get projectSwitcherItems() {
+    return buildProjectSwitcherItems({
+      projects: workspaceState.projects,
+      conversations: workspaceState.conversations,
+      activityById: this.conversationActivityById,
+      homeDir: workspaceState.status?.storage.home,
+      recency: workspaceState.projectRecency,
+    });
   },
   get activeConversation() {
     return workspaceState.conversations.find(

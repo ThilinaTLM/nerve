@@ -12,6 +12,8 @@ import ProjectDirectoryPicker from "$lib/features/projects/components/ProjectDir
 import {
   createConversationForDirectory,
   deleteProjectAndRefresh,
+  openProjectDirectory,
+  selectProject,
   workspaceSelectors,
   workspaceState,
 } from "$lib/features/workspace";
@@ -46,7 +48,9 @@ async function editConversationEntry(entry: {
   {projects}
   {conversations}
   homeDir={status?.storage.home}
-  onSelect={(path) => void createConversationForDirectory(path)}
+  onSelectProject={(projectId) => void selectProject(projectId)}
+  onOpenDirectory={(path) => void openProjectDirectory(path)}
+  onNewChat={(path) => void createConversationForDirectory(path)}
   onForget={(id) => void deleteProjectAndRefresh(id)}
 />
 

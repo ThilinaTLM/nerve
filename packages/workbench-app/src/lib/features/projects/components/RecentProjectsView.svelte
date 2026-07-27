@@ -25,7 +25,7 @@ type Props = {
   homeDir?: string;
   loading: boolean;
   conversationCountFor: (project: ProjectRecord) => number;
-  onOpen: (path: string) => void;
+  onOpen: (project: ProjectRecord) => void;
   onForget?: (projectId: string) => void;
   onCopyPath: (path: string) => void;
   onNewChat: (path: string) => void;
@@ -129,7 +129,7 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
               aria-selected={selectedIndex === i}
               tabindex="-1"
               title={`${project.dir}\n${dateTimeLabel(project.updatedAt)}`}
-              onclick={() => onOpen(project.dir)}
+              onclick={() => onOpen(project)}
               onmouseenter={() => onSelectedIndexChange?.(i)}
               onkeydown={(e) => onRowKeydown(e, i, project)}
             >

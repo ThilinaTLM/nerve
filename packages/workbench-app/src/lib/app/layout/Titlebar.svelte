@@ -1,6 +1,5 @@
 <script lang="ts">
 import Copy from "@lucide/svelte/icons/copy";
-import Folder from "@lucide/svelte/icons/folder";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Logs from "@lucide/svelte/icons/logs";
@@ -11,11 +10,16 @@ import X from "@lucide/svelte/icons/x";
 import { Toolbar } from "bits-ui";
 import { NerveMark } from "@nervekit/workbench-ui";
 import { WorkbenchTitlebar } from "@nervekit/workbench-ui/components/workbench";
-import type { ProjectRecord } from "$lib/api";
+import {
+  ProjectSwitcher,
+  type ProjectSwitcherItem,
+} from "$lib/features/projects";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 
 type Props = {
-  activeProject?: ProjectRecord;
+  projects?: ProjectSwitcherItem[];
+  activeProjectKey?: string;
   desktop?: boolean;
   maximized?: boolean;
   closeToTray?: boolean;
@@ -23,7 +27,9 @@ type Props = {
   settingsActive?: boolean;
   authActive?: boolean;
   logsActive?: boolean;
+  buildProjectMenuItems?: (item: ProjectSwitcherItem) => ContextMenuItem[];
   onOpenProject?: () => void;
+  onSelectProject?: (projectId: string) => void;
   onOpenLogs?: () => void;
   onOpenAuth?: () => void;
   onOpenSettings?: () => void;
@@ -33,7 +39,8 @@ type Props = {
 };
 
 let {
-  activeProject,
+  projects = [],
+  activeProjectKey,
   desktop = false,
   maximized = false,
   closeToTray = true,
@@ -41,7 +48,9 @@ let {
   settingsActive = false,
   authActive = false,
   logsActive = false,
+  buildProjectMenuItems,
   onOpenProject,
+  onSelectProject,
   onOpenLogs,
   onOpenAuth,
   onOpenSettings,
@@ -57,17 +66,13 @@ let {
       <span class="brand-mark"><NerveMark compact /></span>
     </span>
     <span class="divider" aria-hidden="true"></span>
-    <Button
-      variant="ghost"
-      size="sm"
-      class="project-button"
-      ariaLabel="Open project"
-      title={activeProject?.dir ?? "Open a project"}
-      onclick={() => onOpenProject?.()}
-    >
-      <Folder size={14} strokeWidth={2.1} aria-hidden="true" />
-      <span class="project-button-label">Open Project</span>
-    </Button>
+    <ProjectSwitcher
+      items={projects}
+      activeKey={activeProjectKey}
+      buildMenuItems={buildProjectMenuItems}
+      onSelect={onSelectProject}
+      onOpenPicker={onOpenProject}
+    />
   {/snippet}
 
   {#snippet actions()}

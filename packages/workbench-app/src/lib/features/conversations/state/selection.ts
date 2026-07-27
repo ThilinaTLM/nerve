@@ -14,7 +14,10 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { getPendingUserQuestions } from "$lib/features/tools/api/tools.api";
-import { replaceOpenCenterTabs } from "$lib/features/workspace/state/center-tabs.svelte";
+import {
+  replaceOpenCenterTabs,
+  setActiveCenterTab,
+} from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,
   selection,
@@ -129,7 +132,7 @@ export function clearConversationState() {
   void voiceInputSession.cancel();
   replaceOpenCenterTabs([]);
   conversationState.activeConversationTabId = undefined;
-  workspaceState.activeCenterTab = undefined;
+  setActiveCenterTab(undefined);
   conversationState.conversationViews = {};
   conversationState.pendingConversations = {};
   fileState.fileViews = {};

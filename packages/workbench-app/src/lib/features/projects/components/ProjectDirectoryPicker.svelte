@@ -28,7 +28,9 @@ type Props = {
   conversations?: ConversationRecord[];
   homeDir?: string;
   onClose?: () => void;
-  onSelect?: (path: string) => void | Promise<void>;
+  onSelectProject?: (projectId: string) => void | Promise<void>;
+  onOpenDirectory?: (path: string) => void | Promise<void>;
+  onNewChat?: (path: string) => void | Promise<void>;
   onForget?: (projectId: string) => void;
 };
 let {
@@ -37,7 +39,9 @@ let {
   conversations = [],
   homeDir,
   onClose,
-  onSelect,
+  onSelectProject,
+  onOpenDirectory,
+  onNewChat,
   onForget,
 }: Props = $props();
 type Mode = "recent" | "browse";
@@ -175,6 +179,11 @@ function handleOpenChange(next: boolean) {
   open = next;
   if (!next) onClose?.();
 }
+async function chooseProject(projectId: string) {
+  await onSelectProject?.(projectId);
+  handleOpenChange(false);
+}
+
 function handleSubmit(event: Event) {
   event.preventDefault();
   const q = query.trim();
@@ -186,7 +195,7 @@ function handleSubmit(event: Event) {
   if (mode === "recent") {
     const target =
       filteredRecents[recentSelectedIndex >= 0 ? recentSelectedIndex : 0];
-    if (target) void onSelect?.(target.dir);
+    if (target) void chooseProject(target.id);
     return;
   }
   const first = navItems[0];
@@ -195,7 +204,8 @@ function handleSubmit(event: Event) {
 async function openTarget() {
   const path = openTargetPath;
   if (!path) return;
-  await onSelect?.(path);
+  await onOpenDirectory?.(path);
+  handleOpenChange(false);
 }
 function handleFolderRowKeydown(
   event: KeyboardEvent,
@@ -218,7 +228,7 @@ function handleRecentRowKeydown(
     event.preventDefault();
     event.stopPropagation();
     recentSelectedIndex = index;
-    void onSelect?.(project.dir);
+    void chooseProject(project.id);
   }
 }
 async function copyPath(path: string) {
@@ -262,7 +272,7 @@ function handleRecentKeydown(event: KeyboardEvent) {
       {
         const target2 =
           filteredRecents[recentSelectedIndex >= 0 ? recentSelectedIndex : 0];
-        if (target2) void onSelect?.(target2.dir);
+        if (target2) void chooseProject(target2.id);
       }
       break;
   }
@@ -337,7 +347,7 @@ $effect(() => {
 </script>
 <Dialog
   bind:open
-  title="Open Project"
+  title="Switch project"
   class="project-picker-dialog"
   onOpenChange={handleOpenChange}
 >
@@ -359,8 +369,8 @@ $effect(() => {
         {homeDir}
         {loading}
         {conversationCountFor}
-        onOpen={(path) => void onSelect?.(path)}
-        onNewChat={(path) => void onSelect?.(path)}
+        onOpen={(project) => void chooseProject(project.id)}
+        onNewChat={(path) => void onNewChat?.(path)}
         onCopyPath={(path) => void copyPath(path)}
         {onForget}
         onBrowsePath={() => enterBrowse(expandHome(query, homeDir))}

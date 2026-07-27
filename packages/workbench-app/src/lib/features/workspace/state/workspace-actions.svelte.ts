@@ -1,4 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
+import { projectKey } from "$lib/core/utils/project-tree";
 import { modelKey } from "@nervekit/workbench-ui/core/utils/model";
 import {
   type AgentRecord,
@@ -32,6 +33,14 @@ import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
+import { selectCenterTab, setActiveCenterTab } from "./center-tabs.svelte";
+import {
+  applyVisibleSession,
+  hydrateWorkspaceTabSessions,
+  persistWorkspaceTabSessions,
+  removeTabsFromAllSessions,
+  saveVisibleProjectSession,
+} from "./workspace-tab-sessions";
 export async function loadWorkspaceState() {
   const snapshot = await queryClient.fetchQuery({
     queryKey: queryKeys.workspace,
@@ -60,6 +69,11 @@ async function applyWorkspaceSnapshot(
   workspaceState.conversations = snapshot.snapshot.conversations;
   workspaceState.agents = agents;
   taskState.tasks = snapshot.snapshot.tasks;
+  hydrateWorkspaceTabSessions({
+    projects: snapshot.snapshot.projects,
+    conversations: snapshot.snapshot.conversations,
+    tasks: snapshot.snapshot.tasks,
+  });
   const taskEntryIds = new SvelteSet(
     taskState.tasks.map(
       (task) => task.definitionId ?? task.restartRootTaskId ?? task.id,
@@ -93,6 +107,23 @@ async function applyWorkspaceSnapshot(
   );
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
   if (selectedTaskId) await loadTaskLogWindow(selectedTaskId);
+  const selectedStillExists = workspaceState.projects.some(
+    (project) => projectKey(project) === workspaceState.selectedProjectKey,
+  );
+  if (!selectedStillExists) {
+    const fallback = [...workspaceState.projects].sort((a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt),
+    )[0];
+    if (fallback) await selectProject(fallback.id);
+  } else if (
+    workspaceState.selectedProjectKey &&
+    !workspaceState.selectedProjectId
+  ) {
+    const selected = workspaceState.projects.find(
+      (project) => projectKey(project) === workspaceState.selectedProjectKey,
+    );
+    if (selected) await selectProject(selected.id);
+  }
   return snapshot.cursor;
 }
 
@@ -161,9 +192,63 @@ export async function completeFiles(query: string): Promise<CompletionItem[]> {
   });
 }
 
+export async function selectProject(projectId: string) {
+  const project = workspaceState.projects.find(
+    (candidate) => candidate.id === projectId,
+  );
+  if (!project) return;
+  const key = projectKey(project);
+  if (
+    workspaceState.selectedProjectKey === key &&
+    workspaceState.selectedProjectId
+  ) {
+    workspaceState.selectedProjectId = project.id;
+    selection.projectId = project.id;
+    workspaceState.projectRecency[key] = Date.now();
+    persistWorkspaceTabSessions();
+    return;
+  }
+  // During startup the persisted key is hydrated before a concrete project ID.
+  // There is no outgoing visible session to save in that state.
+  if (workspaceState.selectedProjectId) saveVisibleProjectSession();
+  workspaceState.selectedProjectId = project.id;
+  workspaceState.selectedProjectKey = key;
+  workspaceState.projectRecency[key] = Date.now();
+  const session = applyVisibleSession(key);
+  selection.projectId = project.id;
+  selection.conversationId = undefined;
+  selection.agentId = undefined;
+  selection.entryId = undefined;
+  persistWorkspaceTabSessions();
+  if (session.active) await selectCenterTab(session.active);
+  else setActiveCenterTab(undefined);
+}
+
+export async function openProjectDirectory(dir: string) {
+  try {
+    const project = await createProject(dir);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
+    await loadWorkspaceState();
+    const current =
+      workspaceState.projects.find(
+        (candidate) => projectKey(candidate) === projectKey(project),
+      ) ?? project;
+    if (
+      !workspaceState.projects.some((candidate) => candidate.id === current.id)
+    ) {
+      workspaceState.projects = [...workspaceState.projects, current];
+    }
+    await selectProject(current.id);
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    workspaceState.error = message;
+    notify.error("Could not open project", { description: message });
+  }
+}
+
 export function newConversation() {
   const activeProject = workspaceState.projects.find(
-    (project) => project.id === selection.projectId,
+    (project) => project.id === workspaceState.selectedProjectId,
   );
   if (!activeProject) {
     workspaceState.projectPickerOpen = true;
@@ -178,10 +263,22 @@ export function newConversationInProject(projectDir: string) {
 
 export async function deleteProjectAndRefresh(projectId: string) {
   try {
+    const deletingProject = workspaceState.projects.find(
+      (project) => project.id === projectId,
+    );
+    const deletingKey = deletingProject
+      ? projectKey(deletingProject)
+      : undefined;
+    const aliasedIds = new SvelteSet(
+      workspaceState.projects
+        .filter((project) => deletingKey && projectKey(project) === deletingKey)
+        .map((project) => project.id),
+    );
     const conversationIds = workspaceState.conversations
-      .filter((conversation) => conversation.projectId === projectId)
+      .filter((conversation) => aliasedIds.has(conversation.projectId))
       .map((conversation) => conversation.id);
     await deleteProject(projectId);
+    if (deletingKey) delete workspaceState.projectTabSessions[deletingKey];
     await removeConversationTabs(conversationIds);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
@@ -196,6 +293,9 @@ export async function deleteProjectAndRefresh(projectId: string) {
 export async function deleteConversationAndRefresh(conversationId: string) {
   try {
     await deleteConversation(conversationId);
+    removeTabsFromAllSessions(
+      (tab) => tab.kind === "conversation" && tab.id === conversationId,
+    );
     await removeConversationTabs([conversationId]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
@@ -270,6 +370,7 @@ export async function createConversationForDirectory(dir: string) {
       ),
     ];
     workspaceState.projectPickerOpen = false;
+    await selectProject(project.id);
     openPendingConversation(project);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);

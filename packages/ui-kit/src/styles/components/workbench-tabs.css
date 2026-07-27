@@ -1,8 +1,7 @@
 .center-tab-strip {
-  display: grid;
+  display: flex;
   min-width: 0;
   min-height: 2rem;
-  grid-template-columns: minmax(0, 1fr) auto;
   border-bottom: 1px solid var(--border);
   background: var(--card);
 }
@@ -10,20 +9,36 @@
 .tab-scroller {
   display: flex;
   min-width: 0;
+  flex: 1;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.tab-scroller::-webkit-scrollbar {
+  display: none;
 }
 
 .center-tab-menu-trigger {
-  flex: 0 1 12.5rem;
-  min-width: 7.5rem;
-  max-width: 15rem;
+  flex: 0 0 12.5rem;
+  width: 12.5rem;
+  min-width: 0;
   height: 2rem;
 }
 
 .center-tab-menu-trigger.wide-tab {
   flex-basis: 13.5rem;
+  width: 13.5rem;
+}
+
+.tab-overflow-control {
+  border-radius: 0;
+  border-right: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+}
+
+.tab-scroller + .tab-overflow-control {
+  border-right: 0;
+  border-left: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
 }
 
 .center-tab {
@@ -43,6 +58,19 @@
   inset: 0 0 auto;
   height: 1px;
   background: transparent;
+}
+
+.center-tab.dragging {
+  opacity: 0.55;
+}
+
+.center-tab.drop-target::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--primary);
+  z-index: 2;
 }
 
 .center-tab:hover {

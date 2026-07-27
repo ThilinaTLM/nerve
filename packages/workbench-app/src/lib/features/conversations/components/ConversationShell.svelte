@@ -299,10 +299,6 @@ async function editConversationEntry(entry: {
   focusComposer();
 }
 
-function openProjectPicker() {
-  workspaceState.projectPickerOpen = true;
-}
-
 function openToolFile(path: string, line?: number) {
   if (!activeProject) return;
   void openFilePane({ projectId: activeProject.id, path, line });
@@ -426,7 +422,6 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
         : abortActiveRun,
     );
   }}
-  onOpenProject={openProjectPicker}
   onNewConversationInProject={newConversationInProject}
   onOpenFile={openToolFile}
   onModelChange={(value) => {

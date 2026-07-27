@@ -132,6 +132,10 @@
   gap: 0.625rem;
 }
 
+.title-left {
+  flex: 1;
+}
+
 .title-actions {
   flex: none;
   gap: 0.375rem;

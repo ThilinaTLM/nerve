@@ -13,6 +13,8 @@ let {
   searchShortcut,
   searchShortcutAria,
   searchRef = $bindable(null),
+  viewportRef = $bindable(null),
+  searchActions,
   children,
 }: {
   /** Two-way bound search query. */
@@ -26,6 +28,8 @@ let {
   /** aria-keyshortcuts value for the search input. */
   searchShortcutAria?: string;
   searchRef?: HTMLInputElement | null;
+  viewportRef?: HTMLElement | null;
+  searchActions?: Snippet;
   children: Snippet;
 } = $props();
 
@@ -46,21 +50,27 @@ $effect(() => {
 <Tooltip.Provider delayDuration={300} disableHoverableContent>
   <aside class="navigator-panel">
     <div class="search-box">
-      <Search size={13} strokeWidth={2.25} aria-hidden="true" />
-      <Input
-        bind:ref={searchRef}
-        bind:value={searchValue}
-        size="xs"
-        {placeholder}
-        ariaLabel={searchAriaLabel ?? placeholder}
-        aria-keyshortcuts={searchShortcutAria}
-        {title}
-      />
+      <div class="search-field">
+        <Search size={13} strokeWidth={2.25} aria-hidden="true" />
+        <Input
+          bind:ref={searchRef}
+          bind:value={searchValue}
+          size="xs"
+          {placeholder}
+          ariaLabel={searchAriaLabel ?? placeholder}
+          aria-keyshortcuts={searchShortcutAria}
+          {title}
+        />
+      </div>
+      {#if searchActions}
+        <div class="search-actions">{@render searchActions()}</div>
+      {/if}
     </div>
 
     <ScrollArea
       class="navigator-scroll"
       viewportClass="navigator-viewport"
+      bind:viewportRef
       type="auto"
     >
       <div class="navigator-list">
@@ -84,26 +94,40 @@ $effect(() => {
 }
 
 .search-box {
-  position: relative;
-  display: grid;
+  display: flex;
   width: 100%;
   min-width: 0;
   align-items: center;
+  gap: 0.35rem;
   padding: 0.45rem;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   background: transparent;
 }
 
-.search-box :global(svg) {
+.search-field {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+
+.search-field :global(svg) {
   position: absolute;
+  top: 50%;
   left: 0.85rem;
   z-index: 1;
+  transform: translateY(-50%);
   color: var(--muted-foreground);
   pointer-events: none;
 }
 
-.search-box :global([data-slot="input"]) {
+.search-field :global([data-slot="input"]) {
   padding-left: 1.75rem;
+}
+
+.search-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
 }
 
 :global(.navigator-scroll) {

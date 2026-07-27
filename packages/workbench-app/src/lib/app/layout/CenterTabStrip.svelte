@@ -6,6 +6,8 @@ import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import Logs from "@lucide/svelte/icons/logs";
+import MoveLeft from "@lucide/svelte/icons/move-left";
+import MoveRight from "@lucide/svelte/icons/move-right";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Settings from "@lucide/svelte/icons/settings";
 import Terminal from "@lucide/svelte/icons/terminal";
@@ -48,6 +50,7 @@ type Props = {
   onToggleFileDisplayMode?: (id: string) => void;
   onToggleFileLineWrap?: (id: string) => void;
   onNewConversation?: () => void;
+  onReorder?: (tab: CenterTabIdentity, targetIndex: number) => void;
 };
 
 let {
@@ -62,6 +65,7 @@ let {
   onToggleFileDisplayMode,
   onToggleFileLineWrap,
   onNewConversation,
+  onReorder,
 }: Props = $props();
 
 const newConversationShortcut = getShortcutLabel("conversation.new");
@@ -180,6 +184,24 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
     onSelect: () => onRefresh?.(identity),
   });
 
+  if (onReorder) {
+    items.push(
+      { type: "separator" },
+      {
+        label: "Move Left",
+        icon: MoveLeft,
+        disabled: !hasLeft,
+        onSelect: () => onReorder(identity, index - 1),
+      },
+      {
+        label: "Move Right",
+        icon: MoveRight,
+        disabled: !hasRight,
+        onSelect: () => onReorder(identity, index + 1),
+      },
+    );
+  }
+
   items.push(
     { type: "separator" },
     {
@@ -229,4 +251,5 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   onCloseRight={(tab) => onCloseRight?.(castIdentity(tab))}
   onCloseLeft={(tab) => onCloseLeft?.(castIdentity(tab))}
   onNew={onNewConversation}
+  onReorder={(tab, targetIndex) => onReorder?.(castIdentity(tab), targetIndex)}
 />

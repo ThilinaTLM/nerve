@@ -7,7 +7,7 @@ import type {
   PendingConversationState,
 } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { saveConversationTabs } from "$lib/features/conversations/state/conversation-tabs";
+import { saveVisibleProjectSession } from "$lib/features/workspace/state/workspace-tab-sessions";
 import { addCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,
@@ -38,10 +38,7 @@ export function ensureConversationView(
 }
 
 export function persistConversationTabs() {
-  saveConversationTabs(
-    conversationState.openConversationTabIds,
-    conversationState.activeConversationTabId,
-  );
+  saveVisibleProjectSession();
 }
 
 export function addConversationTab(conversationId: string) {
