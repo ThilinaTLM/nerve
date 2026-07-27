@@ -134,14 +134,6 @@
   background: var(--primary);
 }
 
-.dock-tab-actions {
-  display: flex;
-  align-items: center;
-  flex: none;
-  border-left: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
-  padding: 0 0.2rem;
-}
-
 /* Drop affordances shown only while a panel view drag is in flight. */
 .dock-drop-indicator {
   position: absolute;

@@ -7,7 +7,11 @@ import type {
   GitRepoSummary,
 } from "@nervekit/contracts";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
-import { PanelList, PanelToolbarButton } from "@nervekit/workbench-ui/panel";
+import {
+  PanelHeader,
+  PanelList,
+  PanelToolbarButton,
+} from "@nervekit/workbench-ui/panel";
 import GitPullRequestRow from "./GitPullRequestRow.svelte";
 import GitRepositorySelector from "./GitRepositorySelector.svelte";
 import type {
@@ -68,44 +72,42 @@ function toggleChecks(pr: GithubPr) {
 </script>
 
 {#snippet note(text: string)}
-  <p class="px-2 py-1 text-xs text-muted-foreground">{text}</p>
+  <p class="py-1 text-xs text-muted-foreground">{text}</p>
+{/snippet}
+
+{#snippet headerActions()}
+  {#if selectedRepoHasGithubRemote && github?.authenticated}
+    <PanelToolbarButton
+      icon={ListFilter}
+      label={activeFilterCount > 0
+        ? `Configure pull request filters · ${activeFilterCount} active`
+        : "Configure pull request filters"}
+      title={activeFilterCount > 0
+        ? `${activeFilterCount} active ${activeFilterCount === 1 ? "filter" : "filters"}`
+        : "Configure filters and sorting"}
+      active={activeFilterCount > 0}
+      onclick={onOpenFilters}
+    />
+    <PanelToolbarButton
+      icon={RefreshCw}
+      label="Refresh PRs"
+      title={`Refresh PRs · signed in as ${github.login ?? "unknown"}`}
+      loading={loadingPrs}
+      disabled={!capabilities.refresh.enabled || loadingPrs}
+      onclick={onRefreshPrs}
+    />
+  {/if}
 {/snippet}
 
 <div class="flex min-h-0 flex-1 flex-col">
-  <div class="flex h-7 shrink-0 items-center gap-1 px-1.5">
-    <span class="truncate text-xs font-semibold text-foreground"
-      >Pull requests</span
-    >
-    {#if displayedPrs.length > 0}
-      <span class="text-xs text-muted-foreground">{displayedPrs.length}</span>
-    {/if}
-    {#if selectedRepoHasGithubRemote && github?.authenticated}
-      <div class="ml-auto flex shrink-0 items-center gap-0.5">
-        <PanelToolbarButton
-          icon={ListFilter}
-          label={activeFilterCount > 0
-            ? `Configure pull request filters · ${activeFilterCount} active`
-            : "Configure pull request filters"}
-          title={activeFilterCount > 0
-            ? `${activeFilterCount} active ${activeFilterCount === 1 ? "filter" : "filters"}`
-            : "Configure filters and sorting"}
-          active={activeFilterCount > 0}
-          onclick={onOpenFilters}
-        />
-        <PanelToolbarButton
-          icon={RefreshCw}
-          label="Refresh PRs"
-          title={`Refresh PRs · signed in as ${github.login ?? "unknown"}`}
-          loading={loadingPrs}
-          disabled={!capabilities.refresh.enabled || loadingPrs}
-          onclick={onRefreshPrs}
-        />
-      </div>
-    {/if}
-  </div>
+  <PanelHeader
+    title="Pull requests"
+    count={displayedPrs.length > 0 ? displayedPrs.length : undefined}
+    trailing={headerActions}
+  />
 
   {#if repositories.length > 1}
-    <div class="shrink-0 px-1.5 py-1.5">
+    <div class="shrink-0 py-1.5">
       <GitRepositorySelector
         repos={repositories}
         selectedRepo={selectedRepository}

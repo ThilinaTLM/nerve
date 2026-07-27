@@ -3,7 +3,12 @@ import type { ProjectRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import AlertDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import { PanelEmpty, PanelList, PanelView } from "@nervekit/workbench-ui/panel";
+import {
+  PanelEmpty,
+  PanelHeader,
+  PanelList,
+  PanelView,
+} from "@nervekit/workbench-ui/panel";
 import { buildConversationRows } from "$lib/core/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
@@ -137,6 +142,8 @@ const menuContext = $derived<ProjectTreeMenuContext>({
 
 <Tooltip.Provider delayDuration={300} disableHoverableContent>
   <PanelView padded={false} scroll={false}>
+    <PanelHeader title="Conversations" count={rows.length} />
+
     {#if !activeProject}
       <PanelEmpty title="No project selected." description={emptyStateHint} />
     {:else if rows.length === 0}

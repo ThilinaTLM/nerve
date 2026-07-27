@@ -34,8 +34,8 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
 <div
   role="listitem"
   class={cn(
-    "group mx-1.5 mb-1.5 flex min-w-0 flex-col rounded-md border bg-card px-2 py-1.5 text-xs shadow-xs transition-colors hover:bg-muted/30",
-    current && "border-primary/30 bg-accent text-accent-foreground",
+    "group mb-1.5 flex min-w-0 flex-col rounded-md border px-2 py-1.5 text-xs shadow-xs transition-colors hover:border-primary/40",
+    current && "border-primary/30 text-foreground",
   )}
 >
   <button

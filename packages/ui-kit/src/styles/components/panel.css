@@ -30,7 +30,7 @@
   padding-left: calc(0.5rem + var(--panel-indent, 0) * 0.75rem);
 }
 
-.panel-row:hover {
+.panel-row-hoverable:hover {
   background: color-mix(in oklab, var(--accent) 55%, transparent);
 }
 

@@ -5,8 +5,6 @@ import MoveRight from "@lucide/svelte/icons/move-right";
 import PanelBottom from "@lucide/svelte/icons/panel-bottom";
 import PanelLeft from "@lucide/svelte/icons/panel-left";
 import PanelRight from "@lucide/svelte/icons/panel-right";
-import X from "@lucide/svelte/icons/x";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
@@ -33,12 +31,10 @@ let {
   registry = views,
   activeViewId,
   draggable = true,
-  closeLabel,
   buildMenuItems,
   onSelect,
   onMove,
   onHide,
-  onClose,
 }: {
   dock: DockId;
   views: PanelViewDescriptor[];
@@ -47,13 +43,10 @@ let {
   activeViewId?: string;
   /** Disabled in compact mode, where the context menu is the only move path. */
   draggable?: boolean;
-  /** Renders a trailing close/collapse control when provided with `onClose`. */
-  closeLabel?: string;
   buildMenuItems?: PanelViewMenuBuilder;
   onSelect?: (viewId: string) => void;
   onMove?: (viewId: string, target: PanelViewDropTarget) => void;
   onHide?: (viewId: string) => void;
-  onClose?: () => void;
 } = $props();
 
 let strip = $state<HTMLDivElement | null>(null);
@@ -208,18 +201,5 @@ function menuItems(
       <span class="dock-tab-drop-end" aria-hidden="true"></span>
     {/if}
   </div>
-  {#if onClose}
-    <div class="dock-tab-actions">
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        ariaLabel={closeLabel ?? `Hide ${DOCK_LABELS[dock].toLowerCase()}`}
-        title={closeLabel ?? `Hide ${DOCK_LABELS[dock].toLowerCase()}`}
-        onclick={onClose}
-      >
-        <X aria-hidden="true" />
-      </Button>
-    </div>
-  {/if}
   <span class="sr-only" aria-live="polite">{announcement}</span>
 </div>

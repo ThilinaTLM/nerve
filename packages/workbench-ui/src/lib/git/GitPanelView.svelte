@@ -6,6 +6,7 @@ import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import {
+  PanelHeader,
   PanelToolbar,
   PanelToolbarButton,
   PanelView,
@@ -110,12 +111,8 @@ function openBranchDialog(): void {
   {#snippet banner()}<GitPanelBanner {model} />{/snippet}
 
   {#if model.availability.available && model.repositories.length > 0}
-    <div class="flex h-7 shrink-0 items-center gap-1 px-1.5">
-      <span class="truncate text-xs font-semibold text-foreground"
-        >Git changes</span
-      >
-      <span class="text-xs text-muted-foreground">{changeCount}</span>
-      <div class="ml-auto flex shrink-0 items-center">
+    <PanelHeader title="Git changes" count={changeCount}>
+      {#snippet trailing()}
         <PanelToolbarButton
           icon={RefreshCw}
           label="Refresh Git changes"
@@ -124,8 +121,8 @@ function openBranchDialog(): void {
           onclick={() =>
             void actions.refreshRepository(model.selectedRepository)}
         />
-      </div>
-    </div>
+      {/snippet}
+    </PanelHeader>
 
     <GitRepositoryControls
       repoSummary={model.repositorySummary}
@@ -151,7 +148,7 @@ function openBranchDialog(): void {
       {@const repo = model.repositorySummary}
       <PanelToolbar
         dense
-        class="h-auto flex-wrap border-b-0 bg-transparent px-1.5 py-1.5"
+        class="h-auto flex-wrap border-b-0 bg-transparent py-1.5"
       >
         <PanelToolbarButton
           icon={CloudDownload}

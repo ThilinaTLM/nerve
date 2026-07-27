@@ -1,5 +1,6 @@
 export { default as PanelBanner } from "./PanelBanner.svelte";
 export { default as PanelEmpty } from "./PanelEmpty.svelte";
+export { default as PanelHeader } from "./PanelHeader.svelte";
 export { default as PanelList } from "./PanelList.svelte";
 export { default as PanelPropertyRow } from "./PanelPropertyRow.svelte";
 export { default as PanelRow } from "./PanelRow.svelte";

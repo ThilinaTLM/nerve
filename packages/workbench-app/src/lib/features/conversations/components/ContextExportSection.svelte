@@ -64,7 +64,7 @@ const systemPromptHref = $derived(systemPromptUrl?.());
       {/if}
     </PanelPropertyRow>
   {:else}
-    <p class="px-2 py-1 text-xs text-muted-foreground">
+    <p class="py-1 text-xs text-muted-foreground">
       No active conversation to export.
     </p>
   {/if}

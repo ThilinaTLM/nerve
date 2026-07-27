@@ -70,15 +70,22 @@ let unstagedExpanded = $state(true);
   onToggle: () => void,
 )}
   <PanelRow
-    icon={expanded ? ChevronDown : ChevronRight}
     label={title}
     title={`${expanded ? "Collapse" : "Expand"} ${title.toLowerCase()} changes`}
     dense
+    hoverable={false}
     alwaysShowActions
     ariaExpanded={expanded}
     class="font-medium"
     onclick={onToggle}
   >
+    {#snippet leading()}
+      {#if expanded}
+        <ChevronDown class="-mr-1 size-3" aria-hidden="true" />
+      {:else}
+        <ChevronRight class="-mr-1 size-3" aria-hidden="true" />
+      {/if}
+    {/snippet}
     {#snippet badges()}
       <span>{files.length}</span>
     {/snippet}
@@ -86,6 +93,7 @@ let unstagedExpanded = $state(true);
       <PanelToolbarButton
         icon={group === "staged" ? ArrowDownToLine : ArrowUpFromLine}
         label={group === "staged" ? "Unstage all" : "Stage all"}
+        dense
         loading={bulkMutation ===
           (group === "staged" ? "unstage-all" : "stage-all")}
         disabled={files.length === 0 ||
@@ -109,9 +117,7 @@ let unstagedExpanded = $state(true);
         label={parts.base}
         description={parts.dir}
         title={`${fileStatusLabel(file, group)} · ${file.path}`}
-        mono
         dense
-        indent={1}
         alwaysShowActions
       >
         {#snippet leading()}
@@ -129,6 +135,7 @@ let unstagedExpanded = $state(true);
               ? `Unstage ${file.path}`
               : `Stage ${file.path}`}
             title={group === "staged" ? "Unstage" : "Stage"}
+            dense
             loading={busy &&
               fileMutation?.action ===
                 (group === "staged" ? "unstage" : "stage")}
@@ -144,6 +151,7 @@ let unstagedExpanded = $state(true);
             icon={X}
             label={`Discard ${file.path}`}
             title="Discard"
+            dense
             loading={busy && fileMutation?.action === "discard"}
             disabled={!capabilities.mutateFiles.enabled || busy}
             onclick={() => onRequestDiscard(file)}
@@ -156,9 +164,9 @@ let unstagedExpanded = $state(true);
 
 <div class="flex min-h-0 flex-1 flex-col">
   {#if !changes}
-    <p class="px-2 py-1 text-xs text-muted-foreground">Loading…</p>
+    <p class="py-1 text-xs text-muted-foreground">Loading…</p>
   {:else if changes.files.length === 0}
-    <p class="px-2 py-1 text-xs text-muted-foreground">Working tree clean.</p>
+    <p class="py-1 text-xs text-muted-foreground">Working tree clean.</p>
   {:else}
     <ScrollArea class="min-h-0 flex-1" viewportClass="min-w-0">
       <PanelList ariaLabel="Git changes" class="py-0.5">

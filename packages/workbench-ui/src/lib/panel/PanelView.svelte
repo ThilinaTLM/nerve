@@ -23,7 +23,7 @@ let {
 } = $props();
 </script>
 
-<div class="panel-view flex h-full min-h-0 min-w-0 flex-col">
+<div class="panel-view flex h-full min-h-0 min-w-0 flex-col px-2">
   {#if toolbar}
     {@render toolbar()}
   {/if}

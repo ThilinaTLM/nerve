@@ -25,9 +25,7 @@ const toneClass = $derived(
 );
 </script>
 
-<div
-  class={cn("flex min-w-0 items-center gap-1.5 px-2 py-1 text-xs", toneClass)}
->
+<div class={cn("flex min-w-0 items-center gap-1.5 py-1 text-xs", toneClass)}>
   {#if Icon}
     <Icon class="size-3.5 shrink-0" aria-hidden="true" />
   {/if}

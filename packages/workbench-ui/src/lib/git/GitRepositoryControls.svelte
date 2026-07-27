@@ -46,7 +46,7 @@ let {
 }: Props = $props();
 </script>
 
-<div class="flex shrink-0 flex-col gap-1.5 px-1.5 pt-1.5">
+<div class="flex shrink-0 flex-col gap-1.5 pt-1.5">
   {#if repoSummary}
     {@const repo = repoSummary}
     <GitRepositorySelector

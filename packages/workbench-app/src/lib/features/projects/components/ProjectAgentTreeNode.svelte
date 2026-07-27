@@ -54,6 +54,7 @@ const tooltip = $derived(
   label={row.conversation.title}
   title={tooltip}
   status={dotActivity.tone}
+  statusVariant={isOpen ? "solid" : "outline"}
   pulse={dotActivity.pulse}
   class="px-2"
   selected={isActive}

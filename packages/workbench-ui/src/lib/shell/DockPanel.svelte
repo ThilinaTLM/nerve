@@ -27,7 +27,6 @@ let {
   onSelect,
   onMove,
   onHide,
-  onClose,
   panelView,
 }: {
   dock: DockId;
@@ -39,7 +38,6 @@ let {
   onSelect?: (viewId: string) => void;
   onMove?: (viewId: string, target: PanelViewDropTarget) => void;
   onHide?: (viewId: string) => void;
-  onClose?: () => void;
   panelView: Snippet<[string]>;
 } = $props();
 
@@ -73,7 +71,6 @@ function handleBodyDrop(event: DragEvent) {
     {onSelect}
     {onMove}
     {onHide}
-    {onClose}
   />
   <div
     class="dock-body"

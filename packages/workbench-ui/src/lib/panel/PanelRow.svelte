@@ -5,6 +5,7 @@ import ContextMenuList, {
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import {
   StatusDot,
+  type StatusDotVariant,
   type StatusTone,
 } from "@nervekit/ui-kit/components/ui/status-dot";
 import { cn } from "@nervekit/ui-kit/core/utils";
@@ -12,6 +13,7 @@ import { cn } from "@nervekit/ui-kit/core/utils";
 let {
   icon: Icon,
   status,
+  statusVariant = "solid",
   pulse = false,
   label,
   description,
@@ -23,6 +25,7 @@ let {
   active = false,
   disabled = false,
   dense = false,
+  hoverable = true,
   alwaysShowActions = false,
   ariaLabel,
   ariaExpanded,
@@ -37,6 +40,7 @@ let {
   icon?: Component;
   /** Leading status dot tone; takes precedence over `icon`. */
   status?: StatusTone;
+  statusVariant?: StatusDotVariant;
   pulse?: boolean;
   label: string;
   description?: string;
@@ -50,6 +54,8 @@ let {
   disabled?: boolean;
   /** Uses the compact row rhythm intended for dense file/status lists. */
   dense?: boolean;
+  /** Enables the shared row background on pointer hover. */
+  hoverable?: boolean;
   /** Keeps trailing actions visible instead of revealing them on hover. */
   alwaysShowActions?: boolean;
   ariaLabel?: string;
@@ -76,8 +82,9 @@ const toneClass = $derived(
 {#snippet body()}
   <div
     class={cn(
-      "panel-row group/panel-row flex min-w-0 items-center text-xs",
-      dense ? "h-6 gap-1 pr-1" : "h-7 gap-1.5 pr-1.5",
+      "panel-row group/panel-row flex min-w-0 items-center rounded-sm",
+      hoverable && "panel-row-hoverable",
+      dense ? "h-5 gap-1 pr-1 text-xs" : "h-7 gap-1.5 pr-1.5 text-xs",
       selected && "bg-accent text-accent-foreground",
       className,
     )}
@@ -99,7 +106,12 @@ const toneClass = $derived(
       {ondblclick}
     >
       {#if status}
-        <StatusDot tone={status} {pulse} class="shrink-0" />
+        <StatusDot
+          tone={status}
+          variant={statusVariant}
+          {pulse}
+          class="shrink-0"
+        />
       {:else if Icon}
         <Icon
           class="size-3.5 shrink-0 text-muted-foreground"
@@ -107,7 +119,7 @@ const toneClass = $derived(
         />
       {/if}
       {#if leading}
-        <span class="flex shrink-0 items-center text-xs text-muted-foreground">
+        <span class="flex shrink-0 items-center text-muted-foreground">
           {@render leading()}
         </span>
       {/if}
@@ -126,9 +138,7 @@ const toneClass = $derived(
       {/if}
     </button>
     {#if badges}
-      <div
-        class="flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
-      >
+      <div class="flex shrink-0 items-center gap-1 text-muted-foreground">
         {@render badges()}
       </div>
     {/if}

@@ -127,7 +127,7 @@ async function removeDefinition(): Promise<void> {
 {#snippet taskList()}
   <PanelList ariaLabel="Tasks" class="py-0.5">
     {#if model.definitionsLoading && model.definitions.length === 0}
-      <p class="px-2 py-1 text-xs text-muted-foreground">Loading tasks…</p>
+      <p class="py-1 text-xs text-muted-foreground">Loading tasks…</p>
     {:else if entries.length === 0}
       <PanelEmpty
         icon={ListTodo}

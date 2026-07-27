@@ -78,7 +78,7 @@ function agentDescription(agent: AgentRecord): string {
     panelSectionPreferences.setOpen("context.agents", next)}
 >
   {#if conversationAgents.length === 0}
-    <p class="px-2 py-1 text-xs text-muted-foreground">
+    <p class="py-1 text-xs text-muted-foreground">
       No agents in the active conversation.
     </p>
   {:else}

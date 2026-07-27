@@ -185,7 +185,6 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
                 onSelect={actions.onActivateView}
                 onMove={actions.onMoveView}
                 onHide={actions.onHideView}
-                onClose={() => actions.onToggleDock?.("left")}
                 {panelView}
               />
             </Pane>
@@ -223,7 +222,6 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
                       onSelect={actions.onActivateView}
                       onMove={actions.onMoveView}
                       onHide={actions.onHideView}
-                      onClose={() => actions.onToggleDock?.("bottom")}
                       {panelView}
                     />
                   </Pane>
@@ -249,7 +247,6 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
                 onSelect={actions.onActivateView}
                 onMove={actions.onMoveView}
                 onHide={actions.onHideView}
-                onClose={() => actions.onToggleDock?.("right")}
                 {panelView}
               />
             </Pane>

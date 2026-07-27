@@ -114,7 +114,6 @@ function statusLabel(note: ScratchNoteEntry): string {
           open={panelSectionPreferences.isOpen(`notes.${note.id}`)}
           onOpenChange={(open) =>
             panelSectionPreferences.setOpen(`notes.${note.id}`, open)}
-          contentClass="px-2"
         >
           {#snippet meta()}
             {#if statusLabel(note)}

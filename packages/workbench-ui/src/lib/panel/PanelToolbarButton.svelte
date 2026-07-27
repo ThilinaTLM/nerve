@@ -16,6 +16,7 @@ let {
   disabled = false,
   loading = false,
   showLabel = false,
+  dense = false,
   class: className,
   badge,
   onclick,
@@ -31,6 +32,8 @@ let {
   loading?: boolean;
   /** Renders the label next to the icon instead of icon-only. */
   showLabel?: boolean;
+  /** Uses a compact icon-button size for dense rows. */
+  dense?: boolean;
   class?: string;
   /** Trailing content such as a count badge. */
   badge?: Snippet;
@@ -41,7 +44,7 @@ let {
 <Button
   {variant}
   size={showLabel ? "xs" : "icon-xs"}
-  class={cn("shrink-0", className)}
+  class={cn("shrink-0", dense && !showLabel && "size-5 rounded-sm", className)}
   ariaLabel={label}
   title={title ?? label}
   {active}

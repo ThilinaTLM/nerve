@@ -15,7 +15,7 @@ let {
 } = $props();
 </script>
 
-<Empty.Root class="gap-2 px-4 py-6">
+<Empty.Root class="gap-2 py-6">
   {#if Icon}
     <Empty.Media variant="icon" class="size-8 rounded-md">
       <Icon class="size-4" aria-hidden="true" />

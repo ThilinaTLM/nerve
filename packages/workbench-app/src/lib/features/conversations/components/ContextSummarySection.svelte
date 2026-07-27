@@ -81,7 +81,7 @@ async function copyContext(): Promise<void> {
       mono
     />
   {/each}
-  <div class="px-2 pt-1.5">
+  <div class="pt-1.5">
     <Button
       size="xs"
       variant="outline"
