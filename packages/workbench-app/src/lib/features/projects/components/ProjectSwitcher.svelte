@@ -57,9 +57,6 @@ function tabLabel(item: ProjectSwitcherItem): string {
   >
     <FolderSearch class="size-4" aria-hidden="true" />
   </Button>
-  {#if items.length}
-    <span class="divider" aria-hidden="true"></span>
-  {/if}
   <div class="flex min-w-0 items-center gap-0.5">
     {#each items as item (item.key)}
       {@const indicator = projectActivityIndicator(item.activity)}
