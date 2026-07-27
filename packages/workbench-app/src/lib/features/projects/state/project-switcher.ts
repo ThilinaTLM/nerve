@@ -9,7 +9,6 @@ import {
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 
 export type ProjectActivitySummary = {
-  errors: number;
   needsUser: number;
   running: number;
 };
@@ -28,16 +27,14 @@ export function summarizeProjectActivity(
   activityById: Record<string, ConversationActivityState>,
 ): ProjectActivitySummary {
   const summary: ProjectActivitySummary = {
-    errors: 0,
     needsUser: 0,
     running: 0,
   };
   for (const conversation of conversations) {
     const activity = activityById[conversation.id];
     if (!activity) continue;
-    if (activity.tone === "danger") summary.errors += 1;
-    else if (activity.needsUser) summary.needsUser += 1;
-    else if (activity.busy) summary.running += 1;
+    if (activity.needsUser) summary.needsUser += 1;
+    else if (activity.busy && activity.tone !== "danger") summary.running += 1;
   }
   return summary;
 }
@@ -45,7 +42,7 @@ export function summarizeProjectActivity(
 export type ProjectActivityIndicator = {
   tone: StatusTone;
   pulse: boolean;
-  /** Human-readable breakdown, e.g. "2 with errors, 1 running". */
+  /** Human-readable breakdown of current actionable activity. */
   summary: string;
 };
 
@@ -53,16 +50,11 @@ export function projectActivityIndicator(
   activity: ProjectActivitySummary,
 ): ProjectActivityIndicator | undefined {
   const parts = [
-    activity.errors ? `${activity.errors} with errors` : "",
     activity.needsUser ? `${activity.needsUser} waiting for you` : "",
     activity.running ? `${activity.running} running` : "",
   ].filter(Boolean);
   if (!parts.length) return undefined;
-  const tone: StatusTone = activity.errors
-    ? "danger"
-    : activity.needsUser
-      ? "warn"
-      : "running";
+  const tone: StatusTone = activity.needsUser ? "warn" : "running";
   return { tone, pulse: tone === "running", summary: parts.join(", ") };
 }
 

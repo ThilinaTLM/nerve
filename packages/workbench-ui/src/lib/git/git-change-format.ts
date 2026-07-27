@@ -5,7 +5,6 @@ import type {
 } from "@nervekit/contracts";
 import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
 
-const MAX_CHANGE_PATH_LENGTH = 48;
 const REPO_LABEL_SHORTENING = [
   { minCount: 9, maxLength: 12 },
   { minCount: 5, maxLength: 16 },
@@ -76,37 +75,6 @@ export function fileStatusLabel(
     default:
       return group;
   }
-}
-
-export function shortenPath(path: string): string {
-  if (path.length <= MAX_CHANGE_PATH_LENGTH) return path;
-
-  const segments = path.split("/");
-  if (segments.length <= 2) {
-    const available = Math.max(8, MAX_CHANGE_PATH_LENGTH - 3);
-    const headLength = Math.ceil(available / 2);
-    const tailLength = Math.floor(available / 2);
-    return `${path.slice(0, headLength)}...${path.slice(-tailLength)}`;
-  }
-
-  const prefix = segments[0];
-  const suffixParts = [segments.at(-1) ?? ""];
-  for (let index = segments.length - 2; index > 0; index -= 1) {
-    const candidateParts = [segments[index], ...suffixParts];
-    const candidate = `${prefix}/.../${candidateParts.join("/")}`;
-    if (candidate.length > MAX_CHANGE_PATH_LENGTH && suffixParts.length > 1)
-      break;
-    suffixParts.unshift(segments[index]);
-    if (candidate.length >= MAX_CHANGE_PATH_LENGTH) break;
-  }
-
-  return `${prefix}/.../${suffixParts.join("/")}`;
-}
-
-export function splitPath(path: string): { dir: string; base: string } {
-  const index = path.lastIndexOf("/");
-  if (index === -1) return { dir: "", base: path };
-  return { dir: path.slice(0, index + 1), base: path.slice(index + 1) };
 }
 
 export function checksTone(checks: GithubChecksSummary): BadgeTone {

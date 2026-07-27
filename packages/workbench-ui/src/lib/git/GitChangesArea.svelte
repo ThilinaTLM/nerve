@@ -11,15 +11,10 @@ import {
   PanelList,
   PanelRow,
   PanelToolbarButton,
+  PanelTree,
 } from "@nervekit/workbench-ui/panel";
 import type { FileMutation, GitPanelCapabilities } from "./git-panel-types";
-import {
-  fileStatusLabel,
-  fileTone,
-  shortenPath,
-  splitPath,
-  statusLetter,
-} from "./git-change-format";
+import { fileStatusLabel, fileTone, statusLetter } from "./git-change-format";
 
 type ChangesState = {
   files: readonly GitFileChange[];
@@ -76,6 +71,7 @@ let unstagedExpanded = $state(true);
     hoverable={false}
     alwaysShowActions
     ariaExpanded={expanded}
+    role="none"
     class="font-medium"
     onclick={onToggle}
   >
@@ -110,55 +106,53 @@ let unstagedExpanded = $state(true);
   </PanelRow>
 
   {#if expanded}
-    {#each files as file (file.path)}
-      {@const parts = splitPath(shortenPath(file.path))}
-      {@const busy = fileMutation?.path === file.path}
-      <PanelRow
-        label={parts.base}
-        description={parts.dir}
-        title={`${fileStatusLabel(file, group)} · ${file.path}`}
-        dense
-        alwaysShowActions
-      >
-        {#snippet leading()}
-          <span
-            class={cn("font-mono font-semibold", fileTone(file))}
-            title={fileStatusLabel(file, group)}
-          >
-            {statusLetter(file, group)}
-          </span>
-        {/snippet}
-        {#snippet actions()}
-          <PanelToolbarButton
-            icon={group === "staged" ? ArrowDownToLine : ArrowUpFromLine}
-            label={group === "staged"
-              ? `Unstage ${file.path}`
-              : `Stage ${file.path}`}
-            title={group === "staged" ? "Unstage" : "Stage"}
-            dense
-            loading={busy &&
-              fileMutation?.action ===
-                (group === "staged" ? "unstage" : "stage")}
-            disabled={!capabilities.mutateFiles.enabled || busy}
-            onclick={() =>
-              onMutateFile(
-                selectedRepo,
-                file,
-                group === "staged" ? "unstage" : "stage",
-              )}
-          />
-          <PanelToolbarButton
-            icon={X}
-            label={`Discard ${file.path}`}
-            title="Discard"
-            dense
-            loading={busy && fileMutation?.action === "discard"}
-            disabled={!capabilities.mutateFiles.enabled || busy}
-            onclick={() => onRequestDiscard(file)}
-          />
-        {/snippet}
-      </PanelRow>
-    {/each}
+    <PanelTree
+      items={files}
+      getPath={(file) => file.path.split("/")}
+      getKey={(file) => `${group}:${file.path}`}
+      ariaLabel={`${title} file tree`}
+      baseIndent={1}
+      getItemTitle={(file) =>
+        `${fileStatusLabel(file, group)} · ${file.renamedFrom ? `${file.renamedFrom} → ` : ""}${file.path}`}
+    >
+      {#snippet itemLeading(file)}
+        <span
+          class={cn("font-mono font-semibold", fileTone(file))}
+          title={fileStatusLabel(file, group)}
+        >
+          {statusLetter(file, group)}
+        </span>
+      {/snippet}
+      {#snippet itemActions(file)}
+        {@const busy = fileMutation?.path === file.path}
+        <PanelToolbarButton
+          icon={group === "staged" ? ArrowDownToLine : ArrowUpFromLine}
+          label={group === "staged"
+            ? `Unstage ${file.path}`
+            : `Stage ${file.path}`}
+          title={group === "staged" ? "Unstage" : "Stage"}
+          dense
+          loading={busy &&
+            fileMutation?.action === (group === "staged" ? "unstage" : "stage")}
+          disabled={!capabilities.mutateFiles.enabled || busy}
+          onclick={() =>
+            onMutateFile(
+              selectedRepo,
+              file,
+              group === "staged" ? "unstage" : "stage",
+            )}
+        />
+        <PanelToolbarButton
+          icon={X}
+          label={`Discard ${file.path}`}
+          title="Discard"
+          dense
+          loading={busy && fileMutation?.action === "discard"}
+          disabled={!capabilities.mutateFiles.enabled || busy}
+          onclick={() => onRequestDiscard(file)}
+        />
+      {/snippet}
+    </PanelTree>
   {/if}
 {/snippet}
 
@@ -169,7 +163,7 @@ let unstagedExpanded = $state(true);
     <p class="py-1 text-xs text-muted-foreground">Working tree clean.</p>
   {:else}
     <ScrollArea class="min-h-0 flex-1" viewportClass="min-w-0">
-      <PanelList ariaLabel="Git changes" class="py-0.5">
+      <PanelList role="none" class="py-0.5">
         {#if stagedFiles.length > 0}
           {@render changeGroup(
             "Staged",

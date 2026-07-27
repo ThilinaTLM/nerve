@@ -29,6 +29,15 @@ let {
   alwaysShowActions = false,
   ariaLabel,
   ariaExpanded,
+  role = "listitem",
+  tabindex,
+  contentTabindex,
+  ariaLevel,
+  ariaPosInSet,
+  ariaSetSize,
+  dataId,
+  onkeydown,
+  onfocus,
   leading,
   badges,
   actions,
@@ -60,6 +69,19 @@ let {
   alwaysShowActions?: boolean;
   ariaLabel?: string;
   ariaExpanded?: boolean;
+  /** Outer row semantics. Tree rows opt into `treeitem`; list rows keep the default. */
+  role?: "listitem" | "treeitem" | "none";
+  /** Optional roving focus index for semantic row containers. */
+  tabindex?: number;
+  /** Overrides the primary content button's tab index. */
+  contentTabindex?: number;
+  ariaLevel?: number;
+  ariaPosInSet?: number;
+  ariaSetSize?: number;
+  /** Stable DOM lookup key for composite widgets such as trees. */
+  dataId?: string;
+  onkeydown?: (event: KeyboardEvent) => void;
+  onfocus?: (event: FocusEvent) => void;
   /** Compact content rendered before the primary label. */
   leading?: Snippet;
   badges?: Snippet;
@@ -80,22 +102,34 @@ const toneClass = $derived(
 </script>
 
 {#snippet body()}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     class={cn(
       "panel-row group/panel-row flex min-w-0 items-center rounded-sm",
       hoverable && "panel-row-hoverable",
       dense ? "h-5 gap-1 pr-1 text-xs" : "h-7 gap-1.5 pr-1.5 text-xs",
       selected && "bg-accent text-accent-foreground",
+      tabindex !== undefined &&
+        "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
       className,
     )}
     style={indent > 0 ? `--panel-indent:${indent}` : undefined}
-    role="listitem"
+    {role}
+    {tabindex}
+    aria-expanded={role === "treeitem" ? ariaExpanded : undefined}
+    aria-level={ariaLevel}
+    aria-posinset={ariaPosInSet}
+    aria-setsize={ariaSetSize}
+    data-panel-row-id={dataId}
+    {onkeydown}
+    {onfocus}
   >
     <button
       type="button"
       {disabled}
+      tabindex={contentTabindex}
       aria-label={ariaLabel}
-      aria-expanded={ariaExpanded}
+      aria-expanded={role === "treeitem" ? undefined : ariaExpanded}
       aria-current={active ? "true" : undefined}
       title={title ?? description ?? label}
       class={cn(

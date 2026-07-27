@@ -46,7 +46,7 @@ function activity(
   };
 }
 
-test("summarizes each project activity state separately", () => {
+test("summarizes only current actionable project activity", () => {
   const conversations = [
     conversation("error", "p", "2026-01-01"),
     conversation("waiting", "p", "2026-01-02"),
@@ -58,31 +58,34 @@ test("summarizes each project activity state separately", () => {
       waiting: activity({ tone: "warn", needsUser: true }),
       running: activity({ tone: "running", busy: true }),
     }),
-    { errors: 1, needsUser: 1, running: 1 },
+    { needsUser: 1, running: 1 },
   );
 });
 
-test("collapses project activity into one indicator by severity", () => {
+test("omits project indicators for terminal errors", () => {
+  const summary = summarizeProjectActivity(
+    [conversation("error", "p", "2026-01-01")],
+    { error: activity({ tone: "danger" }) },
+  );
+  assert.deepEqual(summary, { needsUser: 0, running: 0 });
+  assert.equal(projectActivityIndicator(summary), undefined);
+});
+
+test("collapses actionable project activity into one indicator", () => {
   assert.equal(
-    projectActivityIndicator({ errors: 0, needsUser: 0, running: 0 }),
+    projectActivityIndicator({ needsUser: 0, running: 0 }),
     undefined,
   );
-  assert.deepEqual(
-    projectActivityIndicator({ errors: 2, needsUser: 1, running: 3 }),
-    {
-      tone: "danger",
-      pulse: false,
-      summary: "2 with errors, 1 waiting for you, 3 running",
-    },
-  );
-  assert.deepEqual(
-    projectActivityIndicator({ errors: 0, needsUser: 1, running: 2 }),
-    { tone: "warn", pulse: false, summary: "1 waiting for you, 2 running" },
-  );
-  assert.deepEqual(
-    projectActivityIndicator({ errors: 0, needsUser: 0, running: 1 }),
-    { tone: "running", pulse: true, summary: "1 running" },
-  );
+  assert.deepEqual(projectActivityIndicator({ needsUser: 1, running: 2 }), {
+    tone: "warn",
+    pulse: false,
+    summary: "1 waiting for you, 2 running",
+  });
+  assert.deepEqual(projectActivityIndicator({ needsUser: 0, running: 1 }), {
+    tone: "running",
+    pulse: true,
+    summary: "1 running",
+  });
 });
 
 test("groups directory aliases and disambiguates duplicate folder names", () => {
