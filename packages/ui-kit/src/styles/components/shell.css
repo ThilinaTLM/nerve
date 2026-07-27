@@ -95,15 +95,12 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex: none;
-  gap: 0.35rem;
-  max-width: 12rem;
+  width: 2rem;
   height: 2rem;
   border-right: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
-  padding: 0 0.6rem;
   color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -115,15 +112,6 @@
 .dock-tab.active {
   background: var(--background);
   color: var(--foreground);
-}
-
-.dock-tab.active::after {
-  content: "";
-  position: absolute;
-  inset-inline: 0.5rem;
-  bottom: 0;
-  height: 2px;
-  background: var(--primary);
 }
 
 .dock-tab.dragging {

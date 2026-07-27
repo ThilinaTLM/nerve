@@ -187,6 +187,7 @@ function menuItems(
           data-view-id={view.id}
           role="tab"
           aria-selected={view.id === activeViewId}
+          aria-label={view.title}
           title={view.title}
           draggable={draggable && Boolean(onMove)}
           ondragstart={(event) => {
@@ -199,8 +200,7 @@ function menuItems(
           ondragend={endPanelViewDrag}
           onclick={() => onSelect?.(view.id)}
         >
-          <Icon size={13} strokeWidth={2.1} aria-hidden="true" />
-          <span class="truncate">{view.title}</span>
+          <Icon size={14} strokeWidth={2.1} aria-hidden="true" />
         </button>
       </ContextMenu>
     {/each}

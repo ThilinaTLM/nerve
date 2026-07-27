@@ -1,26 +1,13 @@
 <script lang="ts">
-import List from "@lucide/svelte/icons/list";
-import Plus from "@lucide/svelte/icons/plus";
 import type { ProjectRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import AlertDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import {
-  PanelEmpty,
-  PanelList,
-  PanelSearchInput,
-  PanelToolbar,
-  PanelToolbarButton,
-  PanelToolbarGroup,
-  PanelView,
-} from "@nervekit/workbench-ui/panel";
+import { PanelEmpty, PanelList, PanelView } from "@nervekit/workbench-ui/panel";
 import { buildConversationRows } from "$lib/core/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
-import {
-  getShortcutAriaLabel,
-  getShortcutLabel,
-} from "$lib/core/shortcuts/registry";
+import { getShortcutLabel } from "$lib/core/shortcuts/registry";
 import {
   buildConversationMenu,
   type ProjectTreeMenuContext,
@@ -48,32 +35,85 @@ let {
   onPruneProjectConversations,
 }: ProjectAgentTreeProps = $props();
 
-let filter = $state("");
-let searchInputEl = $state<HTMLInputElement | null>(null);
 let pendingDelete = $state<DeleteTarget | undefined>();
 let allConversationsOpen = $state(false);
+let listRegion = $state<HTMLDivElement | null>(null);
+let listFooter = $state<HTMLDivElement | null>(null);
+let visibleCount = $state(Number.MAX_SAFE_INTEGER);
+let measuredRowHeight = 0;
+let measureFrame: number | undefined;
 
 const activeProject = $derived(
   projects.find((project) => project.id === selectedProjectId) ?? projects[0],
 );
 const projectIds = $derived(projects.map((project) => project.id));
 const rows = $derived(
-  buildConversationRows({ conversations, agents, projectIds, filter }),
+  buildConversationRows({ conversations, agents, projectIds }),
 );
-const searchShortcut = getShortcutLabel("projectSearch.focus");
-const searchShortcutAria = getShortcutAriaLabel("projectSearch.focus");
+const visibleRows = $derived(rows.slice(0, visibleCount));
+const hasHiddenRows = $derived(visibleRows.length < rows.length);
 const newConversationShortcut = getShortcutLabel("conversation.new");
 const switchProjectShortcut = getShortcutLabel("conversation.newFromProject");
 const emptyStateHint = switchProjectShortcut
   ? `Use the folder button in the header (${switchProjectShortcut}) to get started.`
   : "Use the folder button in the header to get started.";
 
+function measureVisibleCount(): void {
+  if (!listRegion) return;
+  const list = listRegion.querySelector<HTMLElement>("[role='list']");
+  const row = list?.querySelector<HTMLElement>(".panel-row");
+  if (row) measuredRowHeight = row.getBoundingClientRect().height;
+  if (!list || measuredRowHeight <= 0) return;
+
+  const listStyle = getComputedStyle(list);
+  const listPadding =
+    Number.parseFloat(listStyle.paddingTop) +
+    Number.parseFloat(listStyle.paddingBottom);
+  const footerHeight = listFooter?.getBoundingClientRect().height ?? 0;
+  const availableHeight =
+    listRegion.getBoundingClientRect().height - footerHeight - listPadding;
+  // Allow a small subpixel tolerance so app zoom and rem rounding do not
+  // unnecessarily leave room for an additional complete row.
+  const nextCount = Math.max(
+    0,
+    Math.floor((availableHeight + 2) / measuredRowHeight),
+  );
+  if (nextCount !== visibleCount) visibleCount = nextCount;
+}
+
+function scheduleMeasurement(): void {
+  if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
+  measureFrame = requestAnimationFrame(() => {
+    measureFrame = undefined;
+    measureVisibleCount();
+  });
+}
+
+$effect(() => {
+  if (!listRegion || typeof ResizeObserver === "undefined") return;
+  const observer = new ResizeObserver(scheduleMeasurement);
+  observer.observe(listRegion);
+  scheduleMeasurement();
+  return () => {
+    observer.disconnect();
+    if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
+  };
+});
+
+$effect(() => {
+  const rowCount = rows.length;
+  const footer = listFooter;
+  queueMicrotask(() => {
+    if (rowCount === rows.length && footer === listFooter)
+      scheduleMeasurement();
+  });
+});
+
 let lastSearchFocusToken = 0;
 $effect(() => {
   if (searchFocusToken === lastSearchFocusToken) return;
   lastSearchFocusToken = searchFocusToken;
-  searchInputEl?.focus();
-  searchInputEl?.select();
+  allConversationsOpen = true;
 });
 
 const menuContext = $derived<ProjectTreeMenuContext>({
@@ -96,82 +136,56 @@ const menuContext = $derived<ProjectTreeMenuContext>({
 </script>
 
 <Tooltip.Provider delayDuration={300} disableHoverableContent>
-  <PanelView padded={false}>
-    {#snippet toolbar()}
-      <PanelToolbar>
-        <PanelSearchInput
-          bind:value={filter}
-          bind:ref={searchInputEl}
-          placeholder="Search conversations"
-          ariaLabel="Search conversations"
-          title={searchShortcut
-            ? `Search conversations (${searchShortcut})`
-            : "Search conversations"}
-          ariaKeyshortcuts={searchShortcutAria}
-        />
-        <PanelToolbarGroup trailing>
-          <PanelToolbarButton
-            icon={List}
-            label="Browse all conversations"
-            disabled={!activeProject}
-            onclick={() => (allConversationsOpen = true)}
-          />
-          <PanelToolbarButton
-            icon={Plus}
-            label={activeProject
-              ? `New chat in ${activeProject.name}`
-              : "New chat"}
-            title="New chat"
-            disabled={!activeProject}
-            onclick={() => {
-              if (activeProject)
-                onNewConversationInProject?.(activeProject.dir);
-            }}
-          />
-        </PanelToolbarGroup>
-      </PanelToolbar>
-    {/snippet}
-
+  <PanelView padded={false} scroll={false}>
     {#if !activeProject}
       <PanelEmpty title="No project selected." description={emptyStateHint} />
     {:else if rows.length === 0}
-      <PanelEmpty
-        title={filter
-          ? "No conversations match your search."
-          : "No conversations in this project yet."}
-      >
+      <PanelEmpty title="No conversations in this project yet.">
         {#snippet action()}
-          {#if !filter}
-            <Button
-              variant="outline"
-              size="sm"
-              onclick={() => onNewConversationInProject?.(activeProject.dir)}
-              >New chat</Button
-            >
-          {/if}
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => onNewConversationInProject?.(activeProject.dir)}
+            >New chat</Button
+          >
         {/snippet}
       </PanelEmpty>
     {:else}
-      <PanelList ariaLabel="Conversations">
-        {#each rows as row (row.conversation.id)}
-          {@const rowProject =
-            projects.find(
-              (project) => project.id === row.conversation.projectId,
-            ) ?? activeProject}
-          <ProjectAgentTreeNode
-            {row}
-            isOpen={openConversationTabIds?.has(row.conversation.id) ?? false}
-            isActive={row.conversation.id === selectedConversationId}
-            activity={conversationActivityById[row.conversation.id]}
-            menuItems={buildConversationMenu(
-              rowProject,
-              row.conversation,
-              menuContext,
-            )}
-            {onOpenConversation}
-          />
-        {/each}
-      </PanelList>
+      <div
+        bind:this={listRegion}
+        class="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <PanelList ariaLabel="Conversations" class="shrink-0 py-1">
+          {#each visibleRows as row (row.conversation.id)}
+            {@const rowProject =
+              projects.find(
+                (project) => project.id === row.conversation.projectId,
+              ) ?? activeProject}
+            <ProjectAgentTreeNode
+              {row}
+              isOpen={openConversationTabIds?.has(row.conversation.id) ?? false}
+              isActive={row.conversation.id === selectedConversationId}
+              activity={conversationActivityById[row.conversation.id]}
+              menuItems={buildConversationMenu(
+                rowProject,
+                row.conversation,
+                menuContext,
+              )}
+              {onOpenConversation}
+            />
+          {/each}
+        </PanelList>
+        {#if hasHiddenRows}
+          <div bind:this={listFooter} class="mt-auto shrink-0 p-1">
+            <Button
+              variant="ghost"
+              size="xs"
+              class="w-full text-muted-foreground"
+              onclick={() => (allConversationsOpen = true)}>See More</Button
+            >
+          </div>
+        {/if}
+      </div>
     {/if}
   </PanelView>
 </Tooltip.Provider>

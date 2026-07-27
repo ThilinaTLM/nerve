@@ -25,9 +25,7 @@ let {
 const collapsible = $derived(open !== undefined && onToggle !== undefined);
 </script>
 
-<div
-  class="panel-section-header group/section-header flex h-7 items-center gap-1 pr-1.5 pl-2"
->
+<div class="panel-section-header flex h-7 items-center gap-1 pr-1.5 pl-2">
   {#if collapsible}
     <button
       type="button"
@@ -52,9 +50,7 @@ const collapsible = $derived(open !== undefined && onToggle !== undefined);
           aria-hidden="true"
         />
       {/if}
-      <span
-        class="truncate text-xs font-semibold tracking-wide text-foreground uppercase"
-        >{title}</span
+      <span class="truncate text-xs font-semibold text-foreground">{title}</span
       >
       {#if count !== undefined}
         <span class="shrink-0 text-xs text-muted-foreground">{count}</span>
@@ -68,9 +64,7 @@ const collapsible = $derived(open !== undefined && onToggle !== undefined);
           aria-hidden="true"
         />
       {/if}
-      <span
-        class="truncate text-xs font-semibold tracking-wide text-foreground uppercase"
-        >{title}</span
+      <span class="truncate text-xs font-semibold text-foreground">{title}</span
       >
       {#if count !== undefined}
         <span class="shrink-0 text-xs text-muted-foreground">{count}</span>
@@ -83,9 +77,7 @@ const collapsible = $derived(open !== undefined && onToggle !== undefined);
     </div>
   {/if}
   {#if actions}
-    <div
-      class="panel-hover-actions flex shrink-0 items-center gap-0.5 group-focus-within/section-header:opacity-100 group-hover/section-header:opacity-100"
-    >
+    <div class="flex shrink-0 items-center gap-0.5">
       {@render actions()}
     </div>
   {/if}

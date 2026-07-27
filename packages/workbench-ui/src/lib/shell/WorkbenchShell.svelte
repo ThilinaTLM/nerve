@@ -192,7 +192,8 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
             <PaneResizer aria-label="Resize left panel" />
           {/if}
 
-          <Pane defaultSize={57} minSize={25} order={2}>
+          <!-- The editor consumes the space left by the persisted side docks. -->
+          <Pane minSize={25} order={2}>
             {#key bottomVisible}
               <PaneGroup direction="vertical" {keyboardResizeBy}>
                 <Pane
