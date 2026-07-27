@@ -15,6 +15,7 @@ import {
   type ProjectSwitcherItem,
 } from "$lib/features/projects";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 
 type Props = {
   projects?: ProjectSwitcherItem[];
@@ -26,6 +27,7 @@ type Props = {
   settingsActive?: boolean;
   authActive?: boolean;
   logsActive?: boolean;
+  buildProjectMenuItems?: (item: ProjectSwitcherItem) => ContextMenuItem[];
   onOpenProject?: () => void;
   onSelectProject?: (projectId: string) => void;
   onOpenLogs?: () => void;
@@ -46,6 +48,7 @@ let {
   settingsActive = false,
   authActive = false,
   logsActive = false,
+  buildProjectMenuItems,
   onOpenProject,
   onSelectProject,
   onOpenLogs,
@@ -66,6 +69,7 @@ let {
     <ProjectSwitcher
       items={projects}
       activeKey={activeProjectKey}
+      buildMenuItems={buildProjectMenuItems}
       onSelect={onSelectProject}
       onOpenPicker={onOpenProject}
     />

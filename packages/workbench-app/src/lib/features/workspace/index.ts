@@ -22,7 +22,10 @@ export {
   deleteProjectAndRefresh,
   exportUrl,
   newConversation,
+  newConversationInProject,
   openProjectDirectory,
+  openProjectInEditorAndNotify,
+  pruneProjectConversationsAndRefresh,
   selectProject,
   systemPromptUrl,
 } from "./state/workspace-actions.svelte";

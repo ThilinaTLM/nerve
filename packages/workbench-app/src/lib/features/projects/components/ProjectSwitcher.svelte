@@ -1,6 +1,9 @@
 <script lang="ts">
 import FolderSearch from "@lucide/svelte/icons/folder-search";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ContextMenu, {
+  type ContextMenuItem,
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import {
   getShortcutAriaLabel,
@@ -14,11 +17,18 @@ import {
 type Props = {
   items?: ProjectSwitcherItem[];
   activeKey?: string;
+  buildMenuItems?: (item: ProjectSwitcherItem) => ContextMenuItem[];
   onSelect?: (projectId: string) => void;
   onOpenPicker?: () => void;
 };
 
-let { items = [], activeKey, onSelect, onOpenPicker }: Props = $props();
+let {
+  items = [],
+  activeKey,
+  buildMenuItems,
+  onSelect,
+  onOpenPicker,
+}: Props = $props();
 
 const switchShortcut = getShortcutLabel("conversation.newFromProject");
 const switchTitle = switchShortcut
@@ -54,22 +64,32 @@ function tabLabel(item: ProjectSwitcherItem): string {
     {#each items as item (item.key)}
       {@const indicator = projectActivityIndicator(item.activity)}
       {@const active = item.key === activeKey}
-      <Button
-        variant="ghost"
-        size="sm"
-        class={`min-w-0 max-w-56 gap-1.5 px-2 ${active ? "" : "text-muted-foreground"}`}
-        {active}
-        pressed={active}
-        aria-current={active ? "page" : undefined}
-        ariaLabel={tabLabel(item)}
-        title={`${item.project.dir}${indicator ? ` — ${indicator.summary}` : ""}`}
-        onclick={() => onSelect?.(item.project.id)}
+      <ContextMenu
+        items={buildMenuItems?.(item) ?? []}
+        disabled={!buildMenuItems}
+        triggerClass="block min-w-0 max-w-56"
       >
-        {#if indicator}
-          <StatusDot tone={indicator.tone} size="xs" pulse={indicator.pulse} />
-        {/if}
-        <span class="truncate">{item.label}</span>
-      </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          class={`w-full min-w-0 gap-1.5 px-2 ${active ? "" : "text-muted-foreground"}`}
+          {active}
+          pressed={active}
+          aria-current={active ? "page" : undefined}
+          ariaLabel={tabLabel(item)}
+          title={`${item.project.dir}${indicator ? ` — ${indicator.summary}` : ""}`}
+          onclick={() => onSelect?.(item.project.id)}
+        >
+          {#if indicator}
+            <StatusDot
+              tone={indicator.tone}
+              size="xs"
+              pulse={indicator.pulse}
+            />
+          {/if}
+          <span class="truncate">{item.label}</span>
+        </Button>
+      </ContextMenu>
     {/each}
   </div>
 </nav>
