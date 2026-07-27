@@ -3,6 +3,7 @@ import { projectKey } from "$lib/core/utils/project-tree";
 import { fileViewKey, prViewKey } from "$lib/core/state/state-keys";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
+import { syncCenterTabMirrors } from "./center-tab-mirrors.svelte";
 import type {
   CenterTabIdentity,
   ProjectTabSession,
@@ -94,6 +95,7 @@ export function applyVisibleSession(key: string): ProjectTabSession {
   workspaceState.activeCenterTab = session.active;
   workspaceState.centerTabMru = [...session.mru];
   workspaceState.projectTabSessions[key] = session;
+  syncCenterTabMirrors();
   return session;
 }
 
@@ -356,6 +358,7 @@ export function hydrateWorkspaceTabSessions(input: {
     workspaceState.openCenterTabs = [...workspaceState.globalCenterTabs];
     workspaceState.activeCenterTab = workspaceState.globalCenterTabs[0];
     workspaceState.centerTabMru = workspaceState.globalCenterTabs.map(tabKey);
+    syncCenterTabMirrors();
   }
   workspaceState.projectRecency = stored?.projectRecency ?? {};
   workspaceState.selectedProjectKey =

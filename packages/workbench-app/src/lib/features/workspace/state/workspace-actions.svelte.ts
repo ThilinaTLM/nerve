@@ -208,7 +208,9 @@ export async function selectProject(projectId: string) {
     persistWorkspaceTabSessions();
     return;
   }
-  saveVisibleProjectSession();
+  // During startup the persisted key is hydrated before a concrete project ID.
+  // There is no outgoing visible session to save in that state.
+  if (workspaceState.selectedProjectId) saveVisibleProjectSession();
   workspaceState.selectedProjectId = project.id;
   workspaceState.selectedProjectKey = key;
   workspaceState.projectRecency[key] = Date.now();
