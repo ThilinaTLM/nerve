@@ -15,7 +15,7 @@ let {
 
 <div
   class={cn(
-    "flex shrink-0 items-center gap-1 border-b bg-card px-1.5",
+    "flex min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-b bg-card px-2",
     dense ? "h-7" : "h-8",
     className,
   )}

@@ -26,7 +26,7 @@ const collapsible = $derived(open !== undefined && onToggle !== undefined);
 </script>
 
 <div
-  class="panel-section-header group/section-header flex h-6 items-center gap-1 pr-1 pl-1.5"
+  class="panel-section-header group/section-header flex h-7 items-center gap-1 pr-1.5 pl-2"
 >
   {#if collapsible}
     <button

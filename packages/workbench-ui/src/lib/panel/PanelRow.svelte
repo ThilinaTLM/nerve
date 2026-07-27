@@ -65,7 +65,7 @@ const toneClass = $derived(
 {#snippet body()}
   <div
     class={cn(
-      "panel-row group/panel-row flex h-6 min-w-0 items-center gap-1.5 pr-1 text-xs",
+      "panel-row group/panel-row flex h-7 min-w-0 items-center gap-1.5 pr-1.5 text-xs",
       selected && "bg-accent text-accent-foreground",
       className,
     )}
@@ -99,7 +99,9 @@ const toneClass = $derived(
         )}>{label}</span
       >
       {#if description}
-        <span class="truncate text-muted-foreground">{description}</span>
+        <span class="min-w-0 flex-1 truncate text-muted-foreground"
+          >{description}</span
+        >
       {/if}
     </button>
     {#if badges}

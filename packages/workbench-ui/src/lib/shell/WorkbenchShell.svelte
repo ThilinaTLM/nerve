@@ -118,7 +118,7 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
   {#snippet workspace()}
     {#if compact}
       <div class="workspace-shell compact">
-        <div class="editor-shell">{@render editorContent()}</div>
+        <div class="workbench-editor-area">{@render editorContent()}</div>
       </div>
 
       <Sheet.Root
@@ -201,7 +201,9 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
                   minSize={25}
                   order={1}
                 >
-                  <div class="editor-shell">{@render editorContent()}</div>
+                  <div class="workbench-editor-area">
+                    {@render editorContent()}
+                  </div>
                 </Pane>
                 {#if bottomVisible}
                   <PaneResizer aria-label="Resize bottom panel" />

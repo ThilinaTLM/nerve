@@ -128,6 +128,9 @@ function toggleChecks(pr: GithubPr) {
         : "No open PRs for this repository.",
     )}
   {:else}
+    {#if prs.length > displayedPrs.length}
+      {@render note(`Showing ${displayedPrs.length} of ${prs.length}`)}
+    {/if}
     <PanelList ariaLabel="Pull requests">
       {#each displayedPrs as pr (pr.number)}
         {@const currentPr =

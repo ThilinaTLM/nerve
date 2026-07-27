@@ -16,7 +16,7 @@ let {
 <div
   role="list"
   aria-label={ariaLabel}
-  class={cn("flex min-w-0 flex-col", className)}
+  class={cn("flex min-w-0 flex-col py-0.5", className)}
 >
   {@render children()}
 </div>

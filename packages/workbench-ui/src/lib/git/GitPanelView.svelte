@@ -152,6 +152,7 @@ function openBranchDialog(): void {
         <PanelToolbarButton
           icon={CloudDownload}
           label="Fetch"
+          showLabel
           title={repo.hasRemote
             ? "Fetch from remote and prune deleted refs"
             : "Add a remote before fetching"}
@@ -165,6 +166,7 @@ function openBranchDialog(): void {
           <PanelToolbarButton
             icon={ArrowDown}
             label={`Pull${(repo.behind ?? 0) > 0 ? ` (${repo.behind})` : ""}`}
+            showLabel
             title={repo.dirty
               ? "Commit or stash changes before pulling"
               : "Pull current branch with fast-forward only"}
@@ -179,6 +181,7 @@ function openBranchDialog(): void {
           <PanelToolbarButton
             icon={ArrowUp}
             label={`Push${(repo.ahead ?? 0) > 0 ? ` (${repo.ahead})` : ""}`}
+            showLabel
             title="Push current branch"
             loading={model.operations.pushing}
             disabled={!model.capabilities.remote.push.enabled ||
@@ -190,6 +193,7 @@ function openBranchDialog(): void {
         <PanelToolbarButton
           icon={RefreshCw}
           label="Sync"
+          showLabel
           title={!repo.hasRemote
             ? "Add a remote before syncing"
             : repo.detached

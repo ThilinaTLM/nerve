@@ -16,7 +16,7 @@
 }
 
 /* EditorArea owns the tab/content rows; the shell only stretches it. */
-.editor-shell {
+.workbench-editor-area {
   display: grid;
   width: 100%;
   height: 100%;

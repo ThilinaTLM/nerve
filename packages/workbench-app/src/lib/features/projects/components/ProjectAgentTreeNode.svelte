@@ -55,6 +55,7 @@ const tooltip = $derived(
   title={tooltip}
   status={dotActivity.tone}
   pulse={dotActivity.pulse}
+  indent={1}
   selected={isActive}
   active={isOpen}
   {menuItems}

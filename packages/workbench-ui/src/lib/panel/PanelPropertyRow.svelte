@@ -21,7 +21,7 @@ let {
 </script>
 
 <div
-  class="panel-row group/panel-row flex min-h-6 min-w-0 items-center gap-2 pr-1 text-xs"
+  class="panel-row group/panel-row flex min-h-7 min-w-0 items-center gap-2 pr-1.5 text-xs"
 >
   <span class="w-24 shrink-0 truncate text-muted-foreground">{label}</span>
   <div class={cn("min-w-0 flex-1 truncate", mono && "font-mono")} {title}>
