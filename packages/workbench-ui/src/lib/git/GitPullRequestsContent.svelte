@@ -1,23 +1,15 @@
 <script lang="ts">
-import Check from "@lucide/svelte/icons/check";
-import ExternalLink from "@lucide/svelte/icons/external-link";
 import ListFilter from "@lucide/svelte/icons/list-filter";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-import X from "@lucide/svelte/icons/x";
 import type {
   GithubPr,
   GithubStatusResponse,
   GitRepoSummary,
 } from "@nervekit/contracts";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import {
-  PanelList,
-  PanelRow,
-  PanelToolbarButton,
-} from "@nervekit/workbench-ui/panel";
-import { checksTone } from "./git-change-format";
+import { PanelList, PanelToolbarButton } from "@nervekit/workbench-ui/panel";
+import GitPullRequestRow from "./GitPullRequestRow.svelte";
+import GitRepositorySelector from "./GitRepositorySelector.svelte";
 import type {
   GitPanelCapabilities,
   GitPrFilterConfig,
@@ -31,6 +23,8 @@ type Props = {
   displayedPrs: GithubPr[];
   prs: GithubPr[];
   filters: GitPrFilterConfig;
+  repositories: GitRepoSummary[];
+  selectedRepository: string;
   selectedRepoSummary?: GitRepoSummary;
   github?: GithubStatusResponse;
   selectedRepoHasGithubRemote: boolean;
@@ -40,6 +34,7 @@ type Props = {
   expandedPr?: number;
   onExpandedPrChange?: (number: number | undefined) => void;
   onRefreshPrs: () => void;
+  onSelectRepo: (repository: string) => void;
   onOpenFilters: () => void;
   onOpenPr: (prNumber: number) => void;
 };
@@ -48,6 +43,8 @@ let {
   displayedPrs,
   prs,
   filters,
+  repositories,
+  selectedRepository,
   selectedRepoSummary,
   github,
   selectedRepoHasGithubRemote,
@@ -57,6 +54,7 @@ let {
   expandedPr = $bindable(undefined),
   onExpandedPrChange,
   onRefreshPrs,
+  onSelectRepo,
   onOpenFilters,
   onOpenPr,
 }: Props = $props();
@@ -106,6 +104,17 @@ function toggleChecks(pr: GithubPr) {
     {/if}
   </div>
 
+  {#if repositories.length > 1}
+    <div class="shrink-0 px-1.5 py-1.5">
+      <GitRepositorySelector
+        repos={repositories}
+        selectedRepo={selectedRepository}
+        selectCapability={capabilities.selectRepository}
+        {onSelectRepo}
+      />
+    </div>
+  {/if}
+
   {#if selectedRepoSummary && !selectedRepoSummary.hasRemote}
     {@render note("No remote configured for this repository.")}
   {:else if selectedRepoSummary && !selectedRepoSummary.hasGithubRemote}
@@ -133,65 +142,17 @@ function toggleChecks(pr: GithubPr) {
         {#each displayedPrs as pr (pr.number)}
           {@const currentPr =
             currentBranchName !== null && pr.headRefName === currentBranchName}
-          <PanelRow
-            label={`#${pr.number}`}
-            description={pr.title}
-            title={capabilities.openPullRequest.enabled
-              ? `${pr.title} · ${pr.baseRefName} ← ${pr.headRefName}`
-              : capabilities.openPullRequest.reason}
-            mono
-            active={currentPr}
+          <GitPullRequestRow
+            {pr}
+            current={currentPr}
+            expanded={expandedPr === pr.number}
             disabled={!capabilities.openPullRequest.enabled}
-            alwaysShowActions
-            onclick={() => onOpenPr(pr.number)}
-          >
-            {#snippet badges()}
-              {#if pr.isDraft}
-                <Badge tone="neutral" size="xs">draft</Badge>
-              {/if}
-              <button
-                type="button"
-                title="Toggle check details"
-                onclick={() => toggleChecks(pr)}
-              >
-                <Badge tone={checksTone(pr.checks)} size="xs">
-                  {#if pr.checks.status === "passing"}
-                    <Check class="size-3" aria-hidden="true" />
-                  {:else if pr.checks.status === "failing"}
-                    <X class="size-3" aria-hidden="true" />
-                  {:else if pr.checks.status === "pending"}
-                    <Spinner class="size-3" />
-                  {/if}
-                  {pr.checks.status === "none"
-                    ? "no checks"
-                    : `${pr.checks.passed}/${pr.checks.total}`}
-                </Badge>
-              </button>
-            {/snippet}
-            {#snippet actions()}
-              <a
-                href={pr.url}
-                target="_blank"
-                rel="noreferrer"
-                class="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
-                title="Open in browser"
-                aria-label={`Open PR #${pr.number} in browser`}
-              >
-                <ExternalLink class="size-3" aria-hidden="true" />
-              </a>
-            {/snippet}
-          </PanelRow>
-          {#if expandedPr === pr.number && pr.checks.runs.length > 0}
-            {#each pr.checks.runs as run, index (`${run.name}:${index}`)}
-              <PanelRow
-                label={run.name}
-                description={run.status}
-                indent={1}
-                tone="muted"
-                dense
-              />
-            {/each}
-          {/if}
+            disabledReason={capabilities.openPullRequest.enabled
+              ? undefined
+              : capabilities.openPullRequest.reason}
+            onOpen={() => onOpenPr(pr.number)}
+            onToggleChecks={() => toggleChecks(pr)}
+          />
         {/each}
       </PanelList>
     </ScrollArea>

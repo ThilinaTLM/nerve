@@ -32,6 +32,12 @@ function selectExpandedPullRequest(number: number | undefined): void {
   expandedPr = number;
   void actions.selectPullRequest(number);
 }
+
+function selectRepository(repository: string): void {
+  if (repository === model.selectedRepository) return;
+  expandedPr = undefined;
+  void actions.selectRepository(repository);
+}
 </script>
 
 <PanelView padded={false} scroll={false}>
@@ -42,6 +48,8 @@ function selectExpandedPullRequest(number: number | undefined): void {
       displayedPrs={displayedPullRequests}
       prs={[...model.pullRequests]}
       filters={model.pullRequestFilters}
+      repositories={[...model.repositories]}
+      selectedRepository={model.selectedRepository}
       selectedRepoSummary={model.repositorySummary}
       github={model.github}
       {selectedRepoHasGithubRemote}
@@ -52,6 +60,7 @@ function selectExpandedPullRequest(number: number | undefined): void {
       onExpandedPrChange={selectExpandedPullRequest}
       onRefreshPrs={() =>
         void actions.refreshPullRequests(model.selectedRepository)}
+      onSelectRepo={selectRepository}
       onOpenFilters={() => (prFilterDialogOpen = true)}
       onOpenPr={(number) =>
         void actions.openPullRequest(model.selectedRepository, number)}

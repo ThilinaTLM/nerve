@@ -2,14 +2,10 @@
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@nervekit/ui-kit/components/ui/toggle-group";
 import { cn } from "@nervekit/ui-kit/core/utils";
-import { repoButtonLabel, repoPathLabel } from "./git-change-format";
 import type { GitPanelCapabilities } from "./git-panel-types";
 import GitBranchDialog from "./GitBranchDialog.svelte";
+import GitRepositorySelector from "./GitRepositorySelector.svelte";
 
 type Props = {
   repoSummary?: GitRepoSummary;
@@ -53,33 +49,12 @@ let {
 <div class="flex shrink-0 flex-col gap-1.5 px-1.5 pt-1.5">
   {#if repoSummary}
     {@const repo = repoSummary}
-    {#if repos.length > 1}
-      <ToggleGroup
-        type="single"
-        value={selectedRepo}
-        variant="outline"
-        size="sm"
-        spacing={1}
-        class="flex w-full flex-wrap items-start gap-1"
-        onValueChange={(value) => {
-          if (value) onSelectRepo(value);
-        }}
-      >
-        {#each repos as candidate (candidate.relativePath)}
-          <ToggleGroupItem
-            value={candidate.relativePath}
-            disabled={!capabilities.selectRepository.enabled}
-            aria-label={`Switch to ${repoPathLabel(candidate)}`}
-            title={repoPathLabel(candidate)}
-            class="h-6 max-w-28 min-w-0 rounded-md px-2 text-xs data-[state=on]:border-primary/40 data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
-          >
-            <span class="block truncate font-mono"
-              >{repoButtonLabel(candidate, repos)}</span
-            >
-          </ToggleGroupItem>
-        {/each}
-      </ToggleGroup>
-    {/if}
+    <GitRepositorySelector
+      {repos}
+      {selectedRepo}
+      selectCapability={capabilities.selectRepository}
+      {onSelectRepo}
+    />
 
     <button
       type="button"
