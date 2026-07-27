@@ -70,7 +70,7 @@ let {
   onAnswerUserQuestion,
   onDismissUserQuestion,
   onAbort,
-  onOpenProject,
+  onNewConversationInProject,
   onOpenFile,
   onModelChange,
   onThinkingLevelChange,
@@ -317,6 +317,11 @@ function menuForTranscript(
   {/snippet}
 
   {#snippet emptyExtension()}
-    <ConversationWelcome onNewChat={() => onOpenProject?.()} />
+    <ConversationWelcome
+      projectSelected={Boolean(activeProject && onNewConversationInProject)}
+      onNewChat={() => {
+        if (activeProject) onNewConversationInProject?.(activeProject.dir);
+      }}
+    />
   {/snippet}
 </ConversationPane>

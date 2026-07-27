@@ -74,7 +74,6 @@ export type WorkbenchConversationAdapterProps = {
   ) => void | Promise<void>;
   onDismissUserQuestion?: (questionId: string) => void | Promise<void>;
   onAbort?: () => void;
-  onOpenProject?: () => void;
   onNewConversationInProject?: (projectDir: string) => void;
   onOpenFile?: (path: string, line?: number) => void;
   onModelChange?: (value: string) => void;
