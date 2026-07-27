@@ -46,10 +46,9 @@ that maps cleanly to utilities. Convert it to Tier 1.
 ## Panel views
 
 Dock panel content (Conversations, Git, Context, Notes, Tasks) must be built from
-the `@nervekit/workbench-ui/panel` primitives — `PanelView`, `PanelToolbar`,
-`PanelToolbarButton`/`PanelToolbarGroup`, `PanelSearchInput`, `PanelSection`,
-`PanelSectionHeader`, `PanelList`, `PanelRow`, `PanelPropertyRow`,
-`PanelBanner`, `PanelEmpty`.
+the `@nervekit/workbench-ui/panel` primitives — `PanelView`, `PanelHeader`,
+`PanelToolbar`, `PanelToolbarButton`, `PanelSectionHeader`, `PanelList`,
+`PanelRow`, `PanelTree`, `PanelPropertyRow`, `PanelBanner`, `PanelEmpty`.
 
 - A panel view's root is `PanelView`. It owns the height, the single scroll
   region, the sticky toolbar, and the banner slot; views must not manage their
@@ -57,8 +56,12 @@ the `@nervekit/workbench-ui/panel` primitives — `PanelView`, `PanelToolbar`,
 - Views are movable between the left, right, and bottom docks, so a view may not
   assume its width, orientation, or which dock hosts it. Use the container width
   (not the dock id) when adapting layout.
-- Sections are flat: no bordered cards, no radius, no nested panels. Section
-  open-state is persisted through `app/shell/panel-section-preferences.svelte.ts`.
+- Every panel starts with one static `PanelHeader` (title, optional count,
+  trailing icon actions) rendered in `PanelView`'s pinned `banner` slot.
+- Panels stay simple and consistent: no sub-tab toolbars, no panel search
+  inputs, and no collapsible sections. Group content with static
+  `PanelSectionHeader` headings that are always expanded.
+- Sections are flat: no bordered cards, no radius, no nested panels.
 
 ## Global CSS lives only in `src/styles/`
 

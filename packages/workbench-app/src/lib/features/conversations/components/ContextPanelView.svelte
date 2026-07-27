@@ -1,6 +1,10 @@
 <script lang="ts">
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import { PanelBanner, PanelView } from "@nervekit/workbench-ui/panel";
+import {
+  PanelBanner,
+  PanelHeader,
+  PanelView,
+} from "@nervekit/workbench-ui/panel";
 import type {
   AgentRecord,
   ConversationRecord,
@@ -42,6 +46,7 @@ let confirmCompactOpen = $state(false);
 
 <PanelView padded={false}>
   {#snippet banner()}
+    <PanelHeader title="Context" />
     {#if !activeProject}
       <PanelBanner tone="muted">Select a project to view context.</PanelBanner>
     {/if}

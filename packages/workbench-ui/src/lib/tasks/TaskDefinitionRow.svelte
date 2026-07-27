@@ -1,5 +1,4 @@
 <script lang="ts">
-import BookmarkPlus from "@lucide/svelte/icons/bookmark-plus";
 import Copy from "@lucide/svelte/icons/copy";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import History from "@lucide/svelte/icons/history";
@@ -9,18 +8,15 @@ import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import X from "@lucide/svelte/icons/x";
-import type { TaskRecord } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
 import { PanelRow, PanelToolbarButton } from "@nervekit/workbench-ui/panel";
-import {
-  taskEntryCommand,
-  taskEntryCwd,
-  taskEntryLabel,
-} from "./task-panel-controller.js";
-import type { TaskEntryCapabilities, TaskPanelEntry } from "./task-panel-types";
+import { taskDefinitionLabel } from "./task-panel-controller.js";
+import type {
+  TaskDefinitionEntry,
+  TaskEntryCapabilities,
+} from "./task-panel-types";
 
 let {
   entry,
@@ -33,10 +29,8 @@ let {
   onEdit,
   onDelete,
   onCopy,
-  onRemoveRun,
-  onSaveAsDefinition,
 }: {
-  entry: TaskPanelEntry;
+  entry: TaskDefinitionEntry;
   selected?: boolean;
   capabilities: TaskEntryCapabilities;
   onOpen?: (taskId: string) => void;
@@ -46,19 +40,15 @@ let {
   onEdit?: () => void;
   onDelete?: () => void;
   onCopy?: (text: string) => void;
-  onRemoveRun?: (taskId: string) => void;
-  onSaveAsDefinition?: (task: TaskRecord) => void;
 } = $props();
 
 const latest = $derived(entry.latestRun);
 const status = $derived(latest?.status ?? "saved");
-const label = $derived(taskEntryLabel(entry));
-const command = $derived(taskEntryCommand(entry));
-const cwd = $derived(taskEntryCwd(entry));
-const concurrent = $derived(entry.definition?.runPolicy === "concurrent");
-const canStart = $derived(
-  Boolean(entry.definition) && (concurrent || entry.activeRuns.length === 0),
-);
+const label = $derived(taskDefinitionLabel(entry));
+const command = $derived(entry.definition.command);
+const cwd = $derived(entry.definition.cwd);
+const concurrent = $derived(entry.definition.runPolicy === "concurrent");
+const canStart = $derived(concurrent || entry.activeRuns.length === 0);
 const active = $derived(entry.activeRuns[0]);
 const recoveryHint = $derived(
   entry.needsRecovery
@@ -105,32 +95,20 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     });
   }
 
-  const definitionItems: ContextMenuItem[] = [];
-  if (!entry.definition && latest)
-    definitionItems.push({
-      label: "Save as task definition",
-      icon: BookmarkPlus,
-      disabled: !capabilities.manageDefinitions,
-      onSelect: () => onSaveAsDefinition?.(latest),
-    });
-  if (entry.definition) {
-    definitionItems.push({
-      label: "Edit task",
-      icon: Pencil,
-      disabled: !capabilities.manageDefinitions,
-      onSelect: () => onEdit?.(),
-    });
-    definitionItems.push({
-      label: "Delete task",
-      icon: Trash2,
-      destructive: true,
-      disabled: !capabilities.manageDefinitions,
-      onSelect: () => onDelete?.(),
-    });
-  }
-  if (definitionItems.length > 0 && items.length > 0)
-    items.push({ type: "separator" });
-  items.push(...definitionItems);
+  if (items.length > 0) items.push({ type: "separator" });
+  items.push({
+    label: "Edit task",
+    icon: Pencil,
+    disabled: !capabilities.manageDefinitions,
+    onSelect: () => onEdit?.(),
+  });
+  items.push({
+    label: "Delete task",
+    icon: Trash2,
+    destructive: true,
+    disabled: !capabilities.manageDefinitions,
+    onSelect: () => onDelete?.(),
+  });
 
   const trailing: ContextMenuItem[] = [];
   if (command)
@@ -147,17 +125,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       disabled: !capabilities.copy,
       onSelect: () => onCopy?.(cwd),
     });
-  if (!entry.definition && latest && !active)
-    trailing.push({
-      label: "Remove from history",
-      icon: X,
-      destructive: true,
-      disabled: !capabilities.remove,
-      onSelect: () => onRemoveRun?.(latest.id),
-    });
-  if (trailing.length > 0 && items.length > 0)
-    items.push({ type: "separator" });
-  items.push(...trailing);
+  if (trailing.length > 0) items.push({ type: "separator" }, ...trailing);
   return items;
 });
 </script>

@@ -3,6 +3,7 @@ import Terminal from "@lucide/svelte/icons/terminal";
 import type { TaskLogQueryResponse, TaskRecord } from "@nervekit/contracts";
 import SelectField from "@nervekit/ui-kit/components/ui/select-field";
 import TaskLogTerminal from "./TaskLogTerminal.svelte";
+import { formatTaskRunTime } from "./task-panel-controller.js";
 
 type Props = {
   task?: Pick<TaskRecord, "id" | "command" | "status" | "error" | "runtime">;
@@ -14,30 +15,12 @@ type Props = {
 
 let { task, taskLogs, runs = [], onSelectRun, onLoadEarlier }: Props = $props();
 
-function formatRunTime(startedAt: string): string {
-  const started = new Date(startedAt);
-  const now = new Date();
-  const sameDay = started.toDateString() === now.toDateString();
-  return sameDay
-    ? started.toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-      })
-    : started.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-}
-
 const runItems = $derived(
   [...runs]
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
     .map((run) => ({
       value: run.id,
-      label: `${run.status} · ${formatRunTime(run.startedAt)}`,
+      label: `${run.status} · ${formatTaskRunTime(run.startedAt)}`,
     })),
 );
 </script>

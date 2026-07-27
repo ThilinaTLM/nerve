@@ -1,7 +1,7 @@
 <script lang="ts">
-import History from "@lucide/svelte/icons/history";
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import Plus from "@lucide/svelte/icons/plus";
+import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type {
   CreateTaskDefinitionRequest,
@@ -17,17 +17,17 @@ import {
 import {
   PanelBanner,
   PanelEmpty,
+  PanelHeader,
   PanelList,
-  PanelSearchInput,
-  PanelToolbar,
+  PanelSectionHeader,
   PanelToolbarButton,
-  PanelToolbarGroup,
   PanelView,
 } from "@nervekit/workbench-ui/panel";
 import TaskDefinitionDialog from "./TaskDefinitionDialog.svelte";
-import TaskEntryItem from "./TaskEntryItem.svelte";
+import TaskDefinitionRow from "./TaskDefinitionRow.svelte";
 import TaskOutputPane from "./TaskOutputPane.svelte";
-import { projectTaskPanelEntries } from "./task-panel-controller.js";
+import TaskRunRow from "./TaskRunRow.svelte";
+import { projectTaskPanel, taskLineageRuns } from "./task-panel-controller.js";
 import type {
   TaskEntryCapabilities,
   TaskPanelActions,
@@ -43,43 +43,21 @@ let {
   actions: TaskPanelActions;
 } = $props();
 
-const projected = $derived(
-  projectTaskPanelEntries(model.definitions, model.tasks),
-);
-let view = $state<"tasks" | "history">("tasks");
+const projected = $derived(projectTaskPanel(model.definitions, model.tasks));
 let addOpen = $state(false);
 let saving = $state(false);
 let confirmPruneOpen = $state(false);
 let editDefinition = $state<TaskPanelDefinition | undefined>();
 let deleteDefinition = $state<TaskPanelDefinition | undefined>();
 let saveSourceTask = $state<TaskRecord | undefined>();
-let query = $state("");
 let panelWidth = $state(0);
 
 // The wide bottom dock can host the run output next to the list.
 const SPLIT_MIN_WIDTH = 720;
 const splitLayout = $derived(panelWidth >= SPLIT_MIN_WIDTH);
-const entries = $derived(
-  (view === "tasks" ? projected.tasks : projected.history).filter((entry) => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return true;
-    return [
-      entry.definition?.label,
-      entry.latestRun?.displayName,
-      entry.latestRun?.name,
-      entry.definition?.command ?? entry.latestRun?.command,
-      entry.definition?.cwd ?? entry.latestRun?.cwd,
-    ]
-      .filter((value): value is string => Boolean(value))
-      .some((value) => value.toLowerCase().includes(needle));
-  }),
-);
-const selectedRuns = $derived(
-  projected.tasks
-    .concat(projected.history)
-    .find((entry) =>
-      entry.runs.some((run) => run.id === model.selectedTask?.id),
-    )?.runs ?? [],
+const selectedRuns = $derived(taskLineageRuns(model.tasks, model.selectedTask));
+const prunableRuns = $derived(
+  projected.runs.filter((entry) => !entry.definition && !entry.isActive).length,
 );
 const capabilities = $derived<TaskEntryCapabilities>({
   start: model.capabilities.start.enabled,
@@ -125,90 +103,92 @@ async function removeDefinition(): Promise<void> {
 </script>
 
 {#snippet taskList()}
-  <PanelList ariaLabel="Tasks" class="py-0.5">
+  <div class="flex min-w-0 flex-col">
+    <PanelSectionHeader
+      title="Task definitions"
+      count={projected.definitions.length}
+    />
     {#if model.definitionsLoading && model.definitions.length === 0}
       <p class="py-1 text-xs text-muted-foreground">Loading tasks…</p>
-    {:else if entries.length === 0}
+    {:else if projected.definitions.length === 0}
       <PanelEmpty
         icon={ListTodo}
-        title={view === "tasks" ? "No tasks yet" : "No task history"}
-        description={view === "tasks"
-          ? "Create a task to run it anytime."
-          : "Completed ad-hoc runs appear here."}
+        title="No saved tasks"
+        description="Create a task to run it anytime."
       />
     {:else}
-      {#each entries as entry (entry.key)}
-        <TaskEntryItem
-          {entry}
-          {capabilities}
-          selected={entry.runs.some((run) => run.id === model.selectedTask?.id)}
-          onOpen={(id) => void panelActions.openTaskOutput(id)}
-          onRun={() =>
-            entry.definition &&
-            void panelActions.runDefinition(entry.definition)}
-          onCancel={(id) => void panelActions.cancelTask(id)}
-          onRestart={(id) => void panelActions.restartTask(id)}
-          onEdit={() => (editDefinition = entry.definition)}
-          onDelete={() => (deleteDefinition = entry.definition)}
-          onCopy={(text) => void panelActions.copyText(text)}
-          onRemoveRun={(id) => void panelActions.removeTask(id)}
-          onSaveAsDefinition={(task) => (saveSourceTask = task)}
-        />
-      {/each}
+      <PanelList ariaLabel="Task definitions">
+        {#each projected.definitions as entry (entry.key)}
+          <TaskDefinitionRow
+            {entry}
+            {capabilities}
+            selected={entry.runs.some(
+              (run) => run.id === model.selectedTask?.id,
+            )}
+            onOpen={(id) => void panelActions.openTaskOutput(id)}
+            onRun={() => void panelActions.runDefinition(entry.definition)}
+            onCancel={(id) => void panelActions.cancelTask(id)}
+            onRestart={(id) => void panelActions.restartTask(id)}
+            onEdit={() => (editDefinition = entry.definition)}
+            onDelete={() => (deleteDefinition = entry.definition)}
+            onCopy={(text) => void panelActions.copyText(text)}
+          />
+        {/each}
+      </PanelList>
     {/if}
-  </PanelList>
+
+    <PanelSectionHeader title="Task runs" count={projected.runs.length}>
+      {#snippet actions()}
+        <PanelToolbarButton
+          icon={Trash2}
+          label="Prune history"
+          title="Prune finished ad-hoc task runs"
+          disabled={!model.capabilities.prune.enabled || prunableRuns === 0}
+          onclick={() => (confirmPruneOpen = true)}
+        />
+      {/snippet}
+    </PanelSectionHeader>
+    {#if projected.runs.length === 0}
+      <PanelEmpty
+        icon={Terminal}
+        title="No task runs yet"
+        description="Runs appear here as tasks and commands start."
+      />
+    {:else}
+      <PanelList ariaLabel="Task runs">
+        {#each projected.runs as entry (entry.key)}
+          <TaskRunRow
+            {entry}
+            {capabilities}
+            selected={entry.run.id === model.selectedTask?.id}
+            onOpen={(id) => void panelActions.openTaskOutput(id)}
+            onCancel={(id) => void panelActions.cancelTask(id)}
+            onRestart={(id) => void panelActions.restartTask(id)}
+            onRemove={(id) => void panelActions.removeTask(id)}
+            onCopy={(text) => void panelActions.copyText(text)}
+            onSaveAsDefinition={(task) => (saveSourceTask = task)}
+          />
+        {/each}
+      </PanelList>
+    {/if}
+  </div>
 {/snippet}
 
 <div class="h-full min-h-0" bind:clientWidth={panelWidth}>
   <PanelView scroll={!splitLayout} padded={false}>
-    {#snippet toolbar()}
-      {#if model.availability.available}
-        <PanelToolbar>
-          <PanelToolbarGroup>
-            <PanelToolbarButton
-              icon={ListTodo}
-              label={`Tasks (${projected.tasks.length})`}
-              showLabel
-              active={view === "tasks"}
-              onclick={() => (view = "tasks")}
-            />
-            <PanelToolbarButton
-              icon={History}
-              label={`History (${projected.history.length})`}
-              showLabel
-              active={view === "history"}
-              onclick={() => (view = "history")}
-            />
-          </PanelToolbarGroup>
-          <PanelSearchInput
-            bind:value={query}
-            placeholder="Search tasks"
-            class="max-w-64"
-          />
-          <PanelToolbarGroup trailing>
-            {#if view === "tasks"}
-              <PanelToolbarButton
-                icon={Plus}
-                label="Create task"
-                disabled={!model.capabilities.manageDefinitions.enabled}
-                onclick={() => (addOpen = true)}
-              />
-            {:else}
-              <PanelToolbarButton
-                icon={Trash2}
-                label="Prune history"
-                title="Prune finished task runs"
-                disabled={!model.capabilities.prune.enabled ||
-                  projected.history.length === 0}
-                onclick={() => (confirmPruneOpen = true)}
-              />
-            {/if}
-          </PanelToolbarGroup>
-        </PanelToolbar>
-      {/if}
-    {/snippet}
-
     {#snippet banner()}
+      <PanelHeader title="Tasks">
+        {#snippet trailing()}
+          {#if model.availability.available}
+            <PanelToolbarButton
+              icon={Plus}
+              label="Create task"
+              disabled={!model.capabilities.manageDefinitions.enabled}
+              onclick={() => (addOpen = true)}
+            />
+          {/if}
+        {/snippet}
+      </PanelHeader>
       {#if !model.availability.available}
         <PanelBanner tone="muted">{model.availability.message}</PanelBanner>
       {:else if model.notice}

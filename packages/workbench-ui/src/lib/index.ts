@@ -8,7 +8,6 @@ export { default as ContextProgressBadge } from "./components/composer/ContextPr
 export { default as ContextUsageChip } from "./components/composer/ContextUsageChip.svelte";
 export { default as TodoProgressChip } from "./components/composer/TodoProgressChip.svelte";
 export * from "./components/conversation/index.js";
-export * from "./components/navigator/index.js";
 export { createConversationScrollController } from "./components/transcript/conversation-scroll.svelte.js";
 export type { ScrollFollowDecisionInput } from "./components/transcript/conversation-scroll-intent.js";
 export { shouldDisableFollowForScroll } from "./components/transcript/conversation-scroll-intent.js";

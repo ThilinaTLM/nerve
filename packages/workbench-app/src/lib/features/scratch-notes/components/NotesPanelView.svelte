@@ -10,10 +10,9 @@ import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import {
   PanelBanner,
   PanelEmpty,
-  PanelSection,
-  PanelToolbar,
+  PanelHeader,
+  PanelSectionHeader,
   PanelToolbarButton,
-  PanelToolbarGroup,
   PanelView,
 } from "@nervekit/workbench-ui/panel";
 import ScratchNoteTitleDialog from "./ScratchNoteTitleDialog.svelte";
@@ -28,7 +27,6 @@ import {
   setScratchNoteContent,
   type ScratchNoteEntry,
 } from "../state/scratch-notes-state.svelte";
-import { panelSectionPreferences } from "$lib/app/shell/panel-section-preferences.svelte";
 
 type Props = {
   activeProject?: ProjectRecord;
@@ -64,10 +62,10 @@ function statusLabel(note: ScratchNoteEntry): string {
 </script>
 
 <PanelView padded={false}>
-  {#snippet toolbar()}
-    {#if projectId}
-      <PanelToolbar>
-        <PanelToolbarGroup trailing>
+  {#snippet banner()}
+    <PanelHeader title="Notes" count={project?.notes.length}>
+      {#snippet trailing()}
+        {#if projectId}
           <PanelToolbarButton
             icon={Plus}
             label="Add note"
@@ -75,12 +73,9 @@ function statusLabel(note: ScratchNoteEntry): string {
             disabled={project?.creating}
             onclick={() => void createScratchNote(projectId)}
           />
-        </PanelToolbarGroup>
-      </PanelToolbar>
-    {/if}
-  {/snippet}
-
-  {#snippet banner()}
+        {/if}
+      {/snippet}
+    </PanelHeader>
     {#if !projectId}
       <PanelBanner tone="muted">Select a project to take notes.</PanelBanner>
     {:else if !project || project.loadStatus === "idle" || project.loadStatus === "loading"}
@@ -108,49 +103,47 @@ function statusLabel(note: ScratchNoteEntry): string {
       />
     {:else}
       {#each project.notes as note (note.id)}
-        <PanelSection
-          title={note.title}
-          icon={NotebookPen}
-          open={panelSectionPreferences.isOpen(`notes.${note.id}`)}
-          onOpenChange={(open) =>
-            panelSectionPreferences.setOpen(`notes.${note.id}`, open)}
-        >
-          {#snippet meta()}
-            {#if statusLabel(note)}
-              <span class="truncate">{statusLabel(note)}</span>
-            {/if}
-          {/snippet}
-          {#snippet actions()}
-            <PanelToolbarButton
-              icon={Pencil}
-              label={`Edit title for ${note.title}`}
-              disabled={note.deleting}
-              onclick={() => (noteToRename = note)}
-            />
-            <PanelToolbarButton
-              icon={Trash2}
-              label={`Delete ${note.title}`}
-              loading={note.deleting}
-              disabled={note.deleting}
-              onclick={() => (noteToDelete = note)}
-            />
-          {/snippet}
+        <section class="flex min-w-0 flex-col">
+          <PanelSectionHeader title={note.title} icon={NotebookPen}>
+            {#snippet meta()}
+              {#if statusLabel(note)}
+                <span class="truncate">{statusLabel(note)}</span>
+              {/if}
+            {/snippet}
+            {#snippet actions()}
+              <PanelToolbarButton
+                icon={Pencil}
+                label={`Edit title for ${note.title}`}
+                disabled={note.deleting}
+                onclick={() => (noteToRename = note)}
+              />
+              <PanelToolbarButton
+                icon={Trash2}
+                label={`Delete ${note.title}`}
+                loading={note.deleting}
+                disabled={note.deleting}
+                onclick={() => (noteToDelete = note)}
+              />
+            {/snippet}
+          </PanelSectionHeader>
 
-          <Textarea
-            value={note.draftContent}
-            oninput={(event) =>
-              setScratchNoteContent(
-                projectId,
-                note.id,
-                event.currentTarget.value,
-              )}
-            onblur={() => void flushScratchNote(projectId, note.id)}
-            spellcheck={false}
-            disabled={note.deleting}
-            placeholder="Jot down notes for this project…"
-            class="min-h-36 resize-none text-sm leading-relaxed [field-sizing:content]"
-          />
-        </PanelSection>
+          <div class="flex min-w-0 flex-col pb-1">
+            <Textarea
+              value={note.draftContent}
+              oninput={(event) =>
+                setScratchNoteContent(
+                  projectId,
+                  note.id,
+                  event.currentTarget.value,
+                )}
+              onblur={() => void flushScratchNote(projectId, note.id)}
+              spellcheck={false}
+              disabled={note.deleting}
+              placeholder="Jot down notes for this project…"
+              class="min-h-36 resize-none text-sm leading-relaxed [field-sizing:content]"
+            />
+          </div>
+        </section>
       {/each}
     {/if}
   {/if}

@@ -7,11 +7,9 @@ import {
 import {
   PanelList,
   PanelRow,
-  PanelSection,
   PanelSectionHeader,
 } from "@nervekit/workbench-ui/panel";
 import type { AgentRecord } from "$lib/api";
-import { panelSectionPreferences } from "$lib/app/shell/panel-section-preferences.svelte";
 
 let {
   conversationAgents = [],
@@ -22,8 +20,6 @@ let {
   activeAgent?: AgentRecord;
   onSelectAgent?: (agent: AgentRecord) => void;
 } = $props();
-
-const open = $derived(panelSectionPreferences.isOpen("context.agents"));
 
 const mainAgents = $derived(
   conversationAgents.filter((agent) => !agent.parentAgentId),
@@ -59,56 +55,45 @@ function sortAgents(agents: AgentRecord[]): AgentRecord[] {
   });
 }
 
-let subagentsOpen = $state(false);
-$effect(() => {
-  if (subagents.some(isAgentLive)) subagentsOpen = true;
-});
-
 function agentDescription(agent: AgentRecord): string {
   return `${agent.status} · ${agent.mode} · ${agent.permissionLevel}`;
 }
 </script>
 
-<PanelSection
-  title="Agents"
-  icon={Bot}
-  count={conversationAgents.length}
-  {open}
-  onOpenChange={(next) =>
-    panelSectionPreferences.setOpen("context.agents", next)}
->
-  {#if conversationAgents.length === 0}
-    <p class="py-1 text-xs text-muted-foreground">
-      No agents in the active conversation.
-    </p>
-  {:else}
-    {#if mainAgents.length > 0}
-      <PanelSectionHeader title="Main agent" />
-      <PanelList ariaLabel="Main agents">
-        {#each sortAgents(mainAgents) as agent (agent.id)}
-          <PanelRow
-            label={shortAgentId(agent.id)}
-            description={agentDescription(agent)}
-            title={agent.id}
-            mono
-            indent={1}
-            status={agentActivityTone(agent.status, false, agent.mode)}
-            pulse={agentActivityPulse(agent.status)}
-            selected={agent.id === activeAgent?.id}
-            onclick={() => onSelectAgent?.(agent)}
-          />
-        {/each}
-      </PanelList>
-    {/if}
+<section class="flex min-w-0 flex-col">
+  <PanelSectionHeader
+    title="Agents"
+    icon={Bot}
+    count={conversationAgents.length}
+  />
 
-    {#if subagents.length > 0}
-      <PanelSectionHeader
-        title="Subagents"
-        count={subagents.length}
-        open={subagentsOpen}
-        onToggle={() => (subagentsOpen = !subagentsOpen)}
-      />
-      {#if subagentsOpen}
+  <div class="flex min-w-0 flex-col pb-1">
+    {#if conversationAgents.length === 0}
+      <p class="py-1 text-xs text-muted-foreground">
+        No agents in the active conversation.
+      </p>
+    {:else}
+      {#if mainAgents.length > 0}
+        <PanelSectionHeader title="Main agent" />
+        <PanelList ariaLabel="Main agents">
+          {#each sortAgents(mainAgents) as agent (agent.id)}
+            <PanelRow
+              label={shortAgentId(agent.id)}
+              description={agentDescription(agent)}
+              title={agent.id}
+              mono
+              indent={1}
+              status={agentActivityTone(agent.status, false, agent.mode)}
+              pulse={agentActivityPulse(agent.status)}
+              selected={agent.id === activeAgent?.id}
+              onclick={() => onSelectAgent?.(agent)}
+            />
+          {/each}
+        </PanelList>
+      {/if}
+
+      {#if subagents.length > 0}
+        <PanelSectionHeader title="Subagents" count={subagents.length} />
         <PanelList ariaLabel="Subagents">
           {#each sortAgents(subagents) as agent (agent.id)}
             <PanelRow
@@ -124,5 +109,5 @@ function agentDescription(agent: AgentRecord): string {
         </PanelList>
       {/if}
     {/if}
-  {/if}
-</PanelSection>
+  </div>
+</section>
