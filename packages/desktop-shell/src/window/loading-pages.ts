@@ -88,7 +88,7 @@ function shellStyles(): string {
       --primary: oklch(0.6171 0.1375 39.0427);
       --muted-foreground: oklch(0.5341 0.0078 97.4503);
       --border: oklch(0.8847 0.0069 97.3627);
-      --destructive: oklch(0.1908 0.002 106.5859);
+      --destructive: oklch(0.5 0.19 27);
       --radius: 0.625rem;
       --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
       --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -110,7 +110,7 @@ function shellStyles(): string {
         --primary: oklch(0.6724 0.1308 38.7559);
         --muted-foreground: oklch(0.7713 0.0169 99.0657);
         --border: oklch(0.3618 0.0101 106.8928);
-        --destructive: oklch(0.6368 0.2078 25.3313);
+        --destructive: oklch(0.8 0.114 25.5);
       }
     }
     * { box-sizing: border-box; }

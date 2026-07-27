@@ -164,7 +164,7 @@
 }
 
 .center-tab.errored .tab-status {
-  background: var(--destructive);
+  background: var(--destructive-solid);
 }
 
 .tab-kind-icon {

@@ -9,7 +9,9 @@ Application `*Shell` components are state/effect adapters around canonical `*Pan
 - **Tier 1 (default): Tailwind token utilities in markup** for layout, spacing,
   typography, color, borders, radius, and shadow. Use theme tokens only
   (`text-muted-foreground`, `bg-card`, `border`, `rounded-md`, `text-xs`, …) plus
-  `success`/`warning`/`info`. No hard-coded colors, font sizes, spacing, or
+  `success`/`warning`/`info`. `destructive` is the readable text/tint red;
+  opaque destructive fills use `destructive-solid` /
+  `destructive-solid-foreground`. No hard-coded colors, font sizes, spacing, or
   one-off visual constants.
 - **Tier 2 (escape hatch): a scoped `<style>` block in the component** — allowed
   ONLY for things utilities cannot express (see the list below). Use theme tokens

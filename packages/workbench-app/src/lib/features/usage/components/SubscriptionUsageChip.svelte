@@ -92,7 +92,7 @@ function toneTextClass(percent: number | null | undefined): string {
 /** Tailwind fill color for a usage progress bar. */
 function toneBarClass(percent: number | null | undefined): string {
   const tone = usageTone(percent);
-  if (tone === "error") return "bg-destructive";
+  if (tone === "error") return "bg-destructive-solid";
   if (tone === "warning") return "bg-warning";
   return "bg-success";
 }
