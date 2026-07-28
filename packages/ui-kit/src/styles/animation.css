@@ -81,7 +81,7 @@
   }
 }
 
-/* Center tab "running" status indicator pulse (center-tab.css). */
+/* Center tab "running" status indicator pulse (editor-tabs.css). */
 @keyframes tab-pulse {
   0% {
     box-shadow: 0 0 0 0 color-mix(in oklab, var(--info) 45%, transparent);

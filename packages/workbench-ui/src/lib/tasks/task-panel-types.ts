@@ -18,13 +18,23 @@ export interface TaskPanelDefinition {
   readonly runPolicy: "single" | "concurrent";
 }
 
-export interface TaskPanelEntry {
+/** A single task run, optionally linked to the definition that started it. */
+export interface TaskRunEntry {
   readonly key: string;
+  readonly run: TaskRecord;
   readonly definition?: TaskPanelDefinition;
-  readonly runs: readonly TaskRecord[];
+  readonly isActive: boolean;
+  readonly needsRecovery: boolean;
+}
+
+/** A saved task definition together with every run it has produced. */
+export interface TaskDefinitionEntry {
+  readonly key: string;
+  readonly definition: TaskPanelDefinition;
+  /** Run entries linked to this definition, newest first. */
+  readonly runs: readonly TaskRunEntry[];
   readonly activeRuns: readonly TaskRecord[];
   readonly latestRun?: TaskRecord;
-  readonly inHistory: boolean;
   readonly needsRecovery: boolean;
 }
 

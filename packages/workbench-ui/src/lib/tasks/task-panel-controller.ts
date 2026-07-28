@@ -1,9 +1,10 @@
 import type { TaskDefinition, TaskRecord } from "@nervekit/contracts";
 import type {
+  TaskDefinitionEntry,
   TaskPanelActions,
   TaskPanelDefinition,
-  TaskPanelEntry,
   TaskPanelModel,
+  TaskRunEntry,
 } from "./task-panel-types.js";
 
 const ACTIVE_TASK_STATUSES = new Set([
@@ -11,6 +12,22 @@ const ACTIVE_TASK_STATUSES = new Set([
   "running",
   "ready",
   "stopping",
+]);
+
+/** Statuses that still occupy a run slot, including recovered supervision. */
+const RUNNING_LIKE_STATUSES = new Set([
+  "starting",
+  "running",
+  "ready",
+  "stopping",
+  "recovered",
+]);
+
+/** Statuses that need a human recovery decision before destructive actions. */
+const RECOVERY_STATUSES = new Set([
+  "recovered",
+  "recovery_unknown",
+  "orphaned",
 ]);
 
 export type TaskGroups = {
@@ -50,95 +67,136 @@ export interface TaskEntryLabel {
 }
 
 /**
- * Resolves the single-line row label for a task entry. A saved definition label always
- * wins so that runs adopted by a definition immediately display its name.
+ * Resolves the single-line row label for a saved definition. The definition label
+ * always wins so that adopted runs immediately display its name.
  */
-export function taskEntryLabel(entry: TaskPanelEntry): TaskEntryLabel {
-  const named =
-    entry.definition?.label ??
-    entry.latestRun?.displayName ??
-    entry.latestRun?.name;
+export function taskDefinitionLabel(
+  entry: TaskDefinitionEntry,
+): TaskEntryLabel {
+  const named = entry.definition.label;
   if (named && named.trim().length > 0)
     return { text: named, isCommand: false };
-  const command = taskEntryCommand(entry);
+  const command = entry.definition.command;
   return { text: command || "Task", isCommand: command.length > 0 };
 }
 
-export function taskEntryCommand(entry: TaskPanelEntry): string {
-  return entry.definition?.command ?? entry.latestRun?.command ?? "";
+/** Resolves the single-line row label for an individual run. */
+export function taskRunLabel(entry: TaskRunEntry): TaskEntryLabel {
+  const named = entry.run.displayName ?? entry.run.name;
+  if (named && named.trim().length > 0)
+    return { text: named, isCommand: false };
+  const command = entry.run.command;
+  return { text: command || "Task", isCommand: command.length > 0 };
 }
 
-export function taskEntryCwd(entry: TaskPanelEntry): string | undefined {
-  return entry.definition?.cwd ?? entry.latestRun?.cwd;
+/** Lineage key shared by a definition's runs and by restart chains. */
+function lineageKey(task: TaskRecord): string {
+  return task.definitionId ?? task.restartRootTaskId ?? task.id;
 }
 
-export function projectTaskPanelEntries(
+/** All runs that belong to the same lineage as `task`, newest first. */
+export function taskLineageRuns(
+  tasks: readonly TaskRecord[],
+  task: TaskRecord | undefined,
+): TaskRecord[] {
+  if (!task) return [];
+  const key = lineageKey(task);
+  return tasks
+    .filter((candidate) => lineageKey(candidate) === key)
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}
+
+/** Formats a run start time for compact single-line row and selector labels. */
+export function formatTaskRunTime(startedAt: string): string {
+  const started = new Date(startedAt);
+  const sameDay = started.toDateString() === new Date().toDateString();
+  return sameDay
+    ? started.toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    : started.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+}
+
+/**
+ * Projects the panel into its two sections: saved definitions with their own runs
+ * nested underneath, and the ad-hoc runs that no definition started. Both are
+ * newest first with recovery concerns hoisted to the top.
+ */
+export function projectTaskPanel(
   definitions: readonly TaskPanelDefinition[],
   tasks: readonly TaskRecord[],
-): { tasks: TaskPanelEntry[]; history: TaskPanelEntry[] } {
-  const byKey = new Map<string, TaskRecord[]>();
+): { definitions: TaskDefinitionEntry[]; runs: TaskRunEntry[] } {
+  const runsByDefinition = new Map<string, TaskRecord[]>();
   for (const task of tasks) {
-    const key = task.definitionId ?? task.restartRootTaskId ?? task.id;
-    const runs = byKey.get(key) ?? [];
+    if (!task.definitionId) continue;
+    const runs = runsByDefinition.get(task.definitionId) ?? [];
     runs.push(task);
-    byKey.set(key, runs);
+    runsByDefinition.set(task.definitionId, runs);
   }
-  const definitionsById = new Map(definitions.map((item) => [item.id, item]));
-  const entries: TaskPanelEntry[] = [];
-  for (const definition of definitions) {
-    entries.push(
-      buildEntry(definition.id, definition, byKey.get(definition.id) ?? []),
+
+  const definitionEntries = definitions
+    .map((definition) =>
+      buildDefinitionEntry(
+        definition,
+        runsByDefinition.get(definition.id) ?? [],
+      ),
+    )
+    .sort(
+      (left, right) =>
+        Number(right.needsRecovery) - Number(left.needsRecovery) ||
+        (
+          right.latestRun?.startedAt ?? right.definition.updatedAt
+        ).localeCompare(left.latestRun?.startedAt ?? left.definition.updatedAt),
     );
-  }
-  for (const [key, runs] of byKey) {
-    if (definitionsById.has(key)) continue;
-    entries.push(buildEntry(key, undefined, runs));
-  }
-  const main = entries.filter(
-    (entry) =>
-      entry.definition || entry.activeRuns.length > 0 || entry.needsRecovery,
-  );
-  const history = entries.filter(
-    (entry) =>
-      !entry.definition &&
-      entry.activeRuns.length === 0 &&
-      !entry.needsRecovery,
-  );
-  const sort = (left: TaskPanelEntry, right: TaskPanelEntry) =>
-    Number(right.needsRecovery) - Number(left.needsRecovery) ||
-    (
-      right.latestRun?.startedAt ??
-      right.definition?.updatedAt ??
-      ""
-    ).localeCompare(
-      left.latestRun?.startedAt ?? left.definition?.updatedAt ?? "",
+
+  const runEntries = tasks
+    .filter((run) => !run.definitionId)
+    .map((run) => toRunEntry(run))
+    .sort(
+      (left, right) =>
+        Number(right.needsRecovery) - Number(left.needsRecovery) ||
+        right.run.startedAt.localeCompare(left.run.startedAt),
     );
-  return { tasks: main.sort(sort), history: history.sort(sort) };
+
+  return { definitions: definitionEntries, runs: runEntries };
 }
 
-function buildEntry(
-  key: string,
-  definition: TaskPanelDefinition | undefined,
-  runs: readonly TaskRecord[],
-): TaskPanelEntry {
-  const sorted = [...runs].sort((a, b) =>
-    b.startedAt.localeCompare(a.startedAt),
-  );
-  const activeRuns = sorted.filter((task) =>
-    ["starting", "running", "ready", "stopping", "recovered"].includes(
-      task.status,
-    ),
-  );
+function toRunEntry(
+  run: TaskRecord,
+  definition?: TaskPanelDefinition,
+): TaskRunEntry {
   return {
-    key,
+    key: run.id,
+    run,
+    definition,
+    isActive: RUNNING_LIKE_STATUSES.has(run.status),
+    needsRecovery: RECOVERY_STATUSES.has(run.status),
+  };
+}
+
+function buildDefinitionEntry(
+  definition: TaskPanelDefinition,
+  runs: readonly TaskRecord[],
+): TaskDefinitionEntry {
+  const sorted = [...runs]
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .map((run) => toRunEntry(run, definition));
+  return {
+    key: definition.id,
     definition,
     runs: sorted,
-    activeRuns,
-    latestRun: sorted[0],
-    inHistory: !definition && activeRuns.length === 0,
-    needsRecovery: sorted.some((task) =>
-      ["recovered", "recovery_unknown", "orphaned"].includes(task.status),
-    ),
+    activeRuns: sorted
+      .filter((entry) => entry.isActive)
+      .map((entry) => entry.run),
+    latestRun: sorted[0]?.run,
+    needsRecovery: sorted.some((entry) => entry.needsRecovery),
   };
 }
 

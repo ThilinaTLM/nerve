@@ -44,6 +44,7 @@ const unsupported = disabledCapability(
 
 export function createWorkbenchGitPanelAdapter(
   activeProject: () => ProjectRecord | undefined,
+  enabled: () => boolean = () => true,
 ): { readonly model: GitPanelModel; readonly actions: GitPanelActions } {
   const adapter = {
     get model(): GitPanelModel {
@@ -225,6 +226,10 @@ export function createWorkbenchGitPanelAdapter(
 
   let lastProjectId: string | undefined;
   $effect(() => {
+    if (!enabled()) {
+      lastProjectId = undefined;
+      return;
+    }
     const project = activeProject();
     if (project?.id === lastProjectId) return;
     lastProjectId = project?.id;
@@ -232,9 +237,11 @@ export function createWorkbenchGitPanelAdapter(
   });
 
   $effect(() => {
+    const active = enabled();
     const project = activeProject();
     const model = adapter.model;
     if (
+      !active ||
       !project ||
       model.repositories.length === 0 ||
       !model.selectedRepository
@@ -256,9 +263,11 @@ export function createWorkbenchGitPanelAdapter(
   });
 
   $effect(() => {
+    const active = enabled();
     const project = activeProject();
     const model = adapter.model;
     if (
+      !active ||
       !project ||
       model.repositories.length === 0 ||
       !model.repositorySummary?.hasGithubRemote ||

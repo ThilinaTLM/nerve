@@ -259,7 +259,7 @@ function checkUiStructureAndStyles() {
   for (const file of appSource) {
     const text = read(file);
     if (/Git(?:RepoBranch|Changes|Pr)Section/.test(text))
-      fail(file, "apps must compose Git through GitUtilityPanelView");
+      fail(file, "apps must compose Git through GitPanelView");
   }
 
   for (const file of trackedFiles.filter((path) => path.endsWith(".svelte"))) {
@@ -284,6 +284,21 @@ function checkUiStructureAndStyles() {
 function checkRemovedPaths() {
   const removed = [
     "packages/workbench-app/src/lib/app/layout/ShellPanes.svelte",
+    "packages/workbench-app/src/lib/app/layout/AppLayout.svelte",
+    "packages/workbench-app/src/lib/app/layout/layout-state.svelte.ts",
+    "packages/workbench-app/src/lib/app/layout/UtilityPanel.svelte",
+    "packages/workbench-app/src/lib/app/layout/UtilityShell.svelte",
+    "packages/workbench-app/src/lib/app/layout/utility-section-preferences.svelte.ts",
+    "packages/workbench-app/src/lib/features/projects/components/ProjectAgentTree.svelte",
+    "packages/workbench-ui/src/lib/components/workbench/workbench-shell.svelte",
+    "packages/workbench-ui/src/lib/components/workbench/workbench-panes.svelte",
+    "packages/workbench-ui/src/lib/components/workbench/workbench-utility-panel.svelte",
+    "packages/workbench-ui/src/lib/components/workbench/panel-section.svelte",
+    "packages/workbench-ui/src/lib/components/workbench/workbench-layout.ts",
+    "packages/workbench-ui/src/lib/components/workbench/index.ts",
+    "packages/ui-kit/src/styles/components/workbench-layout.css",
+    "packages/ui-kit/src/styles/components/workbench-tabs.css",
+    "packages/ui-kit/src/styles/components/workbench-utility.css",
     "packages/workbench-app/src/lib/features/conversations/components/composer-todos.ts",
     "packages/workbench-app/src/lib/features/git/components/git-change-format.ts",
     "packages/workbench-app/src/lib/features/git/components/git-remote-actions.ts",

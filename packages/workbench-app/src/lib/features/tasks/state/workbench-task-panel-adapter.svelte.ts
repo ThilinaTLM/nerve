@@ -20,9 +20,14 @@ import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-acti
 import {
   createTaskDefinition,
   deleteTaskDefinition,
-  getTaskDefinitions,
   updateTaskDefinition,
 } from "$lib/api";
+import {
+  cachedTaskDefinitions,
+  loadTaskDefinitions,
+  removeCachedTaskDefinition,
+  upsertCachedTaskDefinition,
+} from "$lib/features/tasks/state/task-definitions.svelte";
 import {
   createTaskPanelActions,
   disabledCapability,
@@ -57,10 +62,11 @@ export function createWorkbenchTaskPanelAdapter(
   selectedTask: () => TaskRecord | undefined,
   hostActions: WorkbenchTaskPanelHostActions,
 ): { readonly model: TaskPanelModel; readonly actions: TaskPanelActions } {
-  let definitions = $state<TaskDefinition[]>([]);
   let loadingDefinitions = $state(false);
   let runningDefinitionId = $state<string | undefined>(undefined);
-  let lastLoadedProjectId = $state<string | undefined>(undefined);
+  const definitions = $derived(
+    cachedTaskDefinitions(activeProject()?.id) ?? [],
+  );
 
   const unavailable = (message: string) => disabledCapability(message);
   const adapter = {
@@ -172,7 +178,7 @@ export function createWorkbenchTaskPanelAdapter(
           ...input,
           runPolicy: input.runPolicy ?? "single",
         });
-        definitions = [...definitions, created];
+        upsertCachedTaskDefinition(project.id, created);
         notify.success("Task saved");
       } catch (error) {
         notify.error(`Could not save task: ${errorMessage(error)}`);
@@ -191,9 +197,7 @@ export function createWorkbenchTaskPanelAdapter(
           ...input,
           runPolicy: input.runPolicy ?? item.runPolicy,
         });
-        definitions = definitions.map((candidate) =>
-          candidate.id === updated.id ? updated : candidate,
-        );
+        upsertCachedTaskDefinition(project.id, updated);
         notify.success("Task updated");
       } catch (error) {
         notify.error(`Could not update task: ${errorMessage(error)}`);
@@ -206,9 +210,7 @@ export function createWorkbenchTaskPanelAdapter(
       if (!project || !item) return;
       try {
         await deleteTaskDefinition(project.id, item.id);
-        definitions = definitions.filter(
-          (candidate) => candidate.id !== item.id,
-        );
+        removeCachedTaskDefinition(item.id);
         notify.success("Saved task deleted");
       } catch (error) {
         notify.error(`Could not remove saved task: ${errorMessage(error)}`);
@@ -222,26 +224,15 @@ export function createWorkbenchTaskPanelAdapter(
   adapter.actions = createTaskPanelActions(() => adapter.model, host);
 
   $effect(() => {
-    const disposeCreated = onEvent("taskDefinition.created", (event) => {
+    const cacheDefinition = (event: { data?: Record<string, unknown> }) => {
       const definition = event.data?.definition as TaskDefinition | undefined;
-      const projectId = activeProject()?.id;
-      if (
-        definition?.scope.kind === "project" &&
-        definition.scope.projectId === projectId &&
-        !definitions.some((item) => item.id === definition.id)
-      )
-        definitions = [...definitions, definition];
-    });
-    const disposeUpdated = onEvent("taskDefinition.updated", (event) => {
-      const definition = event.data?.definition as TaskDefinition | undefined;
-      if (!definition) return;
-      definitions = definitions.map((item) =>
-        item.id === definition.id ? definition : item,
-      );
-    });
+      if (definition?.scope.kind !== "project") return;
+      upsertCachedTaskDefinition(definition.scope.projectId, definition);
+    };
+    const disposeCreated = onEvent("taskDefinition.created", cacheDefinition);
+    const disposeUpdated = onEvent("taskDefinition.updated", cacheDefinition);
     const disposeDeleted = onEvent("taskDefinition.deleted", (event) => {
-      const definitionId = String(event.data?.definitionId ?? "");
-      definitions = definitions.filter((item) => item.id !== definitionId);
+      removeCachedTaskDefinition(String(event.data?.definitionId ?? ""));
     });
     return () => {
       disposeCreated();
@@ -250,22 +241,19 @@ export function createWorkbenchTaskPanelAdapter(
     };
   });
 
+  // Revalidate on mount and project switches. Cached definitions render
+  // immediately, so the loading state only shows on a cold cache.
   $effect(() => {
     const projectId = activeProject()?.id;
-    if (projectId === lastLoadedProjectId) return;
-    lastLoadedProjectId = projectId;
-    definitions = [];
     if (!projectId) return;
-    loadingDefinitions = true;
-    void getTaskDefinitions(projectId)
-      .then((loaded) => {
-        if (activeProject()?.id === projectId) definitions = loaded;
-      })
+    const cold = cachedTaskDefinitions(projectId) === undefined;
+    if (cold) loadingDefinitions = true;
+    void loadTaskDefinitions(projectId)
       .catch((error) =>
         notify.error(`Could not load task definitions: ${errorMessage(error)}`),
       )
       .finally(() => {
-        if (activeProject()?.id === projectId) loadingDefinitions = false;
+        if (cold) loadingDefinitions = false;
       });
   });
 

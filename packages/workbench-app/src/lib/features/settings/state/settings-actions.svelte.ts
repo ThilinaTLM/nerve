@@ -13,12 +13,12 @@ import {
   type UpdateSettingsRequest,
   updateSettings,
 } from "$lib/api";
-import type { ThemePreference } from "$lib/app/layout/layout-state.svelte";
+import type { ThemePreference } from "$lib/app/shell/appearance.svelte";
 import {
   applyTheme,
   applyZoomLevel,
   clampZoomLevel,
-} from "$lib/app/layout/layout-state.svelte";
+} from "$lib/app/shell/appearance.svelte";
 import {
   clampThinkingLevelForModel,
   resolveNewAgentComposerSelection,

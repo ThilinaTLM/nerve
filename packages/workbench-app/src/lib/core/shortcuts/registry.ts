@@ -93,7 +93,7 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
   ...paneIndexCommands,
   {
     id: "projectSearch.focus",
-    label: "Focus project search",
+    label: "Search conversations",
     category: "Conversation",
     defaultBinding: { key: "k", mod: true },
   },

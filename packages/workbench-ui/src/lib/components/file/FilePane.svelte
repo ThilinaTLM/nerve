@@ -6,7 +6,7 @@ import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { tick } from "svelte";
-import CodeViewer from "../workbench/code-viewer.svelte";
+import CodeViewer from "./code-viewer.svelte";
 import { resolveFilePaneModel } from "./file-pane-model.js";
 import type { FilePaneViewModel } from "./types.js";
 

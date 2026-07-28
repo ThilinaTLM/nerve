@@ -48,10 +48,16 @@ const rows = $derived(
 );
 
 $effect(() => {
-  if (open) {
-    filter = "";
-    queueMicrotask(() => searchInputEl?.focus());
-  }
+  if (!open) return;
+  filter = "";
+  let focusFrame: number | undefined;
+  const mountFrame = requestAnimationFrame(() => {
+    focusFrame = requestAnimationFrame(() => searchInputEl?.focus());
+  });
+  return () => {
+    cancelAnimationFrame(mountFrame);
+    if (focusFrame !== undefined) cancelAnimationFrame(focusFrame);
+  };
 });
 
 function handleOpenChange(next: boolean) {

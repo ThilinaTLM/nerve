@@ -1,0 +1,62 @@
+/* Panel primitives (@nervekit/workbench-ui/panel).
+ * Dense, flat, IDE-style sections/rows/toolbars. These classes cover the parts
+ * utilities cannot express: the shared indent step, sticky section headers, and
+ * the hover-revealed action affordance used by panel rows. */
+
+.panel-view {
+  background: var(--card);
+}
+
+/* The single scroll region owned by PanelView. */
+.panel-scroll {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+
+/* Static group heading. It stays pinned while its rows scroll, so it carries the
+ * panel surface color rather than a contrasting band. */
+.panel-section-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card);
+}
+
+/* One indentation step per nesting level, on top of the base row inset. Rows can
+ * drop the base inset (`--panel-row-inset: 0px`) to align with the panel edge. */
+.panel-row {
+  padding-left: calc(
+    var(--panel-row-inset, 0.5rem) + var(--panel-indent, 0) * 0.75rem
+  );
+}
+
+.panel-row-hoverable:hover {
+  background: color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+/* Card surface for panel list items (task groups, pull requests). Rows inside a
+ * card hover with a softer tint so the composited result matches the standalone
+ * row hover instead of stacking into a brighter value. */
+.panel-row-card {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+.panel-row-card .panel-row-hoverable:hover {
+  background: color-mix(in oklab, var(--accent) 38%, transparent);
+}
+
+.panel-hover-actions {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.panel-row:hover .panel-hover-actions {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .panel-hover-actions {
+    opacity: 1;
+  }
+}

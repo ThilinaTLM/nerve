@@ -3,7 +3,7 @@
 import { registerSW } from "virtual:pwa-register";
 import { mount } from "svelte";
 import Root from "./Root.svelte";
-import { applyZoomLevel } from "./lib/app/layout/layout-state.svelte";
+import { applyZoomLevel } from "./lib/app/shell/appearance.svelte";
 import "./styles/app.css";
 
 let initialZoomLevel: string | null = null;

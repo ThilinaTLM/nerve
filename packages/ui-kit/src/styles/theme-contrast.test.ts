@@ -28,6 +28,8 @@ const tokenNames = [
   "primary-foreground",
   "secondary",
   "secondary-foreground",
+  "muted",
+  "foreground",
   "success",
   "success-foreground",
   "warning",
@@ -123,6 +125,7 @@ const themes = {
 const filledPairs = [
   ["primary", "primary-foreground"],
   ["secondary", "secondary-foreground"],
+  ["muted", "foreground"],
   ["success", "success-foreground"],
   ["warning", "warning-foreground"],
   ["info", "info-foreground"],
@@ -179,7 +182,7 @@ describe("theme text contrast", () => {
   it("uses the measured token pairs and tint in the shared badge", () => {
     assert.match(
       badgeSource,
-      /neutral:\s*"[^"]*bg-secondary text-secondary-foreground[^"]*"/,
+      /neutral:\s*"[^"]*bg-muted text-foreground[^"]*"/,
     );
     for (const token of semanticTokens) {
       assert.match(

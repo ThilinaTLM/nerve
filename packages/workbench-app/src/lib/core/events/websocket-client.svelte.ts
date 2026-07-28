@@ -17,7 +17,7 @@ import { getClientConfig } from "$lib/api";
 import {
   applyTheme,
   loadThemePreference,
-} from "$lib/app/layout/layout-state.svelte";
+} from "$lib/app/shell/appearance.svelte";
 import {
   applyEventAndFlush,
   enqueueNotify,

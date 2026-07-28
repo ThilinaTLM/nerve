@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/lib/index.ts",
     "./components/settings": "./src/lib/components/settings/index.ts",
-    "./components/workbench": "./src/lib/components/workbench/index.ts",
+    "./shell": "./src/lib/shell/index.ts",
+    "./panel": "./src/lib/panel/index.ts",
     "./components/navigator": "./src/lib/components/navigator/index.ts",
     "./components/conversation": "./src/lib/components/conversation/index.ts",
     "./components/file": "./src/lib/components/file/index.ts",
