@@ -174,12 +174,15 @@ for (let line = 1; line <= 100000; line += 1) {
       "rg",
       `
 const fs = require("node:fs");
-fs.writeFileSync(${JSON.stringify(marker)}, "started");
+// Install the handler before announcing readiness so an abort that lands
+// immediately after the marker appears can never hit the default SIGTERM
+// disposition (the source of a macOS CI race).
 process.on("SIGTERM", () => {
   fs.appendFileSync(${JSON.stringify(marker)}, "\\nstopped");
   process.exit(0);
 });
 setInterval(() => {}, 1000);
+fs.writeFileSync(${JSON.stringify(marker)}, "started");
 `,
     );
     const controller = new AbortController();
