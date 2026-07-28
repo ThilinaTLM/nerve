@@ -35,6 +35,13 @@ describe("settings schema", () => {
     assert.deepEqual(settings.notifications, {
       systemEnabled: true,
       soundsEnabled: true,
+      events: {
+        question: "bell",
+        planReview: "chime",
+        approval: "bell",
+        completed: "success",
+        failed: "alert",
+      },
     });
     assert.deepEqual(settings.tools.disabled, []);
     assert.deepEqual(settings.skills.disabled, []);
@@ -45,6 +52,21 @@ describe("settings schema", () => {
     });
     assert.equal(settings.tools.jira.enabled, false);
     assert.equal(settings.tools.confluence.enabled, false);
+  });
+
+  it("backfills event tones for the previous notification settings shape", () => {
+    const settings = settingsSchema.parse({
+      ...defaultSettings,
+      notifications: { systemEnabled: false, soundsEnabled: true },
+    });
+
+    assert.deepEqual(settings.notifications.events, {
+      question: "bell",
+      planReview: "chime",
+      approval: "bell",
+      completed: "success",
+      failed: "alert",
+    });
   });
 
   it("strips legacy compaction token fields while backfilling defaults", () => {
@@ -81,7 +103,11 @@ describe("settings schema", () => {
 
   it("accepts runtime and tool update settings", () => {
     const parsed = updateSettingsRequestSchema.parse({
-      notifications: { systemEnabled: false, soundsEnabled: false },
+      notifications: {
+        systemEnabled: false,
+        soundsEnabled: false,
+        events: { question: "pop", completed: "none" },
+      },
       runtime: {
         pythonExecutablePath: "/usr/bin/python3",
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
@@ -116,7 +142,14 @@ describe("settings schema", () => {
     assert.deepEqual(parsed.notifications, {
       systemEnabled: false,
       soundsEnabled: false,
+      events: { question: "pop", completed: "none" },
     });
+    assert.equal(
+      updateSettingsRequestSchema.safeParse({
+        notifications: { events: { approval: "siren" } },
+      }).success,
+      false,
+    );
     assert.equal(parsed.defaultApprovalPolicy?.autoApproveReadOnly, false);
     assert.equal(
       parsed.lastAgentSelection?.approvalPolicy?.autoApproveReadOnly,

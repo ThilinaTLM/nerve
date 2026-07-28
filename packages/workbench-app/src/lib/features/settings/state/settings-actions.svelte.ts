@@ -186,6 +186,14 @@ function mergeSettingsPatch(
     next.notifications = {
       ...(base?.notifications ?? {}),
       ...(patch.notifications ?? {}),
+      ...(base?.notifications?.events || patch.notifications?.events
+        ? {
+            events: {
+              ...(base?.notifications?.events ?? {}),
+              ...(patch.notifications?.events ?? {}),
+            },
+          }
+        : {}),
     };
   }
   if (base?.lastAgentSelection || patch.lastAgentSelection) {

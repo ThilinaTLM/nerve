@@ -7,6 +7,7 @@ import {
 } from "$lib/features/desktop";
 import {
   configureNotificationPreferences,
+  initializeNotificationAudio,
   initializeNotifications,
 } from "$lib/features/notifications/notify.svelte";
 import { registerFeatureEventHandlers } from "$lib/features/register-feature-events";
@@ -163,6 +164,7 @@ $effect(() => {
 
 onMount(() => {
   const unregisterFeatureEvents = registerFeatureEventHandlers();
+  const stopNotificationAudio = initializeNotificationAudio();
   const unsubscribeDesktop = initializeDesktopRuntime();
   const stopGitContextAutoRefresh = startGitContextAutoRefresh();
   const startedOnSettings =
@@ -191,6 +193,7 @@ onMount(() => {
       { capture: true },
     );
     unsubscribeDesktop();
+    stopNotificationAudio();
     stopGitContextAutoRefresh();
     unregisterFeatureEvents();
     disconnectWorkbench();

@@ -23,7 +23,10 @@ describe("settings migrations", () => {
     roots.push(root);
     const configPath = join(root, "config.json");
     await initializeStorage(root);
-    const legacySettings = { ...defaultSettings, notifications: undefined };
+    const legacySettings = {
+      ...defaultSettings,
+      notifications: { systemEnabled: true, soundsEnabled: true },
+    };
     await writeFile(
       configPath,
       `${JSON.stringify(legacySettings, null, 2)}\n`,
@@ -35,6 +38,13 @@ describe("settings migrations", () => {
     assert.deepEqual(storage.settings.notifications, {
       systemEnabled: true,
       soundsEnabled: true,
+      events: {
+        question: "bell",
+        planReview: "chime",
+        approval: "bell",
+        completed: "success",
+        failed: "alert",
+      },
     });
   });
 
@@ -44,15 +54,28 @@ describe("settings migrations", () => {
     const storage = await initializeStorage(root);
 
     await writeSettings(storage, {
-      notifications: { systemEnabled: false },
+      notifications: {
+        systemEnabled: false,
+        events: { question: "pop" },
+      },
     });
     await writeSettings(storage, {
-      notifications: { soundsEnabled: false },
+      notifications: {
+        soundsEnabled: false,
+        events: { completed: "none" },
+      },
     });
 
     assert.deepEqual(storage.settings.notifications, {
       systemEnabled: false,
       soundsEnabled: false,
+      events: {
+        question: "pop",
+        planReview: "chime",
+        approval: "bell",
+        completed: "none",
+        failed: "alert",
+      },
     });
   });
 

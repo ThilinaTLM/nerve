@@ -83,6 +83,41 @@ export const compactionProfileSchema = z.enum([
 ]);
 export type CompactionProfile = z.infer<typeof compactionProfileSchema>;
 
+export const notificationToneSchema = z.enum([
+  "none",
+  "bell",
+  "chime",
+  "click",
+  "pop",
+  "success",
+  "alert",
+]);
+export type NotificationTone = z.infer<typeof notificationToneSchema>;
+
+export const defaultNotificationEventSounds = {
+  question: "bell",
+  planReview: "chime",
+  approval: "bell",
+  completed: "success",
+  failed: "alert",
+} as const satisfies Record<string, NotificationTone>;
+
+const notificationEventSoundSettingsSchema = z.object({
+  question: notificationToneSchema.default(
+    defaultNotificationEventSounds.question,
+  ),
+  planReview: notificationToneSchema.default(
+    defaultNotificationEventSounds.planReview,
+  ),
+  approval: notificationToneSchema.default(
+    defaultNotificationEventSounds.approval,
+  ),
+  completed: notificationToneSchema.default(
+    defaultNotificationEventSounds.completed,
+  ),
+  failed: notificationToneSchema.default(defaultNotificationEventSounds.failed),
+});
+
 export const autoCompactionSettingsSchema = z.object({
   auto: z.boolean().default(true),
   profile: compactionProfileSchema.default("balanced"),
@@ -126,8 +161,15 @@ export const settingsSchema = z.object({
     .object({
       systemEnabled: z.boolean().default(true),
       soundsEnabled: z.boolean().default(true),
+      events: notificationEventSoundSettingsSchema.default(
+        defaultNotificationEventSounds,
+      ),
     })
-    .default({ systemEnabled: true, soundsEnabled: true }),
+    .default({
+      systemEnabled: true,
+      soundsEnabled: true,
+      events: defaultNotificationEventSounds,
+    }),
   compaction: autoCompactionSettingsSchema,
   logging: z.object({
     level: applicationLogLevelSchema.default("info"),
@@ -191,6 +233,7 @@ export const defaultSettings: Settings = {
   notifications: {
     systemEnabled: true,
     soundsEnabled: true,
+    events: defaultNotificationEventSounds,
   },
   compaction: {
     auto: true,
@@ -263,6 +306,15 @@ export const updateSettingsRequestSchema = z.object({
     .object({
       systemEnabled: z.boolean().optional(),
       soundsEnabled: z.boolean().optional(),
+      events: z
+        .object({
+          question: notificationToneSchema.optional(),
+          planReview: notificationToneSchema.optional(),
+          approval: notificationToneSchema.optional(),
+          completed: notificationToneSchema.optional(),
+          failed: notificationToneSchema.optional(),
+        })
+        .optional(),
     })
     .optional(),
   compaction: z

@@ -1,8 +1,12 @@
-import type { Settings, UpdateSettingsRequest } from "@nervekit/contracts";
+import type {
+  NotificationTone,
+  Settings,
+  UpdateSettingsRequest,
+} from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
 
 export type SettingsResponse = Settings;
-export type { UpdateSettingsRequest };
+export type { NotificationTone, UpdateSettingsRequest };
 
 export async function getSettings(): Promise<Settings> {
   return (await protocolRequest("settings.get", {})).result;

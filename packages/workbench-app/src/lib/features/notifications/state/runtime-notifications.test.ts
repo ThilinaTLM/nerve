@@ -46,7 +46,7 @@ function runData(overrides: Record<string, unknown> = {}) {
 }
 
 describe("notificationForRuntimeEvent", () => {
-  it("maps user-attention events to the attention cue", () => {
+  it("maps each pending HIL event to its configurable sound event", () => {
     const candidates = [
       notificationForRuntimeEvent(
         event("approval.updated", {
@@ -74,9 +74,34 @@ describe("notificationForRuntimeEvent", () => {
     ];
 
     assert.deepEqual(
-      candidates.map((candidate) => candidate?.sound),
-      ["attention", "attention", "attention"],
+      candidates.map((candidate) => candidate?.soundEvent),
+      ["approval", "question", "planReview"],
     );
+  });
+
+  it("does not cue resolved HIL records", () => {
+    const candidates = [
+      notificationForRuntimeEvent(
+        event("approval.updated", {
+          approval: { id: "approval_01", status: "approved" },
+        }),
+        context,
+      ),
+      notificationForRuntimeEvent(
+        event("userQuestion.updated", {
+          question: { id: "question_01", status: "answered" },
+        }),
+        context,
+      ),
+      notificationForRuntimeEvent(
+        event("planReview.updated", {
+          planReview: { id: "review_01", status: "accepted" },
+        }),
+        context,
+      ),
+    ];
+
+    assert.deepEqual(candidates, [undefined, undefined, undefined]);
   });
 
   it("maps completion and critical failure to distinct cues", () => {
@@ -92,8 +117,8 @@ describe("notificationForRuntimeEvent", () => {
       context,
     );
 
-    assert.equal(completed?.sound, "complete");
-    assert.equal(failed?.sound, "error");
+    assert.equal(completed?.soundEvent, "completed");
+    assert.equal(failed?.soundEvent, "failed");
   });
 
   it("ignores generic suspension to avoid duplicate attention cues", () => {
@@ -134,7 +159,7 @@ describe("notificationForRuntimeEvent", () => {
 
     assert.ok(notification);
     assert.equal(notification.backgroundOnly, false);
-    assert.equal(notification.sound, "error");
+    assert.equal(notification.soundEvent, "failed");
     assert.equal(notification.payload.urgency, "attention");
     assert.match(notification.payload.title, /needs retry/);
     assert.match(notification.payload.body ?? "", /3 retries/);

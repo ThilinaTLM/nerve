@@ -1,3 +1,4 @@
+import type { NotificationTone } from "@nervekit/contracts";
 import { toast as sonnerToast } from "svelte-sonner";
 import {
   type DesktopNotificationPayload,
@@ -5,13 +6,18 @@ import {
   showDesktopNotification,
 } from "$lib/features/desktop/state/desktop-bridge.svelte";
 import {
-  type NotificationSound,
+  initializeNotificationSoundPlayback,
   playNotificationSound,
-  preloadNotificationSounds,
 } from "$lib/features/notifications/state/notification-sounds";
 
 type BrowserPermission = NotificationPermission | "unsupported";
 type NotifyKind = "success" | "error" | "message";
+export type NotificationSoundEvent =
+  | "question"
+  | "planReview"
+  | "approval"
+  | "completed"
+  | "failed";
 
 export type NotifyOptions = {
   description?: string;
@@ -21,12 +27,13 @@ export type NotifyOptions = {
 export type NativeNotifyOptions = NotifyOptions & {
   backgroundOnly?: boolean;
   kind?: NotifyKind;
-  sound?: NotificationSound;
+  soundEvent?: NotificationSoundEvent;
 };
 
 export type NotificationPreferences = {
   systemEnabled: boolean;
   soundsEnabled: boolean;
+  events: Record<NotificationSoundEvent, NotificationTone>;
 };
 
 export const notificationState = $state<{
@@ -38,6 +45,7 @@ export const notificationState = $state<{
   lastRequestResult?: NotificationPermission;
   systemEnabled: boolean;
   soundsEnabled: boolean;
+  eventSounds: Record<NotificationSoundEvent, NotificationTone>;
 }>({
   initialized: false,
   browserSupported: false,
@@ -47,6 +55,13 @@ export const notificationState = $state<{
   lastRequestResult: undefined,
   systemEnabled: true,
   soundsEnabled: true,
+  eventSounds: {
+    question: "bell",
+    planReview: "chime",
+    approval: "bell",
+    completed: "success",
+    failed: "alert",
+  },
 });
 
 let listenersInstalled = false;
@@ -71,8 +86,11 @@ export function notifyCopyResult(ok: boolean, label = "code block"): void {
   else notify.error(`Could not copy ${label}`);
 }
 
+export function initializeNotificationAudio(): () => void {
+  return initializeNotificationSoundPlayback();
+}
+
 export function initializeNotifications(): void {
-  preloadNotificationSounds();
   notificationState.initialized = true;
   syncNotificationState();
   if (listenersInstalled || typeof window === "undefined") return;
@@ -87,6 +105,7 @@ export function configureNotificationPreferences(
 ): void {
   notificationState.systemEnabled = preferences.systemEnabled;
   notificationState.soundsEnabled = preferences.soundsEnabled;
+  notificationState.eventSounds = { ...preferences.events };
   syncNotificationState();
 }
 
@@ -116,8 +135,11 @@ export function notifyNative(
   payload: DesktopNotificationPayload,
   options: NativeNotifyOptions = {},
 ): void {
-  if (options.sound && notificationState.soundsEnabled) {
-    playNotificationSound(options.sound);
+  const tone = options.soundEvent
+    ? notificationState.eventSounds[options.soundEvent]
+    : "none";
+  if (tone !== "none" && notificationState.soundsEnabled) {
+    playNotificationSound(tone);
   }
   if (!notificationState.systemEnabled) return;
 

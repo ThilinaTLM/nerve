@@ -234,6 +234,14 @@ export async function writeSettings(
     notifications: {
       ...storage.settings.notifications,
       ...(patch.notifications ?? {}),
+      ...(patch.notifications?.events
+        ? {
+            events: {
+              ...storage.settings.notifications.events,
+              ...patch.notifications.events,
+            },
+          }
+        : {}),
     },
     lastAgentSelection: {
       ...storage.settings.lastAgentSelection,
