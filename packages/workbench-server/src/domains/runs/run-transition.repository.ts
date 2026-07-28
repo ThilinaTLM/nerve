@@ -17,7 +17,7 @@ import {
   RunRevisionConflictError,
   type RunHydratedState,
   type RunUnitOfWorkPort,
-} from "@nervekit/host-runtime";
+} from "./runtime/index.js";
 import {
   appendJsonLine,
   atomicWriteJson,

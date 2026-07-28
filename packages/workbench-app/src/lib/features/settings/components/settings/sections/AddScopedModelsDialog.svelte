@@ -11,7 +11,7 @@ import {
   modelDisplayName,
   modelKey,
   providerDisplayName,
-} from "@nervekit/workbench-ui/core/utils/model";
+} from "$lib/presentation/utils/model";
 
 type ProviderChip = { id: string; label: string; count: number };
 

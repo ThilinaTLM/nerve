@@ -3,7 +3,7 @@ import {
   buildProcessResult,
   buildProcessTextResult,
   type ToolExecutionResult,
-} from "@nervekit/host-runtime/tools";
+} from "@nervekit/tools";
 import { isActiveTaskStatus } from "./index.js";
 import type {
   ForegroundBashPromotionInput,

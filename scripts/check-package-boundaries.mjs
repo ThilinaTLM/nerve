@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, sep } from "node:path";
+import { dirname, join, posix, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -14,30 +14,19 @@ const allowedNerveDependencies = new Map([
   ["@nervekit/protocol", ["@nervekit/contracts"]],
   ["@nervekit/harness", ["@nervekit/contracts"]],
   ["@nervekit/tools", ["@nervekit/contracts"]],
-  [
-    "@nervekit/host-runtime",
-    ["@nervekit/contracts", "@nervekit/harness", "@nervekit/tools"],
-  ],
-  ["@nervekit/process-runtime", ["@nervekit/contracts", "@nervekit/tools"]],
   ["@nervekit/ui-kit", []],
-  ["@nervekit/workbench-ui", ["@nervekit/contracts", "@nervekit/ui-kit"]],
   [
     "@nervekit/workbench-server",
     [
       "@nervekit/contracts",
       "@nervekit/protocol",
-      "@nervekit/host-runtime",
-      "@nervekit/process-runtime",
+      "@nervekit/harness",
+      "@nervekit/tools",
     ],
   ],
   [
     "@nervekit/workbench-app",
-    [
-      "@nervekit/contracts",
-      "@nervekit/protocol",
-      "@nervekit/workbench-ui",
-      "@nervekit/ui-kit",
-    ],
+    ["@nervekit/contracts", "@nervekit/protocol", "@nervekit/ui-kit"],
   ],
   [
     "@nervekit/desktop-shell",
@@ -123,21 +112,31 @@ function checkSourceImports() {
         if (dependency !== packageName && !allowed.includes(dependency))
           fail(file, `${packageName} may not import ${specifier}`);
       }
-      if (
-        packageName === "@nervekit/workbench-ui" &&
-        specifier.startsWith("$lib")
-      )
-        fail(file, "workbench-ui may not import app $lib modules");
       if (packageName === "@nervekit/ui-kit" && specifier.startsWith("$lib"))
         fail(file, "ui-kit may not import app $lib modules");
       if (
-        packageName === "@nervekit/host-runtime" &&
-        forbiddenHostRuntimeImport(specifier)
+        file.startsWith("packages/workbench-app/src/lib/presentation/") &&
+        forbiddenPresentationImport(file, specifier)
       )
         fail(
           file,
-          `host-runtime may not import concrete transport/runtime module ${specifier}`,
+          "presentation may not import app shells, feature state, or app core",
         );
+      if (
+        file.startsWith(
+          "packages/workbench-server/src/domains/runs/runtime/",
+        ) &&
+        forbiddenRunRuntimeImport(file, specifier)
+      )
+        fail(
+          file,
+          `run runtime may not import concrete server/runtime module ${specifier}`,
+        );
+      if (
+        file === "packages/workbench-server/src/core/ports.ts" &&
+        specifier !== "@nervekit/contracts"
+      )
+        fail(file, `server core ports may not import ${specifier}`);
       if (
         packageName === "@nervekit/contracts" &&
         forbiddenContractsImport(specifier)
@@ -155,9 +154,15 @@ function checkRetiredSurface() {
     "@nervekit/" + "agent-runtime",
     "@nervekit/" + "agent-tools",
     "@nervekit/" + "orchestrator",
+    "@nervekit/" + "host-runtime",
+    "@nervekit/" + "process-runtime",
+    "@nervekit/" + "workbench-ui",
     "packages/" + "agent-runtime",
     "packages/" + "agent-tools",
     "packages/" + "orchestrator",
+    "packages/" + "host-runtime",
+    "packages/" + "process-runtime",
+    "packages/" + "workbench-ui",
   ];
   const retiredPathFragments = [
     "/protocol/" + "session.ts",
@@ -290,12 +295,12 @@ function checkRemovedPaths() {
     "packages/workbench-app/src/lib/app/layout/UtilityShell.svelte",
     "packages/workbench-app/src/lib/app/layout/utility-section-preferences.svelte.ts",
     "packages/workbench-app/src/lib/features/projects/components/ProjectAgentTree.svelte",
-    "packages/workbench-ui/src/lib/components/workbench/workbench-shell.svelte",
-    "packages/workbench-ui/src/lib/components/workbench/workbench-panes.svelte",
-    "packages/workbench-ui/src/lib/components/workbench/workbench-utility-panel.svelte",
-    "packages/workbench-ui/src/lib/components/workbench/panel-section.svelte",
-    "packages/workbench-ui/src/lib/components/workbench/workbench-layout.ts",
-    "packages/workbench-ui/src/lib/components/workbench/index.ts",
+    "packages/workbench-app/src/lib/presentation/components/workbench/workbench-shell.svelte",
+    "packages/workbench-app/src/lib/presentation/components/workbench/workbench-panes.svelte",
+    "packages/workbench-app/src/lib/presentation/components/workbench/workbench-utility-panel.svelte",
+    "packages/workbench-app/src/lib/presentation/components/workbench/panel-section.svelte",
+    "packages/workbench-app/src/lib/presentation/components/workbench/workbench-layout.ts",
+    "packages/workbench-app/src/lib/presentation/components/workbench/index.ts",
     "packages/ui-kit/src/styles/components/workbench-layout.css",
     "packages/ui-kit/src/styles/components/workbench-tabs.css",
     "packages/ui-kit/src/styles/components/workbench-utility.css",
@@ -344,10 +349,25 @@ function nervePackageName(specifier) {
   return match?.[1] ?? specifier;
 }
 
-function forbiddenHostRuntimeImport(specifier) {
-  return /^(?:@nervekit\/(?:protocol|workbench-server|workbench-app|desktop-shell)|hono(?:\/|$)|svelte(?:\/|$)|ws$|better-sqlite3$|sqlite3$)/.test(
-    specifier,
+function forbiddenRunRuntimeImport(file, specifier) {
+  if (specifier === "@nervekit/contracts") return false;
+  if (specifier === "../../../core/ports.js") return false;
+  if (!specifier.startsWith(".")) return true;
+  return !resolvedImportPath(file, specifier).startsWith(
+    "packages/workbench-server/src/domains/runs/runtime/",
   );
+}
+
+function forbiddenPresentationImport(file, specifier) {
+  if (/^\$lib\/(?:app|features|core)(?:\/|$)/.test(specifier)) return true;
+  if (!specifier.startsWith(".")) return false;
+  return !resolvedImportPath(file, specifier).startsWith(
+    "packages/workbench-app/src/lib/presentation/",
+  );
+}
+
+function resolvedImportPath(file, specifier) {
+  return posix.normalize(posix.join(posix.dirname(file), specifier));
 }
 
 function forbiddenContractsImport(specifier) {

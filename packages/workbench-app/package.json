@@ -24,11 +24,16 @@
     "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.2",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.0",
     "@dagrejs/dagre": "3.0.0",
+    "@lucide/svelte": "^1.17.0",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/protocol": "workspace:*",
     "@nervekit/ui-kit": "workspace:*",
-    "@nervekit/workbench-ui": "workspace:*",
     "@tailwindcss/vite": "4.3.1",
     "@tanstack/svelte-query": "6.0.0",
     "@xyflow/svelte": "1.6.2",
@@ -39,7 +44,6 @@
     "workbox-window": "7.4.1"
   },
   "devDependencies": {
-    "@lucide/svelte": "^1.17.0",
     "@sveltejs/vite-plugin-svelte": "7.1.2",
     "clsx": "^2.1.1",
     "mode-watcher": "^1.1.0",

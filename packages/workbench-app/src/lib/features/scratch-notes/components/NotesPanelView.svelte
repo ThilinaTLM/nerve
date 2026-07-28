@@ -10,7 +10,7 @@ import {
   PanelHeader,
   PanelToolbarButton,
   PanelView,
-} from "@nervekit/workbench-ui/panel";
+} from "$lib/presentation/panel";
 import ScratchNoteCard from "./ScratchNoteCard.svelte";
 import {
   createScratchNote,

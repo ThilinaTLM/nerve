@@ -1,6 +1,6 @@
 import { mkdir, open, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
-import type { GitService } from "@nervekit/host-runtime/tools";
+import type { GitService } from "@nervekit/tools";
 import type {
   AgentRecord,
   ConversationRecord,

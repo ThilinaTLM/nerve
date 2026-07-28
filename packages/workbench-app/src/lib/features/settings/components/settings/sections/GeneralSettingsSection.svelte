@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { StatusResponse } from "$lib/api";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 
 type Props = {
   status?: StatusResponse;

@@ -12,16 +12,16 @@ import {
   entriesToTranscript,
   hasActiveTurnTimelineOutput,
   selectVisibleCommitted,
-} from "@nervekit/workbench-ui/state";
-import { ConversationPane } from "@nervekit/workbench-ui/components/conversation";
-import { setConversationUiCapabilities } from "@nervekit/workbench-ui/context";
+} from "$lib/presentation/state";
+import { ConversationPane } from "$lib/presentation/components/conversation";
+import { setConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import WorkbenchComposerAdapter from "../adapters/WorkbenchComposerAdapter.svelte";
 import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
 import ConversationWelcome from "./ConversationWelcome.svelte";
 
 setConversationUiCapabilities(workbenchConversationUiCapabilities());
 import { transcriptMenu } from "./conversation-menus";
-import type { TranscriptMenuTarget } from "@nervekit/workbench-ui/components/conversation";
+import type { TranscriptMenuTarget } from "$lib/presentation/components/conversation";
 import { createConversationRenderProjection } from "../state/conversation-render-projection.svelte";
 
 let {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "@nervekit/host-runtime/harness";
+import type { AgentMessage } from "@nervekit/harness";
 import type {
   AgentRecord,
   ConversationEntry,

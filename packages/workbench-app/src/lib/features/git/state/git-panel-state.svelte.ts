@@ -16,7 +16,7 @@ import {
   defaultGitPrFilterConfig,
   normalizeGitPrFilterConfig,
   type GitPrFilterConfig,
-} from "@nervekit/workbench-ui";
+} from "$lib/presentation";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
 import {

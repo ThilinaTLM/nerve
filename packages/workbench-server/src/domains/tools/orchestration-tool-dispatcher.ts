@@ -2,8 +2,6 @@ import { isAbsolute, resolve } from "node:path";
 import {
   buildProcessTextResult,
   createExploreHandlers,
-  createHostToolFactory,
-  type HostToolFactory,
   createInteractionHandlers,
   createPlanHandlers,
   resolveCommandCwd,
@@ -14,7 +12,7 @@ import {
   type ToolExecutionResult,
   type ToolHandlerRegistry,
   toolDefinitionByName,
-} from "@nervekit/host-runtime/tools";
+} from "@nervekit/tools";
 import {
   type AgentRecord,
   type ConversationRuntime,
@@ -27,6 +25,10 @@ import {
   type ToolCallRecord,
   type ToolName,
 } from "@nervekit/contracts";
+import {
+  createHostToolFactory,
+  type HostToolFactory,
+} from "./host-tool-factory.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";

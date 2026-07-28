@@ -24,7 +24,7 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Switch as ToggleSwitch } from "@nervekit/ui-kit/components/ui/switch";
 import { encryptApiKey } from "$lib/core/utils/credential-crypto";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 import ConfluenceToolsSettingsCard from "./ConfluenceToolsSettingsCard.svelte";
 import JiraToolsSettingsCard from "./JiraToolsSettingsCard.svelte";
 

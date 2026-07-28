@@ -1,5 +1,5 @@
 import type { RunRecord } from "@nervekit/contracts";
-import type { RunCancellationPort } from "@nervekit/host-runtime";
+import type { RunCancellationPort } from "./runtime/index.js";
 import type { WorkbenchSubagentExecutions } from "../agents/run/workbench-subagent-executions.js";
 import { isActiveTaskStatus } from "../tasks/index.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";

@@ -1,6 +1,6 @@
 import { SvelteSet } from "svelte/reactivity";
 import { projectKey } from "$lib/core/utils/project-tree";
-import { modelKey } from "@nervekit/workbench-ui/core/utils/model";
+import { modelKey } from "$lib/presentation/utils/model";
 import {
   type AgentRecord,
   apiPathSegment,

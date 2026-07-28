@@ -7,10 +7,10 @@ import type {
 import type {
   ConversationRenderState,
   TranscriptItem,
-} from "@nervekit/workbench-ui/state";
+} from "$lib/presentation/state";
 
-// Transcript/state shapes are owned by the shared workbench-ui package so the
-// app effects and the shared reducer/timeline helpers agree on one model.
+// Transcript/state shapes are owned by the presentation layer so app effects
+// and reducer/timeline helpers agree on one model.
 export type {
   CompactionNotice,
   CompactionNoticeState,
@@ -21,7 +21,7 @@ export type {
   ToolDraftViewModel,
   TranscriptDisplayKind,
   TranscriptItem,
-} from "@nervekit/workbench-ui/state";
+} from "$lib/presentation/state";
 
 /**
  * Canonical shared render state plus app-only view concerns (tree, composer,

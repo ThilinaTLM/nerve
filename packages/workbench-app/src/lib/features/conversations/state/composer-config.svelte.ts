@@ -1,7 +1,4 @@
-import {
-  modelKey,
-  parseModelKey,
-} from "@nervekit/workbench-ui/core/utils/model";
+import { modelKey, parseModelKey } from "$lib/presentation/utils/model";
 import type {
   AgentRecord,
   ModelInfo,

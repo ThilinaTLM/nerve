@@ -1,5 +1,5 @@
 <script lang="ts">
-import { TaskOutputPane } from "@nervekit/workbench-ui/tasks";
+import { TaskOutputPane } from "$lib/presentation/tasks";
 import {
   loadEarlierTaskLogs,
   loadTaskLogWindow,

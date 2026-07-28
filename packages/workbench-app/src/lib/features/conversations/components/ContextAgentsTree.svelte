@@ -9,7 +9,7 @@ import {
   buildPanelItemTree,
   PanelEmpty,
   PanelTree,
-} from "@nervekit/workbench-ui/panel";
+} from "$lib/presentation/panel";
 import type { AgentRecord } from "$lib/api";
 import { shortAgentModel } from "$lib/core/utils/project-tree";
 import { permissionLabel } from "./context-session-fields";

@@ -2,7 +2,7 @@ import {
   type AgentMessage,
   convertToLlm,
   serializeConversation,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 
 export { deriveConversationTitle } from "@nervekit/contracts";
 

@@ -23,8 +23,6 @@ const internalPackages = [
   ["@nervekit/protocol", "protocol"],
   ["@nervekit/harness", "harness"],
   ["@nervekit/tools", "tools"],
-  ["@nervekit/host-runtime", "host-runtime"],
-  ["@nervekit/process-runtime", "process-runtime"],
   ["@nervekit/workbench-server", "workbench-server"],
 ];
 const internalNames = new Set(internalPackages.map(([name]) => name));

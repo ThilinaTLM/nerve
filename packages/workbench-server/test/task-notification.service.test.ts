@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
-import type { AgentMessage } from "@nervekit/host-runtime/harness";
+import type { AgentMessage } from "@nervekit/harness";
 import type {
   AgentRecord,
   ConversationEntry,

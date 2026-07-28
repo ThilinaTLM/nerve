@@ -19,7 +19,7 @@ Workbench-server native state uses the primitives in `packages/workbench-server/
 
 ### Processes and commands
 
-- Keep executable discovery platform-aware. The Bash tool resolves Git Bash on Windows and standard shells on Unix; Python resolves Windows launchers and Unix executables separately.
+- Keep executable discovery platform-aware. Server task process drivers resolve Git Bash on Windows and standard shells on Unix; Python resolves Windows launchers and Unix executables separately.
 - Do not assume POSIX process groups or signals on Windows. Process-tree shutdown must retain the `taskkill` path and bounded fallback behavior.
 - Use argument arrays with `spawn()` whenever a shell is not required. Keep `windowsHide: true` for desktop child processes.
 - Tests for path parsing, process groups, cancellation, and executable discovery must run on native Windows and macOS runners, not only through Linux simulations.
@@ -33,7 +33,7 @@ Workbench-server native state uses the primitives in `packages/workbench-server/
 Pull requests and pushes to `main` run:
 
 - the complete checks and tests on Ubuntu;
-- tools, host-runtime, workbench-server, and desktop-shell tests on native Windows and macOS after building the desktop runtime.
+- tools, workbench-server (including task process drivers), and desktop-shell tests on native Windows and macOS after building the desktop runtime.
 
 Tagged release package smoke also runs those host tests and desktop packaging on all three operating systems.
 

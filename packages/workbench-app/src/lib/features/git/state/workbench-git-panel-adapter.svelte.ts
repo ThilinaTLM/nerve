@@ -7,7 +7,7 @@ import {
   type GitPanelActions,
   type GitPanelModel,
   type GitRemoteOperation,
-} from "@nervekit/workbench-ui";
+} from "$lib/presentation";
 import type { ProjectRecord } from "$lib/api";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";

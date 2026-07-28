@@ -1,8 +1,8 @@
 # Web styling conventions (`packages/workbench-app`)
 
-Inherits the root `AGENTS.md`. These rules govern all CSS/Tailwind in this package. Git and task utility wrappers must remain thin adapters around the canonical feature hosts in `@nervekit/workbench-ui`; app state, protocol calls, polling, navigation, notifications, and clipboard effects stay here.
+Inherits the root `AGENTS.md`. These rules govern all CSS/Tailwind in this package. `$lib/presentation` owns product presentation and may depend only on presentation-local modules, `@nervekit/contracts`, and `@nervekit/ui-kit`; it must not import `$lib/app`, `$lib/features`, or `$lib/core`. Git and task utility wrappers remain thin adapters around canonical presentation hosts; app state, protocol calls, polling, navigation, notifications, and clipboard effects stay outside the presentation directory.
 
-Application `*Shell` components are state/effect adapters around canonical `*Pane` presentation components from `@nervekit/workbench-ui`. Do not recreate shared pane markup in this package.
+Application `*Shell` components are state/effect adapters around canonical `*Pane` components from `$lib/presentation`. Do not recreate presentation markup in app or feature adapters.
 
 ## Two authoring tiers
 
@@ -46,7 +46,7 @@ that maps cleanly to utilities. Convert it to Tier 1.
 ## Panel views
 
 Dock panel content (Conversations, Git, Context, Notes, Tasks) must be built from
-the `@nervekit/workbench-ui/panel` primitives — `PanelView`, `PanelHeader`,
+the `$lib/presentation/panel` primitives — `PanelView`, `PanelHeader`,
 `PanelToolbar`, `PanelToolbarButton`, `PanelSectionHeader`, `PanelList`,
 `PanelRow`, `PanelTree`, `PanelPropertyRow`, `PanelBanner`, `PanelEmpty`.
 
@@ -74,7 +74,7 @@ src/styles/
   app.css          # ENTRY (imported once by main.ts). Imports
                    #   @nervekit/ui-kit/styles/app.css (theme/base/animation/
                    #   shared partials), then ./components.css, then Tailwind
-                   #   @source hints for workbench-ui and this app.
+                   #   the local workbench app source tree.
   components.css   # aggregates app-specific components/* partials
   components/      # workbench-app-only cross-component classes
                    #   (settings, directory-picker)

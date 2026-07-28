@@ -1,4 +1,4 @@
-import { GitWorkflowError } from "@nervekit/host-runtime/tools";
+import { GitWorkflowError } from "@nervekit/tools";
 
 export class HttpError extends Error {
   constructor(

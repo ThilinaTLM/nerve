@@ -12,11 +12,11 @@ import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Settings from "@lucide/svelte/icons/settings";
 import Terminal from "@lucide/svelte/icons/terminal";
 import X from "@lucide/svelte/icons/x";
-import { EditorTabStrip } from "@nervekit/workbench-ui/shell";
+import { EditorTabStrip } from "$lib/presentation/shell";
 import type {
   WorkbenchTabIdentity,
   WorkbenchTabModel,
-} from "@nervekit/workbench-ui/shell";
+} from "$lib/presentation/shell";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { writeClipboardText } from "$lib/core/clipboard";
 import type {

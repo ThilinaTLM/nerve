@@ -71,7 +71,7 @@ describe("ToolExecutorService structured errors", () => {
     });
   });
 
-  it("preserves host-runtime input validation metadata", async () => {
+  it("preserves host input validation metadata", async () => {
     let record = toolCall();
     const executor = createExecutor({
       record,

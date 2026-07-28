@@ -8,8 +8,8 @@ import Settings from "@lucide/svelte/icons/settings";
 import Square from "@lucide/svelte/icons/square";
 import X from "@lucide/svelte/icons/x";
 import { Toolbar } from "bits-ui";
-import { NerveMark } from "@nervekit/workbench-ui";
-import { ShellTitlebar } from "@nervekit/workbench-ui/shell";
+import { NerveMark } from "$lib/presentation";
+import { ShellTitlebar } from "$lib/presentation/shell";
 import {
   ProjectSwitcher,
   type ProjectSwitcherItem,

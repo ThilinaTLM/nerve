@@ -1,10 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { resolveBashShellConfig } from "@nervekit/host-runtime/tools";
+import { resolveBashShellConfig } from "@nervekit/tools";
 import {
   defaultProcessRuntimeDriver,
   observeProcessLifecycle,
   type ProcessLifecycleResult,
-} from "@nervekit/process-runtime";
+} from "./process-runtime/index.js";
 import type { TaskListeningPort, TaskRuntime } from "@nervekit/contracts";
 import {
   inspectPortListeners,

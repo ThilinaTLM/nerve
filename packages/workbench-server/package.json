@@ -36,15 +36,15 @@
     "@earendil-works/pi-ai": "0.82.1",
     "@hono/node-server": "2.0.11",
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/harness": "workspace:*",
+    "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.0.0",
     "hono": "4.12.32",
     "reflect-metadata": "^0.2.2",
     "ws": "8.21.0",
     "yaml": "2.9.0",
     "zod": "4.1.12",
-    "@nervekit/protocol": "workspace:*",
-    "@nervekit/host-runtime": "workspace:*",
-    "@nervekit/process-runtime": "workspace:*"
+    "@nervekit/protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

@@ -4,7 +4,7 @@ import Info from "@lucide/svelte/icons/info";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Terminal from "@lucide/svelte/icons/terminal";
-import type { PanelViewDescriptor } from "@nervekit/workbench-ui/shell";
+import type { PanelViewDescriptor } from "$lib/presentation/shell";
 
 /**
  * The panel view registry is the authority for what can live in a dock. Ids are

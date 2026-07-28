@@ -1,9 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  appendBoundedTextNotice,
-  boundText,
-} from "@nervekit/host-runtime/tools";
+import { appendBoundedTextNotice, boundText } from "@nervekit/tools";
 import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
 import {
   annotateToolResultModelLimits,

@@ -1,4 +1,4 @@
-import type { Skill } from "@nervekit/host-runtime/harness";
+import type { Skill } from "@nervekit/harness";
 import type {
   AgentRecord,
   TaskRecord,

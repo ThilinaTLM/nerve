@@ -1,7 +1,4 @@
-import {
-  formatSkillsForSystemPrompt,
-  type Skill,
-} from "@nervekit/host-runtime/harness";
+import { formatSkillsForSystemPrompt, type Skill } from "@nervekit/harness";
 import { promptText } from "./prompt-text.js";
 
 export interface BuildNerveSystemPromptOptions {

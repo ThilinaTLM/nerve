@@ -1,5 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { listAvailableModels } from "@nervekit/host-runtime/harness";
+import { listAvailableModels } from "@nervekit/harness";
 import type {
   AgentRecord,
   CancelTaskRequest,

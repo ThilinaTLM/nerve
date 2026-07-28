@@ -2,7 +2,7 @@ import {
   RUN_STATE_EPOCH,
   type RunInteractionRecord,
 } from "@nervekit/contracts";
-import type { RunCheckpointReferencePort } from "@nervekit/host-runtime";
+import type { RunCheckpointReferencePort } from "./runtime/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";

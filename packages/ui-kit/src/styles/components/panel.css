@@ -1,4 +1,4 @@
-/* Panel primitives (@nervekit/workbench-ui/panel).
+/* Workbench presentation panel primitives.
  * Dense, flat, IDE-style sections/rows/toolbars. These classes cover the parts
  * utilities cannot express: the shared indent step, sticky section headers, and
  * the hover-revealed action affordance used by panel rows. */

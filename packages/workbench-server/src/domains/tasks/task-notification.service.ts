@@ -3,7 +3,7 @@ import {
   type HarnessMessage,
   type HarnessTaskEvent,
   type HarnessTaskEventDetails,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 import type {
   AgentRecord,
   ConversationEntry,

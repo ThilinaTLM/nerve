@@ -1,4 +1,4 @@
-import type { AgentCustomModel } from "@nervekit/host-runtime/harness";
+import type { AgentCustomModel } from "@nervekit/harness";
 import {
   type CustomProvider,
   defaultProviderCatalog,

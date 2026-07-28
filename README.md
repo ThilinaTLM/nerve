@@ -244,9 +244,8 @@ Release details are documented in [`docs/release.md`](docs/release.md).
 The desktop workbench is the main local product:
 
 - `packages/desktop-shell` — Electron launcher, desktop bridge, and local-server owner.
-- `packages/workbench-app` — Svelte browser host and app-specific feature adapters.
-- `packages/workbench-ui` — reusable workbench, conversation, Git, and task feature hosts.
-- `packages/workbench-server` — local HTTP/WebSocket server, persistence, authentication, and built Web assets.
+- `packages/workbench-app` — Svelte browser host, product presentation, and feature adapters.
+- `packages/workbench-server` — local HTTP/WebSocket server, persistence, authentication, host use cases, process drivers, and built Web assets.
 
 Shared foundations keep contracts and runtime behavior independent of the UI:
 
@@ -254,8 +253,6 @@ Shared foundations keep contracts and runtime behavior independent of the UI:
 - `packages/protocol` — protocol codec, HTTP mapping, client/server sessions, replay, acknowledgements, and queues.
 - `packages/harness` — model conversation, agent loop, skills, and context compaction.
 - `packages/tools` — coding tool catalog, executors, and policy enforcement.
-- `packages/host-runtime` — environment-neutral Git, task, tool, and run composition.
-- `packages/process-runtime` — cross-platform supervised process launch and cleanup.
 - `packages/ui-kit` — contract-free shadcn-svelte components, theme, and generic renderers.
 
 Nerve Protocol v1 connects the local workbench UI to `workbench_server` over HTTP and WebSocket. See [`docs/nerve-protocol/v1/`](docs/nerve-protocol/v1/) and [`docs/release.md`](docs/release.md).

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { type ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { PanelRow } from "@nervekit/workbench-ui/panel";
+import { PanelRow } from "$lib/presentation/panel";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
 import type { ConversationRow } from "$lib/core/utils/project-tree";

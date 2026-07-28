@@ -1,5 +1,5 @@
-import { modelKey } from "@nervekit/workbench-ui/core/utils/model";
-import { fromConversationSnapshot } from "@nervekit/workbench-ui/state";
+import { modelKey } from "$lib/presentation/utils/model";
+import { fromConversationSnapshot } from "$lib/presentation/state";
 import {
   type AgentRecord,
   type ConversationRecord,

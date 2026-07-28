@@ -50,7 +50,7 @@ export function launchAgentProcess(
   handlers: AgentProcessHandlers = {},
 ): AgentProcessRun {
   const workerPath = fileURLToPath(
-    import.meta.resolve("@nervekit/host-runtime/harness/worker"),
+    import.meta.resolve("@nervekit/harness/worker"),
   );
   const child = spawn(process.execPath, [workerPath], {
     env: { ...process.env, ...(input.env ?? {}) },

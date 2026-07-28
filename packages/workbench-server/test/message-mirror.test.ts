@@ -5,7 +5,7 @@ import {
   type ConversationEntry,
   validatePublicEvent,
 } from "@nervekit/contracts";
-import type { JsonlConversationStorage } from "@nervekit/host-runtime/harness";
+import type { JsonlConversationStorage } from "@nervekit/harness";
 import type { StreamLogRegistry } from "../src/infrastructure/events/index.js";
 import type { RuntimeState } from "../src/runtime/runtime-state.js";
 import {

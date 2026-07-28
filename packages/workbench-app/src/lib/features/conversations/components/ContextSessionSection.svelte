@@ -1,5 +1,5 @@
 <script lang="ts">
-import { PanelPropertyRow } from "@nervekit/workbench-ui/panel";
+import { PanelPropertyRow } from "$lib/presentation/panel";
 import type { SessionField } from "./context-session-fields";
 
 let { fields }: { fields: readonly SessionField[] } = $props();

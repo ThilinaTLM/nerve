@@ -1,4 +1,4 @@
-import type { ToolExecutionResult } from "@nervekit/host-runtime/tools";
+import type { ToolExecutionResult } from "@nervekit/tools";
 import {
   findExecutableCommandBlocks,
   type PromptRequest,

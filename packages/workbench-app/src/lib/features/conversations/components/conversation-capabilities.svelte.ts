@@ -1,4 +1,4 @@
-import type { ConversationUiCapabilities } from "@nervekit/workbench-ui/context";
+import type { ConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
 import { voiceInputSession } from "$lib/core/audio/voice-input-session.svelte";
 import {

@@ -36,7 +36,7 @@ import {
   type TaskPanelActions,
   type TaskPanelDefinition,
   type TaskPanelModel,
-} from "@nervekit/workbench-ui";
+} from "$lib/presentation";
 
 export type WorkbenchTaskPanelHostActions = {
   readonly openTaskOutput?: (id: string) => void;

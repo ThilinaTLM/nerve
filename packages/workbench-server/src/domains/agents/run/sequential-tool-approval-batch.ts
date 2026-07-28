@@ -1,9 +1,9 @@
-import type { AgentToolSuspensionData } from "@nervekit/host-runtime/harness";
+import type { AgentToolSuspensionData } from "@nervekit/harness";
 import type {
   CheckpointCommand,
   RunExecutionSink,
   WaitCommand,
-} from "@nervekit/host-runtime";
+} from "../../runs/runtime/index.js";
 import {
   toolNameSchema,
   type AgentRecord,

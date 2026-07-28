@@ -8,7 +8,7 @@ import {
   getCompactionDecisionTokens,
   getModelContextWindow,
   shouldAutoCompact,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 import type { AgentRecord, ContextUsage } from "@nervekit/contracts";
 import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
 

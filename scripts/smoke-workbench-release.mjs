@@ -42,7 +42,14 @@ try {
     [serverMain, "--host", "127.0.0.1", "--port", String(port)],
     {
       cwd: repoRoot,
-      env: { ...process.env, NERVE_HOME: home, NODE_ENV: "production" },
+      env: {
+        ...process.env,
+        NERVE_HOME: home,
+        NERVE_PORT: String(port),
+        NERVE_MOBILE_HTTPS: "0",
+        NERVE_HTTPS_PORT: String(port + 1),
+        NODE_ENV: "production",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );

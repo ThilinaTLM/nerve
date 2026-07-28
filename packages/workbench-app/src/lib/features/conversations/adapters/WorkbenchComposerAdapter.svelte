@@ -8,7 +8,7 @@ import {
   voiceInputSession,
   type VoiceInputTarget,
 } from "$lib/core/audio/voice-input-session.svelte";
-import { AgentComposer } from "@nervekit/workbench-ui/components/conversation";
+import { AgentComposer } from "$lib/presentation/components/conversation";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   AudioInputAuthRequiredDialog,

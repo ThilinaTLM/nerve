@@ -6,7 +6,7 @@ import Pencil from "@lucide/svelte/icons/pencil";
 import TextQuote from "@lucide/svelte/icons/text-quote";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import type { TranscriptMenuTarget } from "@nervekit/workbench-ui/components/conversation";
+import type { TranscriptMenuTarget } from "$lib/presentation/components/conversation";
 import {
   transcriptMenuModel,
   type ConversationMenuHandlers,

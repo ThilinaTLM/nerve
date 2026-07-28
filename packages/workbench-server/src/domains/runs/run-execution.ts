@@ -3,7 +3,7 @@ import type {
   RunExecution,
   RunExecutionFactoryPort,
   RunExecutionSink,
-} from "@nervekit/host-runtime";
+} from "./runtime/index.js";
 import type { WorkbenchLiveExecutions } from "./run-live-executions.js";
 
 /**

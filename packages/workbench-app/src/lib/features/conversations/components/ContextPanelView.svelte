@@ -8,7 +8,7 @@ import {
   PanelHeader,
   PanelToolbarButton,
   PanelView,
-} from "@nervekit/workbench-ui/panel";
+} from "$lib/presentation/panel";
 import type { ContextUsage } from "@nervekit/contracts";
 import type {
   AgentRecord,

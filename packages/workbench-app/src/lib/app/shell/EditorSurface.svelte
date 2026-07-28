@@ -1,5 +1,5 @@
 <script lang="ts">
-import { EditorArea } from "@nervekit/workbench-ui/shell";
+import { EditorArea } from "$lib/presentation/shell";
 import EditorTabStripContainer from "$lib/app/shell/EditorTabStripContainer.svelte";
 import ConversationShell from "$lib/features/conversations/components/ConversationShell.svelte";
 import FileShell from "$lib/features/filesystem/components/FileShell.svelte";
