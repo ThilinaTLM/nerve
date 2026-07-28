@@ -1,7 +1,12 @@
 import { getGithubPr, getGithubPrFiles } from "$lib/api";
-import type { GithubPrMergeMethod } from "@nervekit/contracts";
+import type { GithubPr, GithubPrMergeMethod } from "@nervekit/contracts";
 import { prViewKey } from "$lib/core/state/state-keys";
+import { applyPrSummary } from "$lib/features/git/state/git-panel-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
+import {
+  prSummariesEqual,
+  prSummaryFromDetail,
+} from "$lib/features/git/state/pr-sync";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   addCenterTab,
@@ -24,14 +29,15 @@ function addPrTab(id: string) {
   addCenterTab({ kind: "pr", id });
 }
 
-async function loadPrView(id: string) {
+async function loadPrView(id: string, options?: { silent?: boolean }) {
   const view = gitState.prViews[prViewKey(id)];
   if (!view || view.loading) return;
   view.loading = true;
   view.error = undefined;
   try {
-    view.detail = await getGithubPr(view.projectId, view.repo, view.number);
-    const allowed = view.detail.mergeSettings.allowedMethods;
+    const detail = await getGithubPr(view.projectId, view.repo, view.number);
+    view.detail = detail;
+    const allowed = detail.mergeSettings.allowedMethods;
     if (
       !view.selectedMergeMethod ||
       !allowed.includes(view.selectedMergeMethod)
@@ -40,12 +46,43 @@ async function loadPrView(id: string) {
         (method) => allowed.includes(method),
       );
     }
+    applyPrSummary(view.projectId, view.repo, prSummaryFromDetail(detail));
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
-    view.error = message;
-    notify.error("Could not open pull request", { description: message });
+    // A failed background refresh must not blank a tab that already has data.
+    if (!options?.silent) {
+      view.error = message;
+      notify.error("Could not open pull request", { description: message });
+    } else if (!view.detail) {
+      view.error = message;
+    }
   } finally {
     view.loading = false;
+  }
+}
+
+/**
+ * Reloads open PR tabs whose summary changed in a panel PR list refresh so both
+ * surfaces show the same data.
+ */
+export function syncOpenPrViews(
+  projectId: string,
+  repo: string,
+  prs: GithubPr[],
+): void {
+  for (const view of Object.values(gitState.prViews)) {
+    if (
+      view.projectId !== projectId ||
+      view.repo !== repo ||
+      view.loading ||
+      !view.detail
+    ) {
+      continue;
+    }
+    const summary = prs.find((pr) => pr.number === view.number);
+    if (!summary || prSummariesEqual(prSummaryFromDetail(view.detail), summary))
+      continue;
+    void loadPrView(view.id, { silent: true });
   }
 }
 

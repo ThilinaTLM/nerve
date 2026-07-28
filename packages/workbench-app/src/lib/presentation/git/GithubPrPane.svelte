@@ -1,9 +1,5 @@
 <script lang="ts">
-import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
-import Files from "@lucide/svelte/icons/files";
-import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-import MessageSquare from "@lucide/svelte/icons/message-square";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { GithubPrMergeMethod } from "@nervekit/contracts";
@@ -137,28 +133,31 @@ function confirmCheckout() {
           class="h-8 gap-1 rounded-md bg-accent/35 p-1 ring-1 ring-border ring-inset"
         >
           <Tabs.Trigger value="conversation" class={tabTriggerClass}>
-            <MessageSquare class="size-3.5" /> Conversation
+            Conversation
             <span class="text-muted-foreground"
               >{detail.comments.length + detail.reviews.length}</span
             >
           </Tabs.Trigger>
           <Tabs.Trigger value="commits" class={tabTriggerClass}>
-            <GitCommitHorizontal class="size-3.5" /> Commits
+            Commits
             <span class="text-muted-foreground">{detail.commits.length}</span>
           </Tabs.Trigger>
           <Tabs.Trigger value="checks" class={tabTriggerClass}>
-            <CheckCircle2 class="size-3.5" /> Checks
+            Checks
             <span class="text-muted-foreground">{detail.checks.total}</span>
           </Tabs.Trigger>
           <Tabs.Trigger value="files" class={tabTriggerClass}>
-            <Files class="size-3.5" /> Files changed
+            Files changed
             <span class="text-muted-foreground">{detail.changedFiles}</span>
           </Tabs.Trigger>
         </Tabs.List>
       </div>
 
       <Tabs.Content value="conversation" class="min-h-0 flex-1">
-        <ScrollArea class="h-full" viewportClass="@container px-4 pt-1 pb-8">
+        <ScrollArea
+          class="h-full"
+          viewportClass="@container px-4 pr-2 pt-1 pb-8"
+        >
           <div
             class="grid items-start gap-2 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]"
           >
@@ -179,13 +178,19 @@ function confirmCheckout() {
       </Tabs.Content>
 
       <Tabs.Content value="commits" class="min-h-0 flex-1">
-        <ScrollArea class="h-full" viewportClass="@container px-4 pt-1 pb-8">
+        <ScrollArea
+          class="h-full"
+          viewportClass="@container px-4 pr-2 pt-1 pb-8"
+        >
           <GithubPrCommits {detail} />
         </ScrollArea>
       </Tabs.Content>
 
       <Tabs.Content value="checks" class="min-h-0 flex-1">
-        <ScrollArea class="h-full" viewportClass="@container px-4 pt-1 pb-8">
+        <ScrollArea
+          class="h-full"
+          viewportClass="@container px-4 pr-2 pt-1 pb-8"
+        >
           <GithubPrChecks {detail} />
         </ScrollArea>
       </Tabs.Content>

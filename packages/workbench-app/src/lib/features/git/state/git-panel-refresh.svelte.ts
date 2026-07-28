@@ -33,6 +33,7 @@ import {
   setPrsIfChanged,
   storedRepo,
 } from "./git-panel-state.svelte";
+import { syncOpenPrViews } from "./pr-tabs.svelte";
 
 export async function refreshGitProject(
   project: ProjectRecord,
@@ -247,7 +248,10 @@ export async function refreshPrs(
       sort: state.prFilters.sort,
     };
     const result = await listGithubPrs(projectId, repo, filters);
-    if (state.prsRequestSeq === requestSeq) setPrsIfChanged(state, result.prs);
+    if (state.prsRequestSeq === requestSeq) {
+      setPrsIfChanged(state, result.prs);
+      syncOpenPrViews(projectId, repo, result.prs);
+    }
   } catch (error) {
     if (state.prsRequestSeq === requestSeq && !silent) {
       notify.error(`Could not list PRs: ${errorMessage(error)}`);
