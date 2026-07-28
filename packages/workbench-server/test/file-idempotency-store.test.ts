@@ -148,7 +148,9 @@ test("file idempotency writes private bounded state", async () => {
     {},
     async () => success,
   );
-  assert.equal((await stat(path)).mode & 0o777, 0o600);
+  if (process.platform !== "win32") {
+    assert.equal((await stat(path)).mode & 0o777, 0o600);
+  }
   assert((await readFile(path)).byteLength < 4 * 1024 * 1024);
 });
 

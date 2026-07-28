@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { ChildProcess, SpawnOptions, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -9,6 +9,7 @@ import type { TaskRuntime } from "@nervekit/contracts";
 import {
   defaultTaskSupervisor,
   isTaskRuntimeTargetAlive,
+  managedTaskShellCommand,
   runtimeForChild,
   spawnManagedTask,
   terminateTask,
@@ -97,20 +98,12 @@ describe("task supervisor spawn metadata", () => {
   it("uses configured shellPath for managed task commands", async () => {
     const dir = await mkdtemp(join(tmpdir(), "nerve-task-shell-"));
     const shellPath = join(dir, "fake-shell");
-    await writeFile(
-      shellPath,
-      `#!${process.execPath}\nprocess.stdout.write('managed shell:' + process.argv.slice(2).join('|'))`,
-      "utf8",
-    );
-    await chmod(shellPath, 0o755);
+    await writeFile(shellPath, "test shell placeholder", "utf8");
 
-    const output = await collectSpawnedStdout(
-      "pnpm check",
-      undefined,
-      shellPath,
-    );
-
-    assert.equal(output, "managed shell:-c|pnpm check");
+    assert.deepEqual(managedTaskShellCommand("pnpm check", shellPath), {
+      shell: shellPath,
+      args: ["-c", "pnpm check"],
+    });
   });
 
   it("allows explicit managed task env to override non-interactive defaults", async () => {

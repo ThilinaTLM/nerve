@@ -21,7 +21,14 @@ const now = "2026-06-20T00:00:00.000Z";
 
 after(async () => {
   await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
+    roots.map((root) =>
+      rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      }),
+    ),
   );
 });
 
@@ -32,9 +39,10 @@ async function tempDbPath(): Promise<string> {
 }
 
 describe("IndexStore", () => {
-  it("defers incremental updates within one guarded startup scope", async () => {
+  it("defers incremental updates within one guarded startup scope", async (t) => {
     const path = await tempDbPath();
     const store = new IndexStore(path);
+    t.after(() => store.close());
     store.initialize();
     const project: ProjectRecord = {
       id: "proj_deferred",
@@ -55,12 +63,12 @@ describe("IndexStore", () => {
 
     store.upsertProject(project);
     assert.equal(store.counts().projects, 1);
-    store.close();
   });
 
-  it("restores incremental updates after a deferred operation fails", async () => {
+  it("restores incremental updates after a deferred operation fails", async (t) => {
     const path = await tempDbPath();
     const store = new IndexStore(path);
+    t.after(() => store.close());
     store.initialize();
     await assert.rejects(
       store.withUpdatesDeferred(async () => {
@@ -76,12 +84,15 @@ describe("IndexStore", () => {
       updatedAt: now,
     });
     assert.equal(store.counts().projects, 1);
-    store.close();
   });
 
-  it("bulk rebuilds repository-derived records", async () => {
+  it("bulk rebuilds repository-derived records", async (t) => {
     const path = await tempDbPath();
     const store = new IndexStore(path);
+    let storeOpen = true;
+    t.after(() => {
+      if (storeOpen) store.close();
+    });
     store.initialize();
 
     store.upsertProject({
@@ -203,6 +214,7 @@ describe("IndexStore", () => {
       userQuestions: 1,
     });
     store.close();
+    storeOpen = false;
 
     const db = new DatabaseSync(path);
     try {

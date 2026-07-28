@@ -1,6 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { join, parse } from "node:path";
+import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import type {
   TaskProcessExit,
@@ -188,7 +188,6 @@ export function createWorkbenchTaskResources(
   };
 
   const ports: TaskServicePorts = {
-    workspaceRoot: parse(process.cwd()).root,
     clock: { now: () => new Date() },
     ids: {
       next: () => {

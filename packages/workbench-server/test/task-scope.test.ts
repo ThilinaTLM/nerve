@@ -42,6 +42,14 @@ describe("task directory scope", () => {
       false,
     );
     assert.equal(isPathInDirectoryTree("C:\\Work\\Project", "C:\\Work"), false);
+    assert.equal(
+      isPathInDirectoryTree("C:\\Work\\Project", "c:\\work\\project\\src"),
+      true,
+    );
+    assert.equal(
+      isPathInDirectoryTree("C:\\Work\\Project", "D:\\Work\\Project"),
+      false,
+    );
   });
 });
 

@@ -5,7 +5,10 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { afterEach, test } from "node:test";
 import WebSocket, { WebSocketServer } from "ws";
-import { createOrchestratorState } from "../src/app/orchestrator-state.js";
+import {
+  createOrchestratorState,
+  shutdownOrchestratorState,
+} from "../src/app/orchestrator-state.js";
 import { createApp } from "../src/app/server.js";
 import { initializeStorage } from "../src/infrastructure/storage/index.js";
 import { PROTOCOL_CAPABILITIES } from "../src/protocol/constants.js";
@@ -21,6 +24,46 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
 });
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  label: string,
+  timeoutMs = 2_000,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} did not finish within ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function closeWithTimeout(
+  close: (done: (error?: Error) => void) => void,
+  label: string,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} did not close within 2 seconds`)),
+      2_000,
+    );
+    close((error) => {
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
 
 async function fixture() {
   const storage = await initializeStorage(await tempHome("nerve-protocol-ws-"));
@@ -45,13 +88,40 @@ async function fixture() {
     storage.localToken,
   );
   cleanups.push(async () => {
-    await Promise.all(
-      [...sessions].map((session) => session.shutdown("test cleanup")),
+    const results: PromiseSettledResult<unknown>[] = [];
+    results.push(
+      ...(await Promise.allSettled(
+        [...sessions].map((session) =>
+          withTimeout(
+            session.shutdown("test cleanup"),
+            "Protocol session shutdown",
+          ),
+        ),
+      )),
     );
     for (const client of webSockets.clients) client.terminate();
-    await new Promise<void>((resolve) => webSockets.close(() => resolve()));
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    state.index.close();
+    results.push(
+      ...(await Promise.allSettled([
+        closeWithTimeout(
+          (done) => webSockets.close(() => done()),
+          "WebSocket server",
+        ),
+        closeWithTimeout(
+          (done) => server.close((error) => done(error)),
+          "HTTP server",
+        ),
+      ])),
+    );
+    await shutdownOrchestratorState(state);
+    const failures = results.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures.map((failure) => failure.reason),
+        "Protocol fixture cleanup failed",
+      );
+    }
   });
   return {
     state,
@@ -221,11 +291,13 @@ test("real adapter gates live/RPC until ready and shares canonical HTTP/WS dispa
     (response.data.result as { snapshot: unknown }).snapshot,
   );
 
+  const serverSession = [...host.sessions][0];
+  assert.ok(serverSession);
   peer.socket.close();
   await new Promise<void>((resolve) =>
     peer.socket.once("close", () => resolve()),
   );
-  await new Promise((resolve) => setImmediate(resolve));
+  await serverSession.closed;
   assert.equal(host.sessions.size, 0);
 });
 

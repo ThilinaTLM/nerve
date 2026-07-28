@@ -53,7 +53,6 @@ function fixture(
     events: { publish: async (event) => void events.push(event) },
     clock: { now: () => new Date("2026-07-11T00:00:00.000Z") },
     ids: { next: () => "task_contract" },
-    workspaceRoot: "/workspace",
   };
   return {
     service: new TaskService(ports),
@@ -108,7 +107,6 @@ function servicePortsForRecords(
     ids: { next: () => "task_contract" },
     diagnostics: options.diagnostics,
     timers: options.timers,
-    workspaceRoot: "/workspace",
   };
 }
 
@@ -195,18 +193,21 @@ test("terminal callbacks are idempotent across repeated exit and cancellation ra
   );
 });
 
-test("workspace containment normalizes POSIX and Windows paths", async () => {
-  const { assertWorkspacePath } =
+test("task working directories normalize POSIX and Windows absolute paths", async () => {
+  const { resolveTaskWorkingDirectory } =
     await import("../src/domains/tasks/task-service.js");
-  assert.doesNotThrow(() =>
-    assertWorkspacePath("/workspace/a/..", "/workspace"),
+  assert.equal(resolveTaskWorkingDirectory("/workspace/a/.."), "/workspace");
+  assert.equal(
+    resolveTaskWorkingDirectory("C:\\workspace\\project\\.."),
+    "C:\\workspace",
   );
-  assert.throws(() => assertWorkspacePath("/workspace-other", "/workspace"));
-  assert.doesNotThrow(() =>
-    assertWorkspacePath("C:\\workspace\\project", "C:\\workspace"),
+  assert.equal(
+    resolveTaskWorkingDirectory("\\\\server\\share\\project"),
+    "\\\\server\\share\\project",
   );
-  assert.throws(() =>
-    assertWorkspacePath("C:\\workspace-other", "C:\\workspace"),
+  assert.throws(
+    () => resolveTaskWorkingDirectory("workspace/project"),
+    /absolute path/,
   );
 });
 

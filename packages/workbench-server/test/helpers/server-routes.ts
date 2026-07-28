@@ -2,15 +2,23 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
-import { createOrchestratorState } from "../../src/app/orchestrator-state.js";
+import {
+  createOrchestratorState,
+  shutdownOrchestratorState,
+  type OrchestratorState,
+} from "../../src/app/orchestrator-state.js";
 import { createApp } from "../../src/app/server.js";
 import { initializeStorage } from "../../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
+const states: OrchestratorState[] = [];
 
 after(async () => {
+  await Promise.allSettled(states.map(shutdownOrchestratorState));
   await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
+    roots.map((root) =>
+      rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }),
+    ),
   );
 });
 
@@ -25,6 +33,7 @@ export async function createAuthenticatedApp(host = "127.0.0.1") {
     await tempHome("nerve-server-routes-"),
   );
   const state = createOrchestratorState(storage, host, 0);
+  states.push(state);
   await state.logger.hydrate();
   await state.registry.hydrate();
   const app = createApp(state);

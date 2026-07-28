@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import type {
   AgentRecord,
@@ -332,7 +333,10 @@ describe("tool policy", () => {
       { dataDir: "/tmp/nerve" },
     );
     assert.equal(allowed.decision, "allow");
-    assert.equal(allowed.normalizedArgs.path, "/tmp/nerve/plans/edit-plan.md");
+    assert.equal(
+      allowed.normalizedArgs.path,
+      resolve("/tmp/nerve/plans/edit-plan.md"),
+    );
 
     const denied = evaluateToolPolicy(
       agent("autonomous", "planning"),

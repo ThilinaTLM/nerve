@@ -8,14 +8,22 @@ import {
   createId,
   type TaskRecord,
 } from "@nervekit/contracts";
-import { createOrchestratorState } from "../../src/app/orchestrator-state.js";
+import {
+  createOrchestratorState,
+  shutdownOrchestratorState,
+  type OrchestratorState,
+} from "../../src/app/orchestrator-state.js";
 import { initializeStorage } from "../../src/infrastructure/storage/index.js";
 
 const roots: string[] = [];
+const states: OrchestratorState[] = [];
 
 after(async () => {
+  await Promise.allSettled(states.map(shutdownOrchestratorState));
   await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
+    roots.map((root) =>
+      rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }),
+    ),
   );
 });
 
@@ -28,6 +36,7 @@ export async function tempHome(prefix: string): Promise<string> {
 export async function createState(prefix = "nerve-registry-conversation-") {
   const storage = await initializeStorage(await tempHome(prefix));
   const state = createOrchestratorState(storage, "127.0.0.1", 0);
+  states.push(state);
   await state.registry.hydrate();
   return state;
 }
