@@ -46,6 +46,88 @@ function runData(overrides: Record<string, unknown> = {}) {
 }
 
 describe("notificationForRuntimeEvent", () => {
+  it("maps each pending HIL event to its configurable sound event", () => {
+    const candidates = [
+      notificationForRuntimeEvent(
+        event("approval.updated", {
+          approval: { id: "approval_01", status: "pending" },
+          toolCall: { toolName: "bash" },
+        }),
+        context,
+      ),
+      notificationForRuntimeEvent(
+        event("userQuestion.updated", {
+          question: {
+            id: "question_01",
+            status: "pending",
+            question: "Continue?",
+          },
+        }),
+        context,
+      ),
+      notificationForRuntimeEvent(
+        event("planReview.updated", {
+          planReview: { id: "review_01", status: "pending" },
+        }),
+        context,
+      ),
+    ];
+
+    assert.deepEqual(
+      candidates.map((candidate) => candidate?.soundEvent),
+      ["approval", "question", "planReview"],
+    );
+  });
+
+  it("does not cue resolved HIL records", () => {
+    const candidates = [
+      notificationForRuntimeEvent(
+        event("approval.updated", {
+          approval: { id: "approval_01", status: "approved" },
+        }),
+        context,
+      ),
+      notificationForRuntimeEvent(
+        event("userQuestion.updated", {
+          question: { id: "question_01", status: "answered" },
+        }),
+        context,
+      ),
+      notificationForRuntimeEvent(
+        event("planReview.updated", {
+          planReview: { id: "review_01", status: "accepted" },
+        }),
+        context,
+      ),
+    ];
+
+    assert.deepEqual(candidates, [undefined, undefined, undefined]);
+  });
+
+  it("maps completion and critical failure to distinct cues", () => {
+    const completed = notificationForRuntimeEvent(
+      event("run.completed", runData()),
+      context,
+    );
+    const failed = notificationForRuntimeEvent(
+      event(
+        "run.failed",
+        runData({ message: "Provider unavailable", aborted: false }),
+      ),
+      context,
+    );
+
+    assert.equal(completed?.soundEvent, "completed");
+    assert.equal(failed?.soundEvent, "failed");
+  });
+
+  it("ignores generic suspension to avoid duplicate attention cues", () => {
+    assert.equal(
+      notificationForRuntimeEvent(event("run.suspended", runData()), context),
+      undefined,
+    );
+  });
+
   it("ignores aborted run failures", () => {
     assert.equal(
       notificationForRuntimeEvent(
@@ -77,6 +159,7 @@ describe("notificationForRuntimeEvent", () => {
 
     assert.ok(notification);
     assert.equal(notification.backgroundOnly, false);
+    assert.equal(notification.soundEvent, "failed");
     assert.equal(notification.payload.urgency, "attention");
     assert.match(notification.payload.title, /needs retry/);
     assert.match(notification.payload.body ?? "", /3 retries/);

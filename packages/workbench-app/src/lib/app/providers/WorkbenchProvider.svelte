@@ -5,7 +5,11 @@ import {
   initializeDesktopRuntime,
   syncDesktopCloseToTray,
 } from "$lib/features/desktop";
-import { initializeNotifications } from "$lib/features/notifications/notify.svelte";
+import {
+  configureNotificationPreferences,
+  initializeNotificationAudio,
+  initializeNotifications,
+} from "$lib/features/notifications/notify.svelte";
 import { registerFeatureEventHandlers } from "$lib/features/register-feature-events";
 import { zoomState } from "$lib/app/shell/appearance.svelte";
 import { revealPanelView } from "$lib/app/shell/shell-layout.svelte";
@@ -128,6 +132,12 @@ const appShortcuts = createAppShortcuts({
   setComposerMode,
 });
 
+$effect(() => {
+  const preferences = settingsDraft?.notifications;
+  if (!preferences) return;
+  configureNotificationPreferences(preferences);
+});
+
 let lastSyncedCloseToTray: boolean | undefined;
 $effect(() => {
   const value = settingsDraft?.desktop.closeToTray;
@@ -154,9 +164,9 @@ $effect(() => {
 
 onMount(() => {
   const unregisterFeatureEvents = registerFeatureEventHandlers();
+  const stopNotificationAudio = initializeNotificationAudio();
   const unsubscribeDesktop = initializeDesktopRuntime();
   const stopGitContextAutoRefresh = startGitContextAutoRefresh();
-  initializeNotifications();
   const startedOnSettings =
     window.location.pathname === "/settings" ||
     window.location.pathname === "/settings/";
@@ -172,6 +182,7 @@ onMount(() => {
   });
 
   void initializeWorkbench().then(() => {
+    initializeNotifications();
     if (startedOnSettings) void openSettingsPane();
   });
 
@@ -182,6 +193,7 @@ onMount(() => {
       { capture: true },
     );
     unsubscribeDesktop();
+    stopNotificationAudio();
     stopGitContextAutoRefresh();
     unregisterFeatureEvents();
     disconnectWorkbench();

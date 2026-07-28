@@ -34,3 +34,6 @@ assets/brand/*
 !assets/brand/nerve-mark.svg
 !assets/brand/nerve-mark-small.svg
 !assets/brand/nerve-app-icon.svg
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
