@@ -16,6 +16,66 @@ export const notificationToneOptions: readonly NotificationToneOption[] = [
   { value: "pop", label: "Pop", detail: "Soft rounded pop" },
   { value: "success", label: "Success", detail: "Warm ascending notes" },
   { value: "alert", label: "Alert", detail: "Restrained descending notes" },
+  {
+    value: "kenney-click-1",
+    label: "Interface Click 1",
+    detail: "Kenney UI Audio · click1",
+  },
+  {
+    value: "kenney-click-2",
+    label: "Interface Click 2",
+    detail: "Kenney UI Audio · click2",
+  },
+  {
+    value: "kenney-click-3",
+    label: "Interface Click 3",
+    detail: "Kenney UI Audio · click3",
+  },
+  {
+    value: "kenney-rollover-1",
+    label: "Interface Rollover 1",
+    detail: "Kenney UI Audio · rollover1",
+  },
+  {
+    value: "kenney-rollover-4",
+    label: "Interface Rollover 2",
+    detail: "Kenney UI Audio · rollover4",
+  },
+  {
+    value: "kenney-rollover-6",
+    label: "Interface Rollover 3",
+    detail: "Kenney UI Audio · rollover6",
+  },
+  {
+    value: "kenney-switch-1",
+    label: "Interface Tone 1",
+    detail: "Kenney UI Audio · switch1",
+  },
+  {
+    value: "kenney-switch-7",
+    label: "Interface Tone 2",
+    detail: "Kenney UI Audio · switch7",
+  },
+  {
+    value: "kenney-switch-10",
+    label: "Interface Tone 3",
+    detail: "Kenney UI Audio · switch10",
+  },
+  {
+    value: "kenney-switch-15",
+    label: "Interface Tone 4",
+    detail: "Kenney UI Audio · switch15",
+  },
+  {
+    value: "kenney-switch-20",
+    label: "Interface Tone 5",
+    detail: "Kenney UI Audio · switch20",
+  },
+  {
+    value: "kenney-switch-31",
+    label: "Interface Tone 6",
+    detail: "Kenney UI Audio · switch31",
+  },
 ];
 
 type NotificationAudio = {
@@ -38,12 +98,24 @@ type NotificationSoundPlayerOptions = {
 };
 
 const SOUND_SOURCES: Record<PlayableNotificationTone, string> = {
-  bell: "/sounds/bell.wav",
-  chime: "/sounds/chime.wav",
-  click: "/sounds/click.wav",
-  pop: "/sounds/pop.wav",
-  success: "/sounds/success.wav",
-  alert: "/sounds/alert.wav",
+  bell: "/sounds/bell.mp3",
+  chime: "/sounds/chime.mp3",
+  click: "/sounds/click.mp3",
+  pop: "/sounds/pop.mp3",
+  success: "/sounds/success.mp3",
+  alert: "/sounds/alert.mp3",
+  "kenney-click-1": "/sounds/kenney-click-1.mp3",
+  "kenney-click-2": "/sounds/kenney-click-2.mp3",
+  "kenney-click-3": "/sounds/kenney-click-3.mp3",
+  "kenney-rollover-1": "/sounds/kenney-rollover-1.mp3",
+  "kenney-rollover-4": "/sounds/kenney-rollover-4.mp3",
+  "kenney-rollover-6": "/sounds/kenney-rollover-6.mp3",
+  "kenney-switch-1": "/sounds/kenney-switch-1.mp3",
+  "kenney-switch-7": "/sounds/kenney-switch-7.mp3",
+  "kenney-switch-10": "/sounds/kenney-switch-10.mp3",
+  "kenney-switch-15": "/sounds/kenney-switch-15.mp3",
+  "kenney-switch-20": "/sounds/kenney-switch-20.mp3",
+  "kenney-switch-31": "/sounds/kenney-switch-31.mp3",
 };
 
 const playableTones = Object.keys(SOUND_SOURCES) as PlayableNotificationTone[];

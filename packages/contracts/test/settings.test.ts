@@ -106,7 +106,11 @@ describe("settings schema", () => {
       notifications: {
         systemEnabled: false,
         soundsEnabled: false,
-        events: { question: "pop", completed: "none" },
+        events: {
+          question: "pop",
+          approval: "kenney-switch-20",
+          completed: "none",
+        },
       },
       runtime: {
         pythonExecutablePath: "/usr/bin/python3",
@@ -142,7 +146,11 @@ describe("settings schema", () => {
     assert.deepEqual(parsed.notifications, {
       systemEnabled: false,
       soundsEnabled: false,
-      events: { question: "pop", completed: "none" },
+      events: {
+        question: "pop",
+        approval: "kenney-switch-20",
+        completed: "none",
+      },
     });
     assert.equal(
       updateSettingsRequestSchema.safeParse({

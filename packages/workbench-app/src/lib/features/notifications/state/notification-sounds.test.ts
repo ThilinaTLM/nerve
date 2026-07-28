@@ -55,21 +55,33 @@ describe("notification sound player", () => {
     assert.deepEqual(
       audio.map((item) => item.source),
       [
-        "/sounds/bell.wav",
-        "/sounds/chime.wav",
-        "/sounds/click.wav",
-        "/sounds/pop.wav",
-        "/sounds/success.wav",
-        "/sounds/alert.wav",
+        "/sounds/bell.mp3",
+        "/sounds/chime.mp3",
+        "/sounds/click.mp3",
+        "/sounds/pop.mp3",
+        "/sounds/success.mp3",
+        "/sounds/alert.mp3",
+        "/sounds/kenney-click-1.mp3",
+        "/sounds/kenney-click-2.mp3",
+        "/sounds/kenney-click-3.mp3",
+        "/sounds/kenney-rollover-1.mp3",
+        "/sounds/kenney-rollover-4.mp3",
+        "/sounds/kenney-rollover-6.mp3",
+        "/sounds/kenney-switch-1.mp3",
+        "/sounds/kenney-switch-7.mp3",
+        "/sounds/kenney-switch-10.mp3",
+        "/sounds/kenney-switch-15.mp3",
+        "/sounds/kenney-switch-20.mp3",
+        "/sounds/kenney-switch-31.mp3",
       ],
     );
     assert.deepEqual(
       audio.map((item) => item.preload),
-      ["auto", "auto", "auto", "auto", "auto", "auto"],
+      new Array(18).fill("auto"),
     );
     assert.deepEqual(
       audio.map((item) => item.loads),
-      [1, 1, 1, 1, 1, 1],
+      new Array(18).fill(1),
     );
   });
 
@@ -114,14 +126,14 @@ describe("notification sound player", () => {
     const unlockFinished = new Promise<void>((resolve) => {
       resolveUnlock = resolve;
     });
-    const bell = fakeAudio("/sounds/bell.wav");
+    const bell = fakeAudio("/sounds/bell.mp3");
     bell.play = async () => {
       bell.plays += 1;
       if (bell.plays === 1) await unlockFinished;
     };
     const player = createNotificationSoundPlayer({
       audioFactory: (source) =>
-        source.endsWith("bell.wav") ? bell : fakeAudio(source),
+        source.endsWith("bell.mp3") ? bell : fakeAudio(source),
     });
 
     player.unlock();
@@ -169,7 +181,7 @@ describe("notification sound player", () => {
   });
 
   it("does not let a rejected play consume the cooldown", async () => {
-    const rejected = fakeAudio("/sounds/bell.wav");
+    const rejected = fakeAudio("/sounds/bell.mp3");
     rejected.rejectPlay = true;
     const player = createNotificationSoundPlayer({
       audioFactory: () => rejected,
