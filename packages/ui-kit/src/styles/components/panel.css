@@ -14,15 +14,13 @@
   align-content: start;
 }
 
+/* Static group heading. It stays pinned while its rows scroll, so it carries the
+ * panel surface color rather than a contrasting band. */
 .panel-section-header {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--muted);
-}
-
-.panel-section-header:hover {
-  background: var(--accent);
+  background: var(--card);
 }
 
 /* One indentation step per nesting level, on top of the base row inset. */
