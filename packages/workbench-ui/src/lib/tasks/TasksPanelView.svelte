@@ -1,14 +1,16 @@
 <script lang="ts">
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import Plus from "@lucide/svelte/icons/plus";
-import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import { SvelteSet } from "svelte/reactivity";
 import type {
   CreateTaskDefinitionRequest,
   TaskRecord,
   UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import { cn } from "@nervekit/ui-kit/core/utils";
 import {
   Handle as PaneResizer,
   Pane,
@@ -22,11 +24,13 @@ import {
   PanelSectionHeader,
   PanelToolbarButton,
   PanelView,
+  createPanelRowFit,
 } from "@nervekit/workbench-ui/panel";
 import TaskDefinitionDialog from "./TaskDefinitionDialog.svelte";
 import TaskDefinitionRow from "./TaskDefinitionRow.svelte";
 import TaskOutputPane from "./TaskOutputPane.svelte";
 import TaskRunRow from "./TaskRunRow.svelte";
+import TaskRunsDialog from "./TaskRunsDialog.svelte";
 import { projectTaskPanel, taskLineageRuns } from "./task-panel-controller.js";
 import type {
   TaskEntryCapabilities,
@@ -51,14 +55,29 @@ let editDefinition = $state<TaskPanelDefinition | undefined>();
 let deleteDefinition = $state<TaskPanelDefinition | undefined>();
 let saveSourceTask = $state<TaskRecord | undefined>();
 let panelWidth = $state(0);
+let runsRegion = $state<HTMLDivElement | null>(null);
+let runsFooter = $state<HTMLDivElement | null>(null);
+let runsDialogOpen = $state(false);
+const expandedDefinitions = new SvelteSet<string>();
+
+function toggleDefinition(id: string): void {
+  if (!expandedDefinitions.delete(id)) expandedDefinitions.add(id);
+}
 
 // The wide bottom dock can host the run output next to the list.
 const SPLIT_MIN_WIDTH = 720;
 const splitLayout = $derived(panelWidth >= SPLIT_MIN_WIDTH);
 const selectedRuns = $derived(taskLineageRuns(model.tasks, model.selectedTask));
 const prunableRuns = $derived(
-  projected.runs.filter((entry) => !entry.definition && !entry.isActive).length,
+  projected.runs.filter((entry) => !entry.isActive).length,
 );
+const runsFit = createPanelRowFit({
+  region: () => runsRegion,
+  footer: () => runsFooter,
+  total: () => projected.runs.length,
+});
+const visibleRuns = $derived(projected.runs.slice(0, runsFit.count));
+const hiddenRuns = $derived(projected.runs.length - visibleRuns.length);
 const capabilities = $derived<TaskEntryCapabilities>({
   start: model.capabilities.start.enabled,
   cancel: model.capabilities.cancel.enabled,
@@ -103,81 +122,120 @@ async function removeDefinition(): Promise<void> {
 </script>
 
 {#snippet taskList()}
-  <div class="flex min-w-0 flex-col">
-    <PanelSectionHeader
-      title="Task definitions"
-      count={projected.definitions.length}
-    />
-    {#if model.definitionsLoading && model.definitions.length === 0}
-      <p class="py-1 text-xs text-muted-foreground">Loading tasks…</p>
-    {:else if projected.definitions.length === 0}
-      <PanelEmpty
-        icon={ListTodo}
-        title="No saved tasks"
-        description="Create a task to run it anytime."
-      />
-    {:else}
-      <PanelList ariaLabel="Task definitions">
-        {#each projected.definitions as entry (entry.key)}
-          <TaskDefinitionRow
-            {entry}
-            {capabilities}
-            selected={entry.runs.some(
-              (run) => run.id === model.selectedTask?.id,
-            )}
-            onOpen={(id) => void panelActions.openTaskOutput(id)}
-            onRun={() => void panelActions.runDefinition(entry.definition)}
-            onCancel={(id) => void panelActions.cancelTask(id)}
-            onRestart={(id) => void panelActions.restartTask(id)}
-            onEdit={() => (editDefinition = entry.definition)}
-            onDelete={() => (deleteDefinition = entry.definition)}
-            onCopy={(text) => void panelActions.copyText(text)}
-          />
-        {/each}
-      </PanelList>
-    {/if}
-
-    <PanelSectionHeader title="Task runs" count={projected.runs.length}>
-      {#snippet actions()}
-        <PanelToolbarButton
-          icon={Trash2}
-          label="Prune history"
-          title="Prune finished ad-hoc task runs"
-          disabled={!model.capabilities.prune.enabled || prunableRuns === 0}
-          onclick={() => (confirmPruneOpen = true)}
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div class="flex min-w-0 shrink flex-col overflow-y-auto">
+      {#if model.definitionsLoading && model.definitions.length === 0}
+        <p class="py-1 text-xs text-muted-foreground">Loading tasks…</p>
+      {:else if projected.definitions.length === 0}
+        <PanelEmpty
+          icon={ListTodo}
+          title="No saved tasks"
+          description="Create a task to run it anytime."
         />
-      {/snippet}
-    </PanelSectionHeader>
-    {#if projected.runs.length === 0}
-      <PanelEmpty
-        icon={Terminal}
-        title="No task runs yet"
-        description="Runs appear here as tasks and commands start."
-      />
-    {:else}
-      <PanelList ariaLabel="Task runs">
-        {#each projected.runs as entry (entry.key)}
-          <TaskRunRow
-            {entry}
-            {capabilities}
-            selected={entry.run.id === model.selectedTask?.id}
-            onOpen={(id) => void panelActions.openTaskOutput(id)}
-            onCancel={(id) => void panelActions.cancelTask(id)}
-            onRestart={(id) => void panelActions.restartTask(id)}
-            onRemove={(id) => void panelActions.removeTask(id)}
-            onCopy={(text) => void panelActions.copyText(text)}
-            onSaveAsDefinition={(task) => (saveSourceTask = task)}
-          />
-        {/each}
-      </PanelList>
+      {:else}
+        <PanelList role="none">
+          {#each projected.definitions as entry (entry.key)}
+            {@const expanded = expandedDefinitions.has(entry.key)}
+            <div
+              class={cn(
+                "flex min-w-0 flex-col rounded-md border border-transparent",
+                expanded && "border-border",
+              )}
+            >
+              <TaskDefinitionRow
+                {entry}
+                {capabilities}
+                {expanded}
+                selected={entry.runs.some(
+                  (run) => run.run.id === model.selectedTask?.id,
+                )}
+                onToggleExpanded={() => toggleDefinition(entry.key)}
+                onOpen={(id) => void panelActions.openTaskOutput(id)}
+                onRun={() => void panelActions.runDefinition(entry.definition)}
+                onCancel={(id) => void panelActions.cancelTask(id)}
+                onRestart={(id) => void panelActions.restartTask(id)}
+                onEdit={() => (editDefinition = entry.definition)}
+                onDelete={() => (deleteDefinition = entry.definition)}
+                onCopy={(text) => void panelActions.copyText(text)}
+              />
+              {#if expanded}
+                <div class="flex min-w-0 flex-col border-t py-0.5">
+                  {#each entry.runs as runEntry (runEntry.key)}
+                    <TaskRunRow
+                      nested
+                      entry={runEntry}
+                      {capabilities}
+                      selected={runEntry.run.id === model.selectedTask?.id}
+                      onOpen={(id) => void panelActions.openTaskOutput(id)}
+                      onCancel={(id) => void panelActions.cancelTask(id)}
+                      onRestart={(id) => void panelActions.restartTask(id)}
+                      onRemove={(id) => void panelActions.removeTask(id)}
+                      onCopy={(text) => void panelActions.copyText(text)}
+                    />
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </PanelList>
+      {/if}
+    </div>
+
+    {#if projected.runs.length > 0}
+      <div
+        bind:this={runsRegion}
+        class="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden"
+      >
+        <PanelSectionHeader title="Runs" count={projected.runs.length}>
+          {#snippet actions()}
+            <PanelToolbarButton
+              icon={Trash2}
+              label="Prune history"
+              title="Prune finished ad-hoc task runs"
+              disabled={!model.capabilities.prune.enabled || prunableRuns === 0}
+              onclick={() => (confirmPruneOpen = true)}
+            />
+          {/snippet}
+        </PanelSectionHeader>
+        <PanelList ariaLabel="Runs" class="shrink-0">
+          {#each visibleRuns as entry (entry.key)}
+            <TaskRunRow
+              {entry}
+              {capabilities}
+              selected={entry.run.id === model.selectedTask?.id}
+              onOpen={(id) => void panelActions.openTaskOutput(id)}
+              onCancel={(id) => void panelActions.cancelTask(id)}
+              onRestart={(id) => void panelActions.restartTask(id)}
+              onRemove={(id) => void panelActions.removeTask(id)}
+              onCopy={(text) => void panelActions.copyText(text)}
+              onSaveAsDefinition={(task) => (saveSourceTask = task)}
+            />
+          {/each}
+        </PanelList>
+        {#if hiddenRuns > 0}
+          <div bind:this={runsFooter} class="mt-auto shrink-0 p-1">
+            <Button
+              variant="ghost"
+              size="xs"
+              class="w-full text-muted-foreground"
+              onclick={() => (runsDialogOpen = true)}>See More</Button
+            >
+          </div>
+        {/if}
+      </div>
     {/if}
   </div>
 {/snippet}
 
 <div class="h-full min-h-0" bind:clientWidth={panelWidth}>
-  <PanelView scroll={!splitLayout} padded={false}>
+  <PanelView scroll={false} padded={false}>
     {#snippet banner()}
-      <PanelHeader title="Tasks">
+      <PanelHeader
+        title="Tasks"
+        count={model.availability.available
+          ? projected.definitions.length
+          : undefined}
+      >
         {#snippet trailing()}
           {#if model.availability.available}
             <PanelToolbarButton
@@ -200,7 +258,7 @@ async function removeDefinition(): Promise<void> {
       {#if splitLayout}
         <PaneGroup direction="horizontal" class="min-h-0 flex-1">
           <Pane defaultSize={38} minSize={24} maxSize={60}>
-            <div class="h-full min-h-0 overflow-y-auto">
+            <div class="flex h-full min-h-0 flex-col">
               {@render taskList()}
             </div>
           </Pane>
@@ -221,6 +279,18 @@ async function removeDefinition(): Promise<void> {
   </PanelView>
 </div>
 
+<TaskRunsDialog
+  bind:open={runsDialogOpen}
+  runs={projected.runs}
+  {capabilities}
+  selectedTaskId={model.selectedTask?.id}
+  onOpen={(id) => void panelActions.openTaskOutput(id)}
+  onCancel={(id) => void panelActions.cancelTask(id)}
+  onRestart={(id) => void panelActions.restartTask(id)}
+  onRemove={(id) => void panelActions.removeTask(id)}
+  onCopy={(text) => void panelActions.copyText(text)}
+  onSaveAsDefinition={(task) => (saveSourceTask = task)}
+/>
 <TaskDefinitionDialog
   bind:open={addOpen}
   projectCwd={model.defaultCwd}

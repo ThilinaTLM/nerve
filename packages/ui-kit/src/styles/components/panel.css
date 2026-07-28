@@ -23,9 +23,12 @@
   background: var(--card);
 }
 
-/* One indentation step per nesting level, on top of the base row inset. */
+/* One indentation step per nesting level, on top of the base row inset. Rows can
+ * drop the base inset (`--panel-row-inset: 0px`) to align with the panel edge. */
 .panel-row {
-  padding-left: calc(0.5rem + var(--panel-indent, 0) * 0.75rem);
+  padding-left: calc(
+    var(--panel-row-inset, 0.5rem) + var(--panel-indent, 0) * 0.75rem
+  );
 }
 
 .panel-row-hoverable:hover {

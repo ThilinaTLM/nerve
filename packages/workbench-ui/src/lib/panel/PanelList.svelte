@@ -17,6 +17,7 @@ let {
 
 <div
   {role}
+  data-panel-list=""
   aria-label={role === "list" ? ariaLabel : undefined}
   class={cn("flex min-w-0 flex-col py-0.5", className)}
 >

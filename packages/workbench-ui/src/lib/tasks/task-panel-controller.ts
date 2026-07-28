@@ -82,8 +82,7 @@ export function taskDefinitionLabel(
 
 /** Resolves the single-line row label for an individual run. */
 export function taskRunLabel(entry: TaskRunEntry): TaskEntryLabel {
-  const named =
-    entry.definition?.label ?? entry.run.displayName ?? entry.run.name;
+  const named = entry.run.displayName ?? entry.run.name;
   if (named && named.trim().length > 0)
     return { text: named, isCommand: false };
   const command = entry.run.command;
@@ -126,14 +125,14 @@ export function formatTaskRunTime(startedAt: string): string {
 }
 
 /**
- * Projects the panel into its two flat sections: saved definitions and every
- * individual run, both newest first with recovery concerns hoisted to the top.
+ * Projects the panel into its two sections: saved definitions with their own runs
+ * nested underneath, and the ad-hoc runs that no definition started. Both are
+ * newest first with recovery concerns hoisted to the top.
  */
 export function projectTaskPanel(
   definitions: readonly TaskPanelDefinition[],
   tasks: readonly TaskRecord[],
 ): { definitions: TaskDefinitionEntry[]; runs: TaskRunEntry[] } {
-  const definitionsById = new Map(definitions.map((item) => [item.id, item]));
   const runsByDefinition = new Map<string, TaskRecord[]>();
   for (const task of tasks) {
     if (!task.definitionId) continue;
@@ -158,15 +157,8 @@ export function projectTaskPanel(
     );
 
   const runEntries = tasks
-    .map<TaskRunEntry>((run) => ({
-      key: run.id,
-      run,
-      definition: run.definitionId
-        ? definitionsById.get(run.definitionId)
-        : undefined,
-      isActive: RUNNING_LIKE_STATUSES.has(run.status),
-      needsRecovery: RECOVERY_STATUSES.has(run.status),
-    }))
+    .filter((run) => !run.definitionId)
+    .map((run) => toRunEntry(run))
     .sort(
       (left, right) =>
         Number(right.needsRecovery) - Number(left.needsRecovery) ||
@@ -176,20 +168,35 @@ export function projectTaskPanel(
   return { definitions: definitionEntries, runs: runEntries };
 }
 
+function toRunEntry(
+  run: TaskRecord,
+  definition?: TaskPanelDefinition,
+): TaskRunEntry {
+  return {
+    key: run.id,
+    run,
+    definition,
+    isActive: RUNNING_LIKE_STATUSES.has(run.status),
+    needsRecovery: RECOVERY_STATUSES.has(run.status),
+  };
+}
+
 function buildDefinitionEntry(
   definition: TaskPanelDefinition,
   runs: readonly TaskRecord[],
 ): TaskDefinitionEntry {
-  const sorted = [...runs].sort((a, b) =>
-    b.startedAt.localeCompare(a.startedAt),
-  );
+  const sorted = [...runs]
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .map((run) => toRunEntry(run, definition));
   return {
     key: definition.id,
     definition,
     runs: sorted,
-    activeRuns: sorted.filter((task) => RUNNING_LIKE_STATUSES.has(task.status)),
-    latestRun: sorted[0],
-    needsRecovery: sorted.some((task) => RECOVERY_STATUSES.has(task.status)),
+    activeRuns: sorted
+      .filter((entry) => entry.isActive)
+      .map((entry) => entry.run),
+    latestRun: sorted[0]?.run,
+    needsRecovery: sorted.some((entry) => entry.needsRecovery),
   };
 }
 

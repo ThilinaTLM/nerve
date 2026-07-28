@@ -68,6 +68,7 @@ let unstagedExpanded = $state(true);
     label={title}
     title={`${expanded ? "Collapse" : "Expand"} ${title.toLowerCase()} changes`}
     dense
+    flush
     hoverable={false}
     alwaysShowActions
     ariaExpanded={expanded}
@@ -111,7 +112,7 @@ let unstagedExpanded = $state(true);
       getPath={(file) => file.path.split("/")}
       getKey={(file) => `${group}:${file.path}`}
       ariaLabel={`${title} file tree`}
-      baseIndent={1}
+      baseIndent={0}
       getItemTitle={(file) =>
         `${fileStatusLabel(file, group)} · ${file.renamedFrom ? `${file.renamedFrom} → ` : ""}${file.path}`}
     >

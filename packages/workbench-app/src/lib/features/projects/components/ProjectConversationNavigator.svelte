@@ -1,4 +1,5 @@
 <script lang="ts">
+import Plus from "@lucide/svelte/icons/plus";
 import type { ProjectRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import AlertDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
@@ -7,7 +8,9 @@ import {
   PanelEmpty,
   PanelHeader,
   PanelList,
+  PanelToolbarButton,
   PanelView,
+  createPanelRowFit,
 } from "@nervekit/workbench-ui/panel";
 import { buildConversationRows } from "$lib/core/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
@@ -44,9 +47,6 @@ let pendingDelete = $state<DeleteTarget | undefined>();
 let allConversationsOpen = $state(false);
 let listRegion = $state<HTMLDivElement | null>(null);
 let listFooter = $state<HTMLDivElement | null>(null);
-let visibleCount = $state(Number.MAX_SAFE_INTEGER);
-let measuredRowHeight = 0;
-let measureFrame: number | undefined;
 
 const activeProject = $derived(
   projects.find((project) => project.id === selectedProjectId) ?? projects[0],
@@ -55,64 +55,18 @@ const projectIds = $derived(projects.map((project) => project.id));
 const rows = $derived(
   buildConversationRows({ conversations, agents, projectIds }),
 );
-const visibleRows = $derived(rows.slice(0, visibleCount));
+const rowFit = createPanelRowFit({
+  region: () => listRegion,
+  footer: () => listFooter,
+  total: () => rows.length,
+});
+const visibleRows = $derived(rows.slice(0, rowFit.count));
 const hasHiddenRows = $derived(visibleRows.length < rows.length);
 const newConversationShortcut = getShortcutLabel("conversation.new");
 const switchProjectShortcut = getShortcutLabel("conversation.newFromProject");
 const emptyStateHint = switchProjectShortcut
   ? `Use the folder button in the header (${switchProjectShortcut}) to get started.`
   : "Use the folder button in the header to get started.";
-
-function measureVisibleCount(): void {
-  if (!listRegion) return;
-  const list = listRegion.querySelector<HTMLElement>("[role='list']");
-  const row = list?.querySelector<HTMLElement>(".panel-row");
-  if (row) measuredRowHeight = row.getBoundingClientRect().height;
-  if (!list || measuredRowHeight <= 0) return;
-
-  const listStyle = getComputedStyle(list);
-  const listPadding =
-    Number.parseFloat(listStyle.paddingTop) +
-    Number.parseFloat(listStyle.paddingBottom);
-  const footerHeight = listFooter?.getBoundingClientRect().height ?? 0;
-  const availableHeight =
-    listRegion.getBoundingClientRect().height - footerHeight - listPadding;
-  // Allow a small subpixel tolerance so app zoom and rem rounding do not
-  // unnecessarily leave room for an additional complete row.
-  const nextCount = Math.max(
-    0,
-    Math.floor((availableHeight + 2) / measuredRowHeight),
-  );
-  if (nextCount !== visibleCount) visibleCount = nextCount;
-}
-
-function scheduleMeasurement(): void {
-  if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
-  measureFrame = requestAnimationFrame(() => {
-    measureFrame = undefined;
-    measureVisibleCount();
-  });
-}
-
-$effect(() => {
-  if (!listRegion || typeof ResizeObserver === "undefined") return;
-  const observer = new ResizeObserver(scheduleMeasurement);
-  observer.observe(listRegion);
-  scheduleMeasurement();
-  return () => {
-    observer.disconnect();
-    if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
-  };
-});
-
-$effect(() => {
-  const rowCount = rows.length;
-  const footer = listFooter;
-  queueMicrotask(() => {
-    if (rowCount === rows.length && footer === listFooter)
-      scheduleMeasurement();
-  });
-});
 
 let lastSearchFocusToken = 0;
 $effect(() => {
@@ -142,7 +96,21 @@ const menuContext = $derived<ProjectTreeMenuContext>({
 
 <Tooltip.Provider delayDuration={300} disableHoverableContent>
   <PanelView padded={false} scroll={false}>
-    <PanelHeader title="Conversations" count={rows.length} />
+    <PanelHeader title="Conversations" count={rows.length}>
+      {#snippet trailing()}
+        <PanelToolbarButton
+          icon={Plus}
+          label="New chat"
+          title={newConversationShortcut
+            ? `New chat (${newConversationShortcut})`
+            : "New chat"}
+          disabled={!activeProject || !onNewConversationInProject}
+          onclick={() => {
+            if (activeProject) onNewConversationInProject?.(activeProject.dir);
+          }}
+        />
+      {/snippet}
+    </PanelHeader>
 
     {#if !activeProject}
       <PanelEmpty title="No project selected." description={emptyStateHint} />

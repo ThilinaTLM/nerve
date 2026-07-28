@@ -17,6 +17,7 @@ import type { TaskEntryCapabilities, TaskRunEntry } from "./task-panel-types";
 let {
   entry,
   selected = false,
+  nested = false,
   capabilities,
   onOpen,
   onCancel,
@@ -27,6 +28,8 @@ let {
 }: {
   entry: TaskRunEntry;
   selected?: boolean;
+  /** Renders the run as a child of its definition row: time-first label, deeper indent. */
+  nested?: boolean;
   capabilities: TaskEntryCapabilities;
   onOpen?: (taskId: string) => void;
   onCancel?: (taskId: string) => void;
@@ -112,15 +115,16 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 </script>
 
 <PanelRow
-  label={label.text}
-  description={startedAt}
+  label={nested ? startedAt : label.text}
+  description={nested ? undefined : startedAt}
   title={tooltip}
-  mono={label.isCommand}
-  tone={label.isCommand ? "muted" : "default"}
+  mono={!nested && label.isCommand}
+  tone={nested || label.isCommand ? "muted" : "default"}
   status={entry.needsRecovery ? "warn" : taskTone(run.status)}
   pulse={taskPulse(run.status)}
   {selected}
-  indent={1}
+  indent={nested ? 1 : 0}
+  alwaysShowActions
   {menuItems}
   onclick={() => onOpen?.(run.id)}
 >

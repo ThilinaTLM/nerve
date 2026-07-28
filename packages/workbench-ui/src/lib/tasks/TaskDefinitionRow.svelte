@@ -21,7 +21,9 @@ import type {
 let {
   entry,
   selected = false,
+  expanded = false,
   capabilities,
+  onToggleExpanded,
   onOpen,
   onRun,
   onCancel,
@@ -32,7 +34,10 @@ let {
 }: {
   entry: TaskDefinitionEntry;
   selected?: boolean;
+  /** Whether the definition's run rows are listed underneath it. */
+  expanded?: boolean;
   capabilities: TaskEntryCapabilities;
+  onToggleExpanded?: () => void;
   onOpen?: (taskId: string) => void;
   onRun?: () => void;
   onCancel?: (taskId: string) => void;
@@ -43,6 +48,7 @@ let {
 } = $props();
 
 const latest = $derived(entry.latestRun);
+const expandable = $derived(entry.runs.length > 0);
 const status = $derived(latest?.status ?? "saved");
 const label = $derived(taskDefinitionLabel(entry));
 const command = $derived(entry.definition.command);
@@ -72,6 +78,12 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       icon: Terminal,
       disabled: !capabilities.logs,
       onSelect: () => onOpen?.(latest.id),
+    });
+  if (expandable)
+    items.push({
+      label: expanded ? "Hide runs" : "Show runs",
+      icon: History,
+      onSelect: () => onToggleExpanded?.(),
     });
   if (canStart)
     items.push({
@@ -140,12 +152,15 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     : latest
       ? taskTone(latest.status)
       : "neutral"}
+  statusVariant={expanded ? "outline" : "solid"}
   pulse={latest ? taskPulse(latest.status) : false}
   {selected}
-  disabled={!latest}
-  indent={1}
+  disabled={!expandable}
+  ariaExpanded={expandable ? expanded : undefined}
+  indent={0}
+  alwaysShowActions
   {menuItems}
-  onclick={() => latest && onOpen?.(latest.id)}
+  onclick={() => expandable && onToggleExpanded?.()}
 >
   {#snippet badges()}
     {#if entry.activeRuns.length > 1}

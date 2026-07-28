@@ -21,6 +21,7 @@ let {
   mono = false,
   tone = "default",
   indent = 0,
+  flush = false,
   selected = false,
   active = false,
   disabled = false,
@@ -58,6 +59,8 @@ let {
   tone?: "default" | "muted" | "destructive";
   /** Indentation steps for tree-like lists. */
   indent?: number;
+  /** Drops the base row inset so the row aligns with the panel's outer padding. */
+  flush?: boolean;
   selected?: boolean;
   active?: boolean;
   disabled?: boolean;
@@ -92,6 +95,15 @@ let {
   ondblclick?: (event: MouseEvent) => void;
 } = $props();
 
+const rowStyle = $derived(
+  [
+    indent > 0 ? `--panel-indent:${indent}` : undefined,
+    flush ? "--panel-row-inset:0px" : undefined,
+  ]
+    .filter(Boolean)
+    .join(";") || undefined,
+);
+
 const toneClass = $derived(
   tone === "destructive"
     ? "text-destructive"
@@ -113,7 +125,7 @@ const toneClass = $derived(
         "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
       className,
     )}
-    style={indent > 0 ? `--panel-indent:${indent}` : undefined}
+    style={rowStyle}
     {role}
     {tabindex}
     aria-expanded={role === "treeitem" ? ariaExpanded : undefined}

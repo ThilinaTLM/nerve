@@ -52,11 +52,23 @@ test("collapses a definition's concurrent runs into one definition entry while l
     ],
   );
   assert.equal(projected.definitions.length, 1);
+  assert.equal(projected.definitions[0]?.runs.length, 2);
   assert.equal(projected.definitions[0]?.activeRuns.length, 2);
-  assert.equal(projected.runs.length, 2);
+  assert.equal(projected.runs.length, 0);
+});
+
+test("lists only ad-hoc runs at the top level", () => {
+  const projected = projectTaskPanel(
+    [definition()],
+    [run("task_def", { definitionId: "taskdef_a" }), run("task_adhoc")],
+  );
   assert.deepEqual(
-    projected.runs.map((entry) => entry.definition?.id),
-    ["taskdef_a", "taskdef_a"],
+    projected.runs.map((entry) => entry.key),
+    ["task_adhoc"],
+  );
+  assert.deepEqual(
+    projected.definitions[0]?.runs.map((entry) => entry.key),
+    ["task_def"],
   );
 });
 
@@ -98,7 +110,7 @@ test("sorts runs with recovery concerns first, then newest first", () => {
   assert.equal(projected.runs[0]?.needsRecovery, true);
 });
 
-test("prefers the definition label, then run display name, then the command", () => {
+test("labels definitions by their label and runs by display name, then command", () => {
   const projected = projectTaskPanel(
     [definition()],
     [
@@ -112,9 +124,14 @@ test("prefers the definition label, then run display name, then the command", ()
     isCommand: false,
   });
 
-  const byId = new Map(projected.runs.map((entry) => [entry.key, entry]));
+  const byId = new Map(
+    [...projected.definitions[0]!.runs, ...projected.runs].map((entry) => [
+      entry.key,
+      entry,
+    ]),
+  );
   assert.deepEqual(taskRunLabel(byId.get("task_a")!), {
-    text: "Web",
+    text: "api",
     isCommand: false,
   });
   assert.deepEqual(taskRunLabel(byId.get("task_b")!), {
