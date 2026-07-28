@@ -13,6 +13,7 @@ export function showDesktopNotification(
   const notification = new Notification({
     title: notificationPayload.title,
     body: notificationPayload.body,
+    silent: true,
     urgency:
       notificationPayload.urgency === "attention" ? "critical" : "normal",
   });

@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Component } from "svelte";
+import Bell from "@lucide/svelte/icons/bell";
 import Bot from "@lucide/svelte/icons/bot";
 import HardDrive from "@lucide/svelte/icons/hard-drive";
 import Keyboard from "@lucide/svelte/icons/keyboard";
@@ -30,6 +31,7 @@ import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.sve
 import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";
 import ExploreAgentSettingsSection from "./settings/sections/ExploreAgentSettingsSection.svelte";
 import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
+import NotificationsSettingsSection from "./settings/sections/NotificationsSettingsSection.svelte";
 import KeyboardShortcutsSettingsSection from "./settings/sections/KeyboardShortcutsSettingsSection.svelte";
 import ToolsSettingsSection from "./settings/sections/ToolsSettingsSection.svelte";
 import PromptSuggestionsSettingsSection from "./settings/sections/PromptSuggestionsSettingsSection.svelte";
@@ -42,6 +44,8 @@ type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 type SectionId =
   | "appearance"
   | "desktop"
+  | "notification-general"
+  | "notification-sounds"
   | "keyboard-shortcuts"
   | "agents"
   | "explore"
@@ -56,6 +60,7 @@ type SectionId =
   | "runtime";
 type GroupId =
   | "workbench"
+  | "notifications"
   | "keyboard-shortcuts"
   | "agents"
   | "suggestions"
@@ -102,6 +107,15 @@ const baseGroups: SettingsGroup[] = [
     sections: [
       { id: "appearance", label: "Appearance" },
       { id: "desktop", label: "Desktop" },
+    ],
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    icon: Bell,
+    sections: [
+      { id: "notification-general", label: "General" },
+      { id: "notification-sounds", label: "Sounds" },
     ],
   },
   {
@@ -232,6 +246,8 @@ function statusText() {
           {onSettingsChange}
         />
         <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
+      {:else if activeGroup.id === "notifications"}
+        <NotificationsSettingsSection {settingsDraft} {onSettingsChange} />
       {:else if activeGroup.id === "keyboard-shortcuts"}
         <KeyboardShortcutsSettingsSection />
       {:else if activeGroup.id === "agents"}

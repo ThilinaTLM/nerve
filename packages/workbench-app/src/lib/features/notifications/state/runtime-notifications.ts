@@ -4,6 +4,7 @@ import type {
   ProjectRecord,
 } from "$lib/api";
 import type { DesktopNotificationPayload } from "$lib/features/desktop/state/desktop-bridge.svelte";
+import type { NotificationSoundEvent } from "$lib/features/notifications/notify.svelte";
 
 type RuntimeNotificationKind = "success" | "error" | "message";
 
@@ -11,6 +12,7 @@ export type RuntimeNotification = {
   payload: DesktopNotificationPayload;
   backgroundOnly: boolean;
   kind?: RuntimeNotificationKind;
+  soundEvent: NotificationSoundEvent;
   tag?: string;
 };
 
@@ -59,6 +61,7 @@ function approvalNotification(
   return {
     backgroundOnly: false,
     kind: "error",
+    soundEvent: "approval",
     tag: tagFrom("approval", stringValue(approval?.id)),
     payload: {
       title: toolName ? `Approval needed: ${toolName}` : "Approval needed",
@@ -83,6 +86,7 @@ function userQuestionNotification(
   return {
     backgroundOnly: false,
     kind: "error",
+    soundEvent: "question",
     tag: tagFrom("question", stringValue(question?.id)),
     payload: {
       title: "Nerve needs your answer",
@@ -108,6 +112,7 @@ function planReviewNotification(
   return {
     backgroundOnly: false,
     kind: "error",
+    soundEvent: "planReview",
     tag: tagFrom("plan-review", stringValue(review?.id)),
     payload: {
       title: title ? `Plan ready: ${title}` : "Plan ready for review",
@@ -129,6 +134,7 @@ function runCompletedNotification(
   return {
     backgroundOnly: true,
     kind: "success",
+    soundEvent: "completed",
     tag: tagFrom("run-completed", stringValue(event.data?.runId)),
     payload: {
       title: "Agent run completed",
@@ -153,6 +159,7 @@ function runFailedNotification(
     return {
       backgroundOnly: false,
       kind: "error",
+      soundEvent: "failed",
       tag: tagFrom("run-retry-exhausted", stringValue(event.data?.runId)),
       payload: {
         title: "Model request needs retry",
@@ -171,6 +178,7 @@ function runFailedNotification(
   return {
     backgroundOnly: true,
     kind: "error",
+    soundEvent: "failed",
     tag: tagFrom("run-failed", stringValue(event.data?.runId)),
     payload: {
       title: "Agent run failed",

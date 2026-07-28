@@ -2,6 +2,7 @@ import { chmod, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type DaemonFile,
+  defaultNotificationEventSounds,
   defaultSettings,
   type Settings,
   settingsSchema,
@@ -67,6 +68,66 @@ function migrateLegacyToolNames(value: unknown): {
   };
 }
 
+const removedNotificationToneIds = new Set([
+  "kenney-click-1",
+  "kenney-click-2",
+  "kenney-click-3",
+  "kenney-rollover-1",
+  "kenney-rollover-4",
+  "kenney-rollover-6",
+  "kenney-switch-1",
+  "kenney-switch-7",
+  "kenney-switch-10",
+  "kenney-switch-15",
+  "kenney-switch-20",
+  "kenney-switch-31",
+]);
+
+function migrateRemovedNotificationTones(value: unknown): {
+  value: unknown;
+  changed: boolean;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { value, changed: false };
+  }
+  const settings = value as Record<string, unknown>;
+  const notifications = settings.notifications;
+  if (
+    !notifications ||
+    typeof notifications !== "object" ||
+    Array.isArray(notifications)
+  ) {
+    return { value, changed: false };
+  }
+  const events = (notifications as Record<string, unknown>).events;
+  if (!events || typeof events !== "object" || Array.isArray(events)) {
+    return { value, changed: false };
+  }
+
+  const migratedEvents = { ...events } as Record<string, unknown>;
+  let changed = false;
+  for (const [event, fallback] of Object.entries(
+    defaultNotificationEventSounds,
+  )) {
+    if (removedNotificationToneIds.has(String(migratedEvents[event]))) {
+      migratedEvents[event] = fallback;
+      changed = true;
+    }
+  }
+  if (!changed) return { value, changed: false };
+
+  return {
+    value: {
+      ...settings,
+      notifications: {
+        ...notifications,
+        events: migratedEvents,
+      },
+    },
+    changed: true,
+  };
+}
+
 export async function initializeStorage(
   home = resolveDataDir(),
 ): Promise<InitializedStorage> {
@@ -86,12 +147,15 @@ export async function initializeStorage(
   }
 
   const rawSettings = await readJsonFile<unknown>(paths.configPath);
-  const normalizedSettings = migrateLegacyToolNames(rawSettings);
+  const normalizedTools = migrateLegacyToolNames(rawSettings);
+  const normalizedTones = migrateRemovedNotificationTones(
+    normalizedTools.value,
+  );
   const settings = settingsSchema.parse({
     ...defaultSettings,
-    ...(normalizedSettings.value as object),
+    ...(normalizedTones.value as object),
   });
-  if (normalizedSettings.changed) {
+  if (normalizedTools.changed || normalizedTones.changed) {
     await atomicWriteJson(paths.configPath, settings, 0o600);
   }
 
@@ -231,6 +295,18 @@ export async function writeSettings(
     server: { ...storage.settings.server, ...(patch.server ?? {}) },
     ui: { ...storage.settings.ui, ...(patch.ui ?? {}) },
     desktop: { ...storage.settings.desktop, ...(patch.desktop ?? {}) },
+    notifications: {
+      ...storage.settings.notifications,
+      ...(patch.notifications ?? {}),
+      ...(patch.notifications?.events
+        ? {
+            events: {
+              ...storage.settings.notifications.events,
+              ...patch.notifications.events,
+            },
+          }
+        : {}),
+    },
     lastAgentSelection: {
       ...storage.settings.lastAgentSelection,
       ...(lastAgentSelectionPatch ?? {}),
