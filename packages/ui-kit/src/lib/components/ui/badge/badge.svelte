@@ -18,7 +18,7 @@ export const badgeVariants = tv({
     },
     /* Project status tones (paired with icon/text, never color alone). */
     tone: {
-      neutral: "border-border bg-secondary text-secondary-foreground",
+      neutral: "border-border bg-muted text-foreground",
       accent: "border-border bg-accent text-foreground",
       running: "border-info/40 bg-info/8 text-info",
       good: "border-success/40 bg-success/8 text-success",

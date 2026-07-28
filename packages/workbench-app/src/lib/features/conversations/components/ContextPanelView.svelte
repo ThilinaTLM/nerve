@@ -5,6 +5,7 @@ import {
   PanelHeader,
   PanelView,
 } from "@nervekit/workbench-ui/panel";
+import type { ContextUsage } from "@nervekit/contracts";
 import type {
   AgentRecord,
   ConversationRecord,
@@ -14,9 +15,12 @@ import type {
 import ContextAgentsSection from "./ContextAgentsSection.svelte";
 import ContextExportSection from "./ContextExportSection.svelte";
 import ContextSummarySection from "./ContextSummarySection.svelte";
+import ContextUsageSection from "./ContextUsageSection.svelte";
 
 type Props = {
   status?: StatusResponse;
+  contextUsage?: ContextUsage;
+  contextWindow?: number;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;
@@ -30,6 +34,8 @@ type Props = {
 
 let {
   status,
+  contextUsage,
+  contextWindow = 0,
   activeProject,
   activeConversation,
   activeAgent,
@@ -53,13 +59,18 @@ let confirmCompactOpen = $state(false);
   {/snippet}
 
   {#if activeProject}
+    <ContextUsageSection
+      {contextUsage}
+      {contextWindow}
+      {activeConversation}
+      {compacting}
+      onRequestCompact={() => (confirmCompactOpen = true)}
+    />
     <ContextSummarySection
       {status}
       {activeProject}
       {activeConversation}
       {activeAgent}
-      {compacting}
-      onRequestCompact={() => (confirmCompactOpen = true)}
     />
     <ContextAgentsSection {conversationAgents} {activeAgent} {onSelectAgent} />
     <ContextExportSection {activeConversation} {exportUrl} {systemPromptUrl} />

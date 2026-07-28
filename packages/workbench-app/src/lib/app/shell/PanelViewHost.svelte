@@ -51,6 +51,8 @@ const activeConversation = $derived(conversationSelectors.activeConversation);
 const activeAgent = $derived(conversationSelectors.activeAgent);
 const conversationAgents = $derived(conversationSelectors.conversationAgents);
 const compacting = $derived(conversationSelectors.compacting);
+const contextUsage = $derived(conversationSelectors.activeContextUsage);
+const contextWindow = $derived(conversationSelectors.activeContextWindow);
 const tasks = $derived(taskSelectors.scopedTasks);
 const selectedTask = $derived(taskSelectors.selectedTask);
 
@@ -76,6 +78,8 @@ function focusTasks() {
 {:else if viewId === "context"}
   <ContextPanelView
     {status}
+    {contextUsage}
+    {contextWindow}
     {activeProject}
     {activeConversation}
     {activeAgent}

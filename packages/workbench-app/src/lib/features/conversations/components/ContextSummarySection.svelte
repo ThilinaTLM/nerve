@@ -1,8 +1,6 @@
 <script lang="ts">
 import Copy from "@lucide/svelte/icons/copy";
-import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import Layers from "@lucide/svelte/icons/layers";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   PanelPropertyRow,
   PanelSectionHeader,
@@ -22,25 +20,80 @@ let {
   activeProject,
   activeConversation,
   activeAgent,
-  compacting = false,
-  onRequestCompact,
 }: {
   status?: StatusResponse;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;
-  compacting?: boolean;
-  onRequestCompact?: () => void;
 } = $props();
 
-const fields = $derived([
-  { label: "Project", value: activeProject?.name },
-  { label: "Directory", value: activeProject?.dir },
-  { label: "Conversation", value: activeConversation?.id },
-  { label: "Agent", value: activeAgent?.id },
-  { label: "Daemon", value: status?.daemonId },
-  { label: "Data", value: status?.dataDir },
-]);
+const PERMISSION_LABELS: Record<string, string> = {
+  read_only: "Read only",
+  supervised: "Supervised",
+  autonomous: "Autonomous",
+};
+
+function titleCase(value: string): string {
+  return value
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function shortAgentId(id: string): string {
+  const parts = id.split("_");
+  return parts.length > 1 ? (parts.at(-1) ?? id) : id.slice(-6);
+}
+
+type Field = { label: string; value?: string; mono?: boolean };
+
+const fields = $derived.by<Field[]>(() => {
+  const agentModel = activeAgent?.model;
+  const thinkingLevel = activeAgent?.thinkingLevel;
+  const entries: Field[] = [
+    { label: "Project", value: activeProject?.name },
+    { label: "Directory", value: activeProject?.dir, mono: true },
+    { label: "Conversation", value: activeConversation?.title },
+    {
+      label: "Agent",
+      value: activeAgent ? shortAgentId(activeAgent.id) : undefined,
+      mono: true,
+    },
+    {
+      label: "Model",
+      value: agentModel
+        ? `${agentModel.provider}/${agentModel.modelId}`
+        : undefined,
+      mono: true,
+    },
+    {
+      label: "Mode",
+      value: activeAgent ? titleCase(activeAgent.mode) : undefined,
+    },
+    {
+      label: "Permission",
+      value: activeAgent
+        ? (PERMISSION_LABELS[activeAgent.permissionLevel] ??
+          titleCase(activeAgent.permissionLevel))
+        : undefined,
+    },
+    {
+      label: "Thinking",
+      value:
+        thinkingLevel && thinkingLevel !== "off"
+          ? titleCase(thinkingLevel)
+          : undefined,
+      // Hidden entirely when thinking is off; see filter below.
+    },
+    { label: "Daemon", value: status?.daemonId, mono: true },
+    { label: "Data", value: status?.dataDir, mono: true },
+  ];
+  return entries.filter(
+    (entry) => entry.label !== "Thinking" || entry.value !== undefined,
+  );
+});
+
 const contextText = $derived(
   fields.map((field) => `${field.label}: ${field.value ?? "—"}`).join("\n"),
 );
@@ -72,24 +125,8 @@ async function copyContext(): Promise<void> {
         label={field.label}
         value={field.value}
         title={field.value}
-        mono
+        mono={field.mono ?? false}
       />
     {/each}
-    <div class="pt-1.5">
-      <Button
-        size="xs"
-        variant="outline"
-        disabled={!activeConversation || compacting}
-        title={activeConversation
-          ? compacting
-            ? "Conversation compaction is in progress"
-            : "Summarize earlier messages to reduce context usage"
-          : "Select a conversation to compact its context"}
-        onclick={() => onRequestCompact?.()}
-      >
-        <FoldVertical />
-        {compacting ? "Compacting…" : "Compact context"}
-      </Button>
-    </div>
   </div>
 </section>

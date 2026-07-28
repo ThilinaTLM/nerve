@@ -5,6 +5,7 @@ import {
   agentActivityTone,
 } from "@nervekit/ui-kit/core/utils/status";
 import {
+  PanelEmpty,
   PanelList,
   PanelRow,
   PanelSectionHeader,
@@ -69,9 +70,11 @@ function agentDescription(agent: AgentRecord): string {
 
   <div class="flex min-w-0 flex-col pb-1">
     {#if conversationAgents.length === 0}
-      <p class="py-1 text-xs text-muted-foreground">
-        No agents in the active conversation.
-      </p>
+      <PanelEmpty
+        icon={Bot}
+        title="No agents yet"
+        description="Agents appear once a run starts."
+      />
     {:else}
       {#if mainAgents.length > 0}
         <PanelSectionHeader title="Main agent" />

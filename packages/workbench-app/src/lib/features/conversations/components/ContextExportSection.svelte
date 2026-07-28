@@ -1,10 +1,16 @@
 <script lang="ts">
 import Download from "@lucide/svelte/icons/download";
+import FileCode from "@lucide/svelte/icons/file-code";
+import FileJson from "@lucide/svelte/icons/file-json";
+import FileText from "@lucide/svelte/icons/file-text";
 import ScrollText from "@lucide/svelte/icons/scroll-text";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import type { Component } from "svelte";
 import {
-  PanelPropertyRow,
+  PanelEmpty,
+  PanelList,
+  PanelRow,
   PanelSectionHeader,
+  PanelToolbarButton,
 } from "@nervekit/workbench-ui/panel";
 import type { ConversationRecord } from "$lib/api";
 
@@ -18,7 +24,61 @@ let {
   systemPromptUrl?: () => string | undefined;
 } = $props();
 
-const systemPromptHref = $derived(systemPromptUrl?.());
+type ExportRow = {
+  id: string;
+  label: string;
+  icon: Component;
+  href?: string;
+  filename?: string;
+  description?: string;
+};
+
+const rows = $derived.by<ExportRow[]>(() => {
+  if (!activeConversation) return [];
+  const id = activeConversation.id;
+  const systemPromptHref = systemPromptUrl?.();
+  return [
+    {
+      id: "json",
+      label: "JSON",
+      icon: FileJson,
+      href: exportUrl?.("json"),
+      filename: `conversation-${id}.json`,
+    },
+    {
+      id: "md",
+      label: "Markdown",
+      icon: FileText,
+      href: exportUrl?.("md"),
+      filename: `conversation-${id}.md`,
+    },
+    {
+      id: "html",
+      label: "HTML",
+      icon: FileCode,
+      href: exportUrl?.("html"),
+      filename: `conversation-${id}.html`,
+    },
+    {
+      id: "system-prompt",
+      label: "System prompt",
+      icon: ScrollText,
+      href: systemPromptHref,
+      description: systemPromptHref ? undefined : "No active agent",
+    },
+  ];
+});
+
+function download(row: ExportRow): void {
+  if (!row.href) return;
+  const anchor = document.createElement("a");
+  anchor.href = row.href;
+  if (row.filename) anchor.download = row.filename;
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+}
 </script>
 
 <section class="flex min-w-0 flex-col">
@@ -26,45 +86,34 @@ const systemPromptHref = $derived(systemPromptUrl?.());
 
   <div class="flex min-w-0 flex-col pb-1">
     {#if activeConversation}
-      <PanelPropertyRow label="Conversation">
-        <div class="flex flex-wrap gap-1.5 py-1">
-          <Badge
-            href={exportUrl?.("json")}
-            download={`conversation-${activeConversation.id}.json`}
-            variant="outline"
-            size="sm">JSON</Badge
+      <PanelList ariaLabel="Conversation exports">
+        {#each rows as row (row.id)}
+          <PanelRow
+            icon={row.icon}
+            label={row.label}
+            description={row.description}
+            disabled={!row.href}
+            alwaysShowActions
+            onclick={() => download(row)}
           >
-          <Badge
-            href={exportUrl?.("md")}
-            download={`conversation-${activeConversation.id}.md`}
-            variant="outline"
-            size="sm">Markdown</Badge
-          >
-          <Badge
-            href={exportUrl?.("html")}
-            download={`conversation-${activeConversation.id}.html`}
-            variant="outline"
-            size="sm">HTML</Badge
-          >
-        </div>
-      </PanelPropertyRow>
-      <PanelPropertyRow label="System prompt">
-        {#if systemPromptHref}
-          <a
-            class="inline-flex w-fit items-center gap-1.5 py-1 text-xs font-medium text-foreground hover:underline"
-            href={systemPromptHref}
-            download
-          >
-            <ScrollText size={13} strokeWidth={2.2} />Export system prompt
-          </a>
-        {:else}
-          <span class="text-muted-foreground">No active agent.</span>
-        {/if}
-      </PanelPropertyRow>
+            {#snippet actions()}
+              <PanelToolbarButton
+                icon={Download}
+                label={`Download ${row.label}`}
+                href={row.href}
+                download={row.filename}
+                disabled={!row.href}
+              />
+            {/snippet}
+          </PanelRow>
+        {/each}
+      </PanelList>
     {:else}
-      <p class="py-1 text-xs text-muted-foreground">
-        No active conversation to export.
-      </p>
+      <PanelEmpty
+        icon={Download}
+        title="Nothing to export"
+        description="Open a conversation to export its transcript."
+      />
     {/if}
   </div>
 </section>

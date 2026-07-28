@@ -1,30 +1,25 @@
 <script lang="ts">
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
-import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
-import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ProjectRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import {
   PanelBanner,
   PanelEmpty,
   PanelHeader,
-  PanelSectionHeader,
   PanelToolbarButton,
   PanelView,
 } from "@nervekit/workbench-ui/panel";
+import ScratchNoteCard from "./ScratchNoteCard.svelte";
 import ScratchNoteTitleDialog from "./ScratchNoteTitleDialog.svelte";
 import {
   createScratchNote,
   ensureScratchNotesProject,
-  flushScratchNote,
   getScratchNotesProject,
   loadScratchNotes,
   removeScratchNote,
   renameScratchNote,
-  setScratchNoteContent,
   type ScratchNoteEntry,
 } from "../state/scratch-notes-state.svelte";
 
@@ -46,19 +41,6 @@ $effect(() => {
   ensureScratchNotesProject(projectId);
   void loadScratchNotes(projectId);
 });
-
-function statusLabel(note: ScratchNoteEntry): string {
-  switch (note.saveStatus) {
-    case "saving":
-      return "Saving…";
-    case "saved":
-      return "Saved";
-    case "error":
-      return "Save failed";
-    default:
-      return "";
-  }
-}
 </script>
 
 <PanelView padded={false}>
@@ -100,51 +82,30 @@ function statusLabel(note: ScratchNoteEntry): string {
         icon={NotebookPen}
         title="No scratch notes yet"
         description="Notes are scoped to this project."
-      />
+      >
+        {#snippet action()}
+          <Button
+            size="xs"
+            variant="outline"
+            disabled={project.creating}
+            onclick={() => void createScratchNote(projectId)}
+          >
+            <Plus />
+            New note
+          </Button>
+        {/snippet}
+      </PanelEmpty>
     {:else}
-      {#each project.notes as note (note.id)}
-        <section class="flex min-w-0 flex-col">
-          <PanelSectionHeader title={note.title} icon={NotebookPen}>
-            {#snippet meta()}
-              {#if statusLabel(note)}
-                <span class="truncate">{statusLabel(note)}</span>
-              {/if}
-            {/snippet}
-            {#snippet actions()}
-              <PanelToolbarButton
-                icon={Pencil}
-                label={`Edit title for ${note.title}`}
-                disabled={note.deleting}
-                onclick={() => (noteToRename = note)}
-              />
-              <PanelToolbarButton
-                icon={Trash2}
-                label={`Delete ${note.title}`}
-                loading={note.deleting}
-                disabled={note.deleting}
-                onclick={() => (noteToDelete = note)}
-              />
-            {/snippet}
-          </PanelSectionHeader>
-
-          <div class="flex min-w-0 flex-col pb-1">
-            <Textarea
-              value={note.draftContent}
-              oninput={(event) =>
-                setScratchNoteContent(
-                  projectId,
-                  note.id,
-                  event.currentTarget.value,
-                )}
-              onblur={() => void flushScratchNote(projectId, note.id)}
-              spellcheck={false}
-              disabled={note.deleting}
-              placeholder="Jot down notes for this project…"
-              class="min-h-36 resize-none text-sm leading-relaxed [field-sizing:content]"
-            />
-          </div>
-        </section>
-      {/each}
+      <div class="flex min-w-0 flex-col gap-1.5 py-1">
+        {#each project.notes as note (note.id)}
+          <ScratchNoteCard
+            {projectId}
+            {note}
+            onRename={() => (noteToRename = note)}
+            onDelete={() => (noteToDelete = note)}
+          />
+        {/each}
+      </div>
     {/if}
   {/if}
 </PanelView>

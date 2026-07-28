@@ -11,6 +11,8 @@ let {
   icon: Icon,
   label,
   title,
+  href,
+  download,
   variant = "ghost",
   active = false,
   disabled = false,
@@ -25,6 +27,9 @@ let {
   /** Accessible name; also the tooltip when `title` is omitted. */
   label: string;
   title?: string;
+  /** Renders the control as a link (used for download actions). */
+  href?: string;
+  download?: string;
   variant?: ButtonVariant;
   active?: boolean;
   disabled?: boolean;
@@ -43,6 +48,8 @@ let {
 
 <Button
   {variant}
+  {href}
+  {download}
   size={showLabel ? "xs" : "icon-xs"}
   class={cn("shrink-0", dense && !showLabel && "size-5 rounded-sm", className)}
   ariaLabel={label}

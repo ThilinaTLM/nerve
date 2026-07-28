@@ -21,6 +21,10 @@ type ScratchNoteEntry = ScratchNote & {
   deleting: boolean;
   contentSaveFailed: boolean;
   saveTimer?: ReturnType<typeof setTimeout>;
+  /** Session-only card state; reset when notes are reloaded from the daemon. */
+  collapsed: boolean;
+  /** Editor height in pixels once the user drags the resize handle. */
+  bodyHeight?: number;
 };
 
 type ScratchNotesProjectEntry = {
@@ -64,6 +68,8 @@ function toEntry(note: ScratchNote): ScratchNoteEntry {
     deleting: false,
     contentSaveFailed: false,
     saveTimer: undefined,
+    collapsed: false,
+    bodyHeight: undefined,
   };
 }
 
@@ -207,6 +213,26 @@ export function setScratchNoteContent(
     () => void saveScratchNote(projectId, noteId),
     SAVE_DEBOUNCE_MS,
   );
+}
+
+export function toggleScratchNoteCollapsed(
+  projectId: string,
+  noteId: string,
+): void {
+  const note = findNote(projectId, noteId);
+  if (!note) return;
+  note.collapsed = !note.collapsed;
+}
+
+export function setScratchNoteBodyHeight(
+  projectId: string,
+  noteId: string,
+  height: number,
+): void {
+  const note = findNote(projectId, noteId);
+  if (!note || !Number.isFinite(height) || height <= 0) return;
+  if (note.bodyHeight === height) return;
+  note.bodyHeight = height;
 }
 
 export function flushScratchNote(
