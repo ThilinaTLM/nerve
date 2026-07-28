@@ -46,6 +46,63 @@ function runData(overrides: Record<string, unknown> = {}) {
 }
 
 describe("notificationForRuntimeEvent", () => {
+  it("maps user-attention events to the attention cue", () => {
+    const candidates = [
+      notificationForRuntimeEvent(
+        event("approval.updated", {
+          approval: { id: "approval_01", status: "pending" },
+          toolCall: { toolName: "bash" },
+        }),
+        context,
+      ),
+      notificationForRuntimeEvent(
+        event("userQuestion.updated", {
+          question: {
+            id: "question_01",
+            status: "pending",
+            question: "Continue?",
+          },
+        }),
+        context,
+      ),
+      notificationForRuntimeEvent(
+        event("planReview.updated", {
+          planReview: { id: "review_01", status: "pending" },
+        }),
+        context,
+      ),
+    ];
+
+    assert.deepEqual(
+      candidates.map((candidate) => candidate?.sound),
+      ["attention", "attention", "attention"],
+    );
+  });
+
+  it("maps completion and critical failure to distinct cues", () => {
+    const completed = notificationForRuntimeEvent(
+      event("run.completed", runData()),
+      context,
+    );
+    const failed = notificationForRuntimeEvent(
+      event(
+        "run.failed",
+        runData({ message: "Provider unavailable", aborted: false }),
+      ),
+      context,
+    );
+
+    assert.equal(completed?.sound, "complete");
+    assert.equal(failed?.sound, "error");
+  });
+
+  it("ignores generic suspension to avoid duplicate attention cues", () => {
+    assert.equal(
+      notificationForRuntimeEvent(event("run.suspended", runData()), context),
+      undefined,
+    );
+  });
+
   it("ignores aborted run failures", () => {
     assert.equal(
       notificationForRuntimeEvent(
@@ -77,6 +134,7 @@ describe("notificationForRuntimeEvent", () => {
 
     assert.ok(notification);
     assert.equal(notification.backgroundOnly, false);
+    assert.equal(notification.sound, "error");
     assert.equal(notification.payload.urgency, "attention");
     assert.match(notification.payload.title, /needs retry/);
     assert.match(notification.payload.body ?? "", /3 retries/);

@@ -122,6 +122,12 @@ export const settingsSchema = z.object({
   desktop: z.object({
     closeToTray: z.boolean().default(true),
   }),
+  notifications: z
+    .object({
+      systemEnabled: z.boolean().default(true),
+      soundsEnabled: z.boolean().default(true),
+    })
+    .default({ systemEnabled: true, soundsEnabled: true }),
   compaction: autoCompactionSettingsSchema,
   logging: z.object({
     level: applicationLogLevelSchema.default("info"),
@@ -181,6 +187,10 @@ export const defaultSettings: Settings = {
   },
   desktop: {
     closeToTray: true,
+  },
+  notifications: {
+    systemEnabled: true,
+    soundsEnabled: true,
   },
   compaction: {
     auto: true,
@@ -247,6 +257,12 @@ export const updateSettingsRequestSchema = z.object({
   desktop: z
     .object({
       closeToTray: z.boolean().optional(),
+    })
+    .optional(),
+  notifications: z
+    .object({
+      systemEnabled: z.boolean().optional(),
+      soundsEnabled: z.boolean().optional(),
     })
     .optional(),
   compaction: z

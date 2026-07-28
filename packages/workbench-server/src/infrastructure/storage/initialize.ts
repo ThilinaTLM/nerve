@@ -231,6 +231,10 @@ export async function writeSettings(
     server: { ...storage.settings.server, ...(patch.server ?? {}) },
     ui: { ...storage.settings.ui, ...(patch.ui ?? {}) },
     desktop: { ...storage.settings.desktop, ...(patch.desktop ?? {}) },
+    notifications: {
+      ...storage.settings.notifications,
+      ...(patch.notifications ?? {}),
+    },
     lastAgentSelection: {
       ...storage.settings.lastAgentSelection,
       ...(lastAgentSelectionPatch ?? {}),

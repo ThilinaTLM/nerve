@@ -29,6 +29,7 @@ function maybeShowRuntimeNotification(event: WorkbenchEvent): void {
   notifyNative(candidate.payload, {
     backgroundOnly: candidate.backgroundOnly,
     kind: candidate.kind,
+    sound: candidate.sound,
     tag: candidate.tag,
   });
 }

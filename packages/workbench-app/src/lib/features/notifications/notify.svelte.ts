@@ -4,6 +4,11 @@ import {
   isDesktopApp,
   showDesktopNotification,
 } from "$lib/features/desktop/state/desktop-bridge.svelte";
+import {
+  type NotificationSound,
+  playNotificationSound,
+  preloadNotificationSounds,
+} from "$lib/features/notifications/state/notification-sounds";
 
 type BrowserPermission = NotificationPermission | "unsupported";
 type NotifyKind = "success" | "error" | "message";
@@ -16,6 +21,12 @@ export type NotifyOptions = {
 export type NativeNotifyOptions = NotifyOptions & {
   backgroundOnly?: boolean;
   kind?: NotifyKind;
+  sound?: NotificationSound;
+};
+
+export type NotificationPreferences = {
+  systemEnabled: boolean;
+  soundsEnabled: boolean;
 };
 
 export const notificationState = $state<{
@@ -25,6 +36,8 @@ export const notificationState = $state<{
   promptVisible: boolean;
   promptDismissed: boolean;
   lastRequestResult?: NotificationPermission;
+  systemEnabled: boolean;
+  soundsEnabled: boolean;
 }>({
   initialized: false,
   browserSupported: false,
@@ -32,6 +45,8 @@ export const notificationState = $state<{
   promptVisible: false,
   promptDismissed: false,
   lastRequestResult: undefined,
+  systemEnabled: true,
+  soundsEnabled: true,
 });
 
 let listenersInstalled = false;
@@ -57,8 +72,9 @@ export function notifyCopyResult(ok: boolean, label = "code block"): void {
 }
 
 export function initializeNotifications(): void {
-  syncNotificationState();
+  preloadNotificationSounds();
   notificationState.initialized = true;
+  syncNotificationState();
   if (listenersInstalled || typeof window === "undefined") return;
 
   listenersInstalled = true;
@@ -66,8 +82,22 @@ export function initializeNotifications(): void {
   document.addEventListener("visibilitychange", syncNotificationState);
 }
 
+export function configureNotificationPreferences(
+  preferences: NotificationPreferences,
+): void {
+  notificationState.systemEnabled = preferences.systemEnabled;
+  notificationState.soundsEnabled = preferences.soundsEnabled;
+  syncNotificationState();
+}
+
 export async function requestBrowserNotificationPermission(): Promise<void> {
-  if (isDesktopApp() || !browserNotificationsSupported()) return;
+  if (
+    !notificationState.systemEnabled ||
+    isDesktopApp() ||
+    !browserNotificationsSupported()
+  ) {
+    return;
+  }
   try {
     const result = await Notification.requestPermission();
     notificationState.lastRequestResult = result;
@@ -86,6 +116,11 @@ export function notifyNative(
   payload: DesktopNotificationPayload,
   options: NativeNotifyOptions = {},
 ): void {
+  if (options.sound && notificationState.soundsEnabled) {
+    playNotificationSound(options.sound);
+  }
+  if (!notificationState.systemEnabled) return;
+
   const fallbackKind =
     options.kind ?? (payload.urgency === "attention" ? "error" : "message");
   deliverNativeNotification(payload, fallbackKind, options);
@@ -132,6 +167,7 @@ function showBrowserNotification(
     const notification = new Notification(payload.title, {
       body: payload.body,
       tag: options.tag,
+      silent: true,
     });
     notification.onclick = () => {
       window.focus();
@@ -151,6 +187,8 @@ function syncNotificationState(): void {
 
 function shouldShowPermissionPrompt(): boolean {
   return (
+    notificationState.initialized &&
+    notificationState.systemEnabled &&
     !isDesktopApp() &&
     notificationState.browserSupported &&
     notificationState.permission === "default" &&

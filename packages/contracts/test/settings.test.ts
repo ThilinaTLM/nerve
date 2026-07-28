@@ -14,6 +14,7 @@ describe("settings schema", () => {
       defaultApprovalPolicy: undefined,
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
+      notifications: undefined,
       tools: undefined,
       skills: undefined,
     });
@@ -31,6 +32,10 @@ describe("settings schema", () => {
     );
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
+    assert.deepEqual(settings.notifications, {
+      systemEnabled: true,
+      soundsEnabled: true,
+    });
     assert.deepEqual(settings.tools.disabled, []);
     assert.deepEqual(settings.skills.disabled, []);
     assert.deepEqual(settings.skills.agentBrowser.enabled, []);
@@ -76,6 +81,7 @@ describe("settings schema", () => {
 
   it("accepts runtime and tool update settings", () => {
     const parsed = updateSettingsRequestSchema.parse({
+      notifications: { systemEnabled: false, soundsEnabled: false },
       runtime: {
         pythonExecutablePath: "/usr/bin/python3",
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
@@ -106,6 +112,10 @@ describe("settings schema", () => {
           defaultSpaceKey: "DEV",
         },
       },
+    });
+    assert.deepEqual(parsed.notifications, {
+      systemEnabled: false,
+      soundsEnabled: false,
     });
     assert.equal(parsed.defaultApprovalPolicy?.autoApproveReadOnly, false);
     assert.equal(

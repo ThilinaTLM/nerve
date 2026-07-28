@@ -182,6 +182,12 @@ function mergeSettingsPatch(
   if (base?.desktop || patch.desktop) {
     next.desktop = { ...(base?.desktop ?? {}), ...(patch.desktop ?? {}) };
   }
+  if (base?.notifications || patch.notifications) {
+    next.notifications = {
+      ...(base?.notifications ?? {}),
+      ...(patch.notifications ?? {}),
+    };
+  }
   if (base?.lastAgentSelection || patch.lastAgentSelection) {
     next.lastAgentSelection = {
       ...(base?.lastAgentSelection ?? {}),
