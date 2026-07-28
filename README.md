@@ -4,7 +4,11 @@
 
 Nerve keeps the agent simple, its work visible, and you in control. Follow streaming messages and tool calls, review approvals and plans, manage Git and background tasks, and change the model or permission level without starting over—all from an open-source desktop app that runs with your local projects.
 
-![Nerve desktop workbench showing a conversation, live model controls, and the Git panel](docs/assets/preview-screenshot.webp)
+![Nerve desktop workbench showing the conversation list, welcome screen, and Git changes panel](docs/assets/preview-workbench-overview.webp)
+
+![Nerve coding conversation with tool results, composer controls, and pull request checks](docs/assets/preview-conversation-and-pr.webp)
+
+![Nerve task runs, agent context, tool output, and model selection controls](docs/assets/preview-tasks-and-context.webp)
 
 > [!NOTE]
 > Nerve is beta software and is distributed under the [Apache-2.0 license](LICENSE).
