@@ -1,8 +1,5 @@
 import { resolve } from "node:path";
-import {
-  allToolDescriptors,
-  toolRiskForName,
-} from "@nervekit/host-runtime/tools";
+import { allToolDescriptors, toolRiskForName } from "@nervekit/tools";
 import {
   type AgentRecord,
   type ApprovalRecord,

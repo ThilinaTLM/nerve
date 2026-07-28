@@ -3,7 +3,7 @@ import {
   LifecycleTransitionError,
   toolCallTranscriptRecordSchema,
 } from "@nervekit/contracts";
-import { applyConversationEvent } from "@nervekit/workbench-ui/state";
+import { applyConversationEvent } from "$lib/presentation/state";
 import type {
   ConversationEntry,
   EventEnvelope,

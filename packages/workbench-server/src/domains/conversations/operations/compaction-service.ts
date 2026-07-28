@@ -7,7 +7,7 @@ import {
   DEFAULT_COMPACTION_SETTINGS,
   estimateTokens,
   prepareCompaction,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 import type {
   CompactConversationRequest,
   ConversationCompactionReason,

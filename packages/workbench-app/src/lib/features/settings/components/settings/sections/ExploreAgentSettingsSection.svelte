@@ -10,14 +10,14 @@ import type {
 } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
 import {
   modelDisplayName,
   modelKey,
   providerDisplayName,
   usableModelOptions,
-} from "@nervekit/workbench-ui/core/utils/model";
+} from "$lib/presentation/utils/model";
 
 type SettingsChange = (
   patch: UpdateSettingsRequest,

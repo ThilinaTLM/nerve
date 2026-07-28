@@ -11,7 +11,7 @@ import {
   PanelToolbarButton,
   PanelView,
   createPanelRowFit,
-} from "@nervekit/workbench-ui/panel";
+} from "$lib/presentation/panel";
 import { buildConversationRows } from "$lib/core/utils/project-tree";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";

@@ -3,7 +3,7 @@ import {
   DOCK_IDS,
   DOCK_LABELS,
   type DockToggle,
-} from "@nervekit/workbench-ui/shell";
+} from "$lib/presentation/shell";
 import StatusBar from "$lib/app/shell/StatusBar.svelte";
 import { zoomState } from "$lib/app/shell/appearance.svelte";
 import { responsive } from "$lib/app/shell/responsive.svelte";

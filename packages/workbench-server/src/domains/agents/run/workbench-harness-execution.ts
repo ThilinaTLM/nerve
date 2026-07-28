@@ -4,11 +4,10 @@ import {
   buildConversationContext,
   Conversation,
   convertToLlm,
-  HostHarnessFactory,
   isAgentToolSuspension,
   NodeExecutionEnv,
   resolveAgentModel,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 import type {
   AgentRecord,
   ConversationEntry,
@@ -16,11 +15,12 @@ import type {
   RunRecord,
   ToolName,
 } from "@nervekit/contracts";
+import { HostHarnessFactory } from "./harness-factory.js";
 import type {
   CheckpointCommand,
   RunExecutionOutcome,
   RunExecutionSink,
-} from "@nervekit/host-runtime";
+} from "../../runs/runtime/index.js";
 import { toolNameSchema } from "@nervekit/contracts";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {

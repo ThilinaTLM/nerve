@@ -9,9 +9,7 @@ const packagePaths = [
   join("packages", "protocol", "package.json"),
   join("packages", "harness", "package.json"),
   join("packages", "tools", "package.json"),
-  join("packages", "host-runtime", "package.json"),
   join("packages", "workbench-server", "package.json"),
-  join("packages", "workbench-ui", "package.json"),
   join("packages", "workbench-app", "package.json"),
   join("packages", "desktop-shell", "package.json"),
 ];

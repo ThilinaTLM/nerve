@@ -1,9 +1,6 @@
-import {
-  generateSummary,
-  resolveAgentModel,
-} from "@nervekit/host-runtime/harness";
-import { withGitMutationEvents } from "@nervekit/host-runtime";
-import { GitService } from "@nervekit/host-runtime/tools";
+import { generateSummary, resolveAgentModel } from "@nervekit/harness";
+import { withGitMutationEvents } from "../domains/tools/git-mutation-publisher.js";
+import { GitService } from "@nervekit/tools";
 import {
   AgentLifecycleService,
   AgentRepository,

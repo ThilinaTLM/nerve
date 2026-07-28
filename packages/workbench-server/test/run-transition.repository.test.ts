@@ -11,7 +11,7 @@ import type {
 import {
   buildTransition,
   RunRevisionConflictError,
-} from "@nervekit/host-runtime";
+} from "../src/domains/runs/runtime/index.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
 
 const digest = `sha256:${"0".repeat(64)}`;

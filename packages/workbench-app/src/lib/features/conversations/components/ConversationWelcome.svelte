@@ -1,6 +1,6 @@
 <script lang="ts">
 import Plus from "@lucide/svelte/icons/plus";
-import { ConversationSignal } from "@nervekit/workbench-ui";
+import { ConversationSignal } from "$lib/presentation";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
 import { getShortcutLabel } from "$lib/core/shortcuts/registry";

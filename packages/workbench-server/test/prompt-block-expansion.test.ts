@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ToolExecutionResult } from "@nervekit/host-runtime/tools";
+import type { ToolExecutionResult } from "@nervekit/tools";
 import { expandExecutablePromptBlocks } from "../src/domains/agents/run/prompt-block-expansion.js";
 
 function executor(

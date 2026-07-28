@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { RunIntegrityPort } from "@nervekit/host-runtime";
+import type { RunIntegrityPort } from "./runtime/index.js";
 
 export class WorkbenchRunIntegrity implements RunIntegrityPort {
   checksum(value: unknown): string {

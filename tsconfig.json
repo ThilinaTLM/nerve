@@ -14,12 +14,6 @@
       "path": "./packages/tools"
     },
     {
-      "path": "./packages/host-runtime"
-    },
-    {
-      "path": "./packages/process-runtime"
-    },
-    {
       "path": "./packages/workbench-server"
     },
     {

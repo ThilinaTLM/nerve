@@ -10,13 +10,13 @@ import type {
   UpdateSettingsRequest,
 } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 import {
   authenticatedRealModelOptions,
   modelDisplayName,
   modelKey,
   providerDisplayName,
-} from "@nervekit/workbench-ui/core/utils/model";
+} from "$lib/presentation/utils/model";
 import AddScopedModelsDialog from "./AddScopedModelsDialog.svelte";
 
 type SettingsChange = (

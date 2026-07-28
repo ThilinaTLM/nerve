@@ -3,7 +3,7 @@ import type {
   IdempotentRunEventPublisherPort,
   RunProgressEvent,
   RunNotifyEventPort,
-} from "@nervekit/host-runtime";
+} from "./runtime/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 
 export class WorkbenchRunEventPublisher implements IdempotentRunEventPublisherPort {

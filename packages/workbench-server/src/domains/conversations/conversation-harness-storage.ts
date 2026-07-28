@@ -4,7 +4,7 @@ import {
   Conversation,
   JsonlConversationStorage,
   NodeExecutionEnv,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 import type {
   AgentRecord,
   ConversationEntry,

@@ -1,4 +1,4 @@
-import { modelKey } from "@nervekit/workbench-ui/core/utils/model";
+import { modelKey } from "$lib/presentation/utils/model";
 import {
   conversationViewKey,
   gitProjectStateKey,

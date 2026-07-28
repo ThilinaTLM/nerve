@@ -1,5 +1,5 @@
-import type { RunHydratedState } from "@nervekit/host-runtime";
-import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
+import type { RunHydratedState } from "../src/domains/runs/runtime/index.js";
+import { registerAgentScriptedProvider } from "@nervekit/harness";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -1,6 +1,6 @@
 import type { AgentRecord } from "@nervekit/contracts";
-import type { AgentMessage } from "@nervekit/host-runtime/harness";
-import type { RunExecutionControl } from "@nervekit/host-runtime";
+import type { AgentMessage } from "@nervekit/harness";
+import type { RunExecutionControl } from "./runtime/index.js";
 
 export interface WorkbenchLiveExecutionControl extends RunExecutionControl {
   updateAgentRuntimeConfig?(agent: AgentRecord): Promise<void>;

@@ -2,7 +2,7 @@
 import type { Settings, UpdateSettingsRequest } from "$lib/api";
 import type { ThemePreference } from "$lib/app/shell/appearance.svelte";
 import RadioGroup from "@nervekit/ui-kit/components/ui/radio-group-field";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 import { themeItems } from "../options";
 
 type Props = {

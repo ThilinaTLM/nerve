@@ -1,9 +1,9 @@
 import type { ChildProcess } from "node:child_process";
-import { TaskService } from "@nervekit/host-runtime";
+import { TaskService } from "./task-service.js";
 import type {
   ToolExecutionOutputUpdate,
   ToolExecutionResult,
-} from "@nervekit/host-runtime/tools";
+} from "@nervekit/tools";
 import {
   type CancelTaskRequest,
   type StartTaskRequest,

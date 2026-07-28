@@ -1,5 +1,5 @@
 <script lang="ts">
-import { WorkbenchShell } from "@nervekit/workbench-ui/shell";
+import { WorkbenchShell } from "$lib/presentation/shell";
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
 import EditorSurface from "$lib/app/shell/EditorSurface.svelte";
 import PanelViewHost from "$lib/app/shell/PanelViewHost.svelte";

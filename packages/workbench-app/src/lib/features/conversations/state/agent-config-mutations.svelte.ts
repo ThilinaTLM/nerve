@@ -1,4 +1,4 @@
-import { modelKey } from "@nervekit/workbench-ui/core/utils/model";
+import { modelKey } from "$lib/presentation/utils/model";
 import { updateAgentConfig } from "$lib/api";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";

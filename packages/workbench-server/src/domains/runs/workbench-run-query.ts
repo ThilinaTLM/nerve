@@ -2,7 +2,7 @@ import type {
   ConversationActiveRunSnapshot,
   ConversationRunRetrySnapshot,
 } from "@nervekit/contracts";
-import { ACTIVE_STATUSES, type RunHydratedState } from "@nervekit/host-runtime";
+import { ACTIVE_STATUSES, type RunHydratedState } from "./runtime/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
 

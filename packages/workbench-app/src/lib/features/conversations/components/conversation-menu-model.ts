@@ -1,6 +1,6 @@
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import type { ConversationEntry } from "$lib/api";
-import type { TranscriptMenuTarget } from "@nervekit/workbench-ui/components/conversation";
+import type { TranscriptMenuTarget } from "$lib/presentation/components/conversation";
 
 export type ConversationMenuHandlers = {
   copyText: (text: string, label?: string) => void | Promise<void>;

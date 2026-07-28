@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { ProjectRecord, TaskRecord } from "$lib/api";
 import { createWorkbenchTaskPanelAdapter } from "$lib/features/tasks/state/workbench-task-panel-adapter.svelte";
-import { TasksPanelView } from "@nervekit/workbench-ui";
+import { TasksPanelView } from "$lib/presentation";
 
 type Props = {
   activeProject?: ProjectRecord;

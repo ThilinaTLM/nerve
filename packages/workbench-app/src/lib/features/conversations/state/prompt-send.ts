@@ -2,7 +2,7 @@ import {
   deriveConversationTitle,
   isInlineCommandPrompt,
 } from "@nervekit/contracts";
-import { scopedUsableModelOptions } from "@nervekit/workbench-ui/core/utils/model";
+import { scopedUsableModelOptions } from "$lib/presentation/utils/model";
 import { deleteConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol";
 import { queryClient, queryKeys } from "$lib/core/query";

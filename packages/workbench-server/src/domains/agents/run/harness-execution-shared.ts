@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { isRetryableProviderError } from "@nervekit/host-runtime/harness";
+import { isRetryableProviderError } from "@nervekit/harness";
 
 export function recordFromUnknown(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"

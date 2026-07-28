@@ -109,47 +109,6 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  packages/host-runtime:
-    dependencies:
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@nervekit/harness':
-        specifier: workspace:*
-        version: link:../harness
-      '@nervekit/tools':
-        specifier: workspace:*
-        version: link:../tools
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
-  packages/process-runtime:
-    dependencies:
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@nervekit/tools':
-        specifier: workspace:*
-        version: link:../tools
-    devDependencies:
-      '@types/node':
-        specifier: 24.10.1
-        version: 24.10.1
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-
   packages/protocol:
     dependencies:
       '@nervekit/contracts':
@@ -299,9 +258,27 @@ importers:
 
   packages/workbench-app:
     dependencies:
+      '@codemirror/autocomplete':
+        specifier: ^6.20.2
+        version: 6.20.2
+      '@codemirror/commands':
+        specifier: ^6.10.3
+        version: 6.10.3
+      '@codemirror/lang-markdown':
+        specifier: ^6.5.0
+        version: 6.5.0
+      '@codemirror/state':
+        specifier: ^6.6.0
+        version: 6.6.0
+      '@codemirror/view':
+        specifier: ^6.43.0
+        version: 6.43.0
       '@dagrejs/dagre':
         specifier: 3.0.0
         version: 3.0.0
+      '@lucide/svelte':
+        specifier: ^1.17.0
+        version: 1.17.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -311,9 +288,6 @@ importers:
       '@nervekit/ui-kit':
         specifier: workspace:*
         version: link:../ui-kit
-      '@nervekit/workbench-ui':
-        specifier: workspace:*
-        version: link:../workbench-ui
       '@tailwindcss/vite':
         specifier: 4.3.1
         version: 4.3.1(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -339,9 +313,6 @@ importers:
         specifier: 7.4.1
         version: 7.4.1
     devDependencies:
-      '@lucide/svelte':
-        specifier: ^1.17.0
-        version: 1.17.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
       '@sveltejs/vite-plugin-svelte':
         specifier: 7.1.2
         version: 7.1.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -378,15 +349,15 @@ importers:
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@nervekit/host-runtime':
+      '@nervekit/harness':
         specifier: workspace:*
-        version: link:../host-runtime
-      '@nervekit/process-runtime':
-        specifier: workspace:*
-        version: link:../process-runtime
+        version: link:../harness
       '@nervekit/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@nervekit/tools':
+        specifier: workspace:*
+        version: link:../tools
       '@peculiar/x509':
         specifier: ^2.0.0
         version: 2.0.0
@@ -418,52 +389,6 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
-
-  packages/workbench-ui:
-    dependencies:
-      '@codemirror/autocomplete':
-        specifier: ^6.20.2
-        version: 6.20.2
-      '@codemirror/commands':
-        specifier: ^6.10.3
-        version: 6.10.3
-      '@codemirror/lang-markdown':
-        specifier: ^6.5.0
-        version: 6.5.0
-      '@codemirror/state':
-        specifier: ^6.6.0
-        version: 6.6.0
-      '@codemirror/view':
-        specifier: ^6.43.0
-        version: 6.43.0
-      '@lucide/svelte':
-        specifier: ^1.17.0
-        version: 1.17.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
-      '@nervekit/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@nervekit/ui-kit':
-        specifier: workspace:*
-        version: link:../ui-kit
-      svelte:
-        specifier: 5.56.3
-        version: 5.56.3(@typescript-eslint/types@8.63.0)
-    devDependencies:
-      '@sveltejs/vite-plugin-svelte':
-        specifier: 7.1.2
-        version: 7.1.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
-      svelte-check:
-        specifier: 4.3.3
-        version: 4.3.3(picomatch@4.0.4)(svelte@5.56.3(@typescript-eslint/types@8.63.0))(typescript@5.9.3)
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vite:
-        specifier: 8.0.16
-        version: 8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
 packages:
 

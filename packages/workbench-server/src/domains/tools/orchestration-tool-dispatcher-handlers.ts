@@ -1,7 +1,7 @@
 import {
   buildProcessTextResult,
   type ToolExecutionOutputUpdate,
-} from "@nervekit/host-runtime/tools";
+} from "@nervekit/tools";
 import {
   type TaskCancelResultPayload,
   taskCancelToolResultSchema,

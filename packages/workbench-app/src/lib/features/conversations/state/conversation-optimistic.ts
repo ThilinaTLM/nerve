@@ -1,5 +1,5 @@
 import type { ConversationEntry } from "@nervekit/contracts";
-import type { TranscriptItem } from "@nervekit/workbench-ui/state";
+import type { TranscriptItem } from "$lib/presentation/state";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"

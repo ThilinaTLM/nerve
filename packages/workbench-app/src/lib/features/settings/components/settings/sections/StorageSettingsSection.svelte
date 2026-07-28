@@ -19,7 +19,7 @@ import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 import { onEvent } from "$lib/core/events/event-bus";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {

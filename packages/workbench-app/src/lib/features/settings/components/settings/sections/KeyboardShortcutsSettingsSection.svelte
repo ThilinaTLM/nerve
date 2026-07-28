@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 import {
   DEFAULT_SHORTCUTS,
   type ShortcutCategory,

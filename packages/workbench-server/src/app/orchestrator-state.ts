@@ -3,7 +3,7 @@ import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import {
   registerManagedProvider,
   setCustomModelProvider,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 import {
   createId,
   type DaemonFile,

@@ -13,36 +13,25 @@ package "Shared desktop foundations" as foundations {
   component "@nervekit/protocol\nProtocol v1 codec, sessions, RPC,\nreplay, ACK, and flow control" as protocol
   component "@nervekit/harness\nModel conversation, harness,\nand agent loop runtime" as harness
   component "@nervekit/tools\nCanonical coding tool catalog,\nexecutors, and policy contracts" as tools
-  component "@nervekit/host-runtime\nEnvironment-neutral Git, task, tool,\nand run use-case composition" as host_runtime
-  component "@nervekit/process-runtime\nCross-platform supervised process\nlaunch and cleanup" as process_runtime
   component "@nervekit/ui-kit\nContract-free shadcn-svelte primitives,\ntheme, utilities, and renderers" as ui_kit
-  component "@nervekit/workbench-ui\nApp-neutral workbench, conversation,\nGit, task, and file feature hosts" as workbench_ui
 }
 
 package "Desktop workbench" as local {
-  component "@nervekit/workbench-server\nLocal HTTP/WebSocket daemon, persistence,\nauth, runtime, and static web host" as workbench_server
-  component "@nervekit/workbench-app\nSvelte browser entrypoint and\nthin shared-feature adapters" as workbench_app
+  component "@nervekit/workbench-server\nHTTP/WebSocket daemon, persistence, host use cases,\nprocess drivers, runtime, and static web host" as workbench_server
+  component "@nervekit/workbench-app\nSvelte browser entrypoint, product presentation,\nand feature state/effect adapters" as workbench_app
   component "@nervekit/desktop-shell\nElectron launcher, desktop capabilities,\nand local-server ownership" as desktop_shell
 }
 
 protocol -[#3567a8]-> contracts
 harness -[#3567a8]-> contracts
 tools -[#3567a8]-> contracts
-host_runtime -[#3567a8]-> contracts
-host_runtime -[#3567a8]-> harness
-host_runtime -[#3567a8]-> tools
-process_runtime -[#3567a8]-> contracts
-process_runtime -[#3567a8]-> tools
-workbench_ui -[#3567a8]-> contracts
-workbench_ui -[#3567a8]-> ui_kit
 
 workbench_server -[#3567a8]-> contracts
 workbench_server -[#3567a8]-> protocol
-workbench_server -[#3567a8]-> host_runtime
-workbench_server -[#3567a8]-> process_runtime
+workbench_server -[#3567a8]-> harness
+workbench_server -[#3567a8]-> tools
 workbench_app -[#3567a8]-> contracts
 workbench_app -[#3567a8]-> protocol
-workbench_app -[#3567a8]-> workbench_ui
 workbench_app -[#3567a8]-> ui_kit
 desktop_shell -[#3567a8]-> contracts
 desktop_shell -[#3567a8]-> workbench_server
@@ -60,10 +49,18 @@ end note
 note bottom of ui_kit
   UI kit intentionally has no @nervekit dependency.
 end note
+note bottom of workbench_server
+  Port-driven run semantics and concrete process drivers
+  remain separate internal directory boundaries.
+end note
+note bottom of workbench_app
+  Presentation cannot import app shells, feature state,
+  or application core infrastructure.
+end note
 
 legend bottom
   |<#3567a8> solid arrow | consumer --> allowed compile-time @nervekit dependency |
   | dotted double arrow | runtime network communication, not an import dependency |
-  The compile-time graph is enforced by scripts/check-package-boundaries.mjs.
+  The compile-time graph and internal purity rules are enforced by scripts/check-package-boundaries.mjs.
 endlegend
 @enduml

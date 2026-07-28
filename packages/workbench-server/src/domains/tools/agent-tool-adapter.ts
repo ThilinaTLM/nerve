@@ -4,12 +4,12 @@ import {
   type AgentToolResult,
   AgentToolSuspension,
   createAgentToolsFromDefinitions,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 import {
   allToolDefinitions,
   resolveToolAvailability,
   toolDefinitionsByGroup,
-} from "@nervekit/host-runtime/tools";
+} from "@nervekit/tools";
 import type {
   AgentRecord,
   ToolAnchor,

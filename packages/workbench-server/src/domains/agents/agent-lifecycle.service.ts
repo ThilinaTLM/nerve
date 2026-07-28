@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { clampAgentThinkingLevel } from "@nervekit/host-runtime/harness";
+import { clampAgentThinkingLevel } from "@nervekit/harness";
 import {
   type AgentRecord,
   type CreateAgentRequest,

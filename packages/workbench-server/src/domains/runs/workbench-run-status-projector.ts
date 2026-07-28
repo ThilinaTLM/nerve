@@ -6,7 +6,7 @@ import type {
 import type {
   RunHydratedState,
   RunTransitionObserverPort,
-} from "@nervekit/host-runtime";
+} from "./runtime/index.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 
 export class WorkbenchRunStatusProjector implements RunTransitionObserverPort {

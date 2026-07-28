@@ -7,7 +7,7 @@ import {
   JsonlConversationStorage,
   NodeExecutionEnv,
   resolveAgentModel,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 import type {
   AgentRecord,
   CreateAgentRequest,

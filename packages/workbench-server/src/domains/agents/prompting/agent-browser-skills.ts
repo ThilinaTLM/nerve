@@ -10,7 +10,7 @@ import {
   type Skill,
   validateDescription,
   validateName,
-} from "@nervekit/host-runtime/harness";
+} from "@nervekit/harness";
 
 const execFileAsync = promisify(execFile);
 const commandTimeoutMs = 15_000;

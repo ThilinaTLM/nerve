@@ -5,7 +5,7 @@ import Diff from "@lucide/svelte/icons/diff";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Terminal from "@lucide/svelte/icons/terminal";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import { ShellStatusBar, type DockToggle } from "@nervekit/workbench-ui/shell";
+import { ShellStatusBar, type DockToggle } from "$lib/presentation/shell";
 import type { TaskRecord, ProjectRecord, StatusResponse } from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
 import { shortenPath } from "$lib/core/utils/path";

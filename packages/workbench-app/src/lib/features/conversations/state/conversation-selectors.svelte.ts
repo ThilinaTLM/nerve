@@ -2,8 +2,8 @@ import {
   modelKey,
   parseModelKey,
   scopedUsableModelOptions,
-} from "@nervekit/workbench-ui/core/utils/model";
-import { activeRunStreamingText } from "@nervekit/workbench-ui/state";
+} from "$lib/presentation/utils/model";
+import { activeRunStreamingText } from "$lib/presentation/state";
 import {
   conversationViewKey,
   pendingConversationKey,

@@ -9,7 +9,7 @@ import type {
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Switch as ToggleSwitch } from "@nervekit/ui-kit/components/ui/switch";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 
 type SettingsChange = (
   patch: UpdateSettingsRequest,

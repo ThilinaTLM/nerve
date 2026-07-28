@@ -10,7 +10,7 @@ import {
   GitPullRequestsPanelView,
   type GitPanelActions,
   type GitPanelModel,
-} from "@nervekit/workbench-ui";
+} from "$lib/presentation";
 import { ConversationsPanelView } from "$lib/features/projects";
 import { NotesPanelView } from "$lib/features/scratch-notes";
 import {

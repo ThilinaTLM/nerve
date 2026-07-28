@@ -3,7 +3,7 @@ import {
   classifyToolRisk,
   isAllowedPlanModeBashCommand,
   isReadOnlyNetworkToolForApproval,
-} from "@nervekit/host-runtime/tools";
+} from "@nervekit/tools";
 import type { AgentRecord, ToolName, ToolRisk } from "@nervekit/contracts";
 import {
   isPathInsidePlanDir,

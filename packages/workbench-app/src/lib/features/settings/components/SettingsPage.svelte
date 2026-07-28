@@ -24,7 +24,7 @@ import {
   SettingsShell,
   SettingsSidebarStatus,
   type SettingsShellGroup,
-} from "@nervekit/workbench-ui/components/settings";
+} from "$lib/presentation/components/settings";
 import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
 import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";
 import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";

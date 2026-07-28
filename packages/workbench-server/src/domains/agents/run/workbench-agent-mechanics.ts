@@ -6,12 +6,12 @@ import {
   deriveAutoCompactionPolicy,
   getModelContextWindow,
   isContextOverflowAssistantMessage,
-} from "@nervekit/host-runtime/harness";
-import type { ToolExecutionResult } from "@nervekit/host-runtime/tools";
+} from "@nervekit/harness";
+import type { ToolExecutionResult } from "@nervekit/tools";
 import type {
   RunExecutionOutcome,
   RunExecutionSink,
-} from "@nervekit/host-runtime";
+} from "../../runs/runtime/index.js";
 import {
   type AgentRecord,
   type ContextUsage,
@@ -164,7 +164,7 @@ export class WorkbenchAgentMechanics {
     checkpointCommand(
       boundary: "after_provider_response" | "suspension",
       interactionId?: string,
-    ): Promise<import("@nervekit/host-runtime").CheckpointCommand>;
+    ): Promise<import("../../runs/runtime/index.js").CheckpointCommand>;
   }): Promise<RunExecutionOutcome> {
     const agent = this.deps.state.getAgent(input.run.agentId);
     const inline =

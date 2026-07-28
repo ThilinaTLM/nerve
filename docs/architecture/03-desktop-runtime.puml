@@ -17,8 +17,7 @@ node "Electron desktop application" as electron {
   component "Preload context bridge\nwindow.nerveDesktop" as preload
 
   node "BrowserWindow renderer" as renderer {
-    component "@nervekit/workbench-app\nSvelte browser host" as app
-    component "@nervekit/workbench-ui\nShared workbench features" as wb_ui
+    component "@nervekit/workbench-app\nSvelte browser host, product presentation,\nand feature state/effects" as app
     component "@nervekit/ui-kit\nUI primitives and theme" as ui
   }
 
@@ -29,7 +28,7 @@ node "Owned local child process\n@nervekit/workbench-server" as owned_daemon {
   component "HTTP router + auth\n/api/* and health" as http
   component "Protocol v1 WebSocket\nlocal stream, replay, ACK" as ws
   component "Static web host\nBundled workbench-app assets" as static
-  component "Host runtime\nGit, tasks, tools, harness, runs" as host
+  component "Server domain runtime\nGit, tasks, tools, harness, runs" as host
 }
 
 node "Existing local daemon\n(unowned, monitor only)" as existing_daemon
@@ -56,8 +55,7 @@ main --> preload : isolated preload installation
 preload <--> ipc_handlers : narrow Electron IPC
 ipc_handlers <--> app : window state, close-to-tray,\nnotifications, clipboard, settings
 
-app --> wb_ui
-wb_ui --> ui
+app --> ui
 app <--> http : same-origin REST / HTTP\nHttpOnly nerve_token cookie or Bearer token
 app <--> ws : Protocol v1 WebSocket\napplication operations and local events
 static --> app : HTML / JS / CSS assets

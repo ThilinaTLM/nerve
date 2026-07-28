@@ -6,7 +6,7 @@ import {
   MODEL_TEXT_MAX_LINES,
   textLimitSnapshot,
   type ContentBlockLike,
-} from "@nervekit/host-runtime/tools";
+} from "@nervekit/tools";
 import type { ToolOutputLimitsPayload } from "@nervekit/contracts";
 
 const MAX_RECOVERY_HINT_CHARS = 2_048;

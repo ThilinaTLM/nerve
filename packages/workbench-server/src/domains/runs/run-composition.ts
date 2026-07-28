@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import {
   createRunRuntime,
-  type DiagnosticPort,
   type RunCoordinator,
   type RunEventDeliveryService,
-} from "@nervekit/host-runtime";
+} from "./runtime/index.js";
+import type { DiagnosticPort } from "../../core/ports.js";
 import type { AgentRecord } from "@nervekit/contracts";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";

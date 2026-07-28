@@ -13,7 +13,7 @@ import {
 import {
   modelKey,
   scopedUsableModelOptions,
-} from "@nervekit/workbench-ui/core/utils/model";
+} from "$lib/presentation/utils/model";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import WorkbenchConversationAdapter from "$lib/features/conversations/components/WorkbenchConversationAdapter.svelte";
 import {

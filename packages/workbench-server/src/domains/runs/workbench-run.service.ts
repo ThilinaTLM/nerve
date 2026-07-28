@@ -8,7 +8,7 @@ import type {
   ToolName,
 } from "@nervekit/contracts";
 import { parseInlineCommandPrompt } from "@nervekit/contracts";
-import { TERMINAL_STATUSES, type RunCoordinator } from "@nervekit/host-runtime";
+import { TERMINAL_STATUSES, type RunCoordinator } from "./runtime/index.js";
 import { HttpError } from "../../http/errors.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ExploreReport } from "../agents/run/subagent-runner.js";

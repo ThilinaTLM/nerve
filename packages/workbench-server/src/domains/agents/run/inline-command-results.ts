@@ -1,5 +1,5 @@
-import type { BashExecutionMessage } from "@nervekit/host-runtime/harness";
-import type { ToolExecutionResult } from "@nervekit/host-runtime/tools";
+import type { BashExecutionMessage } from "@nervekit/harness";
+import type { ToolExecutionResult } from "@nervekit/tools";
 import {
   formatInlineCommandResultText,
   type ToolCallRecord,

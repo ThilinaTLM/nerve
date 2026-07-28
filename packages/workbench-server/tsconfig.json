@@ -14,7 +14,10 @@
       "path": "../protocol"
     },
     {
-      "path": "../host-runtime"
+      "path": "../harness"
+    },
+    {
+      "path": "../tools"
     }
   ],
   "include": ["src/**/*.ts"]

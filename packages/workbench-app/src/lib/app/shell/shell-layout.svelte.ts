@@ -10,7 +10,7 @@ import {
   type ShellLayout,
   showShellView,
   toggleShellDock,
-} from "@nervekit/workbench-ui/shell";
+} from "$lib/presentation/shell";
 import { panelViewDescriptors } from "./panel-views";
 
 const STORAGE_KEY = "nerve.layout.v1";

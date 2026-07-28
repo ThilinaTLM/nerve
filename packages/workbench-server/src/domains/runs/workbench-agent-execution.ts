@@ -3,7 +3,7 @@ import type {
   CheckpointCommand,
   RunExecution,
   RunExecutionSink,
-} from "@nervekit/host-runtime";
+} from "./runtime/index.js";
 import type { WorkbenchAgentMechanics } from "../agents/run/workbench-agent-mechanics.js";
 import type { WorkbenchRunExecutionAdapter } from "./run-execution.js";
 import type { WorkbenchLiveExecutionControl } from "./run-live-executions.js";

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { GitWorkflowError } from "@nervekit/host-runtime/tools";
+import { GitWorkflowError } from "@nervekit/tools";
 import {
   type NerveErrorCode,
   type NerveMessage,

@@ -3,11 +3,11 @@ import { mkdir } from "node:fs/promises";
 import { join, parse } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import type {
-  DomainEventPublisherPort,
   TaskProcessExit,
   TaskServicePorts,
   TaskStartInput,
-} from "@nervekit/host-runtime";
+} from "./task-service.js";
+import type { DomainEventPublisherPort } from "../../core/ports.js";
 import type { StartTaskRequest, TaskRecord } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";

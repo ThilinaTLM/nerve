@@ -12,8 +12,6 @@ const bundledPackages = [
   ["@nervekit/protocol", "protocol"],
   ["@nervekit/harness", "harness"],
   ["@nervekit/tools", "tools"],
-  ["@nervekit/host-runtime", "host-runtime"],
-  ["@nervekit/process-runtime", "process-runtime"],
   ["@nervekit/workbench-server", "workbench-server"],
 ];
 
@@ -255,10 +253,6 @@ for (const name of packages) {
 for (const subpath of [
   "@nervekit/harness/node",
   "@nervekit/harness/worker",
-  "@nervekit/host-runtime/harness",
-  "@nervekit/host-runtime/harness/worker",
-  "@nervekit/host-runtime/tools",
-  "@nervekit/host-runtime/test-support",
   "@nervekit/workbench-server/main"
 ]) console.log(subpath, import.meta.resolve(subpath));
 `,
@@ -275,7 +269,7 @@ for (const subpath of [
     );
     await writeFile(
       serverSmoke,
-      `console.log(import.meta.resolve("@nervekit/host-runtime/harness/worker"));\n`,
+      `console.log(import.meta.resolve("@nervekit/harness/worker"));\n`,
     );
     run(process.execPath, [serverSmoke], directory);
 

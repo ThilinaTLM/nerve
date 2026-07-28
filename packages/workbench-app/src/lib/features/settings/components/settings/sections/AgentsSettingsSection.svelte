@@ -14,7 +14,7 @@ import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { clampThinkingLevelForModel } from "$lib/features/conversations/state/agent-selection-defaults";
-import { SettingsSectionCard } from "@nervekit/workbench-ui/components/settings";
+import { SettingsSectionCard } from "$lib/presentation/components/settings";
 import SingleModelSelectionDialog from "./SingleModelSelectionDialog.svelte";
 import {
   modelDisplayName,
@@ -22,7 +22,7 @@ import {
   parseModelKey,
   providerDisplayName,
   scopedUsableModelOptions,
-} from "@nervekit/workbench-ui/core/utils/model";
+} from "$lib/presentation/utils/model";
 import { modeItems, permissionItems } from "../options";
 
 type SettingsChange = (

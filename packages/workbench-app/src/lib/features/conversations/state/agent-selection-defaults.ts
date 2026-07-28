@@ -1,12 +1,12 @@
 import {
   modelKey,
   scopedUsableModelOptions,
-} from "@nervekit/workbench-ui/core/utils/model";
+} from "$lib/presentation/utils/model";
 import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,
   THINKING_LEVEL_ORDER,
-} from "@nervekit/workbench-ui/state";
+} from "$lib/presentation/state";
 import type {
   AgentRecord,
   AuthProviderMetadata,

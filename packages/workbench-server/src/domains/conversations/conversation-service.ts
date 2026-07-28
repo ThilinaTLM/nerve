@@ -1,8 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
-import {
-  buildConversationContext,
-  convertToLlm,
-} from "@nervekit/host-runtime/harness";
+import { buildConversationContext, convertToLlm } from "@nervekit/harness";
 import type {
   AgentRecord,
   ConversationEntry,

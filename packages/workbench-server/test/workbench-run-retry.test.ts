@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { registerAgentScriptedProvider } from "@nervekit/host-runtime/harness";
+import { registerAgentScriptedProvider } from "@nervekit/harness";
 import {
   createOrchestratorState,
   shutdownOrchestratorState,
