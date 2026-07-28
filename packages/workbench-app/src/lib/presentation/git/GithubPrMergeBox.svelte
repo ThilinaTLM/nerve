@@ -9,6 +9,7 @@ import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { SplitButton } from "@nervekit/ui-kit/components/ui/split-button";
+import GithubPrSection from "./GithubPrSection.svelte";
 import {
   defaultMergeMethod,
   mergeMethodLabel,
@@ -49,18 +50,18 @@ function confirmMerge() {
 }
 </script>
 
-<div class="rounded-md border bg-card p-4">
-  <div class="flex items-start gap-3">
-    <span class="grid size-8 shrink-0 place-items-center rounded-full bg-muted">
+<GithubPrSection contentClass="px-3 py-2.5">
+  <div class="flex items-start gap-2">
+    <span class="grid size-6 shrink-0 place-items-center rounded-md bg-muted">
       {#if readiness.status === "ready"}
-        <GitMerge class="size-4 text-success" />
+        <GitMerge class="size-3.5 text-success" />
       {:else}
-        <TriangleAlert class="size-4 text-warning" />
+        <TriangleAlert class="size-3.5 text-warning" />
       {/if}
     </span>
     <div class="min-w-0 flex-1">
-      <div class="flex flex-wrap items-center gap-2">
-        <h3 class="text-sm font-semibold">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <h3 class="text-xs font-semibold text-foreground">
           {readiness.status === "ready"
             ? "Ready to merge"
             : readiness.status === "unknown"
@@ -68,6 +69,7 @@ function confirmMerge() {
               : "Merge blocked"}
         </h3>
         <Badge
+          size="xs"
           tone={readiness.status === "ready"
             ? "good"
             : readiness.status === "blocked"
@@ -78,7 +80,9 @@ function confirmMerge() {
         </Badge>
       </div>
       {#if readiness.reasons.length > 0}
-        <ul class="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+        <ul
+          class="mt-1.5 list-disc space-y-0.5 pl-3.5 text-xs text-muted-foreground"
+        >
           {#each readiness.reasons as reason (reason)}
             <li>{reason}</li>
           {/each}
@@ -92,7 +96,7 @@ function confirmMerge() {
   </div>
 
   {#if showMerge && method}
-    <div class="mt-4">
+    <div class="mt-2.5">
       <SplitButton
         variant="success"
         disabled={merging || readiness.status !== "ready"}
@@ -119,9 +123,9 @@ function confirmMerge() {
   {/if}
 
   {#if error}
-    <p class="mt-3 text-xs text-destructive" role="alert">{error}</p>
+    <p class="mt-2 text-xs text-destructive" role="alert">{error}</p>
   {/if}
-</div>
+</GithubPrSection>
 
 <Dialog.Root bind:open={confirmOpen}>
   <Dialog.Content>

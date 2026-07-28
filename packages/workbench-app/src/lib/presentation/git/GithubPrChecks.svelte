@@ -6,64 +6,77 @@ import X from "@lucide/svelte/icons/x";
 import type { GithubPrDetail } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { checksTone, runTone } from "./pr-pane-helpers";
+import { githubCheckRunOutcome } from "./github-pr-checks";
+import GithubPrSection from "./GithubPrSection.svelte";
+import { checksTone } from "./pr-pane-helpers";
 
 type Props = { detail: GithubPrDetail };
 let { detail }: Props = $props();
 </script>
 
-<div class="mx-auto max-w-4xl space-y-4">
-  <div class="flex items-center justify-between rounded-md border bg-card p-4">
-    <div>
-      <h2 class="font-semibold">Checks</h2>
-      <p class="mt-1 text-sm text-muted-foreground">
-        {detail.checks.passed} passed, {detail.checks.failed} failed,
-        {detail.checks.pending} pending
-      </p>
-    </div>
-    <Badge tone={checksTone(detail.checks)}>
+<GithubPrSection title="Checks" contentClass="p-0">
+  {#snippet actions()}
+    <Badge tone={checksTone(detail.checks)} size="xs">
       {#if detail.checks.status === "passing"}
-        <Check class="size-3" />
+        <Check class="size-3" aria-hidden="true" />
       {:else if detail.checks.status === "failing"}
-        <X class="size-3" />
+        <X class="size-3" aria-hidden="true" />
       {:else if detail.checks.status === "pending"}
         <Spinner class="size-3" />
       {:else}
-        <CircleDot class="size-3" />
+        <CircleDot class="size-3" aria-hidden="true" />
       {/if}
       {detail.checks.status === "none" ? "No checks" : detail.checks.status}
     </Badge>
-  </div>
+  {/snippet}
+
+  <p class="px-3 py-1.5 text-muted-foreground">
+    {detail.checks.passed} passed · {detail.checks.failed} failed ·
+    {detail.checks.pending} pending
+  </p>
 
   {#if detail.checks.runs.length === 0}
     <p
-      class="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground"
+      class="border-t border-border/60 px-3 py-3 text-xs text-muted-foreground"
     >
       No checks have been reported.
     </p>
   {:else}
-    <ul class="divide-y rounded-md border bg-card" aria-label="Check runs">
+    <ul
+      class="divide-y divide-border/60 border-t border-border/60"
+      aria-label="Check runs"
+    >
       {#each detail.checks.runs as run (`${run.name}:${run.url ?? ""}`)}
-        <li class="flex items-center gap-3 px-4 py-3">
-          <Badge tone={runTone(run.status)} size="xs"
-            >{run.status.toLowerCase()}</Badge
-          >
-          <span class="min-w-0 flex-1 truncate text-sm font-medium"
-            >{run.name}</span
+        {@const outcome = githubCheckRunOutcome(run.status)}
+        <li class="flex min-w-0 items-center gap-2 px-3 py-1.5">
+          <span class="min-w-0 flex-1 truncate text-foreground">{run.name}</span
           >
           {#if run.url}
             <a
               href={run.url}
               target="_blank"
               rel="noreferrer"
-              class="text-muted-foreground hover:text-foreground"
+              class="shrink-0 text-muted-foreground hover:text-foreground"
               aria-label={`Open ${run.name} on GitHub`}
             >
-              <ExternalLink class="size-4" />
+              <ExternalLink class="size-3" />
             </a>
           {/if}
+          <span
+            class="flex size-4 shrink-0 items-center justify-center"
+            title={run.status}
+          >
+            {#if outcome === "passed"}
+              <Check class="size-3.5 text-success" aria-hidden="true" />
+            {:else if outcome === "failed"}
+              <X class="size-3.5 text-destructive" aria-hidden="true" />
+            {:else}
+              <Spinner class="size-3.5 text-warning" />
+            {/if}
+            <span class="sr-only">{run.status}</span>
+          </span>
         </li>
       {/each}
     </ul>
   {/if}
-</div>
+</GithubPrSection>

@@ -8,6 +8,7 @@ import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { GithubPrMergeMethod } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
@@ -45,6 +46,9 @@ let {
 }: Props = $props();
 const detail = $derived(view?.detail);
 
+const tabTriggerClass =
+  "h-full flex-none gap-1.5 rounded-sm px-2.5 text-xs font-medium data-active:bg-background data-active:shadow-xs data-active:ring-1 data-active:ring-border";
+
 function changeTab(value: string) {
   if (
     value === "conversation" ||
@@ -70,46 +74,50 @@ function confirmCheckout() {
 
 <section class="flex h-full min-h-0 flex-col bg-background">
   {#if !view}
-    <div
-      class="grid min-h-80 flex-1 place-items-center text-center text-muted-foreground"
-    >
-      <div>
-        <GitPullRequest class="mx-auto size-8 text-primary" />
-        <strong class="mt-3 block text-foreground"
-          >No pull request selected</strong
+    <Empty.Root class="h-full min-h-0 gap-2 py-6">
+      <Empty.Media variant="icon" class="size-8 rounded-md">
+        <GitPullRequest class="size-4" aria-hidden="true" />
+      </Empty.Media>
+      <Empty.Header class="gap-1">
+        <Empty.Title class="text-sm font-medium"
+          >No pull request selected</Empty.Title
         >
-        <p class="mt-1 text-sm">
+        <Empty.Description class="text-xs">
           Open a PR from the Git panel to view its details here.
-        </p>
-      </div>
-    </div>
+        </Empty.Description>
+      </Empty.Header>
+    </Empty.Root>
   {:else if view.loading && !detail}
-    <div
-      class="grid min-h-80 flex-1 place-items-center text-center text-muted-foreground"
-    >
-      <div>
-        <Spinner class="mx-auto size-7" /><strong
-          class="mt-3 block text-foreground">Loading pull request</strong
+    <Empty.Root class="h-full min-h-0 gap-2 py-6">
+      <Empty.Media variant="icon" class="size-8 rounded-md">
+        <Spinner class="size-4" />
+      </Empty.Media>
+      <Empty.Header class="gap-1">
+        <Empty.Title class="text-sm font-medium"
+          >Loading pull request</Empty.Title
         >
-        <p class="mt-1 text-sm">#{view.number}</p>
-      </div>
-    </div>
+        <Empty.Description class="text-xs">#{view.number}</Empty.Description>
+      </Empty.Header>
+    </Empty.Root>
   {:else if view.error && !detail}
-    <div class="grid min-h-80 flex-1 place-items-center text-center">
-      <div class="max-w-md">
-        <TriangleAlert class="mx-auto size-8 text-destructive" />
-        <strong class="mt-3 block">Could not open pull request</strong>
-        <p class="mt-1 text-sm text-destructive">{view.error}</p>
-        <Button
-          class="mt-3"
-          size="sm"
-          variant="outline"
-          onclick={() => onRefresh?.()}
+    <Empty.Root class="h-full min-h-0 gap-2 py-6">
+      <Empty.Media variant="icon" class="size-8 rounded-md">
+        <TriangleAlert class="size-4 text-destructive" aria-hidden="true" />
+      </Empty.Media>
+      <Empty.Header class="gap-1">
+        <Empty.Title class="text-sm font-medium"
+          >Could not open pull request</Empty.Title
         >
-          <RotateCcw class="size-4" /> Retry
+        <Empty.Description class="text-xs text-destructive"
+          >{view.error}</Empty.Description
+        >
+      </Empty.Header>
+      <Empty.Content class="gap-1">
+        <Button size="xs" variant="outline" onclick={() => onRefresh?.()}>
+          <RotateCcw class="size-3" /> Retry
         </Button>
-      </div>
-    </div>
+      </Empty.Content>
+    </Empty.Root>
   {:else if detail}
     <GithubPrHeader
       {detail}
@@ -124,37 +132,38 @@ function confirmCheckout() {
       onValueChange={changeTab}
       class="min-h-0 flex-1 gap-0"
     >
-      <Tabs.List
-        variant="line"
-        class="w-full shrink-0 justify-start border-b px-5"
-      >
-        <Tabs.Trigger value="conversation">
-          <MessageSquare class="size-4" /> Conversation
-          <span class="text-muted-foreground"
-            >{detail.comments.length + detail.reviews.length}</span
-          >
-        </Tabs.Trigger>
-        <Tabs.Trigger value="commits">
-          <GitCommitHorizontal class="size-4" /> Commits
-          <span class="text-muted-foreground">{detail.commits.length}</span>
-        </Tabs.Trigger>
-        <Tabs.Trigger value="checks">
-          <CheckCircle2 class="size-4" /> Checks
-          <span class="text-muted-foreground">{detail.checks.total}</span>
-        </Tabs.Trigger>
-        <Tabs.Trigger value="files">
-          <Files class="size-4" /> Files changed
-          <span class="text-muted-foreground">{detail.changedFiles}</span>
-        </Tabs.Trigger>
-      </Tabs.List>
+      <div class="shrink-0 px-4 pt-3 pb-2">
+        <Tabs.List
+          class="h-8 gap-1 rounded-md bg-accent/35 p-1 ring-1 ring-border ring-inset"
+        >
+          <Tabs.Trigger value="conversation" class={tabTriggerClass}>
+            <MessageSquare class="size-3.5" /> Conversation
+            <span class="text-muted-foreground"
+              >{detail.comments.length + detail.reviews.length}</span
+            >
+          </Tabs.Trigger>
+          <Tabs.Trigger value="commits" class={tabTriggerClass}>
+            <GitCommitHorizontal class="size-3.5" /> Commits
+            <span class="text-muted-foreground">{detail.commits.length}</span>
+          </Tabs.Trigger>
+          <Tabs.Trigger value="checks" class={tabTriggerClass}>
+            <CheckCircle2 class="size-3.5" /> Checks
+            <span class="text-muted-foreground">{detail.checks.total}</span>
+          </Tabs.Trigger>
+          <Tabs.Trigger value="files" class={tabTriggerClass}>
+            <Files class="size-3.5" /> Files changed
+            <span class="text-muted-foreground">{detail.changedFiles}</span>
+          </Tabs.Trigger>
+        </Tabs.List>
+      </div>
 
       <Tabs.Content value="conversation" class="min-h-0 flex-1">
-        <ScrollArea class="h-full" viewportClass="@container p-5 pb-12">
+        <ScrollArea class="h-full" viewportClass="@container px-4 pt-1 pb-8">
           <div
-            class="grid gap-5 @4xl:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]"
+            class="grid items-start gap-2 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]"
           >
             <GithubPrConversation {detail} />
-            <aside class="space-y-4">
+            <aside class="flex flex-col gap-2">
               <GithubPrOverview {detail} />
               <GithubPrMergeBox
                 {detail}
@@ -170,13 +179,13 @@ function confirmCheckout() {
       </Tabs.Content>
 
       <Tabs.Content value="commits" class="min-h-0 flex-1">
-        <ScrollArea class="h-full" viewportClass="p-5 pb-12">
+        <ScrollArea class="h-full" viewportClass="@container px-4 pt-1 pb-8">
           <GithubPrCommits {detail} />
         </ScrollArea>
       </Tabs.Content>
 
       <Tabs.Content value="checks" class="min-h-0 flex-1">
-        <ScrollArea class="h-full" viewportClass="p-5 pb-12">
+        <ScrollArea class="h-full" viewportClass="@container px-4 pt-1 pb-8">
           <GithubPrChecks {detail} />
         </ScrollArea>
       </Tabs.Content>

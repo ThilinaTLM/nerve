@@ -266,7 +266,7 @@ $effect(() => {
     <div class="logs-notice">{notice}</div>
   {/if}
 
-  <ScrollArea class="logs-scroll" type="auto">
+  <ScrollArea class="logs-scroll">
     <div class="logs-list" role="log" aria-label="Application logs">
       {#if rows.length === 0 && !loading}
         <div class="empty">No application logs match these filters.</div>

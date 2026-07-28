@@ -45,7 +45,6 @@ $effect(() => {
     bind:viewportRef
     class="min-h-0 min-w-0"
     viewportClass="p-4"
-    type="auto"
     orientation="both"
   >
     {#if !view}

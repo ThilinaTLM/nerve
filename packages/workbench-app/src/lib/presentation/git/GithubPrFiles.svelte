@@ -6,11 +6,14 @@ import type {
   GithubPrDetail,
   GithubPrFilesResponse,
 } from "@nervekit/contracts";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { buildPanelTree, PanelTree } from "$lib/presentation/panel";
 import GithubPrDiff from "./GithubPrDiff.svelte";
+import GithubPrSection from "./GithubPrSection.svelte";
 import { fileStatusLetter, fileStatusTone } from "./pr-pane-helpers";
 
 type Props = {
@@ -32,52 +35,58 @@ const fileUrl = $derived(`${detail.url}/files`);
 </script>
 
 {#if loading && !files}
-  <div class="grid h-full place-items-center text-sm text-muted-foreground">
-    <div class="flex items-center gap-2">
-      <Spinner class="size-4" /> Loading changed files…
-    </div>
-  </div>
+  <Empty.Root class="h-full min-h-0 gap-2 py-6">
+    <Empty.Media variant="icon" class="size-8 rounded-md">
+      <Spinner class="size-4" />
+    </Empty.Media>
+    <Empty.Header class="gap-1">
+      <Empty.Title class="text-sm font-medium"
+        >Loading changed files</Empty.Title
+      >
+    </Empty.Header>
+  </Empty.Root>
 {:else if error && !files}
-  <div class="grid h-full place-items-center">
-    <div class="max-w-md text-center">
-      <p class="text-sm text-destructive">{error}</p>
-      <Button
-        class="mt-3"
-        size="sm"
-        variant="outline"
-        onclick={() => onRetry?.()}
+  <Empty.Root class="h-full min-h-0 gap-2 py-6">
+    <Empty.Media variant="icon" class="size-8 rounded-md">
+      <TriangleAlert class="size-4 text-destructive" aria-hidden="true" />
+    </Empty.Media>
+    <Empty.Header class="gap-1">
+      <Empty.Title class="text-sm font-medium"
+        >Could not load changed files</Empty.Title
       >
-        <RotateCcw class="size-4" /> Retry
+      <Empty.Description class="text-xs text-destructive"
+        >{error}</Empty.Description
+      >
+    </Empty.Header>
+    <Empty.Content class="gap-1">
+      <Button size="xs" variant="outline" onclick={() => onRetry?.()}>
+        <RotateCcw class="size-3" /> Retry
       </Button>
-    </div>
-  </div>
+    </Empty.Content>
+  </Empty.Root>
 {:else if files}
-  <div class="@container h-full min-h-0">
+  <div class="@container h-full min-h-0 px-4 pt-1 pb-3">
     <div
-      class="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] @4xl:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)] @4xl:grid-rows-1"
+      class="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-2 @2xl:grid-cols-[18rem_minmax(0,1fr)] @2xl:grid-rows-1"
     >
-      <aside
-        class="flex min-h-0 flex-col border-b bg-sidebar @4xl:border-r @4xl:border-b-0"
+      <GithubPrSection
+        title={`${files.totalCount} changed files`}
+        class="flex h-56 min-h-0 flex-col overflow-hidden @2xl:h-auto"
+        contentClass="min-h-0 flex-1 p-0"
       >
-        <div class="flex items-center justify-between border-b px-3 py-2">
-          <span class="text-xs font-semibold"
-            >{files.totalCount} changed files</span
-          >
+        {#snippet actions()}
           {#if files.truncated}
             <a
               href={fileUrl}
               target="_blank"
               rel="noreferrer"
-              class="text-xs text-warning hover:underline"
+              class="text-xs font-normal text-warning hover:underline"
             >
               Partial data
             </a>
           {/if}
-        </div>
-        <ScrollArea
-          class="h-48 @4xl:h-auto @4xl:min-h-0 @4xl:flex-1"
-          viewportClass="py-1"
-        >
+        {/snippet}
+        <ScrollArea class="h-full" viewportClass="py-1">
           <PanelTree
             nodes={buildPanelTree(files.files, {
               getPath: (file) => file.path.split("/"),
@@ -102,64 +111,86 @@ const fileUrl = $derived(`${detail.url}/files`);
             {/snippet}
           </PanelTree>
         </ScrollArea>
-      </aside>
+      </GithubPrSection>
 
-      <section class="flex min-h-0 min-w-0 flex-col bg-background">
-        {#if selectedFile}
-          <div
-            class="flex items-center justify-between gap-3 border-b px-3 py-2"
-          >
-            <div class="min-w-0">
-              <p
-                class="truncate font-mono text-xs font-semibold"
-                title={selectedFile.path}
-              >
-                {selectedFile.path}
-              </p>
-              {#if selectedFile.previousPath}
-                <p class="truncate font-mono text-xs text-muted-foreground">
-                  from {selectedFile.previousPath}
-                </p>
-              {/if}
-            </div>
-            <a
-              href={fileUrl}
-              target="_blank"
-              rel="noreferrer"
-              class="flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      <GithubPrSection
+        class="flex min-h-0 min-w-0 flex-col overflow-hidden"
+        contentClass="min-h-0 flex-1 p-0"
+      >
+        {#snippet header()}
+          {#if selectedFile}
+            <span
+              class="min-w-0 flex-1 truncate font-mono font-medium text-foreground"
+              title={selectedFile.path}
             >
-              GitHub <ExternalLink class="size-3.5" />
-            </a>
-          </div>
-          <ScrollArea class="min-h-0 flex-1" orientation="both">
+              {selectedFile.path}
+              {#if selectedFile.previousPath}
+                <span class="font-normal text-muted-foreground"
+                  >from {selectedFile.previousPath}</span
+                >
+              {/if}
+            </span>
+          {:else}
+            <span class="min-w-0 flex-1 truncate text-muted-foreground"
+              >Diff</span
+            >
+          {/if}
+        {/snippet}
+        {#snippet actions()}
+          <a
+            href={fileUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          >
+            GitHub <ExternalLink class="size-3" />
+          </a>
+        {/snippet}
+
+        {#if selectedFile}
+          <ScrollArea class="h-full" orientation="both">
             {#if selectedFile.patch}
               <GithubPrDiff patch={selectedFile.patch} />
               {#if selectedFile.patchTruncated}
-                <p class="border-t p-3 text-xs text-warning">
+                <p
+                  class="border-t border-border/60 px-3 py-2 text-xs text-warning"
+                >
                   This patch was truncated. Open it on GitHub to view the
                   complete diff.
                 </p>
               {/if}
             {:else}
-              <div class="grid min-h-64 place-items-center p-6 text-center">
-                <div>
-                  <FileCode class="mx-auto size-7 text-muted-foreground" />
-                  <p class="mt-2 text-sm font-medium">Preview unavailable</p>
-                  <p class="mt-1 text-xs text-muted-foreground">
+              <Empty.Root class="gap-2 py-6">
+                <Empty.Media variant="icon" class="size-8 rounded-md">
+                  <FileCode class="size-4" aria-hidden="true" />
+                </Empty.Media>
+                <Empty.Header class="gap-1">
+                  <Empty.Title class="text-sm font-medium"
+                    >Preview unavailable</Empty.Title
+                  >
+                  <Empty.Description class="text-xs">
                     GitHub may omit patches for binary or very large files.
-                  </p>
-                </div>
-              </div>
+                  </Empty.Description>
+                </Empty.Header>
+              </Empty.Root>
             {/if}
           </ScrollArea>
         {:else}
-          <div
-            class="grid h-full place-items-center text-sm text-muted-foreground"
-          >
-            Select a file to view its diff.
-          </div>
+          <Empty.Root class="h-full min-h-0 gap-2 py-6">
+            <Empty.Media variant="icon" class="size-8 rounded-md">
+              <FileCode class="size-4" aria-hidden="true" />
+            </Empty.Media>
+            <Empty.Header class="gap-1">
+              <Empty.Title class="text-sm font-medium"
+                >No file selected</Empty.Title
+              >
+              <Empty.Description class="text-xs"
+                >Select a file from the list to view its diff.</Empty.Description
+              >
+            </Empty.Header>
+          </Empty.Root>
         {/if}
-      </section>
+      </GithubPrSection>
     </div>
   </div>
 {/if}

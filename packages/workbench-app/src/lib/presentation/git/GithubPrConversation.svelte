@@ -4,14 +4,9 @@ import MessageSquare from "@lucide/svelte/icons/message-square";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import type { GithubPrDetail } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@nervekit/ui-kit/components/ui/card";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
+import GithubPrSection from "./GithubPrSection.svelte";
 import { formatPrDate, prTimeline, reviewTone } from "./pr-pane-helpers";
 
 type Props = { detail: GithubPrDetail };
@@ -19,58 +14,61 @@ let { detail }: Props = $props();
 const timeline = $derived(prTimeline(detail));
 </script>
 
-<div class="space-y-4">
-  <Card>
-    <CardHeader class="border-b py-3">
-      <CardTitle class="text-sm">
-        {detail.author ?? "Unknown author"} opened this pull request
-      </CardTitle>
-    </CardHeader>
-    <CardContent class="py-4">
-      {#if detail.body.trim()}
+<div class="flex flex-col gap-2">
+  <GithubPrSection>
+    {#snippet header()}
+      <span class="min-w-0 flex-1 truncate">
+        <strong class="font-semibold text-foreground"
+          >{detail.author ?? "Unknown author"}</strong
+        >
+        <span class="text-muted-foreground">
+          opened this pull request {formatPrDate(detail.createdAt)}</span
+        >
+      </span>
+    {/snippet}
+    {#if detail.body.trim()}
+      <div class="text-sm">
         <Markdown text={detail.body} onCopy={notifyCopyResult} />
-      {:else}
-        <p class="text-sm text-muted-foreground">No description provided.</p>
-      {/if}
-    </CardContent>
-  </Card>
+      </div>
+    {:else}
+      <p class="text-xs text-muted-foreground">No description provided.</p>
+    {/if}
+  </GithubPrSection>
 
   {#if timeline.length === 0}
-    <div
-      class="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground"
+    <p
+      class="flex items-center gap-2 rounded-md border border-dashed border-border/60 px-3 py-3 text-xs text-muted-foreground"
     >
-      <MessageSquare class="size-4" />
+      <MessageSquare class="size-3.5" aria-hidden="true" />
       No comments or reviews yet.
-    </div>
+    </p>
   {:else}
-    <div class="space-y-3" aria-label="Pull request conversation">
+    <div class="flex flex-col gap-2" aria-label="Pull request conversation">
       {#each timeline as entry (entry.kind + entry.value.id)}
-        <Card>
-          <CardHeader
-            class="flex-row items-center justify-between gap-3 border-b py-2.5"
-          >
-            <div class="flex min-w-0 items-center gap-2">
-              <span
-                class="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+        <GithubPrSection>
+          {#snippet header()}
+            <span
+              class="grid size-5 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+            >
+              {(entry.value.author ?? "?").slice(0, 1).toUpperCase()}
+            </span>
+            <span class="min-w-0 flex-1 truncate">
+              <strong class="font-semibold text-foreground"
+                >{entry.value.author ?? "Deleted user"}</strong
               >
-                {(entry.value.author ?? "?").slice(0, 1).toUpperCase()}
-              </span>
-              <div class="min-w-0 text-sm">
-                <strong class="text-foreground"
-                  >{entry.value.author ?? "Deleted user"}</strong
-                >
-                <span class="ml-1 text-muted-foreground">
-                  {entry.kind === "comment" ? "commented" : "reviewed"}
-                  {formatPrDate(entry.at)}
-                </span>
-              </div>
-              {#if entry.kind === "review"}
-                <Badge tone={reviewTone(entry.value.state)} size="xs">
-                  <ShieldCheck class="size-3" />
-                  {entry.value.state.replaceAll("_", " ").toLowerCase()}
-                </Badge>
-              {/if}
-            </div>
+              <span class="text-muted-foreground">
+                {entry.kind === "comment" ? "commented" : "reviewed"}
+                {formatPrDate(entry.at)}</span
+              >
+            </span>
+            {#if entry.kind === "review"}
+              <Badge tone={reviewTone(entry.value.state)} size="xs">
+                <ShieldCheck class="size-3" />
+                {entry.value.state.replaceAll("_", " ").toLowerCase()}
+              </Badge>
+            {/if}
+          {/snippet}
+          {#snippet actions()}
             {#if entry.value.url}
               <a
                 href={entry.value.url}
@@ -79,22 +77,22 @@ const timeline = $derived(prTimeline(detail));
                 class="text-muted-foreground hover:text-foreground"
                 aria-label="Open this conversation item on GitHub"
               >
-                <ExternalLink class="size-4" />
+                <ExternalLink class="size-3.5" />
               </a>
             {/if}
-          </CardHeader>
-          <CardContent class="py-3">
-            {#if entry.value.body.trim()}
+          {/snippet}
+          {#if entry.value.body.trim()}
+            <div class="text-sm">
               <Markdown text={entry.value.body} onCopy={notifyCopyResult} />
-            {:else}
-              <p class="text-sm text-muted-foreground">
-                {entry.kind === "review"
-                  ? "Submitted a review without a comment."
-                  : "No comment body."}
-              </p>
-            {/if}
-          </CardContent>
-        </Card>
+            </div>
+          {:else}
+            <p class="text-xs text-muted-foreground">
+              {entry.kind === "review"
+                ? "Submitted a review without a comment."
+                : "No comment body."}
+            </p>
+          {/if}
+        </GithubPrSection>
       {/each}
     </div>
   {/if}

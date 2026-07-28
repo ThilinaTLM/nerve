@@ -197,7 +197,6 @@ $effect(() => {
     class="settings-scroll"
     bind:viewportRef={viewportElement}
     viewportClass="settings-viewport"
-    type="auto"
   >
     <div class={cn("settings-main", mainClass)}>
       {#if activeGroup}

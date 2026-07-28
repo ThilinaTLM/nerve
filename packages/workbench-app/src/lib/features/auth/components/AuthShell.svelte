@@ -140,11 +140,7 @@ $effect(() => {
     </nav>
   </aside>
 
-  <ScrollArea
-    class="settings-scroll"
-    viewportClass="settings-viewport"
-    type="auto"
-  >
+  <ScrollArea class="settings-scroll" viewportClass="settings-viewport">
     <div class="settings-main">
       <header class="settings-panel-header">
         <h2>{activeGroupDef.label}</h2>

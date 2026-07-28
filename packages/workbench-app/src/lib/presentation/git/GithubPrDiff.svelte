@@ -27,7 +27,7 @@ const lines = $derived(
 );
 </script>
 
-<pre class="min-w-max text-xs leading-5"><code
+<pre class="min-w-max py-1 font-mono text-xs leading-5"><code
     >{#each lines as line, index (`${index}:${line.text}`)}<span
         class={line.tone === "add"
           ? "block bg-success/10 px-3 text-success"

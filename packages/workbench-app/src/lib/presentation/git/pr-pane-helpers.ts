@@ -64,6 +64,20 @@ export function formatPrDate(value?: string): string {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
 }
 
+export function formatPrDateCompact(value?: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+}
+
 export function defaultMergeMethod(
   methods: readonly GithubPrMergeMethod[],
 ): GithubPrMergeMethod | undefined {
