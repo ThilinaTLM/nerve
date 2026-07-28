@@ -48,6 +48,42 @@ describe("settings migrations", () => {
     });
   });
 
+  it("replaces removed notification tones with event defaults", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
+    roots.push(root);
+    const configPath = join(root, "config.json");
+    await initializeStorage(root);
+    await writeFile(
+      configPath,
+      `${JSON.stringify(
+        {
+          ...defaultSettings,
+          notifications: {
+            ...defaultSettings.notifications,
+            events: {
+              ...defaultSettings.notifications.events,
+              question: "ping",
+              completed: "kenney-switch-20",
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const storage = await initializeStorage(root);
+
+    assert.equal(storage.settings.notifications.events.question, "ping");
+    assert.equal(storage.settings.notifications.events.completed, "success");
+    const persisted = JSON.parse(await readFile(configPath, "utf8")) as {
+      notifications: { events: { question: string; completed: string } };
+    };
+    assert.equal(persisted.notifications.events.question, "ping");
+    assert.equal(persisted.notifications.events.completed, "success");
+  });
+
   it("merges partial notification preference updates", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-update-"));
     roots.push(root);
