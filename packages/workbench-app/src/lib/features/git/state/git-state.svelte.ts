@@ -1,4 +1,11 @@
-import type { GithubPrDetail, GitRepoSummary } from "$lib/api";
+import type {
+  GithubPrDetail,
+  GithubPrFilesResponse,
+  GithubPrMergeMethod,
+  GitRepoSummary,
+} from "$lib/api";
+
+export type GithubPrTab = "conversation" | "commits" | "checks" | "files";
 
 export type PrViewState = {
   /** `${projectId}:${encodeURIComponent(repo)}:${number}` */
@@ -10,6 +17,14 @@ export type PrViewState = {
   detail?: GithubPrDetail;
   loading: boolean;
   error?: string;
+  activeTab: GithubPrTab;
+  files?: GithubPrFilesResponse;
+  filesLoading: boolean;
+  filesError?: string;
+  selectedFilePath?: string;
+  selectedMergeMethod?: GithubPrMergeMethod;
+  merging: boolean;
+  mergeError?: string;
 };
 
 export type GitContext = {

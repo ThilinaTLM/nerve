@@ -33,7 +33,7 @@ let {
     </div>
   {/if}
   {#if scroll}
-    <ScrollArea class="min-h-0 flex-1" viewportClass="panel-scroll" type="auto">
+    <ScrollArea class="min-h-0 flex-1" viewportClass="panel-scroll">
       <div class={cn("flex flex-col", padded && "py-1", contentClass)}>
         {@render children()}
       </div>

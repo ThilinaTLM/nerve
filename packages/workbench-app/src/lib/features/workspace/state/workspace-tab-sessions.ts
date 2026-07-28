@@ -260,6 +260,9 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         repo: stored.repo,
         number: stored.number,
         loading: false,
+        activeTab: "conversation",
+        filesLoading: false,
+        merging: false,
       };
     }
     tabs.push({ kind: stored.kind, id: stored.id } as CenterTabIdentity);

@@ -90,7 +90,7 @@ function openRun(taskId: string): void {
       {#if matches.length === 0}
         <p class="p-2 text-xs text-muted-foreground">No runs match.</p>
       {:else}
-        <ScrollArea class="h-full" type="auto">
+        <ScrollArea class="h-full">
           <PanelList ariaLabel="All runs" class="gap-1">
             {#each matches as entry (entry.key)}
               <PanelRowCard>

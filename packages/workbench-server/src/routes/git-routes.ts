@@ -3,6 +3,7 @@ import {
   gitFileActionRequestSchema,
   gitRemoteOpRequestSchema,
   githubPrListFiltersSchema,
+  githubPrMergeRequestSchema,
   switchBranchRequestSchema,
 } from "@nervekit/contracts";
 import { Hono } from "hono";
@@ -243,6 +244,35 @@ export function createGitRoutes(state: OrchestratorState): Hono {
         ),
       ),
     ),
+  );
+
+  app.get(
+    "/projects/:projectId/github/pr/:number/files",
+    routeHandler(async (c) =>
+      c.json(
+        await state.registry.git.prFiles(
+          routeParam(c, "projectId"),
+          repoParam(c.req.query("repo")),
+          prNumberParam(routeParam(c, "number")),
+        ),
+      ),
+    ),
+  );
+
+  app.post(
+    "/projects/:projectId/github/pr/:number/merge",
+    routeHandler(async (c) => {
+      const body = githubPrMergeRequestSchema.parse(await c.req.json());
+      return c.json(
+        await state.registry.git.mergePr(
+          routeParam(c, "projectId"),
+          body.repo,
+          prNumberParam(routeParam(c, "number")),
+          body.method,
+          body.expectedHeadOid,
+        ),
+      );
+    }),
   );
 
   app.post(

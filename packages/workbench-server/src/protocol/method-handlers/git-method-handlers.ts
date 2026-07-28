@@ -46,11 +46,21 @@ export const gitMethodHandlers = defineWorkbenchMethodHandlers({
     ),
   "github.pr.get": (state, params) =>
     state.registry.git.prDetail(params.projectId, repo(params), params.number),
+  "github.pr.files.get": (state, params) =>
+    state.registry.git.prFiles(params.projectId, repo(params), params.number),
   "github.pr.checkout": (state, params) =>
     state.registry.git.checkoutPr(
       params.projectId,
       repo(params),
       params.number,
+    ),
+  "github.pr.merge": (state, params) =>
+    state.registry.git.mergePr(
+      params.projectId,
+      repo(params),
+      params.number,
+      params.method,
+      params.expectedHeadOid,
     ),
 });
 

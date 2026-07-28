@@ -19,6 +19,7 @@ import {
 } from "$lib/presentation";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
+import { prSummariesEqual } from "./pr-sync";
 import {
   branchesFingerprint,
   changesFingerprint,
@@ -407,6 +408,30 @@ export function setPrsIfChanged(
   state.prs = prs;
   state.lastPrsFingerprint = fingerprint;
   return true;
+}
+
+/**
+ * Applies a PR summary derived from a freshly loaded PR detail so the panel
+ * list never lags behind an open PR tab.
+ */
+export function applyPrSummary(
+  projectId: string,
+  repo: string,
+  pr: GithubPr,
+): void {
+  const state =
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(repo)
+    ];
+  if (!state) return;
+  const index = state.prs.findIndex((entry) => entry.number === pr.number);
+  if (index < 0) return;
+  const existing = state.prs[index];
+  if (existing && prSummariesEqual(existing, pr)) return;
+  setPrsIfChanged(
+    state,
+    state.prs.map((entry, position) => (position === index ? pr : entry)),
+  );
 }
 
 export function mergeRepoSummary(

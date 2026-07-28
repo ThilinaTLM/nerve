@@ -68,6 +68,11 @@
     background-clip: padding-box;
   }
 
+  /* Scroll viewports reserve the scrollbar lane so it never covers content. */
+  .cn-scroll-area-viewport {
+    scrollbar-gutter: stable;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

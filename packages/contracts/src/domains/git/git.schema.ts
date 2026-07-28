@@ -217,12 +217,77 @@ export const githubPrListRequestSchema = gitRemoteOpRequestSchema.extend({
 });
 export type GithubPrListRequest = z.infer<typeof githubPrListRequestSchema>;
 
+export const githubPrCommentSchema = z.object({
+  id: z.string(),
+  author: z.string().nullable(),
+  authorAvatarUrl: z.string().optional(),
+  body: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+  url: z.string().optional(),
+});
+export type GithubPrComment = z.infer<typeof githubPrCommentSchema>;
+
+export const githubPrReviewSummarySchema = z.object({
+  id: z.string(),
+  author: z.string().nullable(),
+  authorAvatarUrl: z.string().optional(),
+  state: z.string(),
+  body: z.string(),
+  submittedAt: z.string(),
+  url: z.string().optional(),
+});
+export type GithubPrReviewSummary = z.infer<typeof githubPrReviewSummarySchema>;
+
+export const githubPrLabelSchema = z.object({
+  name: z.string(),
+  color: z.string().optional(),
+});
+export type GithubPrLabel = z.infer<typeof githubPrLabelSchema>;
+
+export const githubPrReviewerSchema = z.object({
+  login: z.string(),
+  avatarUrl: z.string().optional(),
+});
+export type GithubPrReviewer = z.infer<typeof githubPrReviewerSchema>;
+
+export const githubPrMergeMethodSchema = z.enum(["merge", "squash", "rebase"]);
+export type GithubPrMergeMethod = z.infer<typeof githubPrMergeMethodSchema>;
+
+export const githubPrMergeSettingsSchema = z.object({
+  allowedMethods: z.array(githubPrMergeMethodSchema),
+});
+export type GithubPrMergeSettings = z.infer<typeof githubPrMergeSettingsSchema>;
+
+export const githubPrFileStatusSchema = z.enum([
+  "added",
+  "changed",
+  "copied",
+  "modified",
+  "removed",
+  "renamed",
+  "unchanged",
+]);
+export type GithubPrFileStatus = z.infer<typeof githubPrFileStatusSchema>;
+
 export const githubPrFileSchema = z.object({
   path: z.string(),
+  previousPath: z.string().optional(),
+  status: githubPrFileStatusSchema,
   additions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
+  changes: z.number().int().nonnegative(),
+  patch: z.string().nullable(),
+  patchTruncated: z.boolean(),
 });
 export type GithubPrFile = z.infer<typeof githubPrFileSchema>;
+
+export const githubPrFilesResponseSchema = z.object({
+  files: z.array(githubPrFileSchema),
+  totalCount: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+});
+export type GithubPrFilesResponse = z.infer<typeof githubPrFilesResponseSchema>;
 
 export const githubPrCommitSchema = z.object({
   oid: z.string(),
@@ -241,8 +306,16 @@ export const githubPrDetailSchema = githubPrSchema.extend({
   deletions: z.number().int().nonnegative(),
   changedFiles: z.number().int().nonnegative(),
   mergeable: z.string().nullable(),
+  mergeStateStatus: z.string().nullable(),
   reviewDecision: z.string().nullable(),
-  files: z.array(githubPrFileSchema),
+  headRefOid: z.string(),
+  baseRefOid: z.string(),
+  behindBy: z.number().int().nonnegative().nullable(),
+  comments: z.array(githubPrCommentSchema),
+  reviews: z.array(githubPrReviewSummarySchema),
+  labels: z.array(githubPrLabelSchema),
+  reviewRequests: z.array(githubPrReviewerSchema),
+  mergeSettings: githubPrMergeSettingsSchema,
   commits: z.array(githubPrCommitSchema),
 });
 export type GithubPrDetail = z.infer<typeof githubPrDetailSchema>;
@@ -254,3 +327,16 @@ export const githubPrCheckoutResponseSchema = z.object({
 export type GithubPrCheckoutResponse = z.infer<
   typeof githubPrCheckoutResponseSchema
 >;
+
+export const githubPrMergeRequestSchema = gitRemoteOpRequestSchema.extend({
+  method: githubPrMergeMethodSchema,
+  expectedHeadOid: z.string().min(7),
+});
+export type GithubPrMergeRequest = z.infer<typeof githubPrMergeRequestSchema>;
+
+export const githubPrMergeResponseSchema = z.object({
+  number: z.number().int().positive(),
+  merged: z.boolean(),
+  url: z.string(),
+});
+export type GithubPrMergeResponse = z.infer<typeof githubPrMergeResponseSchema>;
