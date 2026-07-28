@@ -26,6 +26,7 @@ import { workbenchWebSocketRpcDispatcher } from "./http-dispatcher.js";
 import { orchestratorSource } from "./messages.js";
 
 export interface LocalProtocolSession {
+  readonly closed: Promise<void>;
   dispose(): void;
   shutdown(message?: string): Promise<void>;
 }
@@ -84,15 +85,23 @@ export function createLocalProtocolSession(
   let unsubscribeSequenced: () => void = () => undefined;
   let unsubscribeNotify: () => void = () => undefined;
 
+  let resolveClosed: () => void = () => undefined;
+  const closed = new Promise<void>((resolve) => {
+    resolveClosed = resolve;
+  });
   let disposed = false;
   const dispose = () => {
     if (disposed) return;
     disposed = true;
-    unsubscribeSequenced();
-    unsubscribeNotify();
-    session.dispose();
-    connection.dispose();
-    onDispose();
+    try {
+      unsubscribeSequenced();
+      unsubscribeNotify();
+      session.dispose();
+      connection.dispose();
+      onDispose();
+    } finally {
+      resolveClosed();
+    }
   };
   const closeProtocolError = async () => {
     if (disposed) return;
@@ -197,17 +206,26 @@ export function createLocalProtocolSession(
   });
 
   return {
+    closed,
     dispose,
     async shutdown(message = "Daemon shutting down") {
       if (disposed) return;
       unsubscribeSequenced();
       unsubscribeNotify();
+      let failure: unknown;
       try {
         await session.shutdown("server_shutdown", message);
+      } catch (error) {
+        if (ws.readyState < 2) failure = error;
+      }
+      try {
         await connection.close(1001, message);
+      } catch (error) {
+        if (ws.readyState < 2 && failure === undefined) failure = error;
       } finally {
         dispose();
       }
+      if (failure !== undefined) throw failure;
     },
   };
 }

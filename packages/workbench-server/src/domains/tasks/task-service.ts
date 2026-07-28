@@ -143,7 +143,6 @@ export interface TaskServicePorts {
   readonly capabilities?: TaskOptionalCapabilitiesPort;
   readonly timers?: TaskTimerPort;
   readonly diagnostics?: DiagnosticPort;
-  readonly workspaceRoot: string;
   readonly stopTimeoutMs?: number;
 }
 
@@ -191,7 +190,7 @@ export class TaskService {
   constructor(private readonly ports: TaskServicePorts) {}
 
   async start(request: TaskStartInput): Promise<TaskRecord> {
-    assertWorkspacePath(request.cwd, this.ports.workspaceRoot);
+    const cwd = resolveTaskWorkingDirectory(request.cwd);
     if (!request.command.trim())
       throw new Error("Task command must not be empty");
     const now = this.now();
@@ -212,7 +211,7 @@ export class TaskService {
       projectId: request.projectId,
       conversationId: request.conversationId,
       agentId: request.agentId,
-      cwd: resolveWorkspacePath(request.cwd, this.ports.workspaceRoot),
+      cwd,
       command: request.command,
       envInfo: request.env
         ? {
@@ -885,22 +884,13 @@ function boundedErrorMessage(error: unknown): string {
   );
 }
 
-export function assertWorkspacePath(
-  input: string,
-  workspaceRoot: string,
-): void {
-  resolveWorkspacePath(input, workspaceRoot);
-}
-
-function resolveWorkspacePath(input: string, workspaceRoot: string): string {
-  const flavor = /^[A-Za-z]:[\\/]/.test(workspaceRoot) ? path.win32 : path;
-  const root = flavor.resolve(workspaceRoot);
-  const target = flavor.resolve(input);
-  const relative = flavor.relative(root, target);
-  if (
-    relative === "" ||
-    (!relative.startsWith("..") && !flavor.isAbsolute(relative))
-  )
-    return target;
-  throw new Error("Task working directory must be inside the workspace root");
+export function resolveTaskWorkingDirectory(input: string): string {
+  const flavor =
+    /^[A-Za-z]:[\\/]/.test(input) || input.startsWith("\\")
+      ? path.win32
+      : path.posix;
+  if (!flavor.isAbsolute(input)) {
+    throw new Error("Task working directory must be an absolute path");
+  }
+  return flavor.resolve(input);
 }

@@ -81,7 +81,7 @@ describe("explore subagent transcript isolation", () => {
         .find((agent) => agent.parentAgentId === parent.id);
       assert.ok(child);
       assert.equal(child.status, "idle");
-      assert.match(child.systemPrompt ?? "", new RegExp(root));
+      assert.ok((child.systemPrompt ?? "").includes(project.dir));
       assert.match(
         child.systemPrompt ?? "",
         /NERVE_HOME.*artifacts, not the source root/,

@@ -75,12 +75,23 @@ export interface TaskSupervisor {
   ): Promise<TaskListeningPort[]>;
 }
 
+export function managedTaskShellCommand(
+  command: string,
+  shellPath?: string,
+): { shell: string; args: string[] } {
+  const shellConfig = resolveBashShellConfig({ shellPath });
+  return {
+    shell: shellConfig.shell,
+    args: [...shellConfig.args, command],
+  };
+}
+
 export function spawnManagedTask(
   command: string,
   options: SpawnManagedTaskOptions,
 ): SpawnedManagedTask {
-  const shellConfig = resolveBashShellConfig({ shellPath: options.shellPath });
-  const child = spawn(shellConfig.shell, [...shellConfig.args, command], {
+  const shellCommand = managedTaskShellCommand(command, options.shellPath);
+  const child = spawn(shellCommand.shell, shellCommand.args, {
     cwd: options.cwd,
     env: nonInteractiveShellEnv(options.env),
     stdio: ["ignore", "pipe", "pipe"],

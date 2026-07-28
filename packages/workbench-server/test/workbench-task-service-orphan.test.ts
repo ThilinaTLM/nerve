@@ -22,8 +22,14 @@ describe("task manager orphan cleanup", () => {
 
     assert.equal(stopped.status, "cancelled");
     assert.equal(stopped.exitCode, null);
-    assert.equal(stopped.signal, "SIGTERM");
-    assert.deepEqual(runtimeTerminateSignals, ["SIGTERM"]);
+    assert.equal(
+      stopped.signal,
+      process.platform === "win32" ? "SIGKILL" : "SIGTERM",
+    );
+    assert.deepEqual(
+      runtimeTerminateSignals,
+      process.platform === "win32" ? ["SIGKILL"] : ["SIGTERM"],
+    );
     assert.ok(
       (await events.readStream("workspace", 1, 5_000)).events.some(
         (event) => event.type === "task.cancelled",
@@ -31,7 +37,7 @@ describe("task manager orphan cleanup", () => {
     );
   });
 
-  it("escalates orphan cleanup to SIGKILL after timeout on non-Windows", async () => {
+  it("escalates orphan cleanup on POSIX and force-cleans on Windows", async () => {
     const runtime = runtimeMetadata();
     const { supervisor, runtimeTerminateSignals } = fakeSupervisor({
       runtime,
@@ -45,10 +51,13 @@ describe("task manager orphan cleanup", () => {
 
     assert.equal(stopped.status, "cancelled");
     assert.equal(stopped.signal, "SIGKILL");
-    assert.deepEqual(runtimeTerminateSignals, ["SIGTERM", "SIGKILL"]);
+    assert.deepEqual(
+      runtimeTerminateSignals,
+      process.platform === "win32" ? ["SIGKILL"] : ["SIGTERM", "SIGKILL"],
+    );
   });
 
-  it("does not escalate orphan cleanup when the target disappears", async () => {
+  it("uses the platform cleanup signal when the target disappears", async () => {
     const runtime = runtimeMetadata();
     const { supervisor, runtimeTerminateSignals } = fakeSupervisor({
       runtime,
@@ -61,8 +70,14 @@ describe("task manager orphan cleanup", () => {
     const stopped = await manager.cancelTask(record.id, { timeoutMs: 100 });
 
     assert.equal(stopped.status, "cancelled");
-    assert.equal(stopped.signal, "SIGTERM");
-    assert.deepEqual(runtimeTerminateSignals, ["SIGTERM"]);
+    assert.equal(
+      stopped.signal,
+      process.platform === "win32" ? "SIGKILL" : "SIGTERM",
+    );
+    assert.deepEqual(
+      runtimeTerminateSignals,
+      process.platform === "win32" ? ["SIGKILL"] : ["SIGTERM"],
+    );
   });
 
   it("records released ports after orphan cleanup", async () => {
@@ -188,8 +203,9 @@ describe("task manager orphan cleanup", () => {
 
     const restarted = await manager.restartTask(record.id);
 
-    assert.deepEqual(order, ["terminateRuntime:SIGTERM", "spawn"]);
-    assert.deepEqual(runtimeTerminateSignals, ["SIGTERM"]);
+    const cleanupSignal = process.platform === "win32" ? "SIGKILL" : "SIGTERM";
+    assert.deepEqual(order, [`terminateRuntime:${cleanupSignal}`, "spawn"]);
+    assert.deepEqual(runtimeTerminateSignals, [cleanupSignal]);
     assert.equal(manager.getTask(record.id).status, "cancelled");
     assert.equal(restarted.restartedFromTaskId, record.id);
     assert.equal(spawnCommands.length, 1);
