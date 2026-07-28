@@ -46,6 +46,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build native host packages
+        if: matrix.suite == 'host'
+        run: pnpm --filter @nervekit/workbench-server... build
+
       - name: Run native tool and server tests
         if: matrix.suite == 'host'
         timeout-minutes: 8
