@@ -1,42 +1,60 @@
 <script lang="ts">
-import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
-import Check from "@lucide/svelte/icons/check";
-import ExternalLink from "@lucide/svelte/icons/external-link";
+import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
+import Files from "@lucide/svelte/icons/files";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import MessageSquare from "@lucide/svelte/icons/message-square";
+import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import X from "@lucide/svelte/icons/x";
-import { isGithubChecksPending } from "./github-pr-checks";
-import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
-import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
-import type { PrViewState } from "./github-pr-types";
-import {
-  checksTone,
-  formatPrDate,
-  reviewTone,
-  runTone,
-  stateLabel,
-  stateTone,
-} from "./pr-pane-helpers";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import type { GithubPrMergeMethod } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
+import GithubPrChecks from "./GithubPrChecks.svelte";
+import GithubPrCommits from "./GithubPrCommits.svelte";
+import GithubPrConversation from "./GithubPrConversation.svelte";
+import GithubPrFiles from "./GithubPrFiles.svelte";
+import GithubPrHeader from "./GithubPrHeader.svelte";
+import GithubPrMergeBox from "./GithubPrMergeBox.svelte";
+import GithubPrOverview from "./GithubPrOverview.svelte";
+import type { GithubPrTab, PrViewState } from "./github-pr-types";
 
 type Props = {
   view?: PrViewState;
   onRefresh?: () => void;
   onCheckout?: () => void;
   onOpenExternal?: () => void;
+  onTabChange?: (tab: GithubPrTab) => void;
+  onFilesRetry?: () => void;
+  onFileSelect?: (path: string) => void;
+  onMergeMethodChange?: (method: GithubPrMergeMethod) => void;
+  onMerge?: (method: GithubPrMergeMethod) => void;
 };
 
-const PR_CHECKS_POLL_MS = 10_000;
-
-let { view, onRefresh, onCheckout, onOpenExternal }: Props = $props();
-
+let {
+  view,
+  onRefresh,
+  onCheckout,
+  onOpenExternal,
+  onTabChange,
+  onFilesRetry,
+  onFileSelect,
+  onMergeMethodChange,
+  onMerge,
+}: Props = $props();
 const detail = $derived(view?.detail);
-const checksPending = $derived(isGithubChecksPending(detail?.checks));
+
+function changeTab(value: string) {
+  if (
+    value === "conversation" ||
+    value === "commits" ||
+    value === "checks" ||
+    value === "files"
+  ) {
+    onTabChange?.(value);
+  }
+}
 
 function confirmCheckout() {
   if (!detail) return;
@@ -48,353 +66,132 @@ function confirmCheckout() {
     onCheckout?.();
   }
 }
-
-$effect(() => {
-  const viewId = view?.id;
-  const pending = checksPending;
-  if (!viewId || !pending || !onRefresh) return;
-
-  const refreshPendingPr = () => {
-    if (
-      typeof document !== "undefined" &&
-      document.visibilityState !== "visible"
-    )
-      return;
-    onRefresh();
-  };
-
-  refreshPendingPr();
-  const intervalId = window.setInterval(refreshPendingPr, PR_CHECKS_POLL_MS);
-  return () => window.clearInterval(intervalId);
-});
 </script>
 
-<section class="pr-pane">
-  <ScrollArea class="pr-scroll" viewportClass="pr-viewport" type="auto">
-    {#if !view}
-      <div class="pr-empty">
-        <GitPullRequest size={28} strokeWidth={1.7} />
-        <strong>No pull request selected</strong>
-        <p>Open a PR from the Git panel to view its details here.</p>
+<section class="flex h-full min-h-0 flex-col bg-background">
+  {#if !view}
+    <div
+      class="grid min-h-80 flex-1 place-items-center text-center text-muted-foreground"
+    >
+      <div>
+        <GitPullRequest class="mx-auto size-8 text-primary" />
+        <strong class="mt-3 block text-foreground"
+          >No pull request selected</strong
+        >
+        <p class="mt-1 text-sm">
+          Open a PR from the Git panel to view its details here.
+        </p>
       </div>
-    {:else if view.loading && !detail}
-      <div class="pr-empty">
-        <Spinner class="size-7" />
-        <strong>Loading pull request</strong>
-        <p>#{view.number}</p>
+    </div>
+  {:else if view.loading && !detail}
+    <div
+      class="grid min-h-80 flex-1 place-items-center text-center text-muted-foreground"
+    >
+      <div>
+        <Spinner class="mx-auto size-7" /><strong
+          class="mt-3 block text-foreground">Loading pull request</strong
+        >
+        <p class="mt-1 text-sm">#{view.number}</p>
       </div>
-    {:else if view.error && !detail}
-      <div class="pr-empty danger">
-        <TriangleAlert size={28} strokeWidth={1.7} />
-        <strong>Could not open pull request</strong>
-        <p>{view.error}</p>
+    </div>
+  {:else if view.error && !detail}
+    <div class="grid min-h-80 flex-1 place-items-center text-center">
+      <div class="max-w-md">
+        <TriangleAlert class="mx-auto size-8 text-destructive" />
+        <strong class="mt-3 block">Could not open pull request</strong>
+        <p class="mt-1 text-sm text-destructive">{view.error}</p>
+        <Button
+          class="mt-3"
+          size="sm"
+          variant="outline"
+          onclick={() => onRefresh?.()}
+        >
+          <RotateCcw class="size-4" /> Retry
+        </Button>
       </div>
-    {:else if detail}
-      <header class="pr-header">
-        <div class="pr-title-row">
-          <span class="pr-number">#{detail.number}</span>
-          <h1 class="pr-title">{detail.title}</h1>
-        </div>
+    </div>
+  {:else if detail}
+    <GithubPrHeader
+      {detail}
+      loading={view.loading}
+      {onRefresh}
+      onCheckout={confirmCheckout}
+      {onOpenExternal}
+    />
 
-        <div class="pr-meta">
-          <Badge tone={stateTone(detail)} size="sm">{stateLabel(detail)}</Badge>
-          <Badge tone={checksTone(detail.checks)} size="sm">
-            {#if detail.checks.status === "passing"}
-              <Check size={11} />
-            {:else if detail.checks.status === "failing"}
-              <X size={11} />
-            {:else if detail.checks.status === "pending"}
-              <Spinner class="size-3" />
-            {/if}
-            {detail.checks.status === "none"
-              ? "no checks"
-              : `${detail.checks.passed}/${detail.checks.total} checks`}
-          </Badge>
-          {#if detail.reviewDecision}
-            <Badge tone={reviewTone(detail.reviewDecision)} size="sm">
-              {detail.reviewDecision.replace("_", " ").toLowerCase()}
-            </Badge>
-          {/if}
-          <span class="pr-branches">
-            <span class="mono">{detail.baseRefName}</span>
-            ←
-            <span class="mono">{detail.headRefName}</span>
-          </span>
-        </div>
-
-        <div class="pr-subline">
-          {#if detail.author}<span
-              >by <span class="mono">{detail.author}</span></span
-            >{/if}
-          {#if detail.createdAt}<span
-              >opened {formatPrDate(detail.createdAt)}</span
-            >{/if}
-          <span class="mono diffstat">
-            <span class="add">+{detail.additions}</span>
-            <span class="del">−{detail.deletions}</span>
-            · {detail.changedFiles} files
-          </span>
-        </div>
-
-        <div class="pr-actions">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={view.loading}
-            onclick={() => onRefresh?.()}
+    <Tabs.Root
+      value={view.activeTab}
+      onValueChange={changeTab}
+      class="min-h-0 flex-1 gap-0"
+    >
+      <Tabs.List
+        variant="line"
+        class="w-full shrink-0 justify-start border-b px-5"
+      >
+        <Tabs.Trigger value="conversation">
+          <MessageSquare class="size-4" /> Conversation
+          <span class="text-muted-foreground"
+            >{detail.comments.length + detail.reviews.length}</span
           >
-            <RefreshCw class={view.loading ? "spin" : ""} size={14} />
-            Refresh
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onclick={() => onOpenExternal?.()}
+        </Tabs.Trigger>
+        <Tabs.Trigger value="commits">
+          <GitCommitHorizontal class="size-4" /> Commits
+          <span class="text-muted-foreground">{detail.commits.length}</span>
+        </Tabs.Trigger>
+        <Tabs.Trigger value="checks">
+          <CheckCircle2 class="size-4" /> Checks
+          <span class="text-muted-foreground">{detail.checks.total}</span>
+        </Tabs.Trigger>
+        <Tabs.Trigger value="files">
+          <Files class="size-4" /> Files changed
+          <span class="text-muted-foreground">{detail.changedFiles}</span>
+        </Tabs.Trigger>
+      </Tabs.List>
+
+      <Tabs.Content value="conversation" class="min-h-0 flex-1">
+        <ScrollArea class="h-full" viewportClass="@container p-5 pb-12">
+          <div
+            class="grid gap-5 @4xl:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]"
           >
-            <ExternalLink size={14} />
-            Open in browser
-          </Button>
-          <Button size="sm" variant="outline" onclick={confirmCheckout}>
-            <ArrowDownToLine size={14} />
-            Checkout branch
-          </Button>
-        </div>
-      </header>
-
-      {#if detail.checks.runs.length > 0}
-        <section class="pr-section">
-          <h2>Checks</h2>
-          <ul class="pr-list">
-            {#each detail.checks.runs as run (run.name)}
-              <li class="pr-run">
-                <Badge tone={runTone(run.status)} size="xs">
-                  {run.status}
-                </Badge>
-                <span class="truncate">{run.name}</span>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
-      <section class="pr-section">
-        <h2>Description</h2>
-        {#if detail.body.trim()}
-          <div class="pr-body">
-            <Markdown text={detail.body} onCopy={notifyCopyResult} />
+            <GithubPrConversation {detail} />
+            <aside class="space-y-4">
+              <GithubPrOverview {detail} />
+              <GithubPrMergeBox
+                {detail}
+                selectedMethod={view.selectedMergeMethod}
+                merging={view.merging}
+                error={view.mergeError}
+                onMethodChange={onMergeMethodChange}
+                {onMerge}
+              />
+            </aside>
           </div>
-        {:else}
-          <p class="pr-muted">No description provided.</p>
-        {/if}
-      </section>
+        </ScrollArea>
+      </Tabs.Content>
 
-      <section class="pr-section">
-        <h2>Files changed ({detail.changedFiles})</h2>
-        {#if detail.files.length === 0}
-          <p class="pr-muted">No file data available.</p>
-        {:else}
-          <ul class="pr-list">
-            {#each detail.files as file (file.path)}
-              <li class="pr-file">
-                <span class="mono truncate" title={file.path}>{file.path}</span>
-                <span class="mono diffstat">
-                  <span class="add">+{file.additions}</span>
-                  <span class="del">−{file.deletions}</span>
-                </span>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
+      <Tabs.Content value="commits" class="min-h-0 flex-1">
+        <ScrollArea class="h-full" viewportClass="p-5 pb-12">
+          <GithubPrCommits {detail} />
+        </ScrollArea>
+      </Tabs.Content>
 
-      <section class="pr-section">
-        <h2>Commits ({detail.commits.length})</h2>
-        {#if detail.commits.length === 0}
-          <p class="pr-muted">No commit data available.</p>
-        {:else}
-          <ul class="pr-list">
-            {#each detail.commits as commit (commit.oid)}
-              <li class="pr-commit">
-                <GitCommitHorizontal size={13} strokeWidth={2.1} />
-                <span class="mono pr-hash">{commit.abbrev}</span>
-                <span class="truncate">{commit.messageHeadline}</span>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
-    {/if}
-  </ScrollArea>
+      <Tabs.Content value="checks" class="min-h-0 flex-1">
+        <ScrollArea class="h-full" viewportClass="p-5 pb-12">
+          <GithubPrChecks {detail} />
+        </ScrollArea>
+      </Tabs.Content>
+
+      <Tabs.Content value="files" class="min-h-0 flex-1">
+        <GithubPrFiles
+          {detail}
+          files={view.files}
+          loading={view.filesLoading}
+          error={view.filesError}
+          selectedPath={view.selectedFilePath}
+          onRetry={onFilesRetry}
+          onSelect={onFileSelect}
+        />
+      </Tabs.Content>
+    </Tabs.Root>
+  {/if}
 </section>
-
-<style>
-.pr-pane {
-  display: grid;
-  height: 100%;
-  min-height: 0;
-  background: var(--background);
-}
-
-:global(.pr-scroll) {
-  min-height: 0;
-}
-
-:global(.pr-viewport) {
-  padding: 1.1rem 1.25rem 4rem;
-}
-
-.pr-empty {
-  display: grid;
-  min-height: 18rem;
-  place-items: center;
-  align-content: center;
-  gap: 0.35rem;
-  color: var(--muted-foreground);
-  text-align: center;
-}
-
-.pr-empty :global(svg) {
-  color: var(--primary);
-}
-
-.pr-empty.danger :global(svg) {
-  color: var(--destructive);
-}
-
-.pr-empty strong {
-  color: var(--foreground);
-}
-
-.pr-header {
-  display: grid;
-  gap: 0.6rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.pr-title-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.pr-number {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-}
-
-.pr-title {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--foreground);
-}
-
-.pr-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: var(--text-sm);
-}
-
-.pr-branches {
-  color: var(--muted-foreground);
-}
-
-.pr-subline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.85rem;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-}
-
-.pr-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.25rem;
-}
-
-.pr-section {
-  margin-top: 1.4rem;
-}
-
-.pr-section h2 {
-  margin: 0 0 0.5rem;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.pr-list {
-  display: grid;
-  gap: 0.2rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pr-run,
-.pr-file,
-.pr-commit {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  font-size: var(--text-xs);
-  color: var(--foreground);
-}
-
-.pr-file {
-  justify-content: space-between;
-}
-
-.pr-commit :global(svg) {
-  flex: none;
-  color: var(--muted-foreground);
-}
-
-.pr-hash {
-  color: var(--muted-foreground);
-}
-
-.pr-body {
-  font-size: var(--text-sm);
-  line-height: 1.6;
-}
-
-.pr-muted {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-}
-
-.mono {
-  font-family: var(--font-mono);
-}
-
-.truncate {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.diffstat {
-  flex: none;
-  white-space: nowrap;
-  color: var(--muted-foreground);
-}
-
-.diffstat .add {
-  color: var(--success);
-}
-
-.diffstat .del {
-  color: var(--destructive);
-}
-</style>

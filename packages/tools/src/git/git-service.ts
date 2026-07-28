@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- GitService centralizes the repository command boundary and delegates domain workflows to focused modules. */
 import { type Dirent, existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
@@ -6,8 +7,11 @@ import type {
   GitDiscoveryResponse,
   GithubPrCheckoutResponse,
   GithubPrDetail,
+  GithubPrFilesResponse,
   GithubPrListFilters,
   GithubPrListResponse,
+  GithubPrMergeMethod,
+  GithubPrMergeResponse,
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
@@ -31,7 +35,9 @@ import { isGithubRemoteUrl, parseGitRemoteUrls } from "./git-github-parsers.js";
 import {
   checkoutPr as checkoutGithubPr,
   type GithubServiceContext,
+  mergePr as mergeGithubPr,
   prDetail as getGithubPrDetail,
+  prFiles as getGithubPrFiles,
   githubStatus as getGithubStatus,
   listOpenPrs as listGithubOpenPrs,
 } from "./git-github-service.js";
@@ -720,6 +726,36 @@ export class GitService {
       projectId,
       relativePath,
       number,
+    );
+  }
+
+  async prFiles(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrFilesResponse> {
+    return getGithubPrFiles(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
+    );
+  }
+
+  async mergePr(
+    projectId: string,
+    relativePath: string,
+    number: number,
+    method: GithubPrMergeMethod,
+    expectedHeadOid: string,
+  ): Promise<GithubPrMergeResponse> {
+    return mergeGithubPr(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
+      method,
+      expectedHeadOid,
     );
   }
 

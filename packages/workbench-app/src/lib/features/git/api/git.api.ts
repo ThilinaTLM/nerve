@@ -3,8 +3,11 @@ import type {
   GitDiscoveryResponse,
   GithubPrCheckoutResponse,
   GithubPrDetail,
+  GithubPrFilesResponse,
   GithubPrListFilters,
   GithubPrListResponse,
+  GithubPrMergeMethod,
+  GithubPrMergeResponse,
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
@@ -191,6 +194,38 @@ export async function getGithubPr(
       projectId,
       repo,
       number,
+    })
+  ).result;
+}
+
+export async function getGithubPrFiles(
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrFilesResponse> {
+  return (
+    await protocolRequest("github.pr.files.get", {
+      projectId,
+      repo,
+      number,
+    })
+  ).result;
+}
+
+export async function mergeGithubPr(
+  projectId: string,
+  repo: string,
+  number: number,
+  method: GithubPrMergeMethod,
+  expectedHeadOid: string,
+): Promise<GithubPrMergeResponse> {
+  return (
+    await protocolRequest("github.pr.merge", {
+      projectId,
+      repo,
+      number,
+      method,
+      expectedHeadOid,
     })
   ).result;
 }

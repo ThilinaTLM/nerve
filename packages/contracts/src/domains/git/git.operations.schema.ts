@@ -8,8 +8,11 @@ import {
   gitRemoteOpRequestSchema,
   githubPrCheckoutResponseSchema,
   githubPrDetailSchema,
+  githubPrFilesResponseSchema,
   githubPrListRequestSchema,
   githubPrListResponseSchema,
+  githubPrMergeRequestSchema,
+  githubPrMergeResponseSchema,
   githubStatusResponseSchema,
   switchBranchRequestSchema,
 } from "./index.js";
@@ -39,6 +42,9 @@ const githubPrListParamsSchema = projectIdParamsSchema.merge(
 const githubPrParamsSchema = gitRepoParamsSchema.extend({
   number: z.number().int().positive(),
 });
+const githubPrMergeParamsSchema = projectIdParamsSchema
+  .merge(githubPrMergeRequestSchema)
+  .extend({ number: z.number().int().positive() });
 
 export const gitOperationDefinitions = [
   defineOperation(
@@ -186,6 +192,15 @@ export const gitOperationDefinitions = [
     "operation.github.pr.get",
   ),
   defineOperation(
+    "github.pr.files.get",
+    githubPrParamsSchema,
+    githubPrFilesResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.github.pr.files.get",
+  ),
+  defineOperation(
     "github.pr.checkout",
     githubPrParamsSchema,
     githubPrCheckoutResponseSchema,
@@ -193,5 +208,14 @@ export const gitOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.github.pr.checkout",
+  ),
+  defineOperation(
+    "github.pr.merge",
+    githubPrMergeParamsSchema,
+    githubPrMergeResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.github.pr.merge",
   ),
 ] as const;
