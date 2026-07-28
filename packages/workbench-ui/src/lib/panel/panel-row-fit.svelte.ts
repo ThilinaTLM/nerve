@@ -1,7 +1,8 @@
 /**
- * Measures how many `PanelRow` entries fit inside a region so a list can fill the
+ * Measures how many list items fit inside a region so a list can fill the
  * available space exactly and hand the remainder to a "See more" affordance
- * instead of scrolling.
+ * instead of scrolling. Items may be bare rows or row cards, so the stride is
+ * taken from the list's first child plus the list's row gap.
  */
 export interface PanelRowFitOptions {
   /** Region that bounds the list; its height defines the budget. */
@@ -25,11 +26,14 @@ export function createPanelRowFit(options: PanelRowFitOptions): PanelRowFit {
   function measure(): void {
     const region = options.region();
     const list = region?.querySelector<HTMLElement>("[data-panel-list]");
-    const row = list?.querySelector<HTMLElement>(".panel-row");
-    if (row) rowHeight = row.getBoundingClientRect().height;
-    if (!region || !list || rowHeight <= 0) return;
+    if (!region || !list) return;
 
     const listStyle = getComputedStyle(list);
+    const rowGap = Number.parseFloat(listStyle.rowGap) || 0;
+    const item = list.firstElementChild;
+    if (item) rowHeight = item.getBoundingClientRect().height + rowGap;
+    if (rowHeight <= 0) return;
+
     const listPadding =
       Number.parseFloat(listStyle.paddingTop) +
       Number.parseFloat(listStyle.paddingBottom);
@@ -43,7 +47,8 @@ export function createPanelRowFit(options: PanelRowFitOptions): PanelRowFit {
       listPadding;
     // Allow a small subpixel tolerance so app zoom and rem rounding do not
     // unnecessarily leave room for an additional complete row.
-    const next = Math.max(0, Math.floor((available + 2) / rowHeight));
+    // The last item carries no trailing gap, so give the budget one back.
+    const next = Math.max(0, Math.floor((available + rowGap + 2) / rowHeight));
     if (next !== count) count = next;
   }
 

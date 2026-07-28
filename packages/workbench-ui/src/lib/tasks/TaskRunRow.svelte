@@ -16,7 +16,6 @@ import type { TaskEntryCapabilities, TaskRunEntry } from "./task-panel-types";
 
 let {
   entry,
-  selected = false,
   nested = false,
   capabilities,
   onOpen,
@@ -27,7 +26,6 @@ let {
   onSaveAsDefinition,
 }: {
   entry: TaskRunEntry;
-  selected?: boolean;
   /** Renders the run as a child of its definition row: time-first label, deeper indent. */
   nested?: boolean;
   capabilities: TaskEntryCapabilities;
@@ -122,7 +120,6 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
   tone={nested || label.isCommand ? "muted" : "default"}
   status={entry.needsRecovery ? "warn" : taskTone(run.status)}
   pulse={taskPulse(run.status)}
-  {selected}
   indent={nested ? 1 : 0}
   alwaysShowActions
   {menuItems}

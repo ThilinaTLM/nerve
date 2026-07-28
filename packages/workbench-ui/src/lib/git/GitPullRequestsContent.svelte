@@ -33,7 +33,6 @@ type Props = {
   github?: GithubStatusResponse;
   selectedRepoHasGithubRemote: boolean;
   loadingPrs: boolean;
-  currentBranchName: string | null;
   capabilities: GitPanelCapabilities;
   expandedPr?: number;
   onExpandedPrChange?: (number: number | undefined) => void;
@@ -53,7 +52,6 @@ let {
   github,
   selectedRepoHasGithubRemote,
   loadingPrs,
-  currentBranchName,
   capabilities,
   expandedPr = $bindable(undefined),
   onExpandedPrChange,
@@ -140,13 +138,10 @@ function toggleChecks(pr: GithubPr) {
       {#if prs.length > displayedPrs.length}
         {@render note(`Showing ${displayedPrs.length} of ${prs.length}`)}
       {/if}
-      <PanelList ariaLabel="Pull requests" class="py-0.5">
+      <PanelList ariaLabel="Pull requests" class="gap-1.5 py-0.5">
         {#each displayedPrs as pr (pr.number)}
-          {@const currentPr =
-            currentBranchName !== null && pr.headRefName === currentBranchName}
           <GitPullRequestRow
             {pr}
-            current={currentPr}
             expanded={expandedPr === pr.number}
             disabled={!capabilities.openPullRequest.enabled}
             disabledReason={capabilities.openPullRequest.enabled

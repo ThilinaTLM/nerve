@@ -4,7 +4,7 @@ import type { TaskRecord } from "@nervekit/contracts";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
-import { PanelList } from "@nervekit/workbench-ui/panel";
+import { PanelList, PanelRowCard } from "@nervekit/workbench-ui/panel";
 import TaskRunRow from "./TaskRunRow.svelte";
 import { taskRunLabel } from "./task-panel-controller.js";
 import type {
@@ -16,7 +16,6 @@ let {
   open = $bindable(false),
   runs,
   capabilities,
-  selectedTaskId,
   onOpen,
   onCancel,
   onRestart,
@@ -28,7 +27,6 @@ let {
   open?: boolean;
   runs: readonly TaskRunEntry[];
   capabilities: TaskEntryCapabilities;
-  selectedTaskId?: string;
   onOpen: (taskId: string) => void;
   onCancel: (taskId: string) => void;
   onRestart: (taskId: string) => void;
@@ -93,19 +91,20 @@ function openRun(taskId: string): void {
         <p class="p-2 text-xs text-muted-foreground">No runs match.</p>
       {:else}
         <ScrollArea class="h-full" type="auto">
-          <PanelList ariaLabel="All runs">
+          <PanelList ariaLabel="All runs" class="gap-1">
             {#each matches as entry (entry.key)}
-              <TaskRunRow
-                {entry}
-                {capabilities}
-                selected={entry.run.id === selectedTaskId}
-                onOpen={openRun}
-                {onCancel}
-                {onRestart}
-                {onRemove}
-                {onCopy}
-                {onSaveAsDefinition}
-              />
+              <PanelRowCard>
+                <TaskRunRow
+                  {entry}
+                  {capabilities}
+                  onOpen={openRun}
+                  {onCancel}
+                  {onRestart}
+                  {onRemove}
+                  {onCopy}
+                  {onSaveAsDefinition}
+                />
+              </PanelRowCard>
             {/each}
           </PanelList>
         </ScrollArea>

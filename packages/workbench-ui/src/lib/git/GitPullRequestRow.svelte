@@ -5,12 +5,11 @@ import X from "@lucide/svelte/icons/x";
 import type { GithubPr } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { cn } from "@nervekit/ui-kit/core/utils";
 import { checksTone } from "./git-change-format";
+import { githubCheckRunOutcome } from "./github-pr-checks";
 
 type Props = {
   pr: GithubPr;
-  current: boolean;
   expanded: boolean;
   disabled: boolean;
   disabledReason?: string;
@@ -18,40 +17,31 @@ type Props = {
   onToggleChecks: () => void;
 };
 
-let {
-  pr,
-  current,
-  expanded,
-  disabled,
-  disabledReason,
-  onOpen,
-  onToggleChecks,
-}: Props = $props();
+let { pr, expanded, disabled, disabledReason, onOpen, onToggleChecks }: Props =
+  $props();
 
 const hasCheckDetails = $derived(pr.checks.runs.length > 0);
 </script>
 
 <div
   role="listitem"
-  class={cn(
-    "group mb-1.5 flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5 text-xs leading-tight transition-colors hover:bg-accent/60",
-    current && "ring-1 ring-border ring-inset",
-  )}
+  class="group flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5 text-xs leading-tight ring-1 ring-border transition-colors ring-inset hover:bg-accent/60"
 >
   <button
     type="button"
     {disabled}
-    aria-current={current ? "true" : undefined}
     title={disabled
       ? disabledReason
       : `${pr.title} · ${pr.baseRefName} ← ${pr.headRefName}`}
-    class="flex min-w-0 items-center gap-1.5 rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+    class="flex min-w-0 items-start gap-1.5 rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
     onclick={onOpen}
   >
     <span class="shrink-0 font-mono font-medium text-foreground"
       >#{pr.number}</span
     >
-    <span class="min-w-0 flex-1 truncate text-foreground">{pr.title}</span>
+    <span class="line-clamp-2 min-w-0 flex-1 break-words text-foreground"
+      >{pr.title}</span
+    >
     {#if pr.isDraft}
       <Badge tone="neutral" size="xs">draft</Badge>
     {/if}
@@ -97,11 +87,24 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
   {#if expanded && hasCheckDetails}
     <div class="mt-1 flex flex-col gap-0.5 border-t border-border/60 pt-1.5">
       {#each pr.checks.runs as run, index (`${run.name}:${index}`)}
+        {@const outcome = githubCheckRunOutcome(run.status)}
         <div class="flex min-w-0 items-center gap-1.5 pl-3 text-xs">
           <span class="min-w-0 flex-1 truncate text-muted-foreground"
             >{run.name}</span
           >
-          <span class="shrink-0 text-muted-foreground">{run.status}</span>
+          <span
+            class="flex size-4 shrink-0 items-center justify-center"
+            title={run.status}
+          >
+            {#if outcome === "passed"}
+              <Check class="size-3 text-success" aria-hidden="true" />
+            {:else if outcome === "failed"}
+              <X class="size-3 text-destructive" aria-hidden="true" />
+            {:else}
+              <Spinner class="size-3 text-warning" />
+            {/if}
+            <span class="sr-only">{run.status}</span>
+          </span>
         </div>
       {/each}
     </div>

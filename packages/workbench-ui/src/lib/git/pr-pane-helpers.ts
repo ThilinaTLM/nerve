@@ -1,5 +1,6 @@
 import type { GithubChecksSummary } from "@nervekit/contracts";
 import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
+import { githubCheckRunOutcome } from "./github-pr-checks";
 import type { PrViewState } from "./github-pr-types";
 
 type PrDetail = NonNullable<PrViewState["detail"]>;
@@ -38,14 +39,9 @@ export function reviewTone(decision: string): BadgeTone {
 }
 
 export function runTone(status: string): BadgeTone {
-  const s = status.toLowerCase();
-  if (["success", "neutral", "skipped", "completed"].includes(s)) return "good";
-  if (
-    ["failure", "error", "cancelled", "timed_out", "action_required"].includes(
-      s,
-    )
-  )
-    return "danger";
+  const outcome = githubCheckRunOutcome(status);
+  if (outcome === "passed") return "good";
+  if (outcome === "failed") return "danger";
   return "warn";
 }
 

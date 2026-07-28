@@ -10,7 +10,6 @@ import type {
 } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import { cn } from "@nervekit/ui-kit/core/utils";
 import {
   Handle as PaneResizer,
   Pane,
@@ -21,6 +20,7 @@ import {
   PanelEmpty,
   PanelHeader,
   PanelList,
+  PanelRowCard,
   PanelSectionHeader,
   PanelToolbarButton,
   PanelView,
@@ -133,22 +133,14 @@ async function removeDefinition(): Promise<void> {
           description="Create a task to run it anytime."
         />
       {:else}
-        <PanelList role="none">
+        <PanelList role="none" class="gap-1">
           {#each projected.definitions as entry (entry.key)}
             {@const expanded = expandedDefinitions.has(entry.key)}
-            <div
-              class={cn(
-                "flex min-w-0 flex-col rounded-md border border-transparent",
-                expanded && "border-border",
-              )}
-            >
+            <PanelRowCard>
               <TaskDefinitionRow
                 {entry}
                 {capabilities}
                 {expanded}
-                selected={entry.runs.some(
-                  (run) => run.run.id === model.selectedTask?.id,
-                )}
                 onToggleExpanded={() => toggleDefinition(entry.key)}
                 onOpen={(id) => void panelActions.openTaskOutput(id)}
                 onRun={() => void panelActions.runDefinition(entry.definition)}
@@ -159,13 +151,14 @@ async function removeDefinition(): Promise<void> {
                 onCopy={(text) => void panelActions.copyText(text)}
               />
               {#if expanded}
-                <div class="flex min-w-0 flex-col border-t py-0.5">
+                <div
+                  class="flex min-w-0 flex-col border-t border-border/60 pt-0.5"
+                >
                   {#each entry.runs as runEntry (runEntry.key)}
                     <TaskRunRow
                       nested
                       entry={runEntry}
                       {capabilities}
-                      selected={runEntry.run.id === model.selectedTask?.id}
                       onOpen={(id) => void panelActions.openTaskOutput(id)}
                       onCancel={(id) => void panelActions.cancelTask(id)}
                       onRestart={(id) => void panelActions.restartTask(id)}
@@ -175,7 +168,7 @@ async function removeDefinition(): Promise<void> {
                   {/each}
                 </div>
               {/if}
-            </div>
+            </PanelRowCard>
           {/each}
         </PanelList>
       {/if}
@@ -197,19 +190,20 @@ async function removeDefinition(): Promise<void> {
             />
           {/snippet}
         </PanelSectionHeader>
-        <PanelList ariaLabel="Runs" class="shrink-0">
+        <PanelList ariaLabel="Runs" class="shrink-0 gap-1">
           {#each visibleRuns as entry (entry.key)}
-            <TaskRunRow
-              {entry}
-              {capabilities}
-              selected={entry.run.id === model.selectedTask?.id}
-              onOpen={(id) => void panelActions.openTaskOutput(id)}
-              onCancel={(id) => void panelActions.cancelTask(id)}
-              onRestart={(id) => void panelActions.restartTask(id)}
-              onRemove={(id) => void panelActions.removeTask(id)}
-              onCopy={(text) => void panelActions.copyText(text)}
-              onSaveAsDefinition={(task) => (saveSourceTask = task)}
-            />
+            <PanelRowCard>
+              <TaskRunRow
+                {entry}
+                {capabilities}
+                onOpen={(id) => void panelActions.openTaskOutput(id)}
+                onCancel={(id) => void panelActions.cancelTask(id)}
+                onRestart={(id) => void panelActions.restartTask(id)}
+                onRemove={(id) => void panelActions.removeTask(id)}
+                onCopy={(text) => void panelActions.copyText(text)}
+                onSaveAsDefinition={(task) => (saveSourceTask = task)}
+              />
+            </PanelRowCard>
           {/each}
         </PanelList>
         {#if hiddenRuns > 0}
@@ -283,7 +277,6 @@ async function removeDefinition(): Promise<void> {
   bind:open={runsDialogOpen}
   runs={projected.runs}
   {capabilities}
-  selectedTaskId={model.selectedTask?.id}
   onOpen={(id) => void panelActions.openTaskOutput(id)}
   onCancel={(id) => void panelActions.cancelTask(id)}
   onRestart={(id) => void panelActions.restartTask(id)}

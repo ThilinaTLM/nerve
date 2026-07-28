@@ -136,7 +136,7 @@ const toneClass = $derived(
         : dense
           ? "h-5 gap-1 pr-1 text-xs"
           : "h-7 gap-1.5 pr-1.5 text-xs",
-      selected && "text-accent-foreground ring-1 ring-border ring-inset",
+      selected && "bg-accent text-accent-foreground",
       tabindex !== undefined &&
         "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
       className,

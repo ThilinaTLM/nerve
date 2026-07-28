@@ -9,7 +9,9 @@ import { dateTimeLabel } from "$lib/core/utils/time";
 
 type Props = {
   row: ConversationRow;
+  /** Conversation has an open tab; drives the solid status dot. */
   isOpen?: boolean;
+  /** Conversation currently shown in the main pane. */
   isActive?: boolean;
   activity?: ConversationActivityState;
   menuItems: ContextMenuItem[];
@@ -57,8 +59,7 @@ const tooltip = $derived(
   statusVariant={isOpen ? "solid" : "outline"}
   pulse={dotActivity.pulse}
   class="px-2"
-  selected={isActive}
-  active={isOpen}
+  active={isActive}
   {menuItems}
   onclick={() => onOpenConversation?.(row.conversation.id)}
 />

@@ -20,7 +20,6 @@ import type {
 
 let {
   entry,
-  selected = false,
   expanded = false,
   capabilities,
   onToggleExpanded,
@@ -33,7 +32,6 @@ let {
   onCopy,
 }: {
   entry: TaskDefinitionEntry;
-  selected?: boolean;
   /** Whether the definition's run rows are listed underneath it. */
   expanded?: boolean;
   capabilities: TaskEntryCapabilities;
@@ -154,7 +152,6 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       : "neutral"}
   statusVariant={expanded ? "outline" : "solid"}
   pulse={latest ? taskPulse(latest.status) : false}
-  {selected}
   disabled={!expandable}
   ariaExpanded={expandable ? expanded : undefined}
   indent={0}

@@ -54,7 +54,6 @@ function selectRepository(repository: string): void {
       github={model.github}
       {selectedRepoHasGithubRemote}
       loadingPrs={model.loadingPullRequests}
-      {currentBranchName}
       capabilities={model.capabilities}
       {expandedPr}
       onExpandedPrChange={selectExpandedPullRequest}
