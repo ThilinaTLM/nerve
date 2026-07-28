@@ -61,27 +61,21 @@ describe("notification sound player", () => {
         "/sounds/pop.mp3",
         "/sounds/success.mp3",
         "/sounds/alert.mp3",
-        "/sounds/kenney-click-1.mp3",
-        "/sounds/kenney-click-2.mp3",
-        "/sounds/kenney-click-3.mp3",
-        "/sounds/kenney-rollover-1.mp3",
-        "/sounds/kenney-rollover-4.mp3",
-        "/sounds/kenney-rollover-6.mp3",
-        "/sounds/kenney-switch-1.mp3",
-        "/sounds/kenney-switch-7.mp3",
-        "/sounds/kenney-switch-10.mp3",
-        "/sounds/kenney-switch-15.mp3",
-        "/sounds/kenney-switch-20.mp3",
-        "/sounds/kenney-switch-31.mp3",
+        "/sounds/ping.mp3",
+        "/sounds/pulse.mp3",
+        "/sounds/ripple.mp3",
+        "/sounds/sparkle.mp3",
+        "/sounds/knock.mp3",
+        "/sounds/signal.mp3",
       ],
     );
     assert.deepEqual(
       audio.map((item) => item.preload),
-      new Array(18).fill("auto"),
+      new Array(12).fill("auto"),
     );
     assert.deepEqual(
       audio.map((item) => item.loads),
-      new Array(18).fill(1),
+      new Array(12).fill(1),
     );
   });
 

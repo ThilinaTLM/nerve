@@ -1,16 +1,10 @@
 <script lang="ts">
-import Play from "@lucide/svelte/icons/play";
 import type {
   NotificationTone,
   Settings,
   UpdateSettingsRequest,
 } from "$lib/api";
-import {
-  notificationToneOptions,
-  previewNotificationSound,
-} from "$lib/features/notifications/state/notification-sounds";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import SelectField from "@nervekit/ui-kit/components/ui/select-field";
+import NotificationTonePicker from "../NotificationTonePicker.svelte";
 import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import { SettingsSectionCard } from "$lib/presentation/components/settings";
 
@@ -69,11 +63,6 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
     { immediate: true },
   );
 }
-
-function previewEventTone(key: EventToneKey): void {
-  const tone = settingsDraft.notifications.events[key];
-  if (tone !== "none") previewNotificationSound(tone);
-}
 </script>
 
 <SettingsSectionCard section="notification-general" title="General">
@@ -116,25 +105,13 @@ function previewEventTone(key: EventToneKey): void {
         <strong>{event.label}</strong>
         <span>{event.description}</span>
       </div>
-      <div class="flex w-full max-w-sm items-center gap-2">
-        <SelectField
-          class="min-w-0 flex-1"
-          items={[...notificationToneOptions]}
+      <div class="w-full max-w-sm">
+        <NotificationTonePicker
+          class="w-full"
           value={settingsDraft.notifications.events[event.key]}
           ariaLabel={`${event.label} sound`}
-          onValueChange={(value) =>
-            setEventTone(event.key, value as NotificationTone)}
+          onValueChange={(value) => setEventTone(event.key, value)}
         />
-        <Button
-          variant="outline"
-          size="icon-sm"
-          ariaLabel={`Preview ${event.label} sound`}
-          title={`Preview ${event.label} sound`}
-          disabled={settingsDraft.notifications.events[event.key] === "none"}
-          onclick={() => previewEventTone(event.key)}
-        >
-          <Play class="size-4" aria-hidden="true" />
-        </Button>
       </div>
     </div>
   {/each}

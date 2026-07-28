@@ -3,18 +3,3 @@ Copyright © 2026 ThilinaTLM
 
 This product is licensed under the Apache License, Version 2.0.
 See the LICENSE file for details.
-
-Third-party audio
------------------
-
-Portions of the notification audio are derived from Kenney UI Audio by Kenney:
-https://kenney.nl/assets/ui-audio
-
-Source files used: click1.ogg, click2.ogg, click3.ogg, rollover1.ogg,
-rollover4.ogg, rollover6.ogg, switch1.ogg, switch7.ogg, switch10.ogg,
-switch15.ogg, switch20.ogg, and switch31.ogg.
-
-The source files are dedicated to the public domain under Creative Commons CC0
-1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
-
-Nerve peak-normalizes and transcodes these files to mono MP3 for distribution.

@@ -108,7 +108,7 @@ describe("settings schema", () => {
         soundsEnabled: false,
         events: {
           question: "pop",
-          approval: "kenney-switch-20",
+          approval: "signal",
           completed: "none",
         },
       },
@@ -148,16 +148,18 @@ describe("settings schema", () => {
       soundsEnabled: false,
       events: {
         question: "pop",
-        approval: "kenney-switch-20",
+        approval: "signal",
         completed: "none",
       },
     });
-    assert.equal(
-      updateSettingsRequestSchema.safeParse({
-        notifications: { events: { approval: "siren" } },
-      }).success,
-      false,
-    );
+    for (const invalidTone of ["siren", "kenney-switch-20"]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          notifications: { events: { approval: invalidTone } },
+        }).success,
+        false,
+      );
+    }
     assert.equal(parsed.defaultApprovalPolicy?.autoApproveReadOnly, false);
     assert.equal(
       parsed.lastAgentSelection?.approvalPolicy?.autoApproveReadOnly,
