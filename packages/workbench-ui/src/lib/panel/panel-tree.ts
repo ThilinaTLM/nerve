@@ -4,6 +4,8 @@ export type PanelTreeItemNode<T> = {
   label: string;
   path: readonly string[];
   value: T;
+  /** Nested items; empty for leaves. Item parents expand like group nodes. */
+  children: readonly PanelTreeNode<T>[];
 };
 
 export type PanelTreeGroupNode<T> = {
@@ -28,6 +30,12 @@ export type BuildPanelTreeOptions<T> = {
   getPath: (item: T) => readonly string[];
   getKey: (item: T, index: number) => string;
   compareLabels?: (left: string, right: string) => number;
+};
+
+export type BuildPanelItemTreeOptions<T> = {
+  getKey: (item: T) => string;
+  getParentKey: (item: T) => string | undefined;
+  getLabel: (item: T) => string;
 };
 
 type TrieItem<T> = {
@@ -89,6 +97,7 @@ function projectDirectory<T>(
       label: item.label,
       path: item.path,
       value: item.value,
+      children: [],
     })),
   ];
 
@@ -153,18 +162,90 @@ export function buildPanelTree<T>(
         label: item.label,
         path: item.path,
         value: item.value,
+        children: [],
       })),
     ],
     compareLabels,
   );
 }
 
-export function panelTreeGroupIds<T>(
+/**
+ * Builds a forest from parent-keyed items. Sibling order follows input order, so
+ * callers own the sorting. Items with a missing, unknown, self, or cyclic parent
+ * key become roots; every input key appears exactly once.
+ */
+export function buildPanelItemTree<T>(
+  items: readonly T[],
+  options: BuildPanelItemTreeOptions<T>,
+): PanelTreeNode<T>[] {
+  const byKey = new Map<string, T>();
+  const ordered: T[] = [];
+  for (const item of items) {
+    const key = options.getKey(item);
+    if (byKey.has(key)) continue;
+    byKey.set(key, item);
+    ordered.push(item);
+  }
+
+  const linkedParentKey = (item: T): string | undefined => {
+    const key = options.getKey(item);
+    const parentKey = options.getParentKey(item);
+    if (!parentKey || parentKey === key || !byKey.has(parentKey))
+      return undefined;
+
+    const seen = new Set<string>([key]);
+    let cursor: string | undefined = parentKey;
+    while (cursor) {
+      if (seen.has(cursor)) return undefined;
+      seen.add(cursor);
+      const ancestor = byKey.get(cursor);
+      const next = ancestor ? options.getParentKey(ancestor) : undefined;
+      cursor = next && byKey.has(next) ? next : undefined;
+    }
+    return parentKey;
+  };
+
+  const roots: T[] = [];
+  const childrenByKey = new Map<string, T[]>();
+  for (const item of ordered) {
+    const parentKey = linkedParentKey(item);
+    if (!parentKey) {
+      roots.push(item);
+      continue;
+    }
+    const siblings = childrenByKey.get(parentKey);
+    if (siblings) siblings.push(item);
+    else childrenByKey.set(parentKey, [item]);
+  }
+
+  const buildNodes = (
+    siblings: readonly T[],
+    parentPath: readonly string[],
+  ): PanelTreeNode<T>[] =>
+    siblings.map<PanelTreeItemNode<T>>((item) => {
+      const key = options.getKey(item);
+      const label = options.getLabel(item);
+      const path = [...parentPath, label];
+      return {
+        kind: "item",
+        id: `item:${key}`,
+        label,
+        path,
+        value: item,
+        children: buildNodes(childrenByKey.get(key) ?? [], path),
+      };
+    });
+
+  return buildNodes(roots, []);
+}
+
+/** Ids of rows that can expand: group nodes and item nodes with children. */
+export function panelTreeExpandableIds<T>(
   nodes: readonly PanelTreeNode<T>[],
 ): Set<string> {
   const ids = new Set<string>();
   const visit = (node: PanelTreeNode<T>): void => {
-    if (node.kind !== "group") return;
+    if (node.children.length === 0) return;
     ids.add(node.id);
     node.children.forEach(visit);
   };
@@ -172,11 +253,11 @@ export function panelTreeGroupIds<T>(
   return ids;
 }
 
-export function expandedPanelTreeGroupIds(
-  groupIds: ReadonlySet<string>,
+export function expandedPanelTreeIds(
+  expandableIds: ReadonlySet<string>,
   collapsed: ReadonlySet<string>,
 ): Set<string> {
-  return new Set([...groupIds].filter((id) => !collapsed.has(id)));
+  return new Set([...expandableIds].filter((id) => !collapsed.has(id)));
 }
 
 export function visiblePanelTreeRows<T>(
@@ -198,7 +279,7 @@ export function visiblePanelTreeRows<T>(
         posInSet: index + 1,
         setSize: siblings.length,
       });
-      if (node.kind === "group" && expanded.has(node.id))
+      if (node.children.length > 0 && expanded.has(node.id))
         visit(node.children, depth + 1, node.id);
     });
   };

@@ -12,14 +12,12 @@ import {
   PanelView,
 } from "@nervekit/workbench-ui/panel";
 import ScratchNoteCard from "./ScratchNoteCard.svelte";
-import ScratchNoteTitleDialog from "./ScratchNoteTitleDialog.svelte";
 import {
   createScratchNote,
   ensureScratchNotesProject,
   getScratchNotesProject,
   loadScratchNotes,
   removeScratchNote,
-  renameScratchNote,
   type ScratchNoteEntry,
 } from "../state/scratch-notes-state.svelte";
 
@@ -33,7 +31,6 @@ const projectId = $derived(activeProject?.id);
 const project = $derived(
   projectId ? getScratchNotesProject(projectId) : undefined,
 );
-let noteToRename = $state<ScratchNoteEntry | undefined>();
 let noteToDelete = $state<ScratchNoteEntry | undefined>();
 
 $effect(() => {
@@ -101,7 +98,6 @@ $effect(() => {
           <ScratchNoteCard
             {projectId}
             {note}
-            onRename={() => (noteToRename = note)}
             onDelete={() => (noteToDelete = note)}
           />
         {/each}
@@ -109,18 +105,6 @@ $effect(() => {
     {/if}
   {/if}
 </PanelView>
-
-<ScratchNoteTitleDialog
-  open={Boolean(noteToRename)}
-  title={noteToRename?.title}
-  onSave={(title) =>
-    noteToRename && projectId
-      ? renameScratchNote(projectId, noteToRename.id, title)
-      : Promise.resolve(false)}
-  onOpenChange={(open) => {
-    if (!open) noteToRename = undefined;
-  }}
-/>
 
 <ConfirmDialog
   open={Boolean(noteToDelete)}

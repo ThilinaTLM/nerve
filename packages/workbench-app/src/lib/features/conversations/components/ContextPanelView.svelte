@@ -1,8 +1,12 @@
 <script lang="ts">
+import Copy from "@lucide/svelte/icons/copy";
+import FoldVertical from "@lucide/svelte/icons/fold-vertical";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import {
   PanelBanner,
   PanelHeader,
+  PanelToolbarButton,
   PanelView,
 } from "@nervekit/workbench-ui/panel";
 import type { ContextUsage } from "@nervekit/contracts";
@@ -12,10 +16,13 @@ import type {
   ProjectRecord,
   StatusResponse,
 } from "$lib/api";
-import ContextAgentsSection from "./ContextAgentsSection.svelte";
-import ContextExportSection from "./ContextExportSection.svelte";
-import ContextSummarySection from "./ContextSummarySection.svelte";
-import ContextUsageSection from "./ContextUsageSection.svelte";
+import { writeClipboardText } from "$lib/core/clipboard";
+import { notify } from "$lib/features/notifications/notify.svelte";
+import ContextAgentsTree from "./ContextAgentsTree.svelte";
+import ContextExportMenu from "./ContextExportMenu.svelte";
+import ContextSessionSection from "./ContextSessionSection.svelte";
+import ContextUsageStrip from "./ContextUsageStrip.svelte";
+import { sessionFields, sessionFieldsText } from "./context-session-fields";
 
 type Props = {
   status?: StatusResponse;
@@ -48,32 +55,67 @@ let {
 }: Props = $props();
 
 let confirmCompactOpen = $state(false);
+
+const fields = $derived(
+  sessionFields({ status, activeProject, activeConversation }),
+);
+
+const compactTitle = $derived(
+  activeConversation
+    ? compacting
+      ? "Conversation compaction is in progress"
+      : "Summarize earlier messages to reduce context usage"
+    : "Select a conversation to compact its context",
+);
+
+async function copySession(): Promise<void> {
+  try {
+    await writeClipboardText(sessionFieldsText(fields));
+    notify.success("Copied session details");
+  } catch {
+    notify.error("Could not copy to clipboard");
+  }
+}
 </script>
 
 <PanelView padded={false}>
   {#snippet banner()}
-    <PanelHeader title="Context" />
+    <PanelHeader title="Context">
+      {#snippet trailing()}
+        <PanelToolbarButton
+          icon={Copy}
+          label="Copy session details"
+          disabled={!activeProject}
+          onclick={() => void copySession()}
+        />
+        <ContextExportMenu {activeConversation} {exportUrl} {systemPromptUrl} />
+      {/snippet}
+    </PanelHeader>
     {#if !activeProject}
       <PanelBanner tone="muted">Select a project to view context.</PanelBanner>
     {/if}
   {/snippet}
 
   {#if activeProject}
-    <ContextUsageSection
-      {contextUsage}
-      {contextWindow}
-      {activeConversation}
-      {compacting}
-      onRequestCompact={() => (confirmCompactOpen = true)}
-    />
-    <ContextSummarySection
-      {status}
-      {activeProject}
-      {activeConversation}
-      {activeAgent}
-    />
-    <ContextAgentsSection {conversationAgents} {activeAgent} {onSelectAgent} />
-    <ContextExportSection {activeConversation} {exportUrl} {systemPromptUrl} />
+    <div class="flex flex-col gap-4 py-1">
+      <ContextUsageStrip {contextUsage} {contextWindow}>
+        <Button
+          size="xs"
+          variant="outline"
+          class="rounded-full"
+          title={compactTitle}
+          disabled={!activeConversation || compacting}
+          onclick={() => (confirmCompactOpen = true)}
+        >
+          <FoldVertical />
+          {compacting ? "Compacting…" : "Compact"}
+        </Button>
+      </ContextUsageStrip>
+      <div class="flex min-w-0 flex-col">
+        <ContextSessionSection {fields} />
+      </div>
+      <ContextAgentsTree {conversationAgents} {activeAgent} {onSelectAgent} />
+    </div>
   {/if}
 </PanelView>
 

@@ -9,41 +9,71 @@ import { SvelteSet } from "svelte/reactivity";
 import PanelRow from "./PanelRow.svelte";
 import {
   adjacentPanelTreeRowId,
-  buildPanelTree,
-  expandedPanelTreeGroupIds,
+  expandedPanelTreeIds,
   firstPanelTreeChildId,
-  panelTreeGroupIds,
+  panelTreeExpandableIds,
   parentPanelTreeRowId,
   visiblePanelTreeRows,
   type PanelTreeNode,
 } from "./panel-tree.js";
 
 type Props = {
-  items: readonly T[];
-  getPath: (item: T) => readonly string[];
-  getKey: (item: T, index: number) => string;
+  /** Prebuilt nodes from `buildPanelTree` (paths) or `buildPanelItemTree`. */
+  nodes: readonly PanelTreeNode<T>[];
   ariaLabel: string;
   /** Indentation steps applied to root rows, for trees nested under a header. */
   baseIndent?: number;
   getItemTitle?: (item: T) => string;
   getItemDescription?: (item: T) => string | undefined;
+  /** Third line for stacked item rows. */
+  getItemMeta?: (item: T) => string | undefined;
+  itemMetaMono?: boolean;
+  /**
+   * `card` renders each root item and its expanded descendants as one grouped
+   * surface, divided like the pull-request check list.
+   */
+  itemVariant?: "row" | "card";
+  /** Extra classes for item rows. */
+  itemClass?: string;
+  /**
+   * Indents nested item rows by depth. Disable when the chevron column alone
+   * should carry the hierarchy, e.g. grouped cards.
+   */
+  indentItems?: boolean;
+  getItemSelected?: (item: T) => boolean;
+  itemMono?: boolean;
+  /** Renders item descriptions on a second line instead of inline. */
+  itemStacked?: boolean;
+  /**
+   * Activates a leaf or item parent. Item parents also toggle their children on
+   * the same click, so selecting and disclosing stay a single gesture.
+   */
   onItemActivate?: (item: T) => void;
   itemLeading?: Snippet<[T]>;
+  /** Inline content after the label of a stacked item row. */
+  itemLabelTrailing?: Snippet<[T]>;
   itemBadges?: Snippet<[T]>;
   itemActions?: Snippet<[T]>;
   class?: string;
 };
 
 let {
-  items,
-  getPath,
-  getKey,
+  nodes,
   ariaLabel,
   baseIndent = 0,
   getItemTitle,
   getItemDescription,
+  getItemMeta,
+  itemMetaMono = false,
+  itemVariant = "row",
+  itemClass,
+  indentItems = true,
+  getItemSelected,
+  itemMono = false,
+  itemStacked = false,
   onItemActivate,
   itemLeading,
+  itemLabelTrailing,
   itemBadges,
   itemActions,
   class: className,
@@ -53,13 +83,30 @@ let root: HTMLElement | undefined = $state();
 const collapsed = new SvelteSet<string>();
 let focusedId = $state<string>();
 
-const nodes = $derived(buildPanelTree(items, { getPath, getKey }));
-const groupIds = $derived(panelTreeGroupIds(nodes));
-const expanded = $derived(expandedPanelTreeGroupIds(groupIds, collapsed));
+const expandableIds = $derived(panelTreeExpandableIds(nodes));
+const expanded = $derived(expandedPanelTreeIds(expandableIds, collapsed));
 const rows = $derived(visiblePanelTreeRows(nodes, expanded));
+/** Reserve the chevron column so leaf rows align with expandable siblings. */
+const hasExpandableItems = $derived(
+  rows.some((row) => row.node.kind === "item" && row.node.children.length > 0),
+);
+
+/** Card grouping: a root row opens a surface that its descendants continue. */
+function cardClass(index: number): string | undefined {
+  if (itemVariant !== "card") return undefined;
+  const isFirst = rows[index]?.parentId === undefined;
+  const next = rows[index + 1];
+  const isLast = !next || next.parentId === undefined;
+  return cn(
+    "bg-accent/35",
+    isFirst ? "rounded-t-md" : "rounded-t-none border-t border-border/60",
+    isLast ? "rounded-b-md" : "rounded-b-none",
+    isFirst && index > 0 && "mt-1.5",
+  );
+}
 
 $effect(() => {
-  for (const id of collapsed) if (!groupIds.has(id)) collapsed.delete(id);
+  for (const id of collapsed) if (!expandableIds.has(id)) collapsed.delete(id);
 });
 
 $effect(() => {
@@ -72,8 +119,17 @@ function setExpanded(id: string, open: boolean): void {
   else collapsed.add(id);
 }
 
+function isExpandable(node: PanelTreeNode<T>): boolean {
+  return node.children.length > 0;
+}
+
 function toggle(node: PanelTreeNode<T>): void {
-  if (node.kind === "group") setExpanded(node.id, !expanded.has(node.id));
+  if (isExpandable(node)) setExpanded(node.id, !expanded.has(node.id));
+}
+
+function activate(node: PanelTreeNode<T>): void {
+  if (node.kind === "item") onItemActivate?.(node.value);
+  toggle(node);
 }
 
 async function focusRow(id: string | undefined): Promise<void> {
@@ -92,8 +148,7 @@ function activateFromPointer(event: MouseEvent, node: PanelTreeNode<T>): void {
   );
   focusedId = node.id;
   row?.focus();
-  if (node.kind === "group") toggle(node);
-  else onItemActivate?.(node.value);
+  activate(node);
 }
 
 function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
@@ -114,15 +169,15 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       destination = adjacentPanelTreeRowId(rows, node.id, "last");
       break;
     case "ArrowRight":
-      if (node.kind === "group" && !expanded.has(node.id)) {
+      if (isExpandable(node) && !expanded.has(node.id)) {
         setExpanded(node.id, true);
         destination = node.id;
-      } else if (node.kind === "group") {
+      } else if (isExpandable(node)) {
         destination = firstPanelTreeChildId(rows, node.id) ?? node.id;
       }
       break;
     case "ArrowLeft":
-      if (node.kind === "group" && expanded.has(node.id)) {
+      if (isExpandable(node) && expanded.has(node.id)) {
         setExpanded(node.id, false);
         destination = node.id;
       } else {
@@ -131,8 +186,7 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       break;
     case "Enter":
     case " ":
-      if (node.kind === "group") toggle(node);
-      else onItemActivate?.(node.value);
+      activate(node);
       destination = node.id;
       break;
     default:
@@ -151,9 +205,10 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   aria-label={ariaLabel}
   class={cn("flex min-w-0 flex-col", className)}
 >
-  {#each rows as row (row.node.id)}
+  {#each rows as row, rowIndex (row.node.id)}
     {@const node = row.node}
-    {@const open = node.kind === "group" && expanded.has(node.id)}
+    {@const expandable = node.children.length > 0}
+    {@const open = expandable && expanded.has(node.id)}
     {#if node.kind === "group"}
       {#snippet groupLeading()}
         {#if open}
@@ -184,7 +239,19 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       />
     {:else}
       {#snippet leafLeading()}
+        {#if expandable}
+          {#if open}
+            <ChevronDown class="size-3" aria-hidden="true" />
+          {:else}
+            <ChevronRight class="size-3" aria-hidden="true" />
+          {/if}
+        {:else if hasExpandableItems}
+          <span class="size-3" aria-hidden="true"></span>
+        {/if}
         {#if itemLeading}{@render itemLeading(node.value)}{/if}
+      {/snippet}
+      {#snippet leafLabelTrailing()}
+        {#if itemLabelTrailing}{@render itemLabelTrailing(node.value)}{/if}
       {/snippet}
       {#snippet leafBadges()}
         {#if itemBadges}{@render itemBadges(node.value)}{/if}
@@ -195,16 +262,26 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       <PanelRow
         label={node.label}
         description={getItemDescription?.(node.value)}
+        meta={getItemMeta?.(node.value)}
+        metaMono={itemMetaMono}
         title={getItemTitle?.(node.value)}
-        leading={itemLeading ? leafLeading : undefined}
+        selected={getItemSelected?.(node.value) ?? false}
+        mono={itemMono}
+        stacked={itemStacked}
+        leading={itemLeading || expandable || hasExpandableItems
+          ? leafLeading
+          : undefined}
+        labelTrailing={itemLabelTrailing ? leafLabelTrailing : undefined}
         badges={itemBadges ? leafBadges : undefined}
         actions={itemActions ? leafActions : undefined}
         dense
         alwaysShowActions
-        indent={baseIndent + row.depth}
+        class={cn(cardClass(rowIndex), itemClass)}
+        indent={baseIndent + (indentItems ? row.depth : 0)}
         role="treeitem"
         tabindex={focusedId === node.id ? 0 : -1}
         contentTabindex={-1}
+        ariaExpanded={expandable ? open : undefined}
         ariaLevel={row.depth + 1}
         ariaPosInSet={row.posInSet}
         ariaSetSize={row.setSize}

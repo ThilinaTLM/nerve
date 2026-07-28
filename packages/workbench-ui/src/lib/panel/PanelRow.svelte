@@ -17,6 +17,8 @@ let {
   pulse = false,
   label,
   description,
+  meta,
+  metaMono = false,
   title,
   mono = false,
   tone = "default",
@@ -26,6 +28,7 @@ let {
   active = false,
   disabled = false,
   dense = false,
+  stacked = false,
   hoverable = true,
   alwaysShowActions = false,
   ariaLabel,
@@ -40,6 +43,7 @@ let {
   onkeydown,
   onfocus,
   leading,
+  labelTrailing,
   badges,
   actions,
   menuItems,
@@ -54,6 +58,9 @@ let {
   pulse?: boolean;
   label: string;
   description?: string;
+  /** Third line under the description; stacked rows only. */
+  meta?: string;
+  metaMono?: boolean;
   title?: string;
   mono?: boolean;
   tone?: "default" | "muted" | "destructive";
@@ -66,6 +73,8 @@ let {
   disabled?: boolean;
   /** Uses the compact row rhythm intended for dense file/status lists. */
   dense?: boolean;
+  /** Renders the description on its own line below the label. */
+  stacked?: boolean;
   /** Enables the shared row background on pointer hover. */
   hoverable?: boolean;
   /** Keeps trailing actions visible instead of revealing them on hover. */
@@ -87,6 +96,8 @@ let {
   onfocus?: (event: FocusEvent) => void;
   /** Compact content rendered before the primary label. */
   leading?: Snippet;
+  /** Compact content rendered inline after the label; stacked rows only. */
+  labelTrailing?: Snippet;
   badges?: Snippet;
   actions?: Snippet;
   menuItems?: ContextMenuItem[];
@@ -99,6 +110,7 @@ const rowStyle = $derived(
   [
     indent > 0 ? `--panel-indent:${indent}` : undefined,
     flush ? "--panel-row-inset:0px" : undefined,
+    !flush && stacked ? "--panel-row-inset:0.75rem" : undefined,
   ]
     .filter(Boolean)
     .join(";") || undefined,
@@ -119,8 +131,12 @@ const toneClass = $derived(
     class={cn(
       "panel-row group/panel-row flex min-w-0 items-center rounded-sm",
       hoverable && "panel-row-hoverable",
-      dense ? "h-5 gap-1 pr-1 text-xs" : "h-7 gap-1.5 pr-1.5 text-xs",
-      selected && "bg-accent text-accent-foreground",
+      stacked
+        ? "min-h-11 gap-2 py-2.5 pr-3 text-xs"
+        : dense
+          ? "h-5 gap-1 pr-1 text-xs"
+          : "h-7 gap-1.5 pr-1.5 text-xs",
+      selected && "text-accent-foreground ring-1 ring-border ring-inset",
       tabindex !== undefined &&
         "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
       className,
@@ -146,7 +162,7 @@ const toneClass = $derived(
       title={title ?? description ?? label}
       class={cn(
         "flex min-w-0 flex-1 items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50",
-        dense ? "gap-1" : "gap-1.5",
+        stacked ? "gap-2" : dense ? "gap-1" : "gap-1.5",
       )}
       {onclick}
       {ondblclick}
@@ -169,18 +185,49 @@ const toneClass = $derived(
           {@render leading()}
         </span>
       {/if}
-      <span
-        class={cn(
-          "truncate",
-          toneClass,
-          mono && "font-mono",
-          active && "font-medium",
-        )}>{label}</span
-      >
-      {#if description}
-        <span class="min-w-0 flex-1 truncate text-muted-foreground"
-          >{description}</span
+      {#if stacked}
+        <span class="flex min-w-0 flex-1 flex-col leading-tight">
+          <span class="flex min-w-0 items-center gap-1.5">
+            <span
+              class={cn(
+                "truncate",
+                toneClass,
+                mono && "font-mono",
+                active && "font-medium",
+              )}>{label}</span
+            >
+            {#if labelTrailing}
+              <span class="flex shrink-0 items-center">
+                {@render labelTrailing()}
+              </span>
+            {/if}
+          </span>
+          {#if description}
+            <span class="truncate text-muted-foreground">{description}</span>
+          {/if}
+          {#if meta}
+            <span
+              class={cn(
+                "truncate text-muted-foreground",
+                metaMono && "font-mono",
+              )}>{meta}</span
+            >
+          {/if}
+        </span>
+      {:else}
+        <span
+          class={cn(
+            "truncate",
+            toneClass,
+            mono && "font-mono",
+            active && "font-medium",
+          )}>{label}</span
         >
+        {#if description}
+          <span class="min-w-0 flex-1 truncate text-muted-foreground"
+            >{description}</span
+          >
+        {/if}
       {/if}
     </button>
     {#if badges}

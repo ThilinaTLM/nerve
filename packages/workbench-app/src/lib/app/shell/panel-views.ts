@@ -52,8 +52,8 @@ export const panelViewDescriptors: PanelViewDescriptor[] = [
     id: "tasks",
     title: "Tasks",
     icon: Terminal,
-    defaultDock: "bottom",
-    defaultOrder: 0,
+    defaultDock: "left",
+    defaultOrder: 1,
   },
 ];
 

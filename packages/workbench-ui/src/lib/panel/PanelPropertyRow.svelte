@@ -6,6 +6,7 @@ let {
   label,
   value,
   mono = false,
+  dense = false,
   title,
   actions,
   children,
@@ -13,6 +14,8 @@ let {
   label: string;
   value?: string;
   mono?: boolean;
+  /** Tightens the row rhythm for dense property lists. */
+  dense?: boolean;
   title?: string;
   actions?: Snippet;
   /** Custom value rendering; replaces `value`. */
@@ -21,9 +24,17 @@ let {
 </script>
 
 <div
-  class="panel-row group/panel-row flex min-h-7 min-w-0 items-center gap-2 pr-1.5 text-xs"
+  class={cn(
+    "panel-row group/panel-row flex min-w-0 items-center pr-1.5 text-xs",
+    dense ? "min-h-5 gap-1.5" : "min-h-7 gap-2",
+  )}
 >
-  <span class="w-24 shrink-0 truncate text-muted-foreground">{label}</span>
+  <span
+    class={cn(
+      "shrink-0 truncate text-muted-foreground",
+      dense ? "w-20" : "w-24",
+    )}>{label}</span
+  >
   <div class={cn("min-w-0 flex-1 truncate", mono && "font-mono")} {title}>
     {#if children}
       {@render children()}

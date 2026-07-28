@@ -8,6 +8,7 @@ import type { GitFileChange } from "@nervekit/contracts";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import {
+  buildPanelTree,
   PanelList,
   PanelRow,
   PanelToolbarButton,
@@ -108,9 +109,10 @@ let unstagedExpanded = $state(true);
 
   {#if expanded}
     <PanelTree
-      items={files}
-      getPath={(file) => file.path.split("/")}
-      getKey={(file) => `${group}:${file.path}`}
+      nodes={buildPanelTree(files, {
+        getPath: (file) => file.path.split("/"),
+        getKey: (file) => `${group}:${file.path}`,
+      })}
       ariaLabel={`${title} file tree`}
       baseIndent={0}
       getItemTitle={(file) =>

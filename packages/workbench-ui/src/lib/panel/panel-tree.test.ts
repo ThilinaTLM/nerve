@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   adjacentPanelTreeRowId,
+  buildPanelItemTree,
   buildPanelTree,
-  expandedPanelTreeGroupIds,
+  expandedPanelTreeIds,
   firstPanelTreeChildId,
-  panelTreeGroupIds,
+  panelTreeExpandableIds,
   parentPanelTreeRowId,
   visiblePanelTreeRows,
 } from "./panel-tree.js";
@@ -85,7 +86,7 @@ test("uses collision-safe full segment arrays for directory ids", () => {
     { key: "nested", path: ["a", "b", "nested.ts"] },
     { key: "slash", path: ["a/b", "slash.ts"] },
   ]);
-  const ids = [...panelTreeGroupIds(nodes)];
+  const ids = [...panelTreeExpandableIds(nodes)];
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(ids.includes('group:["a","b"]'));
   assert.ok(ids.includes('group:["a/b"]'));
@@ -97,9 +98,9 @@ test("projects expanded rows with compact depth and ARIA sibling metadata", () =
     { key: "b", path: ["packages", "web", "b.ts"] },
     { key: "root", path: ["README.md"] },
   ]);
-  const groupIds = panelTreeGroupIds(nodes);
-  const expanded = expandedPanelTreeGroupIds(groupIds, new Set());
-  assert.deepEqual(expanded, groupIds);
+  const expandableIds = panelTreeExpandableIds(nodes);
+  const expanded = expandedPanelTreeIds(expandableIds, new Set());
+  assert.deepEqual(expanded, expandableIds);
   const rows = visiblePanelTreeRows(nodes, expanded);
 
   assert.deepEqual(
@@ -141,4 +142,79 @@ test("hides collapsed descendants and resolves keyboard destinations", () => {
   );
   assert.equal(adjacentPanelTreeRowId(collapsedRows, firstId, "last"), lastId);
   assert.equal(adjacentPanelTreeRowId(collapsedRows, lastId, "first"), firstId);
+});
+
+type Node = { id: string; parent?: string };
+
+const itemTree = (items: Node[]) =>
+  buildPanelItemTree(items, {
+    getKey: (item) => item.id,
+    getParentKey: (item) => item.parent,
+    getLabel: (item) => item.id,
+  });
+
+test("nests parent-keyed items in input order", () => {
+  const nodes = itemTree([
+    { id: "main" },
+    { id: "sub-b", parent: "main" },
+    { id: "sub-a", parent: "main" },
+    { id: "leaf", parent: "sub-a" },
+    { id: "other" },
+  ]);
+
+  assert.deepEqual(
+    nodes.map((node) => node.label),
+    ["main", "other"],
+  );
+  const main = nodes[0]!;
+  assert.deepEqual(
+    main.children.map((node) => node.label),
+    ["sub-b", "sub-a"],
+  );
+  assert.equal(main.id, "item:main");
+  const subA = main.children[1]!;
+  assert.deepEqual(subA.path, ["main", "sub-a"]);
+  assert.deepEqual(
+    subA.children.map((node) => node.label),
+    ["leaf"],
+  );
+});
+
+test("treats unknown, self, and cyclic parents as roots exactly once", () => {
+  const nodes = itemTree([
+    { id: "orphan", parent: "missing" },
+    { id: "self", parent: "self" },
+    { id: "a", parent: "b" },
+    { id: "b", parent: "a" },
+    { id: "duplicate" },
+    { id: "duplicate" },
+  ]);
+
+  assert.deepEqual(
+    nodes.map((node) => node.label),
+    ["orphan", "self", "a", "b", "duplicate"],
+  );
+  assert.ok(nodes.every((node) => node.children.length === 0));
+});
+
+test("expands and collapses item parents like group nodes", () => {
+  const nodes = itemTree([
+    { id: "main" },
+    { id: "sub", parent: "main" },
+    { id: "leaf", parent: "sub" },
+  ]);
+
+  const expandableIds = panelTreeExpandableIds(nodes);
+  assert.deepEqual([...expandableIds], ["item:main", "item:sub"]);
+
+  const expanded = expandedPanelTreeIds(expandableIds, new Set(["item:sub"]));
+  const rows = visiblePanelTreeRows(nodes, expanded);
+  assert.deepEqual(
+    rows.map((row) => [row.node.label, row.depth]),
+    [
+      ["main", 0],
+      ["sub", 1],
+    ],
+  );
+  assert.equal(parentPanelTreeRowId(rows, "item:sub"), "item:main");
 });

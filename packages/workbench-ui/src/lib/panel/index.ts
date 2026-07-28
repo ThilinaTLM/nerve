@@ -16,13 +16,15 @@ export { default as PanelToolbarButton } from "./PanelToolbarButton.svelte";
 export { default as PanelTree } from "./PanelTree.svelte";
 export {
   adjacentPanelTreeRowId,
+  buildPanelItemTree,
   buildPanelTree,
   firstPanelTreeChildId,
-  panelTreeGroupIds,
+  panelTreeExpandableIds,
   parentPanelTreeRowId,
   visiblePanelTreeRows,
 } from "./panel-tree.js";
 export type {
+  BuildPanelItemTreeOptions,
   BuildPanelTreeOptions,
   PanelTreeGroupNode,
   PanelTreeItemNode,

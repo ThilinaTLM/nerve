@@ -34,8 +34,8 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
 <div
   role="listitem"
   class={cn(
-    "group mb-1.5 flex min-w-0 flex-col rounded-md border px-2 py-1.5 text-xs shadow-xs transition-colors hover:border-primary/40",
-    current && "border-primary/30 text-foreground",
+    "group mb-1.5 flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5 text-xs leading-tight transition-colors hover:bg-accent/60",
+    current && "ring-1 ring-border ring-inset",
   )}
 >
   <button
@@ -45,7 +45,7 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
     title={disabled
       ? disabledReason
       : `${pr.title} · ${pr.baseRefName} ← ${pr.headRefName}`}
-    class="flex h-5 min-w-0 items-center gap-1.5 rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+    class="flex min-w-0 items-center gap-1.5 rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
     onclick={onOpen}
   >
     <span class="shrink-0 font-mono font-medium text-foreground"
@@ -57,7 +57,7 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
     {/if}
   </button>
 
-  <div class="flex h-6 min-w-0 items-center gap-1">
+  <div class="flex min-w-0 items-center gap-1">
     <button
       type="button"
       disabled={!hasCheckDetails}
@@ -95,9 +95,9 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
   </div>
 
   {#if expanded && hasCheckDetails}
-    <div class="mt-1 border-t pt-1">
+    <div class="mt-1 flex flex-col gap-0.5 border-t border-border/60 pt-1.5">
       {#each pr.checks.runs as run, index (`${run.name}:${index}`)}
-        <div class="flex h-5 min-w-0 items-center gap-1.5 pl-3 text-xs">
+        <div class="flex min-w-0 items-center gap-1.5 pl-3 text-xs">
           <span class="min-w-0 flex-1 truncate text-muted-foreground"
             >{run.name}</span
           >

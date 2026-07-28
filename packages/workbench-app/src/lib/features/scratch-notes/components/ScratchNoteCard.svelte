@@ -1,13 +1,12 @@
 <script lang="ts">
-import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import { SCRATCH_NOTE_TITLE_MAX_LENGTH } from "@nervekit/contracts";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
-import { relativeTimeLabel } from "@nervekit/ui-kit/core/utils/time";
 import { PanelCard, PanelToolbarButton } from "@nervekit/workbench-ui/panel";
 import {
   flushScratchNote,
-  setScratchNoteBodyHeight,
+  renameScratchNote,
   setScratchNoteContent,
   toggleScratchNoteCollapsed,
   type ScratchNoteEntry,
@@ -16,57 +15,61 @@ import {
 let {
   projectId,
   note,
-  onRename,
   onDelete,
 }: {
   projectId: string;
   note: ScratchNoteEntry;
-  onRename: () => void;
   onDelete: () => void;
 } = $props();
 
+let renaming = $state(false);
+
+/** Only in-flight and failed saves surface; steady state stays quiet. */
 const status = $derived.by(() => {
   switch (note.saveStatus) {
     case "saving":
       return { text: "Saving…", failed: false };
-    case "saved":
-      return { text: "Saved", failed: false };
     case "error":
       return { text: "Save failed", failed: true };
     default:
-      return { text: relativeTimeLabel(note.updatedAt), failed: false };
+      return undefined;
   }
 });
-
-function captureHeight(event: PointerEvent): void {
-  const target = event.currentTarget as HTMLTextAreaElement | null;
-  if (!target) return;
-  setScratchNoteBodyHeight(projectId, note.id, target.offsetHeight);
-}
 </script>
 
 <PanelCard
   title={note.title}
-  icon={NotebookPen}
   collapsed={note.collapsed}
   titleHint={`${note.title} — double-click to rename`}
+  titleEditing={renaming}
+  titleMaxLength={SCRATCH_NOTE_TITLE_MAX_LENGTH}
   onToggleCollapsed={() => toggleScratchNoteCollapsed(projectId, note.id)}
-  onTitleDblClick={onRename}
+  onTitleDblClick={() => (renaming = true)}
+  onTitleCommit={(title) => {
+    renaming = false;
+    void renameScratchNote(projectId, note.id, title);
+  }}
+  onTitleCancel={() => (renaming = false)}
 >
-  {#snippet meta()}
-    <span class={status.failed ? "text-destructive" : undefined}
-      >{status.text}</span
-    >
-  {/snippet}
-
-  {#snippet actions()}
+  {#snippet titleActions()}
     <PanelToolbarButton
       icon={Pencil}
       label={`Rename ${note.title}`}
       dense
       disabled={note.deleting}
-      onclick={onRename}
+      onclick={() => (renaming = true)}
     />
+  {/snippet}
+
+  {#snippet meta()}
+    {#if status}
+      <span class={status.failed ? "text-destructive" : undefined}
+        >{status.text}</span
+      >
+    {/if}
+  {/snippet}
+
+  {#snippet actions()}
     <PanelToolbarButton
       icon={Trash2}
       label={`Delete ${note.title}`}
@@ -82,11 +85,9 @@ function captureHeight(event: PointerEvent): void {
     oninput={(event) =>
       setScratchNoteContent(projectId, note.id, event.currentTarget.value)}
     onblur={() => void flushScratchNote(projectId, note.id)}
-    onpointerup={captureHeight}
     spellcheck={false}
     disabled={note.deleting}
     placeholder="Jot down notes for this project…"
-    style={note.bodyHeight ? `height:${note.bodyHeight}px` : undefined}
-    class="min-h-24 resize-y rounded-none border-0 bg-transparent px-2 py-1.5 text-xs leading-relaxed shadow-none focus-visible:ring-0 [field-sizing:content]"
+    class="min-h-16 resize-none rounded-none border-0 bg-transparent px-3 py-2 text-xs leading-relaxed shadow-none focus-visible:ring-0 [field-sizing:content]"
   />
 </PanelCard>

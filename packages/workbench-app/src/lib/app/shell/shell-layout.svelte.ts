@@ -16,7 +16,8 @@ import { panelViewDescriptors } from "./panel-views";
 const STORAGE_KEY = "nerve.layout.v1";
 const RESIZE_PERSIST_DEBOUNCE_MS = 200;
 
-// The bottom dock hosts Tasks and starts out of the way on a fresh install.
+// The bottom dock starts empty and collapsed on a fresh install; Tasks lives in
+// the left dock next to Conversations.
 const LAYOUT_DEFAULTS = { collapsed: ["bottom"] as const };
 
 function hydrate(): ShellLayout {
