@@ -1,0 +1,20 @@
+/* Website stylesheet entry. Loaded once through Starlight `customCss`, which
+ * routes it through Vite so `@tailwindcss/vite` compiles these imports. */
+
+@import "tailwindcss";
+@import "@astrojs/starlight-tailwind";
+
+@import "@fontsource/outfit/latin-400.css";
+@import "@fontsource/outfit/latin-500.css";
+@import "@fontsource/outfit/latin-600.css";
+@import "@fontsource/outfit/latin-700.css";
+@import "@fontsource/iosevka/latin-400.css";
+@import "@fontsource/iosevka/latin-500.css";
+
+@source "../**/*.astro";
+
+@import "./tokens.css";
+@import "./base.css";
+@import "./motion.css";
+@import "./marketing.css";
+@import "./starlight.css";

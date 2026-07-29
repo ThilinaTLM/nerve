@@ -21,8 +21,13 @@
   "dependencies": {
     "@astrojs/sitemap": "3.7.3",
     "@astrojs/starlight": "0.41.5",
+    "@astrojs/starlight-tailwind": "5.0.0",
+    "@fontsource/iosevka": "5.2.5",
+    "@fontsource/outfit": "5.2.8",
+    "@tailwindcss/vite": "4.3.1",
     "astro": "7.1.5",
-    "sharp": "0.35.3"
+    "sharp": "0.35.3",
+    "tailwindcss": "4.3.1"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",

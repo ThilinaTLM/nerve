@@ -1,0 +1,262 @@
+---
+import { Image } from "astro:assets";
+import tasks from "../../assets/preview-tasks-and-context.webp";
+import Reveal from "./Reveal.astro";
+---
+
+<div class="bento mt-14">
+  <Reveal class="cell cell-wide" delay={0}>
+    <article class="surface-card spotlight h-full p-7" data-spotlight>
+      <span class="icon" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      </span>
+      <h3 class="card-title mt-6">Transparent execution</h3>
+      <p class="body-text mt-3">
+        Follow streaming text, thinking, tools, output, approvals, questions,
+        plans, and recovery instead of watching a generic spinner.
+      </p>
+      <ul class="chip-row mt-6">
+        <li>Streaming text</li>
+        <li>Thinking</li>
+        <li>Tool calls</li>
+        <li>Approvals</li>
+        <li>Recovery</li>
+      </ul>
+    </article>
+  </Reveal>
+
+  <Reveal class="cell cell-wide" delay={80}>
+    <article class="surface-card spotlight h-full p-7" data-spotlight>
+      <span class="icon" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"></path>
+          <path d="M1 14h6M9 8h6M17 16h6"></path>
+        </svg>
+      </span>
+      <h3 class="card-title mt-6">Control that stays live</h3>
+      <p class="body-text mt-3">
+        Change model, thinking level, coding or planning mode, and permission
+        level. Updated controls apply to subsequent work.
+      </p>
+      <ul class="chip-row mt-6">
+        <li>Read-only</li>
+        <li>Supervised</li>
+        <li>Autonomous</li>
+        <li>Planning mode</li>
+      </ul>
+    </article>
+  </Reveal>
+
+  <Reveal class="cell" delay={120}>
+    <article class="surface-card spotlight h-full p-7" data-spotlight>
+      <span class="icon" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="4" width="18" height="14" rx="2"></rect>
+          <path d="M8 22h8M12 18v4M7 9h6M7 13h4"></path>
+        </svg>
+      </span>
+      <h3 class="card-title mt-6">Local project ownership</h3>
+      <p class="body-text mt-3">
+        The desktop app owns a loopback daemon by default and stores Nerve state
+        on your machine. Network features remain explicit.
+      </p>
+    </article>
+  </Reveal>
+
+  <Reveal class="cell" delay={180}>
+    <article class="surface-card spotlight h-full p-7" data-spotlight>
+      <span class="icon" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="6" cy="6" r="2.5"></circle>
+          <circle cx="6" cy="18" r="2.5"></circle>
+          <circle cx="18" cy="12" r="2.5"></circle>
+          <path d="M6 8.5v7M8.5 6h4a3 3 0 0 1 3 3v.5M8.5 18h4a3 3 0 0 0 3-3v-.5"
+          ></path>
+        </svg>
+      </span>
+      <h3 class="card-title mt-6">History and branches</h3>
+      <p class="body-text mt-3">
+        Inspect a conversation history graph, branch from an earlier point, edit
+        a prior prompt, and continue from failure.
+      </p>
+    </article>
+  </Reveal>
+
+  <Reveal class="cell" delay={240}>
+    <article class="surface-card spotlight h-full p-7" data-spotlight>
+      <span class="icon" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="6" cy="18" r="2.5"></circle>
+          <circle cx="6" cy="6" r="2.5"></circle>
+          <circle cx="18" cy="6" r="2.5"></circle>
+          <path d="M6 8.5v7M18 8.5v3a4 4 0 0 1-4 4H9"></path>
+        </svg>
+      </span>
+      <h3 class="card-title mt-6">Git and pull requests</h3>
+      <p class="body-text mt-3">
+        Review changes, stage and sync, inspect pull request checks, open files,
+        check out a branch, and merge without leaving the workbench.
+      </p>
+    </article>
+  </Reveal>
+
+  <Reveal class="cell cell-media" delay={300}>
+    <article class="surface-card spotlight h-full" data-spotlight>
+      <div class="p-7">
+        <span class="icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path>
+            <circle cx="12" cy="12" r="5"></circle>
+          </svg>
+        </span>
+        <h3 class="card-title mt-6">Background tasks and Explore</h3>
+        <p class="body-text mt-3">
+          Supervise long-running processes and run isolated, parallel,
+          read-only research beside the main conversation.
+        </p>
+      </div>
+      <div class="media">
+        <Image
+          src={tasks}
+          alt="Nerve background tasks and context panels beside a conversation"
+          widths={[560, 840, 1120]}
+          sizes="(max-width: 1024px) 100vw, 46vw"
+          loading="lazy"
+        />
+      </div>
+    </article>
+  </Reveal>
+</div>
+
+<style>
+  .bento {
+    display: grid;
+    gap: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .bento {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .bento {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .cell {
+      grid-column: span 2;
+    }
+
+    .cell-wide {
+      grid-column: span 3;
+    }
+
+    .cell-media {
+      grid-column: span 4;
+    }
+  }
+
+  .icon {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
+    border-radius: 0.85rem;
+    background: linear-gradient(
+      150deg,
+      color-mix(in oklab, var(--primary) 22%, transparent),
+      transparent
+    );
+    color: var(--primary);
+  }
+
+  .icon svg {
+    width: 1.3rem;
+    height: 1.3rem;
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .chip-row li {
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .media {
+    margin: 0 1.75rem;
+    border: 1px solid var(--hairline);
+    border-bottom: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    overflow: hidden;
+    transition: transform 420ms var(--ease-out-expo);
+  }
+
+  .media img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .surface-card:hover .media {
+    transform: translateY(-4px);
+  }
+</style>

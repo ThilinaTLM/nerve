@@ -1,0 +1,161 @@
+---
+import Reveal from "./Reveal.astro";
+---
+
+<div class="topology mt-14">
+  <Reveal variant="left" class="max-w-xl">
+    <p class="body-text">
+      Nerve stores application state under <code class="code-chip">~/.nerve</code
+      > by default. The daemon connects outward only when your selected model,
+      enabled integration, Git remote, or requested tool needs it.
+    </p>
+    <a class="link-arrow mt-6" href="/operations/security/">
+      Understand the security boundary
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M5 12h14M13 6l6 6-6 6"></path>
+      </svg>
+    </a>
+  </Reveal>
+
+  <Reveal variant="right" delay={120}>
+    <div
+      class="diagram surface-card"
+      role="img"
+      aria-label="You interact with the desktop or browser workbench, which connects to a local Nerve daemon; the daemon accesses local projects and selected external providers"
+    >
+      <div class="node">
+        <span class="node-title">You</span>
+        <span class="meta-text">Desktop or browser</span>
+      </div>
+
+      <svg class="connector" viewBox="0 0 80 12" aria-hidden="true">
+        <path class="animate-dash" d="M2 6h76" stroke-dasharray="6 6"></path>
+        <path class="arrow" d="M70 2.5 76 6l-6 3.5"></path>
+      </svg>
+
+      <div class="node node-primary">
+        <span class="pulse animate-pulse-ring" aria-hidden="true"></span>
+        <span class="node-title">Nerve daemon</span>
+        <span class="meta-text">Loopback by default</span>
+      </div>
+
+      <svg class="connector" viewBox="0 0 80 12" aria-hidden="true">
+        <path class="animate-dash" d="M2 6h76" stroke-dasharray="6 6"></path>
+        <path class="arrow" d="M70 2.5 76 6l-6 3.5"></path>
+      </svg>
+
+      <div class="node">
+        <span class="node-title">Your project</span>
+        <span class="meta-text">Plus chosen providers</span>
+      </div>
+    </div>
+  </Reveal>
+</div>
+
+<style>
+  .topology {
+    display: grid;
+    gap: clamp(2.5rem, 6vw, 4rem);
+    align-items: center;
+  }
+
+  @media (min-width: 1024px) {
+    .topology {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    }
+  }
+
+  .diagram {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: clamp(1.5rem, 4vw, 2.75rem) clamp(1rem, 3vw, 2rem);
+  }
+
+  .node {
+    position: relative;
+    flex: 1;
+    display: grid;
+    gap: 0.2rem;
+    padding: 1.15rem 0.9rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    background-color: color-mix(in oklab, var(--background) 55%, transparent);
+    text-align: center;
+    transition:
+      border-color 300ms var(--ease-out-expo),
+      transform 300ms var(--ease-out-expo);
+  }
+
+  .node:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+  }
+
+  .node-primary {
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+    background: linear-gradient(
+      160deg,
+      color-mix(in oklab, var(--primary) 16%, transparent),
+      transparent
+    );
+  }
+
+  .node-title {
+    font-family: var(--font-display);
+    font-size: 0.98rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .pulse {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background-color: var(--success);
+    color: var(--success);
+  }
+
+  .connector {
+    flex: 0 0 3.5rem;
+    height: 0.75rem;
+    overflow: visible;
+  }
+
+  .connector path {
+    fill: none;
+    stroke: color-mix(in oklab, var(--primary) 70%, transparent);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+
+  .connector .arrow {
+    stroke-linejoin: round;
+  }
+
+  @media (max-width: 640px) {
+    .diagram {
+      flex-direction: column;
+    }
+
+    .connector {
+      flex: 0 0 auto;
+      width: 0.75rem;
+      height: 2.25rem;
+      rotate: 90deg;
+    }
+  }
+</style>

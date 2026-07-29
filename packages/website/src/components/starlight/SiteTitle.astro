@@ -1,0 +1,65 @@
+---
+import { Image } from "astro:assets";
+import mark from "../../assets/nerve-mark.svg";
+---
+
+<a class="brand" href="/" translate="no">
+  <span class="brand-mark">
+    <Image src={mark} alt="" width={22} height={22} />
+  </span>
+  <span class="brand-word">Nerve</span>
+  <span class="brand-chip">Docs</span>
+</a>
+
+<style>
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+    color: var(--foreground);
+    font-family: var(--font-display);
+    font-size: 1.02rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    width: 1.95rem;
+    height: 1.95rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.65rem;
+    background: linear-gradient(
+      150deg,
+      color-mix(in oklab, var(--primary) 22%, transparent),
+      transparent
+    );
+    transition: transform 320ms var(--ease-spring);
+  }
+
+  .brand:hover .brand-mark {
+    transform: rotate(-6deg) scale(1.06);
+  }
+
+  .brand-chip {
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    color: var(--muted-foreground);
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 50rem) {
+    .brand-chip {
+      display: none;
+    }
+  }
+</style>

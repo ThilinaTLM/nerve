@@ -1,33 +1,83 @@
 ---
-import mark from "../assets/nerve-mark.svg";
-import { Image } from "astro:assets";
-import "../styles/site.css";
+import MarketingLayout from "../layouts/MarketingLayout.astro";
+import Reveal from "../components/marketing/Reveal.astro";
 
 Astro.response.status = 404;
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <meta name="robots" content="noindex" />
-    <title>Page not found — Nerve</title>
-  </head>
-  <body class="marketing-page">
-    <header class="site-header">
-      <a class="brand" href="/"><Image src={mark} alt="" width={32} height={32} /><span>Nerve</span></a>
-    </header>
-    <main>
-      <section class="closing not-found">
-        <p class="eyebrow">404</p>
-        <h1>That page is not here.</h1>
-        <p>Search the documentation or return to the Nerve homepage.</p>
-        <div class="actions">
-          <a class="button primary" href="/start/overview/">Open the docs</a>
-          <a class="button secondary" href="/">Go home</a>
+<MarketingLayout
+  title="Page not found — Nerve"
+  description="That page is not part of the Nerve documentation. Search the docs or return to the homepage."
+  noindex
+>
+  <section class="not-found">
+    <div class="aurora" aria-hidden="true">
+      <span class="aurora-blob blob-1 animate-aurora"></span>
+      <span class="aurora-blob blob-2 animate-aurora"></span>
+    </div>
+    <div class="hero-grid animate-grid" aria-hidden="true"></div>
+
+    <div class="container-page relative z-10 text-center">
+      <Reveal variant="scale">
+        <p class="numeral gradient-text animate-float" aria-hidden="true">404</p>
+      </Reveal>
+      <Reveal delay={80}>
+        <h1 class="display-title mt-2">That page is not here.</h1>
+      </Reveal>
+      <Reveal delay={160}>
+        <p class="lede mx-auto mt-5 max-w-xl">
+          The link may be outdated. Search the documentation or head back to the
+          Nerve homepage.
+        </p>
+      </Reveal>
+      <Reveal delay={240}>
+        <div class="mt-8 flex flex-wrap justify-center gap-3">
+          <a class="btn btn-primary" href="/start/overview/">Open the docs</a>
+          <a class="btn btn-ghost" href="/">Go home</a>
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/ThilinaTLM/nerve/issues">Report a broken link</a
+          >
         </div>
-      </section>
-    </main>
-  </body>
-</html>
+      </Reveal>
+    </div>
+  </section>
+</MarketingLayout>
+
+<style>
+  .not-found {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: grid;
+    place-content: center;
+    min-height: calc(100vh - var(--nav-height) - 6rem);
+    padding-block: clamp(4rem, 10vw, 8rem);
+  }
+
+  .numeral {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(5rem, 18vw, 11rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.06em;
+  }
+
+  .blob-1 {
+    top: -10%;
+    left: 8%;
+    width: 28rem;
+    height: 24rem;
+    background: radial-gradient(circle, var(--primary), transparent 65%);
+  }
+
+  .blob-2 {
+    bottom: -20%;
+    right: 6%;
+    width: 26rem;
+    height: 22rem;
+    background: radial-gradient(circle, var(--brand-3), transparent 68%);
+    animation-direction: reverse;
+  }
+</style>

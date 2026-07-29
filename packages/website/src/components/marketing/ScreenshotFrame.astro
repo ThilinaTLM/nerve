@@ -1,0 +1,58 @@
+---
+interface Props {
+  parallax?: number | false;
+  float?: boolean;
+  class?: string;
+  caption?: string;
+}
+
+const {
+  parallax = 14,
+  float = false,
+  class: className = "",
+  caption,
+} = Astro.props;
+---
+
+<figure class:list={["frame-wrap", className]}>
+  <div
+    class:list={["frame", float && "animate-float"]}
+    data-parallax={parallax === false ? undefined : parallax}
+  >
+    <div class="frame-chrome" aria-hidden="true">
+      <span class="frame-dot"></span>
+      <span class="frame-dot"></span>
+      <span class="frame-dot"></span>
+      <span class="frame-title">Nerve workbench</span>
+    </div>
+    <slot />
+    <span class="frame-glow" aria-hidden="true"></span>
+  </div>
+  {caption && <figcaption class="meta-text mt-3 text-center">{caption}</figcaption>}
+</figure>
+
+<style>
+  .frame-wrap {
+    margin: 0;
+  }
+
+  .frame-title {
+    margin-left: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+  }
+
+  .frame-glow {
+    position: absolute;
+    inset: auto -20% -60% -20%;
+    height: 60%;
+    background: radial-gradient(
+      50% 100% at 50% 0%,
+      color-mix(in oklab, var(--primary) 35%, transparent),
+      transparent 70%
+    );
+    filter: blur(40px);
+    pointer-events: none;
+  }
+</style>

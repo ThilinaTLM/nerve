@@ -1,0 +1,77 @@
+---
+import InstallCommand from "./InstallCommand.astro";
+import Reveal from "./Reveal.astro";
+---
+
+<section class="closing-section">
+  <div class="container-page">
+    <Reveal variant="scale">
+      <div class="closing">
+        <div class="aurora" aria-hidden="true">
+          <span class="aurora-blob blob-1 animate-aurora"></span>
+          <span class="aurora-blob blob-2 animate-aurora"></span>
+        </div>
+        <div class="grain" aria-hidden="true"></div>
+
+        <div class="relative z-10 mx-auto flex max-w-2xl flex-col items-center">
+          <p class="eyebrow">Apache-2.0 · Linux, Windows 11, macOS</p>
+          <h2 class="section-title mt-4">Start with one command.</h2>
+          <p class="lede mt-4">
+            Nerve is beta software distributed through npm. Signed and notarized
+            native installers are not currently part of the release path.
+          </p>
+          <InstallCommand class="mt-8 w-full" />
+          <div class="mt-4 flex flex-wrap justify-center gap-3">
+            <a class="btn btn-primary" href="/start/install/">Install Nerve</a>
+            <a class="btn btn-ghost" href="/start/overview/">Read the docs</a>
+          </div>
+        </div>
+      </div>
+    </Reveal>
+  </div>
+</section>
+
+<style>
+  .closing-section {
+    padding-block: clamp(4rem, 9vw, 7rem);
+  }
+
+  .closing {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    padding: clamp(2.5rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem);
+    border: 1px solid color-mix(in oklab, var(--primary) 26%, var(--border));
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(
+      160deg,
+      var(--surface-elevated),
+      color-mix(in oklab, var(--card) 92%, var(--background))
+    );
+    box-shadow: var(--shadow-elevated);
+    text-align: center;
+  }
+
+  .blob-1 {
+    top: -40%;
+    left: 12%;
+    width: 26rem;
+    height: 22rem;
+    background: radial-gradient(circle, var(--primary), transparent 65%);
+    animation-duration: 28s;
+  }
+
+  .blob-2 {
+    bottom: -50%;
+    right: 8%;
+    width: 24rem;
+    height: 20rem;
+    background: radial-gradient(circle, var(--brand-3), transparent 68%);
+    animation-duration: 34s;
+    animation-direction: reverse;
+  }
+
+  .closing :global(.install) {
+    margin-inline: auto;
+  }
+</style>

@@ -1,0 +1,222 @@
+---
+/* Decorative illustration of a Nerve run. The rows mirror the kinds of events
+ * the transcript renders (prompt, thinking, tool call, tool result, approval,
+ * assistant text); they are not captured product output. */
+---
+
+<div class="demo-wrap" data-transcript-demo>
+  <p class="visually-hidden">
+    Illustration: a Nerve run shows the user prompt, the agent's thinking, a
+    read tool call and its result, an approval request for a write, and the
+    final assistant reply.
+  </p>
+
+  <div class="demo surface-card" aria-hidden="true">
+    <div class="demo-head">
+      <span class="dot animate-pulse-ring"></span>
+      <span class="title">conversation · supervised</span>
+      <span class="model">claude-sonnet · thinking: medium</span>
+    </div>
+
+    <div class="demo-body">
+      <div class="demo-line row-user" data-demo-delay="200">
+        <span class="role">You</span>
+        <p>Add a retry budget to the run recovery path.</p>
+      </div>
+
+      <div class="demo-line row-think" data-demo-delay="700">
+        <span class="glyph">◆</span>
+        <p>
+          Thinking · locating the recovery entry point before editing anything.
+        </p>
+      </div>
+
+      <div class="demo-line row-tool" data-demo-delay="1300">
+        <span class="glyph">›</span>
+        <p><b>read</b> <code>packages/harness/src/run-recovery.ts</code></p>
+        <span class="status ok">done</span>
+      </div>
+
+      <div class="demo-line row-out" data-demo-delay="1900">
+        <pre><code>+ 214 lines · checkpoint validated</code></pre>
+      </div>
+
+      <div class="demo-line row-approve" data-demo-delay="2500">
+        <span class="glyph">!</span>
+        <p>Approval required · <b>write</b> <code>run-retries.ts</code></p>
+        <span class="approve-actions">
+          <span class="approve">Approve</span>
+          <span class="deny">Deny</span>
+        </span>
+      </div>
+
+      <div class="demo-line row-agent" data-demo-delay="3300">
+        <span class="role agent">Nerve</span>
+        <p>
+          The budget now caps retries per run and surfaces the remaining count
+          in the transcript.<span class="demo-caret animate-caret"></span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <p class="meta-text mt-3 text-center">
+    Illustration of the transcript surface, not captured output.
+  </p>
+</div>
+
+<style>
+  .demo-wrap {
+    margin-top: 3.5rem;
+  }
+
+  .demo {
+    max-width: 46rem;
+    margin-inline: auto;
+    padding: 0;
+  }
+
+  .demo-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--hairline);
+    background-color: color-mix(in oklab, var(--card) 70%, var(--background));
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
+
+  .demo-head .dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background-color: var(--success);
+    color: var(--success);
+  }
+
+  .demo-head .model {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+  }
+
+  .demo-body {
+    display: grid;
+    gap: 0.6rem;
+    padding: 1.1rem;
+  }
+
+  .demo-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: 0.7rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .demo-line p {
+    margin: 0;
+  }
+
+  .role {
+    padding: 0.05rem 0.45rem;
+    border-radius: 0.4rem;
+    background-color: color-mix(in oklab, var(--foreground) 12%, transparent);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .role.agent {
+    background-color: color-mix(in oklab, var(--primary) 22%, transparent);
+    color: var(--primary);
+  }
+
+  .glyph {
+    font-family: var(--font-mono);
+    line-height: 1.5;
+  }
+
+  .row-user {
+    border-color: var(--hairline);
+    background-color: color-mix(in oklab, var(--foreground) 5%, transparent);
+  }
+
+  .row-think {
+    color: var(--muted-foreground);
+    font-style: italic;
+  }
+
+  .row-tool {
+    border-color: var(--hairline);
+    background-color: var(--surface-sunken);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+
+  .row-tool .glyph,
+  .row-tool b {
+    color: var(--info);
+  }
+
+  .status {
+    margin-left: auto;
+    font-size: 0.7rem;
+  }
+
+  .status.ok {
+    color: var(--success);
+  }
+
+  .row-out {
+    padding-left: 2rem;
+  }
+
+  .row-out pre {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.78rem;
+  }
+
+  .row-approve {
+    border-color: color-mix(in oklab, var(--warning) 45%, transparent);
+    background-color: color-mix(in oklab, var(--warning) 12%, transparent);
+  }
+
+  .row-approve .glyph {
+    color: var(--warning);
+  }
+
+  .approve-actions {
+    display: flex;
+    gap: 0.35rem;
+    margin-left: auto;
+    font-size: 0.72rem;
+  }
+
+  .approve,
+  .deny {
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.4rem;
+  }
+
+  .approve {
+    border-color: color-mix(in oklab, var(--success) 45%, transparent);
+    color: var(--success);
+  }
+
+  .deny {
+    color: var(--muted-foreground);
+  }
+
+  .row-agent code,
+  .row-tool code {
+    color: var(--foreground);
+  }
+</style>

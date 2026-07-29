@@ -1,0 +1,57 @@
+---
+import Reveal from "./Reveal.astro";
+
+interface Props {
+  id?: string;
+  eyebrow?: string;
+  title?: string;
+  lede?: string;
+  align?: "start" | "center";
+  rule?: boolean;
+  class?: string;
+  headingId?: string;
+}
+
+const {
+  id,
+  eyebrow,
+  title,
+  lede,
+  align = "start",
+  rule = true,
+  class: className = "",
+  headingId,
+} = Astro.props;
+
+const titleId = headingId ?? (id ? `${id}-title` : undefined);
+---
+
+<section
+  id={id}
+  class:list={["section-block", rule && "rule-top", className]}
+  aria-labelledby={title ? titleId : undefined}
+>
+  <div class="container-page">
+    {
+      (eyebrow || title || lede) && (
+        <Reveal
+          class:list={[
+            "flex flex-col gap-4",
+            align === "center"
+              ? "mx-auto max-w-3xl items-center text-center"
+              : "max-w-3xl",
+          ]}
+        >
+          {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+          {title && (
+            <h2 id={titleId} class="section-title">
+              {title}
+            </h2>
+          )}
+          {lede && <p class="lede">{lede}</p>}
+        </Reveal>
+      )
+    }
+    <slot />
+  </div>
+</section>

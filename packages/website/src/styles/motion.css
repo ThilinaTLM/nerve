@@ -1,0 +1,218 @@
+/* The motion system.
+ *
+ * Every `@keyframes` in this package lives here. Components reference the
+ * animation names or the utility classes below; they never define keyframes
+ * inline. Only transform/opacity/filter are animated so scrolling stays smooth
+ * and layout never shifts.
+ */
+
+@keyframes view-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes view-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  33% {
+    transform: translate3d(4%, -3%, 0) rotate(6deg) scale(1.12);
+  }
+  66% {
+    transform: translate3d(-3%, 4%, 0) rotate(-5deg) scale(0.95);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes grid-pan {
+  to {
+    background-position: 64px 64px;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(-0.45rem);
+  }
+  50% {
+    transform: translateY(0.45rem);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes stream-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes marquee-x {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 0.7rem color-mix(in oklab, currentColor 0%, transparent);
+  }
+}
+
+@keyframes sheen-sweep {
+  from {
+    opacity: 0;
+    transform: translateX(-60%) skewX(-18deg);
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(160%) skewX(-18deg);
+  }
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+/* Scroll reveal ------------------------------------------------------------ */
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(1.25rem) scale(0.985);
+  filter: blur(6px);
+  transition:
+    opacity 700ms var(--ease-out-expo) var(--reveal-delay, 0ms),
+    transform 700ms var(--ease-out-expo) var(--reveal-delay, 0ms),
+    filter 700ms var(--ease-out-expo) var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+[data-reveal="left"] {
+  transform: translateX(-1.5rem);
+}
+
+[data-reveal="right"] {
+  transform: translateX(1.5rem);
+}
+
+[data-reveal="scale"] {
+  transform: scale(0.94);
+}
+
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  will-change: auto;
+}
+
+/* Utilities ---------------------------------------------------------------- */
+
+.animate-float {
+  animation: float-soft 9s ease-in-out infinite;
+}
+
+.animate-aurora {
+  animation: aurora-drift 24s ease-in-out infinite;
+}
+
+.animate-grid {
+  animation: grid-pan 40s linear infinite;
+}
+
+.animate-marquee {
+  animation: marquee-x 34s linear infinite;
+}
+
+.animate-caret {
+  animation: caret-blink 1s step-end infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+.animate-dash {
+  animation: dash-flow 1.4s linear infinite;
+}
+
+/* Reduced motion ----------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  [data-parallax],
+  .aurora-blob,
+  .hero-grid {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  @view-transition {
+    navigation: none;
+  }
+}

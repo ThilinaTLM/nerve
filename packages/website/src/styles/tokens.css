@@ -1,0 +1,209 @@
+/* Brand tokens.
+ *
+ * Source of truth for the palette is `packages/ui-kit/src/styles/theme.css`
+ * (the product workbench theme). Values are copied here on purpose: the website
+ * is a standalone Astro package and does not import ui-kit, which would couple
+ * it to Svelte and the app Tailwind graph. Keep names identical so the two
+ * codebases stay legible together, and re-sync manually when the app rebrands.
+ */
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: oklch(0.2679 0.0036 106.6427);
+  --foreground: oklch(0.9576 0.0027 106.4494);
+  --card: oklch(0.2928 0.0018 106.5092);
+  --card-foreground: oklch(0.9818 0.0054 95.0986);
+  --muted: oklch(0.2213 0.0038 106.707);
+  --muted-foreground: oklch(0.7713 0.0169 99.0657);
+  --primary: oklch(0.6724 0.1308 38.7559);
+  --primary-foreground: oklch(0.1908 0.002 106.5859);
+  --border: oklch(0.3618 0.0101 106.8928);
+  --ring: oklch(0.6724 0.1308 38.7559);
+  --success: oklch(0.78 0.176 149.2);
+  --warning: oklch(0.828 0.16 70.1);
+  --info: oklch(0.8 0.134 254.1);
+
+  --brand-2: oklch(0.72 0.13 62);
+  --brand-3: oklch(0.68 0.12 288);
+
+  --surface-elevated: color-mix(in oklab, var(--card) 92%, var(--foreground));
+  --surface-sunken: color-mix(in oklab, var(--background) 94%, black);
+  --glass: color-mix(in oklab, var(--card) 72%, transparent);
+  --hairline: color-mix(in oklab, var(--border) 60%, transparent);
+
+  --glow-primary:
+    0 0 0 1px color-mix(in oklab, var(--primary) 32%, transparent),
+    0 1.5rem 4rem -1rem color-mix(in oklab, var(--primary) 35%, transparent);
+  --shadow-elevated:
+    0 1px 0 0 var(--hairline), 0 2rem 5rem -1.5rem oklch(0 0 0 / 0.55);
+  --shadow-soft:
+    0 1px 0 0 var(--hairline), 0 0.75rem 2rem -1rem oklch(0 0 0 / 0.45);
+  --grain-opacity: 0.05;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --background: oklch(0.9818 0.0054 95.0986);
+  --foreground: oklch(0.3438 0.0269 95.7226);
+  --card: oklch(0.9665 0.0067 97.3521);
+  --card-foreground: oklch(0.1908 0.002 106.5859);
+  --muted: oklch(0.9341 0.0153 90.239);
+  --muted-foreground: oklch(0.5341 0.0078 97.4503);
+  --primary: oklch(0.57 0.1375 39.0427);
+  --primary-foreground: oklch(1 0 0);
+  --border: oklch(0.8847 0.0069 97.3627);
+  --ring: oklch(0.6171 0.1375 39.0427);
+  --success: oklch(0.47 0.17 149.2);
+  --warning: oklch(0.5 0.16 70.1);
+  --info: oklch(0.49 0.158 254.1);
+
+  --brand-2: oklch(0.62 0.14 62);
+  --brand-3: oklch(0.55 0.13 288);
+
+  --surface-elevated: color-mix(in oklab, var(--card) 96%, white);
+  --surface-sunken: color-mix(in oklab, var(--background) 93%, var(--border));
+  --glass: color-mix(in oklab, var(--card) 78%, transparent);
+  --hairline: color-mix(in oklab, var(--border) 75%, transparent);
+
+  --glow-primary:
+    0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent),
+    0 1.5rem 4rem -1rem color-mix(in oklab, var(--primary) 24%, transparent);
+  --shadow-elevated:
+    0 1px 0 0 var(--hairline), 0 2rem 5rem -1.75rem oklch(0.35 0.03 96 / 0.28);
+  --shadow-soft:
+    0 1px 0 0 var(--hairline), 0 0.75rem 2rem -1rem oklch(0.35 0.03 96 / 0.18);
+  --grain-opacity: 0.035;
+}
+
+:root {
+  --radius: 0.625rem;
+  --nav-height: 4.25rem;
+  --container-max: 78rem;
+  --container-wide: 92rem;
+
+  --text-display: clamp(3rem, 1.6rem + 5.4vw, 5.75rem);
+  --text-h2: clamp(2rem, 1.2rem + 2.6vw, 3.25rem);
+  --text-h3: clamp(1.15rem, 1rem + 0.5vw, 1.4rem);
+  --text-lede: clamp(1.05rem, 0.98rem + 0.45vw, 1.3rem);
+  --text-body: 1rem;
+  --text-eyebrow: 0.75rem;
+  --text-meta: 0.8125rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-hairline: var(--hairline);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-brand-2: var(--brand-2);
+  --color-brand-3: var(--brand-3);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-glass: var(--glass);
+
+  --font-display: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:
+    "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.6);
+  --radius-2xl: calc(var(--radius) * 2.4);
+
+  --shadow-elevated: var(--shadow-elevated);
+  --shadow-soft: var(--shadow-soft);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Starlight bridge: the documentation shell reads `--sl-*` variables, so the
+ * whole docs UI inherits the brand by mapping them onto the tokens above. */
+:root {
+  --sl-font: var(--font-sans);
+  --sl-font-mono: var(--font-mono);
+  --sl-nav-height: var(--nav-height);
+  --sl-content-width: 50rem;
+  --sl-sidebar-width: 18.5rem;
+
+  --sl-color-accent-low: color-mix(
+    in oklab,
+    var(--primary) 22%,
+    var(--background)
+  );
+  --sl-color-accent: var(--primary);
+  --sl-color-accent-high: color-mix(
+    in oklab,
+    var(--primary) 78%,
+    var(--foreground)
+  );
+
+  --sl-color-white: var(--foreground);
+  --sl-color-gray-1: color-mix(
+    in oklab,
+    var(--foreground) 92%,
+    var(--background)
+  );
+  --sl-color-gray-2: color-mix(
+    in oklab,
+    var(--foreground) 78%,
+    var(--background)
+  );
+  --sl-color-gray-3: var(--muted-foreground);
+  --sl-color-gray-4: color-mix(
+    in oklab,
+    var(--muted-foreground) 70%,
+    var(--background)
+  );
+  --sl-color-gray-5: var(--border);
+  --sl-color-gray-6: var(--surface-elevated);
+  --sl-color-gray-7: color-mix(
+    in oklab,
+    var(--surface-elevated) 70%,
+    var(--background)
+  );
+  --sl-color-black: var(--background);
+
+  --sl-color-text: color-mix(
+    in oklab,
+    var(--foreground) 88%,
+    var(--background)
+  );
+  --sl-color-text-accent: var(--primary);
+  --sl-color-text-invert: var(--primary-foreground);
+
+  --sl-color-bg: var(--background);
+  --sl-color-bg-nav: var(--glass);
+  --sl-color-bg-sidebar: transparent;
+  --sl-color-bg-inline-code: color-mix(
+    in oklab,
+    var(--primary) 12%,
+    transparent
+  );
+  --sl-color-bg-accent: var(--primary);
+
+  --sl-color-hairline: var(--hairline);
+  --sl-color-hairline-light: color-mix(
+    in oklab,
+    var(--border) 45%,
+    transparent
+  );
+  --sl-color-hairline-shade: var(--hairline);
+
+  --sl-shadow-sm: var(--shadow-soft);
+  --sl-shadow-md: var(--shadow-soft);
+  --sl-shadow-lg: var(--shadow-elevated);
+}

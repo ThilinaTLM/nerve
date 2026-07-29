@@ -1,0 +1,143 @@
+---
+import { Image } from "astro:assets";
+import overview from "../../assets/preview-workbench-overview.webp";
+import InstallCommand from "./InstallCommand.astro";
+import Reveal from "./Reveal.astro";
+import ScreenshotFrame from "./ScreenshotFrame.astro";
+---
+
+<section class="hero">
+  <div class="aurora" aria-hidden="true">
+    <span class="aurora-blob blob-a animate-aurora"></span>
+    <span class="aurora-blob blob-b animate-aurora"></span>
+    <span class="aurora-blob blob-c animate-aurora"></span>
+  </div>
+  <div class="hero-grid animate-grid" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="container-page relative z-10">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <Reveal>
+          <span class="badge">
+            <span class="badge-dot animate-pulse-ring" aria-hidden="true"
+            ></span>
+            Open source · local first · beta
+          </span>
+        </Reveal>
+
+        <Reveal delay={80}>
+          <h1 class="display-title mt-6">
+            See the work.<br /><span class="gradient-text">Keep control.</span>
+          </h1>
+        </Reveal>
+
+        <Reveal delay={160}>
+          <p class="lede mt-6 max-w-xl">
+            Nerve is a transparent desktop coding harness with the focus of a
+            small agent and the workflow of a complete workbench. It runs with
+            your local projects and keeps messages, reasoning, tool calls,
+            approvals, tasks, and changes visible.
+          </p>
+        </Reveal>
+
+        <Reveal delay={240}>
+          <div class="mt-8 flex flex-wrap gap-3">
+            <a class="btn btn-primary" href="/start/install/">
+              Get started
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14M13 6l6 6-6 6"></path>
+              </svg>
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
+              View on GitHub
+            </a>
+          </div>
+        </Reveal>
+
+        <Reveal delay={320}>
+          <InstallCommand class="mt-5" />
+        </Reveal>
+      </div>
+
+      <Reveal variant="scale" delay={200} class="hero-visual">
+        <ScreenshotFrame parallax={16} float>
+          <Image
+            src={overview}
+            alt="Nerve workbench with a project conversation tree, welcome view, and Git changes panel"
+            widths={[720, 1080, 1440]}
+            sizes="(max-width: 1024px) 100vw, 58vw"
+            loading="eager"
+          />
+        </ScreenshotFrame>
+      </Reveal>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    padding-block: clamp(3.5rem, 8vw, 7rem) clamp(4rem, 9vw, 8rem);
+  }
+
+  .hero-inner {
+    display: grid;
+    align-items: center;
+    gap: clamp(3rem, 6vw, 5rem);
+  }
+
+  @media (min-width: 1024px) {
+    .hero-inner {
+      grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+    }
+  }
+
+  .blob-a {
+    top: -18%;
+    right: -6%;
+    width: 34rem;
+    height: 30rem;
+    background: radial-gradient(circle, var(--primary), transparent 65%);
+    animation-duration: 26s;
+  }
+
+  .blob-b {
+    top: 12%;
+    left: -12%;
+    width: 30rem;
+    height: 26rem;
+    background: radial-gradient(circle, var(--brand-3), transparent 65%);
+    animation-duration: 32s;
+    animation-direction: reverse;
+  }
+
+  .blob-c {
+    bottom: -24%;
+    left: 34%;
+    width: 32rem;
+    height: 22rem;
+    background: radial-gradient(circle, var(--brand-2), transparent 68%);
+    animation-duration: 38s;
+  }
+
+  .badge-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background-color: var(--success);
+    color: var(--success);
+  }
+</style>

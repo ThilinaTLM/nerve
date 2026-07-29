@@ -1,0 +1,112 @@
+---
+import Reveal from "./Reveal.astro";
+
+const capabilities = [
+  {
+    title: "Conversations",
+    href: "/guides/conversations/",
+    body:
+      "Search, tabs, history graphs, branches, editing, compaction, retries, and exports.",
+  },
+  {
+    title: "Composer",
+    href: "/guides/composer/",
+    body:
+      "Commands, project path completion, queued prompts, clipboard images, voice, and context usage.",
+  },
+  {
+    title: "Git & GitHub",
+    href: "/guides/git-and-pull-requests/",
+    body:
+      "Changes, branches, staging, sync, pull request checks, files, checkout, and merge.",
+  },
+  {
+    title: "Tasks & Explore",
+    href: "/guides/background-tasks/",
+    body:
+      "Supervised long-running processes and isolated parallel read-only research.",
+  },
+  {
+    title: "Models",
+    href: "/models/providers-and-auth/",
+    body:
+      "API keys, supported OAuth subscriptions, scoped defaults, custom endpoints, and thinking levels.",
+  },
+  {
+    title: "Desktop & browser",
+    href: "/operations/lan-mobile/",
+    body:
+      "Electron by default, plus opt-in PWA, mobile LAN HTTPS, and remote-daemon connections.",
+  },
+];
+---
+
+<div class="capability-grid mt-14">
+  {
+    capabilities.map((capability, index) => (
+      <Reveal delay={index * 60}>
+        <a
+          class="surface-card spotlight capability"
+          href={capability.href}
+          data-spotlight
+        >
+          <span class="head">
+            <span class="card-title">{capability.title}</span>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.9"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M7 17 17 7M9 7h8v8" />
+            </svg>
+          </span>
+          <span class="body-text">{capability.body}</span>
+        </a>
+      </Reveal>
+    ))
+  }
+</div>
+
+<style>
+  .capability-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  }
+
+  .capability {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    height: 100%;
+    padding: 1.5rem;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .head svg {
+    color: var(--muted-foreground);
+    transition:
+      transform 300ms var(--ease-out-expo),
+      color 300ms var(--ease-out-expo);
+  }
+
+  .capability:hover .head svg,
+  .capability:focus-visible .head svg {
+    color: var(--primary);
+    transform: translate(0.2rem, -0.2rem);
+  }
+</style>

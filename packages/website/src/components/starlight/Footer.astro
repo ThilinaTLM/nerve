@@ -1,0 +1,109 @@
+---
+import Default from "@astrojs/starlight/components/Footer.astro";
+
+const columns = [
+  {
+    title: "Start",
+    links: [
+      { label: "Overview", href: "/start/overview/" },
+      { label: "Install", href: "/start/install/" },
+      { label: "First task", href: "/start/first-task/" },
+    ],
+  },
+  {
+    title: "Operate",
+    links: [
+      { label: "Security model", href: "/operations/security/" },
+      { label: "Configuration", href: "/operations/configuration/" },
+      { label: "Troubleshooting", href: "/troubleshooting/" },
+    ],
+  },
+  {
+    title: "Build",
+    links: [
+      { label: "Architecture", href: "/developers/architecture/" },
+      { label: "Protocol v1", href: "/developers/protocol/v1/" },
+      { label: "Contributing", href: "/developers/contributing/" },
+    ],
+  },
+  {
+    title: "Project",
+    links: [
+      { label: "Home", href: "/" },
+      { label: "GitHub", href: "https://github.com/ThilinaTLM/nerve" },
+      {
+        label: "License",
+        href: "https://github.com/ThilinaTLM/nerve/blob/main/LICENSE",
+      },
+    ],
+  },
+];
+---
+
+<Default><slot /></Default>
+
+<nav class="site-map" aria-label="Site">
+  {
+    columns.map((column) => (
+      <div>
+        <h2>{column.title}</h2>
+        <ul>
+          {column.links.map((link) => (
+            <li>
+              <a href={link.href}>{link.label}</a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))
+  }
+</nav>
+
+<style>
+  .site-map {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.75rem;
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--hairline);
+  }
+
+  @media (min-width: 50rem) {
+    .site-map {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .site-map h2 {
+    margin: 0 0 0.7rem;
+    color: var(--foreground);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .site-map ul {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .site-map a {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    text-decoration: none;
+    transition:
+      color 200ms var(--ease-out-expo),
+      translate 200ms var(--ease-out-expo);
+  }
+
+  .site-map a:hover,
+  .site-map a:focus-visible {
+    color: var(--foreground);
+    translate: 0.15rem 0;
+  }
+</style>

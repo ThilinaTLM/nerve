@@ -1,0 +1,141 @@
+---
+import SiteHeader from "../components/marketing/SiteHeader.astro";
+import SiteFooter from "../components/marketing/SiteFooter.astro";
+import "../styles/app.css";
+
+interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  ogImage?: string;
+  noindex?: boolean;
+  structuredData?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonical,
+  ogImage,
+  noindex = false,
+  structuredData = false,
+} = Astro.props;
+
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, Astro.site).href;
+
+const softwareApplication = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Nerve",
+  description,
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Linux, Windows 11, macOS",
+  license: "https://www.apache.org/licenses/LICENSE-2.0",
+  url: "https://nerve.tlmtech.dev/",
+  codeRepository: "https://github.com/ThilinaTLM/nerve",
+};
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content="#292724"
+    />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: light)"
+      content="#faf9f5"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    {
+      ogImage && (
+        <meta
+          property="og:image:alt"
+          content="Nerve desktop coding workbench"
+        />
+      )
+    }
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>{title}</title>
+
+    {/* Applied before first paint so the stored theme never flashes. Mirrors
+    Starlight's storage contract in `src/scripts/theme.ts`. */}
+    <script is:inline>
+      (() => {
+        let stored = null;
+        try {
+          stored = localStorage.getItem("starlight-theme");
+        } catch {
+          stored = null;
+        }
+        const preference =
+          stored === "light" || stored === "dark" ? stored : "auto";
+        const resolved =
+          preference === "auto"
+            ? matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark"
+            : preference;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.dataset.themePreference = preference;
+      })();
+    </script>
+
+    {
+      structuredData && (
+        <script
+          is:inline
+          type="application/ld+json"
+          set:html={JSON.stringify(softwareApplication)}
+        />
+      )
+    }
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <SiteHeader />
+    <main id="main">
+      <slot />
+    </main>
+    <SiteFooter />
+    <script>
+      import "../scripts/motion";
+    </script>
+
+    <style>
+      .skip-link {
+        position: absolute;
+        left: 50%;
+        top: 0.5rem;
+        z-index: 100;
+        translate: -50% -200%;
+        padding: 0.6rem 1rem;
+        border: 1px solid var(--hairline);
+        border-radius: 0.6rem;
+        background-color: var(--card);
+        color: var(--foreground);
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: translate 200ms var(--ease-out-expo);
+      }
+
+      .skip-link:focus-visible {
+        translate: -50% 0;
+      }
+    </style>
+  </body>
+</html>

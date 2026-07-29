@@ -1,0 +1,273 @@
+/* Documentation shell restyle.
+ *
+ * The palette already arrives through the `--sl-*` bridge in tokens.css; this
+ * file only adjusts shape, density, and motion so the docs match the marketing
+ * pages. Selectors target Starlight-owned class names. */
+
+/* Header -------------------------------------------------------------------- */
+
+.header {
+  border-bottom: 1px solid var(--hairline);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+site-search button[data-open-modal] {
+  border-radius: 999px;
+  border-color: var(--hairline);
+  background-color: color-mix(in oklab, var(--card) 70%, transparent);
+  transition:
+    border-color 220ms var(--ease-out-expo),
+    background-color 220ms var(--ease-out-expo);
+}
+
+site-search button[data-open-modal]:hover {
+  border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+  background-color: var(--surface-elevated);
+}
+
+site-search kbd {
+  border-radius: 0.4rem;
+  background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.social-icons a {
+  transition:
+    color 200ms var(--ease-out-expo),
+    transform 200ms var(--ease-out-expo);
+}
+
+.social-icons a:hover {
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+
+/* Sidebar ------------------------------------------------------------------- */
+
+.sidebar-pane {
+  border-inline-end: 1px solid var(--hairline);
+  background-color: color-mix(in oklab, var(--card) 32%, transparent);
+}
+
+.sidebar-content .top-level > li > details > summary,
+.sidebar-content .top-level > li > .group-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.sidebar-content a {
+  position: relative;
+  border-radius: 0.55rem;
+  padding-block: 0.35rem;
+  transition:
+    background-color 180ms var(--ease-out-expo),
+    color 180ms var(--ease-out-expo),
+    translate 180ms var(--ease-out-expo);
+}
+
+.sidebar-content a:hover {
+  background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
+  translate: 0.1rem 0;
+}
+
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover {
+  border-radius: 0.55rem;
+  background-color: color-mix(in oklab, var(--primary) 15%, transparent);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.sidebar-content a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.3rem;
+  inset-inline-start: -0.35rem;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--primary), var(--brand-2));
+}
+
+/* Content ------------------------------------------------------------------- */
+
+.content-panel + .content-panel {
+  border-top: 1px solid var(--hairline);
+}
+
+.sl-markdown-content {
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4) {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration-color: color-mix(in oklab, var(--primary) 45%, transparent);
+  text-underline-offset: 0.2em;
+  transition: text-decoration-color 200ms var(--ease-out-expo);
+}
+
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+  text-decoration-color: var(--primary);
+}
+
+.sl-markdown-content .sl-anchor-link {
+  opacity: 0;
+  transition: opacity 200ms var(--ease-out-expo);
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6):hover .sl-anchor-link,
+.sl-markdown-content .sl-anchor-link:focus-visible {
+  opacity: 1;
+}
+
+.sl-markdown-content :not(pre) > code:not(:where(.not-content *)) {
+  border: 1px solid var(--hairline);
+  border-radius: 0.4rem;
+  padding: 0.1rem 0.35rem;
+}
+
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+  border-inline-start-color: color-mix(
+    in oklab,
+    var(--primary) 55%,
+    transparent
+  );
+  background-color: color-mix(in oklab, var(--primary) 7%, transparent);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  padding: 0.75rem 1rem;
+}
+
+/* Tailwind's preflight strips list markers and indentation, which Starlight
+ * inherits from user-agent defaults. Restore them for prose content only. */
+.sl-markdown-content :is(ul, ol):not(:where(.not-content *)) {
+  padding-inline-start: 1.5rem;
+}
+
+.sl-markdown-content ul:not(:where(.not-content *)) {
+  list-style: disc;
+}
+
+.sl-markdown-content ul ul:not(:where(.not-content *)) {
+  list-style: circle;
+}
+
+.sl-markdown-content ol:not(:where(.not-content *)) {
+  list-style: decimal;
+}
+
+.sl-markdown-content li::marker {
+  color: color-mix(in oklab, var(--primary) 70%, var(--muted-foreground));
+}
+
+/* `table` keeps Starlight's `display: block; overflow: auto` so wide tables
+ * still scroll; only the frame is restyled. */
+.sl-markdown-content table:not(:where(.not-content *)) {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+}
+
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  border-color: var(--hairline);
+}
+
+.sl-markdown-content th:not(:where(.not-content *)) {
+  background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+/* Code blocks --------------------------------------------------------------- */
+
+.expressive-code .frame pre {
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--hairline);
+}
+
+.expressive-code .frame {
+  box-shadow: var(--shadow-soft);
+}
+
+.expressive-code .copy button {
+  border-radius: 0.5rem;
+}
+
+/* Asides -------------------------------------------------------------------- */
+
+.starlight-aside {
+  border-radius: var(--radius-lg);
+  border-inline-start-width: 2px;
+  padding: 1rem 1.15rem;
+}
+
+.starlight-aside--note {
+  border-color: color-mix(in oklab, var(--info) 55%, transparent);
+  background-color: color-mix(in oklab, var(--info) 9%, transparent);
+}
+
+.starlight-aside--tip {
+  border-color: color-mix(in oklab, var(--success) 55%, transparent);
+  background-color: color-mix(in oklab, var(--success) 9%, transparent);
+}
+
+.starlight-aside--caution {
+  border-color: color-mix(in oklab, var(--warning) 55%, transparent);
+  background-color: color-mix(in oklab, var(--warning) 9%, transparent);
+}
+
+.starlight-aside--danger {
+  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
+  background-color: color-mix(in oklab, var(--primary) 9%, transparent);
+}
+
+/* Table of contents ---------------------------------------------------------- */
+
+.right-sidebar a {
+  border-radius: 0.45rem;
+  transition:
+    color 180ms var(--ease-out-expo),
+    translate 180ms var(--ease-out-expo);
+}
+
+.right-sidebar a:hover {
+  translate: 0.12rem 0;
+}
+
+.right-sidebar a[aria-current="true"] {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Pagination and meta -------------------------------------------------------- */
+
+.pagination-links a {
+  border-color: var(--hairline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  transition:
+    transform 260ms var(--ease-out-expo),
+    border-color 260ms var(--ease-out-expo),
+    box-shadow 260ms var(--ease-out-expo);
+}
+
+.pagination-links a:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Entrance motion ------------------------------------------------------------ */
+
+.main-frame .main-pane {
+  animation: rise-in 260ms var(--ease-out-expo) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-frame .main-pane {
+    animation: none;
+  }
+}

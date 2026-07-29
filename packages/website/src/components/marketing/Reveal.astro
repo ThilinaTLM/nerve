@@ -1,0 +1,19 @@
+---
+interface Props {
+  variant?: "up" | "left" | "right" | "scale";
+  delay?: number;
+  class?: string;
+  as?: "div" | "li" | "section" | "article" | "span";
+}
+
+const {
+  variant = "up",
+  delay = 0,
+  class: className = "",
+  as: Tag = "div",
+}: Props = Astro.props;
+---
+
+<Tag data-reveal={variant} data-reveal-delay={delay} class={className}>
+  <slot />
+</Tag>

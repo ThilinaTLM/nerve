@@ -1,0 +1,48 @@
+---
+import Default from "@astrojs/starlight/components/Hero.astro";
+---
+
+<div class="hero-shell">
+  <div class="aurora" aria-hidden="true">
+    <span class="aurora-blob blob-1 animate-aurora"></span>
+    <span class="aurora-blob blob-2 animate-aurora"></span>
+  </div>
+  <div class="relative z-10">
+    <Default><slot /></Default>
+  </div>
+</div>
+
+<style>
+  .hero-shell {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    padding: clamp(1.5rem, 4vw, 3rem);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-2xl);
+    background: linear-gradient(
+      160deg,
+      var(--surface-elevated),
+      color-mix(in oklab, var(--card) 90%, var(--background))
+    );
+    box-shadow: var(--shadow-soft);
+  }
+
+  .blob-1 {
+    top: -45%;
+    left: 10%;
+    width: 22rem;
+    height: 18rem;
+    background: radial-gradient(circle, var(--primary), transparent 65%);
+  }
+
+  .blob-2 {
+    bottom: -55%;
+    right: 6%;
+    width: 20rem;
+    height: 16rem;
+    background: radial-gradient(circle, var(--brand-3), transparent 68%);
+    animation-direction: reverse;
+  }
+</style>

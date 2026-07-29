@@ -1,0 +1,170 @@
+---
+import { Image } from "astro:assets";
+import mark from "../../assets/nerve-mark.svg";
+
+const columns = [
+  {
+    title: "Product",
+    links: [
+      { label: "Overview", href: "/start/overview/" },
+      { label: "Install", href: "/start/install/" },
+      { label: "First project", href: "/start/first-project/" },
+      { label: "First task", href: "/start/first-task/" },
+    ],
+  },
+  {
+    title: "Documentation",
+    links: [
+      { label: "Workbench", href: "/guides/workbench/" },
+      { label: "Conversations", href: "/guides/conversations/" },
+      { label: "Models & providers", href: "/models/providers-and-auth/" },
+      { label: "Troubleshooting", href: "/troubleshooting/" },
+    ],
+  },
+  {
+    title: "Developers",
+    links: [
+      { label: "Architecture", href: "/developers/architecture/" },
+      { label: "Protocol v1", href: "/developers/protocol/v1/" },
+      { label: "Extensions", href: "/developers/extensions/" },
+      { label: "Contributing", href: "/developers/contributing/" },
+    ],
+  },
+  {
+    title: "Project",
+    links: [
+      { label: "GitHub", href: "https://github.com/ThilinaTLM/nerve" },
+      {
+        label: "License",
+        href: "https://github.com/ThilinaTLM/nerve/blob/main/LICENSE",
+      },
+      {
+        label: "Security policy",
+        href: "https://github.com/ThilinaTLM/nerve/blob/main/SECURITY.md",
+      },
+      { label: "Security model", href: "/operations/security/" },
+    ],
+  },
+];
+---
+
+<footer class="site-footer">
+  <div class="container-page">
+    <div class="grid gap-10 py-14 md:grid-cols-[1.2fr_2.4fr]">
+      <div class="max-w-xs">
+        <a class="brand" href="/">
+          <Image src={mark} alt="" width={26} height={26} />
+          <span>Nerve</span>
+        </a>
+        <p class="body-text mt-4 text-[0.925rem]">
+          A transparent, local-first coding harness with a complete project
+          workbench.
+        </p>
+      </div>
+
+      <nav class="footer-grid" aria-label="Footer">
+        {
+          columns.map((column) => (
+            <div>
+              <h2 class="footer-heading">{column.title}</h2>
+              <ul>
+                {column.links.map((link) => (
+                  <li>
+                    <a href={link.href}>{link.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </nav>
+    </div>
+
+    <div class="footer-base">
+      <p class="meta-text">
+        Apache-2.0 · Beta software · Linux, Windows 11, and macOS
+      </p>
+      <p class="meta-text">
+        Built with the same design system as the Nerve workbench.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    position: relative;
+    border-top: 1px solid var(--hairline);
+    background: linear-gradient(
+      180deg,
+      transparent,
+      color-mix(in oklab, var(--card) 55%, transparent)
+    );
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--foreground);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    text-decoration: none;
+  }
+
+  .footer-grid {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 768px) {
+    .footer-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .footer-heading {
+    margin: 0 0 0.85rem;
+    color: var(--foreground);
+    font-size: var(--text-eyebrow);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .footer-grid ul {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .footer-grid a {
+    color: var(--muted-foreground);
+    font-size: 0.925rem;
+    text-decoration: none;
+    transition:
+      color 200ms var(--ease-out-expo),
+      translate 200ms var(--ease-out-expo);
+  }
+
+  .footer-grid a:hover,
+  .footer-grid a:focus-visible {
+    color: var(--foreground);
+    translate: 0.15rem 0;
+  }
+
+  .footer-base {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block: 1.5rem 2.5rem;
+    border-top: 1px solid var(--hairline);
+  }
+</style>
