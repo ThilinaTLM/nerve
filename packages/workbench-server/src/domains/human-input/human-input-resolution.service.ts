@@ -57,6 +57,12 @@ export interface HumanInputResolutionDeps {
   ): Promise<ConversationEntry>;
   getConversationEntries(conversationId: string): ConversationEntry[];
   harnessStorage: ConversationHarnessStorage;
+  compactPlanConversation(input: {
+    conversationId: string;
+    agentId: string;
+    runId?: string;
+    planPath: string;
+  }): Promise<void>;
 }
 
 export class HumanInputResolutionService {
@@ -90,6 +96,22 @@ export class HumanInputResolutionService {
       pendingReview.agentId,
       implementation,
     );
+    if (implementation?.compactBeforeImplementation) {
+      try {
+        await this.deps.compactPlanConversation({
+          conversationId: pendingReview.conversationId,
+          agentId: pendingReview.agentId,
+          runId: source.toolCall.runId,
+          planPath: pendingReview.planPath,
+        });
+      } catch (error) {
+        if (
+          !(error instanceof HttpError && error.code === "NOTHING_TO_COMPACT")
+        ) {
+          throw error;
+        }
+      }
+    }
 
     let review: PlanReviewRecord;
     try {

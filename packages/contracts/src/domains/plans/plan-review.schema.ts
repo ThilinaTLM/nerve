@@ -46,6 +46,7 @@ export const resolvePlanReviewRequestSchema = z.object({
   feedback: z.string().optional(),
   implementationModel: modelSelectionSchema.optional(),
   implementationThinkingLevel: thinkingLevelSchema.optional(),
+  compactBeforeImplementation: z.boolean().optional(),
 });
 export type ResolvePlanReviewRequest = z.infer<
   typeof resolvePlanReviewRequestSchema
@@ -54,4 +55,5 @@ export type ResolvePlanReviewRequest = z.infer<
 export type PlanImplementationSelection = {
   implementationModel?: ModelSelection;
   implementationThinkingLevel?: ThinkingLevel;
+  compactBeforeImplementation?: boolean;
 };

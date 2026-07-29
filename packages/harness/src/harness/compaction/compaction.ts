@@ -161,6 +161,14 @@ export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assi
 
 Do NOT continue the conversation. Do NOT respond to any questions in the conversation. ONLY output the structured summary.`;
 
+export type CompactionSummaryProfile =
+  | { kind: "default" }
+  | { kind: "plan-implementation"; planPath: string };
+
+export const PLAN_IMPLEMENTATION_SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assistant preparing a coding agent to move from approved planning into implementation. The approved plan is stored in a separate file and is the authoritative implementation specification.
+
+Do NOT continue the conversation. Do NOT implement the plan. Do NOT answer questions from the conversation. Do NOT reproduce the plan's steps or content. ONLY output the structured implementation handoff requested by the user prompt.`;
+
 const REQUIRED_SUMMARY_HEADINGS = [
   "Goal",
   "Requirements and Constraints",
@@ -216,6 +224,41 @@ Rules:
 
 ${SUMMARY_FORMAT}`;
 
+export function summarizationPrompts(
+  profile: CompactionSummaryProfile | undefined,
+  updating: boolean,
+): { systemPrompt: string; userPrompt: string } {
+  if (!profile || profile.kind === "default") {
+    return {
+      systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
+      userPrompt: updating ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT,
+    };
+  }
+
+  const updateRule = updating
+    ? "Reconcile the new messages with <previous-summary>, retaining only information still needed for implementation."
+    : "Summarize the planning conversation as a one-time implementation handoff.";
+  return {
+    systemPrompt: PLAN_IMPLEMENTATION_SUMMARIZATION_SYSTEM_PROMPT,
+    userPrompt: `The messages above are planning history for an approved plan. The implementation agent will read this checkpoint and then the authoritative plan file at:
+
+${profile.planPath}
+
+${updateRule}
+
+Rules:
+- Treat the plan file as the source of truth. Reference its exact path, but do not restate, paraphrase, or duplicate its implementation steps.
+- Preserve only complementary context that may not be recoverable from the plan or repository: user constraints, research evidence, environment facts, unresolved risks, failures, commands, paths, and identifiers.
+- Planning and research are not implementation. Do not claim code changes, tests, or validation unless the conversation contains direct evidence they occurred outside planning.
+- In Work Remaining, direct the next agent to read the plan file, implement it, and validate the result rather than recreating the plan.
+- Make Current Working State explicit, including partial workspace changes or failures if any. Otherwise state that implementation has not started.
+- Drop planning narration, deliberation, superseded approaches, and all plan content already recoverable from the plan file.
+- Summarize only. Do not continue the task in this response.
+
+${SUMMARY_FORMAT}`,
+  };
+}
+
 export const UPDATE_SUMMARIZATION_PROMPT = `The messages above are NEW conversation messages to reconcile with the existing checkpoint in <previous-summary> tags. Another agent will read ONLY the updated checkpoint.
 
 Rules:
@@ -261,6 +304,7 @@ export type GenerateSummaryInput = {
   signal?: AbortSignal;
   customInstructions?: string;
   previousSummary?: string;
+  summaryProfile?: CompactionSummaryProfile;
   thinkingLevel?: ThinkingLevel;
   env?: Record<string, string>;
   /** Called with the accumulated text as the summary streams in. */
@@ -277,6 +321,7 @@ export async function generateSummary({
   signal,
   customInstructions,
   previousSummary,
+  summaryProfile,
   thinkingLevel,
   env,
   onProgress,
@@ -285,9 +330,11 @@ export async function generateSummary({
     Math.floor(0.8 * reserveTokens),
     model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY,
   );
-  let basePrompt = previousSummary
-    ? UPDATE_SUMMARIZATION_PROMPT
-    : SUMMARIZATION_PROMPT;
+  const prompts = summarizationPrompts(
+    summaryProfile,
+    Boolean(previousSummary),
+  );
+  let basePrompt = prompts.userPrompt;
   if (customInstructions) {
     basePrompt = `${basePrompt}\n\nAdditional focus: ${customInstructions}`;
   }
@@ -311,7 +358,7 @@ export async function generateSummary({
     const stream = streamSimpleWithModel(
       model,
       {
-        systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
+        systemPrompt: prompts.systemPrompt,
         messages: [
           {
             role: "user" as const,

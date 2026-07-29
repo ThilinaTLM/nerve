@@ -143,6 +143,7 @@ export function createToolRoutes(state: OrchestratorState): Hono {
         {
           implementationModel: body.implementationModel,
           implementationThinkingLevel: body.implementationThinkingLevel,
+          compactBeforeImplementation: body.compactBeforeImplementation,
         },
       );
       return c.json({ planReview: planReviewPreview(planReview) });

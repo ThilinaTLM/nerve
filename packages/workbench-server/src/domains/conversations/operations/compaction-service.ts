@@ -1,6 +1,7 @@
 import {
   type AgentMessage,
   buildConversationContext,
+  type CompactionSummaryProfile,
   type Conversation,
   type ConversationTreeEntry,
   createCompactionSummaryMessage,
@@ -23,7 +24,10 @@ import {
   type CompactionProgressPublisherOptions,
   type CompactionProgressReport,
 } from "./compaction-progress-publisher.js";
-import { buildExtractiveSummary } from "./summary.js";
+import {
+  buildExtractiveSummary,
+  buildPlanImplementationSummary,
+} from "./summary.js";
 
 export interface AppendConversationEntryInput {
   id?: string;
@@ -58,6 +62,7 @@ export type CompactionSummarizer = (input: {
   messages: AgentMessage[];
   previousSummary?: string;
   instructions?: string;
+  summaryProfile?: CompactionSummaryProfile;
   summaryReserveTokens: number;
   signal?: AbortSignal;
   /** Receives the summary text as it streams in, for live UI feedback. */
@@ -80,6 +85,7 @@ export interface CompactConversationOptions {
   safetyHeadroomTokens?: number;
   failedEntryId?: string;
   activeConversation?: Conversation;
+  summaryProfile?: CompactionSummaryProfile;
   signal?: AbortSignal;
 }
 
@@ -239,6 +245,7 @@ export class CompactionService {
           messagesToSummarize,
           preparation.previousSummary,
           request.instructions,
+          options.summaryProfile,
           summaryReserveTokens,
           operation.controller.signal,
           (report) => progress.report(report),
@@ -248,13 +255,18 @@ export class CompactionService {
           modelSummary?.generatedBy ?? "orchestrator-extractive";
         const summary =
           modelSummary?.text ??
-          buildExtractiveSummary({
-            title: "Context checkpoint",
-            messages: messagesToSummarize,
-            previousSummary: preparation.previousSummary,
-            instructions: request.instructions,
-            maxChars: Math.max(1_000, Math.floor(summaryReserveTokens * 3.2)),
-          });
+          (options.summaryProfile?.kind === "plan-implementation"
+            ? buildPlanImplementationSummary(options.summaryProfile.planPath)
+            : buildExtractiveSummary({
+                title: "Context checkpoint",
+                messages: messagesToSummarize,
+                previousSummary: preparation.previousSummary,
+                instructions: request.instructions,
+                maxChars: Math.max(
+                  1_000,
+                  Math.floor(summaryReserveTokens * 3.2),
+                ),
+              }));
         const tokensAfter = estimatePostCompactionTokens(
           branch,
           firstKeptEntryId,
@@ -281,6 +293,7 @@ export class CompactionService {
           tokensAfter,
           freedTokens,
           reason,
+          summaryProfile: options.summaryProfile?.kind,
           policy: {
             contextWindow: options.contextWindow,
             thresholdTokens: options.thresholdTokens,
@@ -398,6 +411,7 @@ export class CompactionService {
     messages: AgentMessage[],
     previousSummary: string | undefined,
     instructions: string | undefined,
+    summaryProfile: CompactionSummaryProfile | undefined,
     summaryReserveTokens: number,
     signal: AbortSignal,
     onProgress?: (progress: CompactionProgressReport) => void,
@@ -410,6 +424,7 @@ export class CompactionService {
         messages,
         previousSummary,
         instructions,
+        summaryProfile,
         summaryReserveTokens,
         signal,
         onProgress,

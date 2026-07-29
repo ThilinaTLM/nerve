@@ -15,6 +15,36 @@ export interface ExtractiveSummaryInput {
   maxChars?: number;
 }
 
+export function buildPlanImplementationSummary(planPath: string): string {
+  return `## Goal
+Implement the approved plan at ${planPath}.
+
+## Requirements and Constraints
+- Treat ${planPath} as the authoritative implementation source of truth.
+- Read the plan file directly; this checkpoint intentionally does not duplicate it.
+
+## Work Completed
+- [x] Planning and user review are complete.
+- No implementation work is claimed by this checkpoint.
+
+## Work Remaining
+- [ ] Read ${planPath}, implement it, and validate the completed changes.
+
+## Key Decisions
+- **External plan**: The approved plan file is authoritative; avoid reconstructing it from planning history.
+
+## Current Working State
+- Implementation has not started from this checkpoint.
+
+## Continuation Plan
+1. Read ${planPath}.
+2. Implement the plan as written.
+3. Run the required validation and fix any failures.
+
+## Critical References
+- ${planPath}`;
+}
+
 export function buildExtractiveSummary(input: ExtractiveSummaryInput): string {
   const llmMessages = convertToLlm(input.messages);
   const serialized = serializeConversation(llmMessages).trim();

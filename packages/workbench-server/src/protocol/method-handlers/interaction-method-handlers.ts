@@ -93,9 +93,11 @@ export const interactionMethodHandlers = defineWorkbenchMethodHandlers({
 function implementation(request: {
   implementationModel?: ModelSelection;
   implementationThinkingLevel?: ThinkingLevel;
+  compactBeforeImplementation?: boolean;
 }) {
   return {
     implementationModel: request.implementationModel,
     implementationThinkingLevel: request.implementationThinkingLevel,
+    compactBeforeImplementation: request.compactBeforeImplementation,
   };
 }

@@ -16,6 +16,7 @@ export {
   type AutoCompactionPolicy,
   type AutoCompactionReason,
   calculateContextTokens,
+  type CompactionSummaryProfile,
   compact,
   computeContextUsage,
   DEFAULT_AUTO_COMPACTION_SETTINGS,

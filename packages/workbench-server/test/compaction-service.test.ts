@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { validatePublicEvent } from "@nervekit/contracts";
 import { CompactionService } from "../src/domains/conversations/operations/compaction-service.js";
+import { buildPlanImplementationSummary } from "../src/domains/conversations/operations/summary.js";
 
 const timestamp = "2026-07-19T00:00:00.000Z";
 
@@ -32,9 +33,21 @@ Finish the task.
 }
 
 describe("CompactionService", () => {
+  it("builds a concise structured fallback for plan implementation", () => {
+    const planPath = "/tmp/approved-plan.md";
+    const summary = buildPlanImplementationSummary(planPath);
+
+    assert.match(summary, /## Goal/);
+    assert.match(summary, /## Work Remaining/);
+    assert.match(summary, /implementation has not started/i);
+    assert.match(summary, new RegExp(planPath.replaceAll("/", "\\/")));
+    assert.doesNotMatch(summary, /conversation excerpt/i);
+  });
+
   it("forwards the summary budget and records model provenance and policy", async () => {
     const events: Array<{ type: string; data: unknown }> = [];
     let summarizerBudget = 0;
+    let summaryProfile: unknown;
     const branch = [
       {
         type: "message",
@@ -96,6 +109,7 @@ describe("CompactionService", () => {
       } as never,
       async (input) => {
         summarizerBudget = input.summaryReserveTokens;
+        summaryProfile = input.summaryProfile;
         return { text: structuredSummary(), generatedBy: "model" };
       },
     );
@@ -117,6 +131,10 @@ describe("CompactionService", () => {
         keepRecentPercent: 15,
         safetyHeadroomTokens: 10_000,
         activeConversation: { getStorage: () => activeStorage } as never,
+        summaryProfile: {
+          kind: "plan-implementation",
+          planPath: "/tmp/approved-plan.md",
+        },
       },
     );
 
@@ -125,8 +143,14 @@ describe("CompactionService", () => {
       generatedBy?: string;
       policy?: Record<string, unknown>;
       freedTokens?: number;
+      summaryProfile?: string;
     };
     assert.equal(details.generatedBy, "model");
+    assert.equal(details.summaryProfile, "plan-implementation");
+    assert.deepEqual(summaryProfile, {
+      kind: "plan-implementation",
+      planPath: "/tmp/approved-plan.md",
+    });
     assert.equal(details.policy?.profile, "balanced");
     assert.equal(details.policy?.summaryReserveTokens, 8_000);
     assert.ok((details.freedTokens ?? 0) > 0);

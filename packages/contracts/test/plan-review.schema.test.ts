@@ -11,6 +11,7 @@ describe("plan review resolve request schema", () => {
           modelId: "claude-sonnet-4-5",
         },
         implementationThinkingLevel: "max",
+        compactBeforeImplementation: true,
       }),
       {
         implementationModel: {
@@ -18,6 +19,7 @@ describe("plan review resolve request schema", () => {
           modelId: "claude-sonnet-4-5",
         },
         implementationThinkingLevel: "max",
+        compactBeforeImplementation: true,
       },
     );
   });
@@ -31,6 +33,11 @@ describe("plan review resolve request schema", () => {
     assert.throws(() =>
       resolvePlanReviewRequestSchema.parse({
         implementationModel: { provider: "anthropic", modelId: "" },
+      }),
+    );
+    assert.throws(() =>
+      resolvePlanReviewRequestSchema.parse({
+        compactBeforeImplementation: "yes",
       }),
     );
   });
