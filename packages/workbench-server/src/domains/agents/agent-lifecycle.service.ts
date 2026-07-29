@@ -43,8 +43,6 @@ function isRuntimeConfigUpdate(request: UpdateAgentRequest): boolean {
 }
 
 export class AgentLifecycleService {
-  private readonly childReservationQueues = new Map<string, Promise<void>>();
-
   constructor(
     private readonly storage: InitializedStorage,
     private readonly events: StreamLogRegistry,
@@ -115,8 +113,8 @@ export class AgentLifecycleService {
       "agent",
     ).id;
     if (parent) {
-      await this.reserveChildRunWithAuthority(
-        parent.id,
+      assertChildAuthority(
+        parent,
         mode,
         permissionLevel,
         Boolean(options.allowChildAuthorityExceed),
@@ -342,49 +340,6 @@ export class AgentLifecycleService {
         updatedAt: new Date().toISOString(),
       });
     }
-  }
-
-  private async reserveChildRunWithAuthority(
-    parentId: string,
-    mode: Mode,
-    permissionLevel: AgentRecord["permissionLevel"],
-    allowAuthorityExceed: boolean,
-  ): Promise<void> {
-    const previous =
-      this.childReservationQueues.get(parentId) ?? Promise.resolve();
-    const queued = previous
-      .catch(() => undefined)
-      .then(async () => {
-        const latest = this.getAgent(parentId);
-        assertChildAuthority(
-          latest,
-          mode,
-          permissionLevel,
-          allowAuthorityExceed,
-        );
-        await this.reserveChildRun(latest);
-      });
-    this.childReservationQueues.set(parentId, queued);
-    try {
-      await queued;
-    } finally {
-      if (this.childReservationQueues.get(parentId) === queued) {
-        this.childReservationQueues.delete(parentId);
-      }
-    }
-  }
-
-  private async reserveChildRun(parent: AgentRecord): Promise<void> {
-    const latest = this.getAgent(parent.id);
-    const updated: AgentRecord = {
-      ...latest,
-      budget: {
-        ...latest.budget,
-        usedRuns: latest.budget.usedRuns + 1,
-      },
-      updatedAt: new Date().toISOString(),
-    };
-    await this.updateAgent(updated);
   }
 
   private async writeAgent(agent: AgentRecord): Promise<void> {

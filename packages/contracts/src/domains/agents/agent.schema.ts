@@ -38,8 +38,6 @@ export type AgentStatus = z.infer<typeof agentStatusSchema>;
 export const agentBudgetSchema = z.object({
   depth: z.number().int().nonnegative().default(0),
   maxDepth: z.number().int().positive().max(8).default(3),
-  maxRuns: z.number().int().positive().max(64).default(8),
-  usedRuns: z.number().int().nonnegative().default(0),
 });
 export type AgentBudget = z.infer<typeof agentBudgetSchema>;
 
@@ -64,8 +62,6 @@ export const agentRecordSchema = z.object({
   budget: agentBudgetSchema.default({
     depth: 0,
     maxDepth: 3,
-    maxRuns: 8,
-    usedRuns: 0,
   }),
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema.default("off"),

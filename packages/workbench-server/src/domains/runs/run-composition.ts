@@ -10,6 +10,7 @@ import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
+import type { WorkbenchExploreAdmission } from "../agents/run/workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "../agents/run/workbench-subagent-executions.js";
 import type { ToolService } from "../tools/tool-service.js";
 import type { WorkbenchTaskService } from "../tasks/workbench-task-service.js";
@@ -45,6 +46,7 @@ export function createWorkbenchRunRuntime(input: {
   tasks: WorkbenchTaskService;
   harnessStorage: ConversationHarnessStorage;
   subagentExecutions: WorkbenchSubagentExecutions;
+  exploreAdmission: WorkbenchExploreAdmission;
   execution:
     | WorkbenchRunExecutionAdapter
     | ((references: WorkbenchRunReferences) => WorkbenchRunExecutionAdapter);
@@ -80,7 +82,11 @@ export function createWorkbenchRunRuntime(input: {
     typeof input.execution === "function"
       ? input.execution(references)
       : input.execution;
-  const execution = new WorkbenchRunExecutionFactory(adapter, live);
+  const execution = new WorkbenchRunExecutionFactory(
+    adapter,
+    live,
+    input.exploreAdmission,
+  );
   const statusProjector = new WorkbenchRunStatusProjector(
     input.state,
     input.setAgentStatus,

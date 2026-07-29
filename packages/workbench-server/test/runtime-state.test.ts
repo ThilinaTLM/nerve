@@ -41,7 +41,7 @@ function agent(id: string, createdAt = now): AgentRecord {
     mode: "coding",
     permissionLevel: "autonomous",
     workspaceScope: { roots: ["/tmp/proj_a"] },
-    budget: { depth: 0, maxDepth: 3, maxRuns: 8, usedRuns: 0 },
+    budget: { depth: 0, maxDepth: 3 },
     thinkingLevel: "off",
     status: "idle",
     createdAt,

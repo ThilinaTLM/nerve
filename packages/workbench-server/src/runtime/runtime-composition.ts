@@ -11,6 +11,7 @@ import {
 } from "../domains/agents/run/index.js";
 import type { AgentBrowserSkillCatalog } from "../domains/agents/prompting/agent-browser-skills.js";
 import type { AuthManager } from "../domains/auth/index.js";
+import { WorkbenchExploreAdmission } from "../domains/agents/run/workbench-explore-admission.js";
 import { WorkbenchSubagentExecutions } from "../domains/agents/run/workbench-subagent-executions.js";
 import { ConversationService } from "../domains/conversations/conversation-service.js";
 import { ConversationHarnessStorage } from "../domains/conversations/conversation-harness-storage.js";
@@ -122,6 +123,7 @@ export function composeRuntime(
     deps;
   const services = {} as RuntimeServices;
   const subagentExecutions = new WorkbenchSubagentExecutions();
+  const exploreAdmission = new WorkbenchExploreAdmission();
 
   const getProject = (projectId: string) =>
     services.projectLifecycle.getProject(projectId);
@@ -433,6 +435,7 @@ export function composeRuntime(
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
     agentBrowserSkills: deps.agentBrowserSkills,
+    exploreAdmission,
     subagentExecutions,
   });
   services.runRuntime = createWorkbenchRunRuntime({
@@ -443,6 +446,7 @@ export function composeRuntime(
     tasks: services.tasks,
     harnessStorage: services.harnessStorage,
     subagentExecutions,
+    exploreAdmission,
     execution: (references) =>
       new WorkbenchAgentExecutionAdapter(services.agentMechanics, references),
     retryPolicy: {

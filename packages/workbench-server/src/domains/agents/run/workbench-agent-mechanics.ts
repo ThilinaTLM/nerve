@@ -47,6 +47,7 @@ import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
 import type { WorkbenchLiveExecutionControl } from "../../runs/run-live-executions.js";
+import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 
 export interface WorkbenchAgentMechanicsDeps {
@@ -75,6 +76,7 @@ export interface WorkbenchAgentMechanicsDeps {
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   subagentExecutions: WorkbenchSubagentExecutions;
+  exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
 }
 
@@ -95,6 +97,7 @@ export class WorkbenchAgentMechanics {
       subscriptionUsage: deps.subscriptionUsage,
       logger: deps.logger.child({ component: "subagent-runner" }),
       executions: deps.subagentExecutions,
+      exploreAdmission: deps.exploreAdmission,
       agentBrowserSkills: deps.agentBrowserSkills,
     });
     this.inlineCommands = new InlineCommandRunner(deps);

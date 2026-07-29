@@ -280,7 +280,7 @@ function agentRecord(overrides: Partial<AgentRecord> = {}): AgentRecord {
     mode: "coding",
     permissionLevel: "autonomous",
     workspaceScope: { roots: ["/tmp/project"] },
-    budget: { depth: 0, maxDepth: 3, maxRuns: 8, usedRuns: 0 },
+    budget: { depth: 0, maxDepth: 3 },
     thinkingLevel: "off",
     status: "idle",
     createdAt: now,

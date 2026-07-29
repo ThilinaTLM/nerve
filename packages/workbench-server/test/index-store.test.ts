@@ -129,7 +129,7 @@ describe("IndexStore", () => {
       mode: "coding",
       permissionLevel: "autonomous",
       workspaceScope: { roots: [project.dir] },
-      budget: { depth: 0, maxDepth: 3, maxRuns: 8, usedRuns: 0 },
+      budget: { depth: 0, maxDepth: 3 },
       thinkingLevel: "off",
       status: "idle",
       createdAt: now,

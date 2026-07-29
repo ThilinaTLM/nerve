@@ -32,7 +32,7 @@ describe("RuntimeRegistry conversation branches", () => {
             mode: "coding",
             permissionLevel: "supervised",
             workspaceScope: { roots: [state.storage.paths.home] },
-            budget: { depth: 0, maxDepth: 3, maxRuns: 8, usedRuns: 0 },
+            budget: { depth: 0, maxDepth: 3 },
             status: "idle",
             createdAt,
             updatedAt: createdAt,
