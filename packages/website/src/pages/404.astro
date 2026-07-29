@@ -1,0 +1,33 @@
+---
+import mark from "../assets/nerve-mark.svg";
+import { Image } from "astro:assets";
+import "../styles/site.css";
+
+Astro.response.status = 404;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="robots" content="noindex" />
+    <title>Page not found — Nerve</title>
+  </head>
+  <body class="marketing-page">
+    <header class="site-header">
+      <a class="brand" href="/"><Image src={mark} alt="" width={32} height={32} /><span>Nerve</span></a>
+    </header>
+    <main>
+      <section class="closing not-found">
+        <p class="eyebrow">404</p>
+        <h1>That page is not here.</h1>
+        <p>Search the documentation or return to the Nerve homepage.</p>
+        <div class="actions">
+          <a class="button primary" href="/start/overview/">Open the docs</a>
+          <a class="button secondary" href="/">Go home</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

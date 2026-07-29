@@ -26,7 +26,7 @@ node "Electron desktop application" as electron {
 
 node "Owned local child process\n@nervekit/workbench-server" as owned_daemon {
   component "HTTP router + auth\n/api/* and health" as http
-  component "Protocol v1 WebSocket\nlocal stream, replay, ACK" as ws
+  component "Protocol v1 WebSocket\nlocal streams, replay, resync" as ws
   component "Static web host\nBundled workbench-app assets" as static
   component "Server domain runtime\nGit, tasks, tools, harness, runs" as host
 }

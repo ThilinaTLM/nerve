@@ -10,7 +10,7 @@ title Nerve workspace packages: purposes and allowed dependencies
 
 package "Shared desktop foundations" as foundations {
   component "@nervekit/contracts\nTransport-neutral API, operation,\nevent, policy, and storage schemas" as contracts
-  component "@nervekit/protocol\nProtocol v1 codec, sessions, RPC,\nreplay, ACK, and flow control" as protocol
+  component "@nervekit/protocol\nProtocol v1 codec, sessions, RPC,\nreplay, cursors, and bounded delivery" as protocol
   component "@nervekit/harness\nModel conversation, harness,\nand agent loop runtime" as harness
   component "@nervekit/tools\nCanonical coding tool catalog,\nexecutors, and policy contracts" as tools
   component "@nervekit/ui-kit\nContract-free shadcn-svelte primitives,\ntheme, utilities, and renderers" as ui_kit

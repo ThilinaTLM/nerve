@@ -15,6 +15,7 @@ const allowedNerveDependencies = new Map([
   ["@nervekit/harness", ["@nervekit/contracts"]],
   ["@nervekit/tools", ["@nervekit/contracts"]],
   ["@nervekit/ui-kit", []],
+  ["@nervekit/website", []],
   [
     "@nervekit/workbench-server",
     [

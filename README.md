@@ -4,14 +4,14 @@
 
 Nerve keeps the agent simple, its work visible, and you in control. Follow streaming messages and tool calls, review approvals and plans, manage Git and background tasks, and change the model or permission level without starting over—all from an open-source desktop app that runs with your local projects.
 
-![Nerve desktop workbench showing the conversation list, welcome screen, and Git changes panel](docs/assets/preview-workbench-overview.webp)
+![Nerve desktop workbench showing the conversation list, welcome screen, and Git changes panel](packages/website/src/assets/preview-workbench-overview.webp)
 
-![Nerve coding conversation with tool results, composer controls, and pull request checks](docs/assets/preview-conversation-and-pr.webp)
+![Nerve coding conversation with tool results, composer controls, and pull request checks](packages/website/src/assets/preview-conversation-and-pr.webp)
 
-![Nerve task runs, agent context, tool output, and model selection controls](docs/assets/preview-tasks-and-context.webp)
+![Nerve task runs, agent context, tool output, and model selection controls](packages/website/src/assets/preview-tasks-and-context.webp)
 
 > [!NOTE]
-> Nerve is beta software and is distributed under the [Apache-2.0 license](LICENSE).
+> Nerve is beta software and is distributed under the [Apache-2.0 license](LICENSE). Read the complete product documentation at [nerve.tlmtech.dev](https://nerve.tlmtech.dev).
 
 ## Quick start
 
@@ -39,7 +39,7 @@ Nerve sits between bare command-line harnesses and heavyweight IDE agents: small
 
 ### A workbench for real projects
 
-Open multiple projects and organize their conversations in a navigable tree. Keep conversations, files, pull requests, tasks, logs, settings, and scratch notes in tabs while the composer shows live context-window usage. Search projects and conversations, inspect a conversation's history graph, continue or fork from an earlier point, and edit and resend previous prompts.
+Open multiple projects and organize their conversations in a navigable tree. Keep conversations, files, pull requests, tasks, logs, and settings in tabs, with project scratch notes in a docked panel, while the composer shows live context-window usage. Search projects and conversations, inspect a conversation's history graph, continue or fork from an earlier point, and edit and resend previous prompts.
 
 The desktop UI also includes light and dark themes, browser notifications, zoom controls, and keyboard shortcuts for pane navigation, sending or stopping work, cycling agent controls, and voice input.
 
@@ -180,9 +180,9 @@ Supported values are `x11`, `wayland`, and `auto`. Leave the variable unset for 
 <details>
 <summary><strong>Upgrading a legacy desktop data directory</strong></summary>
 
-When the desktop finds an unversioned legacy `~/.nerve`, it asks before making changes. If accepted, Nerve renames the complete directory to a retained, timestamped backup such as `~/.nerve-bk-20260716-013229`, initializes a fresh current data directory, and restores only encrypted provider and tool authentication when it can be read.
+When the desktop finds an unversioned legacy `~/.nerve`, it asks before making changes. If accepted, Nerve renames the complete directory to a retained, timestamped backup such as `~/.nerve-bk-20260716-013229`, initializes a fresh current data directory, and restores validated settings, the custom provider/model catalog, and recoverable provider and tool authentication.
 
-Conversations, projects, history, custom provider definitions, settings, and all other state are not imported; review your settings after the upgrade.
+Conversations, projects, agents, tasks, plans, logs, run history, indexes, and daemon/session state are not imported; they remain in the complete backup.
 
 If legacy credentials cannot be decrypted, startup continues with the complete backup intact and asks you to authenticate again. Nerve never deletes these backups automatically. Unknown, malformed, or future versioned stores are not reset automatically, and remote desktop connections never run this local-home migration.
 
@@ -250,12 +250,13 @@ The desktop workbench is the main local product:
 Shared foundations keep contracts and runtime behavior independent of the UI:
 
 - `packages/contracts` — transport-neutral API, event, policy, operation, and storage schemas.
-- `packages/protocol` — protocol codec, HTTP mapping, client/server sessions, replay, acknowledgements, and queues.
+- `packages/protocol` — protocol codec, HTTP mapping, client/server sessions, cursors, replay, snapshot recovery, and queues.
 - `packages/harness` — model conversation, agent loop, skills, and context compaction.
 - `packages/tools` — coding tool catalog, executors, and policy enforcement.
 - `packages/ui-kit` — contract-free shadcn-svelte components, theme, and generic renderers.
+- `packages/website` — private Astro/Starlight workspace for the public website and product documentation.
 
-Nerve Protocol v1 connects the local workbench UI to `workbench_server` over HTTP and WebSocket. See [`docs/nerve-protocol/v1/`](docs/nerve-protocol/v1/) and [`docs/release.md`](docs/release.md).
+Nerve Protocol v1 connects the local workbench UI to `workbench_server` over HTTP and WebSocket. See the [public Protocol v1 reference](https://nerve.tlmtech.dev/developers/protocol/v1/) and [`docs/release.md`](docs/release.md).
 
 ## Contributing and security
 

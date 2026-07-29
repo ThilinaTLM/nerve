@@ -1,0 +1,38 @@
+---
+title: Run background tasks
+description: Supervise servers, watchers, and other long-running processes.
+sidebar:
+  order: 10
+---
+
+Nerve separates a durable **task definition** from immutable **task runs**. A definition owns its label, command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the task and tab remain stable while prior output stays in History.
+
+- `single` (default): launching an active definition focuses its current run.
+- `concurrent`: launching can create another active run.
+
+Use finite Bash for commands that should finish. Use a task for a known server or watcher. Nerve can also promote a command that remains active.
+
+## Supervision
+
+A task can define readiness by URL, first detected URL, or output pattern. The agent receives asynchronous status rather than polling. Dedicated views provide status and bounded streaming logs with cursor, error, warning, and first-failure modes. Runtime can be capped at up to 24 hours.
+
+Environment values supplied to task start are encrypted at rest and displayed as redacted keys. They still enter the child process; treat its logs and behavior as sensitive.
+
+## Recovery
+
+Nerve has no persistent sidecar supervisor. On restart it verifies process identity with platform evidence:
+
+- `recovered`: verified live; stop/restart remains available, but old stdout/stderr is frozen because pipes cannot be reattached;
+- `interrupted`: verified gone;
+- `recovery_unknown`: identity cannot be proven, so destructive PID actions are blocked.
+
+Linux uses `/proc` start identity and process groups; macOS uses process-start fingerprints and groups; Windows uses creation time and process-tree termination. Port discovery is best effort.
+
+## Agent notifications
+
+Task terminal changes can become deduplicated `task_event` system entries in the conversation and can wake an agent waiting for completion. This is separate from desktop/browser toast notifications.
+
+## Next steps
+
+- [Task recovery troubleshooting](/troubleshooting/tasks-and-recovery/)
+- [Task tool reference](/reference/tools/#background-tasks)

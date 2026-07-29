@@ -34,6 +34,6 @@ legend bottom
   |= Runtime link |= Meaning |
   | workbench-app <-> workbench-server | Local UI API/protocol; server owns workbench stream state |
   Nerve Protocol v1 supplies strict envelopes, catalog RPC/events, session lifecycle,
-  replay/ACK, bounded flow control, and snapshot recovery.
+  replay from processed cursors, bounded delivery, and snapshot recovery.
 endlegend
 @enduml
