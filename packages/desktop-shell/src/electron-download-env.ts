@@ -142,7 +142,7 @@ export function formatElectronDownloadFailure(error: unknown): string {
     "",
     "Then retry the package installation or rebuild Electron:",
     "  npm rebuild electron",
-    "  npx @nervekit/desktop",
+    "  npx @nervekit/desktop@latest",
     "",
     "If your company mirrors Electron artifacts, also set ELECTRON_MIRROR.",
     "Set NERVE_DEBUG_PROXY=1 for redacted desktop proxy diagnostics.",

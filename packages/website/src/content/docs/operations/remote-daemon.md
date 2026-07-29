@@ -8,7 +8,7 @@ sidebar:
 Use remote mode when a daemon already runs on another host or in a separately managed local profile.
 
 ```sh
-npx @nervekit/desktop -- \
+npx @nervekit/desktop@latest -- \
   --connect https://nerve-host.example:3748 \
   --token <token>
 ```
