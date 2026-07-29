@@ -1,4 +1,8 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import {
+  EXPLORE_MAX_CHILDREN_PER_RUN,
+  EXPLORE_MAX_TASKS_PER_CALL,
+} from "@nervekit/contracts";
 import type {
   AgentRecord,
   ExploreStepPayload,
@@ -18,7 +22,6 @@ import type {
 const EXPLORE_CONTEXT_MIN_LENGTH = 40;
 const EXPLORE_TASK_MIN_LENGTH = 15;
 const EXPLORE_SPLIT_RATIONALE_MIN_LENGTH = 40;
-const EXPLORE_MAX_PARALLEL_TASKS = 5;
 const EXPLORE_MAX_RECORDED_STEPS = 50;
 
 export function exploreRunPlanArg(
@@ -26,15 +29,15 @@ export function exploreRunPlanArg(
 ): ExploreRunPlan {
   if (!Array.isArray(args.tasks)) {
     throw new Error(
-      "Explore requires a 'tasks' array containing 1 to 5 items.",
+      `Explore requires a 'tasks' array containing 1 to ${EXPLORE_MAX_TASKS_PER_CALL} items.`,
     );
   }
   if (args.tasks.length < 1) {
     throw new Error("Explore requires at least 1 task.");
   }
-  if (args.tasks.length > EXPLORE_MAX_PARALLEL_TASKS) {
+  if (args.tasks.length > EXPLORE_MAX_TASKS_PER_CALL) {
     throw new Error(
-      `Explore supports at most ${EXPLORE_MAX_PARALLEL_TASKS} tasks.`,
+      `Explore received ${args.tasks.length} tasks, but one call accepts at most ${EXPLORE_MAX_TASKS_PER_CALL}. Split independent work into multiple Explore calls; all calls share ${EXPLORE_MAX_CHILDREN_PER_RUN} child launches per parent run. No children were started for this call.`,
     );
   }
 

@@ -37,6 +37,7 @@ import type {
   ToolService,
 } from "../../tools/tool-service.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
+import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
@@ -155,6 +156,7 @@ export interface SubagentRunnerDeps {
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   executions: WorkbenchSubagentExecutions;
+  exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
 }
 
@@ -186,6 +188,10 @@ export class SubagentRunner {
     const tasks = plan.tasks;
     const batchId = createId("run");
     throwIfAborted(options.signal);
+    const admission = this.deps.exploreAdmission.reserveBatch(
+      options.parentRunId,
+      tasks.length,
+    );
     publishExploreProgress(options.onProgress, {
       taskCount: tasks.length,
       phase: "queued",
@@ -194,75 +200,95 @@ export class SubagentRunner {
           ? "Starting 1 explore agent."
           : `Starting ${tasks.length} parallel explore agents.`,
     });
-    const settledReports = await Promise.allSettled(
-      tasks.map(async (task, index) => {
-        throwIfAborted(options.signal);
-        publishExploreProgress(options.onProgress, {
-          taskIndex: index,
-          taskCount: tasks.length,
-          label: task.label,
-          phase: "started",
-          message: `Explore ${index + 1}/${tasks.length} started: ${task.label ?? task.task}`,
-        });
-        const output = await this.runSubagent({
-          kind: "explore",
-          parent,
-          projectId: parent.projectId,
-          projectDir: parent.projectDir,
-          workerId: parent.workerId,
-          mode: "coding",
-          permissionLevel: "read_only",
-          prompt: exploreUserPrompt(task, plan),
-          systemPrompt: exploreSystemPrompt(parent.projectDir),
-          historyMode: "fresh",
-          model: this.deps.storage.settings.exploreAgent.model,
-          thinkingLevel: this.deps.storage.settings.exploreAgent.thinkingLevel,
-          workspaceScope: parent.workspaceScope,
-          task: task.task,
-          label: task.label,
-          taskIndex: index,
-          taskCount: tasks.length,
-          onProgress: options.onProgress,
-          signal: options.signal,
-          parentRunId: options.parentRunId,
-        });
-        const reportPath = await this.writeExploreReport({
-          batchId,
-          task,
-          index,
-          plan,
-          output,
-        });
-        publishExploreProgress(options.onProgress, {
-          agentId: output.agent.id,
-          taskIndex: index,
-          taskCount: tasks.length,
-          label: task.label,
-          model: output.model,
-          thinkingLevel: output.thinkingLevel,
-          phase: output.status === "completed" ? "completed" : "failed",
-          message:
-            output.status === "completed"
-              ? `Report written: ${reportPath}`
-              : `Failure report written: ${reportPath}`,
-        });
-        return {
-          agentId: output.agent.id,
-          task: task.task,
-          label: task.label,
-          status: output.status,
-          report: output.report,
-          reportPath,
-          summaryPreview: summaryPreview(output.report),
-          usage: output.usage,
-          model: output.model,
-          thinkingLevel: output.thinkingLevel,
-          stopReason: output.stopReason,
-          errorMessage: output.errorMessage,
-          steps: output.steps,
-        };
-      }),
-    );
+    let settledReports: PromiseSettledResult<ExploreReport>[];
+    try {
+      settledReports = await Promise.allSettled(
+        tasks.map(async (task, index) => {
+          throwIfAborted(options.signal);
+          const release = await admission.acquire(options.signal, () =>
+            publishExploreProgress(options.onProgress, {
+              taskIndex: index,
+              taskCount: tasks.length,
+              label: task.label,
+              phase: "queued",
+              message: `Explore ${index + 1}/${tasks.length} is waiting for an active-agent slot.`,
+            }),
+          );
+          publishExploreProgress(options.onProgress, {
+            taskIndex: index,
+            taskCount: tasks.length,
+            label: task.label,
+            phase: "started",
+            message: `Explore ${index + 1}/${tasks.length} started: ${task.label ?? task.task}`,
+          });
+          let output: SubagentRunOutput;
+          try {
+            output = await this.runSubagent({
+              kind: "explore",
+              parent,
+              projectId: parent.projectId,
+              projectDir: parent.projectDir,
+              workerId: parent.workerId,
+              mode: "coding",
+              permissionLevel: "read_only",
+              prompt: exploreUserPrompt(task, plan),
+              systemPrompt: exploreSystemPrompt(parent.projectDir),
+              historyMode: "fresh",
+              model: this.deps.storage.settings.exploreAgent.model,
+              thinkingLevel:
+                this.deps.storage.settings.exploreAgent.thinkingLevel,
+              workspaceScope: parent.workspaceScope,
+              task: task.task,
+              label: task.label,
+              taskIndex: index,
+              taskCount: tasks.length,
+              onProgress: options.onProgress,
+              signal: options.signal,
+              parentRunId: options.parentRunId,
+            });
+          } finally {
+            release();
+          }
+          const reportPath = await this.writeExploreReport({
+            batchId,
+            task,
+            index,
+            plan,
+            output,
+          });
+          publishExploreProgress(options.onProgress, {
+            agentId: output.agent.id,
+            taskIndex: index,
+            taskCount: tasks.length,
+            label: task.label,
+            model: output.model,
+            thinkingLevel: output.thinkingLevel,
+            phase: output.status === "completed" ? "completed" : "failed",
+            message:
+              output.status === "completed"
+                ? `Report written: ${reportPath}`
+                : `Failure report written: ${reportPath}`,
+          });
+          return {
+            agentId: output.agent.id,
+            task: task.task,
+            label: task.label,
+            status: output.status,
+            report: output.report,
+            reportPath,
+            summaryPreview: summaryPreview(output.report),
+            usage: output.usage,
+            model: output.model,
+            thinkingLevel: output.thinkingLevel,
+            stopReason: output.stopReason,
+            errorMessage: output.errorMessage,
+            steps: output.steps,
+          };
+        }),
+      );
+    } finally {
+      admission.finish();
+    }
     const reports: ExploreReport[] = [];
     for (const result of settledReports) {
       if (result.status === "rejected") {

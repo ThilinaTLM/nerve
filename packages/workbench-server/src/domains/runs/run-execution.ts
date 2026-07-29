@@ -4,6 +4,7 @@ import type {
   RunExecutionFactoryPort,
   RunExecutionSink,
 } from "./runtime/index.js";
+import type { WorkbenchExploreAdmission } from "../agents/run/workbench-explore-admission.js";
 import type { WorkbenchLiveExecutions } from "./run-live-executions.js";
 
 /**
@@ -19,6 +20,7 @@ export class WorkbenchRunExecutionFactory implements RunExecutionFactoryPort {
   constructor(
     private readonly adapter: WorkbenchRunExecutionAdapter,
     private readonly live: WorkbenchLiveExecutions,
+    private readonly exploreAdmission: WorkbenchExploreAdmission,
   ) {}
 
   async create(run: RunRecord, sink: RunExecutionSink): Promise<RunExecution> {
@@ -29,7 +31,14 @@ export class WorkbenchRunExecutionFactory implements RunExecutionFactoryPort {
       execute: async (input) => {
         this.live.set(run.runId, control);
         try {
-          return await execution.execute(input);
+          const outcome = await execution.execute(input);
+          if (outcome.status !== "suspended") {
+            this.exploreAdmission.clearRun(run.runId);
+          }
+          return outcome;
+        } catch (error) {
+          this.exploreAdmission.clearRun(run.runId);
+          throw error;
         } finally {
           this.live.delete(run.runId);
         }

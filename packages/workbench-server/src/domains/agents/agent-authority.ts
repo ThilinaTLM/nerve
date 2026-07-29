@@ -14,13 +14,6 @@ export function assertChildAuthority(
       `Child-agent depth limit reached (${parent.budget.depth}/${parent.budget.maxDepth}).`,
     );
   }
-  if (parent.budget.usedRuns >= parent.budget.maxRuns) {
-    throw new HttpError(
-      403,
-      "SUBAGENT_BUDGET_EXHAUSTED",
-      `Child-agent run budget exhausted (${parent.budget.usedRuns}/${parent.budget.maxRuns}).`,
-    );
-  }
   const exceeds =
     modeRank(mode) > modeRank(parent.mode) ||
     permissionRank(permissionLevel) > permissionRank(parent.permissionLevel);

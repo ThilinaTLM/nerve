@@ -1,4 +1,8 @@
 import { ToolValidationError } from "../types.js";
+import {
+  EXPLORE_MAX_CHILDREN_PER_RUN,
+  EXPLORE_MAX_TASKS_PER_CALL,
+} from "@nervekit/contracts";
 
 export type TodoItem = { todo: string; done: boolean };
 
@@ -47,8 +51,13 @@ export function parseExploreRequest(args: Record<string, unknown>) {
   if (!Array.isArray(args.tasks)) {
     throw new ToolValidationError("explore requires a tasks array.");
   }
-  if (args.tasks.length < 1 || args.tasks.length > 5) {
-    throw new ToolValidationError("explore tasks must contain 1 to 5 items.");
+  if (args.tasks.length < 1) {
+    throw new ToolValidationError("explore requires at least 1 task.");
+  }
+  if (args.tasks.length > EXPLORE_MAX_TASKS_PER_CALL) {
+    throw new ToolValidationError(
+      `explore received ${args.tasks.length} tasks, but one call accepts at most ${EXPLORE_MAX_TASKS_PER_CALL}. Split independent work into multiple explore calls; all calls share ${EXPLORE_MAX_CHILDREN_PER_RUN} child launches per parent run.`,
+    );
   }
   const tasks = args.tasks.map((item, index) => {
     if (!item || typeof item !== "object") {
