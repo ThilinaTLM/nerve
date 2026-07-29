@@ -1,6 +1,5 @@
 ---
-import { Image } from "astro:assets";
-import mark from "../../assets/nerve-mark.svg";
+import NerveMark from "../NerveMark.astro";
 
 const columns = [
   {
@@ -53,7 +52,7 @@ const columns = [
     <div class="grid gap-10 py-14 md:grid-cols-[1.2fr_2.4fr]">
       <div class="max-w-xs">
         <a class="brand" href="/">
-          <Image src={mark} alt="" width={26} height={26} />
+          <NerveMark size={22} />
           <span>Nerve</span>
         </a>
         <p class="body-text mt-4 text-[0.925rem]">

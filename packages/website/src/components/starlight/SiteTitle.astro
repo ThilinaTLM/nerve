@@ -1,11 +1,10 @@
 ---
-import { Image } from "astro:assets";
-import mark from "../../assets/nerve-mark.svg";
+import NerveMark from "../NerveMark.astro";
 ---
 
 <a class="brand" href="/" translate="no">
   <span class="brand-mark">
-    <Image src={mark} alt="" width={22} height={22} />
+    <NerveMark size={19} />
   </span>
   <span class="brand-word">Nerve</span>
   <span class="brand-chip">Docs</span>

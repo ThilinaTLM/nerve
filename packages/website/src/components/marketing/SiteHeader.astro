@@ -1,6 +1,5 @@
 ---
-import { Image } from "astro:assets";
-import mark from "../../assets/nerve-mark.svg";
+import NerveMark from "../NerveMark.astro";
 import ThemeToggle from "./ThemeToggle.astro";
 
 const links = [
@@ -15,7 +14,7 @@ const links = [
   <div class="container-page flex h-[var(--nav-height)] items-center gap-4">
     <a class="brand" href="/" aria-label="Nerve home">
       <span class="brand-mark">
-        <Image src={mark} alt="" width={26} height={26} />
+        <NerveMark size={20} />
       </span>
       <span class="brand-word">Nerve</span>
     </a>

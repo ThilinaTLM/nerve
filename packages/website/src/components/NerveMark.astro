@@ -1,0 +1,38 @@
+---
+/* The Nerve mark, inlined so its strokes inherit `currentColor` and therefore
+ * follow the active theme. Rendering it through `<img>` would freeze the glyph
+ * at the SVG's own default color and make it near-invisible on dark surfaces.
+ *
+ * Geometry is the canonical mark from `assets/brand/nerve-mark.svg`. */
+
+interface Props {
+  size?: number;
+  class?: string;
+  title?: string;
+}
+
+const { size = 26, class: className, title }: Props = Astro.props;
+---
+
+<svg
+  class={className}
+  width={size}
+  height={size}
+  viewBox="120 120 272 272"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+  role={title ? "img" : "presentation"}
+  aria-hidden={title ? undefined : "true"}
+  aria-label={title}
+>
+  <g
+    stroke="currentColor"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M150 350V162"></path>
+    <path d="M362 350V162"></path>
+    <path d="M150 162L222 226L246 194L272 300L296 262L362 350"></path>
+  </g>
+</svg>

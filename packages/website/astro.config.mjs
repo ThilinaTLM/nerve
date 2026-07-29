@@ -16,10 +16,6 @@ export default defineConfig({
       description:
         "Nerve is a transparent, local-first desktop coding harness with a complete project workbench.",
       favicon: "/favicon.svg",
-      logo: {
-        src: "./src/assets/nerve-mark.svg",
-        alt: "Nerve",
-      },
       customCss: ["./src/styles/app.css"],
       components: {
         SiteTitle: "./src/components/starlight/SiteTitle.astro",
@@ -34,6 +30,19 @@ export default defineConfig({
         },
       },
       head: [
+        {
+          tag: "link",
+          attrs: {
+            rel: "icon",
+            type: "image/png",
+            sizes: "32x32",
+            href: "/favicon-32.png",
+          },
+        },
+        {
+          tag: "link",
+          attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+        },
         {
           tag: "meta",
           attrs: {
