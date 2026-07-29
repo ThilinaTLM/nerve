@@ -1,0 +1,103 @@
+---
+/* The desktop application frame.
+ *
+ * Deliberately not a macOS window: Nerve ships on Linux, Windows, and macOS, so
+ * traffic lights would be both inaccurate and pure noise. The bezel gutter
+ * carries a real label instead, and the radius matches what an application
+ * window corner looks like at this render scale.
+ */
+
+interface Props {
+  /* Mono text shown in the bezel gutter, e.g. "nerve · conversation". */
+  label?: string;
+  /* Elevation tier. Frames further back in a composition use a lower tier. */
+  depth?: 1 | 2 | 3;
+  /* Enables pointer tilt on fine pointers. */
+  tilt?: boolean;
+  class?: string;
+}
+
+const {
+  label = "nerve",
+  depth = 3,
+  tilt = false,
+  class: className = "",
+} = Astro.props;
+---
+
+<figure class:list={["device-wrap", className]}>
+  <div
+    class:list={["device", tilt && "tilt-target", `depth-${depth}`]}
+    data-tilt={tilt ? "" : undefined}
+    data-tilt-max={tilt ? "3" : undefined}
+  >
+    <div class="device-bezel">
+      <span class="label-chip">{label}</span>
+      <span class="device-live" aria-hidden="true"></span>
+    </div>
+    <div class="device-screen"><slot /></div>
+  </div>
+
+</figure>
+
+<style>
+  .device-wrap {
+    position: relative;
+    margin: 0;
+  }
+
+  .device {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--myelin);
+    border-radius: var(--radius-device);
+    background: var(--surface-elevated);
+    transition: box-shadow 320ms var(--ease-out-expo);
+  }
+
+  /* A 1px specular edge along the top. Sells the frame as a physical object
+   * without adding another border. */
+  .device::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0 0 color-mix(in oklab, white 12%, transparent);
+    pointer-events: none;
+  }
+
+  :global(:root[data-theme="light"]) .device::after {
+    box-shadow: inset 0 1px 0 0 color-mix(in oklab, white 65%, transparent);
+  }
+
+  .device-bezel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    height: 2rem;
+    padding-inline: 0.85rem;
+    border-bottom: 1px solid var(--hairline);
+    background-color: color-mix(in oklab, var(--card) 80%, var(--background));
+  }
+
+  .device-live {
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--success);
+  }
+
+  .device-screen {
+    overflow: hidden;
+    border-radius: 0 0 var(--radius-screen) var(--radius-screen);
+    background-color: var(--background);
+  }
+
+  .device-screen :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+</style>

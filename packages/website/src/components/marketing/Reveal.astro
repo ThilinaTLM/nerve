@@ -2,18 +2,30 @@
 interface Props {
   variant?: "up" | "left" | "right" | "scale";
   delay?: number;
+  /* Stagger children marked `data-reveal-child` from this one observer entry
+   * instead of registering an observer per child. */
+  stagger?: number;
   class?: string;
-  as?: "div" | "li" | "section" | "article" | "span";
+  as?: "div" | "li" | "section" | "article" | "span" | "ol" | "ul";
+  [key: string]: unknown;
 }
 
 const {
   variant = "up",
   delay = 0,
+  stagger,
   class: className = "",
   as: Tag = "div",
+  ...rest
 }: Props = Astro.props;
 ---
 
-<Tag data-reveal={variant} data-reveal-delay={delay} class={className}>
+<Tag
+  data-reveal={variant}
+  data-reveal-delay={delay}
+  data-reveal-stagger={stagger}
+  class={className}
+  {...rest}
+>
   <slot />
 </Tag>

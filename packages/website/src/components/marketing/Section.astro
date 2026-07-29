@@ -7,7 +7,10 @@ interface Props {
   title?: string;
   lede?: string;
   align?: "start" | "center";
-  rule?: boolean;
+  /* `plain` sits on the page background, `sunken` is a tonal band with hairline
+   * edges, `bleed` removes the container so the section owns the full width.
+   * Tones alternate down the page so the structure is visible at a glance. */
+  tone?: "plain" | "sunken" | "bleed";
   class?: string;
   headingId?: string;
 }
@@ -18,40 +21,67 @@ const {
   title,
   lede,
   align = "start",
-  rule = true,
+  tone = "plain",
   class: className = "",
   headingId,
 } = Astro.props;
 
 const titleId = headingId ?? (id ? `${id}-title` : undefined);
+const hasHeader = Boolean(eyebrow || title || lede);
 ---
 
 <section
   id={id}
-  class:list={["section-block", rule && "rule-top", className]}
+  class:list={["section-block", tone === "sunken" && "tone-sunken", className]}
   aria-labelledby={title ? titleId : undefined}
 >
-  <div class="container-page">
-    {
-      (eyebrow || title || lede) && (
-        <Reveal
-          class:list={[
-            "flex flex-col gap-4",
-            align === "center"
-              ? "mx-auto max-w-3xl items-center text-center"
-              : "max-w-3xl",
-          ]}
-        >
-          {eyebrow && <p class="eyebrow">{eyebrow}</p>}
-          {title && (
-            <h2 id={titleId} class="section-title">
-              {title}
-            </h2>
-          )}
-          {lede && <p class="lede">{lede}</p>}
-        </Reveal>
-      )
-    }
-    <slot />
-  </div>
+  {
+    tone === "bleed" ? (
+      <slot />
+    ) : (
+      <div class="container-page section-inner">
+        {hasHeader && (
+          <Reveal
+            class:list={[
+              "section-header",
+              align === "center" && "section-header-center",
+            ]}
+          >
+            {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+            {title && (
+              <h2 id={titleId} class="section-title">
+                {title}
+              </h2>
+            )}
+            {lede && <p class="lede">{lede}</p>}
+          </Reveal>
+        )}
+        <slot />
+      </div>
+    )
+  }
 </section>
+
+<style>
+  .section-block {
+    padding-block: var(--section-pad);
+  }
+
+  .section-inner {
+    display: grid;
+    gap: var(--section-gap);
+  }
+
+  .section-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 46rem;
+  }
+
+  .section-header-center {
+    align-items: center;
+    margin-inline: auto;
+    text-align: center;
+  }
+</style>

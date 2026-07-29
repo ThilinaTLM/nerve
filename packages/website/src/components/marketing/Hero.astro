@@ -2,30 +2,406 @@
 import { Image } from "astro:assets";
 import desktop from "../../assets/shots/d1-conversation.webp";
 import phone from "../../assets/shots/m1-conversation.webp";
+import DendriteField from "./DendriteField.astro";
+import DeviceFrame from "./DeviceFrame.astro";
 import InstallCommand from "./InstallCommand.astro";
-import NeuralField from "./NeuralField.astro";
 import PhoneFrame from "./PhoneFrame.astro";
 import Reveal from "./Reveal.astro";
-import ScreenshotFrame from "./ScreenshotFrame.astro";
+
+/* Chips that appear to lift out of the transcript. Each one is a real kind of
+ * event the workbench renders, so the decoration is also a claim. */
+const chips = [
+  { role: "read", body: "run-recovery.ts", tone: "success", place: "right-top" },
+  { role: "approval", body: "write needs review", tone: "warning", place: "left-mid" },
+  { role: "diff", body: "+12 −3", tone: "signal", place: "right-low" },
+];
 ---
-<section class="signal-hero" data-signal-section>
-  <NeuralField /><div class="grain" aria-hidden="true"></div>
-  <div class="container-wide hero-shell">
-    <div class="hero-copy">
-      <Reveal><span class="badge"><span class="badge-dot animate-pulse-ring" aria-hidden="true"></span>Open source · local first · beta</span></Reveal>
-      <Reveal delay={80}><h1 class="display-title">See the work.<br/><span class="gradient-text signal-title">Keep control.</span></h1></Reveal>
-      <Reveal delay={160}><p class="lede">Nerve is a transparent desktop coding harness with the focus of a small agent and the workflow of a complete workbench. Messages, reasoning, tool calls, approvals, tasks, and changes stay visible.</p></Reveal>
-      <Reveal delay={240}><div class="hero-actions"><a class="btn btn-primary" href="/start/install/">Get started <span aria-hidden="true">→</span></a><a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">View on GitHub</a></div></Reveal>
-      <Reveal delay={320}><InstallCommand /></Reveal>
+
+<section class="hero" data-hero>
+  <DendriteField class="hero-dendrites" />
+  <span class="hero-glow" aria-hidden="true"></span>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="container-page hero-shell">
+    <div class="hero-copy" data-hero-copy>
+      <Reveal>
+        <span class="badge">
+          <span class="badge-dot animate-pulse-ring" aria-hidden="true"></span>
+          Open source · local first · beta
+        </span>
+      </Reveal>
+
+      <Reveal delay={80}>
+        <h1 class="display-title">
+          See the work.<br /><span class="gradient-text hero-charge"
+            >Keep control.</span
+          >
+        </h1>
+      </Reveal>
+
+      <Reveal delay={160}>
+        <p class="lede hero-lede">
+          A local-first desktop coding harness where every prompt, thought, tool
+          call, approval, and diff is a separate event you can inspect — and
+          stop. It runs on your machine, against your repositories.
+        </p>
+      </Reveal>
+
+      <Reveal delay={240}>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/start/install/">
+            Get started <span aria-hidden="true">→</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
+            View on GitHub
+          </a>
+        </div>
+      </Reveal>
+
+      <Reveal delay={320} class="hero-install">
+        <InstallCommand />
+        <p class="meta-text">
+          No account. Loopback by default on <code class="code-chip"
+            >127.0.0.1:3747</code
+          >.
+        </p>
+      </Reveal>
     </div>
-    <Reveal variant="scale" delay={140} class="device-cluster">
-      <span class="device-glow" aria-hidden="true"></span>
-      <ScreenshotFrame parallax={18} class="desktop-device"><Image src={desktop} alt="Nerve conversation showing reasoning, tool calls, a code diff, and composer controls" widths={[720,1080,1600,2000]} sizes="(max-width:1024px) 96vw, 58vw" loading="eager" /></ScreenshotFrame>
-      <PhoneFrame parallax={-26} class="hero-phone"><Image src={phone} alt="Nerve conversation and composer at phone width" widths={[390,600,900]} sizes="20vw" loading="eager" /></PhoneFrame>
+
+    <Reveal variant="scale" delay={140} class="hero-stage stage-3d">
+      <div class="hero-deck tilt-target" data-hero-deck data-tilt data-tilt-max="4">
+        <DeviceFrame label="nerve · conversation" depth={3} class="hero-desktop">
+          <Image
+            src={desktop}
+            alt="Nerve conversation showing reasoning, tool calls, a code diff, and composer controls"
+            widths={[720, 1080, 1600, 2000]}
+            sizes="(max-width: 1024px) 94vw, 58vw"
+            loading="eager"
+          />
+        </DeviceFrame>
+
+        <PhoneFrame class="hero-phone">
+          <Image
+            src={phone}
+            alt="The same Nerve conversation and composer at phone width"
+            widths={[390, 600, 900]}
+            sizes="18vw"
+            loading="eager"
+          />
+        </PhoneFrame>
+
+        <div class="hero-chips" aria-hidden="true">
+          {
+            chips.map((chip) => (
+              <span
+                class:list={["hero-chip", `chip-${chip.place}`]}
+                data-hero-chip
+                data-tone={chip.tone}
+              >
+                <span class="chip-dot" />
+                <b>{chip.role}</b>
+                <span>{chip.body}</span>
+              </span>
+            ))
+          }
+        </div>
+      </div>
     </Reveal>
   </div>
+
+  <div class="hero-cue" aria-hidden="true">
+    <span class="cue-track"></span>
+    <span class="cue-label">Follow the signal</span>
+  </div>
 </section>
+
 <style>
-  .signal-hero{position:relative;isolation:isolate;overflow:hidden;min-height:calc(100svh - var(--nav-height));padding-block:clamp(4rem,9vw,8rem)}.hero-shell{position:relative;z-index:2;display:grid;align-items:center;gap:clamp(3rem,6vw,6rem)}.hero-copy{display:grid;gap:1.5rem}.hero-copy .lede{max-width:38rem}.hero-actions{display:flex;flex-wrap:wrap;gap:.75rem}.badge-dot{width:.45rem;height:.45rem;border-radius:999px;background:var(--success);color:var(--success)}.signal-title{position:relative}.signal-title::after{content:"";position:absolute;left:0;right:0;bottom:-.15em;height:2px;background:linear-gradient(90deg,transparent,var(--primary),var(--brand-2),transparent);transform-origin:left;animation:axon-charge 1.4s var(--ease-out-expo) both}.device-cluster{position:relative;padding:2rem 1rem 3rem}.device-glow{position:absolute;inset:15%;background:var(--primary);opacity:.15;filter:blur(80px)}.desktop-device{position:relative;z-index:1}.hero-phone{position:absolute;z-index:3;left:-2%;bottom:-2%;width:24%;min-width:8rem}
-  @media(min-width:1024px){.hero-shell{grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr)}}@media(max-width:639px){.hero-phone{display:none}.device-cluster{padding-inline:0}}
+  .hero {
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
+    min-height: calc(100svh - var(--nav-height));
+    padding-block: clamp(3.5rem, 7vw, 6.5rem) clamp(5rem, 8vw, 7rem);
+    display: grid;
+    align-content: center;
+  }
+
+  .hero-dendrites {
+    z-index: 0;
+    transform: translateZ(var(--z-back));
+  }
+
+  /* The dendrite field belongs behind the device stage, not behind the
+   * headline. This fades it out across the copy column so branches never run
+   * through type. */
+  @media (min-width: 1024px) {
+    .hero-dendrites {
+      mask-image:
+        linear-gradient(to bottom, transparent, black 18%, black 72%, transparent),
+        linear-gradient(to right, transparent 6%, black 46%);
+      -webkit-mask-image:
+        linear-gradient(to bottom, transparent, black 18%, black 72%, transparent),
+        linear-gradient(to right, transparent 6%, black 46%);
+      mask-composite: intersect;
+      -webkit-mask-composite: source-in;
+    }
+  }
+
+  .hero-glow {
+    position: absolute;
+    z-index: 0;
+    inset: 20% 8% 25% 40%;
+    background: radial-gradient(circle, var(--primary), transparent 62%);
+    opacity: 0.18;
+    filter: blur(90px);
+    pointer-events: none;
+  }
+
+  :global(:root[data-theme="light"]) .hero-glow {
+    opacity: 0.12;
+  }
+
+  .hero-shell {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    align-items: center;
+    gap: clamp(3rem, 5vw, 5rem);
+  }
+
+  .hero-copy {
+    display: grid;
+    gap: 1.5rem;
+    transform: translateY(var(--copy-shift, 0px));
+  }
+
+  .hero-lede {
+    max-width: 34rem;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .hero-install {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .badge-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: var(--radius-pill);
+    background: var(--success);
+    color: var(--success);
+  }
+
+  /* The headline's second line charges like an axon on first paint. */
+  .hero-charge {
+    position: relative;
+  }
+
+  .hero-charge::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -0.14em;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--primary),
+      var(--signal),
+      transparent
+    );
+    transform-origin: left;
+    animation: axon-charge 1.4s var(--ease-out-expo) both;
+  }
+
+  /* Stage --------------------------------------------------------------- */
+
+  .hero-stage {
+    position: relative;
+  }
+
+  .hero-deck {
+    position: relative;
+    transform: rotateX(calc(var(--deck-rotate-x, 4deg) + var(--tilt-x, 0deg)))
+      rotateY(calc(-9deg + var(--tilt-y, 0deg)))
+      translateY(var(--deck-lift, 0px));
+    transform-style: preserve-3d;
+    transition: transform 120ms linear;
+  }
+
+  .hero-deck :global(.hero-desktop) {
+    transform: translateZ(var(--z-base));
+  }
+
+  /* Sits beside the desktop frame rather than across it: the phone is a
+   * companion in the composition, not an occluder. */
+  .hero-phone {
+    position: absolute;
+    z-index: 3;
+    left: -7%;
+    bottom: -12%;
+    width: 17%;
+    min-width: 6.5rem;
+    transform: translateZ(var(--z-fore));
+  }
+
+  .hero-chips {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .hero-chip {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: var(--card);
+    box-shadow: var(--depth-2);
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    white-space: nowrap;
+    transform: translateZ(var(--chip-z, var(--z-top)));
+  }
+
+  .hero-chip b {
+    color: var(--foreground);
+    font-weight: 500;
+  }
+
+  .chip-dot {
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: var(--radius-pill);
+    background-color: currentcolor;
+  }
+
+  .hero-chip[data-tone="success"] .chip-dot {
+    background-color: var(--success);
+  }
+
+  .hero-chip[data-tone="warning"] .chip-dot {
+    background-color: var(--warning);
+  }
+
+  .hero-chip[data-tone="signal"] .chip-dot {
+    background-color: var(--signal);
+  }
+
+  /* The overhang is small on the right, where the viewport edge is close, and
+   * generous on the left, where the copy column leaves room. */
+  .chip-right-top {
+    top: 12%;
+    right: -2%;
+    animation: float-soft 7s ease-in-out infinite;
+  }
+
+  .chip-left-mid {
+    top: 24%;
+    left: -13%;
+    animation: float-soft 9s ease-in-out infinite reverse;
+  }
+
+  .chip-right-low {
+    bottom: 16%;
+    right: 1%;
+    animation: float-soft 11s ease-in-out infinite;
+  }
+
+  /* Cue ------------------------------------------------------------------ */
+
+  .hero-cue {
+    position: absolute;
+    z-index: 2;
+    bottom: 1.75rem;
+    left: 50%;
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+    transform: translateX(-50%);
+  }
+
+  .cue-track {
+    position: relative;
+    width: 1px;
+    height: 2.5rem;
+    background-color: var(--myelin-dim);
+    overflow: hidden;
+  }
+
+  .cue-track::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -0.125rem;
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--signal);
+    box-shadow: var(--glow-signal);
+    animation: cue-drop 2.2s var(--ease-out-expo) infinite;
+  }
+
+  .cue-label {
+    color: var(--muted-foreground);
+    font-size: var(--text-eyebrow);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* Responsive ----------------------------------------------------------- */
+
+  @media (min-width: 1024px) {
+    .hero-shell {
+      grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .hero {
+      min-height: 0;
+    }
+
+    .hero-cue {
+      display: none;
+    }
+
+    /* No perspective on touch: the tilt controller does not run, and a static
+     * rotation would only cost legibility. */
+    .hero-deck {
+      transform: none;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .hero-phone,
+    .chip-left-mid {
+      display: none;
+    }
+
+    /* Keep the remaining chips inside the frame's bounds so they never clip. */
+    .chip-right-top {
+      top: 5%;
+      right: 2%;
+    }
+
+    .chip-right-low {
+      right: auto;
+      bottom: 6%;
+      left: 2%;
+    }
+  }
 </style>

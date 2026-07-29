@@ -1,8 +1,10 @@
 import { Buffer } from "node:buffer";
 import type { ImageContent, Message, TextContent } from "@earendil-works/pi-ai";
-import type { Sharp } from "sharp";
+import { resizeImage } from "./image-resize.js";
 
+const ANTHROPIC_MAX_DIMENSION = 8000;
 const ANTHROPIC_MANY_IMAGE_MAX_DIMENSION = 2000;
+const ANTHROPIC_MANY_IMAGE_THRESHOLD = 20;
 
 interface ModelLike {
   api: string;
@@ -15,14 +17,15 @@ interface NormalizedContentBlocks {
 
 /**
  * Normalize model-visible images for provider request limits without mutating
- * stored transcript messages. Anthropic allows larger single-image requests,
- * but caps every image dimension at 2000 px when a request contains many images.
+ * stored transcript messages. Anthropic caps each image dimension at 8000 px,
+ * or 2000 px when a request contains more than 20 images.
  */
 export async function normalizeImagesForModel(
   messages: Message[],
   model: ModelLike,
 ): Promise<Message[]> {
-  if (!requiresAnthropicManyImageCap(messages, model)) return messages;
+  const maxDimension = anthropicMaxDimension(messages, model);
+  if (maxDimension === undefined) return messages;
 
   let changed = false;
   const normalizedMessages: Message[] = [];
@@ -32,7 +35,10 @@ export async function normalizeImagesForModel(
         normalizedMessages.push(message);
         continue;
       }
-      const normalized = await normalizeContentBlocks(message.content);
+      const normalized = await normalizeContentBlocks(
+        message.content,
+        maxDimension,
+      );
       if (normalized.changed) {
         changed = true;
         normalizedMessages.push({ ...message, content: normalized.blocks });
@@ -43,7 +49,10 @@ export async function normalizeImagesForModel(
     }
 
     if (message.role === "toolResult") {
-      const normalized = await normalizeContentBlocks(message.content);
+      const normalized = await normalizeContentBlocks(
+        message.content,
+        maxDimension,
+      );
       if (normalized.changed) {
         changed = true;
         normalizedMessages.push({ ...message, content: normalized.blocks });
@@ -59,14 +68,16 @@ export async function normalizeImagesForModel(
   return changed ? normalizedMessages : messages;
 }
 
-function requiresAnthropicManyImageCap(
+function anthropicMaxDimension(
   messages: Message[],
   model: ModelLike,
-): boolean {
+): number | undefined {
   if (model.api !== "anthropic-messages" && model.api !== "anthropic") {
-    return false;
+    return undefined;
   }
-  return countImages(messages) > 1;
+  return countImages(messages) > ANTHROPIC_MANY_IMAGE_THRESHOLD
+    ? ANTHROPIC_MANY_IMAGE_MAX_DIMENSION
+    : ANTHROPIC_MAX_DIMENSION;
 }
 
 function countImages(messages: Message[]): number {
@@ -86,6 +97,7 @@ function countImages(messages: Message[]): number {
 
 async function normalizeContentBlocks(
   blocks: readonly (TextContent | ImageContent)[],
+  maxDimension: number,
 ): Promise<NormalizedContentBlocks> {
   let changed = false;
   const normalizedBlocks: Array<TextContent | ImageContent> = [];
@@ -96,7 +108,7 @@ async function normalizeContentBlocks(
       continue;
     }
 
-    const normalized = await normalizeImageBlock(block);
+    const normalized = await normalizeImageBlock(block, maxDimension);
     if (normalized !== block) changed = true;
     normalizedBlocks.push(normalized);
   }
@@ -104,70 +116,30 @@ async function normalizeContentBlocks(
   return { blocks: normalizedBlocks, changed };
 }
 
-async function normalizeImageBlock(image: ImageContent): Promise<ImageContent> {
+async function normalizeImageBlock(
+  image: ImageContent,
+  maxDimension: number,
+): Promise<ImageContent> {
   try {
     const source = Buffer.from(image.data, "base64");
     const dimensions = readImageDimensions(source);
     if (
       dimensions &&
-      dimensions.width <= ANTHROPIC_MANY_IMAGE_MAX_DIMENSION &&
-      dimensions.height <= ANTHROPIC_MANY_IMAGE_MAX_DIMENSION
+      dimensions.width <= maxDimension &&
+      dimensions.height <= maxDimension
     ) {
       return image;
     }
 
-    // The desktop daemon runs under Electron. sharp/libvips work is executed on
-    // libuv worker threads there and has been observed to segfault the daemon
-    // while inspecting normal PNGs. Avoid loading it in Electron; an oversized
-    // image may be rejected by the provider, but that is recoverable unlike a
-    // native process crash.
-    if (process.versions.electron) return image;
-
-    const sharp = await loadSharp();
-    const metadata = dimensions ?? (await sharp(source).metadata());
-    if (!metadata.width || !metadata.height) return image;
-    if (
-      metadata.width <= ANTHROPIC_MANY_IMAGE_MAX_DIMENSION &&
-      metadata.height <= ANTHROPIC_MANY_IMAGE_MAX_DIMENSION
-    ) {
-      return image;
-    }
-
-    const resized = sharp(source).resize({
-      width: ANTHROPIC_MANY_IMAGE_MAX_DIMENSION,
-      height: ANTHROPIC_MANY_IMAGE_MAX_DIMENSION,
-      fit: "inside",
-      withoutEnlargement: true,
-    });
-    const encoded = await encodeResizedImage(resized, image.mimeType);
+    const resized = await resizeImage(source, image.mimeType, maxDimension);
+    if (!resized.changed) return image;
     return {
       type: "image",
-      data: encoded.buffer.toString("base64"),
-      mimeType: encoded.mimeType,
+      data: resized.buffer.toString("base64"),
+      mimeType: resized.mimeType,
     };
   } catch {
     return image;
-  }
-}
-
-async function loadSharp() {
-  return (await import("sharp")).default;
-}
-
-async function encodeResizedImage(
-  image: Sharp,
-  mimeType: string,
-): Promise<{ buffer: Buffer; mimeType: string }> {
-  switch (mimeType.toLowerCase()) {
-    case "image/jpeg":
-    case "image/jpg":
-      return { buffer: await image.jpeg().toBuffer(), mimeType: "image/jpeg" };
-    case "image/png":
-      return { buffer: await image.png().toBuffer(), mimeType: "image/png" };
-    case "image/webp":
-      return { buffer: await image.webp().toBuffer(), mimeType: "image/webp" };
-    default:
-      return { buffer: await image.png().toBuffer(), mimeType: "image/png" };
   }
 }
 

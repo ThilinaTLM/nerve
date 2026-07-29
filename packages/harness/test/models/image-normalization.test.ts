@@ -43,40 +43,43 @@ function imageBlocks(message: Message): ImageContent[] {
 }
 
 describe("image normalization", () => {
-  it("resizes oversized images for Anthropic many-image requests", async () => {
-    const oversized = await pngImage(2600, 1800);
-    const small = await pngImage(120, 80);
-    const messages: Message[] = [
-      {
-        role: "user",
-        content: [{ type: "text", text: "compare" }, oversized, small],
-        timestamp: 1,
-      },
-    ];
+  it("resizes a single Anthropic image that exceeds 8000 px", async () => {
+    const oversized = await pngImage(190, 8101);
+    const message: Message = {
+      role: "toolResult",
+      toolCallId: "read-image",
+      toolName: "read",
+      content: [{ type: "text", text: "Read image file" }, oversized],
+      isError: false,
+      timestamp: 1,
+    };
+    const messages = [message];
 
     const normalized = await normalizeImagesForModel(messages, {
       api: "anthropic-messages",
     });
 
     assert.notEqual(normalized, messages);
-    assert.notEqual(normalized[0], messages[0]);
-    assert.equal(imageBlocks(messages[0]).at(0)?.data, oversized.data);
+    assert.notEqual(normalized[0], message);
+    assert.equal(messages[0], message);
+    assert.equal(imageBlocks(message)[0]?.data, oversized.data);
 
-    const [normalizedOversized, normalizedSmall] = imageBlocks(normalized[0]);
-    assert.ok(normalizedOversized);
-    assert.ok(normalizedSmall);
-    assert.notEqual(normalizedOversized.data, oversized.data);
-    assert.equal(normalizedSmall.data, small.data);
-
-    const resizedDimensions = await dimensions(normalizedOversized);
-    assert.ok(resizedDimensions.width <= 2000);
-    assert.ok(resizedDimensions.height <= 2000);
+    const normalizedImage = imageBlocks(normalized[0])[0];
+    assert.ok(normalizedImage);
+    assert.notEqual(normalizedImage.data, oversized.data);
+    const resizedDimensions = await dimensions(normalizedImage);
+    assert.ok(resizedDimensions.width <= 8000);
+    assert.ok(resizedDimensions.height <= 8000);
   });
 
-  it("leaves a single oversized Anthropic image unchanged", async () => {
-    const oversized = await pngImage(2600, 1800);
+  it("leaves up to 20 compliant Anthropic images unchanged", async () => {
+    const image = await pngImage(2600, 1800);
     const messages: Message[] = [
-      { role: "user", content: [oversized], timestamp: 1 },
+      {
+        role: "user",
+        content: Array.from({ length: 20 }, () => image),
+        timestamp: 1,
+      },
     ];
 
     const normalized = await normalizeImagesForModel(messages, {
@@ -86,11 +89,36 @@ describe("image normalization", () => {
     assert.equal(normalized, messages);
   });
 
-  it("leaves non-Anthropic many-image requests unchanged", async () => {
+  it("caps images at 2000 px when an Anthropic request has over 20", async () => {
     const oversized = await pngImage(2600, 1800);
-    const small = await pngImage(120, 80);
+    const small = await pngImage(12, 8);
     const messages: Message[] = [
-      { role: "user", content: [oversized, small], timestamp: 1 },
+      {
+        role: "user",
+        content: [oversized, ...Array.from({ length: 20 }, () => small)],
+        timestamp: 1,
+      },
+    ];
+
+    const normalized = await normalizeImagesForModel(messages, {
+      api: "anthropic-messages",
+    });
+
+    assert.notEqual(normalized, messages);
+    const normalizedImages = imageBlocks(normalized[0]);
+    assert.equal(normalizedImages.length, 21);
+    assert.notEqual(normalizedImages[0]?.data, oversized.data);
+    assert.equal(normalizedImages[1]?.data, small.data);
+
+    const resizedDimensions = await dimensions(normalizedImages[0]);
+    assert.ok(resizedDimensions.width <= 2000);
+    assert.ok(resizedDimensions.height <= 2000);
+  });
+
+  it("leaves non-Anthropic oversized images unchanged", async () => {
+    const oversized = await pngImage(190, 8101);
+    const messages: Message[] = [
+      { role: "user", content: [oversized], timestamp: 1 },
     ];
 
     const normalized = await normalizeImagesForModel(messages, {

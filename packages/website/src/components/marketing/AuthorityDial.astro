@@ -1,0 +1,541 @@
+---
+/* Authority is a dial.
+ *
+ * The matrix below is transcribed from the actual evaluator,
+ * `packages/workbench-server/src/domains/tools/policy.ts` (`evaluateToolPolicy`)
+ * and its assertions in `packages/workbench-server/test/policy.test.ts`. Permission
+ * levels are `read_only | supervised | autonomous`; agent mode is
+ * `coding | planning` and is orthogonal to the permission level, which is why
+ * plan mode is a separate toggle rather than a fourth stop on the dial.
+ *
+ * Interaction is pure CSS: radio inputs plus `:has()`. The section works with
+ * JavaScript disabled.
+ */
+
+type State = "allow" | "approval" | "block";
+
+interface Cell {
+  state: State;
+  note?: string;
+}
+
+const capabilities = [
+  { name: "read · grep · find · ls", meaning: "Inspect the workspace" },
+  { name: "edit · write", meaning: "Change files" },
+  { name: "bash", meaning: "Run commands" },
+  { name: "python_exec", meaning: "Run Python" },
+  { name: "web_search · web_fetch", meaning: "Reach the network" },
+  { name: "task_start · cancel · restart", meaning: "Supervise processes" },
+  { name: "explore", meaning: "Launch read-only sub-agents" },
+  { name: "jira · confluence writes", meaning: "Mutate delivery tools" },
+  { name: "ask_user · todos_set", meaning: "Ask you, track work" },
+] as const;
+
+/* Order matches `capabilities`. */
+const matrix: Record<string, Cell[]> = {
+  "read_only-coding": [
+    { state: "allow" },
+    { state: "block" },
+    { state: "allow", note: "known read-only commands only" },
+    { state: "block" },
+    { state: "block" },
+    { state: "block", note: "task_status and task_logs stay allowed" },
+    { state: "block" },
+    { state: "block" },
+    { state: "allow" },
+  ],
+  "supervised-coding": [
+    { state: "allow", note: "auto-approval can be switched off" },
+    { state: "approval" },
+    { state: "approval", note: "known read-only commands auto-approve" },
+    { state: "approval" },
+    { state: "approval" },
+    { state: "approval", note: "task_status and task_logs auto-approve" },
+    { state: "approval" },
+    { state: "approval" },
+    { state: "allow" },
+  ],
+  "autonomous-coding": [
+    { state: "allow" },
+    { state: "allow" },
+    { state: "allow" },
+    { state: "allow" },
+    { state: "allow" },
+    { state: "allow" },
+    { state: "allow" },
+    { state: "allow" },
+    { state: "allow" },
+  ],
+  "read_only-planning": [
+    { state: "allow" },
+    { state: "block" },
+    { state: "allow", note: "guarded read-only commands only" },
+    { state: "block" },
+    { state: "block" },
+    { state: "block", note: "task_status and task_logs stay allowed" },
+    { state: "block" },
+    { state: "block" },
+    { state: "allow" },
+  ],
+  "supervised-planning": [
+    { state: "allow", note: "auto-approval can be switched off" },
+    { state: "approval", note: "plan storage only — elsewhere is blocked" },
+    { state: "approval", note: "blacklist guard must pass first" },
+    { state: "approval" },
+    { state: "approval" },
+    { state: "block", note: "task_status and task_logs stay allowed" },
+    { state: "approval" },
+    { state: "block" },
+    { state: "allow" },
+  ],
+  "autonomous-planning": [
+    { state: "allow" },
+    { state: "allow", note: "plan storage only — elsewhere is blocked" },
+    { state: "allow", note: "blacklist guard must pass first" },
+    { state: "allow", note: "writes restricted to artifact storage" },
+    { state: "allow" },
+    { state: "block", note: "task_status and task_logs stay allowed" },
+    { state: "allow", note: "children are forced read-only" },
+    { state: "block" },
+    { state: "allow" },
+  ],
+};
+
+const modes = [
+  {
+    id: "read_only",
+    label: "Read-only",
+    body: "Inspect and research. No mutation, no execution, no ordinary network.",
+  },
+  {
+    id: "supervised",
+    label: "Supervised",
+    body: "Everything beyond a read stops for your approval before it runs.",
+  },
+  {
+    id: "autonomous",
+    label: "Autonomous",
+    body: "The agent proceeds without gates. Use it when the blast radius is known.",
+  },
+] as const;
+
+const stateLabel: Record<State, string> = {
+  allow: "allowed",
+  approval: "needs approval",
+  block: "blocked",
+};
+
+const stateClass: Record<State, string> = {
+  allow: "state-allow",
+  approval: "state-approval",
+  block: "state-block",
+};
+
+const combinations = Object.keys(matrix);
+---
+
+<div class="authority">
+  <div class="dial">
+    <p class="dial-legend" id="authority-legend">Permission level</p>
+    <div class="dial-track" role="radiogroup" aria-labelledby="authority-legend">
+      <span class="dial-axon" aria-hidden="true"></span>
+      {
+        modes.map((mode, index) => (
+          <div class="dial-stop" style={`--stop-index:${index}`}>
+            <input
+              type="radio"
+              name="authority"
+              id={`mode-${mode.id}`}
+              value={mode.id}
+              checked={mode.id === "supervised"}
+            />
+            <label for={`mode-${mode.id}`}>
+              <span class="stop-node" aria-hidden="true" />
+              <span class="stop-text">
+                <strong>{mode.label}</strong>
+                <span class="body-text">{mode.body}</span>
+              </span>
+            </label>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="plan-toggle">
+      <input type="checkbox" id="plan-mode" />
+      <label for="plan-mode">
+        <span class="plan-box" aria-hidden="true"></span>
+        <span>
+          <strong>Plan mode</strong>
+          <span class="body-text"
+            >A separate agent mode, not a fourth level. Research and write a
+            plan; implementation waits for your acceptance.</span
+          >
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <div class="policy">
+    <div class="policy-head">
+      <span class="label-chip">tool policy</span>
+      <span class="label-chip policy-source">evaluated in the harness</span>
+    </div>
+
+    <ul class="policy-rows">
+      {
+        capabilities.map((capability, row) => (
+          <li class="policy-row">
+            <span class="policy-name">
+              <code>{capability.name}</code>
+              <span class="meta-text">{capability.meaning}</span>
+            </span>
+            <span class="policy-cells">
+              {combinations.map((key) => {
+                const cell = matrix[key][row];
+                return (
+                  <span class="policy-cell" data-cell={key}>
+                    <span class:list={["state-pill", stateClass[cell.state]]}>
+                      {stateLabel[cell.state]}
+                    </span>
+                    {cell.note && <span class="policy-note">{cell.note}</span>}
+                  </span>
+                );
+              })}
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+
+    <p class="meta-text policy-caveat">
+      Bash and Python restrictions are policy guardrails, not an operating-system
+      sandbox.
+    </p>
+  </div>
+</div>
+
+<style>
+  .authority {
+    display: grid;
+    gap: clamp(2rem, 4vw, 3.5rem);
+    align-items: start;
+  }
+
+  @media (min-width: 1024px) {
+    .authority {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    }
+  }
+
+  /* Dial ------------------------------------------------------------------ */
+
+  .dial-legend {
+    margin: 0 0 1rem;
+    color: var(--muted-foreground);
+    font-size: var(--text-eyebrow);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .dial-track {
+    position: relative;
+    display: grid;
+    gap: 1.5rem;
+    padding-left: 0.25rem;
+  }
+
+  /* A vertical axon behind the three stops; the charge reaches the selected
+   * node and stops there. */
+  .dial-axon {
+    position: absolute;
+    top: 0.6rem;
+    bottom: 0.6rem;
+    left: 0.53rem;
+    width: 1px;
+    background-color: var(--myelin-dim);
+  }
+
+  .dial-axon::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: var(--charge, 50%);
+    background: linear-gradient(180deg, var(--primary), var(--signal));
+    transition: height 420ms var(--ease-out-expo);
+  }
+
+  .dial-stop input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  .dial-stop label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.9rem;
+    align-items: start;
+    cursor: pointer;
+  }
+
+  .stop-node {
+    position: relative;
+    z-index: 1;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-top: 0.05rem;
+    border: 1px solid var(--myelin);
+    border-radius: var(--radius-pill);
+    background-color: var(--background);
+    transition:
+      border-color 260ms var(--ease-out-expo),
+      box-shadow 260ms var(--ease-out-expo);
+  }
+
+  .stop-node::after {
+    content: "";
+    position: absolute;
+    inset: 0.28rem;
+    border-radius: var(--radius-pill);
+    background-color: transparent;
+    transition:
+      background-color 260ms var(--ease-out-expo),
+      transform 320ms var(--ease-spring);
+    transform: scale(0.4);
+  }
+
+  .dial-stop input:checked + label .stop-node {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.25rem color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  .dial-stop input:checked + label .stop-node::after {
+    background-color: var(--primary);
+    transform: scale(1);
+  }
+
+  .dial-stop input:focus-visible + label .stop-node {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+
+  .stop-text {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .stop-text strong {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .dial-stop input:not(:checked) + label .stop-text {
+    color: var(--muted-foreground);
+  }
+
+  .dial-stop input:not(:checked) + label .stop-text strong {
+    color: var(--muted-foreground);
+  }
+
+  /* Charge height follows the selected stop. */
+  .dial:has(#mode-read_only:checked) .dial-axon {
+    --charge: 0%;
+  }
+  .dial:has(#mode-supervised:checked) .dial-axon {
+    --charge: 50%;
+  }
+  .dial:has(#mode-autonomous:checked) .dial-axon {
+    --charge: 100%;
+  }
+
+  /* Plan toggle ----------------------------------------------------------- */
+
+  .plan-toggle {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .plan-toggle input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  .plan-toggle label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.9rem;
+    align-items: start;
+    cursor: pointer;
+  }
+
+  .plan-toggle span strong {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .plan-box {
+    position: relative;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-top: 0.05rem;
+    border: 1px solid var(--myelin);
+    border-radius: var(--radius-chip);
+    background-color: var(--background);
+    transition: border-color 260ms var(--ease-out-expo);
+  }
+
+  .plan-box::after {
+    content: "";
+    position: absolute;
+    inset: 0.25rem;
+    border-radius: 0.15rem;
+    background-color: transparent;
+    transition: background-color 260ms var(--ease-out-expo);
+  }
+
+  .plan-toggle input:checked + label .plan-box {
+    border-color: var(--membrane);
+  }
+
+  .plan-toggle input:checked + label .plan-box::after {
+    background-color: var(--membrane);
+  }
+
+  .plan-toggle input:focus-visible + label .plan-box {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+
+  .plan-toggle input:not(:checked) + label span:not(.plan-box) {
+    color: var(--muted-foreground);
+  }
+
+  /* Policy panel ---------------------------------------------------------- */
+
+  .policy {
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: var(--card);
+    box-shadow: var(--depth-1);
+  }
+
+  .policy-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1.1rem;
+    border-bottom: 1px solid var(--hairline);
+    background-color: color-mix(in oklab, var(--card) 80%, var(--background));
+  }
+
+  .policy-source {
+    color: color-mix(in oklab, var(--primary) 80%, var(--foreground));
+  }
+
+  .policy-rows {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .policy-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem 1rem;
+    align-items: center;
+    padding: 0.7rem 1.1rem;
+  }
+
+  .policy-row + .policy-row {
+    border-top: 1px solid var(--hairline);
+  }
+
+  .policy-name {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  .policy-name code {
+    overflow: hidden;
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+  }
+
+  .policy-cells {
+    display: grid;
+    justify-items: end;
+    text-align: right;
+  }
+
+  /* Only the cell matching the current mode and plan toggle is shown. */
+  .policy-cell {
+    display: none;
+    gap: 0.3rem;
+    justify-items: end;
+  }
+
+  .authority:has(#mode-read_only:checked):not(:has(#plan-mode:checked))
+    [data-cell="read_only-coding"],
+  .authority:has(#mode-supervised:checked):not(:has(#plan-mode:checked))
+    [data-cell="supervised-coding"],
+  .authority:has(#mode-autonomous:checked):not(:has(#plan-mode:checked))
+    [data-cell="autonomous-coding"],
+  .authority:has(#mode-read_only:checked):has(#plan-mode:checked)
+    [data-cell="read_only-planning"],
+  .authority:has(#mode-supervised:checked):has(#plan-mode:checked)
+    [data-cell="supervised-planning"],
+  .authority:has(#mode-autonomous:checked):has(#plan-mode:checked)
+    [data-cell="autonomous-planning"] {
+    display: grid;
+    animation: cell-in 220ms var(--ease-out-expo) both;
+  }
+
+  .policy-note {
+    max-width: 14rem;
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    line-height: 1.4;
+  }
+
+  .policy-caveat {
+    padding: 0.9rem 1.1rem;
+    border-top: 1px solid var(--hairline);
+  }
+
+  @media (max-width: 639px) {
+    .policy-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .policy-cells {
+      justify-items: start;
+      text-align: left;
+    }
+
+    .policy-cell {
+      justify-items: start;
+    }
+
+    .policy-note {
+      max-width: none;
+    }
+  }
+</style>

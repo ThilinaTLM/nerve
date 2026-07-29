@@ -1,0 +1,353 @@
+---
+import NerveMark from "../NerveMark.astro";
+
+/* Six dendrites from one soma. Unlike the previous diagram, every branch is
+ * computed from the card grid, so each path terminates exactly on the card it
+ * belongs to instead of trailing off into empty space. */
+
+const items = [
+  {
+    title: "Conversations",
+    body: "Branch, search, compact, import, and export durable project histories.",
+    href: "/guides/conversations/",
+  },
+  {
+    title: "Composer",
+    body: "Choose authority, mode, model, and thinking level before a run.",
+    href: "/guides/composer/",
+  },
+  {
+    title: "Git & GitHub",
+    body: "Review changes, branches, pull requests, and checks in the same shell.",
+    href: "/guides/git-and-pull-requests/",
+  },
+  {
+    title: "Tasks & Explore",
+    body: "Supervise long-running processes and parallel read-only investigations.",
+    href: "/guides/background-tasks/",
+  },
+  {
+    title: "Models",
+    body: "Use supported providers while keeping Nerve itself local-first.",
+    href: "/models/providers-and-auth/",
+  },
+  {
+    title: "Desktop & browser",
+    body: "Use the desktop shell or connect securely from another device on your LAN.",
+    href: "/operations/lan-mobile/",
+  },
+];
+
+/* Geometry in the 1200x680 viewBox. Cards occupy 0..300 on the left and
+ * 900..1200 on the right, at three vertical bands. Branch endpoints land on the
+ * inner edge of the card they serve. */
+const soma = { x: 600, y: 340, r: 62 };
+const bands = [120, 340, 560];
+const branches = items.map((_, index) => {
+  const left = index < 3;
+  const y = bands[index % 3];
+  const endX = left ? 312 : 888;
+  const direction = left ? -1 : 1;
+  const rise = y - soma.y;
+
+  /* Each branch leaves the soma at its own angle instead of all six departing
+   * horizontally, which previously made them overlap into a single stroke near
+   * the centre. Paths start on the soma's edge so they never cross the mark. */
+  const startX = soma.x + direction * soma.r;
+  const startY = soma.y + rise * 0.06;
+  const c1x = startX + direction * 120;
+  const c1y = soma.y + rise * 0.42;
+  const c2x = endX - direction * 120;
+  const c2y = y;
+
+  return {
+    d: `M ${startX} ${startY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${endX} ${y}`,
+    endX,
+    endY: y,
+  };
+});
+---
+
+<div class="lattice" data-lattice data-draw>
+  <svg
+    class="lattice-svg"
+    viewBox="0 0 1200 680"
+    preserveAspectRatio="xMidYMid meet"
+    aria-hidden="true"
+  >
+    <circle class="soma-halo" cx={soma.x} cy={soma.y} r="96"></circle>
+    <circle class="soma-ring" cx={soma.x} cy={soma.y} r="62"></circle>
+
+    {
+      branches.map((branch, index) => (
+        <g class="branch" data-branch={index}>
+          <path class="branch-myelin" d={branch.d} />
+          <path class="branch-signal" d={branch.d} data-draw-path />
+          <circle
+            class="branch-bouton"
+            cx={branch.endX}
+            cy={branch.endY}
+            r="4.5"
+          />
+        </g>
+      ))
+    }
+  </svg>
+
+  <div class="lattice-soma">
+    <span class="soma-mark"><NerveMark size={22} /></span>
+    <strong>Nerve</strong>
+    <span class="meta-text">Local workbench</span>
+  </div>
+
+  <div class="lattice-cards">
+    {
+      items.map((item, index) => (
+        <a
+          href={item.href}
+          class:list={["lattice-card", `card-${index + 1}`]}
+          data-card={index}
+          data-tilt
+          data-tilt-max="4"
+          style={`--band:${((bands[index % 3] / 680) * 100).toFixed(3)}%`}
+        >
+          <span class="card-index">{String(index + 1).padStart(2, "0")}</span>
+          <strong class="card-title">{item.title}</strong>
+          <p class="meta-text">{item.body}</p>
+        </a>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  /* Hovering a card brightens its dendrite and dims the rest. Purely visual;
+   * the links work regardless. */
+  const lattice = document.querySelector<HTMLElement>("[data-lattice]");
+  if (lattice) {
+    for (const card of lattice.querySelectorAll<HTMLElement>("[data-card]")) {
+      const activate = (): void => {
+        lattice.dataset.activeBranch = card.dataset.card ?? "";
+      };
+      const clear = (): void => {
+        delete lattice.dataset.activeBranch;
+      };
+      card.addEventListener("pointerenter", activate);
+      card.addEventListener("focus", activate);
+      card.addEventListener("pointerleave", clear);
+      card.addEventListener("blur", clear);
+    }
+  }
+</script>
+
+<style>
+  .lattice {
+    position: relative;
+  }
+
+  /* Static base: a single vertical axon feeding a one-column card stack. The
+   * radial diagram is a wide-viewport upgrade, not the only presentation. */
+  .lattice-svg,
+  .lattice-soma {
+    display: none;
+  }
+
+  .lattice-cards {
+    display: grid;
+    gap: 1rem;
+    padding-left: 1.75rem;
+  }
+
+  .lattice-cards::before {
+    content: "";
+    position: absolute;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.34rem;
+    width: 1px;
+    background-image: repeating-linear-gradient(
+      180deg,
+      var(--myelin) 0 2.5rem,
+      transparent 2.5rem 2.875rem
+    );
+  }
+
+  .lattice-card {
+    position: relative;
+    display: grid;
+    gap: 0.35rem;
+    padding: 1.1rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: var(--glass);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    color: var(--foreground);
+    text-decoration: none;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    transition:
+      border-color 260ms var(--ease-out-expo),
+      box-shadow 260ms var(--ease-out-expo);
+  }
+
+  /* Terminal bouton where the vertical axon meets each card. */
+  .lattice-card::after {
+    content: "";
+    position: absolute;
+    top: 1.35rem;
+    left: -1.44rem;
+    width: 1.1rem;
+    height: 1px;
+    background-color: var(--myelin);
+  }
+
+  .lattice-card:hover,
+  .lattice-card:focus-visible {
+    border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+    box-shadow: var(--depth-2);
+  }
+
+  .card-index {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-meta);
+  }
+
+  /* Radial presentation --------------------------------------------------- */
+
+  @media (min-width: 1024px) {
+    /* Matching the viewBox aspect ratio makes the SVG map 1:1 onto the box, so
+     * card bands and branch endpoints line up exactly. */
+    .lattice {
+      aspect-ratio: 1200 / 680;
+      min-height: 34rem;
+    }
+
+    .lattice-svg {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .soma-halo {
+      fill: color-mix(in oklab, var(--primary) 7%, transparent);
+      stroke: color-mix(in oklab, var(--primary) 18%, transparent);
+      animation: breathe 7s ease-in-out infinite;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    .soma-ring {
+      fill: var(--surface-elevated);
+      stroke: var(--primary);
+      stroke-width: 1.25;
+    }
+
+    .branch-myelin {
+      fill: none;
+      stroke: var(--myelin);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+    }
+
+    .branch-signal {
+      fill: none;
+      stroke: var(--signal);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      opacity: 0.55;
+      transition: opacity 260ms var(--ease-out-expo);
+    }
+
+    .branch-bouton {
+      fill: var(--synapse);
+    }
+
+    /* Hovering a card isolates its branch. */
+    .lattice[data-active-branch] .branch-signal,
+    .lattice[data-active-branch] .branch-myelin {
+      opacity: 0.18;
+    }
+
+    .lattice[data-active-branch="0"] [data-branch="0"] .branch-signal,
+    .lattice[data-active-branch="1"] [data-branch="1"] .branch-signal,
+    .lattice[data-active-branch="2"] [data-branch="2"] .branch-signal,
+    .lattice[data-active-branch="3"] [data-branch="3"] .branch-signal,
+    .lattice[data-active-branch="4"] [data-branch="4"] .branch-signal,
+    .lattice[data-active-branch="5"] [data-branch="5"] .branch-signal {
+      opacity: 1;
+      filter: drop-shadow(0 0 0.4rem var(--signal-soft));
+    }
+
+    .lattice-soma {
+      display: grid;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      justify-items: center;
+      gap: 0.15rem;
+      text-align: center;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .soma-mark {
+      display: grid;
+      place-items: center;
+      color: var(--primary);
+    }
+
+    .lattice-soma strong {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+    }
+
+    .lattice-cards {
+      display: block;
+      padding-left: 0;
+    }
+
+    .lattice-cards::before {
+      display: none;
+    }
+
+    .lattice-card {
+      position: absolute;
+      top: var(--band);
+      width: 26%;
+      perspective: 900px;
+      transform: translateY(-50%) rotateX(var(--tilt-x, 0deg))
+        rotateY(var(--tilt-y, 0deg));
+      transition:
+        border-color 260ms var(--ease-out-expo),
+        box-shadow 260ms var(--ease-out-expo),
+        translate 260ms var(--ease-out-expo);
+    }
+
+    .lattice-card::after {
+      display: none;
+    }
+
+    /* Lift on the translate property so it composes with the tilt transform. */
+    .lattice-card:hover,
+    .lattice-card:focus-visible {
+      translate: 0 -4px;
+    }
+
+    .card-1,
+    .card-2,
+    .card-3 {
+      left: 0;
+    }
+    .card-4,
+    .card-5,
+    .card-6 {
+      right: 0;
+    }
+  }
+</style>

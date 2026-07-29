@@ -48,7 +48,13 @@ const links = [
         </svg>
         GitHub
       </a>
-      <a class="btn btn-primary btn-sm" href="/start/install/">Get started</a>
+      {/* Below `sm` the row cannot hold brand, theme switch, call to action,
+          and menu without overflowing, so the call to action moves into the
+          menu panel. */}
+      <a
+        class="btn btn-primary btn-sm hidden sm:inline-flex"
+        href="/start/install/">Get started</a
+      >
 
       <details class="mobile-menu lg:hidden">
         <summary
@@ -77,6 +83,7 @@ const links = [
             ))
           }
           <a href="https://github.com/ThilinaTLM/nerve">GitHub</a>
+          <a class="mobile-cta sm:hidden" href="/start/install/">Get started</a>
         </div>
       </details>
     </div>
@@ -170,5 +177,13 @@ const links = [
   .mobile-panel a:hover,
   .mobile-panel a:focus-visible {
     background-color: color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  .mobile-panel .mobile-cta {
+    margin-top: 0.35rem;
+    border-top: 1px solid var(--hairline);
+    border-radius: 0;
+    color: var(--primary);
+    font-weight: 600;
   }
 </style>

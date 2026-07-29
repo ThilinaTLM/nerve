@@ -8,6 +8,8 @@ const shots = [
   "d1-conversation",
   "d3-pull-request",
   "d4-tasks",
+  "d5-git",
+  "d6-history",
   "m1-conversation",
   "m2-model-picker",
   "m3-right-sheet",
@@ -21,5 +23,7 @@ for (const name of shots) {
     .resize({ width: desktop ? 2000 : 900, withoutEnlargement: true })
     .webp({ quality: 82, effort: 5 })
     .toFile(target);
-  console.log(`${basename(target)} ${result.width}x${result.height} ${result.size} bytes`);
+  console.log(
+    `${basename(target)} ${result.width}x${result.height} ${result.size} bytes`,
+  );
 }

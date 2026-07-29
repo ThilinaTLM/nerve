@@ -4,18 +4,188 @@ import conversation from "../../assets/shots/m1-conversation.webp";
 import picker from "../../assets/shots/m2-model-picker.webp";
 import sheet from "../../assets/shots/m3-right-sheet.webp";
 import PhoneFrame from "./PhoneFrame.astro";
-const phones=[
-  {src:conversation,alt:"Phone-width Nerve conversation and composer",caption:"Conversation",parallax:-20},
-  {src:picker,alt:"Nerve model and thinking level picker on a phone",caption:"Model control",parallax:8},
-  {src:sheet,alt:"Nerve Git panel open as a phone-width sheet",caption:"Dock sheets",parallax:24},
+
+const phones = [
+  {
+    src: conversation,
+    alt: "Phone-width Nerve conversation with the composer at the bottom",
+    caption: "Conversation",
+  },
+  {
+    src: picker,
+    alt: "Nerve model and thinking level picker on a phone",
+    caption: "Model control",
+  },
+  {
+    src: sheet,
+    alt: "The Nerve Git panel open as a phone-width sheet",
+    caption: "Dock sheets",
+  },
 ];
 ---
-<div class="pocket-panel mt-14">
-  <div class="pocket-copy"><p class="eyebrow">Responsive by design</p><h3 class="section-title">The same workbench in your pocket.</h3><p class="body-text">Connect from another device on your LAN and keep conversations, composer controls, and dock panels within reach.</p><a class="link-arrow" href="/operations/lan-mobile/">Set up LAN access <span aria-hidden="true">→</span></a></div>
-  <div class="phone-row">{phones.map((phone,index)=><PhoneFrame caption={phone.caption} parallax={phone.parallax} class={`phone-${index+1}`}><Image src={phone.src} alt={phone.alt} widths={[390,600,900]} sizes="(max-width: 768px) 70vw, 22vw" loading="lazy" /></PhoneFrame>)}</div>
+
+<div class="pocket" data-pocket>
+  <div class="pocket-copy">
+    <p class="eyebrow">Responsive by design</p>
+    <h3 class="section-title">The same workbench, in your pocket.</h3>
+    <p class="body-text">
+      Connect from another device on your LAN and keep conversations, composer
+      controls, and dock panels within reach.
+    </p>
+    <a class="link-arrow" href="/operations/lan-mobile/">
+      Set up LAN access <span aria-hidden="true">→</span>
+    </a>
+    <p class="meta-text">
+      LAN access is an explicit opt-in over HTTPS with a local certificate
+      authority. It is not safe to expose to the public internet on its own.
+    </p>
+  </div>
+
+  <div class="pocket-stage stage-3d">
+    <ul class="phone-arc">
+      {
+        phones.map((phone, index) => (
+          <li class={`arc-slot slot-${index + 1}`}>
+            <PhoneFrame caption={phone.caption}>
+              <Image
+                src={phone.src}
+                alt={phone.alt}
+                widths={[390, 600, 900]}
+                sizes="(max-width: 767px) 62vw, 20vw"
+                loading="lazy"
+              />
+            </PhoneFrame>
+          </li>
+        ))
+      }
+    </ul>
+
+    <div class="arc-dots" aria-hidden="true">
+      {phones.map(() => <span />)}
+    </div>
+  </div>
 </div>
+
 <style>
-  .pocket-panel{position:relative;overflow:hidden;display:grid;gap:3rem;padding:clamp(1.5rem,5vw,4rem);border:1px solid var(--hairline);border-radius:var(--radius-2xl);background:radial-gradient(circle at 70% 20%,color-mix(in oklab,var(--primary) 18%,transparent),transparent 45%),var(--surface-sunken)}.pocket-copy{display:grid;align-content:center;gap:1rem}.phone-row{display:flex;align-items:flex-start;gap:1rem}.phone-row :global(.phone-wrap){flex:1}.phone-2{margin-top:3rem}.phone-3{margin-top:1rem}
-  @media(min-width:1024px){.pocket-panel{grid-template-columns:.65fr 1.35fr}}
-  @media(max-width:767px){.phone-row{overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:1rem}.phone-row :global(.phone-wrap){min-width:70vw;scroll-snap-align:center}.phone-2,.phone-3{margin-top:0}}
+  .pocket {
+    position: relative;
+    display: grid;
+    gap: clamp(2.5rem, 5vw, 4rem);
+    overflow: hidden;
+    padding: clamp(1.5rem, 4vw, 3.5rem);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-panel);
+    background:
+      radial-gradient(
+        circle at 72% 18%,
+        color-mix(in oklab, var(--primary) 15%, transparent),
+        transparent 46%
+      ),
+      var(--surface-sunken);
+  }
+
+  .pocket-copy {
+    display: grid;
+    align-content: center;
+    gap: 1rem;
+  }
+
+  .pocket-stage {
+    position: relative;
+  }
+
+  .phone-arc {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    transform-style: preserve-3d;
+  }
+
+  .arc-slot {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .arc-dots {
+    display: none;
+  }
+
+  /* Arc ------------------------------------------------------------------- */
+
+  @media (min-width: 768px) {
+    .phone-arc {
+      gap: 0.5rem;
+      /* --arc-open is driven by scroll entry; the arc opens as the section
+       * comes into view and rests fully open. */
+      --arc-open: 1;
+    }
+
+    .slot-1 {
+      transform: rotateY(calc(20deg * var(--arc-open)))
+        translateZ(calc(-70px * var(--arc-open)))
+        translateX(calc(6% * var(--arc-open)));
+    }
+
+    .slot-2 {
+      z-index: 2;
+      transform: translateZ(calc(50px * var(--arc-open)));
+    }
+
+    .slot-3 {
+      transform: rotateY(calc(-20deg * var(--arc-open)))
+        translateZ(calc(-70px * var(--arc-open)))
+        translateX(calc(-6% * var(--arc-open)));
+    }
+
+    .slot-1 :global(.phone-frame),
+    .slot-3 :global(.phone-frame) {
+      box-shadow: var(--depth-1);
+    }
+
+    .slot-2 :global(.phone-frame) {
+      box-shadow: var(--depth-3);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .pocket {
+      grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+      align-items: center;
+    }
+  }
+
+  /* Narrow: a snapping carousel with a visible affordance rather than a
+   * hidden-scrollbar trap. */
+  @media (max-width: 767px) {
+    .phone-arc {
+      gap: 1rem;
+      overflow-x: auto;
+      justify-content: flex-start;
+      padding-bottom: 0.75rem;
+      scroll-snap-type: x mandatory;
+    }
+
+    .arc-slot {
+      flex: 0 0 62%;
+      scroll-snap-align: center;
+    }
+
+    .arc-dots {
+      display: flex;
+      gap: 0.4rem;
+      justify-content: center;
+      margin-top: 0.75rem;
+    }
+
+    .arc-dots span {
+      width: 0.35rem;
+      height: 0.35rem;
+      border-radius: var(--radius-pill);
+      background-color: var(--myelin);
+    }
+  }
 </style>

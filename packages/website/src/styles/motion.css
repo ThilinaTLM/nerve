@@ -2,8 +2,8 @@
  *
  * Every `@keyframes` in this package lives here. Components reference the
  * animation names or the utility classes below; they never define keyframes
- * inline. Only transform/opacity/filter are animated so scrolling stays smooth
- * and layout never shifts.
+ * inline. Only transform, opacity, filter, and stroke-dashoffset are animated,
+ * so scrolling stays smooth and layout never shifts.
  */
 
 @keyframes view-fade-out {
@@ -34,12 +34,6 @@
   }
 }
 
-@keyframes grid-pan {
-  to {
-    background-position: 64px 64px;
-  }
-}
-
 @keyframes float-soft {
   0%,
   100% {
@@ -59,81 +53,121 @@
   }
 }
 
-@keyframes caret-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-@keyframes stream-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.5rem);
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-    filter: none;
-  }
-}
-
-@keyframes marquee-x {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
 @keyframes pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 55%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in oklab, currentcolor 55%, transparent);
   }
   70%,
   100% {
-    box-shadow: 0 0 0 0.7rem color-mix(in oklab, currentColor 0%, transparent);
+    box-shadow: 0 0 0 0.7rem color-mix(in oklab, currentcolor 0%, transparent);
   }
-}
-
-@keyframes sheen-sweep {
-  from {
-    opacity: 0;
-    transform: translateX(-60%) skewX(-18deg);
-  }
-  40% {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-    transform: translateX(160%) skewX(-18deg);
-  }
-}
-
-@keyframes dash-flow {
-  to {
-    stroke-dashoffset: -24;
-  }
-}
-
-@keyframes signal-sweep {
-  from { transform: translateX(-10vw); }
-  to { transform: translateX(110vw); }
-}
-
-@keyframes axon-charge {
-  from { opacity: 0; transform: scaleX(0); }
-  to { opacity: 1; transform: scaleX(1); }
-}
-
-@keyframes impulse-travel {
-  from { offset-distance: 0%; opacity: 0; }
-  12%, 88% { opacity: 1; }
-  to { offset-distance: 100%; opacity: 0; }
 }
 
 @keyframes rise-in {
   from {
     opacity: 0;
     transform: translateY(0.75rem);
+  }
+}
+
+/* The hero headline's second line charging like an axon on first paint. */
+@keyframes axon-charge {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* The hero's scroll cue: an impulse dropping down a short axon. */
+@keyframes cue-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+  25%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(2.5rem);
+  }
+}
+
+/* The signal strip's impulse, and the node flash it triggers as it passes. */
+@keyframes strip-sweep {
+  from {
+    transform: translateX(-8rem);
+  }
+  to {
+    transform: translateX(calc(100vw + 8rem));
+  }
+}
+
+@keyframes node-flash {
+  0%,
+  8%,
+  100% {
+    background-color: var(--myelin);
+    box-shadow: none;
+  }
+  3% {
+    background-color: var(--signal);
+    box-shadow: var(--glow-signal);
+  }
+}
+
+/* The capability lattice's soma. */
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+/* Impulses travelling the topology's internal links. */
+@keyframes link-travel {
+  from {
+    transform: translateY(-1rem);
+  }
+  to {
+    transform: translateY(2.6rem);
+  }
+}
+
+@keyframes link-travel-x {
+  from {
+    transform: translateX(-1rem);
+  }
+  to {
+    transform: translateX(3.6rem);
+  }
+}
+
+/* The closing CTA's terminal bouton firing once into the call to action. */
+@keyframes discharge {
+  from {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.6);
+  }
+}
+
+/* Authority dial cells swapping as the permission level changes. */
+@keyframes cell-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.2rem);
   }
 }
 
@@ -169,6 +203,20 @@
   will-change: auto;
 }
 
+/* Children staggered from a single parent observer entry. */
+[data-reveal-child] {
+  opacity: 0;
+  transform: translateY(0.85rem);
+  transition:
+    opacity 620ms var(--ease-out-expo) var(--reveal-delay, 0ms),
+    transform 620ms var(--ease-out-expo) var(--reveal-delay, 0ms);
+}
+
+[data-reveal-child].is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
 /* Utilities ---------------------------------------------------------------- */
 
 .animate-float {
@@ -179,24 +227,8 @@
   animation: aurora-drift 24s ease-in-out infinite;
 }
 
-.animate-grid {
-  animation: grid-pan 40s linear infinite;
-}
-
-.animate-marquee {
-  animation: marquee-x 34s linear infinite;
-}
-
-.animate-caret {
-  animation: caret-blink 1s step-end infinite;
-}
-
 .animate-pulse-ring {
   animation: pulse-ring 2s ease-out infinite;
-}
-
-.animate-dash {
-  animation: dash-flow 1.4s linear infinite;
 }
 
 /* Reduced motion ----------------------------------------------------------- */
@@ -215,17 +247,34 @@
     scroll-behavior: auto;
   }
 
-  [data-reveal] {
+  [data-reveal],
+  [data-reveal-child] {
     opacity: 1 !important;
     transform: none !important;
     filter: none !important;
   }
 
-  [data-parallax],
-  .aurora-blob,
-  .hero-grid {
+  .aurora-blob {
     animation: none !important;
     transform: none !important;
+  }
+
+  /* Flatten every depth effect. The scroll stages already bail out under
+   * reduced motion; this guarantees nothing is left rendered off-plane even if
+   * a value was written before the preference changed. */
+  * {
+    --tilt-x: 0deg !important;
+    --tilt-y: 0deg !important;
+    --layer-rotate: 0deg !important;
+    --layer-z: 0px !important;
+    --layer-y: 0px !important;
+    --layer-scale: 1 !important;
+    --layer-lit: 1 !important;
+    --deck-rotate-x: 0deg !important;
+    --deck-lift: 0px !important;
+    --copy-shift: 0px !important;
+    --chip-z: 0px !important;
+    --arc-open: 1 !important;
   }
 
   @view-transition {

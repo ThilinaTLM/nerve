@@ -16,5 +16,12 @@
 @import "./tokens.css";
 @import "./base.css";
 @import "./motion.css";
-@import "./marketing.css";
+
+/* The component surfaces are imported into Tailwind's `components` layer on
+ * purpose. Unlayered CSS beats every layered rule, so leaving these unlayered
+ * made `.btn { display: inline-flex }` win over the `hidden` utility and broke
+ * every responsive visibility class in the marketing components. */
+@import "./marketing.css" layer(components);
+@import "./neural.css" layer(components);
+
 @import "./starlight.css";

@@ -1,30 +1,62 @@
 ---
+import DendriteField from "./DendriteField.astro";
 import InstallCommand from "./InstallCommand.astro";
 import Reveal from "./Reveal.astro";
+
+const steps = [
+  { step: "01", label: "Install the desktop shell", meta: "Node.js 24+" },
+  { step: "02", label: "Connect a provider", meta: "API key or OAuth" },
+  { step: "03", label: "Open your first project", meta: "Any local repository" },
+];
 ---
 
-<section class="closing-section">
+<section class="closing-section" aria-labelledby="closing-title">
   <div class="container-page">
-    <Reveal variant="scale">
-      <div class="closing">
-        <div class="aurora" aria-hidden="true">
-          <span class="aurora-blob blob-1 animate-aurora"></span>
-          <span class="aurora-blob blob-2 animate-aurora"></span>
-        </div>
-        <div class="grain" aria-hidden="true"></div>
+    <Reveal variant="scale" class="closing">
+      <DendriteField density={0.45} class="closing-dendrites" />
+      <span class="closing-glow" aria-hidden="true"></span>
 
-        <div class="relative z-10 mx-auto flex max-w-2xl flex-col items-center">
-          <p class="eyebrow">Apache-2.0 · Linux, Windows 11, macOS</p>
-          <h2 class="section-title mt-4">Start with one command.</h2>
-          <p class="lede mt-4">
-            Nerve is beta software distributed through npm. Signed and notarized
-            native installers are not currently part of the release path.
+      <div class="closing-grid">
+        <div class="closing-lead">
+          <p class="eyebrow">Ready when you are</p>
+          <h2 id="closing-title" class="closing-title">
+            Run it on your own machine.
+          </h2>
+          <p class="lede">
+            Three steps, no account, and nothing leaves your machine until you
+            ask it to.
           </p>
-          <InstallCommand class="mt-8 w-full" />
-          <div class="mt-4 flex flex-wrap justify-center gap-3">
-            <a class="btn btn-primary" href="/start/install/">Install Nerve</a>
-            <a class="btn btn-ghost" href="/start/overview/">Read the docs</a>
+
+          <div class="closing-actions">
+            <a class="btn btn-primary" href="/start/install/">
+              Get started <span aria-hidden="true">→</span>
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
+              View on GitHub
+            </a>
           </div>
+        </div>
+
+        <div class="closing-panel">
+          <ol class="closing-steps">
+            {
+              steps.map((item) => (
+                <li>
+                  <span class="step-index">{item.step}</span>
+                  <span class="step-text">
+                    <strong>{item.label}</strong>
+                    <span class="meta-text">{item.meta}</span>
+                  </span>
+                </li>
+              ))
+            }
+          </ol>
+
+          <InstallCommand class="closing-install" />
+
+          <p class="meta-text closing-note">
+            Apache-2.0 · Linux, Windows 11, and macOS · loopback by default
+          </p>
         </div>
       </div>
     </Reveal>
@@ -33,45 +65,144 @@ import Reveal from "./Reveal.astro";
 
 <style>
   .closing-section {
-    padding-block: clamp(4rem, 9vw, 7rem);
+    padding-block: var(--section-pad);
   }
 
   .closing {
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    padding: clamp(2.5rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem);
+    padding: clamp(2rem, 4vw, 3.5rem);
     border: 1px solid color-mix(in oklab, var(--primary) 26%, var(--border));
-    border-radius: var(--radius-2xl);
+    border-radius: var(--radius-panel);
     background: linear-gradient(
-      160deg,
+      150deg,
       var(--surface-elevated),
       color-mix(in oklab, var(--card) 92%, var(--background))
     );
-    box-shadow: var(--shadow-elevated);
-    text-align: center;
+    box-shadow: var(--depth-3);
   }
 
-  .blob-1 {
-    top: -40%;
-    left: 12%;
-    width: 26rem;
-    height: 22rem;
-    background: radial-gradient(circle, var(--primary), transparent 65%);
-    animation-duration: 28s;
+  .closing-dendrites {
+    z-index: 0;
+    opacity: 0.35;
+    scale: 1 -1;
   }
 
-  .blob-2 {
-    bottom: -50%;
-    right: 8%;
-    width: 24rem;
-    height: 20rem;
-    background: radial-gradient(circle, var(--brand-3), transparent 68%);
-    animation-duration: 34s;
-    animation-direction: reverse;
+  .closing-glow {
+    position: absolute;
+    z-index: 0;
+    inset: -30% -10% 30% 45%;
+    background: radial-gradient(circle, var(--primary), transparent 62%);
+    opacity: 0.16;
+    filter: blur(80px);
+    pointer-events: none;
   }
 
-  .closing :global(.install) {
-    margin-inline: auto;
+  .closing-grid {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    gap: clamp(2rem, 4vw, 3.5rem);
+    align-items: center;
+  }
+
+  .closing-lead {
+    display: grid;
+    gap: 1.1rem;
+    justify-items: start;
+  }
+
+  .closing-title {
+    margin: 0;
+    max-width: 14ch;
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 1.3rem + 2.4vw, 3rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+  }
+
+  .closing-lead .lede {
+    max-width: 30rem;
+  }
+
+  .closing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Panel ----------------------------------------------------------------- */
+
+  .closing-panel {
+    display: grid;
+    gap: 1.25rem;
+    padding: clamp(1.25rem, 2.5vw, 1.75rem);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: color-mix(in oklab, var(--background) 55%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .closing-steps {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .closing-steps li {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.9rem;
+    align-items: center;
+    padding-block: 0.75rem;
+  }
+
+  .closing-steps li + li {
+    border-top: 1px solid var(--hairline);
+  }
+
+  .step-index {
+    display: grid;
+    place-items: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 35%, var(--border));
+    border-radius: var(--radius-pill);
+    background-color: color-mix(in oklab, var(--primary) 12%, transparent);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+  }
+
+  .step-text {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .step-text strong {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .closing-panel :global(.closing-install) {
+    max-width: none;
+  }
+
+  .closing-note {
+    margin: 0;
+  }
+
+  @media (min-width: 900px) {
+    .closing-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+    }
   }
 </style>

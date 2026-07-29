@@ -12,19 +12,6 @@
   margin-inline: auto;
 }
 
-.container-wide {
-  width: min(100% - 2rem, var(--container-wide));
-  margin-inline: auto;
-}
-
-.section-block {
-  padding-block: clamp(5rem, 10vw, 9rem);
-}
-
-.rule-top {
-  border-top: 1px solid var(--hairline);
-}
-
 /* Typography --------------------------------------------------------------- */
 
 .eyebrow {
@@ -113,7 +100,7 @@
   min-height: 2.9rem;
   padding-inline: 1.15rem;
   border: 1px solid var(--hairline);
-  border-radius: calc(var(--radius) * 1.2);
+  border-radius: var(--radius-chip);
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -144,7 +131,7 @@
     var(--primary)
   );
   color: var(--primary-foreground);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--depth-1);
 }
 
 .btn-primary:hover,
@@ -182,7 +169,7 @@
 .btn-ghost:focus-visible {
   background-color: var(--surface-elevated);
   border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--depth-1);
 }
 
 .btn-sm {
@@ -233,8 +220,8 @@
   bottom: -0.35rem;
   height: 1.5px;
   width: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--primary), var(--brand-2));
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--primary), var(--signal));
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 260ms var(--ease-out-expo);
@@ -255,13 +242,13 @@
 .surface-card {
   position: relative;
   border: 1px solid var(--hairline);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-card);
   background: linear-gradient(
     165deg,
     color-mix(in oklab, var(--card) 88%, var(--foreground) 4%),
     var(--card)
   );
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--depth-1);
   overflow: hidden;
   transition:
     transform 320ms var(--ease-out-expo),
@@ -272,27 +259,7 @@
 .surface-card:hover {
   transform: translateY(-3px);
   border-color: color-mix(in oklab, var(--primary) 34%, var(--border));
-  box-shadow: var(--shadow-elevated);
-}
-
-/* Pointer-tracked highlight. `--spot-x` / `--spot-y` are written by motion.ts. */
-.spotlight::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    18rem 18rem at var(--spot-x, 50%) var(--spot-y, 0%),
-    color-mix(in oklab, var(--primary) 18%, transparent),
-    transparent 70%
-  );
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 320ms var(--ease-out-expo);
-}
-
-.spotlight:hover::before,
-.spotlight:focus-within::before {
-  opacity: 1;
+  box-shadow: var(--depth-2);
 }
 
 .glass-bar {
@@ -307,7 +274,7 @@
   gap: 0.45rem;
   padding: 0.3rem 0.7rem;
   border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: color-mix(in oklab, var(--primary) 12%, transparent);
   color: var(--foreground);
   font-size: var(--text-meta);
@@ -317,7 +284,7 @@
 
 .code-chip {
   border: 1px solid var(--hairline);
-  border-radius: 0.45rem;
+  border-radius: var(--radius-chip);
   padding: 0.1rem 0.4rem;
   background-color: color-mix(in oklab, var(--primary) 10%, transparent);
   color: var(--foreground);
@@ -347,23 +314,6 @@
   opacity: 0.28;
 }
 
-.hero-grid {
-  position: absolute;
-  inset: -2rem;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, var(--hairline) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--hairline) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(70% 55% at 50% 30%, black, transparent 80%);
-  -webkit-mask-image: radial-gradient(
-    70% 55% at 50% 30%,
-    black,
-    transparent 80%
-  );
-  opacity: 0.6;
-}
-
 .grain {
   position: absolute;
   inset: 0;
@@ -371,93 +321,6 @@
   opacity: var(--grain-opacity);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
   mix-blend-mode: overlay;
-}
-
-/* Screenshot frame ---------------------------------------------------------- */
-
-.frame {
-  position: relative;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-2xl);
-  background: linear-gradient(165deg, var(--surface-elevated), var(--card));
-  box-shadow: var(--shadow-elevated);
-  overflow: hidden;
-  transform: translateY(var(--parallax, 0px));
-  transition: transform 120ms linear;
-}
-
-.frame-chrome {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.7rem 0.9rem;
-  border-bottom: 1px solid var(--hairline);
-  background-color: color-mix(in oklab, var(--card) 80%, var(--background));
-}
-
-.frame-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 999px;
-  background-color: color-mix(
-    in oklab,
-    var(--muted-foreground) 45%,
-    transparent
-  );
-}
-
-.frame img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-/* Marquee ------------------------------------------------------------------- */
-
-.marquee {
-  position: relative;
-  overflow: hidden;
-  mask-image: linear-gradient(
-    90deg,
-    transparent,
-    black 12%,
-    black 88%,
-    transparent
-  );
-  -webkit-mask-image: linear-gradient(
-    90deg,
-    transparent,
-    black 12%,
-    black 88%,
-    transparent
-  );
-}
-
-.marquee-track {
-  display: flex;
-  width: max-content;
-  align-items: center;
-  gap: 3rem;
-}
-
-.marquee:hover .marquee-track {
-  animation-play-state: paused;
-}
-
-/* Transcript demo ----------------------------------------------------------- */
-
-/* Visible by default so the demo reads as static content without JavaScript;
- * motion.ts takes over and re-plays it on scroll. */
-.demo-line.is-live {
-  animation: stream-in 420ms var(--ease-out-expo) both;
-}
-
-.demo-caret {
-  display: inline-block;
-  width: 0.5ch;
-  height: 1em;
-  translate: 0 0.15em;
-  background-color: var(--primary);
 }
 
 /* Utility ------------------------------------------------------------------- */

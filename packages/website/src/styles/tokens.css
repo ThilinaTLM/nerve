@@ -82,7 +82,6 @@
   --radius: 0.625rem;
   --nav-height: 4.25rem;
   --container-max: 78rem;
-  --container-wide: 92rem;
 
   --text-display: clamp(3rem, 1.6rem + 5.4vw, 5.75rem);
   --text-h2: clamp(2rem, 1.2rem + 2.6vw, 3.25rem);
@@ -91,6 +90,99 @@
   --text-body: 1rem;
   --text-eyebrow: 0.75rem;
   --text-meta: 0.8125rem;
+}
+
+/* Radius hierarchy.
+ *
+ * Radius is semantic here, not decorative: devices are tight, panels are
+ * medium, pills are full. Product screenshots are dense 2000px captures shown
+ * at roughly a third of that size, so a large radius scales up to a cartoonish
+ * corner. `--radius-device` matches what a real application window corner looks
+ * like at render scale. */
+:root {
+  --radius-device: 0.75rem;
+  --radius-screen: 0.5rem;
+  --radius-phone: 1.75rem;
+  --radius-phone-screen: 1.4rem;
+  --radius-panel: 1.25rem;
+  --radius-card: 0.75rem;
+  --radius-chip: 0.5rem;
+  --radius-pill: 999px;
+}
+
+/* Vertical rhythm.
+ *
+ * One scale owns section padding, header-to-content distance, and the gap
+ * between sibling blocks. Components must use these instead of ad-hoc margin
+ * utilities so the page keeps a single rhythm. */
+:root {
+  --section-pad: clamp(4.5rem, 7vw, 7.5rem);
+  --section-gap: clamp(2.5rem, 4vw, 4rem);
+  --stack-gap: clamp(3.5rem, 6vw, 6rem);
+}
+
+/* Depth model for the marketing surface. */
+:root {
+  --stage-perspective: 1600px;
+  --tilt-max: 5deg;
+  --z-back: -120px;
+  --z-mid: -50px;
+  --z-base: 0px;
+  --z-fore: 90px;
+  --z-top: 150px;
+}
+
+/* Marketing neural layer.
+ *
+ * A website-package extension of the shared palette, used only by the marketing
+ * surface. The Starlight documentation bridge below never reads these tokens,
+ * so the docs shell keeps the exact ui-kit brand.
+ *
+ * Roles are fixed and applied consistently across every marketing section:
+ *   --primary   the product, the workbench, the user's authority
+ *   --signal    the travelling impulse: motion, "the system is working"
+ *   --warning   a review gate that is waiting for the human
+ *   --membrane  the machine boundary
+ *   --success   a completed, verified state
+ */
+:root,
+:root[data-theme="dark"] {
+  --signal: oklch(0.72 0.15 288);
+  --signal-soft: color-mix(in oklab, var(--signal) 55%, transparent);
+  --myelin: color-mix(in oklab, var(--primary) 30%, var(--border));
+  --myelin-dim: color-mix(in oklab, var(--border) 70%, transparent);
+  --synapse: color-mix(in oklab, var(--primary) 85%, var(--foreground));
+  --membrane: var(--info);
+  --destructive: oklch(0.7 0.15 25);
+
+  --glow-signal: 0 0 1.5rem -0.25rem
+    color-mix(in oklab, var(--signal) 60%, transparent);
+  --depth-1:
+    0 1px 0 0 var(--hairline), 0 0.5rem 1.25rem -0.75rem oklch(0 0 0 / 0.5);
+  --depth-2:
+    0 1px 0 0 var(--hairline), 0 1.25rem 2.5rem -1rem oklch(0 0 0 / 0.55);
+  --depth-3:
+    0 1px 0 0 var(--hairline), 0 2.5rem 5rem -1.5rem oklch(0 0 0 / 0.65);
+}
+
+:root[data-theme="light"] {
+  --signal: oklch(0.52 0.16 288);
+  --signal-soft: color-mix(in oklab, var(--signal) 40%, transparent);
+  --myelin: color-mix(in oklab, var(--primary) 35%, var(--border));
+  --myelin-dim: color-mix(in oklab, var(--border) 85%, transparent);
+  --synapse: var(--primary);
+  --membrane: var(--info);
+  --destructive: oklch(0.51 0.17 25);
+
+  --glow-signal: 0 0 1.5rem -0.25rem
+    color-mix(in oklab, var(--signal) 35%, transparent);
+  --depth-1:
+    0 1px 0 0 var(--hairline),
+    0 0.5rem 1.25rem -0.75rem oklch(0.35 0.03 96 / 0.16);
+  --depth-2:
+    0 1px 0 0 var(--hairline), 0 1.25rem 2.5rem -1rem oklch(0.35 0.03 96 / 0.2);
+  --depth-3:
+    0 1px 0 0 var(--hairline), 0 2.5rem 5rem -1.5rem oklch(0.35 0.03 96 / 0.26);
 }
 
 @theme inline {
@@ -110,6 +202,10 @@
   --color-info: var(--info);
   --color-brand-2: var(--brand-2);
   --color-brand-3: var(--brand-3);
+  --color-signal: var(--signal);
+  --color-myelin: var(--myelin);
+  --color-membrane: var(--membrane);
+  --color-destructive: var(--destructive);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-sunken: var(--surface-sunken);
   --color-glass: var(--glass);
@@ -122,6 +218,11 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.6);
   --radius-2xl: calc(var(--radius) * 2.4);
+  --radius-device: var(--radius-device);
+  --radius-screen: var(--radius-screen);
+  --radius-panel: var(--radius-panel);
+  --radius-card: var(--radius-card);
+  --radius-chip: var(--radius-chip);
 
   --shadow-elevated: var(--shadow-elevated);
   --shadow-soft: var(--shadow-soft);

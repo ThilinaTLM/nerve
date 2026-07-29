@@ -1,28 +1,103 @@
 ---
 import heroImage from "../assets/shots/d1-conversation.webp";
 import MarketingLayout from "../layouts/MarketingLayout.astro";
+import AnatomyOfARun from "../components/marketing/AnatomyOfARun.astro";
+import AuthorityDial from "../components/marketing/AuthorityDial.astro";
+import CapabilityLattice from "../components/marketing/CapabilityLattice.astro";
 import ClosingCta from "../components/marketing/ClosingCta.astro";
 import Hero from "../components/marketing/Hero.astro";
-import NerveMap from "../components/marketing/NerveMap.astro";
 import PocketWorkbench from "../components/marketing/PocketWorkbench.astro";
+import ReflexArc from "../components/marketing/ReflexArc.astro";
+import Resilience from "../components/marketing/Resilience.astro";
 import Section from "../components/marketing/Section.astro";
-import ShotShowcase from "../components/marketing/ShotShowcase.astro";
-import SignalBand from "../components/marketing/SignalBand.astro";
+import SignalStrip from "../components/marketing/SignalStrip.astro";
 import Topology from "../components/marketing/Topology.astro";
-import TranscriptDemo from "../components/marketing/TranscriptDemo.astro";
-import WorkflowSteps from "../components/marketing/WorkflowSteps.astro";
-const title="Nerve — transparent, local-first coding harness";
-const description="See the agent work, control its authority, and manage coding workflows from an open-source desktop workbench that runs with your local projects.";
-const ogImage=new URL(heroImage.src,Astro.site).href;
+import WorkbenchTour from "../components/marketing/WorkbenchTour.astro";
+
+const title = "Nerve — transparent, local-first coding harness";
+const description =
+  "See the agent work, control its authority, and manage coding workflows from an open-source desktop workbench that runs with your local projects.";
+const ogImage = new URL(heroImage.src, Astro.site).href;
 ---
-<MarketingLayout title={title} description={description} canonical="https://nerve.tlmtech.dev/" ogImage={ogImage} structuredData>
+
+<MarketingLayout
+  title={title}
+  description={description}
+  canonical="https://nerve.tlmtech.dev/"
+  ogImage={ogImage}
+  structuredData
+>
   <Hero />
-  <SignalBand />
-  <Section id="transparency" eyebrow="Nothing happens off-screen" title="Watch the run, not a spinner" lede="The transcript renders prompts, reasoning, tool calls, results, approvals, and recovery as separate, inspectable events." align="center"><TranscriptDemo /></Section>
-  <Section id="workbench" eyebrow="The workbench is the interface" title="Follow the signal from intent to merge" lede="Real project context stays connected across the conversation, Git, pull requests, and supervised tasks."><ShotShowcase /></Section>
-  <Section id="capabilities" eyebrow="A connected system" title="Every capability branches from one local workbench" align="center"><NerveMap /></Section>
-  <Section id="mobile" eyebrow="Wherever the daemon is reachable" title="A workbench that adapts, not a desktop squeezed onto a phone"><PocketWorkbench /></Section>
-  <Section id="workflow" eyebrow="One continuous workflow" title="Direct the agent. Review the evidence. Ship deliberately."><WorkflowSteps /></Section>
-  <Section id="topology" eyebrow="Local-first topology" title="Your workbench talks to your daemon, not a hosted Nerve service."><Topology /></Section>
+
+  <SignalStrip />
+
+  {/* The one pinned section on the page. It owns its own heading because the
+      choreography needs control of the whole block. */}
+  <AnatomyOfARun />
+
+  <Section
+    id="authority"
+    tone="sunken"
+    eyebrow="Authority, not vibes"
+    title="Decide what the agent may do — before it does it."
+    lede="Nerve enforces permission in the harness policy layer, not just in the system prompt. Change the level and the tool policy changes with it."
+  >
+    <AuthorityDial />
+  </Section>
+
+  <Section
+    id="workbench"
+    eyebrow="The workbench is the interface"
+    title="Follow the signal from intent to merge"
+    lede="Real project context stays connected across the conversation, Git, pull requests, and supervised tasks."
+  >
+    <WorkbenchTour />
+  </Section>
+
+  <Section
+    id="capabilities"
+    tone="sunken"
+    align="center"
+    eyebrow="A connected system"
+    title="Every capability branches from one local workbench"
+  >
+    <CapabilityLattice />
+  </Section>
+
+  <Section
+    id="resilience"
+    eyebrow="When it breaks"
+    title="You keep the work."
+    lede="Provider failures, context limits, and wrong turns are expected states in Nerve, not dead ends."
+  >
+    <Resilience />
+  </Section>
+
+  <Section
+    id="mobile"
+    tone="sunken"
+    eyebrow="Wherever the daemon is reachable"
+    title="A workbench that adapts, not a desktop squeezed onto a phone"
+  >
+    <PocketWorkbench />
+  </Section>
+
+  <Section
+    id="workflow"
+    eyebrow="One continuous workflow"
+    title="Direct the agent. Review the evidence. Ship deliberately."
+  >
+    <ReflexArc />
+  </Section>
+
+  <Section
+    id="topology"
+    tone="sunken"
+    eyebrow="Local-first topology"
+    title="Your workbench talks to your daemon, not to a hosted Nerve service."
+  >
+    <Topology />
+  </Section>
+
   <ClosingCta />
 </MarketingLayout>
