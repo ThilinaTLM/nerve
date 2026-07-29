@@ -39,4 +39,14 @@ The site is static and must not call a local Nerve daemon. GitHub Pages deployme
 - Repository governance: root `CONTRIBUTING.md` and `SECURITY.md`.
 - Behavioral authority: owning contracts, catalogs, implementation, and tests.
 
-Capture final screenshots only after copy review. Store public screenshots in `src/assets/`, use descriptive alt text, and update README links if a shared preview image moves.
+## Product screenshots
+
+Landing-page captures come from the live loopback workbench at desktop (1600×1000) and phone (390×844) viewports. Before committing a frame, select only the public `nerve` project, hide unrelated project shortcuts, avoid authentication/settings panes, and inspect the image for tokens, private paths, account details, or other project names.
+
+Save approved PNG captures under `/tmp/nerve-shots/`, then run:
+
+```sh
+node scripts/prepare-website-shots.mjs
+```
+
+The script creates optimized WebP sources in `src/assets/shots/`. Astro generates responsive variants at build time. Keep descriptive alt text on every use and update the script's allowlist when adding or retiring a frame.

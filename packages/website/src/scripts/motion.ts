@@ -93,6 +93,27 @@ function initParallax(): void {
   window.addEventListener("resize", schedule);
 }
 
+function initScrollSignals(): void {
+  const spine = document.querySelector<HTMLElement>("[data-nerve-spine]");
+  const workflows = document.querySelectorAll<HTMLElement>("[data-workflow-signal]");
+  if (!spine && !workflows.length) return;
+  let frame = 0;
+  const update = (): void => {
+    frame = 0;
+    const maximum = Math.max(1, document.documentElement.scrollHeight - innerHeight);
+    spine?.style.setProperty("--scroll-progress", String(Math.min(1, scrollY / maximum)));
+    for (const workflow of workflows) {
+      const rect = workflow.getBoundingClientRect();
+      const progress = Math.max(0, Math.min(1, (innerHeight - rect.top) / (innerHeight + rect.height)));
+      workflow.style.setProperty("--section-progress", String(progress));
+    }
+  };
+  const schedule = (): void => { if (!frame) frame = requestAnimationFrame(update); };
+  update();
+  addEventListener("scroll", schedule, { passive: true });
+  addEventListener("resize", schedule);
+}
+
 function initHeader(): void {
   const header = document.querySelector<HTMLElement>("[data-site-header]");
   if (!header) return;
@@ -188,6 +209,7 @@ function init(): void {
   initReveals();
   initSpotlight();
   initParallax();
+  initScrollSignals();
   initHeader();
   initCopyButtons();
   initTranscriptDemo();

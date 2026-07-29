@@ -1,0 +1,19 @@
+---
+interface Props { caption?: string; parallax?: number | false; class?: string; }
+const { caption, parallax = 14, class: className = "" } = Astro.props;
+---
+<figure class:list={["phone-wrap", className]} data-parallax={parallax === false ? undefined : parallax}>
+  <div class="phone-frame">
+    <span class="phone-speaker" aria-hidden="true"></span>
+    <div class="phone-screen"><slot /></div>
+  </div>
+  {caption && <figcaption class="meta-text">{caption}</figcaption>}
+</figure>
+<style>
+  .phone-wrap { margin: 0; text-align: center; }
+  .phone-frame { position: relative; padding: 0.55rem; border: 1px solid color-mix(in oklab, var(--primary) 28%, var(--border)); border-radius: 2.25rem; background: var(--surface-elevated); box-shadow: var(--shadow-elevated), var(--glow-primary); }
+  .phone-speaker { position: absolute; z-index: 2; top: 0.85rem; left: 50%; width: 24%; height: 0.3rem; border-radius: 999px; background: var(--background); transform: translateX(-50%); }
+  .phone-screen { overflow: hidden; border-radius: 1.75rem; background: var(--background); aspect-ratio: 390 / 844; }
+  .phone-screen :global(img) { width: 100%; height: 100%; object-fit: cover; }
+  figcaption { margin-top: 0.75rem; }
+</style>

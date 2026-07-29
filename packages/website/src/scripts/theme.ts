@@ -43,6 +43,9 @@ export function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = resolveTheme(theme);
   document.documentElement.dataset.themePreference = theme;
   storeTheme(theme);
+  document.dispatchEvent(
+    new CustomEvent("theme:change", { detail: { theme: resolveTheme(theme) } }),
+  );
 
   for (const control of document.querySelectorAll<HTMLElement>(
     "[data-theme-switch]",

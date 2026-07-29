@@ -1,6 +1,6 @@
 ---
 import { Image } from "astro:assets";
-import conversation from "../../assets/preview-conversation-and-pr.webp";
+import conversation from "../../assets/shots/d3-pull-request.webp";
 import Reveal from "./Reveal.astro";
 import ScreenshotFrame from "./ScreenshotFrame.astro";
 
@@ -28,7 +28,7 @@ const steps = [
 ];
 ---
 
-<div class="workflow mt-14">
+<div class="workflow mt-14" data-workflow-signal>
   <Reveal variant="left" class="order-2 lg:order-1">
     <ol class="steps">
       {
@@ -112,8 +112,8 @@ const steps = [
     width: 1px;
     background: linear-gradient(
       180deg,
-      color-mix(in oklab, var(--primary) 55%, transparent),
-      transparent
+      var(--primary) 0 calc(var(--section-progress, 0) * 100%),
+      var(--hairline) calc(var(--section-progress, 0) * 100%)
     );
   }
 

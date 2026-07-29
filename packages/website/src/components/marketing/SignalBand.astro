@@ -1,0 +1,15 @@
+---
+const signals = ["Messages","Reasoning","Tool calls","Approvals","Git","Pull requests","Tasks","Explore","Models","Notes"];
+---
+<div class="signal-band" aria-label="Nerve workbench capabilities">
+  <div class="signal-line" aria-hidden="true"><span class="signal-pulse"></span></div>
+  <ul>{signals.map((signal,index)=><li style={`--signal-index:${index}`}><span aria-hidden="true"></span>{signal}</li>)}</ul>
+</div>
+<style>
+  .signal-band { position:relative; overflow-x:auto; padding-block:2rem; border-block:1px solid var(--hairline); background:var(--surface-sunken); scrollbar-width:none; }
+  .signal-band ul { position:relative; display:flex; justify-content:space-between; gap:2.5rem; min-width:70rem; width:min(100% - 2rem,var(--container-wide)); margin:auto; padding:0; list-style:none; }
+  .signal-band li { display:grid; justify-items:center; gap:0.65rem; color:var(--muted-foreground); font-size:var(--text-meta); font-weight:600; }
+  .signal-band li span { width:0.55rem; height:0.55rem; border-radius:999px; background:var(--background); border:1px solid var(--primary); }
+  .signal-line { position:absolute; top:2.25rem; left:0; width:100%; height:1px; background:color-mix(in oklab,var(--primary) 28%,var(--border)); }
+  .signal-pulse { display:block; width:5rem; height:1px; background:linear-gradient(90deg,transparent,var(--primary),transparent); animation:signal-sweep 6s linear infinite; }
+</style>

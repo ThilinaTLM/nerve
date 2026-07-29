@@ -1,0 +1,21 @@
+---
+import { Image } from "astro:assets";
+import conversation from "../../assets/shots/m1-conversation.webp";
+import picker from "../../assets/shots/m2-model-picker.webp";
+import sheet from "../../assets/shots/m3-right-sheet.webp";
+import PhoneFrame from "./PhoneFrame.astro";
+const phones=[
+  {src:conversation,alt:"Phone-width Nerve conversation and composer",caption:"Conversation",parallax:-20},
+  {src:picker,alt:"Nerve model and thinking level picker on a phone",caption:"Model control",parallax:8},
+  {src:sheet,alt:"Nerve Git panel open as a phone-width sheet",caption:"Dock sheets",parallax:24},
+];
+---
+<div class="pocket-panel mt-14">
+  <div class="pocket-copy"><p class="eyebrow">Responsive by design</p><h3 class="section-title">The same workbench in your pocket.</h3><p class="body-text">Connect from another device on your LAN and keep conversations, composer controls, and dock panels within reach.</p><a class="link-arrow" href="/operations/lan-mobile/">Set up LAN access <span aria-hidden="true">→</span></a></div>
+  <div class="phone-row">{phones.map((phone,index)=><PhoneFrame caption={phone.caption} parallax={phone.parallax} class={`phone-${index+1}`}><Image src={phone.src} alt={phone.alt} widths={[390,600,900]} sizes="(max-width: 768px) 70vw, 22vw" loading="lazy" /></PhoneFrame>)}</div>
+</div>
+<style>
+  .pocket-panel{position:relative;overflow:hidden;display:grid;gap:3rem;padding:clamp(1.5rem,5vw,4rem);border:1px solid var(--hairline);border-radius:var(--radius-2xl);background:radial-gradient(circle at 70% 20%,color-mix(in oklab,var(--primary) 18%,transparent),transparent 45%),var(--surface-sunken)}.pocket-copy{display:grid;align-content:center;gap:1rem}.phone-row{display:flex;align-items:flex-start;gap:1rem}.phone-row :global(.phone-wrap){flex:1}.phone-2{margin-top:3rem}.phone-3{margin-top:1rem}
+  @media(min-width:1024px){.pocket-panel{grid-template-columns:.65fr 1.35fr}}
+  @media(max-width:767px){.phone-row{overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:1rem}.phone-row :global(.phone-wrap){min-width:70vw;scroll-snap-align:center}.phone-2,.phone-3{margin-top:0}}
+</style>

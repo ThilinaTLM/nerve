@@ -114,6 +114,22 @@
   }
 }
 
+@keyframes signal-sweep {
+  from { transform: translateX(-10vw); }
+  to { transform: translateX(110vw); }
+}
+
+@keyframes axon-charge {
+  from { opacity: 0; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes impulse-travel {
+  from { offset-distance: 0%; opacity: 0; }
+  12%, 88% { opacity: 1; }
+  to { offset-distance: 100%; opacity: 0; }
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;
