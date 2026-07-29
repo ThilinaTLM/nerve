@@ -7,7 +7,6 @@
 /* Header -------------------------------------------------------------------- */
 
 .header {
-  border-bottom: 1px solid var(--hairline);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
