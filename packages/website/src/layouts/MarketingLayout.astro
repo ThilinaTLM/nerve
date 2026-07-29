@@ -93,6 +93,11 @@ const softwareApplication = {
             : preference;
         document.documentElement.dataset.theme = resolved;
         document.documentElement.dataset.themePreference = preference;
+        // Seeds the theme switch indicator so it never jumps on hydration.
+        document.documentElement.style.setProperty(
+          "--switch-index",
+          String(["light", "dark", "auto"].indexOf(preference)),
+        );
       })();
     </script>
 

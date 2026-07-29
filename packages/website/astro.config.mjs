@@ -21,6 +21,7 @@ export default defineConfig({
         SiteTitle: "./src/components/starlight/SiteTitle.astro",
         Footer: "./src/components/starlight/Footer.astro",
         Hero: "./src/components/starlight/Hero.astro",
+        ThemeSelect: "./src/components/starlight/ThemeSelect.astro",
       },
       expressiveCode: {
         themes: ["github-dark-default", "github-light"],

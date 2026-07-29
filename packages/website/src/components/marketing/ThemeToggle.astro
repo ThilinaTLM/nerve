@@ -1,84 +1,137 @@
 ---
-/* Cycles dark → light → auto. Wired by `src/scripts/theme.ts`, which shares
- * Starlight's storage key so the docs shell stays in sync. */
+/* Three-way segmented control: light, dark, auto. Wired by
+ * `src/scripts/theme.ts`, which shares Starlight's storage key so the
+ * marketing pages and the documentation shell stay in sync. */
+
+const options = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "auto", label: "System" },
+] as const;
 ---
 
-<button
-  type="button"
-  data-theme-toggle
-  class="btn btn-ghost btn-icon"
-  aria-label="Change color theme"
->
-  <svg
-    class="theme-icon theme-icon-dark"
-    width="17"
-    height="17"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>
-  </svg>
-  <svg
-    class="theme-icon theme-icon-light"
-    width="17"
-    height="17"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <circle cx="12" cy="12" r="4"></circle>
-    <path
-      d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
-    ></path>
-  </svg>
-  <svg
-    class="theme-icon theme-icon-auto"
-    width="17"
-    height="17"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <rect x="3" y="4" width="18" height="12" rx="2"></rect>
-    <path d="M2 20h20"></path>
-  </svg>
-</button>
+<div class="theme-switch" data-theme-switch role="group" aria-label="Color theme">
+  <span class="indicator" aria-hidden="true"></span>
+  {
+    options.map((option) => (
+      <button
+        type="button"
+        class="option"
+        data-theme-option={option.value}
+        aria-pressed="false"
+        title={`${option.label} theme`}
+      >
+        <span class="visually-hidden">{option.label} theme</span>
+        {option.value === "light" && (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+          </svg>
+        )}
+        {option.value === "dark" && (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+          </svg>
+        )}
+        {option.value === "auto" && (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="18" height="12" rx="2" />
+            <path d="M2 20h20" />
+          </svg>
+        )}
+      </button>
+    ))
+  }
+</div>
 
 <style>
-  .theme-icon {
+  .theme-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.2rem;
+    border: 1px solid var(--hairline);
+    border-radius: 999px;
+    background-color: color-mix(in oklab, var(--card) 70%, transparent);
+  }
+
+  .indicator {
     position: absolute;
-    opacity: 0;
-    transform: rotate(-35deg) scale(0.7);
-    transition:
-      opacity 220ms var(--ease-out-expo),
-      transform 220ms var(--ease-spring);
+    top: 0.2rem;
+    bottom: 0.2rem;
+    left: 0.2rem;
+    width: 1.85rem;
+    border-radius: 999px;
+    background: linear-gradient(
+      150deg,
+      color-mix(in oklab, var(--primary) 32%, transparent),
+      color-mix(in oklab, var(--primary) 16%, transparent)
+    );
+    box-shadow: inset 0 0 0 1px
+      color-mix(in oklab, var(--primary) 34%, transparent);
+    /* `--switch-index` is written by theme.ts. */
+    translate: calc(var(--switch-index, 1) * (1.85rem + 0.1rem)) 0;
+    transition: translate 320ms var(--ease-spring);
   }
 
-  /* `auto` is the default state before the script resolves a stored choice. */
-  [data-theme-toggle] .theme-icon-auto,
-  [data-theme-toggle][data-state="auto"] .theme-icon-auto,
-  [data-theme-toggle][data-state="dark"] .theme-icon-dark,
-  [data-theme-toggle][data-state="light"] .theme-icon-light {
-    opacity: 1;
-    transform: none;
+  .option {
+    display: grid;
+    place-items: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: color 200ms var(--ease-out-expo);
   }
 
-  [data-theme-toggle][data-state="dark"] .theme-icon-auto,
-  [data-theme-toggle][data-state="light"] .theme-icon-auto {
-    opacity: 0;
-    transform: rotate(-35deg) scale(0.7);
+  .option svg {
+    position: relative;
+    width: 0.95rem;
+    height: 0.95rem;
+    transition: transform 320ms var(--ease-spring);
+  }
+
+  .option:hover {
+    color: var(--foreground);
+  }
+
+  .option[aria-pressed="true"] {
+    color: var(--primary);
+  }
+
+  .option[aria-pressed="true"] svg {
+    transform: scale(1.08);
+  }
+
+  .option:focus-visible {
+    outline-offset: 1px;
   }
 </style>

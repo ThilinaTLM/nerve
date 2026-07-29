@@ -93,8 +93,11 @@ site-search kbd {
 
 /* Content ------------------------------------------------------------------- */
 
+/* Starlight separates the title panel from the body with a rule. The redesign
+ * uses spacing instead, so the page reads as one column. */
 .content-panel + .content-panel {
-  border-top: 1px solid var(--hairline);
+  border-top: 0;
+  padding-top: 0.75rem;
 }
 
 .sl-markdown-content {

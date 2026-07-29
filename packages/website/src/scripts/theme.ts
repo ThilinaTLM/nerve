@@ -8,7 +8,8 @@
 export type Theme = "auto" | "dark" | "light";
 
 const storageKey = "starlight-theme";
-const order: Theme[] = ["dark", "light", "auto"];
+/* Presentation order of the segmented control; also drives its indicator. */
+const order: Theme[] = ["light", "dark", "auto"];
 
 const parseTheme = (value: unknown): Theme =>
   value === "auto" || value === "dark" || value === "light" ? value : "auto";
@@ -38,18 +39,23 @@ const preferredScheme = (): Exclude<Theme, "auto"> =>
 export const resolveTheme = (theme: Theme): Exclude<Theme, "auto"> =>
   theme === "auto" ? preferredScheme() : theme;
 
-export const nextTheme = (theme: Theme): Theme =>
-  order[(order.indexOf(theme) + 1) % order.length] ?? "auto";
-
 export function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = resolveTheme(theme);
   document.documentElement.dataset.themePreference = theme;
   storeTheme(theme);
-  for (const toggle of document.querySelectorAll<HTMLElement>(
-    "[data-theme-toggle]",
+
+  for (const control of document.querySelectorAll<HTMLElement>(
+    "[data-theme-switch]",
   )) {
-    toggle.dataset.state = theme;
-    toggle.setAttribute("aria-label", `Color theme: ${theme}. Change theme.`);
+    control.style.setProperty("--switch-index", String(order.indexOf(theme)));
+    for (const option of control.querySelectorAll<HTMLElement>(
+      "[data-theme-option]",
+    )) {
+      option.setAttribute(
+        "aria-pressed",
+        String(option.dataset.themeOption === theme),
+      );
+    }
   }
 }
 
@@ -60,9 +66,11 @@ export function initTheme(): void {
     if (loadTheme() === "auto") applyTheme("auto");
   });
 
-  for (const toggle of document.querySelectorAll<HTMLElement>(
-    "[data-theme-toggle]",
+  for (const option of document.querySelectorAll<HTMLElement>(
+    "[data-theme-option]",
   )) {
-    toggle.addEventListener("click", () => applyTheme(nextTheme(loadTheme())));
+    option.addEventListener("click", () =>
+      applyTheme(parseTheme(option.dataset.themeOption)),
+    );
   }
 }
