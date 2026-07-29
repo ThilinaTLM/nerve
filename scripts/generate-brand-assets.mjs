@@ -33,7 +33,11 @@ const desktopOnly = process.argv.includes("--desktop");
 const appIconSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256, 512, 1024];
 const windowsAppIconSizes = [16, 20, 24, 32, 40, 48, 64, 256];
 const windowsTrayIconSizes = [16, 20, 24, 32];
-const browserTargets = [join(repoRoot, "packages", "workbench-app", "public")];
+/* The first entry also receives the PWA icons. */
+const browserTargets = [
+  join(repoRoot, "packages", "workbench-app", "public"),
+  join(repoRoot, "packages", "website", "public"),
+];
 
 const appIconSvg = await readFile(join(brandDir, "nerve-app-icon.svg"));
 const fullMarkSvg = await readFile(join(brandDir, "nerve-mark.svg"), "utf8");

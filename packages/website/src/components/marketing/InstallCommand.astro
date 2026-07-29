@@ -1,0 +1,146 @@
+---
+interface Props {
+  command?: string;
+  hint?: string;
+  class?: string;
+}
+
+const {
+  command = "npx @nervekit/desktop@latest",
+  hint = "Node.js 24+",
+  class: className = "",
+} = Astro.props;
+---
+
+<div class:list={["install", className]}>
+  <span class="prompt" aria-hidden="true">$</span>
+  <code>{command}</code>
+  <span class="hint meta-text">{hint}</span>
+  <button
+    type="button"
+    class="copy"
+    data-copy={command}
+    aria-label={`Copy the ${command} command`}
+  >
+    <svg
+      class="icon-copy"
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="9" y="9" width="12" height="12" rx="2"></rect>
+      <path d="M5 15V5a2 2 0 0 1 2-2h10"></path>
+    </svg>
+    <svg
+      class="icon-check"
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m4 12 5 5L20 6"></path>
+    </svg>
+  </button>
+  <span class="visually-hidden" role="status" data-copy-status></span>
+</div>
+
+<style>
+  .install {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    gap: 0.6rem;
+    max-width: 26rem;
+    padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+    border: 1px solid var(--hairline);
+    border-radius: calc(var(--radius) * 1.3);
+    background-color: color-mix(in oklab, var(--surface-sunken) 82%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    transition:
+      border-color 260ms var(--ease-out-expo),
+      box-shadow 260ms var(--ease-out-expo);
+  }
+
+  .install:hover,
+  .install:focus-within {
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+    box-shadow: var(--shadow-soft);
+  }
+
+  .prompt {
+    color: var(--primary);
+  }
+
+  code {
+    color: var(--foreground);
+    white-space: nowrap;
+  }
+
+  .hint {
+    margin-left: auto;
+    font-family: var(--font-sans);
+    white-space: nowrap;
+  }
+
+  .copy {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid transparent;
+    border-radius: 0.55rem;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition:
+      color 200ms var(--ease-out-expo),
+      background-color 200ms var(--ease-out-expo),
+      border-color 200ms var(--ease-out-expo);
+  }
+
+  .copy:hover {
+    color: var(--foreground);
+    border-color: var(--hairline);
+    background-color: color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+
+  .copy .icon-check,
+  .copy[data-copied] .icon-copy {
+    display: none;
+  }
+
+  .copy[data-copied] .icon-check {
+    display: block;
+    color: var(--success);
+  }
+
+  @media (max-width: 479px) {
+    .install {
+      gap: 0.4rem;
+      padding: 0.5rem 0.45rem 0.5rem 0.65rem;
+      font-size: 0.75rem;
+    }
+
+    .hint {
+      display: none;
+    }
+
+    .copy {
+      flex: none;
+      margin-left: auto;
+    }
+  }
+</style>

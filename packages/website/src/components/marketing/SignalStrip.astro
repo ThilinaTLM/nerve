@@ -1,0 +1,133 @@
+---
+/* Five verifiable facts strung along one myelinated axon, as nodes of Ranvier.
+ * A single impulse sweeps the axon on a loop and each node flashes as it
+ * passes — pure CSS, staggered by index, no script. */
+
+const facts = [
+  { value: "Apache-2.0", label: "Open source" },
+  { value: "npx @nervekit/desktop@latest", label: "Node.js 24+" },
+  { value: "Linux · Windows 11 · macOS", label: "Desktop shell" },
+  { value: "127.0.0.1:3747", label: "Loopback by default" },
+  { value: "~/.nerve", label: "Your state, your disk" },
+];
+---
+
+<div class="signal-strip tone-sunken">
+  <div class="container-page strip-inner">
+    <div class="strip-axon" aria-hidden="true">
+      <span class="strip-sweep"></span>
+    </div>
+
+    <ul class="strip-list">
+      {
+        facts.map((fact, index) => (
+          <li class="strip-item" style={`--node-index:${index}`}>
+            <span class="synapse-node" aria-hidden="true" />
+            <span class="strip-value">{fact.value}</span>
+            <span class="strip-label">{fact.label}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</div>
+
+<style>
+  .signal-strip {
+    padding-block: 2.5rem;
+  }
+
+  .strip-inner {
+    position: relative;
+  }
+
+  .strip-list {
+    display: grid;
+    gap: 1.75rem 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .strip-item {
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  .strip-value {
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  .strip-label {
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
+  }
+
+  /* The axon is only drawn once the nodes sit on a single row. */
+  .strip-axon {
+    display: none;
+  }
+
+  @media (min-width: 900px) {
+    .strip-list {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .strip-axon {
+      display: block;
+      position: absolute;
+      top: 0.35rem;
+      left: 0;
+      right: 0;
+      height: 1px;
+      overflow: hidden;
+      background-image: repeating-linear-gradient(
+        90deg,
+        var(--myelin) 0 2.5rem,
+        transparent 2.5rem 2.875rem
+      );
+      /* Fades into the page rather than stopping at a hard edge. */
+      mask-image: linear-gradient(
+        90deg,
+        transparent,
+        black 8%,
+        black 92%,
+        transparent
+      );
+      -webkit-mask-image: linear-gradient(
+        90deg,
+        transparent,
+        black 8%,
+        black 92%,
+        transparent
+      );
+    }
+
+    .strip-sweep {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6rem;
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        var(--signal),
+        transparent
+      );
+      animation: strip-sweep 7s linear infinite;
+    }
+
+    .strip-item .synapse-node::after {
+      animation: node-flash 7s linear infinite;
+      animation-delay: calc(var(--node-index) * 1.28s);
+    }
+  }
+</style>

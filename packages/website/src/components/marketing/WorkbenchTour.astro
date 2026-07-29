@@ -1,0 +1,311 @@
+---
+import { Image } from "astro:assets";
+import conversation from "../../assets/shots/d1-conversation.webp";
+import pullRequest from "../../assets/shots/d3-pull-request.webp";
+import tasks from "../../assets/shots/d4-tasks.webp";
+import git from "../../assets/shots/d5-git.webp";
+import DeviceFrame from "./DeviceFrame.astro";
+import Reveal from "./Reveal.astro";
+
+/* The media column is pinned while the copy column scrolls, so each shot gets
+ * the full width of the section instead of a narrow half-column. `tourStage()`
+ * in `scroll-stage.ts` writes `data-active`; with no script the first shot
+ * stays visible and every copy block is still readable. */
+
+const stops = [
+  {
+    eyebrow: "Inspect every action",
+    title: "The transcript is the evidence.",
+    body: "Prompts, reasoning, commands, edits, results, and recovery stay separate and inspectable.",
+    points: [
+      "Tool calls retain their inputs and their bounded output",
+      "Changes stay reviewable before they ship",
+    ],
+    image: conversation,
+    label: "nerve · conversation",
+    alt: "Nerve conversation with a bash command card, an edit card showing a CSS diff, and the composer",
+  },
+  {
+    eyebrow: "Every change, accounted for",
+    title: "Git is a panel, not a second tool.",
+    body: "Watch the working tree change as the agent works. Stage, unstage, discard, fetch, pull, push, and sync from the same shell as the conversation.",
+    points: [
+      "The diff the agent produced is the diff you review",
+      "Destructive actions ask before they run",
+    ],
+    image: git,
+    label: "nerve · git",
+    alt: "Nerve workbench with a conversation on the left and the Git panel listing unstaged changes on the right",
+  },
+  {
+    eyebrow: "Review before you merge",
+    title: "Pull requests live beside the work.",
+    body: "Open a pull request, read its summary, inspect files, and see check status without leaving the workbench.",
+    points: [
+      "Mergeability is visible at a glance",
+      "Checks and changed files have dedicated views",
+    ],
+    meta: "Requires a GitHub remote plus gh auth login.",
+    image: pullRequest,
+    label: "nerve · pull request",
+    alt: "Nerve pull request view with summary, mergeability overview, and a ready-to-merge panel",
+  },
+  {
+    eyebrow: "Supervised processes",
+    title: "Long-running work keeps a pulse.",
+    body: "Run and revisit development servers, builds, and tests with durable output and explicit start, stop, and restart controls.",
+    points: [
+      "Runs preserve their status and output",
+      "Up to 24 hours of runtime per task run",
+    ],
+    image: tasks,
+    label: "nerve · tasks",
+    alt: "Nerve tasks view listing task runs with status pills beside streamed process output",
+  },
+];
+---
+
+<div class="tour" data-tour data-active="0">
+  <div class="tour-copy">
+    {
+      stops.map((stop, index) => (
+        <Reveal
+          class="tour-stop"
+          data-tour-stop
+          data-stop-active={index === 0 ? "true" : "false"}
+        >
+          <span class="tour-index label-chip">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <p class="eyebrow">{stop.eyebrow}</p>
+          <h3 class="section-title tour-title">{stop.title}</h3>
+          <p class="body-text">{stop.body}</p>
+          <ul class="tour-points">
+            {stop.points.map((point) => (
+              <li>
+                <span class="bouton" aria-hidden="true" />
+                {point}
+              </li>
+            ))}
+          </ul>
+          {stop.meta && <p class="meta-text">{stop.meta}</p>}
+
+          {/* At narrow widths each stop carries its own frame instead of
+              relying on a pinned media column. */}
+          <div class="tour-inline-media">
+            <DeviceFrame label={stop.label} depth={2}>
+              <Image
+                src={stop.image}
+                alt={stop.alt}
+                widths={[720, 1080, 1440]}
+                sizes="100vw"
+                loading="lazy"
+              />
+            </DeviceFrame>
+          </div>
+        </Reveal>
+      ))
+    }
+  </div>
+
+  <div class="tour-media" aria-hidden="true">
+    <div class="tour-sticky">
+      <DeviceFrame label="nerve" depth={3} tilt class="tour-frame">
+        <div class="tour-shots">
+          {
+            stops.map((stop, index) => (
+              <div class="tour-shot" data-shot={index}>
+                <Image
+                  src={stop.image}
+                  alt=""
+                  widths={[720, 1080, 1600, 2000]}
+                  sizes="62vw"
+                  loading={index === 0 ? "eager" : "lazy"}
+                />
+              </div>
+            ))
+          }
+        </div>
+      </DeviceFrame>
+
+      <div class="tour-legend">
+        {
+          stops.map((stop, index) => (
+            <span class="legend-item" data-legend={index}>
+              {stop.label}
+            </span>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .tour {
+    display: grid;
+    gap: var(--stack-gap);
+  }
+
+  .tour-copy {
+    display: grid;
+    gap: var(--stack-gap);
+  }
+
+  .tour-stop {
+    display: grid;
+    gap: 0.85rem;
+    align-content: start;
+  }
+
+  .tour-index {
+    color: var(--primary);
+  }
+
+  .tour-title {
+    /* Sized for the copy column, not for a full-width heading: the previous
+     * value wrapped this to four lines in a narrow column. */
+    font-size: clamp(1.45rem, 1.15rem + 0.9vw, 1.9rem);
+  }
+
+  .tour-points {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+  }
+
+  .tour-points li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .tour-points .bouton {
+    flex: none;
+    box-shadow: 0 0 0 0.25rem color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  .tour-inline-media {
+    margin-top: 1.25rem;
+  }
+
+  /* The pinned column only exists where there is room for it. */
+  .tour-media {
+    display: none;
+  }
+
+  .tour-shots {
+    position: relative;
+  }
+
+  .tour-shot :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  @media (min-width: 1024px) {
+    .tour {
+      grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.38fr);
+      gap: clamp(2.5rem, 4vw, 4rem);
+      /* Stretch, not start: the media column must be as tall as the copy
+       * column or its sticky child has no distance to travel and the frame
+       * scrolls away from the text it belongs to. */
+      align-items: stretch;
+    }
+
+    .tour-copy {
+      gap: 26vh;
+      /* The final stop needs half a usable viewport of runway so the sticky
+       * frame remains centered instead of colliding with the tour boundary. */
+      padding-block: 5vh calc((100svh - var(--nav-height)) / 2);
+    }
+
+    .tour-inline-media {
+      display: none;
+    }
+
+    .tour-media {
+      display: block;
+      height: 100%;
+    }
+
+    .tour-sticky {
+      position: sticky;
+      top: calc(50svh + var(--nav-height) / 2);
+      display: grid;
+      gap: 1rem;
+      transform: translateY(-50%);
+    }
+
+    /* Shots are stacked; only the active one is opaque and forward. */
+    .tour-shot {
+      position: absolute;
+      inset: 0;
+      visibility: hidden;
+      opacity: 0;
+      transform: translateZ(-24px) scale(0.99);
+      pointer-events: none;
+      transition:
+        visibility 0s linear 200ms,
+        opacity 200ms var(--ease-out-expo),
+        transform 200ms var(--ease-out-expo);
+    }
+
+    .tour-shot:first-child {
+      position: relative;
+    }
+
+    .tour[data-active="0"] .tour-shot[data-shot="0"],
+    .tour[data-active="1"] .tour-shot[data-shot="1"],
+    .tour[data-active="2"] .tour-shot[data-shot="2"],
+    .tour[data-active="3"] .tour-shot[data-shot="3"] {
+      visibility: visible;
+      opacity: 1;
+      transform: none;
+      transition-delay: 0ms;
+      pointer-events: auto;
+    }
+
+    .tour-legend {
+      position: absolute;
+      top: calc(100% + 1rem);
+      right: 0;
+      left: 0;
+      display: flex;
+      gap: 1.25rem;
+      justify-content: center;
+    }
+
+    .legend-item {
+      color: var(--muted-foreground);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      opacity: 0.4;
+      transition: opacity 320ms var(--ease-out-expo);
+    }
+
+    .tour[data-active="0"] [data-legend="0"],
+    .tour[data-active="1"] [data-legend="1"],
+    .tour[data-active="2"] [data-legend="2"],
+    .tour[data-active="3"] [data-legend="3"] {
+      color: var(--primary);
+      opacity: 1;
+    }
+
+    /* Inactive copy recedes so the active stop reads as the current one, but
+     * never so far that it looks like a rendering fault. */
+    .tour-stop {
+      opacity: 0.72;
+      transition: opacity 200ms var(--ease-out-expo);
+    }
+
+    .tour-stop[data-stop-active="true"] {
+      opacity: 1;
+    }
+  }
+</style>

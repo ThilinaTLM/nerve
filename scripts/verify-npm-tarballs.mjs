@@ -286,7 +286,7 @@ for (const subpath of [
     const helpOutput = capture(process.execPath, [bin, "--help"], directory);
     if (
       !helpOutput.includes("Usage:") ||
-      !helpOutput.includes("npx @nervekit/desktop") ||
+      !helpOutput.includes("npx @nervekit/desktop@latest") ||
       !helpOutput.includes("--connect <url>")
     )
       throw new Error("desktop --help output is incomplete.");

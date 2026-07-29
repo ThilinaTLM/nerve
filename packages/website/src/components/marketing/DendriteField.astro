@@ -1,0 +1,44 @@
+---
+interface Props {
+  /* Scales trunk and impulse counts. 1 is the hero; smaller values are for
+   * supporting surfaces that should not compete with their content. */
+  density?: number;
+  class?: string;
+}
+
+const { density = 1, class: className = "" } = Astro.props;
+---
+
+<canvas
+  class:list={["dendrite-field", className]}
+  data-dendrite-field
+  data-density={density}
+  aria-hidden="true"></canvas>
+
+<script>
+  import "../../scripts/dendrite-field";
+</script>
+
+<style>
+  .dendrite-field {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black 18%,
+      black 72%,
+      transparent
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black 18%,
+      black 72%,
+      transparent
+    );
+  }
+</style>

@@ -1,0 +1,279 @@
+---
+import { Image } from "astro:assets";
+import history from "../../assets/shots/d6-history.webp";
+import DeviceFrame from "./DeviceFrame.astro";
+import Reveal from "./Reveal.astro";
+
+/* Numbers here come from the harness defaults recorded in the evidence
+ * inventory: host retries are three attempts on a 2s exponential base, and the
+ * balanced compaction profile triggers at 80% context retaining 15%, with up to
+ * three auto-continuations. */
+
+const cards = [
+  {
+    figure: "3 × 2s",
+    title: "Automatic retries",
+    body: "A failed provider call is retried three times on a 2s exponential base before the run is surfaced as failed.",
+  },
+  {
+    figure: "checkpoint",
+    title: "Continue from failure",
+    body: "Restart continuation resumes from a durable checkpoint instead of replaying the whole turn from the beginning.",
+  },
+  {
+    figure: "80 / 15",
+    title: "Context compaction",
+    body: "The balanced profile compacts at 80% of context with 15% retained, and auto-continues up to three times.",
+    note: "other profiles: 70/10 · 90/25",
+  },
+  {
+    figure: "branch",
+    title: "Nothing is overwritten",
+    body: "Navigate to any earlier entry and continue on a new branch. The previous lineage stays in history.",
+  },
+];
+
+/* A membrane trace: steady firing, a flat stretch where the run fails, then a
+ * full re-fire. Drawn on entry by `scroll-stage.ts`. */
+const spike = (x: number): string =>
+  `L ${x} 60 L ${x + 8} 22 L ${x + 16} 96 L ${x + 24} 60`;
+const trace = [
+  "M 0 60",
+  `L 40 60 ${spike(60)}`,
+  `L 140 60 ${spike(160)}`,
+  "L 240 60",
+  /* Flatline: the failure. */
+  "L 520 60",
+  `${spike(560)}`,
+  `L 660 60 ${spike(680)}`,
+  "L 800 60",
+].join(" ");
+---
+
+<div class="resilience">
+  <div class="trace-wrap" data-draw data-draw-end="center center" aria-hidden="true">
+    <svg class="trace" viewBox="0 0 800 120" preserveAspectRatio="none">
+      <path class="trace-base" d={trace}></path>
+      <path class="trace-live" d={trace} data-draw-path></path>
+    </svg>
+    <span class="trace-flat-label">run failed</span>
+    <span class="trace-fire-label">recovered</span>
+  </div>
+
+  <Reveal class="resilience-grid" stagger={90}>
+    {
+      cards.map((card) => (
+        <article class="resilience-card" data-reveal-child>
+          <span class="stat-figure">{card.figure}</span>
+          <h3 class="card-title">{card.title}</h3>
+          <p class="body-text">{card.body}</p>
+          {card.note && <span class="label-chip">{card.note}</span>}
+        </article>
+      ))
+    }
+  </Reveal>
+
+  {/* The history graph is the concrete form the last card takes, so it sits
+      directly beneath the cards rather than in a section of its own. */}
+  <div class="history">
+    <Reveal variant="left" class="history-copy">
+      <p class="eyebrow">Conversation history</p>
+      <h3 class="section-title history-title">
+        Every run is a graph you can walk.
+      </h3>
+      <p class="body-text">
+        The whole conversation is a navigable graph of messages, tool calls, and
+        branches. Zoom into any node to read its arguments and result, then jump
+        to that point or fork a new branch from it.
+      </p>
+      <ul class="history-points">
+        <li>
+          <span class="bouton" aria-hidden="true"></span>Long runs collapse into
+          step groups so the graph stays readable
+        </li>
+        <li>
+          <span class="bouton" aria-hidden="true"></span>Navigating changes the
+          active branch; earlier lineage is preserved
+        </li>
+        <li>
+          <span class="bouton" aria-hidden="true"></span>Optional summaries when
+          you jump are generated locally
+        </li>
+      </ul>
+      <a class="link-arrow" href="/guides/history-and-recovery/">
+        Read about history and recovery <span aria-hidden="true">→</span>
+      </a>
+    </Reveal>
+
+    <Reveal variant="right" delay={120} class="history-media">
+      <DeviceFrame label="nerve · conversation history" depth={3} tilt>
+        <Image
+          src={history}
+          alt="The Nerve conversation history graph showing collapsed step groups, a tool node, and a details panel with jump and fork actions"
+          widths={[720, 1080, 1440]}
+          sizes="(max-width: 1023px) 100vw, 58vw"
+          loading="lazy"
+        />
+      </DeviceFrame>
+    </Reveal>
+  </div>
+
+  <p class="meta-text resilience-caveat">
+    Recovered task processes cannot be reattached to their original output pipes
+    after a daemon restart.
+  </p>
+</div>
+
+<style>
+  .resilience {
+    display: grid;
+    gap: 2.5rem;
+  }
+
+  /* The action potential ------------------------------------------------- */
+
+  .trace-wrap {
+    position: relative;
+    height: 7.5rem;
+  }
+
+  .trace {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .trace-base,
+  .trace-live {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .trace-base {
+    stroke: var(--myelin-dim);
+  }
+
+  .trace-live {
+    stroke: var(--signal);
+    filter: drop-shadow(0 0 0.5rem var(--signal-soft));
+  }
+
+  .trace-flat-label,
+  .trace-fire-label {
+    position: absolute;
+    top: 62%;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: var(--background);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+
+  .trace-flat-label {
+    left: 34%;
+    color: var(--muted-foreground);
+  }
+
+  .trace-fire-label {
+    left: 68%;
+    border-color: color-mix(in oklab, var(--signal) 45%, transparent);
+    color: var(--signal);
+  }
+
+  /* Cards ----------------------------------------------------------------- */
+
+  .resilience-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  }
+
+  .resilience-card {
+    display: grid;
+    gap: 0.5rem;
+    align-content: start;
+    padding: 1.35rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: var(--card);
+    box-shadow: var(--depth-1);
+    transition:
+      border-color 260ms var(--ease-out-expo),
+      box-shadow 260ms var(--ease-out-expo);
+  }
+
+  .resilience-card:hover {
+    border-color: color-mix(in oklab, var(--signal) 40%, var(--border));
+    box-shadow: var(--depth-2);
+  }
+
+  /* History graph ---------------------------------------------------------- */
+
+  .history {
+    display: grid;
+    gap: clamp(2rem, 4vw, 3rem);
+    align-items: start;
+    margin-top: 2.5rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .history-copy {
+    display: grid;
+    gap: 1rem;
+    justify-items: start;
+  }
+
+  .history-title {
+    font-size: clamp(1.5rem, 1.1rem + 1.3vw, 2.1rem);
+  }
+
+  .history-points {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+  }
+
+  .history-points li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+
+  .history-points .bouton {
+    flex: none;
+    translate: 0 -0.15rem;
+    box-shadow: 0 0 0 0.25rem
+      color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  @media (min-width: 1024px) {
+    .history {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    }
+  }
+
+  .resilience-caveat {
+    max-width: 46rem;
+  }
+
+  @media (max-width: 639px) {
+    .trace-wrap {
+      height: 5.5rem;
+    }
+
+    .trace-flat-label,
+    .trace-fire-label {
+      display: none;
+    }
+  }
+</style>

@@ -1,0 +1,240 @@
+---
+import { Image } from "astro:assets";
+import conversation from "../../assets/shots/m1-conversation.webp";
+import picker from "../../assets/shots/m2-model-picker.webp";
+import sheet from "../../assets/shots/m3-right-sheet.webp";
+import PhoneFrame from "./PhoneFrame.astro";
+
+const phones = [
+  {
+    src: conversation,
+    alt: "Phone-width Nerve conversation with the composer at the bottom",
+    caption: "Conversation",
+  },
+  {
+    src: picker,
+    alt: "Nerve model and thinking level picker on a phone",
+    caption: "Model control",
+  },
+  {
+    src: sheet,
+    alt: "The Nerve Git panel open as a phone-width sheet",
+    caption: "Dock sheets",
+  },
+];
+---
+
+<div class="pocket" data-pocket>
+  <div class="pocket-copy">
+    <p class="eyebrow">Responsive by design</p>
+    <h3 class="section-title">The same workbench, in your pocket.</h3>
+    <p class="body-text">
+      Connect from another device on your LAN and keep conversations, composer
+      controls, and dock panels within reach.
+    </p>
+    <a class="link-arrow" href="/operations/lan-mobile/">
+      Set up LAN access <span aria-hidden="true">→</span>
+    </a>
+    <p class="meta-text">
+      LAN access is an explicit opt-in over HTTPS with a local certificate
+      authority. It is not safe to expose to the public internet on its own.
+    </p>
+  </div>
+
+  <div class="pocket-stage stage-3d">
+    <ul
+      class="phone-arc"
+      data-carousel
+      tabindex="0"
+      aria-label="Mobile workbench screenshots"
+    >
+      {
+        phones.map((phone, index) => (
+          <li class={`arc-slot slot-${index + 1}`} data-carousel-slide>
+            <PhoneFrame caption={phone.caption}>
+              <Image
+                src={phone.src}
+                alt={phone.alt}
+                widths={[390, 600, 900]}
+                sizes="(max-width: 767px) 62vw, 20vw"
+                loading="lazy"
+                draggable={false}
+              />
+            </PhoneFrame>
+          </li>
+        ))
+      }
+    </ul>
+
+    <div class="arc-dots" aria-hidden="true">
+      {
+        phones.map((_, index) => (
+          <span data-carousel-dot data-active={index === 0 ? "" : undefined} />
+        ))
+      }
+    </div>
+  </div>
+</div>
+
+<style>
+  .pocket {
+    --arc-open: 1;
+    position: relative;
+    display: grid;
+    gap: clamp(2.5rem, 5vw, 4rem);
+    overflow: hidden;
+    padding: clamp(1.5rem, 4vw, 3.5rem);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-panel);
+    background:
+      radial-gradient(
+        circle at 72% 18%,
+        color-mix(in oklab, var(--primary) 15%, transparent),
+        transparent 46%
+      ),
+      var(--surface-sunken);
+  }
+
+  .pocket-copy {
+    display: grid;
+    align-content: center;
+    gap: 1rem;
+  }
+
+  .pocket-stage {
+    position: relative;
+  }
+
+  .phone-arc {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    transform-style: preserve-3d;
+  }
+
+  .arc-slot {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .arc-dots {
+    display: none;
+  }
+
+  /* Arc ------------------------------------------------------------------- */
+
+  @media (min-width: 768px) {
+    .phone-arc {
+      gap: 0.5rem;
+      /* The authored state is fully open. JS may stage a closed entry state,
+       * then the deck completes independently of further scrolling. */
+    }
+
+    .slot-1 {
+      transform: rotateY(calc(20deg * var(--arc-open)))
+        translateZ(calc(-70px * var(--arc-open)))
+        translateX(calc(6% * var(--arc-open)));
+    }
+
+    .slot-2 {
+      z-index: 2;
+      transform: translateZ(calc(50px * var(--arc-open)));
+    }
+
+    .slot-3 {
+      transform: rotateY(calc(-20deg * var(--arc-open)))
+        translateZ(calc(-70px * var(--arc-open)))
+        translateX(calc(-6% * var(--arc-open)));
+    }
+
+    .pocket[data-arc-ready] .arc-slot {
+      transition: transform 620ms var(--ease-out-expo);
+    }
+
+    .slot-1 :global(.phone-frame),
+    .slot-3 :global(.phone-frame) {
+      box-shadow: var(--depth-1);
+    }
+
+    .slot-2 :global(.phone-frame) {
+      box-shadow: var(--depth-3);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .pocket {
+      grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+      align-items: center;
+    }
+  }
+
+  /* Narrow: native touch scrolling and snap remain the no-JS baseline. The
+   * pointer enhancement adds mouse dragging without replacing that behavior. */
+  @media (max-width: 767px) {
+    .phone-arc {
+      gap: 1rem;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      justify-content: flex-start;
+      padding-bottom: 0.75rem;
+      cursor: grab;
+      scrollbar-width: none;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .phone-arc::-webkit-scrollbar {
+      display: none;
+    }
+
+    .phone-arc[data-dragging] {
+      cursor: grabbing;
+      scroll-snap-type: none;
+      user-select: none;
+    }
+
+    .phone-arc:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 0.35rem;
+    }
+
+    .arc-slot {
+      flex: 0 0 62%;
+      scroll-snap-align: center;
+    }
+
+    .arc-slot :global(img) {
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .arc-dots {
+      display: flex;
+      gap: 0.4rem;
+      justify-content: center;
+      margin-top: 0.75rem;
+    }
+
+    .arc-dots span {
+      width: 0.35rem;
+      height: 0.35rem;
+      border-radius: var(--radius-pill);
+      background-color: var(--myelin);
+      opacity: 0.45;
+      transition:
+        transform 180ms var(--ease-out-expo),
+        opacity 180ms var(--ease-out-expo);
+    }
+
+    .arc-dots span[data-active] {
+      background-color: var(--primary);
+      opacity: 1;
+      transform: scale(1.25);
+    }
+  }
+</style>

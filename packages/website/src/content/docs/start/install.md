@@ -10,9 +10,9 @@ Nerve requires **Node.js 24 or newer**. The supported npm launcher runs on Linux
 ## Launch from npm
 
 ```sh
-npx @nervekit/desktop
+npx @nervekit/desktop@latest
 # or
-pnpm dlx @nervekit/desktop
+pnpm dlx @nervekit/desktop@latest
 ```
 
 The first launch may download Electron's platform binary. Later launches use the package manager cache. Nerve currently ships through npm; signed and notarized native installers are not part of the release path.

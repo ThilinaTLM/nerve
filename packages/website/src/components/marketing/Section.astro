@@ -1,0 +1,91 @@
+---
+import Reveal from "./Reveal.astro";
+
+interface Props {
+  id?: string;
+  eyebrow?: string;
+  title?: string;
+  lede?: string;
+  align?: "start" | "center";
+  /* `plain` sits on the page background, `sunken` is a tonal band with hairline
+   * edges, `bleed` removes the container so the section owns the full width.
+   * Tones alternate down the page so the structure is visible at a glance. */
+  tone?: "plain" | "sunken" | "bleed";
+  class?: string;
+  headingId?: string;
+}
+
+const {
+  id,
+  eyebrow,
+  title,
+  lede,
+  align = "start",
+  tone = "plain",
+  class: className = "",
+  headingId,
+} = Astro.props;
+
+const titleId = headingId ?? (id ? `${id}-title` : undefined);
+const hasHeader = Boolean(eyebrow || title || lede);
+---
+
+<section
+  id={id}
+  class:list={["section-block", tone === "sunken" && "tone-sunken", className]}
+  aria-labelledby={title ? titleId : undefined}
+>
+  {
+    tone === "bleed" ? (
+      <slot />
+    ) : (
+      <div class="container-page section-inner">
+        {hasHeader && (
+          <Reveal
+            class:list={[
+              "section-header",
+              align === "center" && "section-header-center",
+            ]}
+          >
+            {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+            {title && (
+              <h2 id={titleId} class="section-title">
+                {title}
+              </h2>
+            )}
+            {lede && <p class="lede">{lede}</p>}
+          </Reveal>
+        )}
+        <slot />
+      </div>
+    )
+  }
+</section>
+
+<style>
+  .section-block {
+    padding-block: var(--section-pad);
+  }
+
+  .section-block[id] {
+    scroll-margin-top: calc(var(--nav-height) + 1rem);
+  }
+
+  .section-inner {
+    display: grid;
+    gap: var(--section-gap);
+  }
+
+  .section-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 46rem;
+  }
+
+  .section-header-center {
+    align-items: center;
+    margin-inline: auto;
+    text-align: center;
+  }
+</style>

@@ -12,7 +12,7 @@ Nerve's npm launcher supports Linux, Windows 11, and macOS. This means the sourc
 Chromium/Ozone can emit `Frame latency is negative` or `Invalid state when trying to start drag`. If native Wayland freezes during copy or drag, use XWayland:
 
 ```sh
-NERVE_ELECTRON_OZONE_PLATFORM=x11 npx @nervekit/desktop
+NERVE_ELECTRON_OZONE_PLATFORM=x11 npx @nervekit/desktop@latest
 ```
 
 Supported values are `x11`, `wayland`, and `auto`. Unset uses Electron's default.

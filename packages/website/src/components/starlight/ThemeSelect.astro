@@ -1,0 +1,14 @@
+---
+/* Replaces Starlight's native `<select>` picker with the same segmented
+ * control the marketing pages use. Both read and write Starlight's
+ * `starlight-theme` storage key, so the docs and homepage stay in sync. */
+import ThemeToggle from "../marketing/ThemeToggle.astro";
+---
+
+<ThemeToggle />
+
+<script>
+  import { initTheme } from "../../scripts/theme";
+
+  initTheme();
+</script>

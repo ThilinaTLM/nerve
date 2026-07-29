@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Node-only launcher used by `npx @nervekit/desktop`, `pnpx @nervekit/desktop`,
+// Node-only launcher used by `npx @nervekit/desktop@latest`, `pnpx @nervekit/desktop@latest`,
 // and the globally installed `nerve-desktop` bin. It spawns Electron as a child
 // process against this package directory; it must not import the Electron main
 // module (that runs inside the spawned Electron process).
@@ -24,6 +24,7 @@ interface PackageManifest {
 }
 
 const manifest = require("../package.json") as PackageManifest;
+const publicLauncher = "@nervekit/desktop@latest";
 
 const forwardedArgs = process.argv.slice(2);
 
@@ -38,8 +39,8 @@ if (forwardedArgs.includes("--help") || forwardedArgs.includes("-h")) {
       `${manifest.name} ${manifest.version}`,
       "",
       "Usage:",
-      `  npx ${manifest.name} [-- <app args>]`,
-      `  pnpx ${manifest.name} [-- <app args>]`,
+      `  npx ${publicLauncher} [-- <app args>]`,
+      `  pnpx ${publicLauncher} [-- <app args>]`,
       "  nerve-desktop [<app args>]",
       "",
       "Common app args:",

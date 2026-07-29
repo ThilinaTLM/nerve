@@ -1,0 +1,268 @@
+/* The neural design language ("Myelin").
+ *
+ * Shared primitives for the marketing surface. The page is modelled as one
+ * myelinated axon: sections are nodes of Ranvier and a scroll-linked impulse
+ * travels the page. These classes carry that language so individual components
+ * stay small and consistent.
+ *
+ * Every primitive here has a complete static appearance. Motion is layered on
+ * top and is removed wholesale by the `prefers-reduced-motion` block in
+ * `motion.css`.
+ */
+
+/* Depth ------------------------------------------------------------------- */
+
+.depth-1 {
+  box-shadow: var(--depth-1);
+}
+
+.depth-2 {
+  box-shadow: var(--depth-2);
+}
+
+.depth-3 {
+  box-shadow: var(--depth-3);
+}
+
+/* A perspective container. Children may use translateZ and rotate freely. */
+.stage-3d {
+  perspective: var(--stage-perspective);
+  transform-style: preserve-3d;
+}
+
+/* Pointer-tracked tilt. `tilt.ts` writes --tilt-x / --tilt-y; with no script,
+ * with a coarse pointer, or under reduced motion both stay 0 and the element
+ * simply renders flat. */
+.tilt-target {
+  transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Axon --------------------------------------------------------------------- */
+
+/* A myelinated line: sheath segments separated by node gaps. Reads as nerve
+ * tissue rather than a plain hairline. */
+.axon-h {
+  height: 1px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--myelin) 0 2.5rem,
+    transparent 2.5rem 2.875rem
+  );
+}
+
+.axon-v {
+  width: 1px;
+  background-image: repeating-linear-gradient(
+    180deg,
+    var(--myelin) 0 2.5rem,
+    transparent 2.5rem 2.875rem
+  );
+}
+
+/* A terminal bouton: where a dendrite meets the thing it connects to. */
+.bouton {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--synapse);
+}
+
+/* A node of Ranvier: a hollow ring sitting on an axon. */
+.synapse-node {
+  display: grid;
+  place-items: center;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1px solid var(--myelin);
+  border-radius: var(--radius-pill);
+  background-color: var(--background);
+}
+
+.synapse-node::after {
+  content: "";
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--myelin);
+  transition:
+    background-color 320ms var(--ease-out-expo),
+    box-shadow 320ms var(--ease-out-expo);
+}
+
+.synapse-node[data-charged="true"]::after {
+  background-color: var(--signal);
+  box-shadow: var(--glow-signal);
+}
+
+/* A short bright segment travelling along an axon. */
+.impulse {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, var(--signal), transparent);
+  filter: drop-shadow(0 0 0.4rem var(--signal-soft));
+  pointer-events: none;
+}
+
+/* Membrane ----------------------------------------------------------------- */
+
+/* The boundary of the user's machine. */
+.membrane {
+  border: 1px dashed color-mix(in oklab, var(--membrane) 55%, transparent);
+  border-radius: var(--radius-panel);
+  background-color: color-mix(in oklab, var(--membrane) 5%, transparent);
+}
+
+.membrane-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid color-mix(in oklab, var(--membrane) 45%, transparent);
+  border-radius: var(--radius-pill);
+  background-color: var(--background);
+  color: color-mix(in oklab, var(--membrane) 80%, var(--foreground));
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* Chips and pills ---------------------------------------------------------- */
+
+/* A mono label used on device bezels, stat cards, and event rows. */
+.label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-chip);
+  background-color: color-mix(in oklab, currentcolor 12%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.state-pill::before {
+  content: "";
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: var(--radius-pill);
+  background-color: currentcolor;
+}
+
+.state-allow {
+  color: var(--success);
+}
+
+.state-approval {
+  color: var(--warning);
+}
+
+.state-block {
+  color: var(--destructive);
+}
+
+.state-scoped {
+  color: var(--membrane);
+}
+
+/* A large mono figure used by the resilience cards. */
+.stat-figure {
+  color: var(--signal);
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* Event layer -------------------------------------------------------------- */
+
+/* One row of a Nerve run, used by the anatomy stage and the hero chips. */
+.event-layer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background-color: var(--card);
+  box-shadow: var(--depth-1);
+}
+
+.event-role {
+  color: var(--layer-accent, var(--muted-foreground));
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.event-body {
+  margin: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-body code {
+  color: var(--muted-foreground);
+  font-size: 0.95em;
+}
+
+/* Panels ------------------------------------------------------------------- */
+
+.glass-panel {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background-color: var(--glass);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* Section tones ------------------------------------------------------------ */
+
+.tone-sunken {
+  border-block: 1px solid var(--hairline);
+  background-color: var(--surface-sunken);
+}
+
+/* SVG helpers -------------------------------------------------------------- */
+
+.stroke-myelin {
+  fill: none;
+  stroke: var(--myelin);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.stroke-signal {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* Paths that a script draws by animating stroke-dashoffset. The static value
+ * is fully drawn so the diagram is correct before and without JavaScript. */
+[data-draw-path] {
+  stroke-dasharray: var(--draw-length, none);
+  stroke-dashoffset: 0;
+}

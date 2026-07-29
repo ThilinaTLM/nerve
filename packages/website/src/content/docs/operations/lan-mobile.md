@@ -8,13 +8,13 @@ sidebar:
 Nerve refuses a non-loopback bind unless remote access is explicitly allowed.
 
 ```sh
-npx @nervekit/desktop -- --host 0.0.0.0 --allow-remote
+npx @nervekit/desktop@latest -- --host 0.0.0.0 --allow-remote
 ```
 
 For mobile browsers, add self-signed HTTPS:
 
 ```sh
-npx @nervekit/desktop -- --host 0.0.0.0 --allow-remote --mobile-https
+npx @nervekit/desktop@latest -- --host 0.0.0.0 --allow-remote --mobile-https
 ```
 
 HTTP defaults to 3747 and mobile HTTPS to 3748. The tray exposes setup/share URLs and the local certificate-authority download.

@@ -1,0 +1,218 @@
+---
+/* The reflex arc.
+ *
+ * Four stations strung on one axon. The axon is drawn segment by segment
+ * between consecutive markers, so it is anchored to the markers by
+ * construction and can never drift out of alignment with them the way a
+ * free-floating curve does. Entry-triggered rather than scroll-pinned: the page
+ * has exactly one pinned moment, and this is not it. */
+
+const steps = [
+  {
+    title: "Open a project.",
+    body: "Organize conversations, files, context, notes, Git, pull requests, and tasks in one navigable shell.",
+  },
+  {
+    title: "Choose authority.",
+    body: "Work read-only, supervised, or autonomous, with a separate planning mode and visible review gates.",
+  },
+  {
+    title: "Stay in the loop.",
+    body: "Queue a correction, answer a question, inspect a diff, continue from failure, or branch from history.",
+  },
+  {
+    title: "Use the right capability.",
+    body: "Enable optional Web, Python, Jira, Confluence, skills, and read-only Explore sub-agents.",
+  },
+];
+---
+
+<div class="reflex" data-arc>
+  <ol class="stations">
+    {
+      steps.map((step, index) => (
+        <li
+          class="station"
+          data-station
+          data-station-active="true"
+          style={`--station-index:${index}`}
+        >
+          <span class="station-node">
+            <span class="station-marker">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            {index < steps.length - 1 && (
+              <span class="segment" aria-hidden="true">
+                <span class="segment-fill" />
+              </span>
+            )}
+          </span>
+          <div class="station-text">
+            <strong>{step.title}</strong>
+            <p class="body-text">{step.body}</p>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+
+  <a class="link-arrow reflex-link" href="/start/first-task/">
+    Walk through a first task
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 12h14M13 6l6 6-6 6"></path>
+    </svg>
+  </a>
+</div>
+
+<style>
+  .reflex {
+    display: grid;
+    gap: 2.5rem;
+    justify-items: start;
+  }
+
+  .stations {
+    display: grid;
+    gap: 2rem;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .station {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 1.1rem;
+    align-items: start;
+  }
+
+  .station-node {
+    position: relative;
+    display: grid;
+    align-self: stretch;
+    align-items: start;
+    justify-items: center;
+  }
+
+  .station-marker {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid var(--myelin);
+    border-radius: var(--radius-pill);
+    background-color: var(--background);
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    transition:
+      border-color 320ms var(--ease-out-expo),
+      background-color 320ms var(--ease-out-expo),
+      color 320ms var(--ease-out-expo),
+      box-shadow 320ms var(--ease-out-expo);
+  }
+
+  .station[data-station-active="true"] .station-marker {
+    border-color: var(--primary);
+    background-color: color-mix(in oklab, var(--primary) 14%, transparent);
+    color: var(--primary);
+    box-shadow: 0 0 0 0.3rem
+      color-mix(in oklab, var(--primary) 10%, transparent);
+  }
+
+  /* Vertical axon: from this marker's centre to the next marker's centre. The
+   * segment length is the row height plus the grid gap, so it is exact. */
+  .segment {
+    position: absolute;
+    top: 2.25rem;
+    left: 50%;
+    width: 1px;
+    height: calc(100% - 2.25rem + 2rem);
+    overflow: hidden;
+    background-color: var(--myelin-dim);
+    transform: translateX(-50%);
+  }
+
+  .segment-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, var(--primary), var(--signal));
+    transform: scaleY(var(--segment, 1));
+    transform-origin: top;
+  }
+
+  @media (min-width: 1024px) {
+    .stations {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 2rem;
+    }
+
+    .station {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1.1rem;
+      opacity: 1;
+    }
+
+    .station[data-station-active="true"] {
+      opacity: 1;
+    }
+
+    .station-node {
+      align-self: start;
+      justify-items: start;
+      place-items: start;
+    }
+
+    /* Horizontal axon between consecutive markers. */
+    .segment {
+      top: 1.125rem;
+      left: 2.25rem;
+      width: calc(100% - 2.25rem + 2rem);
+      height: 1px;
+      transform: none;
+    }
+
+    .segment-fill {
+      background: linear-gradient(90deg, var(--primary), var(--signal));
+      transform: scaleX(var(--segment, 1));
+      transform-origin: left;
+    }
+  }
+
+  /* Only the enhanced entry sequence introduces incomplete states. The index
+   * delays let the signal finish on its own after one observer entry. */
+  .reflex[data-arc-ready] .station {
+    opacity: 0.45;
+    transition: opacity 220ms var(--ease-out-expo)
+      calc(var(--station-index) * 110ms);
+  }
+
+  .reflex[data-arc-ready] .station[data-station-active="true"] {
+    opacity: 1;
+  }
+
+  .reflex[data-arc-ready] .station-marker,
+  .reflex[data-arc-ready] .segment-fill {
+    transition-delay: calc(var(--station-index) * 110ms);
+  }
+
+  .reflex[data-arc-ready] .segment-fill {
+    transition-property: transform;
+    transition-duration: 320ms;
+    transition-timing-function: var(--ease-out-expo);
+  }
+</style>

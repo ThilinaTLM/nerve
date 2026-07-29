@@ -1,0 +1,430 @@
+---
+/* The anatomy of a run.
+ *
+ * The page's one pinned section. Seven transcript events explode into an
+ * isometric deck, an impulse descends the deck and halts at the review gate,
+ * then the deck resolves. `scroll-stage.ts` sets `data-stage-ready` only once
+ * it has attached; without that attribute — no script, unsupported browser, or
+ * reduced motion — this renders as a plain, complete vertical list with every
+ * caption visible.
+ */
+
+const layers = [
+  {
+    role: "You",
+    body: "Add a retry budget to the run recovery path.",
+    tone: "user",
+    status: "prompt",
+    callout: "The instruction, stored verbatim.",
+  },
+  {
+    role: "Thinking",
+    body: "Locating the recovery entry point before editing anything.",
+    tone: "muted",
+    status: "reasoning",
+    callout: "Reasoning, when the provider returns it.",
+  },
+  {
+    role: "read",
+    body: "packages/harness/src/run-recovery.ts",
+    tone: "signal",
+    status: "call",
+    mono: true,
+    callout: "A tool call keeps the arguments it was given.",
+  },
+  {
+    role: "result",
+    body: "214 lines · bounded output",
+    tone: "success",
+    status: "done",
+    callout: "And the output it produced.",
+  },
+  {
+    role: "approval",
+    body: "write requires review",
+    tone: "warning",
+    status: "waiting",
+    gate: true,
+    callout: "Supervised mode stops here until you answer.",
+  },
+  {
+    role: "edit",
+    body: "run-recovery.ts · +12 −3",
+    tone: "primary",
+    status: "applied",
+    mono: true,
+    callout: "The diff is reviewable before it ships.",
+  },
+  {
+    role: "Nerve",
+    body: "Retry budget added: three attempts, 2s exponential base.",
+    tone: "user",
+    status: "reply",
+    callout: "And the whole run stays in history.",
+  },
+];
+
+const captions = [
+  {
+    title: "A run is an ordered stream.",
+    body: "Prompts, reasoning, tool calls, results, approvals, and recovery are separate typed events — not a progress bar.",
+  },
+  {
+    title: "Every layer keeps its evidence.",
+    body: "Each tool call retains the inputs it was given and the bounded output it produced, and both stay inspectable afterwards.",
+  },
+  {
+    title: "The gate is real.",
+    body: "In supervised mode the composer is blocked while a review gate is pending. Nothing below the gate runs until you answer it.",
+  },
+  {
+    title: "Then the change lands.",
+    body: "The diff is reviewable before anything ships, and the entire run remains in the conversation history.",
+  },
+];
+---
+
+<section
+  id="anatomy"
+  class="anatomy section-block"
+  data-anatomy
+  aria-labelledby="anatomy-title"
+>
+  <p class="visually-hidden">
+    Illustration of a Nerve run: the user prompt, the agent's reasoning, a read
+    tool call and its result, an approval gate for a write, the resulting diff,
+    and the final reply.
+  </p>
+
+  <div class="anatomy-pin">
+    <div class="container-page anatomy-grid">
+      <div class="anatomy-side">
+        <header class="anatomy-header">
+          <p class="eyebrow">Nothing happens off-screen</p>
+          <h2 id="anatomy-title" class="section-title">
+            A run is not a spinner. It's a stack of typed events.
+          </h2>
+        </header>
+
+        <div class="anatomy-captions">
+          {
+            captions.map((caption, index) => (
+              <article
+                class="anatomy-caption"
+                data-caption
+                data-caption-active={index === 0 ? "true" : "false"}
+              >
+                <h3 class="card-title">{caption.title}</h3>
+                <p class="body-text">{caption.body}</p>
+              </article>
+            ))
+          }
+        </div>
+      </div>
+
+      <div class="anatomy-stage">
+        <ol class="event-stack" data-event-stack>
+          {
+            layers.map((layer, index) => (
+              <li
+                class="event-slot"
+                data-layer
+                data-layer-gate={layer.gate ? "true" : undefined}
+                data-gate-state={layer.gate ? "idle" : undefined}
+                style={`--layer-index:${index}`}
+              >
+                <div class:list={["event-layer", `tone-${layer.tone}`]}>
+                  <span class="event-role">{layer.role}</span>
+                  <p class="event-body">
+                    {layer.mono ? <code>{layer.body}</code> : layer.body}
+                  </p>
+                  <span class="event-status">{layer.status}</span>
+                </div>
+                <span class="event-callout">
+                  <span class="callout-leader" aria-hidden="true" />
+                  {layer.callout}
+                </span>
+              </li>
+            ))
+          }
+        </ol>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Static base -----------------------------------------------------------
+   * This is what renders with no script and under reduced motion: an ordinary
+   * two-column section with a complete list of events and all four captions. */
+
+  .anatomy {
+    position: relative;
+    overflow: clip;
+    scroll-margin-top: calc(var(--nav-height) + 1rem);
+  }
+
+  .anatomy-grid {
+    display: grid;
+    gap: var(--section-gap);
+    align-items: start;
+  }
+
+  .anatomy-side {
+    display: grid;
+    gap: 2rem;
+  }
+
+  .anatomy-header {
+    display: grid;
+    gap: 1rem;
+    max-width: 34rem;
+  }
+
+  .anatomy-captions {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .anatomy-caption {
+    display: grid;
+    gap: 0.5rem;
+    max-width: 30rem;
+    padding-left: 1rem;
+    border-left: 2px solid var(--hairline);
+  }
+
+  .event-stack {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .event-slot {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .event-status {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+
+  .event-callout {
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
+  }
+
+  .callout-leader {
+    display: none;
+  }
+
+  /* Accent per event tone. */
+  .tone-user {
+    --layer-accent: var(--foreground);
+  }
+  .tone-muted {
+    --layer-accent: var(--muted-foreground);
+  }
+  .tone-signal {
+    --layer-accent: var(--signal);
+  }
+  .tone-success {
+    --layer-accent: var(--success);
+  }
+  .tone-warning {
+    --layer-accent: var(--warning);
+  }
+  .tone-primary {
+    --layer-accent: var(--primary);
+  }
+
+  .event-layer {
+    border-left: 2px solid var(--layer-accent, var(--hairline));
+  }
+
+  @media (min-width: 1024px) {
+    .anatomy-grid {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: clamp(3rem, 5vw, 5rem);
+    }
+  }
+
+  /* Pinned presentation ---------------------------------------------------
+   * Everything below applies only once the scroll stage has attached. */
+
+  .anatomy[data-stage-ready] {
+    height: 420vh;
+    padding-block: 0;
+  }
+
+  .anatomy[data-stage-ready] .anatomy-pin {
+    position: sticky;
+    top: var(--nav-height);
+    display: grid;
+    align-content: center;
+    height: calc(100svh - var(--nav-height));
+    overflow: hidden;
+  }
+
+  .anatomy[data-stage-ready] .anatomy-grid {
+    align-items: center;
+  }
+
+  .anatomy[data-stage-ready] .anatomy-captions {
+    position: relative;
+    min-height: 9rem;
+  }
+
+  .anatomy[data-stage-ready] .anatomy-caption {
+    position: absolute;
+    inset: 0 auto auto 0;
+    visibility: hidden;
+    opacity: 0;
+    transform: none;
+  }
+
+  /* Scroll position already selects a discrete narrative phase. Avoid a second
+   * timed cross-fade, which previously left two captions on top of each other. */
+  .anatomy[data-stage-ready] .anatomy-caption[data-caption-active="true"] {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .anatomy[data-stage-ready] .anatomy-stage {
+    position: relative;
+    perspective: 1400px;
+    transform-style: preserve-3d;
+  }
+
+  .anatomy[data-stage-ready] .event-stack {
+    --event-row-height: 3rem;
+    --flat-gap: 46px;
+    position: relative;
+    gap: 0;
+    /* Absolute rows still reserve their complete visual height, so the stage
+     * cannot climb into the caption column on tablet or mobile layouts. */
+    transform-style: preserve-3d;
+  }
+
+  /* Slots are absolute for depth transforms, but each receives a complete flat
+   * row position and the stack reserves the full transcript height. */
+  .anatomy[data-stage-ready] .event-slot {
+    position: absolute;
+    inset: 0;
+    display: block;
+    transform: rotateX(var(--layer-rotate, 0deg))
+      translate3d(
+        0,
+        var(--layer-y, calc(var(--layer-index) * var(--flat-gap))),
+        var(--layer-z, 0px)
+      );
+    transform-style: preserve-3d;
+    /* Every row stays readable at every scroll position. Emphasis is carried by
+     * border colour and elevation, not by fading content out. */
+    opacity: calc(0.72 + 0.28 * var(--layer-lit, 1));
+    will-change: transform, opacity;
+  }
+
+  .anatomy[data-stage-ready] .event-stack::before {
+    /* Reserves all seven absolute rows, not merely the first row. */
+    content: "";
+    display: block;
+    height: calc(var(--flat-gap) * 6 + 3rem);
+  }
+
+  .anatomy[data-stage-ready] .event-layer {
+    min-height: var(--event-row-height);
+  }
+
+  .anatomy[data-stage-ready] .event-slot[data-layer-active="true"] .event-layer {
+    border-color: var(--layer-accent, var(--hairline));
+    box-shadow: var(--depth-2);
+  }
+
+  /* Callouts need real contrast to be worth showing at all; they only appear
+   * where there is a gutter wide enough to hold them. */
+  .anatomy[data-stage-ready] .event-callout {
+    display: none;
+  }
+
+  @media (min-width: 1280px) {
+    .anatomy[data-stage-ready] .event-stack {
+      /* The row and its callout now share the stage width instead of extending
+       * into the clipped viewport gutter. */
+      margin-right: 15rem;
+    }
+
+    .anatomy[data-stage-ready] .event-callout {
+      /* The slot already carries --layer-y, so the callout only needs to sit
+       * on the row's own baseline. */
+      position: absolute;
+      top: 0;
+      left: calc(100% + 2.5rem);
+      display: flex;
+      align-items: center;
+      width: 12.5rem;
+      min-height: var(--event-row-height);
+      color: var(--muted-foreground);
+      opacity: calc(0.25 + 0.75 * var(--layer-lit, 0));
+      transition: opacity 320ms var(--ease-out-expo);
+      pointer-events: none;
+    }
+
+    .anatomy[data-stage-ready]
+      .event-slot[data-layer-active="true"]
+      .event-callout {
+      color: var(--foreground);
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .anatomy[data-stage-ready] .callout-leader {
+      display: block;
+      position: absolute;
+      top: 50%;
+      right: 100%;
+      width: 2rem;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--myelin));
+      transform: translateY(-50%);
+    }
+  }
+
+  /* The review gate. */
+  .event-slot[data-gate-state="waiting"] .event-layer {
+    border-color: var(--warning);
+    box-shadow:
+      var(--depth-2),
+      0 0 0 1px color-mix(in oklab, var(--warning) 45%, transparent);
+  }
+
+  .event-slot[data-gate-state="waiting"] .event-status::after {
+    content: " · for you";
+    color: var(--warning);
+  }
+
+  .event-slot[data-gate-state="approved"] .event-layer {
+    border-color: var(--success);
+  }
+
+  .event-slot[data-gate-state="approved"] .event-status {
+    color: var(--success);
+  }
+
+  @media (max-width: 767px) {
+    .anatomy[data-stage-ready] {
+      height: 300vh;
+    }
+
+    .anatomy[data-stage-ready] .event-stack {
+      --flat-gap: 44px;
+    }
+
+  }
+</style>
