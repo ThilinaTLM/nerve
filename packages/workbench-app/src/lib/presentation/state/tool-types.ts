@@ -32,4 +32,5 @@ export type PlanReviewResolveOptions = {
   feedback?: string;
   implementationModel?: ModelSelection;
   implementationThinkingLevel?: AgentRecord["thinkingLevel"];
+  compactBeforeImplementation?: boolean;
 };

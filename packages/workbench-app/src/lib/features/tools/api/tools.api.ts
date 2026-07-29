@@ -23,6 +23,7 @@ export type PlanReviewResolveOptions = {
   feedback?: string;
   implementationModel?: ModelSelection;
   implementationThinkingLevel?: AgentRecord["thinkingLevel"];
+  compactBeforeImplementation?: boolean;
 };
 
 export async function getToolCalls(): Promise<ToolCallTranscriptRecord[]> {

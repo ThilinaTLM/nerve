@@ -7,6 +7,7 @@ import type {
   RunRecord,
 } from "@nervekit/contracts";
 import { AutoCompactionRunner } from "../src/domains/agents/run/auto-compaction-runner.js";
+import { HttpError } from "../src/http/errors.js";
 import { RuntimeState } from "../src/runtime/runtime-state.js";
 import { HumanInputResolutionService } from "../src/domains/human-input/human-input-resolution.service.js";
 import { WorkbenchRunQuery } from "../src/domains/runs/workbench-run-query.js";
@@ -267,6 +268,72 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.resolutions.length, 1);
     assert.equal(fixture.resolutions[0]?.continueRun, true);
     assert.equal(fixture.starts.length, 0);
+  });
+
+  it("compacts with the selected implementation model before accepting and resuming", async () => {
+    const fixture = acceptanceFixture("pending");
+
+    const accepted = await fixture.service.acceptPlanReview(
+      fixture.review.id,
+      undefined,
+      {
+        implementationModel: {
+          provider: "nerve-faux",
+          modelId: "faux-selected",
+        },
+        implementationThinkingLevel: "high",
+        compactBeforeImplementation: true,
+      },
+    );
+
+    assert.equal(accepted.status, "accepted");
+    assert.deepEqual(fixture.lifecycle, ["configure", "compact", "accept"]);
+    assert.deepEqual(fixture.compactions, [
+      {
+        conversationId: fixture.review.conversationId,
+        agentId: fixture.review.agentId,
+        runId: "run_source",
+        planPath: fixture.review.planPath,
+      },
+    ]);
+    assert.equal(fixture.resolutions[0]?.continueRun, true);
+  });
+
+  it("leaves the plan pending when pre-implementation compaction fails", async () => {
+    const fixture = acceptanceFixture("pending", "pending", {
+      compactionError: new Error("summary provider failed"),
+    });
+
+    await assert.rejects(
+      fixture.service.acceptPlanReview(fixture.review.id, undefined, {
+        compactBeforeImplementation: true,
+      }),
+      /summary provider failed/,
+    );
+
+    assert.deepEqual(fixture.lifecycle, ["compact"]);
+    assert.equal(fixture.currentToolCall.status, "waiting_for_user");
+    assert.equal(fixture.resolutions.length, 0);
+  });
+
+  it("accepts when a short planning conversation has nothing to compact", async () => {
+    const fixture = acceptanceFixture("pending", "pending", {
+      compactionError: new HttpError(
+        409,
+        "NOTHING_TO_COMPACT",
+        "Nothing to compact.",
+      ),
+    });
+
+    const accepted = await fixture.service.acceptPlanReview(
+      fixture.review.id,
+      undefined,
+      { compactBeforeImplementation: true },
+    );
+
+    assert.equal(accepted.status, "accepted");
+    assert.deepEqual(fixture.lifecycle, ["compact", "accept"]);
+    assert.equal(fixture.resolutions[0]?.continueRun, true);
   });
 
   it("accepts a plan after source cancellation without continuing the cancelled run", async () => {
@@ -590,6 +657,7 @@ function agentRecord(): AgentRecord {
 function acceptanceFixture(
   sourceState: "pending" | "terminal" | "terminal_race",
   reviewStatus: PlanReviewRecord["status"] = "pending",
+  options: { compactionError?: Error } = {},
 ) {
   const source = { ...agentRecord(), mode: "planning" as const };
   const review = { ...planReview(), status: reviewStatus };
@@ -604,6 +672,8 @@ function acceptanceFixture(
   const resumedToolCalls: unknown[] = [];
   const completedToolCalls: unknown[] = [];
   const appendedEntries: Array<Record<string, unknown>> = [];
+  const lifecycle: string[] = [];
+  const compactions: Array<Record<string, unknown>> = [];
   let currentReview = review;
   let currentToolCall = {
     id: review.toolCallId,
@@ -627,6 +697,7 @@ function acceptanceFixture(
     plans: {
       listPlanReviews: () => [currentReview],
       acceptPlanReview: async () => {
+        lifecycle.push("accept");
         currentReview = { ...currentReview, status: "accepted" };
         return currentReview;
       },
@@ -675,7 +746,10 @@ function acceptanceFixture(
     },
     getAgent: (agentId: string) =>
       agentId === createdAgent.id ? createdAgent : source,
-    configureAgent: async () => source,
+    configureAgent: async () => {
+      lifecycle.push("configure");
+      return source;
+    },
     setAgentStatus: async () => undefined,
     continueAgent: async () => undefined,
     createConversation: async () => ({
@@ -694,6 +768,11 @@ function acceptanceFixture(
         timestamp: "2026-07-13T00:00:01.000Z",
       }),
     },
+    compactPlanConversation: async (input: Record<string, unknown>) => {
+      lifecycle.push("compact");
+      compactions.push(input);
+      if (options.compactionError) throw options.compactionError;
+    },
   } as never);
   return {
     service,
@@ -707,6 +786,8 @@ function acceptanceFixture(
     resumedToolCalls,
     completedToolCalls,
     appendedEntries,
+    lifecycle,
+    compactions,
   };
 }
 

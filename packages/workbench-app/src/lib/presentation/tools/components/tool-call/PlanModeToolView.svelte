@@ -18,7 +18,7 @@ import {
 import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
 import ToolFooter from "./ToolFooter.svelte";
 
-type PlanAcceptTarget = "same" | "new-chat";
+type PlanAcceptTarget = "same" | "compact" | "new-chat";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -165,6 +165,30 @@ async function acceptSame(options?: PlanReviewResolveOptions) {
   }
 }
 
+async function acceptCompact(options?: PlanReviewResolveOptions) {
+  if (
+    !planReview ||
+    !pendingReview ||
+    accepting ||
+    rejecting ||
+    !onAcceptPlanReview
+  ) {
+    return;
+  }
+  accepting = "compact";
+  actionError = undefined;
+  try {
+    await onAcceptPlanReview(planReview.id, {
+      ...options,
+      compactBeforeImplementation: true,
+    });
+  } catch (error) {
+    actionError = errorMessage(error, "Could not compact and accept the plan.");
+  } finally {
+    accepting = undefined;
+  }
+}
+
 async function acceptNewChat(options?: PlanReviewResolveOptions) {
   if (
     !planReview ||
@@ -189,6 +213,11 @@ async function acceptNewChat(options?: PlanReviewResolveOptions) {
 function openSameModelDialog() {
   if (!pendingReview || accepting || rejecting) return;
   implementationDialog = "same";
+}
+
+function openCompactModelDialog() {
+  if (!pendingReview || accepting || rejecting) return;
+  implementationDialog = "compact";
 }
 
 function openNewChatModelDialog() {
@@ -251,15 +280,23 @@ async function rejectPlan() {
             />{/if}
           {accepting === "same"
             ? "Accepting…"
-            : accepting === "new-chat"
-              ? "Accepting in new chat…"
-              : "Accept & Implement"}
+            : accepting === "compact"
+              ? "Compacting…"
+              : accepting === "new-chat"
+                ? "Accepting in new chat…"
+                : "Accept & Implement"}
           {#snippet menu()}
             <DropdownMenu.Item
               disabled={actionsDisabled}
               onSelect={() => void acceptSame()}
             >
               Accept & implement
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              disabled={actionsDisabled}
+              onSelect={() => void acceptCompact()}
+            >
+              Compact & implement
             </DropdownMenu.Item>
             {#if onAcceptPlanReviewInNewChat}
               <DropdownMenu.Item
@@ -275,6 +312,12 @@ async function rejectPlan() {
               onSelect={openSameModelDialog}
             >
               Choose model & implement
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              disabled={actionsDisabled}
+              onSelect={openCompactModelDialog}
+            >
+              Choose model & compact
             </DropdownMenu.Item>
             {#if onAcceptPlanReviewInNewChat}
               <DropdownMenu.Item
@@ -315,6 +358,19 @@ async function rejectPlan() {
         implementationDialog = open ? "same" : undefined;
       }}
       onConfirm={acceptSame}
+    />
+    <PlanImplementationModelDialog
+      open={implementationDialog === "compact"}
+      title="Choose implementation model"
+      description="The selected model will compact the planning context, then implement the plan in this conversation."
+      confirmLabel="Compact and implement"
+      models={planReviewModels}
+      initialModelKey={planReviewModelKey}
+      initialThinkingLevel={planReviewThinkingLevel}
+      onOpenChange={(open) => {
+        implementationDialog = open ? "compact" : undefined;
+      }}
+      onConfirm={acceptCompact}
     />
     {#if onAcceptPlanReviewInNewChat}
       <PlanImplementationModelDialog

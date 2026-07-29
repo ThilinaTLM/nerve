@@ -210,6 +210,7 @@ export function composeRuntime(
     messages,
     previousSummary,
     instructions,
+    summaryProfile,
     summaryReserveTokens,
     signal,
     onProgress,
@@ -236,6 +237,7 @@ export function composeRuntime(
       signal,
       customInstructions: instructions,
       previousSummary,
+      summaryProfile,
       thinkingLevel: agent.thinkingLevel,
       env: requestAuth.env,
       onProgress,
@@ -505,6 +507,23 @@ export function composeRuntime(
     getConversationEntries: (conversationId) =>
       state.getConversationEntries(conversationId),
     harnessStorage: services.harnessStorage,
+    compactPlanConversation: async (input) => {
+      await services.compactionService.compactConversation(
+        input.conversationId,
+        { keepRecentTokens: 1 },
+        {
+          reason: "manual",
+          agentId: input.agentId,
+          runId: input.runId,
+          keepRecentTokens: 1,
+          summaryReserveTokens: 4_000,
+          summaryProfile: {
+            kind: "plan-implementation",
+            planPath: input.planPath,
+          },
+        },
+      );
+    },
   });
   services.pruneConversations = new PruneProjectConversationsService({
     getProject,
