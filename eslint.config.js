@@ -9,6 +9,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/dist/**",
       "**/.svelte-kit/**",
+      "**/.astro/**",
       "**/.vite/**",
       "packages/desktop-shell/build/**",
       "packages/desktop-shell/release/**",

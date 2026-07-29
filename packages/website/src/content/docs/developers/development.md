@@ -1,0 +1,53 @@
+---
+title: Develop Nerve
+description: Set up the monorepo, run desktop/browser development, and validate changes.
+sidebar:
+  order: 8
+---
+
+Requirements: Node.js 24+ and pnpm 11.17.0.
+
+```sh
+git clone https://github.com/ThilinaTLM/nerve.git
+cd nerve
+pnpm install
+pnpm desktop
+```
+
+## Development commands
+
+```sh
+pnpm desktop                # Electron app from source
+pnpm desktop:remote-enabled # trusted-LAN/mobile HTTPS flags
+pnpm dev                    # daemon + Vite workbench
+pnpm dev:ui                 # UI against an existing daemon
+pnpm build                  # all packages and staged Workbench assets
+pnpm fix                    # format and ESLint fixes
+pnpm check                  # formatting, lint, boundaries, package checks
+pnpm test                   # package tests
+```
+
+For UI-only development against a running daemon:
+
+```sh
+NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui
+```
+
+For the public site:
+
+```sh
+pnpm --filter @nervekit/website dev
+pnpm --filter @nervekit/website check
+pnpm --filter @nervekit/website build
+```
+
+## Isolation
+
+Use explicit `NERVE_HOME`, ports, and Electron profile overrides for tests that can migrate or mutate state. The normal profile intentionally sits outside `NERVE_HOME`; changing only one does not fully isolate a desktop test.
+
+Before completing code changes, repository policy requires `pnpm fix && pnpm check && pnpm test`, then a rerun after fixes.
+
+## Next steps
+
+- [Package responsibilities](/developers/packages/)
+- [Contributing](/developers/contributing/)

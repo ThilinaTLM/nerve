@@ -1,0 +1,170 @@
+---
+import { Image } from "astro:assets";
+import mark from "../assets/nerve-mark.svg";
+import overview from "../assets/preview-workbench-overview.webp";
+import conversation from "../assets/preview-conversation-and-pr.webp";
+import "../styles/site.css";
+
+const title = "Nerve — transparent, local-first coding harness";
+const description =
+  "See the agent work, control its authority, and manage coding workflows from an open-source desktop workbench that runs with your local projects.";
+const ogImage = new URL(overview.src, Astro.site).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#10141d" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href="https://nerve.tlmtech.dev/" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nerve.tlmtech.dev/" />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content="Nerve desktop coding workbench" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>{title}</title>
+  </head>
+  <body class="marketing-page">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Nerve home">
+        <Image src={mark} alt="" width={32} height={32} />
+        <span>Nerve</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="/start/overview/">Docs</a>
+        <a href="/operations/security/">Security</a>
+        <a href="/developers/architecture/">Developers</a>
+        <a class="github-link" href="https://github.com/ThilinaTLM/nerve">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Open source · local first · beta</p>
+          <h1>See the work.<br /><span>Keep control.</span></h1>
+          <p class="lede">
+            Nerve is a transparent desktop coding harness with the focus of a small agent and the
+            workflow of a complete workbench. It runs with your local projects and keeps messages,
+            reasoning, tool calls, approvals, tasks, and changes visible.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="/start/install/">Get started</a>
+            <a class="button secondary" href="https://github.com/ThilinaTLM/nerve">View on GitHub</a>
+          </div>
+          <div class="install-command" aria-label="Install command">
+            <code>npx @nervekit/desktop</code>
+            <span>Node.js 24+</span>
+          </div>
+        </div>
+        <div class="hero-shot">
+          <Image
+            src={overview}
+            alt="Nerve workbench with a project conversation tree, welcome view, and Git changes panel"
+            widths={[720, 1080, 1440]}
+            sizes="(max-width: 900px) 100vw, 58vw"
+            loading="eager"
+          />
+        </div>
+      </section>
+
+      <section class="proof" aria-labelledby="proof-title">
+        <div class="section-heading">
+          <p class="eyebrow">Built for understandable agency</p>
+          <h2 id="proof-title">A focused agent inside a real project workbench</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span class="feature-number">01</span>
+            <h3>Transparent execution</h3>
+            <p>Follow streaming text, thinking, tools, output, approvals, questions, plans, and recovery instead of watching a generic spinner.</p>
+          </article>
+          <article>
+            <span class="feature-number">02</span>
+            <h3>Control that stays live</h3>
+            <p>Change model, thinking level, coding or planning mode, and permission level. Updated controls apply to subsequent work.</p>
+          </article>
+          <article>
+            <span class="feature-number">03</span>
+            <h3>Local project ownership</h3>
+            <p>The desktop app owns a loopback daemon by default and stores Nerve state on your machine. Network features remain explicit.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="workflow" aria-labelledby="workflow-title">
+        <div class="workflow-shot">
+          <Image
+            src={conversation}
+            alt="Nerve conversation showing tool results, composer controls, and pull request checks"
+            widths={[720, 1080, 1440]}
+            sizes="(max-width: 900px) 100vw, 55vw"
+          />
+        </div>
+        <div class="workflow-copy">
+          <p class="eyebrow">One continuous workflow</p>
+          <h2 id="workflow-title">Direct the agent. Review the evidence. Ship deliberately.</h2>
+          <ol>
+            <li><strong>Open a project.</strong> Organize conversations, files, context, notes, Git, pull requests, and tasks in one navigable shell.</li>
+            <li><strong>Choose authority.</strong> Work read-only, supervised, or autonomous, with a separate planning mode and visible review gates.</li>
+            <li><strong>Stay in the loop.</strong> Queue a correction, answer a question, inspect a diff, continue from failure, or branch from history.</li>
+            <li><strong>Use the right capability.</strong> Enable optional Web, Python, Jira, Confluence, skills, and read-only Explore sub-agents.</li>
+          </ol>
+          <a class="text-link" href="/start/first-task/">Walk through a first task →</a>
+        </div>
+      </section>
+
+      <section class="capabilities" aria-labelledby="capabilities-title">
+        <div class="section-heading">
+          <p class="eyebrow">More than a chat window</p>
+          <h2 id="capabilities-title">The everyday mechanics are already here</h2>
+        </div>
+        <div class="capability-list">
+          <a href="/guides/conversations/"><strong>Conversations</strong><span>Search, tabs, history graphs, branches, editing, compaction, retries, and exports.</span></a>
+          <a href="/guides/composer/"><strong>Composer</strong><span>Commands, project path completion, queued prompts, clipboard images, voice, and context usage.</span></a>
+          <a href="/guides/git-and-pull-requests/"><strong>Git & GitHub</strong><span>Changes, branches, staging, sync, pull request checks, files, checkout, and merge.</span></a>
+          <a href="/guides/background-tasks/"><strong>Tasks & Explore</strong><span>Supervised long-running processes and isolated parallel read-only research.</span></a>
+          <a href="/models/providers-and-auth/"><strong>Models</strong><span>API keys, supported OAuth subscriptions, scoped defaults, custom endpoints, and thinking levels.</span></a>
+          <a href="/operations/lan-mobile/"><strong>Desktop & browser</strong><span>Electron by default, plus opt-in PWA, mobile LAN HTTPS, and remote-daemon connections.</span></a>
+        </div>
+      </section>
+
+      <section class="topology" aria-labelledby="topology-title">
+        <div>
+          <p class="eyebrow">Local-first topology</p>
+          <h2 id="topology-title">Your workbench talks to your daemon, not a hosted Nerve service.</h2>
+          <p>Nerve stores application state under <code>~/.nerve</code> by default. The daemon connects outward only when your selected model, enabled integration, Git remote, or requested tool needs it.</p>
+          <a class="text-link" href="/operations/security/">Understand the security boundary →</a>
+        </div>
+        <div class="topology-diagram" role="img" aria-label="User interacts with the desktop or browser workbench, which connects to a local Nerve daemon; the daemon accesses local projects and selected external providers">
+          <div><span>You</span><small>Desktop or browser</small></div>
+          <b aria-hidden="true">→</b>
+          <div><span>Nerve daemon</span><small>Loopback by default</small></div>
+          <b aria-hidden="true">→</b>
+          <div><span>Your project</span><small>Plus chosen providers</small></div>
+        </div>
+      </section>
+
+      <section class="closing">
+        <p class="eyebrow">Apache-2.0 · Linux, Windows 11, macOS</p>
+        <h2>Start with one command.</h2>
+        <p>Nerve is beta software distributed through npm. Signed and notarized native installers are not currently part of the release path.</p>
+        <div class="actions">
+          <a class="button primary" href="/start/install/">Install Nerve</a>
+          <a class="button secondary" href="/start/overview/">Read the docs</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand" href="/"><Image src={mark} alt="" width={28} height={28} /><span>Nerve</span></a>
+      <p>Transparent, local-first coding harness.</p>
+      <div><a href="https://github.com/ThilinaTLM/nerve">GitHub</a><a href="https://github.com/ThilinaTLM/nerve/blob/main/LICENSE">License</a><a href="https://github.com/ThilinaTLM/nerve/blob/main/SECURITY.md">Security</a></div>
+    </footer>
+  </body>
+</html>

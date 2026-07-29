@@ -35,7 +35,7 @@ Pull requests and pushes to `main` run:
 - the complete checks and tests on Ubuntu;
 - tools, workbench-server (including task process drivers), and desktop-shell tests on native Windows and macOS after building the desktop runtime.
 
-Tagged release package smoke also runs those host tests and desktop packaging on all three operating systems.
+Tagged release package smoke runs tools and desktop-shell host tests plus desktop packaging on Linux, Windows, and macOS. Workbench-server native host tests run in the native-host workflow rather than the tagged release job.
 
 Failure-injection tests remain required in addition to native runners. Native CI catches path and operating-system behavior, while deterministic injection verifies retry limits, cleanup, and non-retriable errors reliably.
 

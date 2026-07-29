@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .svelte-kit/
+.astro/
 .vite/
 .DS_Store
 *.tsbuildinfo

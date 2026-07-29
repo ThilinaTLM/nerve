@@ -1,0 +1,34 @@
+{
+  "name": "@nervekit/website",
+  "version": "0.14.0",
+  "description": "Public Nerve website and product documentation.",
+  "private": true,
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/website"
+  },
+  "homepage": "https://nerve.tlmtech.dev",
+  "type": "module",
+  "scripts": {
+    "build": "astro build",
+    "check": "astro check",
+    "dev": "astro dev --host 127.0.0.1",
+    "preview": "astro preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "3.7.3",
+    "@astrojs/starlight": "0.41.5",
+    "astro": "7.1.5",
+    "sharp": "0.35.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
