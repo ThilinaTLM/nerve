@@ -30,7 +30,7 @@ let description = $state("");
 let prompt = $state("");
 let saving = $state(false);
 let error = $state<string | undefined>(undefined);
-let nameInput = $state<HTMLInputElement | undefined>();
+let nameInput = $state<HTMLInputElement | null>(null);
 
 const scopeItems = $derived([
   { value: "user", label: "User", detail: "Available in every project" },
