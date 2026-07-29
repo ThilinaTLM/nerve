@@ -42,10 +42,15 @@ const phones = [
   </div>
 
   <div class="pocket-stage stage-3d">
-    <ul class="phone-arc">
+    <ul
+      class="phone-arc"
+      data-carousel
+      tabindex="0"
+      aria-label="Mobile workbench screenshots"
+    >
       {
         phones.map((phone, index) => (
-          <li class={`arc-slot slot-${index + 1}`}>
+          <li class={`arc-slot slot-${index + 1}`} data-carousel-slide>
             <PhoneFrame caption={phone.caption}>
               <Image
                 src={phone.src}
@@ -53,6 +58,7 @@ const phones = [
                 widths={[390, 600, 900]}
                 sizes="(max-width: 767px) 62vw, 20vw"
                 loading="lazy"
+                draggable={false}
               />
             </PhoneFrame>
           </li>
@@ -61,7 +67,11 @@ const phones = [
     </ul>
 
     <div class="arc-dots" aria-hidden="true">
-      {phones.map(() => <span />)}
+      {
+        phones.map((_, index) => (
+          <span data-carousel-dot data-active={index === 0 ? "" : undefined} />
+        ))
+      }
     </div>
   </div>
 </div>
@@ -162,20 +172,45 @@ const phones = [
     }
   }
 
-  /* Narrow: a snapping carousel with a visible affordance rather than a
-   * hidden-scrollbar trap. */
+  /* Narrow: native touch scrolling and snap remain the no-JS baseline. The
+   * pointer enhancement adds mouse dragging without replacing that behavior. */
   @media (max-width: 767px) {
     .phone-arc {
       gap: 1rem;
       overflow-x: auto;
+      overscroll-behavior-inline: contain;
       justify-content: flex-start;
       padding-bottom: 0.75rem;
+      cursor: grab;
+      scrollbar-width: none;
       scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .phone-arc::-webkit-scrollbar {
+      display: none;
+    }
+
+    .phone-arc[data-dragging] {
+      cursor: grabbing;
+      scroll-snap-type: none;
+      user-select: none;
+    }
+
+    .phone-arc:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 0.35rem;
     }
 
     .arc-slot {
       flex: 0 0 62%;
       scroll-snap-align: center;
+    }
+
+    .arc-slot :global(img) {
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
     }
 
     .arc-dots {
@@ -190,6 +225,16 @@ const phones = [
       height: 0.35rem;
       border-radius: var(--radius-pill);
       background-color: var(--myelin);
+      opacity: 0.45;
+      transition:
+        transform 180ms var(--ease-out-expo),
+        opacity 180ms var(--ease-out-expo);
+    }
+
+    .arc-dots span[data-active] {
+      background-color: var(--primary);
+      opacity: 1;
+      transform: scale(1.25);
     }
   }
 </style>

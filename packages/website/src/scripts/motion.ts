@@ -7,6 +7,7 @@
  * is an enhancement on already-correct markup.
  */
 
+import { initCarousels } from "./carousel";
 import { initScrollStages } from "./scroll-stage";
 import { initTheme } from "./theme";
 import { initTilt } from "./tilt";
@@ -116,6 +117,7 @@ function init(): void {
   initReveals();
   initHeader();
   initCopyButtons();
+  initCarousels();
   initTilt();
   initScrollStages();
 }
