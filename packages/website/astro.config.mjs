@@ -24,7 +24,10 @@ export default defineConfig({
         ThemeSelect: "./src/components/starlight/ThemeSelect.astro",
       },
       expressiveCode: {
+        emitExternalStylesheet: false,
         themes: ["github-dark-default", "github-light"],
+        useStarlightDarkModeSwitch: true,
+        useStarlightUiThemeColors: true,
         styleOverrides: {
           borderRadius: "0.75rem",
           codeFontFamily: "var(--font-mono)",

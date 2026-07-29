@@ -185,17 +185,27 @@ site-search kbd {
 
 /* Code blocks --------------------------------------------------------------- */
 
-.expressive-code .frame pre {
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--hairline);
+.expressive-code,
+.expressive-code .frame {
+  min-width: 0;
 }
 
 .expressive-code .frame {
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-soft);
 }
 
+.expressive-code .frame pre {
+  border-color: var(--hairline);
+}
+
 .expressive-code .copy button {
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.expressive-code .copy button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* Asides -------------------------------------------------------------------- */
