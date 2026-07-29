@@ -240,10 +240,12 @@ const combinations = Object.keys(matrix);
   }
 
   .dial-track {
+    --dial-node-size: 1.15rem;
+    --dial-track-inset: 0.25rem;
     position: relative;
     display: grid;
     gap: 1.5rem;
-    padding-left: 0.25rem;
+    padding-left: var(--dial-track-inset);
   }
 
   /* A vertical axon behind the three stops; the charge reaches the selected
@@ -252,7 +254,9 @@ const combinations = Object.keys(matrix);
     position: absolute;
     top: 0.6rem;
     bottom: 0.6rem;
-    left: 0.53rem;
+    left: calc(
+      var(--dial-track-inset) + var(--dial-node-size) / 2 - 0.5px
+    );
     width: 1px;
     background-color: var(--myelin-dim);
   }
@@ -286,8 +290,8 @@ const combinations = Object.keys(matrix);
   .stop-node {
     position: relative;
     z-index: 1;
-    width: 1.15rem;
-    height: 1.15rem;
+    width: var(--dial-node-size);
+    height: var(--dial-node-size);
     margin-top: 0.05rem;
     border: 1px solid var(--myelin);
     border-radius: var(--radius-pill);

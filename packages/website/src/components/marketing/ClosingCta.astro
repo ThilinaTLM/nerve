@@ -1,5 +1,4 @@
 ---
-import DendriteField from "./DendriteField.astro";
 import InstallCommand from "./InstallCommand.astro";
 import Reveal from "./Reveal.astro";
 
@@ -12,52 +11,46 @@ const steps = [
 
 <section class="closing-section" aria-labelledby="closing-title">
   <div class="container-page">
-    <Reveal variant="scale" class="closing">
-      <DendriteField density={0.45} class="closing-dendrites" />
-      <span class="closing-glow" aria-hidden="true"></span>
+    <Reveal class="closing">
+      <div class="closing-lead">
+        <p class="eyebrow">Ready when you are</p>
+        <h2 id="closing-title" class="closing-title">
+          Run it on your own machine.
+        </h2>
+        <p class="lede">
+          Three steps, no account, and nothing leaves your machine until you ask
+          it to.
+        </p>
 
-      <div class="closing-grid">
-        <div class="closing-lead">
-          <p class="eyebrow">Ready when you are</p>
-          <h2 id="closing-title" class="closing-title">
-            Run it on your own machine.
-          </h2>
-          <p class="lede">
-            Three steps, no account, and nothing leaves your machine until you
-            ask it to.
-          </p>
-
-          <div class="closing-actions">
-            <a class="btn btn-primary" href="/start/install/">
-              Get started <span aria-hidden="true">→</span>
-            </a>
-            <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
-              View on GitHub
-            </a>
-          </div>
+        <div class="closing-actions">
+          <a class="btn btn-primary" href="/start/install/">
+            Get started <span aria-hidden="true">→</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
+            View on GitHub
+          </a>
         </div>
+      </div>
 
-        <div class="closing-panel">
-          <ol class="closing-steps">
-            {
-              steps.map((item) => (
-                <li>
-                  <span class="step-index">{item.step}</span>
-                  <span class="step-text">
-                    <strong>{item.label}</strong>
-                    <span class="meta-text">{item.meta}</span>
-                  </span>
-                </li>
-              ))
-            }
-          </ol>
+      <div class="closing-setup">
+        <ol class="closing-steps">
+          {
+            steps.map((item) => (
+              <li>
+                <span class="step-index">{item.step}</span>
+                <span class="step-text">
+                  <strong>{item.label}</strong>
+                  <span class="meta-text">{item.meta}</span>
+                </span>
+              </li>
+            ))
+          }
+        </ol>
 
-          <InstallCommand class="closing-install" />
-
-          <p class="meta-text closing-note">
-            Apache-2.0 · Linux, Windows 11, and macOS · loopback by default
-          </p>
-        </div>
+        <InstallCommand class="closing-install" />
+        <p class="meta-text closing-note">
+          Apache-2.0 · Linux, Windows 11, and macOS · loopback by default
+        </p>
       </div>
     </Reveal>
   </div>
@@ -69,62 +62,33 @@ const steps = [
   }
 
   .closing {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    padding: clamp(2rem, 4vw, 3.5rem);
-    border: 1px solid color-mix(in oklab, var(--primary) 26%, var(--border));
-    border-radius: var(--radius-panel);
-    background: linear-gradient(
-      150deg,
-      var(--surface-elevated),
-      color-mix(in oklab, var(--card) 92%, var(--background))
-    );
-    box-shadow: var(--depth-3);
-  }
-
-  .closing-dendrites {
-    z-index: 0;
-    opacity: 0.35;
-    scale: 1 -1;
-  }
-
-  .closing-glow {
-    position: absolute;
-    z-index: 0;
-    inset: -30% -10% 30% 45%;
-    background: radial-gradient(circle, var(--primary), transparent 62%);
-    opacity: 0.16;
-    filter: blur(80px);
-    pointer-events: none;
-  }
-
-  .closing-grid {
-    position: relative;
-    z-index: 2;
     display: grid;
-    gap: clamp(2rem, 4vw, 3.5rem);
-    align-items: center;
+    min-width: 0;
+    gap: clamp(2.5rem, 6vw, 5rem);
+    padding-block: clamp(3rem, 6vw, 5rem);
+    border-top: 1px solid var(--hairline);
   }
 
   .closing-lead {
     display: grid;
-    gap: 1.1rem;
+    min-width: 0;
+    gap: 1rem;
+    align-content: start;
     justify-items: start;
   }
 
   .closing-title {
     margin: 0;
-    max-width: 14ch;
+    max-width: 15ch;
     font-family: var(--font-display);
-    font-size: clamp(2rem, 1.3rem + 2.4vw, 3rem);
+    font-size: clamp(2.25rem, 1.5rem + 2.5vw, 3.5rem);
     font-weight: 600;
-    line-height: 1.05;
+    line-height: 1.04;
     letter-spacing: -0.035em;
   }
 
   .closing-lead .lede {
-    max-width: 30rem;
+    max-width: 32rem;
   }
 
   .closing-actions {
@@ -134,34 +98,37 @@ const steps = [
     margin-top: 0.5rem;
   }
 
-  /* Panel ----------------------------------------------------------------- */
+  .closing-actions .btn,
+  .closing-actions .btn:hover,
+  .closing-actions .btn:focus-visible {
+    box-shadow: none;
+  }
 
-  .closing-panel {
+  .closing-actions .btn-primary::after {
+    display: none;
+  }
+
+  .closing-setup {
     display: grid;
+    min-width: 0;
     gap: 1.25rem;
-    padding: clamp(1.25rem, 2.5vw, 1.75rem);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-card);
-    background-color: color-mix(in oklab, var(--background) 55%, transparent);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    align-content: start;
   }
 
   .closing-steps {
     display: grid;
-    gap: 0;
     margin: 0;
     padding: 0;
     list-style: none;
+    border-block: 1px solid var(--hairline);
   }
 
   .closing-steps li {
-    position: relative;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 2rem minmax(0, 1fr);
     gap: 0.9rem;
-    align-items: center;
-    padding-block: 0.75rem;
+    align-items: start;
+    padding-block: 1rem;
   }
 
   .closing-steps li + li {
@@ -169,21 +136,16 @@ const steps = [
   }
 
   .step-index {
-    display: grid;
-    place-items: center;
-    width: 1.85rem;
-    height: 1.85rem;
-    border: 1px solid color-mix(in oklab, var(--primary) 35%, var(--border));
-    border-radius: var(--radius-pill);
-    background-color: color-mix(in oklab, var(--primary) 12%, transparent);
+    padding-top: 0.15rem;
     color: var(--primary);
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: 0.72rem;
   }
 
   .step-text {
     display: grid;
-    gap: 0.1rem;
+    min-width: 0;
+    gap: 0.15rem;
   }
 
   .step-text strong {
@@ -192,17 +154,28 @@ const steps = [
     letter-spacing: -0.01em;
   }
 
-  .closing-panel :global(.closing-install) {
+  .closing-setup :global(.closing-install),
+  .closing-setup :global(.closing-install:hover),
+  .closing-setup :global(.closing-install:focus-within) {
     max-width: none;
+    box-shadow: none;
   }
 
   .closing-note {
     margin: 0;
   }
 
+  @media (max-width: 479px) {
+    .closing-actions,
+    .closing-actions .btn {
+      width: 100%;
+    }
+  }
+
   @media (min-width: 900px) {
-    .closing-grid {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+    .closing {
+      grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.85fr);
+      align-items: start;
     }
   }
 </style>

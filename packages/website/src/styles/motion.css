@@ -173,48 +173,54 @@
 
 /* Scroll reveal ------------------------------------------------------------ */
 
-[data-reveal] {
-  opacity: 0;
-  transform: translateY(1.25rem) scale(0.985);
-  filter: blur(6px);
+/* Authored content is fully visible. The root marker is added only after the
+ * motion runtime is ready, so no-JS, reduced-motion, print, and failed-module
+ * states can never strand content hidden or blurred. */
+[data-reveal],
+[data-reveal-child] {
+  opacity: 1;
+  transform: none;
+}
+
+html[data-motion-ready] [data-reveal]:not(.is-revealed) {
+  opacity: 0.88;
+  transform: translateY(0.625rem);
+}
+
+html[data-motion-ready] [data-reveal="left"]:not(.is-revealed) {
+  transform: translateX(-0.625rem);
+}
+
+html[data-motion-ready] [data-reveal="right"]:not(.is-revealed) {
+  transform: translateX(0.625rem);
+}
+
+html[data-motion-ready] [data-reveal="scale"]:not(.is-revealed) {
+  transform: scale(0.985);
+}
+
+html[data-motion-ready] [data-reveal],
+html[data-motion-ready] [data-reveal-child] {
   transition:
-    opacity 700ms var(--ease-out-expo) var(--reveal-delay, 0ms),
-    transform 700ms var(--ease-out-expo) var(--reveal-delay, 0ms),
-    filter 700ms var(--ease-out-expo) var(--reveal-delay, 0ms);
+    opacity 300ms var(--ease-out-expo) var(--reveal-delay, 0ms),
+    transform 300ms var(--ease-out-expo) var(--reveal-delay, 0ms);
   will-change: opacity, transform;
 }
 
-[data-reveal="left"] {
-  transform: translateX(-1.5rem);
-}
-
-[data-reveal="right"] {
-  transform: translateX(1.5rem);
-}
-
-[data-reveal="scale"] {
-  transform: scale(0.94);
-}
-
-[data-reveal].is-revealed {
+html[data-motion-ready] [data-reveal].is-revealed,
+html[data-motion-ready] [data-reveal-child].is-revealed {
   opacity: 1;
   transform: none;
-  filter: none;
   will-change: auto;
 }
 
-/* Children staggered from a single parent observer entry. */
-[data-reveal-child] {
-  opacity: 0;
-  transform: translateY(0.85rem);
-  transition:
-    opacity 620ms var(--ease-out-expo) var(--reveal-delay, 0ms),
-    transform 620ms var(--ease-out-expo) var(--reveal-delay, 0ms);
-}
-
-[data-reveal-child].is-revealed {
-  opacity: 1;
-  transform: none;
+/* Children stagger from one parent entry, but stay sharp and almost visible
+ * even before the short motion completes. */
+html[data-motion-ready]
+  [data-reveal]:not(.is-revealed)
+  [data-reveal-child]:not(.is-revealed) {
+  opacity: 0.88;
+  transform: translateY(0.5rem);
 }
 
 /* Utilities ---------------------------------------------------------------- */

@@ -67,6 +67,10 @@ const hasHeader = Boolean(eyebrow || title || lede);
     padding-block: var(--section-pad);
   }
 
+  .section-block[id] {
+    scroll-margin-top: calc(var(--nav-height) + 1rem);
+  }
+
   .section-inner {
     display: grid;
     gap: var(--section-gap);

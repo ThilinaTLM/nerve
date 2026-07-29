@@ -219,8 +219,10 @@ const stops = [
     }
 
     .tour-copy {
-      gap: 34vh;
-      padding-block: 6vh 16vh;
+      gap: 26vh;
+      /* The final stop needs half a usable viewport of runway so the sticky
+       * frame remains centered instead of colliding with the tour boundary. */
+      padding-block: 5vh calc((100svh - var(--nav-height)) / 2);
     }
 
     .tour-inline-media {
@@ -234,20 +236,24 @@ const stops = [
 
     .tour-sticky {
       position: sticky;
-      top: calc(var(--nav-height) + 4vh);
+      top: calc(50svh + var(--nav-height) / 2);
       display: grid;
       gap: 1rem;
+      transform: translateY(-50%);
     }
 
     /* Shots are stacked; only the active one is opaque and forward. */
     .tour-shot {
       position: absolute;
       inset: 0;
+      visibility: hidden;
       opacity: 0;
-      transform: translateZ(-40px) scale(0.985);
+      transform: translateZ(-24px) scale(0.99);
+      pointer-events: none;
       transition:
-        opacity 420ms var(--ease-out-expo),
-        transform 420ms var(--ease-out-expo);
+        visibility 0s linear 200ms,
+        opacity 200ms var(--ease-out-expo),
+        transform 200ms var(--ease-out-expo);
     }
 
     .tour-shot:first-child {
@@ -258,11 +264,18 @@ const stops = [
     .tour[data-active="1"] .tour-shot[data-shot="1"],
     .tour[data-active="2"] .tour-shot[data-shot="2"],
     .tour[data-active="3"] .tour-shot[data-shot="3"] {
+      visibility: visible;
       opacity: 1;
       transform: none;
+      transition-delay: 0ms;
+      pointer-events: auto;
     }
 
     .tour-legend {
+      position: absolute;
+      top: calc(100% + 1rem);
+      right: 0;
+      left: 0;
       display: flex;
       gap: 1.25rem;
       justify-content: center;
@@ -287,8 +300,8 @@ const stops = [
     /* Inactive copy recedes so the active stop reads as the current one, but
      * never so far that it looks like a rendering fault. */
     .tour-stop {
-      opacity: 0.55;
-      transition: opacity 420ms var(--ease-out-expo);
+      opacity: 0.72;
+      transition: opacity 200ms var(--ease-out-expo);
     }
 
     .tour-stop[data-stop-active="true"] {

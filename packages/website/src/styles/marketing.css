@@ -8,7 +8,7 @@
 /* Layout ------------------------------------------------------------------- */
 
 .container-page {
-  width: min(100% - 2rem, var(--container-max));
+  width: min(calc(100% - 2 * var(--page-gutter)), var(--container-max));
   margin-inline: auto;
 }
 

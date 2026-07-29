@@ -149,9 +149,6 @@ const captions = [
           }
         </ol>
 
-        <p class="anatomy-closing" data-anatomy-closing aria-hidden="true">
-          Nothing happened off-screen.
-        </p>
       </div>
     </div>
   </div>
@@ -164,6 +161,8 @@ const captions = [
 
   .anatomy {
     position: relative;
+    overflow: clip;
+    scroll-margin-top: calc(var(--nav-height) + 1rem);
   }
 
   .anatomy-grid {
@@ -225,13 +224,6 @@ const captions = [
     display: none;
   }
 
-  .anatomy-closing {
-    margin: 2rem 0 0;
-    color: var(--muted-foreground);
-    font-family: var(--font-display);
-    font-size: var(--text-h3);
-  }
-
   /* Accent per event tone. */
   .tone-user {
     --layer-accent: var(--foreground);
@@ -267,7 +259,7 @@ const captions = [
    * Everything below applies only once the scroll stage has attached. */
 
   .anatomy[data-stage-ready] {
-    height: 520vh;
+    height: 420vh;
     padding-block: 0;
   }
 
@@ -292,16 +284,16 @@ const captions = [
   .anatomy[data-stage-ready] .anatomy-caption {
     position: absolute;
     inset: 0 auto auto 0;
+    visibility: hidden;
     opacity: 0;
-    transform: translateY(0.75rem);
-    transition:
-      opacity 420ms var(--ease-out-expo),
-      transform 420ms var(--ease-out-expo);
+    transform: none;
   }
 
+  /* Scroll position already selects a discrete narrative phase. Avoid a second
+   * timed cross-fade, which previously left two captions on top of each other. */
   .anatomy[data-stage-ready] .anatomy-caption[data-caption-active="true"] {
+    visibility: visible;
     opacity: 1;
-    transform: none;
   }
 
   .anatomy[data-stage-ready] .anatomy-stage {
@@ -311,34 +303,43 @@ const captions = [
   }
 
   .anatomy[data-stage-ready] .event-stack {
+    --event-row-height: 3rem;
+    --flat-gap: 46px;
     position: relative;
     gap: 0;
-    /* Keeps the deck centred in the pinned frame as it expands and contracts. */
-    transform: translateY(calc(-1 * var(--stack-shift, 0px)));
+    /* Absolute rows still reserve their complete visual height, so the stage
+     * cannot climb into the caption column on tablet or mobile layouts. */
     transform-style: preserve-3d;
   }
 
-  /* Slots overlap: the stack starts collapsed and the scroll stage pushes each
-   * layer out along Y and Z. Height stays fixed so nothing reflows. */
+  /* Slots are absolute for depth transforms, but each receives a complete flat
+   * row position and the stack reserves the full transcript height. */
   .anatomy[data-stage-ready] .event-slot {
     position: absolute;
     inset: 0;
     display: block;
     transform: rotateX(var(--layer-rotate, 0deg))
-      translate3d(0, var(--layer-y, 0px), var(--layer-z, 0px));
+      translate3d(
+        0,
+        var(--layer-y, calc(var(--layer-index) * var(--flat-gap))),
+        var(--layer-z, 0px)
+      );
     transform-style: preserve-3d;
     /* Every row stays readable at every scroll position. Emphasis is carried by
      * border colour and elevation, not by fading content out. */
-    opacity: calc(0.6 + 0.4 * var(--layer-lit, 1));
-    transition: opacity 260ms linear;
+    opacity: calc(0.72 + 0.28 * var(--layer-lit, 1));
     will-change: transform, opacity;
   }
 
   .anatomy[data-stage-ready] .event-stack::before {
-    /* Reserves the stack's height, since every slot is absolutely placed. */
+    /* Reserves all seven absolute rows, not merely the first row. */
     content: "";
     display: block;
-    height: 3rem;
+    height: calc(var(--flat-gap) * 6 + 3rem);
+  }
+
+  .anatomy[data-stage-ready] .event-layer {
+    min-height: var(--event-row-height);
   }
 
   .anatomy[data-stage-ready] .event-slot[data-layer-active="true"] .event-layer {
@@ -353,14 +354,22 @@ const captions = [
   }
 
   @media (min-width: 1280px) {
+    .anatomy[data-stage-ready] .event-stack {
+      /* The row and its callout now share the stage width instead of extending
+       * into the clipped viewport gutter. */
+      margin-right: 15rem;
+    }
+
     .anatomy[data-stage-ready] .event-callout {
       /* The slot already carries --layer-y, so the callout only needs to sit
        * on the row's own baseline. */
-      display: block;
       position: absolute;
       top: 0;
       left: calc(100% + 2.5rem);
+      display: flex;
+      align-items: center;
       width: 12.5rem;
+      min-height: var(--event-row-height);
       color: var(--muted-foreground);
       opacity: calc(0.25 + 0.75 * var(--layer-lit, 0));
       transition: opacity 320ms var(--ease-out-expo);
@@ -378,11 +387,12 @@ const captions = [
     .anatomy[data-stage-ready] .callout-leader {
       display: block;
       position: absolute;
-      top: 0.55rem;
+      top: 50%;
       right: 100%;
       width: 2rem;
       height: 1px;
       background: linear-gradient(90deg, transparent, var(--myelin));
+      transform: translateY(-50%);
     }
   }
 
@@ -407,26 +417,14 @@ const captions = [
     color: var(--success);
   }
 
-  .anatomy[data-stage-ready] .anatomy-closing {
-    position: absolute;
-    inset: auto 0 -2.5rem;
-    margin: 0;
-    color: var(--foreground);
-    font-size: var(--text-h2);
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    text-align: center;
-    opacity: 0;
-    transform: scale(var(--closing-scale, 0.94));
-  }
-
   @media (max-width: 767px) {
     .anatomy[data-stage-ready] {
-      height: 320vh;
+      height: 300vh;
     }
 
-    .anatomy[data-stage-ready] .event-stack::before {
-      height: 3rem;
+    .anatomy[data-stage-ready] .event-stack {
+      --flat-gap: 44px;
     }
+
   }
 </style>

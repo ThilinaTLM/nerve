@@ -227,6 +227,24 @@ site-search kbd {
 }
 
 /* Table of contents ---------------------------------------------------------- */
+/* Starlight normally lets the right rail absorb all spare desktop width. That
+ * keeps the article right-aligned, but makes the TOC rail almost twice as wide
+ * as the navigation rail on large monitors. Equal fixed rails centre the
+ * article between them; smaller layouts retain Starlight's own behaviour. */
+@media (min-width: 72rem) {
+  html[data-has-sidebar][data-has-toc] .right-sidebar-container {
+    width: var(--sl-sidebar-width);
+  }
+
+  html[data-has-sidebar][data-has-toc] .main-pane {
+    --sl-content-margin-inline: auto;
+    width: calc(100% - var(--sl-sidebar-width));
+  }
+
+  html[data-has-sidebar][data-has-toc] .right-sidebar-panel .sl-container {
+    max-width: calc(var(--sl-sidebar-width) - 2 * var(--sl-sidebar-pad-x));
+  }
+}
 
 .right-sidebar a {
   border-radius: 0.45rem;

@@ -31,7 +31,12 @@ const steps = [
   <ol class="stations">
     {
       steps.map((step, index) => (
-        <li class="station" data-station data-station-active="false">
+        <li
+          class="station"
+          data-station
+          data-station-active="true"
+          style={`--station-index:${index}`}
+        >
           <span class="station-node">
             <span class="station-marker">
               {String(index + 1).padStart(2, "0")}
@@ -95,7 +100,9 @@ const steps = [
   .station-node {
     position: relative;
     display: grid;
-    place-items: center;
+    align-self: stretch;
+    align-items: start;
+    justify-items: center;
   }
 
   .station-marker {
@@ -144,9 +151,8 @@ const steps = [
     width: 100%;
     height: 100%;
     background: linear-gradient(180deg, var(--primary), var(--signal));
-    transform: scaleY(var(--segment, 0));
+    transform: scaleY(var(--segment, 1));
     transform-origin: top;
-    transition: transform 420ms var(--ease-out-expo);
   }
 
   @media (min-width: 1024px) {
@@ -158,8 +164,7 @@ const steps = [
     .station {
       grid-template-columns: minmax(0, 1fr);
       gap: 1.1rem;
-      opacity: 0.45;
-      transition: opacity 420ms var(--ease-out-expo);
+      opacity: 1;
     }
 
     .station[data-station-active="true"] {
@@ -167,6 +172,7 @@ const steps = [
     }
 
     .station-node {
+      align-self: start;
       justify-items: start;
       place-items: start;
     }
@@ -182,8 +188,31 @@ const steps = [
 
     .segment-fill {
       background: linear-gradient(90deg, var(--primary), var(--signal));
-      transform: scaleX(var(--segment, 0));
+      transform: scaleX(var(--segment, 1));
       transform-origin: left;
     }
+  }
+
+  /* Only the enhanced entry sequence introduces incomplete states. The index
+   * delays let the signal finish on its own after one observer entry. */
+  .reflex[data-arc-ready] .station {
+    opacity: 0.45;
+    transition: opacity 220ms var(--ease-out-expo)
+      calc(var(--station-index) * 110ms);
+  }
+
+  .reflex[data-arc-ready] .station[data-station-active="true"] {
+    opacity: 1;
+  }
+
+  .reflex[data-arc-ready] .station-marker,
+  .reflex[data-arc-ready] .segment-fill {
+    transition-delay: calc(var(--station-index) * 110ms);
+  }
+
+  .reflex[data-arc-ready] .segment-fill {
+    transition-property: transform;
+    transition-duration: 320ms;
+    transition-timing-function: var(--ease-out-expo);
   }
 </style>

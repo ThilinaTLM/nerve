@@ -59,6 +59,8 @@ const {
   .install {
     display: flex;
     align-items: center;
+    width: 100%;
+    min-width: 0;
     gap: 0.6rem;
     max-width: 26rem;
     padding: 0.6rem 0.6rem 0.6rem 0.9rem;
@@ -123,5 +125,22 @@ const {
   .copy[data-copied] .icon-check {
     display: block;
     color: var(--success);
+  }
+
+  @media (max-width: 479px) {
+    .install {
+      gap: 0.4rem;
+      padding: 0.5rem 0.45rem 0.5rem 0.65rem;
+      font-size: 0.75rem;
+    }
+
+    .hint {
+      display: none;
+    }
+
+    .copy {
+      flex: none;
+      margin-left: auto;
+    }
   }
 </style>

@@ -82,9 +82,13 @@
   --radius: 0.625rem;
   --nav-height: 4.25rem;
   --container-max: 78rem;
+  /* One responsive gutter owns every marketing section. It remains compact on
+   * phones, gives split layouts breathing room at tablet widths, and yields to
+   * the max-width container on wide screens. */
+  --page-gutter: clamp(1rem, 3vw, 2.5rem);
 
-  --text-display: clamp(3rem, 1.6rem + 5.4vw, 5.75rem);
-  --text-h2: clamp(2rem, 1.2rem + 2.6vw, 3.25rem);
+  --text-display: clamp(2.5rem, 2rem + 2.5vw, 4.75rem);
+  --text-h2: clamp(1.75rem, 1.2rem + 2vw, 2.75rem);
   --text-h3: clamp(1.15rem, 1rem + 0.5vw, 1.4rem);
   --text-lede: clamp(1.05rem, 0.98rem + 0.45vw, 1.3rem);
   --text-body: 1rem;

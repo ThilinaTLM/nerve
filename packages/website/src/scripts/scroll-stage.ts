@@ -32,7 +32,7 @@ const mix = (from: number, to: number, t: number): number =>
 /* §1 Hero -------------------------------------------------------------------
  * The device deck settles flat and lifts away as the hero scrolls out, and the
  * floating event chips fall back toward the frame they came from. */
-function heroStage(): void {
+function heroStage(): VoidFunction | undefined {
   const hero = document.querySelector<HTMLElement>("[data-hero]");
   if (!hero || reduceMotion()) return;
 
@@ -40,44 +40,57 @@ function heroStage(): void {
   const copy = hero.querySelector<HTMLElement>("[data-hero-copy]");
   const chips = [...hero.querySelectorAll<HTMLElement>("[data-hero-chip]")];
 
-  scroll(
+  const stop = scroll(
     (progress: number) => {
       const p = clamp(progress);
       if (deck) {
-        deck.style.setProperty("--deck-rotate-x", `${mix(4, 0, p)}deg`);
-        deck.style.setProperty("--deck-lift", `${mix(0, -48, p)}px`);
+        deck.style.setProperty("--deck-rotate-x", `${mix(2, 0, p)}deg`);
+        deck.style.setProperty("--deck-lift", `${mix(0, -24, p)}px`);
       }
       if (copy) {
-        copy.style.setProperty("--copy-shift", `${mix(0, 32, p)}px`);
-        copy.style.opacity = String(mix(1, 0.35, p));
+        copy.style.setProperty("--copy-shift", `${mix(0, 16, p)}px`);
+        copy.style.opacity = String(mix(1, 0.78, p));
       }
       for (const chip of chips) {
-        chip.style.opacity = String(clamp(1 - p * 1.6));
+        chip.style.opacity = String(mix(1, 0.65, p));
         chip.style.setProperty("--chip-z", `${mix(150, 0, p)}px`);
       }
     },
     { target: hero, offset: ["start start", "end start"] },
   );
+
+  return () => {
+    stop();
+    deck?.style.removeProperty("--deck-rotate-x");
+    deck?.style.removeProperty("--deck-lift");
+    if (copy) {
+      copy.style.removeProperty("--copy-shift");
+      copy.style.removeProperty("opacity");
+    }
+    for (const chip of chips) {
+      chip.style.removeProperty("opacity");
+      chip.style.removeProperty("--chip-z");
+    }
+  };
 }
 
 /* §3 Anatomy of a run -------------------------------------------------------
  * The signature section. Four phases over the pinned scroll:
- *   0.00-0.12  collapsed  — reads as one ordinary transcript
- *   0.12-0.45  explode    — layers separate into a shallow isometric deck
- *   0.45-0.86  the gate   — an impulse descends and halts at the approval layer
- *   0.86-1.00  resolve    — the deck re-collapses, fully illuminated
+ *   0.00-0.16  flat       — a complete ordinary transcript
+ *   0.16-0.30  separate   — layers gain shallow isometric depth
+ *   0.30-0.84  the gate   — the complete deck holds while the signal resolves
+ *   0.84-1.00  resolve    — the deck returns flat, fully illuminated
  *
  * Legibility governs the numbers. The tilt is deliberately shallow (18deg, not
  * a true isometric) and the dim state never drops a row below half opacity,
  * because every row is real content a reader is meant to be able to read at any
  * scroll position. Emphasis is carried by border and elevation instead. */
-function anatomyStage(): void {
+function anatomyStage(): VoidFunction | undefined {
   const section = document.querySelector<HTMLElement>("[data-anatomy]");
   if (!section || reduceMotion()) return;
 
   const layers = [...section.querySelectorAll<HTMLElement>("[data-layer]")];
   const captions = [...section.querySelectorAll<HTMLElement>("[data-caption]")];
-  const closing = section.querySelector<HTMLElement>("[data-anatomy-closing]");
   if (!layers.length) return;
 
   /* Only now does the pinned presentation take over from the static list. */
@@ -87,17 +100,15 @@ function anatomyStage(): void {
   const gateIndex = layers.findIndex(
     (layer) => layer.dataset.layerGate === "true",
   );
-  const stack = section.querySelector<HTMLElement>("[data-event-stack]");
-  const last = layers.length - 1;
 
   /* Phase boundaries, shared by the geometry and the captions so a caption can
    * never describe a state the deck is not in. */
-  const EXPLODE_FROM = 0.12;
-  const EXPLODE_TO = 0.45;
+  const EXPLODE_FROM = 0.16;
+  const EXPLODE_TO = 0.3;
   const GATE_OPENS = 0.72;
-  const COLLAPSE_FROM = 0.86;
+  const COLLAPSE_FROM = 0.84;
 
-  scroll(
+  const stop = scroll(
     (progress: number) => {
       const p = clamp(progress);
       const explode = easeInOut(range(p, EXPLODE_FROM, EXPLODE_TO));
@@ -107,13 +118,11 @@ function anatomyStage(): void {
       const spread = explode * (1 - collapse);
       const isCompact = compact.matches;
 
-      const gapFrom = 4;
-      const gapTo = isCompact ? 58 : 54;
+      /* The flat state is still a complete transcript. Depth changes the
+       * presentation, never whether the seven rows can be read. */
+      const gapFrom = isCompact ? 44 : 46;
+      const gapTo = isCompact ? 54 : 52;
       const gap = mix(gapFrom, gapTo, spread);
-
-      /* Hold the deck vertically centred as it expands and contracts, so it
-       * never drifts to the top of the pinned frame. */
-      stack?.style.setProperty("--stack-shift", `${(gap * last) / 2}px`);
 
       for (const [index, layer] of layers.entries()) {
         layer.style.setProperty(
@@ -149,27 +158,38 @@ function anatomyStage(): void {
 
       /* Captions cross-fade with the phase they describe. */
       const phase =
-        p < EXPLODE_FROM + 0.02
+        p < EXPLODE_FROM
           ? 0
-          : p < EXPLODE_TO + 0.02
+          : p < EXPLODE_TO + 0.04
             ? 1
-            : p < GATE_OPENS + 0.06
+            : p < GATE_OPENS + 0.04
               ? 2
               : 3;
       for (const [index, caption] of captions.entries()) {
         caption.dataset.captionActive = String(index === phase);
       }
-
-      if (closing) {
-        closing.style.opacity = String(range(p, COLLAPSE_FROM + 0.04, 0.99));
-        closing.style.setProperty(
-          "--closing-scale",
-          String(mix(0.94, 1, range(p, COLLAPSE_FROM + 0.04, 1))),
-        );
-      }
     },
     { target: section, offset: ["start start", "end end"] },
   );
+
+  return () => {
+    stop();
+    delete section.dataset.stageReady;
+    for (const [index, layer] of layers.entries()) {
+      layer.style.removeProperty("--layer-rotate");
+      layer.style.removeProperty("--layer-z");
+      layer.style.removeProperty("--layer-y");
+      layer.style.removeProperty("--layer-lit");
+      delete layer.dataset.layerActive;
+      if (layer.dataset.layerGate === "true") {
+        layer.dataset.gateState = "idle";
+      }
+      captions[index]?.removeAttribute("data-caption-active");
+    }
+    for (const [index, caption] of captions.entries()) {
+      caption.dataset.captionActive = String(index === 0);
+    }
+  };
 }
 
 /* §5 Workbench tour ---------------------------------------------------------
@@ -202,121 +222,142 @@ function tourStage(): void {
         if (index >= 0) setActive(index);
       }
     },
-    { rootMargin: "-45% 0px -45% 0px", threshold: 0 },
+    { rootMargin: "-38% 0px -52% 0px", threshold: 0 },
   );
 
   for (const stop of stops) observer.observe(stop);
 }
 
-/* The scroll offsets a diagram may finish on. Kept as a closed union so the
- * `data-draw-end` attribute cannot smuggle an unsupported value into Motion. */
-type DrawEnd = "center center" | "end center" | "end start";
+/* Entry choreography finishes independently of further scroll input. Pausing
+ * with a diagram in view can therefore never strand it half drawn. */
+function observeOnce(target: Element, enter: VoidFunction): VoidFunction {
+  if (!("IntersectionObserver" in window)) {
+    enter();
+    return () => undefined;
+  }
 
-function isDrawEnd(value: string | undefined): value is DrawEnd {
-  return (
-    value === "center center" || value === "end center" || value === "end start"
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      enter();
+      observer.disconnect();
+    },
+    { threshold: 0.01, rootMargin: "0px 0px 14% 0px" },
   );
+  observer.observe(target);
+  return () => observer.disconnect();
 }
 
-/* Draws an SVG path by animating stroke-dashoffset as the element enters. */
-function drawPaths(
-  root: HTMLElement,
-  offsetEnd: DrawEnd = "center center",
-): void {
+function drawPaths(root: HTMLElement): VoidFunction | undefined {
   const paths = [...root.querySelectorAll<SVGPathElement>("[data-draw-path]")];
-  if (!paths.length) return;
+  if (!paths.length || reduceMotion()) return;
 
-  const lengths = paths.map((path) => {
+  const lengths = paths.map((path, index) => {
     const length = path.getTotalLength();
     path.style.strokeDasharray = String(length);
     path.style.strokeDashoffset = String(length);
+    path.style.transition = `stroke-dashoffset 520ms var(--ease-out-expo) ${index * 45}ms`;
     return length;
   });
 
-  scroll(
-    (progress: number) => {
-      const p = easeInOut(clamp(progress));
-      for (const [index, path] of paths.entries()) {
-        /* Stagger so branches fire in sequence rather than all at once. */
-        const start = (index / paths.length) * 0.45;
-        const local = range(p, start, start + 0.55);
-        path.style.strokeDashoffset = String(lengths[index] * (1 - local));
-      }
-    },
-    { target: root, offset: ["start end", offsetEnd] },
-  );
+  const stop = observeOnce(root, () => {
+    requestAnimationFrame(() => {
+      for (const path of paths) path.style.strokeDashoffset = "0";
+    });
+  });
+
+  return () => {
+    stop();
+    for (const [index, path] of paths.entries()) {
+      path.style.removeProperty("stroke-dasharray");
+      path.style.removeProperty("stroke-dashoffset");
+      path.style.removeProperty("transition");
+      void lengths[index];
+    }
+  };
 }
 
-/* §7 Resilience, §9 Reflex arc, §10 Topology --------------------------------
- * All three are entry-drawn diagrams. Only the reflex arc additionally rides an
- * impulse along its path. */
-function diagramStages(): void {
-  if (reduceMotion()) return;
-
+function diagramStages(): VoidFunction[] {
+  if (reduceMotion()) return [];
+  const cleanups: VoidFunction[] = [];
   for (const root of document.querySelectorAll<HTMLElement>("[data-draw]")) {
-    const end = root.dataset.drawEnd;
-    drawPaths(root, isDrawEnd(end) ? end : "center center");
+    const cleanup = drawPaths(root);
+    if (cleanup) cleanups.push(cleanup);
   }
-
-  arcStage();
+  return cleanups;
 }
 
-/* §9 Reflex arc — the impulse travels from the first station to the last,
- * filling each axon segment as it passes and lighting the station it reaches. */
-function arcStage(): void {
+/* The workflow signal now completes once it enters, with CSS delays carrying
+ * the station sequence. Its resting state is always the complete workflow. */
+function arcStage(): VoidFunction | undefined {
   const arc = document.querySelector<HTMLElement>("[data-arc]");
   if (!arc || reduceMotion()) return;
 
   const stations = [...arc.querySelectorAll<HTMLElement>("[data-station]")];
   if (stations.length < 2) return;
 
-  /* Arrivals are spread across the middle of the entry range so the first
-   * station is already lit when the section settles and the last one still has
-   * room to arrive before the section leaves. */
-  const first = 0.12;
-  const last = 0.82;
-  const arrivals = stations.map(
-    (_, index) => first + ((last - first) * index) / (stations.length - 1),
-  );
+  arc.dataset.arcReady = "true";
+  for (const station of stations) {
+    station.dataset.stationActive = "false";
+    station.style.setProperty("--segment", "0");
+  }
 
-  scroll(
-    (progress: number) => {
-      const p = easeInOut(clamp(progress));
-      for (const [index, station] of stations.entries()) {
-        station.dataset.stationActive = String(p >= arrivals[index]);
-        const next = arrivals[index + 1];
-        if (next !== undefined) {
-          station.style.setProperty(
-            "--segment",
-            String(range(p, arrivals[index], next)),
-          );
-        }
+  const stop = observeOnce(arc, () => {
+    requestAnimationFrame(() => {
+      for (const station of stations) {
+        station.dataset.stationActive = "true";
+        station.style.setProperty("--segment", "1");
       }
-    },
-    { target: arc, offset: ["start end", "end center"] },
-  );
+    });
+  });
+
+  return () => {
+    stop();
+    delete arc.dataset.arcReady;
+    for (const station of stations) {
+      station.dataset.stationActive = "true";
+      station.style.removeProperty("--segment");
+    }
+  };
 }
 
-/* §8 Pocket workbench — the phone arc opens as the section enters. */
-function pocketStage(): void {
+/* The phone deck opens once, then remains in its finished composition. */
+function pocketStage(): VoidFunction | undefined {
   const pocket = document.querySelector<HTMLElement>("[data-pocket]");
   if (!pocket || reduceMotion()) return;
 
-  scroll(
-    (progress: number) => {
-      pocket.style.setProperty(
-        "--arc-open",
-        String(easeInOut(clamp(progress))),
-      );
-    },
-    { target: pocket, offset: ["start end", "center center"] },
-  );
+  pocket.dataset.arcReady = "true";
+  pocket.style.setProperty("--arc-open", "0");
+  const stop = observeOnce(pocket, () => {
+    requestAnimationFrame(() => pocket.style.setProperty("--arc-open", "1"));
+  });
+
+  return () => {
+    stop();
+    delete pocket.dataset.arcReady;
+    pocket.style.removeProperty("--arc-open");
+  };
 }
 
 export function initScrollStages(): void {
-  heroStage();
-  anatomyStage();
+  const cleanups: VoidFunction[] = [];
+  const heroCleanup = heroStage();
+  if (heroCleanup) cleanups.push(heroCleanup);
+  const anatomyCleanup = anatomyStage();
+  if (anatomyCleanup) cleanups.push(anatomyCleanup);
   tourStage();
-  diagramStages();
-  pocketStage();
+  cleanups.push(...diagramStages());
+  const arcCleanup = arcStage();
+  if (arcCleanup) cleanups.push(arcCleanup);
+  const pocketCleanup = pocketStage();
+  if (pocketCleanup) cleanups.push(pocketCleanup);
+
+  matchMedia("(prefers-reduced-motion: reduce)").addEventListener(
+    "change",
+    (event) => {
+      if (!event.matches) return;
+      for (const cleanup of cleanups) cleanup();
+    },
+    { once: true },
+  );
 }

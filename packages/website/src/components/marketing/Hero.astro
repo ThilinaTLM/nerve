@@ -27,7 +27,7 @@ const chips = [
       <Reveal>
         <span class="badge">
           <span class="badge-dot animate-pulse-ring" aria-hidden="true"></span>
-          Open source · local first · beta
+          Beta
         </span>
       </Reveal>
 
@@ -75,7 +75,7 @@ const chips = [
             src={desktop}
             alt="Nerve conversation showing reasoning, tool calls, a code diff, and composer controls"
             widths={[720, 1080, 1600, 2000]}
-            sizes="(max-width: 1024px) 94vw, 58vw"
+            sizes="(max-width: 1199px) 94vw, 58vw"
             loading="eager"
           />
         </DeviceFrame>
@@ -134,7 +134,7 @@ const chips = [
   /* The dendrite field belongs behind the device stage, not behind the
    * headline. This fades it out across the copy column so branches never run
    * through type. */
-  @media (min-width: 1024px) {
+  @media (min-width: 1200px) {
     .hero-dendrites {
       mask-image:
         linear-gradient(to bottom, transparent, black 18%, black 72%, transparent),
@@ -194,8 +194,8 @@ const chips = [
     width: 0.45rem;
     height: 0.45rem;
     border-radius: var(--radius-pill);
-    background: var(--success);
-    color: var(--success);
+    background: var(--warning);
+    color: var(--warning);
   }
 
   /* The headline's second line charges like an axon on first paint. */
@@ -364,13 +364,13 @@ const chips = [
 
   /* Responsive ----------------------------------------------------------- */
 
-  @media (min-width: 1024px) {
+  @media (min-width: 1200px) {
     .hero-shell {
       grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
     }
   }
 
-  @media (max-width: 1023px) {
+  @media (max-width: 1199px) {
     .hero {
       min-height: 0;
     }
@@ -386,7 +386,7 @@ const chips = [
     }
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 899px) {
     .hero-phone,
     .chip-left-mid {
       display: none;

@@ -68,6 +68,7 @@ const phones = [
 
 <style>
   .pocket {
+    --arc-open: 1;
     position: relative;
     display: grid;
     gap: clamp(2.5rem, 5vw, 4rem);
@@ -119,9 +120,8 @@ const phones = [
   @media (min-width: 768px) {
     .phone-arc {
       gap: 0.5rem;
-      /* --arc-open is driven by scroll entry; the arc opens as the section
-       * comes into view and rests fully open. */
-      --arc-open: 1;
+      /* The authored state is fully open. JS may stage a closed entry state,
+       * then the deck completes independently of further scrolling. */
     }
 
     .slot-1 {
@@ -139,6 +139,10 @@ const phones = [
       transform: rotateY(calc(-20deg * var(--arc-open)))
         translateZ(calc(-70px * var(--arc-open)))
         translateX(calc(-6% * var(--arc-open)));
+    }
+
+    .pocket[data-arc-ready] .arc-slot {
+      transition: transform 620ms var(--ease-out-expo);
     }
 
     .slot-1 :global(.phone-frame),

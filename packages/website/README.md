@@ -17,18 +17,21 @@ pnpm --filter @nervekit/website build
 The site uses Tailwind v4 (`@tailwindcss/vite`) plus `@astrojs/starlight-tailwind`. Styles are layered under `src/styles/` and loaded once through Starlight's `customCss`:
 
 - `app.css` — the only entry: Tailwind, the Starlight bridge, fonts, then the partials below.
-- `tokens.css` — brand tokens for both themes, the `@theme inline` mapping, and the `--sl-*` bridge. Palette values mirror `packages/ui-kit/src/styles/theme.css`, which stays the source of truth; re-sync manually when the app rebrands.
+- `tokens.css` — brand tokens for both themes, the Myelin marketing layer, semantic radius/depth/rhythm values, the `@theme inline` mapping, and the `--sl-*` bridge. Palette values mirror `packages/ui-kit/src/styles/theme.css`, which stays the source of truth; re-sync manually when the app rebrands.
 - `base.css` — element defaults, focus rings, and native view transitions.
-- `motion.css` — every `@keyframes` in this package, the scroll-reveal system, and the `prefers-reduced-motion` guard.
-- `marketing.css` — repeated marketing surfaces (typography roles, buttons, cards, frames).
-- `starlight.css` — documentation shell overrides.
+- `motion.css` — every `@keyframes` in this package, progressive reveals, and the `prefers-reduced-motion` guard.
+- `neural.css` — reusable neural/depth primitives such as membranes, axons, event layers, labels, and 3D stages.
+- `marketing.css` — repeated marketing surfaces (typography roles, buttons, cards, and the shared page container).
+- `starlight.css` — documentation shell overrides, including equal fixed desktop navigation/TOC rails.
 
 Rules to keep:
 
-- Use tokens (`var(--primary)`, `var(--hairline)`, `var(--radius-xl)`) and Tailwind token utilities. Do not hard-code colors, font sizes, or spacing constants.
-- Add keyframes only to `motion.css`, and animate only `transform`, `opacity`, and `filter`.
-- Every animation must degrade under `prefers-reduced-motion: reduce`, and every page must remain fully readable with JavaScript disabled.
-- Client behavior lives in `src/scripts/`: `motion.ts` (reveals, spotlight, parallax, header state, transcript demo, copy buttons) and `theme.ts`, which shares Starlight's `starlight-theme` storage key so the marketing toggle and the docs theme stay in sync.
+- Use tokens (`var(--primary)`, `var(--hairline)`, `var(--radius-card)`) and Tailwind token utilities. Marketing-only colour roles belong in the documented Myelin layer rather than individual components.
+- `.container-page` owns the outer geometry of every landing section through `--container-max` and `--page-gutter`. Do not add compensating per-section left/right margins.
+- Add keyframes only to `motion.css`, and animate only `transform`, `opacity`, `filter`, or `stroke-dashoffset`.
+- Motion has three categories: static-first short reveals, the single pinned Anatomy stage, and one-shot entry diagrams that always finish after intersection. Do not make ordinary section geometry remain fractional when scrolling pauses.
+- Every animation must degrade under `prefers-reduced-motion: reduce`, and every page must remain fully readable with JavaScript disabled. Hidden reveal states are permitted only beneath the runtime-added `data-motion-ready` root marker.
+- Client behavior lives in `src/scripts/`: `motion.ts` (reveals, header state, copy buttons, and orchestration), `scroll-stage.ts` (the pinned stage and entry diagrams), `tilt.ts`, `dendrite-field.ts`, and `theme.ts`. Theme state shares Starlight's `starlight-theme` storage key so marketing and docs stay in sync.
 
 The site is static and must not call a local Nerve daemon. GitHub Pages deployment is configured at the repository level. `public/CNAME` sets the custom domain; DNS is managed separately in Cloudflare.
 
@@ -41,7 +44,7 @@ The site is static and must not call a local Nerve daemon. GitHub Pages deployme
 
 ## Product screenshots
 
-Landing-page captures come from the live loopback workbench at desktop (1600×1000) and phone (390×844) viewports. Before committing a frame, select only the public `nerve` project, hide unrelated project shortcuts, avoid authentication/settings panes, and inspect the image for tokens, private paths, account details, or other project names.
+Landing-page captures come from the live loopback workbench at desktop and phone viewports. The current approved set covers conversation, Git, pull requests, tasks, conversation history, model control, and dock sheets. Before committing a frame, select only the public `nerve` project, hide unrelated project shortcuts, avoid authentication/settings panes, and inspect the image for tokens, private paths, account details, or other project names.
 
 Save approved PNG captures under `/tmp/nerve-shots/`, then run:
 

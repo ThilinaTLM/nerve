@@ -84,7 +84,6 @@ export function initTilt(): void {
           );
           target.toY = dx * target.max;
           target.toX = -dy * target.max;
-
         }
       } else {
         target.toX = 0;
