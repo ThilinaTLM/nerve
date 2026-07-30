@@ -37,6 +37,83 @@ describe("task manager orphan cleanup", () => {
     );
   });
 
+  it("cleans a recovered runtime instead of leaving it stopping", async () => {
+    const runtime = runtimeMetadata();
+    let alive = true;
+    const { supervisor, runtimeTerminateSignals } = fakeSupervisor({
+      runtime,
+      isRuntimeTargetAlive: () => alive,
+      onTerminateRuntime() {
+        alive = false;
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const record = await seedTaskRecord(storage, {
+      runtime,
+      status: "recovered",
+      finishedAt: undefined,
+    });
+    await manager.hydrate();
+
+    const stopped = await manager.cancelTask(record.id);
+
+    assert.equal(stopped.status, "cancelled");
+    assert.deepEqual(
+      runtimeTerminateSignals,
+      process.platform === "win32" ? ["SIGKILL"] : ["SIGTERM"],
+    );
+  });
+
+  it("force-kills a recovered runtime immediately", async () => {
+    const runtime = runtimeMetadata();
+    let alive = true;
+    const { supervisor, runtimeTerminateSignals } = fakeSupervisor({
+      runtime,
+      isRuntimeTargetAlive: () => alive,
+      onTerminateRuntime() {
+        alive = false;
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const record = await seedTaskRecord(storage, {
+      runtime,
+      status: "recovered",
+      finishedAt: undefined,
+    });
+    await manager.hydrate();
+
+    const stopped = await manager.cancelTask(record.id, { signal: "SIGKILL" });
+
+    assert.equal(stopped.status, "cancelled");
+    assert.equal(stopped.signal, "SIGKILL");
+    assert.deepEqual(runtimeTerminateSignals, ["SIGKILL"]);
+  });
+
+  it("force-cleans a legacy unmanaged stopping record", async () => {
+    const runtime = runtimeMetadata();
+    let alive = true;
+    const { supervisor, runtimeTerminateSignals } = fakeSupervisor({
+      runtime,
+      isRuntimeTargetAlive: () => alive,
+      onTerminateRuntime() {
+        alive = false;
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const record = await seedTaskRecord(storage, {
+      runtime,
+      status: "recovered",
+      finishedAt: undefined,
+    });
+    await manager.hydrate();
+    await manager.updateTask(record.id, { status: "stopping" });
+
+    const stopped = await manager.cancelTask(record.id, { signal: "SIGKILL" });
+
+    assert.equal(stopped.status, "cancelled");
+    assert.deepEqual(runtimeTerminateSignals, ["SIGKILL"]);
+  });
+
   it("escalates orphan cleanup on POSIX and force-cleans on Windows", async () => {
     const runtime = runtimeMetadata();
     const { supervisor, runtimeTerminateSignals } = fakeSupervisor({
@@ -209,6 +286,44 @@ describe("task manager orphan cleanup", () => {
     assert.equal(manager.getTask(record.id).status, "cancelled");
     assert.equal(restarted.restartedFromTaskId, record.id);
     assert.equal(spawnCommands.length, 1);
+  });
+
+  it("force-kills every verified active runtime during shutdown despite failures", async () => {
+    const firstRuntime = runtimeMetadata({
+      childPid: 1234,
+      processGroupId: 1234,
+    });
+    const secondRuntime = runtimeMetadata({
+      childPid: 5678,
+      processGroupId: 5678,
+    });
+    const alive = new Set([1234, 5678]);
+    const { supervisor, runtimeTerminateSignals } = fakeSupervisor({
+      isRuntimeTargetAlive: (runtime) => alive.has(runtime.childPid ?? -1),
+      onTerminateRuntime(runtime) {
+        if (runtime.childPid === 1234)
+          throw new Error("injected shutdown failure");
+        alive.delete(runtime.childPid ?? -1);
+      },
+    });
+    const { manager, storage } = await createManager(supervisor);
+    const first = await seedTaskRecord(storage, {
+      runtime: firstRuntime,
+      status: "recovered",
+      finishedAt: undefined,
+    });
+    const second = await seedTaskRecord(storage, {
+      runtime: secondRuntime,
+      status: "recovered",
+      finishedAt: undefined,
+    });
+    await manager.hydrate();
+
+    await manager.shutdown();
+
+    assert.equal(runtimeTerminateSignals.length, 2);
+    assert.equal(manager.getTask(first.id).status, "recovered");
+    assert.equal(manager.getTask(second.id).status, "cancelled");
   });
 
   it("does not start a duplicate task when orphan cleanup fails", async () => {

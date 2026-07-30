@@ -5,6 +5,7 @@ import type {
   TaskRecord,
 } from "$lib/api";
 import type {
+  CancelTaskRequest,
   CreateTaskDefinitionRequest,
   UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
@@ -40,7 +41,7 @@ import {
 
 export type WorkbenchTaskPanelHostActions = {
   readonly openTaskOutput?: (id: string) => void;
-  readonly cancelTask?: (id: string) => void;
+  readonly cancelTask?: (id: string, request?: CancelTaskRequest) => void;
   readonly restartTask?: (id: string) => void;
   readonly removeTask?: (id: string) => void;
   readonly pruneTasks?: () => void;
@@ -158,7 +159,12 @@ export function createWorkbenchTaskPanelAdapter(
         runningDefinitionId = undefined;
       }
     },
-    cancelTask: (id) => hostActions.cancelTask?.(id),
+    cancelTask: (id, request) => hostActions.cancelTask?.(id, request),
+    forceKillTask: (id) =>
+      hostActions.cancelTask?.(id, {
+        signal: "SIGKILL",
+        reason: "force_kill",
+      }),
     restartTask: (id) => hostActions.restartTask?.(id),
     removeTask: (id) => hostActions.removeTask?.(id),
     pruneTasks: () => hostActions.pruneTasks?.(),

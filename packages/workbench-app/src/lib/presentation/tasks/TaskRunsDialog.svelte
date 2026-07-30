@@ -18,7 +18,9 @@ let {
   capabilities,
   onOpen,
   onCancel,
+  onForceKill,
   onRestart,
+  onRerunDefinition,
   onRemove,
   onCopy,
   onSaveAsDefinition,
@@ -29,7 +31,9 @@ let {
   capabilities: TaskEntryCapabilities;
   onOpen: (taskId: string) => void;
   onCancel: (taskId: string) => void;
+  onForceKill: (taskId: string) => void;
   onRestart: (taskId: string) => void;
+  onRerunDefinition: (entry: TaskRunEntry) => void;
   onRemove: (taskId: string) => void;
   onCopy: (text: string) => void;
   onSaveAsDefinition: (task: TaskRecord) => void;
@@ -99,7 +103,9 @@ function openRun(taskId: string): void {
                   {capabilities}
                   onOpen={openRun}
                   {onCancel}
+                  {onForceKill}
                   {onRestart}
+                  onRerunDefinition={() => onRerunDefinition(entry)}
                   {onRemove}
                   {onCopy}
                   {onSaveAsDefinition}

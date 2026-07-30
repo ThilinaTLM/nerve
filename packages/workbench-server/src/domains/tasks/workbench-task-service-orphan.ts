@@ -69,7 +69,7 @@ export async function cleanupOrphanedTask(
   request: CancelTaskRequest,
 ): Promise<TaskRecord> {
   const record = this.getTask(taskId);
-  if (record.status !== "orphaned") return record;
+  if (!isPersistedRuntimeCleanupStatus(record.status)) return record;
 
   const validationError = this.orphanCleanupValidationError(record.runtime);
   if (validationError) {
@@ -81,7 +81,10 @@ export async function cleanupOrphanedTask(
     record,
     runtime,
   );
-  const timeoutMs = request.timeoutMs ?? 5000;
+  const timeoutMs =
+    initialSignal === "SIGKILL"
+      ? Math.min(request.timeoutMs ?? 250, 250)
+      : (request.timeoutMs ?? 5000);
 
   await this.events.publish("task.stop_requested", {
     task: record,
@@ -371,7 +374,7 @@ export async function finalizeOrphanCleanup(
   context: Record<string, unknown> = {},
 ): Promise<TaskRecord> {
   const record = this.getTask(taskId);
-  if (record.status !== "orphaned") return record;
+  if (!isPersistedRuntimeCleanupStatus(record.status)) return record;
   const managed = this.managed.get(taskId);
   this.clearReadinessWatch(managed);
   if (managed?.runtimeTimer) clearTimeout(managed.runtimeTimer);
@@ -435,6 +438,14 @@ export async function failOrphanCleanup(
     }),
   });
   throw new Error(message);
+}
+
+function isPersistedRuntimeCleanupStatus(
+  status: TaskRecord["status"],
+): boolean {
+  return (
+    status === "orphaned" || status === "recovered" || status === "stopping"
+  );
 }
 
 function taskListeningPortsFromContext(value: unknown): TaskListeningPort[] {

@@ -5,6 +5,7 @@ import History from "@lucide/svelte/icons/history";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Play from "@lucide/svelte/icons/play";
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
+import Skull from "@lucide/svelte/icons/skull";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -26,6 +27,7 @@ let {
   onOpen,
   onRun,
   onCancel,
+  onForceKill,
   onRestart,
   onEdit,
   onDelete,
@@ -39,6 +41,7 @@ let {
   onOpen?: (taskId: string) => void;
   onRun?: () => void;
   onCancel?: (taskId: string) => void;
+  onForceKill?: (taskId: string) => void;
   onRestart?: (taskId: string) => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -97,12 +100,21 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       disabled: !capabilities.restart,
       onSelect: () => onRestart?.(active.id),
     });
-    items.push({
-      label: "Stop",
-      icon: Square,
-      disabled: !capabilities.cancel,
-      onSelect: () => onCancel?.(active.id),
-    });
+    if (active.status !== "stopping")
+      items.push({
+        label: "Stop",
+        icon: Square,
+        disabled: !capabilities.cancel,
+        onSelect: () => onCancel?.(active.id),
+      });
+    if (active.status === "recovered" || active.status === "stopping")
+      items.push({
+        label: "Force kill",
+        icon: Skull,
+        destructive: true,
+        disabled: !capabilities.cancel,
+        onSelect: () => onForceKill?.(active.id),
+      });
   }
 
   if (items.length > 0) items.push({ type: "separator" });
@@ -173,7 +185,14 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     >
   {/snippet}
   {#snippet actions()}
-    {#if active}
+    {#if active?.status === "stopping"}
+      <PanelToolbarButton
+        icon={Skull}
+        label="Force kill task"
+        disabled={!capabilities.cancel}
+        onclick={() => onForceKill?.(active.id)}
+      />
+    {:else if active}
       <PanelToolbarButton
         icon={Square}
         label="Stop task"
