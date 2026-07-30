@@ -133,6 +133,7 @@ export class RuntimeRegistry {
    */
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
+    await this.services.tasks.shutdown();
     this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);
     await this.services.runRuntime.coordinator.settled();

@@ -51,6 +51,7 @@ const projected = $derived(projectTaskPanel(model.definitions, model.tasks));
 let addOpen = $state(false);
 let saving = $state(false);
 let confirmPruneOpen = $state(false);
+let forceKillTask = $state<TaskRecord | undefined>();
 let editDefinition = $state<TaskPanelDefinition | undefined>();
 let deleteDefinition = $state<TaskPanelDefinition | undefined>();
 let saveSourceTask = $state<TaskRecord | undefined>();
@@ -69,7 +70,7 @@ const SPLIT_MIN_WIDTH = 720;
 const splitLayout = $derived(panelWidth >= SPLIT_MIN_WIDTH);
 const selectedRuns = $derived(taskLineageRuns(model.tasks, model.selectedTask));
 const prunableRuns = $derived(
-  projected.runs.filter((entry) => !entry.isActive).length,
+  projected.runs.filter((entry) => entry.isRemovable).length,
 );
 const runsFit = createPanelRowFit({
   region: () => runsRegion,
@@ -119,6 +120,17 @@ async function removeDefinition(): Promise<void> {
   await panelActions.deleteDefinition(deleteDefinition);
   deleteDefinition = undefined;
 }
+
+async function confirmForceKill(): Promise<void> {
+  if (!forceKillTask) return;
+  const taskId = forceKillTask.id;
+  forceKillTask = undefined;
+  await panelActions.forceKillTask(taskId);
+}
+
+function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
+  if (entry.definition) void panelActions.runDefinition(entry.definition);
+}
 </script>
 
 {#snippet taskList()}
@@ -145,6 +157,8 @@ async function removeDefinition(): Promise<void> {
                 onOpen={(id) => void panelActions.openTaskOutput(id)}
                 onRun={() => void panelActions.runDefinition(entry.definition)}
                 onCancel={(id) => void panelActions.cancelTask(id)}
+                onForceKill={(id) =>
+                  (forceKillTask = model.tasks.find((task) => task.id === id))}
                 onRestart={(id) => void panelActions.restartTask(id)}
                 onEdit={() => (editDefinition = entry.definition)}
                 onDelete={() => (deleteDefinition = entry.definition)}
@@ -161,7 +175,12 @@ async function removeDefinition(): Promise<void> {
                       {capabilities}
                       onOpen={(id) => void panelActions.openTaskOutput(id)}
                       onCancel={(id) => void panelActions.cancelTask(id)}
+                      onForceKill={(id) =>
+                        (forceKillTask = model.tasks.find(
+                          (task) => task.id === id,
+                        ))}
                       onRestart={(id) => void panelActions.restartTask(id)}
+                      onRerunDefinition={() => rerunDefinition(runEntry)}
                       onRemove={(id) => void panelActions.removeTask(id)}
                       onCopy={(text) => void panelActions.copyText(text)}
                     />
@@ -198,6 +217,8 @@ async function removeDefinition(): Promise<void> {
                 {capabilities}
                 onOpen={(id) => void panelActions.openTaskOutput(id)}
                 onCancel={(id) => void panelActions.cancelTask(id)}
+                onForceKill={(id) =>
+                  (forceKillTask = model.tasks.find((task) => task.id === id))}
                 onRestart={(id) => void panelActions.restartTask(id)}
                 onRemove={(id) => void panelActions.removeTask(id)}
                 onCopy={(text) => void panelActions.copyText(text)}
@@ -279,7 +300,10 @@ async function removeDefinition(): Promise<void> {
   {capabilities}
   onOpen={(id) => void panelActions.openTaskOutput(id)}
   onCancel={(id) => void panelActions.cancelTask(id)}
+  onForceKill={(id) =>
+    (forceKillTask = model.tasks.find((task) => task.id === id))}
   onRestart={(id) => void panelActions.restartTask(id)}
+  onRerunDefinition={rerunDefinition}
   onRemove={(id) => void panelActions.removeTask(id)}
   onCopy={(text) => void panelActions.copyText(text)}
   onSaveAsDefinition={(task) => (saveSourceTask = task)}
@@ -322,6 +346,18 @@ async function removeDefinition(): Promise<void> {
     void createDefinition({ ...input, sourceTaskId: saveSourceTask.id })}
   onOpenChange={(open) => {
     if (!open) saveSourceTask = undefined;
+  }}
+/>
+<ConfirmDialog
+  open={Boolean(forceKillTask)}
+  destructive
+  title="Force kill task?"
+  description={`Immediately terminates ${forceKillTask?.displayName ?? forceKillTask?.name ?? forceKillTask?.command ?? "this task"}. Buffered output and process cleanup may be lost.`}
+  confirmLabel="Force kill"
+  onConfirm={() => void confirmForceKill()}
+  onCancel={() => (forceKillTask = undefined)}
+  onOpenChange={(open) => {
+    if (!open) forceKillTask = undefined;
   }}
 />
 <ConfirmDialog

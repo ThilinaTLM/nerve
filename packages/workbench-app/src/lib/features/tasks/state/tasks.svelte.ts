@@ -1,3 +1,4 @@
+import type { CancelTaskRequest } from "@nervekit/contracts";
 import {
   cancelTask,
   deleteTask,
@@ -26,16 +27,23 @@ export async function selectTask(taskId: string) {
   await loadTaskLogWindow(taskId);
 }
 
-export async function cancelSelectedTask(taskId: string) {
+export async function cancelSelectedTask(
+  taskId: string,
+  request: CancelTaskRequest = {},
+) {
   const wasOrphaned =
     taskState.tasks.find((task) => task.id === taskId)?.status === "orphaned";
-  await cancelTask(taskId);
+  await cancelTask(taskId, request);
   await loadWorkspaceState();
   if (taskState.selectedTaskId) {
     await loadTaskLogWindow(taskState.selectedTaskId);
   }
   notify.success(
-    wasOrphaned ? "Orphaned task cleanup completed" : "Task cancelled",
+    request.signal === "SIGKILL"
+      ? "Task force killed"
+      : wasOrphaned
+        ? "Orphaned task cleanup completed"
+        : "Task cancelled",
   );
 }
 

@@ -23,7 +23,13 @@ Check the readiness URL/pattern and task logs. A server listening on a different
 
 ## Stop does not complete
 
-Nerve attempts graceful process-tree termination then bounded escalation. Platform security software or child detachment can interfere. Confirm identity before manual OS termination.
+Nerve attempts graceful process-tree termination then bounded escalation. For a verified `recovered` run or one stuck in `stopping`, use **Force kill** and confirm immediate process-tree termination. Force kill can lose buffered output and process cleanup, but the terminal run record can then be removed or its current saved task definition can be run again.
+
+Platform security software or child detachment can still interfere. Nerve never offers force kill for `recovery_unknown`; confirm identity before manual OS termination.
+
+## Quitting Nerve
+
+Quitting the desktop application immediately terminates active local task process trees before the owned daemon shuts down. Closing a window to the system tray does not quit Nerve or stop tasks.
 
 ## Agent run recovery is separate
 

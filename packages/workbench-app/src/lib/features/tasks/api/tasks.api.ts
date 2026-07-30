@@ -1,4 +1,5 @@
 import type {
+  CancelTaskRequest,
   StartTaskRequest,
   TaskLogQuery,
   TaskLogQueryResponse,
@@ -31,8 +32,12 @@ export async function launchTaskDefinition(
     .result;
 }
 
-export async function cancelTask(taskId: string): Promise<TaskRecord> {
-  return (await protocolRequest("task.cancel", { taskId })).result.task;
+export async function cancelTask(
+  taskId: string,
+  request: CancelTaskRequest = {},
+): Promise<TaskRecord> {
+  return (await protocolRequest("task.cancel", { taskId, ...request })).result
+    .task;
 }
 
 export async function restartTask(

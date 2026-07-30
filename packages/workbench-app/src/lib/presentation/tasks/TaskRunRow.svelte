@@ -3,6 +3,7 @@ import BookmarkPlus from "@lucide/svelte/icons/bookmark-plus";
 import Copy from "@lucide/svelte/icons/copy";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
+import Skull from "@lucide/svelte/icons/skull";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
 import X from "@lucide/svelte/icons/x";
@@ -20,7 +21,9 @@ let {
   capabilities,
   onOpen,
   onCancel,
+  onForceKill,
   onRestart,
+  onRerunDefinition,
   onRemove,
   onCopy,
   onSaveAsDefinition,
@@ -31,7 +34,9 @@ let {
   capabilities: TaskEntryCapabilities;
   onOpen?: (taskId: string) => void;
   onCancel?: (taskId: string) => void;
+  onForceKill?: (taskId: string) => void;
   onRestart?: (taskId: string) => void;
+  onRerunDefinition?: () => void;
   onRemove?: (taskId: string) => void;
   onCopy?: (text: string) => void;
   onSaveAsDefinition?: (task: TaskRecord) => void;
@@ -66,12 +71,27 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       onSelect: () => onRestart?.(run.id),
     },
   ];
-  if (entry.isActive)
+  if (entry.definition && entry.isRemovable)
+    items.push({
+      label: "Run saved task again",
+      icon: RotateCw,
+      disabled: !capabilities.start,
+      onSelect: () => onRerunDefinition?.(),
+    });
+  if (entry.isActive && run.status !== "stopping")
     items.push({
       label: "Stop",
       icon: Square,
       disabled: !capabilities.cancel,
       onSelect: () => onCancel?.(run.id),
+    });
+  if (entry.canForceKill)
+    items.push({
+      label: "Force kill",
+      icon: Skull,
+      destructive: true,
+      disabled: !capabilities.cancel,
+      onSelect: () => onForceKill?.(run.id),
     });
 
   if (!entry.definition)
@@ -99,7 +119,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       onSelect: () => onCopy?.(run.cwd),
     },
   ];
-  if (!entry.isActive)
+  if (entry.isRemovable)
     trailing.push({
       label: "Remove run",
       icon: X,
@@ -129,7 +149,14 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     <Badge tone={taskTone(run.status)} size="xs">{run.status}</Badge>
   {/snippet}
   {#snippet actions()}
-    {#if entry.isActive}
+    {#if run.status === "stopping"}
+      <PanelToolbarButton
+        icon={Skull}
+        label={`Force kill ${label.text}`}
+        disabled={!capabilities.cancel}
+        onclick={() => onForceKill?.(run.id)}
+      />
+    {:else if entry.isActive}
       <PanelToolbarButton
         icon={Square}
         label={`Stop ${label.text}`}

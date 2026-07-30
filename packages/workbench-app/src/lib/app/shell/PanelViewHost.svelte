@@ -102,7 +102,7 @@ function focusTasks() {
       focusTasks();
       void openTaskTab(id);
     }}
-    onCancelTask={(id) => void cancelSelectedTask(id)}
+    onCancelTask={(id, request) => void cancelSelectedTask(id, request)}
     onRestartTask={(id) => void restartSelectedTask(id)}
     onRemoveTask={(id) => void removeTask(id)}
     onPruneTasks={() => void pruneFinishedTasks()}

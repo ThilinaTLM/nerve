@@ -30,6 +30,15 @@ const RECOVERY_STATUSES = new Set([
   "orphaned",
 ]);
 
+const REMOVABLE_STATUSES = new Set([
+  "completed",
+  "failed",
+  "timed_out",
+  "cancelled",
+  "orphaned",
+  "interrupted",
+]);
+
 export type TaskGroups = {
   running: TaskRecord[];
   orphaned: TaskRecord[];
@@ -177,6 +186,8 @@ function toRunEntry(
     run,
     definition,
     isActive: RUNNING_LIKE_STATUSES.has(run.status),
+    canForceKill: run.status === "recovered" || run.status === "stopping",
+    isRemovable: REMOVABLE_STATUSES.has(run.status),
     needsRecovery: RECOVERY_STATUSES.has(run.status),
   };
 }
@@ -219,8 +230,15 @@ export function createTaskPanelActions(
     runDefinition: (definition) => {
       if (enabled("start")) return host.runDefinition(definition);
     },
-    cancelTask: (taskId) => {
-      if (enabled("cancel")) return host.cancelTask(taskId);
+    cancelTask: (taskId, request) => {
+      if (enabled("cancel")) return host.cancelTask(taskId, request);
+    },
+    forceKillTask: (taskId) => {
+      if (enabled("cancel"))
+        return host.cancelTask(taskId, {
+          signal: "SIGKILL",
+          reason: "force_kill",
+        });
     },
     restartTask: (taskId) => {
       if (enabled("restart")) return host.restartTask(taskId);

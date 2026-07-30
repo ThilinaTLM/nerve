@@ -110,6 +110,25 @@ test("sorts runs with recovery concerns first, then newest first", () => {
   assert.equal(projected.runs[0]?.needsRecovery, true);
 });
 
+test("projects force-kill and removal safety from explicit statuses", () => {
+  const projected = projectTaskPanel(
+    [],
+    [
+      run("task_recovered", { status: "recovered" }),
+      run("task_stopping", { status: "stopping" }),
+      run("task_unknown", { status: "recovery_unknown" }),
+      run("task_done", { status: "cancelled" }),
+    ],
+  );
+  const entries = new Map(projected.runs.map((entry) => [entry.key, entry]));
+
+  assert.equal(entries.get("task_recovered")?.canForceKill, true);
+  assert.equal(entries.get("task_stopping")?.canForceKill, true);
+  assert.equal(entries.get("task_unknown")?.canForceKill, false);
+  assert.equal(entries.get("task_unknown")?.isRemovable, false);
+  assert.equal(entries.get("task_done")?.isRemovable, true);
+});
+
 test("labels definitions by their label and runs by display name, then command", () => {
   const projected = projectTaskPanel(
     [definition()],

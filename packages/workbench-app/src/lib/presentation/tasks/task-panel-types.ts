@@ -1,4 +1,5 @@
 import type {
+  CancelTaskRequest,
   CreateTaskDefinitionRequest,
   StartTaskRequest,
   TaskLogQuery,
@@ -24,6 +25,8 @@ export interface TaskRunEntry {
   readonly run: TaskRecord;
   readonly definition?: TaskPanelDefinition;
   readonly isActive: boolean;
+  readonly canForceKill: boolean;
+  readonly isRemovable: boolean;
   readonly needsRecovery: boolean;
 }
 
@@ -84,7 +87,11 @@ export interface TaskPanelActions {
   readonly runDefinition: (
     definition: TaskPanelDefinition,
   ) => void | Promise<void>;
-  readonly cancelTask: (taskId: string) => void | Promise<void>;
+  readonly cancelTask: (
+    taskId: string,
+    request?: CancelTaskRequest,
+  ) => void | Promise<void>;
+  readonly forceKillTask: (taskId: string) => void | Promise<void>;
   readonly restartTask: (taskId: string) => void | Promise<void>;
   readonly removeTask: (taskId: string) => void | Promise<void>;
   readonly pruneTasks: () => void | Promise<void>;

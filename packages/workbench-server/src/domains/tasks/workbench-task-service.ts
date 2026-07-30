@@ -199,7 +199,7 @@ export class WorkbenchTaskService extends TaskService {
     request: CancelTaskRequest = {},
   ): Promise<TaskRecord> {
     const record = this.getTask(taskId);
-    if (record.status === "orphaned")
+    if (this.needsPersistedRuntimeCleanup(record))
       return this.cleanupOrphanedTask(record.id, request);
     if (this.managed.get(taskId)?.stopping && request.signal !== "SIGKILL") {
       return record;
@@ -212,11 +212,51 @@ export class WorkbenchTaskService extends TaskService {
     options: { confirmUnverifiedReplacement?: boolean } = {},
   ): Promise<TaskRecord> {
     const record = this.getTask(taskId);
-    if (record.status === "orphaned") {
+    if (this.needsPersistedRuntimeCleanup(record)) {
       await this.envForRestart(record);
       await this.cleanupOrphanedTask(record.id, { timeoutMs: 5000 });
     }
     return this.restart(taskId, options);
+  }
+
+  async shutdown(): Promise<void> {
+    const active = this.listTasks({ includeForeground: true }).filter((task) =>
+      isActiveTaskStatus(task.status),
+    );
+    const outcomes = await Promise.allSettled(
+      active.map((task) =>
+        this.cancelTask(task.id, {
+          signal: "SIGKILL",
+          timeoutMs: 100,
+          reason: "daemon_shutdown",
+        }),
+      ),
+    );
+    await Promise.all(
+      outcomes.map(async (outcome, index) => {
+        if (outcome.status === "fulfilled") return;
+        const task = active[index];
+        await this.logger?.warn(
+          "Task force termination failed during shutdown",
+          {
+            taskId: task?.id,
+            projectId: task?.projectId,
+            conversationId: task?.conversationId,
+            agentId: task?.agentId,
+            error: outcome.reason,
+          },
+        );
+      }),
+    );
+  }
+
+  private needsPersistedRuntimeCleanup(record: TaskRecord): boolean {
+    if (record.status === "orphaned" || record.status === "recovered") {
+      return true;
+    }
+    if (record.status !== "stopping" || !record.runtime) return false;
+    const managed = this.managed.get(record.id);
+    return !managed?.child && !managed?.exitPromise;
   }
 
   async associateDefinition(
