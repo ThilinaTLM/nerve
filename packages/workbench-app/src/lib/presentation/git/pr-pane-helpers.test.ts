@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { GithubPrDetail } from "@nervekit/contracts";
+import type {
+  GithubChecksSummary,
+  GithubPrConversation,
+  GithubPrCore,
+  GithubPrOverview,
+} from "@nervekit/contracts";
 import {
   defaultMergeMethod,
   divergenceLabel,
@@ -9,7 +14,12 @@ import {
   prTimeline,
 } from "./pr-pane-helpers.js";
 
-function detail(overrides: Partial<GithubPrDetail> = {}): GithubPrDetail {
+type MergeDetail = GithubPrCore &
+  GithubPrOverview & {
+    checks: GithubChecksSummary;
+  };
+
+function detail(overrides: Partial<MergeDetail> = {}): MergeDetail {
   return {
     number: 7,
     title: "PR",
@@ -22,7 +32,6 @@ function detail(overrides: Partial<GithubPrDetail> = {}): GithubPrDetail {
     baseRefOid: "base1234567",
     updatedAt: "2026-07-22T00:00:00Z",
     createdAt: "2026-07-20T00:00:00Z",
-    body: "",
     author: "octocat",
     additions: 1,
     deletions: 1,
@@ -31,12 +40,9 @@ function detail(overrides: Partial<GithubPrDetail> = {}): GithubPrDetail {
     mergeStateStatus: "CLEAN",
     reviewDecision: "APPROVED",
     behindBy: 0,
-    comments: [],
-    reviews: [],
     labels: [],
     reviewRequests: [],
     mergeSettings: { allowedMethods: ["merge", "squash"] },
-    commits: [],
     checks: {
       status: "passing",
       total: 1,
@@ -83,27 +89,27 @@ describe("PR pane helpers", () => {
   });
 
   it("orders comments and reviews chronologically", () => {
-    const timeline = prTimeline(
-      detail({
-        comments: [
-          {
-            id: "comment",
-            author: "a",
-            body: "later",
-            createdAt: "2026-07-22T00:00:00Z",
-          },
-        ],
-        reviews: [
-          {
-            id: "review",
-            author: "b",
-            state: "APPROVED",
-            body: "earlier",
-            submittedAt: "2026-07-21T00:00:00Z",
-          },
-        ],
-      }),
-    );
+    const conversation: GithubPrConversation = {
+      body: "",
+      comments: [
+        {
+          id: "comment",
+          author: "a",
+          body: "later",
+          createdAt: "2026-07-22T00:00:00Z",
+        },
+      ],
+      reviews: [
+        {
+          id: "review",
+          author: "b",
+          state: "APPROVED",
+          body: "earlier",
+          submittedAt: "2026-07-21T00:00:00Z",
+        },
+      ],
+    };
+    const timeline = prTimeline(conversation);
     assert.deepEqual(
       timeline.map((entry) => entry.kind),
       ["review", "comment"],

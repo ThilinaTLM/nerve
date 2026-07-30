@@ -237,7 +237,7 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     "/projects/:projectId/github/pr/:number",
     routeHandler(async (c) =>
       c.json(
-        await state.registry.git.prDetail(
+        await state.registry.git.prCore(
           routeParam(c, "projectId"),
           repoParam(c.req.query("repo")),
           prNumberParam(routeParam(c, "number")),
@@ -245,6 +245,29 @@ export function createGitRoutes(state: OrchestratorState): Hono {
       ),
     ),
   );
+
+  for (const [section, load] of [
+    [
+      "conversation",
+      state.registry.git.prConversation.bind(state.registry.git),
+    ],
+    ["overview", state.registry.git.prOverview.bind(state.registry.git)],
+    ["commits", state.registry.git.prCommits.bind(state.registry.git)],
+    ["checks", state.registry.git.prChecks.bind(state.registry.git)],
+  ] as const) {
+    app.get(
+      `/projects/:projectId/github/pr/:number/${section}`,
+      routeHandler(async (c) =>
+        c.json(
+          await load(
+            routeParam(c, "projectId"),
+            repoParam(c.req.query("repo")),
+            prNumberParam(routeParam(c, "number")),
+          ),
+        ),
+      ),
+    );
+  }
 
   app.get(
     "/projects/:projectId/github/pr/:number/files",

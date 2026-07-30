@@ -33,13 +33,14 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
     title={disabled
       ? disabledReason
       : `${pr.title} · ${pr.baseRefName} ← ${pr.headRefName}`}
-    class="flex min-w-0 items-start gap-1.5 rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+    class="group/title flex min-w-0 cursor-pointer items-start gap-1.5 rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
     onclick={onOpen}
   >
     <span class="shrink-0 font-mono font-medium text-foreground"
       >#{pr.number}</span
     >
-    <span class="line-clamp-2 min-w-0 flex-1 break-words text-foreground"
+    <span
+      class="line-clamp-2 min-w-0 flex-1 break-words text-foreground underline-offset-2 group-hover/title:underline"
       >{pr.title}</span
     >
     {#if pr.isDraft}

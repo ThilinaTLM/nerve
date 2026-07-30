@@ -1,9 +1,11 @@
 import type {
   GithubChecksSummary,
   GithubPrComment,
-  GithubPrDetail,
+  GithubPrConversation,
+  GithubPrCore,
   GithubPrFileStatus,
   GithubPrMergeMethod,
+  GithubPrOverview,
   GithubPrReviewSummary,
 } from "@nervekit/contracts";
 import type { BadgeTone } from "@nervekit/ui-kit/components/ui/badge";
@@ -31,7 +33,7 @@ export function checksTone(checks: GithubChecksSummary): BadgeTone {
   }
 }
 
-export function stateTone(detail: GithubPrDetail | undefined): BadgeTone {
+export function stateTone(detail: GithubPrCore | undefined): BadgeTone {
   if (!detail) return "neutral";
   if (detail.isDraft) return "neutral";
   if (detail.state === "MERGED") return "accent";
@@ -39,7 +41,7 @@ export function stateTone(detail: GithubPrDetail | undefined): BadgeTone {
   return "good";
 }
 
-export function stateLabel(detail: GithubPrDetail | undefined): string {
+export function stateLabel(detail: GithubPrCore | undefined): string {
   if (!detail) return "";
   if (detail.isDraft) return "draft";
   return detail.state.toLowerCase();
@@ -92,7 +94,9 @@ export function mergeMethodLabel(method: GithubPrMergeMethod): string {
   return "Rebase and merge";
 }
 
-export function mergeReadiness(detail: GithubPrDetail): MergeReadiness {
+export function mergeReadiness(
+  detail: GithubPrCore & GithubPrOverview & { checks: GithubChecksSummary },
+): MergeReadiness {
   if (detail.state !== "OPEN") {
     return { status: "blocked", reasons: ["Pull request is not open"] };
   }
@@ -134,7 +138,7 @@ export function mergeReadiness(detail: GithubPrDetail): MergeReadiness {
     : { status: "ready", reasons: [] };
 }
 
-export function divergenceLabel(detail: GithubPrDetail): string {
+export function divergenceLabel(detail: GithubPrOverview): string {
   if (detail.behindBy === null) {
     return detail.mergeStateStatus === "BEHIND"
       ? "Base branch has updates"
@@ -144,12 +148,12 @@ export function divergenceLabel(detail: GithubPrDetail): string {
   return `${detail.behindBy} ${detail.behindBy === 1 ? "commit" : "commits"} behind base`;
 }
 
-export function divergenceTone(detail: GithubPrDetail): BadgeTone {
+export function divergenceTone(detail: GithubPrOverview): BadgeTone {
   if (detail.behindBy === null) return "neutral";
   return detail.behindBy > 0 ? "warn" : "good";
 }
 
-export function prTimeline(detail: GithubPrDetail): TimelineEntry[] {
+export function prTimeline(detail: GithubPrConversation): TimelineEntry[] {
   return [
     ...detail.comments.map(
       (value): TimelineEntry => ({

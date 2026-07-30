@@ -1,14 +1,17 @@
 import type {
   GithubPr,
   GithubPrCheckoutResponse,
-  GithubPrCommit,
-  GithubPrDetail,
+  GithubPrChecksResponse,
+  GithubPrCommitsResponse,
+  GithubPrConversation,
+  GithubPrCore,
   GithubPrFile,
   GithubPrFilesResponse,
   GithubPrListFilters,
   GithubPrListResponse,
   GithubPrMergeMethod,
   GithubPrMergeResponse,
+  GithubPrOverview,
   GithubStatusResponse,
   GitRepoSummary,
 } from "@nervekit/contracts";
@@ -171,7 +174,7 @@ export async function listOpenPrs(
   };
 }
 
-async function prChecks(
+async function loadPrChecks(
   context: GithubServiceContext,
   repoDir: string,
   number: number,
@@ -312,43 +315,41 @@ async function prBehindBy(
   }
 }
 
-export async function prDetail(
+async function viewPr(
+  context: GithubServiceContext,
+  repoDir: string,
+  number: number,
+  fields: string,
+): Promise<GithubPrDetailRaw> {
+  const { stdout } = await context.mapGh(() =>
+    context.runGh(repoDir, ["pr", "view", String(number), "--json", fields]),
+  );
+  return JSON.parse(stdout || "{}") as GithubPrDetailRaw;
+}
+
+async function preparePr(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+): Promise<string> {
+  const repoDir = context.resolveRepoDir(projectId, relativePath);
+  await context.ensureGithubRemote(repoDir);
+  return repoDir;
+}
+
+export async function prCore(
   context: GithubServiceContext,
   projectId: string,
   relativePath: string,
   number: number,
-): Promise<GithubPrDetail> {
-  const repoDir = context.resolveRepoDir(projectId, relativePath);
-  await context.ensureGithubRemote(repoDir);
-  const { stdout } = await context.mapGh(() =>
-    context.runGh(repoDir, [
-      "pr",
-      "view",
-      String(number),
-      "--json",
-      "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,baseRefOid,updatedAt,createdAt,body,author,additions,deletions,changedFiles,commits,mergeable,mergeStateStatus,reviewDecision,comments,reviews,labels,reviewRequests",
-    ]),
+): Promise<GithubPrCore> {
+  const repoDir = await preparePr(context, projectId, relativePath);
+  const raw = await viewPr(
+    context,
+    repoDir,
+    number,
+    "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,baseRefOid,updatedAt,createdAt,author,additions,deletions,changedFiles",
   );
-  const raw = JSON.parse(stdout || "{}") as GithubPrDetailRaw;
-  const checksPromise = prChecks(context, repoDir, number);
-  const settings = await repoMergeSettings(context, repoDir);
-  const [checks, behindBy] = await Promise.all([
-    checksPromise,
-    prBehindBy(
-      context,
-      repoDir,
-      settings.nameWithOwner,
-      raw.baseRefOid ?? "",
-      raw.headRefOid ?? "",
-    ),
-  ]);
-  const commits: GithubPrCommit[] = (raw.commits ?? []).map((commit) => ({
-    oid: commit.oid,
-    abbrev: commit.oid.slice(0, 7),
-    messageHeadline: commit.messageHeadline ?? "",
-    authoredDate: commit.authoredDate,
-    authorName: commit.authors?.[0]?.name,
-  }));
   return {
     number: raw.number,
     title: raw.title,
@@ -361,15 +362,28 @@ export async function prDetail(
     baseRefOid: raw.baseRefOid ?? "",
     updatedAt: raw.updatedAt,
     createdAt: raw.createdAt,
-    body: raw.body ?? "",
     author: raw.author?.login ?? null,
     additions: raw.additions ?? 0,
     deletions: raw.deletions ?? 0,
     changedFiles: raw.changedFiles ?? 0,
-    mergeable: raw.mergeable ?? null,
-    mergeStateStatus: raw.mergeStateStatus ?? null,
-    reviewDecision: raw.reviewDecision ?? null,
-    behindBy,
+  };
+}
+
+export async function prConversation(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  number: number,
+): Promise<GithubPrConversation> {
+  const repoDir = await preparePr(context, projectId, relativePath);
+  const raw = await viewPr(
+    context,
+    repoDir,
+    number,
+    "body,comments,reviews,createdAt,updatedAt",
+  );
+  return {
+    body: raw.body ?? "",
     comments: (raw.comments ?? []).map((comment, index) => ({
       id: String(comment.id ?? comment.databaseId ?? `comment-${index}`),
       author: comment.author?.login ?? null,
@@ -388,6 +402,37 @@ export async function prDetail(
       submittedAt: review.submittedAt ?? raw.updatedAt,
       url: review.url,
     })),
+  };
+}
+
+export async function prOverview(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  number: number,
+): Promise<GithubPrOverview> {
+  const repoDir = await preparePr(context, projectId, relativePath);
+  const [raw, settings] = await Promise.all([
+    viewPr(
+      context,
+      repoDir,
+      number,
+      "headRefOid,baseRefOid,mergeable,mergeStateStatus,reviewDecision,labels,reviewRequests",
+    ),
+    repoMergeSettings(context, repoDir),
+  ]);
+  const behindBy = await prBehindBy(
+    context,
+    repoDir,
+    settings.nameWithOwner,
+    raw.baseRefOid ?? "",
+    raw.headRefOid ?? "",
+  );
+  return {
+    mergeable: raw.mergeable ?? null,
+    mergeStateStatus: raw.mergeStateStatus ?? null,
+    reviewDecision: raw.reviewDecision ?? null,
+    behindBy,
     labels: (raw.labels ?? [])
       .filter((label): label is { name: string; color?: string } =>
         Boolean(label.name),
@@ -400,9 +445,36 @@ export async function prDetail(
         : [];
     }),
     mergeSettings: { allowedMethods: settings.allowedMethods },
-    commits,
-    checks,
   };
+}
+
+export async function prCommits(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  number: number,
+): Promise<GithubPrCommitsResponse> {
+  const repoDir = await preparePr(context, projectId, relativePath);
+  const raw = await viewPr(context, repoDir, number, "commits");
+  return {
+    commits: (raw.commits ?? []).map((commit) => ({
+      oid: commit.oid,
+      abbrev: commit.oid.slice(0, 7),
+      messageHeadline: commit.messageHeadline ?? "",
+      authoredDate: commit.authoredDate,
+      authorName: commit.authors?.[0]?.name,
+    })),
+  };
+}
+
+export async function prChecks(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  number: number,
+): Promise<GithubPrChecksResponse> {
+  const repoDir = await preparePr(context, projectId, relativePath);
+  return { checks: await loadPrChecks(context, repoDir, number) };
 }
 
 const MAX_PR_FILES = 300;

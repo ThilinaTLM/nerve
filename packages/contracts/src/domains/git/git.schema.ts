@@ -298,27 +298,48 @@ export const githubPrCommitSchema = z.object({
 });
 export type GithubPrCommit = z.infer<typeof githubPrCommitSchema>;
 
-export const githubPrDetailSchema = githubPrSchema.extend({
-  body: z.string(),
+export const githubPrCoreSchema = githubPrSchema.omit({ checks: true }).extend({
   author: z.string().nullable(),
   createdAt: z.string(),
   additions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
   changedFiles: z.number().int().nonnegative(),
+  headRefOid: z.string(),
+  baseRefOid: z.string(),
+});
+export type GithubPrCore = z.infer<typeof githubPrCoreSchema>;
+
+export const githubPrConversationSchema = z.object({
+  body: z.string(),
+  comments: z.array(githubPrCommentSchema),
+  reviews: z.array(githubPrReviewSummarySchema),
+});
+export type GithubPrConversation = z.infer<typeof githubPrConversationSchema>;
+
+export const githubPrOverviewSchema = z.object({
   mergeable: z.string().nullable(),
   mergeStateStatus: z.string().nullable(),
   reviewDecision: z.string().nullable(),
-  headRefOid: z.string(),
-  baseRefOid: z.string(),
   behindBy: z.number().int().nonnegative().nullable(),
-  comments: z.array(githubPrCommentSchema),
-  reviews: z.array(githubPrReviewSummarySchema),
   labels: z.array(githubPrLabelSchema),
   reviewRequests: z.array(githubPrReviewerSchema),
   mergeSettings: githubPrMergeSettingsSchema,
+});
+export type GithubPrOverview = z.infer<typeof githubPrOverviewSchema>;
+
+export const githubPrCommitsResponseSchema = z.object({
   commits: z.array(githubPrCommitSchema),
 });
-export type GithubPrDetail = z.infer<typeof githubPrDetailSchema>;
+export type GithubPrCommitsResponse = z.infer<
+  typeof githubPrCommitsResponseSchema
+>;
+
+export const githubPrChecksResponseSchema = z.object({
+  checks: githubChecksSummarySchema,
+});
+export type GithubPrChecksResponse = z.infer<
+  typeof githubPrChecksResponseSchema
+>;
 
 export const githubPrCheckoutResponseSchema = z.object({
   repo: gitRepoSummarySchema,

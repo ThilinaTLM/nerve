@@ -44,8 +44,24 @@ export const gitMethodHandlers = defineWorkbenchMethodHandlers({
       repo(params),
       params.filters as GithubPrListFilters,
     ),
-  "github.pr.get": (state, params) =>
-    state.registry.git.prDetail(params.projectId, repo(params), params.number),
+  "github.pr.core.get": (state, params) =>
+    state.registry.git.prCore(params.projectId, repo(params), params.number),
+  "github.pr.conversation.get": (state, params) =>
+    state.registry.git.prConversation(
+      params.projectId,
+      repo(params),
+      params.number,
+    ),
+  "github.pr.overview.get": (state, params) =>
+    state.registry.git.prOverview(
+      params.projectId,
+      repo(params),
+      params.number,
+    ),
+  "github.pr.commits.get": (state, params) =>
+    state.registry.git.prCommits(params.projectId, repo(params), params.number),
+  "github.pr.checks.get": (state, params) =>
+    state.registry.git.prChecks(params.projectId, repo(params), params.number),
   "github.pr.files.get": (state, params) =>
     state.registry.git.prFiles(params.projectId, repo(params), params.number),
   "github.pr.checkout": (state, params) =>

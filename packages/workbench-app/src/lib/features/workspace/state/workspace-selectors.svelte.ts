@@ -291,12 +291,12 @@ export const workspaceSelectors = {
         kind: "pr" as const,
         id,
         number: view?.number ?? 0,
-        title: view?.detail?.title,
-        checksStatus: view?.detail?.checks.status,
-        isDraft: view?.detail?.isDraft,
+        title: view?.core.data?.title,
+        checksStatus: view?.checks.data?.checks.status,
+        isDraft: view?.core.data?.isDraft,
         active: activeTabMatches("pr", id),
-        sending: Boolean(view?.loading),
-        error: view?.error,
+        sending: Boolean(view?.core.loading || view?.core.refreshing),
+        error: view?.core.error,
       };
     });
   },
