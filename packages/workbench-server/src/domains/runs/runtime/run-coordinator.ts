@@ -92,7 +92,9 @@ export interface RunCoordinatorPorts {
 export class RunCoordinator {
   private readonly locks = new KeyedSerialLock();
   private readonly live = new LiveExecutionRegistry();
+  private readonly pendingExecutions = new Set<Promise<void>>();
   private readonly pendingCommits = new Set<Promise<void>>();
+  private executionGeneration = 0;
   private commitGeneration = 0;
   private readonly events: RunEventFactory;
   private readonly prompts: RunPromptCoordinator;
@@ -697,6 +699,24 @@ export class RunCoordinator {
     }
   }
 
+  /** Waits until detached executions and their complete commit pipelines stop. */
+  async settled(): Promise<void> {
+    for (;;) {
+      const executionGeneration = this.executionGeneration;
+      const commitGeneration = this.commitGeneration;
+      await Promise.allSettled([...this.pendingExecutions]);
+      await Promise.all([...this.pendingCommits]);
+      if (
+        this.pendingExecutions.size === 0 &&
+        this.pendingCommits.size === 0 &&
+        executionGeneration === this.executionGeneration &&
+        commitGeneration === this.commitGeneration
+      ) {
+        return;
+      }
+    }
+  }
+
   private sink(runId: string): RunExecutionSink {
     return {
       appendEntries: (entries) =>
@@ -917,6 +937,12 @@ export class RunCoordinator {
         this.live.delete(run.runId, execution);
       }
     })();
+    this.executionGeneration += 1;
+    this.pendingExecutions.add(promise);
+    void promise.then(
+      () => this.pendingExecutions.delete(promise),
+      () => this.pendingExecutions.delete(promise),
+    );
     this.live.set(run.runId, { execution, abort, promise });
   }
 

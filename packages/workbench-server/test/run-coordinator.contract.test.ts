@@ -1031,6 +1031,43 @@ test("settled reads hide terminal state until its complete commit pipeline settl
   );
 });
 
+test("settled waits for cancelled detached executions to unwind", async () => {
+  let releaseExecution!: () => void;
+  const executionGate = new Promise<void>((resolve) => {
+    releaseExecution = resolve;
+  });
+  const harness = fixture({
+    execute: async (_attempt, input) => {
+      if (!input.signal.aborted) {
+        await new Promise<void>((resolve) =>
+          input.signal.addEventListener("abort", () => resolve(), {
+            once: true,
+          }),
+        );
+      }
+      await executionGate;
+      return { status: "interrupted", message: "cancelled" };
+    },
+  });
+  const run = await start(harness.coordinator);
+  await harness.coordinator.cancel(run.runId);
+
+  let settled = false;
+  const settling = harness.coordinator.settled().then(() => {
+    settled = true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(settled, false);
+
+  releaseExecution();
+  await settling;
+  assert.equal(settled, true);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "cancelled",
+  );
+});
+
 test("resolves an interaction once and rejects conflicting resolution", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);

@@ -139,7 +139,12 @@ describe("explore subagent transcript isolation", () => {
     } finally {
       registration.unregister();
       await shutdownOrchestratorState(orchestrator);
-      await rm(root, { recursive: true, force: true });
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      });
     }
   });
 
@@ -201,7 +206,12 @@ describe("explore subagent transcript isolation", () => {
     } finally {
       await shutdownOrchestratorState(orchestrator);
       if (restarted) await shutdownOrchestratorState(restarted);
-      await rm(root, { recursive: true, force: true });
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      });
     }
   });
 
@@ -283,7 +293,12 @@ describe("explore subagent transcript isolation", () => {
     } finally {
       registration.unregister();
       await shutdownOrchestratorState(orchestrator);
-      await rm(root, { recursive: true, force: true });
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      });
     }
   });
 });

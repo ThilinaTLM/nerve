@@ -127,13 +127,15 @@ export class RuntimeRegistry {
   }
 
   /**
-   * Stops registry timers and waits for queued run-event deliveries and
-   * event-journal publications to settle so no writer races teardown.
+   * Stops registry timers and waits for run executions, transition
+   * projections, event deliveries, and journal publications to settle so no
+   * writer races teardown.
    */
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
     this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);
+    await this.services.runRuntime.coordinator.settled();
     await this.services.runRuntime.delivery.settled();
     await this.events.settled();
   }
