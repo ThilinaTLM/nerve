@@ -190,13 +190,14 @@ const inside = [
     background-color: var(--myelin);
   }
 
+  /* Travel is owned by the topology stage so it can be paused off-screen and
+   * switched between the stacked and row layouts. */
   .link-impulse {
     position: absolute;
     left: -0.5px;
     width: 2px;
     height: 0.85rem;
     background: linear-gradient(180deg, transparent, var(--signal), transparent);
-    animation: link-travel 2.6s linear infinite;
   }
 
   .boundary-note {
@@ -215,6 +216,7 @@ const inside = [
   }
 
   .egress-line {
+    position: relative;
     width: 1px;
     height: 2rem;
     background-image: repeating-linear-gradient(
@@ -222,6 +224,20 @@ const inside = [
       color-mix(in oklab, var(--warning) 65%, transparent) 0 4px,
       transparent 4px 9px
     );
+  }
+
+  /* The impulse that leaves the machine, and fades before it arrives. */
+  .egress-spark {
+    position: absolute;
+    top: 0;
+    left: -1.5px;
+    width: 4px;
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background-color: var(--warning);
+    box-shadow: 0 0 0.5rem color-mix(in oklab, var(--warning) 70%, transparent);
+    opacity: 0;
+    pointer-events: none;
   }
 
   .egress-label {
@@ -254,7 +270,6 @@ const inside = [
       width: 0.85rem;
       height: 2px;
       background: linear-gradient(90deg, transparent, var(--signal), transparent);
-      animation-name: link-travel-x;
     }
   }
 </style>

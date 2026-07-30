@@ -3,7 +3,7 @@
  *
  * The page's one pinned section. Seven transcript events explode into an
  * isometric deck, an impulse descends the deck and halts at the review gate,
- * then the deck resolves. `scroll-stage.ts` sets `data-stage-ready` only once
+ * then the deck resolves. `stage/anatomy.ts` sets `data-stage-ready` only once
  * it has attached; without that attribute — no script, unsupported browser, or
  * reduced motion — this renders as a plain, complete vertical list with every
  * caption visible.
@@ -123,6 +123,7 @@ const captions = [
       </div>
 
       <div class="anatomy-stage">
+        <span class="anatomy-glow" aria-hidden="true"></span>
         <ol class="event-stack" data-event-stack>
           {
             layers.map((layer, index) => (
@@ -134,6 +135,10 @@ const captions = [
                 style={`--layer-index:${index}`}
               >
                 <div class:list={["event-layer", `tone-${layer.tone}`]}>
+                  {/* The pip the descending impulse lights as it arrives. It
+                      inherits the row's own depth transform, so the signal
+                      tracks the deck however far it has fanned out. */}
+                  <span class="event-pulse" aria-hidden="true" />
                   <span class="event-role">{layer.role}</span>
                   <p class="event-body">
                     {layer.mono ? <code>{layer.body}</code> : layer.body}
@@ -188,11 +193,31 @@ const captions = [
   }
 
   .anatomy-caption {
+    position: relative;
     display: grid;
     gap: 0.5rem;
     max-width: 30rem;
     padding-left: 1rem;
     border-left: 2px solid var(--hairline);
+  }
+
+  /* The rail that fills for the caption currently on screen: the caption
+   * column's vertical anchor. */
+  .anatomy-caption::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -2px;
+    width: 2px;
+    background: linear-gradient(180deg, var(--primary), var(--signal));
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform 520ms var(--ease-out-expo);
+  }
+
+  .anatomy-caption[data-caption-active="true"]::before {
+    transform: scaleY(1);
   }
 
   .event-stack {
@@ -218,6 +243,15 @@ const captions = [
   .event-callout {
     color: var(--muted-foreground);
     font-size: var(--text-meta);
+  }
+
+  /* Static default: no pip until the pinned stage is driving it. */
+  .event-pulse {
+    display: none;
+  }
+
+  .anatomy-glow {
+    display: none;
   }
 
   .callout-leader {
@@ -302,9 +336,40 @@ const captions = [
     transform-style: preserve-3d;
   }
 
+  /* Ambient depth behind the deck. Its opacity rises as the impulse descends,
+   * so the stage brightens with the run instead of sitting in dead space. */
+  .anatomy[data-stage-ready] .anatomy-glow {
+    display: block;
+    position: absolute;
+    z-index: 0;
+    inset: -18% -12%;
+    background: radial-gradient(
+      58% 46% at 50% 50%,
+      color-mix(in oklab, var(--signal) 22%, transparent),
+      transparent 72%
+    );
+    opacity: 0.25;
+    filter: blur(38px);
+    pointer-events: none;
+  }
+
+  .anatomy[data-stage-ready] .event-pulse {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: -0.42rem;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--signal);
+    box-shadow: var(--glow-signal);
+    opacity: 0;
+    transform: translateY(-50%);
+  }
+
   .anatomy[data-stage-ready] .event-stack {
-    --event-row-height: 3rem;
-    --flat-gap: 46px;
+    --event-row-height: 3.6rem;
+    --flat-gap: 60px;
     position: relative;
     gap: 0;
     /* Absolute rows still reserve their complete visual height, so the stage
@@ -335,7 +400,7 @@ const captions = [
     /* Reserves all seven absolute rows, not merely the first row. */
     content: "";
     display: block;
-    height: calc(var(--flat-gap) * 6 + 3rem);
+    height: calc(var(--flat-gap) * 6 + var(--event-row-height));
   }
 
   .anatomy[data-stage-ready] .event-layer {
@@ -351,6 +416,10 @@ const captions = [
    * where there is a gutter wide enough to hold them. */
   .anatomy[data-stage-ready] .event-callout {
     display: none;
+  }
+
+  .anatomy[data-stage-ready] .event-layer {
+    position: relative;
   }
 
   @media (min-width: 1280px) {
@@ -371,8 +440,13 @@ const captions = [
       width: 12.5rem;
       min-height: var(--event-row-height);
       color: var(--muted-foreground);
-      opacity: calc(0.25 + 0.75 * var(--layer-lit, 0));
-      transition: opacity 320ms var(--ease-out-expo);
+      /* A callout is real copy. It never drops below half opacity, because a
+       * column of ghost text reads as a rendering fault, not as emphasis. */
+      opacity: calc(0.5 + 0.5 * var(--layer-lit, 1));
+      transform: translateX(calc(-6px * (1 - var(--layer-lit, 1))));
+      transition:
+        opacity 320ms var(--ease-out-expo),
+        transform 320ms var(--ease-out-expo);
       pointer-events: none;
     }
 
@@ -409,22 +483,36 @@ const captions = [
     color: var(--warning);
   }
 
+  /* The impulse halts here and waits. A scrubbed value cannot express "is
+   * waiting", so the held state gets its own loop. */
+  .anatomy[data-stage-ready]
+    .event-slot[data-gate-state="waiting"]
+    .event-pulse {
+    background-color: var(--warning);
+    animation: gate-wait 1.4s var(--ease-out-expo) infinite;
+  }
+
   .event-slot[data-gate-state="approved"] .event-layer {
     border-color: var(--success);
   }
 
+  /* The row's authored status is "waiting", which stops being true the moment
+   * the gate resolves. */
   .event-slot[data-gate-state="approved"] .event-status {
-    color: var(--success);
+    font-size: 0;
   }
 
-  @media (max-width: 767px) {
+  .event-slot[data-gate-state="approved"] .event-status::after {
+    content: "approved";
+    color: var(--success);
+    font-size: 0.68rem;
+  }
+
+  /* The pinned presentation is desktop-only. Below 1024px `anatomy.ts` never
+   * sets `data-stage-ready`, and the section renders as the static list. */
+  @media (max-width: 1023px) {
     .anatomy[data-stage-ready] {
-      height: 300vh;
+      height: auto;
     }
-
-    .anatomy[data-stage-ready] .event-stack {
-      --flat-gap: 44px;
-    }
-
   }
 </style>

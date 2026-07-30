@@ -135,6 +135,9 @@ function start(canvas: HTMLCanvasElement): void {
   let signal = "#a78bfa";
   let synapse = "#d97706";
   let last = 0;
+  /* A one-shot brightness wave through the whole field, fired by the hero
+   * entrance so the backdrop reacts to the headline instead of ignoring it. */
+  let charge = 0;
 
   const readColors = (): void => {
     const styles = getComputedStyle(document.documentElement);
@@ -220,7 +223,7 @@ function start(canvas: HTMLCanvasElement): void {
           )
         : 0;
 
-      context.globalAlpha = 0.16 + near * 0.5;
+      context.globalAlpha = 0.16 + near * 0.5 + charge * 0.3;
       context.strokeStyle = near > 0.25 ? synapse : myelin;
       context.lineWidth = segment.width;
       context.beginPath();
@@ -229,7 +232,7 @@ function start(canvas: HTMLCanvasElement): void {
       context.stroke();
 
       if (segment.tip) {
-        context.globalAlpha = 0.3 + near * 0.6;
+        context.globalAlpha = 0.3 + near * 0.6 + charge * 0.4;
         context.fillStyle = near > 0.25 ? synapse : myelin;
         context.beginPath();
         context.arc(segment.x2, segment.y2, 1.4 + near * 1.6, 0, Math.PI * 2);
@@ -241,7 +244,7 @@ function start(canvas: HTMLCanvasElement): void {
       context.strokeStyle = signal;
       context.lineWidth = 1.8;
       for (const impulse of impulses) {
-        impulse.travelled += impulse.speed * delta;
+        impulse.travelled += impulse.speed * delta * (1 + charge * 1.8);
         if (impulse.travelled - IMPULSE_LENGTH > impulse.total) {
           impulse.travelled = -IMPULSE_LENGTH;
         }
@@ -263,6 +266,7 @@ function start(canvas: HTMLCanvasElement): void {
     }
 
     context.globalAlpha = 1;
+    if (charge > 0) charge = Math.max(0, charge - delta / 0.9);
     if (!reduced.matches && onScreen) {
       frame = requestAnimationFrame(paint);
     }
@@ -317,6 +321,12 @@ function start(canvas: HTMLCanvasElement): void {
 
   document.addEventListener("theme:change", () => {
     readColors();
+    if (onScreen) play();
+  });
+
+  window.addEventListener("nerve:hero-charge", () => {
+    if (reduced.matches) return;
+    charge = 1;
     if (onScreen) play();
   });
 }

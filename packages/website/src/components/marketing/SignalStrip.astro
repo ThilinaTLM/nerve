@@ -1,7 +1,9 @@
 ---
 /* Five verifiable facts strung along one myelinated axon, as nodes of Ranvier.
  * A single impulse sweeps the axon on a loop and each node flashes as it
- * passes — pure CSS, staggered by index, no script. */
+ * passes. `stage/sections.ts` reads the node state from the sweep's own
+ * position, so the two can never drift apart; with no script the strip is a
+ * static, complete list of facts. */
 
 const facts = [
   { value: "Apache-2.0", label: "Open source" },
@@ -122,12 +124,7 @@ const facts = [
         var(--signal),
         transparent
       );
-      animation: strip-sweep 7s linear infinite;
-    }
-
-    .strip-item .synapse-node::after {
-      animation: node-flash 7s linear infinite;
-      animation-delay: calc(var(--node-index) * 1.28s);
+      opacity: 0;
     }
   }
 </style>

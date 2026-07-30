@@ -236,9 +236,24 @@ const branches = items.map((_, index) => {
     .soma-halo {
       fill: color-mix(in oklab, var(--primary) 7%, transparent);
       stroke: color-mix(in oklab, var(--primary) 18%, transparent);
-      animation: breathe 7s ease-in-out infinite;
+      /* The breath is driven by the lattice stage so it stops off-screen. With
+       * no script the halo simply rests. */
       transform-box: fill-box;
       transform-origin: center;
+    }
+
+    /* The impulse that has just landed on this card's bouton. */
+    .lattice-card.is-charged {
+      border-color: color-mix(in oklab, var(--signal) 55%, var(--border));
+      box-shadow:
+        var(--depth-2),
+        0 0 0 1px color-mix(in oklab, var(--signal) 28%, transparent);
+    }
+
+    :global(.impulse-dot) {
+      fill: var(--signal);
+      filter: drop-shadow(0 0 0.35rem var(--signal-soft));
+      pointer-events: none;
     }
 
     .soma-ring {

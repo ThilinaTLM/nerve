@@ -185,7 +185,7 @@ const combinations = Object.keys(matrix);
     <ul class="policy-rows">
       {
         capabilities.map((capability, row) => (
-          <li class="policy-row">
+          <li class="policy-row" style={`--row-index:${row}`}>
             <span class="policy-name">
               <code>{capability.name}</code>
               <span class="meta-text">{capability.meaning}</span>
@@ -270,6 +270,22 @@ const combinations = Object.keys(matrix);
     height: var(--charge, 50%);
     background: linear-gradient(180deg, var(--primary), var(--signal));
     transition: height 420ms var(--ease-out-expo);
+  }
+
+  /* A pip that runs the axon when the level changes, so the new policy reads as
+   * something that was conducted rather than swapped. Invisible until the
+   * authority stage drives --sweep-alpha. */
+  .dial-axon::before {
+    content: "";
+    position: absolute;
+    top: calc(var(--charge-sweep, 0) * 100%);
+    left: -1.5px;
+    width: 4px;
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background-color: var(--signal);
+    box-shadow: var(--glow-signal);
+    opacity: var(--sweep-alpha, 0);
   }
 
   .dial-stop input {
@@ -509,7 +525,10 @@ const combinations = Object.keys(matrix);
   .authority:has(#mode-autonomous:checked):has(#plan-mode:checked)
     [data-cell="autonomous-planning"] {
     display: grid;
-    animation: cell-in 220ms var(--ease-out-expo) both;
+    /* The matrix resolves top to bottom rather than all at once, so a change of
+     * level reads as the policy being re-evaluated row by row. */
+    animation: cell-in 260ms var(--ease-out-expo) both;
+    animation-delay: calc(var(--row-index, 0) * 45ms);
   }
 
   .policy-note {

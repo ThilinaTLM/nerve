@@ -23,7 +23,7 @@ const steps = [
         </p>
 
         <div class="closing-actions">
-          <a class="btn btn-primary" href="/start/install/">
+          <a class="btn btn-primary" href="/start/install/" data-magnetic>
             Get started <span aria-hidden="true">→</span>
           </a>
           <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
@@ -70,11 +70,30 @@ const steps = [
   }
 
   .closing-lead {
+    position: relative;
     display: grid;
     min-width: 0;
     gap: 1rem;
     align-content: start;
     justify-items: start;
+  }
+
+  /* The terminal bouton discharging once into the call to action. Created and
+   * fired by the closing stage; absent with no script. */
+  .closing-lead :global(.closing-discharge) {
+    position: absolute;
+    top: -0.75rem;
+    left: -0.75rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--radius-pill);
+    background: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--signal) 55%, transparent),
+      transparent 70%
+    );
+    opacity: 0;
+    pointer-events: none;
   }
 
   .closing-title {

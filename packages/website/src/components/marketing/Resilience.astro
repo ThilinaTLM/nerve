@@ -34,7 +34,7 @@ const cards = [
 ];
 
 /* A membrane trace: steady firing, a flat stretch where the run fails, then a
- * full re-fire. Drawn on entry by `scroll-stage.ts`. */
+ * full re-fire. Drawn on entry by `stage/diagrams.ts`. */
 const spike = (x: number): string =>
   `L ${x} 60 L ${x + 8} 22 L ${x + 16} 96 L ${x + 24} 60`;
 const trace = [
@@ -183,6 +183,22 @@ const trace = [
     left: 68%;
     border-color: color-mix(in oklab, var(--signal) 45%, transparent);
     color: var(--signal);
+  }
+
+  /* The labels light with the phase the travelling segment is in. Both are
+   * fully legible in the authored state; this only adds emphasis. */
+  .trace-wrap[data-trace-state] .trace-flat-label,
+  .trace-wrap[data-trace-state] .trace-fire-label {
+    opacity: 0.55;
+    transition:
+      opacity 320ms var(--ease-out-expo),
+      box-shadow 320ms var(--ease-out-expo);
+  }
+
+  .trace-wrap[data-trace-state="failing"] .trace-flat-label,
+  .trace-wrap[data-trace-state="recovered"] .trace-fire-label {
+    opacity: 1;
+    box-shadow: var(--depth-1);
   }
 
   /* Cards ----------------------------------------------------------------- */

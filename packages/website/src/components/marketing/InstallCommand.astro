@@ -13,6 +13,7 @@ const {
 ---
 
 <div class:list={["install", className]}>
+  <span class="install-sweep" aria-hidden="true"></span>
   <span class="prompt" aria-hidden="true">$</span>
   <code>{command}</code>
   <span class="hint meta-text">{hint}</span>
@@ -57,6 +58,8 @@ const {
 
 <style>
   .install {
+    position: relative;
+    overflow: hidden;
     display: flex;
     align-items: center;
     width: 100%;
@@ -78,6 +81,28 @@ const {
   .install:focus-within {
     border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
     box-shadow: var(--shadow-soft);
+  }
+
+  /* A charge crossing the command when it is copied: confirmation you can see
+   * without moving your eyes to the status text. */
+  .install-sweep {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 40%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--success) 22%, transparent),
+      transparent
+    );
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .install:has([data-copied]) .install-sweep {
+    animation: copy-sweep 620ms var(--ease-out-expo);
   }
 
   .prompt {

@@ -137,22 +137,21 @@ const phones = [
     .slot-1 {
       transform: rotateY(calc(20deg * var(--arc-open)))
         translateZ(calc(-70px * var(--arc-open)))
-        translateX(calc(6% * var(--arc-open)));
+        translateX(calc(6% * var(--arc-open)))
+        translateY(var(--slot-float, 0px));
     }
 
     .slot-2 {
       z-index: 2;
-      transform: translateZ(calc(50px * var(--arc-open)));
+      transform: translateZ(calc(50px * var(--arc-open)))
+        translateY(var(--slot-float, 0px));
     }
 
     .slot-3 {
       transform: rotateY(calc(-20deg * var(--arc-open)))
         translateZ(calc(-70px * var(--arc-open)))
-        translateX(calc(-6% * var(--arc-open)));
-    }
-
-    .pocket[data-arc-ready] .arc-slot {
-      transition: transform 620ms var(--ease-out-expo);
+        translateX(calc(-6% * var(--arc-open)))
+        translateY(var(--slot-float, 0px));
     }
 
     .slot-1 :global(.phone-frame),
