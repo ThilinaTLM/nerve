@@ -104,6 +104,79 @@
   pointer-events: none;
 }
 
+/* The page-scale axon: a fixed rail whose lit portion tracks scroll position.
+ * `--axon-progress` is written by the stage; at 0 the rail simply reads as a
+ * hairline, so it is correct before and without JavaScript. */
+.axon-rail {
+  display: none;
+}
+
+@media (min-width: 1200px) {
+  .axon-rail {
+    display: block;
+    position: fixed;
+    z-index: 30;
+    top: calc(var(--nav-height) + 1.5rem);
+    bottom: 1.5rem;
+    left: clamp(0.75rem, 2vw, 1.5rem);
+    width: 1px;
+    pointer-events: none;
+  }
+
+  .axon-rail-track {
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      180deg,
+      var(--myelin-dim) 0 1.5rem,
+      transparent 1.5rem 1.75rem
+    );
+    mask-image: linear-gradient(
+      180deg,
+      transparent,
+      black 12%,
+      black 88%,
+      transparent
+    );
+    -webkit-mask-image: linear-gradient(
+      180deg,
+      transparent,
+      black 12%,
+      black 88%,
+      transparent
+    );
+  }
+
+  .axon-rail-head {
+    position: absolute;
+    top: calc(var(--axon-progress, 0) * 100%);
+    left: -2px;
+    width: 5px;
+    height: 5px;
+    border-radius: var(--radius-pill);
+    background-color: var(--signal);
+    box-shadow: var(--glow-signal);
+    opacity: calc(0.35 + 0.65 * var(--axon-progress, 0));
+  }
+
+  /* The distance already travelled stays faintly charged. */
+  .axon-rail-head::before {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 2px;
+    left: 2px;
+    height: 60vh;
+    max-height: calc(var(--axon-progress, 0) * 100vh);
+    background: linear-gradient(
+      180deg,
+      transparent,
+      color-mix(in oklab, var(--signal) 45%, transparent)
+    );
+    transform: translateY(calc(-100% + 2px));
+  }
+}
+
 /* Membrane ----------------------------------------------------------------- */
 
 /* The boundary of the user's machine. */

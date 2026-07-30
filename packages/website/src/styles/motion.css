@@ -70,18 +70,6 @@
   }
 }
 
-/* The hero headline's second line charging like an axon on first paint. */
-@keyframes axon-charge {
-  from {
-    opacity: 0;
-    transform: scaleX(0);
-  }
-  to {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-}
-
 /* The hero's scroll cue: an impulse dropping down a short axon. */
 @keyframes cue-drop {
   0% {
@@ -98,68 +86,29 @@
   }
 }
 
-/* The signal strip's impulse, and the node flash it triggers as it passes. */
-@keyframes strip-sweep {
+/* Confirmation that the install command was copied. */
+@keyframes copy-sweep {
   from {
-    transform: translateX(-8rem);
-  }
-  to {
-    transform: translateX(calc(100vw + 8rem));
-  }
-}
-
-@keyframes node-flash {
-  0%,
-  8%,
-  100% {
-    background-color: var(--myelin);
-    box-shadow: none;
-  }
-  3% {
-    background-color: var(--signal);
-    box-shadow: var(--glow-signal);
-  }
-}
-
-/* The capability lattice's soma. */
-@keyframes breathe {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.03);
-  }
-}
-
-/* Impulses travelling the topology's internal links. */
-@keyframes link-travel {
-  from {
-    transform: translateY(-1rem);
-  }
-  to {
-    transform: translateY(2.6rem);
-  }
-}
-
-@keyframes link-travel-x {
-  from {
-    transform: translateX(-1rem);
-  }
-  to {
-    transform: translateX(3.6rem);
-  }
-}
-
-/* The closing CTA's terminal bouton firing once into the call to action. */
-@keyframes discharge {
-  from {
-    opacity: 0.9;
-    transform: scale(0.4);
+    opacity: 1;
+    transform: translateX(-100%);
   }
   to {
     opacity: 0;
-    transform: scale(3.6);
+    transform: translateX(300%);
+  }
+}
+
+/* The anatomy stage's impulse, held at a review gate that has not been
+ * answered yet. */
+@keyframes gate-wait {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: translateY(-50%) scale(1.55);
   }
 }
 
@@ -173,9 +122,16 @@
 
 /* Scroll reveal ------------------------------------------------------------ */
 
-/* Authored content is fully visible. The root marker is added only after the
- * motion runtime is ready, so no-JS, reduced-motion, print, and failed-module
- * states can never strand content hidden or blurred. */
+/* Authored content is fully visible. The pre-hidden state exists only while
+ * `html[data-motion-ready]` is set, which `MarketingLayout` adds before the
+ * first paint and removes again if the stage module never reports in. No-JS,
+ * reduced-motion, print, and failed-module states therefore can never strand
+ * content hidden.
+ *
+ * The stage adds `.is-revealed` in the same frame it starts the tween that
+ * replaces this state, so there is no gap where an element is invisible with
+ * nothing animating it. The transition values that used to live here are gone:
+ * GSAP owns the movement now. */
 [data-reveal],
 [data-reveal-child] {
   opacity: 1;
@@ -183,44 +139,33 @@
 }
 
 html[data-motion-ready] [data-reveal]:not(.is-revealed) {
-  opacity: 0.88;
-  transform: translateY(0.625rem);
+  opacity: 0;
+  transform: translateY(1.625rem);
 }
 
-html[data-motion-ready] [data-reveal="left"]:not(.is-revealed) {
-  transform: translateX(-0.625rem);
-}
-
-html[data-motion-ready] [data-reveal="right"]:not(.is-revealed) {
-  transform: translateX(0.625rem);
-}
-
-html[data-motion-ready] [data-reveal="scale"]:not(.is-revealed) {
-  transform: scale(0.985);
-}
-
-html[data-motion-ready] [data-reveal],
-html[data-motion-ready] [data-reveal-child] {
-  transition:
-    opacity 300ms var(--ease-out-expo) var(--reveal-delay, 0ms),
-    transform 300ms var(--ease-out-expo) var(--reveal-delay, 0ms);
-  will-change: opacity, transform;
-}
+/* The pre-hidden state is deliberately vertical for every variant: a sideways
+ * offset on a full-width block can push a scrollbar onto narrow viewports
+ * before the stage has had a chance to arm it. The direction a block actually
+ * arrives from is chosen by the stage, which replaces this state in the same
+ * frame it starts the tween. */
 
 html[data-motion-ready] [data-reveal].is-revealed,
 html[data-motion-ready] [data-reveal-child].is-revealed {
   opacity: 1;
   transform: none;
-  will-change: auto;
 }
 
-/* Children stagger from one parent entry, but stay sharp and almost visible
- * even before the short motion completes. */
-html[data-motion-ready]
-  [data-reveal]:not(.is-revealed)
-  [data-reveal-child]:not(.is-revealed) {
-  opacity: 0.88;
-  transform: translateY(0.5rem);
+/* Masked line reveal. SplitText builds these wrappers; the extra padding keeps
+ * descenders and the headline's underline inside the clip box. */
+.split-line-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.22em;
+  margin-bottom: -0.22em;
+}
+
+.split-line {
+  display: block;
 }
 
 /* Utilities ---------------------------------------------------------------- */
@@ -281,6 +226,22 @@ html[data-motion-ready]
     --copy-shift: 0px !important;
     --chip-z: 0px !important;
     --arc-open: 1 !important;
+    --charge: 1 !important;
+    --charge-sweep: 0 !important;
+    --sweep-alpha: 0 !important;
+    --chip-float: 0px !important;
+    --chip-scale: 1 !important;
+    --slot-float: 0px !important;
+    --deck-enter-y: 0px !important;
+    --deck-enter-rotate: 0deg !important;
+    --deck-scale: 1 !important;
+    --stage-parallax: 0px !important;
+    --stage-rotate: 0deg !important;
+    --axon-progress: 0 !important;
+  }
+
+  .axon-rail {
+    display: none !important;
   }
 
   @view-transition {

@@ -98,6 +98,20 @@ const softwareApplication = {
           "--switch-index",
           String(["light", "dark", "auto"].indexOf(preference)),
         );
+
+        // Arms the pre-hidden reveal state before the first paint, so the
+        // choreography never has to hide content a reader has already seen.
+        // If the stage module has not reported in shortly after load, the
+        // marker is removed and every reveal resolves to its authored,
+        // fully visible state.
+        if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          document.documentElement.dataset.motionReady = "true";
+          setTimeout(() => {
+            if (!document.documentElement.dataset.stageReady) {
+              delete document.documentElement.dataset.motionReady;
+            }
+          }, 1800);
+        }
       })();
     </script>
 
@@ -113,6 +127,12 @@ const softwareApplication = {
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
+    {/* The page as one axon: the rail carries scroll position as a travelling
+    charge. Decorative, desktop only, and removed under reduced motion. */}
+    <div class="axon-rail" aria-hidden="true" data-axon-rail>
+      <span class="axon-rail-track"></span>
+      <span class="axon-rail-head"></span>
+    </div>
     <SiteHeader />
     <main id="main">
       <slot />

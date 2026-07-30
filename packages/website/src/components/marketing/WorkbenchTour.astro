@@ -9,7 +9,7 @@ import Reveal from "./Reveal.astro";
 
 /* The media column is pinned while the copy column scrolls, so each shot gets
  * the full width of the section instead of a narrow half-column. `tourStage()`
- * in `scroll-stage.ts` writes `data-active`; with no script the first shot
+ * in `stage/tour.ts` writes `data-active`; with no script the first shot
  * stays visible and every copy block is still readable. */
 
 const stops = [
@@ -222,7 +222,7 @@ const stops = [
       gap: 26vh;
       /* The final stop needs half a usable viewport of runway so the sticky
        * frame remains centered instead of colliding with the tour boundary. */
-      padding-block: 5vh calc((100svh - var(--nav-height)) / 2);
+      padding-block: 2vh calc((100svh - var(--nav-height)) / 2);
     }
 
     .tour-inline-media {
@@ -234,12 +234,25 @@ const stops = [
       height: 100%;
     }
 
+    /* A full-height sticky box that centres its own content. Centring with a
+     * translate instead would paint the frame outside the column and over the
+     * section heading above it. */
     .tour-sticky {
       position: sticky;
-      top: calc(50svh + var(--nav-height) / 2);
+      top: var(--nav-height);
+      height: calc(100svh - var(--nav-height));
       display: grid;
+      align-content: center;
       gap: 1rem;
-      transform: translateY(-50%);
+      padding-block: 1.5rem;
+    }
+
+    /* `.tour-frame` is applied to a component root, so the scoped selector has
+     * to reach through with :global. */
+    :global(.tour-frame) {
+      transform: translateY(var(--stage-parallax, 0px))
+        rotateX(var(--stage-rotate, 0deg));
+      transform-style: preserve-3d;
     }
 
     /* Shots are stacked; only the active one is opaque and forward. */
@@ -271,22 +284,43 @@ const stops = [
       pointer-events: auto;
     }
 
+    /* Once the stage is driving the change it owns opacity, scale, and blur, so
+     * the CSS cross-fade steps aside. Without script the rules above still
+     * switch shots on `data-active`. */
+    .tour-shots[data-shots-live] .tour-shot {
+      visibility: visible;
+      transition: none;
+    }
+
     .tour-legend {
-      position: absolute;
-      top: calc(100% + 1rem);
-      right: 0;
-      left: 0;
       display: flex;
       gap: 1.25rem;
       justify-content: center;
     }
 
     .legend-item {
+      position: relative;
+      padding-bottom: 0.3rem;
       color: var(--muted-foreground);
       font-family: var(--font-mono);
       font-size: 0.7rem;
       opacity: 0.4;
-      transition: opacity 320ms var(--ease-out-expo);
+      transition:
+        color 320ms var(--ease-out-expo),
+        opacity 320ms var(--ease-out-expo);
+    }
+
+    .legend-item::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 1px;
+      background-color: var(--primary);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 420ms var(--ease-out-expo);
     }
 
     .tour[data-active="0"] [data-legend="0"],
@@ -297,15 +331,52 @@ const stops = [
       opacity: 1;
     }
 
+    .tour[data-active="0"] [data-legend="0"]::after,
+    .tour[data-active="1"] [data-legend="1"]::after,
+    .tour[data-active="2"] [data-legend="2"]::after,
+    .tour[data-active="3"] [data-legend="3"]::after {
+      transform: scaleX(1);
+    }
+
     /* Inactive copy recedes so the active stop reads as the current one, but
-     * never so far that it looks like a rendering fault. */
+     * never so far that it looks like a rendering fault. The rail makes the
+     * column read as a chaptered walkthrough rather than four loose blocks. */
     .tour-stop {
-      opacity: 0.72;
-      transition: opacity 200ms var(--ease-out-expo);
+      position: relative;
+      padding-left: 1.25rem;
+      opacity: 0.55;
+      transition: opacity 320ms var(--ease-out-expo);
+    }
+
+    .tour-stop::before {
+      content: "";
+      position: absolute;
+      top: 0.35rem;
+      bottom: 0.35rem;
+      left: 0;
+      width: 2px;
+      background-color: var(--hairline);
+    }
+
+    .tour-stop::after {
+      content: "";
+      position: absolute;
+      top: 0.35rem;
+      bottom: 0.35rem;
+      left: 0;
+      width: 2px;
+      background: linear-gradient(180deg, var(--primary), var(--signal));
+      transform: scaleY(0);
+      transform-origin: top;
+      transition: transform 560ms var(--ease-out-expo);
     }
 
     .tour-stop[data-stop-active="true"] {
       opacity: 1;
+    }
+
+    .tour-stop[data-stop-active="true"]::after {
+      transform: scaleY(1);
     }
   }
 </style>

@@ -49,7 +49,7 @@ const chips = [
 
       <Reveal delay={240}>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="/start/install/">
+          <a class="btn btn-primary" href="/start/install/" data-magnetic>
             Get started <span aria-hidden="true">→</span>
           </a>
           <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
@@ -173,6 +173,7 @@ const chips = [
     display: grid;
     gap: 1.5rem;
     transform: translateY(var(--copy-shift, 0px));
+    will-change: transform;
   }
 
   .hero-lede {
@@ -203,6 +204,8 @@ const chips = [
     position: relative;
   }
 
+  /* `--charge` is 1 in the authored state, so the underline is present with no
+   * script. The hero stage tweens it from 0 when it takes over. */
   .hero-charge::after {
     content: "";
     position: absolute;
@@ -217,8 +220,13 @@ const chips = [
       var(--signal),
       transparent
     );
+    opacity: var(--charge, 1);
+    transform: scaleX(var(--charge, 1));
     transform-origin: left;
-    animation: axon-charge 1.4s var(--ease-out-expo) both;
+  }
+
+  :global(html[data-motion-ready]) .hero-charge {
+    --charge: 0;
   }
 
   /* Stage --------------------------------------------------------------- */
@@ -227,11 +235,20 @@ const chips = [
     position: relative;
   }
 
+  /* One composed transform, five owners: the scroll stage writes --deck-rotate-x
+   * and --deck-lift, the entrance writes --deck-enter-*, and the pointer tilt
+   * controller writes --tilt-*. Nothing animates `transform` directly. */
   .hero-deck {
     position: relative;
-    transform: rotateX(calc(var(--deck-rotate-x, 4deg) + var(--tilt-x, 0deg)))
+    transform: rotateX(
+        calc(
+          var(--deck-rotate-x, 4deg) + var(--tilt-x, 0deg) +
+            var(--deck-enter-rotate, 0deg)
+        )
+      )
       rotateY(calc(-9deg + var(--tilt-y, 0deg)))
-      translateY(var(--deck-lift, 0px));
+      translateY(calc(var(--deck-lift, 0px) + var(--deck-enter-y, 0px)))
+      scale(var(--deck-scale, 1));
     transform-style: preserve-3d;
     transition: transform 120ms linear;
   }
@@ -273,7 +290,8 @@ const chips = [
     font-family: var(--font-mono);
     font-size: 0.68rem;
     white-space: nowrap;
-    transform: translateZ(var(--chip-z, var(--z-top)));
+    transform: translate3d(0, var(--chip-float, 0px), var(--chip-z, var(--z-top)))
+      scale(var(--chip-scale, 1));
   }
 
   .hero-chip b {
@@ -302,22 +320,21 @@ const chips = [
 
   /* The overhang is small on the right, where the viewport edge is close, and
    * generous on the left, where the copy column leaves room. */
+  /* Float is owned by the hero stage (`--chip-float`) so it can be desynced per
+   * chip and handed off cleanly from the entrance tween. */
   .chip-right-top {
     top: 12%;
     right: -2%;
-    animation: float-soft 7s ease-in-out infinite;
   }
 
   .chip-left-mid {
     top: 24%;
     left: -13%;
-    animation: float-soft 9s ease-in-out infinite reverse;
   }
 
   .chip-right-low {
     bottom: 16%;
     right: 1%;
-    animation: float-soft 11s ease-in-out infinite;
   }
 
   /* Cue ------------------------------------------------------------------ */

@@ -125,11 +125,27 @@ const steps = [
       box-shadow 320ms var(--ease-out-expo);
   }
 
-  .station[data-station-active="true"] .station-marker {
-    border-color: var(--primary);
-    background-color: color-mix(in oklab, var(--primary) 14%, transparent);
-    color: var(--primary);
-    box-shadow: 0 0 0 0.3rem
+  /* `--lit` is 1 in the authored state and scrubbed by `stage/diagrams.ts`, so
+   * the station lights continuously as the signal reaches it and unlights when
+   * the reader scrolls back. */
+  .station[data-station-active="true"] .station-marker,
+  .reflex[data-arc-ready] .station-marker {
+    border-color: color-mix(
+      in oklab,
+      var(--primary) calc(var(--lit, 1) * 100%),
+      var(--myelin)
+    );
+    background-color: color-mix(
+      in oklab,
+      var(--primary) calc(var(--lit, 1) * 14%),
+      transparent
+    );
+    color: color-mix(
+      in oklab,
+      var(--primary) calc(var(--lit, 1) * 100%),
+      var(--muted-foreground)
+    );
+    box-shadow: 0 0 0 calc(var(--lit, 1) * 0.3rem)
       color-mix(in oklab, var(--primary) 10%, transparent);
   }
 
@@ -195,24 +211,14 @@ const steps = [
 
   /* Only the enhanced entry sequence introduces incomplete states. The index
    * delays let the signal finish on its own after one observer entry. */
+  /* Only the staged sequence introduces incomplete states, and it drives them
+   * from one scrubbed value rather than from timed transitions, so scrolling
+   * back up runs the signal backwards instead of stranding it. */
   .reflex[data-arc-ready] .station {
-    opacity: 0.45;
-    transition: opacity 220ms var(--ease-out-expo)
-      calc(var(--station-index) * 110ms);
+    opacity: calc(0.45 + 0.55 * var(--lit, 1));
   }
 
-  .reflex[data-arc-ready] .station[data-station-active="true"] {
-    opacity: 1;
-  }
-
-  .reflex[data-arc-ready] .station-marker,
-  .reflex[data-arc-ready] .segment-fill {
-    transition-delay: calc(var(--station-index) * 110ms);
-  }
-
-  .reflex[data-arc-ready] .segment-fill {
-    transition-property: transform;
-    transition-duration: 320ms;
-    transition-timing-function: var(--ease-out-expo);
+  .reflex[data-arc-ready] .station-marker {
+    transition: none;
   }
 </style>
