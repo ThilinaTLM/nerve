@@ -1,7 +1,12 @@
 import type { GithubPr, GithubPrCore } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { prSummariesEqual, prSummaryFromCore } from "./pr-sync.js";
+import {
+  prChecksEqual,
+  prCoreMatchesSummary,
+  prSummariesEqual,
+  prSummaryFromCore,
+} from "./pr-sync.js";
 
 const passingChecks = {
   status: "passing" as const,
@@ -55,8 +60,14 @@ describe("pull request summary sync", () => {
       checks: { ...passingChecks, runs: [...passingChecks.runs].reverse() },
     };
     assert.equal(prSummariesEqual(summary, reordered), true);
+    assert.equal(prChecksEqual(passingChecks, reordered.checks), true);
+    assert.equal(prCoreMatchesSummary(core, summary), true);
     assert.equal(
       prSummariesEqual(summary, { ...summary, state: "MERGED" }),
+      false,
+    );
+    assert.equal(
+      prCoreMatchesSummary(core, { ...summary, title: "Changed" }),
       false,
     );
   });

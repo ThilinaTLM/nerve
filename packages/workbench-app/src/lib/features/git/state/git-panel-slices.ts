@@ -1,3 +1,4 @@
+import { prSummaryFingerprint } from "./pr-sync";
 import type {
   GitBranchSummary,
   GithubPr,
@@ -104,7 +105,7 @@ export function githubStatusFingerprint(
 }
 
 export function prsFingerprint(prs: GithubPr[]): string {
-  return JSON.stringify(prs);
+  return prs.map(prSummaryFingerprint).join("\n");
 }
 
 export function reposFingerprint(repos: GitRepoSummary[]): string {

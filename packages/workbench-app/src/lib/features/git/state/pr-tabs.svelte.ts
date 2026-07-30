@@ -13,6 +13,10 @@ import {
   type PrViewState,
 } from "$lib/features/git/state/git-state.svelte";
 import {
+  prChecksEqual,
+  prCoreMatchesSummary,
+} from "$lib/features/git/state/pr-sync";
+import {
   addCenterTab,
   nextCenterTabAfterClose,
   removeCenterTab,
@@ -70,8 +74,10 @@ export function syncOpenPrViews(
     if (view.projectId !== projectId || view.repo !== repo) continue;
     const summary = prs.find((pr) => pr.number === view.number);
     if (!summary) continue;
-    view.checks.data = { checks: summary.checks };
-    if (view.core.data) {
+    if (!prChecksEqual(view.checks.data?.checks, summary.checks)) {
+      view.checks.data = { checks: summary.checks };
+    }
+    if (view.core.data && !prCoreMatchesSummary(view.core.data, summary)) {
       view.core.data = {
         ...view.core.data,
         title: summary.title,

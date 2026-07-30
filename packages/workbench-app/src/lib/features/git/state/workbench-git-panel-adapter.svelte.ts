@@ -301,7 +301,6 @@ export function createWorkbenchGitPanelAdapter(
       if (document.visibilityState === "visible")
         void refreshPrs(project.id, model.selectedRepository, true);
     };
-    refresh();
     const interval = window.setInterval(refresh, GITHUB_CHECKS_POLL_MS);
     return () => window.clearInterval(interval);
   });
