@@ -13,6 +13,7 @@ import {
   PanelToolbarButton,
 } from "$lib/presentation/panel";
 import GitPullRequestRow from "./GitPullRequestRow.svelte";
+import GitPullRequestRowSkeleton from "./GitPullRequestRowSkeleton.svelte";
 import GitRepositorySelector from "./GitRepositorySelector.svelte";
 import type {
   GitPanelCapabilities,
@@ -120,13 +121,17 @@ function toggleChecks(pr: GithubPr) {
   {:else if selectedRepoSummary && !selectedRepoSummary.hasGithubRemote}
     {@render note("PRs are only available for GitHub remotes.")}
   {:else if !github}
-    {@render note("Checking GitHub CLI…")}
+    <PanelList ariaLabel="Loading pull requests" class="gap-1.5 py-0.5">
+      <GitPullRequestRowSkeleton />
+    </PanelList>
   {:else if !github.available}
     {@render note(github.reason ?? "GitHub CLI (gh) is not installed.")}
   {:else if !github.authenticated}
     {@render note("Not authenticated. Run `gh auth login`.")}
   {:else if loadingPrs && prs.length === 0}
-    {@render note("Loading…")}
+    <PanelList ariaLabel="Loading pull requests" class="gap-1.5 py-0.5">
+      <GitPullRequestRowSkeleton />
+    </PanelList>
   {:else if displayedPrs.length === 0}
     {@render note(
       hasActiveGitPrFilters(filters)

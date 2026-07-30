@@ -16,7 +16,7 @@ import {
   gitProjectStateKey,
   gitRepoStateKey,
 } from "$lib/core/state/state-keys";
-import { GIT_OVERVIEW_AUTO_REFRESH_MS } from "./git-context-helpers";
+import { GIT_AUTO_REFRESH_COOLDOWN_MS } from "./git-refresh-policy";
 import {
   autoRefreshGitOverview,
   bulkStageGitFiles,
@@ -32,6 +32,7 @@ import {
   refreshGitOverview,
   refreshGitProject,
   refreshPrs,
+  scheduleAutomaticGitRefresh,
   selectGitProject,
   selectGitRepo,
   switchBaseAndPullGitRepo,
@@ -254,7 +255,8 @@ export function createWorkbenchGitPanelAdapter(
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
-    const interval = window.setInterval(refresh, GIT_OVERVIEW_AUTO_REFRESH_MS);
+    refresh();
+    const interval = window.setInterval(refresh, GIT_AUTO_REFRESH_COOLDOWN_MS);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
@@ -300,7 +302,7 @@ export function createWorkbenchGitPanelAdapter(
       return;
     const refresh = () => {
       if (document.visibilityState === "visible")
-        void refreshPrs(project.id, repository, true);
+        scheduleAutomaticGitRefresh(project.id, repository, { prs: true });
     };
     const interval = window.setInterval(refresh, GITHUB_CHECKS_POLL_MS);
     return () => window.clearInterval(interval);

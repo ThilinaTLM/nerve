@@ -10,8 +10,8 @@ import {
 } from "./git-context-helpers";
 import {
   applyGitContextFromProject,
-  invalidateGitPanel,
   refreshGitProject,
+  scheduleAutomaticProjectGitRefresh,
 } from "./git-panel.svelte";
 
 export {
@@ -179,10 +179,12 @@ export function stopGitContextAutoRefresh(): void {
 }
 
 /**
- * Bump the refresh token (so the Git tab reloads its overview) and re-pull the
- * lightweight git context used by composer suggestions. Called by any git
- * mutation: GitTab commit/branch/PR/sync, and PR pane checkout.
+ * Coalesce local Git and pull-request refresh demand after a conversation or
+ * Git mutation completes.
  */
 export function invalidateGit(projectId?: string): void {
-  void invalidateGitPanel(projectId);
+  scheduleAutomaticProjectGitRefresh(projectId, {
+    overview: true,
+    prs: true,
+  });
 }

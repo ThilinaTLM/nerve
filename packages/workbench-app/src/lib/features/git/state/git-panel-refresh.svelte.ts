@@ -14,6 +14,10 @@ import {
 import { queryClient, queryKeys } from "$lib/core/query";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import {
+  GitAutoRefreshScheduler,
+  type GitAutoRefreshDemand,
+} from "./git-auto-refresh-scheduler";
 import { joinGitProjectRefresh } from "./git-panel-refresh-policy";
 import {
   applyGitContextFromProject,
@@ -39,10 +43,62 @@ import {
 import { syncOpenPrViews } from "./pr-tabs.svelte";
 import {
   GITHUB_STATUS_STALE_MS,
+  GIT_AUTO_REFRESH_COOLDOWN_MS,
   GIT_STALE_MS,
   githubPrFiltersFingerprint,
   PR_PENDING_POLL_MS,
 } from "./git-refresh-policy";
+
+function automaticRefreshKey(projectId: string, repo: string): string {
+  return JSON.stringify([projectId, repo]);
+}
+
+const automaticRefreshScheduler = new GitAutoRefreshScheduler(
+  GIT_AUTO_REFRESH_COOLDOWN_MS,
+  (key, demand) => {
+    const [projectId, repo] = JSON.parse(key) as [string, string];
+    const state = ensureGitRepoState(projectId, repo);
+    if (repoMutationInProgress(state)) {
+      automaticRefreshScheduler.schedule(key, demand);
+      return;
+    }
+    void Promise.all([
+      ...(demand.overview
+        ? [
+            refreshGitOverview(projectId, repo, {
+              force: true,
+              silent: true,
+              onlyIfChanged: true,
+            }),
+          ]
+        : []),
+      ...(demand.prs && state.github?.authenticated
+        ? [refreshPrs(projectId, repo, true, true)]
+        : []),
+    ]);
+  },
+);
+
+export function scheduleAutomaticGitRefresh(
+  projectId: string,
+  repo: string,
+  demand: GitAutoRefreshDemand,
+): void {
+  automaticRefreshScheduler.schedule(
+    automaticRefreshKey(projectId, repo),
+    demand,
+  );
+}
+
+export function scheduleAutomaticProjectGitRefresh(
+  projectId: string | undefined,
+  demand: GitAutoRefreshDemand,
+): void {
+  if (!projectId) return;
+  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
+  if (!project?.selectedRepo) return;
+  scheduleAutomaticGitRefresh(projectId, project.selectedRepo, demand);
+}
 
 export async function refreshGitProject(
   project: ProjectRecord,
@@ -113,7 +169,7 @@ export async function refreshGitProject(
       await Promise.all([
         refreshGitOverview(project.id, state.selectedRepo, refreshOptions),
         refreshGithub(project.id, state.selectedRepo),
-        refreshPrs(project.id, state.selectedRepo, true),
+        refreshPrs(project.id, state.selectedRepo, true, false, true),
       ]);
     }
   } catch (error) {
@@ -154,6 +210,10 @@ export async function refreshGitOverview(
     if (options.force) state.overviewRefreshQueued = true;
     return;
   }
+  automaticRefreshScheduler.noteDirectStart(
+    automaticRefreshKey(projectId, repo),
+    { overview: true },
+  );
   const requestSeq = state.requestSeq + 1;
   state.requestSeq = requestSeq;
   state.overviewRequestInFlight = true;
@@ -257,6 +317,7 @@ export async function refreshPrs(
   repo: string,
   silent = false,
   force = false,
+  showLoading = !silent,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   if (!repoHasGithubRemote(projectId, repo)) {
@@ -267,10 +328,14 @@ export async function refreshPrs(
     state.prsRefreshQueued ||= force;
     return;
   }
+  automaticRefreshScheduler.noteDirectStart(
+    automaticRefreshKey(projectId, repo),
+    { prs: true },
+  );
   const requestSeq = state.prsRequestSeq + 1;
   state.prsRequestSeq = requestSeq;
   state.prsRequestInFlight = true;
-  if (!silent) state.loadingPrs = true;
+  if (showLoading) state.loadingPrs = true;
   try {
     const filters: GithubPrListFilters = {
       author: state.prFilters.author,
@@ -309,7 +374,7 @@ export async function refreshPrs(
     }
   } finally {
     if (state.prsRequestSeq === requestSeq) {
-      if (!silent) state.loadingPrs = false;
+      if (showLoading) state.loadingPrs = false;
       state.prsRequestInFlight = false;
       if (state.prsRefreshQueued) {
         state.prsRefreshQueued = false;
@@ -336,12 +401,8 @@ export function autoRefreshGitOverview(projectId: string, repo: string): void {
     gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
       gitRepoStateKey(repo)
     ];
-  if (!state || state.overviewRequestInFlight || repoMutationInProgress(state))
-    return;
-  void refreshGitOverview(projectId, repo, {
-    silent: true,
-    onlyIfChanged: true,
-  });
+  if (!state) return;
+  scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
 }
 
 export function selectGitProject(project: ProjectRecord): void {
