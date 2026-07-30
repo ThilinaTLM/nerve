@@ -248,16 +248,13 @@ export function createWorkbenchGitPanelAdapter(
   $effect(() => {
     const active = enabled();
     const project = activeProject();
-    const model = adapter.model;
-    if (
-      !active ||
-      !project ||
-      model.repositories.length === 0 ||
-      !model.selectedRepository
-    )
+    const projectState = project
+      ? gitPanelState.projects[gitProjectStateKey(project.id)]
+      : undefined;
+    const repository = projectState?.selectedRepo;
+    if (!active || !project || !projectState?.repos.length || !repository)
       return;
-    const refresh = () =>
-      autoRefreshGitOverview(project.id, model.selectedRepository);
+    const refresh = () => autoRefreshGitOverview(project.id, repository);
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
@@ -274,15 +271,22 @@ export function createWorkbenchGitPanelAdapter(
   $effect(() => {
     const active = enabled();
     const project = activeProject();
-    const model = adapter.model;
+    const projectState = project
+      ? gitPanelState.projects[gitProjectStateKey(project.id)]
+      : undefined;
+    const repository = projectState?.selectedRepo;
+    const repoState = repository
+      ? projectState?.repoStates[gitRepoStateKey(repository)]
+      : undefined;
+    const pullRequests = repoState?.prs ?? [];
     const activePr = gitSelectors.activeCenterPrView;
-    const hasPendingOutsideActiveDetail = model.pullRequests.some(
+    const hasPendingOutsideActiveDetail = pullRequests.some(
       (pr) =>
         pr.checks.status === "pending" &&
         !(
           activePr &&
           activePr.projectId === project?.id &&
-          activePr.repo === model.selectedRepository &&
+          activePr.repo === repository &&
           activePr.number === pr.number &&
           activePr.checks.data?.checks.status === "pending"
         ),
@@ -290,16 +294,17 @@ export function createWorkbenchGitPanelAdapter(
     if (
       !active ||
       !project ||
-      model.repositories.length === 0 ||
-      !model.repositorySummary?.hasGithubRemote ||
-      !model.github?.authenticated ||
-      !hasPendingPrChecks([...model.pullRequests]) ||
+      !projectState?.repos.length ||
+      !repository ||
+      !repoState?.repoSummary?.hasGithubRemote ||
+      !repoState.github?.authenticated ||
+      !hasPendingPrChecks([...pullRequests]) ||
       !hasPendingOutsideActiveDetail
     )
       return;
     const refresh = () => {
       if (document.visibilityState === "visible")
-        void refreshPrs(project.id, model.selectedRepository, true);
+        void refreshPrs(project.id, repository, true);
     };
     const interval = window.setInterval(refresh, GITHUB_CHECKS_POLL_MS);
     return () => window.clearInterval(interval);

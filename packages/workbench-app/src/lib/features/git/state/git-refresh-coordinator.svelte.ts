@@ -1,3 +1,4 @@
+import { SvelteMap } from "svelte/reactivity";
 import type {
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
@@ -36,6 +37,8 @@ const IMMUTABLE_HEAD_STALE_MS = Number.POSITIVE_INFINITY;
 type LoadOptions = { force?: boolean; silent?: boolean };
 type Section = "conversation" | "overview" | "commits" | "checks" | "files";
 
+const resourceRequests = new SvelteMap<string, Promise<unknown>>();
+
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -48,30 +51,64 @@ async function fetchResource<T>(input: {
   options?: LoadOptions;
   apply?: (data: T) => void;
 }): Promise<T | undefined> {
-  const hadData = input.resource.data !== undefined;
-  input.resource.loading = !hadData;
-  input.resource.refreshing = hadData;
-  if (!input.options?.silent) input.resource.error = undefined;
-  try {
-    if (input.options?.force) {
-      await queryClient.invalidateQueries({ queryKey: input.key });
+  const requestKey = JSON.stringify(input.key);
+  const existing = resourceRequests.get(requestKey) as
+    | Promise<T | undefined>
+    | undefined;
+  if (existing) return existing;
+
+  if (!input.options?.force) {
+    const queryState = queryClient.getQueryState<T>(input.key);
+    const cached = queryClient.getQueryData<T>(input.key);
+    if (
+      cached !== undefined &&
+      queryState?.dataUpdatedAt !== undefined &&
+      Date.now() - queryState.dataUpdatedAt < input.staleTime
+    ) {
+      if (input.resource.data !== cached) {
+        input.resource.data = cached;
+        input.resource.error = undefined;
+        input.apply?.(cached);
+      }
+      return cached;
     }
-    const data = await queryClient.fetchQuery({
-      queryKey: input.key,
-      queryFn: input.query,
-      staleTime: input.staleTime,
-    });
-    input.resource.data = data;
-    input.resource.error = undefined;
-    input.apply?.(data);
-    return data;
-  } catch (error) {
-    if (!input.options?.silent || !hadData)
-      input.resource.error = message(error);
-    return undefined;
+  }
+
+  const request = (async (): Promise<T | undefined> => {
+    const hadData = input.resource.data !== undefined;
+    input.resource.loading = !hadData;
+    input.resource.refreshing = hadData;
+    if (!input.options?.silent) input.resource.error = undefined;
+    try {
+      if (input.options?.force) {
+        await queryClient.invalidateQueries({ queryKey: input.key });
+      }
+      const data = await queryClient.fetchQuery({
+        queryKey: input.key,
+        queryFn: input.query,
+        staleTime: input.staleTime,
+      });
+      if (input.resource.data !== data) {
+        input.resource.data = data;
+        input.apply?.(data);
+      }
+      input.resource.error = undefined;
+      return data;
+    } catch (error) {
+      if (!input.options?.silent || !hadData)
+        input.resource.error = message(error);
+      return undefined;
+    } finally {
+      input.resource.loading = false;
+      input.resource.refreshing = false;
+    }
+  })();
+  resourceRequests.set(requestKey, request);
+  try {
+    return await request;
   } finally {
-    input.resource.loading = false;
-    input.resource.refreshing = false;
+    if (resourceRequests.get(requestKey) === request)
+      resourceRequests.delete(requestKey);
   }
 }
 
@@ -247,7 +284,11 @@ function pollActivePr(): void {
   if (typeof document !== "undefined" && document.visibilityState !== "visible")
     return;
   const view = activePrId ? gitState.prViews[prViewKey(activePrId)] : undefined;
-  if (view?.checks.data?.checks.status === "pending") {
+  if (
+    view?.checks.data?.checks.status === "pending" &&
+    !view.checks.loading &&
+    !view.checks.refreshing
+  ) {
     void loadPrSection(view, "checks", { force: true, silent: true });
   }
 }

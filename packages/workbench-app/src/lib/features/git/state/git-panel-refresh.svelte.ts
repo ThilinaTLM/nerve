@@ -312,7 +312,13 @@ export async function refreshPrs(
       state.prsRequestInFlight = false;
       if (state.prsRefreshQueued) {
         state.prsRefreshQueued = false;
-        queueMicrotask(() => void refreshPrs(projectId, repo, true, true));
+        queueMicrotask(() => {
+          if (
+            typeof document === "undefined" ||
+            document.visibilityState === "visible"
+          )
+            void refreshPrs(projectId, repo, true, true);
+        });
       }
     }
   }
