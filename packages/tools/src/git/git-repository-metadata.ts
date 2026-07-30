@@ -4,13 +4,18 @@ import {
   readRefSnapshot,
   type GitRefSnapshot,
 } from "./git-branches.js";
+import type { GithubRepositoryRef } from "./git-github-parsers.js";
 import type { GitService } from "./git-service.js";
 
 export type StableRepoMetadata = {
   readonly refSnapshot: GitRefSnapshot;
   readonly baseBranch: string;
   readonly comparisonBaseRef: string;
-  readonly remoteState: { hasRemote: boolean; hasGithubRemote: boolean };
+  readonly remoteState: {
+    hasRemote: boolean;
+    hasGithubRemote: boolean;
+    githubRepository: GithubRepositoryRef | null;
+  };
 };
 
 type CacheEntry = {

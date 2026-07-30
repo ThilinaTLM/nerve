@@ -43,6 +43,7 @@ function createPrView(input: {
   projectId: string;
   repo: string;
   number: number;
+  summary?: GithubPr;
 }): PrViewState {
   return {
     ...input,
@@ -53,6 +54,7 @@ function createPrView(input: {
     checks: emptyResource(),
     files: emptyResource(),
     activeTab: "conversation",
+    refreshing: false,
     merging: false,
   };
 }
@@ -87,6 +89,7 @@ export function syncOpenPrViews(
     if (view.projectId !== projectId || view.repo !== repo) continue;
     const summary = prs.find((pr) => pr.number === view.number);
     if (!summary) continue;
+    view.summary = summary;
     if (!prChecksEqual(view.checks.data?.checks, summary.checks)) {
       view.checks.data = { checks: summary.checks };
     }
@@ -118,9 +121,10 @@ export async function openPrPane(input: {
   const id = encodePrTabId(input.projectId, input.repo, input.number);
   const key = prViewKey(id);
   addPrTab(id);
-  gitState.prViews[key] ??= createPrView({ id, ...input });
-  const view = gitState.prViews[key];
   const summary = openPrSummary(input.projectId, input.repo, input.number);
+  gitState.prViews[key] ??= createPrView({ id, ...input, summary });
+  const view = gitState.prViews[key];
+  if (summary) view.summary = summary;
   if (summary && !view.checks.data)
     view.checks.data = { checks: summary.checks };
   setActiveCenterTab({ kind: "pr", id });

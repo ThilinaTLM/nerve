@@ -1,3 +1,4 @@
+import { SvelteMap } from "svelte/reactivity";
 import type { ProjectRecord } from "$lib/api";
 import type { GithubPrListFilters } from "@nervekit/contracts";
 import {
@@ -28,6 +29,7 @@ import {
   filterMergedOpenPrs,
   type GitPanelProjectState,
   type GitPanelRefreshOptions,
+  type GitPanelRepoState,
   gitPanelState,
   mergeRepoSummary,
   patchGitOverviewState,
@@ -312,6 +314,24 @@ export async function refreshGithub(
   }
 }
 
+const prRefreshRequests = new SvelteMap<string, Promise<void>>();
+
+function currentPrFilters(state: GitPanelRepoState): GithubPrListFilters {
+  return {
+    author: state.prFilters.author,
+    ...(state.prFilters.author === "username"
+      ? { username: state.prFilters.username }
+      : {}),
+    drafts: state.prFilters.drafts,
+    title: state.prFilters.title,
+    ...(state.prFilters.currentBranchOnly && state.repoSummary?.currentBranch
+      ? { head: state.repoSummary.currentBranch }
+      : {}),
+    labels: [...state.prFilters.labels],
+    sort: state.prFilters.sort,
+  };
+}
+
 export async function refreshPrs(
   projectId: string,
   repo: string,
@@ -324,69 +344,85 @@ export async function refreshPrs(
     clearGithubState(projectId, state);
     return;
   }
-  if (state.prsRequestInFlight) {
+  const refreshKey = automaticRefreshKey(projectId, repo);
+  const existing = prRefreshRequests.get(refreshKey);
+  if (existing) {
     state.prsRefreshQueued ||= force;
-    return;
+    state.prsQueuedVisible ||= showLoading;
+    if (showLoading) {
+      state.loadingPrs = true;
+      state.prsError = undefined;
+    }
+    return existing;
   }
-  automaticRefreshScheduler.noteDirectStart(
-    automaticRefreshKey(projectId, repo),
-    { prs: true },
-  );
-  const requestSeq = state.prsRequestSeq + 1;
-  state.prsRequestSeq = requestSeq;
+
+  if (showLoading) {
+    state.loadingPrs = true;
+    state.prsError = undefined;
+  }
   state.prsRequestInFlight = true;
-  if (showLoading) state.loadingPrs = true;
-  try {
-    const filters: GithubPrListFilters = {
-      author: state.prFilters.author,
-      ...(state.prFilters.author === "username"
-        ? { username: state.prFilters.username }
-        : {}),
-      drafts: state.prFilters.drafts,
-      title: state.prFilters.title,
-      ...(state.prFilters.currentBranchOnly && state.repoSummary?.currentBranch
-        ? { head: state.repoSummary.currentBranch }
-        : {}),
-      labels: [...state.prFilters.labels],
-      sort: state.prFilters.sort,
-    };
-    const queryKey = queryKeys.git.prs(
-      projectId,
-      repo,
-      githubPrFiltersFingerprint(filters),
-    );
-    if (force) await queryClient.invalidateQueries({ queryKey });
-    const result = await queryClient.fetchQuery({
-      queryKey,
-      queryFn: () => listGithubPrs(projectId, repo, filters),
-      staleTime: hasPendingPrChecks(state.prs)
-        ? PR_PENDING_POLL_MS
-        : GIT_STALE_MS,
-    });
-    if (state.prsRequestSeq === requestSeq) {
-      const prs = filterMergedOpenPrs(projectId, repo, result.prs);
-      setPrsIfChanged(state, prs);
-      syncOpenPrViews(projectId, repo, prs);
-    }
-  } catch (error) {
-    if (state.prsRequestSeq === requestSeq && !silent) {
-      notify.error(`Could not list PRs: ${errorMessage(error)}`);
-    }
-  } finally {
-    if (state.prsRequestSeq === requestSeq) {
-      if (showLoading) state.loadingPrs = false;
-      state.prsRequestInFlight = false;
-      if (state.prsRefreshQueued) {
+  automaticRefreshScheduler.noteDirectStart(refreshKey, { prs: true });
+
+  const request = (async () => {
+    let nextSilent = silent;
+    let nextForce = force;
+    try {
+      do {
         state.prsRefreshQueued = false;
-        queueMicrotask(() => {
+        state.prsQueuedVisible = false;
+        const requestSeq = state.prsRequestSeq + 1;
+        state.prsRequestSeq = requestSeq;
+        try {
+          const filters = currentPrFilters(state);
+          const queryKey = queryKeys.git.prs(
+            projectId,
+            repo,
+            githubPrFiltersFingerprint(filters),
+          );
+          if (nextForce) await queryClient.invalidateQueries({ queryKey });
+          const result = await queryClient.fetchQuery({
+            queryKey,
+            queryFn: () => listGithubPrs(projectId, repo, filters),
+            staleTime: hasPendingPrChecks(state.prs)
+              ? PR_PENDING_POLL_MS
+              : GIT_STALE_MS,
+          });
           if (
-            typeof document === "undefined" ||
-            document.visibilityState === "visible"
-          )
-            void refreshPrs(projectId, repo, true, true);
-        });
-      }
+            state.prsRequestSeq === requestSeq &&
+            githubPrFiltersFingerprint(filters) ===
+              githubPrFiltersFingerprint(currentPrFilters(state))
+          ) {
+            const prs = filterMergedOpenPrs(projectId, repo, result.prs);
+            setPrsIfChanged(state, prs);
+            syncOpenPrViews(projectId, repo, prs);
+            state.prsError = undefined;
+          }
+        } catch (error) {
+          if (state.prsRequestSeq === requestSeq && !nextSilent) {
+            state.prsError = errorMessage(error);
+            notify.error(`Could not list PRs: ${state.prsError}`);
+          }
+        }
+        nextForce = state.prsRefreshQueued;
+        nextSilent = !state.prsQueuedVisible;
+      } while (
+        state.prsRefreshQueued &&
+        (typeof document === "undefined" ||
+          document.visibilityState === "visible")
+      );
+    } finally {
+      state.prsRequestInFlight = false;
+      state.prsRefreshQueued = false;
+      state.prsQueuedVisible = false;
+      state.loadingPrs = false;
     }
+  })();
+  prRefreshRequests.set(refreshKey, request);
+  try {
+    await request;
+  } finally {
+    if (prRefreshRequests.get(refreshKey) === request)
+      prRefreshRequests.delete(refreshKey);
   }
 }
 

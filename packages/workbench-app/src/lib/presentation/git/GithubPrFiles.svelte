@@ -7,7 +7,7 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { buildPanelTree, PanelTree } from "$lib/presentation/panel";
 import GithubPrDiff from "./GithubPrDiff.svelte";
 import GithubPrSection from "./GithubPrSection.svelte";
@@ -32,16 +32,37 @@ const fileUrl = $derived(`${detail.url}/files`);
 </script>
 
 {#if loading && !files}
-  <Empty.Root class="h-full min-h-0 gap-2 py-6">
-    <Empty.Media variant="icon" class="size-8 rounded-md">
-      <Spinner class="size-4" />
-    </Empty.Media>
-    <Empty.Header class="gap-1">
-      <Empty.Title class="text-sm font-medium"
-        >Loading changed files</Empty.Title
+  <div
+    class="@container h-full min-h-0 px-4 pt-1 pb-3"
+    role="status"
+    aria-label="Loading changed files"
+  >
+    <div
+      class="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-2 @2xl:grid-cols-[18rem_minmax(0,1fr)] @2xl:grid-rows-1"
+    >
+      <div
+        class="flex h-56 flex-col gap-2 rounded-md border border-border/60 bg-card px-3 py-3 @2xl:h-auto"
       >
-    </Empty.Header>
-  </Empty.Root>
+        <Skeleton class="h-3 w-24" />
+        {#each [0, 1, 2, 3, 4, 5] as row (row)}
+          <div class="flex items-center gap-2 border-t border-border/60 pt-2">
+            <Skeleton class="size-3" />
+            <Skeleton class={row % 2 ? "h-3 w-2/3" : "h-3 w-4/5"} />
+          </div>
+        {/each}
+      </div>
+      <div
+        class="flex min-h-0 flex-col gap-2 rounded-md border border-border/60 bg-card px-3 py-3"
+      >
+        <Skeleton class="h-3 w-1/3" />
+        <Skeleton class="h-4 w-full" />
+        <Skeleton class="h-4 w-11/12" />
+        <Skeleton class="h-4 w-4/5" />
+        <Skeleton class="h-4 w-full" />
+      </div>
+    </div>
+    <span class="sr-only">Loading changed files</span>
+  </div>
 {:else if error && !files}
   <Empty.Root class="h-full min-h-0 gap-2 py-6">
     <Empty.Media variant="icon" class="size-8 rounded-md">

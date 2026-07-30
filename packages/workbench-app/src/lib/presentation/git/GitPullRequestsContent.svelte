@@ -1,6 +1,8 @@
 <script lang="ts">
 import ListFilter from "@lucide/svelte/icons/list-filter";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type {
   GithubPr,
   GithubStatusResponse,
@@ -8,6 +10,7 @@ import type {
 } from "@nervekit/contracts";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import {
+  PanelBanner,
   PanelHeader,
   PanelList,
   PanelToolbarButton,
@@ -34,6 +37,7 @@ type Props = {
   github?: GithubStatusResponse;
   selectedRepoHasGithubRemote: boolean;
   loadingPrs: boolean;
+  refreshError?: string;
   capabilities: GitPanelCapabilities;
   expandedPr?: number;
   onExpandedPrChange?: (number: number | undefined) => void;
@@ -53,6 +57,7 @@ let {
   github,
   selectedRepoHasGithubRemote,
   loadingPrs,
+  refreshError,
   capabilities,
   expandedPr = $bindable(undefined),
   onExpandedPrChange,
@@ -89,9 +94,10 @@ function toggleChecks(pr: GithubPr) {
     />
     <PanelToolbarButton
       icon={RefreshCw}
-      label="Refresh PRs"
+      label={loadingPrs ? "Refreshing pull requests" : "Refresh PRs"}
       title={`Refresh PRs · signed in as ${github.login ?? "unknown"}`}
       loading={loadingPrs}
+      loadingVariant="refresh"
       disabled={!capabilities.refresh.enabled || loadingPrs}
       onclick={onRefreshPrs}
     />
@@ -116,12 +122,29 @@ function toggleChecks(pr: GithubPr) {
     </div>
   {/if}
 
+  {#if refreshError}
+    <PanelBanner tone="destructive" icon={TriangleAlert}>
+      Could not refresh PRs: {refreshError}
+      {#snippet actions()}
+        <PanelToolbarButton
+          icon={RotateCcw}
+          label="Retry refreshing pull requests"
+          dense
+          disabled={loadingPrs}
+          onclick={onRefreshPrs}
+        />
+      {/snippet}
+    </PanelBanner>
+  {/if}
+
   {#if selectedRepoSummary && !selectedRepoSummary.hasRemote}
     {@render note("No remote configured for this repository.")}
   {:else if selectedRepoSummary && !selectedRepoSummary.hasGithubRemote}
     {@render note("PRs are only available for GitHub remotes.")}
   {:else if !github}
     <PanelList ariaLabel="Loading pull requests" class="gap-1.5 py-0.5">
+      <GitPullRequestRowSkeleton />
+      <GitPullRequestRowSkeleton />
       <GitPullRequestRowSkeleton />
     </PanelList>
   {:else if !github.available}
@@ -130,6 +153,8 @@ function toggleChecks(pr: GithubPr) {
     {@render note("Not authenticated. Run `gh auth login`.")}
   {:else if loadingPrs && prs.length === 0}
     <PanelList ariaLabel="Loading pull requests" class="gap-1.5 py-0.5">
+      <GitPullRequestRowSkeleton />
+      <GitPullRequestRowSkeleton />
       <GitPullRequestRowSkeleton />
     </PanelList>
   {:else if displayedPrs.length === 0}

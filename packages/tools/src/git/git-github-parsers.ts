@@ -5,40 +5,72 @@ function isGithubHost(hostname: string): boolean {
   return normalized === "github.com" || normalized === "ssh.github.com";
 }
 
-export function isGithubRemoteUrl(url: string): boolean {
-  const trimmed = url.trim();
-  if (trimmed.length === 0) return false;
+export type GithubRepositoryRef = {
+  readonly hostname: "github.com";
+  readonly owner: string;
+  readonly repo: string;
+  readonly remoteUrl: string;
+};
 
+export function parseGithubRepositoryUrl(
+  remoteUrl: string,
+): GithubRepositoryRef | null {
+  const trimmed = remoteUrl.trim();
+  if (!trimmed) return null;
+
+  let hostname: string | undefined;
+  let pathname: string | undefined;
   try {
     const parsed = new URL(trimmed);
-    if (parsed.hostname) return isGithubHost(parsed.hostname);
+    hostname = parsed.hostname;
+    pathname = parsed.pathname;
   } catch {
-    // Fall through to SCP-like git remote syntax, e.g.
-    // `git@github.com:owner/repo.git`.
+    const separatorIndex = trimmed.indexOf(":");
+    if (separatorIndex <= 0 || separatorIndex === trimmed.length - 1)
+      return null;
+    const authority = trimmed.slice(0, separatorIndex);
+    pathname = trimmed.slice(separatorIndex + 1);
+    if (authority.includes("/") || hasWhitespace(authority)) return null;
+    const atIndex = authority.lastIndexOf("@");
+    hostname = atIndex >= 0 ? authority.slice(atIndex + 1) : authority;
   }
 
-  const scpHost = parseScpLikeRemoteHost(trimmed);
-  return scpHost ? isGithubHost(scpHost) : false;
+  if (!hostname || !isGithubHost(hostname) || !pathname) return null;
+  const parts = pathname
+    .replace(/^\/+/, "")
+    .replace(/\.git\/?$/, "")
+    .split("/");
+  if (parts.length !== 2 || parts.some((part) => !part || hasWhitespace(part)))
+    return null;
+  return {
+    hostname: "github.com",
+    owner: parts[0] as string,
+    repo: parts[1] as string,
+    remoteUrl: trimmed,
+  };
 }
 
-function parseScpLikeRemoteHost(remoteUrl: string): string | null {
-  const separatorIndex = remoteUrl.indexOf(":");
-  if (separatorIndex <= 0 || separatorIndex === remoteUrl.length - 1)
-    return null;
+export function parseGithubRepositoryRemote(
+  stdout: string,
+): GithubRepositoryRef | null {
+  const entries = stdout.split("\n").flatMap((line) => {
+    const parsed = parseGitRemoteEntry(line);
+    if (!parsed) return [];
+    const repository = parseGithubRepositoryUrl(parsed.url);
+    return repository ? [{ ...parsed, repository }] : [];
+  });
+  const selected =
+    entries.find(
+      (entry) => entry.name === "origin" && entry.kind === "fetch",
+    ) ??
+    entries.find((entry) => entry.kind === "fetch") ??
+    entries.find((entry) => entry.name === "origin") ??
+    entries[0];
+  return selected?.repository ?? null;
+}
 
-  const authority = remoteUrl.slice(0, separatorIndex);
-  const path = remoteUrl.slice(separatorIndex + 1);
-  if (
-    authority.includes("/") ||
-    hasWhitespace(authority) ||
-    hasWhitespace(path)
-  ) {
-    return null;
-  }
-
-  const atIndex = authority.lastIndexOf("@");
-  const host = atIndex >= 0 ? authority.slice(atIndex + 1) : authority;
-  return host.length > 0 && !host.includes(":") ? host : null;
+export function isGithubRemoteUrl(url: string): boolean {
+  return parseGithubRepositoryUrl(url) !== null;
 }
 
 function hasWhitespace(value: string): boolean {
@@ -57,6 +89,23 @@ export function parseGitRemoteUrls(stdout: string): string[] {
     if (url) urls.add(url);
   }
   return [...urls];
+}
+
+type GitRemoteEntry = {
+  readonly name: string;
+  readonly url: string;
+  readonly kind: "fetch" | "push";
+};
+
+function parseGitRemoteEntry(line: string): GitRemoteEntry | null {
+  const trimmed = line.trim();
+  const firstWhitespaceIndex = findFirstWhitespace(trimmed);
+  if (firstWhitespaceIndex <= 0) return null;
+  const name = trimmed.slice(0, firstWhitespaceIndex);
+  const value = trimmed.slice(firstWhitespaceIndex).trim();
+  const match = /^(.*) \((fetch|push)\)$/.exec(value);
+  if (!match?.[1] || !match[2]) return null;
+  return { name, url: match[1].trim(), kind: match[2] as "fetch" | "push" };
 }
 
 function parseGitRemoteUrlLine(line: string): string | null {

@@ -33,7 +33,9 @@ export function checksTone(checks: GithubChecksSummary): BadgeTone {
   }
 }
 
-export function stateTone(detail: GithubPrCore | undefined): BadgeTone {
+type PrStateSummary = Pick<GithubPrCore, "isDraft" | "state">;
+
+export function stateTone(detail: PrStateSummary | undefined): BadgeTone {
   if (!detail) return "neutral";
   if (detail.isDraft) return "neutral";
   if (detail.state === "MERGED") return "accent";
@@ -41,7 +43,7 @@ export function stateTone(detail: GithubPrCore | undefined): BadgeTone {
   return "good";
 }
 
-export function stateLabel(detail: GithubPrCore | undefined): string {
+export function stateLabel(detail: PrStateSummary | undefined): string {
   if (!detail) return "";
   if (detail.isDraft) return "draft";
   return detail.state.toLowerCase();

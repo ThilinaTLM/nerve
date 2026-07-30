@@ -82,6 +82,7 @@ export interface GitPanelModel {
   readonly loadingOverview: boolean;
   readonly loadingBranches: boolean;
   readonly loadingPullRequests: boolean;
+  readonly pullRequestError?: string;
   readonly operations: GitPanelOperationState;
   readonly capabilities: GitPanelCapabilities;
 }

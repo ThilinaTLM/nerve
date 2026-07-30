@@ -125,6 +125,7 @@ export function createWorkbenchGitPanelAdapter(
         loadingOverview: current?.loadingOverview ?? false,
         loadingBranches: current?.loadingBranches ?? false,
         loadingPullRequests: current?.loadingPrs ?? false,
+        pullRequestError: current?.prsError,
         operations: current?.operations ?? {
           fetching: false,
           pulling: false,
