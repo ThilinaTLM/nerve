@@ -113,6 +113,7 @@ export async function refreshGitProject(
       await Promise.all([
         refreshGitOverview(project.id, state.selectedRepo, refreshOptions),
         refreshGithub(project.id, state.selectedRepo),
+        refreshPrs(project.id, state.selectedRepo, true),
       ]);
     }
   } catch (error) {

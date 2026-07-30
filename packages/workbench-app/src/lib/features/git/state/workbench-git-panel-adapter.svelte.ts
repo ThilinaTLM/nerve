@@ -235,10 +235,6 @@ export function createWorkbenchGitPanelAdapter(
 
   let lastProjectId: string | undefined;
   $effect(() => {
-    if (!enabled()) {
-      lastProjectId = undefined;
-      return;
-    }
     const project = activeProject();
     if (project?.id === lastProjectId) return;
     lastProjectId = project?.id;
