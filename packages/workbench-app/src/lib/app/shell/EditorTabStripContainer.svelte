@@ -24,7 +24,10 @@ import type {
   CenterTabModel,
 } from "$lib/features/workspace";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import { getShortcutLabel } from "$lib/core/shortcuts/registry";
+import {
+  getShortcutAriaLabel,
+  getShortcutLabel,
+} from "$lib/core/shortcuts/registry";
 import {
   fileToggleLabel,
   fileWrapLabel,
@@ -46,6 +49,7 @@ type Props = {
   onCloseLeft?: (tab: CenterTabIdentity) => void;
   onToggleFileDisplayMode?: (id: string) => void;
   onToggleFileLineWrap?: (id: string) => void;
+  onNew?: () => void;
   onReorder?: (tab: CenterTabIdentity, targetIndex: number) => void;
 };
 
@@ -60,12 +64,15 @@ let {
   onCloseLeft,
   onToggleFileDisplayMode,
   onToggleFileLineWrap,
+  onNew,
   onReorder,
 }: Props = $props();
 
 const refreshShortcut = getShortcutLabel("pane.refresh");
 const closeShortcut = getShortcutLabel("pane.close");
 const closeOthersShortcut = getShortcutLabel("pane.closeOthers");
+const newShortcut = getShortcutLabel("conversation.new");
+const newShortcutAria = getShortcutAriaLabel("conversation.new");
 
 const workbenchTabs = $derived(tabs.map(toWorkbenchTab));
 
@@ -233,6 +240,9 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   {refreshShortcut}
   {closeShortcut}
   {closeOthersShortcut}
+  newLabel="New chat"
+  {newShortcut}
+  {newShortcutAria}
   buildMenuItems={({ tab }) => tabMenu(tab)}
   onSelect={(tab) => onSelect?.(castIdentity(tab))}
   onClose={(tab) => onClose?.(castIdentity(tab))}
@@ -240,5 +250,6 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   onCloseOther={(tab) => onCloseOther?.(castIdentity(tab))}
   onCloseRight={(tab) => onCloseRight?.(castIdentity(tab))}
   onCloseLeft={(tab) => onCloseLeft?.(castIdentity(tab))}
+  {onNew}
   onReorder={(tab, targetIndex) => onReorder?.(castIdentity(tab), targetIndex)}
 />
