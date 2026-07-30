@@ -1,4 +1,5 @@
 import type {
+  GithubPr,
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
   GithubPrConversation,
@@ -21,6 +22,7 @@ export type GithubPrViewState = {
   id: string;
   repo: string;
   number: number;
+  summary?: GithubPr;
   core: PrSectionState<GithubPrCore>;
   conversation: PrSectionState<GithubPrConversation>;
   overview: PrSectionState<GithubPrOverview>;
@@ -30,6 +32,8 @@ export type GithubPrViewState = {
   activeTab: GithubPrTab;
   selectedFilePath?: string;
   selectedMergeMethod?: GithubPrMergeMethod;
+  refreshing: boolean;
+  refreshError?: string;
   merging: boolean;
   mergeError?: string;
 };

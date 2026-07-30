@@ -6,13 +6,13 @@ import type { GithubPrMergeMethod } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
 import GithubPrChecks from "./GithubPrChecks.svelte";
 import GithubPrCommits from "./GithubPrCommits.svelte";
 import GithubPrConversation from "./GithubPrConversation.svelte";
 import GithubPrFiles from "./GithubPrFiles.svelte";
 import GithubPrHeader from "./GithubPrHeader.svelte";
+import GithubPrLoadingPane from "./GithubPrLoadingPane.svelte";
 import GithubPrMergeBox from "./GithubPrMergeBox.svelte";
 import GithubPrOverview from "./GithubPrOverview.svelte";
 import GithubPrSectionSkeleton from "./GithubPrSectionSkeleton.svelte";
@@ -112,16 +112,7 @@ function confirmCheckout() {
       </Empty.Header>
     </Empty.Root>
   {:else if view.core.loading && !core}
-    <div class="flex h-full flex-col gap-4 px-4 py-4">
-      <div class="flex items-center gap-3" role="status">
-        <Spinner class="size-4" />
-        <span class="text-sm font-medium"
-          >Loading pull request #{view.number}</span
-        >
-      </div>
-      <GithubPrSectionSkeleton rows={2} label="Loading pull request header" />
-      <GithubPrSectionSkeleton rows={6} label="Loading pull request details" />
-    </div>
+    <GithubPrLoadingPane {view} {onRefresh} {onOpenExternal} />
   {:else if view.core.error && !core}
     <Empty.Root class="h-full min-h-0 gap-2 py-6">
       <Empty.Media variant="icon" class="size-8 rounded-md">
@@ -145,13 +136,29 @@ function confirmCheckout() {
     </Empty.Root>
   {:else if core}
     <GithubPrHeader
+      number={view.number}
       detail={core}
-      loading={view.core.refreshing}
+      summary={view.summary}
+      loading={view.refreshing}
       commitCount={commits?.commits.length}
       {onRefresh}
       onCheckout={confirmCheckout}
       {onOpenExternal}
     />
+
+    {#if view.refreshError}
+      <div
+        class="flex items-center gap-2 border-b border-destructive/30 bg-destructive/5 px-4 py-1.5 text-xs text-destructive"
+        role="alert"
+      >
+        <span class="min-w-0 flex-1 truncate"
+          >Could not fully refresh: {view.refreshError}</span
+        >
+        <Button size="xs" variant="ghost" onclick={() => onRefresh?.()}>
+          <RotateCcw class="size-3" /> Retry
+        </Button>
+      </div>
+    {/if}
 
     <Tabs.Root
       value={view.activeTab}
@@ -201,7 +208,10 @@ function confirmCheckout() {
             {:else if view.conversation.error}
               {@render sectionError(view.conversation.error, "conversation")}
             {:else}
-              <GithubPrSectionSkeleton rows={7} label="Loading conversation" />
+              <GithubPrSectionSkeleton
+                variant="conversation"
+                label="Loading conversation"
+              />
             {/if}
             <aside class="flex flex-col gap-2">
               {#if overview}
@@ -209,7 +219,10 @@ function confirmCheckout() {
               {:else if view.overview.error}
                 {@render sectionError(view.overview.error, "overview")}
               {:else}
-                <GithubPrSectionSkeleton rows={4} label="Loading overview" />
+                <GithubPrSectionSkeleton
+                  variant="overview"
+                  label="Loading overview"
+                />
               {/if}
               {#if overview && checks}
                 <GithubPrMergeBox
@@ -222,7 +235,7 @@ function confirmCheckout() {
                 />
               {:else}
                 <GithubPrSectionSkeleton
-                  rows={3}
+                  variant="merge"
                   label="Loading merge status"
                 />
               {/if}
@@ -241,7 +254,11 @@ function confirmCheckout() {
           {:else if view.commits.error}
             {@render sectionError(view.commits.error, "commits")}
           {:else}
-            <GithubPrSectionSkeleton rows={6} label="Loading commits" />
+            <GithubPrSectionSkeleton
+              variant="commits"
+              rows={6}
+              label="Loading commits"
+            />
           {/if}
         </ScrollArea>
       </Tabs.Content>
@@ -256,7 +273,11 @@ function confirmCheckout() {
           {:else if view.checks.error}
             {@render sectionError(view.checks.error, "checks")}
           {:else}
-            <GithubPrSectionSkeleton rows={6} label="Loading checks" />
+            <GithubPrSectionSkeleton
+              variant="checks"
+              rows={6}
+              label="Loading checks"
+            />
           {/if}
         </ScrollArea>
       </Tabs.Content>

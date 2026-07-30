@@ -17,6 +17,7 @@ let {
   active = false,
   disabled = false,
   loading = false,
+  loadingVariant = "ring",
   showLabel = false,
   dense = false,
   class: className,
@@ -35,6 +36,7 @@ let {
   disabled?: boolean;
   /** Swaps the icon for a spinner while an action is in flight. */
   loading?: boolean;
+  loadingVariant?: "ring" | "refresh";
   /** Renders the label next to the icon instead of icon-only. */
   showLabel?: boolean;
   /** Uses a compact icon-button size for dense rows. */
@@ -59,7 +61,7 @@ let {
   {onclick}
 >
   {#if loading}
-    <Spinner class="size-3" />
+    <Spinner variant={loadingVariant} class="size-3" aria-label={label} />
   {:else}
     <Icon aria-hidden="true" />
   {/if}

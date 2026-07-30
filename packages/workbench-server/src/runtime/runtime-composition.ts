@@ -369,6 +369,17 @@ export function composeRuntime(
           },
         });
       },
+      onGithubRequestCompleted: (observation) => {
+        if (observation.durationMs < 250) return;
+        void gitLogger.warn("Slow GitHub API request", {
+          durationMs: Math.round(observation.durationMs),
+          context: {
+            operation: observation.operation,
+            status: observation.status,
+            succeeded: observation.succeeded,
+          },
+        });
+      },
       onOverviewCompleted: (observation) => {
         if (observation.durationMs < 500) return;
         void gitLogger.warn("Slow Git overview", {

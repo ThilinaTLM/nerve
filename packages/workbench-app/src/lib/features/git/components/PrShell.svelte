@@ -91,9 +91,11 @@ $effect(() => {
   onRefresh={() =>
     activeCenterPrView && void refreshPrPane(activeCenterPrView.id)}
   onCheckout={() => void checkoutActivePr()}
-  onOpenExternal={() =>
-    activeCenterPrView?.core.data &&
-    window.open(activeCenterPrView.core.data.url, "_blank", "noopener")}
+  onOpenExternal={() => {
+    const url =
+      activeCenterPrView?.core.data?.url ?? activeCenterPrView?.summary?.url;
+    if (url) window.open(url, "_blank", "noopener");
+  }}
   onTabChange={(tab) =>
     activeCenterPrView && selectPrTab(activeCenterPrView.id, tab)}
   onSectionRetry={retrySection}

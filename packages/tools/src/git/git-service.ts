@@ -36,7 +36,11 @@ import {
   runGitCommand,
 } from "./git-command.js";
 import { GitWorkflowError } from "./git-errors.js";
-import { isGithubRemoteUrl, parseGitRemoteUrls } from "./git-github-parsers.js";
+import { GithubApiClient } from "./git-github-api-client.js";
+import {
+  parseGithubRepositoryRemote,
+  parseGitRemoteUrls,
+} from "./git-github-parsers.js";
 import {
   checkoutPr as checkoutGithubPr,
   type GithubServiceContext,
@@ -73,6 +77,7 @@ const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next"]);
 
 export class GitService {
   readonly #stableMetadataCache: GitRepositoryMetadataCache;
+  readonly #githubApi: GithubApiClient;
 
   constructor(
     readonly getProject: (projectId: string) => GitWorkspaceRef,
@@ -83,6 +88,19 @@ export class GitService {
       options.stableMetadataTtlMs ?? 30_000,
       options.now ?? Date.now,
     );
+    this.#githubApi = new GithubApiClient({
+      tokenProvider: async (hostname) =>
+        (
+          await this.runGh(process.cwd(), [
+            "auth",
+            "token",
+            "--hostname",
+            hostname,
+          ])
+        ).stdout,
+      now: options.now,
+      onRequestCompleted: options.onGithubRequestCompleted,
+    });
   }
 
   static forWorkspace(rootDir: string, name = basename(rootDir)): GitService {
@@ -171,16 +189,21 @@ export class GitService {
 
   async repoRemoteState(
     repoDir: string,
-  ): Promise<{ hasRemote: boolean; hasGithubRemote: boolean }> {
+  ): Promise<StableRepoMetadata["remoteState"]> {
     try {
       const { stdout } = await this.runGit(repoDir, ["remote", "-v"]);
-      const urls = parseGitRemoteUrls(stdout);
+      const githubRepository = parseGithubRepositoryRemote(stdout);
       return {
-        hasRemote: stdout.trim().length > 0,
-        hasGithubRemote: urls.some(isGithubRemoteUrl),
+        hasRemote: parseGitRemoteUrls(stdout).length > 0,
+        hasGithubRemote: githubRepository !== null,
+        githubRepository,
       };
     } catch {
-      return { hasRemote: false, hasGithubRemote: false };
+      return {
+        hasRemote: false,
+        hasGithubRemote: false,
+        githubRepository: null,
+      };
     }
   }
 
@@ -853,6 +876,7 @@ export class GitService {
         this.resolveRepoDir(projectId, relativePath),
       repoRemoteState: async (repoDir) =>
         (await this.stableRepoMetadata(repoDir)).remoteState,
+      githubApi: this.#githubApi,
       runGh: (repoDir, args) => this.runGh(repoDir, args),
       runGit: (repoDir, args) => this.runGit(repoDir, args),
       ensureGithubRemote: (repoDir) => this.ensureGithubRemote(repoDir),
@@ -896,6 +920,8 @@ export { GitCommandError } from "./git-command.js";
 export {
   isGithubRemoteUrl,
   parseGithubChecks,
+  parseGithubRepositoryRemote,
+  parseGithubRepositoryUrl,
   parseGitRemoteUrls,
   summarizeChecks,
   summarizeStatusCheckRollup,

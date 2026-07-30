@@ -266,6 +266,7 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         checks: { loading: false, refreshing: false },
         files: { loading: false, refreshing: false },
         activeTab: "conversation",
+        refreshing: false,
         merging: false,
       };
     }

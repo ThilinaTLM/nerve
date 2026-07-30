@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- GitHub workflows share one typed mapping boundary across GraphQL and REST resources. */
 import type {
   GithubPr,
   GithubPrCheckoutResponse,
@@ -7,8 +8,8 @@ import type {
   GithubPrCore,
   GithubPrFile,
   GithubPrFilesResponse,
-  GithubPrListFilters,
   GithubPrInitial,
+  GithubPrListFilters,
   GithubPrListResponse,
   GithubPrMergeMethod,
   GithubPrMergeResponse,
@@ -17,27 +18,30 @@ import type {
   GitRepoSummary,
 } from "@nervekit/contracts";
 import { GitWorkflowError } from "./git-errors.js";
+import type { GithubApiClient } from "./git-github-api-client.js";
 import {
   noChecksSummary,
-  parseGithubChecks,
   summarizeStatusCheckRollup,
 } from "./git-github-parsers.js";
+import type { GithubRepositoryRef } from "./git-github-parsers.js";
 import { parsePorcelainV2 } from "./git-status.js";
 
 type ExecResult = { stdout: string; stderr: string };
-
 type GitCommandLikeError = Error & {
   code: number | null;
   stdout: string;
   stderr: string;
 };
+type RemoteState = {
+  hasRemote: boolean;
+  hasGithubRemote: boolean;
+  githubRepository: GithubRepositoryRef | null;
+};
 
 export type GithubServiceContext = {
   resolveRepoDir(projectId: string, relativePath: string): string;
-  repoRemoteState(repoDir: string): Promise<{
-    hasRemote: boolean;
-    hasGithubRemote: boolean;
-  }>;
+  repoRemoteState(repoDir: string): Promise<RemoteState>;
+  githubApi: GithubApiClient;
   runGh(repoDir: string, args: string[]): Promise<ExecResult>;
   runGit(repoDir: string, args: string[]): Promise<ExecResult>;
   ensureGithubRemote(repoDir: string): Promise<void>;
@@ -52,160 +56,17 @@ export type GithubServiceContext = {
   isGitCommandError(error: unknown): error is GitCommandLikeError;
 };
 
-export async function githubStatus(
-  context: GithubServiceContext,
-  projectId: string,
-  relativePath: string,
-): Promise<GithubStatusResponse> {
-  const repoDir = context.resolveRepoDir(projectId, relativePath);
-  const remoteState = await context.repoRemoteState(repoDir);
-  if (!remoteState.hasRemote) {
-    return {
-      available: false,
-      authenticated: false,
-      login: null,
-      reason: "No remote repository configured.",
-    };
-  }
-  if (!remoteState.hasGithubRemote) {
-    return {
-      available: false,
-      authenticated: false,
-      login: null,
-      reason: "Remote repository is not GitHub.",
-    };
-  }
-
-  try {
-    await context.runGh(repoDir, ["--version"]);
-  } catch {
-    return {
-      available: false,
-      authenticated: false,
-      login: null,
-      reason: "GitHub CLI (gh) is not installed.",
-    };
-  }
-  try {
-    const { stdout } = await context.runGh(repoDir, [
-      "api",
-      "user",
-      "--jq",
-      ".login",
-    ]);
-    const login = stdout.trim();
-    return {
-      available: true,
-      authenticated: login.length > 0,
-      login: login.length > 0 ? login : null,
-    };
-  } catch (error) {
-    return {
-      available: true,
-      authenticated: false,
-      login: null,
-      reason: context.isGitCommandError(error)
-        ? "Not authenticated. Run `gh auth login`."
-        : "GitHub authentication check failed.",
-    };
-  }
-}
-
-export function githubPrListArgs(filters: GithubPrListFilters): string[] {
-  const args = ["pr", "list", "--state", "open", "--limit", "10"];
-  if (filters.author === "me") args.push("--author", "@me");
-  if (filters.author === "username" && filters.username) {
-    args.push("--author", filters.username);
-  }
-  if (filters.head) args.push("--head", filters.head);
-  for (const label of filters.labels) args.push("--label", label);
-
-  const search = [`sort:${filters.sort}`];
-  if (filters.title) search.push(`in:title ${quoteSearchValue(filters.title)}`);
-  if (filters.drafts === "exclude") search.push("draft:false");
-  if (filters.drafts === "only") search.push("draft:true");
-  args.push("--search", search.join(" "));
-  args.push(
-    "--json",
-    "number,title,url,state,isDraft,headRefName,baseRefName,updatedAt,statusCheckRollup",
-  );
-  return args;
-}
-
-function quoteSearchValue(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-}
-
-export async function listOpenPrs(
-  context: GithubServiceContext,
-  projectId: string,
-  relativePath: string,
-  filters: GithubPrListFilters,
-): Promise<GithubPrListResponse> {
-  const repoDir = context.resolveRepoDir(projectId, relativePath);
-  await context.ensureGithubRemote(repoDir);
-  const { stdout } = await context.mapGh(() =>
-    context.runGh(repoDir, githubPrListArgs(filters)),
-  );
-  const raw = JSON.parse(stdout || "[]") as Array<{
-    number: number;
-    title: string;
-    url: string;
-    state: string;
-    isDraft: boolean;
-    headRefName: string;
-    baseRefName: string;
-    updatedAt: string;
-    statusCheckRollup?: unknown[] | null;
-  }>;
-  return {
-    prs: raw.slice(0, 10).map(
-      (pr): GithubPr => ({
-        number: pr.number,
-        title: pr.title,
-        url: pr.url,
-        state: pr.state,
-        isDraft: pr.isDraft,
-        headRefName: pr.headRefName,
-        baseRefName: pr.baseRefName,
-        updatedAt: pr.updatedAt,
-        checks: summarizeStatusCheckRollup(pr.statusCheckRollup),
-      }),
-    ),
-  };
-}
-
-async function loadPrChecks(
-  context: GithubServiceContext,
-  repoDir: string,
-  number: number,
-): Promise<ReturnType<typeof noChecksSummary>> {
-  try {
-    const { stdout } = await context.runGh(repoDir, [
-      "pr",
-      "checks",
-      String(number),
-      "--json",
-      "name,state,link",
-    ]);
-    return parseGithubChecks(stdout);
-  } catch (error) {
-    if (context.isGitCommandError(error) && error.stdout.trim().length > 0) {
-      try {
-        return parseGithubChecks(error.stdout);
-      } catch {
-        // Fall through to the no-checks fallback below.
-      }
-    }
-    return noChecksSummary();
-  }
-}
-
-type GithubAuthorRaw = {
-  login?: string;
-  avatarUrl?: string;
+type GithubAuthorRaw = { login?: string; avatarUrl?: string } | null;
+type GithubCheckRollupRaw = {
+  contexts?: { nodes?: unknown[] | null } | null;
 } | null;
-
+type GithubCommitNodeRaw = {
+  oid: string;
+  messageHeadline?: string;
+  authoredDate?: string;
+  authors?: { nodes?: Array<{ name?: string } | null> | null } | null;
+  statusCheckRollup?: GithubCheckRollupRaw;
+};
 type GithubPrDetailRaw = {
   number: number;
   title: string;
@@ -226,116 +87,281 @@ type GithubPrDetailRaw = {
   mergeable?: string | null;
   mergeStateStatus?: string | null;
   reviewDecision?: string | null;
-  comments?: Array<{
-    id?: string;
-    databaseId?: number;
-    author?: GithubAuthorRaw;
-    body?: string;
-    createdAt?: string;
-    updatedAt?: string;
-    url?: string;
-  }>;
-  reviews?: Array<{
-    id?: string;
-    databaseId?: number;
-    author?: GithubAuthorRaw;
-    state?: string;
-    body?: string;
-    submittedAt?: string;
-    url?: string;
-  }>;
-  labels?: Array<{ name?: string; color?: string }>;
-  reviewRequests?: Array<{
-    login?: string;
-    avatarUrl?: string;
-    requestedReviewer?: { login?: string; avatarUrl?: string };
-  }>;
-  commits?: Array<{
-    oid: string;
-    messageHeadline?: string;
-    authoredDate?: string;
-    authors?: Array<{ name?: string }>;
-  }>;
+  comments?: {
+    nodes?: Array<{
+      id?: string;
+      databaseId?: number;
+      author?: GithubAuthorRaw;
+      body?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      url?: string;
+    } | null> | null;
+  } | null;
+  reviews?: {
+    nodes?: Array<{
+      id?: string;
+      databaseId?: number;
+      author?: GithubAuthorRaw;
+      state?: string;
+      body?: string;
+      submittedAt?: string;
+      url?: string;
+    } | null> | null;
+  } | null;
+  labels?: {
+    nodes?: Array<{ name?: string; color?: string } | null> | null;
+  } | null;
+  reviewRequests?: {
+    nodes?: Array<{
+      requestedReviewer?: {
+        login?: string;
+        slug?: string;
+        avatarUrl?: string;
+      } | null;
+    } | null> | null;
+  } | null;
+  commits?: {
+    nodes?: Array<{ commit?: GithubCommitNodeRaw } | null> | null;
+  } | null;
 };
-
-type GithubRepoMergeRaw = {
-  nameWithOwner?: string;
+type GithubRepoRaw = {
   mergeCommitAllowed?: boolean;
   squashMergeAllowed?: boolean;
   rebaseMergeAllowed?: boolean;
+  pullRequest?: GithubPrDetailRaw | null;
 };
+type RepositoryResponse = { repository?: GithubRepoRaw | null };
 
-export function allowedMergeMethods(
-  raw: GithubRepoMergeRaw,
-): GithubPrMergeMethod[] {
-  const methods: GithubPrMergeMethod[] = [];
-  if (raw.mergeCommitAllowed) methods.push("merge");
-  if (raw.squashMergeAllowed) methods.push("squash");
-  if (raw.rebaseMergeAllowed) methods.push("rebase");
-  return methods;
-}
-
-async function repoMergeSettings(
-  context: GithubServiceContext,
-  repoDir: string,
-): Promise<{ nameWithOwner: string; allowedMethods: GithubPrMergeMethod[] }> {
-  const { stdout } = await context.mapGh(() =>
-    context.runGh(repoDir, [
-      "repo",
-      "view",
-      "--json",
-      "nameWithOwner,mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed",
-    ]),
-  );
-  const raw = JSON.parse(stdout || "{}") as GithubRepoMergeRaw;
-  return {
-    nameWithOwner: raw.nameWithOwner ?? "{owner}/{repo}",
-    allowedMethods: allowedMergeMethods(raw),
-  };
-}
-
-async function prBehindBy(
-  context: GithubServiceContext,
-  repoDir: string,
-  nameWithOwner: string,
-  baseOid: string,
-  headOid: string,
-): Promise<number | null> {
-  if (!baseOid || !headOid) return null;
-  try {
-    const { stdout } = await context.runGh(repoDir, [
-      "api",
-      `repos/${nameWithOwner}/compare/${baseOid}...${headOid}`,
-      "--jq",
-      ".behind_by",
-    ]);
-    const value = Number(stdout.trim());
-    return Number.isInteger(value) && value >= 0 ? value : null;
-  } catch {
-    return null;
+const CORE_FIELDS = `
+  number title url state isDraft headRefName baseRefName headRefOid baseRefOid
+  updatedAt createdAt additions deletions changedFiles
+  author { login avatarUrl }
+`;
+const CONVERSATION_FIELDS = `
+  body createdAt updatedAt
+  comments(first: 100) {
+    nodes { id databaseId body createdAt updatedAt url author { login avatarUrl } }
   }
+  reviews(first: 100) {
+    nodes { id databaseId state body submittedAt url author { login avatarUrl } }
+  }
+`;
+const OVERVIEW_FIELDS = `
+  headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
+  labels(first: 100) { nodes { name color } }
+  reviewRequests(first: 100) {
+    nodes {
+      requestedReviewer {
+        ... on User { login avatarUrl }
+        ... on Team { slug avatarUrl }
+      }
+    }
+  }
+`;
+const CHECK_FIELDS = `
+  commits(last: 1) {
+    nodes {
+      commit {
+        statusCheckRollup {
+          contexts(first: 100) {
+            nodes {
+              __typename
+              ... on CheckRun { name status conclusion detailsUrl }
+              ... on StatusContext { context state targetUrl }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+const REPOSITORY_SETTINGS_FIELDS = `
+  mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
+`;
+
+function repositoryQuery(fields: string, includeSettings = false): string {
+  return `query PullRequest($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+      ${includeSettings ? REPOSITORY_SETTINGS_FIELDS : ""}
+      pullRequest(number: $number) { ${fields} }
+    }
+  }`;
 }
 
-async function viewPr(
-  context: GithubServiceContext,
-  repoDir: string,
-  number: number,
-  fields: string,
-): Promise<GithubPrDetailRaw> {
-  const { stdout } = await context.mapGh(() =>
-    context.runGh(repoDir, ["pr", "view", String(number), "--json", fields]),
-  );
-  return JSON.parse(stdout || "{}") as GithubPrDetailRaw;
+function variables(repository: GithubRepositoryRef, number: number) {
+  return { owner: repository.owner, repo: repository.repo, number };
+}
+
+function requireRepository(data: RepositoryResponse): GithubRepoRaw {
+  if (!data.repository)
+    throw new GitWorkflowError(
+      404,
+      "GH_NOT_FOUND",
+      "GitHub repository not found.",
+    );
+  return data.repository;
+}
+
+function requirePr(repository: GithubRepoRaw): GithubPrDetailRaw {
+  if (!repository.pullRequest)
+    throw new GitWorkflowError(404, "GH_NOT_FOUND", "Pull request not found.");
+  return repository.pullRequest;
 }
 
 async function preparePr(
   context: GithubServiceContext,
   projectId: string,
   relativePath: string,
-): Promise<string> {
+): Promise<{ repoDir: string; repository: GithubRepositoryRef }> {
   const repoDir = context.resolveRepoDir(projectId, relativePath);
   await context.ensureGithubRemote(repoDir);
-  return repoDir;
+  const repository = (await context.repoRemoteState(repoDir)).githubRepository;
+  if (!repository)
+    throw new GitWorkflowError(
+      409,
+      "GH_NO_GITHUB_REMOTE",
+      "This repository does not have a GitHub remote configured.",
+    );
+  return { repoDir, repository };
+}
+
+export async function githubStatus(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+): Promise<GithubStatusResponse> {
+  const repoDir = context.resolveRepoDir(projectId, relativePath);
+  const remoteState = await context.repoRemoteState(repoDir);
+  if (!remoteState.hasRemote)
+    return {
+      available: false,
+      authenticated: false,
+      login: null,
+      reason: "No remote repository configured.",
+    };
+  if (!remoteState.githubRepository)
+    return {
+      available: false,
+      authenticated: false,
+      login: null,
+      reason: "Remote repository is not GitHub.",
+    };
+  try {
+    const user = await context.githubApi.rest<{ login?: string }>(
+      remoteState.githubRepository,
+      "/user",
+      { operation: "github-status" },
+    );
+    const login = user.login?.trim() ?? "";
+    return {
+      available: true,
+      authenticated: Boolean(login),
+      login: login || null,
+    };
+  } catch (error) {
+    if (error instanceof GitWorkflowError) {
+      if (error.code === "GH_CLI_UNAVAILABLE")
+        return {
+          available: false,
+          authenticated: false,
+          login: null,
+          reason: error.message,
+        };
+      if (error.code === "GH_AUTH_REQUIRED")
+        return {
+          available: true,
+          authenticated: false,
+          login: null,
+          reason: error.message,
+        };
+    }
+    return {
+      available: true,
+      authenticated: false,
+      login: null,
+      reason: "GitHub authentication check failed.",
+    };
+  }
+}
+
+function quoteSearchValue(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+export function githubPrSearch(filters: GithubPrListFilters): string {
+  const search = ["is:pr", "is:open"];
+  if (filters.author === "me") search.push("author:@me");
+  if (filters.author === "username" && filters.username)
+    search.push(`author:${quoteSearchValue(filters.username)}`);
+  if (filters.head) search.push(`head:${quoteSearchValue(filters.head)}`);
+  for (const label of filters.labels)
+    search.push(`label:${quoteSearchValue(label)}`);
+  if (filters.title) search.push(`in:title ${quoteSearchValue(filters.title)}`);
+  if (filters.drafts === "exclude") search.push("draft:false");
+  if (filters.drafts === "only") search.push("draft:true");
+  search.push(
+    `sort:updated-${filters.sort === "updated-asc" ? "asc" : "desc"}`,
+  );
+  return search.join(" ");
+}
+
+const PR_LIST_QUERY = `query PullRequests($query: String!) {
+  search(query: $query, type: ISSUE, first: 10) {
+    nodes {
+      ... on PullRequest {
+        number title url state isDraft headRefName baseRefName updatedAt
+        ${CHECK_FIELDS}
+      }
+    }
+  }
+}`;
+
+function checkRollup(raw: GithubPrDetailRaw): readonly unknown[] | null {
+  return (
+    raw.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? null
+  );
+}
+
+export async function listOpenPrs(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  filters: GithubPrListFilters,
+): Promise<GithubPrListResponse> {
+  const { repository } = await preparePr(context, projectId, relativePath);
+  const data = await context.githubApi.graphql<{
+    search?: { nodes?: Array<GithubPrDetailRaw | null> | null } | null;
+  }>(repository, "list-pull-requests", PR_LIST_QUERY, {
+    query: `repo:${repository.owner}/${repository.repo} ${githubPrSearch(filters)}`,
+  });
+  return {
+    prs: (data.search?.nodes ?? []).flatMap((raw) =>
+      raw
+        ? [
+            {
+              number: raw.number,
+              title: raw.title,
+              url: raw.url,
+              state: raw.state,
+              isDraft: raw.isDraft,
+              headRefName: raw.headRefName,
+              baseRefName: raw.baseRefName,
+              updatedAt: raw.updatedAt,
+              checks: summarizeStatusCheckRollup(checkRollup(raw)),
+            } satisfies GithubPr,
+          ]
+        : [],
+    ),
+  };
+}
+
+export function allowedMergeMethods(raw: GithubRepoRaw): GithubPrMergeMethod[] {
+  const methods: GithubPrMergeMethod[] = [];
+  if (raw.mergeCommitAllowed) methods.push("merge");
+  if (raw.squashMergeAllowed) methods.push("squash");
+  if (raw.rebaseMergeAllowed) methods.push("rebase");
+  return methods;
 }
 
 function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
@@ -358,10 +384,14 @@ function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
   };
 }
 
+function compact<T>(values: Array<T | null> | null | undefined): T[] {
+  return (values ?? []).filter((value): value is T => value !== null);
+}
+
 function mapPrConversation(raw: GithubPrDetailRaw): GithubPrConversation {
   return {
     body: raw.body ?? "",
-    comments: (raw.comments ?? []).map((comment, index) => ({
+    comments: compact(raw.comments?.nodes).map((comment, index) => ({
       id: String(comment.id ?? comment.databaseId ?? `comment-${index}`),
       author: comment.author?.login ?? null,
       authorAvatarUrl: comment.author?.avatarUrl,
@@ -370,7 +400,7 @@ function mapPrConversation(raw: GithubPrDetailRaw): GithubPrConversation {
       updatedAt: comment.updatedAt,
       url: comment.url,
     })),
-    reviews: (raw.reviews ?? []).map((review, index) => ({
+    reviews: compact(raw.reviews?.nodes).map((review, index) => ({
       id: String(review.id ?? review.databaseId ?? `review-${index}`),
       author: review.author?.login ?? null,
       authorAvatarUrl: review.author?.avatarUrl,
@@ -384,7 +414,7 @@ function mapPrConversation(raw: GithubPrDetailRaw): GithubPrConversation {
 
 function mapPrOverview(
   raw: GithubPrDetailRaw,
-  settings: { allowedMethods: GithubPrMergeMethod[] },
+  settings: GithubRepoRaw,
   behindBy: number | null,
 ): GithubPrOverview {
   return {
@@ -392,23 +422,56 @@ function mapPrOverview(
     mergeStateStatus: raw.mergeStateStatus ?? null,
     reviewDecision: raw.reviewDecision ?? null,
     behindBy,
-    labels: (raw.labels ?? [])
-      .filter((label): label is { name: string; color?: string } =>
-        Boolean(label.name),
-      )
-      .map((label) => ({ name: label.name, color: label.color })),
-    reviewRequests: (raw.reviewRequests ?? []).flatMap((request) => {
-      const reviewer = request.requestedReviewer ?? request;
-      return reviewer.login
-        ? [{ login: reviewer.login, avatarUrl: reviewer.avatarUrl }]
-        : [];
+    labels: compact(raw.labels?.nodes).flatMap((label) =>
+      label.name ? [{ name: label.name, color: label.color }] : [],
+    ),
+    reviewRequests: compact(raw.reviewRequests?.nodes).flatMap((request) => {
+      const reviewer = request.requestedReviewer;
+      const login = reviewer?.login ?? reviewer?.slug;
+      return login ? [{ login, avatarUrl: reviewer?.avatarUrl }] : [];
     }),
-    mergeSettings: { allowedMethods: settings.allowedMethods },
+    mergeSettings: { allowedMethods: allowedMergeMethods(settings) },
   };
 }
 
-const PR_INITIAL_FIELDS =
-  "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,baseRefOid,updatedAt,createdAt,author,additions,deletions,changedFiles,body,comments,reviews,mergeable,mergeStateStatus,reviewDecision,labels,reviewRequests";
+async function behindBy(
+  context: GithubServiceContext,
+  repository: GithubRepositoryRef,
+  baseOid: string,
+  headOid: string,
+): Promise<number | null> {
+  if (!baseOid || !headOid) return null;
+  try {
+    const result = await context.githubApi.rest<{ behind_by?: number }>(
+      repository,
+      `/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.repo)}/compare/${encodeURIComponent(baseOid)}...${encodeURIComponent(headOid)}`,
+      { operation: "compare-pull-request" },
+    );
+    return Number.isInteger(result.behind_by) && (result.behind_by ?? -1) >= 0
+      ? (result.behind_by ?? null)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadPr(
+  context: GithubServiceContext,
+  repository: GithubRepositoryRef,
+  number: number,
+  fields: string,
+  operation: string,
+  includeSettings = false,
+): Promise<{ raw: GithubPrDetailRaw; settings: GithubRepoRaw }> {
+  const data = await context.githubApi.graphql<RepositoryResponse>(
+    repository,
+    operation,
+    repositoryQuery(fields, includeSettings),
+    variables(repository, number),
+  );
+  const settings = requireRepository(data);
+  return { raw: requirePr(settings), settings };
+}
 
 export async function prInitial(
   context: GithubServiceContext,
@@ -416,22 +479,25 @@ export async function prInitial(
   relativePath: string,
   number: number,
 ): Promise<GithubPrInitial> {
-  const repoDir = await preparePr(context, projectId, relativePath);
-  const [raw, settings] = await Promise.all([
-    viewPr(context, repoDir, number, PR_INITIAL_FIELDS),
-    repoMergeSettings(context, repoDir),
-  ]);
-  const behindBy = await prBehindBy(
+  const { repository } = await preparePr(context, projectId, relativePath);
+  const { raw, settings } = await loadPr(
     context,
-    repoDir,
-    settings.nameWithOwner,
+    repository,
+    number,
+    `${CORE_FIELDS}${CONVERSATION_FIELDS}${OVERVIEW_FIELDS}`,
+    "pull-request-initial",
+    true,
+  );
+  const divergence = await behindBy(
+    context,
+    repository,
     raw.baseRefOid ?? "",
     raw.headRefOid ?? "",
   );
   return {
     core: mapPrCore(raw),
     conversation: mapPrConversation(raw),
-    overview: mapPrOverview(raw, settings, behindBy),
+    overview: mapPrOverview(raw, settings, divergence),
   };
 }
 
@@ -441,14 +507,18 @@ export async function prCore(
   relativePath: string,
   number: number,
 ): Promise<GithubPrCore> {
-  const repoDir = await preparePr(context, projectId, relativePath);
-  const raw = await viewPr(
-    context,
-    repoDir,
-    number,
-    "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,baseRefOid,updatedAt,createdAt,author,additions,deletions,changedFiles",
+  const { repository } = await preparePr(context, projectId, relativePath);
+  return mapPrCore(
+    (
+      await loadPr(
+        context,
+        repository,
+        number,
+        CORE_FIELDS,
+        "pull-request-core",
+      )
+    ).raw,
   );
-  return mapPrCore(raw);
 }
 
 export async function prConversation(
@@ -457,14 +527,18 @@ export async function prConversation(
   relativePath: string,
   number: number,
 ): Promise<GithubPrConversation> {
-  const repoDir = await preparePr(context, projectId, relativePath);
-  const raw = await viewPr(
-    context,
-    repoDir,
-    number,
-    "body,comments,reviews,createdAt,updatedAt",
+  const { repository } = await preparePr(context, projectId, relativePath);
+  return mapPrConversation(
+    (
+      await loadPr(
+        context,
+        repository,
+        number,
+        CONVERSATION_FIELDS,
+        "pull-request-conversation",
+      )
+    ).raw,
   );
-  return mapPrConversation(raw);
 }
 
 export async function prOverview(
@@ -473,25 +547,30 @@ export async function prOverview(
   relativePath: string,
   number: number,
 ): Promise<GithubPrOverview> {
-  const repoDir = await preparePr(context, projectId, relativePath);
-  const [raw, settings] = await Promise.all([
-    viewPr(
-      context,
-      repoDir,
-      number,
-      "headRefOid,baseRefOid,mergeable,mergeStateStatus,reviewDecision,labels,reviewRequests",
-    ),
-    repoMergeSettings(context, repoDir),
-  ]);
-  const behindBy = await prBehindBy(
+  const { repository } = await preparePr(context, projectId, relativePath);
+  const { raw, settings } = await loadPr(
     context,
-    repoDir,
-    settings.nameWithOwner,
-    raw.baseRefOid ?? "",
-    raw.headRefOid ?? "",
+    repository,
+    number,
+    OVERVIEW_FIELDS,
+    "pull-request-overview",
+    true,
   );
-  return mapPrOverview(raw, settings, behindBy);
+  return mapPrOverview(
+    raw,
+    settings,
+    await behindBy(
+      context,
+      repository,
+      raw.baseRefOid ?? "",
+      raw.headRefOid ?? "",
+    ),
+  );
 }
+
+const COMMITS_FIELDS = `commits(first: 100) {
+  nodes { commit { oid messageHeadline authoredDate authors(first: 1) { nodes { name } } } }
+}`;
 
 export async function prCommits(
   context: GithubServiceContext,
@@ -499,16 +578,31 @@ export async function prCommits(
   relativePath: string,
   number: number,
 ): Promise<GithubPrCommitsResponse> {
-  const repoDir = await preparePr(context, projectId, relativePath);
-  const raw = await viewPr(context, repoDir, number, "commits");
+  const { repository } = await preparePr(context, projectId, relativePath);
+  const raw = (
+    await loadPr(
+      context,
+      repository,
+      number,
+      COMMITS_FIELDS,
+      "pull-request-commits",
+    )
+  ).raw;
   return {
-    commits: (raw.commits ?? []).map((commit) => ({
-      oid: commit.oid,
-      abbrev: commit.oid.slice(0, 7),
-      messageHeadline: commit.messageHeadline ?? "",
-      authoredDate: commit.authoredDate,
-      authorName: commit.authors?.[0]?.name,
-    })),
+    commits: compact(raw.commits?.nodes).flatMap((node) => {
+      const commit = node.commit;
+      return commit
+        ? [
+            {
+              oid: commit.oid,
+              abbrev: commit.oid.slice(0, 7),
+              messageHeadline: commit.messageHeadline ?? "",
+              authoredDate: commit.authoredDate,
+              authorName: compact(commit.authors?.nodes)[0]?.name,
+            },
+          ]
+        : [];
+    }),
   };
 }
 
@@ -518,28 +612,26 @@ export async function prChecks(
   relativePath: string,
   number: number,
 ): Promise<GithubPrChecksResponse> {
-  const repoDir = await preparePr(context, projectId, relativePath);
-  return { checks: await loadPrChecks(context, repoDir, number) };
+  const { repository } = await preparePr(context, projectId, relativePath);
+  const raw = (
+    await loadPr(
+      context,
+      repository,
+      number,
+      CHECK_FIELDS,
+      "pull-request-checks",
+    )
+  ).raw;
+  return {
+    checks: raw.commits
+      ? summarizeStatusCheckRollup(checkRollup(raw))
+      : noChecksSummary(),
+  };
 }
 
 const MAX_PR_FILES = 300;
 const PR_FILES_PER_PAGE = 100;
 const MAX_PR_PATCH_BYTES = 2 * 1024 * 1024;
-
-function truncateUtf8(value: string, maxBytes: number): string {
-  if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
-  let low = 0;
-  let high = value.length;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    if (Buffer.byteLength(value.slice(0, middle), "utf8") <= maxBytes) {
-      low = middle;
-    } else {
-      high = middle - 1;
-    }
-  }
-  return value.slice(0, low);
-}
 
 type GithubPrFileRaw = {
   filename?: string;
@@ -550,6 +642,19 @@ type GithubPrFileRaw = {
   changes?: number;
   patch?: string;
 };
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(value.slice(0, middle), "utf8") <= maxBytes)
+      low = middle;
+    else high = middle - 1;
+  }
+  return value.slice(0, low);
+}
 
 function fileStatus(value?: string): GithubPrFile["status"] {
   switch (value) {
@@ -572,49 +677,39 @@ export async function prFiles(
   relativePath: string,
   number: number,
 ): Promise<GithubPrFilesResponse> {
-  const repoDir = context.resolveRepoDir(projectId, relativePath);
-  await context.ensureGithubRemote(repoDir);
-  const countResult = await context.mapGh(() =>
-    context.runGh(repoDir, [
-      "pr",
-      "view",
-      String(number),
-      "--json",
-      "changedFiles",
-      "--jq",
-      ".changedFiles",
-    ]),
+  const { repository } = await preparePr(context, projectId, relativePath);
+  const root = `/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.repo)}/pulls/${number}`;
+  const detailPromise = context.githubApi.rest<{ changed_files?: number }>(
+    repository,
+    root,
+    { operation: "pull-request-file-count" },
   );
   const rawFiles: GithubPrFileRaw[] = [];
   for (let page = 1; page <= MAX_PR_FILES / PR_FILES_PER_PAGE; page += 1) {
-    const { stdout } = await context.mapGh(() =>
-      context.runGh(repoDir, [
-        "api",
-        `repos/{owner}/{repo}/pulls/${number}/files?per_page=${PR_FILES_PER_PAGE}&page=${page}`,
-      ]),
+    const pageFiles = await context.githubApi.rest<GithubPrFileRaw[]>(
+      repository,
+      `${root}/files?per_page=${PR_FILES_PER_PAGE}&page=${page}`,
+      { operation: "pull-request-files" },
     );
-    const pageFiles = JSON.parse(stdout || "[]") as GithubPrFileRaw[];
     rawFiles.push(...pageFiles);
     if (pageFiles.length < PR_FILES_PER_PAGE) break;
   }
-  const totalValue = Number(countResult.stdout.trim());
-  const totalCount = Number.isInteger(totalValue)
-    ? totalValue
+  const detail = await detailPromise;
+  const totalCount = Number.isInteger(detail.changed_files)
+    ? (detail.changed_files ?? rawFiles.length)
     : rawFiles.length;
   let patchBytesRemaining = MAX_PR_PATCH_BYTES;
   let boundedPatches = false;
   const files = rawFiles.slice(0, MAX_PR_FILES).flatMap((file) => {
     if (!file.filename) return [];
-    const rawPatch = file.patch;
-    let patch: string | null = rawPatch ?? null;
-    let patchTruncated = false;
-    if (rawPatch) {
-      const bounded = truncateUtf8(rawPatch, patchBytesRemaining);
-      patch = bounded.length > 0 ? bounded : null;
-      patchTruncated = bounded.length < rawPatch.length;
-      boundedPatches ||= patchTruncated;
-      patchBytesRemaining -= Buffer.byteLength(bounded, "utf8");
-    }
+    const bounded = file.patch
+      ? truncateUtf8(file.patch, patchBytesRemaining)
+      : "";
+    const patchTruncated = Boolean(
+      file.patch && bounded.length < file.patch.length,
+    );
+    boundedPatches ||= patchTruncated;
+    patchBytesRemaining -= Buffer.byteLength(bounded, "utf8");
     return [
       {
         path: file.filename,
@@ -623,7 +718,7 @@ export async function prFiles(
         additions: file.additions ?? 0,
         deletions: file.deletions ?? 0,
         changes: file.changes ?? 0,
-        patch,
+        patch: bounded || null,
         patchTruncated,
       },
     ];
@@ -635,12 +730,6 @@ export async function prFiles(
   };
 }
 
-const mergeMethodFlag: Record<GithubPrMergeMethod, string> = {
-  merge: "--merge",
-  squash: "--squash",
-  rebase: "--rebase",
-};
-
 export async function mergePr(
   context: GithubServiceContext,
   projectId: string,
@@ -649,44 +738,46 @@ export async function mergePr(
   method: GithubPrMergeMethod,
   expectedHeadOid: string,
 ): Promise<GithubPrMergeResponse> {
-  const repoDir = context.resolveRepoDir(projectId, relativePath);
-  await context.ensureGithubRemote(repoDir);
-  const [settings, urlResult] = await Promise.all([
-    repoMergeSettings(context, repoDir),
-    context.mapGh(() =>
-      context.runGh(repoDir, [
-        "pr",
-        "view",
-        String(number),
-        "--json",
-        "url",
-        "--jq",
-        ".url",
-      ]),
-    ),
-  ]);
-  if (!settings.allowedMethods.includes(method)) {
+  const { repoDir, repository } = await preparePr(
+    context,
+    projectId,
+    relativePath,
+  );
+  const settingsData = await context.githubApi.graphql<RepositoryResponse>(
+    repository,
+    "pull-request-merge-settings",
+    `query MergeSettings($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) { ${REPOSITORY_SETTINGS_FIELDS} }
+    }`,
+    { owner: repository.owner, repo: repository.repo },
+  );
+  const settings = requireRepository(settingsData);
+  if (!allowedMergeMethods(settings).includes(method))
     throw new GitWorkflowError(
       409,
       "GH_PR_MERGE_METHOD_DISABLED",
       `The repository does not allow the ${method} merge method.`,
     );
-  }
-  await context.mapGh(() =>
-    context.runGh(repoDir, [
-      "pr",
-      "merge",
-      String(number),
-      mergeMethodFlag[method],
-      "--match-head-commit",
-      expectedHeadOid,
-    ]),
+  const result = await context.githubApi.rest<{ merged?: boolean }>(
+    repository,
+    `/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.repo)}/pulls/${number}/merge`,
+    {
+      method: "PUT",
+      operation: "merge-pull-request",
+      body: { merge_method: method, sha: expectedHeadOid },
+    },
   );
+  if (!result.merged)
+    throw new GitWorkflowError(
+      409,
+      "GH_CONFLICT",
+      "GitHub could not merge the pull request.",
+    );
   context.invalidateStableMetadata(repoDir);
   return {
     number,
     merged: true,
-    url: urlResult.stdout.trim(),
+    url: `https://github.com/${repository.owner}/${repository.repo}/pull/${number}`,
   };
 }
 
@@ -696,18 +787,16 @@ export async function checkoutPr(
   relativePath: string,
   number: number,
 ): Promise<GithubPrCheckoutResponse> {
-  const repoDir = context.resolveRepoDir(projectId, relativePath);
-  await context.ensureGithubRemote(repoDir);
+  const { repoDir } = await preparePr(context, projectId, relativePath);
   const { files } = parsePorcelainV2(
     (await context.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
   );
-  if (files.length > 0) {
+  if (files.length > 0)
     throw new GitWorkflowError(
       409,
       "GIT_DIRTY_WORKTREE",
       "Working tree has uncommitted changes. Commit or stash them before checking out a PR.",
     );
-  }
   await context.mapGh(() =>
     context.runGh(repoDir, ["pr", "checkout", String(number)]),
   );

@@ -1,4 +1,5 @@
 import type {
+  GithubPr,
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
   GithubPrConversation,
@@ -25,6 +26,7 @@ export type PrViewState = {
   /** Relative repo path ("." for the project root). */
   repo: string;
   number: number;
+  summary?: GithubPr;
   core: PrResourceState<GithubPrCore>;
   conversation: PrResourceState<GithubPrConversation>;
   overview: PrResourceState<GithubPrOverview>;
@@ -34,6 +36,8 @@ export type PrViewState = {
   activeTab: GithubPrTab;
   selectedFilePath?: string;
   selectedMergeMethod?: GithubPrMergeMethod;
+  refreshing: boolean;
+  refreshError?: string;
   merging: boolean;
   mergeError?: string;
 };

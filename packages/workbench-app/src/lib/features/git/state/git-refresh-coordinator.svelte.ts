@@ -35,6 +35,7 @@ import { GIT_STALE_MS, PR_PENDING_POLL_MS } from "./git-refresh-policy";
 export const GIT_RESOURCE_STALE_MS = GIT_STALE_MS;
 export const PR_CONVERSATION_STALE_MS = 60_000;
 const IMMUTABLE_HEAD_STALE_MS = Number.POSITIVE_INFINITY;
+const PR_DETAIL_CACHE_MS = 5 * 60_000;
 
 type LoadOptions = { force?: boolean; silent?: boolean };
 type Section = "conversation" | "overview" | "commits" | "checks" | "files";
@@ -75,18 +76,19 @@ async function fetchResource<T>(input: {
   if (!input.options?.force) {
     const queryState = queryClient.getQueryState<T>(input.key);
     const cached = queryClient.getQueryData<T>(input.key);
+    if (cached !== undefined && ownsResource(input.key, version)) {
+      if (input.resource.data !== cached) {
+        input.resource.data = cached;
+        input.apply?.(cached);
+      }
+      input.resource.error = undefined;
+    }
     if (
       cached !== undefined &&
       queryState?.dataUpdatedAt !== undefined &&
       Date.now() - queryState.dataUpdatedAt < input.staleTime
-    ) {
-      if (ownsResource(input.key, version) && input.resource.data !== cached) {
-        input.resource.data = cached;
-        input.resource.error = undefined;
-        input.apply?.(cached);
-      }
+    )
       return cached;
-    }
   }
 
   const request = (async (): Promise<T | undefined> => {
@@ -102,6 +104,7 @@ async function fetchResource<T>(input: {
         queryKey: input.key,
         queryFn: input.query,
         staleTime: input.staleTime,
+        gcTime: PR_DETAIL_CACHE_MS,
       });
       if (ownsResource(input.key, version)) {
         if (input.resource.data !== data) {
@@ -245,14 +248,13 @@ export async function loadPrInitial(
   if (!options.force) {
     const queryState = queryClient.getQueryState<GithubPrInitial>(initialKey);
     const cached = queryClient.getQueryData<GithubPrInitial>(initialKey);
+    if (cached !== undefined) applyInitial(cached);
     if (
       cached !== undefined &&
       queryState?.dataUpdatedAt !== undefined &&
       Date.now() - queryState.dataUpdatedAt < GIT_RESOURCE_STALE_MS
-    ) {
-      applyInitial(cached);
+    )
       return cached;
-    }
   }
 
   const resources = [view.core, view.conversation, view.overview] as const;
@@ -272,6 +274,7 @@ export async function loadPrInitial(
         queryFn: () =>
           getGithubPrInitial(view.projectId, view.repo, view.number),
         staleTime: GIT_RESOURCE_STALE_MS,
+        gcTime: PR_DETAIL_CACHE_MS,
       });
       applyInitial(data);
       return data;
@@ -440,14 +443,36 @@ export function demandPrTab(view: PrViewState): void {
 }
 
 export async function refreshCurrentPr(view: PrViewState): Promise<void> {
-  const sections: Section[] =
-    view.activeTab === "conversation"
-      ? ["conversation", "overview", "checks"]
-      : [view.activeTab];
-  await Promise.all([
-    loadPrCore(view, { force: true }),
-    ...sections.map((section) => loadPrSection(view, section, { force: true })),
-  ]);
+  if (view.refreshing) return;
+  view.refreshing = true;
+  view.refreshError = undefined;
+  const previousHeadOid = view.core.data?.headRefOid;
+  try {
+    await loadPrCore(view, { force: true });
+    const headChanged =
+      Boolean(previousHeadOid) &&
+      Boolean(view.core.data?.headRefOid) &&
+      previousHeadOid !== view.core.data?.headRefOid;
+    if (headChanged) {
+      view.commits.data = undefined;
+      view.commits.error = undefined;
+      view.files.data = undefined;
+      view.files.error = undefined;
+      view.selectedFilePath = undefined;
+    }
+    const sections: Section[] =
+      view.activeTab === "conversation"
+        ? ["conversation", "overview", "checks"]
+        : [view.activeTab];
+    await Promise.all(
+      sections.map((section) => loadPrSection(view, section, { force: true })),
+    );
+    view.refreshError =
+      view.core.error ??
+      sections.map((section) => view[section].error).find(Boolean);
+  } finally {
+    view.refreshing = false;
+  }
 }
 
 let activePrId: string | undefined;

@@ -65,9 +65,11 @@ export type GitPanelRepoState = {
   operations: GitPanelOperationsState;
   loadingOverview: boolean;
   loadingPrs: boolean;
+  prsError?: string;
   loadingBranches: boolean;
   prsRequestInFlight: boolean;
   prsRefreshQueued: boolean;
+  prsQueuedVisible: boolean;
   prsRequestSeq: number;
   overviewRequestInFlight: boolean;
   overviewRefreshQueued: boolean;
@@ -172,9 +174,11 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     operations: createOperationsState(),
     loadingOverview: false,
     loadingPrs: false,
+    prsError: undefined,
     loadingBranches: false,
     prsRequestInFlight: false,
     prsRefreshQueued: false,
+    prsQueuedVisible: false,
     prsRequestSeq: 0,
     overviewRequestInFlight: false,
     overviewRefreshQueued: false,
@@ -613,6 +617,14 @@ export function clearGithubState(
   }
   if (state.prsRefreshQueued) {
     state.prsRefreshQueued = false;
+    changed = true;
+  }
+  if (state.prsQueuedVisible) {
+    state.prsQueuedVisible = false;
+    changed = true;
+  }
+  if (state.prsError) {
+    state.prsError = undefined;
     changed = true;
   }
   if (changed) applyGitContextFromProject(projectId);
