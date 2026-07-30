@@ -2,12 +2,17 @@ import type {
   GitBranchListResponse,
   GitDiscoveryResponse,
   GithubPrCheckoutResponse,
-  GithubPrDetail,
+  GithubPrChecksResponse,
+  GithubPrCommitsResponse,
+  GithubPrConversation,
+  GithubPrCore,
   GithubPrFilesResponse,
+  GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
   GithubPrMergeMethod,
   GithubPrMergeResponse,
+  GithubPrOverview,
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
@@ -184,19 +189,69 @@ export async function listGithubPrs(
   ).result;
 }
 
-export async function getGithubPr(
+async function getGithubPrSection<T>(
+  operation:
+    | "github.pr.core.get"
+    | "github.pr.conversation.get"
+    | "github.pr.overview.get"
+    | "github.pr.commits.get"
+    | "github.pr.checks.get",
   projectId: string,
   repo: string,
   number: number,
-): Promise<GithubPrDetail> {
+): Promise<T> {
+  return (await protocolRequest(operation, { projectId, repo, number }))
+    .result as T;
+}
+
+export async function getGithubPrInitial(
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrInitial> {
   return (
-    await protocolRequest("github.pr.get", {
+    await protocolRequest("github.pr.initial.get", {
       projectId,
       repo,
       number,
     })
   ).result;
 }
+
+export const getGithubPrCore = (
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrCore> =>
+  getGithubPrSection("github.pr.core.get", projectId, repo, number);
+
+export const getGithubPrConversation = (
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrConversation> =>
+  getGithubPrSection("github.pr.conversation.get", projectId, repo, number);
+
+export const getGithubPrOverview = (
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrOverview> =>
+  getGithubPrSection("github.pr.overview.get", projectId, repo, number);
+
+export const getGithubPrCommits = (
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrCommitsResponse> =>
+  getGithubPrSection("github.pr.commits.get", projectId, repo, number);
+
+export const getGithubPrChecks = (
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrChecksResponse> =>
+  getGithubPrSection("github.pr.checks.get", projectId, repo, number);
 
 export async function getGithubPrFiles(
   projectId: string,

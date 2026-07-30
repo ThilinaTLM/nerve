@@ -2,7 +2,12 @@
 import Check from "@lucide/svelte/icons/check";
 import GitMerge from "@lucide/svelte/icons/git-merge";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import type { GithubPrDetail, GithubPrMergeMethod } from "@nervekit/contracts";
+import type {
+  GithubChecksSummary,
+  GithubPrCore,
+  GithubPrMergeMethod,
+  GithubPrOverview,
+} from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
@@ -17,7 +22,7 @@ import {
 } from "./pr-pane-helpers";
 
 type Props = {
-  detail: GithubPrDetail;
+  detail: GithubPrCore & GithubPrOverview & { checks: GithubChecksSummary };
   selectedMethod?: GithubPrMergeMethod;
   merging: boolean;
   error?: string;

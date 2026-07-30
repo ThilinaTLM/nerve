@@ -11,11 +11,12 @@ import {
 import type { ProjectRecord } from "$lib/api";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
+import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import {
   gitProjectStateKey,
   gitRepoStateKey,
 } from "$lib/core/state/state-keys";
-import { GIT_OVERVIEW_AUTO_REFRESH_MS } from "./git-context-helpers";
+import { GIT_AUTO_REFRESH_COOLDOWN_MS } from "./git-refresh-policy";
 import {
   autoRefreshGitOverview,
   bulkStageGitFiles,
@@ -27,9 +28,11 @@ import {
   pullGitRepo,
   pushGitRepo,
   refreshBranches,
+  refreshGithub,
   refreshGitOverview,
   refreshGitProject,
   refreshPrs,
+  scheduleAutomaticGitRefresh,
   selectGitProject,
   selectGitRepo,
   switchBaseAndPullGitRepo,
@@ -116,7 +119,7 @@ export function createWorkbenchGitPanelAdapter(
         refreshing:
           Boolean(projectState?.refreshingRepos) ||
           Boolean(
-            current?.loadingOverview &&
+            (current?.loadingOverview || current?.loadingPrs) &&
             (current.repoSummary || current.changes),
           ),
         loadingOverview: current?.loadingOverview ?? false,
@@ -141,18 +144,25 @@ export function createWorkbenchGitPanelAdapter(
       const project = activeProject();
       if (project) return refreshGitProject(project, { force: true });
     },
-    refreshRepository: (repository) => {
+    refreshRepository: async (repository) => {
       const project = activeProject();
       if (project)
-        return refreshGitOverview(project.id, repository, { force: true });
+        await Promise.all([
+          refreshGitOverview(project.id, repository, { force: true }),
+          refreshGithub(project.id, repository, true),
+        ]);
     },
     refreshBranches: (repository) => {
       const project = activeProject();
       if (project) return refreshBranches(project.id, repository);
     },
-    refreshPullRequests: (repository) => {
+    refreshPullRequests: async (repository) => {
       const project = activeProject();
-      if (project) return refreshPrs(project.id, repository);
+      if (project)
+        await Promise.all([
+          refreshGitOverview(project.id, repository, { force: true }),
+          refreshGithub(project.id, repository, true),
+        ]);
     },
     configurePullRequests: (repository, filters) => {
       const project = activeProject();
@@ -226,10 +236,6 @@ export function createWorkbenchGitPanelAdapter(
 
   let lastProjectId: string | undefined;
   $effect(() => {
-    if (!enabled()) {
-      lastProjectId = undefined;
-      return;
-    }
     const project = activeProject();
     if (project?.id === lastProjectId) return;
     lastProjectId = project?.id;
@@ -239,20 +245,18 @@ export function createWorkbenchGitPanelAdapter(
   $effect(() => {
     const active = enabled();
     const project = activeProject();
-    const model = adapter.model;
-    if (
-      !active ||
-      !project ||
-      model.repositories.length === 0 ||
-      !model.selectedRepository
-    )
+    const projectState = project
+      ? gitPanelState.projects[gitProjectStateKey(project.id)]
+      : undefined;
+    const repository = projectState?.selectedRepo;
+    if (!active || !project || !projectState?.repos.length || !repository)
       return;
-    const refresh = () =>
-      autoRefreshGitOverview(project.id, model.selectedRepository);
+    const refresh = () => autoRefreshGitOverview(project.id, repository);
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
-    const interval = window.setInterval(refresh, GIT_OVERVIEW_AUTO_REFRESH_MS);
+    refresh();
+    const interval = window.setInterval(refresh, GIT_AUTO_REFRESH_COOLDOWN_MS);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
@@ -265,21 +269,41 @@ export function createWorkbenchGitPanelAdapter(
   $effect(() => {
     const active = enabled();
     const project = activeProject();
-    const model = adapter.model;
+    const projectState = project
+      ? gitPanelState.projects[gitProjectStateKey(project.id)]
+      : undefined;
+    const repository = projectState?.selectedRepo;
+    const repoState = repository
+      ? projectState?.repoStates[gitRepoStateKey(repository)]
+      : undefined;
+    const pullRequests = repoState?.prs ?? [];
+    const activePr = gitSelectors.activeCenterPrView;
+    const hasPendingOutsideActiveDetail = pullRequests.some(
+      (pr) =>
+        pr.checks.status === "pending" &&
+        !(
+          activePr &&
+          activePr.projectId === project?.id &&
+          activePr.repo === repository &&
+          activePr.number === pr.number &&
+          activePr.checks.data?.checks.status === "pending"
+        ),
+    );
     if (
       !active ||
       !project ||
-      model.repositories.length === 0 ||
-      !model.repositorySummary?.hasGithubRemote ||
-      !model.github?.authenticated ||
-      !hasPendingPrChecks([...model.pullRequests])
+      !projectState?.repos.length ||
+      !repository ||
+      !repoState?.repoSummary?.hasGithubRemote ||
+      !repoState.github?.authenticated ||
+      !hasPendingPrChecks([...pullRequests]) ||
+      !hasPendingOutsideActiveDetail
     )
       return;
     const refresh = () => {
       if (document.visibilityState === "visible")
-        void refreshPrs(project.id, model.selectedRepository, true);
+        scheduleAutomaticGitRefresh(project.id, repository, { prs: true });
     };
-    refresh();
     const interval = window.setInterval(refresh, GITHUB_CHECKS_POLL_MS);
     return () => window.clearInterval(interval);
   });

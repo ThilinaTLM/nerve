@@ -6,8 +6,12 @@ import {
   githubPrListArgs,
   listOpenPrs,
   mergePr,
-  prDetail,
+  prChecks,
+  prConversation,
+  prCore,
   prFiles,
+  prInitial,
+  prOverview,
 } from "../src/git/git-github-service.js";
 import { summarizeStatusCheckRollup } from "../src/git/git-github-parsers.js";
 
@@ -95,7 +99,7 @@ describe("GitHub PR listing", () => {
 });
 
 describe("GitHub PR detail and mutations", () => {
-  it("maps conversation, merge settings, checks, and base divergence", async () => {
+  it("loads core and detail sections independently", async () => {
     const calls: string[][] = [];
     const context = {
       resolveRepoDir: () => "/repo",
@@ -159,20 +163,43 @@ describe("GitHub PR detail and mutations", () => {
       },
     };
 
-    const result = await prDetail(
-      context as Parameters<typeof prDetail>[0],
-      "proj_test",
-      ".",
-      7,
+    const typed = context as Parameters<typeof prCore>[0];
+    const initial = await prInitial(typed, "proj_test", ".", 7);
+    assert.equal(initial.core.title, "Feature rich PR");
+    assert.equal(initial.conversation.comments[0]?.author, "reviewer");
+    assert.equal(initial.overview.behindBy, 2);
+    const initialPrViews = calls.filter(
+      (args) => args[0] === "pr" && args[1] === "view",
     );
-    assert.deepEqual(result.mergeSettings.allowedMethods, ["squash", "rebase"]);
-    assert.equal(result.behindBy, 2);
-    assert.equal(result.comments[0]?.author, "reviewer");
-    assert.equal(result.reviews[0]?.state, "APPROVED");
-    assert.equal(result.reviewRequests[0]?.login, "next-reviewer");
+    assert.equal(initialPrViews.length, 1);
+    const initialFields = initialPrViews[0]?.at(-1) ?? "";
+    assert.match(initialFields, /title/);
+    assert.match(initialFields, /comments/);
+    assert.match(initialFields, /mergeStateStatus/);
+
+    calls.length = 0;
+    const core = await prCore(typed, "proj_test", ".", 7);
+    assert.equal(core.title, "Feature rich PR");
+    const coreFields = calls.at(-1)?.at(-1) ?? "";
+    assert.doesNotMatch(coreFields, /comments|commits|statusCheckRollup/);
+
+    const conversation = await prConversation(typed, "proj_test", ".", 7);
+    assert.equal(conversation.comments[0]?.author, "reviewer");
+    assert.equal(conversation.reviews[0]?.state, "APPROVED");
+
+    const overview = await prOverview(typed, "proj_test", ".", 7);
+    assert.deepEqual(overview.mergeSettings.allowedMethods, [
+      "squash",
+      "rebase",
+    ]);
+    assert.equal(overview.behindBy, 2);
+    assert.equal(overview.reviewRequests[0]?.login, "next-reviewer");
     assert.ok(
       calls.some((args) => args[0] === "api" && args[1]?.includes("compare")),
     );
+
+    const checks = await prChecks(typed, "proj_test", ".", 7);
+    assert.equal(checks.checks.status, "none");
   });
 
   it("maps paginated file patches and rename metadata", async () => {

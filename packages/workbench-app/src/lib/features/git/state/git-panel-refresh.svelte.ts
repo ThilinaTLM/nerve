@@ -11,7 +11,13 @@ import {
   gitProjectStateKey,
   gitRepoStateKey,
 } from "$lib/core/state/state-keys";
+import { queryClient, queryKeys } from "$lib/core/query";
+import { hasPendingPrChecks } from "$lib/features/git/checks";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import {
+  GitAutoRefreshScheduler,
+  type GitAutoRefreshDemand,
+} from "./git-auto-refresh-scheduler";
 import { joinGitProjectRefresh } from "./git-panel-refresh-policy";
 import {
   applyGitContextFromProject,
@@ -19,6 +25,7 @@ import {
   ensureGitProjectState,
   ensureGitRepoState,
   errorMessage,
+  filterMergedOpenPrs,
   type GitPanelProjectState,
   type GitPanelRefreshOptions,
   gitPanelState,
@@ -34,6 +41,64 @@ import {
   storedRepo,
 } from "./git-panel-state.svelte";
 import { syncOpenPrViews } from "./pr-tabs.svelte";
+import {
+  GITHUB_STATUS_STALE_MS,
+  GIT_AUTO_REFRESH_COOLDOWN_MS,
+  GIT_STALE_MS,
+  githubPrFiltersFingerprint,
+  PR_PENDING_POLL_MS,
+} from "./git-refresh-policy";
+
+function automaticRefreshKey(projectId: string, repo: string): string {
+  return JSON.stringify([projectId, repo]);
+}
+
+const automaticRefreshScheduler = new GitAutoRefreshScheduler(
+  GIT_AUTO_REFRESH_COOLDOWN_MS,
+  (key, demand) => {
+    const [projectId, repo] = JSON.parse(key) as [string, string];
+    const state = ensureGitRepoState(projectId, repo);
+    if (repoMutationInProgress(state)) {
+      automaticRefreshScheduler.schedule(key, demand);
+      return;
+    }
+    void Promise.all([
+      ...(demand.overview
+        ? [
+            refreshGitOverview(projectId, repo, {
+              force: true,
+              silent: true,
+              onlyIfChanged: true,
+            }),
+          ]
+        : []),
+      ...(demand.prs && state.github?.authenticated
+        ? [refreshPrs(projectId, repo, true, true)]
+        : []),
+    ]);
+  },
+);
+
+export function scheduleAutomaticGitRefresh(
+  projectId: string,
+  repo: string,
+  demand: GitAutoRefreshDemand,
+): void {
+  automaticRefreshScheduler.schedule(
+    automaticRefreshKey(projectId, repo),
+    demand,
+  );
+}
+
+export function scheduleAutomaticProjectGitRefresh(
+  projectId: string | undefined,
+  demand: GitAutoRefreshDemand,
+): void {
+  if (!projectId) return;
+  const project = gitPanelState.projects[gitProjectStateKey(projectId)];
+  if (!project?.selectedRepo) return;
+  scheduleAutomaticGitRefresh(projectId, project.selectedRepo, demand);
+}
 
 export async function refreshGitProject(
   project: ProjectRecord,
@@ -57,15 +122,21 @@ export async function refreshGitProject(
   state.loadingRepos = showFullLoading;
   state.refreshingRepos = !showFullLoading && !options.silent;
   try {
-    const result = await discoverGitRepos(project.id);
+    if (options.force)
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.git.repos(project.id),
+      });
+    const result = await queryClient.fetchQuery({
+      queryKey: queryKeys.git.repos(project.id),
+      queryFn: () => discoverGitRepos(project.id),
+      staleTime: GIT_STALE_MS,
+    });
     if (state.requestSeq !== requestSeq) return;
 
-    let changed = false;
     if (state.projectIsRepo !== result.projectIsRepo) {
       state.projectIsRepo = result.projectIsRepo;
-      changed = true;
     }
-    changed = setProjectRepos(state, result.repos) || changed;
+    setProjectRepos(state, result.repos);
     for (const repo of result.repos)
       ensureGitRepoState(project.id, repo.relativePath);
 
@@ -82,14 +153,12 @@ export async function refreshGitProject(
     }
     if (state.selectedRepo !== nextSelectedRepo) {
       state.selectedRepo = nextSelectedRepo;
-      changed = true;
     }
 
     if (!state.loaded) {
       state.loaded = true;
-      changed = true;
     }
-    if (changed || state.loadedAt === undefined) state.loadedAt = Date.now();
+    state.loadedAt = Date.now();
     applyGitContextFromProject(project.id);
 
     if (result.repos.length > 0 && state.activeRequestLoadsDetails) {
@@ -100,6 +169,7 @@ export async function refreshGitProject(
       await Promise.all([
         refreshGitOverview(project.id, state.selectedRepo, refreshOptions),
         refreshGithub(project.id, state.selectedRepo),
+        refreshPrs(project.id, state.selectedRepo, true, false, true),
       ]);
     }
   } catch (error) {
@@ -140,12 +210,24 @@ export async function refreshGitOverview(
     if (options.force) state.overviewRefreshQueued = true;
     return;
   }
+  automaticRefreshScheduler.noteDirectStart(
+    automaticRefreshKey(projectId, repo),
+    { overview: true },
+  );
   const requestSeq = state.requestSeq + 1;
   state.requestSeq = requestSeq;
   state.overviewRequestInFlight = true;
   if (!options.silent) state.loadingOverview = true;
   try {
-    const next = await getGitOverview(projectId, repo);
+    if (options.force)
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.git.overview(projectId, repo),
+      });
+    const next = await queryClient.fetchQuery({
+      queryKey: queryKeys.git.overview(projectId, repo),
+      queryFn: () => getGitOverview(projectId, repo),
+      staleTime: GIT_STALE_MS,
+    });
     if (state.requestSeq !== requestSeq) return;
     mergeRepoSummary(projectId, next.repo);
     patchGitOverviewState(state, next);
@@ -177,7 +259,11 @@ export async function refreshBranches(
   const state = ensureGitRepoState(projectId, repo);
   state.loadingBranches = true;
   try {
-    const result = await listGitBranches(projectId, repo);
+    const result = await queryClient.fetchQuery({
+      queryKey: queryKeys.git.branches(projectId, repo),
+      queryFn: () => listGitBranches(projectId, repo),
+      staleTime: GIT_STALE_MS,
+    });
     setBranchesIfChanged(state, result.branches);
   } catch (error) {
     notify.error(`Could not list branches: ${errorMessage(error)}`);
@@ -189,6 +275,7 @@ export async function refreshBranches(
 export async function refreshGithub(
   projectId: string,
   repo: string,
+  force = false,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   if (!repoHasGithubRemote(projectId, repo)) {
@@ -197,11 +284,19 @@ export async function refreshGithub(
   }
 
   try {
-    const status = await getGithubStatus(projectId, repo);
+    const statusKey = queryKeys.git.githubStatus(projectId, repo);
+    if (force) await queryClient.invalidateQueries({ queryKey: statusKey });
+    const status = await queryClient.fetchQuery({
+      queryKey: statusKey,
+      queryFn: () => getGithubStatus(projectId, repo),
+      staleTime: state.github?.authenticated
+        ? GITHUB_STATUS_STALE_MS
+        : GIT_STALE_MS,
+    });
     setGithubStatusIfChanged(state, status);
     applyGitContextFromProject(projectId);
     if (status.authenticated) {
-      await refreshPrs(projectId, repo, true);
+      await refreshPrs(projectId, repo, true, force);
     } else {
       setPrsIfChanged(state, []);
     }
@@ -222,17 +317,25 @@ export async function refreshPrs(
   repo: string,
   silent = false,
   force = false,
+  showLoading = !silent,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   if (!repoHasGithubRemote(projectId, repo)) {
     clearGithubState(projectId, state);
     return;
   }
-  if (state.prsRequestInFlight && !force) return;
+  if (state.prsRequestInFlight) {
+    state.prsRefreshQueued ||= force;
+    return;
+  }
+  automaticRefreshScheduler.noteDirectStart(
+    automaticRefreshKey(projectId, repo),
+    { prs: true },
+  );
   const requestSeq = state.prsRequestSeq + 1;
   state.prsRequestSeq = requestSeq;
   state.prsRequestInFlight = true;
-  if (!silent) state.loadingPrs = true;
+  if (showLoading) state.loadingPrs = true;
   try {
     const filters: GithubPrListFilters = {
       author: state.prFilters.author,
@@ -247,10 +350,23 @@ export async function refreshPrs(
       labels: [...state.prFilters.labels],
       sort: state.prFilters.sort,
     };
-    const result = await listGithubPrs(projectId, repo, filters);
+    const queryKey = queryKeys.git.prs(
+      projectId,
+      repo,
+      githubPrFiltersFingerprint(filters),
+    );
+    if (force) await queryClient.invalidateQueries({ queryKey });
+    const result = await queryClient.fetchQuery({
+      queryKey,
+      queryFn: () => listGithubPrs(projectId, repo, filters),
+      staleTime: hasPendingPrChecks(state.prs)
+        ? PR_PENDING_POLL_MS
+        : GIT_STALE_MS,
+    });
     if (state.prsRequestSeq === requestSeq) {
-      setPrsIfChanged(state, result.prs);
-      syncOpenPrViews(projectId, repo, result.prs);
+      const prs = filterMergedOpenPrs(projectId, repo, result.prs);
+      setPrsIfChanged(state, prs);
+      syncOpenPrViews(projectId, repo, prs);
     }
   } catch (error) {
     if (state.prsRequestSeq === requestSeq && !silent) {
@@ -258,8 +374,18 @@ export async function refreshPrs(
     }
   } finally {
     if (state.prsRequestSeq === requestSeq) {
-      if (!silent) state.loadingPrs = false;
+      if (showLoading) state.loadingPrs = false;
       state.prsRequestInFlight = false;
+      if (state.prsRefreshQueued) {
+        state.prsRefreshQueued = false;
+        queueMicrotask(() => {
+          if (
+            typeof document === "undefined" ||
+            document.visibilityState === "visible"
+          )
+            void refreshPrs(projectId, repo, true, true);
+        });
+      }
     }
   }
 }
@@ -275,12 +401,8 @@ export function autoRefreshGitOverview(projectId: string, repo: string): void {
     gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
       gitRepoStateKey(repo)
     ];
-  if (!state || state.overviewRequestInFlight || repoMutationInProgress(state))
-    return;
-  void refreshGitOverview(projectId, repo, {
-    silent: true,
-    onlyIfChanged: true,
-  });
+  if (!state) return;
+  scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
 }
 
 export function selectGitProject(project: ProjectRecord): void {

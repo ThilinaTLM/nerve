@@ -1,11 +1,22 @@
 import type {
-  GithubPrDetail,
+  GithubPrChecksResponse,
+  GithubPrCommitsResponse,
+  GithubPrConversation,
+  GithubPrCore,
   GithubPrFilesResponse,
   GithubPrMergeMethod,
+  GithubPrOverview,
   GitRepoSummary,
 } from "$lib/api";
 
 export type GithubPrTab = "conversation" | "commits" | "checks" | "files";
+
+export type PrResourceState<T> = {
+  data?: T;
+  loading: boolean;
+  refreshing: boolean;
+  error?: string;
+};
 
 export type PrViewState = {
   /** `${projectId}:${encodeURIComponent(repo)}:${number}` */
@@ -14,13 +25,13 @@ export type PrViewState = {
   /** Relative repo path ("." for the project root). */
   repo: string;
   number: number;
-  detail?: GithubPrDetail;
-  loading: boolean;
-  error?: string;
+  core: PrResourceState<GithubPrCore>;
+  conversation: PrResourceState<GithubPrConversation>;
+  overview: PrResourceState<GithubPrOverview>;
+  commits: PrResourceState<GithubPrCommitsResponse>;
+  checks: PrResourceState<GithubPrChecksResponse>;
+  files: PrResourceState<GithubPrFilesResponse>;
   activeTab: GithubPrTab;
-  files?: GithubPrFilesResponse;
-  filesLoading: boolean;
-  filesError?: string;
   selectedFilePath?: string;
   selectedMergeMethod?: GithubPrMergeMethod;
   merging: boolean;

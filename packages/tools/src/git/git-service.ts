@@ -6,12 +6,17 @@ import type {
   GitBranchListResponse,
   GitDiscoveryResponse,
   GithubPrCheckoutResponse,
-  GithubPrDetail,
+  GithubPrChecksResponse,
+  GithubPrCommitsResponse,
+  GithubPrConversation,
+  GithubPrCore,
   GithubPrFilesResponse,
+  GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
   GithubPrMergeMethod,
   GithubPrMergeResponse,
+  GithubPrOverview,
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
@@ -36,8 +41,13 @@ import {
   checkoutPr as checkoutGithubPr,
   type GithubServiceContext,
   mergePr as mergeGithubPr,
-  prDetail as getGithubPrDetail,
+  prChecks as getGithubPrChecks,
+  prCommits as getGithubPrCommits,
+  prConversation as getGithubPrConversation,
+  prCore as getGithubPrCore,
   prFiles as getGithubPrFiles,
+  prInitial as getGithubPrInitial,
+  prOverview as getGithubPrOverview,
   githubStatus as getGithubStatus,
   listOpenPrs as listGithubOpenPrs,
 } from "./git-github-service.js";
@@ -716,12 +726,77 @@ export class GitService {
     );
   }
 
-  async prDetail(
+  async prInitial(
     projectId: string,
     relativePath: string,
     number: number,
-  ): Promise<GithubPrDetail> {
-    return getGithubPrDetail(
+  ): Promise<GithubPrInitial> {
+    return getGithubPrInitial(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
+    );
+  }
+
+  async prCore(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrCore> {
+    return getGithubPrCore(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
+    );
+  }
+
+  async prConversation(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrConversation> {
+    return getGithubPrConversation(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
+    );
+  }
+
+  async prOverview(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrOverview> {
+    return getGithubPrOverview(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
+    );
+  }
+
+  async prCommits(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrCommitsResponse> {
+    return getGithubPrCommits(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
+    );
+  }
+
+  async prChecks(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrChecksResponse> {
+    return getGithubPrChecks(
       this.githubContext(),
       projectId,
       relativePath,

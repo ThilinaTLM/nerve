@@ -9,22 +9,29 @@ import GitMerge from "@lucide/svelte/icons/git-merge";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import GitPullRequestDraft from "@lucide/svelte/icons/git-pull-request-draft";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-import type { GithubPrDetail } from "@nervekit/contracts";
+import type { GithubPrCore } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { formatPrDateCompact, stateLabel, stateTone } from "./pr-pane-helpers";
 
 type Props = {
-  detail: GithubPrDetail;
+  detail: GithubPrCore;
   loading: boolean;
+  commitCount?: number;
   onRefresh?: () => void;
   onCheckout?: () => void;
   onOpenExternal?: () => void;
 };
 
-let { detail, loading, onRefresh, onCheckout, onOpenExternal }: Props =
-  $props();
+let {
+  detail,
+  loading,
+  commitCount,
+  onRefresh,
+  onCheckout,
+  onOpenExternal,
+}: Props = $props();
 
 const StateIcon = $derived(
   detail.isDraft
@@ -83,18 +90,18 @@ const StateIcon = $derived(
             >{detail.headRefName}</Badge
           >
         </span>
-        <span
-          class="inline-flex items-center gap-1"
-          title={`${detail.commits.length} ${detail.commits.length === 1 ? "commit" : "commits"}`}
-        >
-          <GitCommitHorizontal class="size-3.5" aria-hidden="true" />
-          <span class="font-medium text-foreground"
-            >{detail.commits.length}</span
+        {#if commitCount !== undefined}
+          <span
+            class="inline-flex items-center gap-1"
+            title={`${commitCount} ${commitCount === 1 ? "commit" : "commits"}`}
           >
-          <span class="sr-only"
-            >{detail.commits.length === 1 ? "commit" : "commits"}</span
-          >
-        </span>
+            <GitCommitHorizontal class="size-3.5" aria-hidden="true" />
+            <span class="font-medium text-foreground">{commitCount}</span>
+            <span class="sr-only"
+              >{commitCount === 1 ? "commit" : "commits"}</span
+            >
+          </span>
+        {/if}
         <span
           class="inline-flex items-center gap-1"
           title={`${detail.changedFiles} changed ${detail.changedFiles === 1 ? "file" : "files"}`}

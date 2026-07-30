@@ -259,9 +259,13 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         projectId: stored.projectId,
         repo: stored.repo,
         number: stored.number,
-        loading: false,
+        core: { loading: false, refreshing: false },
+        conversation: { loading: false, refreshing: false },
+        overview: { loading: false, refreshing: false },
+        commits: { loading: false, refreshing: false },
+        checks: { loading: false, refreshing: false },
+        files: { loading: false, refreshing: false },
         activeTab: "conversation",
-        filesLoading: false,
         merging: false,
       };
     }

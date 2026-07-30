@@ -3,39 +3,39 @@ import Check from "@lucide/svelte/icons/check";
 import CircleDot from "@lucide/svelte/icons/circle-dot";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import X from "@lucide/svelte/icons/x";
-import type { GithubPrDetail } from "@nervekit/contracts";
+import type { GithubChecksSummary } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { githubCheckRunOutcome } from "./github-pr-checks";
 import GithubPrSection from "./GithubPrSection.svelte";
 import { checksTone } from "./pr-pane-helpers";
 
-type Props = { detail: GithubPrDetail };
-let { detail }: Props = $props();
+type Props = { checks: GithubChecksSummary };
+let { checks }: Props = $props();
 </script>
 
 <GithubPrSection title="Checks" contentClass="p-0">
   {#snippet actions()}
-    <Badge tone={checksTone(detail.checks)} size="xs">
-      {#if detail.checks.status === "passing"}
+    <Badge tone={checksTone(checks)} size="xs">
+      {#if checks.status === "passing"}
         <Check class="size-3" aria-hidden="true" />
-      {:else if detail.checks.status === "failing"}
+      {:else if checks.status === "failing"}
         <X class="size-3" aria-hidden="true" />
-      {:else if detail.checks.status === "pending"}
+      {:else if checks.status === "pending"}
         <Spinner class="size-3" />
       {:else}
         <CircleDot class="size-3" aria-hidden="true" />
       {/if}
-      {detail.checks.status === "none" ? "No checks" : detail.checks.status}
+      {checks.status === "none" ? "No checks" : checks.status}
     </Badge>
   {/snippet}
 
   <p class="px-3 py-1.5 text-muted-foreground">
-    {detail.checks.passed} passed · {detail.checks.failed} failed ·
-    {detail.checks.pending} pending
+    {checks.passed} passed · {checks.failed} failed ·
+    {checks.pending} pending
   </p>
 
-  {#if detail.checks.runs.length === 0}
+  {#if checks.runs.length === 0}
     <p
       class="border-t border-border/60 px-3 py-3 text-xs text-muted-foreground"
     >
@@ -46,7 +46,7 @@ let { detail }: Props = $props();
       class="divide-y divide-border/60 border-t border-border/60"
       aria-label="Check runs"
     >
-      {#each detail.checks.runs as run (`${run.name}:${run.url ?? ""}`)}
+      {#each checks.runs as run (`${run.name}:${run.url ?? ""}`)}
         {@const outcome = githubCheckRunOutcome(run.status)}
         <li class="flex min-w-0 items-center gap-2 px-3 py-1.5">
           <span class="min-w-0 flex-1 truncate text-foreground">{run.name}</span

@@ -1,22 +1,33 @@
 import type {
-  GithubPrDetail,
+  GithubPrChecksResponse,
+  GithubPrCommitsResponse,
+  GithubPrConversation,
+  GithubPrCore,
   GithubPrFilesResponse,
   GithubPrMergeMethod,
+  GithubPrOverview,
 } from "@nervekit/contracts";
 
 export type GithubPrTab = "conversation" | "commits" | "checks" | "files";
+
+export type PrSectionState<T> = {
+  data?: T;
+  loading: boolean;
+  refreshing: boolean;
+  error?: string;
+};
 
 export type GithubPrViewState = {
   id: string;
   repo: string;
   number: number;
-  detail?: GithubPrDetail;
-  loading: boolean;
-  error?: string;
+  core: PrSectionState<GithubPrCore>;
+  conversation: PrSectionState<GithubPrConversation>;
+  overview: PrSectionState<GithubPrOverview>;
+  commits: PrSectionState<GithubPrCommitsResponse>;
+  checks: PrSectionState<GithubPrChecksResponse>;
+  files: PrSectionState<GithubPrFilesResponse>;
   activeTab: GithubPrTab;
-  files?: GithubPrFilesResponse;
-  filesLoading: boolean;
-  filesError?: string;
   selectedFilePath?: string;
   selectedMergeMethod?: GithubPrMergeMethod;
   merging: boolean;

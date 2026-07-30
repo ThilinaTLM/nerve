@@ -15,7 +15,16 @@ import GithubPrFiles from "./GithubPrFiles.svelte";
 import GithubPrHeader from "./GithubPrHeader.svelte";
 import GithubPrMergeBox from "./GithubPrMergeBox.svelte";
 import GithubPrOverview from "./GithubPrOverview.svelte";
+import GithubPrSectionSkeleton from "./GithubPrSectionSkeleton.svelte";
 import type { GithubPrTab, PrViewState } from "./github-pr-types";
+
+type PrSection =
+  | "core"
+  | "conversation"
+  | "overview"
+  | "commits"
+  | "checks"
+  | "files";
 
 type Props = {
   view?: PrViewState;
@@ -23,7 +32,7 @@ type Props = {
   onCheckout?: () => void;
   onOpenExternal?: () => void;
   onTabChange?: (tab: GithubPrTab) => void;
-  onFilesRetry?: () => void;
+  onSectionRetry?: (section: PrSection) => void;
   onFileSelect?: (path: string) => void;
   onMergeMethodChange?: (method: GithubPrMergeMethod) => void;
   onMerge?: (method: GithubPrMergeMethod) => void;
@@ -35,12 +44,17 @@ let {
   onCheckout,
   onOpenExternal,
   onTabChange,
-  onFilesRetry,
+  onSectionRetry,
   onFileSelect,
   onMergeMethodChange,
   onMerge,
 }: Props = $props();
-const detail = $derived(view?.detail);
+const core = $derived(view?.core.data);
+const conversation = $derived(view?.conversation.data);
+const overview = $derived(view?.overview.data);
+const commits = $derived(view?.commits.data);
+const checks = $derived(view?.checks.data?.checks);
+const files = $derived(view?.files.data);
 
 const tabTriggerClass =
   "h-full flex-none gap-1.5 rounded-sm px-2.5 text-xs font-medium data-active:bg-background data-active:shadow-xs data-active:ring-1 data-active:ring-border";
@@ -51,22 +65,36 @@ function changeTab(value: string) {
     value === "commits" ||
     value === "checks" ||
     value === "files"
-  ) {
+  )
     onTabChange?.(value);
-  }
 }
 
 function confirmCheckout() {
-  if (!detail) return;
+  if (!core) return;
   if (
     window.confirm(
-      `Check out PR #${detail.number} (${detail.headRefName}) in this repo?`,
+      `Check out PR #${core.number} (${core.headRefName}) in this repo?`,
     )
-  ) {
+  )
     onCheckout?.();
-  }
 }
 </script>
+
+{#snippet sectionError(error: string, section: PrSection)}
+  <div
+    class="flex flex-col items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3 text-xs"
+    role="alert"
+  >
+    <span class="text-destructive">{error}</span>
+    <Button
+      size="xs"
+      variant="outline"
+      onclick={() => onSectionRetry?.(section)}
+    >
+      <RotateCcw class="size-3" /> Retry
+    </Button>
+  </div>
+{/snippet}
 
 <section class="flex h-full min-h-0 flex-col bg-background">
   {#if !view}
@@ -83,19 +111,18 @@ function confirmCheckout() {
         </Empty.Description>
       </Empty.Header>
     </Empty.Root>
-  {:else if view.loading && !detail}
-    <Empty.Root class="h-full min-h-0 gap-2 py-6">
-      <Empty.Media variant="icon" class="size-8 rounded-md">
+  {:else if view.core.loading && !core}
+    <div class="flex h-full flex-col gap-4 px-4 py-4">
+      <div class="flex items-center gap-3" role="status">
         <Spinner class="size-4" />
-      </Empty.Media>
-      <Empty.Header class="gap-1">
-        <Empty.Title class="text-sm font-medium"
-          >Loading pull request</Empty.Title
+        <span class="text-sm font-medium"
+          >Loading pull request #{view.number}</span
         >
-        <Empty.Description class="text-xs">#{view.number}</Empty.Description>
-      </Empty.Header>
-    </Empty.Root>
-  {:else if view.error && !detail}
+      </div>
+      <GithubPrSectionSkeleton rows={2} label="Loading pull request header" />
+      <GithubPrSectionSkeleton rows={6} label="Loading pull request details" />
+    </div>
+  {:else if view.core.error && !core}
     <Empty.Root class="h-full min-h-0 gap-2 py-6">
       <Empty.Media variant="icon" class="size-8 rounded-md">
         <TriangleAlert class="size-4 text-destructive" aria-hidden="true" />
@@ -104,20 +131,23 @@ function confirmCheckout() {
         <Empty.Title class="text-sm font-medium"
           >Could not open pull request</Empty.Title
         >
-        <Empty.Description class="text-xs text-destructive"
-          >{view.error}</Empty.Description
-        >
+        <Empty.Description class="text-xs text-destructive">
+          {view.core.error}
+        </Empty.Description>
       </Empty.Header>
-      <Empty.Content class="gap-1">
-        <Button size="xs" variant="outline" onclick={() => onRefresh?.()}>
-          <RotateCcw class="size-3" /> Retry
-        </Button>
-      </Empty.Content>
+      <Button
+        size="xs"
+        variant="outline"
+        onclick={() => onSectionRetry?.("core")}
+      >
+        <RotateCcw class="size-3" /> Retry
+      </Button>
     </Empty.Root>
-  {:else if detail}
+  {:else if core}
     <GithubPrHeader
-      {detail}
-      loading={view.loading}
+      detail={core}
+      loading={view.core.refreshing}
+      commitCount={commits?.commits.length}
       {onRefresh}
       onCheckout={confirmCheckout}
       {onOpenExternal}
@@ -134,21 +164,26 @@ function confirmCheckout() {
         >
           <Tabs.Trigger value="conversation" class={tabTriggerClass}>
             Conversation
-            <span class="text-muted-foreground"
-              >{detail.comments.length + detail.reviews.length}</span
-            >
+            {#if conversation}<span class="text-muted-foreground"
+                >{conversation.comments.length +
+                  conversation.reviews.length}</span
+              >{/if}
           </Tabs.Trigger>
           <Tabs.Trigger value="commits" class={tabTriggerClass}>
             Commits
-            <span class="text-muted-foreground">{detail.commits.length}</span>
+            {#if commits}<span class="text-muted-foreground"
+                >{commits.commits.length}</span
+              >{/if}
           </Tabs.Trigger>
           <Tabs.Trigger value="checks" class={tabTriggerClass}>
             Checks
-            <span class="text-muted-foreground">{detail.checks.total}</span>
+            {#if checks}<span class="text-muted-foreground">{checks.total}</span
+              >{/if}
           </Tabs.Trigger>
           <Tabs.Trigger value="files" class={tabTriggerClass}>
-            Files changed
-            <span class="text-muted-foreground">{detail.changedFiles}</span>
+            Files changed <span class="text-muted-foreground"
+              >{core.changedFiles}</span
+            >
           </Tabs.Trigger>
         </Tabs.List>
       </div>
@@ -161,17 +196,36 @@ function confirmCheckout() {
           <div
             class="grid items-start gap-2 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]"
           >
-            <GithubPrConversation {detail} />
+            {#if conversation}
+              <GithubPrConversation {core} {conversation} />
+            {:else if view.conversation.error}
+              {@render sectionError(view.conversation.error, "conversation")}
+            {:else}
+              <GithubPrSectionSkeleton rows={7} label="Loading conversation" />
+            {/if}
             <aside class="flex flex-col gap-2">
-              <GithubPrOverview {detail} />
-              <GithubPrMergeBox
-                {detail}
-                selectedMethod={view.selectedMergeMethod}
-                merging={view.merging}
-                error={view.mergeError}
-                onMethodChange={onMergeMethodChange}
-                {onMerge}
-              />
+              {#if overview}
+                <GithubPrOverview {overview} />
+              {:else if view.overview.error}
+                {@render sectionError(view.overview.error, "overview")}
+              {:else}
+                <GithubPrSectionSkeleton rows={4} label="Loading overview" />
+              {/if}
+              {#if overview && checks}
+                <GithubPrMergeBox
+                  detail={{ ...core, ...overview, checks }}
+                  selectedMethod={view.selectedMergeMethod}
+                  merging={view.merging}
+                  error={view.mergeError}
+                  onMethodChange={onMergeMethodChange}
+                  {onMerge}
+                />
+              {:else}
+                <GithubPrSectionSkeleton
+                  rows={3}
+                  label="Loading merge status"
+                />
+              {/if}
             </aside>
           </div>
         </ScrollArea>
@@ -182,7 +236,13 @@ function confirmCheckout() {
           class="h-full"
           viewportClass="@container px-4 pr-2 pt-1 pb-8"
         >
-          <GithubPrCommits {detail} />
+          {#if commits}
+            <GithubPrCommits response={commits} />
+          {:else if view.commits.error}
+            {@render sectionError(view.commits.error, "commits")}
+          {:else}
+            <GithubPrSectionSkeleton rows={6} label="Loading commits" />
+          {/if}
         </ScrollArea>
       </Tabs.Content>
 
@@ -191,18 +251,24 @@ function confirmCheckout() {
           class="h-full"
           viewportClass="@container px-4 pr-2 pt-1 pb-8"
         >
-          <GithubPrChecks {detail} />
+          {#if checks}
+            <GithubPrChecks {checks} />
+          {:else if view.checks.error}
+            {@render sectionError(view.checks.error, "checks")}
+          {:else}
+            <GithubPrSectionSkeleton rows={6} label="Loading checks" />
+          {/if}
         </ScrollArea>
       </Tabs.Content>
 
       <Tabs.Content value="files" class="min-h-0 flex-1">
         <GithubPrFiles
-          {detail}
-          files={view.files}
-          loading={view.filesLoading}
-          error={view.filesError}
+          detail={core}
+          {files}
+          loading={view.files.loading}
+          error={view.files.error}
           selectedPath={view.selectedFilePath}
-          onRetry={onFilesRetry}
+          onRetry={() => onSectionRetry?.("files")}
           onSelect={onFileSelect}
         />
       </Tabs.Content>

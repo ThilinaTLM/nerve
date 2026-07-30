@@ -1,6 +1,9 @@
+import { SvelteSet } from "svelte/reactivity";
 import type {
   GitBranchSummary,
+  GithubChecksSummary,
   GithubPr,
+  GithubPrCore,
   GithubStatusResponse,
   GitOverviewResponse,
   GitRecentCommit,
@@ -64,6 +67,7 @@ export type GitPanelRepoState = {
   loadingPrs: boolean;
   loadingBranches: boolean;
   prsRequestInFlight: boolean;
+  prsRefreshQueued: boolean;
   prsRequestSeq: number;
   overviewRequestInFlight: boolean;
   overviewRefreshQueued: boolean;
@@ -111,6 +115,26 @@ export const gitPanelState = $state({
 });
 
 const MAX_PROJECT_CACHE_ENTRIES = 8;
+const mergedOpenPrTombstones = new SvelteSet<string>();
+
+function prTombstoneKey(
+  projectId: string,
+  repo: string,
+  number: number,
+): string {
+  return `${projectId}:${encodeURIComponent(repo)}:${number}`;
+}
+
+export function filterMergedOpenPrs(
+  projectId: string,
+  repo: string,
+  prs: GithubPr[],
+): GithubPr[] {
+  return prs.filter(
+    (pr) =>
+      !mergedOpenPrTombstones.has(prTombstoneKey(projectId, repo, pr.number)),
+  );
+}
 
 export type GitPanelRefreshOptions = {
   silent?: boolean;
@@ -150,6 +174,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     loadingPrs: false,
     loadingBranches: false,
     prsRequestInFlight: false,
+    prsRefreshQueued: false,
     prsRequestSeq: 0,
     overviewRequestInFlight: false,
     overviewRefreshQueued: false,
@@ -362,7 +387,7 @@ export function patchGitOverviewState(
   );
   const changed = repoChanged || changesChanged || recentCommitsChanged;
   if (!state.loaded) state.loaded = true;
-  if (changed || state.loadedAt === undefined) state.loadedAt = Date.now();
+  state.loadedAt = Date.now();
   return { changed, repoChanged, changesChanged, recentCommitsChanged };
 }
 
@@ -432,6 +457,83 @@ export function applyPrSummary(
     state,
     state.prs.map((entry, position) => (position === index ? pr : entry)),
   );
+}
+
+export function openPrSummary(
+  projectId: string,
+  repo: string,
+  number: number,
+): GithubPr | undefined {
+  return gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+    gitRepoStateKey(repo)
+  ]?.prs.find((pr) => pr.number === number);
+}
+
+export function applyPrCore(
+  projectId: string,
+  repo: string,
+  core: GithubPrCore,
+): void {
+  const state =
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(repo)
+    ];
+  if (!state) return;
+  const current = state.prs.find((entry) => entry.number === core.number);
+  if (!current) return;
+  setPrsIfChanged(
+    state,
+    state.prs.map((entry) =>
+      entry.number === core.number
+        ? {
+            ...entry,
+            title: core.title,
+            url: core.url,
+            state: core.state,
+            isDraft: core.isDraft,
+            headRefName: core.headRefName,
+            baseRefName: core.baseRefName,
+            updatedAt: core.updatedAt,
+          }
+        : entry,
+    ),
+  );
+}
+
+export function applyPrChecks(
+  projectId: string,
+  repo: string,
+  number: number,
+  checks: GithubChecksSummary,
+): void {
+  const state =
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(repo)
+    ];
+  if (!state) return;
+  setPrsIfChanged(
+    state,
+    state.prs.map((entry) =>
+      entry.number === number ? { ...entry, checks } : entry,
+    ),
+  );
+}
+
+export function removeOpenPr(
+  projectId: string,
+  repo: string,
+  number: number,
+): void {
+  mergedOpenPrTombstones.add(prTombstoneKey(projectId, repo, number));
+  const state =
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(repo)
+    ];
+  if (state)
+    setPrsIfChanged(
+      state,
+      state.prs.filter((pr) => pr.number !== number),
+    );
 }
 
 export function mergeRepoSummary(
@@ -507,6 +609,10 @@ export function clearGithubState(
   }
   if (state.prsRequestInFlight) {
     state.prsRequestInFlight = false;
+    changed = true;
+  }
+  if (state.prsRefreshQueued) {
+    state.prsRefreshQueued = false;
     changed = true;
   }
   if (changed) applyGitContextFromProject(projectId);

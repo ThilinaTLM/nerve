@@ -2,10 +2,7 @@
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import FileCode from "@lucide/svelte/icons/file-code";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-import type {
-  GithubPrDetail,
-  GithubPrFilesResponse,
-} from "@nervekit/contracts";
+import type { GithubPrCore, GithubPrFilesResponse } from "@nervekit/contracts";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
@@ -17,7 +14,7 @@ import GithubPrSection from "./GithubPrSection.svelte";
 import { fileStatusLetter, fileStatusTone } from "./pr-pane-helpers";
 
 type Props = {
-  detail: GithubPrDetail;
+  detail: GithubPrCore;
   files?: GithubPrFilesResponse;
   loading: boolean;
   error?: string;

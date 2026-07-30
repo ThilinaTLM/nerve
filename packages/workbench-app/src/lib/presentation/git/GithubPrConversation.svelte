@@ -2,16 +2,16 @@
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import MessageSquare from "@lucide/svelte/icons/message-square";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
-import type { GithubPrDetail } from "@nervekit/contracts";
+import type { GithubPrConversation, GithubPrCore } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import GithubPrSection from "./GithubPrSection.svelte";
 import { formatPrDate, prTimeline, reviewTone } from "./pr-pane-helpers";
 
-type Props = { detail: GithubPrDetail };
-let { detail }: Props = $props();
-const timeline = $derived(prTimeline(detail));
+type Props = { core: GithubPrCore; conversation: GithubPrConversation };
+let { core, conversation }: Props = $props();
+const timeline = $derived(prTimeline(conversation));
 </script>
 
 <div class="flex flex-col gap-2">
@@ -19,16 +19,16 @@ const timeline = $derived(prTimeline(detail));
     {#snippet header()}
       <span class="min-w-0 flex-1 truncate">
         <strong class="font-semibold text-foreground"
-          >{detail.author ?? "Unknown author"}</strong
+          >{core.author ?? "Unknown author"}</strong
         >
         <span class="text-muted-foreground">
-          opened this pull request {formatPrDate(detail.createdAt)}</span
+          opened this pull request {formatPrDate(core.createdAt)}</span
         >
       </span>
     {/snippet}
-    {#if detail.body.trim()}
+    {#if conversation.body.trim()}
       <div class="text-sm">
-        <Markdown text={detail.body} onCopy={notifyCopyResult} />
+        <Markdown text={conversation.body} onCopy={notifyCopyResult} />
       </div>
     {:else}
       <p class="text-xs text-muted-foreground">No description provided.</p>

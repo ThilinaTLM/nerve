@@ -1,31 +1,23 @@
-import type { GithubChecksSummary, GithubPr, GithubPrDetail } from "$lib/api";
+import type { GithubChecksSummary, GithubPr, GithubPrCore } from "$lib/api";
 
-/**
- * Pure projection helpers that keep the Git panel PR list and the open PR
- * detail tabs in sync. `GithubPrDetail` extends `GithubPr`, so a list row is
- * always derivable from a freshly loaded detail.
- */
-
-export function prSummaryFromDetail(detail: GithubPrDetail): GithubPr {
+export function prSummaryFromCore(
+  core: GithubPrCore,
+  checks: GithubChecksSummary,
+): GithubPr {
   return {
-    number: detail.number,
-    title: detail.title,
-    url: detail.url,
-    state: detail.state,
-    isDraft: detail.isDraft,
-    headRefName: detail.headRefName,
-    baseRefName: detail.baseRefName,
-    updatedAt: detail.updatedAt,
-    checks: detail.checks,
+    number: core.number,
+    title: core.title,
+    url: core.url,
+    state: core.state,
+    isDraft: core.isDraft,
+    headRefName: core.headRefName,
+    baseRefName: core.baseRefName,
+    updatedAt: core.updatedAt,
+    checks,
   };
 }
 
-/**
- * The list (`statusCheckRollup`) and detail (`gh pr checks`) sources report the
- * same runs in different orders, so compare them order-independently to avoid
- * spurious "changed" results.
- */
-function checksFingerprint(checks: GithubChecksSummary): string {
+export function checksFingerprint(checks: GithubChecksSummary): string {
   return [
     checks.status,
     checks.total,
@@ -55,4 +47,29 @@ export function prSummaryFingerprint(pr: GithubPr): string {
 
 export function prSummariesEqual(left: GithubPr, right: GithubPr): boolean {
   return prSummaryFingerprint(left) === prSummaryFingerprint(right);
+}
+
+export function prChecksEqual(
+  left: GithubChecksSummary | undefined,
+  right: GithubChecksSummary,
+): boolean {
+  return (
+    left !== undefined && checksFingerprint(left) === checksFingerprint(right)
+  );
+}
+
+export function prCoreMatchesSummary(
+  core: GithubPrCore,
+  summary: GithubPr,
+): boolean {
+  return (
+    core.number === summary.number &&
+    core.title === summary.title &&
+    core.url === summary.url &&
+    core.state === summary.state &&
+    core.isDraft === summary.isDraft &&
+    core.headRefName === summary.headRefName &&
+    core.baseRefName === summary.baseRefName &&
+    core.updatedAt === summary.updatedAt
+  );
 }

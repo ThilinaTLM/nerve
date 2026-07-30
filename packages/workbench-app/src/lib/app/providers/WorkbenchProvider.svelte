@@ -32,7 +32,7 @@ import {
   clearGitContext,
   refreshGitContext,
   refreshPrPane,
-  startGitContextAutoRefresh,
+  startGitRefreshCoordinator,
 } from "$lib/features/git";
 import {
   loadSettingsPanel,
@@ -166,7 +166,9 @@ onMount(() => {
   const unregisterFeatureEvents = registerFeatureEventHandlers();
   const stopNotificationAudio = initializeNotificationAudio();
   const unsubscribeDesktop = initializeDesktopRuntime();
-  const stopGitContextAutoRefresh = startGitContextAutoRefresh();
+  const stopGitRefreshCoordinator = startGitRefreshCoordinator(
+    () => void refreshGitContext(undefined, { reason: "focus" }),
+  );
   const startedOnSettings =
     window.location.pathname === "/settings" ||
     window.location.pathname === "/settings/";
@@ -194,7 +196,7 @@ onMount(() => {
     );
     unsubscribeDesktop();
     stopNotificationAudio();
-    stopGitContextAutoRefresh();
+    stopGitRefreshCoordinator();
     unregisterFeatureEvents();
     disconnectWorkbench();
   };
