@@ -89,16 +89,29 @@ export class AddProviderFlow {
   }
 
   async close(): Promise<void> {
-    const active = this.flow;
-    if (active && !this.#isTerminal(active)) {
-      try {
-        await cancelOAuthFlow(active.flowId);
-      } catch {
-        // best effort
-      }
-    }
+    await this.#cancelActiveFlow();
     this.reset();
     this.#onClosed();
+  }
+
+  /**
+   * Teardown for component destruction: cancels an in-flight flow and stops
+   * polling without notifying the owner (which may no longer be mounted).
+   */
+  async dispose(): Promise<void> {
+    this.#stopPolling();
+    await this.#cancelActiveFlow();
+    this.flow = undefined;
+  }
+
+  async #cancelActiveFlow(): Promise<void> {
+    const active = this.flow;
+    if (!active || this.#isTerminal(active)) return;
+    try {
+      await cancelOAuthFlow(active.flowId);
+    } catch {
+      // best effort
+    }
   }
 
   chooseProvider(provider: AuthProviderMetadata): void {

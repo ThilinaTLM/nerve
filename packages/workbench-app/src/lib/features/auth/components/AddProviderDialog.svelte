@@ -1,4 +1,5 @@
 <script lang="ts">
+import { onDestroy } from "svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import KeyRound from "@lucide/svelte/icons/key-round";
@@ -50,6 +51,12 @@ function handleOpenChange(next: boolean) {
     void flowController.close();
   }
 }
+
+// Navigating away (e.g. switching auth tabs) must cancel an in-flight OAuth
+// flow and stop its polling timer, not just clicking Close.
+onDestroy(() => {
+  void flowController.dispose();
+});
 </script>
 
 <Dialog

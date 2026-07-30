@@ -5,6 +5,13 @@ import { deleteProviderCredential } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import {
+  SettingsEmptyState,
+  SettingsGroup,
+  SettingsList,
+  SettingsListItem,
+  SettingsToolbar,
+} from "$lib/presentation/components/settings";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
 import AddProviderDialog from "./AddProviderDialog.svelte";
@@ -36,7 +43,7 @@ const apiKeys = $derived(
 );
 const excludeProviders = $derived([...reserved]);
 
-async function confirmRemove() {
+async function confirmRemove(): Promise<void> {
   const provider = pendingRemove;
   if (!provider) return;
   try {
@@ -50,49 +57,47 @@ async function confirmRemove() {
 }
 </script>
 
-<section id="auth-api-keys" class="settings-section" data-section="api-keys">
-  <header class="settings-section-header">
-    <h2>API keys</h2>
-  </header>
+<SettingsToolbar>
+  {#snippet end()}
+    <Button size="sm" onclick={() => (addOpen = true)}>
+      <Plus class="size-3.5" aria-hidden="true" />
+      Add API key
+    </Button>
+  {/snippet}
+</SettingsToolbar>
 
-  <div class="settings-section-body">
-    <div class="settings-row providers-summary">
-      <Button size="sm" onclick={() => (addOpen = true)}>
-        <Plus size={15} strokeWidth={2.2} />
-        Add API key
-      </Button>
-    </div>
-
-    {#if apiKeys.length === 0}
-      <p class="settings-note">
-        Add a provider API key to authenticate models.
-      </p>
-    {:else}
-      <ul class="provider-list">
-        {#each apiKeys as provider (provider.provider)}
-          <li class="provider-item">
-            <div class="provider-item-text">
-              <strong>{provider.displayName}</strong>
-              {#if provider.envVar}
-                <span>{provider.envVar}</span>
-              {/if}
-            </div>
-            <div class="provider-item-actions">
-              <Badge tone="good" size="sm">Configured</Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onclick={() => (pendingRemove = provider)}
-              >
-                Remove
-              </Button>
-            </div>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </div>
-</section>
+<SettingsGroup>
+  {#if apiKeys.length === 0}
+    <SettingsEmptyState
+      title="No API keys configured"
+      description="Add a provider API key to authenticate models."
+    >
+      {#snippet actions()}
+        <Button size="sm" onclick={() => (addOpen = true)}>Add API key</Button>
+      {/snippet}
+    </SettingsEmptyState>
+  {:else}
+    <SettingsList ariaLabel="Configured API keys">
+      {#each apiKeys as provider (provider.provider)}
+        <SettingsListItem title={provider.displayName}>
+          {#snippet meta()}
+            {#if provider.envVar}
+              <span class="truncate font-mono">{provider.envVar}</span>
+            {/if}
+            <Badge tone="good" size="xs">Configured</Badge>
+          {/snippet}
+          {#snippet actions()}
+            <Button
+              variant="ghost"
+              size="xs"
+              onclick={() => (pendingRemove = provider)}>Remove</Button
+            >
+          {/snippet}
+        </SettingsListItem>
+      {/each}
+    </SettingsList>
+  {/if}
+</SettingsGroup>
 
 <AddProviderDialog
   bind:open={addOpen}
@@ -114,53 +119,3 @@ async function confirmRemove() {
     if (!open) pendingRemove = undefined;
   }}
 />
-
-<style>
-.providers-summary {
-  align-items: center;
-}
-
-.provider-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.provider-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  padding: 0.6rem 0.75rem;
-}
-
-.provider-item-text {
-  display: grid;
-  min-width: 0;
-  gap: 0.12rem;
-}
-
-.provider-item-text strong {
-  color: var(--foreground);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-.provider-item-text > span {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.provider-item-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 0.5rem;
-}
-</style>

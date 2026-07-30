@@ -1,11 +1,18 @@
 <script lang="ts">
 import Plus from "@lucide/svelte/icons/plus";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import {
+  SettingsEmptyState,
+  SettingsGroup,
+  SettingsInlineMessage,
+  SettingsList,
+  SettingsListItem,
+  SettingsToolbar,
+} from "$lib/presentation/components/settings";
 import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
 import AddProviderDialog from "./AddProviderDialog.svelte";
 
@@ -26,7 +33,7 @@ const subscriptions = $derived(
     .sort((a, b) => a.displayName.localeCompare(b.displayName)),
 );
 
-async function confirmLogout() {
+async function confirmLogout(): Promise<void> {
   const provider = pendingLogout;
   if (!provider) return;
   try {
@@ -40,61 +47,56 @@ async function confirmLogout() {
 }
 </script>
 
-<section
-  id="auth-subscriptions"
-  class="settings-section"
-  data-section="subscriptions"
->
-  <header class="settings-section-header">
-    <h2>Subscriptions</h2>
-  </header>
+<SettingsToolbar>
+  {#snippet end()}
+    <Button size="sm" onclick={() => (addOpen = true)}>
+      <Plus class="size-3.5" aria-hidden="true" />
+      Connect subscription
+    </Button>
+  {/snippet}
+</SettingsToolbar>
 
-  <div class="settings-section-body">
-    <div class="settings-row providers-summary">
-      <Button size="sm" onclick={() => (addOpen = true)}>
-        <Plus size={15} strokeWidth={2.2} />
-        Connect subscription
-      </Button>
-    </div>
+<SettingsGroup>
+  {#if subscriptions.length === 0}
+    <SettingsEmptyState
+      title="No subscriptions connected"
+      description="Connect a subscription to authenticate models."
+    >
+      {#snippet actions()}
+        <Button size="sm" onclick={() => (addOpen = true)}
+          >Connect subscription</Button
+        >
+      {/snippet}
+    </SettingsEmptyState>
+  {:else}
+    <SettingsList ariaLabel="Connected subscriptions">
+      {#each subscriptions as provider (provider.provider)}
+        <SettingsListItem title={provider.displayName}>
+          {#snippet meta()}
+            <span class="truncate"
+              >{provider.oauthName ?? provider.provider}</span
+            >
+            <Badge tone="good" size="xs">Connected</Badge>
+          {/snippet}
+          {#snippet actions()}
+            <Button
+              variant="ghost"
+              size="xs"
+              onclick={() => (pendingLogout = provider)}>Log out</Button
+            >
+          {/snippet}
+        </SettingsListItem>
+      {/each}
+    </SettingsList>
 
-    {#if subscriptions.length === 0}
-      <p class="settings-note">
-        Connect a subscription to authenticate models.
-      </p>
-    {:else}
-      <ul class="provider-list">
-        {#each subscriptions as provider (provider.provider)}
-          <li class="provider-item">
-            <div class="provider-item-text">
-              <strong>{provider.displayName}</strong>
-              <span>{provider.oauthName ?? provider.provider}</span>
-              {#if provider.warning}
-                <p class="provider-warning">
-                  <TriangleAlert
-                    size={13}
-                    strokeWidth={2}
-                    class="mt-0.5 flex-none"
-                  />
-                  {provider.warning}
-                </p>
-              {/if}
-            </div>
-            <div class="provider-item-actions">
-              <Badge tone="good" size="sm">Connected</Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onclick={() => (pendingLogout = provider)}
-              >
-                Log out
-              </Button>
-            </div>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </div>
-</section>
+    {#each subscriptions.filter((provider) => provider.warning) as provider (provider.provider)}
+      <SettingsInlineMessage
+        tone="warning"
+        text={`${provider.displayName}: ${provider.warning}`}
+      />
+    {/each}
+  {/if}
+</SettingsGroup>
 
 <AddProviderDialog bind:open={addOpen} {authProviders} kind="oauth" />
 
@@ -111,63 +113,3 @@ async function confirmLogout() {
     if (!open) pendingLogout = undefined;
   }}
 />
-
-<style>
-.providers-summary {
-  align-items: center;
-}
-
-.provider-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.provider-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  padding: 0.6rem 0.75rem;
-}
-
-.provider-item-text {
-  display: grid;
-  min-width: 0;
-  gap: 0.12rem;
-}
-
-.provider-item-text strong {
-  color: var(--foreground);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-.provider-item-text > span {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.provider-warning {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.35rem;
-  margin: 0.25rem 0 0;
-  color: var(--warning);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-}
-
-.provider-item-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 0.5rem;
-}
-</style>

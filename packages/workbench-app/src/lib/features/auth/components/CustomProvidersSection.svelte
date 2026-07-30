@@ -7,6 +7,13 @@ import { deleteCustomProvider } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import {
+  SettingsEmptyState,
+  SettingsGroup,
+  SettingsList,
+  SettingsListItem,
+  SettingsToolbar,
+} from "$lib/presentation/components/settings";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
 import CustomProviderDialog from "./CustomProviderDialog.svelte";
@@ -38,17 +45,17 @@ function keyConfigured(id: string): boolean {
   return Boolean(meta?.configured && meta.credentialType === "api_key");
 }
 
-function openAdd() {
+function openAdd(): void {
   editing = undefined;
   dialogOpen = true;
 }
 
-function openEdit(provider: CustomProvider) {
+function openEdit(provider: CustomProvider): void {
   editing = provider;
   dialogOpen = true;
 }
 
-async function confirmDelete() {
+async function confirmDelete(): Promise<void> {
   const provider = pendingDelete;
   if (!provider) return;
   try {
@@ -62,68 +69,70 @@ async function confirmDelete() {
 }
 </script>
 
-<section
-  id="auth-custom-providers"
-  class="settings-section"
-  data-section="custom-providers"
->
-  <header class="settings-section-header">
-    <h2>Custom providers</h2>
-  </header>
+<SettingsToolbar>
+  {#snippet end()}
+    <Button size="sm" onclick={openAdd}>
+      <Plus class="size-3.5" aria-hidden="true" />
+      Add provider
+    </Button>
+  {/snippet}
+</SettingsToolbar>
 
-  <div class="settings-section-body">
-    <div class="settings-row providers-summary">
-      <Button size="sm" onclick={openAdd}>
-        <Plus size={15} strokeWidth={2.2} />
-        Add provider
-      </Button>
-    </div>
-
-    {#if providers.length === 0}
-      <p class="settings-note">
-        Add a custom provider to connect a local or self-hosted endpoint.
-      </p>
-    {:else}
-      <ul class="provider-list">
-        {#each providers as provider (provider.id)}
-          <li class="provider-item">
-            <div class="provider-item-text">
-              <strong>{provider.displayName}</strong>
-              <span>{provider.id} · {provider.api} · {provider.baseUrl}</span>
-            </div>
-            <div class="provider-item-actions">
-              <Badge
-                tone={keyConfigured(provider.id) ? "good" : "neutral"}
-                size="sm"
-              >
-                {keyConfigured(provider.id) ? "Key set" : "No key"}
-              </Badge>
-              <Badge tone="neutral" size="sm">
-                {modelCountByProvider.get(provider.id) ?? 0} models
-              </Badge>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="Edit provider"
-                onclick={() => openEdit(provider)}
-              >
-                <Pencil size={14} strokeWidth={2} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="Delete provider"
-                onclick={() => (pendingDelete = provider)}
-              >
-                <Trash2 size={14} strokeWidth={2} />
-              </Button>
-            </div>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </div>
-</section>
+<SettingsGroup>
+  {#if providers.length === 0}
+    <SettingsEmptyState
+      title="No custom providers"
+      description="Add a custom provider to connect a local or self-hosted endpoint."
+    >
+      {#snippet actions()}
+        <Button size="sm" onclick={openAdd}>Add provider</Button>
+      {/snippet}
+    </SettingsEmptyState>
+  {:else}
+    <SettingsList ariaLabel="Custom providers">
+      {#each providers as provider (provider.id)}
+        <SettingsListItem title={provider.displayName}>
+          {#snippet badges()}
+            <Badge
+              tone={keyConfigured(provider.id) ? "good" : "neutral"}
+              size="xs"
+            >
+              {keyConfigured(provider.id) ? "Key set" : "No key"}
+            </Badge>
+            <Badge tone="neutral" size="xs">
+              {modelCountByProvider.get(provider.id) ?? 0} models
+            </Badge>
+          {/snippet}
+          {#snippet meta()}
+            <span class="truncate">
+              <span class="font-mono">{provider.id}</span>
+              · {provider.api} ·
+              <span class="font-mono">{provider.baseUrl}</span>
+            </span>
+          {/snippet}
+          {#snippet actions()}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              ariaLabel="Edit provider"
+              onclick={() => openEdit(provider)}
+            >
+              <Pencil class="size-3.5" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              ariaLabel="Delete provider"
+              onclick={() => (pendingDelete = provider)}
+            >
+              <Trash2 class="size-3.5" aria-hidden="true" />
+            </Button>
+          {/snippet}
+        </SettingsListItem>
+      {/each}
+    </SettingsList>
+  {/if}
+</SettingsGroup>
 
 <CustomProviderDialog
   bind:open={dialogOpen}
@@ -144,56 +153,3 @@ async function confirmDelete() {
     if (!open) pendingDelete = undefined;
   }}
 />
-
-<style>
-.providers-summary {
-  align-items: center;
-}
-
-.provider-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.provider-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  padding: 0.6rem 0.75rem;
-}
-
-.provider-item-text {
-  display: grid;
-  min-width: 0;
-  gap: 0.12rem;
-}
-
-.provider-item-text strong {
-  color: var(--foreground);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-.provider-item-text > span {
-  overflow: hidden;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.provider-item-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 0.4rem;
-}
-</style>

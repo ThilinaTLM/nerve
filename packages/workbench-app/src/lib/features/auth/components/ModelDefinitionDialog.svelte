@@ -10,7 +10,7 @@ import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField, {
   type SelectItem,
 } from "@nervekit/ui-kit/components/ui/select-field";
-import Switch from "@nervekit/ui-kit/components/ui/switch-field";
+import { SettingsToggleRow } from "$lib/presentation/components/settings";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
@@ -201,8 +201,7 @@ async function submit() {
       </div>
     </div>
 
-    <Switch
-      class="settings-full-switch"
+    <SettingsToggleRow
       checked={reasoning}
       label="Reasoning model"
       description="Enable thinking/reasoning controls for this model."
@@ -225,8 +224,7 @@ async function submit() {
       </div>
     </div>
 
-    <Switch
-      class="settings-full-switch"
+    <SettingsToggleRow
       checked={imageInput}
       label="Image input"
       description="The model accepts image content in addition to text."
