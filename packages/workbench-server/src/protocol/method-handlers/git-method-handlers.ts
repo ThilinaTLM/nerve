@@ -44,6 +44,8 @@ export const gitMethodHandlers = defineWorkbenchMethodHandlers({
       repo(params),
       params.filters as GithubPrListFilters,
     ),
+  "github.pr.initial.get": (state, params) =>
+    state.registry.git.prInitial(params.projectId, repo(params), params.number),
   "github.pr.core.get": (state, params) =>
     state.registry.git.prCore(params.projectId, repo(params), params.number),
   "github.pr.conversation.get": (state, params) =>

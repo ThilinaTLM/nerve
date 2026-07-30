@@ -7,6 +7,7 @@ import type {
   GithubPrConversation,
   GithubPrCore,
   GithubPrFilesResponse,
+  GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
   GithubPrMergeMethod,
@@ -201,6 +202,20 @@ async function getGithubPrSection<T>(
 ): Promise<T> {
   return (await protocolRequest(operation, { projectId, repo, number }))
     .result as T;
+}
+
+export async function getGithubPrInitial(
+  projectId: string,
+  repo: string,
+  number: number,
+): Promise<GithubPrInitial> {
+  return (
+    await protocolRequest("github.pr.initial.get", {
+      projectId,
+      repo,
+      number,
+    })
+  ).result;
 }
 
 export const getGithubPrCore = (

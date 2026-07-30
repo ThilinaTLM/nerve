@@ -31,6 +31,8 @@ export const queryKeys = {
       ["git", projectId, "repo", repo, "prs", filters] as const,
     pr: (projectId: string, repo: string, number: number) =>
       ["git", projectId, "repo", repo, "pr", number] as const,
+    prInitial: (projectId: string, repo: string, number: number) =>
+      ["git", projectId, "repo", repo, "pr", number, "initial"] as const,
     prSection: (
       projectId: string,
       repo: string,

@@ -11,6 +11,7 @@ import type {
   GithubPrConversation,
   GithubPrCore,
   GithubPrFilesResponse,
+  GithubPrInitial,
   GithubPrListFilters,
   GithubPrListResponse,
   GithubPrMergeMethod,
@@ -45,6 +46,7 @@ import {
   prConversation as getGithubPrConversation,
   prCore as getGithubPrCore,
   prFiles as getGithubPrFiles,
+  prInitial as getGithubPrInitial,
   prOverview as getGithubPrOverview,
   githubStatus as getGithubStatus,
   listOpenPrs as listGithubOpenPrs,
@@ -721,6 +723,19 @@ export class GitService {
       projectId,
       relativePath,
       filters,
+    );
+  }
+
+  async prInitial(
+    projectId: string,
+    relativePath: string,
+    number: number,
+  ): Promise<GithubPrInitial> {
+    return getGithubPrInitial(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
     );
   }
 

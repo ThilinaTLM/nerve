@@ -3,6 +3,7 @@ import { prViewKey } from "$lib/core/state/state-keys";
 import {
   demandPrTab,
   loadPrCore,
+  loadPrInitial,
   loadPrSection,
   refreshCurrentPr,
 } from "$lib/features/git/state/git-refresh-coordinator.svelte";
@@ -61,6 +62,18 @@ function addPrTab(id: string): void {
 }
 
 async function ensurePrView(view: PrViewState): Promise<void> {
+  if (
+    view.activeTab === "conversation" &&
+    (!view.core.data || !view.conversation.data || !view.overview.data)
+  ) {
+    const initial = await loadPrInitial(view, {
+      silent: Boolean(
+        view.core.data || view.conversation.data || view.overview.data,
+      ),
+    });
+    if (initial) demandPrTab(view);
+    return;
+  }
   await loadPrCore(view, { silent: Boolean(view.core.data) });
   demandPrTab(view);
 }

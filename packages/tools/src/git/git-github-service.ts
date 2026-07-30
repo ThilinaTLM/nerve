@@ -8,6 +8,7 @@ import type {
   GithubPrFile,
   GithubPrFilesResponse,
   GithubPrListFilters,
+  GithubPrInitial,
   GithubPrListResponse,
   GithubPrMergeMethod,
   GithubPrMergeResponse,
@@ -337,19 +338,7 @@ async function preparePr(
   return repoDir;
 }
 
-export async function prCore(
-  context: GithubServiceContext,
-  projectId: string,
-  relativePath: string,
-  number: number,
-): Promise<GithubPrCore> {
-  const repoDir = await preparePr(context, projectId, relativePath);
-  const raw = await viewPr(
-    context,
-    repoDir,
-    number,
-    "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,baseRefOid,updatedAt,createdAt,author,additions,deletions,changedFiles",
-  );
+function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
   return {
     number: raw.number,
     title: raw.title,
@@ -369,19 +358,7 @@ export async function prCore(
   };
 }
 
-export async function prConversation(
-  context: GithubServiceContext,
-  projectId: string,
-  relativePath: string,
-  number: number,
-): Promise<GithubPrConversation> {
-  const repoDir = await preparePr(context, projectId, relativePath);
-  const raw = await viewPr(
-    context,
-    repoDir,
-    number,
-    "body,comments,reviews,createdAt,updatedAt",
-  );
+function mapPrConversation(raw: GithubPrDetailRaw): GithubPrConversation {
   return {
     body: raw.body ?? "",
     comments: (raw.comments ?? []).map((comment, index) => ({
@@ -403,6 +380,91 @@ export async function prConversation(
       url: review.url,
     })),
   };
+}
+
+function mapPrOverview(
+  raw: GithubPrDetailRaw,
+  settings: { allowedMethods: GithubPrMergeMethod[] },
+  behindBy: number | null,
+): GithubPrOverview {
+  return {
+    mergeable: raw.mergeable ?? null,
+    mergeStateStatus: raw.mergeStateStatus ?? null,
+    reviewDecision: raw.reviewDecision ?? null,
+    behindBy,
+    labels: (raw.labels ?? [])
+      .filter((label): label is { name: string; color?: string } =>
+        Boolean(label.name),
+      )
+      .map((label) => ({ name: label.name, color: label.color })),
+    reviewRequests: (raw.reviewRequests ?? []).flatMap((request) => {
+      const reviewer = request.requestedReviewer ?? request;
+      return reviewer.login
+        ? [{ login: reviewer.login, avatarUrl: reviewer.avatarUrl }]
+        : [];
+    }),
+    mergeSettings: { allowedMethods: settings.allowedMethods },
+  };
+}
+
+const PR_INITIAL_FIELDS =
+  "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,baseRefOid,updatedAt,createdAt,author,additions,deletions,changedFiles,body,comments,reviews,mergeable,mergeStateStatus,reviewDecision,labels,reviewRequests";
+
+export async function prInitial(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  number: number,
+): Promise<GithubPrInitial> {
+  const repoDir = await preparePr(context, projectId, relativePath);
+  const [raw, settings] = await Promise.all([
+    viewPr(context, repoDir, number, PR_INITIAL_FIELDS),
+    repoMergeSettings(context, repoDir),
+  ]);
+  const behindBy = await prBehindBy(
+    context,
+    repoDir,
+    settings.nameWithOwner,
+    raw.baseRefOid ?? "",
+    raw.headRefOid ?? "",
+  );
+  return {
+    core: mapPrCore(raw),
+    conversation: mapPrConversation(raw),
+    overview: mapPrOverview(raw, settings, behindBy),
+  };
+}
+
+export async function prCore(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  number: number,
+): Promise<GithubPrCore> {
+  const repoDir = await preparePr(context, projectId, relativePath);
+  const raw = await viewPr(
+    context,
+    repoDir,
+    number,
+    "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,baseRefOid,updatedAt,createdAt,author,additions,deletions,changedFiles",
+  );
+  return mapPrCore(raw);
+}
+
+export async function prConversation(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  number: number,
+): Promise<GithubPrConversation> {
+  const repoDir = await preparePr(context, projectId, relativePath);
+  const raw = await viewPr(
+    context,
+    repoDir,
+    number,
+    "body,comments,reviews,createdAt,updatedAt",
+  );
+  return mapPrConversation(raw);
 }
 
 export async function prOverview(
@@ -428,24 +490,7 @@ export async function prOverview(
     raw.baseRefOid ?? "",
     raw.headRefOid ?? "",
   );
-  return {
-    mergeable: raw.mergeable ?? null,
-    mergeStateStatus: raw.mergeStateStatus ?? null,
-    reviewDecision: raw.reviewDecision ?? null,
-    behindBy,
-    labels: (raw.labels ?? [])
-      .filter((label): label is { name: string; color?: string } =>
-        Boolean(label.name),
-      )
-      .map((label) => ({ name: label.name, color: label.color })),
-    reviewRequests: (raw.reviewRequests ?? []).flatMap((request) => {
-      const reviewer = request.requestedReviewer ?? request;
-      return reviewer.login
-        ? [{ login: reviewer.login, avatarUrl: reviewer.avatarUrl }]
-        : [];
-    }),
-    mergeSettings: { allowedMethods: settings.allowedMethods },
-  };
+  return mapPrOverview(raw, settings, behindBy);
 }
 
 export async function prCommits(

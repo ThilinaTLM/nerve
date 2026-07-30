@@ -12,6 +12,7 @@ import {
   githubPrConversationSchema,
   githubPrCoreSchema,
   githubPrFilesResponseSchema,
+  githubPrInitialSchema,
   githubPrOverviewSchema,
   githubPrListRequestSchema,
   githubPrListResponseSchema,
@@ -185,6 +186,15 @@ export const gitOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.github.pr.list",
+  ),
+  defineOperation(
+    "github.pr.initial.get",
+    githubPrParamsSchema,
+    githubPrInitialSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.github.pr.initial.get",
   ),
   defineOperation(
     "github.pr.core.get",

@@ -10,6 +10,7 @@ import {
   prConversation,
   prCore,
   prFiles,
+  prInitial,
   prOverview,
 } from "../src/git/git-github-service.js";
 import { summarizeStatusCheckRollup } from "../src/git/git-github-parsers.js";
@@ -163,6 +164,20 @@ describe("GitHub PR detail and mutations", () => {
     };
 
     const typed = context as Parameters<typeof prCore>[0];
+    const initial = await prInitial(typed, "proj_test", ".", 7);
+    assert.equal(initial.core.title, "Feature rich PR");
+    assert.equal(initial.conversation.comments[0]?.author, "reviewer");
+    assert.equal(initial.overview.behindBy, 2);
+    const initialPrViews = calls.filter(
+      (args) => args[0] === "pr" && args[1] === "view",
+    );
+    assert.equal(initialPrViews.length, 1);
+    const initialFields = initialPrViews[0]?.at(-1) ?? "";
+    assert.match(initialFields, /title/);
+    assert.match(initialFields, /comments/);
+    assert.match(initialFields, /mergeStateStatus/);
+
+    calls.length = 0;
     const core = await prCore(typed, "proj_test", ".", 7);
     assert.equal(core.title, "Feature rich PR");
     const coreFields = calls.at(-1)?.at(-1) ?? "";

@@ -42,6 +42,7 @@ export type {
   GithubPrCore,
   GithubPrFile,
   GithubPrFilesResponse,
+  GithubPrInitial,
   GithubPrListResponse,
   GithubPrMergeMethod,
   GithubPrMergeResponse,

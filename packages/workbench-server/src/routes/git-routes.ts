@@ -246,6 +246,19 @@ export function createGitRoutes(state: OrchestratorState): Hono {
     ),
   );
 
+  app.get(
+    "/projects/:projectId/github/pr/:number/initial",
+    routeHandler(async (c) =>
+      c.json(
+        await state.registry.git.prInitial(
+          routeParam(c, "projectId"),
+          repoParam(c.req.query("repo")),
+          prNumberParam(routeParam(c, "number")),
+        ),
+      ),
+    ),
+  );
+
   for (const [section, load] of [
     [
       "conversation",

@@ -327,6 +327,13 @@ export const githubPrOverviewSchema = z.object({
 });
 export type GithubPrOverview = z.infer<typeof githubPrOverviewSchema>;
 
+export const githubPrInitialSchema = z.object({
+  core: githubPrCoreSchema,
+  conversation: githubPrConversationSchema,
+  overview: githubPrOverviewSchema,
+});
+export type GithubPrInitial = z.infer<typeof githubPrInitialSchema>;
+
 export const githubPrCommitsResponseSchema = z.object({
   commits: z.array(githubPrCommitSchema),
 });
