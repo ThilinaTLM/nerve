@@ -3,10 +3,8 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Copy from "@lucide/svelte/icons/copy";
 import FilterX from "@lucide/svelte/icons/filter-x";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-import Search from "@lucide/svelte/icons/search";
 import Tag from "@lucide/svelte/icons/tag";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import X from "@lucide/svelte/icons/x";
 import { SvelteSet } from "svelte/reactivity";
 import { writeClipboardText } from "$lib/core/clipboard";
 import type {
@@ -18,7 +16,7 @@ import type {
 import { getApplicationLogs, pruneApplicationLogs } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import { Input } from "@nervekit/ui-kit/components/ui/input";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { logLevelTone } from "@nervekit/ui-kit/core/utils/status";
@@ -228,34 +226,19 @@ $effect(() => {
       </div>
     </div>
     <div class="toolbar-line search-line">
-      <label class="field search-field">
-        <Search size={13} aria-hidden="true" />
-        <Input bind:value={contains} placeholder="Search messages" />
-        {#if contains}
-          <button
-            type="button"
-            class="field-clear"
-            aria-label="Clear search"
-            onclick={() => (contains = "")}
-          >
-            <X size={12} />
-          </button>
-        {/if}
-      </label>
-      <label class="field component-field">
-        <Tag size={13} aria-hidden="true" />
-        <Input bind:value={component} placeholder="Component filter" />
-        {#if component}
-          <button
-            type="button"
-            class="field-clear"
-            aria-label="Clear component filter"
-            onclick={() => (component = "")}
-          >
-            <X size={12} />
-          </button>
-        {/if}
-      </label>
+      <SearchInput
+        bind:value={contains}
+        class="search-field"
+        placeholder="Search messages"
+        ariaLabel="Search messages"
+      />
+      <SearchInput
+        bind:value={component}
+        class="component-field"
+        icon={Tag}
+        placeholder="Component filter"
+        ariaLabel="Component filter"
+      />
     </div>
   </header>
 
@@ -422,41 +405,12 @@ $effect(() => {
   flex-wrap: nowrap;
 }
 
-.field {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--muted-foreground);
-}
-
 .search-field {
   flex: 1 1 60%;
 }
 
 .component-field {
   flex: 1 1 30%;
-}
-
-.search-line :global(input) {
-  flex: 1 1 0;
-}
-
-.field-clear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  padding: 0.1rem;
-  border-radius: var(--radius-sm);
-}
-
-.field-clear:hover {
-  color: var(--foreground);
-  background: var(--accent);
 }
 
 .logs-error,

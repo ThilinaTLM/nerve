@@ -1,0 +1,144 @@
+/*
+ * Shared modal chrome for DialogShell and ConfirmDialog/AlertDialog.
+ * One visual language across every modal: flat sidebar-tinted scrim, card
+ * surface with the theme radius, and accent header/footer bands. Entrance and
+ * exit motion comes from tw-animate data-state utilities applied by the
+ * components; content inside a dialog body is styled by consumers with
+ * Tailwind token utilities.
+ */
+.dialog-overlay {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  isolation: isolate;
+  background: color-mix(in oklab, var(--sidebar) 72%, transparent);
+}
+
+.dialog-content {
+  position: fixed;
+  z-index: 50;
+  top: 50%;
+  top: 50dvh;
+  left: 50%;
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(760px, calc(100vw - 32px));
+  width: min(760px, calc(100dvw - 2rem));
+  max-height: 84vh;
+  max-height: min(84dvh, calc(100dvh - 2rem));
+  /* The translate property (not transform) so tw-animate zoom keyframes
+   * compose with centering instead of replacing it. */
+  translate: -50% -50%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-xl);
+}
+
+.dialog-content-sm {
+  width: min(30rem, calc(100vw - 32px));
+  width: min(30rem, calc(100dvw - 2rem));
+}
+
+.dialog-content-wide {
+  width: min(960px, calc(100vw - 32px));
+  width: min(960px, calc(100dvw - 2rem));
+  max-height: 90vh;
+  max-height: min(90dvh, calc(100dvh - 2rem));
+}
+
+/* Confirmation dialogs: a miniature of the banded shell. */
+.dialog-content-confirm {
+  width: min(26rem, calc(100vw - 32px));
+  width: min(26rem, calc(100dvw - 2rem));
+}
+
+/* Header/footer bands: a gentle tint over the card surface with hairline
+ * separators, not opaque accent stripes. */
+.dialog-header,
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: color-mix(in oklab, var(--accent) 40%, transparent);
+  padding: 0.6rem 0.875rem;
+}
+
+.dialog-header {
+  justify-content: space-between;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+
+.dialog-header-actions {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.dialog-footer {
+  justify-content: flex-end;
+  border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+
+.dialog-title-block {
+  display: grid;
+  min-width: min(16rem, 40%);
+  gap: 0.16rem;
+}
+
+.dialog-title {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.18;
+}
+
+.dialog-description {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+
+.dialog-close {
+  display: inline-grid;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--input);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.dialog-close:hover {
+  border-color: var(--border);
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.dialog-close:focus-visible {
+  border-color: var(--ring);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent);
+}
+
+.dialog-body {
+  min-height: 0;
+  overflow: auto;
+  background: var(--card);
+  padding: 0.75rem 0.875rem;
+}
+
+.dialog-body-flush {
+  padding: 0;
+}

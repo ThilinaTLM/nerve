@@ -94,7 +94,7 @@ function handleOpenChange(next: boolean) {
   description={projectLabel
     ? `Choose how to clean up conversations in “${projectLabel}”.`
     : "Choose how to clean up conversations."}
-  class="prune-dialog"
+  size="sm"
   onOpenChange={handleOpenChange}
 >
   <div class="prune-body">
@@ -129,10 +129,11 @@ function handleOpenChange(next: boolean) {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => handleOpenChange(false)}
+    <Button size="sm" variant="ghost" onclick={() => handleOpenChange(false)}
       >Cancel</Button
     >
     <Button
+      size="sm"
       variant="destructive"
       onclick={handleConfirm}
       disabled={removeCount === 0}
@@ -143,14 +144,9 @@ function handleOpenChange(next: boolean) {
 </Dialog>
 
 <style>
-:global(.prune-dialog) {
-  width: min(420px, calc(100vw - 32px));
-}
-
 .prune-body {
   display: grid;
   gap: 1rem;
-  padding: 1rem 1.1rem;
 }
 
 .prune-control {

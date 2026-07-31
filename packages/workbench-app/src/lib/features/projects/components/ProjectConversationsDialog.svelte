@@ -1,9 +1,8 @@
 <script lang="ts">
-import Search from "@lucide/svelte/icons/search";
 import type { AgentRecord, ConversationRecord, ProjectRecord } from "$lib/api";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import { Input } from "@nervekit/ui-kit/components/ui/input";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
@@ -72,6 +71,7 @@ function openAndClose(conversationId: string) {
 </script>
 
 <Dialog
+  flush
   bind:open
   title="Conversations"
   description={`${rows.length} in ${projectLabel}`}
@@ -81,11 +81,9 @@ function openAndClose(conversationId: string) {
   <Tooltip.Provider delayDuration={300} disableHoverableContent>
     <div class="conversations-modal">
       <div class="search-box">
-        <Search size={13} strokeWidth={2.25} aria-hidden="true" />
-        <Input
+        <SearchInput
           bind:ref={searchInputEl}
           bind:value={filter}
-          size="sm"
           placeholder="Filter conversations"
           ariaLabel="Filter conversations"
         />
@@ -140,25 +138,12 @@ function openAndClose(conversationId: string) {
 }
 
 .search-box {
-  position: relative;
   display: grid;
   width: 100%;
   min-width: 0;
   align-items: center;
   padding: 0.55rem;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-}
-
-.search-box :global(svg) {
-  position: absolute;
-  left: 0.95rem;
-  z-index: 1;
-  color: var(--muted-foreground);
-  pointer-events: none;
-}
-
-.search-box :global([data-slot="input"]) {
-  padding-left: 1.75rem;
 }
 
 .list-region {

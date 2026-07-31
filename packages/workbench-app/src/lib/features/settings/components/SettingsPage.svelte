@@ -1,16 +1,4 @@
 <script lang="ts">
-import type { Component } from "svelte";
-import Bell from "@lucide/svelte/icons/bell";
-import Bot from "@lucide/svelte/icons/bot";
-import HardDrive from "@lucide/svelte/icons/hard-drive";
-import Keyboard from "@lucide/svelte/icons/keyboard";
-import Lightbulb from "@lucide/svelte/icons/lightbulb";
-import Library from "@lucide/svelte/icons/library";
-import Monitor from "@lucide/svelte/icons/monitor";
-import Server from "@lucide/svelte/icons/server";
-import ShieldCheck from "@lucide/svelte/icons/shield-check";
-import Sparkles from "@lucide/svelte/icons/sparkles";
-import Wrench from "@lucide/svelte/icons/wrench";
 import type {
   AuthProviderMetadata,
   AvailableSkill,
@@ -24,58 +12,31 @@ import type { ThemePreference } from "$lib/app/shell/appearance.svelte";
 import {
   SettingsShell,
   SettingsSidebarStatus,
-  type SettingsShellGroup,
 } from "$lib/presentation/components/settings";
-import AppearanceSettingsSection from "./settings/sections/AppearanceSettingsSection.svelte";
-import AgentsSettingsSection from "./settings/sections/AgentsSettingsSection.svelte";
-import DesktopSettingsSection from "./settings/sections/DesktopSettingsSection.svelte";
-import ExploreAgentSettingsSection from "./settings/sections/ExploreAgentSettingsSection.svelte";
-import GeneralSettingsSection from "./settings/sections/GeneralSettingsSection.svelte";
-import NotificationsSettingsSection from "./settings/sections/NotificationsSettingsSection.svelte";
-import KeyboardShortcutsSettingsSection from "./settings/sections/KeyboardShortcutsSettingsSection.svelte";
-import ToolsSettingsSection from "./settings/sections/ToolsSettingsSection.svelte";
-import PromptSuggestionsSettingsSection from "./settings/sections/PromptSuggestionsSettingsSection.svelte";
-import ScopedModelsSettingsSection from "./settings/sections/ScopedModelsSettingsSection.svelte";
-import SkillsSettingsSection from "./settings/sections/SkillsSettingsSection.svelte";
-import ServerSettingsSection from "./settings/sections/ServerSettingsSection.svelte";
-import StorageSettingsSection from "./settings/sections/StorageSettingsSection.svelte";
+import { settingsPages } from "$lib/features/settings/registry/settings-pages";
+import {
+  skillSourceLabels,
+  skillSourceSectionIds,
+} from "./pages/skills/skills-filter";
+import AgentsSettingsPage from "./pages/agents/AgentsSettingsPage.svelte";
+import ModelsPageActions from "./pages/models/ModelsPageActions.svelte";
+import ModelsSettingsPage from "./pages/models/ModelsSettingsPage.svelte";
+import { ModelsPageState } from "./pages/models/models-page-state.svelte";
+import NotificationsSettingsPage from "./pages/notifications/NotificationsSettingsPage.svelte";
+import ShortcutsSettingsPage from "./pages/shortcuts/ShortcutsSettingsPage.svelte";
+import SkillsSettingsPage from "./pages/skills/SkillsSettingsPage.svelte";
+import StoragePageActions from "./pages/storage/StoragePageActions.svelte";
+import StorageSettingsPage from "./pages/storage/StorageSettingsPage.svelte";
+import { StoragePageController } from "./pages/storage/storage-page-state.svelte";
+import SuggestionsPageActions from "./pages/suggestions/SuggestionsPageActions.svelte";
+import SuggestionsSettingsPage from "./pages/suggestions/SuggestionsSettingsPage.svelte";
+import { SuggestionsPageState } from "./pages/suggestions/suggestions-page-state.svelte";
+import SystemSettingsPage from "./pages/system/SystemSettingsPage.svelte";
+import ToolsSettingsPage from "./pages/tools/ToolsSettingsPage.svelte";
+import WorkbenchSettingsPage from "./pages/workbench/WorkbenchSettingsPage.svelte";
 
 type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
-type SectionId =
-  | "appearance"
-  | "desktop"
-  | "notification-general"
-  | "notification-sounds"
-  | "keyboard-shortcuts"
-  | "agents"
-  | "explore"
-  | "prompt-suggestions"
-  | "models"
-  | "tools"
-  | "agent-browser-skills"
-  | "global-skills"
-  | "project-skills"
-  | "server"
-  | "storage"
-  | "runtime";
-type GroupId =
-  | "workbench"
-  | "notifications"
-  | "keyboard-shortcuts"
-  | "agents"
-  | "suggestions"
-  | "models"
-  | "tools"
-  | "skills"
-  | "storage"
-  | "system";
-type GroupSection = { id: SectionId; label: string };
-type SettingsGroup = SettingsShellGroup & {
-  id: GroupId;
-  label: string;
-  icon: Component;
-  sections: GroupSection[];
-};
+
 type SettingsChange = (
   patch: UpdateSettingsRequest,
   options?: { immediate?: boolean; debounceMs?: number },
@@ -99,86 +60,6 @@ type Props = {
   onSkillsRetry?: () => void;
 };
 
-const baseGroups: SettingsGroup[] = [
-  {
-    id: "workbench",
-    label: "Workbench",
-    icon: Monitor,
-    sections: [
-      { id: "appearance", label: "Appearance" },
-      { id: "desktop", label: "Desktop" },
-    ],
-  },
-  {
-    id: "notifications",
-    label: "Notifications",
-    icon: Bell,
-    sections: [
-      { id: "notification-general", label: "General" },
-      { id: "notification-sounds", label: "Sounds" },
-    ],
-  },
-  {
-    id: "keyboard-shortcuts",
-    label: "Shortcuts",
-    description:
-      "Shortcuts are fixed and use the primary modifier for your platform.",
-    icon: Keyboard,
-    sections: [{ id: "keyboard-shortcuts", label: "Shortcuts" }],
-  },
-  {
-    id: "agents",
-    label: "Agents",
-    icon: Bot,
-    sections: [
-      { id: "agents", label: "Default agent" },
-      { id: "explore", label: "Explore agent" },
-    ],
-  },
-  {
-    id: "suggestions",
-    label: "Suggestions",
-    icon: Lightbulb,
-    sections: [{ id: "prompt-suggestions", label: "Prompt suggestions" }],
-  },
-  {
-    id: "models",
-    label: "Models",
-    icon: ShieldCheck,
-    sections: [{ id: "models", label: "Scoped models" }],
-  },
-  {
-    id: "tools",
-    label: "Tools",
-    icon: Wrench,
-    sections: [{ id: "tools", label: "Tool configuration" }],
-  },
-  {
-    id: "skills",
-    label: "Skills",
-    icon: Library,
-    sections: [
-      { id: "agent-browser-skills", label: "Agent Browser" },
-      { id: "global-skills", label: "Global skills" },
-    ],
-  },
-  {
-    id: "storage",
-    label: "Storage",
-    icon: HardDrive,
-    sections: [{ id: "storage", label: "Storage cleanup" }],
-  },
-  {
-    id: "system",
-    label: "System",
-    icon: Server,
-    sections: [
-      { id: "server", label: "Server" },
-      { id: "runtime", label: "Diagnostics" },
-    ],
-  },
-];
-
 let {
   status,
   settingsDraft = $bindable<Settings | undefined>(),
@@ -197,27 +78,35 @@ let {
   onSkillsRetry,
 }: Props = $props();
 
-const groups = $derived<SettingsGroup[]>(
-  baseGroups.map((group) =>
-    group.id === "skills"
-      ? {
-          ...group,
-          sections: activeProject
-            ? [
-                { id: "agent-browser-skills", label: "Agent Browser" },
-                { id: "global-skills", label: "Global skills" },
-                { id: "project-skills", label: "Project skills" },
-              ]
-            : [
-                { id: "agent-browser-skills", label: "Agent Browser" },
-                { id: "global-skills", label: "Global skills" },
-              ],
-        }
-      : group,
+/** Skills sections mirror the sources that actually have skills. */
+const skillSections = $derived(
+  (
+    [
+      ["agentBrowser", agentBrowserSkills],
+      ["global", globalSkills],
+      ["project", projectSkills],
+    ] as const
+  )
+    .filter(([, skills]) => skills.length > 0)
+    .map(([source]) => ({
+      id: skillSourceSectionIds[source],
+      label: skillSourceLabels[source],
+    })),
+);
+
+const pages = $derived(
+  settingsPages.map((page) =>
+    page.id === "skills" && skillSections.length > 0
+      ? { ...page, sections: skillSections }
+      : page,
   ),
 );
 
-function statusText() {
+const modelsPageState = new ModelsPageState();
+const suggestionsPageState = new SuggestionsPageState();
+const storageController = new StoragePageController();
+
+function statusText(): string {
   if (settingsMessage) return settingsMessage;
   if (settingsSaveStatus === "saving") return "Saving…";
   if (settingsSaveStatus === "dirty") return "Unsaved changes";
@@ -228,61 +117,75 @@ function statusText() {
 </script>
 
 <SettingsShell
-  {groups}
+  {pages}
   title="Settings"
-  ariaLabel="Settings sections"
-  showPanelHeader={!!settingsDraft}
+  ariaLabel="Settings pages"
+  showHeader={!!settingsDraft}
 >
   {#snippet sidebarFooter()}
     <SettingsSidebarStatus status={settingsSaveStatus} text={statusText()} />
   {/snippet}
 
-  {#snippet children(activeGroup)}
+  {#snippet pageActions(page)}
     {#if settingsDraft}
-      {#if activeGroup.id === "workbench"}
-        <AppearanceSettingsSection
+      {#if page.id === "models"}
+        <ModelsPageActions
+          pageState={modelsPageState}
+          {settingsDraft}
+          {models}
+          {authProviders}
+          {onSettingsChange}
+        />
+      {:else if page.id === "suggestions"}
+        <SuggestionsPageActions pageState={suggestionsPageState} />
+      {:else if page.id === "storage"}
+        <StoragePageActions controller={storageController} />
+      {/if}
+    {/if}
+  {/snippet}
+
+  {#snippet children(page)}
+    {#if settingsDraft}
+      {#if page.id === "workbench"}
+        <WorkbenchSettingsPage
           {settingsDraft}
           {onThemeChange}
           {onSettingsChange}
         />
-        <DesktopSettingsSection {settingsDraft} {onSettingsChange} />
-      {:else if activeGroup.id === "notifications"}
-        <NotificationsSettingsSection {settingsDraft} {onSettingsChange} />
-      {:else if activeGroup.id === "keyboard-shortcuts"}
-        <KeyboardShortcutsSettingsSection />
-      {:else if activeGroup.id === "agents"}
-        <AgentsSettingsSection
+      {:else if page.id === "notifications"}
+        <NotificationsSettingsPage {settingsDraft} {onSettingsChange} />
+      {:else if page.id === "shortcuts"}
+        <ShortcutsSettingsPage />
+      {:else if page.id === "agents"}
+        <AgentsSettingsPage
           {settingsDraft}
           {models}
           {authProviders}
           {onSettingsChange}
         />
-        <ExploreAgentSettingsSection
+      {:else if page.id === "suggestions"}
+        <SuggestionsSettingsPage
+          pageState={suggestionsPageState}
+          {activeProject}
+        />
+      {:else if page.id === "models"}
+        <ModelsSettingsPage
+          pageState={modelsPageState}
           {settingsDraft}
           {models}
           {authProviders}
           {onSettingsChange}
         />
-      {:else if activeGroup.id === "suggestions"}
-        <PromptSuggestionsSettingsSection {activeProject} />
-      {:else if activeGroup.id === "models"}
-        <ScopedModelsSettingsSection
-          {settingsDraft}
-          {models}
-          {authProviders}
-          {onSettingsChange}
-        />
-      {:else if activeGroup.id === "tools"}
-        <ToolsSettingsSection
+      {:else if page.id === "tools"}
+        <ToolsSettingsPage
           {settingsDraft}
           {status}
           {authProviders}
           {onSettingsChange}
         />
-      {:else if activeGroup.id === "skills"}
-        <SkillsSettingsSection
+      {:else if page.id === "skills"}
+        <SkillsSettingsPage
           {settingsDraft}
-          {activeProject}
           {agentBrowserSkills}
           {globalSkills}
           {projectSkills}
@@ -291,18 +194,18 @@ function statusText() {
           onRetry={onSkillsRetry}
           {onSettingsChange}
         />
-      {:else if activeGroup.id === "storage"}
-        <StorageSettingsSection />
-      {:else if activeGroup.id === "system"}
-        <ServerSettingsSection {settingsDraft} {onSettingsChange} />
-        <GeneralSettingsSection {status} />
+      {:else if page.id === "storage"}
+        <StorageSettingsPage controller={storageController} />
+      {:else if page.id === "system"}
+        <SystemSettingsPage {settingsDraft} {status} {onSettingsChange} />
       {/if}
     {:else}
-      <section class="app-empty-state settings-loading">
-        <Sparkles size={28} strokeWidth={1.8} />
-        <strong>Settings are loading</strong>
-        <p>Use the tab refresh action if this takes longer than expected.</p>
-      </section>
+      <div class="grid gap-1 py-12 text-center">
+        <strong class="text-sm text-foreground">Settings are loading</strong>
+        <span class="text-xs text-muted-foreground"
+          >Fetching the current configuration from the daemon.</span
+        >
+      </div>
     {/if}
   {/snippet}
 </SettingsShell>

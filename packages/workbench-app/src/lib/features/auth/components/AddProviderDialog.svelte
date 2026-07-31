@@ -1,4 +1,5 @@
 <script lang="ts">
+import { onDestroy } from "svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import KeyRound from "@lucide/svelte/icons/key-round";
@@ -50,6 +51,12 @@ function handleOpenChange(next: boolean) {
     void flowController.close();
   }
 }
+
+// Navigating away (e.g. switching auth tabs) must cancel an in-flight OAuth
+// flow and stop its polling timer, not just clicking Close.
+onDestroy(() => {
+  void flowController.dispose();
+});
 </script>
 
 <Dialog
@@ -266,11 +273,14 @@ function handleOpenChange(next: boolean) {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => void flowController.close()}
-      >Cancel</Button
+    <Button
+      size="sm"
+      variant="ghost"
+      onclick={() => void flowController.close()}>Cancel</Button
     >
     {#if flowController.step === "api-key"}
       <Button
+        size="sm"
         onclick={() => void flowController.submitApiKey()}
         disabled={flowController.busy ||
           flowController.apiKey.trim().length === 0}
@@ -279,6 +289,7 @@ function handleOpenChange(next: boolean) {
       </Button>
     {:else if flowController.step === "oauth" && flowController.flow?.status === "prompt"}
       <Button
+        size="sm"
         onclick={() => void flowController.submitPrompt()}
         disabled={flowController.busy ||
           (!flowController.flow.allowEmpty &&
@@ -294,7 +305,6 @@ function handleOpenChange(next: boolean) {
 .add-provider-body {
   display: grid;
   gap: 1rem;
-  padding: 1rem 1.1rem;
 }
 
 .add-provider-empty {

@@ -4,13 +4,12 @@ import Copy from "@lucide/svelte/icons/copy";
 import FolderClock from "@lucide/svelte/icons/folder-clock";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import Plus from "@lucide/svelte/icons/plus";
-import Search from "@lucide/svelte/icons/search";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ProjectRecord } from "$lib/api";
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { Input } from "@nervekit/ui-kit/components/ui/input";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { dateTimeLabel, relativeTimeLabel } from "$lib/core/utils/time";
 import { tildePath } from "$lib/core/utils/path";
 
@@ -83,13 +82,12 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
 </script>
 
 <form class="picker-search" onsubmit={onSubmit}>
-  <Search size={14} strokeWidth={2.2} aria-hidden="true" />
-  <Input
+  <SearchInput
     bind:value={query}
-    oninput={() => onQueryChange?.()}
+    onValueChange={() => onQueryChange?.()}
     placeholder="Search recent projects or paste a path"
     disabled={loading}
-    size="sm"
+    inputClass="font-mono"
     ariaLabel="Search recent projects or enter a path"
   />
 </form>

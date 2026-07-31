@@ -48,7 +48,7 @@ function decideLater() {
     if (!next) decideLater();
   }}
 >
-  <div class="grid gap-4 p-4">
+  <div class="grid gap-4">
     <div
       class="flex gap-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm"
     >
@@ -85,14 +85,17 @@ function decideLater() {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" disabled={saving} onclick={decideLater}
+    <Button size="sm" variant="ghost" disabled={saving} onclick={decideLater}
       >Decide later</Button
     >
     <Button
+      size="sm"
       variant="destructive"
       disabled={saving}
       onclick={() => apply("denied")}>Deny</Button
     >
-    <Button disabled={saving} onclick={() => apply("allowed")}>Allow</Button>
+    <Button size="sm" disabled={saving} onclick={() => apply("allowed")}
+      >Allow</Button
+    >
   {/snippet}
 </DialogShell>

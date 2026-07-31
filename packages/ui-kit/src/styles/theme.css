@@ -174,4 +174,7 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
+  /* Keyframes live in animation.css; these expose Tailwind animate-* utilities. */
+  --animate-collapsible-down: collapsible-down 150ms ease-out;
+  --animate-collapsible-up: collapsible-up 150ms ease-in;
 }

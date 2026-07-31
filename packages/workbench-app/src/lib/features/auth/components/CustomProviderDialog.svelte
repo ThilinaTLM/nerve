@@ -258,8 +258,10 @@ Another-Header: value"
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button onclick={() => void submit()} disabled={!canSubmit}>
+    <Button size="sm" variant="ghost" onclick={() => (open = false)}
+      >Cancel</Button
+    >
+    <Button size="sm" onclick={() => void submit()} disabled={!canSubmit}>
       {busy ? "Saving…" : editing ? "Save provider" : "Add provider"}
     </Button>
   {/snippet}
@@ -269,7 +271,6 @@ Another-Header: value"
 .provider-form {
   display: grid;
   gap: 0.85rem;
-  padding: 1rem 1.1rem;
 }
 
 .field-grid {

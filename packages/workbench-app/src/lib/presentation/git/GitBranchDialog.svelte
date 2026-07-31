@@ -2,9 +2,9 @@
 import Check from "@lucide/svelte/icons/check";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
-import Search from "@lucide/svelte/icons/search";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
@@ -78,13 +78,13 @@ const dialogDescription = $derived(
   bind:open
   title={dialogTitle}
   description={dialogDescription}
-  class="max-w-md"
+  size="sm"
   onOpenChange={(next) => {
     if (!next) view = "switch";
   }}
 >
   {#if view === "switch"}
-    <div class="grid gap-4 p-4">
+    <div class="grid gap-4">
       {#if showBaseQuickSwitch}
         <div
           class="flex items-center gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2"
@@ -116,19 +116,11 @@ const dialogDescription = $derived(
         </div>
       {/if}
 
-      <div class="relative">
-        <Search
-          size={13}
-          strokeWidth={2.1}
-          class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          bind:value={branchFilter}
-          placeholder="Filter branches"
-          class="h-8 pl-7 text-xs"
-          aria-label="Filter branches"
-        />
-      </div>
+      <SearchInput
+        bind:value={branchFilter}
+        placeholder="Filter branches"
+        ariaLabel="Filter branches"
+      />
 
       <div class="max-h-72 overflow-y-auto rounded-md border">
         {#if loadingBranches}
@@ -172,7 +164,7 @@ const dialogDescription = $derived(
     </div>
   {:else}
     <form
-      class="grid gap-1.5 p-4"
+      class="grid gap-1.5"
       onsubmit={(event) => {
         event.preventDefault();
         if (isValidName && !creatingBranch) onCreateBranch(selectedRepo);
@@ -200,13 +192,22 @@ const dialogDescription = $derived(
 
   {#snippet footer()}
     {#if view === "switch"}
-      <Button variant="ghost" onclick={() => (open = false)}>Close</Button>
-      <Button disabled={!branchesEnabled} onclick={() => (view = "create")}>
+      <Button size="sm" variant="ghost" onclick={() => (open = false)}
+        >Close</Button
+      >
+      <Button
+        size="sm"
+        disabled={!branchesEnabled}
+        onclick={() => (view = "create")}
+      >
         <GitBranchPlus /> New branch
       </Button>
     {:else}
-      <Button variant="ghost" onclick={() => (view = "switch")}>Back</Button>
+      <Button size="sm" variant="ghost" onclick={() => (view = "switch")}
+        >Back</Button
+      >
       <Button
+        size="sm"
         disabled={!branchesEnabled || creatingBranch || !isValidName}
         onclick={() => onCreateBranch(selectedRepo)}
       >

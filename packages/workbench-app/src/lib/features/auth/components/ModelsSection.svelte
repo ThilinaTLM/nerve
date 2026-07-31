@@ -1,7 +1,6 @@
 <script lang="ts">
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type {
   AuthProviderMetadata,
@@ -12,6 +11,13 @@ import { deleteModelDefinition } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
+import {
+  SettingsEmptyState,
+  SettingsGroup,
+  SettingsList,
+  SettingsListItem,
+  SettingsToolbar,
+} from "$lib/presentation/components/settings";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
 import ModelDefinitionDialog from "./ModelDefinitionDialog.svelte";
@@ -83,18 +89,18 @@ function isUnavailable(model: ModelDefinition): boolean {
   return !eligibleProviderIds.has(model.provider);
 }
 
-function openAdd() {
+function openAdd(): void {
   if (providerItems.length === 0) return;
   editing = undefined;
   dialogOpen = true;
 }
 
-function openEdit(model: ModelDefinition) {
+function openEdit(model: ModelDefinition): void {
   editing = model;
   dialogOpen = true;
 }
 
-async function confirmDelete() {
+async function confirmDelete(): Promise<void> {
   const model = pendingDelete;
   if (!model) return;
   try {
@@ -108,73 +114,72 @@ async function confirmDelete() {
 }
 </script>
 
-<section
-  id="auth-custom-models"
-  class="settings-section"
-  data-section="custom-models"
->
-  <header class="settings-section-header">
-    <h2>Custom models</h2>
-  </header>
+<SettingsToolbar>
+  {#snippet end()}
+    <Button size="sm" onclick={openAdd} disabled={providerItems.length === 0}>
+      <Plus class="size-3.5" aria-hidden="true" />
+      Add model
+    </Button>
+  {/snippet}
+</SettingsToolbar>
 
-  <div class="settings-section-body">
-    <div class="settings-row providers-summary">
-      <Button size="sm" onclick={openAdd} disabled={providerItems.length === 0}>
-        <Plus size={15} strokeWidth={2.2} />
-        Add model
-      </Button>
-    </div>
-
-    {#if definitions.length === 0}
-      {#if providerItems.length === 0}
-        <p class="settings-note">
-          Authenticate a provider before adding custom models.
-        </p>
-      {:else}
-        <p class="settings-note">
-          Add a model to expose it in the composer picker.
-        </p>
-      {/if}
-    {:else}
-      <ul class="provider-list">
-        {#each definitions as model (`${model.provider}:${model.modelId}`)}
-          <li class="provider-item" class:orphan={isUnavailable(model)}>
-            <div class="provider-item-text">
-              <strong>{model.name}</strong>
-              <span>{providerLabel(model.provider)} · {model.modelId}</span>
-            </div>
-            <div class="provider-item-actions">
-              {#if isUnavailable(model)}
-                <span class="orphan-tag"
-                  ><TriangleAlert size={13} strokeWidth={2} /> Unavailable</span
-                >
-              {/if}
-              {#if model.reasoning}
-                <Badge tone="accent" size="sm">Reasoning</Badge>
-              {/if}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="Edit model"
-                onclick={() => openEdit(model)}
-              >
-                <Pencil size={14} strokeWidth={2} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                ariaLabel="Delete model"
-                onclick={() => (pendingDelete = model)}
-              >
-                <Trash2 size={14} strokeWidth={2} />
-              </Button>
-            </div>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  </div>
-</section>
+<SettingsGroup>
+  {#if definitions.length === 0}
+    <SettingsEmptyState
+      title="No custom models"
+      description={providerItems.length === 0
+        ? "Authenticate a provider before adding custom models."
+        : "Add a model to expose it in the composer picker."}
+    >
+      {#snippet actions()}
+        <Button
+          size="sm"
+          onclick={openAdd}
+          disabled={providerItems.length === 0}>Add model</Button
+        >
+      {/snippet}
+    </SettingsEmptyState>
+  {:else}
+    <SettingsList ariaLabel="Custom models">
+      {#each definitions as model (`${model.provider}:${model.modelId}`)}
+        <SettingsListItem title={model.name}>
+          {#snippet badges()}
+            {#if isUnavailable(model)}
+              <Badge tone="warn" size="xs">Unavailable</Badge>
+            {/if}
+            {#if model.reasoning}
+              <Badge tone="accent" size="xs">Reasoning</Badge>
+            {/if}
+          {/snippet}
+          {#snippet meta()}
+            <span class="truncate">
+              {providerLabel(model.provider)} ·
+              <span class="font-mono">{model.modelId}</span>
+            </span>
+          {/snippet}
+          {#snippet actions()}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              ariaLabel="Edit model"
+              onclick={() => openEdit(model)}
+            >
+              <Pencil class="size-3.5" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              ariaLabel="Delete model"
+              onclick={() => (pendingDelete = model)}
+            >
+              <Trash2 class="size-3.5" aria-hidden="true" />
+            </Button>
+          {/snippet}
+        </SettingsListItem>
+      {/each}
+    </SettingsList>
+  {/if}
+</SettingsGroup>
 
 <ModelDefinitionDialog bind:open={dialogOpen} model={editing} {providerItems} />
 
@@ -191,68 +196,3 @@ async function confirmDelete() {
     if (!open) pendingDelete = undefined;
   }}
 />
-
-<style>
-.providers-summary {
-  align-items: center;
-}
-
-.provider-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.provider-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  padding: 0.6rem 0.75rem;
-}
-
-.provider-item.orphan {
-  border-color: color-mix(in oklab, var(--warning) 45%, transparent);
-}
-
-.provider-item-text {
-  display: grid;
-  min-width: 0;
-  gap: 0.12rem;
-}
-
-.provider-item-text strong {
-  color: var(--foreground);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-.provider-item-text > span {
-  overflow: hidden;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.provider-item-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.orphan-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  color: var(--warning);
-  font-size: var(--text-xs);
-}
-</style>

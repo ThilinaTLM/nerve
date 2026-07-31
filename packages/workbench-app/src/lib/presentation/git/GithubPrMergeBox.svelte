@@ -9,8 +9,7 @@ import type {
   GithubPrOverview,
 } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
+import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { SplitButton } from "@nervekit/ui-kit/components/ui/split-button";
@@ -132,22 +131,11 @@ function confirmMerge() {
   {/if}
 </GithubPrSection>
 
-<Dialog.Root bind:open={confirmOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>Merge pull request #{detail.number}?</Dialog.Title>
-      <Dialog.Description>
-        {method ? mergeMethodLabel(method) : "Merge"} will merge
-        <span class="font-mono">{detail.headRefName}</span> into
-        <span class="font-mono">{detail.baseRefName}</span> at head
-        <span class="font-mono">{detail.headRefOid.slice(0, 7)}</span>.
-      </Dialog.Description>
-    </Dialog.Header>
-    <Dialog.Footer>
-      <Button variant="outline" onclick={() => (confirmOpen = false)}
-        >Cancel</Button
-      >
-      <Button variant="success" onclick={confirmMerge}>Confirm merge</Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title={`Merge pull request #${detail.number}?`}
+  description={`${method ? mergeMethodLabel(method) : "Merge"} will merge ${detail.headRefName} into ${detail.baseRefName} at head ${detail.headRefOid.slice(0, 7)}.`}
+  confirmLabel="Confirm merge"
+  confirmVariant="success"
+  onConfirm={confirmMerge}
+/>

@@ -3,9 +3,8 @@ import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import MoveUp from "@lucide/svelte/icons/move-up";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
-import Search from "@lucide/svelte/icons/search";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { Input } from "@nervekit/ui-kit/components/ui/input";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import type { PathCrumb } from "$lib/core/utils/path";
 
@@ -98,13 +97,12 @@ let {
   </div>
 </div>
 <form class="picker-search" onsubmit={onSubmit}>
-  <Search size={14} strokeWidth={2.2} aria-hidden="true" />
-  <Input
+  <SearchInput
     bind:value={query}
-    oninput={() => onQueryChange?.(query)}
+    onValueChange={() => onQueryChange?.(query)}
     placeholder="Filter folders or paste a path"
     disabled={loading}
-    size="sm"
+    inputClass="font-mono"
     ariaLabel="Filter folders or enter a path"
   />
 </form>
