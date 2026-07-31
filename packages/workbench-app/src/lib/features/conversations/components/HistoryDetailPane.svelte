@@ -64,7 +64,7 @@ async function copyId(id: string) {
     Select an entry on the left to preview it here.
   </div>
 {:else if selection.kind === "root"}
-  <div class="flex flex-col gap-4 p-5">
+  <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
     <div class="flex items-center gap-2 text-primary">
       <GitBranch class="size-5" strokeWidth={2} />
       <h3 class="text-sm font-semibold text-foreground">
@@ -85,7 +85,7 @@ async function copyId(id: string) {
   </div>
 {:else if selection.kind === "segment"}
   {@const segment = selection.segment}
-  <div class="flex flex-col gap-4 p-5">
+  <div class="flex h-full flex-col gap-4 overflow-y-auto p-5">
     <div class="flex flex-col gap-1">
       <h3 class="text-sm font-semibold text-foreground">
         {segment.total} collapsed steps
@@ -182,13 +182,14 @@ async function copyId(id: string) {
           </span>
         {/if}
         <button
-          class="flex items-center gap-1 font-mono hover:text-foreground"
+          class="flex min-w-0 max-w-full items-center gap-1 font-mono hover:text-foreground"
           type="button"
-          title="Copy entry id"
+          title={entry.id}
+          aria-label="Copy entry id"
           onclick={() => copyId(entry.id)}
         >
-          <Copy class="size-3" strokeWidth={2} />
-          {entry.id}
+          <Copy class="size-3 shrink-0" strokeWidth={2} />
+          <span class="truncate">{entry.id}</span>
         </button>
       </div>
       <div class="flex flex-wrap gap-2">

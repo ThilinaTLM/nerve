@@ -61,9 +61,9 @@ function editAndClose(entry: ConversationEntry) {
 <Dialog
   flush
   bind:open
+  size="viewport"
   title="Conversation history"
   description="Explore branches, zoom into rich message and tool details, then jump to or fork from any point."
-  class="conversation-history-dialog"
   onOpenChange={handleOpenChange}
 >
   {#snippet headerActions()}
@@ -103,19 +103,3 @@ function editAndClose(entry: ConversationEntry) {
   confirmLabel="Compact context"
   onConfirm={() => onCompact?.()}
 />
-
-<style>
-:global(.conversation-history-dialog) {
-  top: 4vh;
-  /* Override the base dialog's vertical centering so the header stays on-screen. */
-  transform: translateX(-50%);
-  width: min(1440px, calc(100vw - 48px));
-  height: min(900px, calc(100vh - 48px));
-  max-height: calc(100vh - 8vh);
-}
-
-:global(.conversation-history-dialog .dialog-body) {
-  overflow: hidden;
-  background: var(--card);
-}
-</style>

@@ -19,8 +19,8 @@ const BOTTOM_POSITION = "bottom" as Position;
  * card dimensions stay in lockstep while semantic zoom changes only content.
  */
 export const HISTORY_NODE_GEOMETRY = {
-  root: { width: 256, height: 80 },
-  segment: { width: 288, height: 112 },
+  root: { width: 320, height: 80 },
+  segment: { width: 320, height: 112 },
   entry: { width: 320, height: 192 },
   nodeGap: 48,
   rankGap: 64,
@@ -68,7 +68,7 @@ export type HistoryFlowNodeData =
   | HistorySegmentNodeData;
 
 export type HistoryFlowNode = Node<HistoryFlowNodeData, "history">;
-export type HistoryFlowEdge = Edge<{ isOnActivePath: boolean }, "smoothstep">;
+export type HistoryFlowEdge = Edge<{ isOnActivePath: boolean }, "default">;
 
 export type HistoryFlow = {
   nodes: HistoryFlowNode[];
@@ -280,7 +280,7 @@ export function buildHistoryFlow({
       id: `history-edge:${source}->${node.id}`,
       source,
       target: node.id,
-      type: "smoothstep",
+      type: "default",
       data: { isOnActivePath: active },
       class: active ? "history-edge-active" : undefined,
       selectable: false,

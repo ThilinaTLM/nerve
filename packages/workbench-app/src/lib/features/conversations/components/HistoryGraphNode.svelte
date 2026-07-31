@@ -28,8 +28,8 @@ const cardClass = $derived(
   data.kind === "entry"
     ? "h-48 w-80"
     : data.kind === "segment"
-      ? "h-28 w-72"
-      : "h-20 w-64",
+      ? "h-28 w-80"
+      : "h-20 w-80",
 );
 
 function stop(event: MouseEvent) {

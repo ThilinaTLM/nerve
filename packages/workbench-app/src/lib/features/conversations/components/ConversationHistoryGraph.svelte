@@ -243,82 +243,88 @@ function minimapNodeColor(node: Node): string {
   class="history-graph relative h-full min-h-0 overflow-hidden bg-background"
 >
   {#if hasConversation}
-    <SvelteFlow
-      nodes={flow.nodes}
-      edges={flow.edges}
-      {nodeTypes}
-      minZoom={0.12}
-      maxZoom={1.75}
-      onlyRenderVisibleElements
-      nodesDraggable={false}
-      nodesConnectable={false}
-      elementsSelectable
-      nodesFocusable
-      edgesFocusable={false}
-      selectionOnDrag={false}
-      selectNodesOnDrag={false}
-      deleteKey={null}
-      multiSelectionKey={null}
-      zoomOnDoubleClick={false}
-      onmove={handleMove}
-      onnodeclick={({ node }) => handleNodeClick(node)}
-      onselectionchange={({ nodes }) => handleSelectionChange(nodes)}
-      onpaneclick={() => (inspectorOpen = false)}
-      oninit={() =>
-        queueMicrotask(() => {
-          selectionEventsReady = true;
-        })}
-    >
-      <Background gap={24} size={1} />
-      <MiniMap
-        position="bottom-left"
-        pannable
-        zoomable
-        nodeColor={minimapNodeColor}
-        nodeStrokeColor={minimapNodeColor}
-        nodeStrokeWidth={2}
-        nodeBorderRadius={6}
-        ariaLabel="Conversation graph minimap"
-      />
-      <HistoryGraphControls
-        {activeNodeId}
-        hasSegments={visible.segments.length > 0}
-        {allExpanded}
-        onToggleAll={toggleAll}
-        {fitRequest}
-        {centerRequest}
-      />
-    </SvelteFlow>
-
-    {#if inspectorOpen && selection}
-      <aside
-        class="absolute inset-y-3 right-3 z-10 flex w-96 max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border bg-card shadow-xl"
-        aria-label="Conversation entry details"
-      >
-        <div class="flex items-center justify-between border-b px-3 py-2">
-          <span class="text-xs font-medium text-muted-foreground">Details</span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            ariaLabel="Close details"
-            title="Close details"
-            onclick={() => (inspectorOpen = false)}
-          >
-            <X class="size-3.5" strokeWidth={2} />
-          </Button>
-        </div>
-        <div class="min-h-0 flex-1 overflow-y-auto">
-          <HistoryDetailPane
-            {selection}
-            {toolCallsById}
-            {onNavigateToEntry}
-            {onEditEntry}
-            onSelectRow={selectRow}
-            onExpandSegment={expandSegment}
+    <div class="flex h-full min-h-0">
+      <div class="relative min-w-0 flex-1">
+        <SvelteFlow
+          nodes={flow.nodes}
+          edges={flow.edges}
+          {nodeTypes}
+          minZoom={0.12}
+          maxZoom={1.75}
+          onlyRenderVisibleElements
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
+          nodesFocusable
+          edgesFocusable={false}
+          selectionOnDrag={false}
+          selectNodesOnDrag={false}
+          deleteKey={null}
+          multiSelectionKey={null}
+          zoomOnDoubleClick={false}
+          onmove={handleMove}
+          onnodeclick={({ node }) => handleNodeClick(node)}
+          onselectionchange={({ nodes }) => handleSelectionChange(nodes)}
+          onpaneclick={() => (inspectorOpen = false)}
+          oninit={() =>
+            queueMicrotask(() => {
+              selectionEventsReady = true;
+            })}
+        >
+          <Background gap={24} size={1} />
+          <MiniMap
+            position="bottom-left"
+            pannable
+            zoomable
+            nodeColor={minimapNodeColor}
+            nodeStrokeColor={minimapNodeColor}
+            nodeStrokeWidth={2}
+            nodeBorderRadius={6}
+            ariaLabel="Conversation graph minimap"
           />
-        </div>
-      </aside>
-    {/if}
+          <HistoryGraphControls
+            {activeNodeId}
+            hasSegments={visible.segments.length > 0}
+            {allExpanded}
+            onToggleAll={toggleAll}
+            {fitRequest}
+            {centerRequest}
+          />
+        </SvelteFlow>
+      </div>
+
+      {#if inspectorOpen && selection}
+        <aside
+          class="flex min-w-80 w-1/3 max-w-md shrink-0 flex-col overflow-hidden border-l bg-card"
+          aria-label="Conversation entry details"
+        >
+          <div class="flex items-center justify-between border-b px-3 py-2">
+            <span class="text-xs font-medium text-muted-foreground"
+              >Entry details</span
+            >
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              ariaLabel="Close details"
+              title="Close details"
+              onclick={() => (inspectorOpen = false)}
+            >
+              <X class="size-3.5" strokeWidth={2} />
+            </Button>
+          </div>
+          <div class="min-h-0 flex-1 overflow-hidden">
+            <HistoryDetailPane
+              {selection}
+              {toolCallsById}
+              {onNavigateToEntry}
+              {onEditEntry}
+              onSelectRow={selectRow}
+              onExpandSegment={expandSegment}
+            />
+          </div>
+        </aside>
+      {/if}
+    </div>
   {:else}
     <div
       class="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground"
