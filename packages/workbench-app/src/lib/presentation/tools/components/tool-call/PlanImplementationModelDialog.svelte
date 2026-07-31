@@ -122,7 +122,7 @@ $effect(() => {
   onOpenChange={handleOpenChange}
   class="max-w-xl"
 >
-  <div class="grid gap-4 px-3.5 py-4">
+  <div class="grid gap-4">
     <section class="grid gap-2">
       <p
         class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -200,10 +200,10 @@ $effect(() => {
   </div>
 
   {#snippet footer()}
-    <Button variant="secondary" onclick={() => handleOpenChange(false)}
+    <Button size="sm" variant="ghost" onclick={() => handleOpenChange(false)}
       >Cancel</Button
     >
-    <Button onclick={confirmSelection} disabled={confirmDisabled}
+    <Button size="sm" onclick={confirmSelection} disabled={confirmDisabled}
       >{confirmLabel}</Button
     >
   {/snippet}

@@ -159,6 +159,10 @@
 
 .settings-section {
   scroll-margin-top: 0.75rem;
+  /* Net-zero inset so the one-shot section flash wash breathes around the
+   * content instead of hugging its edges. */
+  margin-inline: -0.5rem;
+  padding-inline: 0.5rem;
 }
 
 @container settings-page (max-width: 46rem) {

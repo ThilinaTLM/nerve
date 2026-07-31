@@ -139,6 +139,43 @@
   }
 }
 
+/* One-shot attention wash for a jump target (settings section navigation).
+ * Applied via class="animate-section-flash"; remove on animationend. */
+.animate-section-flash {
+  animation: section-flash 1.2s ease-out both;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes section-flash {
+  0% {
+    background-color: color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Collapsible content slide (collapsible-content.svelte). Heights come from
+ * bits-ui's measured CSS variable; the animate-collapsible-* utilities are
+ * generated from theme.css tokens. */
+@keyframes collapsible-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--bits-collapsible-content-height);
+  }
+}
+
+@keyframes collapsible-up {
+  from {
+    height: var(--bits-collapsible-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
 /* Compositor-friendly working-label activity (WorkingIndicator.svelte). */
 @keyframes working-label-pulse {
   0%,

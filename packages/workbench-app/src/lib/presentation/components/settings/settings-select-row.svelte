@@ -24,7 +24,7 @@ let {
 
 <SettingsRow {label} {description} {htmlFor} class={className}>
   {#snippet control()}
-    <div class="w-56 min-w-0">
+    <div class="w-48 min-w-0">
       {@render controlSnippet(disabled)}
     </div>
   {/snippet}

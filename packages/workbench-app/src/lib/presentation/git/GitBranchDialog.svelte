@@ -78,13 +78,13 @@ const dialogDescription = $derived(
   bind:open
   title={dialogTitle}
   description={dialogDescription}
-  class="max-w-md"
+  size="sm"
   onOpenChange={(next) => {
     if (!next) view = "switch";
   }}
 >
   {#if view === "switch"}
-    <div class="grid gap-4 p-4">
+    <div class="grid gap-4">
       {#if showBaseQuickSwitch}
         <div
           class="flex items-center gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2"
@@ -164,7 +164,7 @@ const dialogDescription = $derived(
     </div>
   {:else}
     <form
-      class="grid gap-1.5 p-4"
+      class="grid gap-1.5"
       onsubmit={(event) => {
         event.preventDefault();
         if (isValidName && !creatingBranch) onCreateBranch(selectedRepo);
@@ -192,13 +192,22 @@ const dialogDescription = $derived(
 
   {#snippet footer()}
     {#if view === "switch"}
-      <Button variant="ghost" onclick={() => (open = false)}>Close</Button>
-      <Button disabled={!branchesEnabled} onclick={() => (view = "create")}>
+      <Button size="sm" variant="ghost" onclick={() => (open = false)}
+        >Close</Button
+      >
+      <Button
+        size="sm"
+        disabled={!branchesEnabled}
+        onclick={() => (view = "create")}
+      >
         <GitBranchPlus /> New branch
       </Button>
     {:else}
-      <Button variant="ghost" onclick={() => (view = "switch")}>Back</Button>
+      <Button size="sm" variant="ghost" onclick={() => (view = "switch")}
+        >Back</Button
+      >
       <Button
+        size="sm"
         disabled={!branchesEnabled || creatingBranch || !isValidName}
         onclick={() => onCreateBranch(selectedRepo)}
       >

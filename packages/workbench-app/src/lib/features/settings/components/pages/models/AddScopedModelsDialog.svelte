@@ -109,9 +109,10 @@ function save(): void {
   title="Scope composer models"
   description="Pick the authenticated models to show in the composer. Leave everything unchecked to keep all models available."
   size="wide"
+  flush
 >
   <div class="grid max-h-[min(70vh,32rem)] grid-rows-[auto_minmax(0,1fr)]">
-    <div class="grid gap-2 border-b border-border/50 pb-3">
+    <div class="grid gap-2 border-b border-border/50 px-3.5 pt-3 pb-2.5">
       <SearchInput
         bind:value={query}
         placeholder="Search models"
@@ -120,7 +121,7 @@ function save(): void {
       {#if availableModels.length > 0}
         <ToggleGroup.Root
           type="single"
-          size="sm"
+          size="xs"
           spacing={1}
           variant="outline"
           value={providerFilter}
@@ -140,13 +141,13 @@ function save(): void {
       {/if}
     </div>
 
-    <div class="min-h-0 overflow-y-auto pt-2">
+    <div class="min-h-0 overflow-y-auto p-1.5">
       {#if availableModels.length === 0}
-        <p class="text-sm text-muted-foreground">
+        <p class="px-1 py-2 text-sm text-muted-foreground">
           Authenticate a provider before choosing scoped models.
         </p>
       {:else if filteredModels.length === 0}
-        <p class="text-sm text-muted-foreground">
+        <p class="px-1 py-2 text-sm text-muted-foreground">
           No models match the current filters.
         </p>
       {:else}
@@ -155,9 +156,10 @@ function save(): void {
             {@const checked = selectedKeys.has(modelKey(model))}
             <li>
               <Label
-                class="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-2.5 py-2 font-normal hover:bg-accent/50 has-data-[state=checked]:border-primary/50 has-data-[state=checked]:bg-accent"
+                class="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-2 py-1.5 font-normal hover:bg-accent/50 has-data-[state=checked]:border-primary/60 has-data-[state=checked]:bg-primary/8"
               >
                 <Checkbox
+                  size="sm"
                   {checked}
                   onCheckedChange={(value) =>
                     toggleModel(model, value === true)}
@@ -186,8 +188,10 @@ function save(): void {
         ? "All models available"
         : `${selectedCount} selected`}
     </span>
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button onclick={save} disabled={availableModels.length === 0}
+    <Button size="sm" variant="ghost" onclick={() => (open = false)}
+      >Cancel</Button
+    >
+    <Button size="sm" onclick={save} disabled={availableModels.length === 0}
       >Save selection</Button
     >
   {/snippet}

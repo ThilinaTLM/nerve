@@ -139,9 +139,9 @@ function save(): void {
 }
 </script>
 
-<Dialog bind:open {title} {description} size="wide">
+<Dialog bind:open {title} {description} size="wide" flush>
   <div class="grid max-h-[min(70vh,36rem)] grid-rows-[auto_minmax(0,1fr)]">
-    <div class="grid gap-2 border-b border-border/50 pb-3">
+    <div class="grid gap-2 border-b border-border/50 px-3.5 pt-3 pb-2.5">
       <SearchInput
         bind:value={query}
         placeholder="Search models"
@@ -150,7 +150,7 @@ function save(): void {
       {#if models.length > 0}
         <ToggleGroup.Root
           type="single"
-          size="sm"
+          size="xs"
           spacing={1}
           variant="outline"
           value={providerFilter}
@@ -170,13 +170,13 @@ function save(): void {
       {/if}
     </div>
 
-    <div class="min-h-0 overflow-y-auto pt-2">
+    <div class="min-h-0 overflow-y-auto p-1.5">
       {#if models.length === 0 && !hasFallback}
-        <p class="text-sm text-muted-foreground">
+        <p class="px-1 py-2 text-sm text-muted-foreground">
           Authenticate a provider before choosing a model.
         </p>
       {:else if filteredModels.length === 0 && !hasFallback}
-        <p class="text-sm text-muted-foreground">
+        <p class="px-1 py-2 text-sm text-muted-foreground">
           No models match the current filters.
         </p>
       {:else}
@@ -185,7 +185,7 @@ function save(): void {
             <li>
               <button
                 type="button"
-                class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-2.5 py-2 text-left hover:bg-accent/50 aria-pressed:border-primary aria-pressed:bg-accent"
+                class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-2 py-1.5 text-left hover:bg-accent/50 aria-pressed:border-primary/60 aria-pressed:bg-primary/8"
                 aria-pressed={selectedKey === fallbackKey}
                 onclick={() => (selectedKey = fallbackKey)}
               >
@@ -205,7 +205,7 @@ function save(): void {
             <li>
               <button
                 type="button"
-                class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-2.5 py-2 text-left hover:bg-accent/50 aria-pressed:border-primary aria-pressed:bg-accent"
+                class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-2 py-1.5 text-left hover:bg-accent/50 aria-pressed:border-primary/60 aria-pressed:bg-primary/8"
                 aria-pressed={selectedKey === key}
                 onclick={() => (selectedKey = key)}
               >
@@ -239,7 +239,7 @@ function save(): void {
       >
       <ToggleGroup.Root
         type="single"
-        size="sm"
+        size="xs"
         spacing={1}
         variant="outline"
         value={thinkingLevel}
@@ -256,9 +256,13 @@ function save(): void {
         {/each}
       </ToggleGroup.Root>
     </div>
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button onclick={save} disabled={!hasFallback && !selectedModelInfo}
-      >{confirmLabel}</Button
+    <Button size="sm" variant="ghost" onclick={() => (open = false)}
+      >Cancel</Button
+    >
+    <Button
+      size="sm"
+      onclick={save}
+      disabled={!hasFallback && !selectedModelInfo}>{confirmLabel}</Button
     >
   {/snippet}
 </Dialog>

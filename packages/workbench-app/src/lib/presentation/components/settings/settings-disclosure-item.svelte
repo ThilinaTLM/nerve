@@ -1,3 +1,10 @@
+<!--
+  Expandable settings list row. The trigger keeps its title and description in
+  both states (the description unclamps in place when open) so the row height
+  stays stable and the chevron only rotates. The `detail` snippet is for
+  supplemental content only (paths, nested lists, controls); never repeat the
+  description there.
+-->
 <script lang="ts">
 import type { Snippet } from "svelte";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
@@ -34,17 +41,20 @@ let {
   <SettingsListItem {leading} {badges} {meta} {actions}>
     {#snippet content()}
       <Collapsible.Trigger
-        class="group/disclosure flex min-w-0 flex-1 items-center gap-2 rounded-sm py-0.5"
+        class="group/disclosure flex min-w-0 flex-1 items-start gap-2 rounded-sm py-0.5"
       >
         <ChevronRight
-          class="size-3.5 flex-none text-muted-foreground transition-transform group-data-[state=open]/disclosure:rotate-90"
+          class="mt-[3px] size-3.5 flex-none text-muted-foreground transition-transform group-data-[state=open]/disclosure:rotate-90"
           aria-hidden="true"
         />
-        <span class="grid min-w-0 gap-0.5">
+        <span class="grid min-w-0 gap-0.5 text-left">
           <span class="truncate text-sm text-foreground">{title}</span>
-          {#if description && !open}
-            <span class="line-clamp-1 text-xs text-muted-foreground"
-              >{description}</span
+          {#if description}
+            <span
+              class={cn(
+                "text-xs text-muted-foreground",
+                !open && "line-clamp-1",
+              )}>{description}</span
             >
           {/if}
         </span>

@@ -67,6 +67,7 @@ function openRun(taskId: string): void {
 </script>
 
 <Dialog
+  flush
   bind:open
   size="wide"
   title="Runs"

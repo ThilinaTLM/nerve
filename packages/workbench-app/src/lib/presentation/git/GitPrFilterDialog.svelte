@@ -57,10 +57,10 @@ function apply(): void {
   bind:open
   title="Pull request filters"
   description="Choose which open GitHub pull requests appear. Up to 10 are shown."
-  class="max-w-lg"
+  size="sm"
   {onOpenChange}
 >
-  <div class="grid gap-4 p-4">
+  <div class="grid gap-4">
     <div class="grid gap-1.5">
       <Label for="pr-filter-author">Author</Label>
       <SelectField
@@ -151,6 +151,7 @@ function apply(): void {
 
   {#snippet footer()}
     <Button
+      size="sm"
       variant="ghost"
       onclick={() => {
         onReset();
@@ -158,7 +159,10 @@ function apply(): void {
       }}
       disabled={!canReset}>Reset defaults</Button
     >
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button onclick={apply} disabled={!canApply}>Apply filters</Button>
+    <Button size="sm" variant="ghost" onclick={() => (open = false)}
+      >Cancel</Button
+    >
+    <Button size="sm" onclick={apply} disabled={!canApply}>Apply filters</Button
+    >
   {/snippet}
 </Dialog>

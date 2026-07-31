@@ -71,6 +71,7 @@ function openAndClose(conversationId: string) {
 </script>
 
 <Dialog
+  flush
   bind:open
   title="Conversations"
   description={`${rows.length} in ${projectLabel}`}

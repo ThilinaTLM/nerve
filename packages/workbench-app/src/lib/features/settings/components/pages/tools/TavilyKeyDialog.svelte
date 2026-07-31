@@ -90,6 +90,7 @@ async function removeKey(): Promise<void> {
 
 <Dialog
   bind:open
+  size="sm"
   title={`Configure ${displayName} API key`}
   description="Store an API key for the web_search tool. The key is encrypted before it is sent to the daemon."
 >
@@ -131,27 +132,35 @@ async function removeKey(): Promise<void> {
     {:else if message}
       <SettingsInlineMessage tone="success" text={message} />
     {/if}
-
-    <div class="flex flex-wrap justify-end gap-2">
-      <Button type="button" variant="ghost" onclick={() => (open = false)}
-        >Close</Button
-      >
-      {#if configured}
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy}
-          onclick={() => (removeOpen = true)}>Remove key</Button
-        >
-      {/if}
-      <Button type="submit" disabled={busy || apiKey.trim().length === 0}>
-        {#if busy}
-          <Spinner class="size-3.5" />
-        {/if}
-        {configured ? "Replace key" : "Save key"}
-      </Button>
-    </div>
   </form>
+
+  {#snippet footer()}
+    <Button
+      size="sm"
+      type="button"
+      variant="ghost"
+      onclick={() => (open = false)}>Close</Button
+    >
+    {#if configured}
+      <Button
+        size="sm"
+        type="button"
+        variant="outline"
+        disabled={busy}
+        onclick={() => (removeOpen = true)}>Remove key</Button
+      >
+    {/if}
+    <Button
+      size="sm"
+      disabled={busy || apiKey.trim().length === 0}
+      onclick={() => void saveKey()}
+    >
+      {#if busy}
+        <Spinner class="size-3.5" />
+      {/if}
+      {configured ? "Replace key" : "Save key"}
+    </Button>
+  {/snippet}
 </Dialog>
 
 <ConfirmDialog

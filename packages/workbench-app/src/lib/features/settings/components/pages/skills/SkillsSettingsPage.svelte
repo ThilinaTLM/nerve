@@ -1,15 +1,12 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import Copy from "@lucide/svelte/icons/copy";
 import type { AvailableSkill, Settings } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
-import { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
-import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import ListChecks from "@lucide/svelte/icons/list-checks";
 import {
   SettingsDisclosureItem,
   SettingsEmptyState,
@@ -154,26 +151,26 @@ function copyPath(path: string): void {
     </SearchInput>
   {/snippet}
   {#snippet end()}
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        class={buttonVariants({ variant: "outline", size: "xs", class: "h-7" })}
-        disabled={visibleEntries.length === 0}
-        aria-label="Bulk skill actions"
-        title="Bulk skill actions"
-      >
-        <ListChecks class="size-3.5" aria-hidden="true" />
-        Bulk
-        <ChevronDown class="size-3" aria-hidden="true" />
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content align="end" class="w-44">
-        <DropdownMenu.Item onSelect={() => applyBulk(true)}>
-          Enable {visibleEntries.length} shown
-        </DropdownMenu.Item>
-        <DropdownMenu.Item onSelect={() => applyBulk(false)}>
-          Disable {visibleEntries.length} shown
-        </DropdownMenu.Item>
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
+    <Button
+      size="xs"
+      variant="ghost"
+      class="text-muted-foreground"
+      disabled={visibleEntries.length === 0}
+      title={`Enable ${visibleEntries.length} skills`}
+      onclick={() => applyBulk(true)}
+    >
+      {query ? "Enable shown" : "Enable all"}
+    </Button>
+    <Button
+      size="xs"
+      variant="ghost"
+      class="text-muted-foreground"
+      disabled={visibleEntries.length === 0}
+      title={`Disable ${visibleEntries.length} skills`}
+      onclick={() => applyBulk(false)}
+    >
+      {query ? "Disable shown" : "Disable all"}
+    </Button>
   {/snippet}
 </SettingsToolbar>
 
@@ -187,9 +184,9 @@ function copyPath(path: string): void {
 
 {#if loading}
   <SettingsGroup>
-    <Skeleton class="h-9 w-full" />
-    <Skeleton class="h-9 w-full" />
-    <Skeleton class="h-9 w-full" />
+    <Skeleton class="h-8 w-full" />
+    <Skeleton class="h-8 w-full" />
+    <Skeleton class="h-8 w-full" />
   </SettingsGroup>
 {:else if groupedEntries.length === 0 && !error}
   <SettingsEmptyState
@@ -223,14 +220,13 @@ function copyPath(path: string): void {
               />
             {/snippet}
             {#snippet detail()}
-              <p>{entry.skill.description}</p>
               <div class="flex min-w-0 items-center gap-2">
                 <span class="truncate font-mono" title={entry.skill.filePath}
                   >{entry.skill.filePath}</span
                 >
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon-xs"
                   ariaLabel="Copy skill path"
                   onclick={() => copyPath(entry.skill.filePath)}
                 >

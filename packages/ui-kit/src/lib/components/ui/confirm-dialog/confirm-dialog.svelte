@@ -8,6 +8,7 @@ let {
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   destructive = false,
+  confirmVariant,
   class: className,
   onConfirm,
   onCancel,
@@ -19,6 +20,8 @@ let {
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  /** Overrides the confirm button variant (e.g. "success"); wins over `destructive`. */
+  confirmVariant?: "default" | "destructive" | "success";
   class?: string;
   onConfirm?: () => void;
   onCancel?: () => void;
@@ -50,11 +53,12 @@ function handleCancel() {
       {/if}
     </AlertDialog.Header>
     <AlertDialog.Footer>
-      <AlertDialog.Cancel onclick={handleCancel}
+      <AlertDialog.Cancel size="sm" onclick={handleCancel}
         >{cancelLabel}</AlertDialog.Cancel
       >
       <AlertDialog.Action
-        variant={destructive ? "destructive" : "default"}
+        size="sm"
+        variant={confirmVariant ?? (destructive ? "destructive" : "default")}
         onclick={handleConfirm}
       >
         {confirmLabel}

@@ -55,6 +55,7 @@ function resetPath(): void {
 
 <Dialog
   bind:open
+  size="sm"
   title="Configure Python runtime"
   description="Set a manual Python executable path, or leave it empty to auto-detect from the project and system PATH."
 >
@@ -80,8 +81,12 @@ function resetPath(): void {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button variant="outline" onclick={resetPath}>Use auto-detect</Button>
-    <Button onclick={savePath}>Save</Button>
+    <Button size="sm" variant="ghost" onclick={() => (open = false)}
+      >Cancel</Button
+    >
+    <Button size="sm" variant="outline" onclick={resetPath}
+      >Use auto-detect</Button
+    >
+    <Button size="sm" onclick={savePath}>Save</Button>
   {/snippet}
 </Dialog>

@@ -100,7 +100,7 @@ async function submit() {
   description="Create a reusable composer prompt in your user profile or the current project."
   class="max-w-2xl"
 >
-  <div class="grid max-h-[70vh] gap-4 overflow-y-auto p-4">
+  <div class="grid max-h-[70vh] gap-4 overflow-y-auto">
     <div class="grid gap-1.5">
       <Label>Scope</Label>
       <SelectField items={scopeItems} bind:value={scope} disabled={saving} />
@@ -169,10 +169,13 @@ async function submit() {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)} disabled={saving}
-      >Cancel</Button
+    <Button
+      size="sm"
+      variant="ghost"
+      onclick={() => (open = false)}
+      disabled={saving}>Cancel</Button
     >
-    <Button onclick={() => void submit()} disabled={!canCreate}
+    <Button size="sm" onclick={() => void submit()} disabled={!canCreate}
       >{saving ? "Creating…" : "Create suggestion"}</Button
     >
   {/snippet}

@@ -137,7 +137,7 @@ async function submit() {
   title={editing ? `Edit ${model?.name}` : "Add model"}
   description="Register a model under a configured or authenticated provider."
 >
-  <div class="grid gap-3 px-4 py-3">
+  <div class="grid gap-3">
     <div class="grid gap-1.5">
       <Label>Provider</Label>
       <SelectField
@@ -259,8 +259,10 @@ async function submit() {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button onclick={() => void submit()} disabled={!canSubmit}>
+    <Button size="sm" variant="ghost" onclick={() => (open = false)}
+      >Cancel</Button
+    >
+    <Button size="sm" onclick={() => void submit()} disabled={!canSubmit}>
       {busy ? "Saving…" : editing ? "Save model" : "Add model"}
     </Button>
   {/snippet}

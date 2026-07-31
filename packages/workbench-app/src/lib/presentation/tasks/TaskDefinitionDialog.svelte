@@ -87,7 +87,7 @@ function submit() {
   class="max-w-xl"
   {onOpenChange}
 >
-  <div class="grid gap-4 p-4">
+  <div class="grid gap-4">
     <div class="grid gap-1.5">
       <Label for="task-definition-label">Label</Label>
       <Input
@@ -148,10 +148,13 @@ function submit() {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)} disabled={saving}
-      >Cancel</Button
+    <Button
+      size="sm"
+      variant="ghost"
+      onclick={() => (open = false)}
+      disabled={saving}>Cancel</Button
     >
-    <Button onclick={submit} disabled={!canSave}
+    <Button size="sm" onclick={submit} disabled={!canSave}
       >{saving ? "Saving…" : dialogSubmitLabel}</Button
     >
   {/snippet}

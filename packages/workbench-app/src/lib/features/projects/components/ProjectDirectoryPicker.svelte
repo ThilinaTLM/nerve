@@ -346,6 +346,7 @@ $effect(() => {
 });
 </script>
 <Dialog
+  flush
   bind:open
   title="Switch project"
   class="project-picker-dialog"

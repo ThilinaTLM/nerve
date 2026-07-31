@@ -59,8 +59,8 @@ function openProviderSettings() {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={closeDialog}>Close</Button>
-    <Button onclick={openProviderSettings}>
+    <Button size="sm" variant="ghost" onclick={closeDialog}>Close</Button>
+    <Button size="sm" onclick={openProviderSettings}>
       <KeyRound size={15} strokeWidth={2.1} />
       Open authentication
     </Button>
@@ -75,7 +75,6 @@ function openProviderSettings() {
 .audio-auth-body {
   display: grid;
   gap: 0.85rem;
-  padding: 1rem;
 }
 
 .audio-auth-summary {

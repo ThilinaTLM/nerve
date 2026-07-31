@@ -12,6 +12,9 @@ let {
 <CollapsiblePrimitive.Content
   bind:ref
   data-slot="collapsible-content"
-  class={cn("outline-none", className)}
+  class={cn(
+    "overflow-hidden outline-none data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up",
+    className,
+  )}
   {...restProps}
 />

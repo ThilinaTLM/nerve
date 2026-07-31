@@ -13,7 +13,9 @@ type Props = {
   description?: string;
   class?: string;
   closeLabel?: string;
-  size?: "default" | "wide";
+  size?: "sm" | "default" | "wide";
+  /** Removes the default body padding for edge-to-edge list/graph content. */
+  flush?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
 
@@ -27,6 +29,7 @@ let {
   class: className = "",
   closeLabel = "Close dialog",
   size = "default",
+  flush = false,
   onOpenChange,
 }: Props = $props();
 
@@ -38,10 +41,13 @@ function handleOpenChange(next: boolean) {
 
 <DialogPrimitive.Root bind:open onOpenChange={handleOpenChange}>
   <DialogPrimitive.Portal>
-    <DialogPrimitive.Overlay class="dialog-overlay" />
+    <DialogPrimitive.Overlay
+      class="dialog-overlay data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 duration-100"
+    />
     <DialogPrimitive.Content
       class={cn(
-        "dialog-content",
+        "dialog-content data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 data-open:zoom-in-95 data-closed:zoom-out-95 duration-100 outline-none",
+        size === "sm" && "dialog-content-sm",
         size === "wide" && "dialog-content-wide",
         className,
       )}
@@ -63,10 +69,10 @@ function handleOpenChange(next: boolean) {
           </div>
         {/if}
         <DialogPrimitive.Close class="dialog-close" aria-label={closeLabel}>
-          <X size={15} strokeWidth={2.25} aria-hidden="true" />
+          <X size={14} strokeWidth={2.25} aria-hidden="true" />
         </DialogPrimitive.Close>
       </header>
-      <div class="dialog-body">
+      <div class={cn("dialog-body", flush && "dialog-body-flush")}>
         {@render children?.()}
       </div>
       {#if footer}
@@ -77,121 +83,3 @@ function handleOpenChange(next: boolean) {
     </DialogPrimitive.Content>
   </DialogPrimitive.Portal>
 </DialogPrimitive.Root>
-
-<style>
-:global(.dialog-overlay) {
-  position: fixed;
-  z-index: 50;
-  inset: 0;
-  background: color-mix(in oklab, var(--sidebar) 72%, transparent);
-}
-
-:global(.dialog-content) {
-  position: fixed;
-  z-index: 50;
-  top: 50%;
-  top: 50dvh;
-  left: 50%;
-  display: grid;
-  min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(760px, calc(100vw - 32px));
-  width: min(760px, calc(100dvw - 2rem));
-  max-height: 84vh;
-  max-height: min(84dvh, calc(100dvh - 2rem));
-  transform: translate(-50%, -50%);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: var(--shadow-xl);
-}
-
-:global(.dialog-content-wide) {
-  width: min(960px, calc(100vw - 32px));
-  width: min(960px, calc(100dvw - 2rem));
-  max-height: 90vh;
-  max-height: min(90dvh, calc(100dvh - 2rem));
-}
-
-.dialog-header,
-.dialog-footer {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: var(--accent);
-  padding: 0.75rem 0.875rem;
-}
-
-.dialog-header {
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-}
-
-.dialog-header-actions {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.4rem;
-}
-
-.dialog-footer {
-  justify-content: flex-end;
-  border-top: 1px solid var(--border);
-}
-
-.dialog-title-block {
-  display: grid;
-  min-width: min(16rem, 40%);
-  gap: 0.16rem;
-}
-
-:global(.dialog-title) {
-  margin: 0;
-  color: var(--foreground);
-  font-size: var(--text-base);
-  font-weight: 600;
-  line-height: 1.18;
-}
-
-:global(.dialog-description) {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-}
-
-:global(.dialog-close) {
-  display: inline-grid;
-  flex: none;
-  width: 1.75rem;
-  height: 1.75rem;
-  place-items: center;
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  border-radius: var(--radius-sm);
-  background: var(--input);
-  color: var(--muted-foreground);
-  cursor: pointer;
-}
-
-:global(.dialog-close:hover) {
-  border-color: var(--border);
-  background: var(--card);
-  color: var(--foreground);
-}
-
-:global(.dialog-close:focus-visible) {
-  border-color: var(--ring);
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent);
-}
-
-.dialog-body {
-  min-height: 0;
-  overflow: auto;
-  background: var(--card);
-}
-</style>

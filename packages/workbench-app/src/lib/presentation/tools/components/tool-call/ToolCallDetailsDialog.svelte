@@ -123,12 +123,12 @@ const description = $derived(
 >
   {#if loading && !toolCall}
     <div
-      class="flex min-h-40 items-center justify-center p-6 text-sm text-muted-foreground"
+      class="flex min-h-40 items-center justify-center text-sm text-muted-foreground"
     >
       Loading full tool call…
     </div>
   {:else if error && !toolCall}
-    <div class="grid gap-3 p-4">
+    <div class="grid gap-3">
       <p class="m-0 text-sm text-destructive">{error}</p>
       <Button
         size="sm"
@@ -138,7 +138,7 @@ const description = $derived(
       >
     </div>
   {:else}
-    <div class="grid gap-3 p-3">
+    <div class="grid gap-3">
       {#if presentation.meta.length > 0}
         <div class="flex flex-wrap gap-1.5">
           {#each presentation.meta as item, i (i)}

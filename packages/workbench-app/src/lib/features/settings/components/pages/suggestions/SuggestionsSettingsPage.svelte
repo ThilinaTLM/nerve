@@ -170,9 +170,6 @@ function copyPath(path: string): void {
             {/if}
           {/snippet}
           {#snippet detail()}
-            {#if status.description}
-              <p>{status.description}</p>
-            {/if}
             {#if status.sourceKind !== "builtin"}
               <div class="flex min-w-0 items-center gap-2">
                 <span class="truncate font-mono" title={status.path}
@@ -180,7 +177,7 @@ function copyPath(path: string): void {
                 >
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon-xs"
                   ariaLabel="Copy suggestion path"
                   onclick={() => copyPath(status.path)}
                 >

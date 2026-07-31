@@ -59,6 +59,7 @@ function editAndClose(entry: ConversationEntry) {
 </script>
 
 <Dialog
+  flush
   bind:open
   title="Conversation history"
   description="Explore branches, zoom into rich message and tool details, then jump to or fork from any point."

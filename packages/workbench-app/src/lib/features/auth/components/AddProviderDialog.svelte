@@ -273,11 +273,14 @@ onDestroy(() => {
   </div>
 
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => void flowController.close()}
-      >Cancel</Button
+    <Button
+      size="sm"
+      variant="ghost"
+      onclick={() => void flowController.close()}>Cancel</Button
     >
     {#if flowController.step === "api-key"}
       <Button
+        size="sm"
         onclick={() => void flowController.submitApiKey()}
         disabled={flowController.busy ||
           flowController.apiKey.trim().length === 0}
@@ -286,6 +289,7 @@ onDestroy(() => {
       </Button>
     {:else if flowController.step === "oauth" && flowController.flow?.status === "prompt"}
       <Button
+        size="sm"
         onclick={() => void flowController.submitPrompt()}
         disabled={flowController.busy ||
           (!flowController.flow.allowEmpty &&
@@ -301,7 +305,6 @@ onDestroy(() => {
 .add-provider-body {
   display: grid;
   gap: 1rem;
-  padding: 1rem 1.1rem;
 }
 
 .add-provider-empty {

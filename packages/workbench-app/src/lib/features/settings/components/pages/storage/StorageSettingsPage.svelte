@@ -229,7 +229,6 @@ onMount(() => {
             <span>· {percentOfTotal(category.bytes, totalBytes)}%</span>
           {/snippet}
           {#snippet detail()}
-            <p>{category.description}</p>
             <p>
               {category.fileCount.toLocaleString()} files ·
               <span class="font-mono">{category.bytes.toLocaleString()}</span>

@@ -3,6 +3,7 @@
 @import "./components/app-helpers.css";
 @import "./components/composer.css";
 @import "./components/settings.css";
+@import "./components/dialog.css";
 @import "./components/tooltips.css";
 @import "./components/terminal-output.css";
 @import "./components/shell.css";

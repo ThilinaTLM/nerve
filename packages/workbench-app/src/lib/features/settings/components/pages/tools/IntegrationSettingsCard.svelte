@@ -294,27 +294,31 @@ function setFieldValue(key: IntegrationFieldKey, value: string): void {
         text={`Configure site URL, email, and API token before enabling ${provider.label} tools.`}
       />
     {/if}
-
-    <div class="flex flex-wrap justify-end gap-2">
-      <Button type="button" variant="ghost" onclick={() => (dialogOpen = false)}
-        >Close</Button
-      >
-      {#if tokenConfigured}
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy}
-          onclick={() => (removeTokenOpen = true)}>Remove token</Button
-        >
-      {/if}
-      <Button type="submit" disabled={busy}>
-        {#if busy}
-          <Spinner class="size-3.5" />
-        {/if}
-        Save
-      </Button>
-    </div>
   </form>
+
+  {#snippet footer()}
+    <Button
+      size="sm"
+      type="button"
+      variant="ghost"
+      onclick={() => (dialogOpen = false)}>Close</Button
+    >
+    {#if tokenConfigured}
+      <Button
+        size="sm"
+        type="button"
+        variant="outline"
+        disabled={busy}
+        onclick={() => (removeTokenOpen = true)}>Remove token</Button
+      >
+    {/if}
+    <Button size="sm" disabled={busy} onclick={() => void saveConfig()}>
+      {#if busy}
+        <Spinner class="size-3.5" />
+      {/if}
+      Save
+    </Button>
+  {/snippet}
 </Dialog>
 
 <ConfirmDialog

@@ -143,6 +143,18 @@ function selectPage(page: SettingsPageDef): void {
   void scrollPanelToTop();
 }
 
+/** One-shot wash so the target section is visible even without scrolling. */
+function flashSection(element: Element): void {
+  element.classList.remove("animate-section-flash");
+  void (element as HTMLElement).offsetWidth; // restart animation on repeat clicks
+  element.classList.add("animate-section-flash");
+  element.addEventListener(
+    "animationend",
+    () => element.classList.remove("animate-section-flash"),
+    { once: true },
+  );
+}
+
 async function selectSection(sectionId: string): Promise<void> {
   activeSectionId = sectionId;
   onSectionChange?.(sectionId);
@@ -150,6 +162,7 @@ async function selectSection(sectionId: string): Promise<void> {
   const domId = settingsSectionDomId(sectionId);
   const element = viewportElement?.querySelector(`#${CSS.escape(domId)}`);
   element?.scrollIntoView({ block: "start" });
+  if (element) flashSection(element);
   const heading = viewportElement?.querySelector<HTMLElement>(
     `#${CSS.escape(`${domId}-title`)}`,
   );
