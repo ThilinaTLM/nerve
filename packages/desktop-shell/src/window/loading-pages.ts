@@ -23,7 +23,7 @@ export function loadingHtml(statusText = LOADING_STAGES.starting): string {
   </head>
   <body>
     <main class="loading" aria-busy="true" aria-label="Starting Nerve">
-      <div class="loading-mark-frame" aria-hidden="true">
+      <div class="loading-mark-badge" aria-hidden="true">
         <svg
           class="loading-mark"
           viewBox="120 120 272 272"
@@ -140,6 +140,7 @@ function shellStyles(): string {
       --border: oklch(0.8847 0.0069 97.3627);
       --destructive: oklch(0.5 0.19 27);
       --radius: 0.625rem;
+      --radius-lg: 0.625rem;
       --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --text-xs: 0.75rem;
@@ -182,18 +183,26 @@ function shellStyles(): string {
     .loading {
       gap: 0;
     }
-    .loading-mark-frame {
+    .loading-mark-badge {
       display: grid;
-      width: 6rem;
-      height: 6rem;
+      width: 3rem;
+      height: 3rem;
       place-items: center;
-      border: 1px solid var(--border);
-      border-radius: 999px;
+      border-radius: var(--radius-lg);
+      background: var(--foreground);
+      color: var(--background);
+      animation: loading-breathe 2.4s ease-in-out infinite;
     }
     .loading-mark {
-      width: 2.5rem;
-      height: 2.5rem;
-      color: var(--foreground);
+      /* 62.5% of the badge, matching the titlebar brand mark proportions.
+         No optical nudge: the mark's ink is already centered in its viewBox. */
+      width: 1.875rem;
+      height: 1.875rem;
+    }
+    @keyframes loading-breathe {
+      0%,
+      100% { opacity: 1; }
+      50% { opacity: 0.72; }
     }
     .error-title {
       margin: 0;
@@ -210,12 +219,12 @@ function shellStyles(): string {
       line-height: 1.625;
     }
     .loading-progress {
-      width: min(20rem, 100%);
-      margin-top: 1.25rem;
+      width: min(12rem, 100%);
+      margin-top: 1.5rem;
     }
     .loading .status {
       margin-bottom: 0.5rem;
-      text-align: left;
+      text-align: center;
     }
     .loading-progressbar {
       width: 100%;
@@ -254,6 +263,7 @@ function shellStyles(): string {
     }
     @media (prefers-reduced-motion: reduce) {
       .loading-progress-fill { transition: none; }
+      .loading-mark-badge { animation: none; }
     }
   `;
 }
