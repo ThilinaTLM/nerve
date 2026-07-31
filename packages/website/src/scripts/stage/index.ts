@@ -7,13 +7,10 @@
  */
 
 import { anatomyStage } from "./anatomy";
-import {
-  latticeStage,
-  reflexStage,
-  resilienceStage,
-  topologyStage,
-} from "./diagrams";
+import { constellationStage } from "./constellation";
+import { defaultsStage } from "./defaults";
 import { heroStage } from "./hero";
+import { leanStage } from "./lean";
 import { revealLines, settleIn } from "./primitives";
 import {
   fontsReady,
@@ -89,12 +86,11 @@ export function initStage(): void {
     signalStripStage();
     anatomyStage();
     authorityStage();
+    leanStage();
+    constellationStage();
     tourStage();
-    latticeStage();
-    resilienceStage();
+    defaultsStage();
     pocketStage();
-    reflexStage();
-    topologyStage();
     closingStage();
     axonRail();
 

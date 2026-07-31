@@ -1,0 +1,319 @@
+---
+/* The repo constellation.
+ *
+ * One workspace node fans out into the repositories discovered beneath it —
+ * the multi-repo, full-stack claim as a diagram. Impulses conduct from the
+ * workspace to each repo; a repo charges when the signal reaches it. Static
+ * state: every path fully drawn, every card lit, so the diagram is complete
+ * without script. Below 900px the curves give way to a plain rail.
+ */
+
+import Reveal from "./Reveal.astro";
+
+const repos = [
+  {
+    name: "acme-api",
+    branch: "main",
+    state: "4 changed",
+    stateTone: "state-approval",
+    extra: "PR #212 · checks passing",
+  },
+  {
+    name: "acme-web",
+    branch: "feat/checkout",
+    state: "12 changed",
+    stateTone: "state-approval",
+    extra: "ahead 3 · behind 0",
+  },
+  {
+    name: "acme-mobile",
+    branch: "main",
+    state: "clean",
+    stateTone: "state-allow",
+    extra: "synced",
+  },
+];
+
+/* Percent-space paths from the workspace node's right edge to each repo
+ * card's left edge. `preserveAspectRatio="none"` + non-scaling strokes keep
+ * them attached at every width. */
+const paths = [
+  "M 360 300 C 480 300, 520 90, 660 90",
+  "M 360 300 C 480 300, 520 300, 660 300",
+  "M 360 300 C 480 300, 520 510, 660 510",
+];
+---
+
+<div class="constellation" data-constellation>
+  <Reveal class="constellation-copy" variant="left">
+    <ul class="constellation-points">
+      <li>
+        <span class="bouton" aria-hidden="true"></span>
+        Repositories are discovered beneath the workspace root — up to two
+        levels deep — and switchable in one Git panel.
+      </li>
+      <li>
+        <span class="bouton" aria-hidden="true"></span>
+        Stage, commit, push, pull, and sync per repository from the same shell
+        as the conversation.
+      </li>
+      <li>
+        <span class="bouton" aria-hidden="true"></span>
+        Pull requests live beside each repo: read the summary, watch checks,
+        merge when the state permits.
+      </li>
+    </ul>
+    <a class="link-arrow" href="/guides/git-and-pull-requests/">
+      Git and pull requests in Nerve <span aria-hidden="true">→</span>
+    </a>
+    <p class="meta-text">
+      GitHub pull requests need a GitHub remote and an authenticated
+      <code class="code-chip">gh</code>.
+    </p>
+  </Reveal>
+
+  <Reveal class="constellation-stage" variant="right" delay={120}>
+    <svg
+      class="constellation-links"
+      viewBox="0 0 1000 600"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      {
+        /* Each link is drawn twice: a static base so the diagram is complete
+           without script, and a live copy the stage sends impulses along.
+           `travelDash` replaces the live copy's dash pattern, which would
+           otherwise leave no resting line at all. */
+        paths.map((d) => (
+          <>
+            <path class="constellation-path" d={d} />
+            <path
+              class="constellation-path constellation-path-live"
+              data-constellation-path
+              d={d}
+            />
+          </>
+        ))
+      }
+    </svg>
+
+    <div class="workspace-node repo-node">
+      <span class="repo-name">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path
+            d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+          ></path>
+        </svg>
+        ~/projects/acme
+      </span>
+      <span class="repo-meta">
+        <span class="label-chip">workspace root</span>
+        <span class="state-pill state-scoped">3 repos found</span>
+      </span>
+    </div>
+
+    <ul class="repo-list">
+      {
+        repos.map((repo) => (
+          <li class="repo-node" data-constellation-repo>
+            <span class="repo-name">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="6" cy="6" r="2.6" />
+                <circle cx="6" cy="18" r="2.6" />
+                <circle cx="18" cy="12" r="2.6" />
+                <path d="M6 8.6v6.8M8.4 6.9 15.7 11" />
+              </svg>
+              {repo.name}/
+            </span>
+            <span class="repo-meta">
+              <span class="label-chip">⎇ {repo.branch}</span>
+              <span class:list={["state-pill", repo.stateTone]}>
+                {repo.state}
+              </span>
+              <span class="label-chip">{repo.extra}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </Reveal>
+</div>
+
+<style>
+  .constellation {
+    display: grid;
+    gap: clamp(2.5rem, 4vw, 4rem);
+    align-items: center;
+  }
+
+  .constellation-copy {
+    display: grid;
+    gap: 1.25rem;
+    justify-items: start;
+    align-content: center;
+  }
+
+  .constellation-points {
+    display: grid;
+    gap: 0.8rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .constellation-points li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+
+  .constellation-points .bouton {
+    flex: none;
+    translate: 0 -0.15rem;
+    box-shadow: 0 0 0 0.25rem
+      color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  /* Stage ------------------------------------------------------------------ */
+
+  .constellation-stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+    gap: clamp(3rem, 6vw, 5.5rem);
+    align-items: center;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-panel);
+    background:
+      radial-gradient(
+        circle at 20% 50%,
+        color-mix(in oklab, var(--primary) 9%, transparent),
+        transparent 55%
+      ),
+      var(--surface-sunken);
+    overflow: hidden;
+  }
+
+  .constellation-links {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .constellation-path {
+    fill: none;
+    stroke: var(--myelin);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .constellation-path-live {
+    stroke: var(--primary);
+    stroke-width: 2;
+    filter: drop-shadow(
+      0 0 0.35rem color-mix(in oklab, var(--primary) 45%, transparent)
+    );
+    /* Invisible until the stage drives its dash; the base path beneath keeps
+     * the resting diagram complete. */
+    opacity: 0;
+  }
+
+  .constellation-path-live[style] {
+    opacity: 1;
+  }
+
+  .workspace-node {
+    align-self: center;
+  }
+
+  .repo-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .repo-name svg {
+    color: var(--primary);
+    flex: none;
+  }
+
+  @media (min-width: 1024px) {
+    .constellation {
+      grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+    }
+  }
+
+  /* Narrow: the fan collapses into a rail. */
+  @media (max-width: 899px) {
+    .constellation-stage {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1rem;
+    }
+
+    .constellation-links {
+      display: none;
+    }
+
+    .repo-list {
+      position: relative;
+      margin-left: 1rem;
+      padding-left: 1.25rem;
+    }
+
+    .repo-list::before {
+      content: "";
+      position: absolute;
+      top: -0.75rem;
+      bottom: 2rem;
+      left: 0;
+      width: 1px;
+      background-image: repeating-linear-gradient(
+        180deg,
+        var(--myelin) 0 2.5rem,
+        transparent 2.5rem 2.875rem
+      );
+    }
+
+    .repo-list .repo-node {
+      position: relative;
+    }
+
+    .repo-list .repo-node::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: -1.25rem;
+      width: 1.25rem;
+      height: 1px;
+      background-color: var(--myelin);
+    }
+  }
+</style>

@@ -17,6 +17,8 @@
  */
 
 import { initCarousels } from "./carousel";
+import { initHotSwap } from "./hotswap";
+import { startRunSim } from "./run-sim";
 import { initTheme } from "./theme";
 import { initTilt } from "./tilt";
 
@@ -72,12 +74,22 @@ function initStage(): void {
     });
 }
 
+/* The hero replays one canonical run on a loop; the lab streams continuously
+ * and reacts to its controls. Both are DOM + CSS only, so they belong on the
+ * critical path beside the carousel and theme, not behind the GSAP stage. */
+function initRunSims(): void {
+  const hero = document.querySelector<HTMLElement>('[data-run-sim="hero"]');
+  if (hero) startRunSim(hero, { loop: true });
+  initHotSwap();
+}
+
 function init(): void {
   initTheme();
   initHeader();
   initCopyButtons();
   initCarousels();
   initTilt();
+  initRunSims();
   initStage();
 }
 

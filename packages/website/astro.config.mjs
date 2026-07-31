@@ -66,7 +66,7 @@ export default defineConfig({
       ],
       editLink: {
         baseUrl:
-          "https://github.com/ThilinaTLM/nerve/edit/main/packages/website/src/content/docs/",
+          "https://github.com/ThilinaTLM/nerve/edit/main/packages/website/",
       },
       lastUpdated: true,
       disable404Route: true,

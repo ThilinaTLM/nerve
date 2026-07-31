@@ -1,0 +1,270 @@
+---
+/* The anatomy of a run — unpinned.
+ *
+ * Seven transcript events with their annotations, connected by a conduction
+ * rail that draws as the section scrolls. Replaces the previous 420vh pinned
+ * deck: the same argument now reads identically on desktop and mobile, and
+ * costs no scroll hijack. The static render is complete — every row and every
+ * callout visible — and the stage only adds the arrival choreography.
+ */
+
+import Reveal from "./Reveal.astro";
+
+const layers = [
+  {
+    role: "You",
+    body: "Add a retry budget to the run recovery path.",
+    tone: "user",
+    status: "prompt",
+    callout: "The instruction, stored verbatim.",
+  },
+  {
+    role: "Thinking",
+    body: "Locating the recovery entry point before editing anything.",
+    tone: "muted",
+    status: "reasoning",
+    callout: "Reasoning, when the provider returns it.",
+  },
+  {
+    role: "read",
+    body: "packages/harness/src/run-recovery.ts",
+    tone: "signal",
+    status: "call",
+    mono: true,
+    callout: "A tool call keeps the arguments it was given.",
+  },
+  {
+    role: "result",
+    body: "214 lines · bounded output",
+    tone: "success",
+    status: "done",
+    callout: "And the output it produced.",
+  },
+  {
+    role: "approval",
+    body: "edit needs review",
+    tone: "warning",
+    status: "waiting",
+    gate: true,
+    callout: "Supervised mode stops here until you answer.",
+  },
+  {
+    role: "edit",
+    body: "run-recovery.ts · +12 −3",
+    tone: "primary",
+    status: "applied",
+    mono: true,
+    callout: "The diff is reviewable before it ships.",
+  },
+  {
+    role: "Nerve",
+    body: "Retry budget added: three attempts, 2s exponential base.",
+    tone: "user",
+    status: "reply",
+    callout: "And the whole run stays in history.",
+  },
+];
+
+const claims = [
+  {
+    title: "Every layer keeps its evidence.",
+    body: "Tool calls retain the inputs they were given and the bounded output they produced, and both stay inspectable afterwards.",
+  },
+  {
+    title: "The gate is real.",
+    body: "In supervised mode the run is blocked while a review gate is pending. Nothing below the gate executes until you answer it.",
+  },
+  {
+    title: "Thinking is honest.",
+    body: "Reasoning appears when a provider returns it. Nerve never reconstructs private reasoning a provider withholds.",
+  },
+];
+---
+
+<div class="anatomy" data-anatomy>
+  <div class="anatomy-claims">
+    {
+      claims.map((claim, index) => (
+        <Reveal class="anatomy-claim" delay={index * 90}>
+          <h3 class="card-title">{claim.title}</h3>
+          <p class="body-text">{claim.body}</p>
+        </Reveal>
+      ))
+    }
+    <Reveal delay={280}>
+      <a class="link-arrow" href="/guides/conversations/">
+        Read the transcript guide <span aria-hidden="true">→</span>
+      </a>
+    </Reveal>
+  </div>
+
+  <div class="anatomy-stack-wrap">
+    <span class="anatomy-rail" aria-hidden="true" data-anatomy-rail></span>
+    <ol class="anatomy-stack">
+      {
+        layers.map((layer) => (
+          <li
+            class="anatomy-slot"
+            data-anatomy-row
+            data-gate-state={layer.gate ? "waiting" : undefined}
+          >
+            <div class:list={["event-layer", `tone-${layer.tone}`]}>
+              <span class="event-role">{layer.role}</span>
+              <p class="event-body">
+                {layer.mono ? <code>{layer.body}</code> : layer.body}
+              </p>
+              <span class="event-status">{layer.status}</span>
+            </div>
+            <span class="anatomy-callout">{layer.callout}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</div>
+
+<style>
+  .anatomy {
+    display: grid;
+    gap: var(--section-gap);
+    align-items: start;
+  }
+
+  .anatomy-claims {
+    display: grid;
+    gap: 1.75rem;
+    align-content: start;
+  }
+
+  .anatomy-claim {
+    display: grid;
+    gap: 0.5rem;
+    max-width: 28rem;
+    padding-left: 1rem;
+    border-left: 2px solid var(--hairline);
+  }
+
+  /* Accent per event tone (shared vocabulary with the run panel). */
+  .tone-user {
+    --layer-accent: var(--foreground);
+  }
+  .tone-muted {
+    --layer-accent: var(--muted-foreground);
+  }
+  .tone-signal {
+    --layer-accent: var(--signal);
+  }
+  .tone-success {
+    --layer-accent: var(--success);
+  }
+  .tone-warning {
+    --layer-accent: var(--warning);
+  }
+  .tone-primary {
+    --layer-accent: var(--primary);
+  }
+
+  .anatomy-stack-wrap {
+    position: relative;
+    padding-left: 1.4rem;
+  }
+
+  /* The conduction rail. `--rail-progress` is 1 in the authored state, so the
+   * rail is fully drawn with no script; the stage scrubs it from 0. */
+  .anatomy-rail {
+    position: absolute;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    left: 0;
+    width: 2px;
+    border-radius: var(--radius-pill);
+    background-color: var(--myelin-dim);
+    overflow: hidden;
+  }
+
+  .anatomy-rail::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, var(--primary), var(--signal));
+    transform: scaleY(var(--rail-progress, 1));
+    transform-origin: top;
+  }
+
+  .anatomy-stack {
+    display: grid;
+    gap: 0.85rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .anatomy-slot {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .event-layer {
+    border-left: 2px solid var(--layer-accent, var(--hairline));
+  }
+
+  .event-status {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+
+  .anatomy-callout {
+    padding-left: 0.85rem;
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
+  }
+
+  /* The pending gate, as a state rather than a caption. */
+  .anatomy-slot[data-gate-state="waiting"] .event-layer {
+    border-color: var(--warning);
+    box-shadow:
+      var(--depth-1),
+      0 0 0 1px color-mix(in oklab, var(--warning) 40%, transparent);
+  }
+
+  .anatomy-slot[data-gate-state="waiting"] .event-status {
+    color: var(--warning);
+  }
+
+  .anatomy-slot[data-gate-state="waiting"] .event-status::after {
+    content: " · for you";
+  }
+
+  @media (min-width: 1024px) {
+    .anatomy {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      gap: clamp(2.5rem, 5vw, 5rem);
+    }
+  }
+
+  /* Room for the annotations beside the rows on wide viewports. */
+  @media (min-width: 1280px) {
+    .anatomy-slot {
+      grid-template-columns: minmax(0, 1fr) 13rem;
+      gap: 0 1.75rem;
+      align-items: center;
+    }
+
+    .anatomy-callout {
+      position: relative;
+      padding-left: 1.5rem;
+    }
+
+    .anatomy-callout::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 1rem;
+      height: 1px;
+      background: linear-gradient(90deg, var(--myelin), transparent);
+    }
+  }
+</style>

@@ -253,15 +253,6 @@
   color: var(--membrane);
 }
 
-/* A large mono figure used by the resilience cards. */
-.stat-figure {
-  color: var(--signal);
-  font-family: var(--font-mono);
-  font-size: 1.35rem;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-}
-
 /* Event layer -------------------------------------------------------------- */
 
 /* One row of a Nerve run, used by the anatomy stage and the hero chips. */

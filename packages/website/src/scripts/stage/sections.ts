@@ -2,7 +2,7 @@
  * pocket workbench, and the closing call to action.
  */
 
-import { drift, magnetic, revealLines, settleIn } from "./primitives";
+import { drift, revealLines, settleIn } from "./primitives";
 import { gsap, playWhileVisible, q, qa } from "./runtime";
 
 /* §2 Signal strip ----------------------------------------------------------
@@ -159,6 +159,4 @@ export function closingStage(): void {
       },
     );
   }
-
-  magnetic(qa<HTMLElement>("[data-magnetic]", closing));
 }

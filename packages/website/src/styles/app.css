@@ -23,5 +23,6 @@
  * every responsive visibility class in the marketing components. */
 @import "./marketing.css" layer(components);
 @import "./neural.css" layer(components);
+@import "./signal.css" layer(components);
 
 @import "./starlight.css";

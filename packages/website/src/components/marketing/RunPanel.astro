@@ -1,0 +1,174 @@
+---
+/* The simulated live-run panel.
+ *
+ * One markup contract shared by the hero and the hot-swap lab, styled after
+ * the real workbench transcript: bare tool-call headers with a status icon and
+ * mono arguments, an inset output box, a line-count footer, italic thinking,
+ * plain prose replies, and the composer with its configuration chips sitting
+ * on the top border.
+ *
+ * The rows passed in are the complete static transcript: what no-JS and
+ * reduced-motion visitors read, and what `scripts/run-sim.ts` replaces when it
+ * takes over. Row shapes mirror `SimRow` in `run-sim.ts`.
+ */
+
+export interface StaticRow {
+  kind: "prompt" | "thinking" | "prose" | "tool" | "gate" | "note";
+  text?: string;
+  tool?: { name: string; args: string; out: string[]; lines: string };
+  noteTone?: "config" | "policy";
+  noteStatus?: string;
+}
+
+interface Props {
+  sim: string;
+  rows: StaticRow[];
+  hint?: string;
+  description: string;
+}
+
+const {
+  sim,
+  rows,
+  hint = "Ask the local Nerve agent",
+  description,
+} = Astro.props;
+---
+
+<div class="run-panel" data-run-sim={sim}>
+  <p class="visually-hidden">{description}</p>
+
+  <ol class="run-feed" data-run-feed aria-hidden="true">
+    {
+      rows.map((row) => {
+        if (row.kind === "tool" && row.tool) {
+          return (
+            <li
+              class="run-item run-tool"
+              data-state="done"
+              data-tool={row.tool.name}
+            >
+              <div class="run-tool-head">
+                <span class="run-tool-status">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="9.5" />
+                    <path d="m8.5 12.5 2.5 2.5 4.5-5" />
+                  </svg>
+                </span>
+                <b class="run-tool-name">{row.tool.name}</b>
+                <code class="run-tool-args">{row.tool.args}</code>
+              </div>
+              <div class="run-tool-out">
+                <pre>{row.tool.out.join("\n")}</pre>
+              </div>
+              <div class="run-tool-foot">
+                <span class="run-tool-lines">{row.tool.lines}</span>
+                <span class="run-tool-more">Show 7 more items</span>
+              </div>
+            </li>
+          );
+        }
+
+        if (row.kind === "prompt") {
+          return (
+            <li class="run-item run-prompt">
+              <span class="run-prompt-label">You</span>
+              <p>{row.text}</p>
+            </li>
+          );
+        }
+
+        if (row.kind === "thinking") {
+          return (
+            <li class="run-item run-thinking">
+              <p>{row.text}</p>
+            </li>
+          );
+        }
+
+        if (row.kind === "gate") {
+          return (
+            <li class="run-item run-gate" data-gate-state="approved">
+              <span class="run-gate-dot" aria-hidden="true" />
+              <b>approval</b>
+              <span class="run-gate-text">{row.text}</span>
+              <span class="run-gate-status">approved</span>
+            </li>
+          );
+        }
+
+        if (row.kind === "note") {
+          return (
+            <li class="run-item run-note" data-tone={row.noteTone ?? "config"}>
+              <code>{row.text}</code>
+              <span class="run-note-status">{row.noteStatus}</span>
+            </li>
+          );
+        }
+
+        return (
+          <li class="run-item run-prose">
+            <p>{row.text}</p>
+          </li>
+        );
+      })
+    }
+  </ol>
+
+  <div class="run-composer" aria-hidden="true">
+    <div class="run-composer-rail">
+      <span class="run-chip" data-run-mode data-value="coding">Coding</span>
+      <span class="run-chip" data-run-permission data-value="supervised"
+        >supervised</span
+      >
+      <span class="run-composer-spacer"></span>
+      <span class="run-chip run-chip-quiet"><b>21%</b>&nbsp;/1.0M</span>
+      <span class="run-chip" data-run-model>Opus · high</span>
+    </div>
+
+    <p class="run-composer-hint">{hint}</p>
+
+    <div class="run-composer-actions">
+      <span class="run-fab">
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="9" y="2.5" width="6" height="12" rx="3"></rect>
+          <path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"></path>
+        </svg>
+      </span>
+      <span class="run-fab run-fab-send">
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m4.5 12 15-7.5-4 15-4.5-5.5z"></path>
+          <path d="M19.5 4.5 11 14"></path>
+        </svg>
+      </span>
+    </div>
+  </div>
+</div>

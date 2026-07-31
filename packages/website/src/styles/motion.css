@@ -86,6 +86,21 @@
   }
 }
 
+/* A simulated run row arriving in a transcript feed. */
+@keyframes run-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem) scale(0.99);
+  }
+}
+
+/* A tool call that has not resolved yet. */
+@keyframes run-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Confirmation that the install command was copied. */
 @keyframes copy-sweep {
   from {
@@ -138,9 +153,35 @@
   transform: none;
 }
 
-html[data-motion-ready] [data-reveal]:not(.is-revealed) {
+html[data-motion-ready] [data-reveal]:not(.is-revealed),
+html[data-motion-ready] [data-reveal-child]:not(.is-revealed) {
   opacity: 0;
   transform: translateY(1.625rem);
+}
+
+/* Elements a stage settles individually without a `[data-reveal]` wrapper.
+ * They must share the pre-hidden state, or they would be readable on entry
+ * and then yanked to opacity zero when their scroll trigger fires. */
+html[data-motion-ready] .anatomy-slot:not(.is-revealed),
+html[data-motion-ready] .tour-points li:not(.is-revealed),
+html[data-motion-ready] .closing-steps li:not(.is-revealed),
+html[data-motion-ready] .section-header .eyebrow:not(.is-revealed),
+html[data-motion-ready] .section-header .lede:not(.is-revealed) {
+  opacity: 0;
+  transform: translateY(1.625rem);
+}
+
+/* Headings the stage reveals line by line. Opacity only: SplitText measures
+ * the heading when the tween starts, and it arms the element in that same
+ * frame, so the pre-hidden state must never involve a transform that could
+ * linger into the measurement. Every selector here is claimed by a stage —
+ * the generic header pass or a section's own module — so none can strand. */
+html[data-motion-ready] .section-header .section-title:not(.is-revealed),
+html[data-motion-ready] .pocket-copy .section-title:not(.is-revealed),
+html[data-motion-ready] .tour-title:not(.is-revealed),
+html[data-motion-ready] .history-title:not(.is-revealed),
+html[data-motion-ready] #closing-title:not(.is-revealed) {
+  opacity: 0;
 }
 
 /* The pre-hidden state is deliberately vertical for every variant: a sideways

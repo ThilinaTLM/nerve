@@ -48,6 +48,14 @@ site-search kbd {
   background-color: color-mix(in oklab, var(--card) 32%, transparent);
 }
 
+/* Starlight turns the sidebar into a full-screen overlay below 50rem, so it
+ * must not inherit the translucent desktop rail surface. */
+@media (max-width: 49.999rem) {
+  .sidebar-pane {
+    background-color: var(--background);
+  }
+}
+
 .sidebar-content .top-level > li > details > summary,
 .sidebar-content .top-level > li > .group-label {
   font-size: 0.72rem;
@@ -110,6 +118,7 @@ site-search kbd {
 }
 
 .sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration-line: underline;
   text-decoration-color: color-mix(in oklab, var(--primary) 45%, transparent);
   text-underline-offset: 0.2em;
   transition: text-decoration-color 200ms var(--ease-out-expo);

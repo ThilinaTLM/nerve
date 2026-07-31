@@ -1,19 +1,58 @@
 ---
-import { Image } from "astro:assets";
-import desktop from "../../assets/shots/d1-conversation.webp";
-import phone from "../../assets/shots/m1-conversation.webp";
+/* The hero.
+ *
+ * Instead of a screenshot, the stage is a live simulated run: typed events
+ * arriving in a transcript, a review gate pausing the stream, a diff landing.
+ * `scripts/run-sim.ts` drives it; the rows authored below are the same
+ * canonical turn, so no-JS and reduced-motion visitors read an identical,
+ * complete transcript.
+ */
+
 import DendriteField from "./DendriteField.astro";
 import DeviceFrame from "./DeviceFrame.astro";
 import InstallCommand from "./InstallCommand.astro";
-import PhoneFrame from "./PhoneFrame.astro";
 import Reveal from "./Reveal.astro";
+import RunPanel, { type StaticRow } from "./RunPanel.astro";
 
-/* Chips that appear to lift out of the transcript. Each one is a real kind of
- * event the workbench renders, so the decoration is also a claim. */
-const chips = [
-  { role: "read", body: "run-recovery.ts", tone: "success", place: "right-top" },
-  { role: "approval", body: "write needs review", tone: "warning", place: "left-mid" },
-  { role: "diff", body: "+12 −3", tone: "signal", place: "right-low" },
+/* Mirrors `buildTurn(TASKS[0], defaults)` with the gate already resolved. */
+const staticRows: StaticRow[] = [
+  { kind: "prompt", text: "Add a retry budget to the run recovery path." },
+  {
+    kind: "thinking",
+    text: "Recovery lives in run-recovery.ts. A budget needs the retry count and the base delay in one place, so both call sites read one constant.",
+  },
+  {
+    kind: "tool",
+    tool: {
+      name: "read",
+      args: "packages/harness/src/run-recovery.ts",
+      out: ["Read 214 lines"],
+      lines: "214 lines",
+    },
+  },
+  { kind: "gate", text: "edit needs review" },
+  {
+    kind: "tool",
+    tool: {
+      name: "edit",
+      args: "packages/harness/src/run-recovery.ts",
+      out: ["+12 −3 · retry budget wired into the recovery loop"],
+      lines: "2 hunks",
+    },
+  },
+  {
+    kind: "tool",
+    tool: {
+      name: "bash",
+      args: "pnpm test --filter @nervekit/harness -- run-recovery",
+      out: ["✓ recovery continues from checkpoint (12 tests)", "Done in 3.2s"],
+      lines: "6 lines",
+    },
+  },
+  {
+    kind: "prose",
+    text: "Retry budget added: three attempts on a 2s exponential base.",
+  },
 ];
 ---
 
@@ -27,29 +66,29 @@ const chips = [
       <Reveal>
         <span class="badge">
           <span class="badge-dot animate-pulse-ring" aria-hidden="true"></span>
-          Beta
+          Open source · Beta
         </span>
       </Reveal>
 
       <Reveal delay={80}>
         <h1 class="display-title">
-          See the work.<br /><span class="gradient-text hero-charge"
-            >Keep control.</span
+          See everything.<br /><span class="gradient-text hero-charge"
+            >Steer it live.</span
           >
         </h1>
       </Reveal>
 
       <Reveal delay={160}>
         <p class="lede hero-lede">
-          A local-first desktop coding harness where every prompt, thought, tool
-          call, approval, and diff is a separate event you can inspect — and
-          stop. It runs on your machine, against your repositories.
+          A local-first coding harness where every prompt, thought, tool call,
+          approval, and diff is a typed event you can inspect — and a running
+          agent you can retune without stopping it.
         </p>
       </Reveal>
 
       <Reveal delay={240}>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="/start/install/" data-magnetic>
+          <a class="btn btn-primary" href="/start/install/">
             Get started <span aria-hidden="true">→</span>
           </a>
           <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
@@ -69,42 +108,19 @@ const chips = [
     </div>
 
     <Reveal variant="scale" delay={140} class="hero-stage stage-3d">
-      <div class="hero-deck tilt-target" data-hero-deck data-tilt data-tilt-max="4">
-        <DeviceFrame label="nerve · conversation" depth={3} class="hero-desktop">
-          <Image
-            src={desktop}
-            alt="Nerve conversation showing reasoning, tool calls, a code diff, and composer controls"
-            widths={[720, 1080, 1600, 2000]}
-            sizes="(max-width: 1199px) 94vw, 58vw"
-            loading="eager"
+      <div
+        class="hero-deck tilt-target"
+        data-hero-deck
+        data-tilt
+        data-tilt-max="3"
+      >
+        <DeviceFrame label="nerve · live run" depth={3}>
+          <RunPanel
+            sim="hero"
+            rows={staticRows}
+            description="Simulated Nerve run: the user prompt, the agent's reasoning, a read tool call with its bounded output, an approval gate for an edit, the applied diff, a verification command, and the final reply."
           />
         </DeviceFrame>
-
-        <PhoneFrame class="hero-phone">
-          <Image
-            src={phone}
-            alt="The same Nerve conversation and composer at phone width"
-            widths={[390, 600, 900]}
-            sizes="18vw"
-            loading="eager"
-          />
-        </PhoneFrame>
-
-        <div class="hero-chips" aria-hidden="true">
-          {
-            chips.map((chip) => (
-              <span
-                class:list={["hero-chip", `chip-${chip.place}`]}
-                data-hero-chip
-                data-tone={chip.tone}
-              >
-                <span class="chip-dot" />
-                <b>{chip.role}</b>
-                <span>{chip.body}</span>
-              </span>
-            ))
-          }
-        </div>
       </div>
     </Reveal>
   </div>
@@ -131,16 +147,27 @@ const chips = [
     transform: translateZ(var(--z-back));
   }
 
-  /* The dendrite field belongs behind the device stage, not behind the
-   * headline. This fades it out across the copy column so branches never run
-   * through type. */
+  /* The dendrite field belongs behind the run panel, not behind the headline:
+   * fade it out across the copy column so branches never run through type. */
   @media (min-width: 1200px) {
     .hero-dendrites {
       mask-image:
-        linear-gradient(to bottom, transparent, black 18%, black 72%, transparent),
+        linear-gradient(
+          to bottom,
+          transparent,
+          black 18%,
+          black 72%,
+          transparent
+        ),
         linear-gradient(to right, transparent 6%, black 46%);
       -webkit-mask-image:
-        linear-gradient(to bottom, transparent, black 18%, black 72%, transparent),
+        linear-gradient(
+          to bottom,
+          transparent,
+          black 18%,
+          black 72%,
+          transparent
+        ),
         linear-gradient(to right, transparent 6%, black 46%);
       mask-composite: intersect;
       -webkit-mask-composite: source-in;
@@ -199,13 +226,12 @@ const chips = [
     color: var(--warning);
   }
 
-  /* The headline's second line charges like an axon on first paint. */
+  /* The headline's second line charges like an axon on first paint. `--charge`
+   * is 1 in the authored state, so the underline exists with no script. */
   .hero-charge {
     position: relative;
   }
 
-  /* `--charge` is 1 in the authored state, so the underline is present with no
-   * script. The hero stage tweens it from 0 when it takes over. */
   .hero-charge::after {
     content: "";
     position: absolute;
@@ -235,106 +261,22 @@ const chips = [
     position: relative;
   }
 
-  /* One composed transform, five owners: the scroll stage writes --deck-rotate-x
-   * and --deck-lift, the entrance writes --deck-enter-*, and the pointer tilt
-   * controller writes --tilt-*. Nothing animates `transform` directly. */
+  /* One composed transform, several owners: the scroll stage writes
+   * --deck-rotate-x and --deck-lift, the entrance writes --deck-enter-*, and
+   * pointer tilt writes --tilt-*. Nothing animates `transform` directly. */
   .hero-deck {
     position: relative;
     transform: rotateX(
         calc(
-          var(--deck-rotate-x, 4deg) + var(--tilt-x, 0deg) +
+          var(--deck-rotate-x, 3deg) + var(--tilt-x, 0deg) +
             var(--deck-enter-rotate, 0deg)
         )
       )
-      rotateY(calc(-9deg + var(--tilt-y, 0deg)))
+      rotateY(calc(-7deg + var(--tilt-y, 0deg)))
       translateY(calc(var(--deck-lift, 0px) + var(--deck-enter-y, 0px)))
       scale(var(--deck-scale, 1));
     transform-style: preserve-3d;
     transition: transform 120ms linear;
-  }
-
-  .hero-deck :global(.hero-desktop) {
-    transform: translateZ(var(--z-base));
-  }
-
-  /* Sits beside the desktop frame rather than across it: the phone is a
-   * companion in the composition, not an occluder. */
-  .hero-phone {
-    position: absolute;
-    z-index: 3;
-    left: -7%;
-    bottom: -12%;
-    width: 17%;
-    min-width: 6.5rem;
-    transform: translateZ(var(--z-fore));
-  }
-
-  .hero-chips {
-    position: absolute;
-    z-index: 4;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  .hero-chip {
-    position: absolute;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.35rem 0.6rem;
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-chip);
-    background-color: var(--card);
-    box-shadow: var(--depth-2);
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    white-space: nowrap;
-    transform: translate3d(0, var(--chip-float, 0px), var(--chip-z, var(--z-top)))
-      scale(var(--chip-scale, 1));
-  }
-
-  .hero-chip b {
-    color: var(--foreground);
-    font-weight: 500;
-  }
-
-  .chip-dot {
-    width: 0.35rem;
-    height: 0.35rem;
-    border-radius: var(--radius-pill);
-    background-color: currentcolor;
-  }
-
-  .hero-chip[data-tone="success"] .chip-dot {
-    background-color: var(--success);
-  }
-
-  .hero-chip[data-tone="warning"] .chip-dot {
-    background-color: var(--warning);
-  }
-
-  .hero-chip[data-tone="signal"] .chip-dot {
-    background-color: var(--signal);
-  }
-
-  /* The overhang is small on the right, where the viewport edge is close, and
-   * generous on the left, where the copy column leaves room. */
-  /* Float is owned by the hero stage (`--chip-float`) so it can be desynced per
-   * chip and handed off cleanly from the entrance tween. */
-  .chip-right-top {
-    top: 12%;
-    right: -2%;
-  }
-
-  .chip-left-mid {
-    top: 24%;
-    left: -13%;
-  }
-
-  .chip-right-low {
-    bottom: 16%;
-    right: 1%;
   }
 
   /* Cue ------------------------------------------------------------------ */
@@ -383,7 +325,7 @@ const chips = [
 
   @media (min-width: 1200px) {
     .hero-shell {
-      grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+      grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
     }
   }
 
@@ -396,29 +338,18 @@ const chips = [
       display: none;
     }
 
-    /* No perspective on touch: the tilt controller does not run, and a static
-     * rotation would only cost legibility. */
+    /* Fully flat on small screens: the tilt controller does not run, and the
+     * perspective context plus `will-change` promotion would rasterize the
+     * panel as a texture — visibly soft text on high-DPR phone screens. */
+    .hero-stage {
+      perspective: none;
+      transform-style: flat;
+    }
+
     .hero-deck {
       transform: none;
-    }
-  }
-
-  @media (max-width: 899px) {
-    .hero-phone,
-    .chip-left-mid {
-      display: none;
-    }
-
-    /* Keep the remaining chips inside the frame's bounds so they never clip. */
-    .chip-right-top {
-      top: 5%;
-      right: 2%;
-    }
-
-    .chip-right-low {
-      right: auto;
-      bottom: 6%;
-      left: 2%;
+      will-change: auto;
+      transition: none;
     }
   }
 </style>

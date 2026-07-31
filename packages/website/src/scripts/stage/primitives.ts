@@ -53,7 +53,22 @@ export function revealLines(
     });
   };
 
+  /* Anything already on screen when the stage attaches must never wait for a
+   * scroll trigger: it would sit readable, then vanish and re-enter on the
+   * first scroll. Play it now (or simply arm it if the entrance window has
+   * passed) and reserve the trigger for content still below the fold. */
+  if (inViewport(target)) {
+    run();
+    return;
+  }
+
   ScrollTrigger.create({ trigger: target, start, once: true, onEnter: run });
+}
+
+/* Slightly generous on purpose: an element clipped by the fold still counts as
+ * seen, because a later scroll trigger would visibly re-run it. */
+function inViewport(element: Element): boolean {
+  return element.getBoundingClientRect().top < window.innerHeight * 0.98;
 }
 
 /* Hands an element over from the CSS pre-hidden state to GSAP, in the same
@@ -85,37 +100,50 @@ export function settleIn(
 
   const { stagger = 0.06, y = 26, start = "top 88%", rotate = 3 } = options;
 
-  ScrollTrigger.batch(elements, {
-    start,
-    once: true,
-    onEnter: (batch) => {
-      for (const element of batch) arm(element);
-      if (!allowEntrance) return;
+  /* Split by fold position at attach time. Elements already on screen are
+   * handled immediately — animated during the entrance window, plainly armed
+   * after it — so a scroll trigger can never yank readable content back to
+   * opacity zero. Only unseen elements get the scroll choreography. */
+  const seen = elements.filter((element) => inViewport(element));
+  const unseen = elements.filter((element) => !inViewport(element));
 
-      gsap.from(batch, {
-        /* `Reveal` may ask for a direction; the default is a short rise. */
-        x: (_: number, target: Element) => {
-          const variant = target.getAttribute("data-reveal");
-          if (variant === "left") return -22;
-          if (variant === "right") return 22;
-          return 0;
-        },
-        y: (_: number, target: Element) =>
-          target.getAttribute("data-reveal") === "left" ||
-          target.getAttribute("data-reveal") === "right"
-            ? 0
-            : y,
-        scale: 0.985,
-        opacity: 0,
-        rotateX: rotate,
-        transformOrigin: "50% 100%",
-        duration: 0.7,
-        stagger,
-        ease: "settle",
-        clearProps: "transform,transformOrigin,opacity",
-      });
-    },
-  });
+  const enter = (batch: Element[]): void => {
+    for (const element of batch) arm(element);
+    if (!allowEntrance) return;
+
+    gsap.from(batch, {
+      /* `Reveal` may ask for a direction; the default is a short rise. */
+      x: (_: number, target: Element) => {
+        const variant = target.getAttribute("data-reveal");
+        if (variant === "left") return -22;
+        if (variant === "right") return 22;
+        return 0;
+      },
+      y: (_: number, target: Element) =>
+        target.getAttribute("data-reveal") === "left" ||
+        target.getAttribute("data-reveal") === "right"
+          ? 0
+          : y,
+      scale: 0.985,
+      opacity: 0,
+      rotateX: rotate,
+      transformOrigin: "50% 100%",
+      duration: 0.7,
+      stagger,
+      ease: "settle",
+      clearProps: "transform,transformOrigin,opacity",
+    });
+  };
+
+  if (seen.length) enter(seen);
+
+  if (unseen.length) {
+    ScrollTrigger.batch(unseen, {
+      start,
+      once: true,
+      onEnter: (batch) => enter(batch),
+    });
+  }
 }
 
 /* P3 — conduction ----------------------------------------------------------
@@ -292,43 +320,6 @@ export function parallax(
       },
     },
   );
-}
-
-/* Magnetism ----------------------------------------------------------------
- *
- * A call to action that leans toward the pointer. One shared listener, two
- * quickTo setters per element, and nothing at all on touch. */
-export function magnetic(
-  elements: HTMLElement[],
-  strength = 0.28,
-  max = 10,
-): void {
-  const targets = elements.filter(Boolean).map((element) => ({
-    element,
-    x: gsap.quickTo(element, "x", { duration: 0.4, ease: "power3.out" }),
-    y: gsap.quickTo(element, "y", { duration: 0.4, ease: "power3.out" }),
-  }));
-  if (!targets.length) return;
-
-  const onMove = (event: PointerEvent): void => {
-    for (const target of targets) {
-      const rect = target.element.getBoundingClientRect();
-      const dx = event.clientX - (rect.left + rect.width / 2);
-      const dy = event.clientY - (rect.top + rect.height / 2);
-      const distance = Math.hypot(dx, dy);
-      const radius = Math.max(rect.width, rect.height) * 1.1;
-
-      if (distance > radius) {
-        target.x(0);
-        target.y(0);
-        continue;
-      }
-      target.x(gsap.utils.clamp(-max, max, dx * strength));
-      target.y(gsap.utils.clamp(-max, max, dy * strength));
-    }
-  };
-
-  window.addEventListener("pointermove", onMove, { passive: true });
 }
 
 /* An idle drift that keeps a composition breathing without asking for
