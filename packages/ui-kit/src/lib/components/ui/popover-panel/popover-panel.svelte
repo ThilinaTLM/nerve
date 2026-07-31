@@ -95,7 +95,7 @@ function handleOpenChange(next: boolean) {
   border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--foreground);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
 }
 
 :global(.popover-content:focus-visible) {
