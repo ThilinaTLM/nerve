@@ -31,7 +31,7 @@
     "check": "tsc -b --pretty false",
     "dev": "tsx src/main.ts",
     "test": "tsx --test test/*.test.ts",
-    "test:native": "tsx --test test/explore-subagent-isolation.test.ts test/file-idempotency-store.test.ts test/file-mutations.test.ts test/legacy-home-migration.test.ts test/policy.test.ts test/process-runtime-driver.test.ts test/protocol-websocket.test.ts test/storage-json.test.ts test/storage-settings-migration.test.ts test/task-port-inspector.test.ts test/task-scope.test.ts test/task-service.contract.test.ts test/task-supervisor.test.ts test/workbench-task-service-foreground.test.ts test/workbench-task-service-launch-env.test.ts test/workbench-task-service-lifecycle.test.ts test/workbench-task-service-orphan.test.ts test/workbench-task-service-readiness.test.ts"
+    "test:native": "tsx --test test/file-idempotency-store.test.ts test/file-mutations.test.ts test/legacy-home-migration.test.ts test/policy.test.ts test/process-runtime-driver.test.ts test/protocol-websocket.test.ts test/storage-json.test.ts test/storage-settings-migration.test.ts test/task-port-inspector.test.ts test/task-scope.test.ts test/task-service.contract.test.ts test/task-supervisor.test.ts test/workbench-task-service-foreground.test.ts test/workbench-task-service-launch-env.test.ts test/workbench-task-service-lifecycle.test.ts test/workbench-task-service-orphan.test.ts test/workbench-task-service-readiness.test.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.83.0",
