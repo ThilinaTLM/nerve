@@ -27,6 +27,7 @@
 .history-graph .svelte-flow__edge-path {
   stroke: var(--border);
   stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .history-graph .svelte-flow__edge.history-edge-active .svelte-flow__edge-path {
@@ -38,6 +39,7 @@
   width: 0.5rem;
   height: 0.5rem;
   border: 2px solid var(--card);
+  border-radius: 50%;
   background: var(--border);
   pointer-events: none;
 }

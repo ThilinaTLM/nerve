@@ -13,7 +13,7 @@ type Props = {
   description?: string;
   class?: string;
   closeLabel?: string;
-  size?: "sm" | "default" | "wide";
+  size?: "sm" | "default" | "wide" | "viewport";
   /** Removes the default body padding for edge-to-edge list/graph content. */
   flush?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -49,6 +49,7 @@ function handleOpenChange(next: boolean) {
         "dialog-content data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 data-open:zoom-in-95 data-closed:zoom-out-95 duration-100 outline-none",
         size === "sm" && "dialog-content-sm",
         size === "wide" && "dialog-content-wide",
+        size === "viewport" && "dialog-content-viewport",
         className,
       )}
     >

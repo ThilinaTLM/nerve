@@ -50,6 +50,15 @@
   max-height: min(90dvh, calc(100dvh - 2rem));
 }
 
+.dialog-content-viewport {
+  width: min(1440px, calc(100vw - 3rem));
+  width: min(1440px, calc(100dvw - 3rem));
+  height: min(900px, calc(100vh - 3rem));
+  height: min(900px, calc(100dvh - 3rem));
+  max-height: calc(100vh - 3rem);
+  max-height: calc(100dvh - 3rem);
+}
+
 /* Confirmation dialogs: a miniature of the banded shell. */
 .dialog-content-confirm {
   width: min(26rem, calc(100vw - 32px));
