@@ -196,3 +196,21 @@
     background-position: -120% 0;
   }
 }
+
+/* One-time entrance for large brand surfaces (conversation empty states).
+ * Applied via class="brand-signal-enter". Idle views must not loop motion. */
+.brand-signal-enter {
+  animation: brand-signal-enter var(--motion-enter-duration)
+    var(--motion-enter-easing) both;
+}
+
+@keyframes brand-signal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
