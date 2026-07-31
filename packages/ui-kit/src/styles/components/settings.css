@@ -74,10 +74,16 @@
   transform: rotate(90deg);
 }
 
+/*
+ * Sub-items are inset so their hover/active surface starts after the parent's
+ * icon column, and their active fill stays lighter than the parent's so the
+ * page selection keeps precedence over the current section.
+ */
 .settings-subnav {
   display: grid;
   gap: 0.05rem;
-  margin: 0.1rem 0 0.25rem;
+  /* Aligns the item box with the parent label, not just its text. */
+  margin: 0.05rem 0 0.1rem 1.6rem;
   padding: 0;
   list-style: none;
 }
@@ -90,19 +96,19 @@
   color: var(--muted-foreground);
   font-size: var(--text-xs);
   line-height: 1.2;
-  padding: 0.3rem 0.5rem 0.3rem 2.1rem;
+  padding: 0.28rem 0.5rem;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .settings-subnav a:hover {
-  background: color-mix(in oklab, var(--sidebar-accent) 55%, transparent);
+  background: color-mix(in oklab, var(--sidebar-accent) 35%, transparent);
   color: var(--sidebar-foreground);
 }
 
 .settings-subnav a.active {
-  background: color-mix(in oklab, var(--sidebar-accent) 75%, transparent);
+  background: color-mix(in oklab, var(--sidebar-accent) 45%, transparent);
   color: var(--sidebar-accent-foreground);
   font-weight: 500;
 }
@@ -187,7 +193,7 @@
     overflow-x: auto;
   }
 
-  .settings-subnav a {
-    padding-left: 0.5rem;
+  .settings-subnav {
+    margin-left: 0;
   }
 }
