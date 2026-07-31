@@ -88,11 +88,16 @@ export function visibleSessionFor(key: string): ProjectTabSession {
   return normalizeSession(session);
 }
 
-export function applyVisibleSession(key: string): ProjectTabSession {
+export function applyVisibleSession(
+  key: string,
+  options: { deferActivation?: boolean } = {},
+): ProjectTabSession {
   const session = visibleSessionFor(key);
   workspaceState.selectedProjectKey = key;
   workspaceState.openCenterTabs = [...session.tabs];
-  workspaceState.activeCenterTab = session.active;
+  workspaceState.activeCenterTab = options.deferActivation
+    ? undefined
+    : session.active;
   workspaceState.centerTabMru = [...session.mru];
   workspaceState.projectTabSessions[key] = session;
   syncCenterTabMirrors();
@@ -324,11 +329,14 @@ function legacySessions(
   }
 }
 
-export function hydrateWorkspaceTabSessions(input: {
-  projects: ProjectRecord[];
-  conversations: ConversationRecord[];
-  tasks: TaskRecord[];
-}): void {
+export function hydrateWorkspaceTabSessions(
+  input: {
+    projects: ProjectRecord[];
+    conversations: ConversationRecord[];
+    tasks: TaskRecord[];
+  },
+  options: { deferActivation?: boolean } = {},
+): CenterTabIdentity | undefined {
   if (hydrated) return;
   hydrated = true;
   const projectKeys = new Set(input.projects.map(projectKey));
@@ -362,9 +370,13 @@ export function hydrateWorkspaceTabSessions(input: {
   workspaceState.globalCenterTabs = (stored?.globals ?? [])
     .filter(isIdentity)
     .filter(isGlobalCenterTab);
+  let desiredTab: CenterTabIdentity | undefined;
   if (!stored?.selectedProjectKey) {
     workspaceState.openCenterTabs = [...workspaceState.globalCenterTabs];
-    workspaceState.activeCenterTab = workspaceState.globalCenterTabs[0];
+    desiredTab = workspaceState.globalCenterTabs[0];
+    workspaceState.activeCenterTab = options.deferActivation
+      ? undefined
+      : desiredTab;
     workspaceState.centerTabMru = workspaceState.globalCenterTabs.map(tabKey);
     syncCenterTabMirrors();
   }
@@ -375,6 +387,7 @@ export function hydrateWorkspaceTabSessions(input: {
       : undefined;
   if (typeof localStorage !== "undefined" && !stored)
     localStorage.removeItem(legacyStorageKey);
+  return desiredTab;
 }
 
 export function persistWorkspaceTabSessions(): void {

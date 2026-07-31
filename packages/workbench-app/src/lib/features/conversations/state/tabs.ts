@@ -49,7 +49,9 @@ export async function openConversation(conversationId: string) {
   workspaceState.error = view.error;
 }
 
-export async function restoreConversationTabs() {
+export async function restoreConversationTabs(
+  desiredTab = workspaceState.activeCenterTab,
+): Promise<boolean> {
   const tabIds = workspaceState.openCenterTabs
     .filter(
       (tab): tab is Extract<typeof tab, { kind: "conversation" }> =>
@@ -57,10 +59,11 @@ export async function restoreConversationTabs() {
     )
     .map((tab) => tab.id);
   for (const conversationId of tabIds) ensureConversationView(conversationId);
-  const active = workspaceState.activeCenterTab;
   conversationState.activeConversationTabId =
-    active?.kind === "conversation" ? active.id : tabIds[0];
-  if (active) await selectCenterTab(active);
+    desiredTab?.kind === "conversation" ? desiredTab.id : tabIds[0];
+  if (desiredTab?.kind !== "conversation") return false;
+  await selectCenterTab(desiredTab);
+  return true;
 }
 
 export async function closeConversationTab(conversationId: string) {

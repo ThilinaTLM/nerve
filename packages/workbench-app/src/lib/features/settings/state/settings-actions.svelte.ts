@@ -46,6 +46,7 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let saveInFlight = false;
 let savedServerSettingsSinceLoad = false;
 let skillsRequestId = 0;
+let coreSettingsLoadInFlight: Promise<void> | undefined;
 let settingsLoadInFlight: Promise<void> | undefined;
 let settingsReloadRequested = false;
 
@@ -107,7 +108,7 @@ export async function loadSettingsSkills(projectId = selection.projectId) {
   }
 }
 
-async function loadCoreSettings(): Promise<void> {
+async function performCoreSettingsLoad(): Promise<void> {
   const [settings, modelList, auth] = await Promise.all([
     getSettings(),
     getModels(),
@@ -117,6 +118,27 @@ async function loadCoreSettings(): Promise<void> {
   applyZoomLevel(settings.ui.zoomLevel);
   settingsState.models = modelList;
   settingsState.authProviders = auth;
+  reconcileComposerSelectionFromSettings();
+  if (!hasPendingSettingsSave()) {
+    savedServerSettingsSinceLoad = false;
+    settingsState.settingsSaveStatus = "idle";
+    settingsState.settingsMessage = undefined;
+  }
+}
+
+export function loadCoreSettings(): Promise<void> {
+  if (coreSettingsLoadInFlight) return coreSettingsLoadInFlight;
+  coreSettingsLoadInFlight = performCoreSettingsLoad().finally(() => {
+    coreSettingsLoadInFlight = undefined;
+  });
+  return coreSettingsLoadInFlight;
+}
+
+export function reconcileComposerSelectionFromSettings(): void {
+  const settings = settingsState.settingsDraft;
+  if (!settings) return;
+  const modelList = settingsState.models;
+  const auth = settingsState.authProviders;
   const usable = scopedUsableModelOptions(
     modelList,
     auth,
@@ -158,19 +180,17 @@ async function loadCoreSettings(): Promise<void> {
     conversationState.selectedThinkingLevel,
     currentSelectedModelInfo(),
   );
-  if (!hasPendingSettingsSave()) {
-    savedServerSettingsSinceLoad = false;
-    settingsState.settingsSaveStatus = "idle";
-    settingsState.settingsMessage = undefined;
-  }
 }
 
-function refreshAncillarySettingsData(): void {
+export function refreshAncillarySettingsData(): void {
   void refreshSubscriptionUsage().catch(() => undefined);
   void loadSettingsSkills();
 }
 
-async function runSettingsLoadCycle(): Promise<void> {
+async function runSettingsLoadCycle(
+  coreLoadAtStart: Promise<void> | undefined,
+): Promise<void> {
+  if (coreLoadAtStart) await coreLoadAtStart;
   do {
     settingsReloadRequested = false;
     await loadCoreSettings();
@@ -183,9 +203,11 @@ export function loadSettingsPanel(): Promise<void> {
     settingsReloadRequested = true;
     return settingsLoadInFlight;
   }
-  settingsLoadInFlight = runSettingsLoadCycle().finally(() => {
-    settingsLoadInFlight = undefined;
-  });
+  settingsLoadInFlight = runSettingsLoadCycle(coreSettingsLoadInFlight).finally(
+    () => {
+      settingsLoadInFlight = undefined;
+    },
+  );
   return settingsLoadInFlight;
 }
 

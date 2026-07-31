@@ -16,7 +16,6 @@ import {
 import { getToolCall } from "$lib/features/tools/api/tools.api";
 import {
   confluenceSiteUrl,
-  ensureAtlassianSiteUrls,
   jiraSiteUrl,
 } from "$lib/features/conversations/state/atlassian-site-urls.svelte";
 
@@ -26,7 +25,6 @@ import {
  * input). Kept in web because it wires app-only services.
  */
 export function workbenchConversationUiCapabilities(): ConversationUiCapabilities {
-  ensureAtlassianSiteUrls();
   return {
     fetchToolCall: (toolCallId) => getToolCall(toolCallId),
     atlassian: { jiraSiteUrl, confluenceSiteUrl },
