@@ -926,6 +926,66 @@ test("retry exhaustion leaves a valid checkpoint recoverable", async () => {
   );
 });
 
+test("manual continuation starts a fresh automatic retry budget", async () => {
+  const harness = fixture({
+    retryPolicy: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
+    execute: async (attempt, _input, sink) => {
+      if (attempt === 4) return { status: "completed" };
+      await sink.checkpoint({
+        boundary: "before_provider_request",
+        transcriptCursor: 0,
+        entryIds: [],
+        harnessLeafId: null,
+        harnessSavePointId: "save_0",
+        toolCalls: [],
+      });
+      return {
+        status: "failed",
+        failure: {
+          code: "PROVIDER_FAILED",
+          message: "provider temporarily unavailable",
+          retryable: true,
+        },
+      };
+    },
+  });
+  const run = await start(harness.coordinator);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "interrupted",
+  );
+
+  let state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.attempt, 2);
+  assert.equal(
+    state?.transitions.filter((transition) => transition.kind === "retrying")
+      .length,
+    1,
+  );
+
+  await harness.coordinator.continue(run.runId);
+  await waitUntil(
+    async () =>
+      (await harness.coordinator.get(run.runId))?.run.status === "completed",
+  );
+
+  state = await harness.coordinator.get(run.runId);
+  assert.equal(state?.run.attempt, 4);
+  assert.deepEqual(
+    state?.transitions
+      .filter((transition) => ["retrying", "resumed"].includes(transition.kind))
+      .map((transition) => transition.kind),
+    ["retrying", "resumed", "retrying"],
+  );
+  assert.deepEqual(
+    state?.transitions
+      .flatMap((transition) => transition.events)
+      .filter((event) => event.type === "run.retrying")
+      .map((event) => (event.data as { attempt?: number }).attempt),
+    [1, 1],
+  );
+});
+
 test("transition observer failures are isolated after durable ordering", async () => {
   const harness = fixture({ observerFails: true });
   const run = await start(harness.coordinator);
