@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.82.1
-        version: 0.82.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.83.0
+        version: 0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -84,8 +84,8 @@ importers:
   packages/harness:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.82.1
-        version: 0.82.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)
+        specifier: 0.83.0
+        version: 0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -96,8 +96,8 @@ importers:
         specifier: ^0.35.3
         version: 0.35.3(@types/node@24.10.1)
       typebox:
-        specifier: 1.1.38
-        version: 1.1.38
+        specifier: 1.3.7
+        version: 1.3.7
       yaml:
         specifier: 2.9.0
         version: 2.9.0
@@ -146,8 +146,8 @@ importers:
         specifier: ^1.10.0
         version: 1.10.0
       typebox:
-        specifier: 1.1.38
-        version: 1.1.38
+        specifier: 1.3.7
+        version: 1.3.7
     devDependencies:
       '@types/node':
         specifier: 24.10.1
@@ -381,8 +381,8 @@ importers:
   packages/workbench-server:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.82.1
-        version: 0.82.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.83.0
+        version: 0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
       '@hono/node-server':
         specifier: 2.0.11
         version: 2.0.11(hono@4.12.32)
@@ -1286,8 +1286,8 @@ packages:
   '@dagrejs/graphlib@4.0.1':
     resolution: {integrity: sha512-IvcV6FduIIAmLwnH+yun+QtV36SC7mERqa86aClNqmMN09WhmPPYU8ckHrZBozErf+UvHPWOTJYaGYiIcs0DgA==}
 
-  '@earendil-works/pi-ai@0.82.1':
-    resolution: {integrity: sha512-3WFYRhEp3lQB3444EhPMBcM7zSaEUE3eJgHOR7s4081NLqbw/FsWilIKWXSua0Gv3sRr7m9xMidR3pPDE7jI/A==}
+  '@earendil-works/pi-ai@0.83.0':
+    resolution: {integrity: sha512-m3IZD4g3er0V8TC9+Vpgw/sjTKqcJlkcIBy/JvsgRubuuik3tAVzyugUg4rVrShIkkOT69mEd34NEqKUIsl6JQ==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
@@ -5927,8 +5927,8 @@ packages:
     resolution: {integrity: sha512-eaBzG6MxNzEn9kiwvtre90cXaNLkmadMWa1zQMs3XORCXNbsH/OewwbxC5ia9dCxIxnTAsSxXJaa/p5y8DlvJg==}
     engines: {node: '>=10'}
 
-  typebox@1.1.38:
-    resolution: {integrity: sha512-pZ0aQPmMmXoUvSbeuWf/Hzsc+avNw/Zd6VeE8CFgkVGWyuHPJvqeJJDeJqLve+K70LvjYIoleGcoJHPT17cWoA==}
+  typebox@1.3.7:
+    resolution: {integrity: sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==}
 
   typed-array-buffer@1.0.3:
     resolution: {integrity: sha512-nAYYwfY3qnzX30IkA6AQZjVbtK6duGontcQm1WSG1MD94YLqK0515GNApXkoxKOWMusVssAHWLh9SeaoefYFGw==}
@@ -7804,7 +7804,7 @@ snapshots:
 
   '@dagrejs/graphlib@4.0.1': {}
 
-  '@earendil-works/pi-ai@0.82.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)':
+  '@earendil-works/pi-ai@0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.1.12)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
@@ -7816,7 +7816,7 @@ snapshots:
       https-proxy-agent: 7.0.6(supports-color@7.2.0)
       openai: 6.26.0(ws@8.21.0)(zod@4.1.12)
       partial-json: 0.1.7
-      typebox: 1.1.38
+      typebox: 1.3.7
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
@@ -7825,7 +7825,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@0.82.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)':
+  '@earendil-works/pi-ai@0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
@@ -7837,7 +7837,7 @@ snapshots:
       https-proxy-agent: 7.0.6(supports-color@7.2.0)
       openai: 6.26.0(ws@8.21.0)(zod@4.4.3)
       partial-json: 0.1.7
-      typebox: 1.1.38
+      typebox: 1.3.7
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
@@ -13402,7 +13402,7 @@ snapshots:
 
   type-fest@0.16.0: {}
 
-  typebox@1.1.38: {}
+  typebox@1.3.7: {}
 
   typed-array-buffer@1.0.3:
     dependencies:
