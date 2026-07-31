@@ -44,6 +44,7 @@ interface ApplicationLoggerOptions {
   maxBufferedLogs?: number;
   inherited?: ApplicationLogContext;
   mirrorToConsole?: boolean;
+  enabled?: boolean;
   root?: ApplicationLogger;
 }
 
@@ -71,6 +72,7 @@ export class ApplicationLogger {
   private readonly maxBufferedLogs: number;
   private readonly inherited: ApplicationLogContext;
   private readonly mirrorToConsole: boolean;
+  private readonly enabled: boolean;
 
   constructor(options: ApplicationLoggerOptions) {
     this.root = options.root ?? this;
@@ -82,6 +84,7 @@ export class ApplicationLogger {
     this.maxBufferedLogs = options.maxBufferedLogs ?? 2000;
     this.inherited = options.inherited ?? {};
     this.mirrorToConsole = options.mirrorToConsole ?? true;
+    this.enabled = options.enabled ?? true;
   }
 
   child(
@@ -100,11 +103,13 @@ export class ApplicationLogger {
       maxBufferedLogs: this.maxBufferedLogs,
       inherited: mergeContext(this.inherited, rest),
       mirrorToConsole: this.mirrorToConsole,
+      enabled: this.enabled,
       root: this.root,
     });
   }
 
   async hydrate(): Promise<void> {
+    if (!this.enabled) return;
     if (this.root !== this) return this.root.hydrate();
     await mkdir(this.logsDir(), { recursive: true });
     const logs = await this.readRecentLogs();
@@ -113,6 +118,7 @@ export class ApplicationLogger {
   }
 
   async pruneRetention(): Promise<void> {
+    if (!this.enabled) return;
     if (this.root !== this) return this.root.pruneRetention();
     const cutoff = Date.now() - this.retentionDays * 24 * 60 * 60 * 1000;
     for (const file of await this.applicationLogFiles()) {
@@ -146,6 +152,7 @@ export class ApplicationLogger {
     operation: () => Promise<T>,
     context?: ApplicationLogContext,
   ): Promise<T> {
+    if (!this.enabled) return operation();
     const started = performance.now();
     try {
       const result = await operation();
@@ -168,6 +175,7 @@ export class ApplicationLogger {
     logs: ApplicationLogRecord[];
     nextCursor: number;
   }> {
+    if (!this.enabled) return { logs: [], nextCursor: 0 };
     const limit = query.limit ?? 100;
     let logs = await this.root.readAllLogs();
     if (query.sinceSeq !== undefined) {
@@ -204,6 +212,7 @@ export class ApplicationLogger {
   async prune(
     query: ApplicationLogPruneRequest = {},
   ): Promise<ApplicationLogPruneResponse> {
+    if (!this.enabled) return { pruned: 0, remaining: 0 };
     if (this.root !== this) return this.root.prune(query);
     if (!hasPruneFilter(query)) {
       const logs = await this.readAllLogs();
@@ -236,6 +245,7 @@ export class ApplicationLogger {
   async removeLogsForConversations(
     conversationIds: Iterable<string>,
   ): Promise<void> {
+    if (!this.enabled) return;
     if (this.root !== this)
       return this.root.removeLogsForConversations(conversationIds);
     const conversations = new Set(conversationIds);
@@ -263,7 +273,7 @@ export class ApplicationLogger {
     message: string,
     context: ApplicationLogContext = {},
   ): Promise<void> {
-    if (!this.shouldLog(level)) return;
+    if (!this.enabled || !this.shouldLog(level)) return;
     const merged = mergeContext(this.inherited, context);
     const record: ApplicationLogRecord = {
       seq: this.root.nextSeq(),

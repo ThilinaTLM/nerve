@@ -129,6 +129,7 @@ async function handleDesktopClose() {
   settingsActive={activeCenterTab?.kind === "settings"}
   authActive={activeCenterTab?.kind === "auth"}
   logsActive={activeCenterTab?.kind === "logs"}
+  applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
   buildProjectMenuItems={projectMenuItems}
   onOpenProject={openProjectPicker}
   onSelectProject={(projectId) => void selectProject(projectId)}

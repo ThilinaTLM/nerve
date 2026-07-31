@@ -43,6 +43,9 @@ export const statusResponseSchema = z.object({
     sqlitePath: z.string(),
     indexHealthy: z.boolean(),
   }),
+  capabilities: z.object({
+    applicationLogs: z.boolean(),
+  }),
   runtime: z.object({
     python: pythonRuntimeStatusSchema,
     editors: externalEditorStatusesSchema,

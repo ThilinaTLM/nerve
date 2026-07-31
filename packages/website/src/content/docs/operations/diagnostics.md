@@ -5,13 +5,17 @@ sidebar:
   order: 7
 ---
 
-## In the workbench
+## Application logs
 
-The Nerve Logs tab can filter, expand, copy, refresh, and prune application logs. Task tabs have their own streaming/backfilled terminal output and retention/truncation indicators.
+Nerve application logging is disabled by default. Developers can explicitly enable it for a launch by setting `NERVE_LOGGING_ENABLED=1`. When enabled, the Nerve Logs button and tab can filter, expand, copy, refresh, and prune application logs.
 
-## Files
+Desktop and daemon application logs are JSONL under `<NERVE_HOME>/logs`, including daily desktop files. Existing files are retained but are not read or appended while application logging is disabled.
 
-Desktop and daemon logs are JSONL under `<NERVE_HOME>/logs`, including daily desktop files. Crash and Node diagnostic reports are under `<NERVE_HOME>/crashes`.
+Task tabs have separate streaming/backfilled terminal output and retention/truncation indicators. Task logs are not controlled by `NERVE_LOGGING_ENABLED`.
+
+## Crash diagnostics
+
+Crash and Node diagnostic reports are under `<NERVE_HOME>/crashes` and remain enabled independently of application logging.
 
 The daemon writes structured reports for handled fatal errors, enables Node reports for runtime/native fatal conditions, and leaves a heartbeat marker. On the next start, an unclean prior exit can produce a fallback report.
 

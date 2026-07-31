@@ -148,7 +148,9 @@ async function main() {
   if (mobileHttpsEnabled && (!Number.isFinite(httpsPort) || httpsPort <= 0)) {
     throw new Error(`Invalid Nerve HTTPS port: ${String(httpsPort)}`);
   }
-  const state = createOrchestratorState(storage, host, port);
+  const state = createOrchestratorState(storage, host, port, {
+    applicationLogsEnabled: process.env.NERVE_LOGGING_ENABLED === "1",
+  });
   const loggerHydrateStartedAt = performance.now();
   await state.logger.hydrate();
   const loggerHydrateDurationMs = Math.round(

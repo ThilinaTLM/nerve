@@ -70,12 +70,14 @@ export async function initializeWorkbench(): Promise<void> {
   intentionallyDisconnected = false;
   workspaceSnapshotLoaded = false;
   try {
-    installClientLogging();
     applyTheme(loadThemePreference());
     workspaceState.config = await retryDuringStartup(
       "load client config",
       getClientConfig,
     );
+    if (workspaceState.config.status.capabilities.applicationLogs) {
+      installClientLogging();
+    }
     workspaceState.status = workspaceState.config.status;
     workspaceState.error = undefined;
     composerDraft.projectDir = workspaceState.config.status.storage.home;

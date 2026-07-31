@@ -59,7 +59,12 @@ export function mountApiRoutes(app: Hono, state: OrchestratorState): void {
   app.route("/api", createWorkerRoutes(state));
   app.route("/api", createWorkspaceRoutes(state));
 
-  app.route("/api", createLogRoutes(state));
+  if (state.applicationLogsEnabled) {
+    app.route("/api", createLogRoutes(state));
+  } else {
+    app.all("/api/logs", (c) => c.notFound());
+    app.all("/api/logs/*", (c) => c.notFound());
+  }
   app.route("/api", createTaskRoutes(state));
   app.route("/api", createCompletionRoutes(state));
   app.route("/api", createFilesystemRoutes(state));

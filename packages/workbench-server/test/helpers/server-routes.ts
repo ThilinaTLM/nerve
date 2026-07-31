@@ -28,11 +28,14 @@ export async function tempHome(prefix: string): Promise<string> {
   return root;
 }
 
-export async function createAuthenticatedApp(host = "127.0.0.1") {
+export async function createAuthenticatedApp(
+  host = "127.0.0.1",
+  options: { applicationLogsEnabled?: boolean } = {},
+) {
   const storage = await initializeStorage(
     await tempHome("nerve-server-routes-"),
   );
-  const state = createOrchestratorState(storage, host, 0);
+  const state = createOrchestratorState(storage, host, 0, options);
   states.push(state);
   await state.logger.hydrate();
   await state.registry.hydrate();
