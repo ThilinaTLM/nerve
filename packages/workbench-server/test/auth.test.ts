@@ -29,7 +29,7 @@ describe("AuthManager", () => {
     await auth.setOAuth("openai-codex", {
       access: "access-token",
       refresh: "refresh-token",
-      expires: Date.now() + 60_000,
+      expires: Date.now() + 60 * 60_000,
     });
 
     assert.equal(await auth.credentialType("openai-codex"), "oauth");
@@ -43,7 +43,7 @@ describe("AuthManager", () => {
       access:
         "tid=test;proxy-ep=proxy.business.githubcopilot.com;exp=9999999999;",
       refresh: "github-token",
-      expires: Date.now() + 60_000,
+      expires: Date.now() + 60 * 60_000,
       enterpriseUrl: "github.example.com",
     });
     const model = auth.models.getModels("github-copilot")[0];

@@ -8,7 +8,7 @@ allowBuilds:
   protobufjs: true
   sharp: true
 minimumReleaseAgeExclude:
-  - "@earendil-works/pi-ai@0.82.1"
+  - "@earendil-works/pi-ai@0.83.0"
   - "@astrojs/internal-helpers@0.10.2"
   - "@astrojs/markdown-satteri@0.3.5"
   - astro@7.1.5
