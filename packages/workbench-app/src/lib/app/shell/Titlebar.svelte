@@ -16,6 +16,8 @@ import {
 } from "$lib/features/projects";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { LatestRelease } from "@nervekit/contracts";
+import VersionIndicator from "$lib/app/shell/VersionIndicator.svelte";
 
 type Props = {
   projects?: ProjectSwitcherItem[];
@@ -28,6 +30,8 @@ type Props = {
   authActive?: boolean;
   logsActive?: boolean;
   applicationLogsEnabled?: boolean;
+  currentVersion?: string;
+  latestRelease?: LatestRelease;
   buildProjectMenuItems?: (item: ProjectSwitcherItem) => ContextMenuItem[];
   onOpenProject?: () => void;
   onSelectProject?: (projectId: string) => void;
@@ -50,6 +54,8 @@ let {
   authActive = false,
   logsActive = false,
   applicationLogsEnabled = false,
+  currentVersion,
+  latestRelease,
   buildProjectMenuItems,
   onOpenProject,
   onSelectProject,
@@ -79,6 +85,9 @@ let {
 
   {#snippet actions()}
     <Toolbar.Root class="title-actions" aria-label="Application actions">
+      {#if currentVersion}
+        <VersionIndicator {currentVersion} {latestRelease} />
+      {/if}
       {#if applicationLogsEnabled}
         <Button
           variant="ghost"

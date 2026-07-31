@@ -24,6 +24,7 @@ import {
   toggleMaximizeDesktopWindow,
 } from "$lib/features/desktop";
 import { openAuthPane } from "$lib/features/auth";
+import { releaseState } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
 import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
 import {
@@ -130,6 +131,8 @@ async function handleDesktopClose() {
   authActive={activeCenterTab?.kind === "auth"}
   logsActive={activeCenterTab?.kind === "logs"}
   applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
+  currentVersion={status?.version}
+  latestRelease={releaseState.latest}
   buildProjectMenuItems={projectMenuItems}
   onOpenProject={openProjectPicker}
   onSelectProject={(projectId) => void selectProject(projectId)}
