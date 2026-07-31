@@ -7,6 +7,7 @@ import type {
   PromptSuggestionStatus,
 } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -16,7 +17,6 @@ import {
   SettingsGroup,
   SettingsInlineMessage,
   SettingsList,
-  SettingsSearchInput,
   SettingsToolbar,
 } from "$lib/presentation/components/settings";
 import CreatePromptSuggestionDialog from "$lib/features/prompt-suggestions/components/CreatePromptSuggestionDialog.svelte";
@@ -222,7 +222,7 @@ function copyPath(path: string): void {
 
 <SettingsToolbar>
   {#snippet start()}
-    <SettingsSearchInput
+    <SearchInput
       bind:value={query}
       placeholder="Search suggestions"
       ariaLabel="Search prompt suggestions"

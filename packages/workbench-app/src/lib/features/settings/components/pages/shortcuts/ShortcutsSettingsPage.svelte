@@ -1,11 +1,11 @@
 <script lang="ts">
 import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import {
   SettingsEmptyState,
   SettingsGroup,
   SettingsList,
   SettingsListItem,
-  SettingsSearchInput,
   SettingsToolbar,
 } from "$lib/presentation/components/settings";
 import {
@@ -53,7 +53,7 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
 
 <SettingsToolbar>
   {#snippet start()}
-    <SettingsSearchInput
+    <SearchInput
       bind:value={query}
       placeholder="Search shortcuts"
       ariaLabel="Search shortcuts"

@@ -2,11 +2,11 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { AuthProviderMetadata, ModelInfo, ModelSelection } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import { SettingsSearchInput } from "$lib/presentation/components/settings";
 import {
   authenticatedRealModelOptions,
   modelDisplayName,
@@ -112,7 +112,7 @@ function save(): void {
 >
   <div class="grid max-h-[min(70vh,32rem)] grid-rows-[auto_minmax(0,1fr)]">
     <div class="grid gap-2 border-b border-border/50 pb-3">
-      <SettingsSearchInput
+      <SearchInput
         bind:value={query}
         placeholder="Search models"
         ariaLabel="Search models"

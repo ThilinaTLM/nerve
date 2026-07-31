@@ -3,6 +3,7 @@ import { SvelteSet } from "svelte/reactivity";
 import Copy from "@lucide/svelte/icons/copy";
 import type { AvailableSkill, Settings } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
@@ -14,7 +15,6 @@ import {
   SettingsGroup,
   SettingsInlineMessage,
   SettingsList,
-  SettingsSearchInput,
   SettingsSection,
   SettingsToolbar,
 } from "$lib/presentation/components/settings";
@@ -139,13 +139,18 @@ function copyPath(path: string): void {
 
 <SettingsToolbar>
   {#snippet start()}
-    <SettingsSearchInput
+    <SearchInput
       bind:value={query}
       placeholder="Search skills"
       ariaLabel="Search skills"
       class="max-w-xs"
-      count={`${summary.enabled} of ${summary.total} enabled`}
-    />
+    >
+      {#snippet trailing()}
+        <span class="flex-none text-xs text-muted-foreground"
+          >{summary.enabled} of {summary.total} enabled</span
+        >
+      {/snippet}
+    </SearchInput>
   {/snippet}
   {#snippet end()}
     <DropdownMenu.Root>

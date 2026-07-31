@@ -1,8 +1,7 @@
 <script lang="ts">
-import Search from "@lucide/svelte/icons/search";
 import type { TaskRecord } from "@nervekit/contracts";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import { Input } from "@nervekit/ui-kit/components/ui/input";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { PanelList, PanelRowCard } from "$lib/presentation/panel";
 import TaskRunRow from "./TaskRunRow.svelte";
@@ -76,15 +75,10 @@ function openRun(taskId: string): void {
   onOpenChange={handleOpenChange}
 >
   <div class="flex min-h-0 flex-col">
-    <div class="relative flex shrink-0 items-center border-b border-border p-2">
-      <Search
-        class="pointer-events-none absolute left-4 size-3.5 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <Input
+    <div class="flex shrink-0 items-center border-b border-border p-2">
+      <SearchInput
         bind:value={filter}
-        size="sm"
-        class="pl-7"
+        class="flex-1"
         placeholder="Filter runs"
         ariaLabel="Filter runs"
       />

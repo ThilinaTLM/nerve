@@ -85,27 +85,10 @@
 }
 
 .picker-search {
-  position: relative;
   display: grid;
   align-items: center;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   padding: 0.6rem 0.75rem;
-}
-
-.picker-search svg {
-  position: absolute;
-  z-index: 1;
-  top: 50%;
-  left: 1.3rem;
-  color: var(--muted-foreground);
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.picker-search [data-slot="input"] {
-  padding-left: 2rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
 }
 
 .picker-error {

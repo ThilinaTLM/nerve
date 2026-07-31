@@ -18,7 +18,6 @@ export { default as SettingsStatGrid } from "./settings-stat-grid.svelte";
 export type { SettingsStat } from "./settings-stat-grid.svelte";
 export { default as SettingsEmptyState } from "./settings-empty-state.svelte";
 export { default as SettingsInlineMessage } from "./settings-inline-message.svelte";
-export { default as SettingsSearchInput } from "./settings-search-input.svelte";
 export { default as SettingsToolbar } from "./settings-toolbar.svelte";
 export type {
   SettingsChoice,

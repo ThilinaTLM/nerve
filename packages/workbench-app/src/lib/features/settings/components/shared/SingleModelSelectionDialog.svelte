@@ -7,9 +7,9 @@ import type {
   ThinkingLevel,
 } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import { SettingsSearchInput } from "$lib/presentation/components/settings";
 import {
   modelDisplayName,
   modelKey,
@@ -142,7 +142,7 @@ function save(): void {
 <Dialog bind:open {title} {description} size="wide">
   <div class="grid max-h-[min(70vh,36rem)] grid-rows-[auto_minmax(0,1fr)]">
     <div class="grid gap-2 border-b border-border/50 pb-3">
-      <SettingsSearchInput
+      <SearchInput
         bind:value={query}
         placeholder="Search models"
         ariaLabel="Search models"
