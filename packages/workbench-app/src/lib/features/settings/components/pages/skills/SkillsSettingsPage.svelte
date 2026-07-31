@@ -1,5 +1,6 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
+import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import Copy from "@lucide/svelte/icons/copy";
 import type { AvailableSkill, Settings } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -155,13 +156,14 @@ function copyPath(path: string): void {
   {#snippet end()}
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        class={buttonVariants({ variant: "ghost", size: "xs" })}
+        class={buttonVariants({ variant: "outline", size: "xs", class: "h-7" })}
         disabled={visibleEntries.length === 0}
         aria-label="Bulk skill actions"
         title="Bulk skill actions"
       >
         <ListChecks class="size-3.5" aria-hidden="true" />
         Bulk
+        <ChevronDown class="size-3" aria-hidden="true" />
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="end" class="w-44">
         <DropdownMenu.Item onSelect={() => applyBulk(true)}>
