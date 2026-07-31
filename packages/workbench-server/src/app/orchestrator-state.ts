@@ -24,6 +24,7 @@ import {
   StorageCleanupService,
   StorageUsageService,
 } from "../domains/storage/index.js";
+import { LatestReleaseService } from "../domains/status/latest-release-service.js";
 import { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import { StreamLogRegistry } from "../infrastructure/events/index.js";
@@ -50,6 +51,7 @@ export interface OrchestratorState {
   index: IndexStore;
   storageUsage: StorageUsageService;
   storageCleanup: StorageCleanupService;
+  latestRelease: LatestReleaseService;
   secrets: SecretProvider;
   auth: AuthManager;
   providerCatalog: ProviderCatalogStore;
@@ -149,6 +151,7 @@ export function createOrchestratorState(
     paths: storage.paths,
     getRegistry: () => registry,
   });
+  const latestRelease = new LatestReleaseService();
   const storageCleanup = new StorageCleanupService({
     paths: storage.paths,
     repository: new StorageCleanupRepository(
@@ -172,6 +175,7 @@ export function createOrchestratorState(
     index,
     storageUsage,
     storageCleanup,
+    latestRelease,
     secrets,
     auth,
     providerCatalog,

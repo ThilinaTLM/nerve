@@ -13,6 +13,7 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
   clientConfig: ["client-config"] as const,
   workspace: ["workspace"] as const,
+  latestRelease: ["status", "latest-release"] as const,
   slashCompletions: ["completions", "slash"] as const,
   fileCompletions: (projectId: string | undefined, query: string) =>
     ["completions", "files", projectId ?? "none", query] as const,

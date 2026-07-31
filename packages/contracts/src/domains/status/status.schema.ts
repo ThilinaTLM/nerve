@@ -53,6 +53,13 @@ export const statusResponseSchema = z.object({
 });
 export type StatusResponse = z.infer<typeof statusResponseSchema>;
 
+export const latestReleaseSchema = z.object({
+  version: z.string().min(1),
+  releaseUrl: z.string().url(),
+  publishedAt: z.string().datetime(),
+});
+export type LatestRelease = z.infer<typeof latestReleaseSchema>;
+
 export const daemonFileSchema = z.object({
   daemonId: z.string().startsWith("daemon_"),
   pid: z.number().int().positive(),

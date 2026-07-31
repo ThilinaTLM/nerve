@@ -61,7 +61,7 @@ const uptime = $derived.by(() => {
       <Badge size="xs" tone={connectionTone}>{summary}</Badge>
     </header>
 
-    <dl class="flex flex-col gap-2 text-xs">
+    <dl class="flex flex-col gap-1.5 text-xs">
       <div class="flex items-center justify-between gap-3">
         <dt class="text-muted-foreground">Connection</dt>
         <dd class="flex items-center gap-1.5 font-medium">

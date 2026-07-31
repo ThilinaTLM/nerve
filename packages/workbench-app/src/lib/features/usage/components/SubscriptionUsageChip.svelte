@@ -257,6 +257,11 @@ const title = $derived.by(() => {
 {/if}
 
 <style>
+/* Compound selector outweighs the shared popover width default. */
+:global(.popover-content.subscription-popover) {
+  width: min(19.2rem, calc(100vw - 1.5rem));
+}
+
 .subscription-trigger {
   display: inline-flex;
   align-items: center;

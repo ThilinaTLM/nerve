@@ -43,6 +43,10 @@ import {
   loadSettingsPanel,
   refreshSubscriptionUsage,
 } from "$lib/features/settings/state/settings-actions.svelte";
+import {
+  startReleasePolling,
+  stopReleasePolling,
+} from "$lib/features/releases";
 import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
 import {
   loadSlashCommands,
@@ -83,6 +87,7 @@ export async function initializeWorkbench(): Promise<void> {
     composerDraft.projectDir = workspaceState.config.status.storage.home;
     await loadSlashCommands();
     await connectWebsocket(workspaceState.config.wsUrl);
+    startReleasePolling();
     await restoreConversationTabs();
     await loadSettingsPanel();
     startSubscriptionUsagePolling();
@@ -263,6 +268,7 @@ function stopSubscriptionUsagePolling(): void {
 export function disconnectWorkbench(): void {
   intentionallyDisconnected = true;
   stopSubscriptionUsagePolling();
+  stopReleasePolling();
   flushNotifyEvents();
   unbindSubscriptionSync?.();
   unbindSubscriptionSync = undefined;

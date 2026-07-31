@@ -41,6 +41,7 @@ const slashCompletionItems: CompletionItem[] = [
 ];
 
 export const platformMethodHandlers = defineWorkbenchMethodHandlers({
+  "status.latestRelease.get": (state) => state.latestRelease.getLatestRelease(),
   "snapshot.workspace.get": (state) => getWorkspaceSnapshotResponse(state),
   "snapshot.conversation.get": (state, params) =>
     getConversationSnapshotResponse(state, params.conversationId),

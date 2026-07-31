@@ -20,6 +20,7 @@ import { scratchNotesOperationDefinitions } from "../scratch-notes/scratch-note.
 import { settingsOperationDefinitions } from "../settings/settings.operations.schema.js";
 import { skillOperationDefinitions } from "../skills/skill.operations.schema.js";
 import { snapshotsOperationDefinitions } from "../snapshots/snapshot.operations.schema.js";
+import { statusOperationDefinitions } from "../status/status.operations.schema.js";
 import { storageOperationDefinitions } from "../storage/storage.operations.schema.js";
 import { taskDefinitionOperationDefinitions } from "../task-definitions/task-definition.operations.schema.js";
 import { tasksOperationDefinitions } from "../tasks/task.operations.schema.js";
@@ -44,6 +45,7 @@ const methodDefinitions = [
   ...settingsOperationDefinitions,
   ...skillOperationDefinitions,
   ...snapshotsOperationDefinitions,
+  ...statusOperationDefinitions,
   ...storageOperationDefinitions,
   ...taskDefinitionOperationDefinitions,
   ...tasksOperationDefinitions,
