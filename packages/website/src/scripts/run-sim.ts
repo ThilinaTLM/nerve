@@ -42,7 +42,7 @@ export interface SimRow {
 }
 
 export interface SimConfig {
-  model: "opus" | "fable" | "gpt" | "sol";
+  model: "fable" | "opus" | "gpt" | "kimi";
   thinking: "off" | "low" | "medium" | "high";
   mode: "coding" | "planning";
   permission: "read_only" | "supervised" | "autonomous";
@@ -54,10 +54,10 @@ export interface RunSimHandle {
 }
 
 const MODEL_LABEL: Record<SimConfig["model"], string> = {
-  opus: "Opus",
   fable: "Fable",
-  gpt: "GPT-5.6",
-  sol: "Sol",
+  opus: "Opus",
+  gpt: "GPT",
+  kimi: "Kimi",
 };
 
 const PERMISSION_LABEL: Record<SimConfig["permission"], string> = {

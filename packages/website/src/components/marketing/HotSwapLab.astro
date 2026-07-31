@@ -34,10 +34,10 @@ const controls = [
     key: "model",
     label: "Model",
     options: [
-      { value: "opus", label: "Opus" },
       { value: "fable", label: "Fable" },
-      { value: "gpt", label: "GPT-5.6" },
-      { value: "sol", label: "Sol" },
+      { value: "opus", label: "Opus" },
+      { value: "gpt", label: "GPT" },
+      { value: "kimi", label: "Kimi" },
     ],
   },
   {
@@ -218,6 +218,12 @@ const staticRows: StaticRow[] = [
   /* Below the two-column breakpoint the controls sit above the stream; pairs
    * of groups share a row where they fit so the deck stays compact. */
   @media (max-width: 1023px) {
+    /* The stream leads on small screens: a visitor should see the run react
+     * before scrolling on to the controls that caused it. */
+    .lab-stage {
+      order: -1;
+    }
+
     .lab-controls {
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
       gap: 1.1rem 1.5rem;
@@ -226,6 +232,21 @@ const staticRows: StaticRow[] = [
     .lab-hint,
     .lab-note {
       grid-column: 1 / -1;
+    }
+
+    /* On touch layouts each segment becomes a full-width bar of equal-width
+     * buttons — bigger targets, no dead track, and options can never wrap
+     * onto a second line inside the pill. */
+    .seg {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      justify-self: stretch;
+    }
+
+    .seg-btn {
+      padding-inline: 0.3rem;
+      text-align: center;
     }
   }
 </style>

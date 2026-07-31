@@ -476,18 +476,22 @@ const combinations = Object.keys(matrix);
   .policy-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.75rem 1rem;
+    gap: 0.3rem 1rem;
     align-items: center;
-    padding: 0.7rem 1.1rem;
+    padding: 0.55rem 1.1rem;
   }
 
   .policy-row + .policy-row {
     border-top: 1px solid var(--hairline);
   }
 
+  /* Name and meaning share one line — nine rows must read as one scan, not a
+   * page of cards — and the meaning wraps beneath the name when squeezed. */
   .policy-name {
-    display: grid;
-    gap: 0.1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.6rem;
+    align-items: baseline;
     min-width: 0;
   }
 
@@ -544,19 +548,6 @@ const combinations = Object.keys(matrix);
   }
 
   @media (max-width: 639px) {
-    .policy-row {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .policy-cells {
-      justify-items: start;
-      text-align: left;
-    }
-
-    .policy-cell {
-      justify-items: start;
-    }
-
     .policy-note {
       max-width: none;
     }
