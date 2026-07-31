@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
+import FileIcon from "@lucide/svelte/icons/file";
 import {
   autocompletion,
   completionStatus,
@@ -39,6 +40,7 @@ type Props = {
   onChange?: (value: string) => void;
   onSubmit?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
+  onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
 };
 
 type ComposerCompletion = Completion & {
@@ -62,12 +64,15 @@ let {
   onChange,
   onSubmit,
   onPasteImage,
+  onDropFiles,
 }: Props = $props();
 
 let host: HTMLDivElement;
 let view: EditorView | undefined;
 let editorValue = $state("");
 let lastFocusToken = 0;
+let fileDragDepth = 0;
+let fileDragActive = $state(false);
 const editableCompartment = new Compartment();
 const completionCompartment = new Compartment();
 const placeholderCompartment = new Compartment();
@@ -373,15 +378,85 @@ function submitOnEnter(target: EditorView) {
   return submit();
 }
 
-function insertAtSelection(text: string) {
-  if (!view) return;
+function insertAtRange(text: string, from?: number, to?: number) {
+  if (!view || !text) return;
   const selection = view.state.selection.main;
+  const docLength = view.state.doc.length;
+  const insertFrom = Math.min(from ?? selection.from, docLength);
+  const insertTo = Math.min(to ?? selection.to, docLength);
   view.dispatch({
-    changes: { from: selection.from, to: selection.to, insert: text },
-    selection: { anchor: selection.from + text.length },
+    changes: { from: insertFrom, to: insertTo, insert: text },
+    selection: { anchor: insertFrom + text.length },
     scrollIntoView: true,
   });
   view.focus();
+}
+
+function insertDroppedPaths(
+  paths: readonly string[],
+  selection: { from: number; to: number },
+): void {
+  if (!view || paths.length === 0) return;
+  const doc = view.state.doc;
+  const from = Math.min(selection.from, doc.length);
+  const to = Math.min(selection.to, doc.length);
+  const before = from > 0 ? doc.sliceString(from - 1, from) : "";
+  const after = to < doc.length ? doc.sliceString(to, to + 1) : "";
+  const leadingSpace = before && !/\s/.test(before) ? " " : "";
+  const trailingSpace = after && !/\s/.test(after) ? " " : "";
+  insertAtRange(`${leadingSpace}${paths.join(" ")}${trailingSpace}`, from, to);
+}
+
+function hasFileItems(dataTransfer: DataTransfer | null): boolean {
+  if (!dataTransfer) return false;
+  return (
+    Array.from(dataTransfer.items).some((item) => item.kind === "file") ||
+    Array.from(dataTransfer.types).includes("Files")
+  );
+}
+
+function canHandleFileDrag(event: DragEvent): boolean {
+  return Boolean(!disabled && onDropFiles && hasFileItems(event.dataTransfer));
+}
+
+function handleFileDragEnter(event: DragEvent): void {
+  if (!canHandleFileDrag(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  fileDragDepth += 1;
+  fileDragActive = true;
+}
+
+function handleFileDragOver(event: DragEvent): void {
+  if (!canHandleFileDrag(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+}
+
+function handleFileDragLeave(event: DragEvent): void {
+  if (!fileDragActive) return;
+  event.preventDefault();
+  event.stopPropagation();
+  fileDragDepth = Math.max(0, fileDragDepth - 1);
+  if (fileDragDepth === 0) fileDragActive = false;
+}
+
+function handleFileDrop(event: DragEvent): void {
+  if (!canHandleFileDrag(event) || !onDropFiles || !view) return;
+  event.preventDefault();
+  event.stopPropagation();
+  fileDragDepth = 0;
+  fileDragActive = false;
+
+  const files = Array.from(event.dataTransfer?.files ?? []);
+  if (files.length === 0) return;
+  const { from, to } = view.state.selection.main;
+  void onDropFiles(files)
+    .then((paths) => insertDroppedPaths(paths, { from, to }))
+    .catch((error: unknown) => {
+      console.error("Failed to resolve dropped file paths", error);
+    });
 }
 
 function handlePaste(event: ClipboardEvent) {
@@ -392,7 +467,7 @@ function handlePaste(event: ClipboardEvent) {
   if (!files.length) return false;
   event.preventDefault();
   void Promise.all(files.map((file) => onPasteImage(file)))
-    .then((paths) => insertAtSelection(paths.join("\n")))
+    .then((paths) => insertAtRange(paths.join("\n")))
     .catch((error: unknown) => {
       console.error("Failed to paste clipboard image", error);
     });
@@ -604,6 +679,10 @@ $effect(() => {
   view.dispatch({
     effects: editableCompartment.reconfigure(editableExtensions(disabled)),
   });
+  if (disabled) {
+    fileDragDepth = 0;
+    fileDragActive = false;
+  }
 });
 
 $effect(() => {
@@ -641,7 +720,27 @@ $effect(() => {
 onDestroy(() => view?.destroy());
 </script>
 
-<div class="composer-editor" class:disabled bind:this={host}></div>
+<div
+  class="composer-editor relative"
+  class:disabled
+  role="group"
+  aria-label="Prompt editor drop area"
+  ondragentercapture={handleFileDragEnter}
+  ondragovercapture={handleFileDragOver}
+  ondragleavecapture={handleFileDragLeave}
+  ondropcapture={handleFileDrop}
+>
+  <div bind:this={host}></div>
+  {#if fileDragActive}
+    <div
+      class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-md border border-primary bg-background/95 px-4 text-sm font-medium text-foreground shadow-sm"
+      aria-hidden="true"
+    >
+      <FileIcon class="size-4 text-primary" />
+      <span>Drop files or folders to add their paths</span>
+    </div>
+  {/if}
+</div>
 
 <style>
 .composer-editor {

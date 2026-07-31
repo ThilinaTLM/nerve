@@ -137,6 +137,7 @@ function submit(): void {
       onChange={actions.onComposerChange}
       onSubmit={submit}
       onPasteImage={actions.onPasteImage}
+      onDropFiles={actions.onDropFiles}
     />
   {/snippet}
 
