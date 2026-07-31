@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@earendil-works/pi-ai':
         specifier: 0.83.0
-        version: 0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
+        version: 0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -401,6 +401,9 @@ importers:
       '@peculiar/x509':
         specifier: ^2.0.0
         version: 2.0.0
+      fdir:
+        specifier: 6.5.0
+        version: 6.5.0(picomatch@4.0.4)
       hono:
         specifier: 4.12.32
         version: 4.12.32

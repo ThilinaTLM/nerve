@@ -4,6 +4,7 @@ import { readdir } from "node:fs/promises";
 import {
   basename,
   dirname,
+  extname,
   isAbsolute,
   join,
   relative,
@@ -11,6 +12,7 @@ import {
 } from "node:path";
 import { promisify } from "node:util";
 import type { CompletionItem } from "@nervekit/contracts";
+import { fdir } from "fdir";
 import {
   labelNameOffset,
   toCompletionItem,
@@ -23,31 +25,87 @@ const gitMaxBuffer = 16 * 1024 * 1024;
 const maxWalkEntries = 20_000;
 const maxWalkDepth = 10;
 
-const skippedDirectoryNames = new Set([
-  ".git",
-  ".cache",
-  ".next",
-  ".nuxt",
-  ".parcel-cache",
-  ".pnpm-store",
-  ".svelte-kit",
-  ".turbo",
-  ".yarn",
-  "build",
-  "coverage",
-  "dist",
-  "node_modules",
-  "out",
-  "target",
-  "vendor",
+const skippedDirectoryNames = new Set(
+  [
+    ".angular",
+    ".cache",
+    ".dart_tool",
+    ".expo",
+    ".git",
+    ".gradle",
+    ".hg",
+    ".idea",
+    ".next",
+    ".nuxt",
+    ".output",
+    ".parcel-cache",
+    ".pnpm-store",
+    ".svn",
+    ".svelte-kit",
+    ".turbo",
+    ".venv",
+    ".vercel",
+    ".vite",
+    ".webpack",
+    ".yarn",
+    "__pycache__",
+    "bin",
+    "bower_components",
+    "build",
+    "coverage",
+    "deriveddata",
+    "dist",
+    "logs",
+    "node_modules",
+    "obj",
+    "out",
+    "pods",
+    "target",
+    "temp",
+    "tmp",
+    "vendor",
+    "venv",
+  ].map((name) => name.toLowerCase()),
+);
+
+const skippedFileExtensions = new Set([
+  ".7z",
+  ".a",
+  ".bin",
+  ".bz2",
+  ".class",
+  ".dll",
+  ".dylib",
+  ".exe",
+  ".gz",
+  ".jar",
+  ".lib",
+  ".o",
+  ".obj",
+  ".pyc",
+  ".pyo",
+  ".rar",
+  ".so",
+  ".tar",
+  ".tgz",
+  ".war",
+  ".wasm",
+  ".xz",
+  ".zip",
 ]);
 
 export type FileCandidateKind = "file" | "directory";
 
 export type FileCompletionCandidate = {
   relativePath: string;
+  pathLower: string;
   name: string;
+  nameLower: string;
+  stem: string;
+  stemLower: string;
   parentPath: string;
+  segments: string[];
+  segmentsLower: string[];
   depth: number;
   kind: FileCandidateKind;
 };
@@ -56,7 +114,7 @@ export async function discoverCandidates(
   root: string,
 ): Promise<FileCompletionCandidate[]> {
   const gitPaths = await gitFilePaths(root);
-  if (gitPaths && gitPaths.length > 0) return candidatesFromFilePaths(gitPaths);
+  if (gitPaths !== undefined) return candidatesFromFilePaths(gitPaths);
   return walkCandidates(root);
 }
 
@@ -75,6 +133,9 @@ export async function directDirectoryCompletionItems(
   const directoryPart = query.endsWith("/") ? normalizedQuery : parentOf(query);
   const basePart = query.endsWith("/") || directoryPart ? "" : query;
   const relativeDirectory = directoryPart === "." ? "" : directoryPart;
+  if (relativeDirectory && isExcludedRelativePath(relativeDirectory, true)) {
+    return [];
+  }
   const targetDirectory = resolve(root, relativeDirectory);
   if (!isInside(root, targetDirectory)) return [];
 
@@ -86,13 +147,17 @@ export async function directDirectoryCompletionItems(
   }
 
   return entries
-    .filter((entry) => !entry.name.startsWith("."))
     .filter((entry) => !entry.isSymbolicLink())
-    .filter(
-      (entry) =>
-        entry.isFile() ||
-        (entry.isDirectory() && !skippedDirectoryNames.has(entry.name)),
-    )
+    .filter((entry) => entry.isFile() || entry.isDirectory())
+    .filter((entry) => {
+      const relativePath = normalizeRelativePath(
+        join(relativeDirectory, entry.name),
+      );
+      return Boolean(
+        relativePath &&
+        !isExcludedRelativePath(relativePath, entry.isDirectory()),
+      );
+    })
     .filter((entry) =>
       entry.name.toLowerCase().startsWith(basePart.toLowerCase()),
     )
@@ -144,18 +209,22 @@ async function gitFilePaths(root: string): Promise<string[] | undefined> {
       .toString()
       .split("\0")
       .map(normalizeRelativePath)
-      .filter((path): path is string => Boolean(path));
+      .filter((path): path is string =>
+        Boolean(path && !isExcludedRelativePath(path, false)),
+      );
   } catch {
     return undefined;
   }
 }
 
-function candidatesFromFilePaths(paths: string[]): FileCompletionCandidate[] {
+function candidatesFromFilePaths(
+  paths: readonly string[],
+): FileCompletionCandidate[] {
   const candidates = new Map<string, FileCompletionCandidate>();
 
   for (const path of paths) {
     const relativePath = normalizeRelativePath(path);
-    if (!relativePath) continue;
+    if (!relativePath || isExcludedRelativePath(relativePath, false)) continue;
     const segments = relativePath.split("/").filter(Boolean);
     if (segments.length === 0) continue;
 
@@ -171,50 +240,26 @@ function candidatesFromFilePaths(paths: string[]): FileCompletionCandidate[] {
 async function walkCandidates(
   root: string,
 ): Promise<FileCompletionCandidate[]> {
+  const paths = await new fdir({ excludeSymlinks: true })
+    .withDirs()
+    .withRelativePaths()
+    .withPathSeparator("/")
+    .withMaxDepth(maxWalkDepth)
+    .withMaxFiles(maxWalkEntries)
+    .exclude((directoryName) => isSkippedDirectoryName(directoryName))
+    .crawl(root)
+    .withPromise();
+
   const candidates = new Map<string, FileCompletionCandidate>();
-  const state = { count: 0 };
-
-  async function visit(
-    relativeDirectory: string,
-    depth: number,
-  ): Promise<void> {
-    if (depth > maxWalkDepth || state.count >= maxWalkEntries) return;
-
-    const absoluteDirectory = resolve(root, relativeDirectory);
-    if (!isInside(root, absoluteDirectory)) return;
-
-    let entries: Dirent[];
-    try {
-      entries = await readdir(absoluteDirectory, { withFileTypes: true });
-    } catch {
-      return;
+  for (const rawPath of paths.slice(0, maxWalkEntries)) {
+    if (rawPath === ".") continue;
+    const isDirectory = rawPath.endsWith("/");
+    const relativePath = normalizeRelativePath(rawPath);
+    if (!relativePath || isExcludedRelativePath(relativePath, isDirectory)) {
+      continue;
     }
-
-    entries.sort((a, b) => a.name.localeCompare(b.name));
-    for (const entry of entries) {
-      if (state.count >= maxWalkEntries) return;
-      if (entry.isSymbolicLink()) continue;
-
-      const relativePath = normalizeRelativePath(
-        join(relativeDirectory, entry.name),
-      );
-      if (!relativePath) continue;
-
-      if (entry.isDirectory()) {
-        if (skippedDirectoryNames.has(entry.name)) continue;
-        addCandidate(candidates, relativePath, "directory");
-        state.count += 1;
-        await visit(relativePath, depth + 1);
-        continue;
-      }
-
-      if (!entry.isFile()) continue;
-      addCandidate(candidates, relativePath, "file");
-      state.count += 1;
-    }
+    addCandidate(candidates, relativePath, isDirectory ? "directory" : "file");
   }
-
-  await visit("", 0);
   return sortCandidates([...candidates.values()]);
 }
 
@@ -224,27 +269,42 @@ function addCandidate(
   kind: FileCandidateKind,
 ): void {
   const normalized = normalizeRelativePath(relativePath);
-  if (!normalized) return;
+  if (!normalized || isExcludedRelativePath(normalized, kind === "directory")) {
+    return;
+  }
   const key = `${kind}:${normalized}`;
   if (candidates.has(key)) return;
   candidates.set(key, candidateFromPath(normalized, kind));
 }
 
-function candidateFromPath(
+export function candidateFromPath(
   relativePath: string,
   kind: FileCandidateKind,
 ): FileCompletionCandidate {
+  const name = basename(relativePath);
+  const extension = kind === "file" ? extname(name) : "";
+  const stem = extension ? name.slice(0, -extension.length) : name;
+  const segments = relativePath.split("/");
   return {
     relativePath,
-    name: basename(relativePath),
+    pathLower: relativePath.toLowerCase(),
+    name,
+    nameLower: name.toLowerCase(),
+    stem,
+    stemLower: stem.toLowerCase(),
     parentPath: parentOf(relativePath),
-    depth: relativePath.split("/").length,
+    segments,
+    segmentsLower: segments.map((segment) => segment.toLowerCase()),
+    depth: segments.length,
     kind,
   };
 }
 
 function normalizeRelativePath(path: string): string | undefined {
-  const normalized = path.replaceAll("\\", "/").replace(/^\.\/+/, "");
+  const normalized = path
+    .replaceAll("\\", "/")
+    .replace(/^\.\/+/, "")
+    .replace(/\/+$/, "");
   if (!normalized || normalized.includes("\0")) return undefined;
   if (
     normalized.startsWith("/") ||
@@ -257,7 +317,20 @@ function normalizeRelativePath(path: string): string | undefined {
   if (normalized.split("/").some((segment) => !segment || segment === "..")) {
     return undefined;
   }
-  return normalized.replace(/\/+$/, "");
+  return normalized;
+}
+
+function isExcludedRelativePath(path: string, isDirectory: boolean): boolean {
+  const segments = path.replaceAll("\\", "/").split("/").filter(Boolean);
+  if (segments.some(isSkippedDirectoryName)) return true;
+  if (isDirectory) return false;
+  return skippedFileExtensions.has(
+    extname(segments.at(-1) ?? "").toLowerCase(),
+  );
+}
+
+function isSkippedDirectoryName(name: string): boolean {
+  return skippedDirectoryNames.has(name.toLowerCase());
 }
 
 function parentOf(path: string): string {

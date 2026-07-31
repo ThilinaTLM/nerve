@@ -2,8 +2,13 @@
 import { onDestroy, onMount } from "svelte";
 import FileIcon from "@lucide/svelte/icons/file";
 import {
+  acceptCompletion,
   autocompletion,
+  closeCompletion,
   completionStatus,
+  currentCompletions,
+  selectedCompletionIndex,
+  setSelectedCompletion,
   type Completion,
   type CompletionContext,
   type CompletionSection,
@@ -26,6 +31,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import {
+  FILE_COMPLETION_RESULT_LIMIT,
   findExecutableCommandBlocks,
   type CompletionItem,
 } from "@nervekit/contracts";
@@ -285,6 +291,7 @@ async function completionSource(context: CompletionContext) {
           item.label.startsWith(rawToken) ||
           item.label.includes(rawToken.slice(1)),
       )
+      .slice(0, FILE_COMPLETION_RESULT_LIMIT)
       .map(toCompletion);
     return { from: tokenStart, options, validFor: /^\/[\w-]*$/ };
   }
@@ -292,7 +299,10 @@ async function completionSource(context: CompletionContext) {
   if (rawToken.startsWith("@")) {
     context.addEventListener("abort", () => undefined, { onDocChange: true });
     const query = rawToken.slice(1);
-    const options = ((await fileCompletions?.(query)) ?? []).map(toCompletion);
+    const options = ((await fileCompletions?.(query)) ?? [])
+      .slice(0, FILE_COMPLETION_RESULT_LIMIT)
+      .reverse()
+      .map(toCompletion);
     if (context.aborted) return null;
     return {
       from: tokenStart,
@@ -303,7 +313,12 @@ async function completionSource(context: CompletionContext) {
   }
 
   if (context.explicit) {
-    return { from: context.pos, options: slashCompletions.map(toCompletion) };
+    return {
+      from: context.pos,
+      options: slashCompletions
+        .slice(0, FILE_COMPLETION_RESULT_LIMIT)
+        .map(toCompletion),
+    };
   }
 
   return null;
@@ -335,6 +350,39 @@ function executableCommandBlockDecorations(state: EditorState): DecorationSet {
   );
 }
 
+const bestFileCompletionSelector = ViewPlugin.fromClass(
+  class {
+    private lastOptions: readonly Completion[] | undefined;
+
+    update(update: ViewUpdate): void {
+      if (completionStatus(update.state) !== "active") {
+        this.lastOptions = undefined;
+        return;
+      }
+      const options = currentCompletions(update.state);
+      const hasFileOptions = options.some((completion) => {
+        const kind = (completion as ComposerCompletion).nerveKind;
+        return kind === "file" || kind === "directory";
+      });
+      if (!hasFileOptions || options === this.lastOptions) return;
+      this.lastOptions = options;
+
+      queueMicrotask(() => {
+        if (!view || completionStatus(view.state) !== "active") return;
+        if (currentCompletions(view.state) !== options) return;
+        const bestIndex = options.length - 1;
+        if (
+          bestIndex < 0 ||
+          selectedCompletionIndex(view.state) === bestIndex
+        ) {
+          return;
+        }
+        view.dispatch({ effects: setSelectedCompletion(bestIndex) });
+      });
+    }
+  },
+);
+
 const executableCommandBlockHighlighter = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
@@ -359,7 +407,8 @@ function completionExtensions() {
   return autocompletion({
     override: [completionSource],
     icons: false,
-    maxRenderedOptions: 80,
+    aboveCursor: true,
+    maxRenderedOptions: FILE_COMPLETION_RESULT_LIMIT,
     tooltipClass: () => "nerve-composer-completions",
     optionClass: completionOptionClass,
     addToOptions: [{ render: renderCompletionRow, position: 20 }],
@@ -376,6 +425,11 @@ function submitOnEnter(target: EditorView) {
   // Let the autocomplete keymap handle Enter when a completion popup is open.
   if (completionStatus(target.state) === "active") return false;
   return submit();
+}
+
+function acceptCompletionOnTab(target: EditorView): boolean {
+  if (completionStatus(target.state) !== "active") return false;
+  return acceptCompletion(target);
 }
 
 function insertAtRange(text: string, from?: number, to?: number) {
@@ -487,9 +541,12 @@ onMount(() => {
         editableCompartment.of(editableExtensions(disabled)),
         completionCompartment.of(completionExtensions()),
         executableCommandBlockHighlighter,
+        bestFileCompletionSelector,
         Prec.highest(
           keymap.of([
             { key: "Enter", run: submitOnEnter },
+            { key: "Tab", run: acceptCompletionOnTab },
+            { key: "Escape", run: closeCompletion },
             { key: "Mod-Enter", run: submit },
             { key: "Ctrl-Enter", run: submit },
             indentWithTab,
@@ -549,15 +606,15 @@ onMount(() => {
             overflow: "hidden",
           },
           ".cm-tooltip-autocomplete.nerve-composer-completions": {
-            minWidth: "min(28rem, calc(100vw - 2rem))",
-            maxWidth: "min(38rem, calc(100vw - 2rem))",
-            padding: "0.25rem",
+            minWidth: "min(24rem, calc(100vw - 2rem))",
+            maxWidth: "min(34rem, calc(100vw - 2rem))",
+            padding: "0.15rem",
           },
           ".cm-tooltip-autocomplete.nerve-composer-completions > ul": {
-            maxHeight: "min(42vh, 22rem)",
-            padding: "0.15rem",
+            maxHeight: "none",
+            overflow: "hidden",
+            padding: "0.1rem",
             fontFamily: "var(--font-mono)",
-            scrollbarWidth: "thin",
           },
           ".cm-tooltip-autocomplete.nerve-composer-completions > ul > completion-section":
             {
@@ -565,17 +622,17 @@ onMount(() => {
               color: "var(--muted-foreground)",
               fontFamily: "var(--font-sans)",
               fontSize: "var(--text-xs)",
-              fontWeight: "700",
+              fontWeight: "500",
               letterSpacing: "0.02em",
-              padding: "0.35rem 0.5rem 0.2rem",
+              padding: "0.25rem 0.4rem 0.15rem",
               textTransform: "uppercase",
             },
           ".cm-tooltip-autocomplete.nerve-composer-completions > ul > li": {
             display: "flex",
             alignItems: "center",
-            minHeight: "1.85rem",
+            minHeight: "1.55rem",
             borderRadius: "var(--radius-sm)",
-            padding: "0.28rem 0.5rem",
+            padding: "0.18rem 0.4rem",
             color: "var(--popover-foreground)",
           },
           ".cm-tooltip-autocomplete.nerve-composer-completions > ul > li[aria-selected]":
@@ -596,7 +653,7 @@ onMount(() => {
           ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row": {
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
+            gap: "0.4rem",
             minWidth: "0",
             width: "100%",
           },
@@ -619,7 +676,7 @@ onMount(() => {
             {
               display: "flex",
               alignItems: "baseline",
-              gap: "0.4rem",
+              gap: "0.3rem",
               flex: "1",
               minWidth: "0",
             },
@@ -642,13 +699,13 @@ onMount(() => {
               whiteSpace: "nowrap",
               fontFamily: "var(--font-mono)",
               fontSize: "var(--text-sm)",
-              fontWeight: "600",
+              fontWeight: "500",
               color: "var(--popover-foreground)",
             },
           ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-match":
             {
               color: "var(--primary)",
-              fontWeight: "700",
+              fontWeight: "600",
             },
           ".cm-tooltip.cm-completionInfo": {
             maxWidth: "min(30rem, calc(100vw - 2rem))",

@@ -283,7 +283,20 @@ export class RuntimeRegistry {
   }
 
   async removeProject(projectId: string): Promise<void> {
-    return this.services.projectLifecycle.removeProject(projectId);
+    await this.services.projectLifecycle.removeProject(projectId);
+    this.services.fileCompletions.dispose(projectId);
+  }
+
+  completeFiles(
+    projectId: string | undefined,
+    query: string,
+    options: { limit?: number } = {},
+  ) {
+    return this.services.fileCompletions.completeFiles(
+      projectId,
+      query,
+      options,
+    );
   }
 
   async openProjectInEditor(

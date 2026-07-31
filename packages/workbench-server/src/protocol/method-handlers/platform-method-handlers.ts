@@ -5,7 +5,6 @@ import {
   providerOAuthSecretName,
 } from "../../domains/auth/index.js";
 import { listAvailableSkills } from "../../domains/agents/prompting/resource-loader.js";
-import { FileCompletionService } from "../../domains/completions/index.js";
 import { writeSettings } from "../../infrastructure/storage/index.js";
 import { directoryListing } from "../../routes/filesystem-routes.js";
 import {
@@ -117,16 +116,13 @@ export const platformMethodHandlers = defineWorkbenchMethodHandlers({
     usage: await state.registry.getSubscriptionUsage(),
   }),
   "completion.slash.list": () => ({ items: slashCompletionItems }),
-  "completion.files.list": async (state, params) => {
-    const files = new FileCompletionService((projectId) =>
-      state.registry.getProject(projectId),
-    );
-    return {
-      items: await files.completeFiles(params?.projectId, params?.q ?? "", {
-        limit: params?.limit as number | undefined,
-      }),
-    };
-  },
+  "completion.files.list": async (state, params) => ({
+    items: await state.registry.completeFiles(
+      params?.projectId,
+      params?.q ?? "",
+      { limit: params?.limit as number | undefined },
+    ),
+  }),
   "filesystem.directories.list": (_state, params) =>
     directoryListing(params?.path, params?.showHidden as boolean | undefined),
   "applicationLog.prune": (state, params) => state.logger.prune(params),

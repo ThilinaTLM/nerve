@@ -13,6 +13,7 @@ import type { AgentBrowserSkillCatalog } from "../domains/agents/prompting/agent
 import type { AuthManager } from "../domains/auth/index.js";
 import { WorkbenchExploreAdmission } from "../domains/agents/run/workbench-explore-admission.js";
 import { WorkbenchSubagentExecutions } from "../domains/agents/run/workbench-subagent-executions.js";
+import { FileCompletionService } from "../domains/completions/index.js";
 import { ConversationService } from "../domains/conversations/conversation-service.js";
 import { ConversationHarnessStorage } from "../domains/conversations/conversation-harness-storage.js";
 import {
@@ -92,6 +93,7 @@ export interface RuntimeServices {
   plans: PlanService;
   tools: ToolService;
   git: GitService;
+  fileCompletions: FileCompletionService;
   promptSuggestions: PromptSuggestionService;
   taskDefinitions: TaskDefinitionService;
   scratchNotes: ScratchNoteService;
@@ -306,6 +308,7 @@ export function composeRuntime(
     state,
     removeConversation,
   );
+  services.fileCompletions = new FileCompletionService(getProject);
   services.conversationLifecycle = new ConversationLifecycleService(
     storage,
     events,

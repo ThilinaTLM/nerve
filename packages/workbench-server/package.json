@@ -38,14 +38,15 @@
     "@hono/node-server": "2.0.11",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/harness": "workspace:*",
+    "@nervekit/protocol": "workspace:*",
     "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.0.0",
+    "fdir": "6.5.0",
     "hono": "4.12.32",
     "reflect-metadata": "^0.2.2",
     "ws": "8.21.0",
     "yaml": "2.9.0",
-    "zod": "4.1.12",
-    "@nervekit/protocol": "workspace:*"
+    "zod": "4.1.12"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
