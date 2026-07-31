@@ -13,6 +13,7 @@ type ClientLog = {
 const queue: ClientLog[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let installed = false;
+let enabled = false;
 let flushing = false;
 let flushRetryDelayMs = 1_000;
 const NORMAL_FLUSH_DELAY_MS = 500;
@@ -33,6 +34,7 @@ function isBenignBrowserError(message: unknown): boolean {
 export function installClientLogging(): void {
   if (installed || typeof window === "undefined") return;
   installed = true;
+  enabled = true;
   window.addEventListener("error", (event) => {
     const message =
       (event.error instanceof Error ? event.error.message : undefined) ??
@@ -64,6 +66,7 @@ export function clientLog(
     error?: unknown;
   } = {},
 ): void {
+  if (!enabled) return;
   queue.push({
     level,
     component,

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -23,6 +23,30 @@ async function tempHome(): Promise<string> {
 }
 
 describe("ApplicationLogger", () => {
+  it("does no application-log work when disabled", async () => {
+    const home = await tempHome();
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      enabled: false,
+      mirrorToConsole: false,
+    });
+    const child = logger.child({ component: "child" });
+
+    await logger.hydrate();
+    await logger.pruneRetention();
+    await logger.info("ignored");
+    await child.error("also ignored", { error: new Error("ignored") });
+    const result = await logger.withTiming("info", "operation", async () => 42);
+    await logger.removeLogsForConversations(["conv_test"]);
+    await logger.flush();
+
+    assert.equal(result, 42);
+    assert.deepEqual(await logger.query(), { logs: [], nextCursor: 0 });
+    assert.deepEqual(await logger.prune(), { pruned: 0, remaining: 0 });
+    await assert.rejects(access(join(home, "logs")));
+  });
+
   it("writes, queries, and redacts structured application logs", async () => {
     const home = await tempHome();
     const logger = new ApplicationLogger({

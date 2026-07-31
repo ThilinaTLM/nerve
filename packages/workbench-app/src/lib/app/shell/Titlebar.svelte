@@ -27,6 +27,7 @@ type Props = {
   settingsActive?: boolean;
   authActive?: boolean;
   logsActive?: boolean;
+  applicationLogsEnabled?: boolean;
   buildProjectMenuItems?: (item: ProjectSwitcherItem) => ContextMenuItem[];
   onOpenProject?: () => void;
   onSelectProject?: (projectId: string) => void;
@@ -48,6 +49,7 @@ let {
   settingsActive = false,
   authActive = false,
   logsActive = false,
+  applicationLogsEnabled = false,
   buildProjectMenuItems,
   onOpenProject,
   onSelectProject,
@@ -77,17 +79,19 @@ let {
 
   {#snippet actions()}
     <Toolbar.Root class="title-actions" aria-label="Application actions">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel="Open Nerve logs"
-        title="Open Nerve logs"
-        active={logsActive}
-        pressed={logsActive}
-        onclick={() => onOpenLogs?.()}
-      >
-        <Logs size={16} strokeWidth={2.1} />
-      </Button>
+      {#if applicationLogsEnabled}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          ariaLabel="Open Nerve logs"
+          title="Open Nerve logs"
+          active={logsActive}
+          pressed={logsActive}
+          onclick={() => onOpenLogs?.()}
+        >
+          <Logs size={16} strokeWidth={2.1} />
+        </Button>
+      {/if}
       <Button
         variant="ghost"
         size="icon-sm"

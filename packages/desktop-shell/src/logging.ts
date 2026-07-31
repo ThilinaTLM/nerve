@@ -9,6 +9,12 @@ import {
 
 let seq = 0;
 
+export function applicationLoggingEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.NERVE_LOGGING_ENABLED === "1";
+}
+
 export async function desktopLog(
   level: ApplicationLogLevel,
   component: string,
@@ -19,6 +25,7 @@ export async function desktopLog(
     durationMs?: number;
   } = {},
 ): Promise<void> {
+  if (!applicationLoggingEnabled()) return;
   const ts = new Date().toISOString();
   seq += 1;
   const record: ApplicationLogRecord = {

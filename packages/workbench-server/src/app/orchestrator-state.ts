@@ -45,6 +45,7 @@ export interface OrchestratorState {
   storage: InitializedStorage;
   events: StreamLogRegistry;
   logger: ApplicationLogger;
+  applicationLogsEnabled: boolean;
   registry: RuntimeRegistry;
   index: IndexStore;
   storageUsage: StorageUsageService;
@@ -62,6 +63,7 @@ export function createOrchestratorState(
   storage: InitializedStorage,
   host: string,
   port: number,
+  options: { applicationLogsEnabled?: boolean } = {},
 ): OrchestratorState {
   const index = new IndexStore(storage.paths.sqlitePath);
   index.initialize();
@@ -72,6 +74,7 @@ export function createOrchestratorState(
     level: storage.settings.logging.level,
     retentionDays: storage.settings.logging.retentionDays,
     maxBufferedLogs: storage.settings.logging.maxBufferedLogs,
+    enabled: options.applicationLogsEnabled ?? false,
   });
   const events = new StreamLogRegistry(storage.paths.home, {
     onPublishFailed: ({ type, context, error }) =>
@@ -164,6 +167,7 @@ export function createOrchestratorState(
     storage,
     events,
     logger,
+    applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     registry,
     index,
     storageUsage,
@@ -237,6 +241,9 @@ export function statusResponse(state: OrchestratorState): StatusResponse {
       home: state.storage.paths.home,
       sqlitePath: state.storage.paths.sqlitePath,
       indexHealthy: state.index.isHealthy,
+    },
+    capabilities: {
+      applicationLogs: state.applicationLogsEnabled,
     },
     runtime: {
       python: state.registry.pythonRuntime.statusSnapshot(),

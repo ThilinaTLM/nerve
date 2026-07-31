@@ -148,36 +148,38 @@ function escapeHtml(value: string): string {
 export function createApp(state: OrchestratorState): Hono {
   const app = new Hono();
 
-  app.use("/api/*", async (c, next) => {
-    const requestId = c.req.header("x-request-id") ?? createId("log");
-    const started = performance.now();
-    const logger = state.logger.child({
-      component: "http",
-      requestId,
-      context: {
-        method: c.req.method,
-        path: new URL(c.req.url).pathname,
-      },
-    });
-    setRequestContext(c.req.raw, { requestId, logger });
-    c.header("x-request-id", requestId);
-    try {
-      await next();
-    } finally {
-      const status = c.res.status;
-      const durationMs = Math.round(performance.now() - started);
-      const level = status >= 500 ? "error" : status >= 400 ? "warn" : "info";
-      await logger[level]("HTTP request completed", {
-        durationMs,
+  if (state.applicationLogsEnabled) {
+    app.use("/api/*", async (c, next) => {
+      const requestId = c.req.header("x-request-id") ?? createId("log");
+      const started = performance.now();
+      const logger = state.logger.child({
+        component: "http",
+        requestId,
         context: {
-          status,
           method: c.req.method,
           path: new URL(c.req.url).pathname,
         },
-      }).catch(() => undefined);
-      clearRequestContext(c.req.raw);
-    }
-  });
+      });
+      setRequestContext(c.req.raw, { requestId, logger });
+      c.header("x-request-id", requestId);
+      try {
+        await next();
+      } finally {
+        const status = c.res.status;
+        const durationMs = Math.round(performance.now() - started);
+        const level = status >= 500 ? "error" : status >= 400 ? "warn" : "info";
+        await logger[level]("HTTP request completed", {
+          durationMs,
+          context: {
+            status,
+            method: c.req.method,
+            path: new URL(c.req.url).pathname,
+          },
+        }).catch(() => undefined);
+        clearRequestContext(c.req.raw);
+      }
+    });
+  }
   app.use("/api/*", createApiAuthMiddleware(state.storage.localToken));
   mountApiRoutes(app, state);
 
