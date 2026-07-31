@@ -33,6 +33,9 @@ export interface NerveDesktopBridge {
   clipboard: {
     writeText: (text: string) => Promise<{ ok: true }>;
   };
+  files: {
+    getPathForFile: (file: File) => string;
+  };
 }
 
 declare global {

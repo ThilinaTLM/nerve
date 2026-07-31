@@ -29,6 +29,7 @@ import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-men
 export type ConversationComposerCapabilities = {
   voice?: boolean;
   imagePaste?: boolean;
+  fileDrop?: boolean;
   completions?: boolean;
   suggestions?: boolean;
   shortcuts?: boolean;
@@ -116,6 +117,7 @@ export type ConversationPaneActions = {
   onPermissionChange?: (value: PermissionLevel) => void;
   onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
   onPasteImage?: (file: File) => Promise<string>;
+  onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
   onOpenFile?: (path: string, line?: number) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
   onDismissUserQuestion?: (id: string) => void | Promise<void>;

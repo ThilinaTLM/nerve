@@ -2,6 +2,7 @@
 import { untrack } from "svelte";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import { getDesktopBridge } from "$lib/features/desktop/state/desktop-bridge.svelte";
 import type { WorkbenchConversationAdapterProps } from "./workbench-conversation-adapter-props";
 import { shortProjectLabel } from "$lib/core/utils/project-tree";
 import {
@@ -250,6 +251,7 @@ function menuForTranscript(
       capabilities: {
         voice: true,
         imagePaste: true,
+        fileDrop: Boolean(getDesktopBridge()?.files),
         completions: true,
         suggestions: true,
         shortcuts: true,

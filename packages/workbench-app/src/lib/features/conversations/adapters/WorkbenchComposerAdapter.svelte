@@ -3,6 +3,8 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts";
 import { uploadClipboardImage } from "$lib/api";
+import { getDesktopBridge } from "$lib/features/desktop/state/desktop-bridge.svelte";
+import { notify } from "$lib/features/notifications/notify.svelte";
 import TranscriptionActivity from "$lib/core/audio/TranscriptionActivity.svelte";
 import {
   voiceInputSession,
@@ -20,6 +22,7 @@ import {
   getShortcutLabel,
 } from "$lib/core/shortcuts/registry";
 import type { PromptComposerProps } from "../components/prompt-composer-props";
+import { resolveDroppedPaths } from "./dropped-paths";
 
 let {
   text = "",
@@ -129,6 +132,7 @@ const submitDisabled = $derived(
     (commandMode && sending),
 );
 const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
+const fileDropSupported = $derived(Boolean(getDesktopBridge()?.files));
 const supportsAudioRecording = $derived(voiceInputSession.isSupported());
 const micDisabled = $derived(
   !interactive ||
@@ -218,6 +222,25 @@ async function submitComposer() {
 
 async function pasteImage(file: File): Promise<string> {
   return uploadClipboardImage(file);
+}
+
+async function dropFiles(files: readonly File[]): Promise<readonly string[]> {
+  try {
+    const bridge = getDesktopBridge();
+    if (!bridge?.files || !activeProject) {
+      throw new Error("Native file paths are unavailable in this window.");
+    }
+    return resolveDroppedPaths(
+      files,
+      activeProject.dir,
+      bridge.files.getPathForFile,
+    );
+  } catch (caught) {
+    const description =
+      caught instanceof Error ? caught.message : String(caught);
+    notify.error("Could not add dropped paths", { description });
+    throw caught;
+  }
 }
 
 const controlsDisabled = $derived(
@@ -357,6 +380,7 @@ function handleMicContextMenu(event: MouseEvent) {
     capabilities: {
       voice: true,
       imagePaste: true,
+      fileDrop: fileDropSupported,
       completions: true,
       suggestions: true,
       shortcuts: true,
@@ -374,6 +398,7 @@ function handleMicContextMenu(event: MouseEvent) {
     onPermissionChange,
     onApprovalPolicyChange,
     onPasteImage: pasteImage,
+    onDropFiles: fileDropSupported ? dropFiles : undefined,
   }}
 >
   {#snippet header()}

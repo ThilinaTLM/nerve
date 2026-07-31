@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron preload runs as CommonJS by design.
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("nerveDesktop", {
   kind: "electron",
@@ -41,5 +41,8 @@ contextBridge.exposeInMainWorld("nerveDesktop", {
   clipboard: {
     writeText: (text) =>
       ipcRenderer.invoke("desktop.clipboard.writeText", text),
+  },
+  files: {
+    getPathForFile: (file) => webUtils.getPathForFile(file),
   },
 });
