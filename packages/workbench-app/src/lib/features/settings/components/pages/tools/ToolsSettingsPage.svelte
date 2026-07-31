@@ -1,11 +1,11 @@
 <script lang="ts">
 import type { AuthProviderMetadata, Settings, StatusResponse } from "$lib/api";
+import { SettingsSection } from "$lib/presentation/components/settings";
 import type { SettingsChange } from "../settings-change";
-import BuiltInToolsTab from "./BuiltInToolsTab.svelte";
-import IntegrationsTab from "./IntegrationsTab.svelte";
+import BuiltInToolsSection from "./BuiltInToolsSection.svelte";
+import IntegrationsSection from "./IntegrationsSection.svelte";
 
 type Props = {
-  activeTabId: string;
   settingsDraft: Settings;
   status?: StatusResponse;
   authProviders?: AuthProviderMetadata[];
@@ -13,7 +13,6 @@ type Props = {
 };
 
 let {
-  activeTabId,
   settingsDraft,
   status,
   authProviders = [],
@@ -21,18 +20,20 @@ let {
 }: Props = $props();
 </script>
 
-{#if activeTabId === "built-in"}
-  <BuiltInToolsTab
+<SettingsSection id="built-in" title="Built-in">
+  <BuiltInToolsSection
     {settingsDraft}
     {status}
     {authProviders}
     {onSettingsChange}
   />
-{:else if activeTabId === "integrations"}
-  <IntegrationsTab
+</SettingsSection>
+
+<SettingsSection id="integrations" title="Integrations">
+  <IntegrationsSection
     {settingsDraft}
     {status}
     {authProviders}
     {onSettingsChange}
   />
-{/if}
+</SettingsSection>

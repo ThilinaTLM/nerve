@@ -28,7 +28,7 @@ let {
 
 <div
   class={cn(
-    "gap-4 py-2",
+    "gap-3 py-1.5",
     layout === "inline"
       ? "grid grid-cols-[minmax(0,1fr)_auto] items-center"
       : "grid gap-2",

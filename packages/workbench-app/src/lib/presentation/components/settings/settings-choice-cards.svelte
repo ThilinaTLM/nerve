@@ -38,11 +38,11 @@ const columnsClass = $derived(
   {disabled}
   aria-label={ariaLabel}
   {onValueChange}
-  class={cn("grid gap-1.5", columnsClass, className)}
+  class={cn("grid gap-1", columnsClass, className)}
 >
   {#each items as item (item.value)}
     <Label
-      class="flex min-w-0 cursor-pointer items-center gap-2 rounded-md border border-border/60 p-2.5 transition-colors hover:bg-accent/40 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-accent has-disabled:cursor-not-allowed has-disabled:opacity-50"
+      class="flex min-w-0 cursor-pointer items-center gap-2 rounded-sm border border-border/50 px-2 py-1.5 transition-colors hover:bg-accent/40 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/10 has-disabled:cursor-not-allowed has-disabled:opacity-50"
     >
       <RadioGroup.Item value={item.value} disabled={item.disabled} />
       <span class="flex min-w-0 flex-1 items-baseline gap-2">

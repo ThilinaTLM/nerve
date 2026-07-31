@@ -20,7 +20,6 @@ export type TabItem = {
 </script>
 
 <script lang="ts">
-import type { Snippet } from "svelte";
 import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
 import { cn } from "@nervekit/ui-kit/core/utils";
 
@@ -31,7 +30,6 @@ let {
   class: className,
   dense = false,
   onValueChange,
-  children,
 }: {
   tabs?: TabItem[];
   value?: string;
@@ -39,7 +37,6 @@ let {
   class?: string;
   dense?: boolean;
   onValueChange?: (value: string) => void;
-  children?: Snippet;
 } = $props();
 
 function accessibleLabel(tab: TabItem) {
@@ -86,7 +83,4 @@ function accessibleLabel(tab: TabItem) {
       </Tabs.Trigger>
     {/each}
   </Tabs.List>
-  {#if children}
-    {@render children()}
-  {/if}
 </Tabs.Root>

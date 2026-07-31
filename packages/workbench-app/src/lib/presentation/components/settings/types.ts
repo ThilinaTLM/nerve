@@ -1,6 +1,6 @@
 import type { Component } from "svelte";
 
-export type SettingsTabDef = {
+export type SettingsSectionDef = {
   id: string;
   label: string;
   disabled?: boolean;
@@ -11,8 +11,12 @@ export type SettingsPageDef = {
   label: string;
   icon: Component;
   description?: string;
-  /** Always at least one tab. Single-tab pages render without a tab bar. */
-  tabs: SettingsTabDef[];
+  /**
+   * Anchored subsections of the page. Every section is rendered in the same
+   * scroll view; sidebar links scroll to them. Pages with a single section do
+   * not render a submenu.
+   */
+  sections: SettingsSectionDef[];
 };
 
 export type SettingsChoice = {

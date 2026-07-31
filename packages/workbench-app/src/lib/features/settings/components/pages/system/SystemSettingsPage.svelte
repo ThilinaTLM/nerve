@@ -2,8 +2,8 @@
 import type { Settings, StatusResponse } from "$lib/api";
 import {
   SettingsFieldRow,
-  SettingsGroup,
   SettingsInlineMessage,
+  SettingsSection,
   SettingsStatGrid,
   SettingsToggleRow,
   type SettingsStat,
@@ -11,13 +11,12 @@ import {
 import type { SettingsChange } from "../settings-change";
 
 type Props = {
-  activeTabId: string;
   settingsDraft: Settings;
   status?: StatusResponse;
   onSettingsChange?: SettingsChange;
 };
 
-let { activeTabId, settingsDraft, status, onSettingsChange }: Props = $props();
+let { settingsDraft, status, onSettingsChange }: Props = $props();
 
 function updateHost(value: string): void {
   settingsDraft.server.host = value;
@@ -59,35 +58,33 @@ const diagnostics = $derived<SettingsStat[]>([
 ]);
 </script>
 
-{#if activeTabId === "server"}
-  <SettingsGroup>
-    <div class="grid gap-3 sm:grid-cols-2">
-      <SettingsFieldRow
-        id="settings-server-host"
-        label="Host"
-        value={settingsDraft.server.host}
-        onValueChange={updateHost}
-      />
-      <SettingsFieldRow
-        id="settings-server-port"
-        label="Port"
-        type="number"
-        value={String(settingsDraft.server.port)}
-        onValueChange={updateServerPort}
-      />
-    </div>
-    <SettingsToggleRow
-      label="Allow remote connections"
-      bind:checked={settingsDraft.server.allowRemote}
-      onCheckedChange={setAllowRemote}
+<SettingsSection id="server" title="Server">
+  <div class="grid gap-3 sm:grid-cols-2">
+    <SettingsFieldRow
+      id="settings-server-host"
+      label="Host"
+      value={settingsDraft.server.host}
+      onValueChange={updateHost}
     />
-    <SettingsInlineMessage
-      tone="warning"
-      text="Restart the daemon after changing host, port, or remote access."
+    <SettingsFieldRow
+      id="settings-server-port"
+      label="Port"
+      type="number"
+      value={String(settingsDraft.server.port)}
+      onValueChange={updateServerPort}
     />
-  </SettingsGroup>
-{:else if activeTabId === "diagnostics"}
-  <SettingsGroup>
-    <SettingsStatGrid items={diagnostics} />
-  </SettingsGroup>
-{/if}
+  </div>
+  <SettingsToggleRow
+    label="Allow remote connections"
+    bind:checked={settingsDraft.server.allowRemote}
+    onCheckedChange={setAllowRemote}
+  />
+  <SettingsInlineMessage
+    tone="warning"
+    text="Restart the daemon after changing host, port, or remote access."
+  />
+</SettingsSection>
+
+<SettingsSection id="diagnostics" title="Diagnostics">
+  <SettingsStatGrid items={diagnostics} />
+</SettingsSection>

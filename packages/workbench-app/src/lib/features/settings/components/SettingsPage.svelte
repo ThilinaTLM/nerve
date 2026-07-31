@@ -116,26 +116,20 @@ function statusText(): string {
     {/if}
   {/snippet}
 
-  {#snippet children(page, activeTabId)}
+  {#snippet children(page)}
     {#if settingsDraft}
       {#if page.id === "workbench"}
         <WorkbenchSettingsPage
-          {activeTabId}
           {settingsDraft}
           {onThemeChange}
           {onSettingsChange}
         />
       {:else if page.id === "notifications"}
-        <NotificationsSettingsPage
-          {activeTabId}
-          {settingsDraft}
-          {onSettingsChange}
-        />
+        <NotificationsSettingsPage {settingsDraft} {onSettingsChange} />
       {:else if page.id === "shortcuts"}
         <ShortcutsSettingsPage />
       {:else if page.id === "agents"}
         <AgentsSettingsPage
-          {activeTabId}
           {settingsDraft}
           {models}
           {authProviders}
@@ -156,7 +150,6 @@ function statusText(): string {
         />
       {:else if page.id === "tools"}
         <ToolsSettingsPage
-          {activeTabId}
           {settingsDraft}
           {status}
           {authProviders}
@@ -177,12 +170,7 @@ function statusText(): string {
       {:else if page.id === "storage"}
         <StorageSettingsPage controller={storageController} />
       {:else if page.id === "system"}
-        <SystemSettingsPage
-          {activeTabId}
-          {settingsDraft}
-          {status}
-          {onSettingsChange}
-        />
+        <SystemSettingsPage {settingsDraft} {status} {onSettingsChange} />
       {/if}
     {:else}
       <div class="grid gap-1 py-12 text-center">

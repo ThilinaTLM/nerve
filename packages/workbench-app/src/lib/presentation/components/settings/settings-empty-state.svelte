@@ -1,6 +1,5 @@
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
-import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { cn } from "@nervekit/ui-kit/core/utils";
 
 type Props = {
@@ -20,21 +19,24 @@ let {
 }: Props = $props();
 </script>
 
-<Empty.Root class={cn("border border-border/60 p-6", className)}>
-  <Empty.Header>
-    {#if Icon}
-      <Empty.Media variant="icon">
-        <Icon class="size-5 text-muted-foreground" aria-hidden="true" />
-      </Empty.Media>
-    {/if}
-    <Empty.Title class="text-sm">{title}</Empty.Title>
-    {#if description}
-      <Empty.Description class="text-xs">{description}</Empty.Description>
-    {/if}
-  </Empty.Header>
-  {#if actions}
-    <Empty.Content class="flex-row items-center gap-2">
-      {@render actions()}
-    </Empty.Content>
+<div
+  class={cn(
+    "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-xs",
+    className,
+  )}
+>
+  {#if Icon}
+    <Icon class="size-4 flex-none text-muted-foreground" aria-hidden="true" />
   {/if}
-</Empty.Root>
+  <div class="grid min-w-0 flex-1 gap-0.5">
+    <span class="text-sm text-foreground">{title}</span>
+    {#if description}
+      <span class="text-xs text-muted-foreground">{description}</span>
+    {/if}
+  </div>
+  {#if actions}
+    <div class="flex flex-none items-center gap-1.5">
+      {@render actions()}
+    </div>
+  {/if}
+</div>

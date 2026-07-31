@@ -1,8 +1,8 @@
 <script lang="ts">
 import type { NotificationTone, Settings } from "$lib/api";
 import {
-  SettingsGroup,
   SettingsInlineMessage,
+  SettingsSection,
   SettingsSelectRow,
   SettingsToggleRow,
 } from "$lib/presentation/components/settings";
@@ -10,7 +10,6 @@ import type { SettingsChange } from "../settings-change";
 import NotificationTonePicker from "./NotificationTonePicker.svelte";
 
 type Props = {
-  activeTabId: string;
   settingsDraft: Settings;
   onSettingsChange?: SettingsChange;
 };
@@ -51,7 +50,7 @@ const eventToneOptions: readonly EventToneOption[] = [
   },
 ];
 
-let { activeTabId, settingsDraft, onSettingsChange }: Props = $props();
+let { settingsDraft, onSettingsChange }: Props = $props();
 
 const soundsEnabled = $derived(settingsDraft.notifications.soundsEnabled);
 
@@ -80,44 +79,42 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
 }
 </script>
 
-{#if activeTabId === "general"}
-  <SettingsGroup>
-    <SettingsToggleRow
-      label="System notifications"
-      description="Show agent updates through desktop or browser notifications."
-      bind:checked={settingsDraft.notifications.systemEnabled}
-      onCheckedChange={setSystemEnabled}
-    />
-    <SettingsToggleRow
-      label="Notification sounds"
-      description="Play the selected sounds for agent events."
-      bind:checked={settingsDraft.notifications.soundsEnabled}
-      onCheckedChange={setSoundsEnabled}
-    />
-  </SettingsGroup>
-{:else if activeTabId === "sounds"}
+<SettingsSection id="general" title="General">
+  <SettingsToggleRow
+    label="System notifications"
+    description="Show agent updates through desktop or browser notifications."
+    bind:checked={settingsDraft.notifications.systemEnabled}
+    onCheckedChange={setSystemEnabled}
+  />
+  <SettingsToggleRow
+    label="Notification sounds"
+    description="Play the selected sounds for agent events."
+    bind:checked={settingsDraft.notifications.soundsEnabled}
+    onCheckedChange={setSoundsEnabled}
+  />
+</SettingsSection>
+
+<SettingsSection id="sounds" title="Sounds">
   {#if !soundsEnabled}
     <SettingsInlineMessage
       tone="info"
-      text="Notification sounds are turned off. Enable them on the General tab to use these sounds."
+      text="Notification sounds are turned off. Enable them in the General section to use these sounds."
     />
   {/if}
-  <SettingsGroup>
-    {#each eventToneOptions as event (event.key)}
-      <SettingsSelectRow
-        label={event.label}
-        description={event.description}
-        disabled={!soundsEnabled}
-      >
-        {#snippet control(disabled)}
-          <NotificationTonePicker
-            {disabled}
-            value={settingsDraft.notifications.events[event.key]}
-            ariaLabel={`${event.label} sound`}
-            onValueChange={(value) => setEventTone(event.key, value)}
-          />
-        {/snippet}
-      </SettingsSelectRow>
-    {/each}
-  </SettingsGroup>
-{/if}
+  {#each eventToneOptions as event (event.key)}
+    <SettingsSelectRow
+      label={event.label}
+      description={event.description}
+      disabled={!soundsEnabled}
+    >
+      {#snippet control(disabled)}
+        <NotificationTonePicker
+          {disabled}
+          value={settingsDraft.notifications.events[event.key]}
+          ariaLabel={`${event.label} sound`}
+          onValueChange={(value) => setEventTone(event.key, value)}
+        />
+      {/snippet}
+    </SettingsSelectRow>
+  {/each}
+</SettingsSection>

@@ -39,10 +39,30 @@ export type IntegrationConfigurationStatus =
 function baseNormalizeSiteUrl(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
+  if (/\s/.test(trimmed)) return undefined;
   const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
     ? trimmed
     : `https://${trimmed}`;
-  return withScheme.replace(/\/+$/, "");
+
+  let parsed: URL;
+  try {
+    parsed = new URL(withScheme);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return undefined;
+  }
+  if (!parsed.hostname.includes(".") && parsed.hostname !== "localhost") {
+    return undefined;
+  }
+  if (parsed.hostname.startsWith(".") || parsed.hostname.endsWith(".")) {
+    return undefined;
+  }
+  if (parsed.search || parsed.hash) return undefined;
+
+  const path = parsed.pathname.replace(/\/+$/, "");
+  return `${parsed.origin}${path}`;
 }
 
 export function normalizeJiraSiteUrl(value: string): string | undefined {

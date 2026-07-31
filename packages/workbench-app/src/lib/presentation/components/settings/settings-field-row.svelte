@@ -36,7 +36,7 @@ let {
 }: Props = $props();
 </script>
 
-<div class={cn("grid gap-1.5", className)}>
+<div class={cn("grid gap-1", className)}>
   <Label for={id} class="text-xs font-medium text-muted-foreground"
     >{label}</Label
   >
@@ -49,7 +49,7 @@ let {
       {max}
       {step}
       {disabled}
-      size="sm"
+      size="xs"
       bind:value
       oninput={(event) =>
         onValueChange?.((event.currentTarget as HTMLInputElement).value)}

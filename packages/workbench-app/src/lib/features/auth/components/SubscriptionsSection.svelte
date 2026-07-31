@@ -7,11 +7,10 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import {
   SettingsEmptyState,
-  SettingsGroup,
   SettingsInlineMessage,
   SettingsList,
   SettingsListItem,
-  SettingsToolbar,
+  SettingsSection,
 } from "$lib/presentation/components/settings";
 import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
 import AddProviderDialog from "./AddProviderDialog.svelte";
@@ -47,16 +46,14 @@ async function confirmLogout(): Promise<void> {
 }
 </script>
 
-<SettingsToolbar>
-  {#snippet end()}
-    <Button size="sm" onclick={() => (addOpen = true)}>
+<SettingsSection id="subscriptions" title="Subscriptions">
+  {#snippet actions()}
+    <Button size="xs" onclick={() => (addOpen = true)}>
       <Plus class="size-3.5" aria-hidden="true" />
       Connect subscription
     </Button>
   {/snippet}
-</SettingsToolbar>
 
-<SettingsGroup>
   {#if subscriptions.length === 0}
     <SettingsEmptyState
       title="No subscriptions connected"
@@ -96,7 +93,7 @@ async function confirmLogout(): Promise<void> {
       />
     {/each}
   {/if}
-</SettingsGroup>
+</SettingsSection>
 
 <AddProviderDialog bind:open={addOpen} {authProviders} kind="oauth" />
 

@@ -39,9 +39,44 @@ describe("normalizeSiteUrl", () => {
   it("returns undefined for blank input", () => {
     assert.equal(confluenceIntegration.normalizeSiteUrl("   "), undefined);
   });
+
+  it("rejects malformed and unsupported URLs", () => {
+    for (const value of [
+      "http://",
+      "https://",
+      "example atlassian net",
+      "ftp://example.atlassian.net",
+      "javascript:alert(1)",
+      "https://example.atlassian.net?a=1",
+      "https://.atlassian.net",
+      "single-label-host",
+    ]) {
+      assert.equal(
+        jiraIntegration.normalizeSiteUrl(value),
+        undefined,
+        `expected ${value} to be rejected`,
+      );
+    }
+  });
+
+  it("accepts localhost and ports for self-hosted instances", () => {
+    assert.equal(
+      jiraIntegration.normalizeSiteUrl("localhost:8080"),
+      "https://localhost:8080",
+    );
+  });
 });
 
 describe("integrationFieldErrors", () => {
+  it("reports an invalid site URL", () => {
+    const errors = integrationFieldErrors(
+      jiraIntegration,
+      { siteUrl: "ftp://example.atlassian.net", email: "a@b.co" },
+      { tokenConfigured: true },
+    );
+    assert.ok(errors.siteUrl);
+  });
+
   it("reports an invalid email and a missing token without blocking partial saves", () => {
     const errors = integrationFieldErrors(
       jiraIntegration,

@@ -23,24 +23,19 @@ let {
 }: Props = $props();
 </script>
 
-<section
-  class={cn(
-    "rounded-lg border border-border/70 bg-card p-4 shadow-xs",
-    className,
-  )}
->
+<section class={cn("grid min-w-0 gap-1.5", className)}>
   {#if title || description || actions}
-    <header class="mb-3 flex items-start justify-between gap-4">
+    <header class="flex items-baseline justify-between gap-3">
       <div class="grid min-w-0 gap-0.5">
         {#if title}
-          <h3 class="text-sm font-semibold text-foreground">{title}</h3>
+          <h4 class="text-xs font-semibold text-foreground">{title}</h4>
         {/if}
         {#if description}
           <p class="text-xs text-muted-foreground">{description}</p>
         {/if}
       </div>
       {#if actions}
-        <div class="flex flex-none flex-wrap items-center gap-2">
+        <div class="flex flex-none flex-wrap items-center gap-1.5">
           {@render actions()}
         </div>
       {/if}
@@ -48,7 +43,11 @@ let {
   {/if}
 
   <div
-    class={cn("grid gap-2", divided && "divide-y divide-border/60", bodyClass)}
+    class={cn(
+      "grid min-w-0",
+      divided ? "divide-y divide-border/50" : "gap-1.5",
+      bodyClass,
+    )}
   >
     {@render children()}
   </div>

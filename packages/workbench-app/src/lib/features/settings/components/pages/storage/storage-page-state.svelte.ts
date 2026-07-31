@@ -22,6 +22,7 @@ import {
   completionNotice,
   shouldIgnoreOperationUpdate,
 } from "./storage-operation";
+import { StorageRunGuard } from "./storage-run-guard";
 
 const POLL_INTERVAL_MS = 2_500;
 
@@ -65,7 +66,7 @@ export class StoragePageController {
   #pollTimer: ReturnType<typeof setInterval> | undefined;
   #unsubscribe: (() => void) | undefined;
   #lastNotifiedOperationId: string | undefined;
-  #disposed = false;
+  #run = new StorageRunGuard();
 
   constructor(deps: Partial<StorageControllerDeps> = {}) {
     this.#deps = { ...defaultDeps, ...deps };
@@ -75,7 +76,11 @@ export class StoragePageController {
     return isCleanupActive(this.operation);
   }
 
+  /** Safe to call again after `dispose()`; the page may be revisited. */
   start(): void {
+    this.dispose();
+    this.#run.begin();
+    this.loading = !this.usage;
     void Promise.all([this.loadUsage(), this.loadOperation()]);
     this.#unsubscribe = this.#deps.subscribe((data) => {
       const next = parseStorageCleanupEvent(data);
@@ -84,37 +89,43 @@ export class StoragePageController {
   }
 
   dispose(): void {
-    this.#disposed = true;
+    this.#run.end();
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#stopPolling();
   }
 
   async loadUsage(force = false): Promise<void> {
+    const runId = this.#run.currentRunId;
     if (force) this.refreshing = true;
     this.errorMessage = undefined;
     try {
       const usage = await this.#deps.getUsage();
-      if (this.#disposed) return;
+      if (this.#isStale(runId)) return;
       this.usage = usage;
     } catch (error) {
+      if (this.#isStale(runId)) return;
       this.errorMessage =
         error instanceof Error
           ? error.message
           : "Could not load storage usage.";
     } finally {
-      this.loading = false;
-      this.refreshing = false;
+      if (!this.#isStale(runId)) {
+        this.loading = false;
+        this.refreshing = false;
+      }
     }
   }
 
   async loadOperation(): Promise<void> {
+    const runId = this.#run.currentRunId;
     this.operationLoading = true;
     try {
       const response = await this.#deps.getOperation();
-      if (this.#disposed) return;
+      if (this.#isStale(runId)) return;
       this.applyOperation(response.operation);
     } catch (error) {
+      if (this.#isStale(runId)) return;
       if (!this.usage) {
         this.errorMessage =
           error instanceof Error
@@ -122,12 +133,12 @@ export class StoragePageController {
             : "Could not load cleanup status.";
       }
     } finally {
-      this.operationLoading = false;
+      if (!this.#isStale(runId)) this.operationLoading = false;
     }
   }
 
   applyOperation(next: StorageCleanupOperation | null): void {
-    if (this.#disposed) return;
+    if (!this.#run.active) return;
     if (shouldIgnoreOperationUpdate(this.operation, next)) return;
 
     this.operation = next;
@@ -173,8 +184,12 @@ export class StoragePageController {
     }
   }
 
+  #isStale(runId: number): boolean {
+    return this.#run.isStale(runId);
+  }
+
   #syncPolling(): void {
-    if (this.active && !this.#pollTimer && !this.#disposed) {
+    if (this.active && !this.#pollTimer && this.#run.active) {
       this.#pollTimer = setInterval(
         () => void this.loadOperation(),
         POLL_INTERVAL_MS,

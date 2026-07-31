@@ -15,7 +15,7 @@ export const settingsPages: SettingsPageDef[] = [
     id: "workbench",
     label: "Workbench",
     icon: Monitor,
-    tabs: [
+    sections: [
       { id: "appearance", label: "Appearance" },
       { id: "desktop", label: "Desktop" },
     ],
@@ -24,7 +24,7 @@ export const settingsPages: SettingsPageDef[] = [
     id: "notifications",
     label: "Notifications",
     icon: Bell,
-    tabs: [
+    sections: [
       { id: "general", label: "General" },
       { id: "sounds", label: "Sounds" },
     ],
@@ -35,13 +35,13 @@ export const settingsPages: SettingsPageDef[] = [
     icon: Keyboard,
     description:
       "Shortcuts are fixed and use the primary modifier for your platform.",
-    tabs: [{ id: "shortcuts", label: "Shortcuts" }],
+    sections: [{ id: "shortcuts", label: "Shortcuts" }],
   },
   {
     id: "agents",
     label: "Agents",
     icon: Bot,
-    tabs: [
+    sections: [
       { id: "defaults", label: "Defaults" },
       { id: "compaction", label: "Compaction" },
       { id: "explore", label: "Explore agent" },
@@ -53,20 +53,20 @@ export const settingsPages: SettingsPageDef[] = [
     icon: Lightbulb,
     description:
       "Project suggestions override user and built-in suggestions with the same name.",
-    tabs: [{ id: "suggestions", label: "Suggestions" }],
+    sections: [{ id: "suggestions", label: "Suggestions" }],
   },
   {
     id: "models",
     label: "Models",
     icon: ShieldCheck,
     description: "Scoped models limit which models the composer offers.",
-    tabs: [{ id: "models", label: "Models" }],
+    sections: [{ id: "models", label: "Models" }],
   },
   {
     id: "tools",
     label: "Tools",
     icon: Wrench,
-    tabs: [
+    sections: [
       { id: "built-in", label: "Built-in" },
       { id: "integrations", label: "Integrations" },
     ],
@@ -77,7 +77,7 @@ export const settingsPages: SettingsPageDef[] = [
     icon: Library,
     description:
       "Skills apply to subsequent agent runs. Project definitions take precedence over global skills with the same name.",
-    tabs: [{ id: "skills", label: "Skills" }],
+    sections: [{ id: "skills", label: "Skills" }],
   },
   {
     id: "storage",
@@ -85,13 +85,13 @@ export const settingsPages: SettingsPageDef[] = [
     icon: HardDrive,
     description:
       "Understand what Nerve keeps locally and safely reclaim space.",
-    tabs: [{ id: "storage", label: "Storage" }],
+    sections: [{ id: "storage", label: "Storage" }],
   },
   {
     id: "system",
     label: "System",
     icon: Server,
-    tabs: [
+    sections: [
       { id: "server", label: "Server" },
       { id: "diagnostics", label: "Diagnostics" },
     ],

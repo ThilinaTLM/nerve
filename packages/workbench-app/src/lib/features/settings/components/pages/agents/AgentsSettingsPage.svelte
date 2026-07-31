@@ -1,12 +1,12 @@
 <script lang="ts">
 import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
+import { SettingsSection } from "$lib/presentation/components/settings";
 import type { SettingsChange } from "../settings-change";
-import AgentDefaultsTab from "./AgentDefaultsTab.svelte";
-import CompactionTab from "./CompactionTab.svelte";
-import ExploreAgentTab from "./ExploreAgentTab.svelte";
+import AgentDefaultsSection from "./AgentDefaultsSection.svelte";
+import CompactionSection from "./CompactionSection.svelte";
+import ExploreAgentSection from "./ExploreAgentSection.svelte";
 
 type Props = {
-  activeTabId: string;
   settingsDraft: Settings;
   models: ModelInfo[];
   authProviders: AuthProviderMetadata[];
@@ -14,7 +14,6 @@ type Props = {
 };
 
 let {
-  activeTabId,
   settingsDraft,
   models = [],
   authProviders = [],
@@ -22,20 +21,24 @@ let {
 }: Props = $props();
 </script>
 
-{#if activeTabId === "defaults"}
-  <AgentDefaultsTab
+<SettingsSection id="defaults" title="Defaults">
+  <AgentDefaultsSection
     {settingsDraft}
     {models}
     {authProviders}
     {onSettingsChange}
   />
-{:else if activeTabId === "compaction"}
-  <CompactionTab {settingsDraft} {onSettingsChange} />
-{:else if activeTabId === "explore"}
-  <ExploreAgentTab
+</SettingsSection>
+
+<SettingsSection id="compaction" title="Compaction">
+  <CompactionSection {settingsDraft} {onSettingsChange} />
+</SettingsSection>
+
+<SettingsSection id="explore" title="Explore agent">
+  <ExploreAgentSection
     {settingsDraft}
     {models}
     {authProviders}
     {onSettingsChange}
   />
-{/if}
+</SettingsSection>

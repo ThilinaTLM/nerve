@@ -2,6 +2,8 @@ export { default as SettingsShell } from "./settings-shell.svelte";
 export { default as SettingsSidebarStatus } from "./settings-sidebar-status.svelte";
 
 export { default as SettingsPageHeader } from "./settings-page-header.svelte";
+export { default as SettingsSection } from "./settings-section.svelte";
+export { settingsSectionDomId } from "./section-id";
 export { default as SettingsGroup } from "./settings-group.svelte";
 export { default as SettingsRow } from "./settings-row.svelte";
 export { default as SettingsToggleRow } from "./settings-toggle-row.svelte";
@@ -21,7 +23,7 @@ export { default as SettingsToolbar } from "./settings-toolbar.svelte";
 export type {
   SettingsChoice,
   SettingsPageDef,
+  SettingsSectionDef,
   SettingsStatus,
-  SettingsTabDef,
   SettingsTone,
 } from "./types";

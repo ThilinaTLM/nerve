@@ -28,7 +28,7 @@ let {
 
 <div
   class={cn(
-    "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2",
+    "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5",
     className,
   )}
 >
@@ -58,7 +58,7 @@ let {
   </div>
 
   {#if meta || actions}
-    <div class="flex flex-none items-center gap-3">
+    <div class="flex flex-none items-center gap-2.5">
       {#if meta}
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           {@render meta()}

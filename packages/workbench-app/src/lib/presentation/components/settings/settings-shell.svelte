@@ -1,38 +1,40 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { tick } from "svelte";
+import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
-import TabsBar, { type TabItem } from "@nervekit/ui-kit/components/ui/tabs-bar";
-import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import SettingsPageHeader from "./settings-page-header.svelte";
+import { settingsSectionDomId } from "./section-id";
 import type { SettingsPageDef } from "./types";
 
 type Props = {
   pages: SettingsPageDef[];
   activePageId?: string;
-  activeTabId?: string;
+  activeSectionId?: string;
   title?: string;
   ariaLabel?: string;
   class?: string;
   mainClass?: string;
   showHeader?: boolean;
   sidebarFooter?: Snippet;
-  pageActions?: Snippet<[SettingsPageDef, string]>;
-  children: Snippet<[SettingsPageDef, string]>;
+  pageActions?: Snippet<[SettingsPageDef]>;
+  children: Snippet<[SettingsPageDef]>;
   onPageChange?: (id: string) => void;
-  onTabChange?: (id: string) => void;
+  onSectionChange?: (id: string) => void;
 };
 
-function firstEnabledTabId(page?: SettingsPageDef): string {
-  const tabs = page?.tabs ?? [];
-  return (tabs.find((tab) => !tab.disabled) ?? tabs[0])?.id ?? "";
+function firstEnabledSectionId(page?: SettingsPageDef): string {
+  const sections = page?.sections ?? [];
+  return (
+    (sections.find((section) => !section.disabled) ?? sections[0])?.id ?? ""
+  );
 }
 
 let {
   pages,
   activePageId = $bindable(pages[0]?.id ?? ""),
-  activeTabId = $bindable(firstEnabledTabId(pages[0])),
+  activeSectionId = $bindable(firstEnabledSectionId(pages[0])),
   title = "Settings",
   ariaLabel = "Settings pages",
   class: className,
@@ -42,35 +44,78 @@ let {
   pageActions,
   children,
   onPageChange,
-  onTabChange,
+  onSectionChange,
 }: Props = $props();
 
 let viewportElement = $state<HTMLElement | null>(null);
+let collapsedPageIds = $state<string[]>([]);
 
 const activePage = $derived(
   pages.find((page) => page.id === activePageId) ?? pages[0],
 );
-const tabItems = $derived<TabItem[]>(
-  (activePage?.tabs ?? []).map((tab) => ({
-    value: tab.id,
-    label: tab.label,
-    disabled: tab.disabled,
-  })),
-);
+const activeSections = $derived(activePage?.sections ?? []);
+const hasSubmenu = $derived(activeSections.length > 1);
 
 $effect(() => {
   if (pages.length === 0) return;
   if (pages.some((page) => page.id === activePageId)) return;
   const next = pages[0];
   activePageId = next.id;
-  activeTabId = firstEnabledTabId(next);
+  activeSectionId = firstEnabledSectionId(next);
 });
 
 $effect(() => {
-  const tabs = activePage?.tabs ?? [];
-  if (tabs.length === 0) return;
-  if (tabs.some((tab) => tab.id === activeTabId)) return;
-  activeTabId = firstEnabledTabId(activePage);
+  if (activeSections.length === 0) return;
+  if (activeSections.some((section) => section.id === activeSectionId)) return;
+  activeSectionId = firstEnabledSectionId(activePage);
+});
+
+// Track the top-most visible section of the active page.
+$effect(() => {
+  const viewport = viewportElement;
+  const sections = activeSections;
+  if (!viewport || sections.length < 2) return;
+
+  let frame = 0;
+  let observer: IntersectionObserver | undefined;
+
+  let visible: string[] = [];
+  const updateActive = () => {
+    const next = sections.find((section) => visible.includes(section.id));
+    if (next && next.id !== activeSectionId) activeSectionId = next.id;
+  };
+
+  frame = requestAnimationFrame(() => {
+    observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = entry.target.getAttribute("data-settings-section");
+          if (!id) continue;
+          if (entry.isIntersecting) {
+            if (!visible.includes(id)) visible = [...visible, id];
+          } else {
+            visible = visible.filter((value) => value !== id);
+          }
+        }
+        updateActive();
+      },
+      { root: viewport, rootMargin: "0px 0px -60% 0px", threshold: 0 },
+    );
+
+    for (const section of sections) {
+      const element = viewport.querySelector(
+        `#${CSS.escape(settingsSectionDomId(section.id))}`,
+      );
+      if (!element) continue;
+      element.setAttribute("data-settings-section", section.id);
+      observer.observe(element);
+    }
+  });
+
+  return () => {
+    cancelAnimationFrame(frame);
+    observer?.disconnect();
+  };
 });
 
 async function scrollPanelToTop(): Promise<void> {
@@ -78,19 +123,37 @@ async function scrollPanelToTop(): Promise<void> {
   viewportElement?.scrollTo({ top: 0 });
 }
 
-function selectPage(id: string): void {
-  if (id === activePageId) return;
-  const next = pages.find((page) => page.id === id) ?? pages[0];
-  activePageId = next.id;
-  activeTabId = firstEnabledTabId(next);
-  onPageChange?.(next.id);
+function isCollapsed(pageId: string): boolean {
+  return collapsedPageIds.includes(pageId);
+}
+
+function selectPage(page: SettingsPageDef): void {
+  if (page.id === activePageId) {
+    if (page.sections.length > 1) {
+      collapsedPageIds = isCollapsed(page.id)
+        ? collapsedPageIds.filter((id) => id !== page.id)
+        : [...collapsedPageIds, page.id];
+    }
+    return;
+  }
+  activePageId = page.id;
+  activeSectionId = firstEnabledSectionId(page);
+  collapsedPageIds = collapsedPageIds.filter((id) => id !== page.id);
+  onPageChange?.(page.id);
   void scrollPanelToTop();
 }
 
-function selectTab(id: string): void {
-  activeTabId = id;
-  onTabChange?.(id);
-  void scrollPanelToTop();
+async function selectSection(sectionId: string): Promise<void> {
+  activeSectionId = sectionId;
+  onSectionChange?.(sectionId);
+  await tick();
+  const domId = settingsSectionDomId(sectionId);
+  const element = viewportElement?.querySelector(`#${CSS.escape(domId)}`);
+  element?.scrollIntoView({ block: "start" });
+  const heading = viewportElement?.querySelector<HTMLElement>(
+    `#${CSS.escape(`${domId}-title`)}`,
+  );
+  heading?.focus({ preventScroll: true });
 }
 </script>
 
@@ -104,15 +167,53 @@ function selectTab(id: string): void {
       {#each pages as page (page.id)}
         {@const Icon = page.icon}
         {@const active = activePage?.id === page.id}
-        <button
-          type="button"
-          class:active
-          aria-current={active ? "page" : undefined}
-          onclick={() => selectPage(page.id)}
-        >
-          <Icon size={16} strokeWidth={2} />
-          <span class="settings-nav-label">{page.label}</span>
-        </button>
+        {@const expandable = page.sections.length > 1}
+        {@const expanded = active && expandable && !isCollapsed(page.id)}
+        <div class="settings-nav-item">
+          <button
+            type="button"
+            class:active
+            aria-current={active ? "page" : undefined}
+            aria-expanded={expandable ? expanded : undefined}
+            aria-controls={expandable
+              ? `settings-submenu-${page.id}`
+              : undefined}
+            onclick={() => selectPage(page)}
+          >
+            <Icon size={16} strokeWidth={2} />
+            <span class="settings-nav-label">{page.label}</span>
+            {#if expandable}
+              <ChevronRight
+                size={13}
+                strokeWidth={2.2}
+                class={cn(
+                  "settings-nav-chevron",
+                  expanded && "settings-nav-chevron-open",
+                )}
+              />
+            {/if}
+          </button>
+
+          {#if expanded}
+            <ul id={`settings-submenu-${page.id}`} class="settings-subnav">
+              {#each page.sections as section (section.id)}
+                <li>
+                  <a
+                    href={`#${settingsSectionDomId(section.id)}`}
+                    aria-current={activeSectionId === section.id
+                      ? "location"
+                      : undefined}
+                    class:active={activeSectionId === section.id}
+                    onclick={(event) => {
+                      event.preventDefault();
+                      void selectSection(section.id);
+                    }}>{section.label}</a
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
       {/each}
     </nav>
 
@@ -135,32 +236,15 @@ function selectTab(id: string): void {
           >
             {#snippet actions()}
               {#if pageActions}
-                {@render pageActions(activePage, activeTabId)}
+                {@render pageActions(activePage)}
               {/if}
             {/snippet}
           </SettingsPageHeader>
         {/if}
 
-        {#if activePage.tabs.length > 1}
-          <TabsBar
-            tabs={tabItems}
-            value={activeTabId}
-            ariaLabel={`${activePage.label} tabs`}
-            onValueChange={selectTab}
-          >
-            {#each activePage.tabs as tab (tab.id)}
-              <Tabs.Content value={tab.id} class="grid gap-3">
-                {#if tab.id === activeTabId}
-                  {@render children(activePage, tab.id)}
-                {/if}
-              </Tabs.Content>
-            {/each}
-          </TabsBar>
-        {:else}
-          <div class="grid gap-3">
-            {@render children(activePage, activeTabId)}
-          </div>
-        {/if}
+        <div class={cn("grid min-w-0", hasSubmenu ? "gap-5" : "gap-3")}>
+          {@render children(activePage)}
+        </div>
       {/if}
     </div>
   </ScrollArea>

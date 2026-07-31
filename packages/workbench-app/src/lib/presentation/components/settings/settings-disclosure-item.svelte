@@ -53,7 +53,7 @@ let {
   </SettingsListItem>
 
   <Collapsible.Content
-    class="grid gap-2 px-3 pt-0 pb-3 pl-8 text-xs text-muted-foreground"
+    class="grid gap-1.5 pt-0 pb-2 pl-5.5 text-xs text-muted-foreground"
   >
     {@render detail()}
   </Collapsible.Content>

@@ -27,7 +27,7 @@ const statusTones: Record<SettingsStatus, StatusTone> = {
 
 <div
   class={cn(
-    "flex items-center justify-between gap-3 rounded-md border border-border/60 bg-accent/25 px-3 py-2.5",
+    "flex items-center justify-between gap-3 rounded-sm border border-border/50 bg-accent/20 px-2.5 py-1.5",
     className,
   )}
 >

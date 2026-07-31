@@ -7,10 +7,9 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import {
   SettingsEmptyState,
-  SettingsGroup,
   SettingsList,
   SettingsListItem,
-  SettingsToolbar,
+  SettingsSection,
 } from "$lib/presentation/components/settings";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { loadAuthPanel } from "$lib/features/auth/state/auth.svelte";
@@ -57,16 +56,14 @@ async function confirmRemove(): Promise<void> {
 }
 </script>
 
-<SettingsToolbar>
-  {#snippet end()}
-    <Button size="sm" onclick={() => (addOpen = true)}>
+<SettingsSection id="api-keys" title="API keys">
+  {#snippet actions()}
+    <Button size="xs" onclick={() => (addOpen = true)}>
       <Plus class="size-3.5" aria-hidden="true" />
       Add API key
     </Button>
   {/snippet}
-</SettingsToolbar>
 
-<SettingsGroup>
   {#if apiKeys.length === 0}
     <SettingsEmptyState
       title="No API keys configured"
@@ -97,7 +94,7 @@ async function confirmRemove(): Promise<void> {
       {/each}
     </SettingsList>
   {/if}
-</SettingsGroup>
+</SettingsSection>
 
 <AddProviderDialog
   bind:open={addOpen}

@@ -19,7 +19,7 @@ const authPages: SettingsPageDef[] = [
     id: "connections",
     label: "Connections",
     icon: Plug,
-    tabs: [
+    sections: [
       { id: "subscriptions", label: "Subscriptions" },
       { id: "api-keys", label: "API keys" },
     ],
@@ -30,14 +30,14 @@ const authPages: SettingsPageDef[] = [
     icon: Boxes,
     description:
       "Connect local or self-hosted endpoints that expose an OpenAI- or Anthropic-compatible API.",
-    tabs: [{ id: "custom-providers", label: "Custom providers" }],
+    sections: [{ id: "custom-providers", label: "Custom providers" }],
   },
   {
     id: "custom-models",
     label: "Custom models",
     icon: Brain,
     description: "Expose additional models in the composer picker.",
-    tabs: [{ id: "custom-models", label: "Custom models" }],
+    sections: [{ id: "custom-models", label: "Custom models" }],
   },
 ];
 
@@ -52,13 +52,10 @@ if (!authState.catalogLoaded) void loadAuthPanel();
   title="Authentication"
   ariaLabel="Authentication pages"
 >
-  {#snippet children(page, activeTabId)}
+  {#snippet children(page)}
     {#if page.id === "connections"}
-      {#if activeTabId === "subscriptions"}
-        <SubscriptionsSection {authProviders} />
-      {:else}
-        <ApiKeysSection {authProviders} />
-      {/if}
+      <SubscriptionsSection {authProviders} />
+      <ApiKeysSection {authProviders} />
     {:else if page.id === "custom-providers"}
       <CustomProvidersSection {authProviders} />
     {:else if page.id === "custom-models"}

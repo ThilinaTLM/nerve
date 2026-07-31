@@ -29,7 +29,7 @@ const toneClasses: Record<SettingsTone, string> = {
 
 <div
   class={cn(
-    "flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs",
+    "flex items-center justify-between gap-3 rounded-sm border px-2.5 py-1.5 text-xs",
     toneClasses[tone],
     className,
   )}

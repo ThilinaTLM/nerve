@@ -12,6 +12,7 @@ import SelectField, {
 } from "@nervekit/ui-kit/components/ui/select-field";
 import { SettingsToggleRow } from "$lib/presentation/components/settings";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
+import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/auth/state/auth.svelte";
 
@@ -89,10 +90,9 @@ function parseHeaders(text: string): Record<string, string> {
   return headers;
 }
 
-function toggleThinking(level: ThinkingLevel) {
-  thinking = thinking.includes(level)
-    ? thinking.filter((value) => value !== level)
-    : [...thinking, level];
+function setThinking(values: string[]): void {
+  const next = THINKING_LEVELS.filter((level) => values.includes(level));
+  thinking = next.length > 0 ? next : ["off"];
 }
 
 const canSubmit = $derived(
@@ -137,8 +137,8 @@ async function submit() {
   title={editing ? `Edit ${model?.name}` : "Add model"}
   description="Register a model under a configured or authenticated provider."
 >
-  <div class="model-form">
-    <div class="field">
+  <div class="grid gap-3 px-4 py-3">
+    <div class="grid gap-1.5">
       <Label>Provider</Label>
       <SelectField
         items={selectProviderItems}
@@ -150,8 +150,8 @@ async function submit() {
       />
     </div>
 
-    <div class="field-grid">
-      <div class="field">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid gap-1.5">
         <Label for="model-id">Model id</Label>
         <Input
           id="model-id"
@@ -160,7 +160,7 @@ async function submit() {
           disabled={busy || editing}
         />
       </div>
-      <div class="field">
+      <div class="grid gap-1.5">
         <Label for="model-name">Display name</Label>
         <Input
           id="model-name"
@@ -172,14 +172,14 @@ async function submit() {
     </div>
 
     {#if provider.length > 0 && !providerAvailable}
-      <p class="field-hint" data-tone="error">
+      <p class="flex items-center gap-1.5 text-xs text-destructive">
         <TriangleAlert size={14} strokeWidth={2} />
         This provider is not configured or authenticated.
       </p>
     {/if}
 
-    <div class="field-grid">
-      <div class="field">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid gap-1.5">
         <Label for="model-context">Context window (tokens)</Label>
         <Input
           id="model-context"
@@ -189,7 +189,7 @@ async function submit() {
           disabled={busy}
         />
       </div>
-      <div class="field">
+      <div class="grid gap-1.5">
         <Label for="model-max-tokens">Max output tokens</Label>
         <Input
           id="model-max-tokens"
@@ -208,20 +208,22 @@ async function submit() {
       onCheckedChange={(value) => (reasoning = value)}
     />
 
-    <div class="field">
+    <div class="grid gap-1.5">
       <Label>Supported thinking levels</Label>
-      <div class="chip-row">
+      <ToggleGroup.Root
+        type="multiple"
+        variant="outline"
+        size="sm"
+        value={thinking}
+        onValueChange={setThinking}
+        aria-label="Supported thinking levels"
+      >
         {#each THINKING_LEVELS as level (level)}
-          <button
-            type="button"
-            class="chip"
-            class:active={thinking.includes(level)}
-            onclick={() => toggleThinking(level)}
-          >
+          <ToggleGroup.Item value={level} aria-label={level} class="text-xs">
             {level}
-          </button>
+          </ToggleGroup.Item>
         {/each}
-      </div>
+      </ToggleGroup.Root>
     </div>
 
     <SettingsToggleRow
@@ -232,7 +234,7 @@ async function submit() {
     />
 
     {#if isCustomProvider}
-      <div class="field">
+      <div class="grid gap-1.5">
         <Label for="model-headers">Header overrides (optional)</Label>
         <Textarea
           id="model-headers"
@@ -241,15 +243,15 @@ async function submit() {
           placeholder="X-Header: value"
           disabled={busy}
         />
-        <p class="field-hint">
-          Merged on top of the provider headers. One <code>Name: value</code> per
-          line.
+        <p class="text-xs text-muted-foreground">
+          Merged on top of the provider headers. One
+          <code class="font-mono">Name: value</code> per line.
         </p>
       </div>
     {/if}
 
     {#if error}
-      <p class="field-hint" data-tone="error">
+      <p class="flex items-center gap-1.5 text-xs text-destructive">
         <TriangleAlert size={14} strokeWidth={2} />
         {error}
       </p>
@@ -263,67 +265,3 @@ async function submit() {
     </Button>
   {/snippet}
 </Dialog>
-
-<style>
-.model-form {
-  display: grid;
-  gap: 0.85rem;
-  padding: 1rem 1.1rem;
-}
-
-.field-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.85rem;
-}
-
-.field {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.field-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-}
-
-.field-hint[data-tone="error"] {
-  color: var(--destructive);
-}
-
-.field-hint code {
-  font-family: var(--font-mono);
-}
-
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.chip {
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted-foreground);
-  padding: 0.25rem 0.6rem;
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.chip.active {
-  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
-  background: color-mix(in oklab, var(--primary) 15%, transparent);
-  color: var(--foreground);
-}
-
-@media (max-width: 540px) {
-  .field-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

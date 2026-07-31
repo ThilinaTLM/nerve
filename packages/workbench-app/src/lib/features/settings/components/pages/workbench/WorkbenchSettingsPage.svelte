@@ -2,23 +2,20 @@
 import type { Settings } from "$lib/api";
 import type { ThemePreference } from "$lib/app/shell/appearance.svelte";
 import {
-  SettingsChoiceCards,
-  SettingsGroup,
   SettingsRow,
+  SettingsSection,
   SettingsToggleRow,
 } from "$lib/presentation/components/settings";
 import type { SettingsChange } from "../settings-change";
-import { themeItems } from "./appearance-options";
+import ThemePreviewPicker from "./ThemePreviewPicker.svelte";
 
 type Props = {
-  activeTabId: string;
   settingsDraft: Settings;
   onThemeChange?: (theme: ThemePreference) => void;
   onSettingsChange?: SettingsChange;
 };
 
-let { activeTabId, settingsDraft, onThemeChange, onSettingsChange }: Props =
-  $props();
+let { settingsDraft, onThemeChange, onSettingsChange }: Props = $props();
 
 function setThemePreference(value: string): void {
   const preference = value as ThemePreference;
@@ -36,25 +33,20 @@ function setCloseToTray(checked: boolean): void {
 }
 </script>
 
-{#if activeTabId === "appearance"}
-  <SettingsGroup>
-    <SettingsRow label="Color theme" layout="stacked">
-      <SettingsChoiceCards
-        items={themeItems}
-        value={settingsDraft.ui.theme}
-        columns={3}
-        ariaLabel="Theme preference"
-        onValueChange={setThemePreference}
-      />
-    </SettingsRow>
-  </SettingsGroup>
-{:else if activeTabId === "desktop"}
-  <SettingsGroup>
-    <SettingsToggleRow
-      label="Close to system tray"
-      description="Hide Nerve in the tray instead of quitting."
-      bind:checked={settingsDraft.desktop.closeToTray}
-      onCheckedChange={setCloseToTray}
+<SettingsSection id="appearance" title="Appearance">
+  <SettingsRow label="Color theme" layout="stacked">
+    <ThemePreviewPicker
+      value={settingsDraft.ui.theme}
+      onValueChange={setThemePreference}
     />
-  </SettingsGroup>
-{/if}
+  </SettingsRow>
+</SettingsSection>
+
+<SettingsSection id="desktop" title="Desktop">
+  <SettingsToggleRow
+    label="Close to system tray"
+    description="Hide Nerve in the tray instead of quitting."
+    bind:checked={settingsDraft.desktop.closeToTray}
+    onCheckedChange={setCloseToTray}
+  />
+</SettingsSection>
