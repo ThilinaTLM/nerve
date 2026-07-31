@@ -1,8 +1,11 @@
-import { extname, isAbsolute } from "node:path";
-import type { CompletionItem } from "@nervekit/contracts";
+import { isAbsolute } from "node:path";
+import {
+  FILE_COMPLETION_RESULT_LIMIT,
+  type CompletionItem,
+} from "@nervekit/contracts";
 import type { FileCompletionCandidate } from "./file-completion-candidates.js";
 
-export const defaultCompletionLimit = 60;
+export const defaultCompletionLimit = FILE_COMPLETION_RESULT_LIMIT;
 
 export type CompletionOptions = {
   limit?: number;
@@ -19,7 +22,12 @@ type RankedCandidate = CompletionItemInput;
 type TargetMatch = {
   score: number;
   ranges: Array<[number, number]>;
-  index: number;
+  segmentIndex: number;
+};
+
+type LocalMatch = {
+  score: number;
+  ranges: Array<[number, number]>;
 };
 
 export function completeFileCandidates(
@@ -34,10 +42,12 @@ export function completeFileCandidates(
     .map((candidate) => rankCandidate(candidate, query))
     .filter((candidate): candidate is RankedCandidate => Boolean(candidate))
     .sort(compareRankedCandidates);
+  const limit = Math.min(
+    options.limit ?? defaultCompletionLimit,
+    FILE_COMPLETION_RESULT_LIMIT,
+  );
 
-  return ranked
-    .slice(0, options.limit ?? defaultCompletionLimit)
-    .map(toCompletionItem);
+  return ranked.slice(0, limit).map(toCompletionItem);
 }
 
 export function normalizeCompletionQuery(query: string): string {
@@ -65,39 +75,44 @@ function rankCandidate(
   if (!query) return rankEmptyCandidate(candidate);
 
   const queryLower = query.toLowerCase();
-  const pathLower = candidate.relativePath.toLowerCase();
-  const nameLower = candidate.name.toLowerCase();
-  const queryWithoutTrailingSlash = queryLower.replace(/\/+$/, "");
+  const pathQuery = queryLower.replace(/\/+$/, "");
   const folderIntent = query.endsWith("/");
 
-  if (folderIntent && pathLower === queryWithoutTrailingSlash) return undefined;
+  if (folderIntent && candidate.pathLower === pathQuery) return undefined;
 
-  if (pathLower === queryWithoutTrailingSlash) {
+  if (candidate.pathLower === pathQuery) {
     return {
       candidate,
-      score: 14_000 + kindBoost(candidate, folderIntent) - candidate.depth,
-      matchRanges: [
-        [1, Math.min(label.length, 1 + queryWithoutTrailingSlash.length)],
-      ],
+      score: 20_000 + kindBoost(candidate, folderIntent) - candidate.depth,
+      matchRanges: [[1, Math.min(label.length, 1 + pathQuery.length)]],
     };
   }
 
-  if (nameLower === queryLower) {
+  if (
+    candidate.nameLower === queryLower ||
+    candidate.stemLower === queryLower
+  ) {
     const offset = labelNameOffset(candidate);
+    const length =
+      candidate.stemLower === queryLower
+        ? candidate.stem.length
+        : candidate.name.length;
     return {
       candidate,
-      score: 13_000 + kindBoost(candidate, folderIntent) - candidate.depth,
-      matchRanges: [[offset, offset + candidate.name.length]],
+      score: 18_000 + kindBoost(candidate, folderIntent) - candidate.depth,
+      matchRanges: [[offset, offset + length]],
     };
   }
 
-  if (pathLower.startsWith(queryLower)) {
-    const remainder = pathLower.slice(queryLower.length).replace(/^\/+/, "");
+  if (candidate.pathLower.startsWith(queryLower)) {
+    const remainder = candidate.pathLower
+      .slice(queryLower.length)
+      .replace(/^\/+/, "");
     const remainingDepth = remainder ? remainder.split("/").length : 0;
     return {
       candidate,
       score:
-        12_000 +
+        16_000 +
         kindBoost(candidate, folderIntent) -
         remainingDepth * 120 -
         candidate.depth * 6 -
@@ -107,31 +122,26 @@ function rankCandidate(
   }
 
   const terms = query
-    .split(/[\s/]+/)
+    .replace(/\/+$/, "")
+    .split(query.includes("/") ? /\/+/ : /\s+/)
     .map((term) => term.trim())
     .filter(Boolean);
   if (terms.length === 0) return rankEmptyCandidate(candidate);
+  if (terms.length > 6) return undefined;
 
-  const targets = targetsFor(candidate, query.includes("/"));
-  const matches: TargetMatch[] = [];
-
-  for (const term of terms) {
-    const match = bestMatchForTerm(term, targets);
-    if (!match) return undefined;
-    matches.push(match);
-  }
-
-  const score =
-    5_000 +
-    matches.reduce((total, match) => total + match.score, 0) +
-    orderedTermBoost(matches) +
-    kindBoost(candidate, folderIntent) -
-    candidate.depth * 14 -
-    candidate.relativePath.length / 10;
+  const matches = query.includes("/")
+    ? orderedPathMatches(candidate, terms)
+    : unorderedTermMatches(candidate, terms);
+  if (!matches) return undefined;
 
   return {
     candidate,
-    score,
+    score:
+      7_000 +
+      matches.reduce((total, match) => total + match.score, 0) +
+      kindBoost(candidate, folderIntent) -
+      candidate.depth * 16 -
+      candidate.relativePath.length / 8,
     matchRanges: mergeRanges(matches.flatMap((match) => match.ranges)),
   };
 }
@@ -203,167 +213,281 @@ function kindBoost(
   return candidate.kind === "file" ? 180 : 40;
 }
 
-type MatchTarget = {
-  value: string;
-  labelOffset: number;
-  weight: number;
-  scope: "stem" | "name" | "segment" | "path";
-};
-
-function stemOf(name: string): string {
-  const extension = extname(name);
-  return extension ? name.slice(0, -extension.length) : name;
-}
-
-function targetsFor(
+function orderedPathMatches(
   candidate: FileCompletionCandidate,
-  includeFullPath: boolean,
-): MatchTarget[] {
-  const targets: MatchTarget[] = [];
-  const nameOffset = labelNameOffset(candidate);
-  const stem =
-    candidate.kind === "file" ? stemOf(candidate.name) : candidate.name;
+  terms: string[],
+): TargetMatch[] | undefined {
+  const rows: Array<Array<TargetMatch | undefined>> = terms.map((term) =>
+    candidate.segments.map((_, segmentIndex) =>
+      matchSegment(candidate, term, segmentIndex),
+    ),
+  );
+  const scores = rows.map(() =>
+    candidate.segments.map(() => Number.NEGATIVE_INFINITY),
+  );
+  const previous = rows.map(() => candidate.segments.map(() => -1));
 
-  targets.push({
-    value: stem,
-    labelOffset: nameOffset,
-    weight: 900,
-    scope: "stem",
-  });
-
-  if (stem !== candidate.name) {
-    targets.push({
-      value: candidate.name,
-      labelOffset: nameOffset,
-      weight: 760,
-      scope: "name",
-    });
+  for (let segment = 0; segment < candidate.segments.length; segment += 1) {
+    const match = rows[0]?.[segment];
+    if (match) scores[0]![segment] = match.score - segment * 35;
   }
 
-  let offset = 0;
-  for (const segment of candidate.relativePath.split("/")) {
-    const isLeaf = offset + segment.length === candidate.relativePath.length;
-    const segmentStem =
-      isLeaf && candidate.kind === "file" ? stemOf(segment) : segment;
-    targets.push({
-      value: segmentStem,
-      labelOffset: 1 + offset,
-      weight: isLeaf ? 820 : 560,
-      scope: "segment",
-    });
-    if (segmentStem !== segment) {
-      targets.push({
-        value: segment,
-        labelOffset: 1 + offset,
-        weight: isLeaf ? 700 : 500,
-        scope: "segment",
-      });
+  for (let term = 1; term < terms.length; term += 1) {
+    let bestPreviousScore = Number.NEGATIVE_INFINITY;
+    let bestPreviousIndex = -1;
+    for (let segment = 0; segment < candidate.segments.length; segment += 1) {
+      const prior = scores[term - 1]?.[segment - 1];
+      if (prior !== undefined && prior > bestPreviousScore) {
+        bestPreviousScore = prior;
+        bestPreviousIndex = segment - 1;
+      }
+      const match = rows[term]?.[segment];
+      if (!match || bestPreviousIndex < 0) continue;
+      scores[term]![segment] =
+        bestPreviousScore +
+        match.score -
+        (segment - bestPreviousIndex - 1) * 45;
+      previous[term]![segment] = bestPreviousIndex;
     }
-    offset += segment.length + 1;
   }
 
-  if (includeFullPath) {
-    targets.push({
-      value: candidate.relativePath,
-      labelOffset: 1,
-      weight: 300,
-      scope: "path",
-    });
+  const lastScores = scores.at(-1) ?? [];
+  let segmentIndex = -1;
+  let best = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < lastScores.length; index += 1) {
+    const leafBonus = index === candidate.segments.length - 1 ? 500 : 0;
+    const score = (lastScores[index] ?? Number.NEGATIVE_INFINITY) + leafBonus;
+    if (score > best) {
+      best = score;
+      segmentIndex = index;
+    }
   }
+  if (segmentIndex < 0 || !Number.isFinite(best)) return undefined;
 
-  return targets;
+  const result: TargetMatch[] = [];
+  for (let term = terms.length - 1; term >= 0; term -= 1) {
+    const match = rows[term]?.[segmentIndex];
+    if (!match) return undefined;
+    result.push(match);
+    segmentIndex = previous[term]?.[segmentIndex] ?? -1;
+  }
+  return result.reverse();
 }
 
-function bestMatchForTerm(
-  term: string,
-  targets: MatchTarget[],
-): TargetMatch | undefined {
-  let best: TargetMatch | undefined;
-  for (const target of targets) {
-    const match = matchTermInTarget(term, target);
-    if (!match) continue;
-    if (!best || match.score > best.score) best = match;
+function unorderedTermMatches(
+  candidate: FileCompletionCandidate,
+  terms: string[],
+): TargetMatch[] | undefined {
+  const options = terms.map((term) =>
+    candidate.segments
+      .map((_, segmentIndex) => matchSegment(candidate, term, segmentIndex))
+      .filter((match): match is TargetMatch => Boolean(match))
+      .sort((a, b) => b.score - a.score),
+  );
+  if (options.some((matches) => matches.length === 0)) return undefined;
+
+  const order = terms
+    .map((_, index) => index)
+    .sort(
+      (a, b) =>
+        (options[a]?.length ?? 0) - (options[b]?.length ?? 0) ||
+        (options[b]?.[0]?.score ?? 0) - (options[a]?.[0]?.score ?? 0),
+    );
+  const remainingBest = Array(order.length + 1).fill(0) as number[];
+  for (let index = order.length - 1; index >= 0; index -= 1) {
+    const termIndex = order[index] ?? 0;
+    remainingBest[index] =
+      (remainingBest[index + 1] ?? 0) + (options[termIndex]?.[0]?.score ?? 0);
   }
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let best: TargetMatch[] | undefined;
+
+  function assign(
+    orderIndex: number,
+    usedSegments: Set<number>,
+    chosen: TargetMatch[],
+    score: number,
+  ): void {
+    if (score + (remainingBest[orderIndex] ?? 0) <= bestScore) return;
+    if (orderIndex === order.length) {
+      if (score > bestScore) {
+        bestScore = score;
+        best = [...chosen];
+      }
+      return;
+    }
+    const termIndex = order[orderIndex] ?? 0;
+    for (const match of options[termIndex] ?? []) {
+      if (usedSegments.has(match.segmentIndex)) continue;
+      usedSegments.add(match.segmentIndex);
+      chosen[termIndex] = match;
+      assign(orderIndex + 1, usedSegments, chosen, score + match.score);
+      usedSegments.delete(match.segmentIndex);
+    }
+  }
+
+  assign(0, new Set(), [], 0);
   return best;
 }
 
-function matchTermInTarget(
+function matchSegment(
+  candidate: FileCompletionCandidate,
   term: string,
-  target: MatchTarget,
+  segmentIndex: number,
 ): TargetMatch | undefined {
-  if (!term) return undefined;
-
-  const termLower = term.toLowerCase();
-  const valueLower = target.value.toLowerCase();
-  const caseSensitiveQuery = /[A-Z]/.test(term);
-
-  if (valueLower === termLower) {
-    return {
-      score:
-        target.weight +
-        3_000 +
-        caseMatchBoost(target.value, term, 0, caseSensitiveQuery),
-      ranges: [[target.labelOffset, target.labelOffset + term.length]],
-      index: target.labelOffset,
-    };
+  const segment = candidate.segments[segmentIndex] ?? "";
+  const isLeaf = segmentIndex === candidate.segments.length - 1;
+  const offset = 1 + segmentOffset(candidate, segmentIndex);
+  const values = [{ value: segment, weight: isLeaf ? 1_500 : 350 }];
+  if (isLeaf && candidate.kind === "file" && candidate.stem !== segment) {
+    values.push({ value: candidate.stem, weight: 1_900 });
   }
 
-  if (valueLower.startsWith(termLower)) {
-    return {
-      score:
-        target.weight +
-        2_400 +
-        caseMatchBoost(target.value, term, 0, caseSensitiveQuery) -
-        term.length / 10,
-      ranges: [[target.labelOffset, target.labelOffset + term.length]],
-      index: target.labelOffset,
-    };
+  let best: LocalMatch | undefined;
+  for (const target of values) {
+    const match = matchText(term, target.value);
+    if (!match) continue;
+    const weighted = { ...match, score: match.score + target.weight };
+    if (!best || weighted.score > best.score) best = weighted;
   }
-
-  const substringIndex = valueLower.indexOf(termLower);
-  if (substringIndex >= 0) {
-    const boundary = isWordBoundary(target.value, substringIndex);
-    return {
-      score:
-        target.weight +
-        (boundary ? 2_150 : 1_650) +
-        caseMatchBoost(target.value, term, substringIndex, caseSensitiveQuery) -
-        substringIndex * (boundary ? 2 : 8) -
-        term.length / 10,
-      ranges: [
-        [
-          target.labelOffset + substringIndex,
-          target.labelOffset + substringIndex + term.length,
-        ],
-      ],
-      index: target.labelOffset + substringIndex,
-    };
-  }
-
-  if (target.scope === "path" || term.length < 3) return undefined;
-
-  const fuzzy = fuzzySubsequence(termLower, target.value);
-  if (!fuzzy || fuzzy.score < 260) return undefined;
-
+  if (!best) return undefined;
   return {
-    score: target.weight + 620 + fuzzy.score,
-    ranges: fuzzy.ranges.map(([from, to]) => [
-      target.labelOffset + from,
-      target.labelOffset + to,
-    ]),
-    index: target.labelOffset + fuzzy.firstIndex,
+    score: best.score,
+    ranges: best.ranges.map(([from, to]) => [offset + from, offset + to]),
+    segmentIndex,
   };
 }
 
-function caseMatchBoost(
-  value: string,
-  term: string,
-  index: number,
-  caseSensitiveQuery: boolean,
-): number {
-  const exactCase = value.slice(index, index + term.length) === term;
-  if (caseSensitiveQuery) return exactCase ? 520 : -760;
-  return exactCase ? 80 : 0;
+function matchText(term: string, value: string): LocalMatch | undefined {
+  if (!term || !value) return undefined;
+  const needle = term.toLowerCase();
+  const haystack = value.toLowerCase();
+  if (needle === haystack) {
+    return {
+      score: 3_600 + caseBonus(term, value),
+      ranges: [[0, value.length]],
+    };
+  }
+  if (haystack.startsWith(needle)) {
+    return {
+      score: 3_000 + caseBonus(term, value.slice(0, term.length)),
+      ranges: [[0, term.length]],
+    };
+  }
+  const index = haystack.indexOf(needle);
+  if (index >= 0) {
+    return {
+      score:
+        2_350 +
+        (isWordBoundary(value, index) ? 300 : 0) -
+        index * 10 +
+        caseBonus(term, value.slice(index, index + term.length)),
+      ranges: [[index, index + term.length]],
+    };
+  }
+  const fuzzy = fuzzySubsequence(term, value);
+  if (!fuzzy || fuzzy.score < 250) return undefined;
+  return fuzzy;
+}
+
+function fuzzySubsequence(
+  needle: string,
+  haystack: string,
+): LocalMatch | undefined {
+  if (needle.length > haystack.length || haystack.length > 512)
+    return undefined;
+  const needleLower = needle.toLowerCase();
+  const haystackLower = haystack.toLowerCase();
+  let searchFrom = 0;
+  for (const character of needleLower) {
+    searchFrom = haystackLower.indexOf(character, searchFrom);
+    if (searchFrom < 0) return undefined;
+    searchFrom += 1;
+  }
+
+  const scores = Array.from(
+    { length: needle.length },
+    () => Array(haystack.length).fill(Number.NEGATIVE_INFINITY) as number[],
+  );
+  const previous = Array.from(
+    { length: needle.length },
+    () => Array(haystack.length).fill(-1) as number[],
+  );
+
+  for (let column = 0; column < haystack.length; column += 1) {
+    if (needleLower[0] !== haystackLower[column]) continue;
+    scores[0]![column] =
+      420 +
+      (isWordBoundary(haystack, column) ? 260 : 0) -
+      column * 12 +
+      characterCaseBonus(needle[0] ?? "", haystack[column] ?? "");
+  }
+
+  for (let row = 1; row < needle.length; row += 1) {
+    let bestGapScore = Number.NEGATIVE_INFINITY;
+    let bestGapIndex = -1;
+    for (let column = 0; column < haystack.length; column += 1) {
+      const gapCandidate = scores[row - 1]?.[column - 2];
+      if (gapCandidate !== undefined) {
+        const normalized = gapCandidate + (column - 2) * 18;
+        if (normalized > bestGapScore) {
+          bestGapScore = normalized;
+          bestGapIndex = column - 2;
+        }
+      }
+      if (needleLower[row] !== haystackLower[column]) continue;
+
+      const boundaryBonus = isWordBoundary(haystack, column) ? 170 : 0;
+      const exactCaseBonus = characterCaseBonus(
+        needle[row] ?? "",
+        haystack[column] ?? "",
+      );
+      const consecutive = scores[row - 1]?.[column - 1];
+      let score =
+        consecutive === undefined || !Number.isFinite(consecutive)
+          ? Number.NEGATIVE_INFINITY
+          : consecutive + 260 + boundaryBonus + exactCaseBonus;
+      let predecessor = column - 1;
+      if (Number.isFinite(bestGapScore)) {
+        const gapped =
+          bestGapScore - (column - 1) * 18 + boundaryBonus + exactCaseBonus;
+        if (gapped > score) {
+          score = gapped;
+          predecessor = bestGapIndex;
+        }
+      }
+      scores[row]![column] = score;
+      previous[row]![column] = predecessor;
+    }
+  }
+
+  const lastRow = scores.at(-1) ?? [];
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let column = -1;
+  for (let index = 0; index < lastRow.length; index += 1) {
+    const score = (lastRow[index] ?? Number.NEGATIVE_INFINITY) - index * 2;
+    if (score > bestScore) {
+      bestScore = score;
+      column = index;
+    }
+  }
+  if (column < 0 || !Number.isFinite(bestScore)) return undefined;
+
+  const indices: number[] = [];
+  for (let row = needle.length - 1; row >= 0; row -= 1) {
+    indices.push(column);
+    column = previous[row]?.[column] ?? -1;
+  }
+  indices.reverse();
+  return { score: bestScore, ranges: indicesToRanges(indices) };
+}
+
+function caseBonus(term: string, matched: string): number {
+  return term === matched ? 80 : 0;
+}
+
+function characterCaseBonus(needle: string, matched: string): number {
+  return needle === matched ? 25 : 0;
 }
 
 function isWordBoundary(value: string, index: number): boolean {
@@ -377,48 +501,15 @@ function isWordBoundary(value: string, index: number): boolean {
   );
 }
 
-function fuzzySubsequence(
-  needle: string,
-  haystack: string,
-):
-  | { score: number; ranges: Array<[number, number]>; firstIndex: number }
-  | undefined {
-  const indices: number[] = [];
-  const haystackLower = haystack.toLowerCase();
-  let searchFrom = 0;
-
-  for (const char of needle) {
-    const index = haystackLower.indexOf(char, searchFrom);
-    if (index < 0) return undefined;
-    indices.push(index);
-    searchFrom = index + 1;
+function segmentOffset(
+  candidate: FileCompletionCandidate,
+  segmentIndex: number,
+): number {
+  let offset = 0;
+  for (let index = 0; index < segmentIndex; index += 1) {
+    offset += (candidate.segments[index]?.length ?? 0) + 1;
   }
-
-  const firstIndex = indices[0] ?? 0;
-  let consecutive = 0;
-  let boundaryHits = 0;
-  let gapPenalty = 0;
-
-  for (let index = 0; index < indices.length; index += 1) {
-    const current = indices[index] ?? 0;
-    const previous = indices[index - 1];
-    if (previous !== undefined) {
-      if (current === previous + 1) consecutive += 1;
-      else gapPenalty += current - previous - 1;
-    }
-    if (isWordBoundary(haystack, current)) boundaryHits += 1;
-  }
-
-  return {
-    score:
-      180 +
-      consecutive * 35 +
-      boundaryHits * 45 -
-      firstIndex * 4 -
-      gapPenalty * 3,
-    ranges: indicesToRanges(indices),
-    firstIndex,
-  };
+  return offset;
 }
 
 function indicesToRanges(indices: number[]): Array<[number, number]> {
@@ -441,14 +532,4 @@ function mergeRanges(ranges: Array<[number, number]>): Array<[number, number]> {
     else merged.push([...range]);
   }
   return merged;
-}
-
-function orderedTermBoost(matches: TargetMatch[]): number {
-  if (matches.length <= 1) return 0;
-  for (let index = 1; index < matches.length; index += 1) {
-    if ((matches[index]?.index ?? 0) < (matches[index - 1]?.index ?? 0)) {
-      return 0;
-    }
-  }
-  return 240;
 }

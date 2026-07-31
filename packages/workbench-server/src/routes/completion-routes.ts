@@ -2,7 +2,6 @@ import type { CompletionItem } from "@nervekit/contracts";
 import { fileCompletionQuerySchema } from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
-import { FileCompletionService } from "../domains/completions/index.js";
 import { routeHandler } from "../http/responses.js";
 
 const slashCompletionItems: CompletionItem[] = [
@@ -34,9 +33,6 @@ const slashCompletionItems: CompletionItem[] = [
 
 export function createCompletionRoutes(state: OrchestratorState): Hono {
   const app = new Hono();
-  const files = new FileCompletionService((projectId) =>
-    state.registry.getProject(projectId),
-  );
 
   app.get("/completions/slash", (c) => c.json({ items: slashCompletionItems }));
   app.get(
@@ -48,7 +44,7 @@ export function createCompletionRoutes(state: OrchestratorState): Hono {
         limit: c.req.query("limit"),
       });
       return c.json({
-        items: await files.completeFiles(query.projectId, query.q, {
+        items: await state.registry.completeFiles(query.projectId, query.q, {
           limit: query.limit,
         }),
       });
