@@ -4,7 +4,15 @@ export function createDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
-export function loadingHtml(statusText = "Starting local daemon…"): string {
+export type LoadingStage = "starting" | "preparing" | "opening";
+
+const LOADING_STAGES: Record<LoadingStage, string> = {
+  starting: "Starting local services",
+  preparing: "Preparing your workspace",
+  opening: "Opening Nerve",
+};
+
+export function loadingHtml(statusText = LOADING_STAGES.starting): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -14,45 +22,88 @@ export function loadingHtml(statusText = "Starting local daemon…"): string {
     <style>${shellStyles()}</style>
   </head>
   <body>
-    <main
-      class="loading"
-      aria-busy="true"
-      aria-labelledby="loading-title"
-    >
-      <div class="signal" aria-hidden="true">
-        <div class="signal-ring"></div>
-        <div class="signal-ring signal-ring-inner"></div>
-        <div class="signal-glow"></div>
-        <div class="signal-orbit">
-          <span class="signal-dot"></span>
-        </div>
-        <div class="signal-card">
-          <svg
-            class="signal-mark"
-            viewBox="120 120 272 272"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            focusable="false"
+    <main class="loading" aria-busy="true" aria-label="Starting Nerve">
+      <div class="loading-mark-frame" aria-hidden="true">
+        <svg
+          class="loading-mark"
+          viewBox="120 120 272 272"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          focusable="false"
+        >
+          <g
+            stroke="currentColor"
+            stroke-width="32"
+            stroke-linecap="round"
+            stroke-linejoin="round"
           >
-            <g
-              stroke="currentColor"
-              stroke-width="28"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M150 350V162" />
-              <path d="M362 350V162" />
-              <path d="M150 162L222 226L246 194L272 300L296 262L362 350" />
-            </g>
-          </svg>
+            <path d="M150 350V162" />
+            <path d="M362 350V162" />
+            <path d="M150 162L232 235L258 208L284 288L362 350" />
+          </g>
+        </svg>
+      </div>
+      <div class="loading-progress">
+        <p id="loading-status" class="status" role="status" aria-live="polite">${escapeHtml(statusText)}</p>
+        <div
+          id="loading-progressbar"
+          class="loading-progressbar"
+          role="progressbar"
+          aria-label="Starting Nerve"
+        >
+          <span id="loading-progress-fill" class="loading-progress-fill"></span>
         </div>
       </div>
-      <p class="eyebrow">Nerve</p>
-      <h1 id="loading-title" class="loading-title">Getting things ready</h1>
-      <p class="status" role="status" aria-live="polite">${escapeHtml(statusText)}</p>
     </main>
+    <script>${loadingProgressScript()}</script>
   </body>
 </html>`;
+}
+
+export function loadingStageScript(stage: LoadingStage): string {
+  const statusText = JSON.stringify(LOADING_STAGES[stage]);
+  const shouldComplete = stage === "opening";
+
+  return `(() => {
+    const status = document.getElementById("loading-status");
+    if (!status) return false;
+    status.textContent = ${statusText};
+    if (${shouldComplete}) window.nerveLoadingProgress?.complete();
+    return true;
+  })()`;
+}
+
+function loadingProgressScript(): string {
+  return `(() => {
+    const fill = document.getElementById("loading-progress-fill");
+    if (!fill) return;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const startedAt = performance.now();
+    let frame;
+
+    window.nerveLoadingProgress = {
+      complete() {
+        if (frame) cancelAnimationFrame(frame);
+        fill.style.transition = reducedMotion ? "none" : "width 160ms ease-out";
+        fill.style.width = "100%";
+      },
+    };
+
+    if (reducedMotion) {
+      fill.style.width = "8%";
+      return;
+    }
+
+    const advance = (now) => {
+      const elapsed = now - startedAt;
+      const progress = Math.min(94, 94 * (1 - Math.exp(-elapsed / 450)));
+      fill.style.width = progress + "%";
+      frame = requestAnimationFrame(advance);
+    };
+
+    frame = requestAnimationFrame(advance);
+  })()`;
 }
 
 export function errorHtml(error: unknown, dataDir = "~/.nerve"): string {
@@ -84,13 +135,11 @@ function shellStyles(): string {
       color-scheme: light dark;
       --background: oklch(0.9818 0.0054 95.0986);
       --foreground: oklch(0.3438 0.0269 95.7226);
-      --card: oklch(0.9665 0.0067 97.3521);
-      --primary: oklch(0.6171 0.1375 39.0427);
+      --primary: oklch(0.57 0.1375 39.0427);
       --muted-foreground: oklch(0.5341 0.0078 97.4503);
       --border: oklch(0.8847 0.0069 97.3627);
       --destructive: oklch(0.5 0.19 27);
       --radius: 0.625rem;
-      --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
       --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       --text-xs: 0.75rem;
@@ -106,7 +155,6 @@ function shellStyles(): string {
       :root {
         --background: oklch(0.2679 0.0036 106.6427);
         --foreground: oklch(0.9576 0.0027 106.4494);
-        --card: oklch(0.2928 0.0018 106.5092);
         --primary: oklch(0.6724 0.1308 38.7559);
         --muted-foreground: oklch(0.7713 0.0169 99.0657);
         --border: oklch(0.3618 0.0101 106.8928);
@@ -134,75 +182,19 @@ function shellStyles(): string {
     .loading {
       gap: 0;
     }
-    .signal {
-      position: relative;
+    .loading-mark-frame {
       display: grid;
-      width: 7rem;
-      height: 7rem;
-      margin-bottom: 1.5rem;
+      width: 6rem;
+      height: 6rem;
       place-items: center;
-    }
-    .signal-ring,
-    .signal-glow,
-    .signal-orbit {
-      position: absolute;
+      border: 1px solid var(--border);
       border-radius: 999px;
     }
-    .signal-ring {
-      inset: 0;
-      border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    .loading-mark {
+      width: 2.5rem;
+      height: 2.5rem;
+      color: var(--foreground);
     }
-    .signal-ring-inner {
-      inset: 0.75rem;
-      border-color: color-mix(in oklab, var(--primary) 30%, transparent);
-      border-style: dashed;
-    }
-    .signal-glow {
-      inset: 1.5rem;
-      background: color-mix(in oklab, var(--primary) 10%, transparent);
-      filter: blur(1rem);
-    }
-    .signal-orbit {
-      inset: 0.25rem;
-      animation: spin 12s linear infinite;
-    }
-    .signal-dot {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      width: 0.5rem;
-      height: 0.5rem;
-      border-radius: 999px;
-      background: var(--primary);
-      box-shadow: var(--shadow-sm);
-      transform: translate(-50%, -50%);
-    }
-    .signal-card {
-      position: relative;
-      display: grid;
-      width: 3.5rem;
-      height: 3.5rem;
-      place-items: center;
-      border: 1px solid color-mix(in oklab, var(--primary) 30%, transparent);
-      border-radius: calc(var(--radius) * 1.4);
-      background: var(--card);
-      box-shadow: var(--shadow-sm);
-      color: var(--primary);
-    }
-    .signal-mark {
-      width: 1.75rem;
-      height: 1.75rem;
-    }
-    .eyebrow {
-      margin: 0;
-      color: var(--primary);
-      font-size: var(--text-xs);
-      font-weight: 500;
-      line-height: 1rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-    .loading-title,
     .error-title {
       margin: 0;
       color: var(--foreground);
@@ -211,18 +203,33 @@ function shellStyles(): string {
       line-height: 1.75rem;
       letter-spacing: -0.025em;
     }
-    .loading-title {
-      margin-top: 0.5rem;
-    }
     .status {
       margin: 0;
       color: var(--muted-foreground);
       font-size: var(--text-sm);
       line-height: 1.625;
     }
+    .loading-progress {
+      width: min(20rem, 100%);
+      margin-top: 1.25rem;
+    }
     .loading .status {
-      max-width: 28rem;
-      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+      text-align: left;
+    }
+    .loading-progressbar {
+      width: 100%;
+      height: 0.25rem;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--border);
+    }
+    .loading-progress-fill {
+      display: block;
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--primary);
     }
     .error {
       gap: 1rem;
@@ -245,11 +252,8 @@ function shellStyles(): string {
       font-size: var(--text-xs);
       line-height: 1.5;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
     @media (prefers-reduced-motion: reduce) {
-      .signal-orbit { animation: none; }
+      .loading-progress-fill { transition: none; }
     }
   `;
 }

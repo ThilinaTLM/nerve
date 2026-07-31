@@ -8,7 +8,10 @@ import {
 } from "./app/cli-options.js";
 import { prepareDesktopDataDirectory } from "./app/data-directory-migration.js";
 import { startWithRunRuntimeRecovery } from "./app/run-runtime-recovery.js";
-import { runStartupSequence } from "./app/startup-sequence.js";
+import {
+  runStartupSequence,
+  type StartupProgressPhase,
+} from "./app/startup-sequence.js";
 import {
   type DaemonStatus,
   type DaemonStatusInfo,
@@ -37,7 +40,9 @@ import type { QuitOptions, QuitSource } from "./types.js";
 import {
   createDataUrl,
   errorHtml,
+  type LoadingStage,
   loadingHtml,
+  loadingStageScript,
 } from "./window/loading-pages.js";
 import { installNavigationGuards } from "./window/navigation-guards.js";
 import { withInitialZoomLevel } from "./window/initial-zoom.js";
@@ -350,6 +355,7 @@ async function openMainWindow(): Promise<void> {
         subscribeToDaemonStatus(daemon);
         trayController.updateTrayMenu();
       },
+      reportProgress: (phase) => updateStartupProgress(window, phase),
       canNavigate: () => !window.isDestroyed(),
       navigate: (daemon) =>
         window.loadURL(withInitialZoomLevel(daemon.url, initialZoomLevel)),
@@ -369,6 +375,24 @@ async function openMainWindow(): Promise<void> {
     console.error(error);
     if (!window.isDestroyed())
       await window.loadURL(createDataUrl(errorHtml(error, desktopDataDir)));
+  }
+}
+
+async function updateStartupProgress(
+  window: BrowserWindowType,
+  phase: StartupProgressPhase,
+): Promise<void> {
+  if (window.isDestroyed()) return;
+  const stage: LoadingStage =
+    phase === "daemon-ready" ? "preparing" : "opening";
+  try {
+    await window.webContents.executeJavaScript(loadingStageScript(stage));
+  } catch (error) {
+    if (window.isDestroyed()) return;
+    void desktopLog("warn", "window", "Failed to update startup progress", {
+      error,
+      context: { phase },
+    });
   }
 }
 
