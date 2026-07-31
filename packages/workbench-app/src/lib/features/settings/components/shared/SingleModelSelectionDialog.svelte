@@ -209,37 +209,43 @@ function save(): void {
   </div>
 
   {#snippet footer()}
-    <div class="mr-auto flex flex-wrap items-center gap-2">
-      <span
-        class="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-        >Thinking level</span
+    <div class="flex w-full flex-wrap items-center justify-end gap-2">
+      <div
+        class="mr-auto flex w-fit max-w-full flex-none flex-wrap items-center gap-2"
       >
-      <ToggleGroup.Root
-        type="single"
-        size="xs"
-        spacing={1}
-        variant="outline"
-        value={thinkingLevel}
-        aria-label="Thinking level"
-        class="flex-wrap"
-        onValueChange={(value) => {
-          if (value) thinkingLevel = value as ThinkingLevel;
-        }}
-      >
-        {#each thinkingLevels as level (level)}
-          <ToggleGroup.Item value={level} class="text-xs capitalize"
-            >{level}</ToggleGroup.Item
-          >
-        {/each}
-      </ToggleGroup.Root>
+        <span
+          class="text-xs font-medium tracking-wide text-muted-foreground uppercase"
+          >Thinking level</span
+        >
+        <ToggleGroup.Root
+          type="single"
+          size="xs"
+          spacing={1}
+          variant="outline"
+          value={thinkingLevel}
+          aria-label="Thinking level"
+          class="min-w-0 flex-wrap"
+          onValueChange={(value) => {
+            if (value) thinkingLevel = value as ThinkingLevel;
+          }}
+        >
+          {#each thinkingLevels as level (level)}
+            <ToggleGroup.Item value={level} class="text-xs capitalize"
+              >{level}</ToggleGroup.Item
+            >
+          {/each}
+        </ToggleGroup.Root>
+      </div>
+      <div class="flex flex-none items-center gap-2">
+        <Button size="sm" variant="ghost" onclick={() => (open = false)}
+          >Cancel</Button
+        >
+        <Button
+          size="sm"
+          onclick={save}
+          disabled={!hasFallback && !selectedModelInfo}>{confirmLabel}</Button
+        >
+      </div>
     </div>
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button
-      size="sm"
-      onclick={save}
-      disabled={!hasFallback && !selectedModelInfo}>{confirmLabel}</Button
-    >
   {/snippet}
 </Dialog>
