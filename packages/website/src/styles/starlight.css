@@ -80,10 +80,20 @@ site-search kbd {
   translate: 0.1rem 0;
 }
 
+/* Each group's entries hang off a hairline guideline, like a file tree. */
+.sidebar-content .top-level > li > details > ul {
+  margin-inline-start: 0.15rem;
+  padding-inline-start: 0.65rem;
+  border-inline-start: 1px solid var(--hairline);
+}
+
+/* The current page is a lit point on that guideline — an accent segment plus
+ * primary text over the faintest tint — rather than a filled pill that
+ * outweighs everything else in the rail. */
 .sidebar-content a[aria-current="page"],
 .sidebar-content a[aria-current="page"]:hover {
   border-radius: 0.55rem;
-  background-color: color-mix(in oklab, var(--primary) 15%, transparent);
+  background-color: color-mix(in oklab, var(--primary) 7%, transparent);
   color: var(--primary);
   font-weight: 600;
 }
@@ -91,11 +101,13 @@ site-search kbd {
 .sidebar-content a[aria-current="page"]::before {
   content: "";
   position: absolute;
-  inset-block: 0.3rem;
-  inset-inline-start: -0.35rem;
+  inset-block: 0.45rem;
+  /* Sits exactly on the group guideline drawn by the list border above. */
+  inset-inline-start: calc(-0.65rem - 1px);
   width: 2px;
   border-radius: 999px;
   background: linear-gradient(180deg, var(--primary), var(--brand-2));
+  box-shadow: 0 0 0.45rem color-mix(in oklab, var(--primary) 45%, transparent);
 }
 
 /* Content ------------------------------------------------------------------- */
@@ -194,27 +206,125 @@ site-search kbd {
 
 /* Code blocks --------------------------------------------------------------- */
 
+/* Styled after the marketing pages' device frame: a quiet bezel gutter with a
+ * mono label and a live dot — and no borrowed macOS traffic lights; Nerve
+ * ships on Linux, Windows, and macOS. */
+
 .expressive-code,
 .expressive-code .frame {
   min-width: 0;
 }
 
+.expressive-code {
+  /* Expressive Code reads these for the frame border and the copy icon. */
+  --ec-brdCol: var(--hairline);
+  --ec-brdRad: calc(var(--radius-device) - 1px);
+  --ec-frm-inlBtnFg: var(--muted-foreground);
+}
+
 .expressive-code .frame {
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-device);
   box-shadow: var(--shadow-soft);
 }
 
 .expressive-code .frame pre {
   border-color: var(--hairline);
+  background: var(--background);
 }
 
+/* The bezel. The dots Expressive Code paints in `::before` are removed. */
+.expressive-code .frame.is-terminal .header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  min-height: 2rem;
+  padding-inline: 0.85rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-device) var(--radius-device) 0 0;
+  background: color-mix(in oklab, var(--card) 80%, var(--background));
+}
+
+.expressive-code .frame.is-terminal .header::before {
+  display: none;
+}
+
+/* The live dot in the bezel's far corner. */
+.expressive-code .frame.is-terminal .header::after {
+  content: "";
+  flex: none;
+  width: 0.35rem;
+  height: 0.35rem;
+  margin-inline-start: auto;
+  border: 0;
+  border-radius: 999px;
+  background: var(--success);
+  position: static;
+  transform: none;
+}
+
+/* The gutter label: the block's title, or `terminal` when it has none. */
+.expressive-code .frame.is-terminal .header .title {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background-color: color-mix(in oklab, var(--foreground) 5%, transparent);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.expressive-code .frame.is-terminal .header .title:empty::before {
+  content: "terminal";
+}
+
+/* Editor frames (code blocks with a filename tab) share the bezel surface. */
+.expressive-code .frame:not(.is-terminal) .header {
+  border-color: var(--hairline);
+  background: color-mix(in oklab, var(--card) 80%, var(--background));
+}
+
+/* The copy control, restyled as one of the site's round hairline chips. */
 .expressive-code .copy button {
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background-color: color-mix(in oklab, var(--card) 88%, transparent);
+  transition:
+    border-color 200ms var(--ease-out-expo),
+    background-color 200ms var(--ease-out-expo),
+    opacity 200ms var(--ease-out-expo);
+}
+
+.expressive-code .copy button:hover,
+.expressive-code .copy button:focus-visible {
+  --ec-frm-inlBtnFg: var(--primary);
+  border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+  background-color: var(--surface-elevated);
 }
 
 .expressive-code .copy button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* The “Copied!” confirmation, as a quiet mono chip instead of a tooltip
+ * bubble in a foreign style. */
+.expressive-code .copy .feedback {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid color-mix(in oklab, var(--success) 45%, var(--border));
+  border-radius: 999px;
+  background-color: var(--background);
+  color: var(--success);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.expressive-code .copy .feedback::after {
+  display: none;
 }
 
 /* Asides -------------------------------------------------------------------- */
