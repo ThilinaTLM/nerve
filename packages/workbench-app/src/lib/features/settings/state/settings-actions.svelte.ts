@@ -46,6 +46,8 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let saveInFlight = false;
 let savedServerSettingsSinceLoad = false;
 let skillsRequestId = 0;
+let settingsLoadInFlight: Promise<void> | undefined;
+let settingsReloadRequested = false;
 
 function currentActiveAgent(): AgentRecord | undefined {
   return workspaceState.agents.find((agent) => agent.id === selection.agentId);
@@ -105,21 +107,16 @@ export async function loadSettingsSkills(projectId = selection.projectId) {
   }
 }
 
-export async function loadSettingsPanel() {
-  const [settings, modelList, auth, subscriptionUsage] = await Promise.all([
+async function loadCoreSettings(): Promise<void> {
+  const [settings, modelList, auth] = await Promise.all([
     getSettings(),
     getModels(),
     getAuthProviders(),
-    getSubscriptionUsage().catch(() => []),
-    loadSettingsSkills(),
   ]);
   settingsState.settingsDraft = settings;
   applyZoomLevel(settings.ui.zoomLevel);
   settingsState.models = modelList;
   settingsState.authProviders = auth;
-  usageState.subscriptionUsage = Object.fromEntries(
-    subscriptionUsage.map((usage) => [usage.provider, usage]),
-  );
   const usable = scopedUsableModelOptions(
     modelList,
     auth,
@@ -166,6 +163,30 @@ export async function loadSettingsPanel() {
     settingsState.settingsSaveStatus = "idle";
     settingsState.settingsMessage = undefined;
   }
+}
+
+function refreshAncillarySettingsData(): void {
+  void refreshSubscriptionUsage().catch(() => undefined);
+  void loadSettingsSkills();
+}
+
+async function runSettingsLoadCycle(): Promise<void> {
+  do {
+    settingsReloadRequested = false;
+    await loadCoreSettings();
+    refreshAncillarySettingsData();
+  } while (settingsReloadRequested);
+}
+
+export function loadSettingsPanel(): Promise<void> {
+  if (settingsLoadInFlight) {
+    settingsReloadRequested = true;
+    return settingsLoadInFlight;
+  }
+  settingsLoadInFlight = runSettingsLoadCycle().finally(() => {
+    settingsLoadInFlight = undefined;
+  });
+  return settingsLoadInFlight;
 }
 
 function mergeSettingsPatch(

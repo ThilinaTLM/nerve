@@ -76,7 +76,7 @@ describe("AuthManager", () => {
       new EncryptedFileSecretProvider(await tempHome()),
     );
 
-    const providers = await auth.listProviderMetadata([]);
+    const providers = await auth.listProviderMetadata();
     const subscriptions = providers
       .filter((provider) => provider.supportsOAuth)
       .map((provider) => provider.provider)
@@ -93,6 +93,23 @@ describe("AuthManager", () => {
     ]);
   });
 
+  it("advertises custom providers without enumerating their models", async () => {
+    const auth = new AuthManager(
+      new EncryptedFileSecretProvider(await tempHome()),
+    );
+
+    const providers = await auth.listProviderMetadata(
+      new Map([["custom-compatible", "Custom Compatible"]]),
+    );
+    const custom = providers.find(
+      (provider) => provider.provider === "custom-compatible",
+    );
+
+    assert.ok(custom);
+    assert.equal(custom.displayName, "Custom Compatible");
+    assert.equal(custom.supportsApiKey, true);
+  });
+
   it("includes Atlassian provider metadata", async () => {
     const auth = new AuthManager(
       new EncryptedFileSecretProvider(await tempHome()),
@@ -100,7 +117,7 @@ describe("AuthManager", () => {
     await auth.setApiKey("jira", "jira-token");
     await auth.setApiKey("confluence", "confluence-token");
 
-    const providers = await auth.listProviderMetadata([]);
+    const providers = await auth.listProviderMetadata();
     const jira = providers.find((provider) => provider.provider === "jira");
     assert.ok(jira);
     assert.equal(jira.displayName, "Jira");

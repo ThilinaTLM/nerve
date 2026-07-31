@@ -13,7 +13,6 @@ import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type {
   AgentRequestAuth,
   AuthProviderMetadata,
-  ModelInfo,
   ModelSelection,
 } from "@nervekit/contracts";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
@@ -202,15 +201,14 @@ export class AuthManager {
   }
 
   async listProviderMetadata(
-    models: ModelInfo[],
     customProviderNames?: ReadonlyMap<string, string>,
   ): Promise<AuthProviderMetadata[]> {
     const runtimeProviders = new Map(
       this.models.getProviders().map((provider) => [provider.id, provider]),
     );
     const providers = new Set<string>(runtimeProviders.keys());
-    for (const model of models) {
-      if (model.provider !== "nerve-faux") providers.add(model.provider);
+    for (const providerId of customProviderNames?.keys() ?? []) {
+      providers.add(providerId);
     }
     providers.add("tavily");
     providers.add("jira");

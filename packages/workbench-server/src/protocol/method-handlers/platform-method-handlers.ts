@@ -59,7 +59,6 @@ export const platformMethodHandlers = defineWorkbenchMethodHandlers({
   },
   "auth.providers.list": async (state) => ({
     providers: await state.auth.listProviderMetadata(
-      state.registry.listModels(),
       state.providerCatalog.providerDisplayNames(),
     ),
   }),

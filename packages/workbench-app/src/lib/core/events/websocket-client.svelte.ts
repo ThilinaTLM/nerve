@@ -88,8 +88,7 @@ export async function initializeWorkbench(): Promise<void> {
     await loadSlashCommands();
     await connectWebsocket(workspaceState.config.wsUrl);
     startReleasePolling();
-    await restoreConversationTabs();
-    await loadSettingsPanel();
+    await Promise.all([restoreConversationTabs(), loadSettingsPanel()]);
     startSubscriptionUsagePolling();
     clientLog("info", "workbench", "Workbench initialized");
   } catch (caught) {
