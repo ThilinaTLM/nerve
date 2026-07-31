@@ -22,6 +22,7 @@ import {
   getShortcutLabel,
 } from "$lib/core/shortcuts/registry";
 import type { PromptComposerProps } from "../components/prompt-composer-props";
+import { deriveComposerAvailability } from "./composer-availability";
 import { resolveDroppedPaths } from "./dropped-paths";
 
 let {
@@ -113,24 +114,24 @@ const pendingPlan = $derived(pendingPlanReviews.length > 0);
 const blockedForReview = $derived(
   pendingApproval || pendingQuestion || pendingPlan,
 );
-const canPrompt = $derived(
-  Boolean(
-    activeProject &&
-    (activeConversation || pendingConversationActive) &&
-    models.length > 0 &&
-    !blockedForReview &&
-    !compacting,
-  ),
-);
-const editorDisabled = $derived(!interactive || !canPrompt || stopping);
 const commandMode = $derived(isInlineCommandPrompt(text));
-const submitDisabled = $derived(
-  !interactive ||
-    !canPrompt ||
-    stopping ||
-    voiceSubmitPending ||
-    (commandMode && sending),
+const availability = $derived(
+  deriveComposerAvailability({
+    interactive,
+    hasProject: Boolean(activeProject),
+    hasConversation: Boolean(activeConversation || pendingConversationActive),
+    hasModels: models.length > 0,
+    blockedForReview,
+    compacting,
+    stopping,
+    sending,
+    commandMode,
+    voiceSubmitPending,
+  }),
 );
+const canPrompt = $derived(availability.canPrompt);
+const editorDisabled = $derived(!availability.canEdit);
+const submitDisabled = $derived(!availability.canSubmit);
 const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
 const fileDropSupported = $derived(Boolean(getDesktopBridge()?.files));
 const supportsAudioRecording = $derived(voiceInputSession.isSupported());
@@ -166,11 +167,13 @@ const sendAriaLabel = $derived(
       ? "Transcribe and send prompt"
       : compacting
         ? "Compacting context"
-        : commandMode
-          ? "Run command"
-          : sending
-            ? "Queue prompt"
-            : "Send prompt",
+        : availability.canEdit && models.length === 0
+          ? "Waiting for an available model"
+          : commandMode
+            ? "Run command"
+            : sending
+              ? "Queue prompt"
+              : "Send prompt",
 );
 const sendTitle = $derived(
   voiceSubmitPending
@@ -179,13 +182,15 @@ const sendTitle = $derived(
       ? "Stop recording, transcribe, and send prompt"
       : compacting
         ? "Compacting context"
-        : commandMode
-          ? sending
-            ? "Wait for the current agent turn before running a command"
-            : "Run command"
-          : sending
-            ? "Queue prompt for the next agent turn"
-            : "Send prompt",
+        : availability.canEdit && models.length === 0
+          ? "Models are loading; you can continue drafting"
+          : commandMode
+            ? sending
+              ? "Wait for the current agent turn before running a command"
+              : "Run command"
+            : sending
+              ? "Queue prompt for the next agent turn"
+              : "Send prompt",
 );
 
 function formatElapsed(ms: number): string {
@@ -196,15 +201,7 @@ function formatElapsed(ms: number): string {
 }
 
 async function submitComposer() {
-  if (
-    !interactive ||
-    blockedForReview ||
-    compacting ||
-    stopping ||
-    voiceSubmitPending ||
-    (commandMode && sending)
-  )
-    return;
+  if (!availability.canSubmit) return;
 
   if (recording && voiceTarget) {
     voiceSubmitPending = true;
