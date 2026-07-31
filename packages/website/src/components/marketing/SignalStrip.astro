@@ -45,18 +45,32 @@ const facts = [
 
   .strip-list {
     display: grid;
-    gap: 1.75rem 1rem;
     margin: 0;
     padding: 0;
     list-style: none;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /* Small screens: a quiet ledger. Each fact is one left-aligned row — node,
+   * value, label — separated by hairlines, instead of five centered columns
+   * fighting for half a phone width each. */
   .strip-item {
     display: grid;
-    justify-items: center;
-    gap: 0.5rem;
-    text-align: center;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.8rem;
+    row-gap: 0.2rem;
+    align-items: center;
+    justify-items: start;
+    padding-block: 0.85rem;
+    border-top: 1px solid var(--hairline);
+    text-align: left;
+  }
+
+  .strip-item:first-child {
+    border-top: 0;
+  }
+
+  .strip-item :global(.synapse-node) {
+    grid-row: 1 / span 2;
   }
 
   .strip-value {
@@ -65,6 +79,7 @@ const facts = [
     font-size: 0.8rem;
     font-weight: 500;
     letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
   }
 
   .strip-label {
@@ -80,6 +95,20 @@ const facts = [
   @media (min-width: 900px) {
     .strip-list {
       grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0 1rem;
+    }
+
+    .strip-item {
+      grid-template-columns: none;
+      justify-items: center;
+      row-gap: 0.5rem;
+      padding-block: 0;
+      border-top: 0;
+      text-align: center;
+    }
+
+    .strip-item :global(.synapse-node) {
+      grid-row: auto;
     }
 
     .strip-axon {

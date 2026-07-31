@@ -1,11 +1,12 @@
 /* §1 Hero.
  *
- * Two movements. On load the copy arrives line by line and the device deck
- * settles out of depth; on scroll the whole composition lifts away and the
- * floating event chips fall back toward the frame they came from.
+ * Two movements. On load the copy arrives line by line and the live-run panel
+ * settles out of depth; on scroll the composition lifts away. The transcript
+ * inside the panel is driven by `scripts/run-sim.ts`, not by the stage: the
+ * stage choreographs the frame, the sim owns the content.
  */
 
-import { drift, magnetic, revealLines } from "./primitives";
+import { revealLines } from "./primitives";
 import { allowEntrance, gsap, q, qa } from "./runtime";
 
 export function heroStage(): void {
@@ -14,7 +15,6 @@ export function heroStage(): void {
 
   const deck = q("[data-hero-deck]", hero);
   const copy = q("[data-hero-copy]", hero);
-  const chips = qa("[data-hero-chip]", hero);
   const glow = q(".hero-glow", hero);
   const cue = q(".hero-cue", hero);
 
@@ -79,24 +79,6 @@ export function heroStage(): void {
       );
     }
 
-    if (chips.length) {
-      intro.fromTo(
-        chips,
-        { opacity: 0, "--chip-scale": 0.72 },
-        {
-          opacity: 1,
-          "--chip-scale": 1,
-          duration: 0.55,
-          stagger: 0.09,
-          ease: "settle",
-          onComplete: () => {
-            drift(chips, { amount: 14, base: 6.5, property: "--chip-float" });
-          },
-        },
-        0.85,
-      );
-    }
-
     /* One brightness pulse through the dendrite canvas, timed to land with the
      * deck. `dendrite-field.ts` owns the rendering. */
     intro.call(
@@ -104,9 +86,8 @@ export function heroStage(): void {
       undefined,
       0.95,
     );
-  } else {
-    if (charge) gsap.set(charge, { "--charge": 1 });
-    drift(chips, { amount: 14, base: 6.5, property: "--chip-float" });
+  } else if (charge) {
+    gsap.set(charge, { "--charge": 1 });
   }
 
   revealLines(title, { stagger: 0.09, delay: 0.05 });
@@ -144,18 +125,6 @@ export function heroStage(): void {
       0,
     );
   }
-  if (chips.length) {
-    out.fromTo(
-      chips,
-      { "--chip-z": "150px", opacity: 1 },
-      { "--chip-z": "0px", opacity: 0.55 },
-      0,
-    );
-  }
   if (glow) out.fromTo(glow, { opacity: 0.18 }, { opacity: 0.05 }, 0);
   if (cue) out.to(cue, { opacity: 0, duration: 0.12 }, 0);
-}
-
-export function heroMagnetics(): void {
-  magnetic(qa<HTMLElement>("[data-magnetic]"));
 }

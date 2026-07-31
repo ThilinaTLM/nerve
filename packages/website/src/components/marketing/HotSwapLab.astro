@@ -1,0 +1,252 @@
+---
+/* The hot-swap lab.
+ *
+ * A simulated run streams on the right; the controls on the left are real.
+ * Retune the model, thinking level, agent mode, or permission and a config
+ * marker lands in the stream — the current event finishes under the old
+ * settings, the next turn runs under the new ones. This demonstrates the
+ * documented semantic exactly: changes on an active conversation never
+ * recreate it and apply from the next provider request.
+ *
+ * `scripts/hotswap.ts` wires the controls; `scripts/run-sim.ts` streams the
+ * events. With no JavaScript the panel shows the complete static turn below
+ * and the controls render in their default state.
+ */
+
+import DeviceFrame from "./DeviceFrame.astro";
+import Reveal from "./Reveal.astro";
+import RunPanel, { type StaticRow } from "./RunPanel.astro";
+
+/* Small lucide-style outline icons, inlined so the labels carry a glyph
+ * without a client dependency. */
+const icons: Record<string, string> = {
+  model:
+    '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>',
+  thinking:
+    '<path d="M12 3a4.5 4.5 0 0 0-4.46 4.1A4 4 0 0 0 5 14.5a3.5 3.5 0 0 0 3.5 6h7a3.5 3.5 0 0 0 3.5-6 4 4 0 0 0-2.54-7.4A4.5 4.5 0 0 0 12 3Z"/>',
+  mode: '<path d="m18 5 3 3-10.5 10.5-4 1 1-4Z"/><path d="m15 8 1.5 1.5"/>',
+  permission:
+    '<path d="M20 13c0 5-3.5 7.5-7.7 8.9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1 1 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1Z"/>',
+};
+
+const controls = [
+  {
+    key: "model",
+    label: "Model",
+    options: [
+      { value: "fable", label: "Fable" },
+      { value: "opus", label: "Opus" },
+      { value: "gpt", label: "GPT" },
+      { value: "kimi", label: "Kimi" },
+    ],
+  },
+  {
+    key: "thinking",
+    label: "Thinking",
+    options: [
+      { value: "off", label: "Off" },
+      { value: "low", label: "Low" },
+      { value: "medium", label: "Medium" },
+      { value: "high", label: "High" },
+    ],
+  },
+  {
+    key: "mode",
+    label: "Agent mode",
+    options: [
+      { value: "coding", label: "Coding" },
+      { value: "planning", label: "Plan" },
+    ],
+  },
+  {
+    key: "permission",
+    label: "Permission",
+    options: [
+      { value: "read_only", label: "Read-only" },
+      { value: "supervised", label: "Supervised" },
+      { value: "autonomous", label: "Autonomous" },
+    ],
+  },
+];
+
+const defaults: Record<string, string> = {
+  model: "opus",
+  thinking: "high",
+  mode: "coding",
+  permission: "supervised",
+};
+
+/* Mirrors `buildTurn(TASKS[1], defaults)` with the gate already resolved. */
+const staticRows: StaticRow[] = [
+  { kind: "prompt", text: "The policy test is flaky — pin it down." },
+  {
+    kind: "thinking",
+    text: "The failure is time-dependent. Freezing the clock before the assertion should make it deterministic.",
+  },
+  {
+    kind: "tool",
+    tool: {
+      name: "read",
+      args: "packages/workbench-server/test/policy.test.ts",
+      out: ["Read 168 lines"],
+      lines: "168 lines",
+    },
+  },
+  { kind: "gate", text: "edit needs review" },
+  {
+    kind: "tool",
+    tool: {
+      name: "edit",
+      args: "packages/workbench-server/test/policy.test.ts",
+      out: ["+4 −4 · clock frozen before the assertion"],
+      lines: "1 hunk",
+    },
+  },
+  {
+    kind: "prose",
+    text: "Deflaked: the clock is frozen before the assertion now.",
+  },
+];
+---
+
+<div class="lab" data-hotswap>
+  <Reveal class="lab-controls" variant="left">
+    <p class="lab-hint meta-text">
+      These controls are live — the stream reacts to you.
+    </p>
+    {
+      controls.map((control) => (
+        <div class="deck-control" data-control={control.key}>
+          <span class="deck-label" id={`lab-${control.key}`}>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              set:html={icons[control.key]}
+            />
+            {control.label}
+          </span>
+          <div class="seg" role="group" aria-labelledby={`lab-${control.key}`}>
+            {control.options.map((option) => (
+              <button
+                type="button"
+                class="seg-btn"
+                data-value={option.value}
+                aria-pressed={
+                  defaults[control.key] === option.value ? "true" : "false"
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+    <p class="body-text lab-note">
+      None of these recreate the conversation. The event already streaming
+      finishes under the old settings; the change applies to the next provider
+      request. Plan mode constrains edits to Nerve's plan storage; read-only
+      blocks mutation, execution, and ordinary network.
+    </p>
+  </Reveal>
+
+  <Reveal class="lab-stage" variant="right" delay={120}>
+    <DeviceFrame label="nerve · same conversation" depth={3}>
+      <RunPanel
+        sim="lab"
+        rows={staticRows}
+        hint="Approvals pause the stream — take the button when it appears"
+        description="Simulated Nerve run that reacts to the controls beside it: changing model, thinking, mode, or permission adds a configuration marker to the stream and the next agent turn follows the new settings."
+      />
+    </DeviceFrame>
+  </Reveal>
+</div>
+
+<style>
+  .lab {
+    display: grid;
+    gap: clamp(2rem, 4vw, 3.5rem);
+    align-items: start;
+  }
+
+  .lab-controls {
+    display: grid;
+    gap: 1.4rem;
+    align-content: start;
+  }
+
+  .lab-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .lab-hint::before {
+    content: "";
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--primary);
+    animation: pulse-ring 2.2s ease-out infinite;
+  }
+
+  .lab-note {
+    max-width: 30rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--hairline);
+    font-size: 0.9rem;
+  }
+
+  .lab-stage {
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .lab {
+      grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+      align-items: center;
+    }
+  }
+
+  /* Below the two-column breakpoint the controls sit above the stream; pairs
+   * of groups share a row where they fit so the deck stays compact. */
+  @media (max-width: 1023px) {
+    /* The stream leads on small screens: a visitor should see the run react
+     * before scrolling on to the controls that caused it. */
+    .lab-stage {
+      order: -1;
+    }
+
+    .lab-controls {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+      gap: 1.1rem 1.5rem;
+    }
+
+    .lab-hint,
+    .lab-note {
+      grid-column: 1 / -1;
+    }
+
+    /* On touch layouts each segment becomes a full-width bar of equal-width
+     * buttons — bigger targets, no dead track, and options can never wrap
+     * onto a second line inside the pill. */
+    .seg {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      justify-self: stretch;
+    }
+
+    .seg-btn {
+      padding-inline: 0.3rem;
+      text-align: center;
+    }
+  }
+</style>

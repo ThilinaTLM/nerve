@@ -1,0 +1,155 @@
+---
+/* The lean harness.
+ *
+ * The visual argument: a wall of the scaffolding other harnesses inject —
+ * personas, rule lists, defensive boilerplate — dissolves into the one
+ * sentence Nerve actually leads with. The authored state is the resolved one
+ * (wall faded, sentence bright), so the claim reads with no script; the stage
+ * replays the dissolve on scroll.
+ */
+
+import Reveal from "./Reveal.astro";
+
+/* Faux mega-prompt fragments. Deliberately generic: this is the genre being
+ * dissolved, not a quote of any particular product. */
+const wall = [
+  "You are an expert 10x engineer persona…",
+  "ALWAYS begin every reply with a summary…",
+  "NEVER use the edit tool before reflecting…",
+  "Rule 14: apologize when tests fail…",
+  "Respond with enthusiasm and emojis…",
+  "Step 1 of 12: restate the user's intent…",
+  "You must think step by step at all times…",
+  "IMPORTANT: IMPORTANT: IMPORTANT:",
+  "Refuse to answer without a plan document…",
+  "Wrap every answer in exactly three parts…",
+  "As a large language model, you should…",
+  "Consider seventeen edge cases first…",
+  "Always praise the user's question…",
+  "Do not be creative unless instructed…",
+  "Rule 63: end with a motivational quote…",
+  "Insert disclaimer before code blocks…",
+  "You have the personality of a helpful…",
+  "Re-read these instructions every turn…",
+  "NEVER admit uncertainty…",
+  "Use the word 'certainly' frequently…",
+  "Follow the 40-point style rubric below…",
+  "Before any action, write a haiku…",
+  "Summarize this prompt back to me…",
+  "ALWAYS defer to the style council…",
+  "Rule 108: never mention rule 108…",
+  "Prepend every path with a compliment…",
+  "Think harder. Then think even harder…",
+  "Your name is Sparkles. Stay in character…",
+  "Output JSON, but also prose, but also…",
+  "Escalate all decisions to the persona…",
+  "Count your tokens out loud…",
+  "This prompt is 12,000 words. Memorize it…",
+];
+
+const tools = [
+  "read",
+  "grep",
+  "find",
+  "ls",
+  "edit",
+  "write",
+  "bash",
+  "python_exec",
+  "web_search",
+  "web_fetch",
+  "task_start",
+  "explore",
+  "ask_user",
+  "todos_set",
+];
+
+const points = [
+  {
+    title: "A concise base prompt",
+    body: "One working sentence by default. Tool rules, mode constraints, and project context are appended only when the run actually uses them.",
+  },
+  {
+    title: "A small, polished tool surface",
+    body: "A compact set of workspace tools with bounded output, so the model spends its tokens on your problem instead of on ceremony.",
+  },
+  {
+    title: "Enforcement, not prose",
+    body: "Plan mode keeps research available and constrains edits to plan storage — in the policy layer, not in paragraphs of instructions.",
+  },
+];
+---
+
+<div class="lean" data-lean>
+  <Reveal variant="scale" class="lean-stage-reveal">
+    <figure class="lean-stage">
+      <div class="lean-wall" aria-hidden="true" data-lean-wall>
+        {wall.map((line) => <span data-lean-line>{line}</span>)}
+      </div>
+
+      <figcaption class="lean-core" data-lean-core>
+        <blockquote>
+          “Work in the current project, use tools safely, and keep responses
+          concise.”
+        </blockquote>
+        <span class="lean-source">nerve-system-prompt.ts · the default base prompt</span>
+        <span class="lean-tools" aria-label="Workspace tools">
+          {tools.map((tool) => <code class="code-chip">{tool}</code>)}
+        </span>
+      </figcaption>
+    </figure>
+  </Reveal>
+
+  <Reveal class="lean-points" stagger={90}>
+    {
+      points.map((point) => (
+        <article class="lean-point" data-reveal-child>
+          <h3 class="card-title">{point.title}</h3>
+          <p class="body-text">{point.body}</p>
+        </article>
+      ))
+    }
+  </Reveal>
+</div>
+
+<style>
+  .lean {
+    display: grid;
+    gap: var(--section-gap);
+  }
+
+  .lean-stage {
+    margin: 0;
+  }
+
+  .lean-source {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+  }
+
+  .lean-points {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  }
+
+  .lean-point {
+    display: grid;
+    gap: 0.5rem;
+    align-content: start;
+    padding: 1.35rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: var(--card);
+    box-shadow: var(--depth-1);
+    transition:
+      border-color 260ms var(--ease-out-expo),
+      box-shadow 260ms var(--ease-out-expo);
+  }
+
+  .lean-point:hover {
+    border-color: color-mix(in oklab, var(--primary) 34%, var(--border));
+    box-shadow: var(--depth-2);
+  }
+</style>

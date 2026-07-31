@@ -220,9 +220,17 @@ const stops = [
 
     .tour-copy {
       gap: 26vh;
-      /* The final stop needs half a usable viewport of runway so the sticky
-       * frame remains centered instead of colliding with the tour boundary. */
-      padding-block: 2vh calc((100svh - var(--nav-height)) / 2);
+      /* Runway on both ends. The first stop starts beside the centred sticky
+       * frame instead of at the section's top edge — without the inset there
+       * is no scroll position where stop 01 and the screenshot actually sit
+       * side by side (26rem ≈ the height of one stop). The final stop needs
+       * half a usable viewport so the frame stays centred instead of
+       * colliding with the tour boundary. */
+      padding-block: max(
+          2vh,
+          calc((100svh - var(--nav-height) - 26rem) / 2)
+        )
+        calc((100svh - var(--nav-height)) / 2);
     }
 
     .tour-inline-media {

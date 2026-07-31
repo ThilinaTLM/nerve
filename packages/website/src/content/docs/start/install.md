@@ -9,9 +9,17 @@ Nerve requires **Node.js 24 or newer**. The supported npm launcher runs on Linux
 
 ## Launch from npm
 
-```sh
+Choose the command for your package manager.
+
+**npm**
+
+```sh wrap
 npx @nervekit/desktop@latest
-# or
+```
+
+**pnpm**
+
+```sh wrap
 pnpm dlx @nervekit/desktop@latest
 ```
 

@@ -1,22 +1,22 @@
 ---
 import heroImage from "../assets/shots/d1-conversation.webp";
 import MarketingLayout from "../layouts/MarketingLayout.astro";
-import AnatomyOfARun from "../components/marketing/AnatomyOfARun.astro";
-import AuthorityDial from "../components/marketing/AuthorityDial.astro";
-import CapabilityLattice from "../components/marketing/CapabilityLattice.astro";
 import ClosingCta from "../components/marketing/ClosingCta.astro";
+import DefaultsGrid from "../components/marketing/DefaultsGrid.astro";
+import EventAnatomy from "../components/marketing/EventAnatomy.astro";
 import Hero from "../components/marketing/Hero.astro";
+import HotSwapLab from "../components/marketing/HotSwapLab.astro";
+import LeanHarness from "../components/marketing/LeanHarness.astro";
+import AuthorityDial from "../components/marketing/AuthorityDial.astro";
 import PocketWorkbench from "../components/marketing/PocketWorkbench.astro";
-import ReflexArc from "../components/marketing/ReflexArc.astro";
-import Resilience from "../components/marketing/Resilience.astro";
+import RepoConstellation from "../components/marketing/RepoConstellation.astro";
 import Section from "../components/marketing/Section.astro";
 import SignalStrip from "../components/marketing/SignalStrip.astro";
-import Topology from "../components/marketing/Topology.astro";
 import WorkbenchTour from "../components/marketing/WorkbenchTour.astro";
 
-const title = "Nerve — transparent, local-first coding harness";
+const title = "Nerve — see everything, steer it live";
 const description =
-  "See the agent work, control its authority, and manage coding workflows from an open-source desktop workbench that runs with your local projects.";
+  "An open-source, local-first coding harness where every agent event is inspectable and a running agent can be retuned mid-run — model, mode, and authority included.";
 const ogImage = new URL(heroImage.src, Astro.site).href;
 ---
 
@@ -31,13 +31,27 @@ const ogImage = new URL(heroImage.src, Astro.site).href;
 
   <SignalStrip />
 
-  {/* The one pinned section on the page. It owns its own heading because the
-      choreography needs control of the whole block. */}
-  <AnatomyOfARun />
+  <Section
+    id="hotswap"
+    eyebrow="Retune the run while it runs"
+    title="Change the model mid-thought."
+    lede="Model, thinking level, agent mode, permission — change any of them on an active conversation and it applies from the next provider request. The controls below are wired to the stream."
+  >
+    <HotSwapLab />
+  </Section>
+
+  <Section
+    id="anatomy"
+    tone="sunken"
+    eyebrow="Nothing happens off-screen"
+    title="A run is not a spinner. It's a stack of typed events."
+    lede="Prompts, reasoning, tool calls, results, approvals, and recovery are separate events. Each keeps its evidence, and all of it stays in history."
+  >
+    <EventAnatomy />
+  </Section>
 
   <Section
     id="authority"
-    tone="sunken"
     eyebrow="Authority, not vibes"
     title="Decide what the agent may do — before it does it."
     lede="Nerve enforces permission in the harness policy layer, not just in the system prompt. Change the level and the tool policy changes with it."
@@ -46,7 +60,28 @@ const ogImage = new URL(heroImage.src, Astro.site).href;
   </Section>
 
   <Section
+    id="lean"
+    tone="sunken"
+    align="center"
+    eyebrow="The harness stays out of the way"
+    title="Your model, at full intelligence."
+    lede="No walls of instructions wrapping every request. A concise base prompt, a small polished tool surface, and constraints enforced in the policy layer — so the model's capability reaches your code intact."
+  >
+    <LeanHarness />
+  </Section>
+
+  <Section
+    id="fullstack"
+    eyebrow="One workbench, your whole stack"
+    title="Open the parent directory. Work across every repo."
+    lede="Point Nerve at the workspace that holds your API, web app, and mobile app. It discovers the repositories beneath it and keeps Git, diffs, and pull requests for all of them in one shell."
+  >
+    <RepoConstellation />
+  </Section>
+
+  <Section
     id="workbench"
+    tone="sunken"
     eyebrow="The workbench is the interface"
     title="Follow the signal from intent to merge"
     lede="Real project context stays connected across the conversation, Git, pull requests, and supervised tasks."
@@ -55,22 +90,12 @@ const ogImage = new URL(heroImage.src, Astro.site).href;
   </Section>
 
   <Section
-    id="capabilities"
-    tone="sunken"
-    align="center"
-    eyebrow="A connected system"
-    title="Every capability branches from one local workbench"
+    id="defaults"
+    eyebrow="Tuned defaults, visible seams"
+    title="When it breaks, you keep the work."
+    lede="Provider failures, context limits, and wrong turns are expected states in Nerve — handled by defaults you can see and change, never by dead ends."
   >
-    <CapabilityLattice />
-  </Section>
-
-  <Section
-    id="resilience"
-    eyebrow="When it breaks"
-    title="You keep the work."
-    lede="Provider failures, context limits, and wrong turns are expected states in Nerve, not dead ends."
-  >
-    <Resilience />
+    <DefaultsGrid />
   </Section>
 
   <Section
@@ -80,23 +105,6 @@ const ogImage = new URL(heroImage.src, Astro.site).href;
     title="A workbench that adapts, not a desktop squeezed onto a phone"
   >
     <PocketWorkbench />
-  </Section>
-
-  <Section
-    id="workflow"
-    eyebrow="One continuous workflow"
-    title="Direct the agent. Review the evidence. Ship deliberately."
-  >
-    <ReflexArc />
-  </Section>
-
-  <Section
-    id="topology"
-    tone="sunken"
-    eyebrow="Local-first topology"
-    title="Your workbench talks to your daemon, not to a hosted Nerve service."
-  >
-    <Topology />
   </Section>
 
   <ClosingCta />
