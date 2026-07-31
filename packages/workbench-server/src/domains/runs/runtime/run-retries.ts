@@ -35,10 +35,18 @@ export function countAutomaticRetries(
     run: Pick<RunRecord, "failure">;
   }[],
 ): number {
-  return transitions.filter(
-    (transition) =>
-      transition.kind === "retrying" && transition.run.failure !== undefined,
-  ).length;
+  let retries = 0;
+  for (let index = transitions.length - 1; index >= 0; index -= 1) {
+    const transition = transitions[index];
+    if (transition?.kind === "resumed") break;
+    if (
+      transition?.kind === "retrying" &&
+      transition.run.failure !== undefined
+    ) {
+      retries += 1;
+    }
+  }
+  return retries;
 }
 
 export function decideRunRetry(
