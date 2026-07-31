@@ -24,9 +24,7 @@ const tones: Record<SaveStatus, StatusTone> = {
 const tone = $derived(tones[(status as SaveStatus) ?? "idle"] ?? "neutral");
 </script>
 
-<div
-  class="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 border-t border-border/70 px-1.5 pt-3"
->
+<div class="settings-sidebar-status">
   <StatusDot {tone} class="mt-1" />
   <p class="text-xs text-muted-foreground">{text}</p>
 </div>
