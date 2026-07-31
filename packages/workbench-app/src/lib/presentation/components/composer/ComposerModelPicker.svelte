@@ -3,7 +3,15 @@ import Check from "@lucide/svelte/icons/check";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import type { ModelInfo, ThinkingLevel } from "@nervekit/contracts";
 import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
+import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
 import { contextualModelLabel, modelKey } from "$lib/presentation/utils/model";
+import {
+  buildModelCatalog,
+  filterModelCatalog,
+  modelProviderFacets,
+} from "$lib/presentation/utils/model-catalog";
 
 type Props = {
   models?: ModelInfo[];
@@ -29,8 +37,21 @@ let {
   onThinkingLevelChange,
 }: Props = $props();
 
-let open = $state(false);
+const SEARCH_THRESHOLD = 10;
 
+let open = $state(false);
+let query = $state("");
+let providerFilter = $state("all");
+
+const catalog = $derived(buildModelCatalog(models));
+const providerChips = $derived(modelProviderFacets(catalog));
+const filteredModels = $derived(
+  filterModelCatalog(
+    catalog,
+    models.length > SEARCH_THRESHOLD ? query : "",
+    models.length > SEARCH_THRESHOLD ? providerFilter : "all",
+  ),
+);
 const selectedModel = $derived(
   models.find((model) => modelKey(model) === selectedModelKey),
 );
@@ -96,6 +117,10 @@ const triggerTitle = $derived(
 
 function handleOpenChange(next: boolean) {
   open = disabled ? false : next;
+  if (open) {
+    query = "";
+    providerFilter = "all";
+  }
 }
 
 function selectModel(model: ModelInfo) {
@@ -143,27 +168,67 @@ $effect(() => {
       {#if models.length === 0}
         <p class="model-picker-empty">{emptyMessage}</p>
       {:else}
-        <ul class="model-list">
-          {#each models as model (modelKey(model))}
-            {@const active = modelKey(model) === selectedModelKey}
-            {@const label = contextualModelLabel(model, models)}
-            <li>
-              <button
-                type="button"
-                class="model-row"
-                class:active
-                aria-pressed={active}
-                {disabled}
-                onclick={() => selectModel(model)}
+        <div class="grid gap-2">
+          {#if models.length > SEARCH_THRESHOLD}
+            <SearchInput
+              bind:value={query}
+              placeholder="Search models"
+              ariaLabel="Search models"
+            />
+            {#if providerChips.length > 2}
+              <ToggleGroup.Root
+                type="single"
+                size="xs"
+                spacing={1}
+                variant="outline"
+                value={providerFilter}
+                aria-label="Filter by provider"
+                class="flex-nowrap overflow-x-auto"
+                onValueChange={(value) => {
+                  if (value) providerFilter = value;
+                }}
               >
-                <span class="model-row-text">
-                  <span class="model-row-label">{label}</span>
-                </span>
-                {#if active}<Check size={14} strokeWidth={2.4} />{/if}
-              </button>
-            </li>
-          {/each}
-        </ul>
+                {#each providerChips as chip (chip.id)}
+                  <ToggleGroup.Item
+                    value={chip.id}
+                    class="flex-none gap-1.5 text-xs"
+                  >
+                    {chip.label}
+                    <span class="text-muted-foreground">{chip.count}</span>
+                  </ToggleGroup.Item>
+                {/each}
+              </ToggleGroup.Root>
+            {/if}
+          {/if}
+          {#if filteredModels.length === 0}
+            <p class="model-picker-empty">No models match.</p>
+          {:else}
+            <VirtualScroller
+              items={filteredModels}
+              getKey={(entry) => entry.key}
+              estimateSize={() => 34}
+              viewportClass="max-h-[min(44vh,18rem)]"
+              viewportAriaLabel="Available models"
+            >
+              {#snippet row({ item: entry })}
+                {@const active = entry.key === selectedModelKey}
+                <button
+                  type="button"
+                  class="model-row"
+                  class:active
+                  aria-pressed={active}
+                  {disabled}
+                  onclick={() => selectModel(entry.model)}
+                >
+                  <span class="model-row-text">
+                    <span class="model-row-label">{entry.contextualLabel}</span>
+                  </span>
+                  {#if active}<Check size={14} strokeWidth={2.4} />{/if}
+                </button>
+              {/snippet}
+            </VirtualScroller>
+          {/if}
+        </div>
       {/if}
     </div>
 
@@ -264,16 +329,6 @@ $effect(() => {
   margin: 0;
   color: var(--muted-foreground);
   font-size: var(--text-xs);
-}
-
-.model-list {
-  display: grid;
-  gap: 0.15rem;
-  margin: 0;
-  max-height: min(48vh, 18rem);
-  overflow-y: auto;
-  padding: 0;
-  list-style: none;
 }
 
 .model-row {

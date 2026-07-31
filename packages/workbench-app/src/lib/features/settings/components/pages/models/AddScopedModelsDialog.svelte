@@ -1,5 +1,5 @@
 <script lang="ts">
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { SvelteSet } from "svelte/reactivity";
 import type { AuthProviderMetadata, ModelInfo, ModelSelection } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
@@ -7,14 +7,17 @@ import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
 import {
   authenticatedRealModelOptions,
-  modelDisplayName,
   modelKey,
-  providerDisplayName,
 } from "$lib/presentation/utils/model";
-
-type ProviderChip = { id: string; label: string; count: number };
+import {
+  buildModelCatalog,
+  filterModelCatalog,
+  modelProviderFacets,
+  type ModelCatalogEntry,
+} from "$lib/presentation/utils/model-catalog";
 
 type Props = {
   open?: boolean;
@@ -51,45 +54,17 @@ $effect(() => {
   lastOpen = open;
 });
 
-const providerChips = $derived.by<ProviderChip[]>(() => {
-  const counts = new SvelteMap<string, number>();
-  for (const model of availableModels) {
-    counts.set(model.provider, (counts.get(model.provider) ?? 0) + 1);
-  }
-  const chips = [...counts.entries()]
-    .map(([id, count]) => ({ id, label: providerDisplayName(id), count }))
-    .sort((left, right) => left.label.localeCompare(right.label));
-  return [{ id: "all", label: "All", count: availableModels.length }, ...chips];
-});
-
-const filteredModels = $derived.by<ModelInfo[]>(() => {
-  const needle = query.trim().toLowerCase();
-  return [...availableModels]
-    .filter((model) => {
-      if (providerFilter !== "all" && model.provider !== providerFilter) {
-        return false;
-      }
-      if (!needle) return true;
-      const haystack =
-        `${modelDisplayName(model)} ${model.modelId} ${providerDisplayName(model.provider)}`.toLowerCase();
-      return haystack.includes(needle);
-    })
-    .sort((left, right) => {
-      const provider = providerDisplayName(left.provider).localeCompare(
-        providerDisplayName(right.provider),
-      );
-      return (
-        provider ||
-        modelDisplayName(left).localeCompare(modelDisplayName(right))
-      );
-    });
-});
+const catalog = $derived(buildModelCatalog(availableModels));
+const providerChips = $derived(modelProviderFacets(catalog));
+const filteredModels = $derived(
+  filterModelCatalog(catalog, query, providerFilter),
+);
 
 const selectedCount = $derived(selectedKeys.size);
 
-function toggleModel(model: ModelInfo, checked: boolean): void {
+function toggleModel(entry: ModelCatalogEntry, checked: boolean): void {
   const next = new SvelteSet(selectedKeys);
-  const key = modelKey(model);
+  const key = entry.key;
   if (checked) next.add(key);
   else next.delete(key);
   selectedKeys = next;
@@ -141,7 +116,7 @@ function save(): void {
       {/if}
     </div>
 
-    <div class="min-h-0 overflow-y-auto p-1.5">
+    <div class="min-h-0 p-1.5">
       {#if availableModels.length === 0}
         <p class="px-1 py-2 text-sm text-muted-foreground">
           Authenticate a provider before choosing scoped models.
@@ -151,33 +126,36 @@ function save(): void {
           No models match the current filters.
         </p>
       {:else}
-        <ul class="grid gap-0.5" aria-label="Authenticated models">
-          {#each filteredModels as model (modelKey(model))}
-            {@const checked = selectedKeys.has(modelKey(model))}
-            <li>
-              <Label
-                class="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-2 py-1.5 font-normal hover:bg-accent/50 has-data-[state=checked]:border-primary/60 has-data-[state=checked]:bg-primary/8"
-              >
-                <Checkbox
-                  size="sm"
-                  {checked}
-                  onCheckedChange={(value) =>
-                    toggleModel(model, value === true)}
-                  aria-label={modelDisplayName(model)}
-                />
-                <span class="grid min-w-0 gap-0.5">
-                  <span class="truncate text-sm text-foreground"
-                    >{modelDisplayName(model)}</span
-                  >
-                  <span class="truncate text-xs text-muted-foreground">
-                    {providerDisplayName(model.provider)} ·
-                    <span class="font-mono">{model.modelId}</span>
-                  </span>
+        <VirtualScroller
+          items={filteredModels}
+          getKey={(entry) => entry.key}
+          estimateSize={() => 48}
+          viewportClass="max-h-[min(52vh,24rem)]"
+          viewportAriaLabel="Authenticated models"
+        >
+          {#snippet row({ item: entry })}
+            {@const checked = selectedKeys.has(entry.key)}
+            <Label
+              class="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-2 py-1.5 font-normal hover:bg-accent/50 has-data-[state=checked]:border-primary/60 has-data-[state=checked]:bg-primary/8"
+            >
+              <Checkbox
+                size="sm"
+                {checked}
+                onCheckedChange={(value) => toggleModel(entry, value === true)}
+                aria-label={entry.displayName}
+              />
+              <span class="grid min-w-0 gap-0.5">
+                <span class="truncate text-sm text-foreground"
+                  >{entry.displayName}</span
+                >
+                <span class="truncate text-xs text-muted-foreground">
+                  {entry.providerLabel} ·
+                  <span class="font-mono">{entry.model.modelId}</span>
                 </span>
-              </Label>
-            </li>
-          {/each}
-        </ul>
+              </span>
+            </Label>
+          {/snippet}
+        </VirtualScroller>
       {/if}
     </div>
   </div>

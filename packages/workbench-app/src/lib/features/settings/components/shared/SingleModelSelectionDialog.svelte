@@ -1,5 +1,4 @@
 <script lang="ts">
-import { SvelteMap } from "svelte/reactivity";
 import type {
   AuthProviderMetadata,
   ModelInfo,
@@ -10,13 +9,13 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
+import { modelKey } from "$lib/presentation/utils/model";
 import {
-  modelDisplayName,
-  modelKey,
-  providerDisplayName,
-} from "$lib/presentation/utils/model";
-
-type ProviderChip = { id: string; label: string; count: number };
+  buildModelCatalog,
+  filterModelCatalog,
+  modelProviderFacets,
+} from "$lib/presentation/utils/model-catalog";
 type FallbackOption = { label: string; detail: string };
 type SaveSelection = {
   model?: ModelSelection;
@@ -86,39 +85,11 @@ $effect(() => {
   }
 });
 
-const providerChips = $derived.by<ProviderChip[]>(() => {
-  const counts = new SvelteMap<string, number>();
-  for (const model of models) {
-    counts.set(model.provider, (counts.get(model.provider) ?? 0) + 1);
-  }
-  const chips = [...counts.entries()]
-    .map(([id, count]) => ({ id, label: providerDisplayName(id), count }))
-    .sort((left, right) => left.label.localeCompare(right.label));
-  return [{ id: "all", label: "All", count: models.length }, ...chips];
-});
-
-const filteredModels = $derived.by<ModelInfo[]>(() => {
-  const needle = query.trim().toLowerCase();
-  return [...models]
-    .filter((model) => {
-      if (providerFilter !== "all" && model.provider !== providerFilter) {
-        return false;
-      }
-      if (!needle) return true;
-      const haystack =
-        `${modelDisplayName(model)} ${model.modelId} ${providerDisplayName(model.provider)}`.toLowerCase();
-      return haystack.includes(needle);
-    })
-    .sort((left, right) => {
-      const provider = providerDisplayName(left.provider).localeCompare(
-        providerDisplayName(right.provider),
-      );
-      return (
-        provider ||
-        modelDisplayName(left).localeCompare(modelDisplayName(right))
-      );
-    });
-});
+const catalog = $derived(buildModelCatalog(models));
+const providerChips = $derived(modelProviderFacets(catalog));
+const filteredModels = $derived(
+  filterModelCatalog(catalog, query, providerFilter),
+);
 
 function formatTokens(tokens: number): string {
   if (tokens <= 0) return "Unknown context";
@@ -170,7 +141,7 @@ function save(): void {
       {/if}
     </div>
 
-    <div class="min-h-0 overflow-y-auto p-1.5">
+    <div class="min-h-0 p-1.5">
       {#if models.length === 0 && !hasFallback}
         <p class="px-1 py-2 text-sm text-muted-foreground">
           Authenticate a provider before choosing a model.
@@ -180,9 +151,9 @@ function save(): void {
           No models match the current filters.
         </p>
       {:else}
-        <ul class="grid gap-0.5" aria-label="Available models">
+        <div class="grid gap-0.5">
           {#if hasFallback}
-            <li>
+            <div>
               <button
                 type="button"
                 class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-2 py-1.5 text-left hover:bg-accent/50 aria-pressed:border-primary/60 aria-pressed:bg-primary/8"
@@ -198,35 +169,41 @@ function save(): void {
                   >
                 </span>
               </button>
-            </li>
+            </div>
           {/if}
-          {#each filteredModels as model (modelKey(model))}
-            {@const key = modelKey(model)}
-            <li>
-              <button
-                type="button"
-                class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-2 py-1.5 text-left hover:bg-accent/50 aria-pressed:border-primary/60 aria-pressed:bg-primary/8"
-                aria-pressed={selectedKey === key}
-                onclick={() => (selectedKey = key)}
-              >
-                <span class="grid min-w-0 gap-0.5">
-                  <span class="truncate text-sm text-foreground"
-                    >{modelDisplayName(model)}</span
-                  >
-                  <span class="truncate text-xs text-muted-foreground">
-                    {providerDisplayName(model.provider)} ·
-                    <span class="font-mono">{model.modelId}</span>
+          <VirtualScroller
+            items={filteredModels}
+            getKey={(entry) => entry.key}
+            estimateSize={() => 48}
+            viewportClass="max-h-[min(52vh,24rem)]"
+            viewportAriaLabel="Available models"
+          >
+            {#snippet row({ item: entry })}
+              <div>
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-2 py-1.5 text-left hover:bg-accent/50 aria-pressed:border-primary/60 aria-pressed:bg-primary/8"
+                  aria-pressed={selectedKey === entry.key}
+                  onclick={() => (selectedKey = entry.key)}
+                >
+                  <span class="grid min-w-0 gap-0.5">
+                    <span class="truncate text-sm text-foreground"
+                      >{entry.displayName}</span
+                    >
+                    <span class="truncate text-xs text-muted-foreground">
+                      {entry.providerLabel} ·
+                      <span class="font-mono">{entry.model.modelId}</span>
+                    </span>
                   </span>
-                </span>
-                <span class="flex-none text-xs text-muted-foreground">
-                  {model.reasoning ? "Reasoning" : "Standard"} · {formatTokens(
-                    model.contextWindow,
-                  )}
-                </span>
-              </button>
-            </li>
-          {/each}
-        </ul>
+                  <span class="flex-none text-xs text-muted-foreground">
+                    {entry.model.reasoning ? "Reasoning" : "Standard"} ·
+                    {formatTokens(entry.model.contextWindow)}
+                  </span>
+                </button>
+              </div>
+            {/snippet}
+          </VirtualScroller>
+        </div>
       {/if}
     </div>
   </div>

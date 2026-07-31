@@ -7,11 +7,15 @@ import type {
 } from "../../../state/tool-types";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
+import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
+import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
+import { modelKey, parseModelKey } from "$lib/presentation/utils/model";
 import {
-  contextualModelLabel,
-  modelKey,
-  parseModelKey,
-} from "$lib/presentation/utils/model";
+  buildModelCatalog,
+  filterModelCatalog,
+  modelProviderFacets,
+} from "$lib/presentation/utils/model-catalog";
 import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,
@@ -45,7 +49,14 @@ let {
 
 let selectedModelKey = $state("");
 let selectedThinkingLevel = $state<ThinkingLevel>("off");
+let query = $state("");
+let providerFilter = $state("all");
 
+const catalog = $derived(buildModelCatalog(models));
+const providerChips = $derived(modelProviderFacets(catalog));
+const filteredModels = $derived(
+  filterModelCatalog(catalog, query, providerFilter),
+);
 const selectedModel = $derived(
   models.find((model) => modelKey(model) === selectedModelKey),
 );
@@ -67,6 +78,8 @@ function thinkingLevelLabel(level: ThinkingLevel): string {
 }
 
 function resetSelection() {
+  query = "";
+  providerFilter = "all";
   const initialModel = models.find(
     (model) => modelKey(model) === initialModelKey,
   );
@@ -137,31 +150,69 @@ $effect(() => {
           Settings.
         </p>
       {:else}
-        <div
-          class="grid gap-1"
-          role="listbox"
-          aria-label="Implementation model"
-        >
-          {#each models as model (modelKey(model))}
-            {@const key = modelKey(model)}
-            {@const active = key === selectedModelKey}
-            <button
-              type="button"
-              class={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                active
-                  ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-transparent text-foreground hover:bg-accent"
-              }`}
-              aria-selected={active}
-              role="option"
-              onclick={() => selectModel(model)}
+        <div class="grid gap-2">
+          <SearchInput
+            bind:value={query}
+            placeholder="Search models"
+            ariaLabel="Search models"
+          />
+          {#if providerChips.length > 2}
+            <ToggleGroup.Root
+              type="single"
+              size="xs"
+              spacing={1}
+              variant="outline"
+              value={providerFilter}
+              aria-label="Filter by provider"
+              class="flex-nowrap overflow-x-auto"
+              onValueChange={(value) => {
+                if (value) providerFilter = value;
+              }}
             >
-              <span class="min-w-0 truncate font-medium"
-                >{contextualModelLabel(model, models)}</span
-              >
-              {#if active}<Check class="size-4" strokeWidth={2.4} />{/if}
-            </button>
-          {/each}
+              {#each providerChips as chip (chip.id)}
+                <ToggleGroup.Item
+                  value={chip.id}
+                  class="flex-none gap-1.5 text-xs"
+                >
+                  {chip.label}
+                  <span class="text-muted-foreground">{chip.count}</span>
+                </ToggleGroup.Item>
+              {/each}
+            </ToggleGroup.Root>
+          {/if}
+          {#if filteredModels.length === 0}
+            <p class="m-0 px-1 py-2 text-sm text-muted-foreground">
+              No models match the current filters.
+            </p>
+          {:else}
+            <VirtualScroller
+              items={filteredModels}
+              getKey={(entry) => entry.key}
+              estimateSize={() => 38}
+              viewportClass="max-h-[min(45vh,20rem)]"
+              viewportAriaLabel="Implementation model"
+            >
+              {#snippet row({ item: entry })}
+                {@const active = entry.key === selectedModelKey}
+                <button
+                  type="button"
+                  class={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                    active
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-transparent text-foreground hover:bg-accent"
+                  }`}
+                  aria-selected={active}
+                  role="option"
+                  onclick={() => selectModel(entry.model)}
+                >
+                  <span class="min-w-0 truncate font-medium"
+                    >{entry.contextualLabel}</span
+                  >
+                  {#if active}<Check class="size-4" strokeWidth={2.4} />{/if}
+                </button>
+              {/snippet}
+            </VirtualScroller>
+          {/if}
         </div>
       {/if}
     </section>

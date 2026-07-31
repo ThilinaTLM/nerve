@@ -198,23 +198,6 @@ export function clampAgentThinkingLevel(
   return clampThinkingLevel(model, requested ?? "off") as ThinkingLevel;
 }
 
-const COMPLETE_MODEL_LIST_PROVIDERS = new Set<string>([
-  // Subscription-backed and first-party providers expose the complete catalog.
-  "anthropic",
-  "github-copilot",
-  "openai",
-  "openai-codex",
-  "radius",
-  "xai",
-]);
-
-function visibleModelsForProvider(provider: string): readonly Model<string>[] {
-  const models = getRegisteredModels(provider) as readonly Model<string>[];
-  return COMPLETE_MODEL_LIST_PROVIDERS.has(provider)
-    ? models
-    : models.slice(0, 8);
-}
-
 export function listAvailableModels(
   customModels?: AgentCustomModel[],
 ): AgentModelInfo[] {
@@ -222,7 +205,9 @@ export function listAvailableModels(
     getAgentModelInfo(model),
   );
   const configured = getBuiltinProviderIds().flatMap((provider) =>
-    visibleModelsForProvider(provider).map((model) => getAgentModelInfo(model)),
+    getRegisteredModels(provider).map((model) =>
+      getAgentModelInfo(model as Model<string>),
+    ),
   );
   const custom = (activeCustomModels(customModels) ?? [])
     .map((model) => customModelInfo(model))

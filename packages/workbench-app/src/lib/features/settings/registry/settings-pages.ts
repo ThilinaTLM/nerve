@@ -38,6 +38,13 @@ export const settingsPages: SettingsPageDef[] = [
     sections: [{ id: "shortcuts", label: "Shortcuts" }],
   },
   {
+    id: "models",
+    label: "Scoped Models",
+    icon: ShieldCheck,
+    description: "Scoped models limit which models the composer offers.",
+    sections: [{ id: "models", label: "Scoped Models" }],
+  },
+  {
     id: "agents",
     label: "Agents",
     icon: Bot,
@@ -54,13 +61,6 @@ export const settingsPages: SettingsPageDef[] = [
     description:
       "Project suggestions override user and built-in suggestions with the same name.",
     sections: [{ id: "suggestions", label: "Suggestions" }],
-  },
-  {
-    id: "models",
-    label: "Models",
-    icon: ShieldCheck,
-    description: "Scoped models limit which models the composer offers.",
-    sections: [{ id: "models", label: "Models" }],
   },
   {
     id: "tools",
