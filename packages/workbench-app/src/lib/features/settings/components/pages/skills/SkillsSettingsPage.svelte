@@ -1,12 +1,13 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
 import Copy from "@lucide/svelte/icons/copy";
-import type { AvailableSkill, ProjectRecord, Settings } from "$lib/api";
+import type { AvailableSkill, Settings } from "$lib/api";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import ListChecks from "@lucide/svelte/icons/list-checks";
 import {
   SettingsDisclosureItem,
   SettingsEmptyState,
@@ -14,6 +15,7 @@ import {
   SettingsInlineMessage,
   SettingsList,
   SettingsSearchInput,
+  SettingsSection,
   SettingsToolbar,
 } from "$lib/presentation/components/settings";
 import type { SettingsChange } from "../settings-change";
@@ -22,15 +24,14 @@ import {
   bulkSkillSets,
   filterSkills,
   skillSourceLabels,
+  skillSourceSectionIds,
   summarizeSkills,
   type SkillEntry,
   type SkillSource,
-  type SkillSourceFilter,
 } from "./skills-filter";
 
 type Props = {
   settingsDraft: Settings;
-  activeProject?: ProjectRecord;
   agentBrowserSkills?: AvailableSkill[];
   globalSkills?: AvailableSkill[];
   projectSkills?: AvailableSkill[];
@@ -42,7 +43,6 @@ type Props = {
 
 let {
   settingsDraft,
-  activeProject,
   agentBrowserSkills = [],
   globalSkills = [],
   projectSkills = [],
@@ -53,7 +53,6 @@ let {
 }: Props = $props();
 
 let query = $state("");
-let sourceFilter = $state<SkillSourceFilter>("all");
 
 const entries = $derived(
   buildSkillEntries({
@@ -66,9 +65,7 @@ const entries = $derived(
     },
   }),
 );
-const visibleEntries = $derived(
-  filterSkills({ entries, query, source: sourceFilter }),
-);
+const visibleEntries = $derived(filterSkills({ entries, query }));
 const summary = $derived(summarizeSkills(visibleEntries));
 const groupedEntries = $derived.by<
   Array<{ source: SkillSource; entries: SkillEntry[] }>
@@ -81,16 +78,6 @@ const groupedEntries = $derived.by<
     }))
     .filter((group) => group.entries.length > 0);
 });
-const sourceFilters = $derived<
-  Array<{ value: SkillSourceFilter; label: string }>
->([
-  { value: "all", label: "All" },
-  { value: "agentBrowser", label: skillSourceLabels.agentBrowser },
-  { value: "global", label: skillSourceLabels.global },
-  ...(activeProject
-    ? [{ value: "project" as const, label: skillSourceLabels.project }]
-    : []),
-]);
 
 function setSkillEnabled(name: string, enabled: boolean): void {
   const next = new SvelteSet(settingsDraft.skills.disabled);
@@ -161,41 +148,25 @@ function copyPath(path: string): void {
     />
   {/snippet}
   {#snippet end()}
-    <ToggleGroup.Root
-      type="single"
-      size="sm"
-      spacing={1}
-      variant="outline"
-      value={sourceFilter}
-      aria-label="Filter skills by source"
-      onValueChange={(value) => {
-        if (value) sourceFilter = value as SkillSourceFilter;
-      }}
-    >
-      {#each sourceFilters as filter (filter.value)}
-        <ToggleGroup.Item value={filter.value} class="text-xs"
-          >{filter.label}</ToggleGroup.Item
-        >
-      {/each}
-    </ToggleGroup.Root>
-    <Button
-      size="xs"
-      variant="outline"
-      disabled={visibleEntries.length === 0}
-      onclick={() => applyBulk(true)}
-      >Enable all{visibleEntries.length
-        ? ` (${visibleEntries.length})`
-        : ""}</Button
-    >
-    <Button
-      size="xs"
-      variant="outline"
-      disabled={visibleEntries.length === 0}
-      onclick={() => applyBulk(false)}
-      >Disable all{visibleEntries.length
-        ? ` (${visibleEntries.length})`
-        : ""}</Button
-    >
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        class={buttonVariants({ variant: "ghost", size: "xs" })}
+        disabled={visibleEntries.length === 0}
+        aria-label="Bulk skill actions"
+        title="Bulk skill actions"
+      >
+        <ListChecks class="size-3.5" aria-hidden="true" />
+        Bulk
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" class="w-44">
+        <DropdownMenu.Item onSelect={() => applyBulk(true)}>
+          Enable {visibleEntries.length} shown
+        </DropdownMenu.Item>
+        <DropdownMenu.Item onSelect={() => applyBulk(false)}>
+          Disable {visibleEntries.length} shown
+        </DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   {/snippet}
 </SettingsToolbar>
 
@@ -220,7 +191,10 @@ function copyPath(path: string): void {
   />
 {:else}
   {#each groupedEntries as group (group.source)}
-    <SettingsGroup title={skillSourceLabels[group.source]}>
+    <SettingsSection
+      id={skillSourceSectionIds[group.source]}
+      title={skillSourceLabels[group.source]}
+    >
       <SettingsList ariaLabel={`${skillSourceLabels[group.source]} skills`}>
         {#each group.entries as entry (entry.skill.filePath)}
           <SettingsDisclosureItem
@@ -260,6 +234,6 @@ function copyPath(path: string): void {
           </SettingsDisclosureItem>
         {/each}
       </SettingsList>
-    </SettingsGroup>
+    </SettingsSection>
   {/each}
 {/if}

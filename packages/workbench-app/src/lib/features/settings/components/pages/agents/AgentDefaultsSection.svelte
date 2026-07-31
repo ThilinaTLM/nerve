@@ -175,7 +175,6 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
     <SettingsChoiceCards
       items={modeItems}
       value={settingsDraft.defaultMode}
-      columns={2}
       ariaLabel="Default mode"
       onValueChange={setDefaultMode}
     />
@@ -185,7 +184,6 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
     <SettingsChoiceCards
       items={permissionItems}
       value={settingsDraft.defaultPermissionLevel}
-      columns={3}
       ariaLabel="Default permission"
       onValueChange={setDefaultPermission}
     />

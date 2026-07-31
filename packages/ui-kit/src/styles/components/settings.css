@@ -78,9 +78,7 @@
   display: grid;
   gap: 0.05rem;
   margin: 0.1rem 0 0.25rem;
-  border-left: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   padding: 0;
-  margin-left: 1.05rem;
   list-style: none;
 }
 
@@ -92,7 +90,7 @@
   color: var(--muted-foreground);
   font-size: var(--text-xs);
   line-height: 1.2;
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem 0.5rem 0.3rem 2.1rem;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -186,8 +184,10 @@
   .settings-subnav {
     grid-auto-flow: column;
     grid-auto-columns: max-content;
-    border-left: 0;
-    margin-left: 0;
     overflow-x: auto;
+  }
+
+  .settings-subnav a {
+    padding-left: 0.5rem;
   }
 }

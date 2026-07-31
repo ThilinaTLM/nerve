@@ -42,7 +42,7 @@ let {
         />
         <span class="grid min-w-0 gap-0.5">
           <span class="truncate text-sm text-foreground">{title}</span>
-          {#if description}
+          {#if description && !open}
             <span class="line-clamp-1 text-xs text-muted-foreground"
               >{description}</span
             >

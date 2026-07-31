@@ -14,6 +14,10 @@ import {
   SettingsSidebarStatus,
 } from "$lib/presentation/components/settings";
 import { settingsPages } from "$lib/features/settings/registry/settings-pages";
+import {
+  skillSourceLabels,
+  skillSourceSectionIds,
+} from "./pages/skills/skills-filter";
 import AgentsSettingsPage from "./pages/agents/AgentsSettingsPage.svelte";
 import ModelsPageActions from "./pages/models/ModelsPageActions.svelte";
 import ModelsSettingsPage from "./pages/models/ModelsSettingsPage.svelte";
@@ -74,6 +78,30 @@ let {
   onSkillsRetry,
 }: Props = $props();
 
+/** Skills sections mirror the sources that actually have skills. */
+const skillSections = $derived(
+  (
+    [
+      ["agentBrowser", agentBrowserSkills],
+      ["global", globalSkills],
+      ["project", projectSkills],
+    ] as const
+  )
+    .filter(([, skills]) => skills.length > 0)
+    .map(([source]) => ({
+      id: skillSourceSectionIds[source],
+      label: skillSourceLabels[source],
+    })),
+);
+
+const pages = $derived(
+  settingsPages.map((page) =>
+    page.id === "skills" && skillSections.length > 0
+      ? { ...page, sections: skillSections }
+      : page,
+  ),
+);
+
 const modelsPageState = new ModelsPageState();
 const suggestionsPageState = new SuggestionsPageState();
 const storageController = new StoragePageController();
@@ -89,7 +117,7 @@ function statusText(): string {
 </script>
 
 <SettingsShell
-  pages={settingsPages}
+  {pages}
   title="Settings"
   ariaLabel="Settings pages"
   showHeader={!!settingsDraft}
@@ -158,7 +186,6 @@ function statusText(): string {
       {:else if page.id === "skills"}
         <SkillsSettingsPage
           {settingsDraft}
-          {activeProject}
           {agentBrowserSkills}
           {globalSkills}
           {projectSkills}

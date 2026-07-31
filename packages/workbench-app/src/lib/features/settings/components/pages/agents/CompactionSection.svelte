@@ -58,7 +58,6 @@ function updateCustomCompactionPercent(
       <SettingsChoiceCards
         items={compactionProfileItems}
         value={settingsDraft.compaction.profile}
-        columns={2}
         ariaLabel="Compaction profile"
         onValueChange={onCompactionProfileChange}
       />

@@ -2,7 +2,12 @@ import type { AvailableSkill } from "$lib/api";
 
 export type SkillSource = "agentBrowser" | "global" | "project";
 
-export type SkillSourceFilter = "all" | SkillSource;
+/** Sidebar section id for a skill source. */
+export const skillSourceSectionIds: Record<SkillSource, string> = {
+  agentBrowser: "agent-browser",
+  global: "global",
+  project: "project",
+};
 
 export type SkillEntry = {
   skill: AvailableSkill;
@@ -72,12 +77,9 @@ export function buildSkillEntries(input: BuildSkillEntriesInput): SkillEntry[] {
 export function filterSkills(input: {
   entries: SkillEntry[];
   query?: string;
-  source?: SkillSourceFilter;
 }): SkillEntry[] {
   const needle = (input.query ?? "").trim().toLowerCase();
-  const source = input.source ?? "all";
   return input.entries.filter((entry) => {
-    if (source !== "all" && entry.source !== source) return false;
     if (!needle) return true;
     const haystack =
       `${entry.skill.name} ${entry.skill.description}`.toLowerCase();

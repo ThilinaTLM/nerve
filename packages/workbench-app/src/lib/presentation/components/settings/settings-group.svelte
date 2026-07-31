@@ -45,7 +45,7 @@ let {
   <div
     class={cn(
       "grid min-w-0",
-      divided ? "divide-y divide-border/50" : "gap-1.5",
+      divided ? "divide-y divide-border/40" : "gap-1.5",
       bodyClass,
     )}
   >

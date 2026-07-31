@@ -28,9 +28,7 @@ let {
   aria-labelledby={`${settingsSectionDomId(id)}-title`}
   class={cn("settings-section grid min-w-0 gap-2", className)}
 >
-  <div
-    class="flex min-w-0 items-center justify-between gap-3 border-b border-border/50 pb-1"
-  >
+  <div class="flex min-w-0 items-center justify-between gap-3">
     <div class="grid min-w-0 gap-0.5">
       <h3
         id={`${settingsSectionDomId(id)}-title`}

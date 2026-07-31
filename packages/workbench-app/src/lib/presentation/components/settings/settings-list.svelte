@@ -14,7 +14,7 @@ let { ariaLabel, class: className, children }: Props = $props();
 <div
   role={ariaLabel ? "list" : undefined}
   aria-label={ariaLabel}
-  class={cn("divide-y divide-border/50 border-y border-border/50", className)}
+  class={cn("divide-y divide-border/40", className)}
 >
   {@render children()}
 </div>

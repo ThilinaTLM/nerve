@@ -58,16 +58,6 @@ describe("buildSkillEntries", () => {
 });
 
 describe("filterSkills", () => {
-  it("filters by source", () => {
-    const entries = buildSkillEntries(input);
-    assert.deepEqual(
-      filterSkills({ entries, source: "project" }).map(
-        (entry) => entry.skill.name,
-      ),
-      ["deploy", "shared"],
-    );
-  });
-
   it("matches name and description case-insensitively", () => {
     const entries = buildSkillEntries(input);
     assert.deepEqual(
@@ -82,7 +72,7 @@ describe("filterSkills", () => {
     );
   });
 
-  it("returns everything when no filters are set", () => {
+  it("returns everything when no query is set", () => {
     const entries = buildSkillEntries(input);
     assert.equal(filterSkills({ entries }).length, entries.length);
   });
@@ -93,7 +83,9 @@ describe("summarizeSkills", () => {
     const entries = buildSkillEntries(input);
     assert.deepEqual(summarizeSkills(entries), { total: 6, enabled: 4 });
     assert.deepEqual(
-      summarizeSkills(filterSkills({ entries, source: "agentBrowser" })),
+      summarizeSkills(
+        entries.filter((entry) => entry.source === "agentBrowser"),
+      ),
       { total: 2, enabled: 1 },
     );
   });
