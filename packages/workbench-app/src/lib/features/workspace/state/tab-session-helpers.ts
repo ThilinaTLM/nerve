@@ -4,6 +4,13 @@ export function tabIdentityKey(tab: CenterTabIdentity): string {
   return `${tab.kind}:${tab.id}`;
 }
 
+export function startupTabActivationLane(
+  tab: CenterTabIdentity | undefined,
+): "critical" | "progressive" | "none" {
+  if (!tab) return "none";
+  return tab.kind === "conversation" ? "critical" : "progressive";
+}
+
 export function reorderTabs(
   tabs: CenterTabIdentity[],
   tab: CenterTabIdentity,

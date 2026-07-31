@@ -59,6 +59,7 @@ import Sparkles from "@lucide/svelte/icons/sparkles";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
+import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
 import { refreshPromptSuggestions } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/components/PromptSuggestionTrustDialog.svelte";
@@ -306,7 +307,8 @@ function openToolFile(path: string, line?: number) {
 }
 
 $effect(() => {
-  if (!active || !activeProject?.id) return;
+  if (!workbenchStartupState.progressiveActive || !active || !activeProject?.id)
+    return;
   void promptSuggestionRefreshKey;
   void refreshPromptSuggestions(activeProject.id, {
     conversationId,

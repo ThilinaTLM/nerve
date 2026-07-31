@@ -40,7 +40,9 @@ import {
 import { restoreConversationTabs } from "$lib/features/conversations/state/conversation-flow.svelte";
 import { refreshConversationView } from "$lib/features/conversations/state/selection";
 import {
-  loadSettingsPanel,
+  loadCoreSettings,
+  reconcileComposerSelectionFromSettings,
+  refreshAncillarySettingsData,
   refreshSubscriptionUsage,
 } from "$lib/features/settings/state/settings-actions.svelte";
 import {
@@ -52,7 +54,19 @@ import {
   loadSlashCommands,
   recoverWorkspaceSnapshotFromNetwork,
 } from "$lib/features/workspace/state/workspace-actions.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import {
+  workspaceState,
+  type CenterTabIdentity,
+} from "$lib/features/workspace/state/workspace-state.svelte";
+import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
+import { runWorkbenchStartupSequence } from "$lib/core/startup/workbench-startup-sequence";
+import {
+  beginWorkbenchStartup,
+  failWorkbenchStartup,
+  isWorkbenchStartupGenerationCurrent,
+  stopWorkbenchStartup,
+  transitionWorkbenchStartup,
+} from "$lib/core/startup/workbench-startup-state.svelte";
 
 const PROTOCOL_CAPABILITIES = [
   "encoding.json",
@@ -70,33 +84,54 @@ let intentionallyDisconnected = false;
 let workspaceSnapshotLoaded = false;
 let subscriptionUsagePollTimer: ReturnType<typeof setInterval> | undefined;
 
-export async function initializeWorkbench(): Promise<void> {
+export async function initializeWorkbench(): Promise<boolean> {
   intentionallyDisconnected = false;
   workspaceSnapshotLoaded = false;
+  const generation = beginWorkbenchStartup();
+  applyTheme(loadThemePreference());
   try {
-    applyTheme(loadThemePreference());
-    workspaceState.config = await retryDuringStartup(
-      "load client config",
-      getClientConfig,
-    );
-    if (workspaceState.config.status.capabilities.applicationLogs) {
-      installClientLogging();
-    }
-    workspaceState.status = workspaceState.config.status;
-    workspaceState.error = undefined;
-    composerDraft.projectDir = workspaceState.config.status.storage.home;
-    await loadSlashCommands();
-    await connectWebsocket(workspaceState.config.wsUrl);
-    startReleasePolling();
-    await Promise.all([restoreConversationTabs(), loadSettingsPanel()]);
-    startSubscriptionUsagePolling();
-    clientLog("info", "workbench", "Workbench initialized");
+    const diagnostics = await runWorkbenchStartupSequence({
+      loadClientConfig: () =>
+        retryDuringStartup("load client config", getClientConfig),
+      applyClientConfig: (config) => {
+        workspaceState.config = config;
+        if (config.status.capabilities.applicationLogs) installClientLogging();
+        workspaceState.status = config.status;
+        workspaceState.error = undefined;
+        composerDraft.projectDir = config.status.storage.home;
+      },
+      loadCoreSettings,
+      recoverWorkspace: () => connectWebsocket(workspaceState.config!.wsUrl),
+      restoreCriticalConversation: restoreConversationTabs,
+      reconcileComposerSelection: reconcileComposerSelectionFromSettings,
+      activateDeferredTab: async (desiredTab, conversationRestored) => {
+        if (desiredTab && !conversationRestored)
+          await selectCenterTab(desiredTab);
+      },
+      startProgressiveWork: () => {
+        void loadSlashCommands().catch(() => undefined);
+        startReleasePolling();
+        refreshAncillarySettingsData();
+        startSubscriptionUsagePolling();
+      },
+      transition: (phase) => transitionWorkbenchStartup(generation, phase),
+      isCurrent: () => isWorkbenchStartupGenerationCurrent(generation),
+    });
+    if (!isWorkbenchStartupGenerationCurrent(generation)) return false;
+    clientLog("info", "workbench", "Workbench initialized", {
+      context: diagnostics,
+    });
+    return true;
   } catch (caught) {
+    if (!isWorkbenchStartupGenerationCurrent(generation)) return false;
+    failWorkbenchStartup(generation, caught);
     workspaceState.error = errorMessage(caught);
     workspaceState.connection = "error";
     clientLog("error", "workbench", "Workbench initialization failed", {
+      context: { criticalBeforeProgressive: true },
       error: caught,
     });
+    throw caught;
   }
 }
 
@@ -109,19 +144,23 @@ function protocolSource(): PeerDescriptor {
   };
 }
 
-async function connectWebsocket(wsUrl: string): Promise<void> {
+async function connectWebsocket(
+  wsUrl: string,
+): Promise<CenterTabIdentity | undefined> {
   await connection?.close();
   unbindSubscriptionSync?.();
   const messages = createMessageFactory({
     source: protocolSource(),
     target: protocolTarget,
   });
-  let resolveInitialReady!: () => void;
+  let resolveInitialReady!: (desiredTab: CenterTabIdentity | undefined) => void;
   let rejectInitialReady!: (error: unknown) => void;
-  const initialReady = new Promise<void>((resolve, reject) => {
-    resolveInitialReady = resolve;
-    rejectInitialReady = reject;
-  });
+  const initialReady = new Promise<CenterTabIdentity | undefined>(
+    (resolve, reject) => {
+      resolveInitialReady = resolve;
+      rejectInitialReady = reject;
+    },
+  );
 
   connection = new ProtocolClientConnection({
     transport: browserWebSocketTransportFactory(resolveWebsocketUrl(wsUrl)),
@@ -143,19 +182,26 @@ async function connectWebsocket(wsUrl: string): Promise<void> {
         onDisconnect,
         onReady: async (welcome) => {
           workspaceState.protocolSessionId = welcome.sessionId;
+          let desiredTab: CenterTabIdentity | undefined;
           if (!workspaceSnapshotLoaded) {
-            const cursor = await recoverWorkspaceSnapshotFromNetwork();
-            installEventCursors(cursor.streams, { replace: true, sync: false });
+            const recovered = await recoverWorkspaceSnapshotFromNetwork({
+              deferTabActivation: true,
+            });
+            installEventCursors(recovered.cursor.streams, {
+              replace: true,
+              sync: false,
+            });
+            desiredTab = recovered.desiredTab;
             workspaceSnapshotLoaded = true;
           }
           workspaceState.connection = "live";
           requestSubscriptionSync();
-          resolveInitialReady();
+          resolveInitialReady(desiredTab);
         },
         onSnapshotRequired: async (stream) => {
           if (stream === "workspace") {
-            const cursor = await recoverWorkspaceSnapshotFromNetwork();
-            installEventCursors(cursor.streams, { sync: false });
+            const recovered = await recoverWorkspaceSnapshotFromNetwork();
+            installEventCursors(recovered.cursor.streams, { sync: false });
             requestSubscriptionSync();
             return;
           }
@@ -200,7 +246,7 @@ async function connectWebsocket(wsUrl: string): Promise<void> {
     return "applied";
   });
   void connection.start().catch(rejectInitialReady);
-  await initialReady;
+  return initialReady;
 }
 
 function setConnectionState(state: ProtocolClientConnectionState): void {
@@ -266,6 +312,7 @@ function stopSubscriptionUsagePolling(): void {
 
 export function disconnectWorkbench(): void {
   intentionallyDisconnected = true;
+  stopWorkbenchStartup();
   stopSubscriptionUsagePolling();
   stopReleasePolling();
   flushNotifyEvents();

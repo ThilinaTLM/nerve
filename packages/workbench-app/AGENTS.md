@@ -111,6 +111,14 @@ src/styles/
   `triggerClass`/`class` (e.g. `.composer-tab`) always wins regardless of CSS
   bundle order: `:global(:where(.popover-trigger)) { … }`.
 
+## Startup loading policy
+
+- Composer-critical startup resources are settings, models, auth metadata, workspace hydration, and restoration of the active conversation.
+- New mount or project-restoration effects must not initiate network or filesystem work before `workbenchStartupState.progressiveActive` unless the work is explicitly added to the orchestrator's reviewed critical lane.
+- Restored inactive tabs are metadata-only during startup. A restored active conversation is critical; non-conversation active-tab loaders are progressive.
+- Background features should also honor panel visibility or explicit demand wherever possible.
+- Startup ordering tests use deferred dependencies and phase events, never timing thresholds.
+
 ## Misc
 
 - Icons: `@lucide/svelte`, sized/colored via `class` on the icon. Loading

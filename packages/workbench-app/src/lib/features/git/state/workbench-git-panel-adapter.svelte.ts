@@ -17,6 +17,8 @@ import {
   gitRepoStateKey,
 } from "$lib/core/state/state-keys";
 import { GIT_AUTO_REFRESH_COOLDOWN_MS } from "./git-refresh-policy";
+import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
+import { shouldActivateGitPanel } from "./git-startup-policy";
 import {
   autoRefreshGitOverview,
   bulkStageGitFiles,
@@ -238,13 +240,26 @@ export function createWorkbenchGitPanelAdapter(
   let lastProjectId: string | undefined;
   $effect(() => {
     const project = activeProject();
-    if (project?.id === lastProjectId) return;
+    const panelEnabled = enabled();
+    if (
+      !shouldActivateGitPanel({
+        progressiveActive: workbenchStartupState.progressiveActive,
+        enabled: panelEnabled,
+        projectId: project?.id,
+        lastProjectId,
+      })
+    )
+      return;
     lastProjectId = project?.id;
-    if (project) queueMicrotask(() => selectGitProject(project));
+    if (project)
+      queueMicrotask(() => {
+        if (workbenchStartupState.progressiveActive && enabled())
+          selectGitProject(project);
+      });
   });
 
   $effect(() => {
-    const active = enabled();
+    const active = workbenchStartupState.progressiveActive && enabled();
     const project = activeProject();
     const projectState = project
       ? gitPanelState.projects[gitProjectStateKey(project.id)]
@@ -268,7 +283,7 @@ export function createWorkbenchGitPanelAdapter(
   });
 
   $effect(() => {
-    const active = enabled();
+    const active = workbenchStartupState.progressiveActive && enabled();
     const project = activeProject();
     const projectState = project
       ? gitPanelState.projects[gitProjectStateKey(project.id)]

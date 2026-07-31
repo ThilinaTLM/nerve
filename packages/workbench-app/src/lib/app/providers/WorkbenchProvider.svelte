@@ -33,6 +33,7 @@ import {
   refreshGitContext,
   refreshPrPane,
   startGitRefreshCoordinator,
+  createGitStartupPolicy,
 } from "$lib/features/git";
 import {
   loadSettingsPanel,
@@ -44,6 +45,7 @@ import {
   disconnectWorkbench,
   initializeWorkbench,
 } from "$lib/core/events/websocket-client.svelte";
+import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
 import {
   centerTabsExcept,
   closeCenterTab,
@@ -152,23 +154,30 @@ $effect(() => {
   void syncDesktopCloseToTray(value);
 });
 
-let lastGitProjectId: string | undefined;
-$effect(() => {
-  const projectId = activeProject?.id;
-  if (projectId === lastGitProjectId) return;
-  lastGitProjectId = projectId;
+const gitStartupPolicy = createGitStartupPolicy((projectId) => {
   if (projectId)
     void refreshGitContext(projectId, { reason: "project", force: true });
   else clearGitContext();
+});
+
+$effect(() => {
+  gitStartupPolicy.update(
+    workbenchStartupState.progressiveActive,
+    activeProject?.id,
+  );
+});
+
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive) return;
+  return startGitRefreshCoordinator(
+    () => void refreshGitContext(undefined, { reason: "focus" }),
+  );
 });
 
 onMount(() => {
   const unregisterFeatureEvents = registerFeatureEventHandlers();
   const stopNotificationAudio = initializeNotificationAudio();
   const unsubscribeDesktop = initializeDesktopRuntime();
-  const stopGitRefreshCoordinator = startGitRefreshCoordinator(
-    () => void refreshGitContext(undefined, { reason: "focus" }),
-  );
   const startedOnSettings =
     window.location.pathname === "/settings" ||
     window.location.pathname === "/settings/";
@@ -183,10 +192,13 @@ onMount(() => {
     capture: true,
   });
 
-  void initializeWorkbench().then(() => {
-    initializeNotifications();
-    if (startedOnSettings) void openSettingsPane();
-  });
+  void initializeWorkbench()
+    .then((initialized) => {
+      if (!initialized) return;
+      initializeNotifications();
+      if (startedOnSettings) void openSettingsPane();
+    })
+    .catch(() => undefined);
 
   return () => {
     window.removeEventListener(
@@ -196,7 +208,6 @@ onMount(() => {
     );
     unsubscribeDesktop();
     stopNotificationAudio();
-    stopGitRefreshCoordinator();
     unregisterFeatureEvents();
     disconnectWorkbench();
   };

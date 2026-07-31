@@ -30,7 +30,10 @@ import { loadTaskLogWindow } from "$lib/features/tasks/state/task-logs.svelte";
 import { resolveSelectedTaskId } from "$lib/features/tasks/state/task-reducers";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import {
+  workspaceState,
+  type CenterTabIdentity,
+} from "$lib/features/workspace/state/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
 import { selectCenterTab, setActiveCenterTab } from "./center-tabs.svelte";
@@ -49,17 +52,26 @@ export async function loadWorkspaceState() {
   return applyWorkspaceSnapshot(snapshot);
 }
 
-export async function recoverWorkspaceSnapshotFromNetwork() {
-  return recoverSnapshotFromNetwork({
+export async function recoverWorkspaceSnapshotFromNetwork(
+  options: { deferTabActivation?: boolean } = {},
+) {
+  let desiredTab: CenterTabIdentity | undefined;
+  const cursor = await recoverSnapshotFromNetwork({
     fetch: getWorkspaceSnapshot,
-    apply: applyWorkspaceSnapshot,
+    apply: async (snapshot) => {
+      const applied = await applyWorkspaceSnapshot(snapshot, options);
+      desiredTab = applied.desiredTab;
+      return applied.cursor;
+    },
     cache: (snapshot) =>
       queryClient.setQueryData(queryKeys.workspace, snapshot),
   });
+  return { cursor, desiredTab };
 }
 
 async function applyWorkspaceSnapshot(
   snapshot: Awaited<ReturnType<typeof getWorkspaceSnapshot>>,
+  options: { deferTabActivation?: boolean } = {},
 ) {
   const agents = mergeAgentsByUpdatedAt(
     snapshot.snapshot.agents,
@@ -69,11 +81,14 @@ async function applyWorkspaceSnapshot(
   workspaceState.conversations = snapshot.snapshot.conversations;
   workspaceState.agents = agents;
   taskState.tasks = snapshot.snapshot.tasks;
-  hydrateWorkspaceTabSessions({
-    projects: snapshot.snapshot.projects,
-    conversations: snapshot.snapshot.conversations,
-    tasks: snapshot.snapshot.tasks,
-  });
+  let desiredTab = hydrateWorkspaceTabSessions(
+    {
+      projects: snapshot.snapshot.projects,
+      conversations: snapshot.snapshot.conversations,
+      tasks: snapshot.snapshot.tasks,
+    },
+    { deferActivation: options.deferTabActivation },
+  );
   const taskEntryIds = new SvelteSet(
     taskState.tasks.map(
       (task) => task.definitionId ?? task.restartRootTaskId ?? task.id,
@@ -106,7 +121,8 @@ async function applyWorkspaceSnapshot(
     (conversationId) => !conversationIds.has(conversationId),
   );
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
-  if (selectedTaskId) await loadTaskLogWindow(selectedTaskId);
+  if (selectedTaskId && !options.deferTabActivation)
+    await loadTaskLogWindow(selectedTaskId);
   const selectedStillExists = workspaceState.projects.some(
     (project) => projectKey(project) === workspaceState.selectedProjectKey,
   );
@@ -114,7 +130,11 @@ async function applyWorkspaceSnapshot(
     const fallback = [...workspaceState.projects].sort((a, b) =>
       b.updatedAt.localeCompare(a.updatedAt),
     )[0];
-    if (fallback) await selectProject(fallback.id);
+    if (fallback)
+      desiredTab =
+        (await selectProject(fallback.id, {
+          deferTabActivation: options.deferTabActivation,
+        })) ?? desiredTab;
   } else if (
     workspaceState.selectedProjectKey &&
     !workspaceState.selectedProjectId
@@ -122,9 +142,13 @@ async function applyWorkspaceSnapshot(
     const selected = workspaceState.projects.find(
       (project) => projectKey(project) === workspaceState.selectedProjectKey,
     );
-    if (selected) await selectProject(selected.id);
+    if (selected)
+      desiredTab =
+        (await selectProject(selected.id, {
+          deferTabActivation: options.deferTabActivation,
+        })) ?? desiredTab;
   }
-  return snapshot.cursor;
+  return { cursor: snapshot.cursor, desiredTab };
 }
 
 function syncSelectedAgentConfig(
@@ -192,7 +216,10 @@ export async function completeFiles(query: string): Promise<CompletionItem[]> {
   });
 }
 
-export async function selectProject(projectId: string) {
+export async function selectProject(
+  projectId: string,
+  options: { deferTabActivation?: boolean } = {},
+): Promise<CenterTabIdentity | undefined> {
   const project = workspaceState.projects.find(
     (candidate) => candidate.id === projectId,
   );
@@ -214,14 +241,18 @@ export async function selectProject(projectId: string) {
   workspaceState.selectedProjectId = project.id;
   workspaceState.selectedProjectKey = key;
   workspaceState.projectRecency[key] = Date.now();
-  const session = applyVisibleSession(key);
+  const session = applyVisibleSession(key, {
+    deferActivation: options.deferTabActivation,
+  });
   selection.projectId = project.id;
   selection.conversationId = undefined;
   selection.agentId = undefined;
   selection.entryId = undefined;
   persistWorkspaceTabSessions();
+  if (options.deferTabActivation) return session.active;
   if (session.active) await selectCenterTab(session.active);
   else setActiveCenterTab(undefined);
+  return session.active;
 }
 
 export async function openProjectDirectory(dir: string) {

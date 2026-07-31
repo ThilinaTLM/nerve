@@ -4,6 +4,7 @@ import type { CenterTabIdentity } from "./workspace-state.svelte";
 import {
   mostRecentTab,
   reorderTabs,
+  startupTabActivationLane,
   tabIdentityKey,
 } from "./tab-session-helpers";
 
@@ -39,4 +40,17 @@ test("supports global singleton identities in the same ordering model", () => {
     b,
     settings,
   ]);
+});
+
+test("only restored conversations activate in the critical lane", () => {
+  const cases: Array<[CenterTabIdentity | undefined, string]> = [
+    [undefined, "none"],
+    [{ kind: "conversation", id: "conversation" }, "critical"],
+    [{ kind: "pr", id: "pr" }, "progressive"],
+    [{ kind: "task", id: "task" }, "progressive"],
+    [{ kind: "file", id: "file" }, "progressive"],
+    [{ kind: "settings", id: "settings" }, "progressive"],
+  ];
+  for (const [tab, expected] of cases)
+    assert.equal(startupTabActivationLane(tab), expected);
 });
