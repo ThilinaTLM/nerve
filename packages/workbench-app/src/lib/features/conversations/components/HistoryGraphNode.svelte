@@ -1,9 +1,7 @@
 <script lang="ts">
-import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Copy from "@lucide/svelte/icons/copy";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Pencil from "@lucide/svelte/icons/pencil";
-import Sparkles from "@lucide/svelte/icons/sparkles";
 import UnfoldVertical from "@lucide/svelte/icons/unfold-vertical";
 import { Handle, Position, type NodeProps } from "@xyflow/svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -49,14 +47,9 @@ function entryMenu(entryData: HistoryEntryNodeData): ContextMenuItem[] {
   const entry = entryData.row.node.entry;
   const items: ContextMenuItem[] = [
     {
-      label: "Jump here",
-      icon: ArrowRight,
+      label: "Branch from here",
+      icon: GitBranch,
       onSelect: () => entryData.actions?.onNavigateToEntry?.(entry.id),
-    },
-    {
-      label: "Jump + summarize from here",
-      icon: Sparkles,
-      onSelect: () => entryData.actions?.onNavigateToEntry?.(entry.id, true),
     },
   ];
   if (entry.role === "user") {
@@ -77,11 +70,11 @@ function entryMenu(entryData: HistoryEntryNodeData): ContextMenuItem[] {
   return items;
 }
 
-function jump(data: HistoryFlowNodeData, summarize = false) {
+function branch(data: HistoryFlowNodeData) {
   if (data.kind === "entry") {
-    data.actions?.onNavigateToEntry?.(data.row.node.entry.id, summarize);
+    data.actions?.onNavigateToEntry?.(data.row.node.entry.id);
   } else if (data.kind === "root") {
-    data.actions?.onNavigateToEntry?.(undefined, summarize);
+    data.actions?.onNavigateToEntry?.(undefined);
   }
 }
 </script>
@@ -95,7 +88,7 @@ function jump(data: HistoryFlowNodeData, summarize = false) {
     class:ring-ring={selected}
     class:opacity-65={!data.isOnActivePath && !selected}
     role="group"
-    ondblclick={() => jump(data)}
+    ondblclick={() => branch(data)}
   >
     {#if data.kind !== "root"}
       <Handle type="target" position={Position.Top} isConnectable={false} />
@@ -237,27 +230,14 @@ function jump(data: HistoryFlowNodeData, summarize = false) {
             class="nodrag nopan"
             variant="ghost"
             size="icon-xs"
-            ariaLabel="Jump here"
-            title="Jump here"
+            ariaLabel="Branch from here"
+            title="Branch from here"
             onclick={(event) => {
               stop(event);
-              jump(data);
+              branch(data);
             }}
           >
-            <ArrowRight class="size-3.5" strokeWidth={2} />
-          </Button>
-          <Button
-            class="nodrag nopan"
-            variant="ghost"
-            size="icon-xs"
-            ariaLabel="Jump and summarize"
-            title="Jump and summarize"
-            onclick={(event) => {
-              stop(event);
-              jump(data, true);
-            }}
-          >
-            <Sparkles class="size-3.5" strokeWidth={2} />
+            <GitBranch class="size-3.5" strokeWidth={2} />
           </Button>
           {#if data.row.node.entry.role === "user"}
             <Button

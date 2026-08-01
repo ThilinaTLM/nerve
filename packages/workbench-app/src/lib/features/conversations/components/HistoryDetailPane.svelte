@@ -1,5 +1,4 @@
 <script lang="ts">
-import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Copy from "@lucide/svelte/icons/copy";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Pencil from "@lucide/svelte/icons/pencil";
@@ -20,10 +19,7 @@ import type { HistorySelection } from "./history-segments";
 type Props = {
   selection?: HistorySelection;
   toolCallsById: Map<string, ToolCallTranscriptRecord>;
-  onNavigateToEntry?: (
-    entryId: string | undefined,
-    summarize?: boolean,
-  ) => void;
+  onNavigateToEntry?: (entryId: string | undefined) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
   onSelectRow?: (row: HistoryGraphRow) => void;
   onExpandSegment?: (id: string) => void;
@@ -72,9 +68,9 @@ async function copyId(id: string) {
       </h3>
     </div>
     <p class="text-sm text-muted-foreground">
-      Jump here to fork a brand-new branch from the very beginning. Your next
-      message becomes the first entry of that branch; the existing history stays
-      available in the tree.
+      Branch from the beginning to start a new path. Your next message becomes
+      the first entry of that branch; the existing history stays available in
+      the tree.
     </p>
     <div>
       <Button size="sm" onclick={() => onNavigateToEntry?.(undefined)}>
@@ -194,16 +190,8 @@ async function copyId(id: string) {
       </div>
       <div class="flex flex-wrap gap-2">
         <Button size="sm" onclick={() => onNavigateToEntry?.(entry.id)}>
-          <ArrowRight class="size-4" strokeWidth={2} />
-          Jump here
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onclick={() => onNavigateToEntry?.(entry.id, true)}
-        >
-          <Sparkles class="size-4" strokeWidth={2} />
-          Jump + summarize
+          <GitBranch class="size-4" strokeWidth={2} />
+          Branch from here
         </Button>
         {#if entry.role === "user"}
           <Button

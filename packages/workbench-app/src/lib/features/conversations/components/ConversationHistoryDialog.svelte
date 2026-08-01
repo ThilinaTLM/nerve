@@ -1,16 +1,11 @@
 <script lang="ts">
-import FoldVertical from "@lucide/svelte/icons/fold-vertical";
-import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
 import type {
   ConversationEntry,
   ConversationRecord,
   ConversationTreeNode,
   ToolCallTranscriptRecord,
 } from "$lib/api";
-import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
-import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import ConversationHistoryGraph from "./ConversationHistoryGraph.svelte";
 
 type Props = {
@@ -18,12 +13,8 @@ type Props = {
   activeConversation?: ConversationRecord;
   treeNodes?: ConversationTreeNode[];
   toolCalls?: ToolCallTranscriptRecord[];
-  onNavigateToEntry?: (
-    entryId: string | undefined,
-    summarize?: boolean,
-  ) => void;
+  onNavigateToEntry?: (entryId: string | undefined) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
-  onCompact?: () => void;
   onOpenChange?: (open: boolean) => void;
 };
 
@@ -34,19 +25,16 @@ let {
   toolCalls = [],
   onNavigateToEntry,
   onEditEntry,
-  onCompact,
   onOpenChange,
 }: Props = $props();
-
-let confirmCompactOpen = $state(false);
 
 function handleOpenChange(next: boolean) {
   open = next;
   onOpenChange?.(next);
 }
 
-function navigateAndClose(entryId: string | undefined, summarize?: boolean) {
-  onNavigateToEntry?.(entryId, summarize);
+function navigateAndClose(entryId: string | undefined) {
+  onNavigateToEntry?.(entryId);
   open = false;
   onOpenChange?.(false);
 }
@@ -63,30 +51,9 @@ function editAndClose(entry: ConversationEntry) {
   bind:open
   size="viewport"
   title="Conversation history"
-  description="Explore branches, zoom into rich message and tool details, then jump to or fork from any point."
+  description="Explore branches, inspect message and tool details, then branch from any point."
   onOpenChange={handleOpenChange}
 >
-  {#snippet headerActions()}
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-        aria-label="History actions"
-        disabled={!activeConversation}
-      >
-        <MoreHorizontal class="size-4" strokeWidth={2} />
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content align="end" class="w-48">
-        <DropdownMenu.Item
-          disabled={!activeConversation}
-          onSelect={() => (confirmCompactOpen = true)}
-        >
-          <FoldVertical />
-          <span>Compact context</span>
-        </DropdownMenu.Item>
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
-  {/snippet}
-
   <ConversationHistoryGraph
     {activeConversation}
     {treeNodes}
@@ -95,11 +62,3 @@ function editAndClose(entry: ConversationEntry) {
     onEditEntry={editAndClose}
   />
 </Dialog>
-
-<ConfirmDialog
-  bind:open={confirmCompactOpen}
-  title="Compact conversation"
-  description="This summarizes earlier messages to reduce context size. The full history stays available in the branch tree."
-  confirmLabel="Compact context"
-  onConfirm={() => onCompact?.()}
-/>

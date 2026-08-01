@@ -1,6 +1,5 @@
 <script lang="ts">
 import {
-  compactActiveConversation,
   composerSignals,
   conversationSelectors,
   focusComposer,
@@ -25,11 +24,8 @@ const activeConversation = $derived(conversationSelectors.activeConversation);
 const treeNodes = $derived(conversationSelectors.treeNodes);
 const toolCalls = $derived(conversationSelectors.toolCalls);
 
-async function jumpToConversationEntry(
-  entryId: string | undefined,
-  summarize = false,
-) {
-  await navigateToEntry(entryId, summarize);
+async function branchFromConversationEntry(entryId: string | undefined) {
+  await navigateToEntry(entryId);
   focusComposer();
 }
 
@@ -59,11 +55,10 @@ async function editConversationEntry(entry: {
   {activeConversation}
   {treeNodes}
   {toolCalls}
-  onNavigateToEntry={(entryId, summarize) => {
-    void jumpToConversationEntry(entryId, summarize);
+  onNavigateToEntry={(entryId) => {
+    void branchFromConversationEntry(entryId);
   }}
   onEditEntry={(entry) => {
     void editConversationEntry(entry);
   }}
-  onCompact={() => void compactActiveConversation()}
 />

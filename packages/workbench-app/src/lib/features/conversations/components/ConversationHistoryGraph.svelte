@@ -40,10 +40,7 @@ type Props = {
   activeConversation?: ConversationRecord;
   treeNodes?: ConversationTreeNode[];
   toolCalls?: ToolCallTranscriptRecord[];
-  onNavigateToEntry?: (
-    entryId: string | undefined,
-    summarize?: boolean,
-  ) => void;
+  onNavigateToEntry?: (entryId: string | undefined) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
 };
 
