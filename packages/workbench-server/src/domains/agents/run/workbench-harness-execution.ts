@@ -153,6 +153,7 @@ export async function executeWorkbenchHarness(
         {
           planDir: planDirForStorageHome(this.deps.storage.paths.home),
           tasks: this.deps.tasks.listTasks(),
+          todos: this.deps.tools.getTodos(currentAgent.id),
         },
       );
     };

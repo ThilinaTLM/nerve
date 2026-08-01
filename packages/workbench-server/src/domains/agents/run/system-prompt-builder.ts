@@ -30,6 +30,7 @@ export async function buildAgentSystemPrompt(
     jiraEnabled?: boolean;
     confluenceEnabled?: boolean;
     tasks?: readonly TaskRecord[];
+    todos?: readonly { done: boolean }[];
   } = {},
 ): Promise<string> {
   const activeToolNames = activeToolNamesForAgent(agent, {
@@ -55,6 +56,7 @@ export async function buildAgentSystemPrompt(
         ? planDirForStorageHome(options.storageHome)
         : undefined,
       tasks: options.tasks,
+      todos: options.todos,
     },
   );
 }
@@ -68,7 +70,11 @@ export function composeAgentSystemPrompt(
   activeToolNames: ReturnType<typeof activeToolNamesForAgent>,
   promptMetadata: ReturnType<typeof toolPromptMetadata>,
   resources: Awaited<ReturnType<typeof loadHarnessResources>>,
-  options: { planDir?: string; tasks?: readonly TaskRecord[] } = {},
+  options: {
+    planDir?: string;
+    tasks?: readonly TaskRecord[];
+    todos?: readonly { done: boolean }[];
+  } = {},
 ): string {
   if (agent.systemPrompt) return agent.systemPrompt;
   return buildNerveSystemPrompt({
@@ -84,5 +90,6 @@ export function composeAgentSystemPrompt(
     activeBackgroundTaskIds: options.tasks
       ? activeBackgroundTaskIdsInDirectoryTree(options.tasks, agent.projectDir)
       : undefined,
+    todos: options.todos,
   });
 }
