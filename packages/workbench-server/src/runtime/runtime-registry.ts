@@ -182,30 +182,40 @@ export class RuntimeRegistry {
     };
   }
 
+  async refreshRuntimeCapabilities(): Promise<void> {
+    if (this.shuttingDown) return;
+    const operations = [
+      ["Python runtime discovery", this.pythonRuntime.refresh()],
+      ["Editor discovery", this.editors.refresh()],
+    ] as const;
+    await this.logSettledOperations(operations);
+  }
+
   startBackgroundMaintenance(): void {
     if (this.shuttingDown) return;
     const operations = [
       ["Network model refresh", this.auth.refreshModels()],
-      ["Python runtime discovery", this.pythonRuntime.refresh()],
-      ["Editor discovery", this.editors.refresh()],
       [
         "Tool-call history compaction",
         this.tools.compactToolCallLogIfAmplified(),
       ],
     ] as const;
-    this.trackBackgroundOperation(
-      Promise.allSettled(operations.map(([, operation]) => operation)).then(
-        async (results) => {
-          await Promise.all(
-            results.map((result, index) =>
-              result.status === "rejected"
-                ? this.logger.warn(`${operations[index]?.[0]} failed`, {
-                    error: result.reason,
-                  })
-                : undefined,
-            ),
-          );
-        },
+    this.trackBackgroundOperation(this.logSettledOperations(operations));
+  }
+
+  private async logSettledOperations(
+    operations: readonly (readonly [string, Promise<unknown>])[],
+  ): Promise<void> {
+    const results = await Promise.allSettled(
+      operations.map(([, operation]) => operation),
+    );
+    await Promise.all(
+      results.map((result, index) =>
+        result.status === "rejected"
+          ? this.logger.warn(`${operations[index]?.[0]} failed`, {
+              error: result.reason,
+            })
+          : undefined,
       ),
     );
   }

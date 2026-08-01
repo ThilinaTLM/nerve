@@ -181,6 +181,7 @@ async function main() {
     .catch((error) =>
       state.logger.warn("Agent Browser skill discovery failed", { error }),
     );
+  const runtimeCapabilitiesReady = state.registry.refreshRuntimeCapabilities();
   const eventHydrateStartedAt = Date.now();
   const archivedEventLogs = await migrateLegacyEventLogs(
     storage.paths.home,
@@ -207,6 +208,7 @@ async function main() {
     durationMs: registryTimings.indexDurationMs,
     context: { ...state.index.counts() },
   });
+  await runtimeCapabilitiesReady;
   state.subscriptionUsage.start();
   const mobileTls = mobileHttpsEnabled
     ? await ensureMobileHttpsTlsMaterial(

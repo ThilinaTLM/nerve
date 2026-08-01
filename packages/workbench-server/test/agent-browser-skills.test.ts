@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import {
   AgentBrowserSkillCatalog,
   type AgentBrowserCommandRunner,
+  NodeAgentBrowserCommandRunner,
 } from "../src/domains/agents/prompting/agent-browser-skills.js";
 
 class FakeRunner implements AgentBrowserCommandRunner {
@@ -26,6 +27,47 @@ function skillContent(name: string, description: string, body: string): string {
 }
 
 describe("Agent Browser skill catalog", () => {
+  it("runs the resolved Agent Browser executable, including Windows shims", async () => {
+    const executable = {
+      path: "C:\\Users\\test\\AppData\\Roaming\\npm\\agent-browser.cmd",
+      kind: "windows_script" as const,
+    };
+    const calls: Array<{ args: readonly string[]; timeoutMs: number }> = [];
+    const runner = new NodeAgentBrowserCommandRunner(
+      async () => executable,
+      async (resolved, args, options) => {
+        assert.deepEqual(resolved, executable);
+        calls.push({ args, timeoutMs: options.timeoutMs });
+        return {
+          stdout: catalogJson([]),
+          stderr: "",
+          status: 0,
+          timedOut: false,
+        };
+      },
+    );
+
+    assert.equal(await runner.run(["skills", "--json"]), catalogJson([]));
+    assert.deepEqual(calls, [
+      { args: ["skills", "--json"], timeoutMs: 15_000 },
+    ]);
+  });
+
+  it("reports a concrete runner lookup miss as ENOENT", async () => {
+    const runner = new NodeAgentBrowserCommandRunner(
+      async () => undefined,
+      async () => assert.fail("execute should not be called"),
+    );
+
+    await assert.rejects(
+      runner.run(["skills", "--json"]),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT",
+    );
+  });
   it("treats a missing executable as an unavailable optional capability", async () => {
     const missingExecutable = Object.assign(new Error("not found"), {
       code: "ENOENT",

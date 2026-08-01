@@ -1,9 +1,13 @@
-import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import type { AvailableSkill } from "@nervekit/contracts";
+import {
+  type ExecutableRunResult,
+  locateExecutable,
+  type ResolvedExecutable,
+  runExecutable,
+} from "@nervekit/tools";
 import {
   loadSkills,
   NodeExecutionEnv,
@@ -12,7 +16,6 @@ import {
   validateName,
 } from "@nervekit/harness";
 
-const execFileAsync = promisify(execFile);
 const commandTimeoutMs = 15_000;
 const commandMaxBuffer = 4 * 1024 * 1024;
 
@@ -20,14 +23,42 @@ export interface AgentBrowserCommandRunner {
   run(args: readonly string[]): Promise<string>;
 }
 
-class NodeAgentBrowserCommandRunner implements AgentBrowserCommandRunner {
+export class NodeAgentBrowserCommandRunner implements AgentBrowserCommandRunner {
+  constructor(
+    private readonly locate: (
+      command: string,
+    ) => Promise<ResolvedExecutable | undefined> = locateExecutable,
+    private readonly execute: (
+      executable: ResolvedExecutable,
+      args: readonly string[],
+      options: { timeoutMs: number; maxBuffer: number },
+    ) => Promise<ExecutableRunResult> = runExecutable,
+  ) {}
+
   async run(args: readonly string[]): Promise<string> {
-    const { stdout } = await execFileAsync("agent-browser", [...args], {
-      timeout: commandTimeoutMs,
+    const executable = await this.locate("agent-browser");
+    if (!executable) {
+      throw Object.assign(new Error("agent-browser executable not found"), {
+        code: "ENOENT",
+      });
+    }
+    const result = await this.execute(executable, args, {
+      timeoutMs: commandTimeoutMs,
       maxBuffer: commandMaxBuffer,
-      encoding: "utf8",
     });
-    return stdout;
+    if (result.error) throw result.error;
+    if (result.timedOut) {
+      throw Object.assign(new Error("agent-browser command timed out"), {
+        code: "ETIMEDOUT",
+      });
+    }
+    if (result.status !== 0) {
+      throw new Error(
+        result.stderr.trim() ||
+          `agent-browser exited with status ${String(result.status)}`,
+      );
+    }
+    return result.stdout;
   }
 }
 
