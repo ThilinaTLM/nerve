@@ -59,6 +59,10 @@ pnpm desktop
 
 Use `pnpm dev` for the daemon and browser UI development servers. See the [development guide](https://nerve.tlmtech.dev/developers/development/) and [`CONTRIBUTING.md`](CONTRIBUTING.md) for the complete workflow. Release engineering details remain in [`docs/release.md`](docs/release.md).
 
+## Support
+
+If Nerve is useful to you, you can [support its continued development on Patreon](https://www.patreon.com/cw/thilinatlm).
+
 ## Contributing, security, and license
 
 Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a change, and report vulnerabilities through the private channels in [`SECURITY.md`](SECURITY.md).
