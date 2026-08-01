@@ -89,8 +89,14 @@ try {
 
   const htmlResponse = await fetch(`${origin}/`);
   const html = await htmlResponse.text();
-  if (!htmlResponse.ok || !html.includes('<div id="app"></div>'))
-    throw new Error("bundled workbench index.html was not served");
+  if (!htmlResponse.ok)
+    throw new Error(
+      `bundled workbench index request failed: ${describeResponse(htmlResponse, html)}`,
+    );
+  if (!/<div\b[^>]*\bid=(["'])app\1[^>]*>/i.test(html))
+    throw new Error(
+      `bundled workbench index has no #app mount: ${describeResponse(htmlResponse, html)}`,
+    );
   const assetPath = html.match(/(?:src|href)="(\/assets\/[^"]+)"/)?.[1];
   if (!assetPath)
     throw new Error("bundled workbench index has no static asset");
@@ -212,6 +218,12 @@ async function stopChild(process_) {
       if (process_.exitCode === null) process_.kill("SIGKILL");
     }),
   ]);
+}
+
+function describeResponse(response, body) {
+  const contentType = response.headers.get("content-type") ?? "unknown";
+  const preview = body.slice(0, 500).replace(/\s+/g, " ").trim();
+  return `HTTP ${response.status}, content-type ${contentType}, body ${JSON.stringify(preview)}`;
 }
 
 function delay(ms) {

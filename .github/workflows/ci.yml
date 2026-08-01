@@ -37,3 +37,9 @@ jobs:
 
       - name: Run complete test suite
         run: pnpm test
+
+      - name: Build workbench runtime
+        run: pnpm build:workbench-runtime
+
+      - name: Smoke built workbench HTTP and WebSocket parity
+        run: pnpm release:smoke:workbench
