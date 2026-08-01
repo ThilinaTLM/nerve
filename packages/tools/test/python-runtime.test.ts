@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
 import { resolvePythonRuntime } from "../src/execution/index.js";
-import { createTempProject, withPath, writeExecutable } from "./helpers.js";
+import { createTempProject, writeExecutable } from "./helpers.js";
 
 function requireExecutableFixtures(t: TestContext): boolean {
   if (process.platform !== "win32") return true;
@@ -61,9 +61,10 @@ describe("Python runtime resolver", () => {
     await writeFakePython(bin, "python3");
     await writeFakeUv(bin, uvPython);
 
-    const status = await withPath(bin, () =>
-      resolvePythonRuntime({ cwd: project.root }),
-    );
+    const status = await resolvePythonRuntime({
+      cwd: project.root,
+      env: { ...process.env, PATH: bin },
+    });
 
     assert.equal(status.available, true);
     if (!status.available) return;
@@ -82,9 +83,10 @@ describe("Python runtime resolver", () => {
     const systemPython = await writeFakePython(bin, "python3");
     await writeFakePython(venvBin, "python");
 
-    const status = await withPath(bin, () =>
-      resolvePythonRuntime({ cwd: project.root }),
-    );
+    const status = await resolvePythonRuntime({
+      cwd: project.root,
+      env: { ...process.env, PATH: bin },
+    });
 
     assert.equal(status.available, true);
     if (!status.available) return;
@@ -101,9 +103,11 @@ describe("Python runtime resolver", () => {
     const uvPython = await writeFakePython(bin, "uv-python");
     await writeFakeUv(bin, uvPython);
 
-    const status = await withPath(bin, () =>
-      resolvePythonRuntime({ cwd: project.root, manualPath: manualPython }),
-    );
+    const status = await resolvePythonRuntime({
+      cwd: project.root,
+      manualPath: manualPython,
+      env: { ...process.env, PATH: bin },
+    });
 
     assert.equal(status.available, true);
     if (!status.available) return;

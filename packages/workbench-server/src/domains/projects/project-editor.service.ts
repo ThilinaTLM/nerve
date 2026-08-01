@@ -1,12 +1,13 @@
-import {
-  type ChildProcess,
-  type SpawnOptions,
-  spawn,
-} from "node:child_process";
+import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { homedir } from "node:os";
-import { delimiter, extname, join } from "node:path";
+import { join } from "node:path";
+import {
+  locateExecutable,
+  type ResolvedExecutable,
+  spawnExecutable,
+} from "@nervekit/tools";
 import type {
   ExternalEditorStatus,
   ExternalEditorStatuses,
@@ -22,12 +23,12 @@ type EditorLauncher = {
   editor: ProjectEditor;
   source: EditorLauncherSource;
   executable: string;
-  command: string;
+  command: ResolvedExecutable | string;
   argsForDir: (dir: string) => string[];
 };
 
 type SpawnCommand = (
-  command: string,
+  command: ResolvedExecutable | string,
   args: string[],
   options: SpawnOptions,
 ) => ChildProcess;
@@ -44,11 +45,10 @@ type EditorDefinition = {
 
 type ProjectEditorServiceOptions = {
   spawnCommand?: SpawnCommand;
+  locate?: typeof locateExecutable;
 };
 
 const EDITOR_ORDER: ProjectEditor[] = ["vscode", "zed"];
-const WINDOWS_EXECUTABLE_EXTENSIONS = new Set([".com", ".exe"]);
-
 function joinIfBase(base: string | undefined, ...segments: string[]): string {
   return base ? join(base, ...segments) : "";
 }
@@ -111,6 +111,7 @@ const EDITORS: Record<ProjectEditor, EditorDefinition> = {
 
 export class ProjectEditorService {
   private readonly spawnCommand: SpawnCommand;
+  private readonly locate: typeof locateExecutable;
   private launchers: Partial<Record<ProjectEditor, EditorLauncher>> = {};
   private statuses: ExternalEditorStatuses = unavailableStatuses();
 
@@ -118,7 +119,11 @@ export class ProjectEditorService {
     private readonly getProject: (projectId: string) => ProjectRecord,
     options: ProjectEditorServiceOptions = {},
   ) {
-    this.spawnCommand = options.spawnCommand ?? spawn;
+    this.spawnCommand =
+      options.spawnCommand ??
+      ((command, args, spawnOptions) =>
+        spawnExecutable(command, args, spawnOptions));
+    this.locate = options.locate ?? locateExecutable;
   }
 
   async refresh(): Promise<ExternalEditorStatuses> {
@@ -222,7 +227,7 @@ export class ProjectEditorService {
   ): Promise<EditorLauncher | undefined> {
     const definition = EDITORS[editor];
     for (const command of definition.pathCommands) {
-      const executable = await findExecutableOnPath(command);
+      const executable = await this.locate(command);
       if (executable) {
         return commandLauncher(definition, "path", executable);
       }
@@ -242,8 +247,10 @@ export class ProjectEditorService {
       }
     }
 
-    for (const executable of platformKnownPaths(definition)) {
-      if (executable && (await pathExists(executable))) {
+    for (const path of platformKnownPaths(definition)) {
+      if (!path) continue;
+      const executable = await this.locate(path);
+      if (executable) {
         return commandLauncher(definition, "known_path", executable);
       }
     }
@@ -278,12 +285,12 @@ function cloneStatuses(
 function commandLauncher(
   definition: EditorDefinition,
   source: EditorLauncherSource,
-  executable: string,
+  executable: ResolvedExecutable,
 ): EditorLauncher {
   return {
     editor: definition.editor,
     source,
-    executable,
+    executable: executable.path,
     command: executable,
     argsForDir: (dir) => [dir],
   };
@@ -293,39 +300,6 @@ function platformKnownPaths(definition: EditorDefinition): string[] {
   if (process.platform === "win32") return definition.windowsKnownPaths();
   if (process.platform === "linux") return definition.linuxKnownPaths();
   return [];
-}
-
-async function findExecutableOnPath(
-  command: string,
-): Promise<string | undefined> {
-  const pathValue = process.env.PATH;
-  if (!pathValue) return undefined;
-  const commandCandidates = executableNames(command);
-  for (const dir of pathValue.split(delimiter)) {
-    if (!dir) continue;
-    for (const candidate of commandCandidates) {
-      const executable = join(dir, candidate);
-      if (await pathExists(executable, executableAccessMode()))
-        return executable;
-    }
-  }
-  return undefined;
-}
-
-function executableNames(command: string): string[] {
-  if (process.platform !== "win32") return [command];
-  const commandExtension = extname(command).toLowerCase();
-  if (WINDOWS_EXECUTABLE_EXTENSIONS.has(commandExtension)) return [command];
-
-  const extensions = (process.env.PATHEXT ?? ".COM;.EXE")
-    .split(";")
-    .map((extension) => extension.trim().toLowerCase())
-    .filter((extension) => WINDOWS_EXECUTABLE_EXTENSIONS.has(extension));
-  return [...new Set(extensions.map((extension) => `${command}${extension}`))];
-}
-
-function executableAccessMode(): number {
-  return process.platform === "win32" ? constants.F_OK : constants.X_OK;
 }
 
 async function pathExists(

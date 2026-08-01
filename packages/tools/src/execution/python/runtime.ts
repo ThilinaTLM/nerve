@@ -1,5 +1,13 @@
-import { spawn } from "node:child_process";
-import { access } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import {
+  type ExecutableLocatorOptions,
+  locateExecutable,
+  type ResolvedExecutable,
+  runExecutable,
+} from "../executable/executable.js";
+
 export type PythonRuntimeSource = "manual" | "path" | "windows_launcher" | "uv";
 
 export type PythonRuntime = {
@@ -22,13 +30,16 @@ export type ResolvePythonRuntimeOptions = {
   cwd: string;
   manualPath?: string;
   timeoutMs?: number;
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+  homeDir?: string;
 };
 
 type Candidate = {
   command: string;
   args: string[];
   source: PythonRuntimeSource;
-  mustExist?: boolean;
+  knownPaths?: string[];
 };
 
 type ProbeResult = {
@@ -43,114 +54,203 @@ export async function resolvePythonRuntime(
   options: ResolvePythonRuntimeOptions,
 ): Promise<PythonRuntimeStatus> {
   const timeoutMs = options.timeoutMs ?? 5000;
-  const candidates = await pythonCandidates(options.cwd, options.manualPath);
+  const locatorOptions = executableLocatorOptions(options);
   let lastError = "No Python executable found.";
 
-  for (const candidate of candidates) {
-    if (candidate.mustExist && !(await pathExists(candidate.command))) {
-      lastError = `Python executable not found: ${candidate.command}`;
-      continue;
+  if (options.manualPath?.trim()) {
+    const manualPath = options.manualPath.trim();
+    const executable = await locateExecutable(manualPath, locatorOptions);
+    if (!executable) {
+      return {
+        available: false,
+        source: "unavailable",
+        error: `Python executable not found: ${manualPath}`,
+      };
     }
-    const probe = await probePython(
-      candidate.command,
-      candidate.args,
+    return await probeCandidate(
+      executable,
+      [],
+      "manual",
       timeoutMs,
+      options.env,
     );
-    if (!probe.ok) {
-      lastError = probe.error;
-      continue;
+  }
+
+  const uvPython = await findUvPython(options, locatorOptions, timeoutMs);
+  if (uvPython) {
+    const executable = await locateExecutable(uvPython, locatorOptions);
+    if (executable) {
+      const status = await probeCandidate(
+        executable,
+        [],
+        "uv",
+        timeoutMs,
+        options.env,
+      );
+      if (status.available) return status;
+      lastError = status.error;
     }
-    if (!supportedVersion(probe.value.versionInfo)) {
-      lastError = `Python ${probe.value.version} is too old; Python ${MIN_VERSION[0]}.${MIN_VERSION[1]}+ is required.`;
-      continue;
-    }
-    return {
-      available: true,
-      command: candidate.command,
-      args: candidate.args,
-      displayPath: probe.value.executable || candidate.command,
-      version: probe.value.version,
-      source: candidate.source,
-    };
+  }
+
+  for (const candidate of await pythonCandidates(options)) {
+    const executable = await locateExecutable(candidate.command, {
+      ...locatorOptions,
+      additionalPaths: candidate.knownPaths,
+    });
+    if (!executable) continue;
+    const status = await probeCandidate(
+      executable,
+      candidate.args,
+      candidate.source,
+      timeoutMs,
+      options.env,
+    );
+    if (status.available) return status;
+    lastError = status.error;
   }
 
   return { available: false, source: "unavailable", error: lastError };
 }
 
+async function findUvPython(
+  options: ResolvePythonRuntimeOptions,
+  locatorOptions: ExecutableLocatorOptions,
+  timeoutMs: number,
+): Promise<string | undefined> {
+  const uv = await locateExecutable("uv", locatorOptions);
+  if (!uv) return undefined;
+  const result = await runExecutable(uv, ["python", "find", "--no-project"], {
+    timeoutMs,
+    cwd: options.cwd,
+    env: { ...(options.env ?? process.env), UV_PYTHON_DOWNLOADS: "never" },
+  });
+  if (result.error || result.status !== 0) return undefined;
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+}
+
 async function pythonCandidates(
-  cwd: string,
-  manualPath?: string,
+  options: ResolvePythonRuntimeOptions,
 ): Promise<Candidate[]> {
-  if (manualPath?.trim()) {
+  const platform = options.platform ?? process.platform;
+  if (platform === "win32") {
+    const knownPaths = await windowsPythonPaths(options);
     return [
       {
-        command: manualPath.trim(),
+        command: "python.exe",
         args: [],
-        source: "manual",
-        mustExist: true,
+        source: "path",
+        knownPaths,
       },
-    ];
-  }
-
-  const candidates: Candidate[] = [];
-  const uvPython = await findUvPython(cwd);
-  if (uvPython) {
-    candidates.push({
-      command: uvPython,
-      args: [],
-      source: "uv",
-      mustExist: true,
-    });
-  }
-
-  if (process.platform === "win32") {
-    candidates.push(
-      { command: "python.exe", args: [], source: "path" },
       { command: "python3.exe", args: [], source: "path" },
       { command: "py.exe", args: ["-3"], source: "windows_launcher" },
       { command: "py", args: ["-3"], source: "windows_launcher" },
-    );
-  } else {
-    candidates.push(
-      { command: "python3", args: [], source: "path" },
-      { command: "python", args: [], source: "path" },
-    );
+    ];
   }
 
-  return candidates;
+  const knownPaths =
+    platform === "darwin"
+      ? [
+          "/opt/homebrew/bin/python3",
+          "/usr/local/bin/python3",
+          "/usr/bin/python3",
+          "/Library/Frameworks/Python.framework/Versions/Current/bin/python3",
+        ]
+      : ["/usr/local/bin/python3", "/usr/bin/python3", "/bin/python3"];
+  return [
+    { command: "python3", args: [], source: "path", knownPaths },
+    { command: "python", args: [], source: "path" },
+  ];
 }
 
-async function findUvPython(cwd: string): Promise<string | undefined> {
-  const result = await runCommand(
-    "uv",
-    ["python", "find", "--no-project"],
-    5000,
-    cwd,
-    {
-      UV_PYTHON_DOWNLOADS: "never",
-    },
-  );
-  if (result.status !== 0) return undefined;
-  const first = result.stdout.trim().split(/\r?\n/)[0]?.trim();
-  return first || undefined;
+async function windowsPythonPaths(
+  options: ResolvePythonRuntimeOptions,
+): Promise<string[]> {
+  const env = options.env ?? process.env;
+  const home = options.homeDir ?? env.USERPROFILE ?? env.HOME ?? homedir();
+  const roots = [
+    env.LOCALAPPDATA ? join(env.LOCALAPPDATA, "Programs", "Python") : undefined,
+    env.ProgramFiles,
+    env["ProgramFiles(x86)"],
+  ].filter((value): value is string => Boolean(value));
+  const paths: string[] = [];
+  for (const root of roots) {
+    try {
+      const directories = (await readdir(root, { withFileTypes: true }))
+        .filter(
+          (entry) => entry.isDirectory() && /^Python3\d+/i.test(entry.name),
+        )
+        .map((entry) => entry.name)
+        .sort((left, right) =>
+          right.localeCompare(left, undefined, { numeric: true }),
+        );
+      paths.push(
+        ...directories.map((directory) => join(root, directory, "python.exe")),
+      );
+    } catch {
+      // Optional installation root.
+    }
+  }
+  if (env.LOCALAPPDATA) {
+    paths.push(
+      join(env.LOCALAPPDATA, "Microsoft", "WindowsApps", "python.exe"),
+    );
+  }
+  paths.push(join(home, ".local", "bin", "python.exe"));
+  return paths;
+}
+
+async function probeCandidate(
+  executable: ResolvedExecutable,
+  args: string[],
+  source: PythonRuntimeSource,
+  timeoutMs: number,
+  env?: NodeJS.ProcessEnv,
+): Promise<PythonRuntimeStatus> {
+  const probe = await probePython(executable, args, timeoutMs, env);
+  if (!probe.ok) {
+    return { available: false, source: "unavailable", error: probe.error };
+  }
+  if (!supportedVersion(probe.value.versionInfo)) {
+    return {
+      available: false,
+      source: "unavailable",
+      error: `Python ${probe.value.version} is too old; Python ${MIN_VERSION[0]}.${MIN_VERSION[1]}+ is required.`,
+    };
+  }
+  return {
+    available: true,
+    command: executable.path,
+    args,
+    displayPath: probe.value.executable || executable.path,
+    version: probe.value.version,
+    source,
+  };
 }
 
 async function probePython(
-  command: string,
+  executable: ResolvedExecutable,
   args: string[],
   timeoutMs: number,
+  env?: NodeJS.ProcessEnv,
 ): Promise<{ ok: true; value: ProbeResult } | { ok: false; error: string }> {
   const script = [
     "import json, sys",
     "print(json.dumps({'executable': sys.executable, 'version': sys.version.split()[0], 'versionInfo': list(sys.version_info[:3])}))",
   ].join("; ");
-  const result = await runCommand(command, [...args, "-c", script], timeoutMs);
-  if (result.status !== 0) {
+  const result = await runExecutable(executable, [...args, "-c", script], {
+    timeoutMs,
+    env,
+  });
+  if (result.error || result.status !== 0) {
     return {
       ok: false,
       error:
         result.stderr.trim() ||
-        `Python probe failed for ${command} with status ${String(result.status)}`,
+        result.error?.message ||
+        `Python probe failed for ${executable.path} with status ${String(result.status)}`,
     };
   }
   try {
@@ -164,7 +264,7 @@ async function probePython(
       versionInfo.length < 3 ||
       versionInfo.some((part) => !Number.isInteger(part))
     ) {
-      return { ok: false, error: `Python probe returned invalid metadata.` };
+      return { ok: false, error: "Python probe returned invalid metadata." };
     }
     return {
       ok: true,
@@ -189,49 +289,13 @@ function supportedVersion([major, minor]: [number, number, number]): boolean {
   );
 }
 
-async function runCommand(
-  command: string,
-  args: string[],
-  timeoutMs: number,
-  cwd?: string,
-  env?: Record<string, string>,
-): Promise<{ stdout: string; stderr: string; status: number | null }> {
-  return await new Promise((resolve) => {
-    let stdout = "";
-    let stderr = "";
-    const child = spawn(command, args, {
-      cwd,
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ...(env ?? {}) },
-    });
-    const timeout = setTimeout(() => {
-      child.kill("SIGTERM");
-    }, timeoutMs);
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr?.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on("error", (error) => {
-      clearTimeout(timeout);
-      resolve({ stdout, stderr: error.message, status: null });
-    });
-    child.on("close", (status) => {
-      clearTimeout(timeout);
-      resolve({ stdout, stderr, status });
-    });
-  });
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
+function executableLocatorOptions(
+  options: ResolvePythonRuntimeOptions,
+): ExecutableLocatorOptions {
+  return {
+    platform: options.platform,
+    env: options.env,
+    homeDir: options.homeDir,
+    cwd: options.cwd,
+  };
 }

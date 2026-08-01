@@ -29,6 +29,17 @@ export {
 } from "./common/process-result.js";
 export { ToolExecutionError } from "./common/tool-error.js";
 export { executeTool } from "./core-dispatch.js";
+export {
+  type ExecutableLocatorOptions,
+  type ExecutablePlatform,
+  type ExecutableRunOptions,
+  type ExecutableRunResult,
+  executableSearchDirectories,
+  locateExecutable,
+  type ResolvedExecutable,
+  runExecutable,
+  spawnExecutable,
+} from "./executable/executable.js";
 export { executeEdit, normalizeEditArgs } from "./filesystem/edit.js";
 export { executeFind } from "./filesystem/find.js";
 export { executeLs } from "./filesystem/list.js";
