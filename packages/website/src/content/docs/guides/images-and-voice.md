@@ -15,7 +15,7 @@ Accepted MIME families include PNG, JPEG, GIF, WebP, SVG, BMP, TIFF, and AVIF. T
 The composer does not currently prevent image paste when a text-only model is selected. Choose a model known to support image input. Pasted files are temporary paths, not durable project attachments, and the UI does not promise a file-size or decoded-signature validation boundary.
 :::
 
-Nerve does not currently provide generic file attachment, thumbnail, or composer drag-and-drop. Use `@` completion to reference files already in the project.
+Dropping an image, another file, or a folder onto the desktop composer is different from clipboard image paste: it inserts the item's existing filesystem path without copying, uploading, or creating a durable attachment. See [Use the composer](/guides/composer/#drop-files-and-folders) for the full workflow. In a browser or installed PWA, use `@` completion to reference paths inside the project.
 
 ## Record voice
 

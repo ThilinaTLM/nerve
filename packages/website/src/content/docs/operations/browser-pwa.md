@@ -9,6 +9,10 @@ The workbench is a browser application served by the Nerve daemon. Electron is t
 
 The service worker registers outside Electron only. Electron deliberately disables it to avoid stale packaged assets and profile migration complexity. Installing the PWA caches the web interface; it does **not** install or host the daemon.
 
+## Desktop-only path drops
+
+Dragging files or folders onto the composer requires Electron's native path bridge, so it is unavailable in a normal browser or installed PWA. Browser users can type `@` to reference files and directories inside the active project instead.
+
 ## Local browser development
 
 From a source checkout:
