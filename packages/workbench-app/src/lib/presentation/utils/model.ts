@@ -58,6 +58,26 @@ export function modelDisplayName(model: ModelInfo): string {
   return model.name || model.label || model.modelId;
 }
 
+function trimDecimal(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1);
+}
+
+/**
+ * Compact model-capacity formatting for catalog metadata: exact multiples render
+ * without decimals (1_000_000 -> "1M", 272_000 -> "272K", 1_500_000 -> "1.5M").
+ */
+export function formatTokenCapacity(tokens: number): string {
+  if (!Number.isFinite(tokens) || tokens <= 0) return "—";
+  if (tokens >= 1_000_000) return `${trimDecimal(tokens / 1_000_000)}M`;
+  if (tokens >= 1_000) return `${trimDecimal(tokens / 1_000)}K`;
+  return `${tokens}`;
+}
+
+export function supportsImageInput(model: ModelInfo): boolean {
+  return model.input?.includes("image") ?? false;
+}
+
 export function modelNameCounts(models: ModelInfo[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const model of models) {

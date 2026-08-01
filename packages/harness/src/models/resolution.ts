@@ -174,6 +174,7 @@ export function getAgentModelInfo(model: Model<string>): AgentModelInfo {
     supportedThinkingLevels: getSupportedThinkingLevels(
       model,
     ) as ThinkingLevel[],
+    input: (model.input ?? ["text"]) as ("text" | "image")[],
     contextWindow: model.contextWindow ?? 0,
     maxOutputTokens: model.maxTokens ?? 0,
   };

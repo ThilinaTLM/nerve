@@ -15,7 +15,8 @@ let {
   onclick,
 }: {
   label: string;
-  detail?: string;
+  /** Secondary line: plain text, or a snippet for richer markup (e.g. mono ids). */
+  detail?: string | Snippet;
   selected?: boolean;
   disabled?: boolean;
   title?: string;
@@ -42,8 +43,10 @@ let {
   {@render icon?.()}
   <span class="grid min-w-0 flex-1 gap-0.5">
     <span class="truncate text-xs font-medium text-foreground">{label}</span>
-    {#if detail}
-      <span class="text-xs text-muted-foreground">{detail}</span>
+    {#if typeof detail === "string"}
+      <span class="truncate text-xs text-muted-foreground">{detail}</span>
+    {:else if detail}
+      {@render detail()}
     {/if}
   </span>
   {@render trailing?.()}

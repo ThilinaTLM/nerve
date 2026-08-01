@@ -77,6 +77,7 @@ function saveExploreModel(selection: {
     fallbackOption={{
       label: "Default model",
       detail: "Use the platform fallback model",
+      actionLabel: "Use default model",
     }}
     fallbackThinkingLevels={[...thinkingLevels]}
     dialogTitle="Choose explore model"
