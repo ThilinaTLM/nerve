@@ -220,11 +220,44 @@ describe("ConversationRuntime", () => {
     );
   });
 
+  it("preserves live state when the same run start is replayed", () => {
+    const runtime = new ConversationRuntime();
+    const { run } = start(runtime);
+
+    const replayed = runtime.startRun({
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      projectId: "proj_test",
+      runId: run.runId,
+      startedAt: "2026-01-01T00:00:01.000Z",
+    });
+
+    assert.equal(replayed.turns.length, 1);
+    assert.equal(replayed.turns[0]?.messages.length, 1);
+    assert.equal(replayed.startedAt, "2026-01-01T00:00:00.000Z");
+  });
+
   it("removes active run state on completion", () => {
     const runtime = new ConversationRuntime();
     const { run } = start(runtime);
     assert.ok(runtime.snapshotForConversation("conv_test"));
     runtime.completeRun(run.runId);
+    assert.equal(runtime.snapshotForConversation("conv_test"), undefined);
+  });
+
+  it("removes active run state on cancellation and reset", () => {
+    const runtime = new ConversationRuntime();
+    const { run } = start(runtime);
+    runtime.cancelRun(run.runId);
+    assert.equal(runtime.snapshotForConversation("conv_test"), undefined);
+
+    runtime.startRun({
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      projectId: "proj_test",
+      runId: "run_next",
+    });
+    runtime.reset();
     assert.equal(runtime.snapshotForConversation("conv_test"), undefined);
   });
 });

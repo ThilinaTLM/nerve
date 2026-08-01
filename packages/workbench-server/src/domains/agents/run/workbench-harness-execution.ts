@@ -600,14 +600,6 @@ export async function executeWorkbenchHarness(
         return;
       }
     });
-    const startedAt = new Date().toISOString();
-    this.deps.state.conversationRuntime.startRun({
-      agentId: agent.id,
-      projectId: agent.projectId,
-      conversationId: agent.conversationId,
-      runId,
-      startedAt,
-    });
     await this.deps.logger.info("Agent run started", {
       agentId: agent.id,
       conversationId: agent.conversationId,
@@ -621,7 +613,6 @@ export async function executeWorkbenchHarness(
     });
     const abort = async () => {
       abortRequested = true;
-      this.deps.state.conversationRuntime.markAborting(runId);
       runAbortController.abort();
       await harness.abort();
     };

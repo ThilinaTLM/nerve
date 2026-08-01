@@ -27,7 +27,7 @@ import { WorkbenchRunIntegrity } from "./run-integrity.js";
 import { WorkbenchLiveExecutions } from "./run-live-executions.js";
 import { WorkbenchRunReferences } from "./run-references.js";
 import { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
-import { WorkbenchRunStatusProjector } from "./workbench-run-status-projector.js";
+import { WorkbenchRunProjector } from "./workbench-run-projector.js";
 
 export interface WorkbenchRunRuntime {
   coordinator: RunCoordinator;
@@ -35,7 +35,7 @@ export interface WorkbenchRunRuntime {
   references: WorkbenchRunReferences;
   live: WorkbenchLiveExecutions;
   delivery: RunEventDeliveryService;
-  statusProjector: WorkbenchRunStatusProjector;
+  projector: WorkbenchRunProjector;
 }
 
 export function createWorkbenchRunRuntime(input: {
@@ -87,7 +87,7 @@ export function createWorkbenchRunRuntime(input: {
     live,
     input.exploreAdmission,
   );
-  const statusProjector = new WorkbenchRunStatusProjector(
+  const projector = new WorkbenchRunProjector(
     input.state,
     input.setAgentStatus,
   );
@@ -103,7 +103,7 @@ export function createWorkbenchRunRuntime(input: {
     publisher,
     notify,
     retryPolicy: input.retryPolicy,
-    transitionObserver: statusProjector,
+    transitionObserver: projector,
     diagnostics: diagnostics(input.logger),
   });
   return {
@@ -112,7 +112,7 @@ export function createWorkbenchRunRuntime(input: {
     references,
     live,
     delivery,
-    statusProjector,
+    projector,
   };
 }
 
