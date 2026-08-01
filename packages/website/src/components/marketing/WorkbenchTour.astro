@@ -1,11 +1,15 @@
 ---
-import { Image } from "astro:assets";
-import conversation from "../../assets/shots/d1-conversation.webp";
-import pullRequest from "../../assets/shots/d3-pull-request.webp";
-import tasks from "../../assets/shots/d4-tasks.webp";
-import git from "../../assets/shots/d5-git.webp";
+import conversationDark from "../../assets/shots/d1-conversation-dark.webp";
+import conversationLight from "../../assets/shots/d1-conversation-light.webp";
+import pullRequestDark from "../../assets/shots/d3-pull-request-dark.webp";
+import pullRequestLight from "../../assets/shots/d3-pull-request-light.webp";
+import tasksDark from "../../assets/shots/d4-tasks-dark.webp";
+import tasksLight from "../../assets/shots/d4-tasks-light.webp";
+import gitDark from "../../assets/shots/d5-git-dark.webp";
+import gitLight from "../../assets/shots/d5-git-light.webp";
 import DeviceFrame from "./DeviceFrame.astro";
 import Reveal from "./Reveal.astro";
+import ThemeScreenshot from "./ThemeScreenshot.astro";
 
 /* The media column is pinned while the copy column scrolls, so each shot gets
  * the full width of the section instead of a narrow half-column. `tourStage()`
@@ -21,9 +25,10 @@ const stops = [
       "Tool calls retain their inputs and their bounded output",
       "Changes stay reviewable before they ship",
     ],
-    image: conversation,
+    dark: conversationDark,
+    light: conversationLight,
     label: "nerve · conversation",
-    alt: "Nerve conversation with a bash command card, an edit card showing a CSS diff, and the composer",
+    alt: "Nerve conversation showing command output, validation results, pull request details, and the composer",
   },
   {
     eyebrow: "Every change, accounted for",
@@ -33,7 +38,8 @@ const stops = [
       "The diff the agent produced is the diff you review",
       "Destructive actions ask before they run",
     ],
-    image: git,
+    dark: gitDark,
+    light: gitLight,
     label: "nerve · git",
     alt: "Nerve workbench with a conversation on the left and the Git panel listing unstaged changes on the right",
   },
@@ -46,7 +52,8 @@ const stops = [
       "Checks and changed files have dedicated views",
     ],
     meta: "Requires a GitHub remote plus gh auth login.",
-    image: pullRequest,
+    dark: pullRequestDark,
+    light: pullRequestLight,
     label: "nerve · pull request",
     alt: "Nerve pull request view with summary, mergeability overview, and a ready-to-merge panel",
   },
@@ -58,7 +65,8 @@ const stops = [
       "Runs preserve their status and output",
       "Up to 24 hours of runtime per task run",
     ],
-    image: tasks,
+    dark: tasksDark,
+    light: tasksLight,
     label: "nerve · tasks",
     alt: "Nerve tasks view listing task runs with status pills beside streamed process output",
   },
@@ -94,10 +102,11 @@ const stops = [
               relying on a pinned media column. */}
           <div class="tour-inline-media">
             <DeviceFrame label={stop.label} depth={2}>
-              <Image
-                src={stop.image}
+              <ThemeScreenshot
+                dark={stop.dark}
+                light={stop.light}
                 alt={stop.alt}
-                widths={[720, 1080, 1440]}
+                widths={[720, 1080, 1440, 2000, 2880]}
                 sizes="100vw"
                 loading="lazy"
               />
@@ -115,10 +124,11 @@ const stops = [
           {
             stops.map((stop, index) => (
               <div class="tour-shot" data-shot={index}>
-                <Image
-                  src={stop.image}
+                <ThemeScreenshot
+                  dark={stop.dark}
+                  light={stop.light}
                   alt=""
-                  widths={[720, 1080, 1600, 2000]}
+                  widths={[720, 1080, 1600, 2000, 2880]}
                   sizes="62vw"
                   loading={index === 0 ? "eager" : "lazy"}
                 />

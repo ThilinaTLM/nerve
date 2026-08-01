@@ -12,7 +12,10 @@ Nerve keeps agent activity visible and gives you direct control over models, per
 
 [Website](https://nerve.tlmtech.dev/) · [Documentation](https://nerve.tlmtech.dev/start/overview/) · [Install guide](https://nerve.tlmtech.dev/start/install/) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
-![Nerve desktop workbench showing a coding conversation, tool activity, and Git changes](packages/website/src/assets/shots/d1-conversation.webp)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="packages/website/src/assets/shots/d5-git-dark.webp">
+  <img src="packages/website/src/assets/shots/d5-git-light.webp" alt="Nerve desktop workbench showing a coding conversation, tool activity, and Git changes">
+</picture>
 
 > [!NOTE]
 > Nerve is beta software. It runs on Linux, Windows 11, and macOS and is distributed under the [Apache-2.0 license](LICENSE).
