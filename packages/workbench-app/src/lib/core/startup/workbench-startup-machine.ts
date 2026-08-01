@@ -7,6 +7,12 @@ const phaseOrder: Partial<Record<WorkbenchStartupPhase, number>> = {
   progressive: 3,
 };
 
+export function shouldRevealWorkbench(phase: WorkbenchStartupPhase): boolean {
+  return (
+    phase === "core-ready" || phase === "progressive" || phase === "failed"
+  );
+}
+
 export class WorkbenchStartupMachine {
   phase: WorkbenchStartupPhase = "idle";
   generation = 0;

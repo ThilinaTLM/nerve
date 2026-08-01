@@ -14,6 +14,7 @@ import {
   getWorkspaceSnapshot,
   openProjectInEditor,
   type ProjectEditor,
+  type ProjectRecord,
   type PruneProjectConversationsRequest,
   pruneProjectConversations,
 } from "$lib/api";
@@ -35,6 +36,7 @@ import {
   type CenterTabIdentity,
 } from "$lib/features/workspace/state/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
+import { projectForNewConversation } from "./new-conversation-project";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
 import { selectCenterTab, setActiveCenterTab } from "./center-tabs.svelte";
 import {
@@ -285,10 +287,18 @@ export function newConversation() {
     workspaceState.projectPickerOpen = true;
     return;
   }
-  void createConversationForDirectory(activeProject.dir);
+  void openPendingConversationForProject(activeProject);
 }
 
 export function newConversationInProject(projectDir: string) {
+  const project = projectForNewConversation(
+    workspaceState.projects,
+    projectDir,
+  );
+  if (project) {
+    void openPendingConversationForProject(project);
+    return;
+  }
   void createConversationForDirectory(projectDir);
 }
 
@@ -390,6 +400,15 @@ export async function pruneProjectConversationsAndRefresh(
   }
 }
 
+async function openPendingConversationForProject(
+  project: ProjectRecord,
+): Promise<void> {
+  workspaceState.error = undefined;
+  workspaceState.projectPickerOpen = false;
+  await selectProject(project.id, { deferTabActivation: true });
+  openPendingConversation(project);
+}
+
 export async function createConversationForDirectory(dir: string) {
   workspaceState.error = undefined;
   try {
@@ -400,9 +419,7 @@ export async function createConversationForDirectory(dir: string) {
         (candidate) => candidate.id !== project.id,
       ),
     ];
-    workspaceState.projectPickerOpen = false;
-    await selectProject(project.id);
-    openPendingConversation(project);
+    await openPendingConversationForProject(project);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workspaceState.error = message;

@@ -36,11 +36,16 @@ export function zoomPercentForLevel(level: number): number {
 
 export function applyZoomLevel(level: number) {
   const next = clampZoomLevel(level);
+  const scale = zoomScaleForLevel(next);
   zoomState.level = next;
   if (typeof document === "undefined") return;
   document.documentElement.style.setProperty(
     "--nerve-zoom-scale",
-    zoomScaleForLevel(next).toFixed(4),
+    scale.toFixed(4),
+  );
+  document.documentElement.style.setProperty(
+    "--nerve-inverse-zoom-scale",
+    (1 / scale).toFixed(4),
   );
 }
 

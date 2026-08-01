@@ -42,6 +42,7 @@ import {
   type LoadingStage,
   loadingHtml,
   loadingStageScript,
+  loadingWindowBackground,
   ShellPageUrlRegistry,
 } from "./window/loading-pages.js";
 import { installNavigationGuards } from "./window/navigation-guards.js";
@@ -488,6 +489,7 @@ function createMainWindow(): BrowserWindowType {
     autoHideMenuBar: true,
     frame: false,
     title: DESKTOP_APP_NAME,
+    backgroundColor: loadingWindowBackground(nativeTheme.shouldUseDarkColors),
     ...(process.platform === "darwin" ? {} : { icon: resolveAppIconPath() }),
     webPreferences: {
       contextIsolation: true,

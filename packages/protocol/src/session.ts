@@ -17,6 +17,7 @@ import type {
 import {
   RESYNC_REQUIRED_CLOSE_REASON,
   STREAM_SUBSCRIPTION_CAPABILITY,
+  operationDefinition,
   publicEventDefinition,
 } from "@nervekit/contracts";
 import {
@@ -52,6 +53,7 @@ export class ProtocolServerSession {
   readonly #pendingLive = new Map<string, EventEnvelope[]>();
   readonly #replayBufferedLive = new Map<string, EventEnvelope[]>();
   readonly #notifyQueue: NotifyEvent[] = [];
+  readonly #detachedReads = new Set<Promise<void>>();
 
   #negotiatedTarget?: PeerDescriptor;
   #rpcDispatcher?: RpcDispatcher;
@@ -174,28 +176,11 @@ export class ProtocolServerSession {
       return;
     }
     if (message.kind === "request" && this.#rpcDispatcher) {
-      const result = await this.#rpcDispatcher.dispatch(message);
-      await this.#sendControl(
-        result.ok
-          ? this.#options.createMessage(
-              "response",
-              {
-                ok: true,
-                method: message.data.method,
-                result: result.result,
-              },
-              {
-                target: message.source,
-                replyTo: message.id,
-                correlationId: message.id,
-              },
-            )
-          : this.#options.createMessage("error", result.error, {
-              target: message.source,
-              replyTo: message.id,
-              correlationId: message.id,
-            }),
-      );
+      if (operationDefinition(message.data.method).kind === "read") {
+        this.#startDetachedRead(message);
+      } else {
+        await this.#dispatchRequest(message);
+      }
       return;
     }
     if (message.kind === "heartbeat") {
@@ -205,6 +190,45 @@ export class ProtocolServerSession {
       return;
     }
     await this.#options.onMessage?.(message);
+  }
+
+  #startDetachedRead(message: ProtocolV1Message & { kind: "request" }): void {
+    const request = this.#dispatchRequest(message)
+      .catch(() => {
+        if (this.state === "ready") {
+          void this.shutdown("server_shutdown", "RPC response send failed");
+        }
+      })
+      .finally(() => this.#detachedReads.delete(request));
+    this.#detachedReads.add(request);
+  }
+
+  async #dispatchRequest(
+    message: ProtocolV1Message & { kind: "request" },
+  ): Promise<void> {
+    const result = await this.#rpcDispatcher!.dispatch(message);
+    if (this.state !== "ready") return;
+    await this.#sendControl(
+      result.ok
+        ? this.#options.createMessage(
+            "response",
+            {
+              ok: true,
+              method: message.data.method,
+              result: result.result,
+            },
+            {
+              target: message.source,
+              replyTo: message.id,
+              correlationId: message.id,
+            },
+          )
+        : this.#options.createMessage("error", result.error, {
+            target: message.source,
+            replyTo: message.id,
+            correlationId: message.id,
+          }),
+    );
   }
 
   async publish(stream: string, event: EventEnvelope): Promise<void> {

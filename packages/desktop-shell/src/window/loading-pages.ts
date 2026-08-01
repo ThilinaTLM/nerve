@@ -22,6 +22,12 @@ export function createDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
+// Native BrowserWindow fallback used before either loading document can paint.
+// These mirror the light/dark --background tokens in shellStyles().
+export function loadingWindowBackground(dark: boolean): string {
+  return dark ? "#262624" : "#faf9f5";
+}
+
 export type LoadingStage = "starting" | "preparing" | "opening";
 
 const LOADING_STAGES: Record<LoadingStage, string> = {
