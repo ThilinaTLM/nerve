@@ -1,8 +1,9 @@
 ---
-import { Image } from "astro:assets";
-import history from "../../assets/shots/d6-history.webp";
+import historyDark from "../../assets/shots/d6-history-dark.webp";
+import historyLight from "../../assets/shots/d6-history-light.webp";
 import DeviceFrame from "./DeviceFrame.astro";
 import Reveal from "./Reveal.astro";
+import ThemeScreenshot from "./ThemeScreenshot.astro";
 
 /* Numbers come from the documented harness defaults: host retries are three
  * attempts on a 2s exponential base, and the balanced compaction profile
@@ -124,10 +125,11 @@ const trace = [
 
     <Reveal variant="right" delay={120} class="history-media">
       <DeviceFrame label="nerve · conversation history" depth={3} tilt>
-        <Image
-          src={history}
-          alt="The Nerve conversation history graph showing collapsed step groups, a tool node, and a details panel with jump and fork actions"
-          widths={[720, 1080, 1440]}
+        <ThemeScreenshot
+          dark={historyDark}
+          light={historyLight}
+          alt="The Nerve conversation history graph showing collapsed step groups, branching paths, tool nodes, and an entry details panel"
+          widths={[720, 1080, 1440, 2000, 2880]}
           sizes="(max-width: 1023px) 100vw, 58vw"
           loading="lazy"
         />

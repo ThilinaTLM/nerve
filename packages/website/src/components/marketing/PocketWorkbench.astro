@@ -1,23 +1,29 @@
 ---
-import { Image } from "astro:assets";
-import conversation from "../../assets/shots/m1-conversation.webp";
-import picker from "../../assets/shots/m2-model-picker.webp";
-import sheet from "../../assets/shots/m3-right-sheet.webp";
+import conversationDark from "../../assets/shots/m1-conversation-dark.webp";
+import conversationLight from "../../assets/shots/m1-conversation-light.webp";
+import pickerDark from "../../assets/shots/m2-model-picker-dark.webp";
+import pickerLight from "../../assets/shots/m2-model-picker-light.webp";
+import sheetDark from "../../assets/shots/m3-right-sheet-dark.webp";
+import sheetLight from "../../assets/shots/m3-right-sheet-light.webp";
 import PhoneFrame from "./PhoneFrame.astro";
+import ThemeScreenshot from "./ThemeScreenshot.astro";
 
 const phones = [
   {
-    src: conversation,
+    dark: conversationDark,
+    light: conversationLight,
     alt: "Phone-width Nerve conversation with the composer at the bottom",
     caption: "Conversation",
   },
   {
-    src: picker,
+    dark: pickerDark,
+    light: pickerLight,
     alt: "Nerve model and thinking level picker on a phone",
     caption: "Model control",
   },
   {
-    src: sheet,
+    dark: sheetDark,
+    light: sheetLight,
     alt: "The Nerve Git panel open as a phone-width sheet",
     caption: "Dock sheets",
   },
@@ -52,10 +58,11 @@ const phones = [
         phones.map((phone, index) => (
           <li class={`arc-slot slot-${index + 1}`} data-carousel-slide>
             <PhoneFrame caption={phone.caption}>
-              <Image
-                src={phone.src}
+              <ThemeScreenshot
+                dark={phone.dark}
+                light={phone.light}
                 alt={phone.alt}
-                widths={[390, 600, 900]}
+                widths={[390, 600, 900, 1170]}
                 sizes="(max-width: 767px) 62vw, 20vw"
                 loading="lazy"
                 draggable={false}
