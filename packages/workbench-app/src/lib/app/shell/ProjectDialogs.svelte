@@ -43,7 +43,7 @@ async function editConversationEntry(entry: {
   bind:open={workspaceState.projectPickerOpen}
   {projects}
   {conversations}
-  homeDir={status?.storage.home}
+  homeDir={status?.storage.userHome}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenDirectory={(path) => void openProjectDirectory(path)}
   onNewChat={(path) => void createConversationForDirectory(path)}

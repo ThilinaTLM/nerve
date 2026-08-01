@@ -12,7 +12,12 @@ import type {
   ThinkingLevel,
   TodoItem,
 } from "@nervekit/contracts";
-import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+  PopoverRow,
+  PopoverSection,
+} from "@nervekit/ui-kit/components/ui/popover-panel";
 import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import type { Component } from "svelte";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
@@ -24,6 +29,8 @@ type PermissionOption = {
   label: string;
   detail: string;
   icon: Component;
+  /** Tone for the row icon; carries the risk signal for higher levels. */
+  iconClass: string;
 };
 
 type Props = {
@@ -96,6 +103,7 @@ const permissionOptions = $derived<PermissionOption[]>([
     label: "Read only",
     detail: "No writes or mutating commands",
     icon: Lock,
+    iconClass: "text-muted-foreground",
   },
   {
     value: "supervised",
@@ -104,12 +112,14 @@ const permissionOptions = $derived<PermissionOption[]>([
       ? "Ask before non-read tool calls"
       : "Ask before read and non-read tool calls",
     icon: Shield,
+    iconClass: "text-muted-foreground",
   },
   {
     value: "autonomous",
     label: "Autonomous",
     detail: "Allow tool calls without approval",
     icon: Zap,
+    iconClass: "text-warning",
   },
 ]);
 
@@ -133,7 +143,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
 <div class="composer-tabs">
   <Popover
     bind:open={permissionOpen}
-    class="permission-popover-content"
+    class="popover-lg"
     triggerClass="composer-tab permission-tab"
     ariaLabel="Permission level"
     triggerTitle={permissionShortcut
@@ -150,30 +160,29 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
         <Icon size={13} strokeWidth={2.2} />
       </span>
     {/snippet}
-    <div class="permission-menu">
-      <p class="permission-heading">Permission level</p>
-      <ul class="permission-list">
+    <PopoverBody>
+      <PopoverHeader title="Permission level" />
+      <PopoverSection>
         {#each permissionOptions as option (option.value)}
           {@const ActiveIcon = option.icon}
-          <li>
-            <button
-              type="button"
-              class="permission-row"
-              class:active={option.value === permissionLevel}
-              aria-pressed={option.value === permissionLevel}
-              onclick={() => selectPermission(option.value)}
-            >
-              <ActiveIcon size={15} strokeWidth={2.1} />
-              <span class="permission-row-text">
-                <span class="permission-row-label">{option.label}</span>
-                <span class="permission-row-detail">{option.detail}</span>
-              </span>
-            </button>
-          </li>
+          <PopoverRow
+            label={option.label}
+            detail={option.detail}
+            selected={option.value === permissionLevel}
+            onclick={() => selectPermission(option.value)}
+          >
+            {#snippet icon()}
+              <ActiveIcon
+                class={`size-4 flex-none ${option.iconClass}`}
+                strokeWidth={2.1}
+                aria-hidden="true"
+              />
+            {/snippet}
+          </PopoverRow>
         {/each}
-      </ul>
+      </PopoverSection>
       {#if permissionLevel === "supervised"}
-        <div class="permission-policy">
+        <PopoverSection separated>
           <Switch
             checked={approvalPolicy.autoApproveReadOnly}
             disabled={controlsDisabled}
@@ -181,9 +190,9 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
             description="Allow read, grep, find, ls, todos, and task status/log/list without prompting."
             onCheckedChange={setAutoApproveReadOnly}
           />
-        </div>
+        </PopoverSection>
       {/if}
-    </div>
+    </PopoverBody>
   </Popover>
 
   <button
@@ -290,73 +299,5 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
   .mode-tab-label {
     display: none;
   }
-}
-
-.permission-menu {
-  display: grid;
-  gap: 0.45rem;
-  padding: 0.6rem;
-}
-
-.permission-heading {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.permission-list {
-  display: grid;
-  gap: 0.15rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.permission-policy {
-  border-top: 1px solid var(--border);
-  padding-top: 0.45rem;
-}
-
-.permission-row {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--foreground);
-  padding: 0.4rem 0.5rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.permission-row:hover {
-  background: var(--accent);
-}
-
-.permission-row.active {
-  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  color: var(--primary);
-}
-
-.permission-row-text {
-  display: grid;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
-.permission-row-label {
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.permission-row-detail {
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
 }
 </style>

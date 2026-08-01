@@ -8,10 +8,10 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { ShellStatusBar, type DockToggle } from "$lib/presentation/shell";
 import type { TaskRecord, ProjectRecord, StatusResponse } from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
-import { shortenPath } from "$lib/core/utils/path";
+import { tildePath } from "$lib/core/utils/path";
 import StatusPopover from "./StatusPopover.svelte";
 import SubscriptionUsageChip from "$lib/features/usage/components/SubscriptionUsageChip.svelte";
-import ZoomControl from "./ZoomControl.svelte";
+import LayoutControl from "./LayoutControl.svelte";
 
 type GitStatus = {
   branch: string;
@@ -64,8 +64,17 @@ const activeTasks = $derived(
   ).length,
 );
 const projectPath = $derived(
-  activeProject ? shortenPath(activeProject.dir, homeDir) : "No project",
+  activeProject ? tildePath(activeProject.dir, homeDir) : "No project",
 );
+
+const hasUsage = $derived(
+  subscriptionUsages.some((entry) =>
+    Boolean(entry.usage?.session ?? entry.usage?.weekly),
+  ),
+);
+// Phone: usage outranks the project path for the one available slot, but the
+// path still fills it when there is no subscription usage to show.
+const showUsageInLeft = $derived(phone && hasUsage);
 
 function changeCountLabel(count: number): string {
   return `${count} ${count === 1 ? "change" : "changes"}`;
@@ -91,16 +100,18 @@ function gitStatusTitle(status: GitStatus): string {
 
 <ShellStatusBar toggles={dockToggles}>
   {#snippet left()}
-    <span class="footer-project-path" title={activeProject?.dir}
-      >{projectPath}</span
-    >
+    {#if showUsageInLeft}
+      <SubscriptionUsageChip usages={subscriptionUsages} compact />
+    {:else}
+      <span class="footer-project-path" title={activeProject?.dir}
+        >{projectPath}</span
+      >
+    {/if}
 
     {#if !phone && gitStatus}
-      <span class="footer-chip footer-git" title={gitStatusTitle(gitStatus)}>
+      <span class="footer-item footer-git" title={gitStatusTitle(gitStatus)}>
         <GitBranch size={12} strokeWidth={2.1} aria-hidden="true" />
-        <span class="footer-git-branch"
-          >{gitStatus.branch}{gitStatus.dirty ? "*" : ""}</span
-        >
+        <span class="footer-git-branch">{gitStatus.branch}</span>
         {#if gitStatus.changeCount > 0}
           <span
             class="footer-git-detail"
@@ -112,6 +123,8 @@ function gitStatusTitle(status: GitStatus): string {
               aria-hidden="true"
             />{gitStatus.changeCount}
           </span>
+        {:else if gitStatus.dirty}
+          <span class="footer-git-dot" aria-label="Uncommitted changes">•</span>
         {/if}
         {#if (gitStatus.ahead ?? 0) > 0}
           <span
@@ -144,14 +157,14 @@ function gitStatusTitle(status: GitStatus): string {
   {#snippet right()}
     {#if !phone}
       {#if activeTasks > 0}
-        <span class="footer-chip" title="Running tasks">
+        <span class="footer-item" title="Running tasks">
           <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
           <span>{activeTasks}</span>
         </span>
       {/if}
 
       {#if pendingApprovals > 0}
-        <span class="footer-chip warn" title="Pending approvals">
+        <span class="footer-item warn" title="Pending approvals">
           <TriangleAlert size={12} strokeWidth={2.1} aria-hidden="true" />
           <span>{pendingApprovals}</span>
         </span>
@@ -159,9 +172,9 @@ function gitStatusTitle(status: GitStatus): string {
 
       <SubscriptionUsageChip usages={subscriptionUsages} />
 
-      <ZoomControl {zoomLevel} {onZoomLevelChange} />
+      <LayoutControl {zoomLevel} {dockToggles} {onZoomLevelChange} />
     {/if}
 
-    <StatusPopover {connection} {live} {status} side="top" />
+    <StatusPopover {connection} {live} {status} side="top" compact={phone} />
   {/snippet}
 </ShellStatusBar>

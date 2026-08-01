@@ -2,7 +2,12 @@
 import type { StatusResponse } from "$lib/api";
 import { formatDurationMinutes } from "@nervekit/ui-kit/core/utils/usage";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+  PopoverProperties,
+  PopoverProperty,
+} from "@nervekit/ui-kit/components/ui/popover-panel";
 import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { type StatusTone } from "@nervekit/ui-kit/core/utils/status";
 
@@ -11,6 +16,8 @@ type Props = {
   live?: boolean;
   status?: StatusResponse;
   side?: "top" | "bottom";
+  /** Phone widths: show the dot alone; the popover carries the detail. */
+  compact?: boolean;
 };
 
 let {
@@ -18,6 +25,7 @@ let {
   live = false,
   status,
   side = "top",
+  compact = false,
 }: Props = $props();
 
 const connectionTone = $derived<StatusTone>(
@@ -40,62 +48,57 @@ const uptime = $derived.by(() => {
 </script>
 
 <Popover
-  class="status-popover"
+  class="popover-sm"
   triggerClass="status-trigger-wrap"
   ariaLabel="Open daemon status"
   {side}
   align="end"
 >
   {#snippet trigger()}
-    <span class="status-trigger" title="Open daemon status">
+    <span class="status-trigger" title={`Nerve daemon · ${summary}`}>
       <StatusDot tone={connectionTone} pulse={live} />
-      <span>{summary}</span>
+      {#if !compact}<span>{summary}</span>{/if}
     </span>
   {/snippet}
 
-  <div class="flex flex-col gap-3 p-3">
-    <header
-      class="flex items-center justify-between gap-2 border-b border-border/60 pb-2.5"
-    >
-      <strong class="text-sm font-semibold">Nerve daemon</strong>
-      <Badge size="xs" tone={connectionTone}>{summary}</Badge>
-    </header>
+  <PopoverBody>
+    <PopoverHeader title="Nerve daemon">
+      {#snippet action()}
+        <Badge size="xs" tone={connectionTone}>{summary}</Badge>
+      {/snippet}
+    </PopoverHeader>
 
-    <dl class="flex flex-col gap-1.5 text-xs">
-      <div class="flex items-center justify-between gap-3">
-        <dt class="text-muted-foreground">Connection</dt>
-        <dd class="flex items-center gap-1.5 font-medium">
+    <PopoverProperties>
+      <PopoverProperty label="Connection">
+        <span class="flex items-center gap-1.5">
           <StatusDot tone={connectionTone} size="xs" />{connection}
-        </dd>
-      </div>
-      <div class="flex items-center justify-between gap-3">
-        <dt class="text-muted-foreground">Version</dt>
-        <dd class="font-mono">{status?.version ?? "—"}</dd>
-      </div>
-      <div class="flex items-center justify-between gap-3">
-        <dt class="text-muted-foreground">Uptime</dt>
-        <dd class="font-medium">{uptime ?? "—"}</dd>
-      </div>
-      <div class="flex items-center justify-between gap-3">
-        <dt class="text-muted-foreground">Index</dt>
-        <dd
-          class={status?.storage.indexHealthy ? "text-success" : "text-warning"}
-        >
-          {status == null
-            ? "—"
-            : status.storage.indexHealthy
-              ? "healthy"
-              : "rebuilding"}
-        </dd>
-      </div>
-      <div class="flex items-center justify-between gap-3">
-        <dt class="text-muted-foreground">Home</dt>
-        <dd class="min-w-0 truncate font-mono" title={status?.storage.home}>
-          {status?.storage.home ?? "—"}
-        </dd>
-      </div>
-    </dl>
-  </div>
+        </span>
+      </PopoverProperty>
+      <PopoverProperty
+        label="Version"
+        value={status?.version}
+        valueClass="font-mono"
+      />
+      <PopoverProperty label="Uptime" value={uptime ?? undefined} />
+      <PopoverProperty
+        label="Index"
+        value={status == null
+          ? undefined
+          : status.storage.indexHealthy
+            ? "healthy"
+            : "rebuilding"}
+        valueClass={status?.storage.indexHealthy
+          ? "text-success"
+          : "text-warning"}
+      />
+      <PopoverProperty
+        label="Data dir"
+        value={status?.storage.home}
+        valueClass="font-mono"
+        title={status?.storage.home}
+      />
+    </PopoverProperties>
+  </PopoverBody>
 </Popover>
 
 <style>
@@ -103,11 +106,5 @@ const uptime = $derived.by(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  height: 100%;
-  color: var(--muted-foreground);
-  padding: 0 0.6rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 600;
 }
 </style>

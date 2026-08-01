@@ -63,7 +63,7 @@ const dockToggles = $derived<DockToggle[]>(
   {gitStatus}
   {subscriptionUsages}
   {status}
-  homeDir={status?.storage.home}
+  homeDir={status?.storage.userHome}
   zoomLevel={currentZoomLevel}
   {dockToggles}
   phone={isPhone}

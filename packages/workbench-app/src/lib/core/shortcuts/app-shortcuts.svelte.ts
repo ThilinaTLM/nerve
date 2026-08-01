@@ -44,6 +44,8 @@ type AppShortcutsOptions = {
   ) => void | Promise<void>;
   selectedMode: () => AgentRecord["mode"];
   setComposerMode: (value: AgentRecord["mode"]) => void | Promise<void>;
+  /** Dock ids are inlined so `$lib/core` stays out of the presentation layer. */
+  togglePanelDock: (dock: "left" | "right" | "bottom") => void;
 };
 
 export function createAppShortcuts(options: AppShortcutsOptions) {
@@ -196,6 +198,15 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
         return cyclePermissionLevel();
       case "composer.cycleThinking":
         return cycleThinkingLevel();
+      case "view.toggleLeftDock":
+        options.togglePanelDock("left");
+        return true;
+      case "view.toggleRightDock":
+        options.togglePanelDock("right");
+        return true;
+      case "view.toggleBottomDock":
+        options.togglePanelDock("bottom");
+        return true;
       case "zoom.in":
       case "zoom.out":
       case "zoom.reset":

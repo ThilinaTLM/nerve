@@ -1,7 +1,10 @@
 <script lang="ts">
-import Check from "@lucide/svelte/icons/check";
 import type { ModelInfo, ThinkingLevel } from "@nervekit/contracts";
-import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import Popover, {
+  PopoverBody,
+  PopoverRow,
+  PopoverSection,
+} from "@nervekit/ui-kit/components/ui/popover-panel";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
@@ -141,7 +144,7 @@ $effect(() => {
 <Popover
   {open}
   onOpenChange={handleOpenChange}
-  class="model-picker-content"
+  class="popover-lg"
   triggerClass="composer-tab model-tab"
   ariaLabel="Model and thinking level"
   {triggerTitle}
@@ -160,11 +163,10 @@ $effect(() => {
     </span>
   {/snippet}
 
-  <div class="model-picker">
-    <div class="model-picker-section">
-      <p class="model-picker-heading">Model</p>
+  <PopoverBody>
+    <PopoverSection label="Model">
       {#if models.length === 0}
-        <p class="model-picker-empty">{emptyMessage}</p>
+        <p class="text-muted-foreground">{emptyMessage}</p>
       {:else}
         <div class="grid gap-2">
           {#if models.length > SEARCH_THRESHOLD}
@@ -199,59 +201,58 @@ $effect(() => {
             {/if}
           {/if}
           {#if filteredModels.length === 0}
-            <p class="model-picker-empty">No models match.</p>
+            <p class="text-muted-foreground">No models match.</p>
           {:else}
             <VirtualScroller
               items={filteredModels}
               getKey={(entry) => entry.key}
-              estimateSize={() => 34}
+              estimateSize={() => 36}
+              gap={6}
               viewportClass="max-h-[min(44vh,18rem)]"
               viewportAriaLabel="Available models"
             >
               {#snippet row({ item: entry })}
-                {@const active = entry.key === selectedModelKey}
-                <button
-                  type="button"
-                  class="model-row"
-                  class:active
-                  aria-pressed={active}
+                <PopoverRow
+                  label={entry.contextualLabel}
+                  selected={entry.key === selectedModelKey}
                   {disabled}
                   onclick={() => selectModel(entry.model)}
-                >
-                  <span class="model-row-text">
-                    <span class="model-row-label">{entry.contextualLabel}</span>
-                  </span>
-                  {#if active}<Check size={14} strokeWidth={2.4} />{/if}
-                </button>
+                />
               {/snippet}
             </VirtualScroller>
           {/if}
         </div>
       {/if}
-    </div>
+    </PopoverSection>
 
     {#if hasThinking}
-      <div class="model-picker-section thinking-section">
-        <p class="model-picker-heading">Thinking level</p>
-        <div class="thinking-grid" role="group" aria-label="Thinking level">
+      <PopoverSection label="Thinking level" separated>
+        <ToggleGroup.Root
+          type="single"
+          size="xs"
+          spacing={1}
+          variant="outline"
+          value={thinkingLevel}
+          aria-label="Thinking level"
+          class="flex-wrap justify-start"
+          onValueChange={(value) => {
+            if (value) selectThinking(value as ThinkingLevel);
+          }}
+        >
           {#each thinkingLevels as level (level)}
-            {@const active = level === thinkingLevel}
-            <button
-              type="button"
-              class="thinking-chip rounded-full"
-              class:active
-              aria-pressed={active}
+            <ToggleGroup.Item
+              value={level}
+              class="flex-none rounded-full text-xs data-[state=on]:text-primary"
               title={thinkingLevelDetails[level]}
               {disabled}
-              onclick={() => selectThinking(level)}
             >
               {thinkingLevelLabel(level)}
-            </button>
+            </ToggleGroup.Item>
           {/each}
-        </div>
-      </div>
+        </ToggleGroup.Root>
+      </PopoverSection>
     {/if}
-  </div>
+  </PopoverBody>
 </Popover>
 
 <style>
@@ -296,102 +297,5 @@ $effect(() => {
   .model-tab-short-suffix {
     display: inline;
   }
-}
-
-.model-picker {
-  display: grid;
-  gap: 0.7rem;
-  padding: 0.7rem;
-}
-
-.model-picker-section {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.thinking-section {
-  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  padding-top: 0.7rem;
-}
-
-.model-picker-heading {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.model-picker-empty {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-}
-
-.model-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  width: 100%;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--foreground);
-  padding: 0.4rem 0.5rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.model-row:hover {
-  background: var(--accent);
-}
-
-.model-row.active {
-  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  color: var(--primary);
-}
-
-.model-row-text {
-  display: grid;
-  min-width: 0;
-  gap: 0.05rem;
-}
-
-.model-row-label {
-  overflow: hidden;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.thinking-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.thinking-chip {
-  border: 1px solid var(--border);
-  background: var(--input);
-  color: var(--muted-foreground);
-  padding: 0.2rem 0.6rem;
-  font-size: var(--text-xs);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.thinking-chip:hover {
-  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-  color: var(--foreground);
-}
-
-.thinking-chip.active {
-  border-color: var(--primary);
-  background: color-mix(in oklab, var(--primary) 14%, transparent);
-  color: var(--primary);
 }
 </style>

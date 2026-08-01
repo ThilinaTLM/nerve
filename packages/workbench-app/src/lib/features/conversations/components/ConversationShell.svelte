@@ -379,7 +379,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   projects={workspaceState.projects}
   conversations={workspaceState.conversations}
   agents={workspaceState.agents}
-  homeDir={workspaceState.status?.storage.home}
+  homeDir={workspaceState.status?.storage.userHome}
   approvals={activeApprovals}
   {pendingUserQuestions}
   {pendingPlanReviews}

@@ -9,15 +9,19 @@ import {
 } from "@nervekit/ui-kit/core/utils/usage";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
-import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
-import type { StatusTone } from "@nervekit/ui-kit/core/utils/status";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+  PopoverSection,
+} from "@nervekit/ui-kit/components/ui/popover-panel";
 
 type Props = {
   usages?: SubscriptionUsageEntry[];
+  /** Phone widths: show only the most-used window, without the reset time. */
+  compact?: boolean;
 };
 
-let { usages = [] }: Props = $props();
+let { usages = [], compact = false }: Props = $props();
 
 function windowReset(
   window: SubscriptionWindow | null | undefined,
@@ -97,13 +101,6 @@ function toneBarClass(percent: number | null | undefined): string {
   return "bg-success";
 }
 
-function dotTone(percent: number | null | undefined): StatusTone {
-  const tone = usageTone(percent);
-  if (tone === "error") return "danger";
-  if (tone === "warning") return "warn";
-  return "good";
-}
-
 function updatedLabel(value: string | undefined): string | null {
   if (!value) return null;
   const date = new Date(value);
@@ -122,11 +119,21 @@ const triggerEntry = $derived(
     (entry) => entry.active && displayWindows(entry.usage).length > 0,
   ) ?? entries.find((entry) => displayWindows(entry.usage).length > 0),
 );
-const triggerWindows = $derived(displayWindows(triggerEntry?.usage));
-const triggerTone = $derived(
-  dotTone(
-    Math.max(0, ...triggerWindows.map((item) => item.window.usedPercent ?? 0)),
-  ),
+const allTriggerWindows = $derived(displayWindows(triggerEntry?.usage));
+// Compact keeps whichever window is closest to its limit, since that is the
+// one worth surfacing when there is only room for a single meter.
+const triggerWindows = $derived.by(() => {
+  if (!compact || allTriggerWindows.length <= 1) return allTriggerWindows;
+  return [
+    allTriggerWindows.reduce((worst, item) =>
+      (item.window.usedPercent ?? 0) > (worst.window.usedPercent ?? 0)
+        ? item
+        : worst,
+    ),
+  ];
+});
+const triggerReset = $derived(
+  compact ? null : windowReset(triggerWindows[0]?.window),
 );
 
 const lastUpdated = $derived.by(() => {
@@ -178,99 +185,114 @@ const title = $derived.by(() => {
 
 {#if hasData}
   <Popover
-    class="subscription-popover"
-    triggerClass="subscription-trigger-wrap"
+    class="popover-md"
+    triggerClass="usage-trigger-wrap"
     ariaLabel="Open subscription usage details"
     side="top"
     align="end"
   >
     {#snippet trigger()}
-      <span class="subscription-trigger" {title}>
-        <StatusDot
-          tone={triggerTone}
-          pulse={triggerTone !== "good"}
-          size="xs"
-        />
-        {#each triggerWindows as item, index (item.slot)}
+      <span class="usage-trigger" {title}>
+        {#each triggerWindows as item (item.slot)}
           {@const percent = item.window.usedPercent}
-          {@const reset = index === 0 ? windowReset(item.window) : null}
-          {#if index > 0}<span class="trigger-muted">/</span>{/if}
-          <span class={cn("trigger-part", toneTextClass(percent))}>
-            {item.abbreviation}:{percentLabel(percent)}{#if reset != null}
-              <span class="trigger-muted">({reset})</span>{/if}
+          <span class="usage-meter">
+            <span class="usage-meter-label">{item.abbreviation}</span>
+            <span class="usage-meter-track">
+              <span
+                class={cn("usage-meter-fill", toneBarClass(percent))}
+                style="width: {clampPercent(percent)}%"
+              ></span>
+            </span>
+            <span class={cn("usage-meter-value", toneTextClass(percent))}
+              >{percentLabel(percent)}</span
+            >
           </span>
         {/each}
+        {#if triggerReset}
+          <span class="usage-reset">{triggerReset}</span>
+        {/if}
       </span>
     {/snippet}
 
-    <div class="flex flex-col gap-3 p-3">
-      <header
-        class="flex items-center justify-between gap-2 border-b border-border/60 pb-2.5"
-      >
-        <strong class="text-sm font-semibold">Subscription usage</strong>
-        {#if lastUpdated}
-          <span class="text-xs text-muted-foreground"
-            >Updated {lastUpdated}</span
-          >
-        {/if}
-      </header>
+    <PopoverBody>
+      <PopoverHeader
+        title="Subscription usage"
+        meta={lastUpdated ? `Updated ${lastUpdated}` : undefined}
+      />
 
-      <div class="flex flex-col gap-2.5">
-        {#each entries as entry (entry.provider)}
-          <section
-            class={cn(
-              "flex flex-col gap-2 rounded-md border border-border/60 p-2.5",
-              entry.active && "bg-muted/40",
-            )}
-          >
-            <div class="flex items-center justify-between gap-2">
-              <span class="flex items-baseline gap-1.5 text-xs font-semibold">
-                {providerLabel(entry.provider)}
-                {#if entry.usage?.planType}
-                  <span class="font-normal text-muted-foreground"
-                    >· {entry.usage.planType}</span
-                  >
-                {/if}
-              </span>
-              {#if entry.active}
-                <Badge size="xs" tone="neutral">Active</Badge>
+      {#each entries as entry, index (entry.provider)}
+        <PopoverSection separated={index > 0}>
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="flex items-baseline gap-1.5 text-xs font-medium">
+              {providerLabel(entry.provider)}
+              {#if entry.usage?.planType}
+                <span class="font-normal text-muted-foreground"
+                  >· {entry.usage.planType}</span
+                >
               {/if}
-            </div>
-
-            {#if entry.usage}
-              {@const windows = displayWindows(entry.usage)}
-              {#if windows.length > 0}
-                {#each windows as item (item.slot)}
-                  {@render usageRow(item)}
-                {/each}
-              {:else}
-                <span class="text-xs text-muted-foreground">No data</span>
-              {/if}
-            {:else}
-              <span class="text-xs text-muted-foreground">No data</span>
+            </span>
+            {#if entry.active}
+              <Badge size="xs" tone="neutral">Active</Badge>
             {/if}
-          </section>
-        {/each}
-      </div>
-    </div>
+          </div>
+
+          {#if entry.usage}
+            {@const windows = displayWindows(entry.usage)}
+            {#if windows.length > 0}
+              {#each windows as item (item.slot)}
+                {@render usageRow(item)}
+              {/each}
+            {:else}
+              <span class="text-muted-foreground">No data</span>
+            {/if}
+          {:else}
+            <span class="text-muted-foreground">No data</span>
+          {/if}
+        </PopoverSection>
+      {/each}
+    </PopoverBody>
   </Popover>
 {/if}
 
 <style>
-.subscription-trigger {
+.usage-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 0.32rem;
-  height: 100%;
-  color: var(--muted-foreground);
-  padding: 0 0.6rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 600;
+  gap: 0.4rem;
   white-space: nowrap;
 }
 
-.trigger-muted {
+.usage-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.usage-meter-label {
+  color: var(--muted-foreground);
+}
+
+.usage-meter-track {
+  position: relative;
+  overflow: hidden;
+  width: 1.5rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted-foreground) 28%, transparent);
+}
+
+.usage-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.usage-meter-value,
+.usage-reset {
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-reset {
   color: var(--muted-foreground);
 }
 </style>

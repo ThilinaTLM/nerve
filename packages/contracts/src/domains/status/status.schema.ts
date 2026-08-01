@@ -40,6 +40,7 @@ export const statusResponseSchema = z.object({
   mobileHttps: mobileHttpsInfoSchema.optional(),
   storage: z.object({
     home: z.string(),
+    userHome: z.string(),
     sqlitePath: z.string(),
     indexHealthy: z.boolean(),
   }),

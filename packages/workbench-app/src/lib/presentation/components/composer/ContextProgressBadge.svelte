@@ -3,8 +3,18 @@ import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import type { ContextUsage } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
-import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+  PopoverProperties,
+  PopoverProperty,
+  PopoverSection,
+} from "@nervekit/ui-kit/components/ui/popover-panel";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
+import {
+  ProgressRing,
+  type ProgressRingTone,
+} from "@nervekit/ui-kit/components/ui/progress-ring";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { formatTokens, usageTone } from "@nervekit/ui-kit/core/utils/usage";
 
@@ -46,6 +56,9 @@ const remainingTokens = $derived(
     : null,
 );
 const tone = $derived(usageTone(percent));
+const ringTone = $derived<ProgressRingTone>(
+  tone === "error" ? "danger" : tone === "warning" ? "warn" : "neutral",
+);
 const percentLabel = $derived(
   percent == null ? "?%" : `${Math.round(percent)}%`,
 );
@@ -85,7 +98,7 @@ function requestCompact(): void {
 {#if contextLimit > 0 || percent != null}
   <Popover
     bind:open
-    class="!w-64"
+    class="popover-md"
     triggerClass="composer-tab context-usage-tab px-2"
     ariaLabel="Context usage"
     triggerTitle={title}
@@ -97,14 +110,8 @@ function requestCompact(): void {
       <span
         class="context-usage-tab-inner inline-flex items-center gap-1"
         data-tone={tone}
-        style={`--ctx-fill: ${ringPercent}%;`}
       >
-        <span
-          class="ctx-ring inline-grid size-3 place-items-center rounded-full"
-          aria-hidden="true"
-        >
-          <span class="ctx-ring-core size-2 rounded-full"></span>
-        </span>
+        <ProgressRing percent={ringPercent} tone={ringTone} />
         <span class="ctx-percent">{percentLabel}</span>
         <span class="ctx-window font-medium text-muted-foreground"
           >/{windowLabel}</span
@@ -112,17 +119,12 @@ function requestCompact(): void {
       </span>
     {/snippet}
 
-    <div class="grid gap-2.5 p-2.5">
-      <div class="grid gap-2">
-        <div class="flex items-baseline justify-between gap-3">
-          <p
-            class="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-          >
-            Context window
-          </p>
+    <PopoverBody>
+      <PopoverHeader title="Context window">
+        {#snippet action()}
           <span
             class={cn(
-              "text-xs font-medium",
+              "flex-none text-xs font-medium",
               tone === "error"
                 ? "text-destructive"
                 : tone === "warning"
@@ -130,7 +132,10 @@ function requestCompact(): void {
                   : "text-foreground",
             )}>{usageLabel}</span
           >
-        </div>
+        {/snippet}
+      </PopoverHeader>
+
+      <PopoverSection>
         <Progress
           value={ringPercent}
           class={cn("h-1", progressClass)}
@@ -139,38 +144,34 @@ function requestCompact(): void {
             : `${percentLabel} of context window used`}
         />
         {#if percent == null}
-          <p class="text-xs text-muted-foreground">
+          <p class="text-muted-foreground">
             Usage will be available after the next response.
           </p>
         {/if}
-      </div>
+      </PopoverSection>
 
-      <dl class="grid gap-1.5 border-t border-border pt-2.5 text-xs">
-        <div class="flex items-center justify-between gap-4">
-          <dt class="text-muted-foreground">Used</dt>
-          <dd class="tabular-nums text-foreground">
-            {tokens == null
+      <PopoverSection separated>
+        <PopoverProperties>
+          <PopoverProperty
+            label="Used"
+            value={tokens == null
               ? "Unavailable"
               : `${tokens.toLocaleString()} tokens`}
-          </dd>
-        </div>
-        <div class="flex items-center justify-between gap-4">
-          <dt class="text-muted-foreground">Remaining</dt>
-          <dd class="tabular-nums text-foreground">
-            {remainingTokens == null
+          />
+          <PopoverProperty
+            label="Remaining"
+            value={remainingTokens == null
               ? "Unavailable"
               : `${remainingTokens.toLocaleString()} tokens`}
-          </dd>
-        </div>
-        <div class="flex items-center justify-between gap-4">
-          <dt class="text-muted-foreground">Window</dt>
-          <dd class="tabular-nums text-foreground">
-            {contextLimit > 0
+          />
+          <PopoverProperty
+            label="Window"
+            value={contextLimit > 0
               ? `${contextLimit.toLocaleString()} tokens`
               : "Unknown"}
-          </dd>
-        </div>
-      </dl>
+          />
+        </PopoverProperties>
+      </PopoverSection>
 
       <Button
         size="xs"
@@ -185,7 +186,7 @@ function requestCompact(): void {
         <FoldVertical />
         {compacting ? "Compacting…" : "Compact context"}
       </Button>
-    </div>
+    </PopoverBody>
   </Popover>
 {/if}
 
@@ -198,31 +199,8 @@ function requestCompact(): void {
 />
 
 <style>
-.ctx-ring {
-  --ctx-color: var(--muted-foreground);
-  background: conic-gradient(
-    var(--ctx-color) var(--ctx-fill),
-    color-mix(in oklab, var(--border) 82%, transparent) 0
-  );
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 7%, transparent)
-    inset;
-}
-
-.ctx-ring-core {
-  background: var(--card);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 4%, transparent);
-}
-
-.context-usage-tab-inner[data-tone="warning"] .ctx-ring {
-  --ctx-color: var(--warning);
-}
-
 .context-usage-tab-inner[data-tone="warning"] .ctx-percent {
   color: var(--warning);
-}
-
-.context-usage-tab-inner[data-tone="error"] .ctx-ring {
-  --ctx-color: var(--destructive);
 }
 
 .context-usage-tab-inner[data-tone="error"] .ctx-percent {
