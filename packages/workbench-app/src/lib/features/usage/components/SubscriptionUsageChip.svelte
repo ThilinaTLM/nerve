@@ -17,9 +17,11 @@ import Popover, {
 
 type Props = {
   usages?: SubscriptionUsageEntry[];
+  /** Phone widths: show only the most-used window, without the reset time. */
+  compact?: boolean;
 };
 
-let { usages = [] }: Props = $props();
+let { usages = [], compact = false }: Props = $props();
 
 function windowReset(
   window: SubscriptionWindow | null | undefined,
@@ -117,8 +119,22 @@ const triggerEntry = $derived(
     (entry) => entry.active && displayWindows(entry.usage).length > 0,
   ) ?? entries.find((entry) => displayWindows(entry.usage).length > 0),
 );
-const triggerWindows = $derived(displayWindows(triggerEntry?.usage));
-const triggerReset = $derived(windowReset(triggerWindows[0]?.window));
+const allTriggerWindows = $derived(displayWindows(triggerEntry?.usage));
+// Compact keeps whichever window is closest to its limit, since that is the
+// one worth surfacing when there is only room for a single meter.
+const triggerWindows = $derived.by(() => {
+  if (!compact || allTriggerWindows.length <= 1) return allTriggerWindows;
+  return [
+    allTriggerWindows.reduce((worst, item) =>
+      (item.window.usedPercent ?? 0) > (worst.window.usedPercent ?? 0)
+        ? item
+        : worst,
+    ),
+  ];
+});
+const triggerReset = $derived(
+  compact ? null : windowReset(triggerWindows[0]?.window),
+);
 
 const lastUpdated = $derived.by(() => {
   const stamps = entries

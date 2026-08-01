@@ -16,6 +16,8 @@ type Props = {
   live?: boolean;
   status?: StatusResponse;
   side?: "top" | "bottom";
+  /** Phone widths: show the dot alone; the popover carries the detail. */
+  compact?: boolean;
 };
 
 let {
@@ -23,6 +25,7 @@ let {
   live = false,
   status,
   side = "top",
+  compact = false,
 }: Props = $props();
 
 const connectionTone = $derived<StatusTone>(
@@ -52,9 +55,9 @@ const uptime = $derived.by(() => {
   align="end"
 >
   {#snippet trigger()}
-    <span class="status-trigger" title="Open daemon status">
+    <span class="status-trigger" title={`Nerve daemon · ${summary}`}>
       <StatusDot tone={connectionTone} pulse={live} />
-      <span>{summary}</span>
+      {#if !compact}<span>{summary}</span>{/if}
     </span>
   {/snippet}
 

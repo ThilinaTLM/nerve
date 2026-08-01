@@ -67,6 +67,15 @@ const projectPath = $derived(
   activeProject ? tildePath(activeProject.dir, homeDir) : "No project",
 );
 
+const hasUsage = $derived(
+  subscriptionUsages.some((entry) =>
+    Boolean(entry.usage?.session ?? entry.usage?.weekly),
+  ),
+);
+// Phone: usage outranks the project path for the one available slot, but the
+// path still fills it when there is no subscription usage to show.
+const showUsageInLeft = $derived(phone && hasUsage);
+
 function changeCountLabel(count: number): string {
   return `${count} ${count === 1 ? "change" : "changes"}`;
 }
@@ -91,9 +100,13 @@ function gitStatusTitle(status: GitStatus): string {
 
 <ShellStatusBar toggles={dockToggles}>
   {#snippet left()}
-    <span class="footer-project-path" title={activeProject?.dir}
-      >{projectPath}</span
-    >
+    {#if showUsageInLeft}
+      <SubscriptionUsageChip usages={subscriptionUsages} compact />
+    {:else}
+      <span class="footer-project-path" title={activeProject?.dir}
+        >{projectPath}</span
+      >
+    {/if}
 
     {#if !phone && gitStatus}
       <span class="footer-item footer-git" title={gitStatusTitle(gitStatus)}>
@@ -162,6 +175,6 @@ function gitStatusTitle(status: GitStatus): string {
       <LayoutControl {zoomLevel} {dockToggles} {onZoomLevelChange} />
     {/if}
 
-    <StatusPopover {connection} {live} {status} side="top" />
+    <StatusPopover {connection} {live} {status} side="top" compact={phone} />
   {/snippet}
 </ShellStatusBar>
