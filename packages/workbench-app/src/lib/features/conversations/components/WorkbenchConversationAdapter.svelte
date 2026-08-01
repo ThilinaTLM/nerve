@@ -71,6 +71,7 @@ let {
   onAnswerUserQuestion,
   onDismissUserQuestion,
   onAbort,
+  onCompact,
   onNewConversationInProject,
   onOpenFile,
   onModelChange,
@@ -310,6 +311,7 @@ function menuForTranscript(
       onChange={onComposerChange}
       {onSubmit}
       {onAbort}
+      onCompact={activeConversation ? onCompact : undefined}
       {onModelChange}
       {onThinkingLevelChange}
       {onModeChange}

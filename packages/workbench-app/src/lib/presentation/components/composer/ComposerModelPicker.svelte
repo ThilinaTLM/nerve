@@ -1,6 +1,5 @@
 <script lang="ts">
 import Check from "@lucide/svelte/icons/check";
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import type { ModelInfo, ThinkingLevel } from "@nervekit/contracts";
 import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
@@ -158,7 +157,6 @@ $effect(() => {
       {#if triggerShortSuffix}<span class="model-tab-short-suffix"
           >({triggerShortSuffix})</span
         >{/if}
-      <ChevronDown size={12} strokeWidth={2.2} />
     </span>
   {/snippet}
 

@@ -111,6 +111,7 @@ export type ConversationPaneActions = {
   onComposerChange?: (text: string) => void;
   onSubmit?: () => void;
   onAbort?: () => void;
+  onCompact?: () => void;
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
