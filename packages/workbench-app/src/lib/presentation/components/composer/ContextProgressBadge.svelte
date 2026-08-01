@@ -11,6 +11,10 @@ import Popover, {
   PopoverSection,
 } from "@nervekit/ui-kit/components/ui/popover-panel";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
+import {
+  ProgressRing,
+  type ProgressRingTone,
+} from "@nervekit/ui-kit/components/ui/progress-ring";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { formatTokens, usageTone } from "@nervekit/ui-kit/core/utils/usage";
 
@@ -52,6 +56,9 @@ const remainingTokens = $derived(
     : null,
 );
 const tone = $derived(usageTone(percent));
+const ringTone = $derived<ProgressRingTone>(
+  tone === "error" ? "danger" : tone === "warning" ? "warn" : "neutral",
+);
 const percentLabel = $derived(
   percent == null ? "?%" : `${Math.round(percent)}%`,
 );
@@ -103,14 +110,8 @@ function requestCompact(): void {
       <span
         class="context-usage-tab-inner inline-flex items-center gap-1"
         data-tone={tone}
-        style={`--ctx-fill: ${ringPercent}%;`}
       >
-        <span
-          class="ctx-ring inline-grid size-3 place-items-center rounded-full"
-          aria-hidden="true"
-        >
-          <span class="ctx-ring-core size-2 rounded-full"></span>
-        </span>
+        <ProgressRing percent={ringPercent} tone={ringTone} />
         <span class="ctx-percent">{percentLabel}</span>
         <span class="ctx-window font-medium text-muted-foreground"
           >/{windowLabel}</span
@@ -198,31 +199,8 @@ function requestCompact(): void {
 />
 
 <style>
-.ctx-ring {
-  --ctx-color: var(--muted-foreground);
-  background: conic-gradient(
-    var(--ctx-color) var(--ctx-fill),
-    color-mix(in oklab, var(--border) 82%, transparent) 0
-  );
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 7%, transparent)
-    inset;
-}
-
-.ctx-ring-core {
-  background: var(--card);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 4%, transparent);
-}
-
-.context-usage-tab-inner[data-tone="warning"] .ctx-ring {
-  --ctx-color: var(--warning);
-}
-
 .context-usage-tab-inner[data-tone="warning"] .ctx-percent {
   color: var(--warning);
-}
-
-.context-usage-tab-inner[data-tone="error"] .ctx-ring {
-  --ctx-color: var(--destructive);
 }
 
 .context-usage-tab-inner[data-tone="error"] .ctx-percent {
