@@ -4,7 +4,7 @@ import type {
   ConversationEntry,
   ToolCallRecord,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 import type {
   ApprovalInteractionBatch,
   WorkbenchRunService,
@@ -114,7 +114,7 @@ export class ApprovalBatchResolutionService {
       .listApprovals()
       .find((candidate) => candidate.id === approvalId);
     if (!approval || approval.status !== "pending") {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "APPROVAL_NOT_FOUND",
         "Approval is not pending.",

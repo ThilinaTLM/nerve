@@ -158,32 +158,3 @@ onDestroy(() => {
     {/if}
   </div>
 </Popover>
-
-<style>
-/* Popover owns its trigger element, so these scoped classes override its reset. */
-:global(.popover-content.version-popover) {
-  width: min(17.5rem, calc(100vw - 1.5rem));
-}
-
-:global(.popover-trigger.version-trigger) {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted-foreground);
-  padding: 0.125rem 0.375rem;
-  cursor: pointer;
-}
-
-:global(.popover-trigger.version-trigger:hover) {
-  background: var(--accent);
-}
-
-:global(.popover-trigger.version-trigger-warning) {
-  border-color: var(--warning);
-  background: color-mix(in oklab, var(--warning) 10%, var(--card));
-  color: var(--warning);
-}
-
-:global(.popover-trigger.version-trigger-warning:hover) {
-  background: color-mix(in oklab, var(--warning) 16%, var(--card));
-}
-</style>

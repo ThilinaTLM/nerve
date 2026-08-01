@@ -4,7 +4,7 @@ import {
   AUDIO_TRANSCRIPTION_MAX_DURATION_MS,
   audioTranscriptionResponseSchema,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 import type { AuthManager } from "../auth/index.js";
 
 const CHATGPT_TRANSCRIBE_URL = "https://chatgpt.com/backend-api/transcribe";
@@ -84,10 +84,10 @@ export async function transcribeAudioWithChatGptSubscription(
   input: AudioTranscriptionInput,
 ): Promise<AudioTranscriptionResponse> {
   if (input.data.byteLength === 0) {
-    throw new HttpError(400, "EMPTY_AUDIO", "Audio upload is empty.");
+    throw new ApplicationError(400, "EMPTY_AUDIO", "Audio upload is empty.");
   }
   if (input.data.byteLength > MAX_AUDIO_BYTES) {
-    throw new HttpError(
+    throw new ApplicationError(
       413,
       "AUDIO_TOO_LARGE",
       "Audio upload is larger than the 25 MB transcription limit.",
@@ -96,7 +96,7 @@ export async function transcribeAudioWithChatGptSubscription(
 
   const normalized = normalizeAudioMimeType(input.mimeType);
   if (!normalized) {
-    throw new HttpError(
+    throw new ApplicationError(
       400,
       "UNSUPPORTED_AUDIO_TYPE",
       `Unsupported audio MIME type: ${input.mimeType || "unknown"}.`,
@@ -105,7 +105,7 @@ export async function transcribeAudioWithChatGptSubscription(
 
   const credential = await auth.getCredential(OPENAI_CODEX_PROVIDER);
   if (credential?.type !== "oauth") {
-    throw new HttpError(
+    throw new ApplicationError(
       401,
       "CHATGPT_SUBSCRIPTION_AUTH_REQUIRED",
       "ChatGPT audio input is not configured. Connect the OpenAI Codex OAuth provider first.",
@@ -114,7 +114,7 @@ export async function transcribeAudioWithChatGptSubscription(
 
   const accessToken = await auth.getApiKey(OPENAI_CODEX_PROVIDER);
   if (!accessToken) {
-    throw new HttpError(
+    throw new ApplicationError(
       401,
       "CHATGPT_SUBSCRIPTION_AUTH_REQUIRED",
       "ChatGPT audio input is not configured. Connect the OpenAI Codex OAuth provider first.",
@@ -123,7 +123,7 @@ export async function transcribeAudioWithChatGptSubscription(
 
   const accountId = chatGptAccountIdFromAccessToken(accessToken);
   if (!accountId) {
-    throw new HttpError(
+    throw new ApplicationError(
       401,
       "CHATGPT_ACCOUNT_ID_MISSING",
       "Could not determine the ChatGPT account id from the stored OAuth access token. Reconnect OpenAI Codex auth.",
@@ -133,7 +133,7 @@ export async function transcribeAudioWithChatGptSubscription(
   const durationMs =
     input.durationMs ?? estimateDurationMs(input.data.byteLength);
   if (durationMs > AUDIO_TRANSCRIPTION_MAX_DURATION_MS) {
-    throw new HttpError(
+    throw new ApplicationError(
       413,
       "AUDIO_DURATION_TOO_LONG",
       "Audio recordings are limited to 8 minutes.",
@@ -171,14 +171,14 @@ export async function transcribeAudioWithChatGptSubscription(
   });
 
   if (response.status === 401) {
-    throw new HttpError(
+    throw new ApplicationError(
       401,
       "CHATGPT_SUBSCRIPTION_AUTH_REJECTED",
       "ChatGPT rejected the stored OAuth token. Reconnect OpenAI Codex auth.",
     );
   }
   if (response.status === 429) {
-    throw new HttpError(
+    throw new ApplicationError(
       429,
       "TRANSCRIPTION_RATE_LIMITED",
       "ChatGPT transcription is rate limited. Try again shortly.",
@@ -186,7 +186,7 @@ export async function transcribeAudioWithChatGptSubscription(
   }
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new HttpError(
+    throw new ApplicationError(
       response.status,
       "TRANSCRIPTION_FAILED",
       `ChatGPT transcription failed (${response.status}): ${body || response.statusText}`,
@@ -196,7 +196,7 @@ export async function transcribeAudioWithChatGptSubscription(
   const parsed = audioTranscriptionResponseSchema.parse(await response.json());
   const text = parsed.text.trim();
   if (!text) {
-    throw new HttpError(
+    throw new ApplicationError(
       502,
       "EMPTY_TRANSCRIPTION",
       "ChatGPT returned an empty transcription.",

@@ -6,7 +6,7 @@ import {
   type ScratchNote,
   type UpdateScratchNoteRequest,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 import type { ScratchNoteRepository } from "./scratch-note.repository.js";
 
 export class ScratchNoteService {
@@ -94,8 +94,8 @@ export class ScratchNoteService {
     }
   }
 
-  private notFound(): HttpError {
-    return new HttpError(
+  private notFound(): ApplicationError {
+    return new ApplicationError(
       404,
       "SCRATCH_NOTE_NOT_FOUND",
       "Scratch note not found.",

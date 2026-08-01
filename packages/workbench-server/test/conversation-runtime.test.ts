@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ConversationRuntime } from "../src/domains/conversations/index.js";
+import { ConversationRuntime } from "../src/domains/runs/runtime/conversation-runtime.js";
 
 function start(runtime: ConversationRuntime) {
   const run = runtime.startRun({
@@ -188,6 +188,35 @@ describe("ConversationRuntime", () => {
     assert.throws(
       () => runtime.failTurn(run.runId, turn.turnId),
       /Illegal lifecycle transition completed -> failed/,
+    );
+  });
+
+  it("uses injected clocks and IDs and rejects duplicate active ownership", () => {
+    const ids = ["turn_fixed", "msg_fixed"];
+    const runtime = new ConversationRuntime({
+      now: () => new Date("2026-02-03T04:05:06.000Z"),
+      createId: () => ids.shift() ?? "block_fixed",
+    });
+    const run = runtime.startRun({
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      projectId: "proj_test",
+      runId: "run_test",
+    });
+    assert.equal(run.startedAt, "2026-02-03T04:05:06.000Z");
+    const turn = runtime.startTurn(run.runId);
+    const message = runtime.startAssistantMessage(run.runId, turn.turnId);
+    assert.equal(turn.turnId, "turn_fixed");
+    assert.equal(message.liveMessageId, "msg_fixed");
+    assert.throws(
+      () =>
+        runtime.startRun({
+          conversationId: "conv_other",
+          agentId: "agent_test",
+          projectId: "proj_test",
+          runId: "run_other",
+        }),
+      /already has an active run/,
     );
   });
 

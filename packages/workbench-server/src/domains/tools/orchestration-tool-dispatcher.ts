@@ -15,7 +15,6 @@ import {
 } from "@nervekit/tools";
 import {
   type AgentRecord,
-  type ConversationRuntime,
   type Mode,
   taskRestartToolResultSchema,
   taskStartToolResultSchema,
@@ -25,6 +24,7 @@ import {
   type ToolCallRecord,
   type ToolName,
 } from "@nervekit/contracts";
+import type { ConversationRuntime } from "../runs/runtime/conversation-runtime.js";
 import {
   createHostToolFactory,
   type HostToolFactory,

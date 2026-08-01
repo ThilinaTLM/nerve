@@ -1,5 +1,23 @@
 import { escapeHtml } from "@nervekit/contracts";
 
+export class ShellPageUrlRegistry {
+  #activeUrl: string | undefined;
+
+  create(html: string): string {
+    const url = createDataUrl(html);
+    this.#activeUrl = url;
+    return url;
+  }
+
+  isTrusted(rawUrl: string): boolean {
+    return rawUrl === this.#activeUrl;
+  }
+
+  clear(): void {
+    this.#activeUrl = undefined;
+  }
+}
+
 export function createDataUrl(html: string): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }

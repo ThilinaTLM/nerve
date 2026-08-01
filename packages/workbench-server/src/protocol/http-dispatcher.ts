@@ -14,7 +14,7 @@ import {
 } from "@nervekit/protocol";
 import { ZodError } from "zod";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
-import { HttpError } from "../http/errors.js";
+import { ApplicationError } from "../core/application-error.js";
 import { FileIdempotencyStore } from "./file-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import {
@@ -27,6 +27,10 @@ export const PROTOCOL_HTTP_CONTENT_TYPE =
   "application/vnd.nerve.protocol.v1+json";
 const MAX_PROTOCOL_HTTP_BODY_BYTES = 4 * 1024 * 1024;
 const workbenchDispatchers = new WeakMap<OrchestratorState, RpcDispatcher>();
+const workbenchIdempotencyStores = new WeakMap<
+  OrchestratorState,
+  FileIdempotencyStore
+>();
 const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
   (method) => operationDefinition(method).requiredCapability,
 ).filter((capability): capability is string => Boolean(capability));
@@ -162,14 +166,24 @@ export function workbenchRpcDispatcher(
   if (existing) return existing;
   const dispatcher = new RpcDispatcher({
     handlers: workbenchOperationHandlers(state),
-    idempotency: new FileIdempotencyStore(
-      join(state.storage.paths.home, "protocol", "idempotency-v1.json"),
-    ),
+    idempotency: workbenchIdempotencyStore(state),
     acceptedCapabilities: workbenchCapabilities,
     translateError,
   });
   workbenchDispatchers.set(state, dispatcher);
   return dispatcher;
+}
+
+function workbenchIdempotencyStore(
+  state: OrchestratorState,
+): FileIdempotencyStore {
+  const existing = workbenchIdempotencyStores.get(state);
+  if (existing) return existing;
+  const store = new FileIdempotencyStore(
+    join(state.storage.paths.home, "protocol", "idempotency-v1.json"),
+  );
+  workbenchIdempotencyStores.set(state, store);
+  return store;
 }
 
 export function workbenchWebSocketRpcDispatcher(
@@ -178,16 +192,14 @@ export function workbenchWebSocketRpcDispatcher(
 ): RpcDispatcher {
   return new RpcDispatcher({
     handlers: workbenchOperationHandlers(state),
-    idempotency: new FileIdempotencyStore(
-      join(state.storage.paths.home, "protocol", "idempotency-v1.json"),
-    ),
+    idempotency: workbenchIdempotencyStore(state),
     acceptedCapabilities,
     translateError,
   });
 }
 
 function translateError(error: unknown): ProtocolErrorData {
-  if (error instanceof HttpError) {
+  if (error instanceof ApplicationError) {
     return {
       code: mapHttpCode(error.code),
       message: error.message,

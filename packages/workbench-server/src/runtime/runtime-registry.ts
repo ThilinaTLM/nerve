@@ -37,7 +37,7 @@ import type { AuthManager } from "../domains/auth/index.js";
 import type { AgentBrowserSkillCatalog } from "../domains/agents/prompting/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../domains/providers/index.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
-import { HttpError } from "../http/errors.js";
+import { ApplicationError } from "../core/application-error.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../infrastructure/events/index.js";
 import type { IndexStore } from "../infrastructure/index-store/index.js";
@@ -454,8 +454,8 @@ export class RuntimeRegistry {
         note,
       );
     } catch (error) {
-      if (error instanceof HttpError) throw error;
-      throw new HttpError(
+      if (error instanceof ApplicationError) throw error;
+      throw new ApplicationError(
         404,
         "APPROVAL_NOT_FOUND",
         error instanceof Error ? error.message : String(error),
@@ -471,8 +471,8 @@ export class RuntimeRegistry {
         note,
       );
     } catch (error) {
-      if (error instanceof HttpError) throw error;
-      throw new HttpError(
+      if (error instanceof ApplicationError) throw error;
+      throw new ApplicationError(
         404,
         "APPROVAL_NOT_FOUND",
         error instanceof Error ? error.message : String(error),
@@ -548,7 +548,7 @@ export class RuntimeRegistry {
     try {
       return this.workers.getWorker(workerId);
     } catch (error) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "WORKER_NOT_FOUND",
         error instanceof Error ? error.message : String(error),

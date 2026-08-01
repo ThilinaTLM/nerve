@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
-  ConversationRuntime,
   LIVE_TOOL_OUTPUT_EVENT_MAX_BYTES,
   type ConversationLiveToolOutputDeltaData,
   type ToolCallRecord,
 } from "@nervekit/contracts";
+import { ConversationRuntime } from "../src/domains/runs/runtime/conversation-runtime.js";
 import { LiveToolOutputPublisher } from "../src/domains/tools/live-tool-output-publisher.js";
 import { StreamLogRegistry } from "../src/infrastructure/events/stream-log-registry.js";
 

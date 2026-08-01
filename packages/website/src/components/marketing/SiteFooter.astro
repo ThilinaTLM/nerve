@@ -1,50 +1,8 @@
 ---
 import NerveMark from "../NerveMark.astro";
 
-const columns = [
-  {
-    title: "Product",
-    links: [
-      { label: "Overview", href: "/start/overview/" },
-      { label: "Install", href: "/start/install/" },
-      { label: "First project", href: "/start/first-project/" },
-      { label: "First task", href: "/start/first-task/" },
-    ],
-  },
-  {
-    title: "Documentation",
-    links: [
-      { label: "Workbench", href: "/guides/workbench/" },
-      { label: "Conversations", href: "/guides/conversations/" },
-      { label: "Models & providers", href: "/models/providers-and-auth/" },
-      { label: "Troubleshooting", href: "/troubleshooting/" },
-    ],
-  },
-  {
-    title: "Developers",
-    links: [
-      { label: "Architecture", href: "/developers/architecture/" },
-      { label: "Protocol v1", href: "/developers/protocol/v1/" },
-      { label: "Extensions", href: "/developers/extensions/" },
-      { label: "Contributing", href: "/developers/contributing/" },
-    ],
-  },
-  {
-    title: "Project",
-    links: [
-      { label: "GitHub", href: "https://github.com/ThilinaTLM/nerve" },
-      {
-        label: "License",
-        href: "https://github.com/ThilinaTLM/nerve/blob/main/LICENSE",
-      },
-      {
-        label: "Security policy",
-        href: "https://github.com/ThilinaTLM/nerve/blob/main/SECURITY.md",
-      },
-      { label: "Security model", href: "/operations/security/" },
-    ],
-  },
-];
+import { marketingFooterColumns as columns } from "../../content/site-links";
+
 ---
 
 <footer class="site-footer">

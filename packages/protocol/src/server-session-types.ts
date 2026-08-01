@@ -16,7 +16,6 @@ import type { MessageFactory } from "./messages.js";
 import type {
   ProtocolClock,
   ProtocolDiagnosticsPublisher,
-  ProtocolIdSource,
   ProtocolTimers,
   StreamReader,
 } from "./ports.js";
@@ -93,7 +92,6 @@ export interface ServerSessionOptions {
   readonly diagnostics?: ProtocolDiagnosticsPublisher;
   readonly clock?: ProtocolClock;
   readonly timers?: ProtocolTimers;
-  readonly ids?: ProtocolIdSource;
   readonly rpcTimeoutMs?: number;
 }
 

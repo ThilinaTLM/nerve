@@ -1,14 +1,7 @@
 import type { ManagedDaemon } from "../daemon.js";
 import { DESKTOP_APP_NAME, MACOS_TRAY_GUID } from "../desktop-identity.js";
 import type { BrowserWindowType, NativeImage, TrayType } from "../electron.js";
-import {
-  clipboard,
-  Menu,
-  nativeImage,
-  nativeTheme,
-  shell,
-  Tray,
-} from "../electron.js";
+import { clipboard, Menu, nativeImage, shell, Tray } from "../electron.js";
 import type { QuitOptions } from "../types.js";
 import { resolveTrayIconPath } from "../window/preload-paths.js";
 
@@ -158,8 +151,4 @@ function createTrayIcon(): NativeImage {
   const image = nativeImage.createFromPath(resolveTrayIconPath());
   image.setTemplateImage(process.platform === "darwin");
   return image;
-}
-
-export function installTrayThemeRefresh(updateTrayIcon: () => void): void {
-  nativeTheme.on("updated", updateTrayIcon);
 }

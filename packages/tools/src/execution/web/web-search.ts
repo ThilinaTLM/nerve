@@ -1,4 +1,5 @@
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
+import { withTimeoutSignal } from "../common/abort.js";
 import { numberArg } from "../common/args.js";
 import { buildProcessTextResult } from "../common/process-result.js";
 
@@ -38,14 +39,6 @@ function snippet(value: unknown): string | undefined {
     : `${normalized.slice(0, SNIPPET_MAX_CHARS - 1)}…`;
 }
 
-function timeoutSignal(
-  signal: AbortSignal | undefined,
-  milliseconds: number,
-): AbortSignal {
-  const timeout = AbortSignal.timeout(milliseconds);
-  return signal ? AbortSignal.any([signal, timeout]) : timeout;
-}
-
 export async function executeWebSearch(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
@@ -69,7 +62,7 @@ export async function executeWebSearch(
       max_results: maxResults,
       include_answer: true,
     }),
-    signal: timeoutSignal(context.signal, 60_000),
+    signal: withTimeoutSignal(context.signal, 60_000),
   });
 
   if (!response.ok) {

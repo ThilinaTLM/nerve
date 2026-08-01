@@ -4,19 +4,21 @@ import {
   type AgentRecord,
   type ApprovalRecord,
   assertTransition,
-  type ConversationRuntime,
   createId,
   type Mode,
   type StartTaskRequest,
   type TaskRecord,
   type ThinkingLevel,
-  type ToolAnchor,
   type ToolCallRecord,
   type ToolName,
   toolCallTransitions,
   type UserQuestionRecord,
   type UserQuestionStatus,
 } from "@nervekit/contracts";
+import type {
+  ConversationRuntime,
+  ToolAnchor,
+} from "../runs/runtime/conversation-runtime.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";

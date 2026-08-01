@@ -16,7 +16,7 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "@nervekit/contracts";
-import { HttpError } from "../../../http/errors.js";
+import { ApplicationError } from "../../../core/application-error.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
 import {
@@ -129,7 +129,7 @@ export class CompactionService {
     options: CompactConversationOptions = {},
   ): Promise<{ conversation: ConversationRecord; entry: ConversationEntry }> {
     if (this.activeCompactions.has(conversationId)) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "COMPACTION_IN_PROGRESS",
         "Conversation compaction is already in progress.",
@@ -178,10 +178,18 @@ export class CompactionService {
       };
       const prepared = prepareCompaction(branch, settings);
       if (!prepared.ok) {
-        throw new HttpError(400, "COMPACTION_FAILED", prepared.error.message);
+        throw new ApplicationError(
+          400,
+          "COMPACTION_FAILED",
+          prepared.error.message,
+        );
       }
       if (!prepared.value) {
-        throw new HttpError(409, "NOTHING_TO_COMPACT", "Nothing to compact.");
+        throw new ApplicationError(
+          409,
+          "NOTHING_TO_COMPACT",
+          "Nothing to compact.",
+        );
       }
       const preparation = prepared.value;
       let firstKeptEntryId = preparation.firstKeptEntryId;
@@ -203,7 +211,7 @@ export class CompactionService {
         if (fallbackKept) firstKeptEntryId = fallbackKept.id;
       }
       if (messagesToSummarize.length === 0) {
-        throw new HttpError(
+        throw new ApplicationError(
           409,
           "NOTHING_TO_COMPACT",
           "No prior messages to compact.",
@@ -274,7 +282,7 @@ export class CompactionService {
           preparation.tokensBefore,
         );
         if (reason !== "manual" && tokensAfter >= preparation.tokensBefore) {
-          throw new HttpError(
+          throw new ApplicationError(
             409,
             "INEFFECTIVE_COMPACTION",
             "Compaction would not reduce context usage.",

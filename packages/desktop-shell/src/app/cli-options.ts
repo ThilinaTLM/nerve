@@ -19,12 +19,15 @@ export {
 
 export function parseDesktopOptions(args: string[]): DesktopCliOptions {
   const options: DesktopCliOptions = {};
+  let sawLocal = false;
+  let sawConnect = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (!arg || arg === "." || arg === "--") continue;
 
     if (arg === "--local") {
+      sawLocal = true;
       options.mode = "local";
       continue;
     }
@@ -37,6 +40,7 @@ export function parseDesktopOptions(args: string[]): DesktopCliOptions {
       continue;
     }
     if (arg === "--connect") {
+      sawConnect = true;
       const value = args[index + 1];
       if (!value) throw new Error("Missing value for --connect.");
       options.remoteUrl = value;
@@ -45,6 +49,7 @@ export function parseDesktopOptions(args: string[]): DesktopCliOptions {
       continue;
     }
     if (arg.startsWith("--connect=")) {
+      sawConnect = true;
       options.remoteUrl = arg.slice("--connect=".length);
       options.mode = "remote";
       continue;
@@ -94,7 +99,7 @@ export function parseDesktopOptions(args: string[]): DesktopCliOptions {
     }
   }
 
-  if (options.mode === "local" && options.remoteUrl) {
+  if (sawLocal && sawConnect) {
     throw new Error("Use either --local or --connect, not both.");
   }
   return options;

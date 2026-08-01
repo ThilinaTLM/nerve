@@ -30,6 +30,24 @@ export function leafIdAfterEntry(entry: ConversationTreeEntry): string | null {
   return entry.type === "leaf" ? entry.targetId : entry.id;
 }
 
+export function entryLinkError(
+  entry: ConversationTreeEntry,
+  knownIds: { has(id: string): boolean },
+): string | undefined {
+  if (knownIds.has(entry.id)) return `Duplicate entry id ${entry.id}`;
+  if (entry.parentId !== null && !knownIds.has(entry.parentId)) {
+    return `Entry ${entry.id} references missing parent ${entry.parentId}`;
+  }
+  if (
+    entry.type === "leaf" &&
+    entry.targetId !== null &&
+    !knownIds.has(entry.targetId)
+  ) {
+    return `Entry ${entry.id} references missing leaf target ${entry.targetId}`;
+  }
+  return undefined;
+}
+
 export function generateEntryId(
   byId: { has(id: string): boolean },
   options: { style?: EntryIdStyle } = {},

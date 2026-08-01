@@ -5,7 +5,7 @@ import {
   type TaskDefinition,
   type UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 import type { TaskDefinitionRepository } from "./task-definition.repository.js";
 
 export class TaskDefinitionService {
@@ -87,8 +87,8 @@ export class TaskDefinitionService {
     await this.publish?.("taskDefinition.deleted", { definitionId });
   }
 
-  private notFound(): HttpError {
-    return new HttpError(
+  private notFound(): ApplicationError {
+    return new ApplicationError(
       404,
       "TASK_DEFINITION_NOT_FOUND",
       "Task definition not found.",

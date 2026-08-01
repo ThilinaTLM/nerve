@@ -24,6 +24,10 @@ export type ToolExecutionContext = {
     allowNetwork: boolean;
     allowFileWrite: boolean;
   };
+  webFetchPolicy?: {
+    /** Trusted host opt-in for deliberate localhost/LAN development access. */
+    allowPrivateNetwork?: boolean;
+  };
   onUpdate?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
 };
 

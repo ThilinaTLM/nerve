@@ -5,7 +5,7 @@ import type {
   NavigateConversationRequest,
   ProjectRecord,
 } from "@nervekit/contracts";
-import { HttpError } from "../../../http/errors.js";
+import { ApplicationError } from "../../../core/application-error.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
 import type { AppendConversationEntry } from "./compaction-service.js";
@@ -39,7 +39,7 @@ export class NavigationService {
         (entry) => entry.id === activeEntryId,
       )
     ) {
-      throw new HttpError(404, "ENTRY_NOT_FOUND", "Entry not found.");
+      throw new ApplicationError(404, "ENTRY_NOT_FOUND", "Entry not found.");
     }
 
     let summaryEntry: ConversationEntry | undefined;

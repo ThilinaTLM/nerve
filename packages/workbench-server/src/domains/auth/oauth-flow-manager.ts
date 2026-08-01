@@ -9,7 +9,7 @@ import {
   type OAuthFlowInfo,
   type RespondOAuthFlowRequest,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "./auth-manager.js";
 
@@ -115,7 +115,11 @@ export class OAuthFlowManager {
   get(flowId: string): OAuthFlowInfo {
     const flow = this.flows.get(flowId);
     if (!flow)
-      throw new HttpError(404, "OAUTH_FLOW_NOT_FOUND", "OAuth flow not found.");
+      throw new ApplicationError(
+        404,
+        "OAUTH_FLOW_NOT_FOUND",
+        "OAuth flow not found.",
+      );
     return flow.info;
   }
 
@@ -124,7 +128,7 @@ export class OAuthFlowManager {
     if (existing) {
       const flow = this.flows.get(existing);
       if (flow && !terminal(flow.info.status)) {
-        throw new HttpError(
+        throw new ApplicationError(
           409,
           "OAUTH_FLOW_ACTIVE",
           `OAuth login for ${providerId} is already active.`,
@@ -134,14 +138,14 @@ export class OAuthFlowManager {
 
     const provider = this.auth.getProvider(providerId);
     if (!isOAuthProvider(provider)) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "OAUTH_PROVIDER_NOT_FOUND",
         "OAuth provider not found.",
       );
     }
     if (CALLBACK_PROVIDER_IDS.has(providerId) && this.activeCallbackFlowId) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "OAUTH_CALLBACK_FLOW_ACTIVE",
         "Another callback-server OAuth login is already active.",
@@ -184,11 +188,15 @@ export class OAuthFlowManager {
   ): Promise<OAuthFlowInfo> {
     const flow = this.flows.get(flowId);
     if (!flow)
-      throw new HttpError(404, "OAUTH_FLOW_NOT_FOUND", "OAuth flow not found.");
+      throw new ApplicationError(
+        404,
+        "OAUTH_FLOW_NOT_FOUND",
+        "OAuth flow not found.",
+      );
     if (terminal(flow.info.status)) return flow.info;
     const pending = flow.pending;
     if (!pending || pending.promptId !== response.promptId) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "OAUTH_PROMPT_MISMATCH",
         "OAuth flow is not waiting for that response.",
@@ -203,7 +211,11 @@ export class OAuthFlowManager {
   async cancel(flowId: string): Promise<OAuthFlowInfo> {
     const flow = this.flows.get(flowId);
     if (!flow)
-      throw new HttpError(404, "OAUTH_FLOW_NOT_FOUND", "OAuth flow not found.");
+      throw new ApplicationError(
+        404,
+        "OAUTH_FLOW_NOT_FOUND",
+        "OAuth flow not found.",
+      );
     if (terminal(flow.info.status)) return flow.info;
     flow.abortController.abort();
     flow.pending?.cleanup?.();

@@ -28,7 +28,6 @@ import type {
   Skill,
 } from "./options.js";
 import { toError } from "../result.js";
-import { cloneStreamOptions } from "./stream-options.js";
 
 type QueuedMessageEntry = { message: AgentMessage };
 
@@ -227,12 +226,6 @@ export async function abortHarnessRun<
     throw normalizeHarnessError(cause, "hook");
   }
   return { clearedSteer, clearedFollowUp } as AbortResult;
-}
-
-export function cloneHarnessStreamOptions(
-  streamOptions: AgentHarnessStreamOptions,
-): AgentHarnessStreamOptions {
-  return cloneStreamOptions(streamOptions);
 }
 
 async function writeActiveToolsChange<

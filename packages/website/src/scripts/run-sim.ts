@@ -73,7 +73,7 @@ const CONFIG_LABEL: Record<keyof SimConfig, string> = {
   permission: "permission",
 };
 
-interface Task {
+export interface Task {
   prompt: string;
   thinkingHigh: string;
   thinkingLow: string;
@@ -90,7 +90,7 @@ interface Task {
 /* Three rotating tasks so a visitor who watches two loops sees variety. All
  * file names and numbers stay consistent with the claims made elsewhere on the
  * page. */
-const TASKS: Task[] = [
+export const TASKS: Task[] = [
   {
     prompt: "Add a retry budget to the run recovery path.",
     thinkingHigh:
@@ -98,31 +98,31 @@ const TASKS: Task[] = [
     thinkingLow: "Locating the recovery entry point.",
     read: {
       name: "read",
-      args: "packages/harness/src/run-recovery.ts",
+      args: "examples/retry-service.ts",
       out: ["Read 214 lines"],
       lines: "214 lines",
     },
     verify: {
       name: "bash",
-      args: "pnpm test --filter @nervekit/harness -- run-recovery",
+      args: "demo test retry-service",
       out: ["✓ recovery continues from checkpoint (12 tests)", "Done in 3.2s"],
       lines: "6 lines",
     },
     edit: {
       name: "edit",
-      args: "packages/harness/src/run-recovery.ts",
+      args: "examples/retry-service.ts",
       out: ["+12 −3 · retry budget wired into the recovery loop"],
       lines: "2 hunks",
     },
     plan: {
       name: "write",
-      args: "plans/retry-budget.md",
+      args: "plans/example-retry-budget.md",
       out: ["+46 lines · plan storage"],
       lines: "46 lines",
     },
     research: {
       name: "grep",
-      args: '"maxAttempts" packages/harness/src',
+      args: '"maxAttempts" examples',
       out: ["4 matches in 2 files"],
       lines: "4 matches",
     },
@@ -138,13 +138,13 @@ const TASKS: Task[] = [
     thinkingLow: "Reproducing the flaky assertion.",
     read: {
       name: "read",
-      args: "packages/workbench-server/test/policy.test.ts",
+      args: "examples/policy-window.test.ts",
       out: ["Read 168 lines"],
       lines: "168 lines",
     },
     verify: {
       name: "bash",
-      args: "pnpm vitest run policy --repeat 20",
+      args: "demo test policy-window --repeat 20",
       out: [
         "19 passed · 1 failed on attempt 14",
         "assertion raced a debounce timer",
@@ -153,19 +153,19 @@ const TASKS: Task[] = [
     },
     edit: {
       name: "edit",
-      args: "packages/workbench-server/test/policy.test.ts",
+      args: "examples/policy-window.test.ts",
       out: ["+4 −4 · clock frozen before the assertion"],
       lines: "1 hunk",
     },
     plan: {
       name: "write",
-      args: "plans/deflake-policy-test.md",
+      args: "plans/example-policy-test.md",
       out: ["+31 lines · plan storage"],
       lines: "31 lines",
     },
     research: {
       name: "grep",
-      args: '"useFakeTimers" packages/workbench-server/test',
+      args: '"useFakeTimers" examples',
       out: ["11 matches in 7 files"],
       lines: "11 matches",
     },
@@ -181,31 +181,31 @@ const TASKS: Task[] = [
     thinkingLow: "Finding where usage events are shaped.",
     read: {
       name: "read",
-      args: "packages/workbench-app/src/lib/features/usage/usage-panel.svelte",
+      args: "examples/usage-panel.svelte",
       out: ["Read 96 lines"],
       lines: "96 lines",
     },
     verify: {
       name: "bash",
-      args: "pnpm check --filter @nervekit/workbench-app",
+      args: "demo check usage-panel",
       out: ["Result (312 files):", "- 0 errors, 0 warnings"],
       lines: "5 lines",
     },
     edit: {
       name: "edit",
-      args: "usage-panel.svelte",
+      args: "examples/usage-panel.svelte",
       out: ["+9 −1 · profile chip beside the context fraction"],
       lines: "1 hunk",
     },
     plan: {
       name: "write",
-      args: "plans/usage-profile-chip.md",
+      args: "plans/example-usage-profile.md",
       out: ["+28 lines · plan storage"],
       lines: "28 lines",
     },
     research: {
       name: "grep",
-      args: '"contextFraction" packages/workbench-app/src',
+      args: '"contextFraction" examples',
       out: ["6 matches in 3 files"],
       lines: "6 matches",
     },
@@ -366,6 +366,12 @@ function armGate(item: HTMLLIElement, onResolve: () => void): void {
   approve.type = "button";
   approve.className = "run-approve";
   approve.textContent = "Approve";
+  approve.setAttribute("aria-label", "Approve the simulated edit");
+  const liveStatus = item
+    .closest<HTMLElement>("[data-run-sim]")
+    ?.querySelector<HTMLElement>("[data-run-status]");
+  if (liveStatus)
+    liveStatus.textContent = "Simulated edit is waiting for approval.";
 
   let timer = 0;
   const resolve = (): void => {
@@ -373,6 +379,7 @@ function armGate(item: HTMLLIElement, onResolve: () => void): void {
     item.dataset.gateState = "approved";
     const status = item.querySelector(".run-gate-status");
     if (status) status.textContent = "approved";
+    if (liveStatus) liveStatus.textContent = "Simulated edit approved.";
     approve.remove();
     onResolve();
   };
@@ -638,5 +645,3 @@ function markerRow(partial: Partial<SimConfig>): SimRow | null {
     wait: 0,
   };
 }
-
-export { TASKS };

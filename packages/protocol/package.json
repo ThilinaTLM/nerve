@@ -28,12 +28,10 @@
     "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
-    "@nervekit/contracts": "workspace:*",
-    "ws": "8.21.0"
+    "@nervekit/contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
-    "@types/ws": "8.18.1",
     "tsx": "4.22.4",
     "typescript": "5.9.3"
   },

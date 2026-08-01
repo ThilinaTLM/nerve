@@ -5,8 +5,8 @@ import {
   providerOAuthSecretName,
 } from "../../domains/auth/index.js";
 import { listAvailableSkills } from "../../domains/agents/prompting/resource-loader.js";
+import { directoryListing } from "../../domains/filesystem/filesystem.service.js";
 import { writeSettings } from "../../infrastructure/storage/index.js";
-import { directoryListing } from "../../routes/filesystem-routes.js";
 import {
   getConversationSnapshotResponse,
   getWorkspaceSnapshotResponse,

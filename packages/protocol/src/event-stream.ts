@@ -22,33 +22,6 @@ export function createClientEventStreamState(
   return { processedSeq };
 }
 
-export function processedSeqFromCursor(
-  cursor: { streams: Array<{ stream: string; processedSeq: number }> },
-  streamName = WORKSPACE_STREAM,
-): number {
-  return (
-    cursor.streams.find((stream) => stream.stream === streamName)
-      ?.processedSeq ?? 0
-  );
-}
-
-export function resetClientEventStreamStateFromCursor(
-  state: ClientEventStreamState,
-  cursor: { streams: Array<{ stream: string; processedSeq: number }> },
-  streamName = WORKSPACE_STREAM,
-): number {
-  const processedSeq = processedSeqFromCursor(cursor, streamName);
-  resetClientEventStreamState(state, processedSeq);
-  return processedSeq;
-}
-
-export function resetClientEventStreamState(
-  state: ClientEventStreamState,
-  processedSeq: number,
-): void {
-  state.processedSeq = processedSeq;
-}
-
 /**
  * Filters duplicates and verifies dense continuity. Cursor advancement remains
  * explicit so callers can apply reducers before committing progress.

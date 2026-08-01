@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import { Dialog as DialogPrimitive } from "bits-ui";
+import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
 import X from "@lucide/svelte/icons/x";
 import { cn } from "@nervekit/ui-kit/core/utils";
 
@@ -39,48 +39,42 @@ function handleOpenChange(next: boolean) {
 }
 </script>
 
-<DialogPrimitive.Root bind:open onOpenChange={handleOpenChange}>
-  <DialogPrimitive.Portal>
-    <DialogPrimitive.Overlay
-      class="dialog-overlay data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 duration-100"
-    />
-    <DialogPrimitive.Content
-      class={cn(
-        "dialog-content data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 data-open:zoom-in-95 data-closed:zoom-out-95 duration-100 outline-none",
-        size === "sm" && "dialog-content-sm",
-        size === "wide" && "dialog-content-wide",
-        size === "viewport" && "dialog-content-viewport",
-        className,
-      )}
-    >
-      <header class="dialog-header">
-        <div class="dialog-title-block">
-          <DialogPrimitive.Title class="dialog-title"
-            >{title}</DialogPrimitive.Title
-          >
-          {#if description}
-            <DialogPrimitive.Description class="dialog-description"
-              >{description}</DialogPrimitive.Description
-            >
-          {/if}
-        </div>
-        {#if headerActions}
-          <div class="dialog-header-actions">
-            {@render headerActions()}
-          </div>
+<Dialog.Root bind:open onOpenChange={handleOpenChange}>
+  <Dialog.Content
+    showCloseButton={false}
+    class={cn(
+      "dialog-content data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 data-open:zoom-in-95 data-closed:zoom-out-95 duration-100 outline-none",
+      size === "sm" && "dialog-content-sm",
+      size === "wide" && "dialog-content-wide",
+      size === "viewport" && "dialog-content-viewport",
+      className,
+    )}
+  >
+    <header class="dialog-header">
+      <div class="dialog-title-block">
+        <Dialog.Title class="dialog-title">{title}</Dialog.Title>
+        {#if description}
+          <Dialog.Description class="dialog-description">
+            {description}
+          </Dialog.Description>
         {/if}
-        <DialogPrimitive.Close class="dialog-close" aria-label={closeLabel}>
-          <X size={14} strokeWidth={2.25} aria-hidden="true" />
-        </DialogPrimitive.Close>
-      </header>
-      <div class={cn("dialog-body", flush && "dialog-body-flush")}>
-        {@render children?.()}
       </div>
-      {#if footer}
-        <footer class="dialog-footer">
-          {@render footer()}
-        </footer>
+      {#if headerActions}
+        <div class="dialog-header-actions">
+          {@render headerActions()}
+        </div>
       {/if}
-    </DialogPrimitive.Content>
-  </DialogPrimitive.Portal>
-</DialogPrimitive.Root>
+      <Dialog.Close class="dialog-close" aria-label={closeLabel}>
+        <X size={14} strokeWidth={2.25} aria-hidden="true" />
+      </Dialog.Close>
+    </header>
+    <div class={cn("dialog-body", flush && "dialog-body-flush")}>
+      {@render children?.()}
+    </div>
+    {#if footer}
+      <footer class="dialog-footer">
+        {@render footer()}
+      </footer>
+    {/if}
+  </Dialog.Content>
+</Dialog.Root>

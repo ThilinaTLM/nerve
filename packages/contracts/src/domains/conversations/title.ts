@@ -270,9 +270,9 @@ function hasUrlReference(text: string): boolean {
 }
 
 function fallbackTitle(text: string): string {
+  if (hasUrlReference(text)) return LINK_REVIEW_TITLE;
   if (hasImageReference(text)) return IMAGE_REVIEW_TITLE;
   if (hasFileReference(text)) return FILE_REVIEW_TITLE;
-  if (hasUrlReference(text)) return LINK_REVIEW_TITLE;
   return DEFAULT_CONVERSATION_TITLE;
 }
 

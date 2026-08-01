@@ -58,16 +58,27 @@ export async function continueHarnessRun<
   }
   state.phase = "turn";
   const finishRunPromise = state.startRunPromise();
-  let activeTurnState = await state.createTurnState();
+  let activeTurnState:
+    | AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>
+    | undefined;
   const abortController = new AbortController();
-  const getTurnState = () => activeTurnState;
+  const getTurnState = () => {
+    if (!activeTurnState) {
+      throw new AgentHarnessError(
+        "invalid_state",
+        "AgentHarness turn state is unavailable",
+      );
+    }
+    return activeTurnState;
+  };
   const setTurnState = (
     nextTurnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
   ) => {
     activeTurnState = nextTurnState;
   };
-  state.runAbortController = abortController;
   try {
+    activeTurnState = await state.createTurnState();
+    state.runAbortController = abortController;
     const newMessages = await runAgentLoopContinue(
       state.createContext(activeTurnState) as never,
       state.createLoopConfig(getTurnState, setTurnState),
@@ -86,6 +97,9 @@ export async function continueHarnessRun<
     if (isAgentToolSuspension(error)) {
       state.phase = "idle";
       throw error;
+    }
+    if (!activeTurnState) {
+      throw normalizeHarnessError(error, "unknown");
     }
     try {
       const failureMessages = await state.emitRunFailure(
@@ -113,6 +127,7 @@ export async function continueHarnessRun<
     try {
       await state.flushPendingConversationWrites();
     } finally {
+      state.phase = "idle";
       state.runAbortController = undefined;
       finishRunPromise();
     }

@@ -10,7 +10,7 @@ import {
   createId,
   type EncryptedSecretEnvelope,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 
 const GCM_TAG_BYTES = 16;
 
@@ -48,7 +48,7 @@ export class CredentialKeyService {
 
   decryptEnvelope(envelope: EncryptedSecretEnvelope): string {
     if (envelope.keyId !== this.keyId) {
-      throw new HttpError(
+      throw new ApplicationError(
         400,
         "CREDENTIAL_KEY_STALE",
         "Credential key is stale. Refetch the public key and retry.",
@@ -66,7 +66,7 @@ export class CredentialKeyService {
         Buffer.from(envelope.encryptedKey, "base64"),
       );
     } catch {
-      throw new HttpError(
+      throw new ApplicationError(
         400,
         "CREDENTIAL_DECRYPT_FAILED",
         "Could not decrypt the credential envelope.",
@@ -76,7 +76,7 @@ export class CredentialKeyService {
     // WebCrypto AES-GCM output is ciphertext || authTag (trailing 16 bytes).
     const combined = Buffer.from(envelope.ciphertext, "base64");
     if (combined.length <= GCM_TAG_BYTES) {
-      throw new HttpError(
+      throw new ApplicationError(
         400,
         "CREDENTIAL_DECRYPT_FAILED",
         "Could not decrypt the credential envelope.",
@@ -101,8 +101,8 @@ export class CredentialKeyService {
       }
       return plaintext;
     } catch (error) {
-      if (error instanceof HttpError) throw error;
-      throw new HttpError(
+      if (error instanceof ApplicationError) throw error;
+      throw new ApplicationError(
         400,
         "CREDENTIAL_DECRYPT_FAILED",
         "Could not decrypt the credential envelope.",

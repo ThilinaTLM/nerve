@@ -36,9 +36,14 @@ const {
 ---
 
 <div class="run-panel" data-run-sim={sim}>
-  <p class="visually-hidden">{description}</p>
+  <p class="visually-hidden" id={`run-description-${sim}`}>{description}</p>
 
-  <ol class="run-feed" data-run-feed aria-hidden="true">
+  <ol
+    class="run-feed"
+    data-run-feed
+    aria-label="Simulated agent transcript"
+    aria-describedby={`run-description-${sim}`}
+  >
     {
       rows.map((row) => {
         if (row.kind === "tool" && row.tool) {
@@ -122,6 +127,7 @@ const {
       })
     }
   </ol>
+  <p class="visually-hidden" data-run-status aria-live="polite"></p>
 
   <div class="run-composer" aria-hidden="true">
     <div class="run-composer-rail">

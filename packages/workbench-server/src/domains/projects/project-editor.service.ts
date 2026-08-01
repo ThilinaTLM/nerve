@@ -14,7 +14,7 @@ import type {
   ProjectEditor,
   ProjectRecord,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 
 type EditorLauncherSource = NonNullable<ExternalEditorStatus["source"]>;
 
@@ -158,7 +158,7 @@ export class ProjectEditorService {
     const launcher =
       this.launchers[editor] ?? (await this.refreshEditor(editor));
     if (!launcher) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "EDITOR_NOT_AVAILABLE",
         `${EDITORS[editor].displayName} is not available on this installation.`,
@@ -178,7 +178,7 @@ export class ProjectEditorService {
       child.once("error", () => undefined);
       child.unref();
     } catch (error) {
-      throw new HttpError(
+      throw new ApplicationError(
         500,
         "EDITOR_OPEN_FAILED",
         error instanceof Error

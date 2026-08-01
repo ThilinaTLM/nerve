@@ -1,5 +1,9 @@
 const queues = new Map<string, Promise<void>>();
 
+export function pendingFileMutationQueueCount(): number {
+  return queues.size;
+}
+
 export async function withFileMutationQueue<T>(
   path: string,
   task: () => Promise<T>,
@@ -9,18 +13,16 @@ export async function withFileMutationQueue<T>(
   const current = new Promise<void>((resolve) => {
     release = resolve;
   });
-  queues.set(
-    path,
-    previous.then(
-      () => current,
-      () => current,
-    ),
+  const chain = previous.then(
+    () => current,
+    () => current,
   );
+  queues.set(path, chain);
   await previous.catch(() => undefined);
   try {
     return await task();
   } finally {
     release();
-    if (queues.get(path) === current) queues.delete(path);
+    if (queues.get(path) === chain) queues.delete(path);
   }
 }

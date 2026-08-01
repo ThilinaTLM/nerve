@@ -1,35 +1,43 @@
-import { createId } from "../../core/index.js";
 import {
   assertTransition,
-  liveMessageTransitions,
-  turnTransitions,
-  type LiveMessageStatus,
-  type TurnStatus,
-} from "../events/lifecycles.js";
-import type { QueuedPromptRecord } from "../agents/index.js";
-import {
+  createId,
   LIVE_TOOL_OUTPUT_MAX_CHARS,
   LIVE_TOOL_OUTPUT_MAX_CHUNKS,
+  liveMessageTransitions,
+  turnTransitions,
   type AgentMessageContentKind,
-  ConversationActiveRunSnapshot,
-  ConversationLiveContentDeltaData,
-  ConversationLiveContentDoneData,
-  ConversationLiveMessageSnapshot,
-  ConversationLiveMessageStartedData,
-  ConversationLiveTextBlockSnapshot,
-  ConversationLiveToolDraftBlockSnapshot,
-  ConversationLiveToolDraftDeltaData,
-  ConversationLiveToolDraftDiscardedData,
-  ConversationLiveToolDraftDiscardReason,
-  ConversationLiveToolDraftDoneData,
-  ConversationLiveToolDraftProgressData,
-  ConversationLiveToolDraftProgressSnapshot,
-  ConversationLiveToolDraftStartedData,
-  ConversationLiveToolOutputDeltaData,
-  ConversationLiveToolOutputSnapshot,
-  ConversationLiveTurnSnapshot,
-  ConversationRunRetrySnapshot,
-} from "./conversation.schema.js";
+  type ConversationActiveRunSnapshot,
+  type ConversationLiveContentDeltaData,
+  type ConversationLiveContentDoneData,
+  type ConversationLiveMessageSnapshot,
+  type ConversationLiveMessageStartedData,
+  type ConversationLiveTextBlockSnapshot,
+  type ConversationLiveToolDraftBlockSnapshot,
+  type ConversationLiveToolDraftDeltaData,
+  type ConversationLiveToolDraftDiscardedData,
+  type ConversationLiveToolDraftDiscardReason,
+  type ConversationLiveToolDraftDoneData,
+  type ConversationLiveToolDraftProgressData,
+  type ConversationLiveToolDraftProgressSnapshot,
+  type ConversationLiveToolDraftStartedData,
+  type ConversationLiveToolOutputDeltaData,
+  type ConversationLiveToolOutputSnapshot,
+  type ConversationLiveTurnSnapshot,
+  type ConversationRunRetrySnapshot,
+  type LiveMessageStatus,
+  type QueuedPromptRecord,
+  type TurnStatus,
+} from "@nervekit/contracts";
+
+export interface ConversationRuntimeDependencies {
+  now(): Date;
+  createId(prefix: string): string;
+}
+
+const defaultDependencies: ConversationRuntimeDependencies = {
+  now: () => new Date(),
+  createId,
+};
 
 export interface StartRunInput {
   conversationId: string;
@@ -59,16 +67,15 @@ interface MutableMessage extends ConversationLiveMessageSnapshot {
   blocks: Array<
     ConversationLiveTextBlockSnapshot | ConversationLiveToolDraftBlockSnapshot
   >;
-  /**
-   * True once the message has been persisted as a conversation entry. Kept in
-   * the mutable structure for stable ordinals and event handling. Snapshots
-   * drain persisted prose but retain tool-draft slot anchors until the active
-   * run ends so the UI can bridge durable tool-record handoff.
-   */
+  /** Whether this message has been persisted as a durable entry. */
   materialized?: boolean;
 }
 
 export class ConversationRuntime {
+  constructor(
+    private readonly dependencies: ConversationRuntimeDependencies = defaultDependencies,
+  ) {}
+
   private readonly runsByRunId = new Map<string, MutableRun>();
   private readonly runIdByAgentId = new Map<string, string>();
   private readonly runIdByConversationId = new Map<string, string>();
@@ -80,7 +87,19 @@ export class ConversationRuntime {
   private readonly liveMessageStatuses = new Map<string, LiveMessageStatus>();
 
   startRun(input: StartRunInput): ConversationActiveRunSnapshot {
-    const startedAt = input.startedAt ?? new Date().toISOString();
+    const agentRunId = this.runIdByAgentId.get(input.agentId);
+    if (agentRunId && agentRunId !== input.runId) {
+      throw new Error(`Agent '${input.agentId}' already has an active run`);
+    }
+    const conversationRunId = this.runIdByConversationId.get(
+      input.conversationId,
+    );
+    if (conversationRunId && conversationRunId !== input.runId) {
+      throw new Error(
+        `Conversation '${input.conversationId}' already has an active run`,
+      );
+    }
+    const startedAt = input.startedAt ?? this.dependencies.now().toISOString();
     const run: MutableRun = {
       runId: input.runId,
       agentId: input.agentId,
@@ -193,7 +212,7 @@ export class ConversationRuntime {
   startTurn(runId: string): ConversationLiveTurnSnapshot {
     const run = this.requireRun(runId);
     const turn: MutableTurn = {
-      turnId: createId("turn"),
+      turnId: this.dependencies.createId("turn"),
       ordinal: run.turns.length,
       messages: [],
     };
@@ -244,9 +263,9 @@ export class ConversationRuntime {
   ): ConversationLiveMessageStartedData {
     const run = this.requireRun(runId);
     const turn = this.requireTurn(run, turnId);
-    const startedAt = new Date().toISOString();
+    const startedAt = this.dependencies.now().toISOString();
     const message: MutableMessage = {
-      liveMessageId: createId("msg"),
+      liveMessageId: this.dependencies.createId("msg"),
       messageOrdinal: turn.messages.length,
       startedAt,
       blocks: [],
@@ -526,7 +545,7 @@ export class ConversationRuntime {
     const existing = run?.toolOutputsByToolCallId[input.toolCallId];
     const offset =
       existing?.outputLimits?.totalChars ?? existing?.text.length ?? 0;
-    const now = new Date().toISOString();
+    const now = this.dependencies.now().toISOString();
     if (run) {
       const output: ConversationLiveToolOutputSnapshot = capToolOutput(
         {
@@ -666,7 +685,7 @@ export class ConversationRuntime {
     if (existing && existing.kind !== "tool_call_draft") return existing;
     const block: ConversationLiveTextBlockSnapshot = {
       kind,
-      contentBlockId: createId("block"),
+      contentBlockId: this.dependencies.createId("block"),
       contentIndex,
       text: "",
       done: false,
@@ -687,7 +706,7 @@ export class ConversationRuntime {
     if (existing?.kind === "tool_call_draft") return existing;
     const block: ConversationLiveToolDraftBlockSnapshot = {
       kind: "tool_call_draft",
-      contentBlockId: createId("block"),
+      contentBlockId: this.dependencies.createId("block"),
       contentIndex,
       argsText: "",
       done: false,
