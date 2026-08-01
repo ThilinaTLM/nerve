@@ -44,6 +44,8 @@ type Props = {
   thinkingShortcut?: string;
   contextUsage?: ContextUsage;
   contextWindow: number;
+  compacting?: boolean;
+  compactDisabled?: boolean;
   todos?: TodoItem[];
   models: ModelInfo[];
   selectedModelKey: string;
@@ -52,6 +54,7 @@ type Props = {
   modelEmptyMessage?: string;
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
+  onCompact?: () => void;
   onPermissionChange?: (value: PermissionLevel) => void;
   onApprovalPolicyChange?: (value: ApprovalPolicy) => void;
 };
@@ -72,6 +75,8 @@ let {
   thinkingShortcut,
   contextUsage,
   contextWindow,
+  compacting = false,
+  compactDisabled = false,
   todos = [],
   models,
   selectedModelKey,
@@ -80,6 +85,7 @@ let {
   modelEmptyMessage,
   onModelChange,
   onThinkingLevelChange,
+  onCompact,
   onPermissionChange,
   onApprovalPolicyChange,
 }: Props = $props();
@@ -202,7 +208,13 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
 
   <TodoProgressChip {todos} />
 
-  <ContextProgressBadge {contextUsage} {contextWindow} />
+  <ContextProgressBadge
+    {contextUsage}
+    {contextWindow}
+    {compacting}
+    {compactDisabled}
+    {onCompact}
+  />
 
   <ComposerModelPicker
     {models}

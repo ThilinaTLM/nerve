@@ -112,6 +112,9 @@ function submit(): void {
       approvalPolicy={model.approvalPolicy}
       contextUsage={model.contextUsage}
       contextWindow={model.contextWindow ?? 0}
+      compacting={model.compacting}
+      compactDisabled={blocked || !actions.onCompact}
+      onCompact={actions.onCompact}
       todos={model.todos}
       models={model.models}
       selectedModelKey={model.selectedModelKey}

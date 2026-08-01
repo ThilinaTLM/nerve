@@ -25,6 +25,7 @@ import { conversationState } from "$lib/features/conversations/state/conversatio
 import {
   abortActiveRun,
   cancelActiveCompaction,
+  compactActiveConversation,
   continueFromFailure,
   navigateToEntry,
 } from "$lib/features/conversations/state/run-control";
@@ -424,6 +425,9 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
         ? cancelActiveCompaction
         : abortActiveRun,
     );
+  }}
+  onCompact={() => {
+    void runActivePaneAction(compactActiveConversation);
   }}
   onNewConversationInProject={newConversationInProject}
   onOpenFile={openToolFile}
