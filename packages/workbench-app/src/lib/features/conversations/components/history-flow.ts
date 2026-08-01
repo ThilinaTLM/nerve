@@ -30,10 +30,7 @@ export type HistoryZoomTier = "overview" | "summary" | "detail";
 
 export type HistoryGraphNodeActions = {
   onToggleSegment: (segment: HistorySegment) => void;
-  onNavigateToEntry?: (
-    entryId: string | undefined,
-    summarize?: boolean,
-  ) => void;
+  onNavigateToEntry?: (entryId: string | undefined) => void;
   onEditEntry?: (entry: ConversationEntry) => void;
 };
 
