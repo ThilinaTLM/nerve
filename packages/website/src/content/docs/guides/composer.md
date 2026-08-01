@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-The composer is the main control surface for a conversation. It combines a Markdown-oriented editor with run controls, model/mode/permission selectors, context usage, to-dos, suggestions, clipboard images, and voice.
+The composer is the main control surface for a conversation. It combines a Markdown-oriented editor with run controls, model/mode/permission selectors, context usage, to-dos, suggestions, file and folder path mentions, clipboard images, and voice.
 
 ## Send and stop
 
@@ -18,6 +18,14 @@ A queued prompt can be discarded or **Cancel & Edit**-ed back into the composer.
 Type `/` to filter available inline commands. Type `@` to search files and directories in the current project. At most 80 completion options are shown.
 
 `@` is project path completion—not a mention system for people, agents, or conversations.
+
+## Drop files and folders
+
+In the desktop app, drag one or more files or folders onto the composer. The drop target inserts their paths at the current selection. Items inside the active project use project-relative paths, the project root becomes `.`, and items outside the project keep absolute paths. Multiple paths preserve their order, and paths containing whitespace are quoted.
+
+Dropped paths remain editable and are sent only when you submit the prompt. Nerve does not copy or upload the items, create thumbnails, or store durable attachments; it mentions their existing filesystem locations so the agent can work with them under its normal tool and permission limits.
+
+This workflow requires Electron's native path bridge and is not available in a normal browser or installed PWA. Use `@` completion there to reference paths inside the current project.
 
 ## Suggestions
 
@@ -32,7 +40,7 @@ The toolbar displays current context-window pressure and cumulative usage when t
 A pending approval, question, or plan review disables normal composition. Resolve the card in the transcript. This keeps the decision associated with the exact tool or plan that requested it.
 
 :::note
-There is no generic composer file picker, attachment thumbnail, or drag-and-drop upload. Nerve supports clipboard image paste and project path completion.
+Dropped items are path mentions, not uploads or attachments. Clipboard image paste is separate: it creates temporary local image paths for image-capable models.
 :::
 
 ## Next steps
