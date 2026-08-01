@@ -118,7 +118,7 @@ const description = $derived(
   bind:open
   title={`${displayToolCall.toolName} details`}
   {description}
-  class="max-w-5xl"
+  size="wide"
   {onOpenChange}
 >
   {#if loading && !toolCall}

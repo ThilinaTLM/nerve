@@ -42,6 +42,7 @@ function handleOpenChange(next: boolean) {
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
   <Dialog.Content
     showCloseButton={false}
+    layout="shell"
     class={cn(
       "dialog-content data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 data-open:zoom-in-95 data-closed:zoom-out-95 duration-100 outline-none",
       size === "sm" && "dialog-content-sm",
