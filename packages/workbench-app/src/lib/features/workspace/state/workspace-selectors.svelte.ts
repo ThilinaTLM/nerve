@@ -139,7 +139,7 @@ export const workspaceSelectors = {
       projects: workspaceState.projects,
       conversations: workspaceState.conversations,
       activityById: this.conversationActivityById,
-      homeDir: workspaceState.status?.storage.home,
+      homeDir: workspaceState.status?.storage.userHome,
       recency: workspaceState.projectRecency,
     });
   },

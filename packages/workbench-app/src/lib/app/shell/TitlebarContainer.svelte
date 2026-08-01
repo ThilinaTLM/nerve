@@ -62,7 +62,7 @@ const desktopQuitting = $derived(
   desktopRuntime.quitting || desktopShutdownState.quitRequested,
 );
 const menuContext = $derived<ProjectTreeMenuContext>({
-  homeDir: status?.storage.home,
+  homeDir: status?.storage.userHome,
   newConversationShortcut,
   editorAvailability: status?.runtime.editors,
   conversationCount: (projectId) =>
@@ -73,7 +73,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   requestPrune: (project) => {
     pendingPrune = {
       id: project.id,
-      label: shortProjectLabel(project.dir, status?.storage.home),
+      label: shortProjectLabel(project.dir, status?.storage.userHome),
     };
   },
   requestDelete: (target) => (pendingDelete = target),

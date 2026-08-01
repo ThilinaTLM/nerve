@@ -26,7 +26,10 @@ export type ShortcutCommandId =
   | "composer.cycleThinking"
   | "zoom.in"
   | "zoom.out"
-  | "zoom.reset";
+  | "zoom.reset"
+  | "view.toggleLeftDock"
+  | "view.toggleRightDock"
+  | "view.toggleBottomDock";
 
 export type ShortcutCommand = {
   id: ShortcutCommandId;
@@ -170,6 +173,27 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
     label: "Reset zoom",
     category: "View",
     defaultBinding: { key: "0", mod: true },
+  },
+  {
+    id: "view.toggleLeftDock",
+    label: "Toggle left panel",
+    category: "View",
+    defaultBinding: { key: "b", mod: true },
+    allowInEditable: true,
+  },
+  {
+    id: "view.toggleRightDock",
+    label: "Toggle right panel",
+    category: "View",
+    defaultBinding: { key: "b", mod: true, alt: true },
+    allowInEditable: true,
+  },
+  {
+    id: "view.toggleBottomDock",
+    label: "Toggle bottom panel",
+    category: "View",
+    defaultBinding: { key: "j", mod: true },
+    allowInEditable: true,
   },
 ];
 

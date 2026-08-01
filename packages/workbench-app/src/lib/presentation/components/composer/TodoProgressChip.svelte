@@ -1,7 +1,10 @@
 <script lang="ts">
 import ListChecks from "@lucide/svelte/icons/list-checks";
 import type { TodoItem } from "@nervekit/contracts";
-import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+} from "@nervekit/ui-kit/components/ui/popover-panel";
 import TodoChecklist from "../../tools/components/tool-call/TodoChecklist.svelte";
 
 type Props = { todos: TodoItem[] };
@@ -19,7 +22,7 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
 {#if total > 0}
   <Popover
     bind:open
-    class="todo-progress-content"
+    class="popover-xl"
     triggerClass="composer-tab todo-progress-tab"
     ariaLabel="Todo progress"
     triggerTitle={title}
@@ -41,13 +44,10 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
       </span>
     {/snippet}
 
-    <div class="todo-popover">
-      <div class="todo-popover-head">
-        <p class="todo-popover-heading">Todo list</p>
-        <span class="todo-popover-count">{completed}/{total}</span>
-      </div>
-      <TodoChecklist items={todos} />
-    </div>
+    <PopoverBody class="max-h-[min(48vh,20rem)] overflow-y-auto">
+      <PopoverHeader title="Todo list" meta={`${completed}/${total}`} />
+      <TodoChecklist items={todos} dense />
+    </PopoverBody>
   </Popover>
 {/if}
 
@@ -87,35 +87,5 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
 
 .todo-count {
   color: var(--foreground);
-}
-
-.todo-popover {
-  display: grid;
-  gap: 0.55rem;
-  padding: 0.7rem;
-  max-height: min(48vh, 20rem);
-  overflow-y: auto;
-}
-
-.todo-popover-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.todo-popover-heading {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.todo-popover-count {
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  font-weight: 600;
 }
 </style>

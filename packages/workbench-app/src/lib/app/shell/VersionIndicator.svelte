@@ -3,7 +3,11 @@ import type { LatestRelease } from "@nervekit/contracts";
 import Check from "@lucide/svelte/icons/check";
 import Copy from "@lucide/svelte/icons/copy";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import Popover from "@nervekit/ui-kit/components/ui/popover-panel";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+  PopoverSection,
+} from "@nervekit/ui-kit/components/ui/popover-panel";
 import { onDestroy } from "svelte";
 import { scale } from "svelte/transition";
 import { writeClipboardText } from "$lib/core/clipboard";
@@ -63,31 +67,32 @@ onDestroy(() => {
   ariaLabel={accessibleLabel}
   side="bottom"
   align="end"
-  class="version-popover p-3 text-xs"
+  class="popover-md"
   triggerClass={`version-trigger rounded-sm font-mono text-xs font-medium leading-none transition-colors ${outdated ? "version-trigger-warning" : ""}`}
 >
   {#snippet trigger()}{currentLabel}{/snippet}
 
-  <div class="grid gap-2.5">
-    <div class="flex items-center justify-between gap-4">
-      <strong class="text-sm font-semibold">Nerve {currentLabel}</strong>
-      {#if latestLabel && latestRelease}
-        <a
-          href={latestRelease.releaseUrl}
-          target="_blank"
-          rel="noreferrer"
-          class="cursor-pointer text-muted-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
-          >Latest {latestLabel}</a
-        >
-      {/if}
-    </div>
+  <PopoverBody>
+    <PopoverHeader title={`Nerve ${currentLabel}`}>
+      {#snippet action()}
+        {#if latestLabel && latestRelease}
+          <a
+            href={latestRelease.releaseUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="flex-none cursor-pointer text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+            >Latest {latestLabel}</a
+          >
+        {/if}
+      {/snippet}
+    </PopoverHeader>
 
     {#if outdated && latestLabel && latestRelease}
       <p class="text-warning">
         This version is out of date. Update to {latestLabel} to use the latest stable
         release.
       </p>
-      <div class="grid gap-1.5 border-t border-border/60 pt-2.5">
+      <PopoverSection separated>
         <span class="text-muted-foreground">Run the latest release</span>
         <div class="flex items-center rounded-sm bg-muted pl-2 pr-1">
           <code class="min-w-0 flex-1 select-text py-1.5 text-foreground"
@@ -142,7 +147,7 @@ onDestroy(() => {
             {/key}
           </Button>
         </div>
-      </div>
+      </PopoverSection>
       <span class="text-muted-foreground"
         >Select the latest version above to open the release notes.</span
       >
@@ -156,5 +161,5 @@ onDestroy(() => {
         The latest release could not be checked. Nerve will retry automatically.
       </p>
     {/if}
-  </div>
+  </PopoverBody>
 </Popover>

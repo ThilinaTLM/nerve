@@ -32,7 +32,7 @@ const conversationActivityById = $derived(
   {projects}
   {conversations}
   {agents}
-  homeDir={status?.storage.home}
+  homeDir={status?.storage.userHome}
   selectedProjectId={selection.projectId}
   selectedConversationId={selection.conversationId}
   {openConversationTabIds}

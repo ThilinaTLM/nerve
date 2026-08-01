@@ -3,28 +3,36 @@ import Circle from "@lucide/svelte/icons/circle";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import type { TodoItem } from "@nervekit/contracts";
 
-type Props = { items: TodoItem[]; emptyLabel?: string };
-let { items, emptyLabel = "No todos set." }: Props = $props();
+type Props = {
+  items: TodoItem[];
+  emptyLabel?: string;
+  /** Renders at the popover type scale instead of the transcript's. */
+  dense?: boolean;
+};
+let { items, emptyLabel = "No todos set.", dense = false }: Props = $props();
+
+const textClass = $derived(dense ? "text-xs" : "text-sm");
+const iconSize = $derived(dense ? 13 : 15);
 </script>
 
 {#if items.length === 0}
-  <p class="m-0 text-sm text-muted-foreground">{emptyLabel}</p>
+  <p class={`m-0 text-muted-foreground ${textClass}`}>{emptyLabel}</p>
 {:else}
   <ul class="m-0 grid list-none gap-1.5 p-0" aria-label="Todo list">
     {#each items as item, index (`${item.todo}:${item.done}:${index}`)}
       <li
-        class={`grid grid-cols-[auto_1fr] items-start gap-2 text-sm leading-normal ${item.done ? "text-muted-foreground" : "text-foreground"}`}
+        class={`grid grid-cols-[auto_1fr] items-start gap-2 leading-normal ${textClass} ${item.done ? "text-muted-foreground" : "text-foreground"}`}
       >
         {#if item.done}
           <CircleCheck
-            size={15}
+            size={iconSize}
             strokeWidth={2.2}
             aria-hidden="true"
             class="mt-0.5 text-success"
           />
         {:else}
           <Circle
-            size={15}
+            size={iconSize}
             strokeWidth={2.2}
             aria-hidden="true"
             class="mt-0.5 text-muted-foreground"

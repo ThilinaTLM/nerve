@@ -16,7 +16,10 @@ Object.defineProperty(globalThis, "Element", {
   value: ShortcutTarget,
 });
 
-function shortcutEvent(target: EventTarget | null = null): {
+function shortcutEvent(
+  target: EventTarget | null = null,
+  overrides: Partial<KeyboardEvent> = {},
+): {
   event: KeyboardEvent;
   prevented: () => boolean;
 } {
@@ -32,6 +35,7 @@ function shortcutEvent(target: EventTarget | null = null): {
     preventDefault: () => {
       defaultPrevented = true;
     },
+    ...overrides,
   } as unknown as KeyboardEvent;
 
   return { event, prevented: () => defaultPrevented };
@@ -67,6 +71,7 @@ function shortcutOptions(
     setComposerThinkingLevel: () => undefined,
     selectedMode: () => "coding",
     setComposerMode: () => undefined,
+    togglePanelDock: () => undefined,
   };
 }
 
@@ -86,6 +91,22 @@ test("Ctrl+W closes the active pane from an editable target", () => {
 
   assert.deepEqual(closedTab, activeTab);
   assert.equal(prevented(), true);
+});
+
+test("Ctrl+B toggles the left dock while an editable target is focused", () => {
+  const toggled: string[] = [];
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(undefined, () => undefined),
+    togglePanelDock: (dock) => toggled.push(dock),
+  });
+  const { event } = shortcutEvent(
+    new ShortcutTarget(true) as unknown as EventTarget,
+    { key: "b", code: "KeyB" },
+  );
+
+  shortcuts.handleWorkbenchShortcut(event);
+
+  assert.deepEqual(toggled, ["left"]);
 });
 
 test("Ctrl+W prevents native window close when there is no active pane", () => {

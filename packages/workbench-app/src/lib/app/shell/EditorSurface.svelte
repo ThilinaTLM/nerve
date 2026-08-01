@@ -86,7 +86,7 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
   {#snippet tabStrip()}
     <EditorTabStripContainer
       tabs={centerTabs}
-      homeDir={status?.storage.home}
+      homeDir={status?.storage.userHome}
       onSelect={(tab) => void selectCenterTab(tab)}
       onClose={(tab) => void closeCenterTab(tab)}
       onRefresh={refreshCenterTab}

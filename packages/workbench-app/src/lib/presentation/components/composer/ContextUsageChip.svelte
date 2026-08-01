@@ -45,7 +45,7 @@ const title = $derived(
 </script>
 
 {#if window > 0 || stats.length > 0}
-  <span class="footer-chip context-chip" {title}>
+  <span class="context-chip" {title}>
     {#each stats as part (part)}
       <span class="ctx-stat">{part}</span>
     {/each}
@@ -59,7 +59,12 @@ const title = $derived(
 
 <style>
 .context-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
   gap: 0.4rem;
+  height: 100%;
+  padding: 0 0.6rem;
   font-family: var(--font-mono);
 }
 

@@ -12,7 +12,10 @@ import {
 } from "$lib/features/notifications/notify.svelte";
 import { registerFeatureEventHandlers } from "$lib/features/register-feature-events";
 import { zoomState } from "$lib/app/shell/appearance.svelte";
-import { revealPanelView } from "$lib/app/shell/shell-layout.svelte";
+import {
+  revealPanelView,
+  togglePanelDock,
+} from "$lib/app/shell/shell-layout.svelte";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
   abortActiveRun,
@@ -124,6 +127,7 @@ const appShortcuts = createAppShortcuts({
   setComposerThinkingLevel,
   selectedMode: () => selectedMode,
   setComposerMode,
+  togglePanelDock: (dock) => togglePanelDock(dock, responsive.isCompact),
 });
 
 $effect(() => {

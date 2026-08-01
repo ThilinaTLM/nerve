@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 export interface StoragePaths {
   home: string;
+  /** The operating system user's home directory (not the Nerve data dir). */
+  userHome: string;
   configPath: string;
   providersPath: string;
   daemonPath: string;
@@ -19,6 +21,7 @@ export function resolveDataDir(explicitHome = process.env.NERVE_HOME): string {
 export function storagePaths(home = resolveDataDir()): StoragePaths {
   return {
     home,
+    userHome: homedir(),
     configPath: join(home, "config.json"),
     providersPath: join(home, "providers.json"),
     daemonPath: join(home, "daemon.json"),

@@ -243,6 +243,7 @@ export function statusResponse(state: OrchestratorState): StatusResponse {
       : undefined,
     storage: {
       home: state.storage.paths.home,
+      userHome: state.storage.paths.userHome,
       sqlitePath: state.storage.paths.sqlitePath,
       indexHealthy: state.index.isHealthy,
     },

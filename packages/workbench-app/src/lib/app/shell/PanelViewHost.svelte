@@ -97,7 +97,7 @@ function focusTasks() {
     {activeProject}
     {tasks}
     {selectedTask}
-    homeDir={status?.storage.home}
+    homeDir={status?.storage.userHome}
     onOpenTaskOutput={(id) => {
       focusTasks();
       void openTaskTab(id);
