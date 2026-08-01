@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/tools",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "private": true,
   "description": "Canonical agent tool catalog, executors, and host runtime contracts.",
   "author": "ThilinaTLM",

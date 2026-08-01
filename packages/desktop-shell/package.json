@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/desktop-shell",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "private": true,
   "description": "Electron packaging and desktop bridge shell for Nerve.",
   "author": "ThilinaTLM",
