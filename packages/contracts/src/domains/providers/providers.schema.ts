@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { thinkingLevelSchema } from "../models/index.js";
+import { modelInputSchema, thinkingLevelSchema } from "../models/index.js";
 
 /**
  * pi-ai `KnownApi` values. Custom providers pick one of these API
@@ -19,9 +19,6 @@ export const piApiSchema = z.enum([
   "pi-messages",
 ]);
 export type PiApi = z.infer<typeof piApiSchema>;
-
-export const modelInputSchema = z.enum(["text", "image"]);
-export type ModelInputModality = z.infer<typeof modelInputSchema>;
 
 export const modelCostSchema = z.object({
   input: z.number().nonnegative().default(0),

@@ -19,12 +19,17 @@ export const modelSelectionSchema = z.object({
 });
 export type ModelSelection = z.infer<typeof modelSelectionSchema>;
 
+export const modelInputSchema = z.enum(["text", "image"]);
+export type ModelInputModality = z.infer<typeof modelInputSchema>;
+
 export const modelInfoSchema = z.object({
   provider: z.string(),
   modelId: z.string(),
   name: z.string(),
   label: z.string(),
   reasoning: z.boolean().default(false),
+  /** Accepted input modalities; `["text", "image"]` means vision input works. */
+  input: z.array(modelInputSchema).default(["text"]),
   supportedThinkingLevels: z.array(thinkingLevelSchema).default(["off"]),
   faux: z.boolean().optional(),
   contextWindow: z.number().int().nonnegative().default(0),

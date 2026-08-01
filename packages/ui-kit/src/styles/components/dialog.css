@@ -43,6 +43,13 @@
   width: min(30rem, calc(100dvw - 2rem));
 }
 
+.dialog-content-md {
+  width: min(672px, calc(100vw - 32px));
+  width: min(672px, calc(100dvw - 2rem));
+  max-height: 90vh;
+  max-height: min(90dvh, calc(100dvh - 2rem));
+}
+
 .dialog-content-wide {
   width: min(960px, calc(100vw - 32px));
   width: min(960px, calc(100dvw - 2rem));
@@ -148,6 +155,9 @@
   padding: 0.75rem 0.875rem;
 }
 
+/* Flush bodies host edge-to-edge lists that own their scrolling, so the shell
+ * must not add a second scrollbar around them. */
 .dialog-body-flush {
+  overflow: hidden;
   padding: 0;
 }

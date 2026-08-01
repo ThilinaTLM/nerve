@@ -21,7 +21,7 @@ type Props = {
   selectedThinkingLevel: ThinkingLevel;
   summaryTitle: string;
   summaryMeta: Snippet;
-  fallbackOption: { label: string; detail: string };
+  fallbackOption: { label: string; detail: string; actionLabel: string };
   fallbackThinkingLevels: ThinkingLevel[];
   dialogTitle: string;
   dialogDescription?: string;

@@ -14,6 +14,7 @@ function model(provider: string, modelId: string, name: string): ModelInfo {
     name,
     label: name,
     reasoning: false,
+    input: ["text"],
     supportedThinkingLevels: ["off"],
     contextWindow: 0,
     maxOutputTokens: 0,

@@ -199,6 +199,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
     fallbackOption={{
       label: "First available scoped model",
       detail: "Use the first configured model allowed by Scoped Models",
+      actionLabel: "Use first available",
     }}
     {fallbackThinkingLevels}
     dialogTitle="Choose default model"

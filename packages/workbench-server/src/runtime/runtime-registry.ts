@@ -680,6 +680,7 @@ export class RuntimeRegistry {
         name: model.name,
         label: model.provider === "nerve-faux" ? "Nerve Faux Fast" : model.name,
         reasoning: model.reasoning,
+        input: model.input,
         supportedThinkingLevels: model.supportedThinkingLevels,
         faux: model.provider === "nerve-faux",
         contextWindow: model.contextWindow,

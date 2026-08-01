@@ -10,6 +10,8 @@ export interface AgentModelInfo extends AgentModelSelection {
   name: string;
   reasoning: boolean;
   supportedThinkingLevels: ThinkingLevel[];
+  /** Accepted input modalities from the model catalog; `["text"]` when unknown. */
+  input: ("text" | "image")[];
   contextWindow: number;
   maxOutputTokens: number;
 }
