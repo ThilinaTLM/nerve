@@ -30,7 +30,6 @@ export async function buildAgentSystemPrompt(
     jiraEnabled?: boolean;
     confluenceEnabled?: boolean;
     tasks?: readonly TaskRecord[];
-    todos?: readonly { done: boolean }[];
   } = {},
 ): Promise<string> {
   const activeToolNames = activeToolNamesForAgent(agent, {
@@ -56,7 +55,6 @@ export async function buildAgentSystemPrompt(
         ? planDirForStorageHome(options.storageHome)
         : undefined,
       tasks: options.tasks,
-      todos: options.todos,
     },
   );
 }
@@ -73,7 +71,6 @@ export function composeAgentSystemPrompt(
   options: {
     planDir?: string;
     tasks?: readonly TaskRecord[];
-    todos?: readonly { done: boolean }[];
   } = {},
 ): string {
   if (agent.systemPrompt) return agent.systemPrompt;
@@ -90,6 +87,5 @@ export function composeAgentSystemPrompt(
     activeBackgroundTaskIds: options.tasks
       ? activeBackgroundTaskIdsInDirectoryTree(options.tasks, agent.projectDir)
       : undefined,
-    todos: options.todos,
   });
 }

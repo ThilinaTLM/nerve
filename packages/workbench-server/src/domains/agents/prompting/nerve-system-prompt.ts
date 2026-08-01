@@ -12,7 +12,6 @@ export interface BuildNerveSystemPromptOptions {
   contextFiles?: Array<{ path: string; content: string }>;
   skills?: Skill[];
   activeBackgroundTaskIds?: readonly string[];
-  todos?: readonly { done: boolean }[];
 }
 
 export function buildNerveSystemPrompt(
@@ -41,14 +40,12 @@ export function buildNerveSystemPrompt(
       ? buildPlanModeInstructions(options.planDir ?? "Nerve plan storage")
       : "";
   const taskToolsEnabled = tools.some((tool) => tool.startsWith("task_"));
-  const todoToolsEnabled = tools.some((tool) => tool.startsWith("todos_"));
   const environmentBlock = formatEnvironment({
     date,
     cwd,
     activeBackgroundTaskIds: taskToolsEnabled
       ? options.activeBackgroundTaskIds
       : undefined,
-    todos: todoToolsEnabled ? options.todos : undefined,
   });
 
   return [
@@ -182,7 +179,6 @@ function formatEnvironment(options: {
   date: string;
   cwd: string;
   activeBackgroundTaskIds?: readonly string[];
-  todos?: readonly { done: boolean }[];
 }): string {
   const lines = [
     "<environment>",
@@ -193,13 +189,6 @@ function formatEnvironment(options: {
   if (taskIds?.length) {
     lines.push(
       `Active background tasks (${taskIds.length}): ${taskIds.join(", ")}`,
-    );
-  }
-  const todos = options.todos;
-  if (todos?.length) {
-    const completed = todos.filter((todo) => todo.done).length;
-    lines.push(
-      `Todo progress: ${completed}/${todos.length} complete (${todos.length - completed} open)`,
     );
   }
   lines.push("</environment>");

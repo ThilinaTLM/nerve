@@ -236,10 +236,6 @@ export class ToolService {
     return this.toolCallRepository.list();
   }
 
-  getTodos(agentId: string) {
-    return this.todoState.get(agentId);
-  }
-
   /** Compact the persisted tool-call log, dropping superseded append rows. */
   async compactToolCallLog(): Promise<void> {
     await this.toolCallRepository.compactPersisted();
