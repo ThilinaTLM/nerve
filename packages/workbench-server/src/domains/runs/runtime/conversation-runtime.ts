@@ -87,6 +87,9 @@ export class ConversationRuntime {
   private readonly liveMessageStatuses = new Map<string, LiveMessageStatus>();
 
   startRun(input: StartRunInput): ConversationActiveRunSnapshot {
+    const existing = this.runsByRunId.get(input.runId);
+    if (existing) return cloneRun(existing);
+
     const agentRunId = this.runIdByAgentId.get(input.agentId);
     if (agentRunId && agentRunId !== input.runId) {
       throw new Error(`Agent '${input.agentId}' already has an active run`);
@@ -117,29 +120,15 @@ export class ConversationRuntime {
     return cloneRun(run);
   }
 
-  markAborting(runId: string): ConversationActiveRunSnapshot | undefined {
-    const run = this.runsByRunId.get(runId);
-    if (!run) return undefined;
-    run.status = "aborting";
-    return cloneRun(run);
-  }
-
-  markRetrying(
+  projectStatus(
     runId: string,
-    retry: ConversationRunRetrySnapshot,
+    status: ConversationActiveRunSnapshot["status"],
+    retry?: ConversationRunRetrySnapshot,
   ): ConversationActiveRunSnapshot | undefined {
     const run = this.runsByRunId.get(runId);
     if (!run) return undefined;
-    run.status = "retrying";
-    run.retry = { ...retry };
-    return cloneRun(run);
-  }
-
-  clearRetry(runId: string): ConversationActiveRunSnapshot | undefined {
-    const run = this.runsByRunId.get(runId);
-    if (!run) return undefined;
-    if (run.status === "retrying") run.status = "running";
-    run.retry = undefined;
+    run.status = status;
+    run.retry = retry ? { ...retry } : undefined;
     return cloneRun(run);
   }
 
@@ -170,11 +159,21 @@ export class ConversationRuntime {
     return cloneRun(run);
   }
 
+  reset(): void {
+    for (const runId of [...this.runsByRunId.keys()]) {
+      this.finishRun(runId, "failed");
+    }
+  }
+
   completeRun(runId: string): void {
     this.finishRun(runId, "completed");
   }
 
   failRun(runId: string): void {
+    this.finishRun(runId, "failed");
+  }
+
+  cancelRun(runId: string): void {
     this.finishRun(runId, "failed");
   }
 

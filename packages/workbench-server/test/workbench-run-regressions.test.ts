@@ -13,11 +13,11 @@ import { HumanInputResolutionService } from "../src/domains/human-input/human-in
 import { WorkbenchRunQuery } from "../src/domains/runs/workbench-run-query.js";
 import {
   agentStatusForRun,
-  WorkbenchRunStatusProjector,
-} from "../src/domains/runs/workbench-run-status-projector.js";
+  WorkbenchRunProjector,
+} from "../src/domains/runs/workbench-run-projector.js";
 
 describe("workbench coordinator behavior regressions", () => {
-  it("projects every canonical run status without becoming lifecycle authority", async () => {
+  it("projects every canonical run status into workbench state", async () => {
     assert.equal(agentStatusForRun("starting"), "running");
     assert.equal(agentStatusForRun("running"), "running");
     assert.equal(agentStatusForRun("retrying"), "running");
@@ -33,16 +33,20 @@ describe("workbench coordinator behavior regressions", () => {
     const agent = agentRecord();
     state.agents.set(agent.id, agent);
     const projected: AgentRecord["status"][] = [];
-    const projector = new WorkbenchRunStatusProjector(
+    const projector = new WorkbenchRunProjector(
       state,
       async (current, status) => {
         projected.push(status);
         state.agents.set(current.id, { ...current, status });
       },
     );
-    await projector.committed({ run: runRecord("running", 1) } as never);
+    const activeRun = runRecord("running", 1);
+    await projector.committed({ run: activeRun, events: [] } as never);
     assert.equal(state.agents.get(agent.id)?.status, "running");
-    await projector.committed({ run: runRecord("waiting", 2) } as never);
+    await projector.committed({
+      run: { ...runRecord("waiting", 2), runId: activeRun.runId },
+      events: [],
+    } as never);
     assert.equal(state.agents.get(agent.id)?.status, "awaiting_user");
     await projector.rebuild([
       {
@@ -58,6 +62,148 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(state.agents.get(agent.id)?.status, "idle");
   });
 
+  it("clears terminal ownership before a second run in the same conversation", async () => {
+    const state = new RuntimeState();
+    const projector = new WorkbenchRunProjector(state, async () => undefined);
+    const first = runRecord("running", 1);
+
+    await projector.committed({ run: first, events: [] } as never);
+    state.conversationRuntime.startTurn(first.runId);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(first.conversationId)
+        ?.runId,
+      first.runId,
+    );
+
+    await projector.committed({
+      run: { ...first, revision: 2, status: "completed" },
+      events: [],
+    } as never);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(first.conversationId),
+      undefined,
+    );
+
+    const second = {
+      ...runRecord("running", 3),
+      runId: "run_second",
+    };
+    await projector.committed({ run: second, events: [] } as never);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(second.conversationId)
+        ?.runId,
+      second.runId,
+    );
+  });
+
+  it("retains live ownership through retry, wait, and cancellation states", async () => {
+    const state = new RuntimeState();
+    const projector = new WorkbenchRunProjector(state, async () => undefined);
+    const run = runRecord("running", 1);
+    const project = async (
+      status: RunRecord["status"],
+      revision: number,
+      events: readonly unknown[] = [],
+    ) =>
+      projector.committed({
+        run: { ...run, revision, status },
+        events,
+      } as never);
+
+    await project("running", 1);
+    await project("retrying", 2, [
+      {
+        type: "run.retrying",
+        data: {
+          attempt: 1,
+          maxRetries: 3,
+          delayMs: 1_000,
+          retryAt: "2026-07-13T00:00:03.000Z",
+          errorMessage: "rate limited",
+        },
+      },
+    ]);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(run.conversationId)
+        ?.retry?.errorMessage,
+      "rate limited",
+    );
+
+    await project("waiting", 3);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(run.conversationId)
+        ?.status,
+      "waiting",
+    );
+    await project("suspended", 4);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(run.conversationId)
+        ?.status,
+      "waiting",
+    );
+    await project("cancellation_requested", 5);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(run.conversationId)
+        ?.status,
+      "aborting",
+    );
+    await project("interrupted", 6);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(run.conversationId)
+        ?.status,
+      "interrupted",
+    );
+    await project("cancelled", 7);
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(run.conversationId),
+      undefined,
+    );
+  });
+
+  it("rebuilds only active conversation runtime projections", async () => {
+    const state = new RuntimeState();
+    const projector = new WorkbenchRunProjector(state, async () => undefined);
+    const stale = runRecord("running", 1);
+    state.conversationRuntime.startRun(stale);
+
+    const completed = runRecord("completed", 2);
+    const interrupted = {
+      ...runRecord("interrupted", 3),
+      conversationId: "conv_active",
+      agentId: "agent_active",
+      scopeId: "conv_active:agent_active",
+    };
+    await projector.rebuild([
+      {
+        run: completed,
+        transitions: [],
+        prompts: [],
+        interactions: [],
+        checkpoints: [],
+        deliveries: [],
+      },
+      {
+        run: interrupted,
+        transitions: [],
+        prompts: [],
+        interactions: [],
+        checkpoints: [],
+        deliveries: [],
+      },
+    ]);
+
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(stale.conversationId),
+      undefined,
+    );
+    assert.equal(
+      state.conversationRuntime.snapshotForConversation(
+        interrupted.conversationId,
+      )?.status,
+      "interrupted",
+    );
+  });
+
   it("preserves newer persisted agent status during startup rebuild", async () => {
     const state = new RuntimeState();
     const newerAgent = {
@@ -67,7 +213,7 @@ describe("workbench coordinator behavior regressions", () => {
     };
     state.agents.set(newerAgent.id, newerAgent);
     const projected: AgentRecord["status"][] = [];
-    const projector = new WorkbenchRunStatusProjector(
+    const projector = new WorkbenchRunProjector(
       state,
       async (current, status) => {
         projected.push(status);
