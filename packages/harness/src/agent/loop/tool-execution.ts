@@ -145,9 +145,10 @@ export async function executeToolCallsParallel(
   emit: AgentEventSink,
 ): Promise<ExecutedToolCallBatch> {
   const finalizedCalls: FinalizedToolCallEntry[] = [];
+  const orderedEmit = createOrderedEventSink(emit);
 
   for (const toolCall of toolCalls) {
-    await emit({
+    await orderedEmit({
       type: "tool_execution_start",
       toolCallId: toolCall.id,
       toolName: toolCall.name,
@@ -167,7 +168,7 @@ export async function executeToolCallsParallel(
         result: preparation.result,
         isError: preparation.isError,
       } satisfies FinalizedToolCallOutcome;
-      await emitToolExecutionEnd(finalized, emit);
+      await emitToolExecutionEnd(finalized, orderedEmit);
       finalizedCalls.push(finalized);
       if (signal?.aborted) {
         break;
@@ -176,7 +177,11 @@ export async function executeToolCallsParallel(
     }
 
     finalizedCalls.push(async () => {
-      const executed = await executePreparedToolCall(preparation, signal, emit);
+      const executed = await executePreparedToolCall(
+        preparation,
+        signal,
+        orderedEmit,
+      );
       const finalized = await finalizeExecutedToolCall(
         currentContext,
         assistantMessage,
@@ -185,7 +190,7 @@ export async function executeToolCallsParallel(
         config,
         signal,
       );
-      await emitToolExecutionEnd(finalized, emit);
+      await emitToolExecutionEnd(finalized, orderedEmit);
       return finalized;
     });
     if (signal?.aborted) {
@@ -201,13 +206,25 @@ export async function executeToolCallsParallel(
   const messages: ToolResultMessage[] = [];
   for (const finalized of orderedFinalizedCalls) {
     const toolResultMessage = createToolResultMessage(finalized);
-    await emitToolResultMessage(toolResultMessage, emit);
+    await emitToolResultMessage(toolResultMessage, orderedEmit);
     messages.push(toolResultMessage);
   }
 
   return {
     messages,
     terminate: shouldTerminateToolBatch(orderedFinalizedCalls),
+  };
+}
+
+function createOrderedEventSink(emit: AgentEventSink): AgentEventSink {
+  let tail = Promise.resolve();
+  return (event) => {
+    const current = tail.then(() => emit(event));
+    tail = current.then(
+      () => undefined,
+      () => undefined,
+    );
+    return current;
   };
 }
 

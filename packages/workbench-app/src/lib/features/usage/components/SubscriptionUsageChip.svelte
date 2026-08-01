@@ -257,11 +257,6 @@ const title = $derived.by(() => {
 {/if}
 
 <style>
-/* Compound selector outweighs the shared popover width default. */
-:global(.popover-content.subscription-popover) {
-  width: min(19.2rem, calc(100vw - 1.5rem));
-}
-
 .subscription-trigger {
   display: inline-flex;
   align-items: center;
@@ -277,19 +272,5 @@ const title = $derived.by(() => {
 
 .trigger-muted {
   color: var(--muted-foreground);
-}
-
-:global(.subscription-trigger-wrap) {
-  height: 100%;
-}
-
-:global(.subscription-trigger-wrap:hover),
-:global(.subscription-trigger-wrap[data-state="open"]) {
-  background: var(--accent);
-}
-
-:global(.subscription-trigger-wrap:hover) .subscription-trigger,
-:global(.subscription-trigger-wrap[data-state="open"]) .subscription-trigger {
-  color: var(--foreground);
 }
 </style>

@@ -9,7 +9,7 @@ import type {
 } from "@nervekit/contracts";
 import { parseInlineCommandPrompt } from "@nervekit/contracts";
 import { TERMINAL_STATUSES, type RunCoordinator } from "./runtime/index.js";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 import type { RuntimeState } from "../../runtime/runtime-state.js";
 import type { ExploreReport } from "../agents/run/subagent-runner.js";
 import type { WorkbenchRunUnitOfWork } from "./run-transition.repository.js";
@@ -72,7 +72,7 @@ export class WorkbenchRunService {
       (candidate) => candidate.id === promptId && candidate.agentId === agentId,
     );
     if (!state || !prompt) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "QUEUED_PROMPT_NOT_FOUND",
         "Queued prompt not found.",
@@ -84,7 +84,7 @@ export class WorkbenchRunService {
   async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
     const agent = this.requireAgent(agentId);
     if (agent.parentAgentId) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "SUBAGENT_NOT_INTERACTIVE",
         "Sub-agents are managed by their parent run and cannot receive direct prompts.",
@@ -94,11 +94,19 @@ export class WorkbenchRunService {
     const active = await this.unitOfWork.findActive(scopeId);
     if (active) {
       if (parseInlineCommandPrompt(request.text)) {
-        throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+        throw new ApplicationError(
+          409,
+          "AGENT_BUSY",
+          "Agent is already running.",
+        );
       }
       const behavior = request.behavior ?? "steer";
       if (behavior === "reject-if-busy") {
-        throw new HttpError(409, "AGENT_BUSY", "Agent is already running.");
+        throw new ApplicationError(
+          409,
+          "AGENT_BUSY",
+          "Agent is already running.",
+        );
       }
       if (behavior === "follow-up") {
         await this.coordinator.followUp(
@@ -134,7 +142,7 @@ export class WorkbenchRunService {
     const agent = this.requireAgent(agentId);
     const state = await this.unitOfWork.load(runId);
     if (!state || state.run.agentId !== agent.id) {
-      throw new HttpError(404, "RUN_NOT_FOUND", "Run not found.");
+      throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
     }
     await this.coordinator.continue(runId);
   }
@@ -152,12 +160,12 @@ export class WorkbenchRunService {
         : undefined;
     if (!state) {
       if (input.runId) {
-        throw new HttpError(404, "RUN_NOT_FOUND", "Run not found.");
+        throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
       }
       return;
     }
     if (agent && state.run.agentId !== agent.id) {
-      throw new HttpError(404, "RUN_NOT_FOUND", "Run not found.");
+      throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
     }
     await this.coordinator.cancel(
       state.run.runId,
@@ -175,7 +183,7 @@ export class WorkbenchRunService {
   ): Promise<"pending" | "terminal"> {
     const state = await this.unitOfWork.load(runId);
     if (!state) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "RUN_NOT_FOUND",
         "The source run was not found.",
@@ -186,7 +194,7 @@ export class WorkbenchRunService {
     );
     if (TERMINAL_STATUSES.has(state.run.status)) return "terminal";
     if (interaction?.status === "pending") return "pending";
-    throw new HttpError(
+    throw new ApplicationError(
       409,
       "RUN_INTERACTION_NOT_PENDING",
       "The run interaction is not pending.",
@@ -206,7 +214,7 @@ export class WorkbenchRunService {
       (candidate) => candidate.toolCallId === toolCallId,
     );
     if (!interaction || interaction.status !== "pending") {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "RUN_INTERACTION_NOT_PENDING",
         "The run interaction is not pending.",
@@ -230,7 +238,7 @@ export class WorkbenchRunService {
       state.run.status !== "waiting" ||
       target.status !== "pending"
     ) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "RUN_INTERACTION_NOT_FOUND",
         "The pending run interaction was not found.",
@@ -261,7 +269,7 @@ export class WorkbenchRunService {
     if (
       batch.interactions.some((interaction) => interaction.kind !== "approval")
     ) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "RUN_APPROVAL_BATCH_INVALID",
         "The run approval batch is invalid.",
@@ -278,7 +286,7 @@ export class WorkbenchRunService {
   }): Promise<void> {
     const first = input.members[0]?.interaction;
     if (!first) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "RUN_INTERACTION_NOT_FOUND",
         "The approval interaction batch is empty.",
@@ -331,7 +339,7 @@ export class WorkbenchRunService {
       (candidate) => candidate.toolCallId === input.toolCallId,
     );
     if (!state || !interaction) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "RUN_INTERACTION_NOT_FOUND",
         "The pending run interaction was not found.",
@@ -398,14 +406,19 @@ export class WorkbenchRunService {
     const agent = this.requireAgent(agentId);
     const state = await this.unitOfWork.findActive(this.scopeId(agent));
     if (!state) {
-      throw new HttpError(409, "AGENT_NOT_RUNNING", "Agent is not running.");
+      throw new ApplicationError(
+        409,
+        "AGENT_NOT_RUNNING",
+        "Agent is not running.",
+      );
     }
     return state;
   }
 
   private requireAgent(agentId: string): AgentRecord {
     const agent = this.state.agents.get(agentId);
-    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    if (!agent)
+      throw new ApplicationError(404, "AGENT_NOT_FOUND", "Agent not found.");
     return agent;
   }
 

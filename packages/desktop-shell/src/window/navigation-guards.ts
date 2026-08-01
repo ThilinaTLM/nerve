@@ -4,6 +4,7 @@ import { shell } from "../electron.js";
 export function installNavigationGuards(
   window: BrowserWindowType,
   getDaemonUrl: () => string | undefined,
+  isTrustedShellUrl: (url: string) => boolean = () => false,
 ): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedDaemonUrl(url, getDaemonUrl())) void window.loadURL(url);
@@ -12,14 +13,14 @@ export function installNavigationGuards(
   });
 
   window.webContents.on("will-navigate", (event, url) => {
-    if (isInternalShellUrl(url) || isAllowedDaemonUrl(url, getDaemonUrl()))
+    if (isTrustedShellUrl(url) || isAllowedDaemonUrl(url, getDaemonUrl()))
       return;
     event.preventDefault();
     openExternallyIfSafe(url);
   });
 
   window.webContents.on("will-redirect", (event, url) => {
-    if (isInternalShellUrl(url) || isAllowedDaemonUrl(url, getDaemonUrl()))
+    if (isTrustedShellUrl(url) || isAllowedDaemonUrl(url, getDaemonUrl()))
       return;
     event.preventDefault();
     openExternallyIfSafe(url);
@@ -33,15 +34,6 @@ function isAllowedDaemonUrl(
   if (!daemonUrl) return false;
   try {
     return new URL(rawUrl).origin === new URL(daemonUrl).origin;
-  } catch {
-    return false;
-  }
-}
-
-function isInternalShellUrl(rawUrl: string): boolean {
-  try {
-    const url = new URL(rawUrl);
-    return url.protocol === "data:";
   } catch {
     return false;
   }

@@ -12,11 +12,11 @@ import {
 } from "@nervekit/tools";
 import type {
   AgentRecord,
-  ToolAnchor,
   ToolCallRecord,
   ToolName,
   UserConfigurableToolName,
 } from "@nervekit/contracts";
+import type { ToolAnchor } from "../runs/runtime/conversation-runtime.js";
 import type { ToolService } from "./tool-service.js";
 import {
   boundModelContentBlocks,

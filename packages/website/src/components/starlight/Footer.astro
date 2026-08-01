@@ -1,43 +1,8 @@
 ---
 import Default from "@astrojs/starlight/components/Footer.astro";
 
-const columns = [
-  {
-    title: "Start",
-    links: [
-      { label: "Overview", href: "/start/overview/" },
-      { label: "Install", href: "/start/install/" },
-      { label: "First task", href: "/start/first-task/" },
-    ],
-  },
-  {
-    title: "Operate",
-    links: [
-      { label: "Security model", href: "/operations/security/" },
-      { label: "Configuration", href: "/operations/configuration/" },
-      { label: "Troubleshooting", href: "/troubleshooting/" },
-    ],
-  },
-  {
-    title: "Build",
-    links: [
-      { label: "Architecture", href: "/developers/architecture/" },
-      { label: "Protocol v1", href: "/developers/protocol/v1/" },
-      { label: "Contributing", href: "/developers/contributing/" },
-    ],
-  },
-  {
-    title: "Project",
-    links: [
-      { label: "Home", href: "/" },
-      { label: "GitHub", href: "https://github.com/ThilinaTLM/nerve" },
-      {
-        label: "License",
-        href: "https://github.com/ThilinaTLM/nerve/blob/main/LICENSE",
-      },
-    ],
-  },
-];
+import { docsFooterColumns as columns } from "../../content/site-links";
+
 ---
 
 <Default><slot /></Default>

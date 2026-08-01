@@ -3,10 +3,10 @@ import {
   type AgentRecord,
   type ConversationEntry,
   type ConversationRecord,
-  ConversationRuntime,
   type ProjectRecord,
 } from "@nervekit/contracts";
-import { HttpError } from "../http/errors.js";
+import { ConversationRuntime } from "../domains/runs/runtime/conversation-runtime.js";
+import { ApplicationError } from "../core/application-error.js";
 
 export class RuntimeState {
   readonly projects = new Map<string, ProjectRecord>();
@@ -25,7 +25,11 @@ export class RuntimeState {
   getProject(projectId: string): ProjectRecord {
     const project = this.projects.get(projectId);
     if (!project)
-      throw new HttpError(404, "PROJECT_NOT_FOUND", "Project not found.");
+      throw new ApplicationError(
+        404,
+        "PROJECT_NOT_FOUND",
+        "Project not found.",
+      );
     return project;
   }
 
@@ -38,7 +42,7 @@ export class RuntimeState {
   getConversation(conversationId: string): ConversationRecord {
     const conversation = this.conversations.get(conversationId);
     if (!conversation)
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "CONVERSATION_NOT_FOUND",
         "Conversation not found.",
@@ -54,7 +58,8 @@ export class RuntimeState {
 
   getAgent(agentId: string): AgentRecord {
     const agent = this.agents.get(agentId);
-    if (!agent) throw new HttpError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    if (!agent)
+      throw new ApplicationError(404, "AGENT_NOT_FOUND", "Agent not found.");
     return agent;
   }
 

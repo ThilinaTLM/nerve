@@ -110,23 +110,4 @@ const uptime = $derived.by(() => {
   font-size: var(--text-xs);
   font-weight: 600;
 }
-
-/* Compound selector outweighs the shared `.popover-content` width default. */
-:global(.popover-content.status-popover) {
-  width: 16rem;
-}
-
-:global(.status-trigger-wrap) {
-  height: 100%;
-}
-
-:global(.status-trigger-wrap:hover),
-:global(.status-trigger-wrap[data-state="open"]) {
-  background: var(--accent);
-}
-
-:global(.status-trigger-wrap:hover) .status-trigger,
-:global(.status-trigger-wrap[data-state="open"]) .status-trigger {
-  color: var(--foreground);
-}
 </style>

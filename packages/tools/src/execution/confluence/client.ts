@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import type { ToolExecutionContext } from "../../types.js";
+import { withTimeoutSignal } from "../common/abort.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 
 export type ConfluenceConnection = {
@@ -91,7 +92,7 @@ export async function confluenceRequest<T = unknown>(
   const init: RequestInit = {
     method: options.method ?? "GET",
     headers,
-    signal: timeoutSignal(options.signal, 60_000),
+    signal: withTimeoutSignal(options.signal, 60_000),
   };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -126,7 +127,7 @@ export async function confluenceAttachmentRequest<T = unknown>(
       "X-Atlassian-Token": "nocheck",
     },
     body: options.form,
-    signal: timeoutSignal(options.signal, 60_000),
+    signal: withTimeoutSignal(options.signal, 60_000),
   });
   if (!response.ok) await throwConfluenceError(response);
   if (response.status === 204) return undefined as T;
@@ -147,7 +148,7 @@ export async function confluenceDownload(
   const url = resolveConfluenceDownloadUrl(connection, downloadLink);
   const response = await fetch(url, {
     headers: { Authorization: basicAuth(connection) },
-    signal: timeoutSignal(signal, 60_000),
+    signal: withTimeoutSignal(signal, 60_000),
   });
   if (!response.ok) await throwConfluenceError(response);
   return new Uint8Array(await response.arrayBuffer());
@@ -158,7 +159,18 @@ function resolveConfluenceDownloadUrl(
   downloadLink: string,
 ): URL {
   const trimmed = downloadLink.trim();
-  if (/^https?:\/\//i.test(trimmed)) return new URL(trimmed);
+  if (/^https?:\/\//i.test(trimmed)) {
+    const absoluteUrl = new URL(trimmed);
+    const configuredOrigin = new URL(connection.siteUrl).origin;
+    if (absoluteUrl.origin !== configuredOrigin) {
+      throw new ToolExecutionError(
+        "CONFLUENCE_UNTRUSTED_DOWNLOAD_URL",
+        "Confluence attachment download URL is outside the configured site.",
+        { configuredOrigin, downloadOrigin: absoluteUrl.origin },
+      );
+    }
+    return absoluteUrl;
+  }
 
   const path = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
   const wikiPath =
@@ -179,14 +191,6 @@ function appendQuery(url: URL, query: Record<string, QueryValue> | undefined) {
 
 function basicAuth(connection: ConfluenceConnection): string {
   return `Basic ${Buffer.from(`${connection.email}:${connection.token}`, "utf8").toString("base64")}`;
-}
-
-function timeoutSignal(
-  signal: AbortSignal | undefined,
-  milliseconds: number,
-): AbortSignal {
-  const timeout = AbortSignal.timeout(milliseconds);
-  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
 async function throwConfluenceError(response: Response): Promise<never> {

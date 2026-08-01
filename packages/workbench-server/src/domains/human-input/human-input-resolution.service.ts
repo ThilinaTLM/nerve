@@ -13,7 +13,7 @@ import type {
   UpdateAgentRequest,
   UserQuestionRecord,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
@@ -26,6 +26,11 @@ import { toolCallResultForModel } from "../tools/agent-tool-adapter.js";
 import type { ToolService } from "../tools/tool-service.js";
 import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
 import { ApprovalBatchResolutionService } from "./approval-batch-resolution.js";
+import {
+  acceptedPlanFollowUp,
+  acceptedPlanInNewChatInstruction,
+  implementationConversationTitle,
+} from "./plan-review-messages.js";
 
 export type AcceptPlanReviewInNewChatResult = {
   planReview: PlanReviewRecord;
@@ -106,7 +111,10 @@ export class HumanInputResolutionService {
         });
       } catch (error) {
         if (
-          !(error instanceof HttpError && error.code === "NOTHING_TO_COMPACT")
+          !(
+            error instanceof ApplicationError &&
+            error.code === "NOTHING_TO_COMPACT"
+          )
         ) {
           throw error;
         }
@@ -217,7 +225,7 @@ export class HumanInputResolutionService {
     try {
       review = await this.deps.plans.rejectPlanReview(reviewId, feedback);
     } catch (error) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "PLAN_REVIEW_NOT_FOUND",
         error instanceof Error ? error.message : String(error),
@@ -285,7 +293,7 @@ export class HumanInputResolutionService {
       );
       return review;
     } catch (error) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "PLAN_REVIEW_NOT_FOUND",
         error instanceof Error ? error.message : String(error),
@@ -314,7 +322,7 @@ export class HumanInputResolutionService {
       );
       return review;
     } catch (error) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "PLAN_REVIEW_NOT_FOUND",
         error instanceof Error ? error.message : String(error),
@@ -392,7 +400,7 @@ export class HumanInputResolutionService {
       );
       return question;
     } catch (error) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "USER_QUESTION_NOT_FOUND",
         error instanceof Error ? error.message : String(error),
@@ -423,7 +431,7 @@ export class HumanInputResolutionService {
       );
       return question;
     } catch (error) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "USER_QUESTION_NOT_FOUND",
         error instanceof Error ? error.message : String(error),
@@ -438,7 +446,7 @@ export class HumanInputResolutionService {
       .listUserQuestions()
       .find((candidate) => candidate.id === questionId);
     if (!question || question.status !== "pending") {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "USER_QUESTION_NOT_FOUND",
         "User question is not pending.",
@@ -451,7 +459,7 @@ export class HumanInputResolutionService {
   private getPendingPlanReviewOrThrow(reviewId: string): PlanReviewRecord {
     const review = this.getPlanReviewOrThrow(reviewId);
     if (review.status !== "pending") {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "PLAN_REVIEW_NOT_FOUND",
         "Plan review is already resolved.",
@@ -463,7 +471,7 @@ export class HumanInputResolutionService {
   private getRejectablePlanReviewOrThrow(reviewId: string): PlanReviewRecord {
     const review = this.getPlanReviewOrThrow(reviewId);
     if (review.status !== "pending" && review.status !== "changes_requested") {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "PLAN_REVIEW_NOT_FOUND",
         "Plan review is already resolved.",
@@ -477,7 +485,7 @@ export class HumanInputResolutionService {
       .listPlanReviews()
       .find((candidate) => candidate.id === reviewId);
     if (!review) {
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "PLAN_REVIEW_NOT_FOUND",
         "Plan review not found.",
@@ -499,8 +507,8 @@ export class HumanInputResolutionService {
     return { state, toolCall };
   }
 
-  private planReviewNotFound(error: unknown): HttpError {
-    return new HttpError(
+  private planReviewNotFound(error: unknown): ApplicationError {
+    return new ApplicationError(
       404,
       "PLAN_REVIEW_NOT_FOUND",
       error instanceof Error ? error.message : String(error),
@@ -783,16 +791,4 @@ export class HumanInputResolutionService {
       return undefined;
     }
   }
-}
-
-function acceptedPlanFollowUp(planPath: string): string {
-  return `The user accepted the plan at ${planPath}. Proceed with the implementation using that plan as the source of truth.`;
-}
-
-function acceptedPlanInNewChatInstruction(planPath: string): string {
-  return `The user accepted the plan at ${planPath} and chose to implement it in this new chat. Read that plan file and implement it as the source of truth.`;
-}
-
-function implementationConversationTitle(review: PlanReviewRecord): string {
-  return `Implement: ${review.title ?? review.slug}`;
 }

@@ -3,7 +3,7 @@ import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { ScratchNote } from "@nervekit/contracts";
-import { HttpError } from "../src/http/errors.js";
+import { ApplicationError } from "../src/core/application-error.js";
 import { readJsonFile } from "../src/infrastructure/storage/index.js";
 import { createAuthenticatedApp, tempHome } from "./helpers/server-routes.js";
 
@@ -58,13 +58,14 @@ describe("orchestrator scratch notes", () => {
           title: "Missing",
         }),
         (error: unknown) =>
-          error instanceof HttpError &&
+          error instanceof ApplicationError &&
           error.status === 404 &&
           error.code === "SCRATCH_NOTE_NOT_FOUND",
       );
       await assert.rejects(
         state.registry.removeScratchNote(project.id, "note_missing"),
-        (error: unknown) => error instanceof HttpError && error.status === 404,
+        (error: unknown) =>
+          error instanceof ApplicationError && error.status === 404,
       );
     } finally {
       state.index.close();

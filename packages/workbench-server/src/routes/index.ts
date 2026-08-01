@@ -22,28 +22,6 @@ import { createTranscriptionRoutes } from "./transcription-routes.js";
 import { createWorkerRoutes } from "./worker-routes.js";
 import { createWorkspaceRoutes } from "./workspace-routes.js";
 
-export { createAgentRoutes } from "./agent-routes.js";
-export { createAuthRoutes } from "./auth-routes.js";
-export { createCompletionRoutes } from "./completion-routes.js";
-export { createConversationRoutes } from "./conversation-routes.js";
-export { createFilesystemRoutes } from "./filesystem-routes.js";
-export { createGitRoutes } from "./git-routes.js";
-export { createLogRoutes } from "./log-routes.js";
-export { createModelRoutes } from "./model-routes.js";
-export { createProjectRoutes } from "./project-routes.js";
-export { createPromptSuggestionRoutes } from "./prompt-suggestion-routes.js";
-export { createProtocolRoutes } from "./protocol-routes.js";
-export { createProviderCatalogRoutes } from "./provider-catalog-routes.js";
-
-export { createSettingsRoutes } from "./settings-routes.js";
-export { createStatusRoutes } from "./status-routes.js";
-export { createStorageRoutes } from "./storage-routes.js";
-export { createTaskRoutes } from "./task-routes.js";
-export { createToolRoutes } from "./tool-routes.js";
-export { createTranscriptionRoutes } from "./transcription-routes.js";
-export { createWorkerRoutes } from "./worker-routes.js";
-export { createWorkspaceRoutes } from "./workspace-routes.js";
-
 export function mountApiRoutes(app: Hono, state: OrchestratorState): void {
   app.route("/api", createStatusRoutes(state));
   app.route("/api", createSettingsRoutes(state));

@@ -8,11 +8,17 @@ import {
   HTML_CONVERSION_TIMEOUT_MS,
   isolatedHtmlToMarkdown,
 } from "../common/isolated-html-to-markdown.js";
+import { withTimeoutSignal } from "../common/abort.js";
+import {
+  assertSafeHttpUrl,
+  type HostResolver,
+} from "../common/network-policy.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 import { formatByteSize } from "../common/truncate.js";
 
 const MAX_INLINE_BYTES = 512 * 1024;
 const MAX_RESPONSE_BYTES = HTML_CONVERSION_MAX_INPUT_BYTES;
+const MAX_REDIRECTS = 5;
 
 const CONTENT_TYPE_EXT: Record<string, string> = {
   "text/html": ".html",
@@ -116,14 +122,6 @@ function savedContentLimits(
   };
 }
 
-function timeoutSignal(
-  signal: AbortSignal | undefined,
-  milliseconds: number,
-): AbortSignal {
-  const timeout = AbortSignal.timeout(milliseconds);
-  return signal ? AbortSignal.any([signal, timeout]) : timeout;
-}
-
 async function readBoundedResponse(
   response: Response,
   signal: AbortSignal,
@@ -181,22 +179,62 @@ async function saveContent(
   return path;
 }
 
+export async function fetchWithPolicy(
+  rawUrl: string,
+  signal: AbortSignal,
+  allowPrivateNetwork: boolean,
+  dependencies: {
+    fetch?: typeof fetch;
+    resolveHost?: HostResolver;
+  } = {},
+): Promise<{ response: Response; url: URL }> {
+  const fetchImpl = dependencies.fetch ?? fetch;
+  const networkPolicy = {
+    allowPrivateNetwork,
+    resolveHost: dependencies.resolveHost,
+  };
+  let url = await assertSafeHttpUrl(rawUrl, networkPolicy);
+  for (let redirects = 0; ; redirects += 1) {
+    const response = await fetchImpl(url, {
+      headers: {
+        "User-Agent": "nerve/1.0",
+        Accept: "text/html,application/json,text/plain,*/*",
+      },
+      redirect: "manual",
+      signal,
+    });
+    if (![301, 302, 303, 307, 308].includes(response.status)) {
+      return { response, url };
+    }
+    if (redirects >= MAX_REDIRECTS) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new ToolExecutionError(
+        "WEB_FETCH_TOO_MANY_REDIRECTS",
+        `Fetch exceeded the ${MAX_REDIRECTS} redirect limit.`,
+      );
+    }
+    const location = response.headers.get("location");
+    if (!location) return { response, url };
+    await response.body?.cancel().catch(() => undefined);
+    url = await assertSafeHttpUrl(new URL(location, url), networkPolicy);
+  }
+}
+
 export async function executeWebFetch(
   args: Record<string, unknown>,
   context: ToolExecutionContext,
 ): Promise<ToolExecutionResult> {
-  const url = stringArg(args.url, "url");
+  const requestedUrl = stringArg(args.url, "url");
   const raw = args.raw === true;
 
-  const signal = timeoutSignal(context.signal, 60_000);
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "nerve/1.0",
-      Accept: "text/html,application/json,text/plain,*/*",
-    },
-    redirect: "follow",
+  const signal = withTimeoutSignal(context.signal, 60_000);
+  const fetched = await fetchWithPolicy(
+    requestedUrl,
     signal,
-  });
+    context.webFetchPolicy?.allowPrivateNetwork === true,
+  );
+  const { response } = fetched;
+  const url = fetched.url.toString();
 
   if (!response.ok) {
     throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);

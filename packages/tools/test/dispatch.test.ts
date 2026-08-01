@@ -87,7 +87,10 @@ describe("executeTool dispatch", () => {
       const result = await executeTool(
         "web_fetch",
         { url: `http://127.0.0.1:${address.port}/` },
-        { cwd: process.cwd() },
+        {
+          cwd: process.cwd(),
+          webFetchPolicy: { allowPrivateNetwork: true },
+        },
       );
       assert.match(result.content ?? "", /Hello/);
       assert.match(result.content ?? "", /World/);
@@ -128,7 +131,10 @@ describe("executeTool dispatch", () => {
           executeTool(
             "web_fetch",
             { url: `http://127.0.0.1:${address.port}/${path}` },
-            { cwd: process.cwd() },
+            {
+              cwd: process.cwd(),
+              webFetchPolicy: { allowPrivateNetwork: true },
+            },
           ),
           (error) =>
             error instanceof Error &&

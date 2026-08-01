@@ -38,11 +38,11 @@ import {
 import { createTrayController } from "./tray/tray.js";
 import type { QuitOptions, QuitSource } from "./types.js";
 import {
-  createDataUrl,
   errorHtml,
   type LoadingStage,
   loadingHtml,
   loadingStageScript,
+  ShellPageUrlRegistry,
 } from "./window/loading-pages.js";
 import { installNavigationGuards } from "./window/navigation-guards.js";
 import { withInitialZoomLevel } from "./window/initial-zoom.js";
@@ -63,6 +63,7 @@ const electronFontRenderHinting = resolveElectronFontRenderHinting(
 applyElectronOzonePlatform(electronOzonePlatform);
 applyElectronFontRenderHinting(electronFontRenderHinting);
 
+const shellPageUrls = new ShellPageUrlRegistry();
 let mainWindow: BrowserWindowType | undefined;
 let managedDaemon: ManagedDaemon | undefined;
 let daemonStopped = false;
@@ -306,7 +307,8 @@ async function openMainWindow(): Promise<void> {
   let initialZoomLevel: number | undefined;
   try {
     const result = await runStartupSequence({
-      showLoadingWindow: () => window.loadURL(createDataUrl(loadingHtml())),
+      showLoadingWindow: () =>
+        window.loadURL(shellPageUrls.create(loadingHtml())),
       connectDaemon: async () => {
         if (!managedDaemon) {
           const startup = await startWithRunRuntimeRecovery(
@@ -357,8 +359,12 @@ async function openMainWindow(): Promise<void> {
       },
       reportProgress: (phase) => updateStartupProgress(window, phase),
       canNavigate: () => !window.isDestroyed(),
-      navigate: (daemon) =>
-        window.loadURL(withInitialZoomLevel(daemon.url, initialZoomLevel)),
+      navigate: async (daemon) => {
+        await window.loadURL(
+          withInitialZoomLevel(daemon.url, initialZoomLevel),
+        );
+        shellPageUrls.clear();
+      },
     });
     void desktopLog("info", "app", "Desktop startup ready", {
       durationMs: result.timings.totalMs,
@@ -374,7 +380,9 @@ async function openMainWindow(): Promise<void> {
     });
     console.error(error);
     if (!window.isDestroyed())
-      await window.loadURL(createDataUrl(errorHtml(error, desktopDataDir)));
+      await window.loadURL(
+        shellPageUrls.create(errorHtml(error, desktopDataDir)),
+      );
   }
 }
 
@@ -446,13 +454,14 @@ async function handleDaemonStatusChange(
   try {
     if (status === "restarting") {
       await window.loadURL(
-        createDataUrl(loadingHtml("Reconnecting to Nerve daemon…")),
+        shellPageUrls.create(loadingHtml("Reconnecting to Nerve daemon…")),
       );
     } else if (status === "ready" && managedDaemon) {
       await window.loadURL(managedDaemon.url);
+      shellPageUrls.clear();
     } else if (status === "failed") {
       await window.loadURL(
-        createDataUrl(
+        shellPageUrls.create(
           errorHtml(
             new Error(
               info?.error ?? "The Nerve daemon stopped and could not restart.",
@@ -489,7 +498,11 @@ function createMainWindow(): BrowserWindowType {
   });
 
   installWindowLifecycle(window);
-  installNavigationGuards(window, () => managedDaemon?.url);
+  installNavigationGuards(
+    window,
+    () => managedDaemon?.url,
+    (url) => shellPageUrls.isTrusted(url),
+  );
   return window;
 }
 

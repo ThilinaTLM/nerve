@@ -16,6 +16,7 @@
 import DeviceFrame from "./DeviceFrame.astro";
 import Reveal from "./Reveal.astro";
 import RunPanel, { type StaticRow } from "./RunPanel.astro";
+import { buildTurn, TASKS, type SimConfig } from "../../scripts/run-sim";
 
 /* Small lucide-style outline icons, inlined so the labels carry a glyph
  * without a client dependency. */
@@ -69,44 +70,16 @@ const controls = [
   },
 ];
 
-const defaults: Record<string, string> = {
+const defaults: SimConfig = {
   model: "opus",
   thinking: "high",
   mode: "coding",
   permission: "supervised",
 };
 
-/* Mirrors `buildTurn(TASKS[1], defaults)` with the gate already resolved. */
-const staticRows: StaticRow[] = [
-  { kind: "prompt", text: "The policy test is flaky — pin it down." },
-  {
-    kind: "thinking",
-    text: "The failure is time-dependent. Freezing the clock before the assertion should make it deterministic.",
-  },
-  {
-    kind: "tool",
-    tool: {
-      name: "read",
-      args: "packages/workbench-server/test/policy.test.ts",
-      out: ["Read 168 lines"],
-      lines: "168 lines",
-    },
-  },
-  { kind: "gate", text: "edit needs review" },
-  {
-    kind: "tool",
-    tool: {
-      name: "edit",
-      args: "packages/workbench-server/test/policy.test.ts",
-      out: ["+4 −4 · clock frozen before the assertion"],
-      lines: "1 hunk",
-    },
-  },
-  {
-    kind: "prose",
-    text: "Deflaked: the clock is frozen before the assertion now.",
-  },
-];
+const staticRows: StaticRow[] = buildTurn(TASKS[1]!, defaults).map(
+  ({ wait: _wait, runFor: _runFor, ...row }) => row,
+);
 ---
 
 <div class="lab" data-hotswap>
@@ -137,7 +110,7 @@ const staticRows: StaticRow[] = [
                 class="seg-btn"
                 data-value={option.value}
                 aria-pressed={
-                  defaults[control.key] === option.value ? "true" : "false"
+                  defaults[control.key as keyof SimConfig] === option.value ? "true" : "false"
                 }
               >
                 {option.label}

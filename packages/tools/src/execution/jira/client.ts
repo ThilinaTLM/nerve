@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import type { ToolExecutionContext } from "../../types.js";
+import { withTimeoutSignal } from "../common/abort.js";
 import { ToolExecutionError } from "../common/tool-error.js";
 
 export type JiraConnection = {
@@ -79,7 +80,7 @@ export async function jiraRequest<T = unknown>(
   const init: RequestInit = {
     method: options.method ?? "GET",
     headers,
-    signal: timeoutSignal(options.signal, 60_000),
+    signal: withTimeoutSignal(options.signal, 60_000),
   };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -96,14 +97,6 @@ export async function jiraRequest<T = unknown>(
   } catch {
     return text as T;
   }
-}
-
-function timeoutSignal(
-  signal: AbortSignal | undefined,
-  milliseconds: number,
-): AbortSignal {
-  const timeout = AbortSignal.timeout(milliseconds);
-  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
 async function throwJiraError(response: Response): Promise<never> {

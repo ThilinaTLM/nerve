@@ -1,0 +1,56 @@
+:where(.status-trigger-wrap, .zoom-trigger-wrap, .subscription-trigger-wrap) {
+  height: 100%;
+}
+
+:where(.status-trigger-wrap, .zoom-trigger-wrap, .subscription-trigger-wrap):is(
+  :hover,
+  [data-state="open"]
+) {
+  background: var(--accent);
+}
+
+:where(.status-trigger-wrap, .zoom-trigger-wrap, .subscription-trigger-wrap):is(
+    :hover,
+    [data-state="open"]
+  )
+  :where(.status-trigger, .zoom-trigger, .subscription-trigger) {
+  color: var(--foreground);
+}
+
+.popover-content.status-popover {
+  width: 16rem;
+}
+
+.popover-content.zoom-popover {
+  width: min(18rem, calc(100vw - 1.5rem));
+}
+
+.popover-content.subscription-popover {
+  width: min(19.2rem, calc(100vw - 1.5rem));
+}
+
+.popover-content.version-popover {
+  width: min(17.5rem, calc(100vw - 1.5rem));
+}
+
+:where(.popover-trigger.version-trigger) {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  padding: 0.125rem 0.375rem;
+  color: var(--muted-foreground);
+}
+
+:where(.popover-trigger.version-trigger:hover) {
+  background: var(--accent);
+}
+
+:where(.popover-trigger.version-trigger-warning) {
+  border-color: var(--warning);
+  background: color-mix(in oklab, var(--warning) 10%, var(--card));
+  color: var(--warning);
+}
+
+:where(.popover-trigger.version-trigger-warning:hover) {
+  background: color-mix(in oklab, var(--warning) 16%, var(--card));
+}

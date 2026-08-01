@@ -119,7 +119,6 @@ export class ProtocolServerSession {
   }
 
   async receive(message: ProtocolV1Message): Promise<void> {
-    this.#heartbeat.received();
     if (this.state === "awaiting_hello") {
       await this.#receiveHello(message);
       return;
@@ -131,6 +130,7 @@ export class ProtocolServerSession {
       );
       return;
     }
+    this.#heartbeat.received();
     if (this.state === "awaiting_ready") {
       if (
         message.kind !== "ready" ||

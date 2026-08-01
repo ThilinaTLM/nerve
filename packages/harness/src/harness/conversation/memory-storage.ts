@@ -7,6 +7,7 @@ import type {
 } from "./entries.js";
 import {
   buildLabelsById,
+  entryLinkError,
   generateEntryId,
   leafIdAfterEntry,
   updateLabelCache,
@@ -27,7 +28,14 @@ export class InMemoryConversationStorage<
     metadata?: TMetadata;
   }) {
     this.entries = options?.entries ? [...options.entries] : [];
-    this.byId = new Map(this.entries.map((entry) => [entry.id, entry]));
+    this.byId = new Map<string, ConversationTreeEntry>();
+    for (const entry of this.entries) {
+      const linkError = entryLinkError(entry, this.byId);
+      if (linkError) {
+        throw new ConversationError("invalid_conversation", linkError);
+      }
+      this.byId.set(entry.id, entry);
+    }
     this.labelsById = buildLabelsById(this.entries);
     this.leafId = null;
     for (const entry of this.entries) this.leafId = leafIdAfterEntry(entry);
@@ -77,6 +85,10 @@ export class InMemoryConversationStorage<
   }
 
   async appendEntry(entry: ConversationTreeEntry): Promise<void> {
+    const linkError = entryLinkError(entry, this.byId);
+    if (linkError) {
+      throw new ConversationError("invalid_conversation", linkError);
+    }
     this.entries.push(entry);
     this.byId.set(entry.id, entry);
     updateLabelCache(this.labelsById, entry);
@@ -106,7 +118,15 @@ export class InMemoryConversationStorage<
     let current = this.byId.get(leafId);
     if (!current)
       throw new ConversationError("not_found", `Entry ${leafId} not found`);
+    const visited = new Set<string>();
     while (current) {
+      if (visited.has(current.id)) {
+        throw new ConversationError(
+          "invalid_conversation",
+          `Cycle detected at entry ${current.id}`,
+        );
+      }
+      visited.add(current.id);
       path.unshift(current);
       if (!current.parentId) break;
       const parent = this.byId.get(current.parentId);

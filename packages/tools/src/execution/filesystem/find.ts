@@ -39,7 +39,10 @@ export async function executeFind(
   });
   if (!info.isDirectory()) throw new Error("find path is not a directory.");
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
-  const fd = await runFd(args.pattern, root, limit).catch(() => undefined);
+  const fd = await runFd(args.pattern, root, limit).catch((error: unknown) => {
+    if (isErrnoException(error) && error.code === "ENOENT") return undefined;
+    throw error;
+  });
   const paths = fd ?? (await fallbackFind(root, args.pattern, limit));
   const entries = paths
     .slice(0, limit)

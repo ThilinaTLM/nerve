@@ -10,6 +10,7 @@ import type {
 import { getFileSystemResultOrThrow } from "./repo-utils.js";
 import {
   buildLabelsById,
+  entryLinkError,
   generateEntryId,
   leafIdAfterEntry,
   updateLabelCache,
@@ -142,12 +143,92 @@ function parseEntryLine(
   if (typeof parsed.timestamp !== "string" || !parsed.timestamp) {
     throw invalidEntry(filePath, lineNumber, "is missing timestamp");
   }
-  if (
-    parsed.type === "leaf" &&
-    parsed.targetId !== null &&
-    typeof parsed.targetId !== "string"
-  ) {
-    throw invalidEntry(filePath, lineNumber, "has invalid targetId");
+  const requireString = (field: string, optional = false): void => {
+    const value = parsed[field];
+    if (optional && value === undefined) return;
+    if (typeof value !== "string") {
+      throw invalidEntry(filePath, lineNumber, `has invalid ${field}`);
+    }
+  };
+  const requireBoolean = (field: string, optional = false): void => {
+    const value = parsed[field];
+    if (optional && value === undefined) return;
+    if (typeof value !== "boolean") {
+      throw invalidEntry(filePath, lineNumber, `has invalid ${field}`);
+    }
+  };
+  const requireNumber = (field: string): void => {
+    if (typeof parsed[field] !== "number" || !Number.isFinite(parsed[field])) {
+      throw invalidEntry(filePath, lineNumber, `has invalid ${field}`);
+    }
+  };
+
+  switch (parsed.type) {
+    case "message":
+      if (
+        !isRecord(parsed.message) ||
+        typeof parsed.message.role !== "string"
+      ) {
+        throw invalidEntry(filePath, lineNumber, "has invalid message");
+      }
+      break;
+    case "thinking_level_change":
+      requireString("thinkingLevel");
+      break;
+    case "model_change":
+      requireString("provider");
+      requireString("modelId");
+      break;
+    case "active_tools_change":
+      if (
+        !Array.isArray(parsed.activeToolNames) ||
+        !parsed.activeToolNames.every((name) => typeof name === "string")
+      ) {
+        throw invalidEntry(filePath, lineNumber, "has invalid activeToolNames");
+      }
+      break;
+    case "compaction":
+      requireString("summary");
+      requireString("firstKeptEntryId");
+      requireNumber("tokensBefore");
+      requireBoolean("fromHook", true);
+      break;
+    case "branch_summary":
+      requireString("fromId");
+      requireString("summary");
+      requireBoolean("fromHook", true);
+      break;
+    case "custom":
+      requireString("customType");
+      break;
+    case "custom_message":
+      requireString("customType");
+      if (
+        typeof parsed.content !== "string" &&
+        !Array.isArray(parsed.content)
+      ) {
+        throw invalidEntry(filePath, lineNumber, "has invalid content");
+      }
+      requireBoolean("display");
+      break;
+    case "label":
+      requireString("targetId");
+      requireString("label", true);
+      break;
+    case "conversation_info":
+      requireString("name", true);
+      break;
+    case "leaf":
+      if (parsed.targetId !== null && typeof parsed.targetId !== "string") {
+        throw invalidEntry(filePath, lineNumber, "has invalid targetId");
+      }
+      break;
+    default:
+      throw invalidEntry(
+        filePath,
+        lineNumber,
+        `has unsupported entry type '${parsed.type}'`,
+      );
   }
   return parsed as unknown as ConversationTreeEntry;
 }
@@ -205,11 +286,39 @@ async function loadJsonlStorage(
   }
   const header = parseHeaderLine(headerLine, filePath);
   const entries: ConversationTreeEntry[] = [];
+  const seenIds = new Set<string>();
   let leafId: string | null = null;
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line) continue;
-    const entry = parseEntryLine(line, filePath, i + 1);
+    const lineNumber = i + 1;
+    const entry = parseEntryLine(line, filePath, lineNumber);
+    if (seenIds.has(entry.id)) {
+      throw invalidEntry(
+        filePath,
+        lineNumber,
+        `duplicates entry id '${entry.id}'`,
+      );
+    }
+    if (entry.parentId !== null && !seenIds.has(entry.parentId)) {
+      throw invalidEntry(
+        filePath,
+        lineNumber,
+        `references missing or forward parent '${entry.parentId}'`,
+      );
+    }
+    if (
+      entry.type === "leaf" &&
+      entry.targetId !== null &&
+      !seenIds.has(entry.targetId)
+    ) {
+      throw invalidEntry(
+        filePath,
+        lineNumber,
+        `references missing or forward leaf target '${entry.targetId}'`,
+      );
+    }
+    seenIds.add(entry.id);
     entries.push(entry);
     leafId = leafIdAfterEntry(entry);
   }
@@ -318,6 +427,10 @@ export class JsonlConversationStorage implements ConversationStorage<JsonlConver
   }
 
   async appendEntry(entry: ConversationTreeEntry): Promise<void> {
+    const linkError = entryLinkError(entry, this.byId);
+    if (linkError) {
+      throw new ConversationError("invalid_conversation", linkError);
+    }
     getFileSystemResultOrThrow(
       await this.fs.appendFile(this.filePath, `${JSON.stringify(entry)}\n`),
       `Failed to append conversation entry ${entry.id}`,
@@ -351,7 +464,15 @@ export class JsonlConversationStorage implements ConversationStorage<JsonlConver
     let current = this.byId.get(leafId);
     if (!current)
       throw new ConversationError("not_found", `Entry ${leafId} not found`);
+    const visited = new Set<string>();
     while (current) {
+      if (visited.has(current.id)) {
+        throw new ConversationError(
+          "invalid_conversation",
+          `Cycle detected at entry ${current.id}`,
+        );
+      }
+      visited.add(current.id);
       path.unshift(current);
       if (!current.parentId) break;
       const parent = this.byId.get(current.parentId);

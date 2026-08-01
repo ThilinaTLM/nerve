@@ -47,14 +47,4 @@ export function createMessageFactory(
   });
 }
 
-export function createClientMessage<TData>(
-  kind: string,
-  data: TData,
-  source: PeerDescriptor,
-  target: PeerDescriptor,
-  options: Partial<MessageFactoryOptions> = {},
-): NerveMessage<TData> {
-  return createMessageFactory({ source, target })(kind, data, options);
-}
-
 export type MessageFactory = ReturnType<typeof createMessageFactory>;

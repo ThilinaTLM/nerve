@@ -1,5 +1,5 @@
 import type { AgentRecord, Mode, PermissionLevel } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 
 export function assertChildAuthority(
   parent: AgentRecord,
@@ -8,7 +8,7 @@ export function assertChildAuthority(
   allowAuthorityExceed: boolean,
 ): void {
   if (parent.budget.depth >= parent.budget.maxDepth) {
-    throw new HttpError(
+    throw new ApplicationError(
       403,
       "SUBAGENT_DEPTH_LIMIT",
       `Child-agent depth limit reached (${parent.budget.depth}/${parent.budget.maxDepth}).`,
@@ -18,7 +18,7 @@ export function assertChildAuthority(
     modeRank(mode) > modeRank(parent.mode) ||
     permissionRank(permissionLevel) > permissionRank(parent.permissionLevel);
   if (exceeds && !allowAuthorityExceed) {
-    throw new HttpError(
+    throw new ApplicationError(
       403,
       "SUBAGENT_AUTHORITY_EXCEEDED",
       "Child agent authority cannot exceed parent authority without an approved agent-spawn tool call.",

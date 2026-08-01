@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ConversationRuntime } from "@nervekit/contracts";
+import type { ConversationRuntime } from "../../runs/runtime/conversation-runtime.js";
 import { toPublicToolCallArgsPreview } from "../../tools/tool-call-transcript-preview.js";
 import {
   type AssistantToolCallSnapshot,

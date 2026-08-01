@@ -7,7 +7,7 @@ import {
   type Mode,
   type UpdateAgentRequest,
 } from "@nervekit/contracts";
-import { HttpError } from "../../http/errors.js";
+import { ApplicationError } from "../../core/application-error.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
@@ -74,7 +74,7 @@ export class AgentLifecycleService {
       ? this.state.agents.get(request.parentAgentId)
       : undefined;
     if (request.parentAgentId && !parent)
-      throw new HttpError(
+      throw new ApplicationError(
         404,
         "PARENT_AGENT_NOT_FOUND",
         "Parent agent not found.",
@@ -184,7 +184,7 @@ export class AgentLifecycleService {
   ): Promise<AgentRecord> {
     const agent = this.getAgent(agentId);
     if (agent.parentAgentId) {
-      throw new HttpError(
+      throw new ApplicationError(
         409,
         "SUBAGENT_NOT_INTERACTIVE",
         "Sub-agents are managed by their parent run and cannot be configured directly.",
@@ -223,7 +223,11 @@ export class AgentLifecycleService {
         return updated;
       }
 
-      throw new HttpError(409, "AGENT_BUSY", "Cannot update a running agent.");
+      throw new ApplicationError(
+        409,
+        "AGENT_BUSY",
+        "Cannot update a running agent.",
+      );
     }
     const model =
       request.model === null ? undefined : (request.model ?? agent.model);

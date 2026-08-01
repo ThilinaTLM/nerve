@@ -84,11 +84,20 @@ export class DaemonSupervisor {
 
   /** Launch the owned workbench-server child, wait until healthy, then monitor. */
   async startOwned(): Promise<ManagedDaemon> {
-    const healthy = await this.spawnAndWait();
-    this.applyHealthy(healthy);
-    this.attachChildMonitor();
-    this.startHealthMonitor();
-    return this.toManagedDaemon();
+    try {
+      const healthy = await this.spawnAndWait();
+      this.applyHealthy(healthy);
+      this.attachChildMonitor();
+      this.startHealthMonitor();
+      return this.toManagedDaemon();
+    } catch (error) {
+      const failedChild = this.child;
+      if (failedChild) {
+        if (failedChild.exited) this.detachOwnedChild(failedChild);
+        else await this.disposeOwnedChild(failedChild);
+      }
+      throw error;
+    }
   }
 
   /** Attach monitoring to an already-running (existing/remote) daemon. */
@@ -407,13 +416,8 @@ export class DaemonSupervisor {
     // Clean up the previous child before relaunching.
     const previous = this.child;
     if (previous) {
-      previous.detached = true;
-      previous.removeParentExitHook?.();
-      previous.removeParentExitHook = undefined;
-      if (!previous.exited) {
-        await this.stopOwnedChild(previous).catch(() => undefined);
-      }
-      this.child = undefined;
+      if (previous.exited) this.detachOwnedChild(previous);
+      else await this.disposeOwnedChild(previous);
     }
 
     while (
@@ -442,6 +446,14 @@ export class DaemonSupervisor {
         this.setStatus("ready");
         return;
       } catch (error) {
+        const failedChild = this.child;
+        if (failedChild) {
+          if (failedChild.exited) this.detachOwnedChild(failedChild);
+          else await this.disposeOwnedChild(failedChild);
+          // Keep a detached terminal sentinel so health polling does not start
+          // another automatic restart cycle after the retry budget is spent.
+          this.child = failedChild;
+        }
         this.ports.logger.log("error", "Daemon restart attempt failed", {
           error,
           context: { attempt },
@@ -474,6 +486,23 @@ export class DaemonSupervisor {
     if (!this.config.owned) return;
     if (!child) return;
     await this.stopOwnedChild(child);
+  }
+
+  private detachOwnedChild(child: OwnedChild): void {
+    child.detached = true;
+    child.removeParentExitHook?.();
+    child.removeParentExitHook = undefined;
+    if (this.child === child) this.child = undefined;
+  }
+
+  private async disposeOwnedChild(child: OwnedChild): Promise<void> {
+    child.detached = true;
+    child.removeParentExitHook?.();
+    child.removeParentExitHook = undefined;
+    if (!child.exited) {
+      await this.stopOwnedChild(child).catch(() => undefined);
+    }
+    if (this.child === child) this.child = undefined;
   }
 
   private async stopOwnedChild(child: OwnedChild): Promise<void> {

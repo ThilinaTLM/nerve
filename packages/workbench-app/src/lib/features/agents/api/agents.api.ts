@@ -22,10 +22,3 @@ export async function updateAgentConfig(
   }
   return result.agent;
 }
-
-export async function updateAgentModel(
-  agentId: string,
-  model: ModelSelection | undefined,
-): Promise<AgentRecord> {
-  return updateAgentConfig(agentId, { model: model ?? null });
-}

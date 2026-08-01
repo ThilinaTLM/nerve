@@ -125,24 +125,6 @@ function handleRangeInput(event: Event) {
   font-weight: 600;
 }
 
-:global(.zoom-trigger-wrap) {
-  height: 100%;
-}
-
-:global(.zoom-trigger-wrap:hover),
-:global(.zoom-trigger-wrap[data-state="open"]) {
-  background: var(--accent);
-}
-
-:global(.zoom-trigger-wrap:hover) .zoom-trigger,
-:global(.zoom-trigger-wrap[data-state="open"]) .zoom-trigger {
-  color: var(--foreground);
-}
-
-:global(.zoom-popover) {
-  width: min(18rem, calc(100vw - 1.5rem));
-}
-
 .zoom-card {
   display: grid;
   gap: 0.75rem;
