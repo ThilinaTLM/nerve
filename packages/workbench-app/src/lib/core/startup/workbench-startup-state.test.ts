@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { WorkbenchStartupMachine } from "./workbench-startup-machine";
+import {
+  shouldRevealWorkbench,
+  WorkbenchStartupMachine,
+} from "./workbench-startup-machine";
 
 test("startup phases are monotonic and cannot skip or regress", () => {
   const state = new WorkbenchStartupMachine();
@@ -12,6 +15,15 @@ test("startup phases are monotonic and cannot skip or regress", () => {
   assert.equal(state.transition(generation, "progressive"), true);
   assert.equal(state.transition(generation, "failed"), false);
   assert.equal(state.phase, "progressive");
+});
+
+test("reveals the workbench only after critical readiness or failure", () => {
+  assert.equal(shouldRevealWorkbench("idle"), false);
+  assert.equal(shouldRevealWorkbench("critical"), false);
+  assert.equal(shouldRevealWorkbench("core-ready"), true);
+  assert.equal(shouldRevealWorkbench("progressive"), true);
+  assert.equal(shouldRevealWorkbench("failed"), true);
+  assert.equal(shouldRevealWorkbench("stopped"), false);
 });
 
 test("stop invalidates the active generation", () => {

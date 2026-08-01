@@ -17,9 +17,14 @@
         const parsedLevel = Number(rawLevel);
         if (!Number.isInteger(parsedLevel)) return;
         const level = Math.min(8, Math.max(-8, parsedLevel));
+        const scale = 1.1 ** level;
         document.documentElement.style.setProperty(
           "--nerve-zoom-scale",
-          (1.1 ** level).toFixed(4),
+          scale.toFixed(4),
+        );
+        document.documentElement.style.setProperty(
+          "--nerve-inverse-zoom-scale",
+          (1 / scale).toFixed(4),
         );
         try {
           window.sessionStorage.setItem(
@@ -47,10 +52,137 @@
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="Nerve" />
+    <!-- Pre-stylesheet startup bridge: the Svelte splash replaces this node
+         immediately after mount, before critical workspace hydration. -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --startup-background: oklch(0.9818 0.0054 95.0986);
+        --startup-foreground: oklch(0.3438 0.0269 95.7226);
+        --startup-primary: oklch(0.57 0.1375 39.0427);
+        --startup-muted: oklch(0.5341 0.0078 97.4503);
+        --startup-border: oklch(0.8847 0.0069 97.3627);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --startup-background: oklch(0.2679 0.0036 106.6427);
+          --startup-foreground: oklch(0.9576 0.0027 106.4494);
+          --startup-primary: oklch(0.6724 0.1308 38.7559);
+          --startup-muted: oklch(0.7713 0.0169 99.0657);
+          --startup-border: oklch(0.3618 0.0101 106.8928);
+        }
+      }
+      html,
+      body,
+      #app {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: var(--startup-background);
+        color: var(--startup-foreground);
+      }
+      #startup-bootstrap,
+      #startup-bootstrap * {
+        box-sizing: border-box;
+      }
+      #startup-bootstrap {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: var(--startup-background);
+        color: var(--startup-foreground);
+        font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
+      }
+      #startup-bootstrap-content {
+        display: grid;
+        width: min(12rem, calc(100vw - 3rem));
+        justify-items: center;
+        padding: 1.5rem;
+        text-align: center;
+        transform: scale(var(--nerve-inverse-zoom-scale, 1));
+        transform-origin: center;
+      }
+      #startup-bootstrap-badge {
+        display: grid;
+        width: 3rem;
+        height: 3rem;
+        place-items: center;
+        border-radius: 0.625rem;
+        background: var(--startup-foreground);
+        color: var(--startup-background);
+        animation: startup-bootstrap-breathe 2.4s ease-in-out infinite;
+      }
+      #startup-bootstrap-badge svg {
+        width: 62.5%;
+        height: 62.5%;
+      }
+      #startup-bootstrap-status {
+        margin: 1.5rem 0 0.5rem;
+        color: var(--startup-muted);
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+      }
+      #startup-bootstrap-track {
+        width: 100%;
+        height: 0.25rem;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--startup-border);
+      }
+      #startup-bootstrap-fill {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--startup-primary);
+      }
+      @keyframes startup-bootstrap-breathe {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.72;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #startup-bootstrap-badge {
+          animation: none;
+        }
+      }
+    </style>
     <title>nerve</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <main id="startup-bootstrap" aria-busy="true" aria-label="Starting Nerve">
+        <div id="startup-bootstrap-content">
+          <span id="startup-bootstrap-badge" aria-hidden="true">
+            <svg viewBox="120 120 272 272" fill="none">
+              <g
+                stroke="currentColor"
+                stroke-width="32"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M150 350V162" />
+                <path d="M362 350V162" />
+                <path d="M150 162L232 235L258 208L284 288L362 350" />
+              </g>
+            </svg>
+          </span>
+          <p id="startup-bootstrap-status" role="status">Opening Nerve</p>
+          <div
+            id="startup-bootstrap-track"
+            role="progressbar"
+            aria-label="Starting Nerve"
+          >
+            <span id="startup-bootstrap-fill"></span>
+          </div>
+        </div>
+      </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

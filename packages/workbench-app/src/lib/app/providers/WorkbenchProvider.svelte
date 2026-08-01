@@ -42,6 +42,8 @@ import {
   initializeWorkbench,
 } from "$lib/core/events/websocket-client.svelte";
 import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
+import { shouldRevealWorkbench } from "$lib/core/startup/workbench-startup-machine";
+import StartupSplash from "$lib/app/shell/StartupSplash.svelte";
 import {
   centerTabsExcept,
   closeCenterTab,
@@ -80,6 +82,9 @@ const settingsDraft = $derived(settingsSelectors.settingsDraft);
 const usableModels = $derived(conversationSelectors.usableModels);
 const currentZoomLevel = $derived(
   settingsDraft?.ui.zoomLevel ?? zoomState.level,
+);
+const revealWorkbench = $derived(
+  shouldRevealWorkbench(workbenchStartupState.phase),
 );
 
 function openProjectPicker() {
@@ -201,4 +206,8 @@ onMount(() => {
 });
 </script>
 
-{@render children?.()}
+{#if revealWorkbench}
+  {@render children?.()}
+{:else}
+  <StartupSplash />
+{/if}

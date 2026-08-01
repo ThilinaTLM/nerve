@@ -1,6 +1,21 @@
 /* Centralized keyframes and animation utility classes.
  * Never define @keyframes inside a component; add them here. */
 
+/* Native startup badge breathing shared by shell-level loading surfaces. */
+.startup-breathe {
+  animation: startup-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes startup-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
 /* Shared rotation used by every spinner. Apply with class="spin". */
 .spin {
   animation: spin 0.9s linear infinite;

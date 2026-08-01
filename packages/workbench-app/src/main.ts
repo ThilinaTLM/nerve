@@ -22,9 +22,11 @@ if (shouldRegisterServiceWorker()) {
   registerSW({ immediate: true });
 }
 
+const startupBootstrap = document.getElementById("startup-bootstrap");
 const app = mount(Root, {
   target,
 });
+startupBootstrap?.remove();
 
 function shouldRegisterServiceWorker(): boolean {
   return (
