@@ -17,7 +17,7 @@ import {
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const require = createRequire(
-  new URL("../packages/protocol/package.json", import.meta.url),
+  new URL("../packages/workbench-server/package.json", import.meta.url),
 );
 const { WebSocket } = require("ws");
 const serverMain = join(
