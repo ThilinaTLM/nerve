@@ -75,6 +75,96 @@ function partialStringValues(text: string, key: string): string[] {
   return values;
 }
 
+function objectArrayFragments(text: string, key: string): string[] {
+  let arrayStart = -1;
+  let inString = false;
+  let escaped = false;
+  let stringStart = -1;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') {
+        inString = false;
+        const property = decodeJsonString(text.slice(stringStart, index));
+        if (property !== key) continue;
+        let cursor = index + 1;
+        while (/\s/.test(text[cursor] ?? "")) cursor += 1;
+        if (text[cursor] !== ":") continue;
+        cursor += 1;
+        while (/\s/.test(text[cursor] ?? "")) cursor += 1;
+        if (text[cursor] === "[") {
+          arrayStart = cursor;
+          break;
+        }
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      stringStart = index + 1;
+    }
+  }
+  if (arrayStart < 0) return [];
+
+  const fragments: string[] = [];
+  let arrayDepth = 1;
+  let objectDepth = 0;
+  let objectStart = -1;
+  inString = false;
+  escaped = false;
+  for (let index = arrayStart + 1; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "[") {
+      arrayDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      arrayDepth -= 1;
+      if (arrayDepth === 0) break;
+      continue;
+    }
+    if (char === "{") {
+      if (objectDepth === 0 && arrayDepth === 1) objectStart = index;
+      if (objectStart >= 0) objectDepth += 1;
+      continue;
+    }
+    if (char === "}" && objectStart >= 0) {
+      objectDepth -= 1;
+      if (objectDepth === 0) {
+        fragments.push(
+          text.slice(
+            objectStart,
+            Math.min(index + 1, objectStart + MAX_PARTIAL_VALUE_CHARS),
+          ),
+        );
+        objectStart = -1;
+        if (fragments.length >= MAX_FALLBACK_ITEMS) break;
+      }
+    }
+  }
+  if (objectStart >= 0 && fragments.length < MAX_FALLBACK_ITEMS) {
+    fragments.push(
+      text.slice(
+        objectStart,
+        Math.min(text.length, objectStart + MAX_PARTIAL_VALUE_CHARS),
+      ),
+    );
+  }
+  return fragments;
+}
+
 function partialScalar(
   text: string,
   key: string,
@@ -190,6 +280,24 @@ export class ToolArgumentSource {
     return value
       .map(asRecord)
       .filter((record) => Object.keys(record).length > 0);
+  }
+
+  /** Object-array entries from exact arguments or an incomplete streamed array. */
+  objectArraySources(key: string): ToolArgumentSource[] {
+    for (const record of this.records) {
+      if (!Object.hasOwn(record, key)) continue;
+      const value = record[key];
+      if (!Array.isArray(value)) return [];
+      return value.slice(0, MAX_FALLBACK_ITEMS).map(
+        (entry) =>
+          new ToolArgumentSource({
+            args: asRecord(entry),
+          }),
+      );
+    }
+    return objectArrayFragments(this.argsText, key).map(
+      (fragment) => new ToolArgumentSource({ argsText: fragment }),
+    );
   }
 
   record(key: string): Record<string, unknown> | undefined {

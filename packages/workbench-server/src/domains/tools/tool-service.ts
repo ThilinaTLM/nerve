@@ -5,6 +5,7 @@ import {
   type ApprovalRecord,
   assertTransition,
   createId,
+  type ExploreReportSummaryPayload,
   type Mode,
   type StartTaskRequest,
   type TaskRecord,
@@ -81,6 +82,8 @@ export type ExploreProgressUpdate = {
     | "completed"
     | "failed";
   message: string;
+  /** Bounded terminal projection for progressive per-child report rendering. */
+  report?: ExploreReportSummaryPayload;
 };
 
 export type ExploreRunResult = {

@@ -11,6 +11,7 @@ import type {
 } from "@nervekit/contracts";
 import type { ExploreProgressUpdate } from "../../tools/tool-service.js";
 import { promptText } from "../prompting/prompt-text.js";
+import { summarizeExploreToolCall } from "./explore-tool-summary.js";
 import type {
   ExploreReport,
   ExploreRunPlan,
@@ -193,7 +194,7 @@ export function exploreProgressFromHarnessEvent(
     return {
       ...base,
       phase: "tool_call",
-      message: summarizeToolCall(toolName, asRecord(record.args) ?? {}),
+      message: summarizeExploreToolCall(toolName, asRecord(record.args) ?? {}),
     };
   }
   if (record.type === "tool_execution_end") {
@@ -216,28 +217,6 @@ export function exploreProgressFromHarnessEvent(
     return undefined;
   }
   return undefined;
-}
-
-function summarizeToolCall(
-  toolName: string,
-  args: Record<string, unknown>,
-): string {
-  switch (toolName) {
-    case "read":
-      return `read ${stringValue(args.path) ?? "file"}${rangeSuffix(args)}`;
-    case "grep":
-      return `grep ${quoteValue(args.pattern)}${pathSuffix(args)}`;
-    case "find":
-      return `find ${quoteValue(args.pattern)}${pathSuffix(args)}`;
-    case "ls":
-      return `ls ${stringValue(args.path) ?? "."}`;
-    case "task_status":
-      return `task_status ${taskStatusScopeLabel(args)}`;
-    case "task_logs":
-      return `task_logs ${taskScopeLabel(args)}${modeSuffix(args)}`;
-    default:
-      return `ran ${toolName}`;
-  }
 }
 
 function summarizeToolResult(
@@ -377,59 +356,6 @@ export function exploreAssistantMetadata(message: AssistantMessage): {
       (message as { errorMessage?: unknown }).errorMessage,
     ),
   };
-}
-
-function quoteValue(value: unknown): string {
-  const text = stringValue(value);
-  return text ? JSON.stringify(truncateInline(text, 80)) : "pattern";
-}
-
-function pathSuffix(args: Record<string, unknown>): string {
-  const path = stringValue(args.path);
-  const paths = Array.isArray(args.paths)
-    ? args.paths.filter((value) => typeof value === "string")
-    : [];
-  if (path) return ` in ${path}`;
-  if (paths.length > 0) return ` in ${paths.length} paths`;
-  return " in .";
-}
-
-function rangeSuffix(args: Record<string, unknown>): string {
-  const offset = typeof args.offset === "number" ? args.offset : undefined;
-  const limit = typeof args.limit === "number" ? args.limit : undefined;
-  if (offset === undefined && limit === undefined) return "";
-  return ` (${offset ?? 1}${limit ? `+${limit}` : ""})`;
-}
-
-function modeSuffix(args: Record<string, unknown>): string {
-  const mode = stringValue(args.mode);
-  return mode ? ` (${mode})` : "";
-}
-
-function taskScopeLabel(args: Record<string, unknown>): string {
-  const taskId = stringValue(args.taskId);
-  if (taskId) return taskId;
-  const taskIds = Array.isArray(args.taskIds)
-    ? args.taskIds.filter((value) => typeof value === "string")
-    : [];
-  if (taskIds.length > 0) {
-    return `${taskIds.length} task${taskIds.length === 1 ? "" : "s"}`;
-  }
-  const groupId = stringValue(args.groupId);
-  if (groupId) return `group ${groupId}`;
-  const name = stringValue(args.name);
-  if (name) return name;
-  return "current";
-}
-
-function taskStatusScopeLabel(args: Record<string, unknown>): string {
-  const scope = taskScopeLabel(args);
-  const hasSelector =
-    Boolean(stringValue(args.taskId)) ||
-    Array.isArray(args.taskIds) ||
-    Boolean(stringValue(args.groupId));
-  const status = stringValue(args.status) ?? (hasSelector ? "all" : "active");
-  return `${scope} · ${status}`;
 }
 
 export function messageRole(message: unknown): string | undefined {

@@ -1,160 +1,272 @@
 <script lang="ts">
 import FileText from "@lucide/svelte/icons/file-text";
+import MessagesSquare from "@lucide/svelte/icons/messages-square";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import type { ToolDraftViewModel } from "../../../state/active-run";
+import {
+  projectExploreDraftTasks,
+  type ExploreDraftTask,
+} from "../../views/explore-draft";
 import type { ToolCallDisplayRecord } from "../../views/tool-result-view";
 import {
   aggregateExploreTasks,
+  type ExploreTaskState,
   type ToolView,
 } from "../../views/tool-result-view";
+import SubagentTranscriptDialog from "./SubagentTranscriptDialog.svelte";
 
 type Props = {
-  toolCall: ToolCallDisplayRecord;
-  view: Extract<ToolView, { kind: "explore" }>;
+  draft?: ToolDraftViewModel;
+  toolCall?: ToolCallDisplayRecord;
+  view?: Extract<ToolView, { kind: "explore" }>;
   onOpenFile?: (path: string, line?: number) => void;
 };
-let { toolCall, view, onOpenFile }: Props = $props();
+let { draft, toolCall, view, onOpenFile }: Props = $props();
 
-const aggregated = $derived(aggregateExploreTasks(view));
-const tasks = $derived(aggregated.tasks);
+type DisplayTask = ExploreTaskState | ExploreDraftTask;
+
+const aggregated = $derived(view ? aggregateExploreTasks(view) : undefined);
+const tasks = $derived.by<DisplayTask[]>(
+  () =>
+    aggregated?.tasks ??
+    projectExploreDraftTasks({
+      args: draft?.block.args,
+      argsText: draft?.block.argsText,
+    }),
+);
+const summary = $derived(aggregated?.summary);
+type SelectedTranscript = {
+  taskKey: string;
+  parentAgentId: string;
+  childAgentId: string;
+  label: string;
+  status: ExploreTaskState["status"];
+};
+let selectedTranscript = $state<SelectedTranscript>();
+let transcriptOpen = $state(false);
+
+$effect(() => {
+  if (!selectedTranscript) return;
+  const current = tasks.find(
+    (task): task is ExploreTaskState =>
+      task.key === selectedTranscript?.taskKey && task.status !== "drafting",
+  );
+  if (!current?.agentId) return;
+  const nextLabel = taskTitle(current);
+  if (
+    selectedTranscript.childAgentId === current.agentId &&
+    selectedTranscript.label === nextLabel &&
+    selectedTranscript.status === current.status
+  )
+    return;
+  selectedTranscript = {
+    ...selectedTranscript,
+    childAgentId: current.agentId,
+    label: nextLabel,
+    status: current.status,
+  };
+});
+
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
-/** Short, human display for a model id (drops provider + path prefixes). */
 function modelLabel(model: string): string {
   return model.split(/[/:]/).pop() ?? model;
 }
 
-function taskTitle(task: (typeof tasks)[number]): string {
-  return (
-    task.label ??
-    (task.index === undefined ? "Explore" : `Explore ${task.index + 1}`)
-  );
+function taskTitle(task: DisplayTask): string {
+  return task.label ?? task.task ?? `Explore ${(task.index ?? 0) + 1}`;
 }
 
-function modelThinkingLabel(task: (typeof tasks)[number]): string | undefined {
+function modelThinkingLabel(task: DisplayTask): string | undefined {
+  if (!("model" in task)) return undefined;
   const parts: string[] = [];
   if (task.model) parts.push(modelLabel(task.model));
   if (task.thinkingLevel) parts.push(task.thinkingLevel);
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
-function placeholderLine(task: (typeof tasks)[number]): string {
-  if (task.status === "queued") return "Queued…";
-  if (task.status === "running") return "Waiting for first tool…";
-  return "No recent activity.";
-}
-
-function recentDisplayLines(task: (typeof tasks)[number]) {
-  const lines = [...task.recentMessages].slice(-3);
-  return lines.length > 0
-    ? lines
-    : [{ text: placeholderLine(task), mono: false }];
-}
-
 function pluralCount(value: number, noun: string): string {
   return `${value.toLocaleString()} ${noun}${value === 1 ? "" : "s"}`;
 }
 
-function usageChips(
-  report: NonNullable<(typeof tasks)[number]["report"]>,
-): string[] {
+function usageChips(task: ExploreTaskState): string[] {
+  const usage = task.report?.usage;
+  if (!usage) return [];
   const chips: string[] = [];
-  if (report.usage?.turns) chips.push(pluralCount(report.usage.turns, "turn"));
-  const tokenCount = report.usage
-    ? report.usage.totalTokens > 0
-      ? report.usage.totalTokens
-      : report.usage.input + report.usage.output
-    : 0;
-  if (tokenCount > 0) chips.push(pluralCount(tokenCount, "token"));
+  if (usage.turns) chips.push(pluralCount(usage.turns, "turn"));
+  const tokens = usage.totalTokens || usage.input + usage.output;
+  if (tokens > 0) chips.push(pluralCount(tokens, "token"));
   return chips;
 }
+
+function statusLabel(task: DisplayTask): string {
+  switch (task.status) {
+    case "drafting":
+      return "Drafting";
+    case "queued":
+      return "Queued";
+    case "running":
+      return "Running";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    case "aborted":
+      return "Stopped";
+  }
+}
+
+function statusTextClass(task: DisplayTask): string {
+  switch (task.status) {
+    case "running":
+      return "text-info";
+    case "completed":
+      return "text-success";
+    case "failed":
+      return "text-destructive";
+    case "aborted":
+      return "text-warning";
+    default:
+      return "text-muted-foreground";
+  }
+}
+
+function activityText(task: ExploreTaskState): string {
+  if (task.status === "queued") return "Waiting for an active-agent slot…";
+  if (task.status === "running")
+    return task.currentAction ?? "Waiting for the first tool…";
+  if (task.status === "aborted") return task.error ?? "Agent run stopped.";
+  if (task.status === "failed") return task.error ?? "Agent run failed.";
+  return task.report?.summaryPreview ?? "Investigation complete.";
+}
+
+function openTranscript(task: ExploreTaskState) {
+  if (!task.agentId || !toolCall?.agentId) return;
+  selectedTranscript = {
+    taskKey: task.key,
+    parentAgentId: toolCall.agentId,
+    childAgentId: task.agentId,
+    label: taskTitle(task),
+    status: task.status,
+  };
+  transcriptOpen = true;
+}
+
+const aggregateLabel = $derived.by(() => {
+  if (!summary) return "Preparing explore agents";
+  const finished = summary.completed + summary.failed + summary.aborted;
+  const extras = [
+    summary.failed > 0 ? `${summary.failed} failed` : undefined,
+    summary.aborted > 0 ? `${summary.aborted} stopped` : undefined,
+  ].filter(Boolean);
+  return `${finished} of ${summary.total} finished${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
+});
 </script>
 
-<div class="grid gap-1.5">
-  {#if tasks.length > 0}
-    <ol class="grid gap-1.5">
-      {#each tasks as task (task.key)}
-        {@const modelThinking = modelThinkingLabel(task)}
-        <li
-          class="grid min-w-0 gap-1 rounded-lg border border-border bg-card px-3 py-2.5"
-        >
-          <div class="flex min-w-0 items-center gap-2">
-            <div class="flex min-w-0 flex-1 items-center gap-2">
+<div class="grid gap-2">
+  <p class="sr-only" aria-live="polite">{aggregateLabel}</p>
+  <ol class="grid gap-2">
+    {#each tasks as task (task.key)}
+      {@const modelThinking = modelThinkingLabel(task)}
+      <li
+        class="grid min-w-0 gap-2 rounded-lg border bg-card px-3 py-2.5"
+        data-status={task.status}
+      >
+        <div class="flex min-w-0 items-center gap-2">
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            {#if task.status === "drafting" && !task.label && !task.task}
+              <Skeleton class="h-4 w-2/5" />
+            {:else}
               <strong class="min-w-0 truncate text-sm font-medium leading-tight"
                 >{taskTitle(task)}</strong
               >
-              {#if modelThinking}
-                <span
-                  class="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs leading-none text-muted-foreground"
-                  title={[task.model, task.thinkingLevel]
-                    .filter(Boolean)
-                    .join(" · ")}>{modelThinking}</span
-                >
-              {/if}
-              {#if task.report?.reportPath}
-                <button
-                  type="button"
-                  class="inline-flex min-w-0 shrink items-center gap-1 rounded border border-border bg-muted/30 px-1.5 py-0.5 text-xs font-medium leading-none text-primary hover:bg-muted"
-                  onclick={() =>
-                    task.report?.reportPath &&
-                    onOpenFile?.(task.report.reportPath)}
-                  title={task.report.reportPath}
-                  aria-label={`Open report ${basename(task.report.reportPath)}`}
-                >
-                  <FileText size={12} strokeWidth={2.1} class="shrink-0" />
-                  <span class="min-w-0 truncate font-mono"
-                    >{basename(task.report.reportPath)}</span
-                  >
-                </button>
-              {/if}
-            </div>
-            {#if task.count && task.count > 1 && task.index !== undefined}
+            {/if}
+            {#if modelThinking}
+              <span
+                class="shrink-0 rounded border px-1.5 py-0.5 text-xs leading-none text-muted-foreground"
+                >{modelThinking}</span
+              >
+            {/if}
+          </div>
+          <span class={`shrink-0 text-xs font-medium ${statusTextClass(task)}`}
+            >{statusLabel(task)}</span
+          >
+          {#if (task.count ?? 0) > 1}
+            <span class="shrink-0 text-xs tabular-nums text-muted-foreground"
+              >{(task.index ?? 0) + 1}/{task.count}</span
+            >
+          {/if}
+        </div>
+
+        {#if task.status === "drafting"}
+          <div class="grid gap-1" aria-hidden="true">
+            <Skeleton class="h-3 w-full" />
+            <Skeleton class="h-3 w-2/3" />
+          </div>
+        {:else}
+          <div class="flex min-w-0 items-center gap-2">
+            <p
+              class="m-0 min-w-0 flex-1 truncate text-xs text-muted-foreground"
+            >
+              {activityText(task)}
+            </p>
+            {#if task.status === "running" && task.actionCount > 0}
               <span class="shrink-0 text-xs tabular-nums text-muted-foreground"
-                >{task.index + 1}/{task.count}</span
+                >{pluralCount(task.actionCount, "action")}</span
               >
             {/if}
           </div>
 
-          <div
-            class="grid min-h-[1lh] min-w-0 gap-0.5 text-xs text-muted-foreground"
-          >
-            {#each recentDisplayLines(task) as line, index (`${line.text}:${index}`)}
-              <p
-                class="m-0 {line.mono ? 'font-mono' : ''}"
-                class:line-clamp-3={task.status === "completed"}
-                class:truncate={task.status !== "completed"}
+          <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+            {#if task.agentId && toolCall?.agentId}
+              <Button
+                size="xs"
+                variant="outline"
+                class="h-5 gap-1 rounded px-1.5 text-xs shadow-none"
+                onclick={() => openTranscript(task)}
+                aria-label={`View transcript for ${taskTitle(task)}`}
               >
-                {line.text}
-              </p>
+                <MessagesSquare class="size-3" aria-hidden="true" />
+                Transcript
+              </Button>
+            {/if}
+            {#if task.report?.reportPath}
+              <Button
+                size="xs"
+                variant="outline"
+                class="h-5 gap-1 rounded px-1.5 text-xs shadow-none"
+                onclick={() =>
+                  task.report?.reportPath &&
+                  onOpenFile?.(task.report.reportPath)}
+                title={task.report.reportPath}
+                aria-label={`Open report ${basename(task.report.reportPath)}`}
+              >
+                <FileText class="size-3" aria-hidden="true" />
+                Report
+              </Button>
+            {/if}
+            {#each usageChips(task) as chip (chip)}
+              <span
+                class="inline-flex min-h-5 items-center rounded border bg-muted/30 px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground"
+                >{chip}</span
+              >
             {/each}
           </div>
-
-          {#if task.report}
-            {@const chips = usageChips(task.report)}
-            {#if chips.length > 0}
-              <div class="flex min-w-0 flex-wrap gap-1 pt-0.5">
-                {#each chips as chip, index (`${chip}:${index}`)}
-                  <span
-                    class="inline-flex min-h-5 items-center rounded border border-border bg-sidebar px-1.5 py-0.5 text-xs font-medium leading-none tabular-nums text-muted-foreground"
-                    >{chip}</span
-                  >
-                {/each}
-              </div>
-            {/if}
-          {/if}
-        </li>
-      {/each}
-    </ol>
-  {:else if view.liveLog}
-    <pre
-      class="overflow-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-xs text-muted-foreground">{view.liveLog}</pre>
-  {:else if toolCall.status === "running" || toolCall.status === "requested"}
-    <p class="text-sm leading-relaxed text-muted-foreground">
-      Explore agents are working…
-    </p>
-  {:else}
-    <p class="text-sm leading-relaxed text-muted-foreground">
-      Explore completed without report files.
-    </p>
-  {/if}
+        {/if}
+      </li>
+    {/each}
+  </ol>
 </div>
+
+{#if selectedTranscript}
+  <SubagentTranscriptDialog
+    bind:open={transcriptOpen}
+    parentAgentId={selectedTranscript.parentAgentId}
+    childAgentId={selectedTranscript.childAgentId}
+    label={selectedTranscript.label}
+    onOpenChange={(open) => (transcriptOpen = open)}
+  />
+{/if}

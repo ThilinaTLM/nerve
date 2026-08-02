@@ -10,6 +10,8 @@ import {
   MessageMirror,
 } from "../domains/agents/run/index.js";
 import type { AgentBrowserSkillCatalog } from "../domains/agents/prompting/agent-browser-skills.js";
+import { SubagentTranscriptService } from "../domains/agents/subagent-transcript.service.js";
+import { SubagentTranscriptLiveService } from "../domains/agents/subagent-transcript-live.service.js";
 import type { AuthManager } from "../domains/auth/index.js";
 import { WorkbenchExploreAdmission } from "../domains/agents/run/workbench-explore-admission.js";
 import { WorkbenchSubagentExecutions } from "../domains/agents/run/workbench-subagent-executions.js";
@@ -113,6 +115,8 @@ export interface RuntimeServices {
   conversationLifecycle: ConversationLifecycleService;
   conversationQuery: ConversationQueryService;
   agentLifecycle: AgentLifecycleService;
+  subagentTranscriptLive: SubagentTranscriptLiveService;
+  subagentTranscripts: SubagentTranscriptService;
   humanInput: HumanInputResolutionService;
   pruneConversations: PruneProjectConversationsService;
 }
@@ -428,6 +432,15 @@ export function composeRuntime(
     state.conversationRuntime,
     logger.child({ component: "tool" }),
   );
+  services.subagentTranscriptLive = new SubagentTranscriptLiveService(events);
+  services.subagentTranscripts = new SubagentTranscriptService({
+    storage,
+    harnessStorage: services.harnessStorage,
+    tools: services.tools,
+    getAgent,
+    events,
+    live: services.subagentTranscriptLive,
+  });
   services.agentMechanics = new WorkbenchAgentMechanics({
     storage,
     events,
@@ -449,6 +462,7 @@ export function composeRuntime(
     subscriptionUsage,
     logger: logger.child({ component: "workbench-agent-execution" }),
     agentBrowserSkills: deps.agentBrowserSkills,
+    subagentTranscriptLive: services.subagentTranscriptLive,
     exploreAdmission,
     subagentExecutions,
   });

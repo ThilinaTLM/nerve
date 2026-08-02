@@ -9,6 +9,7 @@ import {
   queuedPromptRecordSchema,
   updateAgentRequestSchema,
 } from "./agent.schema.js";
+import { subagentTranscriptSnapshotSchema } from "./subagent-transcript.schema.js";
 import { z } from "zod";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 
@@ -16,6 +17,10 @@ const emptyParamsSchema = z.object({}).optional();
 const agentIdSchema = z.string().startsWith("agent_");
 const queuedPromptIdSchema = z.string().startsWith("promptq_");
 const agentIdParamsSchema = z.object({ agentId: agentIdSchema });
+const subagentTranscriptParamsSchema = z.object({
+  parentAgentId: agentIdSchema,
+  childAgentId: agentIdSchema,
+});
 const agentConfigureParamsSchema = agentIdParamsSchema.merge(
   updateAgentRequestSchema,
 );
@@ -62,6 +67,15 @@ export const agentsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.agent.get",
+  ),
+  defineOperation(
+    "agent.subagentTranscript.get",
+    subagentTranscriptParamsSchema,
+    z.object({ transcript: subagentTranscriptSnapshotSchema }),
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.agent.subagentTranscript.get",
   ),
   defineOperation(
     "agent.configure",

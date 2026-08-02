@@ -35,6 +35,34 @@ export interface AppendEntryInput {
   createdAt?: string;
 }
 
+export function projectHarnessMessageEntry(input: {
+  entry: Extract<ConversationTreeEntry, { type: "message" }>;
+  conversationId: string;
+  agentId: string;
+}): ConversationEntry | undefined {
+  const { entry, conversationId, agentId } = input;
+  if (
+    entry.message.role !== "user" &&
+    entry.message.role !== "assistant" &&
+    entry.message.role !== "toolResult"
+  ) {
+    return undefined;
+  }
+  const role: ConversationEntry["role"] =
+    entry.message.role === "toolResult" ? "system" : entry.message.role;
+  return {
+    id: entry.id,
+    conversationId,
+    agentId,
+    role,
+    kind: "message",
+    text: agentMessageText(entry.message as AgentMessage),
+    usage: extractEntryUsage(entry.message as AgentMessage),
+    details: entryDetails(entry.message as AgentMessage),
+    createdAt: entry.timestamp,
+  };
+}
+
 export type AppendEntryFn = (
   input: AppendEntryInput,
   options?: { mirrorToHarness?: boolean },

@@ -41,7 +41,8 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type === "conversation.navigated" ||
     type === "project.deleted" ||
     type === "agent.created" ||
-    type.startsWith("agent.subagent_") ||
+    type === "agent.subagent_started" ||
+    type === "agent.subagent_completed" ||
     type.startsWith("agent.explore_") ||
     type === "project.created" ||
     type === "plan.written" ||

@@ -43,6 +43,12 @@ export const conversationAgentMethodHandlers = defineWorkbenchMethodHandlers({
   "agent.get": (state, params) => ({
     agent: state.registry.getAgent(params.agentId),
   }),
+  "agent.subagentTranscript.get": async (state, params) => ({
+    transcript: await state.registry.subagentTranscripts.get(
+      params.parentAgentId,
+      params.childAgentId,
+    ),
+  }),
   "agent.configure": async (state, params) => ({
     agent: await state.registry.configureAgent(params.agentId, params),
   }),

@@ -37,7 +37,9 @@ export function buildConversationRenderProjection(
   const transcript = entriesToTranscript(state.entries);
   const toolCalls = state.toolCalls ?? [];
   const committed = buildCommittedTimeline(transcript, toolCalls, {
-    includeUnanchoredTerminalToolCalls: !state.activeRun,
+    includeHiddenToolCalls: state.retainHiddenToolCalls,
+    includeUnanchoredTerminalToolCalls:
+      state.retainHiddenToolCalls || !state.activeRun,
   });
   const liveItems = buildActiveRunTimeline(
     state.activeRun,

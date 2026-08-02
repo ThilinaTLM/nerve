@@ -1,3 +1,4 @@
+import { exploreReportSummarySchema } from "@nervekit/contracts";
 import { asRecord, stringField } from "./tool-view-helpers";
 import type {
   ExploreProgressView,
@@ -40,6 +41,7 @@ export function parseExploreProgressLog(text: string | undefined): {
           thinkingLevel: stringField(record.thinkingLevel),
           phase: record.phase as ExploreProgressView["phase"],
           message: record.message,
+          report: exploreReportSummarySchema.safeParse(record.report).data,
         });
         continue;
       }
@@ -68,7 +70,7 @@ function friendlyExploreAction(
   if (EXPLORE_NOISE_MESSAGES.has(update.message)) return undefined;
   switch (update.phase) {
     case "tool_call":
-      return { text: update.message, mono: true };
+      return { text: update.message, mono: false };
     case "tool_result":
       return isLowSignalToolResultMessage(update.message)
         ? undefined
@@ -95,7 +97,10 @@ function recentTaskMessages(
     .filter((action): action is ExploreTaskAction => action !== undefined);
   if (liveMessages.length > 0) return liveMessages.slice(-3);
 
-  if (input.status === "failed" && input.error) {
+  if (
+    (input.status === "failed" || input.status === "aborted") &&
+    input.error
+  ) {
     return [{ text: input.error, mono: false }];
   }
   if (input.status === "completed" && input.report?.summaryPreview) {
@@ -158,8 +163,9 @@ function aggregateExploreTasksUncached(
 
   const tasks: ExploreTaskState[] = [];
   for (let index = 0; index < total; index += 1) {
-    const report = reports[index];
     const updates = byIndex.get(index) ?? [];
+    const streamedReport = updates.findLast((update) => update.report)?.report;
+    const report = reports[index] ?? streamedReport;
     const latest = updates[updates.length - 1];
     const recentActions = updates
       .map(friendlyExploreAction)
@@ -169,7 +175,9 @@ function aggregateExploreTasksUncached(
     const failed = updates.find((u) => u.phase === "failed");
 
     let status: ExploreTaskStatus;
-    if (report?.status === "failed" || report?.status === "aborted") {
+    if (report?.status === "aborted") {
+      status = "aborted";
+    } else if (report?.status === "failed") {
       status = "failed";
     } else if (
       report?.status === "completed" ||
@@ -209,6 +217,7 @@ function aggregateExploreTasksUncached(
       model,
       thinkingLevel,
       status,
+      revision: `${latest?.timestamp ?? "stored"}:${report?.status ?? "live"}`,
       currentAction: action?.text,
       currentActionMono: action?.mono ?? false,
       recentActions: status === "running" ? recentActions : [],
@@ -226,9 +235,18 @@ function aggregateExploreTasksUncached(
 
   const completed = tasks.filter((t) => t.status === "completed").length;
   const failedCount = tasks.filter((t) => t.status === "failed").length;
+  const aborted = tasks.filter((t) => t.status === "aborted").length;
   const running = tasks.filter(
     (t) => t.status === "running" || t.status === "queued",
   ).length;
+  const totalTurns = tasks.reduce(
+    (sum, task) => sum + (task.report?.usage?.turns ?? 0),
+    0,
+  );
+  const totalTokens = tasks.reduce((sum, task) => {
+    const usage = task.report?.usage;
+    return sum + (usage ? usage.totalTokens || usage.input + usage.output : 0);
+  }, 0);
 
   return {
     tasks,
@@ -236,8 +254,11 @@ function aggregateExploreTasksUncached(
       total,
       completed,
       failed: failedCount,
+      aborted,
       running,
-      done: total > 0 && completed + failedCount === total,
+      totalTurns,
+      totalTokens,
+      done: total > 0 && completed + failedCount + aborted === total,
     },
   };
 }

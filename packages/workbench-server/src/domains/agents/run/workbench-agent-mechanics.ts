@@ -41,6 +41,7 @@ import type {
 } from "../../tools/tool-service.js";
 import type { SubscriptionUsageService } from "../../usage/subscription-usage-service.js";
 import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
+import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
@@ -78,6 +79,7 @@ export interface WorkbenchAgentMechanicsDeps {
   subagentExecutions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
+  subagentTranscriptLive: SubagentTranscriptLiveService;
 }
 
 export class WorkbenchAgentMechanics {
@@ -99,6 +101,7 @@ export class WorkbenchAgentMechanics {
       executions: deps.subagentExecutions,
       exploreAdmission: deps.exploreAdmission,
       agentBrowserSkills: deps.agentBrowserSkills,
+      transcriptLive: deps.subagentTranscriptLive,
     });
     this.inlineCommands = new InlineCommandRunner(deps);
     this.autoCompaction = new AutoCompactionRunner(deps);

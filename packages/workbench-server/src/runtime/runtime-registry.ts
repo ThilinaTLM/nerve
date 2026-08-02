@@ -87,6 +87,10 @@ export class RuntimeRegistry {
     return this.services.tools;
   }
 
+  get subagentTranscripts() {
+    return this.services.subagentTranscripts;
+  }
+
   get git() {
     return this.services.git;
   }

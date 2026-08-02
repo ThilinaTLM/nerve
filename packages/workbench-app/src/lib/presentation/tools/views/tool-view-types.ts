@@ -75,9 +75,15 @@ export type ExploreProgressView = {
     | "completed"
     | "failed";
   message: string;
+  report?: ExploreReportSummaryPayload;
 };
 
-export type ExploreTaskStatus = "queued" | "running" | "completed" | "failed";
+export type ExploreTaskStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "aborted";
 
 export type ExploreTaskAction = {
   text: string;
@@ -95,6 +101,8 @@ export type ExploreTaskState = {
   model?: string;
   thinkingLevel?: string;
   status: ExploreTaskStatus;
+  /** Latest progress/report revision used for open transcript refreshes. */
+  revision: string;
   /** De-noised latest activity while running. */
   currentAction?: string;
   /** Whether currentAction is a concrete tool action (render as mono). */
@@ -113,7 +121,10 @@ export type ExploreSummary = {
   total: number;
   completed: number;
   failed: number;
+  aborted: number;
   running: number;
+  totalTurns: number;
+  totalTokens: number;
   done: boolean;
 };
 
