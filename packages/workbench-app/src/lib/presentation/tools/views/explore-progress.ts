@@ -68,7 +68,7 @@ function friendlyExploreAction(
   if (EXPLORE_NOISE_MESSAGES.has(update.message)) return undefined;
   switch (update.phase) {
     case "tool_call":
-      return { text: update.message, mono: true };
+      return { text: update.message, mono: false };
     case "tool_result":
       return isLowSignalToolResultMessage(update.message)
         ? undefined
@@ -214,6 +214,7 @@ function aggregateExploreTasksUncached(
       model,
       thinkingLevel,
       status,
+      revision: `${latest?.timestamp ?? "stored"}:${report?.status ?? "live"}`,
       currentAction: action?.text,
       currentActionMono: action?.mono ?? false,
       recentActions: status === "running" ? recentActions : [],

@@ -100,6 +100,8 @@ export type ExploreTaskState = {
   model?: string;
   thinkingLevel?: string;
   status: ExploreTaskStatus;
+  /** Latest progress/report revision used for open transcript refreshes. */
+  revision: string;
   /** De-noised latest activity while running. */
   currentAction?: string;
   /** Whether currentAction is a concrete tool action (render as mono). */

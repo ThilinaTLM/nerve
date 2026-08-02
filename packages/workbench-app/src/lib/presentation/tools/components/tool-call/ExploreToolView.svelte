@@ -10,7 +10,6 @@ import {
   type ExploreTaskState,
   type ToolView,
 } from "../../views/tool-result-view";
-import ToolStatusIcon from "./ToolStatusIcon.svelte";
 import SubagentTranscriptDialog from "./SubagentTranscriptDialog.svelte";
 
 type Props = {
@@ -134,18 +133,18 @@ function statusLabel(task: DisplayTask): string {
   }
 }
 
-function statusTone(task: DisplayTask) {
+function statusTextClass(task: DisplayTask): string {
   switch (task.status) {
     case "running":
-      return "running" as const;
+      return "text-info";
     case "completed":
-      return "good" as const;
+      return "text-success";
     case "failed":
-      return "danger" as const;
+      return "text-destructive";
     case "aborted":
-      return "warn" as const;
+      return "text-warning";
     default:
-      return "neutral" as const;
+      return "text-muted-foreground";
   }
 }
 
@@ -185,11 +184,6 @@ const aggregateLabel = $derived.by(() => {
         data-status={task.status}
       >
         <div class="flex min-w-0 items-center gap-2">
-          <ToolStatusIcon
-            tone={statusTone(task)}
-            pulse={task.status === "running"}
-            label={statusLabel(task)}
-          />
           <div class="flex min-w-0 flex-1 items-center gap-2">
             {#if task.status === "drafting" && !task.label && !task.task}
               <Skeleton class="h-4 w-2/5" />
@@ -205,7 +199,7 @@ const aggregateLabel = $derived.by(() => {
               >
             {/if}
           </div>
-          <span class="shrink-0 text-xs font-medium text-muted-foreground"
+          <span class={`shrink-0 text-xs font-medium ${statusTextClass(task)}`}
             >{statusLabel(task)}</span
           >
           {#if (task.count ?? 0) > 1}
@@ -216,16 +210,14 @@ const aggregateLabel = $derived.by(() => {
         </div>
 
         {#if task.status === "drafting"}
-          <div class="grid gap-1 pl-6" aria-hidden="true">
+          <div class="grid gap-1" aria-hidden="true">
             <Skeleton class="h-3 w-full" />
             <Skeleton class="h-3 w-2/3" />
           </div>
         {:else}
-          <div class="flex min-w-0 items-center gap-2 pl-6">
+          <div class="flex min-w-0 items-center gap-2">
             <p
               class="m-0 min-w-0 flex-1 truncate text-xs text-muted-foreground"
-              class:font-mono={task.status === "running" &&
-                task.currentActionMono}
             >
               {activityText(task)}
             </p>
@@ -236,7 +228,7 @@ const aggregateLabel = $derived.by(() => {
             {/if}
           </div>
 
-          <div class="flex min-w-0 flex-wrap items-center gap-1.5 pl-6">
+          <div class="flex min-w-0 flex-wrap items-center gap-1.5">
             {#each usageChips(task) as chip (chip)}
               <span
                 class="inline-flex min-h-5 items-center rounded border bg-muted/30 px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground"
@@ -283,7 +275,7 @@ const aggregateLabel = $derived.by(() => {
     parentAgentId={toolCall.agentId}
     childAgentId={selectedTask.agentId}
     label={taskTitle(selectedTask)}
-    revision={`${selectedTask.status}:${selectedTask.actionCount}:${selectedTask.report?.summaryPreview ?? ""}`}
+    revision={selectedTask.revision}
     running={selectedTask.status === "running"}
     onOpenChange={(open) => (transcriptOpen = open)}
   />

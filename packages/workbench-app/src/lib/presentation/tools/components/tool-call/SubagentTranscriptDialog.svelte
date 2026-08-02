@@ -4,18 +4,20 @@ import type {
   SubagentTranscriptSnapshot,
 } from "@nervekit/contracts";
 import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
+import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import {
-  VirtualScroller,
-  type VirtualScrollerController,
-} from "@nervekit/ui-kit/components/ui/virtual-list";
+import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import { getConversationUiCapabilities } from "../../../context.svelte";
 import { entriesToTranscript } from "../../../state/transcript";
 import { buildCommittedTimeline } from "../../../state/timeline";
-import { groupConsecutiveThinking } from "../../../components/transcript/transcript-presentation";
+import { createConversationScrollController } from "../../../components/transcript/conversation-scroll.svelte.js";
+import {
+  groupConsecutiveThinking,
+  type TranscriptDisplayNode,
+} from "../../../components/transcript/transcript-presentation";
 import ThinkingGroup from "../../../components/transcript/ThinkingGroup.svelte";
 import UserMessageContent from "../../../components/transcript/UserMessageContent.svelte";
 import ToolCallCard from "../ToolCallCard.svelte";
@@ -45,7 +47,6 @@ let loading = $state(false);
 let error = $state<string>();
 let requestVersion = 0;
 let loadedKey: string | undefined;
-let controller = $state<VirtualScrollerController>();
 
 const timeline = $derived.by(() => {
   if (!snapshot) return [];
@@ -59,6 +60,41 @@ const timeline = $derived.by(() => {
     }).items,
   );
 });
+
+const scroll = createConversationScrollController({
+  active: () => open,
+  conversationOpen: () => open,
+  conversationId: () =>
+    parentAgentId && childAgentId
+      ? `subagent:${parentAgentId}:${childAgentId}`
+      : undefined,
+  contentReady: () => timeline.length > 0,
+});
+
+function measurementVersion(node: TranscriptDisplayNode): string {
+  if (node.kind === "thinking_group") {
+    return node.items
+      .map(
+        (member) =>
+          `${member.item.text.length}:${member.item.done ? "done" : "open"}`,
+      )
+      .join("|");
+  }
+  if (node.kind === "message") {
+    return [
+      node.item.text.length,
+      node.item.done ? "done" : "open",
+      node.item.stopReason ?? "ok",
+      node.item.errorMessage?.length ?? 0,
+    ].join(":");
+  }
+  if (node.kind === "tool") {
+    return node.toolCall
+      ? `${node.toolCall.status}:${node.toolCall.updatedAt}`
+      : `draft:${node.draft?.block.argsText.length ?? 0}`;
+  }
+  return node.key;
+}
 
 async function load(force = false, revisionKey = revision) {
   if (!parentAgentId || !childAgentId) return;
@@ -112,7 +148,7 @@ function handleOpenChange(next: boolean) {
 <DialogShell
   flush
   bind:open
-  size="viewport"
+  size="wide"
   title={`${label} transcript`}
   description={snapshot
     ? [snapshot.status, snapshot.model, snapshot.thinkingLevel]
@@ -153,63 +189,86 @@ function handleOpenChange(next: boolean) {
           No transcript activity yet.
         </div>
       {:else}
-        <VirtualScroller
-          bind:controller
-          items={timeline}
-          getKey={(node) => node.key}
-          estimateSize={() => 112}
-          overscan={8}
-          anchor="end"
-          followOutput={true}
-          paddingStart={12}
-          paddingEnd={12}
-          gap={2}
-          viewportTabIndex={0}
-          viewportAriaLabel={`${label} subagent transcript`}
-          viewportClass="h-full px-3"
-        >
-          {#snippet row({ item: node })}
-            {#if node.kind === "tool" && node.toolCall}
-              <div class="min-w-0 px-3">
-                <ToolCallCard toolCall={node.toolCall} detailsEnabled={false} />
-              </div>
-            {:else if node.kind === "tool_result_error"}
-              <div class="min-w-0 px-3">
-                <ToolResultErrorCard
-                  toolName={node.toolName}
-                  error={node.error}
-                />
-              </div>
-            {:else if node.kind === "thinking_group"}
-              <article class="min-w-0 p-3 text-sm">
-                <ThinkingGroup
-                  items={node.items.map((member) => member.item)}
-                />
-              </article>
-            {:else if node.kind === "message"}
-              <article
-                class="min-w-0 p-3 text-sm {node.item.role === 'user'
-                  ? 'ml-auto w-fit max-w-[70%] rounded-lg rounded-br-sm border border-primary/20 bg-primary/10 px-3 py-2'
-                  : 'w-full'}"
-              >
-                {#if node.item.role === "user"}
-                  <UserMessageContent text={node.item.text} pending={false} />
-                {:else}
-                  <Markdown
-                    text={node.item.text}
-                    trimCodeBlocks={node.item.role !== "assistant"}
-                    onCopy={notifyCopyResult}
+        <div class="relative min-h-0">
+          <VirtualScroller
+            bind:controller={scroll.controller}
+            bind:atEnd={scroll.atEnd}
+            items={timeline}
+            getKey={(node) => node.key}
+            heightCacheKey={parentAgentId && childAgentId
+              ? `subagent-transcript:${parentAgentId}:${childAgentId}`
+              : undefined}
+            getMeasurementVersion={measurementVersion}
+            estimateSize={() => 112}
+            overscan={10}
+            anchor="end"
+            followOutput={scroll.followBottom}
+            scrollEndThreshold={32}
+            paddingStart={12}
+            paddingEnd={12}
+            gap={2}
+            viewportTabIndex={0}
+            viewportAriaLabel={`${label} subagent transcript`}
+            viewportClass="h-full px-3"
+          >
+            {#snippet row({ item: node })}
+              {#if node.kind === "tool" && node.toolCall}
+                <div class="min-w-0 px-3">
+                  <ToolCallCard
+                    toolCall={node.toolCall}
+                    detailsEnabled={false}
                   />
-                {/if}
-                {#if node.item.stopReason === "error" && node.item.errorMessage}
-                  <pre
-                    class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs text-destructive">{node
-                      .item.errorMessage}</pre>
-                {/if}
-              </article>
-            {/if}
-          {/snippet}
-        </VirtualScroller>
+                </div>
+              {:else if node.kind === "tool_result_error"}
+                <div class="min-w-0 px-3">
+                  <ToolResultErrorCard
+                    toolName={node.toolName}
+                    error={node.error}
+                  />
+                </div>
+              {:else if node.kind === "thinking_group"}
+                <article class="min-w-0 p-3 text-sm">
+                  <ThinkingGroup
+                    items={node.items.map((member) => member.item)}
+                  />
+                </article>
+              {:else if node.kind === "message"}
+                <article
+                  class="min-w-0 p-3 text-sm {node.item.role === 'user'
+                    ? 'ml-auto w-fit max-w-[70%] rounded-lg rounded-br-sm border border-primary/20 bg-primary/10 px-3 py-2'
+                    : 'w-full'}"
+                >
+                  {#if node.item.role === "user"}
+                    <UserMessageContent text={node.item.text} pending={false} />
+                  {:else}
+                    <Markdown
+                      text={node.item.text}
+                      trimCodeBlocks={node.item.role !== "assistant"}
+                      onCopy={notifyCopyResult}
+                    />
+                  {/if}
+                  {#if node.item.stopReason === "error" && node.item.errorMessage}
+                    <pre
+                      class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs text-destructive">{node
+                        .item.errorMessage}</pre>
+                  {/if}
+                </article>
+              {/if}
+            {/snippet}
+          </VirtualScroller>
+          {#if !scroll.atEnd}
+            <Button
+              size="icon-sm"
+              variant="secondary"
+              class="absolute right-5 bottom-4 rounded-full shadow-md"
+              onclick={() => scroll.jumpToBottom()}
+              aria-label="Jump to latest subagent activity"
+              title="Jump to latest"
+            >
+              <ArrowDown class="size-4" aria-hidden="true" />
+            </Button>
+          {/if}
+        </div>
       {/if}
     </div>
   {/if}

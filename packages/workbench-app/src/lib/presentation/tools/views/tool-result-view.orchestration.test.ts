@@ -220,9 +220,9 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     // Task 0: keeps concrete tool activity and ignores generic completion noise.
     assert.equal(tasks[0]?.status, "running");
     assert.equal(tasks[0]?.currentAction, "read server.ts");
-    assert.equal(tasks[0]?.currentActionMono, true);
+    assert.equal(tasks[0]?.currentActionMono, false);
     assert.deepEqual(tasks[0]?.recentActions, [
-      { text: "read server.ts", mono: true },
+      { text: "read server.ts", mono: false },
     ]);
     assert.equal(tasks[0]?.actionCount, 1);
     assert.equal(tasks[0]?.label, "api");
@@ -230,7 +230,7 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.equal(tasks[0]?.model, "anthropic/claude-haiku");
     assert.equal(tasks[0]?.thinkingLevel, "medium");
     assert.deepEqual(tasks[0]?.recentMessages, [
-      { text: "read server.ts", mono: true },
+      { text: "read server.ts", mono: false },
     ]);
     // Task 1: started but no display-safe tool action yet.
     assert.equal(tasks[1]?.status, "running");
