@@ -273,3 +273,77 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
   {/snippet}
   {#snippet footer()}{@render statusBarContent()}{/snippet}
 </WorkbenchFrame>
+
+<style>
+.workspace-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--sidebar);
+}
+
+/* paneforge renders the pane group DOM (escape-hatch reason 5). */
+.workspace-shell :global([data-pane-group]) {
+  width: 100%;
+  height: 100%;
+}
+
+/* EditorArea owns the tab/content rows; the shell only stretches it. */
+.workbench-editor-area {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--background);
+}
+
+/* Compact (< 1024px): the editor fills the shell; docks move into sheets. */
+.workspace-shell.compact {
+  display: block;
+}
+
+/* Collapsed or empty docks are not mounted; this edge strip keeps them a
+   reachable drop target. */
+.dock-drop-strip {
+  position: absolute;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 2px dashed color-mix(in oklab, var(--primary) 45%, transparent);
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
+}
+
+.dock-drop-strip.hovered {
+  border-style: solid;
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+.dock-drop-strip[data-dock="left"] {
+  inset-block: 0;
+  left: 0;
+  width: 3rem;
+}
+
+.dock-drop-strip[data-dock="right"] {
+  inset-block: 0;
+  right: 0;
+  width: 3rem;
+}
+
+.dock-drop-strip[data-dock="bottom"] {
+  inset-inline: 0;
+  bottom: 0;
+  height: 3rem;
+}
+
+.dock-drop-strip .dock-drop-label {
+  color: var(--primary);
+  font-size: var(--text-xs);
+  writing-mode: horizontal-tb;
+  text-align: center;
+}
+</style>

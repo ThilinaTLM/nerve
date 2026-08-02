@@ -203,3 +203,72 @@ function menuItems(
   </div>
   <span class="sr-only" aria-live="polite">{announcement}</span>
 </div>
+
+<style>
+.dock-tab-strip {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  height: calc(2rem + 1px);
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.dock-tabs {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Escape-hatch reason 2: a scrollbar in a 2rem icon rail is unusable. */
+  scrollbar-width: none;
+}
+
+.dock-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.dock-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-right: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.dock-tab:hover {
+  background: color-mix(in oklab, var(--accent) 60%, transparent);
+  color: var(--foreground);
+}
+
+.dock-tab.active {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.dock-tab.dragging {
+  opacity: 0.45;
+}
+
+/* Drop marker (escape-hatch reason 4). */
+.dock-tab.drop-before::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 2px;
+  background: var(--primary);
+}
+
+.dock-tab-drop-end {
+  display: inline-block;
+  flex: none;
+  width: 2px;
+  background: var(--primary);
+}
+</style>
