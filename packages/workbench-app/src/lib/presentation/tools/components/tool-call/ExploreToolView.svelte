@@ -4,6 +4,10 @@ import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import type { ToolDraftViewModel } from "../../../state/active-run";
+import {
+  projectExploreDraftTasks,
+  type ExploreDraftTask,
+} from "../../views/explore-draft";
 import type { ToolCallDisplayRecord } from "../../views/tool-result-view";
 import {
   aggregateExploreTasks,
@@ -20,57 +24,16 @@ type Props = {
 };
 let { draft, toolCall, view, onOpenFile }: Props = $props();
 
-type DraftTask = {
-  key: string;
-  index: number;
-  count: number;
-  label?: string;
-  task?: string;
-  status: "drafting";
-};
-type DisplayTask = ExploreTaskState | DraftTask;
-
-function draftTasks(): DraftTask[] {
-  const args = draft?.block.args as Record<string, unknown> | undefined;
-  let rawTasks = Array.isArray(args?.tasks) ? args.tasks : [];
-  if (rawTasks.length === 0 && typeof args?.task === "string") {
-    rawTasks = [{ task: args.task, label: args.label }];
-  }
-  if (rawTasks.length === 0 && draft?.block.done && draft.block.argsText) {
-    try {
-      const parsed = JSON.parse(draft.block.argsText) as Record<
-        string,
-        unknown
-      >;
-      rawTasks = Array.isArray(parsed.tasks)
-        ? parsed.tasks
-        : typeof parsed.task === "string"
-          ? [{ task: parsed.task, label: parsed.label }]
-          : [];
-    } catch {
-      // Partial JSON is expected while the model drafts arguments.
-    }
-  }
-  const count = Math.max(1, rawTasks.length);
-  return (rawTasks.length > 0 ? rawTasks : [undefined]).map((value, index) => {
-    const record =
-      value && typeof value === "object"
-        ? (value as Record<string, unknown>)
-        : undefined;
-    return {
-      key: `task-${index}`,
-      index,
-      count,
-      label: typeof record?.label === "string" ? record.label : undefined,
-      task: typeof record?.task === "string" ? record.task : undefined,
-      status: "drafting" as const,
-    };
-  });
-}
+type DisplayTask = ExploreTaskState | ExploreDraftTask;
 
 const aggregated = $derived(view ? aggregateExploreTasks(view) : undefined);
 const tasks = $derived.by<DisplayTask[]>(
-  () => aggregated?.tasks ?? draftTasks(),
+  () =>
+    aggregated?.tasks ??
+    projectExploreDraftTasks({
+      args: draft?.block.args,
+      argsText: draft?.block.argsText,
+    }),
 );
 const summary = $derived(aggregated?.summary);
 type SelectedTranscript = {

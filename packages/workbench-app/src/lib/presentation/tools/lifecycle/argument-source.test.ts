@@ -48,6 +48,42 @@ describe("ToolArgumentSource", () => {
     );
   });
 
+  it("projects object-array entries from incomplete streamed JSON", () => {
+    const sources = toolArgumentSource({
+      argsText:
+        '{"tasks":[{"task":"Inspect {server}","label":"Server"},{"task":"Review UI","label":"Cli',
+    }).objectArraySources("tasks");
+
+    assert.equal(sources.length, 2);
+    assert.equal(sources[0]?.string("task"), "Inspect {server}");
+    assert.equal(sources[0]?.string("label"), "Server");
+    assert.equal(sources[1]?.string("task"), "Review UI");
+    assert.equal(sources[1]?.string("label"), "Cli");
+  });
+
+  it("does not split partial objects on escaped quotes or nested braces", () => {
+    const sources = toolArgumentSource({
+      argsText:
+        '{"tasks":[{"task":"Inspect \\"quoted\\" {text}","context":{"note":"}"}},{"task":"Second',
+    }).objectArraySources("tasks");
+
+    assert.equal(sources.length, 2);
+    assert.equal(sources[0]?.string("task"), 'Inspect "quoted" {text}');
+    assert.equal(sources[1]?.string("task"), "Second");
+  });
+
+  it("prefers exact object arrays over streamed fragments", () => {
+    const sources = toolArgumentSource({
+      args: { tasks: [{ task: "Exact A" }, { task: "Exact B" }] },
+      argsText: '{"tasks":[{"task":"Partial',
+    }).objectArraySources("tasks");
+
+    assert.deepEqual(
+      sources.map((source) => source.string("task")),
+      ["Exact A", "Exact B"],
+    );
+  });
+
   it("exposes environment key names without values", () => {
     const source = toolArgumentSource({
       args: {
