@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  contentBlockIdSchema,
+  liveMessageIdSchema,
+  runIdSchema,
+  turnIdSchema,
+} from "../conversations/conversation.schema.js";
+import { PUBLIC_EVENT_MAX_STRING_CHARS } from "../events/bounded-public-data.schema.js";
 import { definePublicEvent } from "../events/event-definition.schema.js";
 import { modeSchema } from "../settings/settings.schema.js";
 import { agentSuspensionRecordSchema } from "../suspensions/suspension.schema.js";
@@ -7,6 +14,31 @@ import { agentRecordSchema, agentStatusSchema } from "./agent.schema.js";
 
 const workbenchRoles = ["workbench_server"] as const;
 const agentIdSchema = z.string().startsWith("agent_");
+const transcriptIdentitySchema = z
+  .object({
+    conversationId: z.string().startsWith("conv_"),
+    projectId: z.string().startsWith("proj_"),
+    parentAgentId: agentIdSchema,
+    childAgentId: agentIdSchema,
+    runId: runIdSchema,
+  })
+  .strict();
+const transcriptTurnSchema = transcriptIdentitySchema.extend({
+  turnId: turnIdSchema,
+});
+const transcriptMessageSchema = transcriptTurnSchema.extend({
+  liveMessageId: liveMessageIdSchema,
+});
+const transcriptContentSchema = transcriptMessageSchema.extend({
+  contentBlockId: contentBlockIdSchema,
+  contentIndex: z.number().int().nonnegative(),
+  kind: z.enum(["text", "thinking"]),
+});
+const subagentTranscriptEvent = (name: string, schema: z.ZodType) =>
+  definePublicEvent(name, schema, {
+    allowedSourceRoles: workbenchRoles,
+    scope: ["parentAgentId", "childAgentId", "runId"],
+  });
 
 export const agentEventDefinitions = [
   definePublicEvent(
@@ -76,6 +108,51 @@ export const agentEventDefinitions = [
       allowedSourceRoles: workbenchRoles,
       scope: ["parentAgentId", "childAgentId"],
     },
+  ),
+  subagentTranscriptEvent(
+    "agent.subagent_transcript.run.started",
+    transcriptIdentitySchema.extend({ startedAt: z.string().datetime() }),
+  ),
+  subagentTranscriptEvent(
+    "agent.subagent_transcript.turn.started",
+    transcriptTurnSchema.extend({ ordinal: z.number().int().nonnegative() }),
+  ),
+  subagentTranscriptEvent(
+    "agent.subagent_transcript.message.started",
+    transcriptMessageSchema.extend({
+      messageOrdinal: z.number().int().nonnegative(),
+      startedAt: z.string().datetime(),
+    }),
+  ),
+  subagentTranscriptEvent(
+    "agent.subagent_transcript.content.delta",
+    transcriptContentSchema.extend({
+      offset: z.number().int().nonnegative(),
+      delta: z.string().max(PUBLIC_EVENT_MAX_STRING_CHARS),
+    }),
+  ),
+  subagentTranscriptEvent(
+    "agent.subagent_transcript.content.done",
+    transcriptContentSchema.extend({
+      finalText: z.string().max(PUBLIC_EVENT_MAX_STRING_CHARS).optional(),
+      redacted: z.boolean().optional(),
+    }),
+  ),
+  subagentTranscriptEvent(
+    "agent.subagent_transcript.message.completed",
+    transcriptMessageSchema.extend({ status: z.enum(["completed", "failed"]) }),
+  ),
+  subagentTranscriptEvent(
+    "agent.subagent_transcript.turn.completed",
+    transcriptTurnSchema.extend({ status: z.enum(["completed", "failed"]) }),
+  ),
+  subagentTranscriptEvent(
+    "agent.subagent_transcript.run.completed",
+    transcriptIdentitySchema.extend({
+      status: z.enum(["completed", "failed", "aborted"]),
+      completedAt: z.string().datetime(),
+      message: z.string().max(PUBLIC_EVENT_MAX_STRING_CHARS).optional(),
+    }),
   ),
   definePublicEvent(
     "agent.subagent_completed",

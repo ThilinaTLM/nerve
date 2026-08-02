@@ -24,6 +24,7 @@ export interface ConversationRenderState {
   generatedAt?: string;
   stale?: boolean;
   readOnly?: boolean;
+  retainHiddenToolCalls?: boolean;
   fallbackReason?: string;
   appMetadata?: Record<string, unknown>;
 }

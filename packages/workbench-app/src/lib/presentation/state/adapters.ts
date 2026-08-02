@@ -60,6 +60,8 @@ export type ApplyConversationEventOptions = {
   }) => void;
   /** Advance the stream cursor for catalog events with no render projection. */
   consumeUnhandled?: boolean;
+  /** Retain hidden bounded tool previews for isolated child transcripts. */
+  retainHiddenToolCalls?: boolean;
 };
 
 export function fromConversationSnapshot(
@@ -146,7 +148,11 @@ export function applyConversationEvent(
       applyPromptRemoved(next, event.data as ConversationPromptCancelledData);
       break;
     case "toolCall.updated":
-      applyToolCallUpdated(next, event.data as ConversationToolCallUpdatedData);
+      applyToolCallUpdated(
+        next,
+        event.data as ConversationToolCallUpdatedData,
+        options.retainHiddenToolCalls,
+      );
       break;
     case "run.resumed":
       applyRunResumed(next, event.data as ConversationRunResumedData);
@@ -456,6 +462,7 @@ function removePrompt(
 function applyToolCallUpdated(
   state: ConversationRenderState,
   data: ConversationToolCallUpdatedData,
+  retainHidden = false,
 ): void {
   const toolCall = data.toolCall;
   const existing = state.toolCalls.find(
@@ -469,7 +476,7 @@ function applyToolCallUpdated(
       `conversation reducer tool call ${toolCall.id}`,
     );
   }
-  if (toolCall.hidden) {
+  if (toolCall.hidden && !retainHidden) {
     state.toolCalls = state.toolCalls.filter(
       (candidate) => candidate.id !== toolCall.id,
     );

@@ -40,6 +40,7 @@ import type { SubscriptionUsageService } from "../../usage/subscription-usage-se
 import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js";
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
+import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 
 export { exploreRunPlanArg, exploreSystemPrompt } from "./explore-helpers.js";
@@ -158,6 +159,7 @@ export interface SubagentRunnerDeps {
   executions: WorkbenchSubagentExecutions;
   exploreAdmission: WorkbenchExploreAdmission;
   agentBrowserSkills: AgentBrowserSkillCatalog;
+  transcriptLive: SubagentTranscriptLiveService;
 }
 
 export class SubagentRunner {
@@ -361,6 +363,11 @@ export class SubagentRunner {
     });
 
     const runId = createId("run");
+    await this.deps.transcriptLive.register({
+      parentAgentId: spec.parent.id,
+      child,
+      runId,
+    });
     const abortController = new AbortController();
     const abortFromParent = () => abortController.abort(spec.signal?.reason);
     if (spec.signal?.aborted) abortFromParent();
@@ -421,7 +428,8 @@ export class SubagentRunner {
           this.deps.auth.requestAuthForPiModel(requestModel),
         systemPrompt: () => spec.systemPrompt,
       });
-      harness.subscribe((event) => {
+      harness.subscribe(async (event) => {
+        await this.deps.transcriptLive.handleHarnessEvent(child.id, event);
         const update = exploreProgressFromHarnessEvent(event, child, spec);
         if (update) {
           publishExploreProgress(spec.onProgress, update);
@@ -477,6 +485,7 @@ export class SubagentRunner {
       }
       if (!report) throw new Error("Explore agent completed without a report.");
       await this.deps.setAgentStatus(child, "idle");
+      await this.deps.transcriptLive.complete(child.id, "completed");
       await this.deps.events.publish("agent.subagent_completed", {
         parentAgentId: spec.parent.id,
         childAgentId: child.id,
@@ -496,6 +505,11 @@ export class SubagentRunner {
       };
     } catch (error) {
       const aborted = abortRequested || signal.aborted;
+      const terminalMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.deps.transcriptLive
+        .complete(child.id, aborted ? "aborted" : "failed", terminalMessage)
+        .catch(() => undefined);
       await this.deps
         .setAgentStatus(child, aborted ? "aborted" : "error")
         .catch(() => undefined);
@@ -521,7 +535,7 @@ export class SubagentRunner {
         error,
       });
       if (aborted) throw abortError();
-      const message = error instanceof Error ? error.message : String(error);
+      const message = terminalMessage;
       return {
         agent: child,
         status: "failed",

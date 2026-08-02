@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness";
+import { conversationStream } from "@nervekit/contracts";
 import {
   createOrchestratorState,
   shutdownOrchestratorState,
@@ -135,6 +136,35 @@ describe("explore subagent transcript isolation", () => {
       assert.equal(childTranscript.toolCalls[0]?.toolName, "ls");
       assert.equal(childTranscript.toolCalls[0]?.hidden, true);
       assert.equal(childTranscript.entriesTruncated, false);
+      assert.equal(childTranscript.conversationId, conversation.id);
+      assert.equal(childTranscript.projectId, project.id);
+      assert.equal(childTranscript.activeRun, undefined);
+      assert.ok(childTranscript.cursorSeq > 0);
+
+      const stream = await orchestrator.events.readStream(
+        conversationStream(conversation.id),
+        1,
+        1_000,
+      );
+      const dedicated = stream.events.filter((event) =>
+        event.type.startsWith("agent.subagent_transcript."),
+      );
+      assert.ok(dedicated.length > 0);
+      assert.equal(dedicated[0]?.type, "agent.subagent_transcript.run.started");
+      assert.equal(
+        dedicated.at(-1)?.type,
+        "agent.subagent_transcript.run.completed",
+      );
+      assert.equal(
+        stream.events.some(
+          (event) =>
+            event.type.startsWith("conversation.live.") &&
+            (event.data as { agentId?: string }).agentId === child.id,
+        ),
+        false,
+      );
+      const dedicatedJson = JSON.stringify(dedicated);
+      assert.doesNotMatch(dedicatedJson, /explore_ls_1|arguments|result|cwd/);
       await assert.rejects(
         orchestrator.registry.subagentTranscripts.get(child.id, parent.id),
         hasErrorCode("SUBAGENT_TRANSCRIPT_NOT_FOUND"),

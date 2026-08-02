@@ -73,14 +73,37 @@ const tasks = $derived.by<DisplayTask[]>(
   () => aggregated?.tasks ?? draftTasks(),
 );
 const summary = $derived(aggregated?.summary);
-let selectedTaskKey = $state<string>();
-const selectedTask = $derived(
-  tasks.find(
-    (task): task is ExploreTaskState =>
-      task.key === selectedTaskKey && task.status !== "drafting",
-  ),
-);
+type SelectedTranscript = {
+  taskKey: string;
+  parentAgentId: string;
+  childAgentId: string;
+  label: string;
+  status: ExploreTaskState["status"];
+};
+let selectedTranscript = $state<SelectedTranscript>();
 let transcriptOpen = $state(false);
+
+$effect(() => {
+  if (!selectedTranscript) return;
+  const current = tasks.find(
+    (task): task is ExploreTaskState =>
+      task.key === selectedTranscript?.taskKey && task.status !== "drafting",
+  );
+  if (!current?.agentId) return;
+  const nextLabel = taskTitle(current);
+  if (
+    selectedTranscript.childAgentId === current.agentId &&
+    selectedTranscript.label === nextLabel &&
+    selectedTranscript.status === current.status
+  )
+    return;
+  selectedTranscript = {
+    ...selectedTranscript,
+    childAgentId: current.agentId,
+    label: nextLabel,
+    status: current.status,
+  };
+});
 
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;
@@ -159,7 +182,13 @@ function activityText(task: ExploreTaskState): string {
 
 function openTranscript(task: ExploreTaskState) {
   if (!task.agentId || !toolCall?.agentId) return;
-  selectedTaskKey = task.key;
+  selectedTranscript = {
+    taskKey: task.key,
+    parentAgentId: toolCall.agentId,
+    childAgentId: task.agentId,
+    label: taskTitle(task),
+    status: task.status,
+  };
   transcriptOpen = true;
 }
 
@@ -269,14 +298,12 @@ const aggregateLabel = $derived.by(() => {
   </ol>
 </div>
 
-{#if selectedTask && toolCall?.agentId}
+{#if selectedTranscript}
   <SubagentTranscriptDialog
     bind:open={transcriptOpen}
-    parentAgentId={toolCall.agentId}
-    childAgentId={selectedTask.agentId}
-    label={taskTitle(selectedTask)}
-    revision={selectedTask.revision}
-    running={selectedTask.status === "running"}
+    parentAgentId={selectedTranscript.parentAgentId}
+    childAgentId={selectedTranscript.childAgentId}
+    label={selectedTranscript.label}
     onOpenChange={(open) => (transcriptOpen = open)}
   />
 {/if}

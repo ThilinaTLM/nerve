@@ -1,4 +1,5 @@
 import type {
+  EventEnvelope,
   SubagentTranscriptSnapshot,
   ToolCallRecord,
 } from "@nervekit/contracts";
@@ -60,14 +61,22 @@ export interface AtlassianLinkCapability {
   confluenceSiteUrl: () => string | undefined;
 }
 
+export interface SubagentTranscriptObserver {
+  snapshot: (snapshot: SubagentTranscriptSnapshot) => void;
+  /** Return false when canonical offset validation requests reconciliation. */
+  event: (event: EventEnvelope<Record<string, unknown>>) => boolean | void;
+  error: (message: string) => void;
+}
+
 export interface ConversationUiCapabilities {
   /** Fetch a full tool-call record for the details dialog. */
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallRecord>;
-  /** Fetch a bounded, read-only child-agent transcript on explicit demand. */
-  fetchSubagentTranscript?: (
+  /** Observe one bounded, read-only child transcript while its dialog is open. */
+  watchSubagentTranscript?: (
     parentAgentId: string,
     childAgentId: string,
-  ) => Promise<SubagentTranscriptSnapshot>;
+    observer: SubagentTranscriptObserver,
+  ) => () => void;
   /** Voice input integration for the ask-user card. */
   voice?: VoiceInputCapability;
   /** Site URLs used to build external Jira/Confluence links. */

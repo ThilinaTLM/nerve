@@ -5,6 +5,7 @@ import {
   type ConversationTreeEntry,
 } from "@nervekit/harness";
 import {
+  conversationStream,
   SUBAGENT_TRANSCRIPT_MAX_ENTRIES,
   SUBAGENT_TRANSCRIPT_MAX_TEXT_CHARS,
   SUBAGENT_TRANSCRIPT_MAX_THINKING_BLOCKS,
@@ -18,10 +19,12 @@ import {
   type InitializedStorage,
   pathExists,
 } from "../../infrastructure/storage/index.js";
+import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { ToolService } from "../tools/tool-service.js";
 import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
 import { projectHarnessMessageEntry } from "./run/message-mirror.js";
+import type { SubagentTranscriptLiveService } from "./subagent-transcript-live.service.js";
 
 const MAX_PROJECTED_TEXT_CHARS = 2 * 1024 * 1024;
 
@@ -30,6 +33,8 @@ export interface SubagentTranscriptServiceDeps {
   harnessStorage: ConversationHarnessStorage;
   tools: ToolService;
   getAgent: (agentId: string) => AgentRecord;
+  events: StreamLogRegistry;
+  live: SubagentTranscriptLiveService;
 }
 
 function modelLabel(agent: AgentRecord): string | undefined {
@@ -168,79 +173,96 @@ export class SubagentTranscriptService {
       );
     }
 
-    const childPath = join(
-      this.deps.storage.paths.home,
-      "agents",
-      child.id,
-      "conversation.jsonl",
-    );
-    let projected: SubagentTranscriptEntry[] = [];
-    if (await pathExists(childPath)) {
-      const env = new NodeExecutionEnv({
-        cwd: child.projectDir,
-        shellPath: this.deps.storage.settings.runtime.shellPath,
-      });
-      const childStorage = await JsonlConversationStorage.open(env, childPath);
-      const parentPath = this.deps.harnessStorage.conversationPath(
-        parent.conversationId,
-      );
-      const parentIds = new Set<string>();
-      if (await pathExists(parentPath)) {
-        const parentStorage = await JsonlConversationStorage.open(
-          env,
-          parentPath,
+    const captured = await this.deps.events.withCursor(
+      conversationStream(child.conversationId),
+      async () => {
+        const childPath = join(
+          this.deps.storage.paths.home,
+          "agents",
+          child.id,
+          "conversation.jsonl",
         );
-        for (const entry of await parentStorage.getEntries())
-          parentIds.add(entry.id);
-      }
-      projected = messageEntries(await childStorage.getEntries())
-        .filter((entry) => !parentIds.has(entry.id))
-        .map((entry) =>
-          boundedEntry(
-            projectHarnessMessageEntry({
-              entry,
-              conversationId: child.conversationId,
-              agentId: child.id,
-            }),
-          ),
-        )
-        .filter((entry): entry is SubagentTranscriptEntry => Boolean(entry));
-    }
+        let projected: SubagentTranscriptEntry[] = [];
+        if (await pathExists(childPath)) {
+          const env = new NodeExecutionEnv({
+            cwd: child.projectDir,
+            shellPath: this.deps.storage.settings.runtime.shellPath,
+          });
+          const childStorage = await JsonlConversationStorage.open(
+            env,
+            childPath,
+          );
+          const parentPath = this.deps.harnessStorage.conversationPath(
+            parent.conversationId,
+          );
+          const parentIds = new Set<string>();
+          if (await pathExists(parentPath)) {
+            const parentStorage = await JsonlConversationStorage.open(
+              env,
+              parentPath,
+            );
+            for (const entry of await parentStorage.getEntries())
+              parentIds.add(entry.id);
+          }
+          projected = messageEntries(await childStorage.getEntries())
+            .filter((entry) => !parentIds.has(entry.id))
+            .map((entry) =>
+              boundedEntry(
+                projectHarnessMessageEntry({
+                  entry,
+                  conversationId: child.conversationId,
+                  agentId: child.id,
+                }),
+              ),
+            )
+            .filter((entry): entry is SubagentTranscriptEntry =>
+              Boolean(entry),
+            );
+        }
 
-    const allToolCalls = this.deps.tools
-      .listToolCalls()
-      .filter((toolCall) => toolCall.agentId === child.id)
-      .sort((a, b) =>
-        a.createdAt === b.createdAt
-          ? a.id.localeCompare(b.id)
-          : a.createdAt.localeCompare(b.createdAt),
-      );
-    const toolCalls = allToolCalls
-      .slice(-SUBAGENT_TRANSCRIPT_MAX_TOOL_CALLS)
-      .map(toToolCallTranscriptRecord);
-    const entries = boundedTail(projected);
-    const updatedAt = [
-      child.updatedAt,
-      entries.at(-1)?.createdAt,
-      toolCalls.at(-1)?.updatedAt,
-    ]
-      .filter((value): value is string => Boolean(value))
-      .sort()
-      .at(-1)!;
+        const allToolCalls = this.deps.tools
+          .listToolCalls()
+          .filter((toolCall) => toolCall.agentId === child.id)
+          .sort((a, b) =>
+            a.createdAt === b.createdAt
+              ? a.id.localeCompare(b.id)
+              : a.createdAt.localeCompare(b.createdAt),
+          );
+        const toolCalls = allToolCalls
+          .slice(-SUBAGENT_TRANSCRIPT_MAX_TOOL_CALLS)
+          .map(toToolCallTranscriptRecord);
+        const entries = boundedTail(projected);
+        const updatedAt = [
+          child.updatedAt,
+          entries.at(-1)?.createdAt,
+          toolCalls.at(-1)?.updatedAt,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .sort()
+          .at(-1)!;
 
+        return {
+          agentId: child.id,
+          parentAgentId: parent.id,
+          conversationId: child.conversationId,
+          projectId: child.projectId,
+          activeRun: this.deps.live.snapshot(child.id),
+          status: child.status,
+          model: modelLabel(child),
+          thinkingLevel: child.thinkingLevel,
+          entries,
+          toolCalls,
+          totalEntryCount: projected.length,
+          totalToolCallCount: allToolCalls.length,
+          entriesTruncated: entries.length < projected.length,
+          toolCallsTruncated: toolCalls.length < allToolCalls.length,
+          updatedAt,
+        };
+      },
+    );
     return {
-      agentId: child.id,
-      parentAgentId: parent.id,
-      status: child.status,
-      model: modelLabel(child),
-      thinkingLevel: child.thinkingLevel,
-      entries,
-      toolCalls,
-      totalEntryCount: projected.length,
-      totalToolCallCount: allToolCalls.length,
-      entriesTruncated: entries.length < projected.length,
-      toolCallsTruncated: toolCalls.length < allToolCalls.length,
-      updatedAt,
+      ...captured.value,
+      cursorSeq: captured.cursor.processedSeq,
     };
   }
 }

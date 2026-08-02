@@ -13,7 +13,7 @@ import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,
 } from "$lib/features/audio";
-import { getSubagentTranscript } from "$lib/features/agents/api/subagent-transcripts.api";
+import { watchSubagentTranscript } from "$lib/features/agents/subagent-transcript-watcher";
 import { getToolCall } from "$lib/features/tools/api/tools.api";
 import {
   confluenceSiteUrl,
@@ -28,8 +28,7 @@ import {
 export function workbenchConversationUiCapabilities(): ConversationUiCapabilities {
   return {
     fetchToolCall: (toolCallId) => getToolCall(toolCallId),
-    fetchSubagentTranscript: (parentAgentId, childAgentId) =>
-      getSubagentTranscript(parentAgentId, childAgentId),
+    watchSubagentTranscript,
     atlassian: { jiraSiteUrl, confluenceSiteUrl },
     voice: {
       session: voiceInputSession,

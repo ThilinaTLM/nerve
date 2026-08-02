@@ -1,7 +1,7 @@
 <script lang="ts">
 import type {
-  ConversationEntry,
   SubagentTranscriptSnapshot,
+  EventEnvelope,
 } from "@nervekit/contracts";
 import DialogShell from "@nervekit/ui-kit/components/ui/dialog-shell";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
@@ -11,8 +11,12 @@ import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import { getConversationUiCapabilities } from "../../../context.svelte";
-import { entriesToTranscript } from "../../../state/transcript";
-import { buildCommittedTimeline } from "../../../state/timeline";
+import {
+  applySubagentTranscriptEvent,
+  fromSubagentTranscriptSnapshot,
+} from "../../../state/subagent-transcript-session";
+import { buildConversationRenderProjection } from "../../../state/render";
+import type { ConversationRenderState } from "../../../state/types";
 import { createConversationScrollController } from "../../../components/transcript/conversation-scroll.svelte.js";
 import {
   groupConsecutiveThinking,
@@ -20,45 +24,44 @@ import {
 } from "../../../components/transcript/transcript-presentation";
 import ThinkingGroup from "../../../components/transcript/ThinkingGroup.svelte";
 import UserMessageContent from "../../../components/transcript/UserMessageContent.svelte";
+import WorkingIndicator from "../../../components/transcript/WorkingIndicator.svelte";
 import ToolCallCard from "../ToolCallCard.svelte";
 import ToolResultErrorCard from "./ToolResultErrorCard.svelte";
+
+type DialogRow =
+  | { kind: "timeline"; key: string; node: TranscriptDisplayNode }
+  | { kind: "waiting"; key: string };
 
 let {
   open = $bindable(false),
   parentAgentId,
   childAgentId,
   label,
-  revision,
-  running = false,
   onOpenChange,
 }: {
   open?: boolean;
   parentAgentId?: string;
   childAgentId?: string;
   label: string;
-  revision: string;
-  running?: boolean;
   onOpenChange?: (open: boolean) => void;
 } = $props();
 
 const capabilities = getConversationUiCapabilities();
 let snapshot = $state<SubagentTranscriptSnapshot>();
+let renderState = $state<ConversationRenderState>();
 let loading = $state(false);
 let error = $state<string>();
-let requestVersion = 0;
-let loadedKey: string | undefined;
+let retryKey = $state(0);
 
-const timeline = $derived.by(() => {
-  if (!snapshot) return [];
-  const transcript = entriesToTranscript(
-    snapshot.entries as ConversationEntry[],
+const projection = $derived(buildConversationRenderProjection(renderState));
+const rows = $derived.by(() => {
+  const timeline = groupConsecutiveThinking(projection.timeline).map(
+    (node): DialogRow => ({ kind: "timeline", key: node.key, node }),
   );
-  return groupConsecutiveThinking(
-    buildCommittedTimeline(transcript, snapshot.toolCalls, {
-      includeHiddenToolCalls: true,
-      includeUnanchoredTerminalToolCalls: true,
-    }).items,
-  );
+  if (renderState?.sending && !projection.hasActiveTurnOutput) {
+    timeline.push({ kind: "waiting", key: "__waiting__" });
+  }
+  return timeline;
 });
 
 const scroll = createConversationScrollController({
@@ -68,10 +71,12 @@ const scroll = createConversationScrollController({
     parentAgentId && childAgentId
       ? `subagent:${parentAgentId}:${childAgentId}`
       : undefined,
-  contentReady: () => timeline.length > 0,
+  contentReady: () => rows.length > 0,
 });
 
-function measurementVersion(node: TranscriptDisplayNode): string {
+function measurementVersion(row: DialogRow): string {
+  if (row.kind === "waiting") return "waiting";
+  const node = row.node;
   if (node.kind === "thinking_group") {
     return node.items
       .map(
@@ -96,51 +101,54 @@ function measurementVersion(node: TranscriptDisplayNode): string {
   return node.key;
 }
 
-async function load(force = false, revisionKey = revision) {
-  if (!parentAgentId || !childAgentId) return;
-  const key = `${parentAgentId}:${childAgentId}:${revisionKey}`;
-  if (!force && snapshot && loadedKey === key) return;
-  const fetchTranscript = capabilities.fetchSubagentTranscript;
-  if (!fetchTranscript) {
+$effect(() => {
+  const parent = parentAgentId;
+  const child = childAgentId;
+  const attempt = retryKey;
+  if (!open || !parent || !child) return;
+  const watch = capabilities.watchSubagentTranscript;
+  if (!watch) {
     error = "Subagent transcripts are unavailable here.";
     return;
   }
-  const version = ++requestVersion;
   loading = !snapshot;
   error = undefined;
-  try {
-    const next = await fetchTranscript(parentAgentId, childAgentId);
-    if (version !== requestVersion || !open) return;
-    snapshot = next;
-    loadedKey = key;
-  } catch (caught) {
-    if (version !== requestVersion || !open) return;
-    error = caught instanceof Error ? caught.message : String(caught);
-  } finally {
-    if (version === requestVersion) loading = false;
-  }
-}
-
-$effect(() => {
-  if (!open || !childAgentId || !parentAgentId) return;
-  const refreshRevision = revision;
-  const delay = snapshot && running ? 900 : 0;
-  const timer = setTimeout(() => void load(false, refreshRevision), delay);
-  return () => clearTimeout(timer);
+  const dispose = watch(parent, child, {
+    snapshot: (next) => {
+      if (next.parentAgentId !== parent || next.agentId !== child) return;
+      snapshot = next;
+      renderState = fromSubagentTranscriptSnapshot(next);
+      loading = false;
+      error = undefined;
+    },
+    event: (event: EventEnvelope<Record<string, unknown>>) => {
+      if (!renderState) return;
+      let gap = false;
+      renderState = applySubagentTranscriptEvent(renderState, event, () => {
+        gap = true;
+        error = "Live activity was interrupted; recovering the transcript.";
+      });
+      return !gap;
+    },
+    error: (message) => {
+      loading = false;
+      error = message;
+    },
+  });
+  void attempt;
+  return dispose;
 });
 
 $effect(() => {
   const activeChildId = childAgentId;
   if (!activeChildId) return;
-  requestVersion += 1;
   snapshot = undefined;
-  loadedKey = undefined;
+  renderState = undefined;
   error = undefined;
 });
 
 function handleOpenChange(next: boolean) {
   open = next;
-  if (!next) requestVersion += 1;
   onOpenChange?.(next);
 }
 </script>
@@ -148,7 +156,7 @@ function handleOpenChange(next: boolean) {
 <DialogShell
   flush
   bind:open
-  size="wide"
+  size="wide-viewport"
   title={`${label} transcript`}
   description={snapshot
     ? [snapshot.status, snapshot.model, snapshot.thinkingLevel]
@@ -166,7 +174,7 @@ function handleOpenChange(next: boolean) {
   {:else if error && !snapshot}
     <div class="grid place-items-center gap-3 p-8 text-center">
       <p class="m-0 text-sm text-destructive">{error}</p>
-      <Button size="sm" variant="outline" onclick={() => void load(true)}
+      <Button size="sm" variant="outline" onclick={() => (retryKey += 1)}
         >Retry</Button
       >
     </div>
@@ -180,11 +188,11 @@ function handleOpenChange(next: boolean) {
             Showing the assignment and most recent bounded activity.
           {/if}
           {#if error}
-            <span class="text-destructive"> Refresh failed: {error}</span>
+            <span class="text-destructive"> {error}</span>
           {/if}
         </div>
       {/if}
-      {#if timeline.length === 0}
+      {#if rows.length === 0}
         <div class="grid place-items-center p-8 text-sm text-muted-foreground">
           No transcript activity yet.
         </div>
@@ -193,8 +201,8 @@ function handleOpenChange(next: boolean) {
           <VirtualScroller
             bind:controller={scroll.controller}
             bind:atEnd={scroll.atEnd}
-            items={timeline}
-            getKey={(node) => node.key}
+            items={rows}
+            getKey={(row) => row.key}
             heightCacheKey={parentAgentId && childAgentId
               ? `subagent-transcript:${parentAgentId}:${childAgentId}`
               : undefined}
@@ -211,46 +219,55 @@ function handleOpenChange(next: boolean) {
             viewportAriaLabel={`${label} subagent transcript`}
             viewportClass="h-full px-3"
           >
-            {#snippet row({ item: node })}
-              {#if node.kind === "tool" && node.toolCall}
+            {#snippet row({ item: row })}
+              {#if row.kind === "waiting"}
+                <article
+                  class="transcript-entry assistant streaming waiting-entry"
+                >
+                  <WorkingIndicator />
+                </article>
+              {:else if row.node.kind === "tool" && row.node.toolCall}
                 <div class="min-w-0 px-3">
                   <ToolCallCard
-                    toolCall={node.toolCall}
+                    toolCall={row.node.toolCall}
                     detailsEnabled={false}
                   />
                 </div>
-              {:else if node.kind === "tool_result_error"}
+              {:else if row.node.kind === "tool_result_error"}
                 <div class="min-w-0 px-3">
                   <ToolResultErrorCard
-                    toolName={node.toolName}
-                    error={node.error}
+                    toolName={row.node.toolName}
+                    error={row.node.error}
                   />
                 </div>
-              {:else if node.kind === "thinking_group"}
+              {:else if row.node.kind === "thinking_group"}
                 <article class="min-w-0 p-3 text-sm">
                   <ThinkingGroup
-                    items={node.items.map((member) => member.item)}
+                    items={row.node.items.map((member) => member.item)}
                   />
                 </article>
-              {:else if node.kind === "message"}
+              {:else if row.node.kind === "message"}
                 <article
-                  class="min-w-0 p-3 text-sm {node.item.role === 'user'
+                  class="min-w-0 p-3 text-sm {row.node.item.role === 'user'
                     ? 'ml-auto w-fit max-w-[70%] rounded-lg rounded-br-sm border border-primary/20 bg-primary/10 px-3 py-2'
                     : 'w-full'}"
                 >
-                  {#if node.item.role === "user"}
-                    <UserMessageContent text={node.item.text} pending={false} />
+                  {#if row.node.item.role === "user"}
+                    <UserMessageContent
+                      text={row.node.item.text}
+                      pending={false}
+                    />
                   {:else}
                     <Markdown
-                      text={node.item.text}
-                      trimCodeBlocks={node.item.role !== "assistant"}
+                      text={row.node.item.text}
+                      trimCodeBlocks={row.node.item.role !== "assistant"}
                       onCopy={notifyCopyResult}
                     />
                   {/if}
-                  {#if node.item.stopReason === "error" && node.item.errorMessage}
+                  {#if row.node.item.stopReason === "error" && row.node.item.errorMessage}
                     <pre
-                      class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs text-destructive">{node
-                        .item.errorMessage}</pre>
+                      class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs text-destructive">{row
+                        .node.item.errorMessage}</pre>
                   {/if}
                 </article>
               {/if}
