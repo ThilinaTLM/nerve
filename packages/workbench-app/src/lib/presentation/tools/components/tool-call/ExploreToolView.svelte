@@ -262,7 +262,7 @@ const aggregateLabel = $derived.by(() => {
               <Button
                 size="xs"
                 variant="outline"
-                class="h-6 gap-1 px-1.5 text-xs shadow-none"
+                class="h-5 gap-1 rounded px-1.5 text-xs shadow-none"
                 onclick={() => openTranscript(task)}
                 aria-label={`View transcript for ${taskTitle(task)}`}
               >
@@ -274,7 +274,7 @@ const aggregateLabel = $derived.by(() => {
               <Button
                 size="xs"
                 variant="outline"
-                class="h-6 gap-1 px-1.5 text-xs shadow-none"
+                class="h-5 gap-1 rounded px-1.5 text-xs shadow-none"
                 onclick={() =>
                   task.report?.reportPath &&
                   onOpenFile?.(task.report.reportPath)}
