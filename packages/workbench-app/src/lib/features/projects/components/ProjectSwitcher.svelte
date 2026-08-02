@@ -43,13 +43,13 @@ function tabLabel(item: ProjectSwitcherItem): string {
 </script>
 
 <nav
-  class="project-switcher flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+  class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
   aria-label="Projects"
 >
   <Button
     variant="ghost"
     size="icon-sm"
-    class="shrink-0"
+    class="shrink-0 [-webkit-app-region:no-drag]"
     ariaLabel="Switch project"
     title={switchTitle}
     aria-keyshortcuts={switchAria}
@@ -64,7 +64,7 @@ function tabLabel(item: ProjectSwitcherItem): string {
       <ContextMenu
         items={buildMenuItems?.(item) ?? []}
         disabled={!buildMenuItems}
-        triggerClass="block min-w-0 max-w-56 overflow-hidden"
+        triggerClass="block min-w-0 max-w-56 overflow-hidden [-webkit-app-region:no-drag]"
       >
         <Button
           variant="ghost"
@@ -90,9 +90,3 @@ function tabLabel(item: ProjectSwitcherItem): string {
     {/each}
   </div>
 </nav>
-
-<style>
-.project-switcher {
-  -webkit-app-region: no-drag;
-}
-</style>
