@@ -251,7 +251,7 @@ $effect(() => {
     <div class="logs-notice">{notice}</div>
   {/if}
 
-  <ScrollArea class="logs-scroll">
+  <ScrollArea class="min-h-0">
     <div class="logs-list" role="log" aria-label="Application logs">
       {#if rows.length === 0 && !loading}
         <div
@@ -434,10 +434,6 @@ $effect(() => {
   border-color: color-mix(in oklab, var(--success) 35%, var(--border));
   color: var(--success);
   background: color-mix(in oklab, var(--success) 8%, var(--card));
-}
-
-:global(.logs-scroll) {
-  min-height: 0;
 }
 
 .logs-list {

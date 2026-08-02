@@ -426,7 +426,7 @@ function handleMicContextMenu(event: MouseEvent) {
     <Button
       variant={recording ? "destructive" : "secondary"}
       size="icon-sm"
-      class={`mic-button${recording ? " recording" : ""}`}
+      class={`rounded-full ${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
       type="button"
       disabled={micDisabled}
       onclick={toggleRecording}

@@ -255,7 +255,7 @@ $effect(() => {
     <TranscriptContextMenu
       target={{ kind: "message", item: node.item }}
       menu={transcriptMenu}
-      triggerClass={`select-text ${node.item.role === "user" ? "user-msg-trigger" : ""}`}
+      triggerClass={`select-text ${node.item.role === "user" ? "block" : ""}`}
     >
       <article
         class={`transcript-entry ${node.item.role} ${node.item.live ? "streaming" : ""}`}
@@ -307,10 +307,6 @@ $effect(() => {
   max-width: 100%;
   padding: 0.75rem;
   border-bottom: 0;
-}
-
-:global(.user-msg-trigger) {
-  display: block;
 }
 
 .transcript-entry.user {

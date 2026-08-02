@@ -346,7 +346,7 @@ const showEmptyRun = $derived(
     gap={2}
     viewportTabIndex={0}
     viewportAriaLabel={transcriptLabel}
-    viewportClass="transcript-viewport"
+    viewportClass="@container h-full px-3"
   >
     {#snippet row({ item })}
       {#if item.kind === "timeline"}
@@ -392,12 +392,6 @@ const showEmptyRun = $derived(
 {/if}
 
 <style>
-:global(.transcript-viewport) {
-  container-type: inline-size;
-  height: 100%;
-  padding: 0 0.75rem;
-}
-
 .waiting-entry {
   position: relative;
   width: 100%;

@@ -43,7 +43,7 @@ const items = $derived<LineItem[]>(
     estimateSize={() => 16}
     anchor={followOutput ? "end" : "start"}
     {followOutput}
-    viewportClass="log-list"
+    viewportClass="max-h-(--log-max-height) rounded-sm border border-border bg-sidebar px-2 py-1.5 font-mono text-xs leading-[1.22] text-sidebar-foreground"
   >
     {#snippet row({ item })}
       <div
@@ -62,18 +62,6 @@ const items = $derived<LineItem[]>(
 <style>
 .log-list-wrap {
   min-width: 0;
-}
-
-:global(.log-list) {
-  max-height: var(--log-max-height);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--sidebar);
-  color: var(--sidebar-foreground);
-  padding: 0.42rem 0.55rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.22;
 }
 
 .log-line {
