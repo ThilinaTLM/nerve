@@ -23,10 +23,12 @@ let {
 }: Props = $props();
 </script>
 
+<!-- The negative inline margin plus matching padding is a net-zero inset so the
+     one-shot section flash wash breathes around the content. -->
 <section
   id={settingsSectionDomId(id)}
   aria-labelledby={`${settingsSectionDomId(id)}-title`}
-  class={cn("settings-section grid min-w-0 gap-2", className)}
+  class={cn("-mx-2 grid min-w-0 scroll-mt-3 gap-2 px-2", className)}
 >
   <div class="flex min-w-0 items-center justify-between gap-3">
     <div class="grid min-w-0 gap-0.5">
