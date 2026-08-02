@@ -330,3 +330,80 @@ function minimapNodeColor(node: Node): string {
     </div>
   {/if}
 </div>
+
+<style>
+/* Svelte Flow renders its own internal DOM (escape-hatch reason 5). Keep all
+ * overrides scoped to this canvas and map the library chrome to Nerve tokens. */
+.history-graph {
+  /* Library-owned custom properties (escape-hatch reason 6). */
+  --xy-edge-stroke-default: var(--border);
+  --xy-edge-stroke-selected-default: var(--primary);
+  --xy-minimap-background-color-default: var(--card);
+  --xy-background-pattern-dots-color-default: var(--border);
+  --xy-node-color-default: var(--foreground);
+  --xy-node-background-color-default: transparent;
+  --xy-node-border-default: 0;
+  --xy-node-boxshadow-hover-default: none;
+  --xy-node-boxshadow-selected-default: none;
+}
+
+.history-graph :global(.svelte-flow__node) {
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  box-shadow: none;
+}
+
+.history-graph :global(.svelte-flow__node:focus-visible) {
+  outline: none;
+}
+
+.history-graph :global(.svelte-flow__edge-path) {
+  stroke: var(--border);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.history-graph
+  :global(.svelte-flow__edge.history-edge-active .svelte-flow__edge-path) {
+  stroke: var(--primary);
+  stroke-width: 2.25;
+}
+
+.history-graph :global(.svelte-flow__handle) {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 2px solid var(--card);
+  border-radius: 50%;
+  background: var(--border);
+  pointer-events: none;
+}
+
+.history-graph :global(.history-node-active .svelte-flow__handle),
+.history-graph :global(.history-node-on-path .svelte-flow__handle) {
+  background: var(--primary);
+}
+
+.history-graph :global(.svelte-flow__minimap) {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.history-graph :global(.svelte-flow__minimap-mask) {
+  fill: color-mix(in oklab, var(--background) 70%, transparent);
+}
+
+.history-graph :global(.svelte-flow__attribution) {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--muted-foreground);
+}
+
+.history-graph :global(.svelte-flow__attribution a) {
+  color: inherit;
+}
+</style>
