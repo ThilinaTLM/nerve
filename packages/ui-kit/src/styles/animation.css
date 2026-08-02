@@ -85,17 +85,6 @@
   }
 }
 
-/* Compaction progress indicator pulse (CompactionCard.svelte). */
-@keyframes compaction-progress {
-  0%,
-  100% {
-    opacity: 0.58;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
 /* Center tab "running" status indicator pulse (editor-tabs.css). */
 @keyframes tab-pulse {
   0% {

@@ -163,13 +163,6 @@
   gap: 0.05rem;
 }
 
-.row-title {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 0.45rem;
-}
-
 .row-main strong {
   overflow: hidden;
   font-size: var(--text-sm);
@@ -178,25 +171,7 @@
   white-space: nowrap;
 }
 
-.row-sub {
-  flex: none;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  white-space: nowrap;
-}
-
-.row-path {
-  overflow: hidden;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.row-badges,
-.row-actions {
+.row-badges {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -473,10 +448,6 @@
   font-size: var(--text-xs);
 }
 
-.hidden-switch .switch-copy small {
-  display: none;
-}
-
 @media (max-width: 560px) {
   .project-picker-dialog {
     width: calc(100vw - 12px);
@@ -485,9 +456,5 @@
 
   .crumb {
     max-width: 7rem;
-  }
-
-  .path-tools .hidden-switch .switch-copy {
-    display: none;
   }
 }

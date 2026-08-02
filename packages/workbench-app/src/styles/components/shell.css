@@ -332,26 +332,6 @@
   margin: 0 0.125rem;
 }
 
-.project-button {
-  min-width: 0;
-  gap: 0.4rem;
-  -webkit-app-region: no-drag;
-}
-
-.project-button svg {
-  flex: none;
-  color: color-mix(in oklab, var(--muted-foreground) 85%, transparent);
-}
-
-.project-button-label {
-  overflow: hidden;
-  max-width: 18rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
 .window-control {
   -webkit-app-region: no-drag;
 }
@@ -463,10 +443,6 @@
       calc(3rem + env(safe-area-inset-top))
       minmax(0, 1fr)
       calc(2.5rem + env(safe-area-inset-bottom));
-  }
-
-  .project-button-label {
-    display: none;
   }
 
   .footerbar {
