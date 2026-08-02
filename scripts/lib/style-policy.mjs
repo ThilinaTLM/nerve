@@ -226,15 +226,36 @@ function stripGlobals(selector) {
 
 /** Class tokens written in a component's markup. */
 export function markupClassNames(svelteSource) {
-  const markup = svelteSource.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
   const names = new Set();
-  for (const match of markup.matchAll(/\bclass:([\w-]+)/g)) names.add(match[1]);
-  for (const match of markup.matchAll(/\bclass=(?:"([^"]*)"|'([^']*)')/g)) {
-    for (const token of (match[1] ?? match[2]).split(/\s+/))
-      if (/^[a-z][\w-]*$/i.test(token)) names.add(token);
+  for (const markup of markupSegments(svelteSource)) {
+    for (const match of markup.matchAll(/\bclass:([\w-]+)/g)) {
+      names.add(match[1]);
+    }
+    for (const match of markup.matchAll(/\bclass=(?:"([^"]*)"|'([^']*)')/g)) {
+      for (const token of (match[1] ?? match[2]).split(/\s+/)) {
+        if (/^[a-z][\w-]*$/i.test(token)) names.add(token);
+      }
+    }
   }
   // `class={...}` expressions are skipped: their string literals are just as
   // likely to be comparison operands as class names, and a false positive here
   // would get the whole guard turned off.
   return [...names].sort();
+}
+
+/**
+ * Returns markup around style blocks without concatenating the surrounding
+ * text. Keeping each range separate prevents removed text from synthesizing a
+ * new tag or class attribute at the join.
+ */
+function markupSegments(svelteSource) {
+  const segments = [];
+  const styleBlocks = /<style[^>]*>[\s\S]*?<\/style>/g;
+  let cursor = 0;
+  for (const match of svelteSource.matchAll(styleBlocks)) {
+    segments.push(svelteSource.slice(cursor, match.index));
+    cursor = match.index + match[0].length;
+  }
+  segments.push(svelteSource.slice(cursor));
+  return segments;
 }

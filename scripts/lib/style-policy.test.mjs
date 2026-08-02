@@ -5,6 +5,7 @@ import {
   extractClassSelectors,
   findBareGlobalSelectors,
   isDynamicClass,
+  markupClassNames,
 } from "./style-policy.mjs";
 
 test("extractClassSelectors ignores comments and collects class names", () => {
@@ -46,6 +47,20 @@ test("allowlisted dynamic classes are exempt", () => {
   assert.equal(isDynamicClass("svelte-flow__node"), true);
   assert.equal(isDynamicClass("panel-row-hoverable"), true);
   assert.equal(isDynamicClass("footer-item"), false);
+});
+
+test("markup class names exclude classes inside style blocks", () => {
+  const source = `<div class="alpha beta" class:active></div>
+<style>
+  .css-only::before { content: '<span class="also-css-only">'; }
+</style>`;
+  assert.deepEqual(markupClassNames(source), ["active", "alpha", "beta"]);
+});
+
+test("style removal does not synthesize markup across a block", () => {
+  const source = `<div class="real"></div>
+<div cla<style>.ignored { color: red; }</style>ss="synthetic">`;
+  assert.deepEqual(markupClassNames(source), ["real"]);
 });
 
 test("a bare :global class selector is reported", () => {
