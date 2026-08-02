@@ -82,11 +82,16 @@ export type ConversationComposerModel = {
   capabilities?: ConversationComposerCapabilities;
 };
 
+export type ConversationTimelineSections = {
+  prefix: TimelineItem[];
+  tail: TimelineItem[];
+};
+
 export type ConversationPaneModel = {
   conversationId?: string;
   open: boolean;
   active?: boolean;
-  timeline: TimelineItem[];
+  timeline: ConversationTimelineSections;
   streamingText: string;
   sending: boolean;
   hasActiveTurnOutput: boolean;

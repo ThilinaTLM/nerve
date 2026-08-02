@@ -1,5 +1,6 @@
 <script lang="ts">
 import Folder from "@lucide/svelte/icons/folder";
+import { SvelteMap } from "svelte/reactivity";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -33,13 +34,15 @@ import { provideConversationMotionBudget } from "./conversation-motion-context.s
 import { toolLifecycleSpec } from "../../tools/lifecycle/registry";
 import { hasTranscriptContent } from "./transcript-content";
 
+type TimelineRowItem = {
+  kind: "timeline";
+  key: string;
+  node: TranscriptDisplayNode;
+  entranceMotion?: TranscriptEntranceMotion;
+};
+
 type TranscriptRowItem =
-  | {
-      kind: "timeline";
-      key: string;
-      node: TranscriptDisplayNode;
-      entranceMotion?: TranscriptEntranceMotion;
-    }
+  | TimelineRowItem
   | { kind: "waiting"; key: string }
   | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
 
@@ -50,7 +53,8 @@ type Props = {
   heightCacheKey?: string;
   contentVisibility?: boolean;
   transcriptLabel?: string;
-  timeline: TimelineItem[];
+  timelinePrefix: TimelineItem[];
+  timelineTail: TimelineItem[];
   streamingText: string;
   sending: boolean;
   hasActiveTurnOutput: boolean;
@@ -108,7 +112,8 @@ let {
   // height while its newly rendered body paints over the following row.
   contentVisibility = false,
   transcriptLabel = "Conversation transcript",
-  timeline,
+  timelinePrefix,
+  timelineTail,
   streamingText,
   sending,
   hasActiveTurnOutput,
@@ -153,38 +158,98 @@ function entranceEligible(node: TranscriptDisplayNode): boolean {
   return node.kind === "tool" && Boolean(node.draft);
 }
 
-// The running CompactionCard is the sole activity indicator for that phase;
-// the generic per-turn waiting row must not double up beneath it.
-const compactionRunning = $derived(
-  timeline.some(
-    (item) => item.kind === "compaction" && item.notice.state === "running",
-  ),
-);
+type PrefixRows = {
+  revision: number;
+  rows: TimelineRowItem[];
+  seenKeys: Map<string, number>;
+};
 
-const rows = $derived.by<TranscriptRowItem[]>(() => {
+let prefixRevision = 0;
+const prefixRows = $derived.by<PrefixRows>(() => {
   const seenKeys = new Map<string, number>();
-  const displayNodes = groupConsecutiveThinking(timeline);
-  const timelineRows = displayNodes.map((node) => ({
+  const rows = groupConsecutiveThinking(timelinePrefix).map((node) => ({
     kind: "timeline" as const,
     key: uniqueRowKey(node.key, seenKeys),
     node,
   }));
+  prefixRevision += 1;
+  return { revision: prefixRevision, rows, seenKeys };
+});
+const tailDisplayNodes = $derived(groupConsecutiveThinking(timelineTail));
+const prefixCompactionRunning = $derived(
+  timelinePrefix.some(
+    (item) => item.kind === "compaction" && item.notice.state === "running",
+  ),
+);
+const tailCompactionRunning = $derived(
+  timelineTail.some(
+    (item) => item.kind === "compaction" && item.notice.state === "running",
+  ),
+);
+const compactionRunning = $derived(
+  prefixCompactionRunning || tailCompactionRunning,
+);
+
+let motionProjectionKey: string | undefined;
+let projectedEntranceMotions: ReadonlyMap<string, TranscriptEntranceMotion> =
+  new SvelteMap();
+const rows = $derived.by<TranscriptRowItem[]>(() => {
+  const seenKeys = new SvelteMap(prefixRows.seenKeys);
+  const stableRows = [...prefixRows.rows];
+  const liveNodes = [...tailDisplayNodes];
+
+  // Thinking can materialize into the durable prefix while the next reasoning
+  // block is still live. Preserve the original flat grouping at this one seam.
+  const lastPrefix = stableRows.at(-1);
+  const firstTail = liveNodes[0];
+  if (
+    lastPrefix?.node.kind === "thinking_group" &&
+    firstTail?.kind === "thinking_group"
+  ) {
+    stableRows.pop();
+    liveNodes.shift();
+    const count = seenKeys.get(lastPrefix.node.key) ?? 0;
+    if (count <= 1) seenKeys.delete(lastPrefix.node.key);
+    else seenKeys.set(lastPrefix.node.key, count - 1);
+    liveNodes.unshift({
+      kind: "thinking_group",
+      key: lastPrefix.node.key,
+      items: [...lastPrefix.node.items, ...firstTail.items],
+    });
+  }
+
+  const liveRows: TimelineRowItem[] = liveNodes.map((node) => ({
+    kind: "timeline",
+    key: uniqueRowKey(node.key, seenKeys),
+    node,
+  }));
+  const timelineRows = [...stableRows, ...liveRows];
   const scope = heightCacheKey ?? "__default-transcript__";
   if (scope !== motionScope) {
     motionScope = scope;
     motionBudget.reset();
   }
-  const entranceMotions = entranceLedger.project(
-    scope,
-    timelineRows.map((row) => ({
-      key: row.key,
-      eligible: entranceEligible(row.node),
+  const liveStructure = liveRows
+    .map((row) => `${row.key}:${entranceEligible(row.node) ? 1 : 0}`)
+    .join("|");
+  const nextMotionKey = `${scope}\0${prefixRows.revision}\0${liveStructure}`;
+  if (nextMotionKey !== motionProjectionKey) {
+    motionProjectionKey = nextMotionKey;
+    projectedEntranceMotions = entranceLedger.project(
+      scope,
+      timelineRows.map((row) => ({
+        key: row.key,
+        eligible: entranceEligible(row.node),
+      })),
+    );
+  }
+  const result: TranscriptRowItem[] = [
+    ...stableRows,
+    ...liveRows.map((row) => ({
+      ...row,
+      entranceMotion: projectedEntranceMotions.get(row.key),
     })),
-  );
-  const result: TranscriptRowItem[] = timelineRows.map((row) => ({
-    ...row,
-    entranceMotion: entranceMotions.get(row.key),
-  }));
+  ];
   // This is a per-turn pre-output row. Turn-scoped output stays true across
   // the live-to-durable handoff, so it cannot reappear after the final message.
   if (sending && !hasActiveTurnOutput && !compactionRunning) {
@@ -195,6 +260,24 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
   }
   return result;
 });
+const approvalsByToolCallId = $derived(
+  new Map(approvals.map((item) => [item.toolCallId, item])),
+);
+const questionsByToolCallId = $derived(
+  new Map(pendingUserQuestions.map((item) => [item.toolCallId, item])),
+);
+const reviewsByToolCallId = $derived(
+  new Map(pendingPlanReviews.map((item) => [item.toolCallId, item])),
+);
+const structureVersion = $derived(
+  `${prefixRows.revision}\0${tailDisplayNodes
+    .map((node) => node.key)
+    .join(
+      "|",
+    )}\0${sending && !hasActiveTurnOutput && !compactionRunning ? "waiting" : ""}\0${queuedPrompts
+    .map((prompt) => prompt.id)
+    .join("|")}`,
+);
 
 function claimEntrance(key: string, token: string): boolean {
   return entranceLedger.claim(key, token);
@@ -254,15 +337,9 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
     }
     const toolCallId = node.toolCall.id;
     const lifecycle = toolLifecycleSpec(node.toolCall.toolName);
-    const approval = approvals.find(
-      (candidate) => candidate.toolCallId === toolCallId,
-    );
-    const question = pendingUserQuestions.find(
-      (candidate) => candidate.toolCallId === toolCallId,
-    );
-    const plan = pendingPlanReviews.find(
-      (candidate) => candidate.toolCallId === toolCallId,
-    );
+    const approval = approvalsByToolCallId.get(toolCallId);
+    const question = questionsByToolCallId.get(toolCallId);
+    const plan = reviewsByToolCallId.get(toolCallId);
     return [
       "tool",
       `arg:${lifecycle.argumentRegion}`,
@@ -294,7 +371,7 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
 
 const showEmptyRun = $derived(
   !hasTranscriptContent({
-    timelineLength: timeline.length,
+    timelineLength: timelinePrefix.length + timelineTail.length,
     streamingText,
     sending,
     queuedPromptCount: queuedPrompts.length,
@@ -333,6 +410,7 @@ const showEmptyRun = $derived(
     bind:atEnd
     items={rows}
     getKey={(row) => row.key}
+    {structureVersion}
     {heightCacheKey}
     getMeasurementVersion={measurementVersionForRow}
     {contentVisibility}
@@ -357,9 +435,9 @@ const showEmptyRun = $derived(
           {sending}
           hydrateToolBodies={active}
           {activeProject}
-          {approvals}
-          {pendingUserQuestions}
-          {pendingPlanReviews}
+          {approvalsByToolCallId}
+          {questionsByToolCallId}
+          {reviewsByToolCallId}
           {lastTimelineKey}
           {planReviewModels}
           {planReviewModelKey}

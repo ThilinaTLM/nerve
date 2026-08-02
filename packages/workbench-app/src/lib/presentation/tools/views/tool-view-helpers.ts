@@ -33,6 +33,19 @@ export function countLogicalLines(text: string | undefined): number {
   return text === undefined ? 0 : splitLogicalLines(text).length;
 }
 
+/** Extract the final logical lines without allocating every preceding line. */
+export function tailLogicalText(text: string, count: number): string {
+  if (text.length === 0 || count <= 0) return count <= 0 ? "" : text;
+  const contentEnd = text.endsWith("\n") ? text.length - 1 : text.length;
+  let remaining = count;
+  for (let index = contentEnd - 1; index >= 0; index -= 1) {
+    if (text.charCodeAt(index) !== 10) continue;
+    remaining -= 1;
+    if (remaining === 0) return text.slice(index + 1, contentEnd);
+  }
+  return text;
+}
+
 export function asRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;

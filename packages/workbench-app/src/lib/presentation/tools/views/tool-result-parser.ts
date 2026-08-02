@@ -62,6 +62,7 @@ export {
   relativePath,
   splitLogicalLines,
   tail,
+  tailLogicalText,
 } from "./tool-view-helpers";
 export type {
   ExploreProgressView,

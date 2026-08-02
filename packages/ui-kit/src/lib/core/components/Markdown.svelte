@@ -10,6 +10,11 @@ import {
   renderMarkdown,
 } from "@nervekit/ui-kit/core/components/markdown-render";
 import {
+  appendedNewline,
+  splitStreamingMarkdown,
+} from "@nervekit/ui-kit/core/components/streaming-markdown";
+import { LatestPresentationScheduler } from "@nervekit/ui-kit/core/utils/latest-presentation-scheduler";
+import {
   parseLocalFileHref,
   resolveDisplayPath,
   splitPathLineSuffix,
@@ -18,16 +23,14 @@ import {
 type Props = {
   text: string;
   trimCodeBlocks?: boolean;
-  /**
-   * When true, coalesce re-renders to one frame and defer syntax highlighting
-   * (shiki) until streaming stops. Avoids per-token unified parse + async
-   * highlight cost for the actively streaming message.
-   */
+  /** Bound streaming work while deferring Shiki until completion. */
   streaming?: boolean;
   linkBasePath?: string;
   onOpenFile?: (path: string, line?: number) => void;
   onCopy?: (ok: boolean) => void;
 };
+
+type StreamingValue = { source: string; trim: boolean };
 
 let {
   text,
@@ -38,17 +41,34 @@ let {
   onCopy,
 }: Props = $props();
 
-const initialRender = untrack(() => ({
-  html: streaming
-    ? decorateMarkdownHtml(
-        renderMarkdown(text, { cache: false }),
-        trimCodeBlocks,
-      )
-    : renderBestAvailableMarkdown(text, trimCodeBlocks),
-  source: signatureFor(text, trimCodeBlocks),
-}));
+function renderStreamingPrefix(source: string, trim: boolean): string {
+  if (!source) return "";
+  return decorateMarkdownHtml(renderMarkdown(source, { cache: false }), trim);
+}
+
+const initialRender = untrack(() => {
+  const parts = streaming ? splitStreamingMarkdown(text) : undefined;
+  return {
+    html: streaming ? "" : renderBestAvailableMarkdown(text, trimCodeBlocks),
+    prefixHtml: parts
+      ? renderStreamingPrefix(parts.prefix, trimCodeBlocks)
+      : "",
+    prefixSource: parts?.prefix ?? "",
+    tail: parts?.tail ?? "",
+    streaming,
+    source: text,
+    trim: trimCodeBlocks,
+  };
+});
 let html = $state(initialRender.html);
-let htmlSource: string | undefined = initialRender.source;
+let streamingPrefixHtml = $state(initialRender.prefixHtml);
+let streamingPrefixSource = initialRender.prefixSource;
+let streamingPrefixTrim = initialRender.trim;
+let streamingTail = $state(initialRender.tail);
+let showingStreaming = $state(initialRender.streaming);
+let lastEnqueuedSource = initialRender.source;
+let lastEnqueuedTrim = initialRender.trim;
+let highlightToken = 0;
 
 async function handleClick(event: MouseEvent) {
   const target = event.target;
@@ -91,57 +111,44 @@ function copyButtonHandler(node: HTMLDivElement) {
   };
 }
 
-let frame: number | undefined;
-let highlightToken = 0;
-
-function signatureFor(source: string, trim: boolean): string {
-  return `${trim ? "trim" : "full"}\0${source}`;
-}
-
-function cancelFrame() {
-  if (frame === undefined) return;
-  cancelAnimationFrame(frame);
-  frame = undefined;
-}
-
-/** Decorate-only render (no shiki). Used per-frame while streaming. */
-function renderDecorateOnly(source: string, trim: boolean) {
-  const signature = signatureFor(source, trim);
-  if (htmlSource === signature) return;
-  // Streaming text is unique per frame; bypass the parse cache to avoid
-  // churning the shared LRU with transient prefixes.
-  html = decorateMarkdownHtml(renderMarkdown(source, { cache: false }), trim);
-  htmlSource = signature;
-  // Invalidate any in-flight highlight from a previous non-streaming pass.
+function commitStreaming(value: StreamingValue) {
+  const parts = splitStreamingMarkdown(value.source);
+  if (
+    parts.prefix !== streamingPrefixSource ||
+    value.trim !== streamingPrefixTrim
+  ) {
+    streamingPrefixHtml = renderStreamingPrefix(parts.prefix, value.trim);
+    streamingPrefixSource = parts.prefix;
+    streamingPrefixTrim = value.trim;
+  }
+  streamingTail = parts.tail;
+  showingStreaming = true;
   highlightToken += 1;
 }
 
-/** Full render + async shiki highlight. Used when not streaming. */
+const streamingScheduler = new LatestPresentationScheduler<StreamingValue>(
+  commitStreaming,
+);
+
+/** Full render + async Shiki highlight. Used only for finalized content. */
 function renderWithHighlight(source: string, trim: boolean) {
-  const signature = signatureFor(source, trim);
-  // Fast path: a finalized message re-mounted (tab switch / scroll) whose
-  // highlighted HTML is already cached — skip parse, decorate, and async work.
   const cachedHighlighted = getHighlightedMarkdownSync(source, trim);
   if (cachedHighlighted !== undefined) {
     html = cachedHighlighted;
-    htmlSource = signature;
     highlightToken += 1;
     return;
   }
   html = renderDecoratedMarkdown(source, trim);
-  htmlSource = signature;
   const token = (highlightToken += 1);
   renderHighlightedMarkdown(source, trim)
     .then((highlighted) => {
       if (token === highlightToken) {
         html = highlighted;
-        htmlSource = signature;
       }
     })
     .catch(() => {
       if (token === highlightToken) {
         html = renderDecoratedMarkdown(source, trim);
-        htmlSource = signature;
       }
     });
 }
@@ -150,27 +157,38 @@ $effect(() => {
   const source = text;
   const trim = trimCodeBlocks;
   if (!streaming) {
-    cancelFrame();
+    if (showingStreaming) streamingScheduler.flushNow({ source, trim });
+    showingStreaming = false;
     renderWithHighlight(source, trim);
+    lastEnqueuedSource = source;
+    lastEnqueuedTrim = trim;
     return;
   }
-  // Streaming: coalesce bursts of token deltas into one decorate-only render
-  // per animation frame; the final highlight happens once streaming stops.
-  if (frame !== undefined) return;
-  frame = requestAnimationFrame(() => {
-    frame = undefined;
-    renderDecorateOnly(text, trimCodeBlocks);
-  });
+
+  const priority =
+    !showingStreaming ||
+    trim !== lastEnqueuedTrim ||
+    appendedNewline(lastEnqueuedSource, source);
+  lastEnqueuedSource = source;
+  lastEnqueuedTrim = trim;
+  streamingScheduler.enqueue({ source, trim }, { priority });
 });
 
-$effect(() => {
-  return () => cancelFrame();
-});
+$effect(() => () => streamingScheduler.destroy());
 </script>
 
-<!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown applies rehype-sanitize before producing markup. -->
-<div class="markdown" use:copyButtonHandler>{@html html}</div>
-
+{#if showingStreaming}
+  <div class="markdown" use:copyButtonHandler>
+    <!-- eslint-disable-next-line svelte/no-at-html-tags -- the prefix uses the sanitized Markdown pipeline. -->
+    {@html streamingPrefixHtml}
+    {#if streamingTail}
+      <span class="whitespace-pre-wrap break-words">{streamingTail}</span>
+    {/if}
+  </div>
+{:else}
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown applies rehype-sanitize before producing markup. -->
+  <div class="markdown" use:copyButtonHandler>{@html html}</div>
+{/if}
 <style>
 .markdown {
   min-width: 0;
