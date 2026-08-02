@@ -12,10 +12,12 @@ export function splitStreamingMarkdown(source: string): StreamingMarkdownParts {
   let offset = 0;
   let fence: { marker: "`" | "~"; length: number } | undefined;
 
-  for (const lineWithBreak of source.matchAll(/.*(?:\n|$)/g)) {
-    const raw = lineWithBreak[0];
-    if (!raw) continue;
-    const line = raw.endsWith("\n") ? raw.slice(0, -1) : raw;
+  while (offset < source.length) {
+    const newline = source.indexOf("\n", offset);
+    const hasLineBreak = newline !== -1;
+    const lineEnd = hasLineBreak ? newline : source.length;
+    const nextOffset = hasLineBreak ? lineEnd + 1 : lineEnd;
+    const line = source.slice(offset, lineEnd);
     const marker = line.match(/^\s{0,3}(`{3,}|~{3,})/u)?.[1];
     if (marker) {
       const markerType = marker[0] as "`" | "~";
@@ -30,10 +32,8 @@ export function splitStreamingMarkdown(source: string): StreamingMarkdownParts {
       }
     }
 
-    offset += raw.length;
-    if (!fence && raw.endsWith("\n") && line.trim() === "") {
-      boundary = offset;
-    }
+    offset = nextOffset;
+    if (!fence && hasLineBreak && line.trim() === "") boundary = offset;
   }
 
   return {
