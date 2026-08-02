@@ -64,7 +64,7 @@ function tabLabel(item: ProjectSwitcherItem): string {
       <ContextMenu
         items={buildMenuItems?.(item) ?? []}
         disabled={!buildMenuItems}
-        triggerClass="block min-w-0 max-w-56 flex-1 overflow-hidden"
+        triggerClass="block min-w-0 max-w-56 overflow-hidden"
       >
         <Button
           variant="ghost"
