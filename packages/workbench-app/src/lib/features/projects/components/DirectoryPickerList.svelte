@@ -122,14 +122,16 @@ let {
         {/each}
       </div>
     {:else}
-      <div class="empty">
+      <div
+        class="grid min-h-48 place-items-center gap-1 text-center text-muted-foreground"
+      >
         <FolderOpen size={26} strokeWidth={1.8} />
-        <p>
+        <p class="mt-1 text-sm text-foreground">
           {query.trim()
             ? "No folders match your filter."
             : "No subfolders here."}
         </p>
-        <span
+        <span class="font-mono text-xs"
           >{query.trim()
             ? "Clear the filter or paste a path."
             : "Use Open below to choose this folder as the project."}</span

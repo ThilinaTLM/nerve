@@ -221,9 +221,7 @@ function handleOpenChange(next: boolean) {
           >
             {#snippet row({ item: row })}
               {#if row.kind === "waiting"}
-                <article
-                  class="transcript-entry assistant streaming waiting-entry min-w-0 p-3 text-sm"
-                >
+                <article class="relative w-full min-w-0 p-3 text-sm">
                   <WorkingIndicator />
                 </article>
               {:else if row.node.kind === "tool" && row.node.toolCall}

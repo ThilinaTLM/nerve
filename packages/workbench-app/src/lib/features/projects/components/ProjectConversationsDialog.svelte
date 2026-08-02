@@ -91,7 +91,11 @@ function openAndClose(conversationId: string) {
 
       <div class="list-region">
         {#if rows.length === 0}
-          <p class="empty">No conversations match.</p>
+          <p
+            class="mx-2 my-3 grid min-h-48 place-items-center gap-1 text-center font-mono text-xs text-muted-foreground"
+          >
+            No conversations match.
+          </p>
         {:else}
           <VirtualScroller
             items={rows}
@@ -154,12 +158,5 @@ function openAndClose(conversationId: string) {
 :global(.conversations-virtual-list) {
   height: 100%;
   padding: 0 0.1rem;
-}
-
-.empty {
-  margin: 0.75rem 0.5rem;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
 }
 </style>
