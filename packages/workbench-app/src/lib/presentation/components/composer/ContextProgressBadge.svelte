@@ -99,7 +99,7 @@ function requestCompact(): void {
   <Popover
     bind:open
     size="md"
-    triggerClass="composer-tab context-usage-tab px-2"
+    triggerClass="composer-tab context-usage-tab"
     ariaLabel="Context usage"
     triggerTitle={title}
     side="top"

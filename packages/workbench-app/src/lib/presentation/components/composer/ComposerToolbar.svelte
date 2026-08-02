@@ -144,7 +144,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
   <Popover
     bind:open={permissionOpen}
     size="lg"
-    triggerClass="composer-tab permission-tab"
+    triggerClass="composer-tab w-7 p-0 max-sm:w-7.5"
     ariaLabel="Permission level"
     triggerTitle={permissionShortcut
       ? `Permission: ${activePermission.label} (${permissionShortcut})`
