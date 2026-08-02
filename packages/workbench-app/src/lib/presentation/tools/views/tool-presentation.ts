@@ -717,7 +717,9 @@ export function toolPresentation(
       // explore rows; keep the generic footer reserved for high-signal status.
       if (summary.failed > 0)
         meta.push({ text: `${summary.failed} failed`, tone: "error" });
-      const finished = summary.completed + summary.failed;
+      if (summary.aborted > 0)
+        meta.push({ text: `${summary.aborted} stopped`, tone: "warning" });
+      const finished = summary.completed + summary.failed + summary.aborted;
       const countLabel = `${finished}/${summary.total} ${
         summary.total === 1 ? "agent" : "agents"
       }`;

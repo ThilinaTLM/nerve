@@ -95,7 +95,10 @@ function recentTaskMessages(
     .filter((action): action is ExploreTaskAction => action !== undefined);
   if (liveMessages.length > 0) return liveMessages.slice(-3);
 
-  if (input.status === "failed" && input.error) {
+  if (
+    (input.status === "failed" || input.status === "aborted") &&
+    input.error
+  ) {
     return [{ text: input.error, mono: false }];
   }
   if (input.status === "completed" && input.report?.summaryPreview) {
@@ -169,7 +172,9 @@ function aggregateExploreTasksUncached(
     const failed = updates.find((u) => u.phase === "failed");
 
     let status: ExploreTaskStatus;
-    if (report?.status === "failed" || report?.status === "aborted") {
+    if (report?.status === "aborted") {
+      status = "aborted";
+    } else if (report?.status === "failed") {
       status = "failed";
     } else if (
       report?.status === "completed" ||
@@ -226,6 +231,7 @@ function aggregateExploreTasksUncached(
 
   const completed = tasks.filter((t) => t.status === "completed").length;
   const failedCount = tasks.filter((t) => t.status === "failed").length;
+  const aborted = tasks.filter((t) => t.status === "aborted").length;
   const running = tasks.filter(
     (t) => t.status === "running" || t.status === "queued",
   ).length;
@@ -236,8 +242,9 @@ function aggregateExploreTasksUncached(
       total,
       completed,
       failed: failedCount,
+      aborted,
       running,
-      done: total > 0 && completed + failedCount === total,
+      done: total > 0 && completed + failedCount + aborted === total,
     },
   };
 }

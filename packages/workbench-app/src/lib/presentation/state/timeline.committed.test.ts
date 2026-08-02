@@ -1,10 +1,28 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildConversationTimeline } from "./timeline";
+import { buildCommittedTimeline, buildConversationTimeline } from "./timeline";
 import { keys, toolCall } from "./timeline.fixtures";
 import type { TranscriptItem } from "./transcript-types";
 
 describe("buildConversationTimeline committed transcript", () => {
+  it("includes hidden tool previews only for an explicit child transcript", () => {
+    const hidden = toolCall(
+      "tool_hidden",
+      "2026-01-01T00:00:01.000Z",
+      "read",
+      undefined,
+      { hidden: true },
+    );
+
+    assert.equal(buildCommittedTimeline([], [hidden]).items.length, 0);
+    const child = buildCommittedTimeline([], [hidden], {
+      includeHiddenToolCalls: true,
+      includeUnanchoredTerminalToolCalls: true,
+    });
+    assert.equal(child.items.length, 1);
+    assert.equal(child.items[0]?.kind, "tool");
+  });
+
   it("anchors historical tool cards at matching tool-result entries", () => {
     const transcript: TranscriptItem[] = [
       {

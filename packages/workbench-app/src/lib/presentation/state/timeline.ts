@@ -88,6 +88,7 @@ export type CommittedTimeline = {
 
 type BuildCommittedTimelineOptions = {
   includeUnanchoredTerminalToolCalls?: boolean;
+  includeHiddenToolCalls?: boolean;
 };
 
 const TOOL_CALL_PLACEHOLDER = /^\[Tool call:[\s\S]*\]$/;
@@ -190,7 +191,7 @@ export function buildCommittedTimeline(
 ): CommittedTimeline {
   const items: TimelineItem[] = [];
   const orderedToolCalls = toolCalls
-    .filter((toolCall) => !toolCall.hidden)
+    .filter((toolCall) => options.includeHiddenToolCalls || !toolCall.hidden)
     .sort(byCreatedAtAscending);
   const toolCallsById = new Map(
     orderedToolCalls.map((toolCall) => [toolCall.id, toolCall]),

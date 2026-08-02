@@ -1,4 +1,7 @@
-import type { ToolCallRecord } from "@nervekit/contracts";
+import type {
+  SubagentTranscriptSnapshot,
+  ToolCallRecord,
+} from "@nervekit/contracts";
 import type { Component } from "svelte";
 import { getContext, setContext } from "svelte";
 
@@ -60,6 +63,11 @@ export interface AtlassianLinkCapability {
 export interface ConversationUiCapabilities {
   /** Fetch a full tool-call record for the details dialog. */
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallRecord>;
+  /** Fetch a bounded, read-only child-agent transcript on explicit demand. */
+  fetchSubagentTranscript?: (
+    parentAgentId: string,
+    childAgentId: string,
+  ) => Promise<SubagentTranscriptSnapshot>;
   /** Voice input integration for the ask-user card. */
   voice?: VoiceInputCapability;
   /** Site URLs used to build external Jira/Confluence links. */

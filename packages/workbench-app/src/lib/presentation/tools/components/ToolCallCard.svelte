@@ -40,6 +40,7 @@ import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
 import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
+import ExploreToolView from "./tool-call/ExploreToolView.svelte";
 
 type Props = {
   /** Retained live slot used before and during durable-record handoff. */
@@ -52,6 +53,7 @@ type Props = {
   pendingUserQuestion?: UserQuestionRecord;
   pendingPlanReview?: PlanReviewRecord;
   hydrateBody?: boolean;
+  detailsEnabled?: boolean;
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
@@ -80,6 +82,7 @@ let {
   pendingUserQuestion,
   pendingPlanReview,
   hydrateBody = true,
+  detailsEnabled = true,
   planReviewModels = [],
   planReviewModelKey = "",
   planReviewThinkingLevel = "off",
@@ -215,6 +218,9 @@ const approvalPresentation = $derived.by(() => {
   if (!toolName) return undefined;
   return presentToolArguments(toolName, argumentInput, "approval", cwd);
 });
+const isExplore = $derived(
+  (toolCall?.toolName ?? draft?.block.toolName) === "explore",
+);
 const hilInteractive = $derived(
   view?.kind === "ask_user" ||
     (view?.kind === "plan_mode" && view.action === "present"),
@@ -258,7 +264,7 @@ const activitySections = $derived.by(() =>
     hasInteraction: hilInteractive,
     resultPlaceholder: lifecycleSpec.resultPlaceholder,
     footerItems: activityMeta,
-    hasDetailsAction: Boolean(toolCall),
+    hasDetailsAction: Boolean(toolCall && detailsEnabled),
   }),
 );
 const draftArg = $derived.by<PrimaryArg | undefined>(() => {
@@ -301,7 +307,7 @@ const dotTone = $derived(presentation?.dotTone ?? "running");
 const dotPulse = $derived(presentation?.dotPulse ?? true);
 const meta = $derived(activityMeta);
 const detailsAction = $derived(
-  toolCall
+  toolCall && detailsEnabled
     ? {
         label: presentation?.detailsAction?.label ?? "Details",
         onClick: openDetails,
@@ -373,14 +379,22 @@ async function openDetails() {
   error={activitySections.errorVisible ? errorPreview : undefined}
   {meta}
   footer={activitySections.footerVisible}
-  bodyVisible={activitySections.argumentVisible ||
+  bodyVisible={isExplore ||
+    activitySections.argumentVisible ||
     activitySections.interactionMode !== "none" ||
     activitySections.resultMode !== "none"}
   {layoutRevision}
   {detailsAction}
   {onOpenFile}
 >
-  {#if activitySections.argumentVisible && argumentBody}
+  {#if isExplore}
+    <ExploreToolView
+      {draft}
+      {toolCall}
+      view={view?.kind === "explore" ? view : undefined}
+      {onOpenFile}
+    />
+  {:else if activitySections.argumentVisible && argumentBody}
     <ToolArgumentBody
       body={argumentBody}
       highlight={Boolean(toolCall || draft?.block.done)}
@@ -400,12 +414,12 @@ async function openDetails() {
     />
   {/if}
 
-  {#if activitySections.resultMode === "placeholder" && lifecycleSpec.resultPlaceholder}
+  {#if !isExplore && activitySections.resultMode === "placeholder" && lifecycleSpec.resultPlaceholder}
     <ToolExecutingSkeleton
       variant={lifecycleSpec.resultPlaceholder.variant}
       rows={lifecycleSpec.resultPlaceholder.rows}
     />
-  {:else if activitySections.resultMode === "output" && toolCall && view && ToolView}
+  {:else if !isExplore && activitySections.resultMode === "output" && toolCall && view && ToolView}
     <ToolView
       {toolCall}
       {view}
@@ -426,7 +440,7 @@ async function openDetails() {
   {/if}
 </CardShell>
 
-{#if toolCall}
+{#if toolCall && detailsEnabled}
   <ToolCallDetailsDialog
     open={detailsOpen}
     previewToolCall={toolCall}

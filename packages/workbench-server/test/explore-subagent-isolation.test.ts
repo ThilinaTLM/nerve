@@ -120,6 +120,25 @@ describe("explore subagent transcript isolation", () => {
       assert.equal(childToolCalls[0]?.toolName, "ls");
       assert.equal(childToolCalls[0]?.status, "completed");
       assert.equal(childToolCalls[0]?.hidden, true);
+      const childTranscript =
+        await orchestrator.registry.subagentTranscripts.get(
+          parent.id,
+          child.id,
+        );
+      assert.equal(childTranscript.parentAgentId, parent.id);
+      assert.equal(childTranscript.agentId, child.id);
+      assert.match(
+        childTranscript.entries.map((entry) => entry.text).join("\n"),
+        /focused read-only verification|temporary project is isolated/i,
+      );
+      assert.equal(childTranscript.toolCalls.length, 1);
+      assert.equal(childTranscript.toolCalls[0]?.toolName, "ls");
+      assert.equal(childTranscript.toolCalls[0]?.hidden, true);
+      assert.equal(childTranscript.entriesTruncated, false);
+      await assert.rejects(
+        orchestrator.registry.subagentTranscripts.get(child.id, parent.id),
+        hasErrorCode("SUBAGENT_TRANSCRIPT_NOT_FOUND"),
+      );
       assert.equal(
         snapshot.toolCalls.some((toolCall) => toolCall.agentId === child.id),
         false,

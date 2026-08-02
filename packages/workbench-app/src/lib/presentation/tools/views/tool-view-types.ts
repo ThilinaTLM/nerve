@@ -77,7 +77,12 @@ export type ExploreProgressView = {
   message: string;
 };
 
-export type ExploreTaskStatus = "queued" | "running" | "completed" | "failed";
+export type ExploreTaskStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "aborted";
 
 export type ExploreTaskAction = {
   text: string;
@@ -113,6 +118,7 @@ export type ExploreSummary = {
   total: number;
   completed: number;
   failed: number;
+  aborted: number;
   running: number;
   done: boolean;
 };

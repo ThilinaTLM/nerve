@@ -116,6 +116,7 @@ export type ToolCallDisplayRecord =
   | ToolCallTranscriptRecordType;
 export * from "@nervekit/ui-kit/core/api/client";
 export * from "./features/agents/api/agents.api";
+export * from "./features/agents/api/subagent-transcripts.api";
 export * from "./features/audio/api/transcription.api";
 export * from "./features/auth/api/auth.api";
 export * from "./features/auth/api/provider-catalog.api";
