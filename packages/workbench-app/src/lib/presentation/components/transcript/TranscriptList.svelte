@@ -376,7 +376,7 @@ const showEmptyRun = $derived(
           {transcriptMenu}
         />
       {:else if item.kind === "waiting"}
-        <article class="transcript-entry assistant streaming waiting-entry">
+        <article class="waiting-entry">
           <WorkingIndicator />
         </article>
       {:else}
