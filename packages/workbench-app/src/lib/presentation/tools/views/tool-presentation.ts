@@ -713,8 +713,14 @@ export function toolPresentation(
     case "explore": {
       const { summary } = aggregateExploreTasks(view);
       const meta: MetaItem[] = [];
-      // Per-agent report paths, model, turns, and token usage render inside the
-      // explore rows; keep the generic footer reserved for high-signal status.
+      if (summary.totalTurns > 0) {
+        meta.push({
+          text: `${summary.totalTurns.toLocaleString()} ${summary.totalTurns === 1 ? "turn" : "turns"}`,
+        });
+      }
+      if (summary.totalTokens > 0) {
+        meta.push({ text: `${summary.totalTokens.toLocaleString()} tokens` });
+      }
       if (summary.failed > 0)
         meta.push({ text: `${summary.failed} failed`, tone: "error" });
       if (summary.aborted > 0)

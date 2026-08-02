@@ -1,3 +1,4 @@
+import { exploreReportSummarySchema } from "@nervekit/contracts";
 import { asRecord, stringField } from "./tool-view-helpers";
 import type {
   ExploreProgressView,
@@ -40,6 +41,7 @@ export function parseExploreProgressLog(text: string | undefined): {
           thinkingLevel: stringField(record.thinkingLevel),
           phase: record.phase as ExploreProgressView["phase"],
           message: record.message,
+          report: exploreReportSummarySchema.safeParse(record.report).data,
         });
         continue;
       }
@@ -161,8 +163,9 @@ function aggregateExploreTasksUncached(
 
   const tasks: ExploreTaskState[] = [];
   for (let index = 0; index < total; index += 1) {
-    const report = reports[index];
     const updates = byIndex.get(index) ?? [];
+    const streamedReport = updates.findLast((update) => update.report)?.report;
+    const report = reports[index] ?? streamedReport;
     const latest = updates[updates.length - 1];
     const recentActions = updates
       .map(friendlyExploreAction)
@@ -236,6 +239,14 @@ function aggregateExploreTasksUncached(
   const running = tasks.filter(
     (t) => t.status === "running" || t.status === "queued",
   ).length;
+  const totalTurns = tasks.reduce(
+    (sum, task) => sum + (task.report?.usage?.turns ?? 0),
+    0,
+  );
+  const totalTokens = tasks.reduce((sum, task) => {
+    const usage = task.report?.usage;
+    return sum + (usage ? usage.totalTokens || usage.input + usage.output : 0);
+  }, 0);
 
   return {
     tasks,
@@ -245,6 +256,8 @@ function aggregateExploreTasksUncached(
       failed: failedCount,
       aborted,
       running,
+      totalTurns,
+      totalTokens,
       done: total > 0 && completed + failedCount + aborted === total,
     },
   };

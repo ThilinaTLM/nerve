@@ -258,20 +258,7 @@ export class SubagentRunner {
             plan,
             output,
           });
-          publishExploreProgress(options.onProgress, {
-            agentId: output.agent.id,
-            taskIndex: index,
-            taskCount: tasks.length,
-            label: task.label,
-            model: output.model,
-            thinkingLevel: output.thinkingLevel,
-            phase: output.status === "completed" ? "completed" : "failed",
-            message:
-              output.status === "completed"
-                ? `Report written: ${reportPath}`
-                : `Failure report written: ${reportPath}`,
-          });
-          return {
+          const report: ExploreReport = {
             agentId: output.agent.id,
             task: task.task,
             label: task.label,
@@ -286,6 +273,21 @@ export class SubagentRunner {
             errorMessage: output.errorMessage,
             steps: output.steps,
           };
+          publishExploreProgress(options.onProgress, {
+            agentId: output.agent.id,
+            taskIndex: index,
+            taskCount: tasks.length,
+            label: task.label,
+            model: output.model,
+            thinkingLevel: output.thinkingLevel,
+            phase: output.status === "completed" ? "completed" : "failed",
+            message:
+              output.status === "completed"
+                ? `Report written: ${reportPath}`
+                : `Failure report written: ${reportPath}`,
+            report: exploreReportEventSummary(report),
+          });
+          return report;
         }),
       );
     } finally {

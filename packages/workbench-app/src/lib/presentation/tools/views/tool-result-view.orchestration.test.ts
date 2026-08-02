@@ -238,6 +238,85 @@ describe("parseToolView ask_user/todos/task/explore", () => {
     assert.deepEqual(tasks[1]?.recentActions, []);
   });
 
+  it("surfaces a completed child report and aggregate usage before siblings finish", () => {
+    const streamedReport = {
+      agentId: "agent_02H00000000000000000000000",
+      task: "Inspect server",
+      label: "server",
+      status: "completed",
+      reportPath: "/home/me/.nerve/explore-reports/server.md",
+      summaryPreview: "Server inspection complete.",
+      usage: {
+        input: 1_200,
+        output: 300,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 1_500,
+        cost: 0.01,
+        turns: 3,
+      },
+      model: "openai/gpt-5.6-terra",
+      thinkingLevel: "medium",
+    };
+    const view = parseToolView(
+      toolCall("explore", {}, { reports: [] }, { status: "running" }),
+      {
+        toolCallId: "tool_live_output",
+        chunks: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        text: [
+          exploreUpdate("completed", "Report written", {
+            taskIndex: 0,
+            taskCount: 2,
+            agentId: streamedReport.agentId,
+            report: streamedReport,
+          }),
+          exploreUpdate("started", "Explore 2/2 started", {
+            taskIndex: 1,
+            taskCount: 2,
+            agentId: "agent_03H00000000000000000000000",
+          }),
+        ].join("\n"),
+      },
+    );
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    const { tasks, summary } = aggregateExploreTasks(view);
+    assert.equal(tasks[0]?.status, "completed");
+    assert.equal(tasks[0]?.report?.reportPath, streamedReport.reportPath);
+    assert.equal(tasks[0]?.report?.usage?.turns, 3);
+    assert.equal(tasks[1]?.status, "running");
+    assert.equal(summary.done, false);
+    assert.equal(summary.totalTurns, 3);
+    assert.equal(summary.totalTokens, 1_500);
+
+    const presentation = toolPresentation(view, toolCall("explore", {}, {}));
+    assert.deepEqual(
+      presentation.meta.map((item) => item.text),
+      ["3 turns", "1,500 tokens"],
+    );
+  });
+
+  it("ignores malformed streamed child reports", () => {
+    const view = parseToolView(
+      toolCall("explore", {}, { reports: [] }, { status: "running" }),
+      {
+        toolCallId: "tool_live_output",
+        chunks: [],
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        text: exploreUpdate("completed", "Report written", {
+          taskIndex: 0,
+          taskCount: 1,
+          report: { reportPath: "/tmp/unowned.md", raw: "not allowed" },
+        }),
+      },
+    );
+    assert.equal(view.kind, "explore");
+    if (view.kind !== "explore") return;
+    const { tasks } = aggregateExploreTasks(view);
+    assert.equal(tasks[0]?.report, undefined);
+  });
+
   it("aggregates explore tasks with mixed completed and failed results", () => {
     const view = parseToolView(
       toolCall(

@@ -75,6 +75,7 @@ export type ExploreProgressView = {
     | "completed"
     | "failed";
   message: string;
+  report?: ExploreReportSummaryPayload;
 };
 
 export type ExploreTaskStatus =
@@ -122,6 +123,8 @@ export type ExploreSummary = {
   failed: number;
   aborted: number;
   running: number;
+  totalTurns: number;
+  totalTokens: number;
   done: boolean;
 };
 

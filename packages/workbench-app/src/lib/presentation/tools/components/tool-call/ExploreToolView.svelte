@@ -258,17 +258,11 @@ const aggregateLabel = $derived.by(() => {
           </div>
 
           <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-            {#each usageChips(task) as chip (chip)}
-              <span
-                class="inline-flex min-h-5 items-center rounded border bg-muted/30 px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground"
-                >{chip}</span
-              >
-            {/each}
             {#if task.agentId && toolCall?.agentId}
               <Button
                 size="xs"
-                variant="ghost"
-                class="h-6 gap-1 px-1.5 text-xs"
+                variant="outline"
+                class="h-6 gap-1 px-1.5 text-xs shadow-none"
                 onclick={() => openTranscript(task)}
                 aria-label={`View transcript for ${taskTitle(task)}`}
               >
@@ -279,8 +273,8 @@ const aggregateLabel = $derived.by(() => {
             {#if task.report?.reportPath}
               <Button
                 size="xs"
-                variant="ghost"
-                class="h-6 gap-1 px-1.5 text-xs"
+                variant="outline"
+                class="h-6 gap-1 px-1.5 text-xs shadow-none"
                 onclick={() =>
                   task.report?.reportPath &&
                   onOpenFile?.(task.report.reportPath)}
@@ -291,6 +285,12 @@ const aggregateLabel = $derived.by(() => {
                 Report
               </Button>
             {/if}
+            {#each usageChips(task) as chip (chip)}
+              <span
+                class="inline-flex min-h-5 items-center rounded border bg-muted/30 px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground"
+                >{chip}</span
+              >
+            {/each}
           </div>
         {/if}
       </li>
