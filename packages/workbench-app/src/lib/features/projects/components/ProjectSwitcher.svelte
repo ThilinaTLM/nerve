@@ -43,7 +43,7 @@ function tabLabel(item: ProjectSwitcherItem): string {
 </script>
 
 <nav
-  class="project-switcher flex min-w-0 items-center gap-1"
+  class="project-switcher flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
   aria-label="Projects"
 >
   <Button
@@ -57,14 +57,14 @@ function tabLabel(item: ProjectSwitcherItem): string {
   >
     <FolderSearch class="size-4" aria-hidden="true" />
   </Button>
-  <div class="flex min-w-0 items-center gap-0.5">
+  <div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
     {#each items as item (item.key)}
       {@const indicator = projectActivityIndicator(item.activity)}
       {@const active = item.key === activeKey}
       <ContextMenu
         items={buildMenuItems?.(item) ?? []}
         disabled={!buildMenuItems}
-        triggerClass="block min-w-0 max-w-56"
+        triggerClass="block min-w-0 max-w-56 overflow-hidden"
       >
         <Button
           variant="ghost"

@@ -125,7 +125,12 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
         open={primarySheetOpen}
         onOpenChange={(open) => actions.onSheetOpenChange?.("primary", open)}
       >
-        <Sheet.Content side="left" class="sheet-pane">
+        <Sheet.Content
+          side="left"
+          class="sheet-pane"
+          swipeToDismiss
+          onSwipeDismiss={() => actions.onSheetOpenChange?.("primary", false)}
+        >
           <Sheet.Title class="sr-only">{DOCK_LABELS.left}</Sheet.Title>
           <DockPanel
             dock="left"
@@ -145,7 +150,12 @@ function dropOnStrip(event: DragEvent, dock: DockId) {
         open={secondarySheetOpen}
         onOpenChange={(open) => actions.onSheetOpenChange?.("secondary", open)}
       >
-        <Sheet.Content side="right" class="sheet-pane">
+        <Sheet.Content
+          side="right"
+          class="sheet-pane"
+          swipeToDismiss
+          onSwipeDismiss={() => actions.onSheetOpenChange?.("secondary", false)}
+        >
           <Sheet.Title class="sr-only">Panels</Sheet.Title>
           <section class="dock-panel" data-dock="right" aria-label="Panels">
             <DockTabStrip

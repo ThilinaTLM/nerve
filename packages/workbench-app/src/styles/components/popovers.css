@@ -53,3 +53,9 @@
 :where(.popover-trigger.version-trigger-warning:hover) {
   background: color-mix(in oklab, var(--warning) 16%, var(--card));
 }
+
+@media (max-width: 639px) {
+  .title-actions :where(.popover-trigger.version-trigger-current) {
+    display: none;
+  }
+}
