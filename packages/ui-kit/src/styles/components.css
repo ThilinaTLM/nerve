@@ -1,6 +1,5 @@
 /* Shared semantic component classes used across Nerve Svelte apps. */
 
-@import "./components/app-helpers.css";
 @import "./components/dialog.css";
 @import "./components/popover.css";
 @import "./components/tooltips.css";
