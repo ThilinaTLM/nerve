@@ -8,9 +8,8 @@ import { shortProjectLabel } from "$lib/core/utils/project-tree";
 import {
   activeRunStreamingText,
   buildActiveRunTimeline,
-  buildCommittedTimeline,
+  CommittedTimelineProjection,
   currentTodosForAgent,
-  entriesToTranscript,
   hasActiveTurnTimelineOutput,
   selectVisibleCommitted,
 } from "$lib/presentation/state";
@@ -141,15 +140,15 @@ $effect(() => {
 $effect(() => () => renderProjection.destroy());
 const rendered = $derived(renderProjection.current);
 
-// Incremental projection: `committed` only recomputes when entries/optimistic
-// rows/toolCalls identity changes (i.e. not during pure text streaming), so
-// streaming tokens only re-run the small active-run tail.
-const transcript = $derived.by(() => [
-  ...entriesToTranscript(rendered.entries),
-  ...rendered.optimisticMessages,
-]);
+// Keep the durable projection outside the reactive derivation. `rendered` is
+// replaced for each visual commit, while these source arrays retain identity
+// during pure live streaming.
+const committedProjection = new CommittedTimelineProjection();
 const committed = $derived.by(() =>
-  buildCommittedTimeline(transcript, rendered.toolCalls, {
+  committedProjection.project({
+    entries: rendered.entries,
+    optimisticMessages: rendered.optimisticMessages,
+    toolCalls: rendered.toolCalls,
     includeUnanchoredTerminalToolCalls: !rendered.activeRun,
   }),
 );
@@ -168,7 +167,8 @@ const visibleCommitted = $derived(
     committed.context,
   ),
 );
-const timeline = $derived([...visibleCommitted, ...liveItems]);
+const timeline = $derived({ prefix: visibleCommitted, tail: liveItems });
+const combinedTimeline = $derived([...visibleCommitted, ...liveItems]);
 const compacting = $derived(transient?.compaction?.state === "running");
 const stopping = $derived(
   stoppingRequested || activeRun?.status === "aborting",
@@ -180,7 +180,7 @@ const treeEntriesById = $derived(
 // Latest-turn output remains true when a live row materializes into its durable
 // entry, while a newly started empty turn re-enables the waiting indicator.
 const hasActiveTurnOutput = $derived(
-  hasActiveTurnTimelineOutput(timeline, rendered.activeRun),
+  hasActiveTurnTimelineOutput(combinedTimeline, rendered.activeRun),
 );
 
 async function copyText(text: string, label = "message") {

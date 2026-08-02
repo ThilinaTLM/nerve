@@ -26,9 +26,9 @@ type Props = {
   node: TranscriptDisplayNode;
   sending: boolean;
   activeProject?: ProjectRecord;
-  approvals?: ApprovalWithToolCall[];
-  pendingUserQuestions?: UserQuestionRecord[];
-  pendingPlanReviews?: PlanReviewRecord[];
+  approvalsByToolCallId?: ReadonlyMap<string, ApprovalWithToolCall>;
+  questionsByToolCallId?: ReadonlyMap<string, UserQuestionRecord>;
+  reviewsByToolCallId?: ReadonlyMap<string, PlanReviewRecord>;
   hydrateToolBodies?: boolean;
   entranceMotion?: TranscriptEntranceMotion;
   onClaimEntrance?: (token: string) => boolean;
@@ -58,9 +58,9 @@ let {
   node,
   sending,
   activeProject,
-  approvals = [],
-  pendingUserQuestions = [],
-  pendingPlanReviews = [],
+  approvalsByToolCallId = new Map(),
+  questionsByToolCallId = new Map(),
+  reviewsByToolCallId = new Map(),
   hydrateToolBodies = true,
   entranceMotion,
   onClaimEntrance,
@@ -159,23 +159,16 @@ $effect(() => {
           toolCall={node.toolCall}
           liveOutput={node.liveOutput}
           cwd={activeProject?.dir}
-          pendingApproval={node.toolCall
-            ? approvals.find(
-                (approval) =>
-                  approval.toolCallId === node.toolCall?.id &&
-                  approval.status === "pending",
-              )
+          pendingApproval={node.toolCall &&
+          approvalsByToolCallId.get(node.toolCall.id)?.status === "pending"
+            ? approvalsByToolCallId.get(node.toolCall.id)
             : undefined}
           pendingUserQuestion={node.toolCall
-            ? pendingUserQuestions.find(
-                (question) => question.toolCallId === node.toolCall?.id,
-              )
+            ? questionsByToolCallId.get(node.toolCall.id)
             : undefined}
           hydrateBody={hydrateToolBodies}
           pendingPlanReview={node.toolCall
-            ? pendingPlanReviews.find(
-                (review) => review.toolCallId === node.toolCall?.id,
-              )
+            ? reviewsByToolCallId.get(node.toolCall.id)
             : undefined}
           {onOpenFile}
           {planReviewModels}

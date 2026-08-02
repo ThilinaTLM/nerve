@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -34,6 +35,7 @@ import {
 } from "../views/tool-activity-state";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
+import { LatestPresentationScheduler } from "@nervekit/ui-kit/core/utils/latest-presentation-scheduler";
 import { toolCardLayoutRevision } from "../views/tool-card-layout";
 import CardShell from "./tool-call/CardShell.svelte";
 import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
@@ -109,8 +111,31 @@ let bodyHydrated = $state(false);
 const shouldHydrateBody = $derived(hydrateBody || bodyHydrated);
 
 const capabilities = getConversationUiCapabilities();
+const initialLiveOutput = untrack(() => liveOutput);
+let displayedLiveOutput = $state(initialLiveOutput);
+let lastEnqueuedOutputText = initialLiveOutput?.text ?? "";
+const liveOutputScheduler = new LatestPresentationScheduler<
+  ConversationLiveToolOutputSnapshot | undefined
+>((value) => {
+  displayedLiveOutput = value;
+});
+$effect(() => {
+  const output = liveOutput;
+  const nextText = output?.text ?? "";
+  const appended = nextText.slice(lastEnqueuedOutputText.length);
+  const terminal = Boolean(
+    toolCall &&
+    !["requested", "pending_approval", "running"].includes(toolCall.status),
+  );
+  lastEnqueuedOutputText = nextText;
+  liveOutputScheduler.enqueue(output, {
+    priority: terminal || appended.includes("\n"),
+  });
+});
+$effect(() => () => liveOutputScheduler.destroy());
+
 const view = $derived.by(() =>
-  toolCall ? parseToolViewCached(toolCall, liveOutput) : undefined,
+  toolCall ? parseToolViewCached(toolCall, displayedLiveOutput) : undefined,
 );
 const presentation = $derived.by(() =>
   toolCall && view ? toolPresentationCached(view, toolCall) : undefined,

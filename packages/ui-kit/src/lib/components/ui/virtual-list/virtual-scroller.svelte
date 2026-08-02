@@ -23,6 +23,7 @@ import { shouldCommitVirtualMeasurement } from "./virtual-measurement";
 let {
   items,
   getKey,
+  structureVersion,
   estimateSize,
   heightCacheKey,
   getMeasurementVersion,
@@ -67,6 +68,8 @@ $effect(() => {
 });
 
 let itemKeySnapshot: readonly VirtualScrollerItemKey[] = Object.freeze([]);
+let keySnapshotInitialized = false;
+let reconciledStructureVersion: unknown;
 
 function resolveEstimate(index: number): number {
   const key = itemKeySnapshot[index];
@@ -165,11 +168,16 @@ $effect(() => {
 // scroll element binds so `_willUpdate` can attach scroll listeners.
 $effect(() => {
   void viewportEl;
-  const nextKeySnapshot = captureItemKeySnapshot(items, getKey);
-  const structuralKeysChanged = !itemKeySnapshotsEqual(
-    itemKeySnapshot,
-    nextKeySnapshot,
-  );
+  const shouldCaptureKeys =
+    !keySnapshotInitialized ||
+    structureVersion === undefined ||
+    !Object.is(structureVersion, reconciledStructureVersion);
+  const nextKeySnapshot = shouldCaptureKeys
+    ? captureItemKeySnapshot(items, getKey)
+    : itemKeySnapshot;
+  const structuralKeysChanged =
+    shouldCaptureKeys &&
+    !itemKeySnapshotsEqual(itemKeySnapshot, nextKeySnapshot);
   // End-follow is deliberately independent of full structural detection: an
   // interior draft-to-tool replacement must refresh identity without pulling
   // a manually scrolled viewport back to the tail.
@@ -177,6 +185,8 @@ $effect(() => {
     nextKeySnapshot.length !== itemKeySnapshot.length ||
     !Object.is(nextKeySnapshot.at(-1), itemKeySnapshot.at(-1));
   itemKeySnapshot = nextKeySnapshot;
+  keySnapshotInitialized = true;
+  reconciledStructureVersion = structureVersion;
 
   instance.setOptions({
     count: items.length,

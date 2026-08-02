@@ -2,7 +2,7 @@
 import {
   COLLAPSED_LINES,
   splitLogicalLines,
-  tail,
+  tailLogicalText,
 } from "../../views/tool-result-view";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
@@ -34,11 +34,10 @@ let {
 
 const visible = $derived.by(() => {
   if (expanded) return text;
+  if (direction === "tail") return tailLogicalText(text, collapsedLines);
   const lines = splitLogicalLines(text);
   if (lines.length <= collapsedLines) return text;
-  return direction === "tail"
-    ? tail(lines, collapsedLines).join("\n")
-    : lines.slice(0, collapsedLines).join("\n");
+  return lines.slice(0, collapsedLines).join("\n");
 });
 </script>
 

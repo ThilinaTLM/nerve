@@ -32,6 +32,11 @@ export type VirtualScrollerProps<T> = {
    * Keep this independent of mutable content and status fields.
    */
   getKey: (item: T, index: number) => string | number;
+  /**
+   * Optional caller-owned revision for the item key sequence. When supplied,
+   * full key capture/reconciliation is skipped until this value changes.
+   */
+  structureVersion?: unknown;
   /** Estimated row height in px before measurement. Defaults to 64. */
   estimateSize?: (index: number) => number;
   /**

@@ -12,6 +12,16 @@ import {
 
 const ts = "2026-07-07T00:00:00.000Z";
 
+function deepFreeze<T>(value: T): T {
+  if (!value || typeof value !== "object" || Object.isFrozen(value))
+    return value;
+  Object.freeze(value);
+  for (const child of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(child);
+  }
+  return value;
+}
+
 function evt(seq: number, type: string, data: unknown): EventEnvelope {
   return {
     id: `evt_${seq}`,
@@ -65,6 +75,93 @@ function toolCall(
   };
 }
 describe("conversation event reducer", () => {
+  it("copy-on-write replaces only the live content ancestry", () => {
+    let state = applyConversationEvent(
+      applyConversationEvent(
+        emptyConversationRenderState("conv_test"),
+        startRun(),
+      ),
+      startMessage(),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(3, "conversation.live.content.delta", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        liveMessageId: "msg_test",
+        contentBlockId: "block_text",
+        contentIndex: 0,
+        kind: "text",
+        offset: 0,
+        delta: "hello",
+      }),
+    );
+    const previous = deepFreeze(state);
+    const previousRun = previous.activeRun!;
+    const previousTurn = previousRun.turns[0]!;
+    const previousMessage = previousTurn.messages[0]!;
+    const previousBlock = previousMessage.blocks[0]!;
+    const previousOutputs = previousRun.toolOutputsByToolCallId;
+
+    const next = applyConversationEvent(
+      previous,
+      evt(4, "conversation.live.content.delta", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        liveMessageId: "msg_test",
+        contentBlockId: "block_text",
+        contentIndex: 0,
+        kind: "text",
+        offset: 5,
+        delta: " world",
+      }),
+    );
+
+    assert.notEqual(next, previous);
+    assert.notEqual(next.activeRun, previousRun);
+    assert.notEqual(next.activeRun?.turns, previousRun.turns);
+    assert.notEqual(next.activeRun?.turns[0], previousTurn);
+    assert.notEqual(next.activeRun?.turns[0]?.messages[0], previousMessage);
+    assert.notEqual(
+      next.activeRun?.turns[0]?.messages[0]?.blocks[0],
+      previousBlock,
+    );
+    assert.equal(next.activeRun?.toolOutputsByToolCallId, previousOutputs);
+    assert.equal(
+      next.activeRun?.turns[0]?.messages[0]?.blocks[0]?.kind === "text"
+        ? next.activeRun.turns[0].messages[0].blocks[0].text
+        : undefined,
+      "hello world",
+    );
+    assert.equal(
+      previousBlock.kind === "text" ? previousBlock.text : undefined,
+      "hello",
+    );
+  });
+
+  it("consumed render-neutral events retain every nested reference", () => {
+    const state = applyConversationEvent(
+      emptyConversationRenderState("conv_test"),
+      startRun(),
+    );
+    const next = applyConversationEvent(
+      state,
+      evt(2, "run.checkpointed", { conversationId: "conv_test" }),
+      { consumeUnhandled: true },
+    );
+    assert.notEqual(next, state);
+    assert.equal(next.cursorSeq, 2);
+    assert.equal(next.activeRun, state.activeRun);
+    assert.equal(next.entries, state.entries);
+    assert.equal(next.toolCalls, state.toolCalls);
+  });
+
   it("keeps the draft block and joins it with the durable tool call", () => {
     let state = emptyConversationRenderState("conv_test");
     state = applyConversationEvent(state, startRun());

@@ -49,6 +49,7 @@ import type {
   ConversationTransientState,
 } from "./transcript-types.js";
 import type { ConversationRenderState } from "./types.js";
+import { ConversationCowDraft } from "./conversation-cow-draft.js";
 
 const conversationEventTypeSet = new Set<string>(conversationEventTypes);
 
@@ -121,30 +122,36 @@ export function applyConversationEvent(
     return state;
   }
 
-  const next = cloneRenderState(state);
-  next.cursorSeq = event.seq;
+  const next: ConversationRenderState = { ...state, cursorSeq: event.seq };
   if (!handled) return next;
 
+  const draft = new ConversationCowDraft(next);
   const type = event.type as ConversationEventType;
   switch (type) {
     case "run.started":
       applyRunStarted(next, event.data as ConversationRunStartedData);
       break;
-    case "conversation.entry.appended":
-      applyEntryAppended(next, event.data as ConversationEntryAppendedData);
+    case "conversation.entry.appended": {
+      const data = event.data as ConversationEntryAppendedData;
+      if (data.entry.role === "assistant") draft.ownAllRunMessages();
+      applyEntryAppended(next, data);
       break;
+    }
     case "conversation.context.updated":
       next.contextUsage = (
         event.data as { contextUsage: typeof next.contextUsage }
       ).contextUsage;
       break;
     case "conversation.prompt.queued":
+      draft.ownRun();
       applyPromptQueued(next, event.data as ConversationPromptQueuedData);
       break;
     case "conversation.prompt.dequeued":
+      draft.ownRun();
       applyPromptRemoved(next, event.data as ConversationPromptDequeuedData);
       break;
     case "conversation.prompt.cancelled":
+      draft.ownRun();
       applyPromptRemoved(next, event.data as ConversationPromptCancelledData);
       break;
     case "toolCall.updated":
@@ -155,9 +162,11 @@ export function applyConversationEvent(
       );
       break;
     case "run.resumed":
+      draft.ownRun();
       applyRunResumed(next, event.data as ConversationRunResumedData);
       break;
     case "run.retrying":
+      draft.ownRun();
       applyRunRetrying(next, event.data as ConversationRunRetryingData);
       break;
     case "run.suspended":
@@ -170,9 +179,11 @@ export function applyConversationEvent(
       applyRunCancelled(next, event.data as ConversationRunCancelledData);
       break;
     case "run.failed":
+      draft.ownRun();
       applyRunFailed(next, event.data as ConversationRunFailedData);
       break;
     case "conversation.compaction.started":
+      draft.ownTransient();
       applyCompactionStarted(
         next,
         event.data as ConversationCompactionStartedData,
@@ -180,6 +191,7 @@ export function applyConversationEvent(
       );
       break;
     case "conversation.compaction.progress":
+      draft.ownTransient();
       applyCompactionProgress(
         next,
         event.data as ConversationCompactionProgressData,
@@ -187,6 +199,7 @@ export function applyConversationEvent(
       );
       break;
     case "conversation.compaction.failed":
+      draft.ownTransient();
       applyCompactionFailed(
         next,
         event.data as ConversationCompactionFailedData,
@@ -194,6 +207,7 @@ export function applyConversationEvent(
       );
       break;
     case "conversation.compaction.cancelled":
+      draft.ownTransient();
       applyCompactionCancelled(
         next,
         event.data as ConversationCompactionCancelledData,
@@ -203,25 +217,25 @@ export function applyConversationEvent(
     case "conversation.compacted":
       applyCompacted(next);
       break;
-    case "conversation.live.turn.started":
-      applyLiveTurnStarted(
-        next,
-        event.data as ConversationLiveTurnStartedData,
-        event.ts,
-      );
+    case "conversation.live.turn.started": {
+      const data = event.data as ConversationLiveTurnStartedData;
+      draft.ownTurn(data.turnId);
+      applyLiveTurnStarted(next, data, event.ts);
       break;
-    case "conversation.live.message.started":
-      applyLiveMessageStarted(
-        next,
-        event.data as ConversationLiveMessageStartedData,
-      );
+    }
+    case "conversation.live.message.started": {
+      const data = event.data as ConversationLiveMessageStartedData;
+      draft.ownMessage(data.turnId, data.liveMessageId);
+      applyLiveMessageStarted(next, data);
       break;
+    }
     case "conversation.live.content.delta":
       applyLiveContentDelta(
         next,
         event.data as ConversationLiveContentDeltaData,
         event.ts,
         options,
+        draft,
       );
       break;
     case "conversation.live.content.done":
@@ -229,6 +243,7 @@ export function applyConversationEvent(
         next,
         event.data as ConversationLiveContentDoneData,
         event.ts,
+        draft,
       );
       break;
     case "conversation.live.tool_draft.started":
@@ -236,6 +251,7 @@ export function applyConversationEvent(
         next,
         event.data as ConversationLiveToolDraftStartedData,
         event.ts,
+        draft,
       );
       break;
     case "conversation.live.tool_draft.delta":
@@ -244,6 +260,7 @@ export function applyConversationEvent(
         event.data as ConversationLiveToolDraftDeltaData,
         event.ts,
         options,
+        draft,
       );
       break;
     case "conversation.live.tool_draft.done":
@@ -251,6 +268,7 @@ export function applyConversationEvent(
         next,
         event.data as ConversationLiveToolDraftDoneData,
         event.ts,
+        draft,
       );
       break;
     case "conversation.live.tool_draft.progress":
@@ -258,40 +276,26 @@ export function applyConversationEvent(
         next,
         event.data as ConversationLiveToolDraftProgressData,
         event.ts,
+        draft,
       );
       break;
-    case "conversation.live.tool_draft.discarded":
-      applyToolDraftDiscarded(
-        next,
-        event.data as ConversationLiveToolDraftDiscardedData,
-      );
+    case "conversation.live.tool_draft.discarded": {
+      const data = event.data as ConversationLiveToolDraftDiscardedData;
+      draft.ownMessage(data.turnId, data.liveMessageId);
+      applyToolDraftDiscarded(next, data);
       break;
+    }
     case "conversation.live.tool_output.delta":
       applyToolOutputDelta(
         next,
         event.data as ConversationLiveToolOutputDeltaData,
         event.ts,
         options,
+        draft,
       );
       break;
   }
   return next;
-}
-
-/**
- * Shallow clone plus a deep clone of the mutable active-run tail. Handlers
- * replace `entries`/`toolCalls`/`activeEntryIds`/`queuedPrompts` immutably, so
- * those arrays keep their identity across unrelated events — the committed
- * timeline memoization depends on that.
- */
-function cloneRenderState(
-  state: ConversationRenderState,
-): ConversationRenderState {
-  return {
-    ...state,
-    activeRun: cloneActiveRun(state.activeRun),
-    transient: cloneTransient(state.transient),
-  };
 }
 
 function cloneActiveRun(
@@ -324,15 +328,6 @@ function cloneActiveRun(
         cloneLiveOutput(output),
       ]),
     ),
-  };
-}
-
-function cloneTransient(
-  transient: ConversationTransientState | undefined,
-): ConversationTransientState | undefined {
-  if (!transient) return undefined;
-  return {
-    compaction: transient.compaction ? { ...transient.compaction } : undefined,
   };
 }
 
@@ -791,6 +786,7 @@ function applyLiveContentDelta(
   data: ConversationLiveContentDeltaData,
   ts: string,
   options: ApplyConversationEventOptions,
+  draft: ConversationCowDraft,
 ): void {
   if (!data.delta) return;
   const current = findActiveBlock(state, data);
@@ -801,6 +797,7 @@ function applyLiveContentDelta(
     reportGap(options, data, "conversation.live.content.delta");
     return;
   }
+  draft.ownBlock(data.turnId, data.liveMessageId, data.contentBlockId);
   const block = ensureActiveTextBlock(state, data, ts);
   if (block) block.text = `${block.text}${data.delta}`;
   state.sending = true;
@@ -810,7 +807,9 @@ function applyLiveContentDone(
   state: ConversationRenderState,
   data: ConversationLiveContentDoneData,
   ts: string,
+  draft: ConversationCowDraft,
 ): void {
+  draft.ownBlock(data.turnId, data.liveMessageId, data.contentBlockId);
   const block = ensureActiveTextBlock(state, data, ts);
   if (!block) return;
   block.text = data.finalText ?? block.text;
@@ -822,7 +821,9 @@ function applyToolDraftStarted(
   state: ConversationRenderState,
   data: ConversationLiveToolDraftStartedData,
   ts: string,
+  draft: ConversationCowDraft,
 ): void {
+  draft.ownBlock(data.turnId, data.liveMessageId, data.contentBlockId);
   ensureActiveToolDraftBlock(state, data, ts);
   state.sending = true;
 }
@@ -832,6 +833,7 @@ function applyToolDraftDelta(
   data: ConversationLiveToolDraftDeltaData,
   ts: string,
   options: ApplyConversationEventOptions,
+  draft: ConversationCowDraft,
 ): void {
   const current = findActiveBlock(state, data);
   const currentLength =
@@ -841,6 +843,7 @@ function applyToolDraftDelta(
     reportGap(options, data, "conversation.live.tool_draft.delta");
     return;
   }
+  draft.ownBlock(data.turnId, data.liveMessageId, data.contentBlockId);
   const block = ensureActiveToolDraftBlock(state, data, ts);
   if (block) block.argsText = `${block.argsText}${data.delta}`;
 }
@@ -849,7 +852,9 @@ function applyToolDraftDone(
   state: ConversationRenderState,
   data: ConversationLiveToolDraftDoneData,
   ts: string,
+  draft: ConversationCowDraft,
 ): void {
+  draft.ownBlock(data.turnId, data.liveMessageId, data.contentBlockId);
   const block = ensureActiveToolDraftBlock(state, data, ts);
   if (!block) return;
   block.argsText = "";
@@ -863,7 +868,9 @@ function applyToolDraftProgress(
   state: ConversationRenderState,
   data: ConversationLiveToolDraftProgressData,
   ts: string,
+  draft: ConversationCowDraft,
 ): void {
+  draft.ownBlock(data.turnId, data.liveMessageId, data.contentBlockId);
   const block = ensureActiveToolDraftBlock(state, data, ts);
   if (block) block.progress = data.progress;
 }
@@ -891,6 +898,7 @@ function applyToolOutputDelta(
   data: ConversationLiveToolOutputDeltaData,
   ts: string,
   options: ApplyConversationEventOptions,
+  draft: ConversationCowDraft,
 ): void {
   if (!data.delta) return;
   const activeRun =
@@ -913,8 +921,11 @@ function applyToolOutputDelta(
     reportGap(options, data, "conversation.live.tool_output.delta");
     return;
   }
-  activeRun.toolOutputsByToolCallId = {
-    ...activeRun.toolOutputsByToolCallId,
+  draft.ownOutputMap();
+  const writableRun = state.activeRun;
+  if (!writableRun) return;
+  writableRun.toolOutputsByToolCallId = {
+    ...writableRun.toolOutputsByToolCallId,
     [data.toolCallId]: capLiveOutput({
       toolCallId: data.toolCallId,
       chunks: [

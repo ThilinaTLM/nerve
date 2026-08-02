@@ -29,7 +29,9 @@ let {
 } = $props();
 
 const active = $derived(model.active ?? true);
-const lastTimelineKey = $derived(model.timeline.at(-1)?.key);
+const lastTimelineKey = $derived(
+  model.timeline.tail.at(-1)?.key ?? model.timeline.prefix.at(-1)?.key,
+);
 const pendingApprovals = $derived(
   model.approvals?.filter((approval) => approval.status === "pending") ?? [],
 );
@@ -47,7 +49,7 @@ const pendingPlanReviewIds = $derived(
 );
 const transcriptHasContent = $derived(
   hasTranscriptContent({
-    timelineLength: model.timeline.length,
+    timelineLength: model.timeline.prefix.length + model.timeline.tail.length,
     streamingText: model.streamingText,
     sending: model.sending,
     queuedPromptCount: model.queuedPrompts.length,
@@ -91,7 +93,8 @@ const scroll = createConversationScrollController({
           heightCacheKey={model.transcriptHeightCacheKey ??
             model.conversationId}
           transcriptLabel={model.transcriptLabel}
-          timeline={model.timeline}
+          timelinePrefix={model.timeline.prefix}
+          timelineTail={model.timeline.tail}
           streamingText={model.streamingText}
           sending={model.sending}
           hasActiveTurnOutput={model.hasActiveTurnOutput}
