@@ -257,7 +257,7 @@ $effect(() => {
 {:else if isDiff}
   <div
     bind:this={blockEl}
-    class="code-block plain"
+    class="code-block"
     data-language="diff"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
@@ -302,7 +302,7 @@ $effect(() => {
 {:else}
   <div
     bind:this={blockEl}
-    class="code-block plain"
+    class="code-block"
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}

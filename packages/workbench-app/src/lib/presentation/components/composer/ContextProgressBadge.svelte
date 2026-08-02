@@ -98,8 +98,8 @@ function requestCompact(): void {
 {#if contextLimit > 0 || percent != null}
   <Popover
     bind:open
-    class="popover-md"
-    triggerClass="composer-tab context-usage-tab px-2"
+    size="md"
+    triggerClass="composer-tab context-usage-tab"
     ariaLabel="Context usage"
     triggerTitle={title}
     side="top"

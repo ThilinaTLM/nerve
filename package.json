@@ -15,7 +15,7 @@
     "brand:assets": "node scripts/generate-brand-assets.mjs",
     "fix": "oxfmt && eslint . --fix && oxfmt",
     "check": "oxfmt --check && eslint . && pnpm check:boundaries && pnpm -r check",
-    "test": "pnpm -r --if-present test",
+    "test": "pnpm test:scripts && pnpm -r --if-present test",
     "dev": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools build && pnpm --parallel --stream --filter @nervekit/workbench-server --filter @nervekit/workbench-app dev",
     "dev:ui": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools build && pnpm --filter @nervekit/workbench-app dev",
     "desktop": "pnpm --filter @nervekit/desktop-shell dev --",
@@ -25,7 +25,8 @@
     "release:smoke:workbench": "node scripts/smoke-workbench-release.mjs",
     "release:smoke:desktop": "node scripts/smoke-desktop-release.mjs",
     "release:smoke:desktop-package": "node scripts/smoke-desktop-package.mjs",
-    "check:boundaries": "node scripts/check-package-boundaries.mjs"
+    "check:boundaries": "node scripts/check-package-boundaries.mjs",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\""
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.83.0"

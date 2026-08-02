@@ -23,7 +23,7 @@ let {
 } = $props();
 </script>
 
-<div class="panel-view flex h-full min-h-0 min-w-0 flex-col px-2">
+<div class="flex h-full min-h-0 min-w-0 flex-col bg-card px-2">
   {#if toolbar}
     {@render toolbar()}
   {/if}
@@ -33,7 +33,10 @@ let {
     </div>
   {/if}
   {#if scroll}
-    <ScrollArea class="min-h-0 flex-1" viewportClass="panel-scroll">
+    <ScrollArea
+      class="min-h-0 flex-1"
+      viewportClass="grid grid-cols-[minmax(0,1fr)] content-start"
+    >
       <div class={cn("flex flex-col", padded && "py-1", contentClass)}>
         {@render children()}
       </div>

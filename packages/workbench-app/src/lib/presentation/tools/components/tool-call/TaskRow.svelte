@@ -70,7 +70,7 @@ const hasExit = $derived(
     <Tooltip.Content
       side="left"
       sideOffset={6}
-      class="nav-tooltip task-tooltip"
+      class="max-w-88 flex-col items-start gap-0.5 font-mono text-xs leading-[1.35] [overflow-wrap:anywhere]"
     >
       <span class="tt-title">{task.name ?? task.command}</span>
       <span class="tt-row"
@@ -114,3 +114,31 @@ const hasExit = $derived(
     {task.termination.error}
   </p>
 {/if}
+
+<style>
+/* Rich tooltip content authored here; Tooltip.Content only receives layout
+ * utilities through its `class` prop. */
+.tt-title {
+  margin-bottom: 0.15rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.tt-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tt-key {
+  min-width: 3.4rem;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tt-id {
+  margin-top: 0.2rem;
+  color: var(--muted-foreground);
+}
+</style>

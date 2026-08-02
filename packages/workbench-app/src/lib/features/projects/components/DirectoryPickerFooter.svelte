@@ -25,11 +25,21 @@ let {
 }: Props = $props();
 </script>
 
-<div class="footer-path" title={path}>
-  <FolderOpen size={14} strokeWidth={2.1} aria-hidden="true" />
-  <span class="footer-path-text">{path ? shortenPath(path, homeDir) : "—"}</span
+<div
+  class="flex min-w-0 flex-1 items-center gap-1.5 text-muted-foreground"
+  title={path}
+>
+  <FolderOpen
+    size={14}
+    strokeWidth={2.1}
+    aria-hidden="true"
+    class="flex-none text-primary"
+  />
+  <span
+    class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-xs text-foreground"
+    >{path ? shortenPath(path, homeDir) : "—"}</span
   >
-  <span class="footer-signals">
+  <span class="flex flex-none items-center gap-1">
     {#each signals as signal (signal)}
       {@const meta = signalMeta[signal]}
       {@const Icon = meta.icon}
@@ -39,9 +49,8 @@ let {
     {/each}
   </span>
 </div>
-<div class="footer-actions">
+<div class="flex flex-none items-center gap-2.5">
   <Button
-    class="footer-open-button"
     size="sm"
     disabled={!path || loading}
     title={path ? `Open ${path}` : "Open"}

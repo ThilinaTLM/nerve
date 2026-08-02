@@ -53,7 +53,7 @@ const trailingToggles = $derived(
   <Button
     variant="ghost"
     size="icon-sm"
-    class="footer-toggle"
+    class="size-5.5 rounded-sm max-sm:size-9"
     ariaLabel={`Toggle ${toggle.label}`}
     title={toggle.open ? `Hide ${toggle.label}` : `Show ${toggle.label}`}
     pressed={toggle.open}
@@ -63,8 +63,10 @@ const trailingToggles = $derived(
   </Button>
 {/snippet}
 
-<footer class="footerbar">
-  <div class="footer-group footer-left">
+<footer
+  class="flex h-full min-w-0 items-center justify-between gap-3 border-t border-border bg-card px-1.5 text-xs text-muted-foreground select-none max-sm:pb-[env(safe-area-inset-bottom)]"
+>
+  <div class="flex min-w-0 flex-auto items-center gap-0.5 overflow-hidden">
     {#each leadingToggles as toggle (toggle.dock)}
       {@render toggleButton(toggle)}
     {/each}
@@ -73,7 +75,7 @@ const trailingToggles = $derived(
     {/if}
   </div>
 
-  <div class="footer-group footer-right">
+  <div class="flex min-w-0 flex-none items-center gap-0.5">
     {#if right}
       {@render right()}
     {/if}

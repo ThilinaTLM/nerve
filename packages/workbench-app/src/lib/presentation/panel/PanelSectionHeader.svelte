@@ -16,7 +16,7 @@ let {
 } = $props();
 </script>
 
-<div class="panel-section-header flex h-7 items-center gap-1">
+<div class="sticky top-0 z-1 flex h-7 items-center gap-1 bg-card">
   <div class="flex min-w-0 flex-1 items-center gap-1">
     {#if Icon}
       <Icon class="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />

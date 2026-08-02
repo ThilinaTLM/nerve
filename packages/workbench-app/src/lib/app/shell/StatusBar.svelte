@@ -178,3 +178,64 @@ function gitStatusTitle(status: GitStatus): string {
     <StatusPopover {connection} {live} {status} side="top" compact={phone} />
   {/snippet}
 </ShellStatusBar>
+
+<style>
+/* Shared shape for the status chips in this bar. */
+.footer-item {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 0.3rem;
+  height: 1.375rem;
+  border-radius: var(--radius-sm);
+  padding: 0 0.375rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The chip icons are Lucide components (escape-hatch reason 5). */
+.footer-item :global(svg) {
+  flex: none;
+  color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
+}
+
+.footer-item.warn,
+.footer-item.warn :global(svg) {
+  color: var(--warning);
+}
+
+.footer-project-path {
+  flex: 0 1 auto;
+  overflow: hidden;
+  min-width: 0;
+  margin-left: 0.25rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.footer-git {
+  min-width: 0;
+  gap: 0.4rem;
+}
+
+.footer-git-branch {
+  overflow: hidden;
+  min-width: 0;
+  max-width: min(16rem, 30vw);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.footer-git-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.footer-git-dot {
+  color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
+}
+</style>

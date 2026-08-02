@@ -45,23 +45,26 @@ let {
 }: Props = $props();
 </script>
 
-<div class="picker-scroll" bind:this={listEl}>
-  <section class="picker-group">
-    <header class="group-head">
+<div class="min-h-0 overflow-auto p-2" bind:this={listEl}>
+  <section>
+    <header
+      class="flex items-center gap-2 px-1 pt-1 pb-1.5 font-mono text-xs tracking-wide text-muted-foreground uppercase"
+    >
       <span>Folders</span>
-      {#if !loading && filteredEntries.length}<span class="group-count"
+      {#if !loading && filteredEntries.length}<span
+          class="ml-auto text-muted-foreground tabular-nums"
           >{filteredEntries.length}</span
         >{/if}
     </header>
 
     {#if loading}
-      <div class="rows" aria-label="Loading directories">
+      <div class="grid gap-0.5" aria-label="Loading directories">
         {#each [0, 1, 2, 3, 4, 5, 6] as index (index)}<span class="skeleton-row"
           ></span>{/each}
       </div>
     {:else if filteredEntries.length}
       <div
-        class="rows"
+        class="grid gap-0.5"
         role="listbox"
         aria-label="Folders"
         tabindex={-1}
@@ -73,7 +76,7 @@ let {
           {@const idx = fi}
           <div
             id={`folder:${entry.path}`}
-            class="row folder-row app-interactive-row"
+            class="row"
             class:selected={selectedIndex === idx}
             role="option"
             aria-selected={selectedIndex === idx}
@@ -89,9 +92,19 @@ let {
                 entry,
               })}
           >
-            <Folder size={15} strokeWidth={2.1} aria-hidden="true" />
-            <span class="row-main"><strong>{entry.name}</strong></span>
-            <span class="row-badges">
+            <Folder
+              size={15}
+              strokeWidth={2.1}
+              aria-hidden="true"
+              class="flex-none text-muted-foreground"
+            />
+            <span class="grid min-w-0 gap-px"
+              ><strong
+                class="overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap"
+                >{entry.name}</strong
+              ></span
+            >
+            <span class="flex items-center justify-end gap-1.5">
               {#if isOpened(entry.path)}<Badge tone="good" size="xs"
                   ><CheckCircle2 size={11} />Opened</Badge
                 >{/if}
@@ -122,14 +135,16 @@ let {
         {/each}
       </div>
     {:else}
-      <div class="empty">
+      <div
+        class="grid min-h-48 place-items-center gap-1 text-center text-muted-foreground"
+      >
         <FolderOpen size={26} strokeWidth={1.8} />
-        <p>
+        <p class="mt-1 text-sm text-foreground">
           {query.trim()
             ? "No folders match your filter."
             : "No subfolders here."}
         </p>
-        <span
+        <span class="font-mono text-xs"
           >{query.trim()
             ? "Clear the filter or paste a path."
             : "Use Open below to choose this folder as the project."}</span
@@ -138,3 +153,91 @@ let {
     {/if}
   </section>
 </div>
+
+<style>
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 2.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  padding: 0.3rem 0.5rem;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.row:hover,
+.row:focus-visible,
+.row.selected {
+  border-color: var(--border);
+  background: var(--accent);
+  outline: none;
+}
+
+.row:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent);
+}
+
+/* Selected-row accent bar (escape-hatch reason 4). */
+.row.selected::before {
+  content: "";
+  position: absolute;
+  inset: 0.2rem auto 0.2rem 0;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+/* The drill affordance is revealed by the row's own hover/selection state. */
+.row-drill {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 0.15rem;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.row-drill:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.row:hover .row-drill,
+.row.selected .row-drill,
+.row-drill:focus-visible {
+  opacity: 1;
+}
+
+/* Loading placeholder binds the shared picker-sheen keyframe
+ * (escape-hatch reason 1). */
+.skeleton-row {
+  height: 2.25rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--muted) 45%, transparent),
+    color-mix(in oklab, var(--accent) 65%, transparent),
+    color-mix(in oklab, var(--muted) 45%, transparent)
+  );
+  background-size: 220% 100%;
+  animation: picker-sheen 1.2s ease-in-out infinite;
+}
+</style>

@@ -89,7 +89,7 @@ let {
           <Button
             variant="destructive"
             size="icon-sm"
-            class="stop-button"
+            class="rounded-full"
             type="button"
             disabled={stopDisabled || stopping}
             onclick={onAbort}
@@ -106,7 +106,7 @@ let {
         {/if}
         <Button
           size="icon-sm"
-          class="send-button"
+          class="rounded-full inset-ring-1 inset-ring-primary-foreground/18"
           type="submit"
           disabled={submitDisabled}
           aria-label={sendAriaLabel}
@@ -201,21 +201,5 @@ let {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-}
-
-:global(.send-button),
-:global(.stop-button),
-:global(.mic-button) {
-  border-radius: 999px;
-}
-
-:global(.send-button) {
-  box-shadow: 0 0 0 1px
-    color-mix(in oklab, var(--primary-foreground) 18%, transparent) inset;
-}
-
-:global(.mic-button.recording) {
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent)
-    inset;
 }
 </style>

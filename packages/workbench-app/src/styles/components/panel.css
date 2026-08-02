@@ -1,27 +1,8 @@
-/* Workbench presentation panel primitives.
- * Dense, flat, IDE-style sections/rows/toolbars. These classes cover the parts
- * utilities cannot express: the shared indent step, sticky section headers, and
- * the hover-revealed action affordance used by panel rows. */
-
-.panel-view {
-  background: var(--card);
-}
-
-/* The single scroll region owned by PanelView. */
-.panel-scroll {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-}
-
-/* Static group heading. It stays pinned while its rows scroll, so it carries the
- * panel surface color rather than a contrasting band. */
-.panel-section-header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--card);
-}
+/* Cross-component contracts of the workbench panel primitives.
+ * Everything here spans two or more components: the shared indent step is set
+ * by PanelRow and PanelPropertyRow, the hover-reveal is read by both of them,
+ * and the card hover tint is a parent/child rule that Svelte scoping cannot
+ * express because PanelRowCard and PanelRow are separate components. */
 
 /* One indentation step per nesting level, on top of the base row inset. Rows can
  * drop the base inset (`--panel-row-inset: 0px`) to align with the panel edge. */

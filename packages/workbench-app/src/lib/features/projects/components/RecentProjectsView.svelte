@@ -81,7 +81,10 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
 }
 </script>
 
-<form class="picker-search" onsubmit={onSubmit}>
+<form
+  class="grid items-center border-b border-b-border/60 px-3 py-2.5"
+  onsubmit={onSubmit}
+>
   <SearchInput
     bind:value={query}
     onValueChange={() => onQueryChange?.()}
@@ -92,11 +95,15 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
   />
 </form>
 
-<div class="picker-scroll recent-scroll" bind:this={scrollEl}>
-  <section class="picker-group">
-    <header class="group-head">
+<div class="min-h-0 overflow-auto p-2" bind:this={scrollEl}>
+  <section>
+    <header
+      class="flex items-center gap-2 px-1 pt-1 pb-1.5 font-mono text-xs tracking-wide text-muted-foreground uppercase"
+    >
       <span>Recent</span>
-      {#if totalRecentCount}<span class="group-count">{totalRecentCount}</span
+      {#if totalRecentCount}<span
+          class="ml-auto text-muted-foreground tabular-nums"
+          >{totalRecentCount}</span
         >{/if}
     </header>
 
@@ -107,7 +114,7 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
       </button>
     {:else if recentProjects.length}
       <div
-        class="recent-grid"
+        class="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-1.5"
         role="listbox"
         aria-label="Recent projects"
         tabindex={-1}
@@ -115,13 +122,10 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
       >
         {#each recentProjects as project, i (project.id)}
           {@const chats = conversationCountFor(project)}
-          <ContextMenu
-            items={cardMenu(project)}
-            triggerClass="recent-card-trigger"
-          >
+          <ContextMenu items={cardMenu(project)} triggerClass="contents">
             <div
               id={`recent:${project.id}`}
-              class="recent-card app-interactive-row"
+              class="recent-card"
               class:selected={selectedIndex === i}
               role="option"
               aria-selected={selectedIndex === i}
@@ -134,16 +138,25 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
               <span class="recent-card-icon" aria-hidden="true">
                 <FolderClock size={18} strokeWidth={2.05} />
               </span>
-              <div class="recent-card-body">
-                <div class="recent-card-title">
-                  <strong>{project.name}</strong>
+              <div class="grid min-w-0 gap-px">
+                <div>
+                  <strong
+                    class="block overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap"
+                    >{project.name}</strong
+                  >
                 </div>
-                <div class="recent-card-meta">
+                <div
+                  class="flex items-center gap-1 overflow-hidden text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+                >
                   <span>{chats} chat{chats === 1 ? "" : "s"}</span>
-                  <span class="recent-card-dot" aria-hidden="true">·</span>
+                  <span class="text-muted-foreground/55" aria-hidden="true"
+                    >·</span
+                  >
                   <span>{relativeTimeLabel(project.updatedAt)}</span>
                 </div>
-                <div class="recent-card-path">
+                <div
+                  class="overflow-hidden font-mono text-xs text-ellipsis whitespace-nowrap text-muted-foreground/85"
+                >
                   {tildePath(project.dir, homeDir)}
                 </div>
               </div>
@@ -152,15 +165,98 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
         {/each}
       </div>
     {:else}
-      <div class="recent-empty">
+      <div
+        class="grid min-h-40 place-items-center gap-1 text-center text-muted-foreground"
+      >
         <FolderOpen size={26} strokeWidth={1.8} />
-        <p>
+        <p class="mt-1 text-sm text-foreground">
           {totalRecentCount
             ? "No recent projects match your search."
             : "No recent projects yet."}
         </p>
-        <span>Use Browse folders below to open a project.</span>
+        <span class="font-mono text-xs"
+          >Use Browse folders below to open a project.</span
+        >
       </div>
     {/if}
   </section>
 </div>
+
+<style>
+.recent-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 0.7rem 0.75rem;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.recent-card-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--primary) 14%, transparent);
+  color: var(--primary);
+  transition: background 120ms ease;
+}
+
+/* Opaque two-token mixes so the hovered card stays readable over the card
+ * surface (escape-hatch reason 8). */
+.recent-card:hover,
+.recent-card:focus-visible,
+.recent-card.selected {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+  background: color-mix(in oklab, var(--accent) 65%, var(--card));
+  box-shadow: var(--shadow-sm);
+  outline: none;
+}
+
+.recent-card:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent);
+}
+
+.recent-card:hover .recent-card-icon,
+.recent-card:focus-visible .recent-card-icon,
+.recent-card.selected .recent-card-icon {
+  background: color-mix(in oklab, var(--primary) 22%, transparent);
+}
+
+.recent-browse-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  padding: 0.55rem 0.65rem;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.recent-browse-hint:hover,
+.recent-browse-hint:focus-visible {
+  border-color: var(--primary);
+  background: var(--accent);
+  outline: none;
+}
+</style>

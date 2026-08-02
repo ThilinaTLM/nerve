@@ -1,0 +1,58 @@
+/* PopoverPanel primitive chrome. Bits UI portals the content out of the
+ * component tree, so these rules cannot live in a Svelte-scoped <style> block.
+ * Layered under `components` so consumer utilities passed through
+ * `class`/`triggerClass` always win regardless of bundle order. */
+
+@layer components {
+  .popover-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .popover-trigger:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  .popover-content {
+    z-index: 70;
+    max-height: min(32rem, var(--bits-popover-content-available-height, 32rem));
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .popover-content:focus-visible {
+    outline: none;
+  }
+
+  /* Panel widths, selected through PopoverPanel's `size` prop. */
+  .popover-content.popover-sm {
+    width: min(15rem, calc(100vw - 1.5rem));
+  }
+
+  .popover-content.popover-md {
+    width: min(17.5rem, calc(100vw - 1.5rem));
+  }
+
+  .popover-content.popover-lg {
+    width: min(20rem, calc(100vw - 1.5rem));
+  }
+
+  .popover-content.popover-xl {
+    width: min(24rem, calc(100vw - 1.5rem));
+  }
+
+  .popover-arrow {
+    fill: var(--card);
+  }
+}

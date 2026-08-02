@@ -353,8 +353,11 @@ $effect(() => {
   onOpenChange={handleOpenChange}
 >
   <div
-    class="picker-body"
-    class:recent-mode={mode === "recent"}
+    class={`grid h-full min-h-0 ${
+      mode === "recent"
+        ? "grid-rows-[auto_minmax(0,1fr)]"
+        : "grid-rows-[auto_auto_minmax(0,1fr)]"
+    }`}
     role="presentation"
     onkeydown={handleKeydown}
   >
@@ -394,7 +397,11 @@ $effect(() => {
         onBack={recentProjects.length ? enterRecent : undefined}
       />
       {#if error}
-        <p class="picker-error">{error}</p>
+        <p
+          class="m-0 border-b border-b-border/60 px-3 py-2 text-xs text-destructive"
+        >
+          {error}
+        </p>
       {/if}
       <DirectoryPickerList
         bind:listEl
@@ -415,7 +422,7 @@ $effect(() => {
   </div>
   {#snippet footer()}
     {#if mode === "recent"}
-      <span class="recent-footer-hint">
+      <span class="flex-1 text-xs text-muted-foreground">
         {recentProjects.length} recent project{recentProjects.length === 1
           ? ""
           : "s"}
@@ -436,3 +443,21 @@ $effect(() => {
     {/if}
   {/snippet}
 </Dialog>
+
+<style>
+/* DialogShell portals its content, so the picker's geometry has to be declared
+ * globally on the shell's own element (escape-hatch reason 5). The compound
+ * selector keeps it ahead of `.dialog-content`'s default width. */
+:global(.dialog-content.project-picker-dialog) {
+  width: min(680px, calc(100vw - 24px));
+  min-height: min(82vh, 520px);
+  max-height: min(82vh, 720px);
+}
+
+@media (max-width: 560px) {
+  :global(.dialog-content.project-picker-dialog) {
+    width: calc(100vw - 12px);
+    max-height: calc(100vh - 12px);
+  }
+}
+</style>

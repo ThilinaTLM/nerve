@@ -48,8 +48,8 @@ const uptime = $derived.by(() => {
 </script>
 
 <Popover
-  class="popover-sm"
-  triggerClass="status-trigger-wrap"
+  size="sm"
+  triggerClass="h-5.5 rounded-sm px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
   ariaLabel="Open daemon status"
   {side}
   align="end"

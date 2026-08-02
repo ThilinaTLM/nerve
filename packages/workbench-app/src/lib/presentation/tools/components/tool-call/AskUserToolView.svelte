@@ -350,7 +350,7 @@ function handleMicContextMenu(event: MouseEvent) {
             <Button
               variant={recording ? "destructive" : "ghost"}
               size="icon-sm"
-              class={`reply-mic${recording ? " recording" : ""}`}
+              class={`rounded-full ${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
               type="button"
               disabled={micDisabled}
               onclick={toggleRecording}
@@ -526,14 +526,5 @@ function handleMicContextMenu(event: MouseEvent) {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-}
-
-:global(.reply-mic) {
-  border-radius: 999px;
-}
-
-:global(.reply-mic.recording) {
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 28%, transparent)
-    inset;
 }
 </style>

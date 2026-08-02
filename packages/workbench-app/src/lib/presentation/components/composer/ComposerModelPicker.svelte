@@ -144,7 +144,7 @@ $effect(() => {
 <Popover
   {open}
   onOpenChange={handleOpenChange}
-  class="popover-lg"
+  size="lg"
   triggerClass="composer-tab model-tab"
   ariaLabel="Model and thinking level"
   {triggerTitle}

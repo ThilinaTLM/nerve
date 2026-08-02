@@ -22,7 +22,7 @@ let {
 
 <style>
 /* Matches the titlebar mark-to-badge ratio in
-   packages/ui-kit/src/styles/components/shell.css (.brand-mark).
+   $lib/app/shell/Titlebar.svelte (.brand-mark).
    No optical nudge here: the compact mark's ink (stroke included) is already
    centered in its viewBox, so plain flex centering is balanced. The titlebar's
    translate() is a sub-pixel correction for 1rem rendering and visibly skews the

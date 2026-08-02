@@ -68,7 +68,9 @@ function openProviderSettings() {
 </Dialog>
 
 <style>
-:global(.audio-auth-required-dialog) {
+/* DialogShell portals its content (escape-hatch reason 5); the compound
+ * selector keeps this ahead of `.dialog-content`'s default width. */
+:global(.dialog-content.audio-auth-required-dialog) {
   width: min(560px, calc(100vw - 32px));
 }
 

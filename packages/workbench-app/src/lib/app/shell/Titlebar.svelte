@@ -70,10 +70,10 @@ let {
 
 <ShellTitlebar {desktop}>
   {#snippet left()}
-    <span class="brand">
+    <span class="inline-flex items-center gap-1.5 text-foreground">
       <span class="brand-mark"><NerveMark compact /></span>
     </span>
-    <span class="divider" aria-hidden="true"></span>
+    <span class="h-5 w-px bg-border" aria-hidden="true"></span>
     <ProjectSwitcher
       items={projects}
       activeKey={activeProjectKey}
@@ -84,7 +84,10 @@ let {
   {/snippet}
 
   {#snippet actions()}
-    <Toolbar.Root class="title-actions" aria-label="Application actions">
+    <Toolbar.Root
+      class="flex min-w-0 flex-none items-center gap-1.5 [-webkit-app-region:no-drag]"
+      aria-label="Application actions"
+    >
       {#if currentVersion}
         <VersionIndicator {currentVersion} {latestRelease} />
       {/if}
@@ -124,11 +127,11 @@ let {
         <Settings size={16} strokeWidth={2.1} />
       </Button>
       {#if desktop}
-        <span class="window-divider" aria-hidden="true"></span>
+        <span class="mx-0.5 h-5 w-px bg-border" aria-hidden="true"></span>
         <Button
           variant="ghost"
           size="icon-sm"
-          class="window-control"
+          class="[-webkit-app-region:no-drag]"
           ariaLabel="Minimize window"
           title="Minimize"
           disabled={quitting}
@@ -139,7 +142,7 @@ let {
         <Button
           variant="ghost"
           size="icon-sm"
-          class="window-control"
+          class="[-webkit-app-region:no-drag]"
           ariaLabel={maximized ? "Restore window" : "Maximize window"}
           title={maximized ? "Restore" : "Maximize"}
           disabled={quitting}
@@ -154,7 +157,7 @@ let {
         <Button
           variant="ghost"
           size="icon-sm"
-          class="window-control close-control"
+          class="[-webkit-app-region:no-drag] hover:bg-destructive-solid hover:text-destructive-solid-foreground focus-visible:bg-destructive-solid focus-visible:text-destructive-solid-foreground"
           ariaLabel={quitting
             ? "Closing Nerve"
             : closeToTray
@@ -178,3 +181,25 @@ let {
     </Toolbar.Root>
   {/snippet}
 </ShellTitlebar>
+
+<style>
+/* NerveMark renders its own svg (escape-hatch reason 5). */
+.brand-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-sm);
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.brand-mark :global(svg) {
+  width: 0.625rem;
+  height: 0.625rem;
+  /* Compensate for the mark's top-left visual weight at titlebar size. */
+  transform: translate(5%, 5%);
+}
+</style>

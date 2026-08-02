@@ -251,10 +251,14 @@ $effect(() => {
     <div class="logs-notice">{notice}</div>
   {/if}
 
-  <ScrollArea class="logs-scroll">
+  <ScrollArea class="min-h-0">
     <div class="logs-list" role="log" aria-label="Application logs">
       {#if rows.length === 0 && !loading}
-        <div class="empty">No application logs match these filters.</div>
+        <div
+          class="mx-3 my-4 grid min-h-48 place-items-center gap-1 rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground"
+        >
+          No application logs match these filters.
+        </div>
       {/if}
       {#each rows as log (log.id)}
         {@const detail = hasDetail(log)}
@@ -432,24 +436,10 @@ $effect(() => {
   background: color-mix(in oklab, var(--success) 8%, var(--card));
 }
 
-:global(.logs-scroll) {
-  min-height: 0;
-}
-
 .logs-list {
   display: flex;
   flex-direction: column;
   padding-bottom: 0.5rem;
-}
-
-.empty {
-  margin: 1rem 0.75rem;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1rem;
-  color: var(--muted-foreground);
-  text-align: center;
-  font-size: var(--text-sm);
 }
 
 .log-row {

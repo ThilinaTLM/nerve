@@ -91,13 +91,17 @@ function openAndClose(conversationId: string) {
 
       <div class="list-region">
         {#if rows.length === 0}
-          <p class="empty">No conversations match.</p>
+          <p
+            class="mx-2 my-3 grid min-h-48 place-items-center gap-1 text-center font-mono text-xs text-muted-foreground"
+          >
+            No conversations match.
+          </p>
         {:else}
           <VirtualScroller
             items={rows}
             getKey={(row) => row.conversation.id}
             estimateSize={() => 32}
-            viewportClass="conversations-virtual-list"
+            viewportClass="h-full px-0.5"
           >
             {#snippet row({ item })}
               <ProjectAgentTreeNode
@@ -118,13 +122,16 @@ function openAndClose(conversationId: string) {
 </Dialog>
 
 <style>
-:global(.project-conversations-dialog) {
+/* DialogShell portals its content, so the dialog geometry has to be declared
+ * globally on the shell's own element (escape-hatch reason 5). The compound
+ * selector keeps it ahead of `.dialog-content`'s defaults. */
+:global(.dialog-content.project-conversations-dialog) {
   width: min(880px, calc(100vw - 32px));
   height: min(640px, calc(100vh - 96px));
   max-height: calc(100vh - 96px);
 }
 
-:global(.project-conversations-dialog .dialog-body) {
+:global(.dialog-content.project-conversations-dialog .dialog-body) {
   display: flex;
   overflow: hidden;
   background: var(--card);
@@ -149,17 +156,5 @@ function openAndClose(conversationId: string) {
 .list-region {
   min-height: 0;
   padding: 0.45rem;
-}
-
-:global(.conversations-virtual-list) {
-  height: 100%;
-  padding: 0 0.1rem;
-}
-
-.empty {
-  margin: 0.75rem 0.5rem;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
 }
 </style>
