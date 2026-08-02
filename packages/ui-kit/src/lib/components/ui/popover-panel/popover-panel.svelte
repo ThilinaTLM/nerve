@@ -12,6 +12,8 @@ type Props = {
   triggerAriaKeyShortcuts?: string;
   class?: string;
   triggerClass?: string;
+  /** Panel width preset: sm 15rem, md 17.5rem, lg 20rem, xl 24rem. */
+  size?: "sm" | "md" | "lg" | "xl";
   side?: "top" | "right" | "bottom" | "left";
   align?: "start" | "center" | "end";
   sideOffset?: number;
@@ -29,6 +31,7 @@ let {
   triggerAriaKeyShortcuts,
   class: className = "",
   triggerClass = "",
+  size = "xl",
   side = "bottom",
   align = "end",
   sideOffset = 7,
@@ -54,7 +57,7 @@ function handleOpenChange(next: boolean) {
   </PopoverPrimitive.Trigger>
   <PopoverPrimitive.Portal>
     <PopoverPrimitive.Content
-      class={cn("popover-content", className)}
+      class={cn("popover-content", `popover-${size}`, className)}
       {side}
       {align}
       {sideOffset}
@@ -66,43 +69,3 @@ function handleOpenChange(next: boolean) {
     </PopoverPrimitive.Content>
   </PopoverPrimitive.Portal>
 </PopoverPrimitive.Root>
-
-<style>
-/* :where() keeps the default reset at zero specificity so any consumer
-     `triggerClass` (e.g. .composer-tab) always wins regardless of CSS order. */
-:global(:where(.popover-trigger)) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  padding: 0;
-  cursor: pointer;
-}
-
-:global(.popover-trigger:focus-visible) {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-:global(.popover-content) {
-  z-index: 70;
-  width: min(24rem, calc(100vw - 1.5rem));
-  max-height: min(32rem, var(--bits-popover-content-available-height, 32rem));
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: var(--shadow-lg);
-}
-
-:global(.popover-content:focus-visible) {
-  outline: none;
-}
-
-:global(.popover-arrow) {
-  fill: var(--card);
-}
-</style>

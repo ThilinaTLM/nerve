@@ -22,7 +22,7 @@ const title = $derived(`Todos: ${completed} of ${total} complete`);
 {#if total > 0}
   <Popover
     bind:open
-    class="popover-xl"
+    size="xl"
     triggerClass="composer-tab todo-progress-tab"
     ariaLabel="Todo progress"
     triggerTitle={title}

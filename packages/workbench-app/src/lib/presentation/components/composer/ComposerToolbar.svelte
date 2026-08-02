@@ -143,7 +143,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
 <div class="composer-tabs">
   <Popover
     bind:open={permissionOpen}
-    class="popover-lg"
+    size="lg"
     triggerClass="composer-tab permission-tab"
     ariaLabel="Permission level"
     triggerTitle={permissionShortcut

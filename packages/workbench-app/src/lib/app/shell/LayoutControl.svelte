@@ -72,8 +72,8 @@ function changeZoomLevel(delta: number) {
 </script>
 
 <Popover
-  class="popover-md"
-  triggerClass="layout-trigger-wrap"
+  size="md"
+  triggerClass="h-5.5 rounded-sm px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
   ariaLabel="Open layout controls"
   side="top"
   align="end"

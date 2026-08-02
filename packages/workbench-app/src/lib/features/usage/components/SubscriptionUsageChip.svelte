@@ -185,8 +185,8 @@ const title = $derived.by(() => {
 
 {#if hasData}
   <Popover
-    class="popover-md"
-    triggerClass="usage-trigger-wrap"
+    size="md"
+    triggerClass="h-5.5 rounded-sm px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
     ariaLabel="Open subscription usage details"
     side="top"
     align="end"
