@@ -12,8 +12,8 @@ let {
 } = $props();
 </script>
 
-<header class="titlebar" class:desktop>
-  <div class="title-left">
+<header class="titlebar min-w-0" class:desktop>
+  <div class="title-left overflow-hidden">
     {@render left()}
   </div>
   {#if actions}

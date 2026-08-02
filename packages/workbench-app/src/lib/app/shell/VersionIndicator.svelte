@@ -68,7 +68,7 @@ onDestroy(() => {
   side="bottom"
   align="end"
   class="popover-md"
-  triggerClass={`version-trigger rounded-sm font-mono text-xs font-medium leading-none transition-colors ${outdated ? "version-trigger-warning" : ""}`}
+  triggerClass={`version-trigger rounded-sm font-mono text-xs font-medium leading-none transition-colors ${outdated ? "version-trigger-warning" : "version-trigger-current"}`}
 >
   {#snippet trigger()}{currentLabel}{/snippet}
 
