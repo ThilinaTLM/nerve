@@ -1,24 +1,59 @@
+import {
+  colorThemeSchema,
+  type ColorMode,
+  type ColorTheme,
+} from "@nervekit/contracts";
 import { setMode, userPrefersMode } from "mode-watcher";
 
-export type ThemePreference = "system" | "light" | "dark";
+const COLOR_THEME_STORAGE_KEY = "nerve-color-theme";
 
 export const MIN_ZOOM_LEVEL = -8;
 export const MAX_ZOOM_LEVEL = 8;
 export const ZOOM_BASE = 1.1;
 
-export const themeState = $state({
-  preference: "system" as ThemePreference,
+export const appearanceState = $state({
+  theme: "nerve" as ColorTheme,
+  colorMode: "system" as ColorMode,
 });
 
 export const zoomState = $state({
   level: 0,
 });
 
-// Theme switching is delegated to mode-watcher, which toggles the `.dark` class
-// on <html>, follows the system preference, and persists the choice.
-export function applyTheme(preference = themeState.preference) {
-  themeState.preference = preference;
-  setMode(preference);
+function storeColorTheme(theme: ColorTheme): void {
+  try {
+    localStorage.setItem(COLOR_THEME_STORAGE_KEY, theme);
+  } catch {
+    // The live theme still applies when storage is unavailable.
+  }
+}
+
+function storedColorTheme(): unknown {
+  try {
+    return localStorage.getItem(COLOR_THEME_STORAGE_KEY);
+  } catch {
+    return undefined;
+  }
+}
+
+export function applyColorTheme(theme = appearanceState.theme): void {
+  appearanceState.theme = theme;
+  if (typeof document !== "undefined") {
+    document.documentElement.dataset.theme = theme;
+  }
+  if (typeof localStorage !== "undefined") storeColorTheme(theme);
+}
+
+// Color-mode switching remains delegated to mode-watcher, which toggles the
+// `.dark` class, follows the system preference, and persists the choice.
+export function applyColorMode(colorMode = appearanceState.colorMode): void {
+  appearanceState.colorMode = colorMode;
+  setMode(colorMode);
+}
+
+export function applyAppearance(theme: ColorTheme, colorMode: ColorMode): void {
+  applyColorTheme(theme);
+  applyColorMode(colorMode);
 }
 
 export function clampZoomLevel(level: number): number {
@@ -49,7 +84,16 @@ export function applyZoomLevel(level: number) {
   );
 }
 
-export function loadThemePreference(): ThemePreference {
-  // mode-watcher restores the persisted mode on mount; mirror it into state.
-  return userPrefersMode.current ?? "system";
+export function loadAppearancePreference(): {
+  theme: ColorTheme;
+  colorMode: ColorMode;
+} {
+  const storedTheme =
+    typeof localStorage === "undefined" ? undefined : storedColorTheme();
+  const parsedTheme = colorThemeSchema.safeParse(storedTheme);
+  return {
+    theme: parsedTheme.success ? parsedTheme.data : "nerve",
+    // mode-watcher restores the persisted mode on mount; mirror it into state.
+    colorMode: userPrefersMode.current ?? "system",
+  };
 }

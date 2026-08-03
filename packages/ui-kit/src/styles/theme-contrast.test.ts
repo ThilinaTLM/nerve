@@ -17,7 +17,9 @@ const badgeSource = readFileSync(
 
 type Oklch = readonly [lightness: number, chroma: number, hue: number];
 type LinearRgb = readonly [red: number, green: number, blue: number];
-type ThemeName = "light" | "dark";
+type ColorTheme = "nerve" | "ocean" | "forest";
+type ColorMode = "light" | "dark";
+type ThemeName = `${ColorTheme}-${ColorMode}`;
 
 const tokenNames = [
   "background",
@@ -43,17 +45,21 @@ const tokenNames = [
 ] as const;
 type TokenName = (typeof tokenNames)[number];
 
-function themeBlock(selector: ":root" | ".dark"): string {
-  const escapedSelector = selector.replace(".", "\\.");
+function themeBlock(theme: ColorTheme, mode: ColorMode): string {
+  const selector = `[data-theme-preview="${theme}"][data-color-mode="${mode}"]`;
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = themeCss.match(
     new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\}`),
   );
-  assert.ok(match, `Missing ${selector} theme block`);
+  assert.ok(match, `Missing ${theme} ${mode} theme block`);
   return match[1];
 }
 
-function parseTokens(selector: ":root" | ".dark"): Record<TokenName, Oklch> {
-  const block = themeBlock(selector);
+function parseTokens(
+  theme: ColorTheme,
+  mode: ColorMode,
+): Record<TokenName, Oklch> {
+  const block = themeBlock(theme, mode);
   return Object.fromEntries(
     tokenNames.map((name) => {
       const match = block.match(
@@ -61,7 +67,7 @@ function parseTokens(selector: ":root" | ".dark"): Record<TokenName, Oklch> {
           `--${name}:\\s*oklch\\(\\s*([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s*\\)`,
         ),
       );
-      assert.ok(match, `Missing OKLCH token --${name} in ${selector}`);
+      assert.ok(match, `Missing OKLCH token --${name} in ${theme} ${mode}`);
       return [name, match.slice(1, 4).map(Number) as unknown as Oklch];
     }),
   ) as Record<TokenName, Oklch>;
@@ -117,10 +123,14 @@ function assertContrast(
   );
 }
 
-const themes = {
-  light: parseTokens(":root"),
-  dark: parseTokens(".dark"),
-} satisfies Record<ThemeName, Record<TokenName, Oklch>>;
+const themes = Object.fromEntries(
+  (["nerve", "ocean", "forest"] as const).flatMap((theme) =>
+    (["light", "dark"] as const).map((mode) => [
+      `${theme}-${mode}`,
+      parseTokens(theme, mode),
+    ]),
+  ),
+) as Record<ThemeName, Record<TokenName, Oklch>>;
 
 const filledPairs = [
   ["primary", "primary-foreground"],

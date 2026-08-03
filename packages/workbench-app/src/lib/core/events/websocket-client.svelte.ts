@@ -15,8 +15,8 @@ import {
 } from "@nervekit/contracts";
 import { getClientConfig } from "$lib/api";
 import {
-  applyTheme,
-  loadThemePreference,
+  applyAppearance,
+  loadAppearancePreference,
 } from "$lib/app/shell/appearance.svelte";
 import {
   applyEventAndFlush,
@@ -88,7 +88,8 @@ export async function initializeWorkbench(): Promise<boolean> {
   intentionallyDisconnected = false;
   workspaceSnapshotLoaded = false;
   const generation = beginWorkbenchStartup();
-  applyTheme(loadThemePreference());
+  const appearance = loadAppearancePreference();
+  applyAppearance(appearance.theme, appearance.colorMode);
   try {
     const diagnostics = await runWorkbenchStartupSequence({
       loadClientConfig: () =>

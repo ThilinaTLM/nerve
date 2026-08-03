@@ -8,6 +8,7 @@ import {
 } from "@nervekit/contracts";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
 import { pathExists, readJsonFile } from "./json.js";
+import { migrateLegacyAppearanceSettings } from "./settings-migrations.js";
 
 /** Secret names carrying provider/tool credentials (model, web, Jira, Confluence). */
 const providerCredentialName = /^provider:.+:(?:apiKey|oauth)$/;
@@ -82,7 +83,11 @@ async function readLegacySettings(home: string): Promise<Settings | undefined> {
       "settings",
     );
   }
-  const parsed = settingsSchema.safeParse({ ...defaultSettings, ...raw });
+  const normalized = migrateLegacyAppearanceSettings(raw);
+  const parsed = settingsSchema.safeParse({
+    ...defaultSettings,
+    ...(normalized.value as object),
+  });
   if (!parsed.success) {
     throw new LegacyPortableStateError(
       "The legacy config.json does not match the settings schema.",

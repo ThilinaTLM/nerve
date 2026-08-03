@@ -7,7 +7,8 @@ import { workspaceSelectors } from "$lib/features/workspace/state/workspace-sele
 import {
   loadSettingsSkills,
   queueSettingsSave,
-  setTheme,
+  setColorMode,
+  setColorTheme,
 } from "$lib/features/settings/state/settings-actions.svelte";
 
 const status = $derived(workspaceSelectors.status);
@@ -37,5 +38,6 @@ $effect(() => {
   {settingsSaveStatus}
   {settingsMessage}
   onSettingsChange={queueSettingsSave}
-  onThemeChange={setTheme}
+  onColorThemeChange={setColorTheme}
+  onColorModeChange={setColorMode}
 />

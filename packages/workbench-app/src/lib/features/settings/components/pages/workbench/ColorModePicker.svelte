@@ -1,26 +1,35 @@
 <script lang="ts">
 import type { Component } from "svelte";
-import Palette from "@lucide/svelte/icons/palette";
-import TreePine from "@lucide/svelte/icons/tree-pine";
-import Waves from "@lucide/svelte/icons/waves";
+import Monitor from "@lucide/svelte/icons/monitor";
+import Moon from "@lucide/svelte/icons/moon";
+import Sun from "@lucide/svelte/icons/sun";
+import type { ColorTheme } from "$lib/api";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
 import { cn } from "@nervekit/ui-kit/core/utils";
 
-type ThemeOption = {
+type ModePreview = "light" | "dark";
+type ModeOption = {
   value: string;
   label: string;
   icon: Component<{ class?: string; "aria-hidden"?: "true" }>;
+  previews: ModePreview[];
 };
 
-const options: ThemeOption[] = [
-  { value: "nerve", label: "Nerve", icon: Palette },
-  { value: "ocean", label: "Ocean", icon: Waves },
-  { value: "forest", label: "Forest", icon: TreePine },
+const options: ModeOption[] = [
+  {
+    value: "system",
+    label: "System",
+    icon: Monitor,
+    previews: ["light", "dark"],
+  },
+  { value: "light", label: "Light", icon: Sun, previews: ["light"] },
+  { value: "dark", label: "Dark", icon: Moon, previews: ["dark"] },
 ];
 
 type Props = {
   value?: string;
+  theme: ColorTheme;
   ariaLabel?: string;
   class?: string;
   onValueChange?: (value: string) => void;
@@ -28,7 +37,8 @@ type Props = {
 
 let {
   value = $bindable(""),
-  ariaLabel = "Theme",
+  theme,
+  ariaLabel = "Color mode",
   class: className,
   onValueChange,
 }: Props = $props();
@@ -43,15 +53,15 @@ let {
   {#each options as option (option.value)}
     {@const Icon = option.icon}
     <Label
-      class="group/theme grid w-30 cursor-pointer gap-1.5 rounded-md border border-border/60 p-1.5 transition-colors hover:bg-accent/40 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/10"
+      class="group/mode grid w-30 cursor-pointer gap-1.5 rounded-md border border-border/60 p-1.5 transition-colors hover:bg-accent/40 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/10"
     >
       <span
         class="flex h-12 overflow-hidden rounded-sm border border-border/60"
         aria-hidden="true"
       >
-        {#each ["light", "dark"] as mode, index (mode)}
+        {#each option.previews as mode, index (mode)}
           <span
-            data-theme-preview={option.value}
+            data-theme-preview={theme}
             data-color-mode={mode}
             class={cn(
               "flex min-w-0 flex-1 gap-1 bg-background p-1",
@@ -60,7 +70,7 @@ let {
           >
             <span class="w-1.5 flex-none rounded-xs bg-sidebar"></span>
             <span class="grid min-w-0 flex-1 content-start gap-1">
-              <span class="h-1 w-full rounded-full bg-primary"></span>
+              <span class="h-1 w-full rounded-full bg-foreground/30"></span>
               <span class="h-1 w-2/3 rounded-full bg-foreground/30"></span>
             </span>
           </span>
@@ -70,7 +80,7 @@ let {
       <span class="flex min-w-0 items-center gap-1.5">
         <RadioGroup.Item value={option.value} class="size-3.5" />
         <Icon
-          class="size-3.5 flex-none text-muted-foreground group-has-data-[state=checked]/theme:text-primary"
+          class="size-3.5 flex-none text-muted-foreground group-has-data-[state=checked]/mode:text-primary"
           aria-hidden="true"
         />
         <span class="truncate text-xs font-medium">{option.label}</span>

@@ -2,13 +2,14 @@
 import type {
   AuthProviderMetadata,
   AvailableSkill,
+  ColorMode,
+  ColorTheme,
   ModelInfo,
   ProjectRecord,
   Settings,
   StatusResponse,
   UpdateSettingsRequest,
 } from "$lib/api";
-import type { ThemePreference } from "$lib/app/shell/appearance.svelte";
 import {
   SettingsShell,
   SettingsSidebarStatus,
@@ -56,7 +57,8 @@ type Props = {
   settingsSaveStatus?: SettingsSaveStatus;
   settingsMessage?: string;
   onSettingsChange?: SettingsChange;
-  onThemeChange?: (theme: ThemePreference) => void;
+  onColorThemeChange?: (theme: ColorTheme) => void;
+  onColorModeChange?: (colorMode: ColorMode) => void;
   onSkillsRetry?: () => void;
 };
 
@@ -74,7 +76,8 @@ let {
   settingsSaveStatus = "idle",
   settingsMessage,
   onSettingsChange,
-  onThemeChange,
+  onColorThemeChange,
+  onColorModeChange,
   onSkillsRetry,
 }: Props = $props();
 
@@ -149,7 +152,8 @@ function statusText(): string {
       {#if page.id === "workbench"}
         <WorkbenchSettingsPage
           {settingsDraft}
-          {onThemeChange}
+          {onColorThemeChange}
+          {onColorModeChange}
           {onSettingsChange}
         />
       {:else if page.id === "notifications"}

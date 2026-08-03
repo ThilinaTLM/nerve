@@ -6,6 +6,12 @@ import { userConfigurableToolNameSchema } from "../tools/index.js";
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;
 
+export const colorThemeSchema = z.enum(["nerve", "ocean", "forest"]);
+export type ColorTheme = z.infer<typeof colorThemeSchema>;
+
+export const colorModeSchema = z.enum(["system", "light", "dark"]);
+export type ColorMode = z.infer<typeof colorModeSchema>;
+
 export const permissionLevelSchema = z.enum([
   "autonomous",
   "supervised",
@@ -157,7 +163,8 @@ export const settingsSchema = z.object({
     allowRemote: z.boolean().default(false),
   }),
   ui: z.object({
-    theme: z.enum(["system", "light", "dark"]),
+    theme: colorThemeSchema.default("nerve"),
+    colorMode: colorModeSchema.default("system"),
     zoomLevel: z.number().int().min(-8).max(8).default(0),
   }),
   desktop: z.object({
@@ -230,7 +237,8 @@ export const defaultSettings: Settings = {
     allowRemote: false,
   },
   ui: {
-    theme: "system",
+    theme: "nerve",
+    colorMode: "system",
     zoomLevel: 0,
   },
   desktop: {
@@ -299,7 +307,8 @@ export const updateSettingsRequestSchema = z.object({
     .optional(),
   ui: z
     .object({
-      theme: z.enum(["system", "light", "dark"]).optional(),
+      theme: colorThemeSchema.optional(),
+      colorMode: colorModeSchema.optional(),
       zoomLevel: z.number().int().min(-8).max(8).optional(),
     })
     .optional(),
