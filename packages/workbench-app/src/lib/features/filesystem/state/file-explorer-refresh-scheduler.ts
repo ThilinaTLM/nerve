@@ -18,7 +18,7 @@ export function startFileExplorerRefreshScheduler(options: {
   const refresh = (): void => {
     if (targetDocument.visibilityState === "visible") void options.refresh();
   };
-  const timer = targetWindow.setInterval(refresh, options.intervalMs ?? 5_000);
+  const timer = targetWindow.setInterval(refresh, options.intervalMs ?? 20_000);
   targetWindow.addEventListener("focus", refresh);
   targetDocument.addEventListener("visibilitychange", refresh);
   return () => {

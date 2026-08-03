@@ -6,6 +6,7 @@ test("refreshes only while visible and cleans up listeners", () => {
   const windowTarget = new EventTarget();
   const documentTarget = new EventTarget();
   let interval: (() => void) | undefined;
+  let intervalMs: number | undefined;
   let visible = true;
   let refreshes = 0;
   const stop = startFileExplorerRefreshScheduler({
@@ -15,8 +16,9 @@ test("refreshes only while visible and cleans up listeners", () => {
     window: {
       addEventListener: windowTarget.addEventListener.bind(windowTarget),
       removeEventListener: windowTarget.removeEventListener.bind(windowTarget),
-      setInterval: ((callback: TimerHandler) => {
+      setInterval: ((callback: TimerHandler, delay?: number) => {
         interval = callback as () => void;
+        intervalMs = delay;
         return 1;
       }) as Window["setInterval"],
       clearInterval: (() => undefined) as Window["clearInterval"],
@@ -31,6 +33,7 @@ test("refreshes only while visible and cleans up listeners", () => {
     },
   });
 
+  assert.equal(intervalMs, 20_000);
   interval?.();
   windowTarget.dispatchEvent(new Event("focus"));
   assert.equal(refreshes, 2);
