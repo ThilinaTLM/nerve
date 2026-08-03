@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/harness",
-  "version": "0.16.2",
+  "version": "0.17.0",
   "private": true,
   "description": "Reusable model, harness, and agent loop runtime.",
   "author": "ThilinaTLM",
