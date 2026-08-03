@@ -25,9 +25,12 @@ export const fileExplorerState = $state({
 export function ensureFileExplorerProject(
   projectId: string,
 ): FileExplorerProjectState {
-  return (fileExplorerState.projects[projectId] ??= {
+  fileExplorerState.projects[projectId] ??= {
     projectId,
     directories: {},
     expandedIds: new SvelteSet<string>(),
-  });
+  };
+  // Read the assigned value back through the deep state proxy. Returning the
+  // raw right-hand side of `??=` would make later async mutations non-reactive.
+  return fileExplorerState.projects[projectId];
 }

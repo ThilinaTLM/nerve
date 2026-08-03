@@ -21,14 +21,15 @@ function ensureDirectory(
   path: string,
 ): FileExplorerDirectoryState {
   const project = ensureFileExplorerProject(projectId);
-  return (project.directories[path] ??= {
+  project.directories[path] ??= {
     path,
     entries: [],
     pagesLoaded: 0,
     loading: false,
     refreshing: false,
     generation: 0,
-  });
+  };
+  return project.directories[path];
 }
 
 async function requestPages(
