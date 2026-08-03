@@ -1,4 +1,5 @@
 export * from "./api/git.api";
+export { default as DiffShell } from "./components/DiffShell.svelte";
 export { default as PrShell } from "./components/PrShell.svelte";
 export {
   clearGitContext,
@@ -6,8 +7,13 @@ export {
   startGitContextAutoRefresh,
 } from "./state/git-context.svelte";
 export { gitSelectors } from "./state/git-selectors.svelte";
-export type { GitContext, PrViewState } from "./state/git-state.svelte";
+export type {
+  DiffViewState,
+  GitContext,
+  PrViewState,
+} from "./state/git-state.svelte";
 export { gitState } from "./state/git-state.svelte";
+export { refreshDiffPane } from "./state/diff-tabs.svelte";
 export { refreshPrPane } from "./state/pr-tabs.svelte";
 export { startGitRefreshCoordinator } from "./state/git-refresh-coordinator.svelte";
 export { createGitStartupPolicy } from "./state/git-startup-policy";

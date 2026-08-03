@@ -190,6 +190,9 @@ export function createGitPanelActions(
         return host.switchBranch(repository, branch);
       return false;
     },
+    openDiff: (repository, file, area) => {
+      if (available()) return host.openDiff(repository, file, area);
+    },
     mutateFile: (repository, file, action) => {
       if (available() && model().capabilities.mutateFiles.enabled)
         return host.mutateFile(repository, file, action);

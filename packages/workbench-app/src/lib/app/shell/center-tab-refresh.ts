@@ -5,6 +5,7 @@ export type CenterTabRefreshDependencies = {
   selectTab(tab: CenterTabIdentity): void;
   refreshFile(id: string): void;
   refreshPullRequest(id: string): void;
+  refreshDiff(id: string): void;
   loadSettings(): void;
   loadAuth(): void;
   refreshLogs(): void;
@@ -27,6 +28,9 @@ export function createCenterTabRefresh(
         return;
       case "pr":
         dependencies.refreshPullRequest(tab.id);
+        return;
+      case "diff":
+        dependencies.refreshDiff(tab.id);
         return;
       case "settings":
         dependencies.loadSettings();

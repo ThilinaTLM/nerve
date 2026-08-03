@@ -20,6 +20,13 @@ export const gitMethodHandlers = defineWorkbenchMethodHandlers({
       repo(params),
       params.name,
     ),
+  "git.file.diff.get": (state, params) =>
+    state.registry.git.fileDiff(
+      params.projectId,
+      repo(params),
+      params.path,
+      params.area,
+    ),
   "git.file.stage": (state, params) =>
     state.registry.git.stageFile(params.projectId, repo(params), params.path),
   "git.file.unstage": (state, params) =>

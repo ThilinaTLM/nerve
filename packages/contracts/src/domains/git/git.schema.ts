@@ -130,6 +130,23 @@ export const gitFileActionRequestSchema = z.object({
 });
 export type GitFileActionRequest = z.infer<typeof gitFileActionRequestSchema>;
 
+export const gitDiffAreaSchema = z.enum(["staged", "unstaged"]);
+export type GitDiffArea = z.infer<typeof gitDiffAreaSchema>;
+
+export const gitFileDiffRequestSchema = gitFileActionRequestSchema.extend({
+  area: gitDiffAreaSchema,
+});
+export type GitFileDiffRequest = z.infer<typeof gitFileDiffRequestSchema>;
+
+export const gitFileDiffResponseSchema = z.object({
+  path: z.string(),
+  renamedFrom: z.string().optional(),
+  area: gitDiffAreaSchema,
+  patch: z.string(),
+  binary: z.boolean(),
+});
+export type GitFileDiffResponse = z.infer<typeof gitFileDiffResponseSchema>;
+
 export const gitMutationResponseSchema = z.object({
   repo: gitRepoSummarySchema,
 });

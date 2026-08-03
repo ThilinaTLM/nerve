@@ -3,6 +3,8 @@ import {
   gitBranchListResponseSchema,
   gitDiscoveryResponseSchema,
   gitFileActionRequestSchema,
+  gitFileDiffRequestSchema,
+  gitFileDiffResponseSchema,
   gitMutationResponseSchema,
   gitOverviewResponseSchema,
   gitRemoteOpRequestSchema,
@@ -37,6 +39,9 @@ const gitSwitchBranchParamsSchema = projectIdParamsSchema.merge(
 );
 const gitFileActionParamsSchema = projectIdParamsSchema.merge(
   gitFileActionRequestSchema,
+);
+const gitFileDiffParamsSchema = projectIdParamsSchema.merge(
+  gitFileDiffRequestSchema,
 );
 const gitRemoteOpParamsSchema = projectIdParamsSchema.merge(
   gitRemoteOpRequestSchema,
@@ -96,6 +101,15 @@ export const gitOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.git.branch.switch",
+  ),
+  defineOperation(
+    "git.file.diff.get",
+    gitFileDiffParamsSchema,
+    gitFileDiffResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.git.file.diff.get",
   ),
   defineOperation(
     "git.file.stage",

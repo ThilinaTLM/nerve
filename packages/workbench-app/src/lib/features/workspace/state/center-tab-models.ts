@@ -6,6 +6,7 @@ import type {
   ProjectRecord,
   TaskRecord,
 } from "$lib/api";
+import type { GitDiffArea } from "@nervekit/contracts";
 import type { FileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 
@@ -58,6 +59,17 @@ export type FileTabModel = {
   error?: string;
 };
 
+export type DiffTabModel = {
+  kind: "diff";
+  id: string;
+  path?: string;
+  repo?: string;
+  area?: GitDiffArea;
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type SettingsTabModel = {
   kind: "settings";
   id: "settings";
@@ -100,6 +112,7 @@ export type CenterTabModel =
   | TaskTabModel
   | FileTabModel
   | PrTabModel
+  | DiffTabModel
   | SettingsTabModel
   | AuthTabModel
   | LogsTabModel;

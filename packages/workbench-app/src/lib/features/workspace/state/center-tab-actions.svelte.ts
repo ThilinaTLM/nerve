@@ -4,12 +4,14 @@ import {
 } from "$lib/core/audio/voice-input-session.svelte";
 import {
   conversationViewKey,
+  diffViewKey,
   fileViewKey,
   pendingConversationKey,
 } from "$lib/core/state/state-keys";
 import type { CenterTabIdentity } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
+import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
   composerDraft,
@@ -135,6 +137,7 @@ export async function closeCenterTabs(
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
     if (tab.kind === "file") delete fileState.fileViews[fileViewKey(tab.id)];
+    if (tab.kind === "diff") delete gitState.diffViews[diffViewKey(tab.id)];
     if (tab.kind === "conversation")
       delete conversationState.conversationViews[conversationViewKey(tab.id)];
     if (tab.kind === "pending-conversation")

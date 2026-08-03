@@ -1,6 +1,11 @@
+import type { GitDiffArea } from "@nervekit/contracts";
 import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
 import { projectKey } from "$lib/core/utils/project-tree";
-import { fileViewKey, prViewKey } from "$lib/core/state/state-keys";
+import {
+  diffViewKey,
+  fileViewKey,
+  prViewKey,
+} from "$lib/core/state/state-keys";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { syncCenterTabMirrors } from "./center-tab-mirrors.svelte";
@@ -199,6 +204,8 @@ type StoredTab = CenterTabIdentity & {
   wrapLines?: boolean;
   repo?: string;
   number?: number;
+  renamedFrom?: string;
+  area?: GitDiffArea;
 };
 
 type StoredSession = {
@@ -226,6 +233,7 @@ function isIdentity(value: unknown): value is CenterTabIdentity {
       "task",
       "file",
       "pr",
+      "diff",
       "settings",
       "auth",
       "logs",
@@ -273,6 +281,24 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         activeTab: "conversation",
         refreshing: false,
         merging: false,
+      };
+    } else if (stored.kind === "diff") {
+      if (
+        !stored.projectId ||
+        !stored.repo ||
+        !stored.path ||
+        (stored.area !== "staged" && stored.area !== "unstaged")
+      )
+        continue;
+      gitState.diffViews[diffViewKey(stored.id)] = {
+        id: stored.id,
+        projectId: stored.projectId,
+        repo: stored.repo,
+        path: stored.path,
+        renamedFrom: stored.renamedFrom,
+        area: stored.area,
+        loading: false,
+        refreshing: false,
       };
     }
     tabs.push({ kind: stored.kind, id: stored.id } as CenterTabIdentity);
@@ -360,6 +386,8 @@ export function hydrateWorkspaceTabSessions(
         return Boolean(fileState.fileViews[fileViewKey(tab.id)]);
       if (tab.kind === "pr")
         return Boolean(gitState.prViews[prViewKey(tab.id)]);
+      if (tab.kind === "diff")
+        return Boolean(gitState.diffViews[diffViewKey(tab.id)]);
       if (tab.kind === "conversation") return conversationIds.has(tab.id);
       if (tab.kind === "task") return taskIds.has(tab.id);
       return true;
@@ -422,6 +450,21 @@ export function persistWorkspaceTabSessions(): void {
                     projectId: view.projectId,
                     repo: view.repo,
                     number: view.number,
+                  },
+                ]
+              : [];
+          }
+          if (tab.kind === "diff") {
+            const view = gitState.diffViews[diffViewKey(tab.id)];
+            return view
+              ? [
+                  {
+                    ...tab,
+                    projectId: view.projectId,
+                    repo: view.repo,
+                    path: view.path,
+                    renamedFrom: view.renamedFrom,
+                    area: view.area,
                   },
                 ]
               : [];

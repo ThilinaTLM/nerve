@@ -14,6 +14,10 @@ export function prViewKey(prTabId: string): string {
   return `pr-view:${prTabId}`;
 }
 
+export function diffViewKey(diffTabId: string): string {
+  return `diff-view:${diffTabId}`;
+}
+
 export function gitProjectStateKey(projectId: string): string {
   return `git-project:${projectId}`;
 }

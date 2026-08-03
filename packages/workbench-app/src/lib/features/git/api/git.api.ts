@@ -1,6 +1,8 @@
 import type {
   GitBranchListResponse,
+  GitDiffArea,
   GitDiscoveryResponse,
+  GitFileDiffResponse,
   GithubPrCheckoutResponse,
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
@@ -117,6 +119,22 @@ export async function switchBaseAndPullGit(
     await protocolRequest("git.switchBaseAndPull", {
       projectId,
       repo,
+    })
+  ).result;
+}
+
+export async function getGitFileDiff(
+  projectId: string,
+  repo: string,
+  path: string,
+  area: GitDiffArea,
+): Promise<GitFileDiffResponse> {
+  return (
+    await protocolRequest("git.file.diff.get", {
+      projectId,
+      repo,
+      path,
+      area,
     })
   ).result;
 }

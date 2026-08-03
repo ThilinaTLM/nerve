@@ -12,5 +12,5 @@ export type {
   TranscriptItem,
 } from "$lib/features/conversations";
 export type { FileViewState } from "$lib/features/filesystem";
-export type { GitContext, PrViewState } from "$lib/features/git";
+export type { DiffViewState, GitContext, PrViewState } from "$lib/features/git";
 export type { CenterTabIdentity } from "$lib/features/workspace";
