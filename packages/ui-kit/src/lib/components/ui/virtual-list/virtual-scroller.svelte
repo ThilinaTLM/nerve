@@ -1,5 +1,6 @@
 <script lang="ts" generics="T">
 import { createVirtualizer } from "@tanstack/svelte-virtual";
+import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { get } from "svelte/store";
 import { cn } from "@nervekit/ui-kit/core/utils";
@@ -112,6 +113,7 @@ const renderedVirtualRows = $derived.by(() => {
 const FOLLOW_SETTLE_FRAMES = 8;
 let followFrame: number | undefined;
 let followSettleFrames = 0;
+let postMeasurementFollowPending = false;
 
 function shouldFollowEnd(): boolean {
   return anchor === "end" && Boolean(followOutput);
@@ -125,6 +127,28 @@ function cancelFollowFrame() {
   if (followFrame === undefined) return;
   cancelAnimationFrame(followFrame);
   followFrame = undefined;
+}
+
+function schedulePostMeasurementFollow() {
+  if (!shouldFollowEnd() || postMeasurementFollowPending) return;
+  postMeasurementFollowPending = true;
+  cancelFollowFrame();
+  followSettleFrames = 0;
+
+  // `resizeItem` updates the virtual total synchronously, while Svelte applies
+  // the spacer's new DOM height at the end of the current microtask. Waiting
+  // for that commit lets the browser accept the new maximum scrollTop before
+  // paint instead of exposing one frame at the previous estimated bottom.
+  void tick().then(() => {
+    postMeasurementFollowPending = false;
+    if (!viewportEl?.isConnected || !shouldFollowEnd()) return;
+
+    instance.scrollToEnd({ behavior: "auto" });
+    syncFromVirtualizer();
+    if (!instance.isAtEnd(scrollEndThreshold)) {
+      scheduleFollowToEnd(3);
+    }
+  });
 }
 
 function scheduleFollowToEnd(settleFrames = FOLLOW_SETTLE_FRAMES) {
@@ -298,7 +322,10 @@ function flushMeasurements() {
     committedMeasurementHeights.set(key, height);
     committedCount += 1;
   }
-  if (committedCount > 0) scheduleFollowToEnd(3);
+  if (committedCount > 0) {
+    syncFromVirtualizer();
+    schedulePostMeasurementFollow();
+  }
 }
 
 function queueMeasure(node: HTMLElement) {
@@ -344,6 +371,7 @@ $effect(() => {
   return () => {
     cancelFollowFrame();
     cancelMeasureFrame();
+    postMeasurementFollowPending = false;
     resizeObserver?.disconnect();
     resizeObserver = undefined;
     registeredMeasureNodes.clear();
