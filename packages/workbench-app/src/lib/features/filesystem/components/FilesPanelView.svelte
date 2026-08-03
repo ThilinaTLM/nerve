@@ -2,6 +2,7 @@
 import File from "@lucide/svelte/icons/file";
 import Files from "@lucide/svelte/icons/files";
 import Folder from "@lucide/svelte/icons/folder";
+import FolderOpen from "@lucide/svelte/icons/folder-open";
 import Link from "@lucide/svelte/icons/link";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
@@ -19,6 +20,7 @@ import { startFileExplorerRefreshScheduler } from "$lib/features/filesystem/stat
 import { fileExplorerState } from "$lib/features/filesystem/state/file-explorer-state.svelte";
 import {
   buildFileExplorerTree,
+  fileExplorerEntryNodeId,
   type FileExplorerTreeItem,
 } from "$lib/features/filesystem/state/file-explorer-tree";
 import {
@@ -144,7 +146,11 @@ $effect(() => {
           {#if item.entry.symlink}
             <Link class="size-3.5" aria-hidden="true" />
           {:else if item.entry.kind === "directory"}
-            <Folder class="size-3.5" aria-hidden="true" />
+            {#if project.expandedIds.has(fileExplorerEntryNodeId(activeProject.id, item.entry.path))}
+              <FolderOpen class="size-3.5" aria-hidden="true" />
+            {:else}
+              <Folder class="size-3.5" aria-hidden="true" />
+            {/if}
           {:else}
             <File class="size-3.5" aria-hidden="true" />
           {/if}

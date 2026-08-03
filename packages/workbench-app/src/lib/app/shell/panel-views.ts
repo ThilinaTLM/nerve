@@ -1,4 +1,4 @@
-import Files from "@lucide/svelte/icons/files";
+import FolderTree from "@lucide/svelte/icons/folder-tree";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Info from "@lucide/svelte/icons/info";
@@ -16,7 +16,7 @@ export const panelViewDescriptors: PanelViewDescriptor[] = [
   {
     id: "files",
     title: "Files",
-    icon: Files,
+    icon: FolderTree,
     defaultDock: "left",
     defaultOrder: 0,
   },
