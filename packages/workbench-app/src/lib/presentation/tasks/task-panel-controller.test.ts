@@ -4,7 +4,6 @@ import type { TaskRecord } from "@nervekit/contracts";
 import {
   projectTaskPanel,
   taskDefinitionLabel,
-  taskLineageRuns,
   taskRunLabel,
 } from "./task-panel-controller.js";
 import type { TaskPanelDefinition } from "./task-panel-types.js";
@@ -161,31 +160,4 @@ test("labels definitions by their label and runs by display name, then command",
     text: "pnpm dev",
     isCommand: true,
   });
-});
-
-test("groups lineage runs by definition, then restart root, then id", () => {
-  const tasks = [
-    run("task_def_1", { definitionId: "taskdef_a" }),
-    run("task_def_2", { definitionId: "taskdef_a" }),
-    run("task_root", { restartRootTaskId: "task_root" }),
-    run("task_restart", { restartRootTaskId: "task_root" }),
-    run("task_solo"),
-  ];
-  assert.deepEqual(
-    taskLineageRuns(tasks, tasks[0])
-      .map((task) => task.id)
-      .sort(),
-    ["task_def_1", "task_def_2"],
-  );
-  assert.deepEqual(
-    taskLineageRuns(tasks, tasks[3])
-      .map((task) => task.id)
-      .sort(),
-    ["task_restart", "task_root"],
-  );
-  assert.deepEqual(
-    taskLineageRuns(tasks, tasks[4]).map((task) => task.id),
-    ["task_solo"],
-  );
-  assert.deepEqual(taskLineageRuns(tasks, undefined), []);
 });

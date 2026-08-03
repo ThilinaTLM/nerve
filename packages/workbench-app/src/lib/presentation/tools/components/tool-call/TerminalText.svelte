@@ -9,7 +9,7 @@ type Props = {
 };
 
 let { text, stream, level }: Props = $props();
-const html = $derived(ansiToHtml(text));
+const html = $derived(ansiToHtml(text, { linkifyUrls: true }));
 </script>
 
 <span
@@ -17,7 +17,7 @@ const html = $derived(ansiToHtml(text));
   data-stream={stream}
   data-level={level}
 >
-  <!-- eslint-disable-next-line svelte/no-at-html-tags -- ansiToHtml escapes terminal text and emits only controlled ANSI spans. -->
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- ansiToHtml escapes terminal text and emits only controlled ANSI spans and HTTP(S) links. -->
   {@html html}
 </span>
 

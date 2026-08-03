@@ -75,6 +75,23 @@
   );
 }
 
+.terminal-output a {
+  color: inherit;
+  text-decoration-line: none;
+  text-underline-offset: 0.15em;
+}
+
+.terminal-output a:hover,
+.terminal-output a:focus-visible {
+  text-decoration-line: underline;
+}
+
+.terminal-output a:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .terminal-output .ansi-bold {
   font-weight: 700;
 }

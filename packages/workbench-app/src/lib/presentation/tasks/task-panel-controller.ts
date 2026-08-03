@@ -98,24 +98,7 @@ export function taskRunLabel(entry: TaskRunEntry): TaskEntryLabel {
   return { text: command || "Task", isCommand: command.length > 0 };
 }
 
-/** Lineage key shared by a definition's runs and by restart chains. */
-function lineageKey(task: TaskRecord): string {
-  return task.definitionId ?? task.restartRootTaskId ?? task.id;
-}
-
-/** All runs that belong to the same lineage as `task`, newest first. */
-export function taskLineageRuns(
-  tasks: readonly TaskRecord[],
-  task: TaskRecord | undefined,
-): TaskRecord[] {
-  if (!task) return [];
-  const key = lineageKey(task);
-  return tasks
-    .filter((candidate) => lineageKey(candidate) === key)
-    .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-}
-
-/** Formats a run start time for compact single-line row and selector labels. */
+/** Formats a run start time for compact single-line row labels. */
 export function formatTaskRunTime(startedAt: string): string {
   const started = new Date(startedAt);
   const sameDay = started.toDateString() === new Date().toDateString();
