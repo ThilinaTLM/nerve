@@ -10,36 +10,44 @@ import {
 import { createTempProject, writeExecutable } from "./helpers.js";
 
 describe("executable resolution", () => {
-  it("resolves an executable from POSIX PATH", async () => {
-    const project = await createTempProject("nerve-executable-");
-    const bin = join(project.root, "bin");
-    await mkdir(bin);
-    const expected = await writeExecutable(
-      bin,
-      "sample-command",
-      'process.stdout.write("ok");',
-    );
+  it(
+    "resolves an executable from POSIX PATH",
+    { skip: process.platform === "win32" },
+    async () => {
+      const project = await createTempProject("nerve-executable-");
+      const bin = join(project.root, "bin");
+      await mkdir(bin);
+      const expected = await writeExecutable(
+        bin,
+        "sample-command",
+        'process.stdout.write("ok");',
+      );
 
-    const resolved = await locateExecutable("sample-command", {
-      platform: "linux",
-      env: { PATH: bin },
-      homeDir: join(project.root, "home"),
-    });
+      const resolved = await locateExecutable("sample-command", {
+        platform: "linux",
+        env: { PATH: bin },
+        homeDir: join(project.root, "home"),
+      });
 
-    assert.deepEqual(resolved, { path: expected, kind: "native" });
-  });
+      assert.deepEqual(resolved, { path: expected, kind: "native" });
+    },
+  );
 
-  it("requires execute permission on POSIX", async () => {
-    const project = await createTempProject("nerve-executable-mode-");
-    const path = join(project.root, "not-executable");
-    await writeFile(path, "content", "utf8");
-    await chmod(path, 0o644);
+  it(
+    "requires execute permission on POSIX",
+    { skip: process.platform === "win32" },
+    async () => {
+      const project = await createTempProject("nerve-executable-mode-");
+      const path = join(project.root, "not-executable");
+      await writeFile(path, "content", "utf8");
+      await chmod(path, 0o644);
 
-    assert.equal(
-      await locateExecutable(path, { platform: "darwin" }),
-      undefined,
-    );
-  });
+      assert.equal(
+        await locateExecutable(path, { platform: "darwin" }),
+        undefined,
+      );
+    },
+  );
 
   it("honors case-insensitive Windows environment keys and PATHEXT order", async () => {
     const project = await createTempProject("nerve-executable-windows-");
@@ -67,8 +75,8 @@ describe("executable resolution", () => {
     });
 
     assert.equal(directories[0], "/usr/bin");
-    assert.ok(directories.includes("/Users/test/.local/bin"));
-    assert.ok(directories.includes("/Users/test/.volta/bin"));
+    assert.ok(directories.includes(join("/Users/test", ".local", "bin")));
+    assert.ok(directories.includes(join("/Users/test", ".volta", "bin")));
     assert.ok(directories.includes("/opt/homebrew/bin"));
     assert.equal(
       directories.filter((path) => path === "/opt/homebrew/bin").length,
