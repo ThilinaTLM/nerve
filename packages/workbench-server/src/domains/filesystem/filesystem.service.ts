@@ -4,6 +4,7 @@ import {
   mkdir,
   open,
   readdir,
+  realpath,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -22,8 +23,10 @@ import {
 import { createInterface } from "node:readline";
 import {
   clipboardImageUploadRequestSchema,
+  type FilesystemProjectEntry,
   type FilesystemSignal,
   filesystemFileQuerySchema,
+  filesystemProjectEntriesQuerySchema,
 } from "@nervekit/contracts";
 
 async function pathExists(path: string): Promise<boolean> {
@@ -167,6 +170,176 @@ export async function directoryListing(
         signals: await detectDirectorySignals(entryPath),
       };
     }),
+  };
+}
+
+const defaultProjectEntryLimit = 500;
+
+type ProjectEntrySortKey = [number, string, string, string];
+
+function normalizeProjectRelativeDirectory(
+  rawPath: string | undefined,
+): string {
+  const path = rawPath?.trim().replaceAll("\\", "/") ?? "";
+  if (!path) return "";
+  if (path.includes("\0") || path.startsWith("/") || /^[A-Za-z]:\//.test(path))
+    throw new Error("Project directory path must be relative.");
+  const segments = path.split("/");
+  if (
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  )
+    throw new Error("Project directory path contains an invalid segment.");
+  return segments.join("/");
+}
+
+function projectEntrySortKey(
+  entry: FilesystemProjectEntry,
+): ProjectEntrySortKey {
+  return [
+    entry.kind === "directory" ? 0 : entry.kind === "file" ? 1 : 2,
+    entry.name.toLocaleLowerCase(),
+    entry.name,
+    entry.path,
+  ];
+}
+
+function compareProjectEntryKeys(
+  left: ProjectEntrySortKey,
+  right: ProjectEntrySortKey,
+): number {
+  return (
+    left[0] - right[0] ||
+    left[1].localeCompare(right[1], undefined, { numeric: true }) ||
+    left[2].localeCompare(right[2], undefined, { numeric: true }) ||
+    left[3].localeCompare(right[3])
+  );
+}
+
+function encodeProjectEntryCursor(
+  path: string,
+  key: ProjectEntrySortKey,
+): string {
+  return Buffer.from(JSON.stringify({ path, key })).toString("base64url");
+}
+
+function decodeProjectEntryCursor(
+  cursor: string,
+  path: string,
+): ProjectEntrySortKey {
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    ) as {
+      path?: unknown;
+      key?: unknown;
+    };
+    if (
+      decoded.path !== path ||
+      !Array.isArray(decoded.key) ||
+      decoded.key.length !== 4 ||
+      typeof decoded.key[0] !== "number" ||
+      decoded.key.slice(1).some((value) => typeof value !== "string")
+    )
+      throw new Error("invalid");
+    return decoded.key as ProjectEntrySortKey;
+  } catch {
+    throw new Error("Invalid or stale project directory cursor.");
+  }
+}
+
+async function classifyProjectEntry(
+  root: string,
+  directory: string,
+  relativeDirectory: string,
+  entry: import("node:fs").Dirent,
+): Promise<FilesystemProjectEntry> {
+  const path = relativeDirectory
+    ? `${relativeDirectory}/${entry.name}`
+    : entry.name;
+  if (!entry.isSymbolicLink()) {
+    return {
+      name: entry.name,
+      path,
+      kind: entry.isDirectory()
+        ? "directory"
+        : entry.isFile()
+          ? "file"
+          : "other",
+      symlink: false,
+    };
+  }
+
+  let kind: FilesystemProjectEntry["kind"] = "other";
+  try {
+    const target = await realpath(join(directory, entry.name));
+    if (isInside(root, target)) {
+      const info = await stat(target);
+      kind = info.isDirectory()
+        ? "directory"
+        : info.isFile()
+          ? "file"
+          : "other";
+    }
+  } catch {
+    // Broken and inaccessible links stay visible as non-browsable entries.
+  }
+  return { name: entry.name, path, kind, symlink: true };
+}
+
+export async function projectDirectoryEntries(
+  input: unknown,
+  getProjectDirectory: (projectId: string) => string,
+) {
+  const query = filesystemProjectEntriesQuerySchema.parse(input);
+  const relativeDirectory = normalizeProjectRelativeDirectory(query.path);
+  const root = await realpath(resolve(getProjectDirectory(query.projectId)));
+  const directory = resolve(root, relativeDirectory);
+  if (!isInside(root, directory))
+    throw new Error("Project directory path escapes the project root.");
+
+  const resolvedDirectory = await realpath(directory);
+  if (!isInside(root, resolvedDirectory))
+    throw new Error("Project directory path escapes the project root.");
+  const info = await stat(resolvedDirectory);
+  if (!info.isDirectory())
+    throw new Error(`${relativeDirectory || "."} is not a directory.`);
+
+  const entries = await mapBatched(
+    await readdir(resolvedDirectory, { withFileTypes: true }),
+    32,
+    (entry) =>
+      classifyProjectEntry(root, resolvedDirectory, relativeDirectory, entry),
+  );
+  entries.sort((left, right) =>
+    compareProjectEntryKeys(
+      projectEntrySortKey(left),
+      projectEntrySortKey(right),
+    ),
+  );
+
+  let start = 0;
+  if (query.cursor) {
+    const cursorKey = decodeProjectEntryCursor(query.cursor, relativeDirectory);
+    const cursorIndex = entries.findIndex(
+      (entry) =>
+        compareProjectEntryKeys(projectEntrySortKey(entry), cursorKey) === 0,
+    );
+    if (cursorIndex < 0)
+      throw new Error("Invalid or stale project directory cursor.");
+    start = cursorIndex + 1;
+  }
+
+  const limit = query.limit ?? defaultProjectEntryLimit;
+  const page = entries.slice(start, start + limit);
+  const last = page.at(-1);
+  return {
+    projectId: query.projectId,
+    path: relativeDirectory,
+    entries: page,
+    nextCursor:
+      last && start + page.length < entries.length
+        ? encodeProjectEntryCursor(relativeDirectory, projectEntrySortKey(last))
+        : undefined,
   };
 }
 

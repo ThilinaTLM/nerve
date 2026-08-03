@@ -4,8 +4,10 @@ export type PanelTreeItemNode<T> = {
   label: string;
   path: readonly string[];
   value: T;
-  /** Nested items; empty for leaves. Item parents expand like group nodes. */
+  /** Nested items; empty for leaves or not-yet-loaded parents. */
   children: readonly PanelTreeNode<T>[];
+  /** Marks an item expandable before lazy children have been loaded. */
+  expandable?: boolean;
 };
 
 export type PanelTreeGroupNode<T> = {
@@ -36,6 +38,7 @@ export type BuildPanelItemTreeOptions<T> = {
   getKey: (item: T) => string;
   getParentKey: (item: T) => string | undefined;
   getLabel: (item: T) => string;
+  isExpandable?: (item: T) => boolean;
 };
 
 type TrieItem<T> = {
@@ -233,6 +236,7 @@ export function buildPanelItemTree<T>(
         path,
         value: item,
         children: buildNodes(childrenByKey.get(key) ?? [], path),
+        expandable: options.isExpandable?.(item),
       };
     });
 
@@ -244,12 +248,14 @@ export function panelTreeExpandableIds<T>(
   nodes: readonly PanelTreeNode<T>[],
 ): Set<string> {
   const ids = new Set<string>();
-  const visit = (node: PanelTreeNode<T>): void => {
-    if (node.children.length === 0) return;
-    ids.add(node.id);
-    node.children.forEach(visit);
-  };
-  nodes.forEach(visit);
+  const stack = [...nodes];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (node.children.length > 0 || (node.kind === "item" && node.expandable))
+      ids.add(node.id);
+    stack.push(...node.children);
+  }
   return ids;
 }
 
@@ -265,26 +271,39 @@ export function visiblePanelTreeRows<T>(
   expanded: ReadonlySet<string>,
 ): PanelTreeRow<T>[] {
   const rows: PanelTreeRow<T>[] = [];
+  const stack: Array<{
+    siblings: readonly PanelTreeNode<T>[];
+    index: number;
+    depth: number;
+    parentId?: string;
+  }> = [{ siblings: nodes, index: 0, depth: 0 }];
 
-  const visit = (
-    siblings: readonly PanelTreeNode<T>[],
-    depth: number,
-    parentId?: string,
-  ): void => {
-    siblings.forEach((node, index) => {
-      rows.push({
-        node,
-        depth,
-        parentId,
-        posInSet: index + 1,
-        setSize: siblings.length,
-      });
-      if (node.children.length > 0 && expanded.has(node.id))
-        visit(node.children, depth + 1, node.id);
+  while (stack.length > 0) {
+    const frame = stack.at(-1);
+    if (!frame) break;
+    if (frame.index >= frame.siblings.length) {
+      stack.pop();
+      continue;
+    }
+    const index = frame.index++;
+    const node = frame.siblings[index];
+    if (!node) continue;
+    rows.push({
+      node,
+      depth: frame.depth,
+      parentId: frame.parentId,
+      posInSet: index + 1,
+      setSize: frame.siblings.length,
     });
-  };
-
-  visit(nodes, 0);
+    if (node.children.length > 0 && expanded.has(node.id)) {
+      stack.push({
+        siblings: node.children,
+        index: 0,
+        depth: frame.depth + 1,
+        parentId: node.id,
+      });
+    }
+  }
   return rows;
 }
 

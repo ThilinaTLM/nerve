@@ -1,3 +1,4 @@
+import FolderTree from "@lucide/svelte/icons/folder-tree";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Info from "@lucide/svelte/icons/info";
@@ -21,8 +22,15 @@ export const panelViewDescriptors: PanelViewDescriptor[] = [
     hideable: false,
   },
   {
+    id: "files",
+    title: "Files",
+    icon: FolderTree,
+    defaultDock: "left",
+    defaultOrder: 1,
+  },
+  {
     id: "git",
-    title: "Git",
+    title: "Git Changes",
     icon: GitBranch,
     defaultDock: "right",
     defaultOrder: 0,
@@ -42,18 +50,18 @@ export const panelViewDescriptors: PanelViewDescriptor[] = [
     defaultOrder: 2,
   },
   {
-    id: "notes",
-    title: "Notes",
-    icon: NotebookPen,
-    defaultDock: "right",
-    defaultOrder: 3,
-  },
-  {
     id: "tasks",
     title: "Tasks",
     icon: Terminal,
     defaultDock: "left",
-    defaultOrder: 1,
+    defaultOrder: 2,
+  },
+  {
+    id: "notes",
+    title: "Scratch Notes",
+    icon: NotebookPen,
+    defaultDock: "left",
+    defaultOrder: 3,
   },
 ];
 
