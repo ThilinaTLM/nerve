@@ -1,4 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
+import type { AgentRecord } from "$lib/api";
 import { projectKey } from "$lib/core/utils/project-tree";
 import { buildProjectSwitcherItems } from "$lib/features/projects/state/project-switcher";
 import { agentRunningTone } from "@nervekit/ui-kit/core/utils/status";
@@ -76,6 +77,21 @@ function activePendingConversation() {
 
 function isActiveTaskStatus(status: string): boolean {
   return ["starting", "running", "ready", "stopping"].includes(status);
+}
+
+const conversationActivityById = $derived.by(() =>
+  buildConversationActivityById({
+    conversations: workspaceState.conversations,
+    agents: workspaceState.agents,
+    views: conversationState.conversationViews,
+    approvals: workspaceState.approvals,
+    userQuestions: workspaceState.userQuestions,
+    planReviews: workspaceState.planReviews,
+  }),
+);
+
+function centerTabKey(tab: CenterTabIdentity): string {
+  return `${tab.kind}\0${tab.id}`;
 }
 
 export const workspaceSelectors = {
@@ -157,37 +173,48 @@ export const workspaceSelectors = {
     );
   },
   get conversationActivityById() {
-    return buildConversationActivityById({
-      conversations: workspaceState.conversations,
-      agents: workspaceState.agents,
-      views: conversationState.conversationViews,
-      approvals: workspaceState.approvals,
-      userQuestions: workspaceState.userQuestions,
-      planReviews: workspaceState.planReviews,
-    });
+    return conversationActivityById;
   },
   get openConversationTabs(): ConversationTabModel[] {
     const tabs: ConversationTabModel[] = [];
+    const conversationsById = Object.fromEntries(
+      workspaceState.conversations.map((conversation) => [
+        conversation.id,
+        conversation,
+      ]),
+    );
+    const projectsById = Object.fromEntries(
+      workspaceState.projects.map((project) => [project.id, project]),
+    );
+    const agentsById = Object.fromEntries(
+      workspaceState.agents.map((agent) => [agent.id, agent]),
+    );
+    const agentsByConversationId: Record<string, AgentRecord> =
+      Object.create(null);
+    for (const agent of workspaceState.agents) {
+      if (
+        agent.conversationId &&
+        !agentsByConversationId[agent.conversationId]
+      ) {
+        agentsByConversationId[agent.conversationId] = agent;
+      }
+    }
+    const activityById = conversationActivityById;
+
     for (const conversationId of conversationState.openConversationTabIds) {
-      const conversation = workspaceState.conversations.find(
-        (candidate) => candidate.id === conversationId,
-      );
+      const conversation = conversationsById[conversationId];
       if (!conversation) continue;
-      const project = workspaceState.projects.find(
-        (candidate) => candidate.id === conversation.projectId,
-      );
-      const agent = workspaceState.agents.find(
-        (candidate) =>
-          candidate.id === conversation.activeAgentId ||
-          candidate.conversationId === conversation.id,
-      );
+      const project = projectsById[conversation.projectId];
+      const agent =
+        (conversation.activeAgentId
+          ? agentsById[conversation.activeAgentId]
+          : undefined) ?? agentsByConversationId[conversation.id];
       const view =
         conversationState.conversationViews[
           conversationViewKey(conversation.id)
         ];
       const activity =
-        this.conversationActivityById[conversation.id] ??
-        idleConversationActivity;
+        activityById[conversation.id] ?? idleConversationActivity;
       tabs.push({
         kind: "conversation",
         id: conversation.id,
@@ -366,47 +393,28 @@ export const workspaceSelectors = {
     return ids;
   },
   get centerTabs(): CenterTabModel[] {
-    const models: CenterTabModel[] = [];
-    for (const tab of workspaceState.openCenterTabs) {
-      if (tab.kind === "conversation") {
-        const model = this.openConversationTabs.find(
-          (candidate) => candidate.id === tab.id,
-        );
-        if (model) models.push(model);
-      } else if (tab.kind === "pending-conversation") {
-        const model = this.openPendingConversationTabs.find(
-          (candidate) => candidate.id === tab.id,
-        );
-        if (model) models.push(model);
-      } else if (tab.kind === "task") {
-        const model = this.openTaskTabs.find(
-          (candidate) => candidate.id === tab.id,
-        );
-        if (model) models.push(model);
-      } else if (tab.kind === "file") {
-        const model = this.openFileTabs.find(
-          (candidate) => candidate.id === tab.id,
-        );
-        if (model) models.push(model);
-      } else if (tab.kind === "pr") {
-        const model = this.openPrTabs.find(
-          (candidate) => candidate.id === tab.id,
-        );
-        if (model) models.push(model);
-      } else if (tab.kind === "diff") {
-        const model = this.openDiffTabs.find(
-          (candidate) => candidate.id === tab.id,
-        );
-        if (model) models.push(model);
-      } else if (tab.kind === "settings") {
-        models.push(...this.openSettingsTabs);
-      } else if (tab.kind === "auth") {
-        models.push(...this.openAuthTabs);
-      } else if (tab.kind === "logs") {
-        models.push(...this.openLogsTabs);
+    const modelByKey: Record<string, CenterTabModel> = Object.create(null);
+    const collections: CenterTabModel[][] = [
+      this.openConversationTabs,
+      this.openPendingConversationTabs,
+      this.openTaskTabs,
+      this.openFileTabs,
+      this.openPrTabs,
+      this.openDiffTabs,
+      this.openSettingsTabs,
+      this.openAuthTabs,
+      this.openLogsTabs,
+    ];
+    for (const collection of collections) {
+      for (const model of collection) {
+        modelByKey[centerTabKey(model)] = model;
       }
     }
-    return models;
+
+    return workspaceState.openCenterTabs.flatMap((tab) => {
+      const model = modelByKey[centerTabKey(tab)];
+      return model ? [model] : [];
+    });
   },
   get activeCenterTab() {
     return workspaceState.activeCenterTab;

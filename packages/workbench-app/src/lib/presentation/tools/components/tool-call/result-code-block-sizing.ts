@@ -39,6 +39,17 @@ export function contentWidthFromBorderBox(metrics: BoxChromeMetrics): number {
   return Math.max(0, width);
 }
 
+export function shouldMeasureInlineSize(
+  previousInlineSize: number | undefined,
+  nextInlineSize: number,
+): boolean {
+  if (!Number.isFinite(nextInlineSize) || nextInlineSize <= 0) return false;
+  return (
+    previousInlineSize === undefined ||
+    Math.abs(previousInlineSize - nextInlineSize) > 0.5
+  );
+}
+
 export function visualRowsFromScrollHeight(
   scrollHeight: number,
   lineHeightPixels: number,
