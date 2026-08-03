@@ -8,6 +8,8 @@ import type {
   GithubPrCommitsResponse,
   GithubPrConversation,
   GithubPrCore,
+  GithubPrFileDiffResponse,
+  GithubPrFileStatus,
   GithubPrFilesResponse,
   GithubPrInitial,
   GithubPrListFilters,
@@ -270,6 +272,34 @@ export const getGithubPrChecks = (
   number: number,
 ): Promise<GithubPrChecksResponse> =>
   getGithubPrSection("github.pr.checks.get", projectId, repo, number);
+
+export async function getGithubPrFileDiff(input: {
+  projectId: string;
+  repo: string;
+  number: number;
+  path: string;
+  previousPath?: string;
+  status: GithubPrFileStatus;
+  expectedBaseRefOid: string;
+  expectedHeadRefOid: string;
+  expectedHeadRepository?: string;
+}): Promise<GithubPrFileDiffResponse> {
+  return (
+    await protocolRequest("github.pr.file.diff.get", {
+      projectId: input.projectId,
+      repo: input.repo,
+      number: input.number,
+      path: input.path,
+      ...(input.previousPath ? { previousPath: input.previousPath } : {}),
+      status: input.status,
+      expectedBaseRefOid: input.expectedBaseRefOid,
+      expectedHeadRefOid: input.expectedHeadRefOid,
+      ...(input.expectedHeadRepository
+        ? { expectedHeadRepository: input.expectedHeadRepository }
+        : {}),
+    })
+  ).result;
+}
 
 export async function getGithubPrFiles(
   projectId: string,

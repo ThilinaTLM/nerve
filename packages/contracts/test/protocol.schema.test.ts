@@ -290,15 +290,33 @@ describe("Protocol v1 shared schemas", () => {
       parseOperationResult("git.file.diff.get", {
         path: "src/file.ts",
         area: "unstaged",
-        patch: "+added\n",
         binary: false,
+        original: "before\n",
+        modified: "after\n",
       }),
       {
         path: "src/file.ts",
         area: "unstaged",
-        patch: "+added\n",
         binary: false,
+        original: "before\n",
+        modified: "after\n",
       },
+    );
+    assert.deepEqual(
+      parseOperationResult("git.file.diff.get", {
+        path: "image.png",
+        area: "staged",
+        binary: true,
+      }),
+      { path: "image.png", area: "staged", binary: true },
+    );
+    assert.throws(() =>
+      parseOperationResult("git.file.diff.get", {
+        path: "src/file.ts",
+        area: "unstaged",
+        binary: false,
+        modified: "after\n",
+      }),
     );
     assert.throws(() =>
       parseOperationParams("git.file.diff.get", {
@@ -306,6 +324,53 @@ describe("Protocol v1 shared schemas", () => {
         repo: ".",
         path: "src/file.ts",
         area: "working-tree",
+      }),
+    );
+  });
+
+  it("validates complete GitHub PR file diff payloads", () => {
+    const params = {
+      projectId: "proj_1",
+      repo: ".",
+      number: 99,
+      path: "src/new.ts",
+      previousPath: "src/old.ts",
+      status: "renamed" as const,
+      expectedBaseRefOid: "base1234",
+      expectedHeadRepository: "example/repo",
+      expectedHeadRefOid: "head1234",
+    };
+    assert.deepEqual(
+      parseOperationParams("github.pr.file.diff.get", params),
+      params,
+    );
+    assert.deepEqual(
+      parseOperationResult("github.pr.file.diff.get", {
+        kind: "text",
+        path: "src/new.ts",
+        previousPath: "src/old.ts",
+        baseRefOid: "base1234",
+        headRefOid: "head1234",
+        original: "before\n",
+        modified: "after\n",
+      }),
+      {
+        kind: "text",
+        path: "src/new.ts",
+        previousPath: "src/old.ts",
+        baseRefOid: "base1234",
+        headRefOid: "head1234",
+        original: "before\n",
+        modified: "after\n",
+      },
+    );
+    assert.throws(() =>
+      parseOperationResult("github.pr.file.diff.get", {
+        kind: "text",
+        path: "src/new.ts",
+        baseRefOid: "base1234",
+        headRefOid: "head1234",
+        modified: "after\n",
       }),
     );
   });

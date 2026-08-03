@@ -73,6 +73,22 @@ export const gitMethodHandlers = defineWorkbenchMethodHandlers({
     state.registry.git.prChecks(params.projectId, repo(params), params.number),
   "github.pr.files.get": (state, params) =>
     state.registry.git.prFiles(params.projectId, repo(params), params.number),
+  "github.pr.file.diff.get": (state, params) =>
+    state.registry.git.prFileDiff(
+      params.projectId,
+      repo(params),
+      params.number,
+      {
+        path: params.path,
+        previousPath: params.previousPath,
+        status: params.status,
+        expectedBaseRefOid: params.expectedBaseRefOid,
+        expectedHeadRefOid: params.expectedHeadRefOid,
+        ...(params.expectedHeadRepository
+          ? { expectedHeadRepository: params.expectedHeadRepository }
+          : {}),
+      },
+    ),
   "github.pr.checkout": (state, params) =>
     state.registry.git.checkoutPr(
       params.projectId,

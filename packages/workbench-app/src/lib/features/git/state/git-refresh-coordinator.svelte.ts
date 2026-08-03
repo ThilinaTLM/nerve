@@ -4,6 +4,7 @@ import type {
   GithubPrCommitsResponse,
   GithubPrConversation,
   GithubPrCore,
+  GithubPrFileDiffResponse,
   GithubPrFilesResponse,
   GithubPrInitial,
   GithubPrListResponse,
@@ -14,6 +15,7 @@ import {
   getGithubPrCommits,
   getGithubPrConversation,
   getGithubPrCore,
+  getGithubPrFileDiff,
   getGithubPrFiles,
   getGithubPrInitial,
   getGithubPrOverview,
@@ -31,6 +33,7 @@ import {
   removeOpenPr,
 } from "./git-panel-state.svelte";
 import { GIT_STALE_MS, PR_PENDING_POLL_MS } from "./git-refresh-policy";
+import { prFileDiffStateKey } from "./pr-file-diff";
 
 export const GIT_RESOURCE_STALE_MS = GIT_STALE_MS;
 export const PR_CONVERSATION_STALE_MS = 60_000;
@@ -135,6 +138,66 @@ async function fetchResource<T>(input: {
     if (resourceRequests.get(requestKey) === request)
       resourceRequests.delete(requestKey);
   }
+}
+
+export function selectedPrFileDiffResource(
+  view: PrViewState | undefined,
+): PrResourceState<GithubPrFileDiffResponse> | undefined {
+  const core = view?.core.data;
+  const file = view?.files.data?.files.find(
+    (candidate) => candidate.path === view.selectedFilePath,
+  );
+  if (!view || !core || !file) return undefined;
+  return view.fileDiffs[
+    prFileDiffStateKey(core.baseRefOid, core.headRefOid, file)
+  ];
+}
+
+export async function loadPrFileDiff(
+  view: PrViewState,
+  path: string,
+  options?: LoadOptions,
+): Promise<GithubPrFileDiffResponse | undefined> {
+  const core = view.core.data;
+  const file = view.files.data?.files.find(
+    (candidate) => candidate.path === path,
+  );
+  if (!core || !file) return undefined;
+  const stateKey = prFileDiffStateKey(core.baseRefOid, core.headRefOid, file);
+  view.fileDiffs[stateKey] ??= {
+    loading: false,
+    refreshing: false,
+  };
+  const resource = view.fileDiffs[stateKey];
+  return fetchResource({
+    key: queryKeys.git.prFileDiff(
+      view.projectId,
+      view.repo,
+      view.number,
+      core.baseRefOid,
+      core.headRefOid,
+      file.path,
+      file.previousPath,
+      file.status,
+    ),
+    query: () =>
+      getGithubPrFileDiff({
+        projectId: view.projectId,
+        repo: view.repo,
+        number: view.number,
+        path: file.path,
+        ...(file.previousPath ? { previousPath: file.previousPath } : {}),
+        status: file.status,
+        expectedBaseRefOid: core.baseRefOid,
+        expectedHeadRefOid: core.headRefOid,
+        ...(core.headRepository
+          ? { expectedHeadRepository: core.headRepository }
+          : {}),
+      }),
+    staleTime: IMMUTABLE_HEAD_STALE_MS,
+    resource,
+    options,
+  });
 }
 
 function prSectionKey(
@@ -388,8 +451,9 @@ export async function loadPrSection(
     });
   }
 
+  const baseOid = view.core.data?.baseRefOid;
   const headOid = view.core.data?.headRefOid;
-  if (!headOid) return undefined;
+  if (!baseOid || !headOid) return undefined;
   if (section === "commits") {
     return fetchResource<GithubPrCommitsResponse>({
       key: queryKeys.git.prHeadSection(
@@ -406,11 +470,11 @@ export async function loadPrSection(
     });
   }
   return fetchResource<GithubPrFilesResponse>({
-    key: queryKeys.git.prHeadSection(
+    key: queryKeys.git.prFiles(
       view.projectId,
       view.repo,
       view.number,
-      "files",
+      baseOid,
       headOid,
     ),
     query: () => getGithubPrFiles(view.projectId, view.repo, view.number),
@@ -424,6 +488,8 @@ export async function loadPrSection(
       ) {
         view.selectedFilePath = files.files[0]?.path;
       }
+      if (view.selectedFilePath)
+        void loadPrFileDiff(view, view.selectedFilePath, { silent: true });
     },
   });
 }
@@ -446,18 +512,21 @@ export async function refreshCurrentPr(view: PrViewState): Promise<void> {
   if (view.refreshing) return;
   view.refreshing = true;
   view.refreshError = undefined;
+  const previousBaseOid = view.core.data?.baseRefOid;
   const previousHeadOid = view.core.data?.headRefOid;
   try {
     await loadPrCore(view, { force: true });
-    const headChanged =
-      Boolean(previousHeadOid) &&
-      Boolean(view.core.data?.headRefOid) &&
-      previousHeadOid !== view.core.data?.headRefOid;
-    if (headChanged) {
+    const refsChanged =
+      Boolean(previousBaseOid && previousHeadOid) &&
+      Boolean(view.core.data?.baseRefOid && view.core.data?.headRefOid) &&
+      (previousBaseOid !== view.core.data?.baseRefOid ||
+        previousHeadOid !== view.core.data?.headRefOid);
+    if (refsChanged) {
       view.commits.data = undefined;
       view.commits.error = undefined;
       view.files.data = undefined;
       view.files.error = undefined;
+      view.fileDiffs = {};
       view.selectedFilePath = undefined;
     }
     const sections: Section[] =

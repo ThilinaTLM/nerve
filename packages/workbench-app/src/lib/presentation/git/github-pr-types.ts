@@ -4,6 +4,7 @@ import type {
   GithubPrCommitsResponse,
   GithubPrConversation,
   GithubPrCore,
+  GithubPrFileDiffResponse,
   GithubPrFilesResponse,
   GithubPrMergeMethod,
   GithubPrOverview,
@@ -29,6 +30,7 @@ export type GithubPrViewState = {
   commits: PrSectionState<GithubPrCommitsResponse>;
   checks: PrSectionState<GithubPrChecksResponse>;
   files: PrSectionState<GithubPrFilesResponse>;
+  fileDiffs: Record<string, PrSectionState<GithubPrFileDiffResponse>>;
   activeTab: GithubPrTab;
   selectedFilePath?: string;
   selectedMergeMethod?: GithubPrMergeMethod;

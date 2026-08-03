@@ -138,13 +138,22 @@ export const gitFileDiffRequestSchema = gitFileActionRequestSchema.extend({
 });
 export type GitFileDiffRequest = z.infer<typeof gitFileDiffRequestSchema>;
 
-export const gitFileDiffResponseSchema = z.object({
+const gitFileDiffMetadataSchema = z.object({
   path: z.string(),
   renamedFrom: z.string().optional(),
   area: gitDiffAreaSchema,
-  patch: z.string(),
-  binary: z.boolean(),
 });
+
+export const gitFileDiffResponseSchema = z.discriminatedUnion("binary", [
+  gitFileDiffMetadataSchema.extend({
+    binary: z.literal(false),
+    original: z.string(),
+    modified: z.string(),
+  }),
+  gitFileDiffMetadataSchema.extend({
+    binary: z.literal(true),
+  }),
+]);
 export type GitFileDiffResponse = z.infer<typeof gitFileDiffResponseSchema>;
 
 export const gitMutationResponseSchema = z.object({
@@ -294,8 +303,6 @@ export const githubPrFileSchema = z.object({
   additions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
   changes: z.number().int().nonnegative(),
-  patch: z.string().nullable(),
-  patchTruncated: z.boolean(),
 });
 export type GithubPrFile = z.infer<typeof githubPrFileSchema>;
 
@@ -305,6 +312,50 @@ export const githubPrFilesResponseSchema = z.object({
   truncated: z.boolean(),
 });
 export type GithubPrFilesResponse = z.infer<typeof githubPrFilesResponseSchema>;
+
+export const githubPrFileDiffRequestSchema = gitRemoteOpRequestSchema.extend({
+  path: z.string().min(1),
+  previousPath: z.string().min(1).optional(),
+  status: githubPrFileStatusSchema,
+  expectedBaseRefOid: z.string().min(7),
+  expectedHeadRefOid: z.string().min(7),
+  expectedHeadRepository: z.string().min(3).optional(),
+});
+export type GithubPrFileDiffRequest = z.infer<
+  typeof githubPrFileDiffRequestSchema
+>;
+
+const githubPrFileDiffMetadataSchema = z.object({
+  path: z.string(),
+  previousPath: z.string().optional(),
+  baseRefOid: z.string(),
+  headRefOid: z.string(),
+});
+
+export const githubPrFileDiffUnavailableReasonSchema = z.enum([
+  "content-too-large",
+  "repository-unavailable",
+  "content-unavailable",
+]);
+export type GithubPrFileDiffUnavailableReason = z.infer<
+  typeof githubPrFileDiffUnavailableReasonSchema
+>;
+
+export const githubPrFileDiffResponseSchema = z.discriminatedUnion("kind", [
+  githubPrFileDiffMetadataSchema.extend({
+    kind: z.literal("text"),
+    original: z.string(),
+    modified: z.string(),
+  }),
+  githubPrFileDiffMetadataSchema.extend({ kind: z.literal("binary") }),
+  githubPrFileDiffMetadataSchema.extend({
+    kind: z.literal("unavailable"),
+    reason: githubPrFileDiffUnavailableReasonSchema,
+  }),
+]);
+export type GithubPrFileDiffResponse = z.infer<
+  typeof githubPrFileDiffResponseSchema
+>;
 
 export const githubPrCommitSchema = z.object({
   oid: z.string(),
@@ -323,6 +374,7 @@ export const githubPrCoreSchema = githubPrSchema.omit({ checks: true }).extend({
   changedFiles: z.number().int().nonnegative(),
   headRefOid: z.string(),
   baseRefOid: z.string(),
+  headRepository: z.string().nullable().optional(),
 });
 export type GithubPrCore = z.infer<typeof githubPrCoreSchema>;
 

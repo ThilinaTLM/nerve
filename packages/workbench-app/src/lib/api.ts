@@ -43,6 +43,8 @@ export type {
   GithubPrConversation,
   GithubPrCore,
   GithubPrFile,
+  GithubPrFileDiffResponse,
+  GithubPrFileStatus,
   GithubPrFilesResponse,
   GithubPrInitial,
   GithubPrListResponse,
