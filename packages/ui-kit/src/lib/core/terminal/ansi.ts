@@ -24,6 +24,17 @@ const ANSI_COLOR_NAMES = [
 ] as const;
 
 const CSI_FINAL_BYTE = /[\x40-\x7e]/;
+const URL_PATTERN = /https?:\/\/[^\s<>"']+/giu;
+const TRAILING_URL_PUNCTUATION = new Set([".", ",", ";", ":", "!", "?"]);
+const URL_CLOSING_PAIRS: Record<string, string> = {
+  ")": "(",
+  "]": "[",
+  "}": "{",
+};
+
+export type AnsiToHtmlOptions = {
+  linkifyUrls?: boolean;
+};
 
 function initialState(): AnsiStyleState {
   return {
@@ -241,15 +252,136 @@ function stateStyle(state: AnsiStyleState): string | undefined {
   return declarations.length > 0 ? declarations.join("; ") : undefined;
 }
 
-function renderText(text: string, state: AnsiStyleState): string {
-  if (text.length === 0) return "";
-  const escaped = escapeHtml(text);
-  const classes = stateClasses(state);
-  const style = stateStyle(state);
-  if (classes.length === 0 && style === undefined) return escaped;
+function countCharacter(text: string, character: string): number {
+  let count = 0;
+  for (const value of text) {
+    if (value === character) count += 1;
+  }
+  return count;
+}
+
+function trimUrlPunctuation(value: string): { url: string; trailing: string } {
+  let end = value.length;
+  while (end > 0) {
+    const last = value[end - 1];
+    if (TRAILING_URL_PUNCTUATION.has(last)) {
+      end -= 1;
+      continue;
+    }
+    const opening = URL_CLOSING_PAIRS[last];
+    const candidate = value.slice(0, end);
+    if (
+      opening &&
+      countCharacter(candidate, last) > countCharacter(candidate, opening)
+    ) {
+      end -= 1;
+      continue;
+    }
+    break;
+  }
+  return { url: value.slice(0, end), trailing: value.slice(end) };
+}
+
+function isSafeWebUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+type UrlRange = {
+  start: number;
+  end: number;
+  url: string;
+};
+
+type AnsiTextRun = {
+  text: string;
+  state: AnsiStyleState;
+};
+
+function findUrlRanges(text: string): UrlRange[] {
+  const ranges: UrlRange[] = [];
+  URL_PATTERN.lastIndex = 0;
+
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const raw = match[0];
+    const { url } = trimUrlPunctuation(raw);
+    if (url && isSafeWebUrl(url)) {
+      ranges.push({ start: match.index, end: match.index + url.length, url });
+    }
+  }
+  return ranges;
+}
+
+type AnsiTextFragment = AnsiTextRun & {
+  url?: string;
+};
+
+function splitRunAtUrls(
+  run: AnsiTextRun,
+  start: number,
+  ranges: readonly UrlRange[],
+): AnsiTextFragment[] {
+  const end = start + run.text.length;
+  const fragments: AnsiTextFragment[] = [];
+  let offset = 0;
+
+  for (const range of ranges) {
+    if (range.end <= start) continue;
+    if (range.start >= end) break;
+    const linkStart = Math.max(range.start, start) - start;
+    const linkEnd = Math.min(range.end, end) - start;
+    if (linkStart > offset) {
+      fragments.push({
+        text: run.text.slice(offset, linkStart),
+        state: run.state,
+      });
+    }
+    fragments.push({
+      text: run.text.slice(linkStart, linkEnd),
+      state: run.state,
+      url: range.url,
+    });
+    offset = linkEnd;
+  }
+
+  if (offset < run.text.length) {
+    fragments.push({ text: run.text.slice(offset), state: run.state });
+  }
+  return fragments;
+}
+
+function renderStyledText(fragment: AnsiTextFragment): string {
+  const rendered = escapeHtml(fragment.text);
+  const classes = stateClasses(fragment.state);
+  const style = stateStyle(fragment.state);
+  if (classes.length === 0 && style === undefined) return rendered;
   const classAttr = classes.length > 0 ? ` class="${classes.join(" ")}"` : "";
   const styleAttr = style ? ` style="${style}"` : "";
-  return `<span${classAttr}${styleAttr}>${escaped}</span>`;
+  return `<span${classAttr}${styleAttr}>${rendered}</span>`;
+}
+
+function renderFragments(fragments: readonly AnsiTextFragment[]): string {
+  let output = "";
+  let activeUrl: string | undefined;
+
+  for (const fragment of fragments) {
+    if (fragment.url !== activeUrl) {
+      if (activeUrl) output += "</a>";
+      if (fragment.url) {
+        const escapedUrl = escapeHtml(fragment.url);
+        output += `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer">`;
+      }
+      activeUrl = fragment.url;
+    }
+    output += renderStyledText(fragment);
+  }
+
+  if (activeUrl) output += "</a>";
+  return output;
 }
 
 function csiEndIndex(text: string, start: number): number {
@@ -267,11 +399,16 @@ function oscEndIndex(text: string, start: number): number {
   return Math.min(bel, st + 1);
 }
 
-export function ansiToHtml(text: string): string {
-  let output = "";
+function parseAnsiTextRuns(text: string): AnsiTextRun[] {
+  const runs: AnsiTextRun[] = [];
   let state = initialState();
   let plainStart = 0;
   let index = 0;
+
+  const appendRun = (end: number) => {
+    const value = text.slice(plainStart, end);
+    if (value) runs.push({ text: value, state });
+  };
 
   while (index < text.length) {
     if (text.charCodeAt(index) !== 0x1b) {
@@ -279,12 +416,15 @@ export function ansiToHtml(text: string): string {
       continue;
     }
 
-    output += renderText(text.slice(plainStart, index), state);
+    appendRun(index);
     const next = text[index + 1];
 
     if (next === "[") {
       const end = csiEndIndex(text, index + 2);
-      if (end === -1) break;
+      if (end === -1) {
+        plainStart = text.length;
+        break;
+      }
       const sequence = text.slice(index + 2, end + 1);
       if (sequence.endsWith("m")) state = applySgr(state, sequence);
       index = end + 1;
@@ -294,7 +434,10 @@ export function ansiToHtml(text: string): string {
 
     if (next === "]") {
       const end = oscEndIndex(text, index + 2);
-      if (end === -1) break;
+      if (end === -1) {
+        plainStart = text.length;
+        break;
+      }
       index = end + 1;
       plainStart = index;
       continue;
@@ -304,6 +447,22 @@ export function ansiToHtml(text: string): string {
     plainStart = index;
   }
 
-  output += renderText(text.slice(plainStart), state);
-  return output;
+  appendRun(text.length);
+  return runs;
+}
+
+export function ansiToHtml(
+  text: string,
+  options: AnsiToHtmlOptions = {},
+): string {
+  const runs = parseAnsiTextRuns(text);
+  const visibleText = runs.map((run) => run.text).join("");
+  const ranges = options.linkifyUrls ? findUrlRanges(visibleText) : [];
+  let offset = 0;
+  const fragments: AnsiTextFragment[] = [];
+  for (const run of runs) {
+    fragments.push(...splitRunAtUrls(run, offset, ranges));
+    offset += run.text.length;
+  }
+  return renderFragments(fragments);
 }

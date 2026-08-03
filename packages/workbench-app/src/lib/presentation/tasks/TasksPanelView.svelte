@@ -31,7 +31,7 @@ import TaskDefinitionRow from "./TaskDefinitionRow.svelte";
 import TaskOutputPane from "./TaskOutputPane.svelte";
 import TaskRunRow from "./TaskRunRow.svelte";
 import TaskRunsDialog from "./TaskRunsDialog.svelte";
-import { projectTaskPanel, taskLineageRuns } from "./task-panel-controller.js";
+import { projectTaskPanel } from "./task-panel-controller.js";
 import type {
   TaskEntryCapabilities,
   TaskPanelActions,
@@ -68,7 +68,6 @@ function toggleDefinition(id: string): void {
 // The wide bottom dock can host the run output next to the list.
 const SPLIT_MIN_WIDTH = 720;
 const splitLayout = $derived(panelWidth >= SPLIT_MIN_WIDTH);
-const selectedRuns = $derived(taskLineageRuns(model.tasks, model.selectedTask));
 const prunableRuns = $derived(
   projected.runs.filter((entry) => entry.isRemovable).length,
 );
@@ -282,8 +281,6 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
             <TaskOutputPane
               task={model.selectedTask}
               taskLogs={model.selectedLogs}
-              runs={selectedRuns}
-              onSelectRun={(taskId) => void panelActions.selectTask(taskId)}
             />
           </Pane>
         </PaneGroup>
