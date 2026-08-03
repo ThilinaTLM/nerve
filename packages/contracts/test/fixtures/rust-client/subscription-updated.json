@@ -1,0 +1,27 @@
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_subscription_1",
+  "kind": "stream.subscription.updated",
+  "ts": "2026-01-01T00:00:00.300Z",
+  "source": { "role": "workbench_server", "id": "server_1" },
+  "target": {
+    "role": "ui",
+    "id": "client_1",
+    "instanceId": "instance_1",
+    "name": "Nerve GPUI"
+  },
+  "data": {
+    "sessionId": "session_1",
+    "subscriptionId": "sub_1",
+    "accepted": true,
+    "streams": [
+      {
+        "stream": "workspace",
+        "latestSeq": 0,
+        "earliestAvailableSeq": 0,
+        "mode": "live"
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_welcome_1",
+  "kind": "welcome",
+  "ts": "2026-01-01T00:00:00.100Z",
+  "source": { "role": "workbench_server", "id": "server_1" },
+  "target": {
+    "role": "ui",
+    "id": "client_1",
+    "instanceId": "instance_1",
+    "name": "Nerve GPUI"
+  },
+  "data": {
+    "sessionId": "session_1",
+    "acceptingPeer": { "role": "workbench_server", "id": "server_1" },
+    "acceptedVersion": 1,
+    "capabilities": [
+      "encoding.json",
+      "event.batch",
+      "event.notify",
+      "stream.subscription.v1",
+      "snapshot.workspace"
+    ],
+    "encoding": "json",
+    "limits": {
+      "maxMessageBytes": 1048576,
+      "maxBatchEvents": 100,
+      "maxBatchBytes": 524288
+    },
+    "heartbeat": { "intervalMs": 10000, "timeoutMs": 30000 }
+  }
+}

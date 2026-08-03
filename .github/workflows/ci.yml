@@ -43,3 +43,30 @@ jobs:
 
       - name: Smoke built workbench HTTP and WebSocket parity
         run: pnpm release:smoke:workbench
+
+  gpui-experiment:
+    name: Experimental GPUI client (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install GPUI system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libfontconfig-dev libvulkan1 libwayland-dev libx11-xcb-dev libxkbcommon-x11-dev
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.91.1
+        with:
+          components: clippy,rustfmt
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting and Clippy
+        run: cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test and build experimental client
+        run: cargo test --workspace && cargo build --workspace

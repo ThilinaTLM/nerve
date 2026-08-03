@@ -1,0 +1,9 @@
+pub mod activity_rail;
+pub mod connection;
+pub mod editor_tabs;
+pub mod right_edge;
+pub mod shell;
+pub mod sidebar;
+pub mod status_bar;
+pub mod transcript;
+pub mod workspace_header;

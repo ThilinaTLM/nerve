@@ -1,0 +1,32 @@
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_hello_1",
+  "kind": "hello",
+  "ts": "2026-01-01T00:00:00.000Z",
+  "source": {
+    "role": "ui",
+    "id": "client_1",
+    "instanceId": "instance_1",
+    "name": "Nerve GPUI"
+  },
+  "target": { "role": "workbench_server" },
+  "data": {
+    "requestedVersion": 1,
+    "capabilities": [
+      "encoding.json",
+      "event.batch",
+      "event.notify",
+      "stream.subscription.v1",
+      "snapshot.workspace"
+    ],
+    "requiredCapabilities": [
+      "encoding.json",
+      "event.batch",
+      "event.notify",
+      "stream.subscription.v1",
+      "snapshot.workspace"
+    ],
+    "encodings": ["json"]
+  }
+}

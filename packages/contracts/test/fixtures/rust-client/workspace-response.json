@@ -1,0 +1,50 @@
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_workspace_response_1",
+  "kind": "response",
+  "ts": "2026-01-01T00:00:01.000Z",
+  "source": { "role": "workbench_server", "id": "server_1" },
+  "target": {
+    "role": "ui",
+    "id": "client_1",
+    "instanceId": "instance_1",
+    "name": "Nerve GPUI"
+  },
+  "replyTo": "msg_workspace_request_1",
+  "data": {
+    "ok": true,
+    "method": "snapshot.workspace.get",
+    "result": {
+      "snapshot": {
+        "projects": [
+          {
+            "id": "proj_1",
+            "name": "Example",
+            "dir": "/example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "updatedAt": "2026-01-01T00:00:00.000Z"
+          }
+        ],
+        "conversations": [
+          {
+            "id": "conv_1",
+            "projectId": "proj_1",
+            "title": "First conversation",
+            "mode": "coding",
+            "permissionLevel": "autonomous",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "updatedAt": "2026-01-01T00:00:00.000Z"
+          }
+        ],
+        "agents": [],
+        "tasks": [],
+        "approvals": [],
+        "userQuestions": [],
+        "planReviews": []
+      },
+      "cursor": { "streams": [{ "stream": "workspace", "processedSeq": 1 }] },
+      "generatedAt": "2026-01-01T00:00:01.000Z"
+    }
+  }
+}

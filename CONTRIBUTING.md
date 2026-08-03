@@ -11,6 +11,18 @@ pnpm check
 pnpm test
 ```
 
+## Experimental Rust/GPUI client
+
+The optional native client uses the Rust toolchain pinned in `rust-toolchain.toml`. On Linux, install the GPUI system libraries listed in `crates/nerve-gpui/README.md`, then run:
+
+```sh
+pnpm check:gpui
+pnpm test:gpui
+pnpm dev:gpui
+```
+
+The existing pnpm checks remain required for changes that touch the experiment because its shared wire fixtures are owned by `packages/contracts`.
+
 ## Guidelines
 
 - Keep changes scoped. Add automated tests for important behavior: public contracts, security and redaction, persistence and migrations, destructive operations, concurrency and state machines, recovery and failure handling, and complex parsing or orchestration.

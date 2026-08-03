@@ -1,0 +1,15 @@
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_ready_1",
+  "kind": "ready",
+  "ts": "2026-01-01T00:00:00.200Z",
+  "source": {
+    "role": "ui",
+    "id": "client_1",
+    "instanceId": "instance_1",
+    "name": "Nerve GPUI"
+  },
+  "target": { "role": "workbench_server", "id": "server_1" },
+  "data": { "sessionId": "session_1", "status": "ready" }
+}

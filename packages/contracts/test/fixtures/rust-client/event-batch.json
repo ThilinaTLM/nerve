@@ -1,0 +1,38 @@
+{
+  "protocol": "nerve",
+  "version": 1,
+  "id": "msg_batch_1",
+  "kind": "event.batch",
+  "ts": "2026-01-01T00:00:01.000Z",
+  "source": { "role": "workbench_server", "id": "server_1" },
+  "target": {
+    "role": "ui",
+    "id": "client_1",
+    "instanceId": "instance_1",
+    "name": "Nerve GPUI"
+  },
+  "data": {
+    "stream": "workspace",
+    "batchId": "batch_1",
+    "reason": "live",
+    "events": [
+      {
+        "id": "evt_1",
+        "seq": 1,
+        "type": "project.created",
+        "ts": "2026-01-01T00:00:01.000Z",
+        "data": {
+          "project": {
+            "id": "proj_1",
+            "name": "Example",
+            "dir": "/example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "updatedAt": "2026-01-01T00:00:00.000Z"
+          }
+        }
+      }
+    ],
+    "firstSeq": 1,
+    "lastSeq": 1
+  }
+}
