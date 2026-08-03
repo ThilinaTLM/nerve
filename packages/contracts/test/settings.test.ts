@@ -15,6 +15,7 @@ describe("settings schema", () => {
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
       notifications: undefined,
+      ui: { theme: undefined, colorMode: undefined, zoomLevel: undefined },
       tools: undefined,
       skills: undefined,
     });
@@ -32,6 +33,11 @@ describe("settings schema", () => {
     );
     assert.equal(settings.lastAgentSelection.thinkingLevel, "off");
     assert.deepEqual(settings.runtime, {});
+    assert.deepEqual(settings.ui, {
+      theme: "nerve",
+      colorMode: "system",
+      zoomLevel: 0,
+    });
     assert.deepEqual(settings.notifications, {
       systemEnabled: true,
       soundsEnabled: true,
@@ -116,6 +122,7 @@ describe("settings schema", () => {
         pythonExecutablePath: "/usr/bin/python3",
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
       },
+      ui: { theme: "ocean", colorMode: "dark" },
       defaultApprovalPolicy: { autoApproveReadOnly: false },
       lastAgentSelection: {
         approvalPolicy: { autoApproveReadOnly: false },
@@ -157,6 +164,13 @@ describe("settings schema", () => {
         updateSettingsRequestSchema.safeParse({
           notifications: { events: { approval: invalidTone } },
         }).success,
+        false,
+      );
+    }
+    assert.deepEqual(parsed.ui, { theme: "ocean", colorMode: "dark" });
+    for (const ui of [{ theme: "unknown" }, { colorMode: "sepia" }]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({ ui }).success,
         false,
       );
     }

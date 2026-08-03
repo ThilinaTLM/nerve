@@ -1,27 +1,40 @@
 <script lang="ts">
-import type { Settings } from "$lib/api";
-import type { ThemePreference } from "$lib/app/shell/appearance.svelte";
+import type { ColorMode, ColorTheme, Settings } from "$lib/api";
 import {
   SettingsRow,
   SettingsSection,
   SettingsToggleRow,
 } from "$lib/presentation/components/settings";
 import type { SettingsChange } from "../settings-change";
+import ColorModePicker from "./ColorModePicker.svelte";
 import ThemePreviewPicker from "./ThemePreviewPicker.svelte";
 
 type Props = {
   settingsDraft: Settings;
-  onThemeChange?: (theme: ThemePreference) => void;
+  onColorThemeChange?: (theme: ColorTheme) => void;
+  onColorModeChange?: (colorMode: ColorMode) => void;
   onSettingsChange?: SettingsChange;
 };
 
-let { settingsDraft, onThemeChange, onSettingsChange }: Props = $props();
+let {
+  settingsDraft,
+  onColorThemeChange,
+  onColorModeChange,
+  onSettingsChange,
+}: Props = $props();
 
-function setThemePreference(value: string): void {
-  const preference = value as ThemePreference;
-  settingsDraft.ui.theme = preference;
-  onThemeChange?.(preference);
-  onSettingsChange?.({ ui: { theme: preference } }, { immediate: true });
+function setColorTheme(value: string): void {
+  const theme = value as ColorTheme;
+  settingsDraft.ui.theme = theme;
+  onColorThemeChange?.(theme);
+  onSettingsChange?.({ ui: { theme } }, { immediate: true });
+}
+
+function setColorMode(value: string): void {
+  const colorMode = value as ColorMode;
+  settingsDraft.ui.colorMode = colorMode;
+  onColorModeChange?.(colorMode);
+  onSettingsChange?.({ ui: { colorMode } }, { immediate: true });
 }
 
 function setCloseToTray(checked: boolean): void {
@@ -34,10 +47,17 @@ function setCloseToTray(checked: boolean): void {
 </script>
 
 <SettingsSection id="appearance" title="Appearance">
-  <SettingsRow label="Color theme" layout="stacked">
+  <SettingsRow label="Theme" layout="stacked">
     <ThemePreviewPicker
       value={settingsDraft.ui.theme}
-      onValueChange={setThemePreference}
+      onValueChange={setColorTheme}
+    />
+  </SettingsRow>
+  <SettingsRow label="Color mode" layout="stacked">
+    <ColorModePicker
+      value={settingsDraft.ui.colorMode}
+      theme={settingsDraft.ui.theme}
+      onValueChange={setColorMode}
     />
   </SettingsRow>
 </SettingsSection>

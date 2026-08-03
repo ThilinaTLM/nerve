@@ -18,6 +18,39 @@ afterEach(async () => {
 });
 
 describe("settings migrations", () => {
+  for (const colorMode of ["system", "light", "dark"] as const) {
+    it(`migrates the legacy ${colorMode} appearance setting`, async () => {
+      const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
+      roots.push(root);
+      const configPath = join(root, "config.json");
+      await initializeStorage(root);
+      await writeFile(
+        configPath,
+        `${JSON.stringify(
+          {
+            ...defaultSettings,
+            ui: { theme: colorMode, zoomLevel: 3 },
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+
+      const storage = await initializeStorage(root);
+
+      assert.deepEqual(storage.settings.ui, {
+        theme: "nerve",
+        colorMode,
+        zoomLevel: 3,
+      });
+      const persisted = JSON.parse(await readFile(configPath, "utf8")) as {
+        ui: { theme: string; colorMode: string; zoomLevel: number };
+      };
+      assert.deepEqual(persisted.ui, storage.settings.ui);
+    });
+  }
+
   it("backfills notification preferences for older settings files", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);

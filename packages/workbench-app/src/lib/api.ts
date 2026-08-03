@@ -10,6 +10,8 @@ export type {
   AvailableSkill,
   AvailableSkillsResponse,
   ClipboardImageUploadResponse,
+  ColorMode,
+  ColorTheme,
   CompletionItem,
   ContextUsage,
   ConversationActiveRunSnapshot,

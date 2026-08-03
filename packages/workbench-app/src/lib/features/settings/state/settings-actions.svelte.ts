@@ -2,7 +2,7 @@ import {
   modelKey,
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
-import type { AgentRecord, ModelInfo } from "$lib/api";
+import type { AgentRecord, ColorMode, ColorTheme, ModelInfo } from "$lib/api";
 import {
   getAuthProviders,
   getClientConfig,
@@ -13,9 +13,10 @@ import {
   type UpdateSettingsRequest,
   updateSettings,
 } from "$lib/api";
-import type { ThemePreference } from "$lib/app/shell/appearance.svelte";
 import {
-  applyTheme,
+  applyAppearance,
+  applyColorMode,
+  applyColorTheme,
   applyZoomLevel,
   clampZoomLevel,
 } from "$lib/app/shell/appearance.svelte";
@@ -115,6 +116,7 @@ async function performCoreSettingsLoad(): Promise<void> {
     getAuthProviders(),
   ]);
   settingsState.settingsDraft = settings;
+  applyAppearance(settings.ui.theme, settings.ui.colorMode);
   applyZoomLevel(settings.ui.zoomLevel);
   settingsState.models = modelList;
   settingsState.authProviders = auth;
@@ -427,8 +429,12 @@ export async function flushSettingsSave() {
   }
 }
 
-export function setTheme(preference: ThemePreference) {
-  applyTheme(preference);
+export function setColorTheme(theme: ColorTheme): void {
+  applyColorTheme(theme);
+}
+
+export function setColorMode(colorMode: ColorMode): void {
+  applyColorMode(colorMode);
 }
 
 export function setUiZoomLevel(level: number) {

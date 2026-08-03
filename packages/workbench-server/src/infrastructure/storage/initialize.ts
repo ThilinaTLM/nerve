@@ -16,6 +16,7 @@ import {
 } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import { ensureStateLayout } from "./state-layout.js";
+import { migrateLegacyAppearanceSettings } from "./settings-migrations.js";
 
 const dataSubdirs = [
   "auth",
@@ -147,7 +148,8 @@ export async function initializeStorage(
   }
 
   const rawSettings = await readJsonFile<unknown>(paths.configPath);
-  const normalizedTools = migrateLegacyToolNames(rawSettings);
+  const normalizedAppearance = migrateLegacyAppearanceSettings(rawSettings);
+  const normalizedTools = migrateLegacyToolNames(normalizedAppearance.value);
   const normalizedTones = migrateRemovedNotificationTones(
     normalizedTools.value,
   );
@@ -155,7 +157,11 @@ export async function initializeStorage(
     ...defaultSettings,
     ...(normalizedTones.value as object),
   });
-  if (normalizedTools.changed || normalizedTones.changed) {
+  if (
+    normalizedAppearance.changed ||
+    normalizedTools.changed ||
+    normalizedTones.changed
+  ) {
     await atomicWriteJson(paths.configPath, settings, 0o600);
   }
 
