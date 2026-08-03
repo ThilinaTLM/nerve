@@ -14,23 +14,23 @@ import type { PanelViewDescriptor } from "$lib/presentation/shell";
  */
 export const panelViewDescriptors: PanelViewDescriptor[] = [
   {
-    id: "files",
-    title: "Files",
-    icon: FolderTree,
-    defaultDock: "left",
-    defaultOrder: 0,
-  },
-  {
     id: "conversations",
     title: "Conversations",
     icon: MessagesSquare,
     defaultDock: "left",
-    defaultOrder: 1,
+    defaultOrder: 0,
     hideable: false,
   },
   {
+    id: "files",
+    title: "Files",
+    icon: FolderTree,
+    defaultDock: "left",
+    defaultOrder: 1,
+  },
+  {
     id: "git",
-    title: "Git",
+    title: "Git Changes",
     icon: GitBranch,
     defaultDock: "right",
     defaultOrder: 0,
@@ -50,18 +50,18 @@ export const panelViewDescriptors: PanelViewDescriptor[] = [
     defaultOrder: 2,
   },
   {
-    id: "notes",
-    title: "Notes",
-    icon: NotebookPen,
-    defaultDock: "right",
-    defaultOrder: 3,
-  },
-  {
     id: "tasks",
     title: "Tasks",
     icon: Terminal,
     defaultDock: "left",
     defaultOrder: 2,
+  },
+  {
+    id: "notes",
+    title: "Scratch Notes",
+    icon: NotebookPen,
+    defaultDock: "left",
+    defaultOrder: 3,
   },
 ];
 
