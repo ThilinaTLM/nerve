@@ -27,13 +27,27 @@ export type CodeLanguageId =
   | "python"
   | "yaml"
   | "bash"
-  | "shellscript";
+  | "shellscript"
+  | "toml"
+  | "java"
+  | "cpp"
+  | "xml"
+  | "rust"
+  | "sass"
+  | "scss"
+  | "go"
+  | "php"
+  | "sql"
+  | "vue"
+  | "less";
 
 const extensionLanguages: Record<string, CodeLanguageId> = {
   js: "javascript",
   mjs: "javascript",
   cjs: "javascript",
   ts: "typescript",
+  mts: "typescript",
+  cts: "typescript",
   jsx: "jsx",
   tsx: "tsx",
   json: "json",
@@ -50,6 +64,39 @@ const extensionLanguages: Record<string, CodeLanguageId> = {
   sh: "bash",
   bash: "bash",
   zsh: "shellscript",
+  toml: "toml",
+  java: "java",
+  c: "cpp",
+  h: "cpp",
+  ino: "cpp",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  "c++": "cpp",
+  hh: "cpp",
+  hpp: "cpp",
+  hxx: "cpp",
+  "h++": "cpp",
+  xml: "xml",
+  xsl: "xml",
+  xslt: "xml",
+  xsd: "xml",
+  xhtml: "xml",
+  rs: "rust",
+  sass: "sass",
+  scss: "scss",
+  go: "go",
+  php: "php",
+  php3: "php",
+  php4: "php",
+  php5: "php",
+  php7: "php",
+  php8: "php",
+  phtml: "php",
+  phps: "php",
+  sql: "sql",
+  vue: "vue",
+  less: "less",
 };
 
 const languageIds = new Set<CodeLanguageId>(Object.values(extensionLanguages));
@@ -132,6 +179,53 @@ async function loadLanguage(id: CodeLanguageId): Promise<Extension> {
       const { yaml } = await import("@codemirror/lang-yaml");
       return yaml();
     }
+    case "toml": {
+      const { toml } = await import("@codemirror/legacy-modes/mode/toml");
+      return StreamLanguage.define(
+        toml as unknown as Parameters<typeof StreamLanguage.define>[0],
+      );
+    }
+    case "java": {
+      const { java } = await import("@codemirror/lang-java");
+      return java();
+    }
+    case "cpp": {
+      const { cpp } = await import("@codemirror/lang-cpp");
+      return cpp();
+    }
+    case "xml": {
+      const { xml } = await import("@codemirror/lang-xml");
+      return xml();
+    }
+    case "rust": {
+      const { rust } = await import("@codemirror/lang-rust");
+      return rust();
+    }
+    case "sass":
+    case "scss": {
+      const { sass } = await import("@codemirror/lang-sass");
+      return sass({ indented: id === "sass" });
+    }
+    case "go": {
+      const { go } = await import("@codemirror/lang-go");
+      return go();
+    }
+    case "php": {
+      const { php } = await import("@codemirror/lang-php");
+      return php();
+    }
+    case "sql": {
+      const { sql } = await import("@codemirror/lang-sql");
+      return sql();
+    }
+    case "vue": {
+      const { vue } = await import("@codemirror/lang-vue");
+      return vue();
+    }
+    case "less": {
+      const { less } = await import("@codemirror/lang-less");
+      return less();
+    }
     case "bash":
     case "shellscript": {
       const { shell } = await import("@codemirror/legacy-modes/mode/shell");
@@ -146,6 +240,7 @@ async function loadLanguage(id: CodeLanguageId): Promise<Extension> {
 
 const codeHighlightStyle = HighlightStyle.define([
   { tag: [tags.keyword, tags.modifier], color: "var(--primary)" },
+  { tag: [tags.propertyName, tags.attributeName], color: "var(--primary)" },
   { tag: [tags.string, tags.inserted], color: "var(--success)" },
   { tag: [tags.number, tags.bool, tags.null], color: "var(--info)" },
   { tag: [tags.comment, tags.meta], color: "var(--muted-foreground)" },

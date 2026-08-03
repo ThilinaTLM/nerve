@@ -1,13 +1,70 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { codeLanguageId, localLineNumber } from "./code-mirror-config";
+import { syntaxTree } from "@codemirror/language";
+import { EditorState } from "@codemirror/state";
+import type { CodeLanguageId } from "./code-mirror-config";
+import {
+  codeLanguageId,
+  loadCodeLanguage,
+  localLineNumber,
+} from "./code-mirror-config";
+
+const newLanguageIds: CodeLanguageId[] = [
+  "toml",
+  "java",
+  "cpp",
+  "xml",
+  "rust",
+  "sass",
+  "scss",
+  "go",
+  "php",
+  "sql",
+  "vue",
+  "less",
+];
 
 describe("CodeMirror viewer helpers", () => {
   it("resolves language ids and file extensions", () => {
-    assert.equal(codeLanguageId("src/file.ts"), "typescript");
-    assert.equal(codeLanguageId("component.svelte"), "svelte");
-    assert.equal(codeLanguageId("JSONC"), "jsonc");
-    assert.equal(codeLanguageId("Makefile"), undefined);
+    const cases: Array<[value: string, expected: CodeLanguageId | undefined]> =
+      [
+        ["src/file.ts", "typescript"],
+        ["src/module.mts", "typescript"],
+        ["src/module.cts", "typescript"],
+        ["component.svelte", "svelte"],
+        ["JSONC", "jsonc"],
+        ["config/app.toml", "toml"],
+        ["src/Main.java", "java"],
+        ["native/source.c", "cpp"],
+        ["native/source.C++", "cpp"],
+        ["native/include/value.hpp", "cpp"],
+        [String.raw`C:\project\schema.XSD`, "xml"],
+        ["src/lib.rs", "rust"],
+        ["styles/theme.sass", "sass"],
+        ["styles/theme.scss", "scss"],
+        ["cmd/server/main.go", "go"],
+        ["public/index.phtml", "php"],
+        ["migrations/001.create-table.SQL", "sql"],
+        ["src/App.vue", "vue"],
+        ["styles/theme.less", "less"],
+        ["Makefile", undefined],
+      ];
+
+    for (const [value, expected] of cases) {
+      assert.equal(codeLanguageId(value), expected, value);
+    }
+  });
+
+  it("loads and activates every newly supported language parser", async () => {
+    for (const id of newLanguageIds) {
+      const doc = "value = 1";
+      const state = EditorState.create({
+        doc,
+        extensions: [await loadCodeLanguage(id)],
+      });
+
+      assert.equal(syntaxTree(state).length, doc.length, id);
+    }
   });
 
   it("maps external lines into a windowed document", () => {
