@@ -290,15 +290,33 @@ describe("Protocol v1 shared schemas", () => {
       parseOperationResult("git.file.diff.get", {
         path: "src/file.ts",
         area: "unstaged",
-        patch: "+added\n",
         binary: false,
+        original: "before\n",
+        modified: "after\n",
       }),
       {
         path: "src/file.ts",
         area: "unstaged",
-        patch: "+added\n",
         binary: false,
+        original: "before\n",
+        modified: "after\n",
       },
+    );
+    assert.deepEqual(
+      parseOperationResult("git.file.diff.get", {
+        path: "image.png",
+        area: "staged",
+        binary: true,
+      }),
+      { path: "image.png", area: "staged", binary: true },
+    );
+    assert.throws(() =>
+      parseOperationResult("git.file.diff.get", {
+        path: "src/file.ts",
+        area: "unstaged",
+        binary: false,
+        modified: "after\n",
+      }),
     );
     assert.throws(() =>
       parseOperationParams("git.file.diff.get", {

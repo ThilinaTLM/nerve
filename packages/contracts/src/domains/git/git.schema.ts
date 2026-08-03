@@ -138,13 +138,22 @@ export const gitFileDiffRequestSchema = gitFileActionRequestSchema.extend({
 });
 export type GitFileDiffRequest = z.infer<typeof gitFileDiffRequestSchema>;
 
-export const gitFileDiffResponseSchema = z.object({
+const gitFileDiffMetadataSchema = z.object({
   path: z.string(),
   renamedFrom: z.string().optional(),
   area: gitDiffAreaSchema,
-  patch: z.string(),
-  binary: z.boolean(),
 });
+
+export const gitFileDiffResponseSchema = z.discriminatedUnion("binary", [
+  gitFileDiffMetadataSchema.extend({
+    binary: z.literal(false),
+    original: z.string(),
+    modified: z.string(),
+  }),
+  gitFileDiffMetadataSchema.extend({
+    binary: z.literal(true),
+  }),
+]);
 export type GitFileDiffResponse = z.infer<typeof gitFileDiffResponseSchema>;
 
 export const gitMutationResponseSchema = z.object({

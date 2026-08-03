@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- GitService centralizes the repository command boundary and delegates domain workflows to focused modules. */
 import { type Dirent, existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import type {
   GitBranchListResponse,
@@ -457,17 +457,19 @@ export class GitService {
       (candidate) => candidate.path === path || candidate.renamedFrom === path,
     );
     const resolvedPath = file?.path ?? path;
+    const originalPath = file?.renamedFrom ?? resolvedPath;
     const paths = file?.renamedFrom
       ? [file.renamedFrom, resolvedPath]
       : [resolvedPath];
-    let patch: string;
+    let numstat: string;
 
     if (area === "unstaged" && file?.untracked) {
       try {
-        patch = (
+        numstat = (
           await this.runGit(repoDir, [
             "diff",
             "--no-index",
+            "--numstat",
             "--",
             "/dev/null",
             resolvedPath,
@@ -475,7 +477,7 @@ export class GitService {
         ).stdout;
       } catch (error) {
         if (error instanceof GitCommandError && error.code === 1) {
-          patch = error.stdout;
+          numstat = error.stdout;
         } else {
           throw error;
         }
@@ -484,23 +486,66 @@ export class GitService {
       const args = [
         "diff",
         ...(area === "staged" ? ["--staged"] : []),
+        "--numstat",
         "-M",
         "--",
         ...paths,
       ];
-      patch = (await this.mapGit(() => this.runGit(repoDir, args))).stdout;
+      numstat = (await this.mapGit(() => this.runGit(repoDir, args))).stdout;
     }
 
-    return {
+    const metadata = {
       path: resolvedPath,
       ...(file?.renamedFrom ? { renamedFrom: file.renamedFrom } : {}),
       area,
-      patch,
-      binary:
-        /(?:^|\n)(?:Binary files .* differ|GIT binary patch)(?:\n|$)/.test(
-          patch,
-        ),
     };
+    if (/(?:^|\n)-\t-\t/.test(numstat)) {
+      return { ...metadata, binary: true };
+    }
+
+    const originalMissing =
+      area === "staged" ? file?.index === "A" : Boolean(file?.untracked);
+    const modifiedMissing =
+      area === "staged" ? file?.index === "D" : file?.worktree === "D";
+    const [original, modified] = await Promise.all([
+      originalMissing
+        ? ""
+        : this.readGitDocument(
+            repoDir,
+            area === "staged" ? `HEAD:${originalPath}` : `:${originalPath}`,
+          ),
+      modifiedMissing
+        ? ""
+        : area === "staged"
+          ? this.readGitDocument(repoDir, `:${resolvedPath}`)
+          : this.readWorktreeDocument(repoDir, resolvedPath),
+    ]);
+
+    return { ...metadata, binary: false, original, modified };
+  }
+
+  private async readGitDocument(
+    repoDir: string,
+    spec: string,
+  ): Promise<string> {
+    return (await this.mapGit(() => this.runGit(repoDir, ["show", spec])))
+      .stdout;
+  }
+
+  private async readWorktreeDocument(
+    repoDir: string,
+    path: string,
+  ): Promise<string> {
+    const root = resolve(repoDir);
+    const target = resolve(root, path);
+    if (target === root || !target.startsWith(`${root}${sep}`)) {
+      throw new GitWorkflowError(
+        400,
+        "GIT_FILE_OUT_OF_SCOPE",
+        "Git file path is outside the repository directory.",
+      );
+    }
+    return readFile(target, "utf8");
   }
 
   async stageFile(
