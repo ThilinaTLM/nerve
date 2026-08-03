@@ -5,6 +5,7 @@ import {
   ContextPanelView,
   conversationSelectors,
 } from "$lib/features/conversations";
+import { FilesPanelView } from "$lib/features/filesystem";
 import {
   GitPanelView,
   GitPullRequestsPanelView,
@@ -69,7 +70,9 @@ function focusTasks() {
 }
 </script>
 
-{#if viewId === "conversations"}
+{#if viewId === "files"}
+  <FilesPanelView {activeProject} />
+{:else if viewId === "conversations"}
   <ConversationsPanelView />
 {:else if viewId === "git"}
   <GitPanelView model={gitModel} actions={gitActions} />

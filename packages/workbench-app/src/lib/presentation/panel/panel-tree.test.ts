@@ -153,6 +153,22 @@ const itemTree = (items: Node[]) =>
     getLabel: (item) => item.id,
   });
 
+test("marks unloaded item nodes expandable before children arrive", () => {
+  const nodes = buildPanelItemTree<Node>([{ id: "folder" }], {
+    getKey: (item) => item.id,
+    getParentKey: (item) => item.parent,
+    getLabel: (item) => item.id,
+    isExpandable: () => true,
+  });
+  assert.deepEqual([...panelTreeExpandableIds(nodes)], ["item:folder"]);
+  assert.deepEqual(
+    visiblePanelTreeRows(nodes, new Set(["item:folder"])).map(
+      (row) => row.node.label,
+    ),
+    ["folder"],
+  );
+});
+
 test("nests parent-keyed items in input order", () => {
   const nodes = itemTree([
     { id: "main" },

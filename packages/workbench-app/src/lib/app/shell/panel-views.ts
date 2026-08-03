@@ -1,3 +1,4 @@
+import Files from "@lucide/svelte/icons/files";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Info from "@lucide/svelte/icons/info";
@@ -13,11 +14,18 @@ import type { PanelViewDescriptor } from "$lib/presentation/shell";
  */
 export const panelViewDescriptors: PanelViewDescriptor[] = [
   {
+    id: "files",
+    title: "Files",
+    icon: Files,
+    defaultDock: "left",
+    defaultOrder: 0,
+  },
+  {
     id: "conversations",
     title: "Conversations",
     icon: MessagesSquare,
     defaultDock: "left",
-    defaultOrder: 0,
+    defaultOrder: 1,
     hideable: false,
   },
   {
@@ -53,7 +61,7 @@ export const panelViewDescriptors: PanelViewDescriptor[] = [
     title: "Tasks",
     icon: Terminal,
     defaultDock: "left",
-    defaultOrder: 1,
+    defaultOrder: 2,
   },
 ];
 

@@ -2,6 +2,8 @@ import type {
   ClipboardImageUploadResponse,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
+  FilesystemProjectEntriesQuery,
+  FilesystemProjectEntriesResponse,
 } from "@nervekit/contracts";
 import {
   apiGet,
@@ -29,6 +31,13 @@ export async function listDirectories(
   return (
     await protocolRequest("filesystem.directories.list", { path, showHidden })
   ).result;
+}
+
+export async function listProjectEntries(
+  query: FilesystemProjectEntriesQuery,
+): Promise<FilesystemProjectEntriesResponse> {
+  return (await protocolRequest("filesystem.project.entries.list", query))
+    .result;
 }
 
 export async function getFileContent(

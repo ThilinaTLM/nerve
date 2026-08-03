@@ -98,6 +98,37 @@ describe("normalizeShellLayout", () => {
     assert.deepEqual(layout.hidden, []);
   });
 
+  it("adds a newly registered files view to its default left dock", () => {
+    const files: PanelViewDescriptor = {
+      id: "files",
+      title: "Files",
+      icon,
+      defaultDock: "left",
+      defaultOrder: -1,
+    };
+    const fresh = defaultShellLayout([...descriptors, files]);
+    assert.deepEqual(fresh.docks.left.views, ["files", "conversations"]);
+
+    const persisted = normalizeShellLayout(
+      {
+        version: 1,
+        docks: {
+          left: {
+            views: ["conversations"],
+            activeViewId: "conversations",
+            size: 20,
+          },
+          right: { views: ["git", "context", "notes"], size: 22 },
+          bottom: { views: ["tasks"], size: 30 },
+        },
+        hidden: [],
+      },
+      [...descriptors, files],
+    );
+    assert.deepEqual(persisted.docks.left.views, ["conversations", "files"]);
+    assert.equal(persisted.docks.left.activeViewId, "conversations");
+  });
+
   it("clamps out-of-range sizes", () => {
     const layout = normalizeShellLayout(
       {
