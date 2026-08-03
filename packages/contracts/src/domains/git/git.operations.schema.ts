@@ -13,6 +13,8 @@ import {
   githubPrCommitsResponseSchema,
   githubPrConversationSchema,
   githubPrCoreSchema,
+  githubPrFileDiffRequestSchema,
+  githubPrFileDiffResponseSchema,
   githubPrFilesResponseSchema,
   githubPrInitialSchema,
   githubPrOverviewSchema,
@@ -54,6 +56,9 @@ const githubPrParamsSchema = gitRepoParamsSchema.extend({
 });
 const githubPrMergeParamsSchema = projectIdParamsSchema
   .merge(githubPrMergeRequestSchema)
+  .extend({ number: z.number().int().positive() });
+const githubPrFileDiffParamsSchema = projectIdParamsSchema
+  .merge(githubPrFileDiffRequestSchema)
   .extend({ number: z.number().int().positive() });
 
 export const gitOperationDefinitions = [
@@ -263,6 +268,15 @@ export const gitOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.github.pr.files.get",
+  ),
+  defineOperation(
+    "github.pr.file.diff.get",
+    githubPrFileDiffParamsSchema,
+    githubPrFileDiffResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.github.pr.file.diff.get",
   ),
   defineOperation(
     "github.pr.checkout",

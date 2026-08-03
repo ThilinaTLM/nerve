@@ -2,6 +2,7 @@ import {
   createBranchRequestSchema,
   gitFileActionRequestSchema,
   gitRemoteOpRequestSchema,
+  githubPrFileDiffRequestSchema,
   githubPrListFiltersSchema,
   githubPrMergeRequestSchema,
   switchBranchRequestSchema,
@@ -293,6 +294,30 @@ export function createGitRoutes(state: OrchestratorState): Hono {
         ),
       ),
     ),
+  );
+
+  app.post(
+    "/projects/:projectId/github/pr/:number/files/diff",
+    routeHandler(async (c) => {
+      const body = githubPrFileDiffRequestSchema.parse(await c.req.json());
+      return c.json(
+        await state.registry.git.prFileDiff(
+          routeParam(c, "projectId"),
+          body.repo,
+          prNumberParam(routeParam(c, "number")),
+          {
+            path: body.path,
+            ...(body.previousPath ? { previousPath: body.previousPath } : {}),
+            status: body.status,
+            expectedBaseRefOid: body.expectedBaseRefOid,
+            expectedHeadRefOid: body.expectedHeadRefOid,
+            ...(body.expectedHeadRepository
+              ? { expectedHeadRepository: body.expectedHeadRepository }
+              : {}),
+          },
+        ),
+      );
+    }),
   );
 
   app.post(

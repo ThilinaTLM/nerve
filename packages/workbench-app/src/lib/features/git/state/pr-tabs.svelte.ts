@@ -3,6 +3,7 @@ import { prViewKey } from "$lib/core/state/state-keys";
 import {
   demandPrTab,
   loadPrCore,
+  loadPrFileDiff,
   loadPrInitial,
   loadPrSection,
   refreshCurrentPr,
@@ -53,6 +54,7 @@ function createPrView(input: {
     commits: emptyResource(),
     checks: emptyResource(),
     files: emptyResource(),
+    fileDiffs: {},
     activeTab: "conversation",
     refreshing: false,
     merging: false,
@@ -161,7 +163,15 @@ export function selectPrTab(
 
 export function selectPrFile(id: string, path: string): void {
   const view = gitState.prViews[prViewKey(id)];
-  if (view) view.selectedFilePath = path;
+  if (!view) return;
+  view.selectedFilePath = path;
+  void loadPrFileDiff(view, path, { silent: true });
+}
+
+export function retrySelectedPrFile(id: string): void {
+  const view = gitState.prViews[prViewKey(id)];
+  if (view?.selectedFilePath)
+    void loadPrFileDiff(view, view.selectedFilePath, { force: true });
 }
 
 export function selectPrMergeMethod(

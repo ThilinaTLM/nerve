@@ -328,6 +328,53 @@ describe("Protocol v1 shared schemas", () => {
     );
   });
 
+  it("validates complete GitHub PR file diff payloads", () => {
+    const params = {
+      projectId: "proj_1",
+      repo: ".",
+      number: 99,
+      path: "src/new.ts",
+      previousPath: "src/old.ts",
+      status: "renamed" as const,
+      expectedBaseRefOid: "base1234",
+      expectedHeadRepository: "example/repo",
+      expectedHeadRefOid: "head1234",
+    };
+    assert.deepEqual(
+      parseOperationParams("github.pr.file.diff.get", params),
+      params,
+    );
+    assert.deepEqual(
+      parseOperationResult("github.pr.file.diff.get", {
+        kind: "text",
+        path: "src/new.ts",
+        previousPath: "src/old.ts",
+        baseRefOid: "base1234",
+        headRefOid: "head1234",
+        original: "before\n",
+        modified: "after\n",
+      }),
+      {
+        kind: "text",
+        path: "src/new.ts",
+        previousPath: "src/old.ts",
+        baseRefOid: "base1234",
+        headRefOid: "head1234",
+        original: "before\n",
+        modified: "after\n",
+      },
+    );
+    assert.throws(() =>
+      parseOperationResult("github.pr.file.diff.get", {
+        kind: "text",
+        path: "src/new.ts",
+        baseRefOid: "base1234",
+        headRefOid: "head1234",
+        modified: "after\n",
+      }),
+    );
+  });
+
   it("owns every operation once with explicit routing metadata", () => {
     const definitions = allOperationDefinitions();
     assert.equal(

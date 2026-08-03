@@ -278,6 +278,7 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         commits: { loading: false, refreshing: false },
         checks: { loading: false, refreshing: false },
         files: { loading: false, refreshing: false },
+        fileDiffs: {},
         activeTab: "conversation",
         refreshing: false,
         merging: false,

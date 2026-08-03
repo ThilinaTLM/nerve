@@ -2,15 +2,21 @@
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import FileCode from "@lucide/svelte/icons/file-code";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-import type { GithubPrCore, GithubPrFilesResponse } from "@nervekit/contracts";
+import type {
+  GithubPrCore,
+  GithubPrFileDiffResponse,
+  GithubPrFilesResponse,
+} from "@nervekit/contracts";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { buildPanelTree, PanelTree } from "$lib/presentation/panel";
-import UnifiedGitDiff from "./UnifiedGitDiff.svelte";
+import CodeMirrorGitDiff from "./CodeMirrorGitDiff.svelte";
 import GithubPrSection from "./GithubPrSection.svelte";
+import type { PrSectionState } from "./github-pr-types";
 import { fileStatusLetter, fileStatusTone } from "./pr-pane-helpers";
 
 type Props = {
@@ -19,16 +25,37 @@ type Props = {
   loading: boolean;
   error?: string;
   selectedPath?: string;
+  fileDiff?: PrSectionState<GithubPrFileDiffResponse>;
   onRetry?: () => void;
   onSelect?: (path: string) => void;
+  onFileDiffRetry?: () => void;
 };
 
-let { detail, files, loading, error, selectedPath, onRetry, onSelect }: Props =
-  $props();
+let {
+  detail,
+  files,
+  loading,
+  error,
+  selectedPath,
+  fileDiff,
+  onRetry,
+  onSelect,
+  onFileDiffRetry,
+}: Props = $props();
 const selectedFile = $derived(
   files?.files.find((file) => file.path === selectedPath),
 );
 const fileUrl = $derived(`${detail.url}/files`);
+
+function unavailableMessage(
+  reason: Extract<GithubPrFileDiffResponse, { kind: "unavailable" }>["reason"],
+): string {
+  if (reason === "content-too-large")
+    return "This file is too large for a complete in-app diff.";
+  if (reason === "repository-unavailable")
+    return "The source repository is no longer available.";
+  return "GitHub could not provide complete content for this file.";
+}
 </script>
 
 {#if loading && !files}
@@ -166,33 +193,97 @@ const fileUrl = $derived(`${detail.url}/files`);
         {/snippet}
 
         {#if selectedFile}
-          <ScrollArea class="h-full" orientation="both">
-            {#if selectedFile.patch}
-              <UnifiedGitDiff patch={selectedFile.patch} />
-              {#if selectedFile.patchTruncated}
-                <p
-                  class="border-t border-border/60 px-3 py-2 text-xs text-warning"
+          {#if fileDiff?.loading && !fileDiff.data}
+            <div
+              class="grid h-full min-h-48 place-items-center content-center gap-1.5 text-center text-muted-foreground"
+              role="status"
+            >
+              <Spinner class="size-6 text-primary" />
+              <strong class="text-foreground">Loading file diff</strong>
+            </div>
+          {:else if fileDiff?.error && !fileDiff.data}
+            <Empty.Root class="h-full min-h-0 gap-2 py-6">
+              <Empty.Media variant="icon" class="size-8 rounded-md">
+                <TriangleAlert
+                  class="size-4 text-destructive"
+                  aria-hidden="true"
+                />
+              </Empty.Media>
+              <Empty.Header class="gap-1">
+                <Empty.Title class="text-sm font-medium"
+                  >Could not load file diff</Empty.Title
                 >
-                  This patch was truncated. Open it on GitHub to view the
-                  complete diff.
-                </p>
-              {/if}
-            {:else}
-              <Empty.Root class="gap-2 py-6">
-                <Empty.Media variant="icon" class="size-8 rounded-md">
-                  <FileCode class="size-4" aria-hidden="true" />
-                </Empty.Media>
-                <Empty.Header class="gap-1">
-                  <Empty.Title class="text-sm font-medium"
-                    >Preview unavailable</Empty.Title
-                  >
-                  <Empty.Description class="text-xs">
-                    GitHub may omit patches for binary or very large files.
-                  </Empty.Description>
-                </Empty.Header>
-              </Empty.Root>
-            {/if}
-          </ScrollArea>
+                <Empty.Description class="text-xs text-destructive"
+                  >{fileDiff.error}</Empty.Description
+                >
+              </Empty.Header>
+              <Empty.Content>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onclick={() => onFileDiffRetry?.()}
+                >
+                  <RotateCcw class="size-3" /> Retry
+                </Button>
+              </Empty.Content>
+            </Empty.Root>
+          {:else if fileDiff?.data?.kind === "text" && fileDiff.data.original !== fileDiff.data.modified}
+            <CodeMirrorGitDiff
+              original={fileDiff.data.original}
+              modified={fileDiff.data.modified}
+              path={fileDiff.data.path}
+            />
+          {:else if fileDiff?.data?.kind === "binary"}
+            <Empty.Root class="h-full min-h-0 gap-2 py-6">
+              <Empty.Media variant="icon" class="size-8 rounded-md">
+                <FileCode class="size-4" aria-hidden="true" />
+              </Empty.Media>
+              <Empty.Header class="gap-1">
+                <Empty.Title class="text-sm font-medium"
+                  >Binary diff unavailable</Empty.Title
+                >
+                <Empty.Description class="text-xs">
+                  GitHub reports that this binary file changed.
+                </Empty.Description>
+              </Empty.Header>
+            </Empty.Root>
+          {:else if fileDiff?.data?.kind === "unavailable"}
+            <Empty.Root class="h-full min-h-0 gap-2 py-6">
+              <Empty.Media variant="icon" class="size-8 rounded-md">
+                <FileCode class="size-4" aria-hidden="true" />
+              </Empty.Media>
+              <Empty.Header class="gap-1">
+                <Empty.Title class="text-sm font-medium"
+                  >Preview unavailable</Empty.Title
+                >
+                <Empty.Description class="text-xs">
+                  {unavailableMessage(fileDiff.data.reason)}
+                </Empty.Description>
+              </Empty.Header>
+            </Empty.Root>
+          {:else if fileDiff?.data?.kind === "text"}
+            <Empty.Root class="h-full min-h-0 gap-2 py-6">
+              <Empty.Media variant="icon" class="size-8 rounded-md">
+                <FileCode class="size-4" aria-hidden="true" />
+              </Empty.Media>
+              <Empty.Header class="gap-1">
+                <Empty.Title class="text-sm font-medium"
+                  >No content changes</Empty.Title
+                >
+                <Empty.Description class="text-xs">
+                  The file metadata changed without a text difference.
+                </Empty.Description>
+              </Empty.Header>
+            </Empty.Root>
+          {:else}
+            <div
+              class="grid h-full min-h-48 place-items-center content-center gap-1.5 text-center text-muted-foreground"
+              role="status"
+            >
+              <Spinner class="size-6 text-primary" />
+              <strong class="text-foreground">Loading file diff</strong>
+            </div>
+          {/if}
         {:else}
           <Empty.Root class="h-full min-h-0 gap-2 py-6">
             <Empty.Media variant="icon" class="size-8 rounded-md">

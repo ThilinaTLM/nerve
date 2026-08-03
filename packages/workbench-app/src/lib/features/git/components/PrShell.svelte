@@ -7,12 +7,14 @@ import {
   applyMergedPr,
   loadPrCore,
   loadPrSection,
+  selectedPrFileDiffResource,
   setActivePrRefreshDemand,
 } from "$lib/features/git/state/git-refresh-coordinator.svelte";
 import { refreshPrs } from "$lib/features/git/state/git-panel-refresh.svelte";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import {
   refreshPrPane,
+  retrySelectedPrFile,
   selectPrFile,
   selectPrMergeMethod,
   selectPrTab,
@@ -20,6 +22,7 @@ import {
 import { notify } from "$lib/features/notifications/notify.svelte";
 
 const activeCenterPrView = $derived(gitSelectors.activeCenterPrView);
+const activeFileDiff = $derived(selectedPrFileDiffResource(activeCenterPrView));
 
 async function checkoutActivePr() {
   const view = activeCenterPrView;
@@ -99,8 +102,11 @@ $effect(() => {
   onTabChange={(tab) =>
     activeCenterPrView && selectPrTab(activeCenterPrView.id, tab)}
   onSectionRetry={retrySection}
+  fileDiff={activeFileDiff}
   onFileSelect={(path) =>
     activeCenterPrView && selectPrFile(activeCenterPrView.id, path)}
+  onFileDiffRetry={() =>
+    activeCenterPrView && retrySelectedPrFile(activeCenterPrView.id)}
   onMergeMethodChange={(method) =>
     activeCenterPrView && selectPrMergeMethod(activeCenterPrView.id, method)}
   onMerge={(method) => void mergeActivePr(method)}

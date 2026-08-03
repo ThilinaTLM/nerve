@@ -7,6 +7,8 @@ import type {
   GithubPrConversation,
   GithubPrCore,
   GithubPrFile,
+  GithubPrFileDiffRequest,
+  GithubPrFileDiffResponse,
   GithubPrFilesResponse,
   GithubPrInitial,
   GithubPrListFilters,
@@ -77,6 +79,7 @@ type GithubPrDetailRaw = {
   baseRefName: string;
   headRefOid?: string;
   baseRefOid?: string;
+  headRepository?: { nameWithOwner?: string } | null;
   updatedAt: string;
   createdAt: string;
   body?: string | null;
@@ -135,6 +138,7 @@ type RepositoryResponse = { repository?: GithubRepoRaw | null };
 
 const CORE_FIELDS = `
   number title url state isDraft headRefName baseRefName headRefOid baseRefOid
+  headRepository { nameWithOwner }
   updatedAt createdAt additions deletions changedFiles
   author { login avatarUrl }
 `;
@@ -375,6 +379,7 @@ function mapPrCore(raw: GithubPrDetailRaw): GithubPrCore {
     baseRefName: raw.baseRefName,
     headRefOid: raw.headRefOid ?? "",
     baseRefOid: raw.baseRefOid ?? "",
+    headRepository: raw.headRepository?.nameWithOwner ?? null,
     updatedAt: raw.updatedAt,
     createdAt: raw.createdAt,
     author: raw.author?.login ?? null,
@@ -631,7 +636,7 @@ export async function prChecks(
 
 const MAX_PR_FILES = 300;
 const PR_FILES_PER_PAGE = 100;
-const MAX_PR_PATCH_BYTES = 2 * 1024 * 1024;
+const MAX_PR_FILE_DOCUMENT_BYTES = 16 * 1024 * 1024;
 
 type GithubPrFileRaw = {
   filename?: string;
@@ -640,21 +645,7 @@ type GithubPrFileRaw = {
   additions?: number;
   deletions?: number;
   changes?: number;
-  patch?: string;
 };
-
-function truncateUtf8(value: string, maxBytes: number): string {
-  if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
-  let low = 0;
-  let high = value.length;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    if (Buffer.byteLength(value.slice(0, middle), "utf8") <= maxBytes)
-      low = middle;
-    else high = middle - 1;
-  }
-  return value.slice(0, low);
-}
 
 function fileStatus(value?: string): GithubPrFile["status"] {
   switch (value) {
@@ -698,35 +689,201 @@ export async function prFiles(
   const totalCount = Number.isInteger(detail.changed_files)
     ? (detail.changed_files ?? rawFiles.length)
     : rawFiles.length;
-  let patchBytesRemaining = MAX_PR_PATCH_BYTES;
-  let boundedPatches = false;
-  const files = rawFiles.slice(0, MAX_PR_FILES).flatMap((file) => {
-    if (!file.filename) return [];
-    const bounded = file.patch
-      ? truncateUtf8(file.patch, patchBytesRemaining)
-      : "";
-    const patchTruncated = Boolean(
-      file.patch && bounded.length < file.patch.length,
-    );
-    boundedPatches ||= patchTruncated;
-    patchBytesRemaining -= Buffer.byteLength(bounded, "utf8");
-    return [
-      {
-        path: file.filename,
-        previousPath: file.previous_filename,
-        status: fileStatus(file.status),
-        additions: file.additions ?? 0,
-        deletions: file.deletions ?? 0,
-        changes: file.changes ?? 0,
-        patch: bounded || null,
-        patchTruncated,
-      },
-    ];
-  });
+  const files = rawFiles.slice(0, MAX_PR_FILES).flatMap((file) =>
+    file.filename
+      ? [
+          {
+            path: file.filename,
+            previousPath: file.previous_filename,
+            status: fileStatus(file.status),
+            additions: file.additions ?? 0,
+            deletions: file.deletions ?? 0,
+            changes: file.changes ?? 0,
+          },
+        ]
+      : [],
+  );
   return {
     files,
     totalCount,
-    truncated: totalCount > files.length || boundedPatches,
+    truncated: totalCount > files.length,
+  };
+}
+
+type GithubGraphqlBlobRaw = {
+  byteSize?: number;
+  isBinary?: boolean;
+  isTruncated?: boolean;
+  text?: string | null;
+};
+
+type GithubPrFileDiffGraphqlRaw = {
+  repository?: {
+    pullRequest?: {
+      baseRefOid?: string;
+      headRefOid?: string;
+      headRepository?: { nameWithOwner?: string } | null;
+    } | null;
+    original?: GithubGraphqlBlobRaw | null;
+  } | null;
+  headRepository?: { modified?: GithubGraphqlBlobRaw | null } | null;
+};
+
+type PrFileDocument =
+  | { kind: "text"; text: string }
+  | { kind: "binary" }
+  | {
+      kind: "unavailable";
+      reason: "content-too-large" | "content-unavailable";
+    };
+
+function graphqlPrFileDocument(
+  raw: GithubGraphqlBlobRaw | null | undefined,
+  required: boolean,
+): PrFileDocument {
+  if (!required) return { kind: "text", text: "" };
+  if (!raw) return { kind: "unavailable", reason: "content-unavailable" };
+  if (
+    raw.isTruncated ||
+    (typeof raw.byteSize === "number" &&
+      raw.byteSize > MAX_PR_FILE_DOCUMENT_BYTES)
+  )
+    return { kind: "unavailable", reason: "content-too-large" };
+  if (raw.isBinary || typeof raw.text !== "string" || raw.text.includes("\0"))
+    return { kind: "binary" };
+  return { kind: "text", text: raw.text };
+}
+
+function repositoryParts(
+  nameWithOwner: string | undefined,
+): { owner: string; repo: string } | undefined {
+  const [owner, repo, ...rest] = nameWithOwner?.split("/") ?? [];
+  return owner && repo && rest.length === 0 ? { owner, repo } : undefined;
+}
+
+const PR_FILE_DIFF_QUERY = `
+  query PullRequestFileDiff(
+    $owner: String!
+    $repo: String!
+    $number: Int!
+    $headOwner: String!
+    $headRepo: String!
+    $originalExpression: String!
+    $modifiedExpression: String!
+    $loadOriginal: Boolean!
+    $loadModified: Boolean!
+  ) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $number) {
+        baseRefOid
+        headRefOid
+        headRepository { nameWithOwner }
+      }
+      original: object(expression: $originalExpression) @include(if: $loadOriginal) {
+        ... on Blob { byteSize isBinary isTruncated text }
+      }
+    }
+    headRepository: repository(owner: $headOwner, name: $headRepo)
+      @include(if: $loadModified) {
+      modified: object(expression: $modifiedExpression) {
+        ... on Blob { byteSize isBinary isTruncated text }
+      }
+    }
+  }
+`;
+
+export async function prFileDiff(
+  context: GithubServiceContext,
+  projectId: string,
+  relativePath: string,
+  number: number,
+  input: Omit<GithubPrFileDiffRequest, "repo">,
+): Promise<GithubPrFileDiffResponse> {
+  const { repository } = await preparePr(context, projectId, relativePath);
+  const metadata = {
+    path: input.path,
+    ...(input.previousPath ? { previousPath: input.previousPath } : {}),
+    baseRefOid: input.expectedBaseRefOid,
+    headRefOid: input.expectedHeadRefOid,
+  };
+  const needsOriginal = input.status !== "added";
+  const needsModified = input.status !== "removed";
+  const head = repositoryParts(input.expectedHeadRepository);
+  if (needsModified && !head)
+    return {
+      ...metadata,
+      kind: "unavailable",
+      reason: "repository-unavailable",
+    };
+  const headRepository = head ?? {
+    owner: repository.owner,
+    repo: repository.repo,
+  };
+  const data = await context.githubApi.graphql<GithubPrFileDiffGraphqlRaw>(
+    repository,
+    "pull-request-file-diff",
+    PR_FILE_DIFF_QUERY,
+    {
+      owner: repository.owner,
+      repo: repository.repo,
+      number,
+      headOwner: headRepository.owner,
+      headRepo: headRepository.repo,
+      originalExpression: `${input.expectedBaseRefOid}:${input.previousPath ?? input.path}`,
+      modifiedExpression: `${input.expectedHeadRefOid}:${input.path}`,
+      loadOriginal: needsOriginal,
+      loadModified: needsModified,
+    },
+  );
+  const pull = data.repository?.pullRequest;
+  if (!pull)
+    return {
+      ...metadata,
+      kind: "unavailable",
+      reason: "repository-unavailable",
+    };
+  if (
+    pull.baseRefOid !== input.expectedBaseRefOid ||
+    pull.headRefOid !== input.expectedHeadRefOid
+  )
+    throw new GitWorkflowError(
+      409,
+      "GH_PR_UPDATED",
+      "The pull request changed. Refresh it before loading this file.",
+    );
+  if (
+    needsModified &&
+    pull.headRepository?.nameWithOwner !== input.expectedHeadRepository
+  )
+    throw new GitWorkflowError(
+      409,
+      "GH_PR_UPDATED",
+      "The pull request source changed. Refresh it before loading this file.",
+    );
+  if (needsModified && !data.headRepository)
+    return {
+      ...metadata,
+      kind: "unavailable",
+      reason: "repository-unavailable",
+    };
+
+  const original = graphqlPrFileDocument(
+    data.repository?.original,
+    needsOriginal,
+  );
+  const modified = graphqlPrFileDocument(
+    data.headRepository?.modified,
+    needsModified,
+  );
+  if (original.kind === "binary" || modified.kind === "binary")
+    return { ...metadata, kind: "binary" };
+  if (original.kind === "unavailable") return { ...metadata, ...original };
+  if (modified.kind === "unavailable") return { ...metadata, ...modified };
+  return {
+    ...metadata,
+    kind: "text",
+    original: original.text,
+    modified: modified.text,
   };
 }
 

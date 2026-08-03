@@ -2,7 +2,10 @@
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import type { GithubPrMergeMethod } from "@nervekit/contracts";
+import type {
+  GithubPrFileDiffResponse,
+  GithubPrMergeMethod,
+} from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
@@ -16,7 +19,11 @@ import GithubPrLoadingPane from "./GithubPrLoadingPane.svelte";
 import GithubPrMergeBox from "./GithubPrMergeBox.svelte";
 import GithubPrOverview from "./GithubPrOverview.svelte";
 import GithubPrSectionSkeleton from "./GithubPrSectionSkeleton.svelte";
-import type { GithubPrTab, PrViewState } from "./github-pr-types";
+import type {
+  GithubPrTab,
+  PrSectionState,
+  PrViewState,
+} from "./github-pr-types";
 
 type PrSection =
   | "core"
@@ -33,7 +40,9 @@ type Props = {
   onOpenExternal?: () => void;
   onTabChange?: (tab: GithubPrTab) => void;
   onSectionRetry?: (section: PrSection) => void;
+  fileDiff?: PrSectionState<GithubPrFileDiffResponse>;
   onFileSelect?: (path: string) => void;
+  onFileDiffRetry?: () => void;
   onMergeMethodChange?: (method: GithubPrMergeMethod) => void;
   onMerge?: (method: GithubPrMergeMethod) => void;
 };
@@ -45,7 +54,9 @@ let {
   onOpenExternal,
   onTabChange,
   onSectionRetry,
+  fileDiff,
   onFileSelect,
+  onFileDiffRetry,
   onMergeMethodChange,
   onMerge,
 }: Props = $props();
@@ -289,8 +300,10 @@ function confirmCheckout() {
           loading={view.files.loading}
           error={view.files.error}
           selectedPath={view.selectedFilePath}
+          {fileDiff}
           onRetry={() => onSectionRetry?.("files")}
           onSelect={onFileSelect}
+          {onFileDiffRetry}
         />
       </Tabs.Content>
     </Tabs.Root>

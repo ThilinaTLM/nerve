@@ -6,6 +6,7 @@ import {
   githubPrSearch,
   listOpenPrs,
   mergePr,
+  prFileDiff,
   prFiles,
   prInitial,
 } from "../src/git/git-github-service.js";
@@ -191,7 +192,7 @@ describe("GitHub PR details and mutations", () => {
     ]);
   });
 
-  it("maps bounded file patches and rename metadata", async () => {
+  it("maps bounded file metadata without patch payloads", async () => {
     const result = await prFiles(
       context({
         rest: (path) =>
@@ -215,8 +216,126 @@ describe("GitHub PR details and mutations", () => {
     );
     assert.equal(result.totalCount, 1);
     assert.equal(result.truncated, false);
-    assert.equal(result.files[0]?.previousPath, "src/old.ts");
-    assert.equal(result.files[0]?.status, "renamed");
+    assert.deepEqual(result.files[0], {
+      path: "src/new.ts",
+      previousPath: "src/old.ts",
+      status: "renamed",
+      additions: 2,
+      deletions: 1,
+      changes: 3,
+    });
+  });
+
+  it("loads complete renamed documents with one GraphQL request", async () => {
+    let variables: Record<string, unknown> | undefined;
+    const result = await prFileDiff(
+      context({
+        graphql: (operation, input) => {
+          assert.equal(operation, "pull-request-file-diff");
+          variables = input;
+          return {
+            repository: {
+              pullRequest: {
+                baseRefOid: "base1234",
+                headRefOid: "head1234",
+                headRepository: { nameWithOwner: "contributor/fork" },
+              },
+              original: { byteSize: 7, isBinary: false, text: "before\n" },
+            },
+            headRepository: {
+              modified: { byteSize: 6, isBinary: false, text: "after\n" },
+            },
+          };
+        },
+      }) as Parameters<typeof prFileDiff>[0],
+      "proj_test",
+      ".",
+      7,
+      {
+        path: "src/new.ts",
+        previousPath: "src/old name.ts",
+        status: "renamed",
+        expectedBaseRefOid: "base1234",
+        expectedHeadRefOid: "head1234",
+        expectedHeadRepository: "contributor/fork",
+      },
+    );
+
+    assert.deepEqual(result, {
+      kind: "text",
+      path: "src/new.ts",
+      previousPath: "src/old name.ts",
+      baseRefOid: "base1234",
+      headRefOid: "head1234",
+      original: "before\n",
+      modified: "after\n",
+    });
+    assert.equal(variables?.originalExpression, "base1234:src/old name.ts");
+    assert.equal(variables?.modifiedExpression, "head1234:src/new.ts");
+    assert.equal(variables?.headOwner, "contributor");
+    assert.equal(variables?.headRepo, "fork");
+  });
+
+  it("classifies binary PR file content", async () => {
+    const result = await prFileDiff(
+      context({
+        graphql: () => ({
+          repository: {
+            pullRequest: {
+              baseRefOid: "base1234",
+              headRefOid: "head1234",
+              headRepository: { nameWithOwner: "example/repo" },
+            },
+            original: { byteSize: 3, isBinary: true, text: null },
+          },
+          headRepository: {
+            modified: { byteSize: 3, isBinary: true, text: null },
+          },
+        }),
+      }) as Parameters<typeof prFileDiff>[0],
+      "proj_test",
+      ".",
+      7,
+      {
+        path: "image.bin",
+        status: "modified",
+        expectedBaseRefOid: "base1234",
+        expectedHeadRefOid: "head1234",
+        expectedHeadRepository: "example/repo",
+      },
+    );
+    assert.equal(result.kind, "binary");
+  });
+
+  it("rejects stale pull request refs", async () => {
+    await assert.rejects(
+      () =>
+        prFileDiff(
+          context({
+            graphql: () => ({
+              repository: {
+                pullRequest: {
+                  baseRefOid: "newbase1",
+                  headRefOid: "newhead1",
+                  headRepository: { nameWithOwner: "example/repo" },
+                },
+              },
+              headRepository: {},
+            }),
+          }) as Parameters<typeof prFileDiff>[0],
+          "proj_test",
+          ".",
+          7,
+          {
+            path: "file.ts",
+            status: "modified",
+            expectedBaseRefOid: "oldbase1",
+            expectedHeadRefOid: "oldhead1",
+            expectedHeadRepository: "example/repo",
+          },
+        ),
+      /Refresh it before loading this file/,
+    );
   });
 
   it("uses allowed merge methods and sends the expected head SHA", async () => {

@@ -12,6 +12,8 @@ import type {
   GithubPrCommitsResponse,
   GithubPrConversation,
   GithubPrCore,
+  GithubPrFileDiffRequest,
+  GithubPrFileDiffResponse,
   GithubPrFilesResponse,
   GithubPrInitial,
   GithubPrListFilters,
@@ -51,6 +53,7 @@ import {
   prCommits as getGithubPrCommits,
   prConversation as getGithubPrConversation,
   prCore as getGithubPrCore,
+  prFileDiff as getGithubPrFileDiff,
   prFiles as getGithubPrFiles,
   prInitial as getGithubPrInitial,
   prOverview as getGithubPrOverview,
@@ -931,6 +934,21 @@ export class GitService {
       projectId,
       relativePath,
       number,
+    );
+  }
+
+  async prFileDiff(
+    projectId: string,
+    relativePath: string,
+    number: number,
+    input: Omit<GithubPrFileDiffRequest, "repo">,
+  ): Promise<GithubPrFileDiffResponse> {
+    return getGithubPrFileDiff(
+      this.githubContext(),
+      projectId,
+      relativePath,
+      number,
+      input,
     );
   }
 
