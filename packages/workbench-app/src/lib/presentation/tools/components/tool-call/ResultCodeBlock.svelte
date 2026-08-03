@@ -7,6 +7,7 @@ import {
   contentWidthFromBorderBox,
   nextFixedVisibleRows,
   parseCssPixels,
+  shouldMeasureInlineSize,
   visualRowsFromScrollHeight,
 } from "./result-code-block-sizing";
 
@@ -107,19 +108,18 @@ function measureVisualRows(): void {
   measureFrame = undefined;
   if (!hasFixedRows || !blockEl || !viewportEl || !contentEl) return;
 
-  const blockRect = blockEl.getBoundingClientRect();
-  const viewportRect = viewportEl.getBoundingClientRect();
-  const blockStyle = getComputedStyle(blockEl);
-  const contentWidth =
-    viewportRect.width > 0
-      ? viewportRect.width
-      : contentWidthFromBorderBox({
-          borderBoxWidth: blockRect.width,
-          paddingLeft: parseCssPixels(blockStyle.paddingLeft),
-          paddingRight: parseCssPixels(blockStyle.paddingRight),
-          borderLeftWidth: parseCssPixels(blockStyle.borderLeftWidth),
-          borderRightWidth: parseCssPixels(blockStyle.borderRightWidth),
-        });
+  let contentWidth = viewportEl.clientWidth;
+  if (contentWidth <= 0) {
+    const blockRect = blockEl.getBoundingClientRect();
+    const blockStyle = getComputedStyle(blockEl);
+    contentWidth = contentWidthFromBorderBox({
+      borderBoxWidth: blockRect.width,
+      paddingLeft: parseCssPixels(blockStyle.paddingLeft),
+      paddingRight: parseCssPixels(blockStyle.paddingRight),
+      borderLeftWidth: parseCssPixels(blockStyle.borderLeftWidth),
+      borderRightWidth: parseCssPixels(blockStyle.borderRightWidth),
+    });
+  }
 
   if (contentWidth <= 0) return;
 
@@ -170,10 +170,17 @@ $effect(() => {
   ) {
     return;
   }
-  const observer = new ResizeObserver(() => scheduleMeasure());
-  observer.observe(blockEl);
+  let observedInlineSize: number | undefined;
+  const observer = new ResizeObserver((entries) => {
+    const entry = entries.at(-1);
+    if (!entry) return;
+    const nextInlineSize =
+      entry.contentBoxSize[0]?.inlineSize ?? entry.contentRect.width;
+    if (!shouldMeasureInlineSize(observedInlineSize, nextInlineSize)) return;
+    observedInlineSize = nextInlineSize;
+    scheduleMeasure();
+  });
   observer.observe(viewportEl);
-  observer.observe(contentEl);
   scheduleMeasure();
   return () => observer.disconnect();
 });
@@ -392,7 +399,6 @@ $effect(() => {
     (var(--code-block-fixed-rows) * 1lh) + (var(--code-block-padding-y) * 2) +
       var(--code-block-border-y)
   );
-  transition: height 140ms ease-out;
 }
 
 .code-block[data-fixed-rows="true"] .code-block__viewport {

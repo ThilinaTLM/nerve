@@ -45,30 +45,6 @@ export function agentForConversation(
   );
 }
 
-function hasPendingHumanInput(
-  conversationId: string,
-  approvals: ApprovalWithToolCall[],
-  userQuestions: UserQuestionRecord[],
-  planReviews: PlanReviewRecord[],
-): boolean {
-  return (
-    approvals.some(
-      (approval) =>
-        approval.conversationId === conversationId &&
-        approval.status === "pending",
-    ) ||
-    userQuestions.some(
-      (question) =>
-        question.conversationId === conversationId &&
-        question.status === "pending",
-    ) ||
-    planReviews.some(
-      (review) =>
-        review.conversationId === conversationId && review.status === "pending",
-    )
-  );
-}
-
 export function conversationActivityForRecord(input: {
   conversationId: string;
   agent?: AgentRecord;
@@ -137,20 +113,47 @@ export function buildConversationActivityById(input: {
   userQuestions: UserQuestionRecord[];
   planReviews: PlanReviewRecord[];
 }): Record<string, ConversationActivityState> {
+  const agentsById = new Map<string, AgentRecord>();
+  const agentsByConversationId = new Map<string, AgentRecord>();
+  for (const agent of input.agents) {
+    agentsById.set(agent.id, agent);
+    if (
+      agent.conversationId &&
+      !agentsByConversationId.has(agent.conversationId)
+    ) {
+      agentsByConversationId.set(agent.conversationId, agent);
+    }
+  }
+
+  const pendingConversationIds = new Set<string>();
+  for (const approval of input.approvals) {
+    if (approval.status === "pending") {
+      pendingConversationIds.add(approval.conversationId);
+    }
+  }
+  for (const question of input.userQuestions) {
+    if (question.status === "pending") {
+      pendingConversationIds.add(question.conversationId);
+    }
+  }
+  for (const review of input.planReviews) {
+    if (review.status === "pending") {
+      pendingConversationIds.add(review.conversationId);
+    }
+  }
+
   const result: Record<string, ConversationActivityState> = Object.create(null);
   for (const conversation of input.conversations) {
-    const agent = agentForConversation(conversation, input.agents);
+    const agent =
+      (conversation.activeAgentId
+        ? agentsById.get(conversation.activeAgentId)
+        : undefined) ?? agentsByConversationId.get(conversation.id);
     result[conversation.id] = conversationActivityForRecord({
       conversationId: conversation.id,
       agent,
       mode: agent?.mode ?? conversation.mode,
       view: input.views[conversationViewKey(conversation.id)],
-      hasPendingHumanInput: hasPendingHumanInput(
-        conversation.id,
-        input.approvals,
-        input.userQuestions,
-        input.planReviews,
-      ),
+      hasPendingHumanInput: pendingConversationIds.has(conversation.id),
     });
   }
   return result;
