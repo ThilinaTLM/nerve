@@ -164,10 +164,11 @@ export async function loadPrFileDiff(
   );
   if (!core || !file) return undefined;
   const stateKey = prFileDiffStateKey(core.baseRefOid, core.headRefOid, file);
-  const resource = (view.fileDiffs[stateKey] ??= {
+  view.fileDiffs[stateKey] ??= {
     loading: false,
     refreshing: false,
-  });
+  };
+  const resource = view.fileDiffs[stateKey];
   return fetchResource({
     key: queryKeys.git.prFileDiff(
       view.projectId,
