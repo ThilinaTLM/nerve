@@ -9,7 +9,7 @@ import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { buildPanelTree, PanelTree } from "$lib/presentation/panel";
-import GithubPrDiff from "./GithubPrDiff.svelte";
+import UnifiedGitDiff from "./UnifiedGitDiff.svelte";
 import GithubPrSection from "./GithubPrSection.svelte";
 import { fileStatusLetter, fileStatusTone } from "./pr-pane-helpers";
 
@@ -168,7 +168,7 @@ const fileUrl = $derived(`${detail.url}/files`);
         {#if selectedFile}
           <ScrollArea class="h-full" orientation="both">
             {#if selectedFile.patch}
-              <GithubPrDiff patch={selectedFile.patch} />
+              <UnifiedGitDiff patch={selectedFile.patch} />
               {#if selectedFile.patchTruncated}
                 <p
                   class="border-t border-border/60 px-3 py-2 text-xs text-warning"

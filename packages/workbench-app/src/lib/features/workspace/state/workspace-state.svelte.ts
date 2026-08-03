@@ -16,6 +16,7 @@ export type CenterTabIdentity =
   | { kind: "task"; id: string }
   | { kind: "file"; id: string }
   | { kind: "pr"; id: string }
+  | { kind: "diff"; id: string }
   | { kind: "settings"; id: "settings" }
   | { kind: "auth"; id: "auth" }
   | { kind: "logs"; id: "logs" };

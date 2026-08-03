@@ -4,7 +4,7 @@ import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import X from "@lucide/svelte/icons/x";
-import type { GitFileChange } from "@nervekit/contracts";
+import type { GitDiffArea, GitFileChange } from "@nervekit/contracts";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import {
@@ -32,6 +32,7 @@ type Props = {
   bulkMutation?: string;
   selectedRepo: string;
   capabilities: GitPanelCapabilities;
+  onOpenDiff: (repo: string, file: GitFileChange, area: GitDiffArea) => void;
   onMutateFile: (
     repo: string,
     file: GitFileChange,
@@ -49,6 +50,7 @@ let {
   bulkMutation,
   selectedRepo,
   capabilities,
+  onOpenDiff,
   onMutateFile,
   onBulkStage,
   onRequestDiscard,
@@ -98,11 +100,13 @@ let unstagedExpanded = $state(true);
           !capabilities.bulkMutateFiles.enabled ||
           Boolean(bulkMutation) ||
           Boolean(fileMutation)}
-        onclick={() =>
+        onclick={(event) => {
+          event.stopPropagation();
           onBulkStage(
             selectedRepo,
             group === "staged" ? "unstage-all" : "stage-all",
-          )}
+          );
+        }}
       />
     {/snippet}
   </PanelRow>
@@ -117,6 +121,7 @@ let unstagedExpanded = $state(true);
       baseIndent={0}
       getItemTitle={(file) =>
         `${fileStatusLabel(file, group)} · ${file.renamedFrom ? `${file.renamedFrom} → ` : ""}${file.path}`}
+      onItemActivate={(file) => onOpenDiff(selectedRepo, file, group)}
     >
       {#snippet itemLeading(file)}
         <span
@@ -138,12 +143,14 @@ let unstagedExpanded = $state(true);
           loading={busy &&
             fileMutation?.action === (group === "staged" ? "unstage" : "stage")}
           disabled={!capabilities.mutateFiles.enabled || busy}
-          onclick={() =>
+          onclick={(event) => {
+            event.stopPropagation();
             onMutateFile(
               selectedRepo,
               file,
               group === "staged" ? "unstage" : "stage",
-            )}
+            );
+          }}
         />
         <PanelToolbarButton
           icon={X}
@@ -152,7 +159,10 @@ let unstagedExpanded = $state(true);
           dense
           loading={busy && fileMutation?.action === "discard"}
           disabled={!capabilities.mutateFiles.enabled || busy}
-          onclick={() => onRequestDiscard(file)}
+          onclick={(event) => {
+            event.stopPropagation();
+            onRequestDiscard(file);
+          }}
         />
       {/snippet}
     </PanelTree>

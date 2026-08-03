@@ -1,5 +1,6 @@
 import type {
   GitBranchSummary,
+  GitDiffArea,
   GitFileChange,
   GithubPr,
   GithubStatusResponse,
@@ -106,6 +107,11 @@ export interface GitPanelActions {
     repository: string,
     branch: GitBranchSummary,
   ) => boolean | void | Promise<boolean | void>;
+  readonly openDiff: (
+    repository: string,
+    file: GitFileChange,
+    area: GitDiffArea,
+  ) => void | Promise<void>;
   readonly mutateFile: (
     repository: string,
     file: GitFileChange,

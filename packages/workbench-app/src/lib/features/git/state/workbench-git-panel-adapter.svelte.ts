@@ -10,6 +10,7 @@ import {
 } from "$lib/presentation";
 import type { ProjectRecord } from "$lib/api";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
+import { openDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import {
@@ -206,6 +207,17 @@ export function createWorkbenchGitPanelAdapter(
       return project
         ? switchGitRepoBranch(project.id, repository, branch)
         : false;
+    },
+    openDiff: (repository, file, area) => {
+      const project = activeProject();
+      if (project)
+        return openDiffPane({
+          projectId: project.id,
+          repo: repository,
+          path: file.path,
+          renamedFrom: file.renamedFrom,
+          area,
+        });
     },
     mutateFile: (repository, file, action) => {
       const project = activeProject();

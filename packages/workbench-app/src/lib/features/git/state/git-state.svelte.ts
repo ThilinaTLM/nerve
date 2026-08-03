@@ -1,3 +1,4 @@
+import type { GitDiffArea, GitFileDiffResponse } from "@nervekit/contracts";
 import type {
   GithubPr,
   GithubPrChecksResponse,
@@ -42,6 +43,19 @@ export type PrViewState = {
   mergeError?: string;
 };
 
+export type DiffViewState = {
+  id: string;
+  projectId: string;
+  repo: string;
+  path: string;
+  renamedFrom?: string;
+  area: GitDiffArea;
+  data?: GitFileDiffResponse;
+  loading: boolean;
+  refreshing: boolean;
+  error?: string;
+};
+
 export type GitContext = {
   projectId: string;
   projectIsRepo: boolean;
@@ -55,4 +69,6 @@ export const gitState = $state({
   gitRefreshToken: 0,
   prViews: {} as Record<string, PrViewState>,
   openPrTabIds: [] as string[],
+  diffViews: {} as Record<string, DiffViewState>,
+  openDiffTabIds: [] as string[],
 });

@@ -24,6 +24,10 @@ export function tabLabel(tab: CenterTabModel): string {
       "File"
     );
   if (tab.kind === "pr") return `#${tab.number}`;
+  if (tab.kind === "diff") {
+    const name = tab.path?.split("/").pop() ?? "Diff";
+    return tab.area === "staged" ? `${name} (staged)` : name;
+  }
   if (tab.kind === "settings") return "Settings";
   if (tab.kind === "auth") return "Authentication";
   if (tab.kind === "logs") return "Nerve Logs";
@@ -37,6 +41,8 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
     return `${tab.task.name ?? tab.task.command} · ${tab.task.status} · ${shortenPath(tab.task.cwd, homeDir)} · ${tab.task.id}`;
   }
   if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
+  if (tab.kind === "diff")
+    return `${tab.path ?? tab.id} · ${tab.area === "staged" ? "staged" : "unstaged"} changes${tab.repo && tab.repo !== "." ? ` · ${tab.repo}` : ""}`;
   if (tab.kind === "pr")
     return tab.title
       ? `#${tab.number} ${tab.title}`
@@ -62,6 +68,7 @@ export function statusLabel(tab: CenterTabModel): string | undefined {
   if (tab.sending) {
     if (tab.kind === "task") return "Task active";
     if (tab.kind === "file") return "Loading file";
+    if (tab.kind === "diff") return "Loading diff";
   }
   if (tab.kind === "task") return tab.task?.status ?? "missing";
   if (tab.kind === "file" && tab.file?.truncated) return "Truncated";

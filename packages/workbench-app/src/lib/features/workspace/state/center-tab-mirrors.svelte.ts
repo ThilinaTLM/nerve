@@ -21,6 +21,9 @@ export function syncCenterTabMirrors(): void {
   gitState.openPrTabIds = workspaceState.openCenterTabs
     .filter((tab) => tab.kind === "pr")
     .map((tab) => tab.id);
+  gitState.openDiffTabIds = workspaceState.openCenterTabs
+    .filter((tab) => tab.kind === "diff")
+    .map((tab) => tab.id);
   settingsState.settingsTabOpen = workspaceState.openCenterTabs.some(
     (tab) => tab.kind === "settings",
   );

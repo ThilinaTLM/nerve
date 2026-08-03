@@ -10,6 +10,10 @@ import {
   selectCenterFileTab,
 } from "$lib/features/filesystem/state/file-tabs.svelte";
 import {
+  closeDiffTab,
+  selectCenterDiffTab,
+} from "$lib/features/git/state/diff-tabs.svelte";
+import {
   closePrTab,
   selectCenterPrTab,
 } from "$lib/features/git/state/pr-tabs.svelte";
@@ -34,6 +38,7 @@ registerCenterTabDispatch({
     task: (tab) => selectCenterTaskTab(tab.id),
     file: (tab) => selectCenterFileTab(tab.id),
     pr: (tab) => selectCenterPrTab(tab.id),
+    diff: (tab) => selectCenterDiffTab(tab.id),
     settings: () => selectCenterSettingsTab(),
     auth: () => selectCenterAuthTab(),
     logs: () => selectCenterLogsTab(),
@@ -44,6 +49,7 @@ registerCenterTabDispatch({
     task: (tab) => closeTaskTab(tab.id),
     file: (tab) => closeFileTab(tab.id),
     pr: (tab) => closePrTab(tab.id),
+    diff: (tab) => closeDiffTab(tab.id),
     settings: () => closeSettingsTab(),
     auth: () => closeAuthTab(),
     logs: () => closeLogsTab(),

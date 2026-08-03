@@ -4,7 +4,9 @@ import { readdir } from "node:fs/promises";
 import { basename, join, resolve, sep } from "node:path";
 import type {
   GitBranchListResponse,
+  GitDiffArea,
   GitDiscoveryResponse,
+  GitFileDiffResponse,
   GithubPrCheckoutResponse,
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
@@ -438,6 +440,66 @@ export class GitService {
         relativePath,
         this.repoName(projectId, relativePath),
       ),
+    };
+  }
+
+  async fileDiff(
+    projectId: string,
+    relativePath: string,
+    path: string,
+    area: GitDiffArea,
+  ): Promise<GitFileDiffResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const status = parsePorcelainV2(
+      (await this.runGit(repoDir, ["status", "--porcelain=v2"])).stdout,
+    );
+    const file = status.files.find(
+      (candidate) => candidate.path === path || candidate.renamedFrom === path,
+    );
+    const resolvedPath = file?.path ?? path;
+    const paths = file?.renamedFrom
+      ? [file.renamedFrom, resolvedPath]
+      : [resolvedPath];
+    let patch: string;
+
+    if (area === "unstaged" && file?.untracked) {
+      try {
+        patch = (
+          await this.runGit(repoDir, [
+            "diff",
+            "--no-index",
+            "--",
+            "/dev/null",
+            resolvedPath,
+          ])
+        ).stdout;
+      } catch (error) {
+        if (error instanceof GitCommandError && error.code === 1) {
+          patch = error.stdout;
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      const args = [
+        "diff",
+        ...(area === "staged" ? ["--staged"] : []),
+        "-M",
+        "--",
+        ...paths,
+      ];
+      patch = (await this.mapGit(() => this.runGit(repoDir, args))).stdout;
+    }
+
+    return {
+      path: resolvedPath,
+      ...(file?.renamedFrom ? { renamedFrom: file.renamedFrom } : {}),
+      area,
+      patch,
+      binary:
+        /(?:^|\n)(?:Binary files .* differ|GIT binary patch)(?:\n|$)/.test(
+          patch,
+        ),
     };
   }
 

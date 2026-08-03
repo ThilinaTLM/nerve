@@ -2,6 +2,7 @@
 import BookOpenText from "@lucide/svelte/icons/book-open-text";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Copy from "@lucide/svelte/icons/copy";
+import FileDiff from "@lucide/svelte/icons/file-diff";
 import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
@@ -97,7 +98,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
     running: tab.sending,
     error: tab.error,
     closeable: true,
-    wide: tab.kind === "task" || tab.kind === "file",
+    wide: tab.kind === "task" || tab.kind === "file" || tab.kind === "diff",
     draft:
       (tab.kind === "conversation" || tab.kind === "pending-conversation") &&
       tab.hasDraft,
@@ -124,6 +125,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
       model.icon = FileText;
     }
   } else if (tab.kind === "pr") model.icon = GitPullRequest;
+  else if (tab.kind === "diff") model.icon = FileDiff;
   else if (tab.kind === "settings") model.icon = Settings;
   else if (tab.kind === "auth") model.icon = CloudCog;
   else if (tab.kind === "logs") model.icon = Logs;

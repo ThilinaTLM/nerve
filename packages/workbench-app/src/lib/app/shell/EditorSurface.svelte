@@ -3,6 +3,7 @@ import { EditorArea } from "$lib/presentation/shell";
 import EditorTabStripContainer from "$lib/app/shell/EditorTabStripContainer.svelte";
 import ConversationShell from "$lib/features/conversations/components/ConversationShell.svelte";
 import FileShell from "$lib/features/filesystem/components/FileShell.svelte";
+import DiffShell from "$lib/features/git/components/DiffShell.svelte";
 import PrShell from "$lib/features/git/components/PrShell.svelte";
 import LogsShell from "$lib/features/logs/components/LogsShell.svelte";
 import TaskShell from "$lib/features/tasks/components/TaskShell.svelte";
@@ -107,6 +108,8 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
         <FileShell />
       {:else if activeCenterTab?.kind === "pr"}
         <PrShell />
+      {:else if activeCenterTab?.kind === "diff"}
+        <DiffShell />
       {:else if activeCenterTab?.kind === "settings"}
         <SettingsShell />
       {:else if activeCenterTab?.kind === "auth"}

@@ -47,6 +47,7 @@ test("only restored conversations activate in the critical lane", () => {
     [undefined, "none"],
     [{ kind: "conversation", id: "conversation" }, "critical"],
     [{ kind: "pr", id: "pr" }, "progressive"],
+    [{ kind: "diff", id: "diff" }, "progressive"],
     [{ kind: "task", id: "task" }, "progressive"],
     [{ kind: "file", id: "file" }, "progressive"],
     [{ kind: "settings", id: "settings" }, "progressive"],

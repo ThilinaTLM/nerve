@@ -4,6 +4,7 @@ import { buildProjectSwitcherItems } from "$lib/features/projects/state/project-
 import { agentRunningTone } from "@nervekit/ui-kit/core/utils/status";
 import {
   conversationViewKey,
+  diffViewKey,
   fileViewKey,
   pendingConversationKey,
   prViewKey,
@@ -33,6 +34,7 @@ export type {
   AuthTabModel,
   CenterTabModel,
   ConversationTabModel,
+  DiffTabModel,
   FileTabModel,
   LogsTabModel,
   PendingConversationTabModel,
@@ -45,6 +47,7 @@ import type {
   AuthTabModel,
   CenterTabModel,
   ConversationTabModel,
+  DiffTabModel,
   FileTabModel,
   LogsTabModel,
   PendingConversationTabModel,
@@ -284,6 +287,21 @@ export const workspaceSelectors = {
       };
     });
   },
+  get openDiffTabs(): DiffTabModel[] {
+    return gitState.openDiffTabIds.map((id) => {
+      const view = gitState.diffViews[diffViewKey(id)];
+      return {
+        kind: "diff" as const,
+        id,
+        path: view?.path,
+        repo: view?.repo,
+        area: view?.area,
+        active: activeTabMatches("diff", id),
+        sending: Boolean(view?.loading || view?.refreshing),
+        error: view?.error,
+      };
+    });
+  },
   get openPrTabs(): PrTabModel[] {
     return gitState.openPrTabIds.map((id) => {
       const view = gitState.prViews[prViewKey(id)];
@@ -375,11 +393,16 @@ export const workspaceSelectors = {
           (candidate) => candidate.id === tab.id,
         );
         if (model) models.push(model);
+      } else if (tab.kind === "diff") {
+        const model = this.openDiffTabs.find(
+          (candidate) => candidate.id === tab.id,
+        );
+        if (model) models.push(model);
       } else if (tab.kind === "settings") {
         models.push(...this.openSettingsTabs);
       } else if (tab.kind === "auth") {
         models.push(...this.openAuthTabs);
-      } else {
+      } else if (tab.kind === "logs") {
         models.push(...this.openLogsTabs);
       }
     }

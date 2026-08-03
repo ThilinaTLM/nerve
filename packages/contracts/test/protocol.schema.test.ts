@@ -271,6 +271,45 @@ describe("Protocol v1 shared schemas", () => {
     );
   });
 
+  it("validates staged and unstaged Git file diff payloads", () => {
+    assert.deepEqual(
+      parseOperationParams("git.file.diff.get", {
+        projectId: "proj_1",
+        repo: ".",
+        path: "src/file.ts",
+        area: "staged",
+      }),
+      {
+        projectId: "proj_1",
+        repo: ".",
+        path: "src/file.ts",
+        area: "staged",
+      },
+    );
+    assert.deepEqual(
+      parseOperationResult("git.file.diff.get", {
+        path: "src/file.ts",
+        area: "unstaged",
+        patch: "+added\n",
+        binary: false,
+      }),
+      {
+        path: "src/file.ts",
+        area: "unstaged",
+        patch: "+added\n",
+        binary: false,
+      },
+    );
+    assert.throws(() =>
+      parseOperationParams("git.file.diff.get", {
+        projectId: "proj_1",
+        repo: ".",
+        path: "src/file.ts",
+        area: "working-tree",
+      }),
+    );
+  });
+
   it("owns every operation once with explicit routing metadata", () => {
     const definitions = allOperationDefinitions();
     assert.equal(

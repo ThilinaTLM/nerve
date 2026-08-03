@@ -240,6 +240,8 @@ function openBranchDialog(): void {
       bulkMutation={model.operations.bulkMutation}
       selectedRepo={model.selectedRepository}
       capabilities={model.capabilities}
+      onOpenDiff={(repository, file, area) =>
+        void actions.openDiff(repository, file, area)}
       onMutateFile={(repository, file, action) =>
         void actions.mutateFile(repository, file, action)}
       onBulkStage={(repository, action) =>
