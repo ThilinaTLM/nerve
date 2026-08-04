@@ -46,9 +46,10 @@
   }
 }
 
-/* Status dot pulse (status-dot.svelte). Applied via class="status-pulse". */
+/* Status dot pulse (status-dot.svelte). Keep this finite: an infinite paint
+ * animation makes an otherwise idle Electron window redraw continuously. */
 .status-pulse {
-  animation: status-pulse 1.5s ease-in-out infinite;
+  animation: status-pulse 1.5s ease-in-out 2;
 }
 
 @keyframes status-pulse {

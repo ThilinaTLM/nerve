@@ -5,12 +5,14 @@ export const statusDotVariants = tv({
   base: "inline-block flex-none rounded-full",
   variants: {
     tone: {
-      neutral: "bg-muted-foreground border-muted-foreground",
-      accent: "bg-foreground border-foreground",
-      running: "bg-info border-info",
-      good: "bg-success border-success",
-      warn: "bg-warning border-warning",
-      danger: "bg-destructive-solid border-destructive-solid",
+      neutral:
+        "bg-muted-foreground border-muted-foreground text-muted-foreground",
+      accent: "bg-foreground border-foreground text-foreground",
+      running: "bg-info border-info text-info",
+      good: "bg-success border-success text-success",
+      warn: "bg-warning border-warning text-warning",
+      danger:
+        "bg-destructive-solid border-destructive-solid text-destructive-solid",
     },
     size: {
       xs: "size-[0.42rem]",
