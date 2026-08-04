@@ -3,7 +3,6 @@ import {
   isMarkdownPath,
   type FileDisplayMode,
 } from "@nervekit/ui-kit/core/utils/file-display";
-import { extname } from "../../tools/views/lang.js";
 import type { FilePaneViewModel } from "./types.js";
 
 export type ResolvedFilePaneModel = {
@@ -48,7 +47,7 @@ export function resolveFilePaneModel(
     lineStart: file?.lineStart ?? 1,
     targetLine,
     displayMode,
-    language: extname(filePath),
+    language: filePath,
     imageSrc: imageDataUrl(view),
     textLength,
     scrollSignature:
