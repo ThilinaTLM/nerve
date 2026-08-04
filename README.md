@@ -71,3 +71,9 @@ If Nerve is useful to you, you can [support its continued development on Patreon
 Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a change, and report vulnerabilities through the private channels in [`SECURITY.md`](SECURITY.md).
 
 Nerve is licensed under Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+## Acknowledgements
+
+Nerve's model routing, provider integrations, and streaming are built on
+[@earendil-works/pi-ai](https://github.com/earendil-works/pi), a unified LLM API
+client by Mario Zechner (MIT license).
