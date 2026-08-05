@@ -9,6 +9,11 @@ export interface DesktopNotificationPayload {
   urgency?: "normal" | "attention";
 }
 
+export interface DesktopProjectEntryTarget {
+  root: string;
+  relativePath: string;
+}
+
 export interface NerveDesktopBridge {
   kind: "electron";
   platform: string;
@@ -35,6 +40,15 @@ export interface NerveDesktopBridge {
   };
   files: {
     getPathForFile: (file: File) => string;
+    openProjectEntry: (
+      target: DesktopProjectEntryTarget,
+    ) => Promise<{ ok: true }>;
+    revealProjectEntry: (
+      target: DesktopProjectEntryTarget,
+    ) => Promise<{ ok: true }>;
+    trashProjectEntry: (
+      target: DesktopProjectEntryTarget,
+    ) => Promise<{ ok: true }>;
   };
 }
 

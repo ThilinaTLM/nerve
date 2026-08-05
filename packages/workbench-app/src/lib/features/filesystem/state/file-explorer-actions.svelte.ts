@@ -160,6 +160,19 @@ async function runBounded(tasks: Array<() => Promise<void>>): Promise<void> {
   );
 }
 
+export function discardFileExplorerPath(projectId: string, path: string): void {
+  const project = ensureFileExplorerProject(projectId);
+  for (const directoryPath of Object.keys(project.directories)) {
+    if (directoryPath === path || directoryPath.startsWith(`${path}/`))
+      delete project.directories[directoryPath];
+  }
+  const nodeId = fileExplorerEntryNodeId(projectId, path);
+  for (const expandedId of project.expandedIds) {
+    if (expandedId === nodeId || expandedId.startsWith(`${nodeId}/`))
+      project.expandedIds.delete(expandedId);
+  }
+}
+
 export async function refreshFileExplorerProject(
   projectId: string,
 ): Promise<void> {

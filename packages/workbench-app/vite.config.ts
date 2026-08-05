@@ -6,6 +6,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { materialIconThemePlugin } from "./vite-material-icon-theme";
 
 function nerveHome(env: Record<string, string>): string {
   return env.NERVE_HOME?.trim() || path.join(homedir(), ".nerve");
@@ -60,6 +61,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      materialIconThemePlugin(),
       svelte(),
       tailwindcss(),
       VitePWA({
@@ -101,6 +103,10 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ["**/*.{js,css,html,svg,png,webp,mp3,woff2,json}"],
+          // The complete file-icon sprite is emitted locally but loaded on
+          // demand rather than turning service-worker installation into a
+          // multi-megabyte prerequisite.
+          globIgnores: ["**/material-file-icons-*.svg"],
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           cleanupOutdatedCaches: true,
           // Serve the cached app shell for in-app navigations (fast + offline),

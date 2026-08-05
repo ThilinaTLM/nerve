@@ -7,6 +7,7 @@ import {
   gitFileDiffResponseSchema,
   gitMutationResponseSchema,
   gitOverviewResponseSchema,
+  gitProjectFileStatusResponseSchema,
   gitRemoteOpRequestSchema,
   githubPrCheckoutResponseSchema,
   githubPrChecksResponseSchema,
@@ -79,6 +80,15 @@ export const gitOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.git.overview.get",
+  ),
+  defineOperation(
+    "git.project.files.status.get",
+    projectIdParamsSchema,
+    gitProjectFileStatusResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.git.project.files.status.get",
   ),
   defineOperation(
     "git.branches.list",

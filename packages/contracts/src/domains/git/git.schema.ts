@@ -69,6 +69,23 @@ export const gitFileChangeSchema = z.object({
 });
 export type GitFileChange = z.infer<typeof gitFileChangeSchema>;
 
+export const gitProjectFileStatusSchema = gitFileChangeSchema.extend({
+  /** Repository path relative to the project; `.` for a root repository. */
+  repo: z.string(),
+  /** File path relative to the project root. */
+  path: z.string(),
+  /** Previous path relative to the project root for renames. */
+  renamedFrom: z.string().optional(),
+});
+export type GitProjectFileStatus = z.infer<typeof gitProjectFileStatusSchema>;
+
+export const gitProjectFileStatusResponseSchema = z.object({
+  files: z.array(gitProjectFileStatusSchema),
+});
+export type GitProjectFileStatusResponse = z.infer<
+  typeof gitProjectFileStatusResponseSchema
+>;
+
 export const gitRecentCommitSchema = z.object({
   hash: z.string(),
   subject: z.string(),

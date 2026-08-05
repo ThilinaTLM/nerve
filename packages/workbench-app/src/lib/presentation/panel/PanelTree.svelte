@@ -7,6 +7,7 @@ import {
   VirtualScroller,
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/ui/virtual-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { tick, type Snippet } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
@@ -46,6 +47,16 @@ type Props = {
    */
   indentItems?: boolean;
   getItemSelected?: (item: T) => boolean;
+  getItemTone?: (
+    item: T,
+  ) =>
+    | "default"
+    | "muted"
+    | "destructive"
+    | "success"
+    | "warning"
+    | "info"
+    | undefined;
   /** Controlled expansion state. Node ids are the ids produced by the builders. */
   expandedIds?: ReadonlySet<string>;
   /** Uncontrolled initial expansion policy. Existing callers default to all. */
@@ -53,6 +64,8 @@ type Props = {
   onItemExpansionChange?: (item: T, expanded: boolean) => void;
   /** Opt into a single fixed-height virtualized viewport for large trees. */
   virtualized?: boolean;
+  /** Hide item disclosure arrows when open/closed leading icons carry state. */
+  showDisclosure?: boolean;
   itemMono?: boolean;
   /** Renders item descriptions on a second line instead of inline. */
   itemStacked?: boolean;
@@ -66,6 +79,7 @@ type Props = {
   itemLabelTrailing?: Snippet<[T]>;
   itemBadges?: Snippet<[T]>;
   itemActions?: Snippet<[T]>;
+  getItemMenuItems?: (item: T) => ContextMenuItem[];
   class?: string;
 };
 
@@ -81,10 +95,12 @@ let {
   itemClass,
   indentItems = true,
   getItemSelected,
+  getItemTone,
   expandedIds,
   defaultExpanded = "all",
   onItemExpansionChange,
   virtualized = false,
+  showDisclosure = true,
   itemMono = false,
   itemStacked = false,
   onItemActivate,
@@ -92,6 +108,7 @@ let {
   itemLabelTrailing,
   itemBadges,
   itemActions,
+  getItemMenuItems,
   class: className,
 }: Props = $props();
 
@@ -112,9 +129,9 @@ const expanded = $derived.by(() => {
 const rows = $derived(visiblePanelTreeRows(nodes, expanded));
 /** Reserve the chevron column so leaf rows align with expandable siblings. */
 const hasExpandableItems = $derived(
-  rows.some((row) => row.node.kind === "item" && isExpandable(row.node)),
+  showDisclosure &&
+    rows.some((row) => row.node.kind === "item" && isExpandable(row.node)),
 );
-
 /** Card grouping: a root row opens a surface that its descendants continue. */
 function cardClass(index: number): string | undefined {
   if (itemVariant !== "card") return undefined;
@@ -273,7 +290,7 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
     />
   {:else}
     {#snippet leafLeading()}
-      {#if expandable}
+      {#if showDisclosure && expandable}
         {#if open}
           <ChevronDown class="size-3" aria-hidden="true" />
         {:else}
@@ -300,14 +317,17 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       metaMono={itemMetaMono}
       title={getItemTitle?.(node.value)}
       selected={getItemSelected?.(node.value) ?? false}
+      tone={getItemTone?.(node.value)}
       mono={itemMono}
       stacked={itemStacked}
-      leading={itemLeading || expandable || hasExpandableItems
+      leading={itemLeading ||
+      (showDisclosure && (expandable || hasExpandableItems))
         ? leafLeading
         : undefined}
       labelTrailing={itemLabelTrailing ? leafLabelTrailing : undefined}
       badges={itemBadges ? leafBadges : undefined}
       actions={itemActions ? leafActions : undefined}
+      menuItems={getItemMenuItems?.(node.value)}
       dense
       alwaysShowActions
       class={cn(cardClass(rowIndex), itemClass)}

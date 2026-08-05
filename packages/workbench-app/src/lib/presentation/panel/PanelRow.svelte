@@ -63,7 +63,7 @@ let {
   metaMono?: boolean;
   title?: string;
   mono?: boolean;
-  tone?: "default" | "muted" | "destructive";
+  tone?: "default" | "muted" | "destructive" | "success" | "warning" | "info";
   /** Indentation steps for tree-like lists. */
   indent?: number;
   /** Drops the base row inset so the row aligns with the panel's outer padding. */
@@ -119,9 +119,15 @@ const rowStyle = $derived(
 const toneClass = $derived(
   tone === "destructive"
     ? "text-destructive"
-    : tone === "muted"
-      ? "text-muted-foreground"
-      : "text-foreground",
+    : tone === "success"
+      ? "text-success"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "info"
+          ? "text-info"
+          : tone === "muted"
+            ? "text-muted-foreground"
+            : "text-foreground",
 );
 </script>
 

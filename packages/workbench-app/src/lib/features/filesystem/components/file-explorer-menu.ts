@@ -1,0 +1,106 @@
+import type { FilesystemProjectEntry } from "@nervekit/contracts";
+import type {
+  ContextMenuItem,
+  MenuIcon,
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
+
+export type FileExplorerMenuIcons = {
+  open: MenuIcon;
+  copy: MenuIcon;
+  openDefault: MenuIcon;
+  newFile: MenuIcon;
+  reveal: MenuIcon;
+  newFolder: MenuIcon;
+  trash: MenuIcon;
+};
+
+export type FileExplorerMenuActions = {
+  open: () => void;
+  createFile: () => void;
+  createFolder: () => void;
+  openDefault: () => void;
+  reveal: () => void;
+  copyPath: () => void;
+  copyRelativePath: () => void;
+  trash: () => void;
+};
+
+export function absoluteProjectPath(
+  root: string,
+  relativePath: string,
+  platform?: string,
+): string {
+  const separator = platform === "win32" ? "\\" : "/";
+  const normalizedRelative = relativePath
+    .replaceAll("\\", "/")
+    .split("/")
+    .join(separator);
+  const trimmedRoot = root.trim().replace(/[\\/]+$/, "");
+  const base = trimmedRoot || separator;
+  return base.endsWith(separator)
+    ? `${base}${normalizedRelative}`
+    : `${base}${separator}${normalizedRelative}`;
+}
+
+export function buildFileExplorerMenu(
+  entry: FilesystemProjectEntry,
+  actions: FileExplorerMenuActions,
+  nativeActions: boolean,
+  icons: FileExplorerMenuIcons,
+): ContextMenuItem[] {
+  const items: ContextMenuItem[] = [
+    {
+      label: "Open",
+      icon: icons.open,
+      disabled: entry.kind === "directory" && entry.symlink,
+      onSelect: actions.open,
+    },
+  ];
+  if (entry.kind === "directory" && !entry.symlink) {
+    items.push(
+      { type: "separator" },
+      { label: "New File", icon: icons.newFile, onSelect: actions.createFile },
+      {
+        label: "New Folder",
+        icon: icons.newFolder,
+        onSelect: actions.createFolder,
+      },
+    );
+  }
+  if (nativeActions) {
+    items.push(
+      { type: "separator" },
+      {
+        label: "Open in Default Application",
+        icon: icons.openDefault,
+        onSelect: actions.openDefault,
+      },
+      {
+        label: "Reveal in File Manager",
+        icon: icons.reveal,
+        onSelect: actions.reveal,
+      },
+    );
+  }
+  items.push(
+    { type: "separator" },
+    { label: "Copy Path", icon: icons.copy, onSelect: actions.copyPath },
+    {
+      label: "Copy Relative Path",
+      icon: icons.copy,
+      onSelect: actions.copyRelativePath,
+    },
+  );
+  if (nativeActions) {
+    items.push(
+      { type: "separator" },
+      {
+        label: "Move to Trash",
+        icon: icons.trash,
+        destructive: true,
+        onSelect: actions.trash,
+      },
+    );
+  }
+  return items;
+}
