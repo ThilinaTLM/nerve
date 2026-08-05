@@ -77,9 +77,7 @@ export function statusLabel(tab: CenterTabModel): string | undefined {
 
 export function fileToggleLabel(tab: CenterTabModel): string {
   if (tab.kind !== "file") return "";
-  return tab.displayMode === "rendered"
-    ? "Show raw markdown"
-    : "Show rendered markdown";
+  return tab.displayMode === "rendered" ? "Show code" : "Show preview";
 }
 
 export function fileWrapLabel(tab: CenterTabModel): string {

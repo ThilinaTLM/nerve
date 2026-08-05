@@ -2,6 +2,7 @@
 import FileText from "@lucide/svelte/icons/file-text";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import MermaidDiagram from "@nervekit/ui-kit/core/components/MermaidDiagram.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/core/notify";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
@@ -16,7 +17,12 @@ const file = $derived(view?.content);
 const showRawText = $derived(
   file?.type === "text" &&
     resolved &&
-    !(resolved.markdown && resolved.displayMode === "rendered"),
+    !(resolved.renderKind && resolved.displayMode === "rendered"),
+);
+const showMermaidPreview = $derived(
+  file?.type === "text" &&
+    resolved?.renderKind === "mermaid" &&
+    resolved.displayMode === "rendered",
 );
 </script>
 
@@ -35,6 +41,23 @@ const showRawText = $derived(
       {#if file.truncated}
         <p
           class="m-0 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground"
+        >
+          Preview truncated{resolved.targetLine
+            ? " around the selected line"
+            : ""}.
+        </p>
+      {/if}
+    </div>
+  {:else if showMermaidPreview && file?.type === "text" && resolved}
+    <div class="relative min-h-0 min-w-0 overflow-hidden">
+      <MermaidDiagram
+        class="h-full"
+        source={file.text ?? ""}
+        ariaLabel={`Mermaid diagram: ${resolved.filePath}`}
+      />
+      {#if file.truncated}
+        <p
+          class="absolute bottom-3 left-3 m-0 rounded-md border border-border bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
         >
           Preview truncated{resolved.targetLine
             ? " around the selected line"
@@ -78,7 +101,7 @@ const showRawText = $derived(
             alt={file?.relativePath ?? file?.name ?? "File preview"}
           />
         </div>
-      {:else if file?.type === "text" && resolved}
+      {:else if file?.type === "text" && resolved?.renderKind === "markdown"}
         <div class="max-w-6xl px-1 pb-16 pt-0.5">
           <Markdown
             text={file.text ?? ""}
