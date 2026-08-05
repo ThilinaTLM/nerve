@@ -7,12 +7,23 @@ import {
   renderHighlightedMarkdown,
   renderMarkdown,
 } from "./markdown-render";
+import { isMermaidLanguage } from "./mermaid-render";
 
 // Note: `decorateMarkdownHtml`/`highlightMarkdownHtml` short-circuit without a
 // DOM (`typeof document === "undefined"`), so under the Node test runner the
 // decorated/highlighted products equal the raw parse output. These tests assert
 // caching semantics (reference identity / promise de-duplication), which hold
 // regardless of the DOM-dependent decoration.
+
+describe("Mermaid fence detection", () => {
+  it("matches only the Mermaid language name", () => {
+    assert.equal(isMermaidLanguage("mermaid"), true);
+    assert.equal(isMermaidLanguage(" Mermaid "), true);
+    assert.equal(isMermaidLanguage("MERMAID"), true);
+    assert.equal(isMermaidLanguage("mermaid-js"), false);
+    assert.equal(isMermaidLanguage(undefined), false);
+  });
+});
 
 describe("markdown-render caching", () => {
   it("keeps streaming cache bypass output equivalent to finalized decoration", () => {

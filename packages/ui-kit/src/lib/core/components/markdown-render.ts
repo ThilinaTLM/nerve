@@ -1,4 +1,5 @@
 import { highlightCodeCached } from "@nervekit/ui-kit/core/highlight/highlight";
+import { isMermaidLanguage } from "./mermaid-render.js";
 import { LruCache } from "@nervekit/ui-kit/core/utils/lru-cache";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import rehypeSanitize from "rehype-sanitize";
@@ -93,6 +94,15 @@ function wrapCodeBlock(pre: Element): Element {
   return shell;
 }
 
+function wrapMermaidBlock(pre: Element): Element {
+  const shell = document.createElement("div");
+  shell.className = "mermaid-block";
+  shell.dataset.mermaidDiagram = "";
+  shell.setAttribute("aria-label", "Mermaid diagram");
+  shell.append(pre.cloneNode(true));
+  return shell;
+}
+
 function wrapPlainCodeBlocks(
   safeHtml: string,
   trimCodeBlocks: boolean,
@@ -103,12 +113,17 @@ function wrapPlainCodeBlocks(
   container.innerHTML = safeHtml;
   for (const block of Array.from(container.querySelectorAll("pre > code"))) {
     const pre = block.parentElement;
-    if (pre)
-      pre.replaceWith(
-        wrapCodeBlock(
-          clonePreWithTrimmedCode(pre, codeBlockText(block, trimCodeBlocks)),
-        ),
-      );
+    if (!pre) continue;
+    const language = languageFromClass(block.getAttribute("class") ?? "");
+    if (isMermaidLanguage(language)) {
+      pre.replaceWith(wrapMermaidBlock(pre));
+      continue;
+    }
+    pre.replaceWith(
+      wrapCodeBlock(
+        clonePreWithTrimmedCode(pre, codeBlockText(block, trimCodeBlocks)),
+      ),
+    );
   }
   return container.innerHTML;
 }
@@ -141,6 +156,11 @@ async function highlightCodeBlocks(
     blocks.map(async (block) => {
       const className = block.getAttribute("class") ?? "";
       const language = languageFromClass(className);
+      if (isMermaidLanguage(language)) {
+        const pre = block.parentElement;
+        if (pre) pre.replaceWith(wrapMermaidBlock(pre));
+        return;
+      }
       try {
         const code = codeBlockText(block, trimCodeBlocks);
         const highlighted = await highlightCodeCached(code, language);

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { untrack } from "svelte";
+import { tick, untrack } from "svelte";
 import { writeClipboardText } from "@nervekit/ui-kit/core/clipboard";
 import {
   decorateMarkdownHtml,
@@ -19,6 +19,10 @@ import {
   resolveDisplayPath,
   splitPathLineSuffix,
 } from "@nervekit/ui-kit/core/utils/path-links";
+import {
+  enhanceMermaidBlocks,
+  type MermaidEnhancement,
+} from "./mermaid-render.js";
 
 type Props = {
   text: string;
@@ -111,6 +115,32 @@ function copyButtonHandler(node: HTMLDivElement) {
   };
 }
 
+type MermaidActionValue = { html: string; enabled: boolean };
+
+function mermaidHandler(node: HTMLDivElement, value: MermaidActionValue) {
+  let generation = 0;
+  let enhancement: MermaidEnhancement | undefined;
+
+  async function update(next: MermaidActionValue) {
+    const current = ++generation;
+    enhancement?.destroy();
+    enhancement = undefined;
+    if (!next.enabled || !next.html.includes("data-mermaid-diagram")) return;
+    await tick();
+    if (current !== generation) return;
+    enhancement = enhanceMermaidBlocks(node);
+  }
+
+  void update(value);
+  return {
+    update,
+    destroy() {
+      generation += 1;
+      enhancement?.destroy();
+    },
+  };
+}
+
 function commitStreaming(value: StreamingValue) {
   const parts = splitStreamingMarkdown(value.source);
   if (
@@ -178,7 +208,11 @@ $effect(() => () => streamingScheduler.destroy());
 </script>
 
 {#if showingStreaming}
-  <div class="markdown" use:copyButtonHandler>
+  <div
+    class="markdown"
+    use:copyButtonHandler
+    use:mermaidHandler={{ html: streamingPrefixHtml, enabled: false }}
+  >
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- the prefix uses the sanitized Markdown pipeline. -->
     {@html streamingPrefixHtml}
     {#if streamingTail}
@@ -186,8 +220,14 @@ $effect(() => () => streamingScheduler.destroy());
     {/if}
   </div>
 {:else}
-  <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown applies rehype-sanitize before producing markup. -->
-  <div class="markdown" use:copyButtonHandler>{@html html}</div>
+  <div
+    class="markdown"
+    use:copyButtonHandler
+    use:mermaidHandler={{ html, enabled: true }}
+  >
+    <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown applies rehype-sanitize before producing markup. -->
+    {@html html}
+  </div>
 {/if}
 <style>
 .markdown {
@@ -213,7 +253,8 @@ $effect(() => () => streamingScheduler.destroy());
 .markdown :global(blockquote),
 .markdown :global(pre),
 .markdown :global(.table-scroll),
-.markdown :global(.code-block) {
+.markdown :global(.code-block),
+.markdown :global(.mermaid-block) {
   margin: 0.55rem 0;
 }
 
@@ -331,6 +372,34 @@ $effect(() => () => streamingScheduler.destroy());
   border-color: var(--accent);
   background: var(--accent);
   color: var(--primary);
+}
+
+.markdown :global(.mermaid-block) {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  padding: 1rem;
+}
+
+.markdown :global(.mermaid-block[data-state="loading"] pre) {
+  opacity: 0.7;
+}
+
+.markdown :global(.mermaid-block svg) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown :global(.mermaid-block .mermaid-error) {
+  justify-self: stretch;
+  margin: 0.5rem 0 0;
+  color: var(--destructive);
+  font-size: var(--text-xs);
 }
 
 .markdown :global(pre) {

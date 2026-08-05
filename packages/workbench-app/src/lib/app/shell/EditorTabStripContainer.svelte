@@ -114,7 +114,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
     model.status = { label: statusLabel(tab) };
     model.selectIcon = Terminal;
   } else if (tab.kind === "file") {
-    if (tab.markdown) {
+    if (tab.renderKind) {
       model.toggle = {
         label: fileToggleLabel(tab),
         icon: tab.displayMode === "rendered" ? BookOpenText : Code2,

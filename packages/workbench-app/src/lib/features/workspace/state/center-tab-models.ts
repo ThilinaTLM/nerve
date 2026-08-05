@@ -7,7 +7,10 @@ import type {
   TaskRecord,
 } from "$lib/api";
 import type { GitDiffArea } from "@nervekit/contracts";
-import type { FileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
+import type {
+  FileDisplayMode,
+  FileRenderKind,
+} from "@nervekit/ui-kit/core/utils/file-display";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 
 export type ConversationTabModel = {
@@ -53,7 +56,7 @@ export type FileTabModel = {
   relativePath?: string;
   displayMode: FileDisplayMode;
   wrapLines: boolean;
-  markdown: boolean;
+  renderKind?: FileRenderKind;
   active: boolean;
   sending: boolean;
   error?: string;
