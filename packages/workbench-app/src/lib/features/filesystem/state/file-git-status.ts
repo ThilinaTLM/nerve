@@ -1,6 +1,11 @@
 import type { GitProjectFileStatus } from "@nervekit/contracts";
 
-export type FileGitTone = "destructive" | "warning" | "success" | "info";
+export type FileGitTone =
+  | "destructive"
+  | "warning"
+  | "success"
+  | "info"
+  | "muted";
 
 export type FileGitDecoration = {
   label: string;
@@ -22,6 +27,7 @@ const tonePriority: Record<FileGitTone, number> = {
   warning: 3,
   success: 2,
   info: 1,
+  muted: 0,
 };
 
 export function indexFileTreeGitDecorations(
@@ -50,11 +56,40 @@ export function indexFileTreeGitDecorations(
   return decorations;
 }
 
+export function fileTreeGitDecoration(
+  decorations: ReadonlyMap<string, FileGitDecoration>,
+  path: string,
+): FileGitDecoration | undefined {
+  const exact = decorations.get(path);
+  if (exact) return exact;
+  if (path === ".git" || path.startsWith(".git/"))
+    return {
+      label: "",
+      title: "Git metadata",
+      class: "text-muted-foreground",
+      tone: "muted",
+    };
+  let directory = path.slice(0, path.lastIndexOf("/"));
+  while (directory) {
+    const inherited = decorations.get(directory);
+    if (inherited?.tone === "muted") return inherited;
+    directory = directory.slice(0, directory.lastIndexOf("/"));
+  }
+  return undefined;
+}
+
 export function fileGitDecoration(
   file: GitProjectFileStatus | undefined,
 ): FileGitDecoration | undefined {
   if (!file) return undefined;
   const { index, worktree } = file;
+  if (index === "!" || worktree === "!")
+    return {
+      label: "",
+      title: "Ignored by Git",
+      class: "text-muted-foreground",
+      tone: "muted",
+    };
   const conflicted =
     conflictCodes.has(index) ||
     conflictCodes.has(worktree) ||

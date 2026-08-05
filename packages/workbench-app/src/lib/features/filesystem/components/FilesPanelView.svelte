@@ -49,7 +49,10 @@ import {
   type FileExplorerEntryItem,
   type FileExplorerTreeItem,
 } from "$lib/features/filesystem/state/file-explorer-tree";
-import { indexFileTreeGitDecorations } from "$lib/features/filesystem/state/file-git-status";
+import {
+  fileTreeGitDecoration,
+  indexFileTreeGitDecorations,
+} from "$lib/features/filesystem/state/file-git-status";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   PanelBanner,
@@ -354,7 +357,7 @@ $effect(() => {
       getItemSelected={(item) => itemPath(item) === activeRelativePath}
       getItemTone={(item) =>
         item.type === "entry"
-          ? gitDecorations.get(item.entry.path)?.tone
+          ? fileTreeGitDecoration(gitDecorations, item.entry.path)?.tone
           : undefined}
       getItemMenuItems={itemMenu}
       onItemActivate={activate}
@@ -383,8 +386,11 @@ $effect(() => {
       {/snippet}
       {#snippet itemBadges(item)}
         {#if item.type === "entry" && item.entry.kind === "file"}
-          {@const decoration = gitDecorations.get(item.entry.path)}
-          {#if decoration}
+          {@const decoration = fileTreeGitDecoration(
+            gitDecorations,
+            item.entry.path,
+          )}
+          {#if decoration?.label}
             <span
               class={cn(
                 "w-3 text-center text-xs font-medium",

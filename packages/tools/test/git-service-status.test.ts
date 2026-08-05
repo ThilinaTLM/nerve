@@ -8,6 +8,7 @@ import { GitService } from "../src/git/git-service.js";
 const status = [
   "? new.ts",
   "1 .M N... 100644 100644 100644 abc def modified.ts",
+  "! generated/",
 ].join("\n");
 
 describe("GitService project file status", () => {
@@ -15,7 +16,11 @@ describe("GitService project file status", () => {
     const service = new GitService(() => ({ dir: "/repo", name: "repo" }));
     service.isRepo = async () => true;
     service.runGit = async (_cwd, args) => {
-      assert.deepEqual(args, ["status", "--porcelain=v2"]);
+      assert.deepEqual(args, [
+        "status",
+        "--porcelain=v2",
+        "--ignored=matching",
+      ]);
       return { stdout: status, stderr: "" };
     };
 
@@ -23,6 +28,7 @@ describe("GitService project file status", () => {
     assert.deepEqual(
       result.files.map((file) => [file.repo, file.path]),
       [
+        [".", "generated"],
         [".", "modified.ts"],
         [".", "new.ts"],
       ],
@@ -37,7 +43,11 @@ describe("GitService project file status", () => {
       service.isRepo = async () => false;
       service.runGit = async (cwd, args) => {
         assert.equal(cwd, join(root, "packages", "app"));
-        assert.deepEqual(args, ["status", "--porcelain=v2"]);
+        assert.deepEqual(args, [
+          "status",
+          "--porcelain=v2",
+          "--ignored=matching",
+        ]);
         return { stdout: "? src/index.ts", stderr: "" };
       };
 

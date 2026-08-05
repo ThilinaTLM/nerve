@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { GitProjectFileStatus } from "@nervekit/contracts";
 import {
   fileGitDecoration,
+  fileTreeGitDecoration,
   indexFileTreeGitDecorations,
   indexProjectFileStatuses,
 } from "./file-git-status";
@@ -35,6 +36,21 @@ describe("file Git decorations", () => {
     assert.equal(decorations.get("src/new.ts")?.tone, "success");
     assert.equal(decorations.get("src/nested")?.tone, "warning");
     assert.equal(decorations.get("src")?.tone, "warning");
+  });
+
+  it("mutes ignored entries, their descendants, and Git metadata", () => {
+    const decorations = indexFileTreeGitDecorations([
+      status({ path: "release", index: "!", worktree: "!" }),
+    ]);
+    assert.equal(
+      fileTreeGitDecoration(decorations, "release/npm/archive.tgz")?.tone,
+      "muted",
+    );
+    assert.equal(fileTreeGitDecoration(decorations, ".git")?.tone, "muted");
+    assert.equal(
+      fileTreeGitDecoration(decorations, ".github/workflows/ci.yml"),
+      undefined,
+    );
   });
 
   it("uses semantic labels and precedence", () => {

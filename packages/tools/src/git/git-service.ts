@@ -298,13 +298,14 @@ export class GitService {
           const { stdout } = await this.runGit(repoDir, [
             "status",
             "--porcelain=v2",
+            "--ignored=matching",
           ]);
           for (const file of parsePorcelainV2(stdout).files) {
             const prefix = repo === "." ? "" : `${repo}/`;
             files.push({
               ...file,
               repo,
-              path: `${prefix}${file.path}`,
+              path: `${prefix}${file.path.replace(/\/$/, "")}`,
               ...(file.renamedFrom
                 ? { renamedFrom: `${prefix}${file.renamedFrom}` }
                 : {}),

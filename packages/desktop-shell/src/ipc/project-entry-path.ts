@@ -1,4 +1,4 @@
-import path, { win32 } from "node:path";
+import { posix, win32 } from "node:path";
 
 export type DesktopProjectEntryTarget = {
   root: string;
@@ -15,7 +15,7 @@ export function resolveProjectEntryPath(
   if (typeof root !== "string" || typeof relativePath !== "string")
     throw new Error("Project entry root and relative path must be strings.");
 
-  const pathApi = platform === "win32" ? win32 : path;
+  const pathApi = platform === "win32" ? win32 : posix;
   const normalizedRoot = root.trim();
   const normalizedRelative = relativePath.trim().replaceAll("\\", "/");
   if (!normalizedRoot || !pathApi.isAbsolute(normalizedRoot))
