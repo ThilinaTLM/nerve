@@ -27,6 +27,7 @@ import {
   type FilesystemSignal,
   filesystemFileQuerySchema,
   filesystemProjectEntriesQuerySchema,
+  filesystemProjectEntryCreateRequestSchema,
 } from "@nervekit/contracts";
 
 async function pathExists(path: string): Promise<boolean> {
@@ -284,6 +285,58 @@ async function classifyProjectEntry(
     // Broken and inaccessible links stay visible as non-browsable entries.
   }
   return { name: entry.name, path, kind, symlink: true };
+}
+
+function normalizeProjectEntryName(rawName: string): string {
+  const name = rawName.trim();
+  if (
+    !name ||
+    name === "." ||
+    name === ".." ||
+    name.includes("\0") ||
+    name.includes("/") ||
+    name.includes("\\")
+  )
+    throw new Error("Project entry name must be a single path segment.");
+  return name;
+}
+
+export async function createProjectEntry(
+  input: unknown,
+  getProjectDirectory: (projectId: string) => string,
+) {
+  const request = filesystemProjectEntryCreateRequestSchema.parse(input);
+  const parentPath = normalizeProjectRelativeDirectory(request.parentPath);
+  const name = normalizeProjectEntryName(request.name);
+  const root = await realpath(resolve(getProjectDirectory(request.projectId)));
+  const parent = resolve(root, parentPath);
+  if (!isInside(root, parent))
+    throw new Error("Project directory path escapes the project root.");
+
+  const resolvedParent = await realpath(parent);
+  if (!isInside(root, resolvedParent) || resolvedParent !== parent)
+    throw new Error("Project entry parent cannot traverse a symbolic link.");
+  const parentInfo = await stat(resolvedParent);
+  if (!parentInfo.isDirectory())
+    throw new Error(`${parentPath || "."} is not a directory.`);
+
+  const target = join(resolvedParent, name);
+  if (request.kind === "file") {
+    const handle = await open(target, "wx");
+    await handle.close();
+  } else {
+    await mkdir(target);
+  }
+
+  const path = parentPath ? `${parentPath}/${name}` : name;
+  return {
+    entry: {
+      name,
+      path,
+      kind: request.kind,
+      symlink: false,
+    } satisfies FilesystemProjectEntry,
+  };
 }
 
 export async function projectDirectoryEntries(

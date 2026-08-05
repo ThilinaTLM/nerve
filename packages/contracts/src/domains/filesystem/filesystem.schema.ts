@@ -67,6 +67,23 @@ export type FilesystemProjectEntriesResponse = z.infer<
   typeof filesystemProjectEntriesResponseSchema
 >;
 
+export const filesystemProjectEntryCreateRequestSchema = z.object({
+  projectId: z.string().min(1),
+  parentPath: z.string().optional(),
+  name: z.string().min(1),
+  kind: z.enum(["file", "directory"]),
+});
+export type FilesystemProjectEntryCreateRequest = z.infer<
+  typeof filesystemProjectEntryCreateRequestSchema
+>;
+
+export const filesystemProjectEntryCreateResponseSchema = z.object({
+  entry: filesystemProjectEntrySchema,
+});
+export type FilesystemProjectEntryCreateResponse = z.infer<
+  typeof filesystemProjectEntryCreateResponseSchema
+>;
+
 export const filesystemFileQuerySchema = z.object({
   projectId: z.string().min(1),
   path: z.string().min(1),

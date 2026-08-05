@@ -4,6 +4,8 @@ import type {
   FilesystemFileResponse,
   FilesystemProjectEntriesQuery,
   FilesystemProjectEntriesResponse,
+  FilesystemProjectEntryCreateRequest,
+  FilesystemProjectEntryCreateResponse,
 } from "@nervekit/contracts";
 import {
   apiGet,
@@ -37,6 +39,13 @@ export async function listProjectEntries(
   query: FilesystemProjectEntriesQuery,
 ): Promise<FilesystemProjectEntriesResponse> {
   return (await protocolRequest("filesystem.project.entries.list", query))
+    .result;
+}
+
+export async function createProjectEntry(
+  request: FilesystemProjectEntryCreateRequest,
+): Promise<FilesystemProjectEntryCreateResponse> {
+  return (await protocolRequest("filesystem.project.entries.create", request))
     .result;
 }
 

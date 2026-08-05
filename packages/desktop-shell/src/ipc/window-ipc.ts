@@ -1,7 +1,8 @@
 import type { BrowserWindowType, IpcMainInvokeEvent } from "../electron.js";
-import { BrowserWindow, clipboard, ipcMain } from "../electron.js";
+import { BrowserWindow, clipboard, ipcMain, shell } from "../electron.js";
 import { desktopLog } from "../logging.js";
 import type { DesktopWindowState, QuitSource } from "../types.js";
+import { resolveProjectEntryPath } from "./project-entry-path.js";
 
 interface RegisterDesktopIpcOptions {
   getCloseToTray: () => boolean;
@@ -63,6 +64,22 @@ export function registerDesktopIpc(options: RegisterDesktopIpcOptions): void {
       throw new Error("desktop.clipboard.writeText expects a string.");
     }
     clipboard.writeText(text);
+    return { ok: true };
+  });
+
+  ipcMain.handle("desktop.files.openProjectEntry", async (_event, target) => {
+    const error = await shell.openPath(resolveProjectEntryPath(target));
+    if (error) throw new Error(error);
+    return { ok: true };
+  });
+
+  ipcMain.handle("desktop.files.revealProjectEntry", (_event, target) => {
+    shell.showItemInFolder(resolveProjectEntryPath(target));
+    return { ok: true };
+  });
+
+  ipcMain.handle("desktop.files.trashProjectEntry", async (_event, target) => {
+    await shell.trashItem(resolveProjectEntryPath(target));
     return { ok: true };
   });
 }

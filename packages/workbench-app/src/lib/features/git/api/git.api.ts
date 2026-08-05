@@ -20,6 +20,7 @@ import type {
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
+  GitProjectFileStatusResponse,
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
 
@@ -43,6 +44,13 @@ export async function getGitOverview(
       repo,
     })
   ).result;
+}
+
+export async function getProjectGitFileStatus(
+  projectId: string,
+): Promise<GitProjectFileStatusResponse> {
+  return (await protocolRequest("git.project.files.status.get", { projectId }))
+    .result;
 }
 
 export async function listGitBranches(

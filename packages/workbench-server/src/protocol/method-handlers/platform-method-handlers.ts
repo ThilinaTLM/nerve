@@ -6,6 +6,7 @@ import {
 } from "../../domains/auth/index.js";
 import { listAvailableSkills } from "../../domains/agents/prompting/resource-loader.js";
 import {
+  createProjectEntry,
   directoryListing,
   projectDirectoryEntries,
 } from "../../domains/filesystem/filesystem.service.js";
@@ -130,6 +131,11 @@ export const platformMethodHandlers = defineWorkbenchMethodHandlers({
     directoryListing(params?.path, params?.showHidden as boolean | undefined),
   "filesystem.project.entries.list": (state, params) =>
     projectDirectoryEntries(
+      params,
+      (projectId) => state.registry.getProject(projectId).dir,
+    ),
+  "filesystem.project.entries.create": (state, params) =>
+    createProjectEntry(
       params,
       (projectId) => state.registry.getProject(projectId).dir,
     ),

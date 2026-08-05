@@ -44,5 +44,11 @@ contextBridge.exposeInMainWorld("nerveDesktop", {
   },
   files: {
     getPathForFile: (file) => webUtils.getPathForFile(file),
+    openProjectEntry: (target) =>
+      ipcRenderer.invoke("desktop.files.openProjectEntry", target),
+    revealProjectEntry: (target) =>
+      ipcRenderer.invoke("desktop.files.revealProjectEntry", target),
+    trashProjectEntry: (target) =>
+      ipcRenderer.invoke("desktop.files.trashProjectEntry", target),
   },
 });

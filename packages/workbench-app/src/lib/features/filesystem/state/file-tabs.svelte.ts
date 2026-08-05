@@ -10,10 +10,12 @@ import {
   addCenterTab,
   nextCenterTabAfterClose,
   removeCenterTab,
+  replaceOpenCenterTabs,
   selectCenterTab,
   setActiveCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { SvelteSet } from "svelte/reactivity";
 
 function encodeFileTabId(projectId: string, path: string): string {
   return `${projectId}:${encodeURIComponent(path)}`;
@@ -102,6 +104,35 @@ export function toggleFileLineWrap(id: string) {
   const view = fileState.fileViews[fileViewKey(id)];
   if (!view) return;
   view.wrapLines = !view.wrapLines;
+}
+
+export function closeFileTabsAtPath(input: {
+  projectId: string;
+  path: string;
+  descendants?: boolean;
+}): void {
+  const matchingIds = new SvelteSet(
+    Object.values(fileState.fileViews)
+      .filter((view) => {
+        const relativePath = view.content?.relativePath ?? view.path;
+        return (
+          view.projectId === input.projectId &&
+          (relativePath === input.path ||
+            (input.descendants && relativePath.startsWith(`${input.path}/`)))
+        );
+      })
+      .map((view) => view.id),
+  );
+  if (matchingIds.size === 0) return;
+
+  const active = workspaceState.activeCenterTab;
+  const closesActive = active?.kind === "file" && matchingIds.has(active.id);
+  const remaining = workspaceState.openCenterTabs.filter(
+    (tab) => tab.kind !== "file" || !matchingIds.has(tab.id),
+  );
+  for (const id of matchingIds) delete fileState.fileViews[fileViewKey(id)];
+  replaceOpenCenterTabs(remaining);
+  if (closesActive) void selectCenterTab(remaining.at(-1));
 }
 
 export function closeFileTab(id: string) {

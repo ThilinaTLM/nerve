@@ -24,6 +24,7 @@ import type {
   GithubStatusResponse,
   GitMutationResponse,
   GitOverviewResponse,
+  GitProjectFileStatusResponse,
   GitRecentCommit,
   GitRepoSummary,
 } from "@nervekit/contracts";
@@ -273,6 +274,52 @@ export class GitService {
     );
     repos.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
     return { projectIsRepo: false, repos };
+  }
+
+  async projectFileStatus(
+    projectId: string,
+  ): Promise<GitProjectFileStatusResponse> {
+    const project = this.getProject(projectId);
+    const root = resolve(project.dir);
+    const repoDirs = (await this.isRepo(root))
+      ? [root]
+      : await this.walkForRepos(root, root, 0);
+    const files: GitProjectFileStatusResponse["files"] = [];
+    let nextIndex = 0;
+    const readNext = async (): Promise<void> => {
+      while (nextIndex < repoDirs.length) {
+        const repoDir = repoDirs[nextIndex++];
+        if (!repoDir) continue;
+        const repo =
+          repoDir === root
+            ? "."
+            : repoDir.slice(root.length + 1).replaceAll(sep, "/");
+        try {
+          const { stdout } = await this.runGit(repoDir, [
+            "status",
+            "--porcelain=v2",
+          ]);
+          for (const file of parsePorcelainV2(stdout).files) {
+            const prefix = repo === "." ? "" : `${repo}/`;
+            files.push({
+              ...file,
+              repo,
+              path: `${prefix}${file.path}`,
+              ...(file.renamedFrom
+                ? { renamedFrom: `${prefix}${file.renamedFrom}` }
+                : {}),
+            });
+          }
+        } catch {
+          // Match repository discovery: inaccessible or corrupt repos are skipped.
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(4, repoDirs.length) }, readNext),
+    );
+    files.sort((left, right) => left.path.localeCompare(right.path));
+    return { files };
   }
 
   async walkForRepos(

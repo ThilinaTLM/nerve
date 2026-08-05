@@ -6,6 +6,8 @@ export const gitMethodHandlers = defineWorkbenchMethodHandlers({
     state.registry.git.discoverRepos(params.projectId),
   "git.overview.get": (state, params) =>
     state.registry.git.overview(params.projectId, repo(params)),
+  "git.project.files.status.get": (state, params) =>
+    state.registry.git.projectFileStatus(params.projectId),
   "git.branches.list": (state, params) =>
     state.registry.git.listBranches(params.projectId, repo(params)),
   "git.branch.create": (state, params) =>

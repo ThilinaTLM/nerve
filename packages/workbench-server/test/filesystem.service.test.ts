@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
+  createProjectEntry,
   directoryListing,
   fileContent,
   normalizeIncomingFilePath,
@@ -45,6 +46,92 @@ describe("filesystem application service", () => {
       all.entries.map((entry) => entry.name),
       [".git", ".hidden", "visible"],
     );
+  });
+
+  it("creates project files and folders without overwriting or escaping", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-project-create-"));
+    const outside = await mkdtemp(join(tmpdir(), "nerve-project-outside-"));
+    try {
+      await mkdir(join(root, "src"));
+      await symlink(outside, join(root, "linked"), "dir");
+      const lookup = () => root;
+
+      const file = await createProjectEntry(
+        {
+          projectId: "project",
+          parentPath: "src",
+          name: "index.ts",
+          kind: "file",
+        },
+        lookup,
+      );
+      assert.deepEqual(file.entry, {
+        name: "index.ts",
+        path: "src/index.ts",
+        kind: "file",
+        symlink: false,
+      });
+      const folder = await createProjectEntry(
+        { projectId: "project", name: "docs", kind: "directory" },
+        lookup,
+      );
+      assert.equal(folder.entry.path, "docs");
+
+      await assert.rejects(
+        createProjectEntry(
+          { projectId: "project", name: "docs", kind: "directory" },
+          lookup,
+        ),
+      );
+      for (const name of ["../escape", "nested/name", "nested\\name", "."]) {
+        await assert.rejects(
+          createProjectEntry(
+            { projectId: "project", name, kind: "file" },
+            lookup,
+          ),
+          /single path segment/,
+        );
+      }
+      await assert.rejects(
+        createProjectEntry(
+          {
+            projectId: "project",
+            parentPath: "../outside",
+            name: "escape.txt",
+            kind: "file",
+          },
+          lookup,
+        ),
+      );
+      await assert.rejects(
+        createProjectEntry(
+          {
+            projectId: "project",
+            parentPath: "missing",
+            name: "file.txt",
+            kind: "file",
+          },
+          lookup,
+        ),
+      );
+      await assert.rejects(
+        createProjectEntry(
+          {
+            projectId: "project",
+            parentPath: "linked",
+            name: "escape.txt",
+            kind: "file",
+          },
+          lookup,
+        ),
+        /symbolic link/,
+      );
+    } finally {
+      await Promise.all([
+        rm(root, { recursive: true, force: true }),
+        rm(outside, { recursive: true, force: true }),
+      ]);
+    }
   });
 
   it("lists all project entries lazily with stable pagination", async () => {

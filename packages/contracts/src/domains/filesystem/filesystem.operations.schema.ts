@@ -3,6 +3,8 @@ import {
   filesystemDirectoryResponseSchema,
   filesystemProjectEntriesQuerySchema,
   filesystemProjectEntriesResponseSchema,
+  filesystemProjectEntryCreateRequestSchema,
+  filesystemProjectEntryCreateResponseSchema,
 } from "./index.js";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 
@@ -24,5 +26,14 @@ export const filesystemOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.filesystem.project.entries.list",
+  ),
+  defineOperation(
+    "filesystem.project.entries.create",
+    filesystemProjectEntryCreateRequestSchema,
+    filesystemProjectEntryCreateResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.filesystem.project.entries.create",
   ),
 ] as const;
