@@ -35,7 +35,7 @@ export interface SpawnManagedTaskOptions {
 
 export interface SpawnedManagedTask {
   child: ChildProcess;
-  runtime: TaskRuntime;
+  runtime: Promise<TaskRuntime>;
   exited: Promise<ProcessLifecycleResult>;
   closed: Promise<ProcessLifecycleResult>;
 }
@@ -54,10 +54,7 @@ export interface TerminateTaskResult {
 }
 
 export interface TaskSupervisor {
-  spawn(
-    command: string,
-    options: SpawnManagedTaskOptions,
-  ): SpawnedManagedTask | Promise<SpawnedManagedTask>;
+  spawn(command: string, options: SpawnManagedTaskOptions): SpawnedManagedTask;
   terminate(
     child: ChildProcess,
     signal: NodeJS.Signals,
@@ -100,7 +97,7 @@ export function spawnManagedTask(
   });
   return {
     child,
-    runtime: runtimeForChild(child, process.platform),
+    runtime: Promise.resolve(runtimeForChild(child, process.platform)),
     ...observeProcessLifecycle(child),
   };
 }

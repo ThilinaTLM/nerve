@@ -53,7 +53,11 @@ describe("filesystem application service", () => {
     const outside = await mkdtemp(join(tmpdir(), "nerve-project-outside-"));
     try {
       await mkdir(join(root, "src"));
-      await symlink(outside, join(root, "linked"), "dir");
+      await symlink(
+        outside,
+        join(root, "linked"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
       const lookup = () => root;
 
       const file = await createProjectEntry(
@@ -207,7 +211,7 @@ describe("filesystem application service", () => {
     }
   });
 
-  it("shows links but does not classify links that escape the project", async () => {
+  it("shows links but does not classify links that escape the project", async (t) => {
     const root = await mkdtemp(join(tmpdir(), "nerve-project-links-"));
     const outside = await mkdtemp(join(tmpdir(), "nerve-project-outside-"));
     try {
@@ -215,11 +219,22 @@ describe("filesystem application service", () => {
         writeFile(join(root, "target.txt"), "target"),
         writeFile(join(outside, "outside.txt"), "outside"),
       ]);
-      await Promise.all([
-        symlink(join(root, "target.txt"), join(root, "inside-link")),
-        symlink(join(outside, "outside.txt"), join(root, "outside-link")),
-        symlink(join(root, "missing"), join(root, "broken-link")),
-      ]);
+      try {
+        await Promise.all([
+          symlink(join(root, "target.txt"), join(root, "inside-link")),
+          symlink(join(outside, "outside.txt"), join(root, "outside-link")),
+          symlink(join(root, "missing"), join(root, "broken-link")),
+        ]);
+      } catch (error) {
+        if (
+          process.platform === "win32" &&
+          (error as NodeJS.ErrnoException).code === "EPERM"
+        ) {
+          t.skip("Windows file symlinks require Developer Mode or elevation.");
+          return;
+        }
+        throw error;
+      }
       const result = await projectDirectoryEntries(
         { projectId: "project" },
         () => root,

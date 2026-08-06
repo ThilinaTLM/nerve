@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import type { CodeLanguageId } from "./code-mirror-config";
 import {
@@ -63,7 +63,8 @@ describe("CodeMirror viewer helpers", () => {
         extensions: [await loadCodeLanguage(id)],
       });
 
-      assert.equal(syntaxTree(state).length, doc.length, id);
+      const tree = await ensureSyntaxTree(state, doc.length, 10_000);
+      assert.equal(tree?.length, doc.length, id);
     }
   });
 

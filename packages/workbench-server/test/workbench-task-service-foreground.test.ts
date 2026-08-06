@@ -110,6 +110,115 @@ describe("task manager foreground bash auto-promotion", () => {
     assert.throws(() => manager.getTask(started.id), /Task not found/);
   });
 
+  it("captures output before delayed runtime identity resolves", async () => {
+    const child = fakeChild();
+    let resolveRuntime!: (runtime: ReturnType<typeof runtimeMetadata>) => void;
+    const runtimeReady = new Promise<ReturnType<typeof runtimeMetadata>>(
+      (resolve) => {
+        resolveRuntime = resolve;
+      },
+    );
+    let spawned!: () => void;
+    const didSpawn = new Promise<void>((resolve) => {
+      spawned = resolve;
+    });
+    const { supervisor } = fakeSupervisor({
+      child,
+      runtimeReady,
+      onSpawn: spawned,
+    });
+    const { manager, storage } = await createManager(supervisor);
+
+    const run = manager.runForegroundBashWithPromotion({
+      command: "printf early",
+      cwd: storage.paths.home,
+      projectId: "proj_test",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      origin: { kind: "agent_tool", toolCallId: "tool_test" },
+    });
+    await didSpawn;
+    child.stdout.emit("data", Buffer.from("early out\n"));
+    child.stderr.emit("data", Buffer.from("early err\n"));
+    child.emitClose(0, null);
+    resolveRuntime(runtimeMetadata({ childPid: child.pid }));
+
+    const result = await run;
+
+    assert.equal(result.kind, "completed_foreground");
+    assert.equal(result.result.stdout, "early out");
+    assert.equal(result.result.stderr, "early err");
+    assert.equal(result.result.content, "early out\nearly err\n");
+  });
+
+  it("waits for output streams to drain after process close", async () => {
+    const child = fakeChild();
+    const { supervisor } = fakeSupervisor({ child });
+    const { manager, storage, events } = await createManager(supervisor);
+    const started = waitForTaskEvent(events, "task.started");
+    const run = manager.runForegroundBashWithPromotion({
+      command: "printf buffered",
+      cwd: storage.paths.home,
+      projectId: "proj_test",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      origin: { kind: "agent_tool", toolCallId: "tool_test" },
+    });
+    await started;
+    let settled = false;
+    void run.then(() => {
+      settled = true;
+    });
+
+    child.emit("exit", 0, null);
+    child.emit("close", 0, null);
+    await Promise.resolve();
+    assert.equal(settled, false);
+
+    child.stdout.emit("data", Buffer.from("buffered out\n"));
+    child.stdout.emit("end");
+    child.stdout.emit("close");
+    child.stderr.emit("end");
+    child.stderr.emit("close");
+    const result = await run;
+
+    assert.equal(result.kind, "completed_foreground");
+    assert.equal(result.result.stdout, "buffered out");
+  });
+
+  it(
+    "force-kills the process tree when foreground bash is aborted",
+    { timeout: 2_000 },
+    async () => {
+      const child = fakeChild();
+      const { supervisor, terminateSignals } = fakeSupervisor({
+        child,
+        onTerminate(signal) {
+          child.emitClose(null, signal);
+        },
+      });
+      const { manager, storage, events } = await createManager(supervisor);
+      const abort = new AbortController();
+      const started = waitForTaskEvent(events, "task.started");
+      const run = manager.runForegroundBashWithPromotion({
+        command: "sleep forever",
+        cwd: storage.paths.home,
+        projectId: "proj_test",
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        origin: { kind: "agent_tool", toolCallId: "tool_test" },
+        signal: abort.signal,
+      });
+      const task = await started;
+
+      abort.abort();
+
+      await assert.rejects(run, /aborted/i);
+      assert.deepEqual(terminateSignals, ["SIGKILL"]);
+      assert.throws(() => manager.getTask(task.id), /Task not found/);
+    },
+  );
+
   it("hydrates exited foreground bash tasks as visible interrupted tasks", async () => {
     const runtime = runtimeMetadata({ childPid: 4321, processGroupId: 4321 });
     const { supervisor } = fakeSupervisor({ runtime });

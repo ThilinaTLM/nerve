@@ -16,6 +16,7 @@ import {
   isAbsolute,
   join,
   parse,
+  posix,
   relative,
   resolve,
   win32,
@@ -483,7 +484,7 @@ export function normalizeIncomingFilePath(
     if (!path.startsWith("//")) path = path.replaceAll("/", "\\");
   }
 
-  const pathApi = platform === "win32" ? win32 : { isAbsolute, resolve };
+  const pathApi = platform === "win32" ? win32 : posix;
   return pathApi.isAbsolute(path)
     ? pathApi.resolve(path)
     : pathApi.resolve(root, path);

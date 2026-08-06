@@ -22,7 +22,12 @@ after(async () => {
   await Promise.allSettled(states.map(shutdownOrchestratorState));
   await Promise.all(
     roots.map((root) =>
-      rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }),
+      rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      }),
     ),
   );
 });

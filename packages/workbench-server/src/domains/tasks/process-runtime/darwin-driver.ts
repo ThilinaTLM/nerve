@@ -131,34 +131,31 @@ async function ports(runtime: TaskRuntime): Promise<TaskListeningPort[]> {
 }
 
 export const darwinProcessRuntimeDriver: ProcessRuntimeDriver = {
-  async spawn(command, options) {
+  spawn(command, options) {
     const child = spawnShell(command, options);
     const { exited, closed } = observeProcessLifecycle(child);
     if (!child.pid) throw new Error("Spawned process has no PID");
-    const current = await fingerprint(child.pid);
-    return {
-      child,
-      exited,
-      closed,
-      runtime: {
-        version: 2,
-        platform: "darwin",
-        childPid: child.pid,
-        processGroupId: child.pid,
-        detached: true,
-        shell: true,
-        spawnedAt: new Date().toISOString(),
-        identity:
-          current.kind === "found"
-            ? { kind: "darwin", startFingerprint: current.value }
-            : { kind: "legacy_unverified" },
-        capabilities: {
-          identity: current.kind === "found",
-          processTree: true,
-          listeningPorts: true,
-        },
+    const pid = child.pid;
+    const spawnedAt = new Date().toISOString();
+    const runtime = fingerprint(pid).then((current) => ({
+      version: 2 as const,
+      platform: "darwin" as const,
+      childPid: pid,
+      processGroupId: pid,
+      detached: true,
+      shell: true,
+      spawnedAt,
+      identity:
+        current.kind === "found"
+          ? ({ kind: "darwin", startFingerprint: current.value } as const)
+          : ({ kind: "legacy_unverified" } as const),
+      capabilities: {
+        identity: current.kind === "found",
+        processTree: true,
+        listeningPorts: true,
       },
-    };
+    }));
+    return { child, exited, closed, runtime };
   },
   inspect,
   terminate,

@@ -25,30 +25,32 @@ test("replays process exit, close, and error outcomes to late consumers", async 
 });
 
 test("captures an immediate command close while resolving runtime identity", async () => {
-  const spawned = await defaultProcessRuntimeDriver.spawn("printf done", {
+  const spawned = defaultProcessRuntimeDriver.spawn("printf done", {
     cwd: process.cwd(),
   });
   assert.equal((await spawned.exited).kind, "closed");
   assert.equal((await spawned.closed).kind, "closed");
+  assert.equal((await spawned.runtime).platform, process.platform);
 });
 
 if (process.platform === "linux") {
   test("captures a verifiable Linux identity and refuses stale identity", async () => {
-    const spawned = await defaultProcessRuntimeDriver.spawn("sleep 30", {
+    const spawned = defaultProcessRuntimeDriver.spawn("sleep 30", {
       cwd: process.cwd(),
     });
+    const runtime = await spawned.runtime;
     try {
       assert.equal(
-        (await defaultProcessRuntimeDriver.inspect(spawned.runtime)).evidence,
+        (await defaultProcessRuntimeDriver.inspect(runtime)).evidence,
         "alive_verified",
       );
       const stale = {
-        ...spawned.runtime,
+        ...runtime,
         identity: {
           kind: "linux" as const,
           startTimeTicks:
-            spawned.runtime.identity?.kind === "linux"
-              ? spawned.runtime.identity.startTimeTicks + 1
+            runtime.identity?.kind === "linux"
+              ? runtime.identity.startTimeTicks + 1
               : 1,
         },
       };
@@ -62,7 +64,7 @@ if (process.platform === "linux") {
       );
       assert.equal(refused.attempted, false);
     } finally {
-      await defaultProcessRuntimeDriver.terminate(spawned.runtime, "SIGKILL");
+      await defaultProcessRuntimeDriver.terminate(runtime, "SIGKILL");
     }
   });
 }

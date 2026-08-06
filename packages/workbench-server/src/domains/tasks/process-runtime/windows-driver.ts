@@ -59,15 +59,10 @@ async function inspect(runtime: TaskRuntime): Promise<RuntimeInspection> {
   return { evidence: "alive_verified", runtime };
 }
 
-async function terminate(
+async function terminateVerified(
   runtime: TaskRuntime,
   signal: NodeJS.Signals,
 ): Promise<TerminationResult> {
-  const evidence = await inspect(runtime);
-  if (evidence.evidence === "exited_verified")
-    return { attempted: false, method: "none" };
-  if (evidence.evidence !== "alive_verified")
-    return { attempted: false, method: "none", error: evidence.detail };
   const args =
     signal === "SIGKILL"
       ? ["/F", "/T", "/PID", String(runtime.childPid)]
@@ -85,6 +80,18 @@ async function terminate(
       ? undefined
       : result.stderr || `taskkill exited ${result.code}`,
   };
+}
+
+async function terminate(
+  runtime: TaskRuntime,
+  signal: NodeJS.Signals,
+): Promise<TerminationResult> {
+  const evidence = await inspect(runtime);
+  if (evidence.evidence === "exited_verified")
+    return { attempted: false, method: "none" };
+  if (evidence.evidence !== "alive_verified")
+    return { attempted: false, method: "none", error: evidence.detail };
+  return terminateVerified(evidence.runtime, signal);
 }
 
 async function listeningPorts(
@@ -125,33 +132,30 @@ async function listeningPorts(
 }
 
 export const windowsProcessRuntimeDriver: ProcessRuntimeDriver = {
-  async spawn(command, options) {
+  spawn(command, options) {
     const child = spawnShell(command, options);
     const { exited, closed } = observeProcessLifecycle(child);
     if (!child.pid) throw new Error("Spawned process has no PID");
-    const created = await creationDate(child.pid);
-    return {
-      child,
-      exited,
-      closed,
-      runtime: {
-        version: 2,
-        platform: "win32",
-        childPid: child.pid,
-        detached: false,
-        shell: true,
-        spawnedAt: new Date().toISOString(),
-        identity:
-          created.kind === "found"
-            ? { kind: "win32", creationDate: created.value }
-            : { kind: "legacy_unverified" },
-        capabilities: {
-          identity: created.kind === "found",
-          processTree: true,
-          listeningPorts: true,
-        },
+    const pid = child.pid;
+    const spawnedAt = new Date().toISOString();
+    const runtime = creationDate(pid).then((created) => ({
+      version: 2 as const,
+      platform: "win32" as const,
+      childPid: pid,
+      detached: false,
+      shell: true,
+      spawnedAt,
+      identity:
+        created.kind === "found"
+          ? ({ kind: "win32", creationDate: created.value } as const)
+          : ({ kind: "legacy_unverified" } as const),
+      capabilities: {
+        identity: created.kind === "found",
+        processTree: true,
+        listeningPorts: true,
       },
-    };
+    }));
+    return { child, exited, closed, runtime };
   },
   inspect,
   terminate,
@@ -168,7 +172,7 @@ export const windowsProcessRuntimeDriver: ProcessRuntimeDriver = {
         error: stopped ? undefined : created.detail,
       };
     }
-    return terminate(
+    return terminateVerified(
       {
         version: 2,
         platform: "win32",

@@ -23,7 +23,7 @@ export type ProcessLifecycleResult =
 
 export interface SpawnedProcess {
   child: ChildProcess;
-  runtime: TaskRuntime;
+  runtime: Promise<TaskRuntime>;
   exited: Promise<ProcessLifecycleResult>;
   closed: Promise<ProcessLifecycleResult>;
 }
@@ -35,7 +35,7 @@ export interface TerminationResult {
 }
 
 export interface ProcessRuntimeDriver {
-  spawn(command: string, options: SpawnProcessOptions): Promise<SpawnedProcess>;
+  spawn(command: string, options: SpawnProcessOptions): SpawnedProcess;
   inspect(runtime: TaskRuntime): Promise<RuntimeInspection>;
   terminate(
     runtime: TaskRuntime,

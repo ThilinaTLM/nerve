@@ -74,6 +74,7 @@ function servicePortsForRecords(
     readiness?: TaskServicePorts["readiness"];
     diagnostics?: TaskServicePorts["diagnostics"];
     timers?: TaskServicePorts["timers"];
+    clock?: TaskServicePorts["clock"];
   } = {},
 ): TaskServicePorts {
   return {
@@ -103,12 +104,44 @@ function servicePortsForRecords(
     },
     readiness: options.readiness,
     events: { publish: async (event) => void events.push(event) },
-    clock: { now: () => new Date("2026-07-11T00:00:00.000Z") },
+    clock:
+      options.clock ??
+      ({ now: () => new Date("2026-07-11T00:00:00.000Z") } as const),
     ids: { next: () => "task_contract" },
     diagnostics: options.diagnostics,
     timers: options.timers,
   };
 }
+
+test("runtime timeout includes process startup and identity delay", async () => {
+  const records = new Map<string, TaskRecord>();
+  const events: DomainEventIntent[] = [];
+  const sleeps: number[] = [];
+  let elapsedMs = 0;
+  const epoch = Date.parse("2026-07-11T00:00:00.000Z");
+  const ports = servicePortsForRecords(records, events, {
+    spawn: async () => {
+      elapsedMs = 600;
+      return { pid: 42, startedAt: new Date(epoch).toISOString() };
+    },
+    clock: { now: () => new Date(epoch + elapsedMs) },
+    timers: {
+      sleep: async (milliseconds) => {
+        sleeps.push(milliseconds);
+        await new Promise<void>(() => undefined);
+      },
+    },
+  });
+
+  await new TaskService(ports).start({
+    cwd: "/workspace",
+    command: "sleep 60",
+    timeoutMs: 1_000,
+  });
+  await Promise.resolve();
+
+  assert.deepEqual(sleeps, [400]);
+});
 
 test("cancellation is terminal only after process-exit evidence", async () => {
   const pending = fixture({ waitForExit: "timeout" });

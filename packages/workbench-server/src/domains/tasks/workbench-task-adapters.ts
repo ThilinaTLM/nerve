@@ -284,7 +284,12 @@ export function createWorkbenchTaskResources(
           recursive: true,
           mode: 0o755,
         });
-        const spawned = await supervisor.spawn(input.command, {
+        const logCursor = createTaskLogCursor(
+          await logs.latestLogSeq(
+            join(repository.taskDir(input.taskId), "logs.jsonl"),
+          ),
+        );
+        const spawned = supervisor.spawn(input.command, {
           cwd: input.cwd,
           env: input.env,
           shellPath: storage.settings.runtime.shellPath,
@@ -303,11 +308,7 @@ export function createWorkbenchTaskResources(
         const exitPromise = exited.then(terminalResult);
         const closePromise = closed.then(terminalResult);
         const state: WorkbenchManagedTask = {
-          ...createTaskLogCursor(
-            await logs.latestLogSeq(
-              join(repository.taskDir(input.taskId), "logs.jsonl"),
-            ),
-          ),
+          ...logCursor,
           child,
           stopping: false,
           finalized: false,
@@ -342,6 +343,20 @@ export function createWorkbenchTaskResources(
               }
             });
         };
+        const streamCompletion = (stream: NodeJS.ReadableStream | null) => {
+          if (!stream) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            let complete = false;
+            const finish = () => {
+              if (complete) return;
+              complete = true;
+              resolve();
+            };
+            stream.once("end", finish);
+            stream.once("close", finish);
+            stream.once("error", finish);
+          });
+        };
         child.stdout?.on("data", (chunk: Buffer) =>
           queueDecodedOutput(
             "stdout",
@@ -356,6 +371,10 @@ export function createWorkbenchTaskResources(
             child.stderr ?? undefined,
           ),
         );
+        const outputCompleted = Promise.all([
+          streamCompletion(child.stdout),
+          streamCompletion(child.stderr),
+        ]);
         let settled = false;
         const finish = async (exit: TaskProcessExit) => {
           if (settled) return;
@@ -378,8 +397,8 @@ export function createWorkbenchTaskResources(
           if (result.kind === "error")
             queueDecodedOutput("stderr", result.error.message);
         });
-        state.finalizationPromise = closePromise
-          .then(async ({ exitCode, signal }) => {
+        state.finalizationPromise = Promise.all([closePromise, outputCompleted])
+          .then(async ([{ exitCode, signal }]) => {
             await finish({
               exitCode: exitCode ?? undefined,
               signal: signal ?? undefined,
@@ -394,7 +413,18 @@ export function createWorkbenchTaskResources(
             });
             return undefined;
           });
-        return runtime;
+        try {
+          return await runtime;
+        } catch (error) {
+          const termination = await supervisor.terminate(child, "SIGKILL");
+          if (termination.error) {
+            throw new Error(
+              `Runtime identity failed and process termination failed: ${termination.error}`,
+              { cause: error },
+            );
+          }
+          throw error;
+        }
       },
       signal: async (task, cancelOptions) => {
         const state = managed.get(task.id);
@@ -403,9 +433,13 @@ export function createWorkbenchTaskResources(
         if (state)
           await logs.flushOutputBuffers(task, state, async () => undefined);
         const child = state?.child;
-        if (child)
-          await supervisor.terminate(child, cancelOptions.signal ?? "SIGTERM");
-        else if (task.runtime) {
+        if (child) {
+          const result = await supervisor.terminate(
+            child,
+            cancelOptions.signal ?? "SIGTERM",
+          );
+          if (result.error) throw new Error(result.error);
+        } else if (task.runtime) {
           const result = await supervisor.terminateRuntime(
             task.runtime,
             cancelOptions.signal ?? "SIGTERM",
