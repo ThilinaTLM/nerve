@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
+  conversationStream,
   LIVE_TOOL_OUTPUT_EVENT_MAX_BYTES,
   type ConversationLiveToolOutputDeltaData,
   type ToolCallRecord,
@@ -58,6 +59,9 @@ describe("LiveToolOutputPublisher", () => {
       stream: "stdout",
       chunk: input,
     });
+    // Live publication is best-effort; flush the conversation stream so the
+    // enqueued deltas are processed before asserting on delivered events.
+    await events.withCursor(conversationStream("conv_test"), () => undefined);
 
     assert.equal(published.map((event) => event.delta).join(""), input);
     assert.ok(
@@ -75,17 +79,14 @@ describe("LiveToolOutputPublisher", () => {
     await events.shutdown();
   });
 
-  it("contains publication failures and diagnoses them", async () => {
-    const warnings: unknown[] = [];
+  it("delegates live publication to best-effort and never rejects", async () => {
+    const calls: Array<{ type: string; context: string }> = [];
     const publisher = new LiveToolOutputPublisher(
       {
-        publish: async () => Promise.reject(new Error("disk unavailable")),
+        publishBestEffort: (type: string, _data: unknown, context: string) =>
+          void calls.push({ type, context }),
       } as never,
       runtime(),
-      {
-        warn: async (_message: string, data: unknown) =>
-          void warnings.push(data),
-      } as never,
     );
 
     await assert.doesNotReject(
@@ -95,6 +96,11 @@ describe("LiveToolOutputPublisher", () => {
         chunk: "still supervised",
       }),
     );
-    assert.equal(warnings.length, 1);
+    assert.deepEqual(calls, [
+      {
+        type: "conversation.live.tool_output.delta",
+        context: "conversation.live.tool_output.delta",
+      },
+    ]);
   });
 });

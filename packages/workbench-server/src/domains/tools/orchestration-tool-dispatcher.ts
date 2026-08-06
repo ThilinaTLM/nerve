@@ -29,7 +29,6 @@ import {
   createHostToolFactory,
   type HostToolFactory,
 } from "./host-tool-factory.js";
-import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
 import type { PlanService } from "../plans/plan-service.js";
@@ -95,7 +94,6 @@ export interface OrchestrationToolDispatcherDeps {
     patch: Partial<Omit<ToolCallRecord, "id" | "createdAt">>,
   ): Promise<ToolCallRecord>;
   publishToolCallUpdated(toolCall: ToolCallRecord): Promise<void>;
-  logger?: ApplicationLogger;
 }
 
 type WorkbenchToolExecution = {
@@ -113,7 +111,6 @@ export class OrchestrationToolDispatcher {
     this.liveOutput = new LiveToolOutputPublisher(
       deps.events,
       deps.conversationRuntime,
-      deps.logger,
     );
     this.hostTools = createHostToolFactory<WorkbenchToolExecution>({
       execution: {

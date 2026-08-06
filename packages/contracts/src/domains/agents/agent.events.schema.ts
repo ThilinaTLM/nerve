@@ -134,7 +134,6 @@ export const agentEventDefinitions = [
   subagentTranscriptEvent(
     "agent.subagent_transcript.content.done",
     transcriptContentSchema.extend({
-      finalText: z.string().max(PUBLIC_EVENT_MAX_STRING_CHARS).optional(),
       redacted: z.boolean().optional(),
     }),
   ),

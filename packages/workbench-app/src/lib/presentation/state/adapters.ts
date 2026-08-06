@@ -812,7 +812,6 @@ function applyLiveContentDone(
   draft.ownBlock(data.turnId, data.liveMessageId, data.contentBlockId);
   const block = ensureActiveTextBlock(state, data, ts);
   if (!block) return;
-  block.text = data.finalText ?? block.text;
   block.done = true;
   block.redacted = data.kind === "thinking" ? data.redacted : undefined;
 }

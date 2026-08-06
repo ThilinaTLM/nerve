@@ -4,7 +4,6 @@ import {
 } from "@nervekit/tools";
 import type { ToolCallRecord } from "@nervekit/contracts";
 import type { ConversationRuntime } from "../runs/runtime/conversation-runtime.js";
-import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 
 /** Owns validated, ordered publication of transient tool output. */
@@ -14,7 +13,6 @@ export class LiveToolOutputPublisher {
   constructor(
     private readonly events: StreamLogRegistry,
     private readonly runtime: ConversationRuntime,
-    private readonly logger?: ApplicationLogger,
   ) {}
 
   async publish(
@@ -44,12 +42,12 @@ export class LiveToolOutputPublisher {
         ...input,
         offset: this.runtime.toolOutputOffset(outputRunId, toolCall.id),
       };
-      try {
-        await this.events.publish("conversation.live.tool_output.delta", data);
-        this.runtime.applyToolOutputDelta(input);
-      } catch (error) {
-        await this.reportFailure(toolCall, error);
-      }
+      this.events.publishBestEffort(
+        "conversation.live.tool_output.delta",
+        data,
+        "conversation.live.tool_output.delta",
+      );
+      this.runtime.applyToolOutputDelta(input);
     }
   }
 
@@ -72,23 +70,5 @@ export class LiveToolOutputPublisher {
 
   async drain(toolCallId: string): Promise<void> {
     await this.#tails.get(toolCallId);
-  }
-
-  private async reportFailure(
-    toolCall: ToolCallRecord,
-    error: unknown,
-  ): Promise<void> {
-    await this.logger
-      ?.warn("Live tool output publication failed", {
-        projectId: toolCall.projectId,
-        conversationId: toolCall.conversationId,
-        agentId: toolCall.agentId,
-        runId: toolCall.runId,
-        toolCallId: toolCall.id,
-        context: {
-          error: error instanceof Error ? error.message : String(error),
-        },
-      })
-      .catch(() => undefined);
   }
 }
