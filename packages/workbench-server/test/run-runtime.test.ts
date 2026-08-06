@@ -97,6 +97,12 @@ class MemoryUnitOfWork implements RunUnitOfWorkPort {
     const next = applyRunEventDelivery(state, delivery);
     this.deliveries.set(delivery.runId, [...next.deliveries]);
   }
+
+  async markDeliverySettled(runId: string, revision: number): Promise<void> {
+    // Test stub: settlement bookkeeping is exercised against the real store.
+    void runId;
+    void revision;
+  }
   async materialize(): Promise<void> {}
 }
 

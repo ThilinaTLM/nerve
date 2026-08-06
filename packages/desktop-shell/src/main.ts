@@ -1,3 +1,5 @@
+import { appendFile, mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { resolveDataDir } from "@nervekit/workbench-server";
 import {
   applyElectronFontRenderHinting,
@@ -65,6 +67,28 @@ applyElectronOzonePlatform(electronOzonePlatform);
 applyElectronFontRenderHinting(electronFontRenderHinting);
 
 const shellPageUrls = new ShellPageUrlRegistry();
+
+/**
+ * Always-on desktop startup telemetry (one JSONL line per launch) written to
+ * the same logs/startup.jsonl as the daemon so both sides of a cold start can
+ * be correlated without NERVE_LOGGING_ENABLED. Best-effort: never affects
+ * startup.
+ */
+async function appendStartupRecord(
+  record: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const path = join(desktopDataDir, "logs", "startup.jsonl");
+    await mkdir(dirname(path), { recursive: true });
+    await appendFile(
+      path,
+      `${JSON.stringify({ ts: new Date().toISOString(), ...record })}\n`,
+      "utf8",
+    );
+  } catch {
+    // Best-effort observability only.
+  }
+}
 let mainWindow: BrowserWindowType | undefined;
 let managedDaemon: ManagedDaemon | undefined;
 let daemonStopped = false;
@@ -373,6 +397,12 @@ async function openMainWindow(): Promise<void> {
         ...result.timings,
         navigated: result.navigated,
       },
+    });
+    await appendStartupRecord({
+      type: "nerve.startup",
+      source: "desktop",
+      ...result.timings,
+      navigated: result.navigated,
     });
   } catch (error) {
     void desktopLog("error", "daemon", "Failed to open Nerve daemon", {

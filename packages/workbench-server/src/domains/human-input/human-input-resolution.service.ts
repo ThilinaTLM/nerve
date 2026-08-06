@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Human-input resolution centralizes the approval/plan-review suspension lifecycle in one auditable use case. */
 import { createHash } from "node:crypto";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@nervekit/harness";
@@ -14,6 +15,7 @@ import type {
   UserQuestionRecord,
 } from "@nervekit/contracts";
 import { ApplicationError } from "../../core/application-error.js";
+import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
 import type {
   AppendEntryInput,
   AppendEntryOptions,
@@ -62,6 +64,7 @@ export interface HumanInputResolutionDeps {
   ): Promise<ConversationEntry>;
   getConversationEntries(conversationId: string): ConversationEntry[];
   harnessStorage: ConversationHarnessStorage;
+  logger: ApplicationLogger;
   compactPlanConversation(input: {
     conversationId: string;
     agentId: string;
@@ -347,7 +350,22 @@ export class HumanInputResolutionService {
       .listPlanReviews()
       .filter((review) => review.status === "accepted");
     for (const review of reviews) {
-      const toolCall = this.deps.tools.getToolCall(review.toolCallId);
+      let toolCall;
+      try {
+        toolCall = this.deps.tools.getToolCall(review.toolCallId);
+      } catch (error) {
+        // The tool-call journal/index may be absent or truncated (e.g. after
+        // storage pruning or a partial copy); a missing tool call must not
+        // abort daemon startup. Skip the review; the user can inspect it in
+        // the workbench.
+        await this.deps.logger
+          .warn("Skipping accepted plan review recovery: tool call not found", {
+            context: { reviewId: review.id, toolCallId: review.toolCallId },
+            error,
+          })
+          .catch(() => undefined);
+        continue;
+      }
       if (
         toolCall.toolName !== "plan_mode_present" ||
         toolCall.status !== "waiting_for_user"

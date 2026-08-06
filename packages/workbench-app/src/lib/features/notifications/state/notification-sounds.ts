@@ -157,11 +157,14 @@ function browserAudioFactory(source: string): NotificationAudio | undefined {
 const notificationSoundPlayer = createNotificationSoundPlayer();
 
 export function initializeNotificationSoundPlayback(): () => void {
-  notificationSoundPlayer.preload();
   if (typeof window === "undefined") return () => undefined;
 
+  // Defer the sound warm-up to the first user interaction: preloading 12
+  // audio files at startup adds a dozen fetches to the cold-start path, and
+  // browser audio is only unlocked by a user gesture anyway.
   const unlock = () => {
     removeListeners();
+    notificationSoundPlayer.preload();
     notificationSoundPlayer.unlock();
   };
   const removeListeners = () => {

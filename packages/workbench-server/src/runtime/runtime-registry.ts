@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- RuntimeRegistry centralizes the hydration/startup use case incl. per-phase timing. */
 import type { Message } from "@earendil-works/pi-ai";
 import { listAvailableModels } from "@nervekit/harness";
 import type {
@@ -50,6 +51,20 @@ import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 export interface RegistryHydrationTimings {
   stateDurationMs: number;
   indexDurationMs: number;
+  /** Where the tool-call records came from (snapshot vs full journal scan). */
+  toolCallHydrationSource: "snapshot" | "journal";
+  /** ms: parallel store hydration (tasks/tools/plans/projects/conversations). */
+  storesHydrationDurationMs: number;
+  /** ms: agent records load. */
+  agentsHydrationDurationMs: number;
+  /** ms: run coordinator recovery (metadata scan + active run hydrates). */
+  runRecoveryDurationMs: number;
+  /** ms: approval batches + accepted plan reviews recovery. */
+  humanInputRecoveryDurationMs: number;
+  /** ms: run projector rebuild from metadata + active states. */
+  projectorDurationMs: number;
+  /** ms: task notification recovery. */
+  taskNotificationsDurationMs: number;
 }
 
 export class RuntimeRegistry {
@@ -152,7 +167,14 @@ export class RuntimeRegistry {
 
   async hydrate(): Promise<RegistryHydrationTimings> {
     const stateStartedAt = performance.now();
+    let storesHydrationDurationMs = 0;
+    let agentsHydrationDurationMs = 0;
+    let runRecoveryDurationMs = 0;
+    let humanInputRecoveryDurationMs = 0;
+    let projectorDurationMs = 0;
+    let taskNotificationsDurationMs = 0;
     await this.index.withUpdatesDeferred(async () => {
+      const storesStartedAt = performance.now();
       const workersHydrated = this.workers.hydrate();
       await settleHydrationOperations([
         this.auth.refreshModels({ allowNetwork: false }),
@@ -164,25 +186,59 @@ export class RuntimeRegistry {
         this.loadProjects(),
         this.loadConversations(),
       ]);
+      storesHydrationDurationMs = Math.round(
+        performance.now() - storesStartedAt,
+      );
+      const agentsStartedAt = performance.now();
       await this.loadAgents();
-      await this.rebuildConversations();
+      agentsHydrationDurationMs = Math.round(
+        performance.now() - agentsStartedAt,
+      );
+      const runRecoveryStartedAt = performance.now();
       await this.services.runRuntime.delivery.flush();
       await this.services.runRuntime.coordinator.recover();
+      runRecoveryDurationMs = Math.round(
+        performance.now() - runRecoveryStartedAt,
+      );
+      const humanInputStartedAt = performance.now();
       await this.services.humanInput.recoverReadyApprovalBatches();
       await this.services.humanInput.recoverAcceptedPlanReviews();
-      await this.services.runRuntime.projector.rebuild(
-        await this.services.runRuntime.unitOfWork.list(),
+      humanInputRecoveryDurationMs = Math.round(
+        performance.now() - humanInputStartedAt,
       );
+      // Rebuild the projection from lightweight run records (metadata) plus
+      // the full states of the already-recovered active runs; terminal run
+      // history is never hydrated during startup.
+      const projectorStartedAt = performance.now();
+      await this.services.runRuntime.projector.rebuild({
+        activeStates: await this.services.runRuntime.unitOfWork.listActive(),
+        runRecords: await this.services.runRuntime.unitOfWork.listMetadata(),
+      });
+      projectorDurationMs = Math.round(performance.now() - projectorStartedAt);
       await this.services.runRuntime.delivery.flush();
+      const taskNotificationsStartedAt = performance.now();
       await this.services.taskNotifications.recoverPendingNotifications();
+      taskNotificationsDurationMs = Math.round(
+        performance.now() - taskNotificationsStartedAt,
+      );
     });
     const stateDurationMs = Math.round(performance.now() - stateStartedAt);
     const indexStartedAt = performance.now();
     await this.rebuildIndex();
+    // After a journal-based hydrate, the index now mirrors the journal; record
+    // the watermark so the next startup can skip the full journal scan.
+    await this.tools.markToolCallSnapshotPersisted();
     await this.promptSuggestions.hydrate();
     return {
       stateDurationMs,
       indexDurationMs: Math.round(performance.now() - indexStartedAt),
+      toolCallHydrationSource: this.tools.toolCallHydrationSource,
+      storesHydrationDurationMs,
+      agentsHydrationDurationMs,
+      runRecoveryDurationMs,
+      humanInputRecoveryDurationMs,
+      projectorDurationMs,
+      taskNotificationsDurationMs,
     };
   }
 
@@ -233,16 +289,23 @@ export class RuntimeRegistry {
 
   /** Rebuild the disposable derived SQLite index from repositories. */
   async rebuildIndex(): Promise<void> {
-    this.index.rebuild({
-      projects: this.listProjects(),
-      conversations: this.listConversations(),
-      agents: this.listAgents(),
-      tasks: this.tasks.listTasks(),
-      workers: this.workers.listWorkers(),
-      toolCalls: this.tools.listToolCalls(),
-      approvals: this.tools.listApprovals(),
-      userQuestions: this.tools.listUserQuestions(),
-    });
+    // When the persisted tool-call snapshot is already current (records were
+    // loaded from sqlite), keep the existing tool_calls rows instead of
+    // deleting and re-inserting hundreds of MB of records on every startup.
+    const preserveToolCalls = this.tools.toolCallHydrationSource === "snapshot";
+    this.index.rebuild(
+      {
+        projects: this.listProjects(),
+        conversations: this.listConversations(),
+        agents: this.listAgents(),
+        tasks: this.tasks.listTasks(),
+        workers: this.workers.listWorkers(),
+        toolCalls: this.tools.listToolCalls(),
+        approvals: this.tools.listApprovals(),
+        userQuestions: this.tools.listUserQuestions(),
+      },
+      { preserveToolCalls },
+    );
   }
 
   async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {
@@ -765,15 +828,6 @@ export class RuntimeRegistry {
 
   private async loadAgents(): Promise<void> {
     await this.services.agentLifecycle.loadAgents();
-  }
-
-  private async rebuildConversations(): Promise<void> {
-    await this.services.conversationService.rebuildAll(
-      this.projects.values(),
-      this.conversations.values(),
-      this.agents.values(),
-      this.entries,
-    );
   }
 }
 

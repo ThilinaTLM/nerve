@@ -2,13 +2,7 @@
 import { EditorArea } from "$lib/presentation/shell";
 import EditorTabStripContainer from "$lib/app/shell/EditorTabStripContainer.svelte";
 import ConversationShell from "$lib/features/conversations/components/ConversationShell.svelte";
-import FileShell from "$lib/features/filesystem/components/FileShell.svelte";
-import DiffShell from "$lib/features/git/components/DiffShell.svelte";
-import PrShell from "$lib/features/git/components/PrShell.svelte";
-import LogsShell from "$lib/features/logs/components/LogsShell.svelte";
-import TaskShell from "$lib/features/tasks/components/TaskShell.svelte";
-import SettingsShell from "$lib/features/settings/components/SettingsShell.svelte";
-import { AuthShell } from "$lib/features/auth";
+import LazyShellPending from "$lib/app/shell/LazyShellPending.svelte";
 import {
   centerTabsExcept,
   centerTabsToLeftOf,
@@ -74,6 +68,28 @@ function closeOtherCenterTabs(tab: CenterTabIdentity) {
   void closeCenterTabs(centerTabsExcept(tab), tab);
 }
 
+// On-demand center shells are code-split so their (potentially large) feature
+// modules are not parsed during startup. The import fires when the tab is
+// first activated; the chunk then loads in tens of milliseconds from localhost.
+type CenterShellModule = Promise<{ default: import("svelte").Component }>;
+const centerShells = {
+  task: () => import("$lib/features/tasks/components/TaskShell.svelte"),
+  file: () => import("$lib/features/filesystem/components/FileShell.svelte"),
+  pr: () => import("$lib/features/git/components/PrShell.svelte"),
+  diff: () => import("$lib/features/git/components/DiffShell.svelte"),
+  settings: () =>
+    import("$lib/features/settings/components/SettingsShell.svelte"),
+  auth: () => import("$lib/features/auth/components/AuthShell.svelte"),
+  logs: () => import("$lib/features/logs/components/LogsShell.svelte"),
+} satisfies Record<string, () => CenterShellModule>;
+
+let loadedShells = $state<Partial<Record<string, CenterShellModule>>>({});
+$effect(() => {
+  const kind = activeCenterTab?.kind;
+  if (!kind || !(kind in centerShells) || loadedShells[kind]) return;
+  loadedShells[kind] = centerShells[kind as keyof typeof centerShells]();
+});
+
 function closeCenterTabsRight(tab: CenterTabIdentity) {
   void closeCenterTabs(centerTabsToRightOf(tab), tab);
 }
@@ -103,19 +119,54 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
   {#snippet content()}
     <div class="center-workspace-content h-full">
       {#if activeCenterTab?.kind === "task"}
-        <TaskShell />
+        {#await loadedShells.task}
+          <LazyShellPending />
+        {:then module}
+          {@const Component = module?.default}
+          {#if Component}<Component />{/if}
+        {/await}
       {:else if activeCenterTab?.kind === "file"}
-        <FileShell />
+        {#await loadedShells.file}
+          <LazyShellPending />
+        {:then module}
+          {@const Component = module?.default}
+          {#if Component}<Component />{/if}
+        {/await}
       {:else if activeCenterTab?.kind === "pr"}
-        <PrShell />
+        {#await loadedShells.pr}
+          <LazyShellPending />
+        {:then module}
+          {@const Component = module?.default}
+          {#if Component}<Component />{/if}
+        {/await}
       {:else if activeCenterTab?.kind === "diff"}
-        <DiffShell />
+        {#await loadedShells.diff}
+          <LazyShellPending />
+        {:then module}
+          {@const Component = module?.default}
+          {#if Component}<Component />{/if}
+        {/await}
       {:else if activeCenterTab?.kind === "settings"}
-        <SettingsShell />
+        {#await loadedShells.settings}
+          <LazyShellPending />
+        {:then module}
+          {@const Component = module?.default}
+          {#if Component}<Component />{/if}
+        {/await}
       {:else if activeCenterTab?.kind === "auth"}
-        <AuthShell />
+        {#await loadedShells.auth}
+          <LazyShellPending />
+        {:then module}
+          {@const Component = module?.default}
+          {#if Component}<Component />{/if}
+        {/await}
       {:else if activeCenterTab?.kind === "logs"}
-        <LogsShell />
+        {#await loadedShells.logs}
+          <LazyShellPending />
+        {:then module}
+          {@const Component = module?.default}
+          {#if Component}<Component />{/if}
+        {/await}
       {/if}
 
       {#if renderedConversationPaneTabs.length > 0}

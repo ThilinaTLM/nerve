@@ -425,6 +425,9 @@ function buildToolService(
     {
       upsertToolCall: () => undefined,
       upsertApproval: () => undefined,
+      writeToolCallSnapshot: () => undefined,
+      isToolCallSnapshotValid: () => ({ valid: false, reason: "no-meta" }),
+      loadToolCalls: () => [],
     } as never,
     {} as never,
     (pythonRuntime ?? {

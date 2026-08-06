@@ -68,6 +68,12 @@ class DeliveryUnitOfWork implements RunUnitOfWorkPort {
     );
     if (!existing) this.deliveries.push(delivery);
   }
+
+  async markDeliverySettled(runId: string, revision: number): Promise<void> {
+    // Test stub: settlement bookkeeping is exercised against the real store.
+    void runId;
+    void revision;
+  }
   async materialize(): Promise<void> {}
 }
 

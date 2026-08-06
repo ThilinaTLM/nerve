@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type {
   RunEventDeliveryRecord,
+  RunRecord,
   RunTransitionRecord,
 } from "@nervekit/contracts";
 import {
@@ -22,15 +23,39 @@ import {
   appendJsonLine,
   atomicWriteJson,
   listChildDirs,
+  readJsonLinesTail,
   readTextFileConsistent,
 } from "../../infrastructure/storage/index.js";
+
+/**
+ * Reserved intent id prefix for per-run delivery-settlement checkpoints. The
+ * checkpoint records the run revision whose public-event intents are all
+ * durably delivered, letting startup sweeps skip full hydration of settled
+ * runs (the run journal is the only authoritative source for pending intents).
+ */
+export const DELIVERY_SETTLED_PREFIX = "__nerve_settled__";
+
+export function deliverySettledIntentId(
+  runId: string,
+  revision: number,
+): string {
+  return `${DELIVERY_SETTLED_PREFIX}:${runId}:${revision}`;
+}
+
+export function isDeliverySettledRecord(
+  delivery: RunEventDeliveryRecord | undefined,
+): delivery is RunEventDeliveryRecord {
+  return delivery?.intentId.startsWith(DELIVERY_SETTLED_PREFIX) === true;
+}
 
 export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   private readonly locks = new Map<string, Promise<void>>();
   private readonly cache: BoundedRunStateCache;
+  /** Lightweight run-record listing cached by the one-time active hydration. */
+  private metadata: RunRecord[] | undefined;
   private readonly lookup = new ActiveRunLookup({
     load: (runId) => this.load(runId),
-    hydrateAll: () => this.list(),
+    hydrateActive: () => this.hydrateAllActive(),
   });
 
   constructor(
@@ -106,6 +131,49 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     );
   }
 
+  /**
+   * Lightweight listing of every run record (id/status/scope/agent/timestamps)
+   * without hydrating transition history. Reads the last committed transition
+   * of each journal backwards in bounded chunks, so cost scales with the number
+   * of runs, not with the size of their journals.
+   */
+  async listMetadata(): Promise<readonly RunRecord[]> {
+    return (this.metadata ??= await this.scanMetadata());
+  }
+
+  /**
+   * One-time authoritative initialization: discovers active runs from a
+   * metadata scan and fully hydrates only those, so startup never reads
+   * terminal transition history. Terminal runs are loaded lazily on demand.
+   */
+  async hydrateAllActive(): Promise<void> {
+    const records = await this.scanMetadata();
+    this.metadata = records;
+    for (const record of records) {
+      if (!ACTIVE_STATUSES.has(record.status)) continue;
+      const state = await this.hydrate(record.runId);
+      if (state) {
+        this.cache.set(state);
+        this.lookup.observe(state);
+      }
+    }
+  }
+
+  private async scanMetadata(): Promise<RunRecord[]> {
+    const records: RunRecord[] = [];
+    for (const runId of await listChildDirs(this.root())) {
+      // The last valid transition carries the authoritative latest run record.
+      // A torn final line falls back to the previous committed transition, so
+      // a partially-written append never hides an active run from recovery.
+      const [latest] = await readJsonLinesTail<RunTransitionRecord>(
+        this.transitionsPath(runId),
+        1,
+      );
+      if (latest?.run) records.push(latest.run);
+    }
+    return records;
+  }
+
   async commit(
     expectedRevision: number,
     transition: RunTransitionRecord,
@@ -129,18 +197,43 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     });
   }
 
+  /**
+   * Enumerates undelivered public-event intents. Settled runs (whose last
+   * delivery-settlement checkpoint covers their last committed transition)
+   * are skipped from a bounded tail scan; only unsettled runs are hydrated
+   * in full. Runs that hydrate clean with no pending intents are checkpointed
+   * as settled so later sweeps skip them too.
+   */
   async pendingEventIntents() {
     const pending: Array<{
       runId: string;
       revision: number;
       intent: RunTransitionRecord["events"][number];
     }> = [];
-    for (const state of await this.list()) {
+    for (const runId of await listChildDirs(this.root())) {
+      const [latestTransition] = await readJsonLinesTail<RunTransitionRecord>(
+        this.transitionsPath(runId),
+        1,
+      );
+      if (!latestTransition) continue;
+      const [latestDelivery] = await readJsonLinesTail<RunEventDeliveryRecord>(
+        this.deliveriesPath(runId),
+        1,
+      );
+      if (
+        isDeliverySettledRecord(latestDelivery) &&
+        latestDelivery.revision >= latestTransition.run.revision
+      ) {
+        continue;
+      }
+      const state = await this.hydrate(runId);
+      if (!state) continue;
       const delivered = new Set(state.deliveries.map((item) => item.intentId));
+      const runPending: typeof pending = [];
       for (const transition of state.transitions) {
         for (const intent of transition.events) {
           if (!delivered.has(intent.id)) {
-            pending.push({
+            runPending.push({
               runId: transition.runId,
               revision: transition.revision,
               intent,
@@ -148,12 +241,43 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
           }
         }
       }
+      if (runPending.length === 0) {
+        // Nothing to re-deliver: record settlement so the next startup sweep
+        // can skip this run entirely.
+        await this.markDeliverySettled(runId, state.run.revision);
+        continue;
+      }
+      pending.push(...runPending);
     }
     return pending.sort(
       (left, right) =>
         left.intent.occurredAt.localeCompare(right.intent.occurredAt) ||
         left.intent.id.localeCompare(right.intent.id),
     );
+  }
+
+  /**
+   * Append a delivery-settlement checkpoint for `runId` through `revision`:
+   * all public-event intents up to that revision are durably delivered.
+   * Settlement is only consulted from the journal on the next sweep, so no
+   * in-memory state is updated.
+   */
+  async markDeliverySettled(runId: string, revision: number): Promise<void> {
+    await this.exclusive(runId, async () => {
+      const intentId = deliverySettledIntentId(runId, revision);
+      await appendJsonLine(
+        this.deliveriesPath(runId),
+        {
+          intentId,
+          runId,
+          revision,
+          eventId: intentId.slice(0, 256),
+          sequence: revision,
+          deliveredAt: new Date().toISOString(),
+        } satisfies RunEventDeliveryRecord,
+        0o600,
+      );
+    });
   }
 
   async markEventDelivered(delivery: RunEventDeliveryRecord): Promise<void> {
