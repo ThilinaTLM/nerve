@@ -298,7 +298,6 @@ export interface ConversationLiveContentDoneData {
   contentBlockId: string;
   contentIndex: number;
   kind: AgentMessageContentKind;
-  finalText?: string;
   redacted?: boolean;
 }
 
@@ -891,7 +890,6 @@ const conversationLiveContentDeltaDataSchema =
 const conversationLiveContentDoneDataSchema =
   conversationLiveContentBaseDataSchema.extend({
     kind: agentMessageContentKindSchema,
-    finalText: z.string().optional(),
     redacted: z.boolean().optional(),
   });
 

@@ -1,14 +1,26 @@
-import { definePublicEvent } from "../events/event-definition.schema.js";
+import {
+  defineContentEvent,
+  definePublicEvent,
+} from "../events/event-definition.schema.js";
 import { conversationEventPayloadSchemas } from "./conversation.schema.js";
 
 export const conversationRuntimeEventDefinitions = Object.entries(
   conversationEventPayloadSchemas,
 ).map(([name, payloadSchema]) =>
-  definePublicEvent(name, payloadSchema, {
-    delivery: "sequenced",
-    supersedable: isBufferedConversationEvent(name),
-    scope: conversationEventScope(name),
-  }),
+  // conversation.entry.appended carries the full authoritative entry
+  // (message text, thinking blocks), so it is validated with the
+  // content-sized guard instead of the strict per-string bounded guard.
+  name === "conversation.entry.appended"
+    ? defineContentEvent(name, payloadSchema, {
+        delivery: "sequenced",
+        supersedable: isBufferedConversationEvent(name),
+        scope: conversationEventScope(name),
+      })
+    : definePublicEvent(name, payloadSchema, {
+        delivery: "sequenced",
+        supersedable: isBufferedConversationEvent(name),
+        scope: conversationEventScope(name),
+      }),
 );
 
 function isBufferedConversationEvent(name: string): boolean {

@@ -5,11 +5,21 @@ const secretLikeKey =
 const credentialUrl = /^[a-z][a-z0-9+.-]*:\/\/[^/\s]*@/i;
 export const PUBLIC_EVENT_MAX_BYTES = 64 * 1024;
 export const PUBLIC_EVENT_MAX_STRING_CHARS = 16_384;
+/**
+ * Total byte ceiling for events whose payloads carry authoritative content
+ * (e.g. conversation entries with message text and thinking blocks). Content
+ * is unbounded by nature, so such payloads keep the overall byte bound for
+ * broadcast safety but drop the per-string length cap.
+ */
+export const PUBLIC_EVENT_MAX_CONTENT_BYTES = 1024 * 1024;
 
 const maximumDepth = 8;
 const maximumEntries = 256;
 
-function boundedPublicJson() {
+function boundedPublicJson(
+  maxBytes: number,
+  maxStringChars: number | undefined,
+) {
   return z
     .preprocess(stripUndefined, z.json())
     .superRefine((value, context) => {
@@ -23,21 +33,38 @@ function boundedPublicJson() {
         });
         return;
       }
-      if (bytes > PUBLIC_EVENT_MAX_BYTES) {
+      if (bytes > maxBytes) {
         context.addIssue({
           code: "custom",
-          message: `public data may not exceed ${PUBLIC_EVENT_MAX_BYTES} bytes`,
+          message: `public data may not exceed ${maxBytes} bytes`,
         });
       }
-      validateValue(value, context, [], 0);
+      validateValue(value, context, [], 0, maxStringChars);
     });
 }
 
 /** Safety guard composed before every concrete public event payload schema. */
-export const publicEventDataGuardSchema = boundedPublicJson();
+export const publicEventDataGuardSchema = boundedPublicJson(
+  PUBLIC_EVENT_MAX_BYTES,
+  PUBLIC_EVENT_MAX_STRING_CHARS,
+);
 
 /** Bounded JSON for provider/domain values whose shape is intentionally opaque. */
-export const boundedPublicJsonSchema = boundedPublicJson();
+export const boundedPublicJsonSchema = boundedPublicJson(
+  PUBLIC_EVENT_MAX_BYTES,
+  PUBLIC_EVENT_MAX_STRING_CHARS,
+);
+
+/**
+ * Content-sized guard for events that carry authoritative content payloads
+ * (e.g. conversation entries). Keeps the total byte ceiling and the shape
+ * checks, but drops the per-string length cap so single long strings (message
+ * text, thinking blocks) are not rejected.
+ */
+export const boundedPublicContentJsonSchema = boundedPublicJson(
+  PUBLIC_EVENT_MAX_CONTENT_BYTES,
+  undefined,
+);
 
 export const boundedPublicObjectSchema = z
   .preprocess(
@@ -45,7 +72,7 @@ export const boundedPublicObjectSchema = z
     z.record(z.string().min(1).max(128), boundedPublicJsonSchema),
   )
   .superRefine((value, context) => {
-    validateValue(value, context, [], 0);
+    validateValue(value, context, [], 0, PUBLIC_EVENT_MAX_STRING_CHARS);
     if (Object.keys(value).length > maximumEntries) {
       context.addIssue({
         code: "custom",
@@ -69,6 +96,7 @@ function validateValue(
   context: z.core.$RefinementCtx<unknown>,
   path: PropertyKey[],
   depth: number,
+  maxStringChars: number | undefined,
 ): void {
   if (depth > maximumDepth) {
     context.addIssue({
@@ -79,7 +107,7 @@ function validateValue(
     return;
   }
   if (typeof value === "string") {
-    if (value.length > PUBLIC_EVENT_MAX_STRING_CHARS)
+    if (maxStringChars !== undefined && value.length > maxStringChars)
       context.addIssue({
         code: "custom",
         path,
@@ -101,7 +129,13 @@ function validateValue(
         message: "public arrays are too large",
       });
     value.forEach((entry, index) =>
-      validateValue(entry, context, [...path, index], depth + 1),
+      validateValue(
+        entry,
+        context,
+        [...path, index],
+        depth + 1,
+        maxStringChars,
+      ),
     );
     return;
   }
@@ -121,6 +155,6 @@ function validateValue(
         message: "secret-like public data keys are forbidden",
       });
     }
-    validateValue(entry, context, [...path, key], depth + 1);
+    validateValue(entry, context, [...path, key], depth + 1, maxStringChars);
   }
 }

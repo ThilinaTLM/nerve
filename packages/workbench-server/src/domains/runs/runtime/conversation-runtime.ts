@@ -352,7 +352,6 @@ export class ConversationRuntime {
       contentBlockId: block.contentBlockId,
       contentIndex: input.contentIndex,
       kind: input.kind,
-      finalText: input.finalText,
       redacted: input.redacted,
     };
   }

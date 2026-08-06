@@ -710,4 +710,62 @@ describe("conversation event reducer", () => {
     });
     assert.deepEqual(state.activeRun?.turns, []);
   });
+
+  it("keeps delta-accumulated text when content.done carries no finalText", () => {
+    let state = emptyConversationRenderState("conv_test");
+    state = applyConversationEvent(state, startRun());
+    state = applyConversationEvent(state, startMessage());
+    state = applyConversationEvent(
+      state,
+      evt(3, "conversation.live.content.delta", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        liveMessageId: "msg_test",
+        contentBlockId: "block_text",
+        contentIndex: 0,
+        kind: "text",
+        offset: 0,
+        delta: "Hello ",
+      }),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(4, "conversation.live.content.delta", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        liveMessageId: "msg_test",
+        contentBlockId: "block_text",
+        contentIndex: 0,
+        kind: "text",
+        offset: 6,
+        delta: "world",
+      }),
+    );
+    state = applyConversationEvent(
+      state,
+      evt(5, "conversation.live.content.done", {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        liveMessageId: "msg_test",
+        contentBlockId: "block_text",
+        contentIndex: 0,
+        kind: "text",
+      }),
+    );
+    const block = state.activeRun?.turns[0]?.messages[0]?.blocks[0];
+    assert.equal(
+      block && block.kind !== "tool_call_draft" ? block.text : undefined,
+      "Hello world",
+    );
+    assert.equal(block?.done, true);
+  });
 });

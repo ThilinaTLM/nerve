@@ -166,14 +166,11 @@ export class SubagentTranscriptLiveService {
               ? assistantContentRedacted(update.partial, update.contentIndex)
               : undefined,
         });
-        await this.publish(state, "agent.subagent_transcript.content.done", {
-          ...data,
-          finalText:
-            data.finalText &&
-            data.finalText.length <= PUBLIC_EVENT_MAX_STRING_CHARS
-              ? data.finalText
-              : undefined,
-        });
+        await this.publish(
+          state,
+          "agent.subagent_transcript.content.done",
+          data,
+        );
       }
       return;
     }
