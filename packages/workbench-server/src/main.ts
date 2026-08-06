@@ -1,7 +1,8 @@
-import { rm } from "node:fs/promises";
+import { appendFile, mkdir, rm } from "node:fs/promises";
 import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import { networkInterfaces } from "node:os";
+import { dirname, join } from "node:path";
 import { serve } from "@hono/node-server";
 import WebSocket, { WebSocketServer } from "ws";
 import {
@@ -115,6 +116,28 @@ function mergeNoProxy(value: string): string {
 let runtimeMonitor: DaemonRuntimeMonitor | undefined;
 const processStartupStartedAt = performance.now();
 
+/**
+ * Always-on, tiny startup telemetry (one JSONL line per daemon start) written
+ * outside the NERVE_LOGGING_ENABLED gate so startup regressions are observable
+ * without debug flags. Best-effort: failures never affect startup.
+ */
+async function appendStartupRecord(
+  home: string,
+  record: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const path = join(home, "logs", "startup.jsonl");
+    await mkdir(dirname(path), { recursive: true });
+    await appendFile(
+      path,
+      `${JSON.stringify({ ts: new Date().toISOString(), ...record })}\n`,
+      "utf8",
+    );
+  } catch {
+    // Best-effort observability only.
+  }
+}
+
 async function main() {
   prepareEnterpriseNetworkEnvironment();
   const dataDir = resolveDataDir();
@@ -168,12 +191,14 @@ async function main() {
       loggerHydrateDurationMs,
     },
   });
+  const agentSkillsStartedAt = performance.now();
   await state.agentBrowserSkills
     .initialize()
     .then(async () => {
       const count = state.agentBrowserSkills.skills.length;
       if (count > 0) {
         await state.logger.info("Agent Browser skills initialized", {
+          durationMs: Math.round(performance.now() - agentSkillsStartedAt),
           context: { count },
         });
       }
@@ -181,6 +206,9 @@ async function main() {
     .catch((error) =>
       state.logger.warn("Agent Browser skill discovery failed", { error }),
     );
+  const agentSkillsDurationMs = Math.round(
+    performance.now() - agentSkillsStartedAt,
+  );
   const runtimeCapabilitiesReady = state.registry.refreshRuntimeCapabilities();
   const eventHydrateStartedAt = Date.now();
   const archivedEventLogs = await migrateLegacyEventLogs(
@@ -188,9 +216,10 @@ async function main() {
     state.index,
   );
   await state.events.hydrate();
+  const eventsHydrateDurationMs = Date.now() - eventHydrateStartedAt;
   const workspaceBounds = await state.events.bounds("workspace");
   await state.logger.info("Event streams hydrated", {
-    durationMs: Date.now() - eventHydrateStartedAt,
+    durationMs: eventsHydrateDurationMs,
     context: {
       latestSeq: workspaceBounds.latestSeq,
       earliestAvailableSeq: workspaceBounds.earliestAvailableSeq,
@@ -260,6 +289,30 @@ async function main() {
           dataDir: storage.paths.home,
           pid: process.pid,
         },
+      });
+      await appendStartupRecord(storage.paths.home, {
+        type: "nerve.startup",
+        source: "daemon",
+        pid: process.pid,
+        port: state.port,
+        listeningDurationMs: Math.round(
+          performance.now() - processStartupStartedAt,
+        ),
+        storageDurationMs,
+        loggerHydrateDurationMs,
+        agentSkillsDurationMs,
+        eventsHydrateDurationMs,
+        registryStateDurationMs: registryTimings.stateDurationMs,
+        indexDurationMs: registryTimings.indexDurationMs,
+        storesHydrationDurationMs: registryTimings.storesHydrationDurationMs,
+        agentsHydrationDurationMs: registryTimings.agentsHydrationDurationMs,
+        runRecoveryDurationMs: registryTimings.runRecoveryDurationMs,
+        humanInputRecoveryDurationMs:
+          registryTimings.humanInputRecoveryDurationMs,
+        projectorDurationMs: registryTimings.projectorDurationMs,
+        taskNotificationsDurationMs:
+          registryTimings.taskNotificationsDurationMs,
+        toolCallHydrationSource: registryTimings.toolCallHydrationSource,
       });
       setImmediate(() => state.registry.startBackgroundMaintenance());
     },

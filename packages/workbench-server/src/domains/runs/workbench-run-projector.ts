@@ -24,9 +24,14 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
     await this.projectAgentStatus(transition.run);
   }
 
-  async rebuild(states: readonly RunHydratedState[]): Promise<void> {
+  async rebuild(input: {
+    /** Full hydrated states of currently-active runs only. */
+    readonly activeStates: readonly RunHydratedState[];
+    /** Lightweight records (metadata) for every run, incl. terminal history. */
+    readonly runRecords: readonly RunRecord[];
+  }): Promise<void> {
     this.state.conversationRuntime.reset();
-    for (const state of states) {
+    for (const state of input.activeStates) {
       if (isActiveRun(state.run)) {
         this.projectConversationRuntime(
           state.run,
@@ -36,7 +41,7 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
     }
 
     const latestByAgent = new Map<string, RunRecord>();
-    for (const { run } of states) {
+    for (const run of input.runRecords) {
       const current = latestByAgent.get(run.agentId);
       if (
         !current ||

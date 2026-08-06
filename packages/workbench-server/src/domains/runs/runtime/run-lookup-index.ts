@@ -108,10 +108,11 @@ export interface ActiveRunLookupSource {
   /** Loads one run's authoritative hydrated state. */
   load(runId: string): Promise<RunHydratedState | undefined>;
   /**
-   * Performs one authoritative full hydration that observes every run into
-   * the lookup (typically the unit of work's own `list()`).
+   * Performs the one authoritative initialization that observes every ACTIVE
+   * run into the lookup (metadata scan + full hydration of active runs only;
+   * terminal history stays on disk until explicitly queried).
    */
-  hydrateAll(): Promise<unknown>;
+  hydrateActive(): Promise<unknown>;
 }
 
 /**
@@ -211,7 +212,7 @@ export class ActiveRunLookup {
   private async ensureInitialized(): Promise<void> {
     if (this.initialized) return;
     // Serialize the one authoritative initialization; allow retry on failure.
-    this.initializing ??= Promise.resolve(this.source.hydrateAll()).then(
+    this.initializing ??= Promise.resolve(this.source.hydrateActive()).then(
       () => {
         this.initialized = true;
       },

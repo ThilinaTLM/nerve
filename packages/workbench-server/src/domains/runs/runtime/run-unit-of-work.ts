@@ -22,6 +22,11 @@ export interface RunUnitOfWorkPort {
   findActive(scopeId: string): Promise<RunHydratedState | undefined>;
   /** Loads only currently-active runs without hydrating terminal history. */
   listActive(): Promise<readonly RunHydratedState[]>;
+  /**
+   * Lightweight records (metadata) for every run without hydrating transition
+   * history; cost scales with the number of runs, not journal sizes.
+   */
+  listMetadata(): Promise<readonly RunRecord[]>;
   /** Resolves the active run containing the interaction, if any. */
   findByInteractionId(
     interactionId: string,
@@ -51,6 +56,12 @@ export interface RunUnitOfWorkPort {
     }[]
   >;
   markEventDelivered(delivery: RunEventDeliveryRecord): Promise<void>;
+  /**
+   * Records that every public-event intent through `revision` is durably
+   * delivered, so delivery recovery sweeps can skip the run without
+   * hydrating its transition history.
+   */
+  markDeliverySettled(runId: string, revision: number): Promise<void>;
   materialize(state: RunHydratedState): Promise<void>;
 }
 
@@ -147,6 +158,13 @@ export class RunEventDeliveryService {
           });
           delivered.add(intent.id);
         }
+        // Every intent of this transition is now durably delivered (including
+        // transitions with no events): record settlement so future recovery
+        // sweeps skip this run without hydrating its transition history.
+        await this.unitOfWork.markDeliverySettled(
+          transition.runId,
+          transition.revision,
+        );
       } catch (error) {
         this.recoveryRequired = true;
         throw error;
@@ -157,14 +175,22 @@ export class RunEventDeliveryService {
   private async flushPending(): Promise<void> {
     const failedRuns = new Set<string>();
     const failures: unknown[] = [];
+    const settledRevision = new Map<string, number>();
     for (const pending of await this.unitOfWork.pendingEventIntents()) {
       if (failedRuns.has(pending.runId)) continue;
       try {
         await this.deliver(pending);
+        const current = settledRevision.get(pending.runId) ?? 0;
+        if (pending.revision > current) {
+          settledRevision.set(pending.runId, pending.revision);
+        }
       } catch (error) {
         failedRuns.add(pending.runId);
         failures.push(error);
       }
+    }
+    for (const [runId, revision] of settledRevision) {
+      await this.unitOfWork.markDeliverySettled(runId, revision);
     }
     if (failures.length > 0) {
       const firstFailure = failures[0];

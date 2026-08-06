@@ -48,16 +48,19 @@ describe("workbench coordinator behavior regressions", () => {
       events: [],
     } as never);
     assert.equal(state.agents.get(agent.id)?.status, "awaiting_user");
-    await projector.rebuild([
-      {
-        run: runRecord("completed", 3),
-        transitions: [],
-        prompts: [],
-        interactions: [],
-        checkpoints: [],
-        deliveries: [],
-      },
-    ]);
+    await projector.rebuild({
+      activeStates: [
+        {
+          run: runRecord("completed", 3),
+          transitions: [],
+          prompts: [],
+          interactions: [],
+          checkpoints: [],
+          deliveries: [],
+        },
+      ],
+      runRecords: [runRecord("completed", 3)],
+    });
     assert.deepEqual(projected, ["running", "awaiting_user", "idle"]);
     assert.equal(state.agents.get(agent.id)?.status, "idle");
   });
@@ -173,24 +176,27 @@ describe("workbench coordinator behavior regressions", () => {
       agentId: "agent_active",
       scopeId: "conv_active:agent_active",
     };
-    await projector.rebuild([
-      {
-        run: completed,
-        transitions: [],
-        prompts: [],
-        interactions: [],
-        checkpoints: [],
-        deliveries: [],
-      },
-      {
-        run: interrupted,
-        transitions: [],
-        prompts: [],
-        interactions: [],
-        checkpoints: [],
-        deliveries: [],
-      },
-    ]);
+    await projector.rebuild({
+      activeStates: [
+        {
+          run: completed,
+          transitions: [],
+          prompts: [],
+          interactions: [],
+          checkpoints: [],
+          deliveries: [],
+        },
+        {
+          run: interrupted,
+          transitions: [],
+          prompts: [],
+          interactions: [],
+          checkpoints: [],
+          deliveries: [],
+        },
+      ],
+      runRecords: [completed, interrupted],
+    });
 
     assert.equal(
       state.conversationRuntime.snapshotForConversation(stale.conversationId),
@@ -230,7 +236,10 @@ describe("workbench coordinator behavior regressions", () => {
       deliveries: [],
     };
 
-    await projector.rebuild([hydrated]);
+    await projector.rebuild({
+      activeStates: [hydrated],
+      runRecords: [hydrated.run],
+    });
     assert.deepEqual(projected, []);
     assert.equal(state.agents.get(newerAgent.id)?.status, "idle");
 
@@ -238,7 +247,10 @@ describe("workbench coordinator behavior regressions", () => {
       ...newerAgent,
       updatedAt: "2026-07-13T00:00:04.000Z",
     });
-    await projector.rebuild([hydrated]);
+    await projector.rebuild({
+      activeStates: [hydrated],
+      runRecords: [hydrated.run],
+    });
     assert.deepEqual(projected, ["error"]);
     assert.equal(state.agents.get(newerAgent.id)?.status, "error");
   });
@@ -562,6 +574,42 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
     assert.equal(fixture.starts.length, 1);
+  });
+
+  it("skips accepted plan reviews whose tool call is missing instead of failing startup", async () => {
+    const review = { ...planReview(), status: "accepted" as const };
+    let warns = 0;
+    const service = new HumanInputResolutionService({
+      plans: {
+        listPlanReviews: () => [review],
+        planReviewResult: () => ({ decision: "accept" }),
+      },
+      tools: {
+        getToolCall: () => {
+          throw new Error("Tool call not found.");
+        },
+      },
+      runs: {},
+      continueAgent: async () => undefined,
+      createConversation: async () => ({}),
+      createAgent: async () => ({}),
+      getAgent: () => ({}) as never,
+      configureAgent: async () => ({}) as never,
+      setAgentStatus: async () => undefined,
+      appendEntry: async (input: Record<string, unknown>) => ({ ...input }),
+      getConversationEntries: () => [],
+      harnessStorage: {},
+      logger: {
+        warn: async () => {
+          warns += 1;
+        },
+      },
+      compactPlanConversation: async () => undefined,
+    } as never);
+
+    await service.recoverAcceptedPlanReviews();
+
+    assert.equal(warns, 1);
   });
 
   it("accepts a terminal-orphan plan into a new chat", async () => {
@@ -919,6 +967,7 @@ function acceptanceFixture(
       compactions.push(input);
       if (options.compactionError) throw options.compactionError;
     },
+    logger: { warn: async () => undefined },
   } as never);
   return {
     service,

@@ -192,7 +192,7 @@ function lookupFixture(initial: RunHydratedState[]) {
       loads.push(runId);
       return store.get(runId);
     },
-    hydrateAll: async () => {
+    hydrateActive: async () => {
       hydrations += 1;
       for (const item of store.values()) lookup.observe(item);
       lookup.markInitialized();
@@ -306,7 +306,7 @@ test("failed initialization is retried on the next targeted read", async () => {
   const live = state({ runId: "run_live", scopeId: "scope_live" });
   const lookup: ActiveRunLookup = new ActiveRunLookup({
     load: async (runId) => (runId === "run_live" ? live : undefined),
-    hydrateAll: async () => {
+    hydrateActive: async () => {
       attempts += 1;
       if (attempts === 1) throw new Error("journal unavailable");
       lookup.observe(live);

@@ -230,6 +230,76 @@ describe("IndexStore", () => {
   });
 });
 
+describe("IndexStore tool-call snapshot", () => {
+  it("rebuild preserves existing tool_calls rows when asked", async (t) => {
+    const path = await tempDbPath();
+    const store = new IndexStore(path);
+    t.after(() => store.close());
+    store.initialize();
+    const toolCall = {
+      id: "tool_snap",
+      agentId: "agent_snap",
+      conversationId: "conv_snap",
+      projectId: "proj_snap",
+      toolName: "read",
+      risk: "read",
+      args: { path: "README.md" },
+      cwd: "/tmp",
+      status: "completed",
+      createdAt: now,
+      updatedAt: now,
+    } as ToolCallRecord;
+
+    store.upsertToolCall(toolCall);
+    store.writeToolCallSnapshot({
+      watermark: 128,
+      rowCount: 1,
+      latestUpdatedAt: now,
+    });
+
+    // A rebuild with preserveToolCalls must keep the row and the meta.
+    store.rebuild(
+      { projects: [], conversations: [], agents: [] },
+      { preserveToolCalls: true },
+    );
+    assert.equal(store.loadToolCalls().length, 1);
+    const validation = store.isToolCallSnapshotValid(128);
+    assert.deepEqual(validation, { valid: true, reason: "valid" });
+    assert.deepEqual(
+      store.loadToolCalls().map((record) => record.id),
+      ["tool_snap"],
+    );
+
+    // A full rebuild wipes the table, so the snapshot becomes invalid.
+    store.rebuild({ projects: [], conversations: [], agents: [] });
+    assert.equal(store.loadToolCalls().length, 0);
+    assert.equal(store.isToolCallSnapshotValid(128).valid, false);
+  });
+
+  it("validates the snapshot against schema version and watermark", async (t) => {
+    const path = await tempDbPath();
+    const store = new IndexStore(path);
+    t.after(() => store.close());
+    store.initialize();
+
+    assert.equal(store.isToolCallSnapshotValid(0).reason, "no-meta");
+
+    store.writeToolCallSnapshot({
+      watermark: 42,
+      rowCount: 0,
+      latestUpdatedAt: null,
+    });
+    assert.deepEqual(store.isToolCallSnapshotValid(42), {
+      valid: true,
+      reason: "valid",
+    });
+    assert.equal(
+      store.isToolCallSnapshotValid(43).reason,
+      "watermark-mismatch",
+    );
+  });
+});
+
 function countTable(db: DatabaseSync, table: string): number {
   const row = db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as {
     count: number;

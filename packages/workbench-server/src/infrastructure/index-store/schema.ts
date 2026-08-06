@@ -1,4 +1,10 @@
+export const INDEX_SCHEMA_VERSION = 2;
+
 export const INDEX_STORE_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS index_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

@@ -13,6 +13,7 @@ import {
   RunRevisionConflictError,
 } from "../src/domains/runs/runtime/index.js";
 import { WorkbenchRunUnitOfWork } from "../src/domains/runs/run-transition.repository.js";
+import { DELIVERY_SETTLED_PREFIX } from "../src/domains/runs/run-transition.repository.js";
 
 const digest = `sha256:${"0".repeat(64)}`;
 const runId = "run_cache_test";
@@ -370,4 +371,156 @@ test("targeted lookups skip historical hydration and evict terminal commits", as
     await restarted.findByInteractionToolCallId("toolcall_live"),
     undefined,
   );
+});
+
+test("lookup initialization scans metadata and skips corrupt terminal history", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-meta-scan-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  let id = 2000;
+  const ids = { next: () => String(++id) };
+  const integrity = { checksum: () => digest };
+  const seed = new WorkbenchRunUnitOfWork(home, 0);
+
+  // One terminal and one active run, committed via the journal only (no
+  // materialized state.json), so the metadata scan must read the journals.
+  const terminalRunId = "run_terminal_scan";
+  const activeRunId = "run_active_scan";
+  const scopeId = "conv_scan:agent_scan";
+  for (const [runId, status] of [
+    [terminalRunId, "completed"],
+    [activeRunId, "waiting"],
+  ] as const) {
+    await seed.commit(
+      0,
+      buildTransition(
+        scopedRun({ runId, scopeId, revision: 1, status: "running" }),
+        "started",
+        0,
+        {},
+        ids,
+        integrity,
+      ),
+    );
+    await seed.commit(
+      1,
+      buildTransition(
+        scopedRun({ runId, scopeId, revision: 2, status }),
+        status === "completed" ? "completed" : "waiting",
+        1,
+        {},
+        ids,
+        integrity,
+      ),
+    );
+  }
+
+  // A fresh store initializes its lookup from the metadata scan. Corrupting
+  // the terminal run's journal proves the scan never hydrates terminal
+  // history (a full hydration would reject on the corrupt journal).
+  const restarted = new WorkbenchRunUnitOfWork(home, 0);
+  await appendFile(
+    join(home, "run-runtime", "runs", terminalRunId, "transitions.jsonl"),
+    "not-json\n",
+  );
+
+  const records = await restarted.listMetadata();
+  assert.deepEqual(
+    records.map((record) => [record.runId, record.status]).sort(),
+    [
+      [activeRunId, "waiting"],
+      [terminalRunId, "completed"],
+    ],
+  );
+  assert.deepEqual(
+    (await restarted.listActive()).map((state) => state.run.runId),
+    [activeRunId],
+  );
+  assert.equal((await restarted.findActive(scopeId))?.run.runId, activeRunId);
+});
+
+test("delivery sweep settles clean runs and skips settled history", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-workbench-run-settled-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  let id = 3000;
+  const ids = { next: () => String(++id) };
+  const integrity = { checksum: () => digest };
+  const seed = new WorkbenchRunUnitOfWork(home, 0);
+
+  const runId = "run_settled";
+  const scopeId = "conv_settled:agent_settled";
+  const intent = {
+    id: "intent_settled",
+    type: "run.started" as const,
+    delivery: "sequenced" as const,
+    occurredAt: startedAt,
+    data: {},
+  };
+  await seed.commit(
+    0,
+    buildTransition(
+      scopedRun({ runId, scopeId, revision: 1, status: "running" }),
+      "started",
+      0,
+      { events: [intent] },
+      ids,
+      integrity,
+    ),
+  );
+  await seed.commit(
+    1,
+    buildTransition(
+      scopedRun({ runId, scopeId, revision: 2, status: "completed" }),
+      "completed",
+      1,
+      {},
+      ids,
+      integrity,
+    ),
+  );
+
+  // All intents delivered but no settlement checkpoint yet (legacy state):
+  // the sweep finds nothing pending and writes the checkpoint (settle-on-read).
+  const legacy = new WorkbenchRunUnitOfWork(home, 0);
+  await legacy.markEventDelivered({
+    intentId: intent.id,
+    runId,
+    revision: 1,
+    eventId: "event_settled",
+    sequence: 1,
+    deliveredAt: startedAt,
+  } as never);
+  const firstSweep = await legacy.pendingEventIntents();
+  assert.deepEqual(firstSweep, []);
+  const checkpoint = (
+    await readFile(
+      join(home, "run-runtime", "runs", runId, "event-deliveries.jsonl"),
+      "utf8",
+    )
+  )
+    .trim()
+    .split("\n")
+    .pop();
+  const parsed = JSON.parse(checkpoint!);
+  assert.ok(parsed.intentId.startsWith(DELIVERY_SETTLED_PREFIX));
+  assert.equal(parsed.revision, 2);
+
+  // A restarted store skips the settled run without hydrating its history:
+  // corrupting a middle journal line would make a full hydration throw, but
+  // the metadata-based sweep never reads it.
+  const restarted = new WorkbenchRunUnitOfWork(home, 0);
+  const raw = await readFile(
+    join(home, "run-runtime", "runs", runId, "transitions.jsonl"),
+    "utf8",
+  );
+  const lines = raw.trimEnd().split("\n");
+  lines.splice(1, 0, "not-json");
+  await appendFile(
+    join(home, "run-runtime", "runs", runId, "transitions.jsonl"),
+    "",
+  );
+  await appendFile(
+    join(home, "run-runtime", "runs", runId, "transitions.jsonl"),
+    lines.join("\n"),
+  );
+  assert.deepEqual(await restarted.pendingEventIntents(), []);
 });

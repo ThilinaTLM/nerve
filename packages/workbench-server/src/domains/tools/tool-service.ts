@@ -240,6 +240,16 @@ export class ToolService {
     return this.toolCallRepository.list();
   }
 
+  /** Whether the tool-call records were loaded from the persisted snapshot. */
+  get toolCallHydrationSource(): "snapshot" | "journal" {
+    return this.toolCallRepository.hydrationSource;
+  }
+
+  /** Record the journal watermark after a journal-based hydrate + rebuild. */
+  async markToolCallSnapshotPersisted(): Promise<void> {
+    await this.toolCallRepository.markToolCallSnapshotPersisted();
+  }
+
   /** Compact the persisted tool-call log, dropping superseded append rows. */
   async compactToolCallLog(): Promise<void> {
     await this.toolCallRepository.compactPersisted();

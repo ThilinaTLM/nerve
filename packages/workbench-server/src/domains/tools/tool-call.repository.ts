@@ -16,6 +16,8 @@ export interface ToolCallHydrationStats {
   rowCount: number;
   uniqueCount: number;
   fileBytes: number;
+  /** Whether records came from the persisted index snapshot or the journal. */
+  source: "snapshot" | "journal";
 }
 
 export interface ToolCallRepositoryOptions {
@@ -29,6 +31,7 @@ export class ToolCallRepository {
     rowCount: 0,
     uniqueCount: 0,
     fileBytes: 0,
+    source: "journal",
   };
 
   constructor(
@@ -37,14 +40,56 @@ export class ToolCallRepository {
     private readonly options: ToolCallRepositoryOptions = {},
   ) {}
 
+  /**
+   * Hydrate the in-memory records. When the persisted index snapshot is
+   * current (schema version matches and the journal size equals the recorded
+   * watermark), records are loaded from sqlite instead of scanning the full
+   * append-only journal, which can be hundreds of MB. The journal remains the
+   * durable source of truth and is scanned whenever the snapshot is missing,
+   * stale, or from an older schema.
+   */
   async hydrate(): Promise<ToolCallRecord[]> {
+    const fileBytes = await this.fileSize();
+    const validation = this.index.isToolCallSnapshotValid(fileBytes);
+    if (validation.valid) {
+      const toolCalls = this.index.loadToolCalls();
+      for (const toolCall of toolCalls) {
+        this.records.set(toolCall.id, toolCall);
+      }
+      this.hydrationStats = {
+        rowCount: toolCalls.length,
+        uniqueCount: toolCalls.length,
+        fileBytes,
+        source: "snapshot",
+      };
+      return toolCalls;
+    }
     const { records: toolCalls, stats } = await this.readLatest();
-    this.hydrationStats = stats;
+    this.hydrationStats = { ...stats, source: "journal" };
     for (const toolCall of toolCalls) {
       this.records.set(toolCall.id, toolCall);
       this.index.upsertToolCall(toolCall);
     }
     return toolCalls;
+  }
+
+  get hydrationSource(): "snapshot" | "journal" {
+    return this.hydrationStats.source;
+  }
+
+  get hydrationStatsValue(): ToolCallHydrationStats {
+    return { ...this.hydrationStats };
+  }
+
+  /**
+   * Record the current journal watermark so the next startup can reuse the
+   * persisted index snapshot. Called after a journal-based hydrate followed by
+   * a full index rebuild, when the tool_calls table now mirrors the journal.
+   */
+  async markToolCallSnapshotPersisted(): Promise<void> {
+    if (this.hydrationStats.source === "snapshot") return;
+    await this.syncSnapshotMeta();
+    this.hydrationStats = { ...this.hydrationStats, source: "snapshot" };
   }
 
   list(): ToolCallRecord[] {
@@ -74,6 +119,7 @@ export class ToolCallRepository {
     this.records.set(toolCall.id, toolCall);
     this.index.upsertToolCall(toolCall);
     await appendJsonLine(this.path(), toolCall, 0o600);
+    await this.syncSnapshotMeta();
   }
 
   async removeForConversations(conversationIds: Set<string>): Promise<void> {
@@ -84,6 +130,7 @@ export class ToolCallRepository {
       }
     }
     await rewriteJsonLines(this.path(), this.list(), 0o600);
+    await this.syncSnapshotMeta();
   }
 
   /**
@@ -99,7 +146,9 @@ export class ToolCallRepository {
       rowCount: records.length,
       uniqueCount: records.length,
       fileBytes: await this.fileSize(),
+      source: this.hydrationStats.source,
     };
+    await this.syncSnapshotMeta();
   }
 
   async compactPersistedIfAmplified(): Promise<
@@ -141,6 +190,7 @@ export class ToolCallRepository {
         rowCount,
         uniqueCount: byId.size,
         fileBytes: await this.fileSize(),
+        source: "journal",
       },
     };
   }
@@ -150,6 +200,34 @@ export class ToolCallRepository {
       (value) => value.size,
       () => 0,
     );
+  }
+
+  /**
+   * Refresh the persisted snapshot metadata after any journal mutation so the
+   * next startup can skip the full journal scan. The watermark is the exact
+   * journal size, so appends/rewrites always invalidate a stale snapshot.
+   * Best-effort: a failed meta write only costs a journal rehydrate on the
+   * next startup, never correctness, so it must not break tool-call upserts.
+   */
+  private async syncSnapshotMeta(): Promise<void> {
+    try {
+      let latestUpdatedAt: string | null = null;
+      for (const record of this.records.values()) {
+        if (latestUpdatedAt === null || record.updatedAt > latestUpdatedAt) {
+          latestUpdatedAt = record.updatedAt;
+        }
+      }
+      this.index.writeToolCallSnapshot({
+        watermark: await this.fileSize(),
+        // The persisted row count is the validation source of truth; using the
+        // in-memory map size could reject a valid snapshot when a single
+        // table write diverged from memory (e.g. an upsert that did not land).
+        rowCount: this.index.countToolCalls(),
+        latestUpdatedAt,
+      });
+    } catch {
+      // Ignored: the journal remains the durable source of truth.
+    }
   }
 
   private path(): string {
