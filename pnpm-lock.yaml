@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.83.0
-        version: 0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)
+        specifier: 0.84.1
+        version: 0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -84,8 +84,8 @@ importers:
   packages/harness:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.83.0
-        version: 0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)
+        specifier: 0.84.1
+        version: 0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -447,8 +447,8 @@ importers:
   packages/workbench-server:
     dependencies:
       '@earendil-works/pi-ai':
-        specifier: 0.83.0
-        version: 0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
+        specifier: 0.84.1
+        version: 0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
       '@hono/node-server':
         specifier: 2.0.12
         version: 2.0.12(hono@4.12.34)
@@ -1409,10 +1409,14 @@ packages:
   '@dagrejs/graphlib@4.0.1':
     resolution: {integrity: sha512-IvcV6FduIIAmLwnH+yun+QtV36SC7mERqa86aClNqmMN09WhmPPYU8ckHrZBozErf+UvHPWOTJYaGYiIcs0DgA==}
 
-  '@earendil-works/pi-ai@0.83.0':
-    resolution: {integrity: sha512-m3IZD4g3er0V8TC9+Vpgw/sjTKqcJlkcIBy/JvsgRubuuik3tAVzyugUg4rVrShIkkOT69mEd34NEqKUIsl6JQ==}
+  '@earendil-works/pi-ai@0.84.1':
+    resolution: {integrity: sha512-wMsAdJMxuNri08vLqTyYVI201DQQezGhPSTkzYsHdw5dYX3rCNwEmSvpaAwhi7ELKI/2tE/CEgSWg/6iRxSgdQ==}
     engines: {node: '>=22.19.0'}
     hasBin: true
+
+  '@earendil-works/pi-telemetry@0.84.1':
+    resolution: {integrity: sha512-180/xGJtsq7IoR3p9EKWjRd0e9M4DkxInhlo9xyD7prDC7Qrhqq+nhvwrW0lFjPfXcEI2FSHmGCSyvSJE9GsaQ==}
+    engines: {node: '>=22.19.0'}
 
   '@electron-internal/extract-zip@1.0.5':
     resolution: {integrity: sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==}
@@ -8242,10 +8246,11 @@ snapshots:
 
   '@dagrejs/graphlib@4.0.1': {}
 
-  '@earendil-works/pi-ai@0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)':
+  '@earendil-works/pi-ai@0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.1.12)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
+      '@earendil-works/pi-telemetry': 0.84.1
       '@google/genai': 1.52.0(supports-color@7.2.0)
       '@mistralai/mistralai': 2.2.6(@opentelemetry/api@1.9.0)
       '@opentelemetry/api': 1.9.0
@@ -8263,10 +8268,11 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@0.83.0(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)':
+  '@earendil-works/pi-ai@0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
+      '@earendil-works/pi-telemetry': 0.84.1
       '@google/genai': 1.52.0(supports-color@7.2.0)
       '@mistralai/mistralai': 2.2.6(@opentelemetry/api@1.9.0)
       '@opentelemetry/api': 1.9.0
@@ -8283,6 +8289,8 @@ snapshots:
       - utf-8-validate
       - ws
       - zod
+
+  '@earendil-works/pi-telemetry@0.84.1': {}
 
   '@electron-internal/extract-zip@1.0.5': {}
 
