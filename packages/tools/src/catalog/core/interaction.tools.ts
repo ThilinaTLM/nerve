@@ -16,11 +16,6 @@ const askUserParameters = Type.Object(
         description: "Optional current leaning or recommendation and why",
       }),
     ),
-    placeholder: Type.Optional(
-      Type.String({
-        description: "Optional placeholder text for the reply input",
-      }),
-    ),
   },
   { additionalProperties: false },
 );

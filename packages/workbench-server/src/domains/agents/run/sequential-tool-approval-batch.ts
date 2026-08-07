@@ -223,7 +223,6 @@ function canonicalWaitCommand(
     batchToolCallIds,
     prompt: question?.question ?? reason,
     context: question?.context,
-    placeholder: question?.placeholder,
     required: true,
     checkpoint,
   };

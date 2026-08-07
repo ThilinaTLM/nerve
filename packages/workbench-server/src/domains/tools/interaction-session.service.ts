@@ -48,7 +48,6 @@ export class InteractionSessionService {
       question: stringArg(args, "question"),
       context: optionalStringArg(args.context),
       recommendation: optionalStringArg(args.recommendation),
-      placeholder: optionalStringArg(args.placeholder),
       status: "pending",
       requestedAt: now,
       updatedAt: now,

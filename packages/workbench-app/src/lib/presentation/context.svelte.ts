@@ -1,4 +1,5 @@
 import type {
+  CompletionItem,
   EventEnvelope,
   SubagentTranscriptSnapshot,
   ToolCallRecord,
@@ -68,6 +69,23 @@ export interface SubagentTranscriptObserver {
   error: (message: string) => void;
 }
 
+/**
+ * Composer-grade reply surface for the ask-user card: clipboard image paste,
+ * dropped-file path resolution, and the same slash/file auto-completions the
+ * prompt composer offers. Every member is optional; the reply input degrades
+ * to a plain editor (plus voice) when a host does not provide them.
+ */
+export interface AskReplyComposerCapability {
+  /** Upload a pasted clipboard image; resolves to the text to insert. */
+  pasteImage?: (file: File) => Promise<string>;
+  /** Resolve dropped native files to project-relative path mentions. */
+  dropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
+  /** Reactive getter for slash-command completion items. */
+  slashCompletions?: () => readonly CompletionItem[];
+  /** Project file reference completions for "@" mentions. */
+  fileCompletions?: (query: string) => Promise<CompletionItem[]>;
+}
+
 export interface ConversationUiCapabilities {
   /** Fetch a full tool-call record for the details dialog. */
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallRecord>;
@@ -79,6 +97,8 @@ export interface ConversationUiCapabilities {
   ) => () => void;
   /** Voice input integration for the ask-user card. */
   voice?: VoiceInputCapability;
+  /** Composer-grade reply input (paste image, completions, file drop) for the ask-user card. */
+  askReply?: AskReplyComposerCapability;
   /** Site URLs used to build external Jira/Confluence links. */
   atlassian?: AtlassianLinkCapability;
 }

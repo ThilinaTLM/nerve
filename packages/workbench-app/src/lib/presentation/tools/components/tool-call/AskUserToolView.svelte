@@ -1,10 +1,12 @@
 <script lang="ts">
-import { onDestroy, tick } from "svelte";
+import { onDestroy } from "svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import Send from "@lucide/svelte/icons/send";
 import X from "@lucide/svelte/icons/x";
 import { notify } from "@nervekit/ui-kit/core/notify";
+import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
+import ComposerEditor from "$lib/presentation/components/composer/ComposerEditor.svelte";
 import type { UserQuestionRecord } from "../../../state/tool-types";
 import type {
   ToolCallDisplayRecord,
@@ -17,7 +19,8 @@ import {
 } from "../../../context.svelte";
 import ToolFooter from "./ToolFooter.svelte";
 
-const voice = getConversationUiCapabilities().voice;
+const capabilities = getConversationUiCapabilities();
+const voice = capabilities.voice;
 const TranscriptionActivity = voice?.TranscriptionActivity;
 const AudioInputAuthRequiredDialog = voice?.AudioAuthDialog;
 
@@ -26,6 +29,7 @@ type Props = {
   view: Extract<ToolView, { kind: "ask_user" }>;
   questionRecord?: UserQuestionRecord;
   detailsAction?: { label: string; onClick: () => void };
+  onOpenFile?: (path: string, line?: number) => void;
   onAnswerUserQuestion?: (
     questionId: string,
     answer: string,
@@ -37,6 +41,7 @@ let {
   view,
   questionRecord,
   detailsAction,
+  onOpenFile,
   onAnswerUserQuestion,
   onDismissUserQuestion,
 }: Props = $props();
@@ -55,7 +60,7 @@ let localResolution = $state<
   { kind: "answered"; answer: string } | { kind: "dismissed" } | undefined
 >();
 let audioAuthDialogOpen = $state(false);
-let replyInputEl = $state<HTMLTextAreaElement | undefined>(undefined);
+let replyFocusToken = $state(0);
 let lastAutoFocusedQuestionId = $state<string | undefined>(undefined);
 let registeredTargetKey: string | undefined;
 let registeredTarget: VoiceInputTarget | undefined;
@@ -72,6 +77,11 @@ const context = $derived(questionRecord?.context ?? view.context);
 const recommendation = $derived(
   questionRecord?.recommendation ?? view.recommendation,
 );
+const askReply = capabilities.askReply;
+const slashCompletions = $derived(askReply?.slashCompletions?.() ?? []);
+const fileCompletions = $derived(askReply?.fileCompletions);
+const replyPasteImage = $derived(askReply?.pasteImage);
+const replyDropFiles = $derived(askReply?.dropFiles);
 // The locally submitted text bridges the gap between a successful RPC and
 // the authoritative tool result arriving through durable events.
 const submittedAnswer = $derived(
@@ -180,11 +190,9 @@ $effect(() => {
   const questionId = pending && questionRecord ? questionRecord.id : undefined;
   if (!questionId || questionId === lastAutoFocusedQuestionId) return;
   lastAutoFocusedQuestionId = questionId;
-  void tick().then(() => {
-    if (pending && questionRecord?.id === questionId) {
-      replyInputEl?.focus({ preventScroll: true });
-    }
-  });
+  if (pending && questionRecord?.id === questionId) {
+    replyFocusToken += 1;
+  }
 });
 
 onDestroy(() => clearRegisteredVoiceTarget(true));
@@ -265,18 +273,6 @@ function handleReplyKeydown(event: KeyboardEvent) {
   ) {
     event.preventDefault();
     toggleRecording();
-    return;
-  }
-
-  const enterKey = event.key === "Enter" || event.code === "NumpadEnter";
-  if (
-    enterKey &&
-    (event.ctrlKey || event.metaKey) &&
-    !event.altKey &&
-    !event.shiftKey
-  ) {
-    event.preventDefault();
-    submitAnswer();
   }
 }
 
@@ -285,20 +281,41 @@ function handleMicContextMenu(event: MouseEvent) {
   event.preventDefault();
   void voice.session.cancel(voiceTarget);
 }
+
+// CodeMirror owns the editor's key handling; Alt+V (mic) isn't bound there, so
+// a plain DOM listener on the wrapper keeps the shortcut working without
+// tripping a11y's keydown-on-non-interactive-element rule.
+function replyFieldKeydown(node: HTMLElement) {
+  node.addEventListener("keydown", handleReplyKeydown);
+  return {
+    destroy() {
+      node.removeEventListener("keydown", handleReplyKeydown);
+    },
+  };
+}
 </script>
 
-<div class="ask">
+<div class="ask select-text">
   {#if question}
-    <p class="question">{question}</p>
+    <div class="question">
+      <Markdown text={question} preserveLineBreaks {onOpenFile} />
+    </div>
   {/if}
   {#if context}
-    <p class="meta"><span class="meta-label">context</span> {context}</p>
+    <div class="meta">
+      <span class="meta-label">context</span>
+      <div class="meta-body">
+        <Markdown text={context} preserveLineBreaks {onOpenFile} />
+      </div>
+    </div>
   {/if}
   {#if recommendation}
-    <p class="meta">
+    <div class="meta">
       <span class="meta-label">recommendation</span>
-      {recommendation}
-    </p>
+      <div class="meta-body">
+        <Markdown text={recommendation} preserveLineBreaks {onOpenFile} />
+      </div>
+    </div>
   {/if}
 
   {#if pending && questionRecord}
@@ -322,17 +339,27 @@ function handleMicContextMenu(event: MouseEvent) {
         submitAnswer();
       }}
     >
-      <div class="reply-field">
-        <textarea
-          class="reply-input"
-          bind:this={replyInputEl}
-          bind:value={answer}
-          rows="3"
+      <div
+        class="reply-field"
+        role="group"
+        aria-label="Reply input"
+        use:replyFieldKeydown
+      >
+        <ComposerEditor
+          value={answer}
           disabled={Boolean(submitting)}
-          placeholder={questionRecord.placeholder ??
-            "Reply to the agent's question"}
-          aria-label="Reply to agent question"
-          onkeydown={handleReplyKeydown}></textarea>
+          placeholder="Reply to the agent's question"
+          ariaLabel="Reply to agent question"
+          focusToken={replyFocusToken}
+          {slashCompletions}
+          {fileCompletions}
+          onChange={(value) => {
+            answer = value;
+          }}
+          onSubmit={submitAnswer}
+          onPasteImage={replyPasteImage}
+          onDropFiles={replyDropFiles}
+        />
         {#if voice && supportsAudioRecording && TranscriptionActivity}
           <div class="reply-voice-controls">
             <TranscriptionActivity
@@ -376,17 +403,6 @@ function handleMicContextMenu(event: MouseEvent) {
         {#snippet actions()}
           <Button
             size="sm"
-            type="submit"
-            disabled={!trimmedAnswer || Boolean(submitting)}
-          >
-            {#if submitting === "answer"}
-              <Spinner class="size-3.5" />Sending…
-            {:else}
-              <Send size={14} strokeWidth={2.4} />Reply
-            {/if}
-          </Button>
-          <Button
-            size="sm"
             variant="secondary"
             type="button"
             disabled={Boolean(submitting)}
@@ -398,6 +414,17 @@ function handleMicContextMenu(event: MouseEvent) {
               <X size={14} strokeWidth={2.4} />Dismiss
             {/if}
           </Button>
+          <Button
+            size="sm"
+            type="submit"
+            disabled={!trimmedAnswer || Boolean(submitting)}
+          >
+            {#if submitting === "answer"}
+              <Spinner class="size-3.5" />Sending…
+            {:else}
+              <Send size={14} strokeWidth={2.4} />Reply
+            {/if}
+          </Button>
         {/snippet}
       </ToolFooter>
       {#if submitError}
@@ -405,10 +432,12 @@ function handleMicContextMenu(event: MouseEvent) {
       {/if}
     </form>
   {:else if submittedAnswer}
-    <p class="meta answer">
+    <div class="meta answer">
       <span class="meta-label">answer</span>
-      {submittedAnswer}
-    </p>
+      <div class="meta-body">
+        <Markdown text={submittedAnswer} preserveLineBreaks {onOpenFile} />
+      </div>
+    </div>
   {:else if dismissed}
     <p class="meta">
       <span class="meta-label">dismissed</span>
@@ -429,18 +458,35 @@ function handleMicContextMenu(event: MouseEvent) {
 
 .question {
   margin: 0;
-  font-weight: 600;
+}
+
+.question :global(.markdown) {
   color: var(--foreground);
 }
 
 .meta {
+  display: grid;
+  gap: 0.15rem;
   margin: 0;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
+.meta-body {
+  min-width: 0;
+}
+
+.meta :global(.markdown) {
   font-size: var(--text-sm);
   color: var(--muted-foreground);
 }
 
 .answer {
-  white-space: pre-wrap;
+  color: var(--foreground);
+}
+
+.answer :global(.markdown) {
   color: var(--foreground);
 }
 
@@ -497,26 +543,6 @@ function handleMicContextMenu(event: MouseEvent) {
 
 .reply-field {
   position: relative;
-}
-
-.reply-input {
-  width: 100%;
-  min-height: 4.5rem;
-  resize: vertical;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-  padding: 0.55rem 2.4rem 2.85rem 0.65rem;
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: 1.4;
-}
-
-.reply-input:focus {
-  outline: 2px solid color-mix(in oklab, var(--ring) 45%, transparent);
-  outline-offset: 1px;
-  border-color: var(--primary);
 }
 
 .reply-voice-controls {

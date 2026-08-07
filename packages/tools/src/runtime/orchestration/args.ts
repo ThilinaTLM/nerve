@@ -35,7 +35,6 @@ export function parseQuestion(args: Record<string, unknown>) {
     question,
     context: optionalString(args.context),
     recommendation: optionalString(args.recommendation),
-    placeholder: optionalString(args.placeholder),
   };
 }
 
