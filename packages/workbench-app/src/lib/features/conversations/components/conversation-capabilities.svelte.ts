@@ -19,6 +19,13 @@ import {
   confluenceSiteUrl,
   jiraSiteUrl,
 } from "$lib/features/conversations/state/atlassian-site-urls.svelte";
+import { uploadClipboardImage } from "$lib/features/filesystem/api/filesystem.api";
+import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
+import { getDesktopBridge } from "$lib/features/desktop/state/desktop-bridge.svelte";
+import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { completeFiles } from "$lib/features/workspace/state/workspace-actions.svelte";
 
 /**
  * Build the workbench capability object consumed by the shared conversation
@@ -39,6 +46,25 @@ export function workbenchConversationUiCapabilities(): ConversationUiCapabilitie
       micShortcutAria: getShortcutAriaLabel("composer.toggleMic"),
       TranscriptionActivity,
       AudioAuthDialog: AudioInputAuthRequiredDialog,
+    },
+    askReply: {
+      pasteImage: uploadClipboardImage,
+      dropFiles: async (files) => {
+        const bridge = getDesktopBridge();
+        const project = workspaceState.projects.find(
+          (item) => item.id === selection.projectId,
+        );
+        if (!bridge?.files || !project) {
+          throw new Error("Native file paths are unavailable in this window.");
+        }
+        return resolveDroppedPaths(
+          files,
+          project.dir,
+          bridge.files.getPathForFile,
+        );
+      },
+      slashCompletions: () => conversationState.slashCompletions,
+      fileCompletions: completeFiles,
     },
   };
 }

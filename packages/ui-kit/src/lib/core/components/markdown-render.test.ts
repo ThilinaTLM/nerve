@@ -25,6 +25,22 @@ describe("Mermaid fence detection", () => {
   });
 });
 
+describe("Markdown line breaks", () => {
+  it("preserves soft line endings only when requested", () => {
+    const source = `first line ${Math.random()}\nsecond line`;
+    const standard = renderDecoratedMarkdown(source, true);
+    const preserved = renderDecoratedMarkdown(source, true, true);
+
+    assert.doesNotMatch(standard, /<br\s*\/?\s*>/);
+    assert.match(preserved, /<br\s*\/?\s*>/);
+    assert.notEqual(
+      standard,
+      preserved,
+      "render caches remain isolated by line-break mode",
+    );
+  });
+});
+
 describe("markdown-render caching", () => {
   it("keeps streaming cache bypass output equivalent to finalized decoration", () => {
     const source = `streaming ${Math.random()} with **markdown**`;

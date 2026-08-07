@@ -4,17 +4,20 @@ import { LruCache } from "@nervekit/ui-kit/core/utils/lru-cache";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeStringify from "rehype-stringify";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 
-const markdownProcessor = unified()
-  .use(remarkParse)
-  .use(remarkGfm)
-  .use(remarkRehype)
-  .use(rehypeSanitize)
-  .use(rehypeStringify);
+function createMarkdownProcessor(preserveLineBreaks: boolean) {
+  const processor = unified().use(remarkParse).use(remarkGfm);
+  if (preserveLineBreaks) processor.use(remarkBreaks);
+  return processor.use(remarkRehype).use(rehypeSanitize).use(rehypeStringify);
+}
+
+const markdownProcessor = createMarkdownProcessor(false);
+const lineBreakMarkdownProcessor = createMarkdownProcessor(true);
 
 // Content-keyed memoization for the (pure) render products. Re-mounts (tab
 // switches, virtual-scroll remounts) and run-completion re-renders reuse work
@@ -25,8 +28,19 @@ const decoratedCache = new LruCache<string, string>(MARKDOWN_CACHE_MAX);
 const highlightedCache = new LruCache<string, string>(MARKDOWN_CACHE_MAX);
 const highlightInflight = new Map<string, Promise<string>>();
 
-function signatureFor(source: string, trimCodeBlocks: boolean): string {
-  return `${trimCodeBlocks ? "t" : "f"}\0${source}`;
+function sourceSignatureFor(
+  source: string,
+  preserveLineBreaks: boolean,
+): string {
+  return `${preserveLineBreaks ? "breaks" : "standard"}\0${source}`;
+}
+
+function signatureFor(
+  source: string,
+  trimCodeBlocks: boolean,
+  preserveLineBreaks: boolean,
+): string {
+  return `${trimCodeBlocks ? "t" : "f"}\0${sourceSignatureFor(source, preserveLineBreaks)}`;
 }
 
 function escapeHtml(source: string): string {
@@ -43,6 +57,8 @@ export type RenderMarkdownOptions = {
    * those transient prefixes would only churn/pollute the LRU.
    */
   cache?: boolean;
+  /** Convert Markdown soft line endings into semantic hard breaks. */
+  preserveLineBreaks?: boolean;
 };
 
 /** Render markdown source to sanitized HTML (before code-block decoration). */
@@ -51,17 +67,22 @@ export function renderMarkdown(
   options: RenderMarkdownOptions = {},
 ): string {
   const useCache = options.cache ?? true;
+  const preserveLineBreaks = options.preserveLineBreaks ?? false;
+  const key = sourceSignatureFor(source, preserveLineBreaks);
   if (useCache) {
-    const cached = parseCache.get(source);
+    const cached = parseCache.get(key);
     if (cached !== undefined) return cached;
   }
   let html: string;
   try {
-    html = String(markdownProcessor.processSync(source));
+    const processor = preserveLineBreaks
+      ? lineBreakMarkdownProcessor
+      : markdownProcessor;
+    html = String(processor.processSync(source));
   } catch {
     html = escapeHtml(source);
   }
-  if (useCache) parseCache.set(source, html);
+  if (useCache) parseCache.set(key, html);
   return html;
 }
 
@@ -210,11 +231,15 @@ export async function highlightMarkdownHtml(
 export function renderDecoratedMarkdown(
   source: string,
   trimCodeBlocks: boolean,
+  preserveLineBreaks = false,
 ): string {
-  const key = signatureFor(source, trimCodeBlocks);
+  const key = signatureFor(source, trimCodeBlocks, preserveLineBreaks);
   const cached = decoratedCache.get(key);
   if (cached !== undefined) return cached;
-  const html = decorateMarkdownHtml(renderMarkdown(source), trimCodeBlocks);
+  const html = decorateMarkdownHtml(
+    renderMarkdown(source, { preserveLineBreaks }),
+    trimCodeBlocks,
+  );
   decoratedCache.set(key, html);
   return html;
 }
@@ -226,8 +251,11 @@ export function renderDecoratedMarkdown(
 export function getHighlightedMarkdownSync(
   source: string,
   trimCodeBlocks: boolean,
+  preserveLineBreaks = false,
 ): string | undefined {
-  return highlightedCache.get(signatureFor(source, trimCodeBlocks));
+  return highlightedCache.get(
+    signatureFor(source, trimCodeBlocks, preserveLineBreaks),
+  );
 }
 
 /**
@@ -237,10 +265,11 @@ export function getHighlightedMarkdownSync(
 export function renderBestAvailableMarkdown(
   source: string,
   trimCodeBlocks: boolean,
+  preserveLineBreaks = false,
 ): string {
   return (
-    getHighlightedMarkdownSync(source, trimCodeBlocks) ??
-    renderDecoratedMarkdown(source, trimCodeBlocks)
+    getHighlightedMarkdownSync(source, trimCodeBlocks, preserveLineBreaks) ??
+    renderDecoratedMarkdown(source, trimCodeBlocks, preserveLineBreaks)
   );
 }
 
@@ -251,13 +280,17 @@ export function renderBestAvailableMarkdown(
 export function renderHighlightedMarkdown(
   source: string,
   trimCodeBlocks: boolean,
+  preserveLineBreaks = false,
 ): Promise<string> {
-  const key = signatureFor(source, trimCodeBlocks);
+  const key = signatureFor(source, trimCodeBlocks, preserveLineBreaks);
   const cached = highlightedCache.get(key);
   if (cached !== undefined) return Promise.resolve(cached);
   const inflight = highlightInflight.get(key);
   if (inflight) return inflight;
-  const promise = highlightMarkdownHtml(renderMarkdown(source), trimCodeBlocks)
+  const promise = highlightMarkdownHtml(
+    renderMarkdown(source, { preserveLineBreaks }),
+    trimCodeBlocks,
+  )
     .then((html) => {
       highlightedCache.set(key, html);
       highlightInflight.delete(key);

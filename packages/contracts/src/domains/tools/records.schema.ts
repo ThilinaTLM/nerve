@@ -244,7 +244,6 @@ export const userQuestionRecordSchema = z.object({
   question: z.string().min(1),
   context: z.string().optional(),
   recommendation: z.string().optional(),
-  placeholder: z.string().optional(),
   status: userQuestionStatusSchema,
   answer: z.string().optional(),
   dismissedReason: z.string().optional(),
