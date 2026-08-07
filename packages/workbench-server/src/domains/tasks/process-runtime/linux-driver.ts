@@ -148,33 +148,30 @@ async function terminate(
 }
 
 export const linuxProcessRuntimeDriver: ProcessRuntimeDriver = {
-  async spawn(command, options) {
+  spawn(command, options) {
     const child = spawnShell(command, options);
     const { exited, closed } = observeProcessLifecycle(child);
     if (!child.pid) throw new Error("Spawned process has no PID");
-    const identity = await procIdentity(child.pid);
-    return {
-      child,
-      exited,
-      closed,
-      runtime: {
-        version: 2,
-        platform: "linux",
-        childPid: child.pid,
-        processGroupId: child.pid,
-        detached: true,
-        shell: true,
-        spawnedAt: new Date().toISOString(),
-        identity: identity
-          ? { kind: "linux", startTimeTicks: identity.start }
-          : { kind: "legacy_unverified" },
-        capabilities: {
-          identity: Boolean(identity),
-          processTree: true,
-          listeningPorts: true,
-        },
+    const pid = child.pid;
+    const spawnedAt = new Date().toISOString();
+    const runtime = procIdentity(pid).then((identity) => ({
+      version: 2 as const,
+      platform: "linux" as const,
+      childPid: pid,
+      processGroupId: pid,
+      detached: true,
+      shell: true,
+      spawnedAt,
+      identity: identity
+        ? ({ kind: "linux", startTimeTicks: identity.start } as const)
+        : ({ kind: "legacy_unverified" } as const),
+      capabilities: {
+        identity: Boolean(identity),
+        processTree: true,
+        listeningPorts: true,
       },
-    };
+    }));
+    return { child, exited, closed, runtime };
   },
   inspect,
   terminate,

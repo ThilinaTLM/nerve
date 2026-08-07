@@ -80,7 +80,8 @@ export async function runForegroundBashWithPromotion(
   let abortHandler: (() => void) | undefined;
   const abortPromise = new Promise<"aborted">((resolveAbort) => {
     abortHandler = () => resolveAbort("aborted");
-    input.signal?.addEventListener("abort", abortHandler, { once: true });
+    if (input.signal?.aborted) abortHandler();
+    else input.signal?.addEventListener("abort", abortHandler, { once: true });
   });
   let promotionTimer: NodeJS.Timeout | undefined;
   let promotionPromise: Promise<"promote"> | undefined;
@@ -114,10 +115,26 @@ export async function runForegroundBashWithPromotion(
   }
 
   if (outcome === "aborted") {
-    await this.cancelTask(task.id, {
+    const terminalPromise = this.managed.get(task.id)?.terminalPromise;
+    const cancelled = await this.cancelTask(task.id, {
+      signal: "SIGKILL",
       reason: "Foreground bash aborted.",
-    }).catch(() => undefined);
-    await this.removeTask(task.id).catch(() => undefined);
+    }).catch(() => this.getTask(task.id));
+    if (isActiveTaskStatus(cancelled.status)) {
+      await this.backgroundActiveTask(task.id, {
+        visibility: "background",
+        completion: { inject: false, outputTailLineCount: 80 },
+        notifications: {
+          enabled: true,
+          ready: false,
+          terminal: true,
+          outputTailLineCount: 80,
+        },
+      }).catch(() => undefined);
+    } else {
+      await terminalPromise?.catch(() => undefined);
+      await this.removeTask(task.id).catch(() => undefined);
+    }
     throw new Error("Command aborted.");
   }
 

@@ -125,6 +125,10 @@ export function fakeChild(pid = 1234): FakeChild {
       child.emit("exit", exitCode, signal);
     },
     emitClose(exitCode: number | null, signal: NodeJS.Signals | null) {
+      child.stdout.emit("end");
+      child.stdout.emit("close");
+      child.stderr.emit("end");
+      child.stderr.emit("close");
       child.emit("exit", exitCode, signal);
       child.emit("close", exitCode, signal);
     },
@@ -148,6 +152,7 @@ export function runtimeMetadata(
 export type FakeSupervisorOptions = {
   child?: FakeChild | FakeChild[];
   runtime?: TaskRuntime | TaskRuntime[];
+  runtimeReady?: Promise<TaskRuntime>;
   onSpawn?: (command: string, options: SpawnManagedTaskOptions) => void;
   onTerminate?: (signal: NodeJS.Signals) => void | Promise<void>;
   onTerminateRuntime?: (
@@ -224,7 +229,12 @@ export function fakeSupervisor(options: FakeSupervisorOptions): {
         });
         const closed = lifecycle();
         options.onSpawn?.(command, spawnOptions);
-        return { child, runtime, exited, closed };
+        return {
+          child,
+          runtime: options.runtimeReady ?? Promise.resolve(runtime),
+          exited,
+          closed,
+        };
       },
       async terminate(terminatedChild, signal) {
         assert.ok(children.includes(terminatedChild as FakeChild));

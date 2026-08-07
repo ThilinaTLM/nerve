@@ -276,12 +276,20 @@ export class TaskService {
             id,
             this.watchReadiness(id, request),
           );
-        if (request.timeoutMs)
+        if (request.timeoutMs) {
+          const elapsedMs = Math.max(
+            0,
+            Date.parse(this.now()) - Date.parse(current.startedAt),
+          );
           this.launchBackground(
             "runtime_timeout",
             id,
-            this.watchRuntimeTimeout(id, request.timeoutMs),
+            this.watchRuntimeTimeout(
+              id,
+              Math.max(0, request.timeoutMs - elapsedMs),
+            ),
           );
+        }
         return current;
       });
     } catch (error) {
