@@ -1,5 +1,4 @@
 export * from "./api/settings.api";
-export { default as SettingsShell } from "./components/SettingsShell.svelte";
 export {
   loadSettingsPanel,
   openSettingsPane,

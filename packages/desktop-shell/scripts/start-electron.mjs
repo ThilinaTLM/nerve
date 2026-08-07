@@ -25,7 +25,10 @@ const env = {
 };
 delete env.ELECTRON_RUN_AS_NODE;
 
-const forwardedArgs = process.argv.slice(2);
+// pnpm script forwarding can inject stray "--" separators (e.g. `pnpm desktop
+// -- --host ...`); they are meaningless to Electron once placed after the app
+// path, so drop them before forwarding.
+const forwardedArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 const ozonePlatform = parseElectronOzonePlatform(
   process.env.NERVE_ELECTRON_OZONE_PLATFORM,
 );

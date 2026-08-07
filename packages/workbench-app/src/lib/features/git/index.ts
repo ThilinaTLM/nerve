@@ -1,6 +1,4 @@
 export * from "./api/git.api";
-export { default as DiffShell } from "./components/DiffShell.svelte";
-export { default as PrShell } from "./components/PrShell.svelte";
 export {
   clearGitContext,
   refreshGitContext,
