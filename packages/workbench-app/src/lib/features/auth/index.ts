@@ -1,6 +1,5 @@
 export * from "./api/auth.api";
 export * from "./api/provider-catalog.api";
-export { default as AuthShell } from "./components/AuthShell.svelte";
 export {
   closeAuthTab,
   loadAuthPanel,

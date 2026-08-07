@@ -123,6 +123,25 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
+    build: {
+      rollupOptions: {
+        onwarn(warning, warn) {
+          // workspace-actions is dynamically imported by the five tab-state
+          // modules (conversations, file, diff, pr, task) to break import
+          // cycles: its module graph transitively imports those tab modules,
+          // so a static import would form an ESM cycle. It is already part of
+          // the static startup graph (via websocket-client), so the dynamic
+          // import cannot move it into another chunk. The warning is expected.
+          if (
+            warning.code === "INEFFECTIVE_DYNAMIC_IMPORT" &&
+            warning.id?.endsWith("workspace-actions.svelte.ts")
+          ) {
+            return;
+          }
+          warn(warning);
+        },
+      },
+    },
     resolve: {
       alias: {
         $lib: path.resolve("./src/lib"),

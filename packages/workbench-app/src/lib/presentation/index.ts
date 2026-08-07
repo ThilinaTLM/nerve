@@ -25,7 +25,6 @@ export type {
 } from "@nervekit/ui-kit/core/utils";
 export { cn } from "@nervekit/ui-kit/core/utils";
 export { default as GitPanelView } from "./git/GitPanelView.svelte";
-export { default as GitPullRequestsPanelView } from "./git/GitPullRequestsPanelView.svelte";
 export * from "./git/git-panel-controller.js";
 export * from "./git/git-panel-types.js";
 export { default as TasksPanelView } from "./tasks/TasksPanelView.svelte";

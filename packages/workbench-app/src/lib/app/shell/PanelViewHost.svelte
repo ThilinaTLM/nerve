@@ -37,7 +37,10 @@ import LazyShellPending from "$lib/app/shell/LazyShellPending.svelte";
 // their feature modules are not parsed during startup. The import fires when
 // the panel is first activated.
 let filesModule = $state<
-  Promise<typeof import("$lib/features/filesystem")> | undefined
+  | Promise<{
+      default: typeof import("$lib/features/filesystem/components/FilesPanelView.svelte").default;
+    }>
+  | undefined
 >();
 let tasksModule = $state<
   | Promise<{
@@ -77,7 +80,9 @@ const tasks = $derived(taskSelectors.scopedTasks);
 const selectedTask = $derived(taskSelectors.selectedTask);
 
 $effect(() => {
-  if (viewId === "files") filesModule ??= import("$lib/features/filesystem");
+  if (viewId === "files")
+    filesModule ??=
+      import("$lib/features/filesystem/components/FilesPanelView.svelte");
   else if (viewId === "tasks")
     tasksModule ??=
       import("$lib/features/tasks/components/TasksPanelView.svelte");
@@ -105,7 +110,7 @@ function focusTasks() {
   {#await filesModule}
     <LazyShellPending />
   {:then module}
-    {@const Component = module?.FilesPanelView}
+    {@const Component = module?.default}
     {#if Component}<Component {activeProject} />{/if}
   {/await}
 {:else if viewId === "conversations"}
