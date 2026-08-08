@@ -16,6 +16,7 @@ describe("settings schema", () => {
       lastAgentSelection: undefined,
       notifications: undefined,
       ui: { theme: undefined, colorMode: undefined, zoomLevel: undefined },
+      desktop: { closeToTray: true, headerType: undefined },
       tools: undefined,
       skills: undefined,
     });
@@ -37,6 +38,10 @@ describe("settings schema", () => {
       theme: "nerve",
       colorMode: "system",
       zoomLevel: 0,
+    });
+    assert.deepEqual(settings.desktop, {
+      closeToTray: true,
+      headerType: "auto",
     });
     assert.deepEqual(settings.notifications, {
       systemEnabled: true,
@@ -123,6 +128,7 @@ describe("settings schema", () => {
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
       },
       ui: { theme: "ocean", colorMode: "dark" },
+      desktop: { headerType: "macos" },
       defaultApprovalPolicy: { autoApproveReadOnly: false },
       lastAgentSelection: {
         approvalPolicy: { autoApproveReadOnly: false },
@@ -168,6 +174,13 @@ describe("settings schema", () => {
       );
     }
     assert.deepEqual(parsed.ui, { theme: "ocean", colorMode: "dark" });
+    assert.deepEqual(parsed.desktop, { headerType: "macos" });
+    assert.equal(
+      updateSettingsRequestSchema.safeParse({
+        desktop: { headerType: "beos" },
+      }).success,
+      false,
+    );
     for (const ui of [{ theme: "unknown" }, { colorMode: "sepia" }]) {
       assert.equal(
         updateSettingsRequestSchema.safeParse({ ui }).success,

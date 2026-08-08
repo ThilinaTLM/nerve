@@ -1,12 +1,7 @@
 <script lang="ts">
-import Copy from "@lucide/svelte/icons/copy";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Logs from "@lucide/svelte/icons/logs";
-import Minus from "@lucide/svelte/icons/minus";
 import Settings from "@lucide/svelte/icons/settings";
-import Square from "@lucide/svelte/icons/square";
-import X from "@lucide/svelte/icons/x";
 import { Toolbar } from "bits-ui";
 import { NerveMark } from "$lib/presentation";
 import { ShellTitlebar } from "$lib/presentation/shell";
@@ -18,11 +13,14 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import type { LatestRelease } from "@nervekit/contracts";
 import VersionIndicator from "$lib/app/shell/VersionIndicator.svelte";
+import WindowControls from "$lib/app/shell/WindowControls.svelte";
+import type { ResolvedHeaderType } from "$lib/app/shell/header-type";
 
 type Props = {
   projects?: ProjectSwitcherItem[];
   activeProjectKey?: string;
   desktop?: boolean;
+  headerType?: ResolvedHeaderType;
   maximized?: boolean;
   closeToTray?: boolean;
   quitting?: boolean;
@@ -47,6 +45,7 @@ let {
   projects = [],
   activeProjectKey,
   desktop = false,
+  headerType = "linux",
   maximized = false,
   closeToTray = true,
   quitting = false,
@@ -69,6 +68,19 @@ let {
 </script>
 
 <ShellTitlebar {desktop}>
+  {#snippet leadingControls()}
+    {#if desktop && headerType === "macos"}
+      <WindowControls
+        {headerType}
+        {maximized}
+        {closeToTray}
+        {quitting}
+        {onMinimize}
+        {onToggleMaximize}
+        {onClose}
+      />
+    {/if}
+  {/snippet}
   {#snippet left()}
     <span class="inline-flex items-center gap-1.5 text-foreground">
       <span class="brand-mark"><NerveMark compact /></span>
@@ -126,57 +138,17 @@ let {
       >
         <Settings size={16} strokeWidth={2.1} />
       </Button>
-      {#if desktop}
+      {#if desktop && headerType !== "macos"}
         <span class="mx-0.5 h-5 w-px bg-border" aria-hidden="true"></span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          class="[-webkit-app-region:no-drag]"
-          ariaLabel="Minimize window"
-          title="Minimize"
-          disabled={quitting}
-          onclick={() => onMinimize?.()}
-        >
-          <Minus size={16} strokeWidth={2.1} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          class="[-webkit-app-region:no-drag]"
-          ariaLabel={maximized ? "Restore window" : "Maximize window"}
-          title={maximized ? "Restore" : "Maximize"}
-          disabled={quitting}
-          onclick={() => onToggleMaximize?.()}
-        >
-          {#if maximized}
-            <Copy size={15} strokeWidth={2.1} />
-          {:else}
-            <Square size={14} strokeWidth={2.1} />
-          {/if}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          class="[-webkit-app-region:no-drag] hover:bg-destructive-solid hover:text-destructive-solid-foreground focus-visible:bg-destructive-solid focus-visible:text-destructive-solid-foreground"
-          ariaLabel={quitting
-            ? "Closing Nerve"
-            : closeToTray
-              ? "Close window to tray"
-              : "Close Nerve"}
-          title={quitting
-            ? "Closing Nerve…"
-            : closeToTray
-              ? "Close to tray"
-              : "Close Nerve"}
-          disabled={quitting}
-          onclick={() => onClose?.()}
-        >
-          {#if quitting}
-            <Spinner />
-          {:else}
-            <X size={16} strokeWidth={2.1} />
-          {/if}
-        </Button>
+        <WindowControls
+          {headerType}
+          {maximized}
+          {closeToTray}
+          {quitting}
+          {onMinimize}
+          {onToggleMaximize}
+          {onClose}
+        />
       {/if}
     </Toolbar.Root>
   {/snippet}

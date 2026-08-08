@@ -3,10 +3,12 @@ import type { Snippet } from "svelte";
 
 let {
   desktop = false,
+  leadingControls,
   left,
   actions,
 }: {
   desktop?: boolean;
+  leadingControls?: Snippet;
   left: Snippet;
   actions?: Snippet;
 } = $props();
@@ -20,6 +22,9 @@ let {
   }`}
 >
   <div class="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
+    {#if leadingControls}
+      {@render leadingControls()}
+    {/if}
     {@render left()}
   </div>
   {#if actions}
