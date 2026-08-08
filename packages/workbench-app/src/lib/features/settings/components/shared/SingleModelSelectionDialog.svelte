@@ -1,21 +1,15 @@
 <script lang="ts">
 import type { ModelInfo, ModelSelection, ThinkingLevel } from "$lib/api";
-import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
-import Braces from "@lucide/svelte/icons/braces";
-import Brain from "@lucide/svelte/icons/brain";
-import Image from "@lucide/svelte/icons/image";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { PopoverRow } from "@nervekit/ui-kit/components/ui/popover-panel";
+import { Label } from "@nervekit/ui-kit/components/ui/label";
+import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
-import {
-  formatTokenCapacity,
-  modelKey,
-  supportsImageInput,
-} from "$lib/presentation/utils/model";
+import { modelKey } from "$lib/presentation/utils/model";
+import ModelCatalogRow from "./ModelCatalogRow.svelte";
 import {
   buildModelCatalog,
   filterModelCatalog,
@@ -58,7 +52,7 @@ let {
   onSave,
 }: Props = $props();
 
-let selectedKey = $state<string | undefined>();
+let selectedKey = $state("");
 let thinkingLevel = $state<ThinkingLevel>("off");
 let query = $state("");
 let providerFilter = $state("all");
@@ -77,7 +71,7 @@ const thinkingLevels = $derived<ThinkingLevel[]>(
 
 $effect(() => {
   if (open && !lastOpen) {
-    selectedKey = selectedModel ? modelKey(selectedModel) : undefined;
+    selectedKey = selectedModel ? modelKey(selectedModel) : "";
     thinkingLevel = selectedThinkingLevel;
     query = "";
     providerFilter = "all";
@@ -97,21 +91,6 @@ const providerChips = $derived(modelProviderFacets(catalog));
 const filteredModels = $derived(
   filterModelCatalog(catalog, query, providerFilter),
 );
-
-function capabilitySummary(model: ModelInfo): string {
-  const parts = [
-    model.contextWindow > 0
-      ? `Context ${model.contextWindow.toLocaleString()} tokens`
-      : "Context window unknown",
-  ];
-  if (model.maxOutputTokens > 0)
-    parts.push(`Max output ${model.maxOutputTokens.toLocaleString()} tokens`);
-  parts.push(model.reasoning ? "Reasoning model" : "No reasoning");
-  parts.push(
-    supportsImageInput(model) ? "Accepts image input" : "Text input only",
-  );
-  return parts.join(" · ");
-}
 
 function save(): void {
   if (!selectedModelInfo) return;
@@ -177,7 +156,7 @@ function useFallback(): void {
             No models match the current filters.
           </p>
         {:else}
-          <div class="grid min-h-0">
+          <RadioGroup.Root bind:value={selectedKey} class="grid min-h-0 gap-0">
             <VirtualScroller
               items={filteredModels}
               getKey={(entry) => entry.key}
@@ -187,60 +166,22 @@ function useFallback(): void {
               viewportAriaLabel="Available models"
             >
               {#snippet row({ item: entry })}
-                <PopoverRow
-                  label={entry.displayName}
-                  selected={selectedKey === entry.key}
-                  class="px-2 py-1.5 aria-pressed:border-primary/60"
-                  onclick={() => (selectedKey = entry.key)}
+                <Label
+                  class="flex cursor-pointer items-center gap-2.5 rounded-md border border-border bg-transparent px-2 py-1.5 font-normal transition-colors hover:bg-accent has-data-checked:border-primary/60 has-data-checked:bg-accent"
                 >
-                  {#snippet detail()}
-                    <span class="truncate text-xs text-muted-foreground">
-                      {entry.providerLabel} ·
-                      <span class="font-mono">{entry.model.modelId}</span>
-                    </span>
-                  {/snippet}
-                  {#snippet trailing()}
-                    <Tooltip.Root>
-                      <Tooltip.Trigger>
-                        {#snippet child({ props })}
-                          <span
-                            {...props}
-                            class="flex flex-none items-center gap-1 text-[0.6875rem] text-muted-foreground tabular-nums"
-                            aria-label={capabilitySummary(entry.model)}
-                          >
-                            <span class="inline-flex items-center gap-0.5">
-                              <Braces class="size-3" aria-hidden="true" />
-                              {formatTokenCapacity(entry.model.contextWindow)}
-                            </span>
-                            {#if entry.model.maxOutputTokens > 0}
-                              <span class="inline-flex items-center gap-0.5">
-                                <ArrowUpFromLine
-                                  class="size-3"
-                                  aria-hidden="true"
-                                />
-                                {formatTokenCapacity(
-                                  entry.model.maxOutputTokens,
-                                )}
-                              </span>
-                            {/if}
-                            {#if entry.model.reasoning}
-                              <Brain class="size-3" aria-hidden="true" />
-                            {/if}
-                            {#if supportsImageInput(entry.model)}
-                              <Image class="size-3" aria-hidden="true" />
-                            {/if}
-                          </span>
-                        {/snippet}
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side="left">
-                        {capabilitySummary(entry.model)}
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  {/snippet}
-                </PopoverRow>
+                  <ModelCatalogRow {entry}>
+                    {#snippet leading()}
+                      <RadioGroup.Item
+                        value={entry.key}
+                        size="sm"
+                        aria-label={entry.displayName}
+                      />
+                    {/snippet}
+                  </ModelCatalogRow>
+                </Label>
               {/snippet}
             </VirtualScroller>
-          </div>
+          </RadioGroup.Root>
         {/if}
       </div>
     </Tooltip.Provider>

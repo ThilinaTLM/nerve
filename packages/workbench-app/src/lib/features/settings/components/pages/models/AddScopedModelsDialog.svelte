@@ -7,7 +7,9 @@ import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/ui/virtual-list";
+import ModelCatalogRow from "../../shared/ModelCatalogRow.svelte";
 import {
   authenticatedRealModelOptions,
   modelKey,
@@ -83,7 +85,7 @@ function save(): void {
   bind:open
   title="Scope composer models"
   description="Pick the authenticated models to show in the composer. Leave everything unchecked to keep all models available."
-  size="wide"
+  size="md"
   flush
 >
   <div class="grid max-h-[min(70vh,32rem)] grid-rows-[auto_minmax(0,1fr)]">
@@ -116,48 +118,46 @@ function save(): void {
       {/if}
     </div>
 
-    <div class="min-h-0 p-1.5">
-      {#if availableModels.length === 0}
-        <p class="px-1 py-2 text-sm text-muted-foreground">
-          Authenticate a provider before choosing scoped models.
-        </p>
-      {:else if filteredModels.length === 0}
-        <p class="px-1 py-2 text-sm text-muted-foreground">
-          No models match the current filters.
-        </p>
-      {:else}
-        <VirtualScroller
-          items={filteredModels}
-          getKey={(entry) => entry.key}
-          estimateSize={() => 48}
-          viewportClass="max-h-[min(52vh,24rem)]"
-          viewportAriaLabel="Authenticated models"
-        >
-          {#snippet row({ item: entry })}
-            {@const checked = selectedKeys.has(entry.key)}
-            <Label
-              class="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-2 py-1.5 font-normal hover:bg-accent/50 has-data-[state=checked]:border-primary/60 has-data-[state=checked]:bg-primary/8"
-            >
-              <Checkbox
-                size="sm"
-                {checked}
-                onCheckedChange={(value) => toggleModel(entry, value === true)}
-                aria-label={entry.displayName}
-              />
-              <span class="grid min-w-0 gap-0.5">
-                <span class="truncate text-sm text-foreground"
-                  >{entry.displayName}</span
-                >
-                <span class="truncate text-xs text-muted-foreground">
-                  {entry.providerLabel} ·
-                  <span class="font-mono">{entry.model.modelId}</span>
-                </span>
-              </span>
-            </Label>
-          {/snippet}
-        </VirtualScroller>
-      {/if}
-    </div>
+    <Tooltip.Provider delayDuration={200} disableHoverableContent>
+      <div class="min-h-0 p-1.5">
+        {#if availableModels.length === 0}
+          <p class="px-1 py-2 text-sm text-muted-foreground">
+            Authenticate a provider before choosing scoped models.
+          </p>
+        {:else if filteredModels.length === 0}
+          <p class="px-1 py-2 text-sm text-muted-foreground">
+            No models match the current filters.
+          </p>
+        {:else}
+          <VirtualScroller
+            items={filteredModels}
+            getKey={(entry) => entry.key}
+            estimateSize={() => 48}
+            viewportClass="max-h-[min(52vh,24rem)]"
+            viewportAriaLabel="Authenticated models"
+          >
+            {#snippet row({ item: entry })}
+              {@const checked = selectedKeys.has(entry.key)}
+              <Label
+                class="flex cursor-pointer items-center gap-2.5 rounded-md border border-transparent px-2 py-1.5 font-normal transition-colors hover:bg-accent/50 has-data-checked:border-primary/60 has-data-checked:bg-primary/8"
+              >
+                <ModelCatalogRow {entry}>
+                  {#snippet leading()}
+                    <Checkbox
+                      size="sm"
+                      {checked}
+                      onCheckedChange={(value) =>
+                        toggleModel(entry, value === true)}
+                      aria-label={entry.displayName}
+                    />
+                  {/snippet}
+                </ModelCatalogRow>
+              </Label>
+            {/snippet}
+          </VirtualScroller>
+        {/if}
+      </div>
+    </Tooltip.Provider>
   </div>
 
   {#snippet footer()}
