@@ -1,17 +1,22 @@
 <script lang="ts">
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Copy from "@lucide/svelte/icons/copy";
-import FolderClock from "@lucide/svelte/icons/folder-clock";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ProjectRecord } from "$lib/api";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
+import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { dateTimeLabel, relativeTimeLabel } from "$lib/core/utils/time";
 import { tildePath } from "$lib/core/utils/path";
+import {
+  projectActivityIndicator,
+  type ProjectActivitySummary,
+} from "$lib/features/projects/state/project-switcher";
 
 type Props = {
   scrollEl?: HTMLDivElement;
@@ -24,6 +29,8 @@ type Props = {
   homeDir?: string;
   loading: boolean;
   conversationCountFor: (project: ProjectRecord) => number;
+  activityFor?: (project: ProjectRecord) => ProjectActivitySummary | undefined;
+  isCurrent?: (project: ProjectRecord) => boolean;
   onOpen: (project: ProjectRecord) => void;
   onForget?: (projectId: string) => void;
   onCopyPath: (path: string) => void;
@@ -50,6 +57,8 @@ let {
   homeDir,
   loading,
   conversationCountFor,
+  activityFor,
+  isCurrent,
   onOpen,
   onForget,
   onCopyPath,
@@ -61,7 +70,7 @@ let {
   onRowKeydown,
 }: Props = $props();
 
-function cardMenu(project: ProjectRecord): ContextMenuItem[] {
+function projectMenu(project: ProjectRecord): ContextMenuItem[] {
   const items: ContextMenuItem[] = [
     { label: "New chat", icon: Plus, onSelect: () => onNewChat(project.dir) },
     { label: "Copy path", icon: Copy, onSelect: () => onCopyPath(project.dir) },
@@ -96,167 +105,95 @@ function cardMenu(project: ProjectRecord): ContextMenuItem[] {
 </form>
 
 <div class="min-h-0 overflow-auto p-2" bind:this={scrollEl}>
-  <section>
-    <header
-      class="flex items-center gap-2 px-1 pt-1 pb-1.5 font-mono text-xs tracking-wide text-muted-foreground uppercase"
+  {#if pathQuery}
+    <button
+      type="button"
+      class="group flex w-full items-center gap-2 rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-left transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      onclick={onBrowsePath}
     >
-      <span>Recent</span>
-      {#if totalRecentCount}<span
-          class="ml-auto text-muted-foreground tabular-nums"
-          >{totalRecentCount}</span
-        >{/if}
-    </header>
-
-    {#if pathQuery}
-      <button class="recent-browse-hint" type="button" onclick={onBrowsePath}>
-        <ArrowRight size={14} strokeWidth={2.2} aria-hidden="true" />
-        <span>Browse <strong>{query.trim()}</strong></span>
-      </button>
-    {:else if recentProjects.length}
-      <div
-        class="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-1.5"
-        role="listbox"
-        aria-label="Recent projects"
-        tabindex={-1}
-        aria-activedescendant={activeDescendant}
+      <span class="flex-none text-sm font-medium text-foreground">Browse</span>
+      <span
+        class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+        >{query.trim()}</span
       >
-        {#each recentProjects as project, i (project.id)}
-          {@const chats = conversationCountFor(project)}
-          <ContextMenu items={cardMenu(project)} triggerClass="contents">
-            <div
-              id={`recent:${project.id}`}
-              class="recent-card"
-              class:selected={selectedIndex === i}
-              role="option"
-              aria-selected={selectedIndex === i}
-              tabindex="-1"
-              title={`${project.dir}\n${dateTimeLabel(project.updatedAt)}`}
-              onclick={() => onOpen(project)}
-              onmouseenter={() => onSelectedIndexChange?.(i)}
-              onkeydown={(e) => onRowKeydown(e, i, project)}
+      <ArrowRight
+        class="size-3.5 flex-none text-muted-foreground transition-colors group-hover:text-foreground"
+        strokeWidth={2.2}
+        aria-hidden="true"
+      />
+    </button>
+  {:else if recentProjects.length}
+    <div
+      class="grid gap-0.5"
+      role="listbox"
+      aria-label="Recent projects"
+      tabindex={-1}
+      aria-activedescendant={activeDescendant}
+    >
+      {#each recentProjects as project, i (project.id)}
+        {@const chats = conversationCountFor(project)}
+        {@const summary = activityFor?.(project)}
+        {@const indicator = summary
+          ? projectActivityIndicator(summary)
+          : undefined}
+        {@const current = isCurrent?.(project) ?? false}
+        {@const selected = selectedIndex === i}
+        <ContextMenu items={projectMenu(project)} triggerClass="contents">
+          <div
+            id={`recent:${project.id}`}
+            class={`flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none ${
+              selected
+                ? "border-primary/40 bg-primary/10"
+                : "border-transparent hover:bg-accent"
+            }`}
+            role="option"
+            aria-selected={selected}
+            tabindex="-1"
+            title={`${project.dir}\n${dateTimeLabel(project.updatedAt)}${indicator ? `\n${indicator.summary}` : ""}`}
+            onclick={() => onOpen(project)}
+            onmouseenter={() => onSelectedIndexChange?.(i)}
+            onkeydown={(e) => onRowKeydown(e, i, project)}
+          >
+            <strong
+              class="max-w-2/5 flex-none truncate text-sm font-medium text-foreground"
+              >{project.name}</strong
             >
-              <span class="recent-card-icon" aria-hidden="true">
-                <FolderClock size={18} strokeWidth={2.05} />
-              </span>
-              <div class="grid min-w-0 gap-px">
-                <div>
-                  <strong
-                    class="block overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap"
-                    >{project.name}</strong
-                  >
-                </div>
-                <div
-                  class="flex items-center gap-1 overflow-hidden text-xs whitespace-nowrap text-muted-foreground tabular-nums"
-                >
-                  <span>{chats} chat{chats === 1 ? "" : "s"}</span>
-                  <span class="text-muted-foreground/55" aria-hidden="true"
-                    >·</span
-                  >
-                  <span>{relativeTimeLabel(project.updatedAt)}</span>
-                </div>
-                <div
-                  class="overflow-hidden font-mono text-xs text-ellipsis whitespace-nowrap text-muted-foreground/85"
-                >
-                  {tildePath(project.dir, homeDir)}
-                </div>
-              </div>
-            </div>
-          </ContextMenu>
-        {/each}
-      </div>
-    {:else}
-      <div
-        class="grid min-h-40 place-items-center gap-1 text-center text-muted-foreground"
-      >
-        <FolderOpen size={26} strokeWidth={1.8} />
-        <p class="mt-1 text-sm text-foreground">
-          {totalRecentCount
-            ? "No recent projects match your search."
-            : "No recent projects yet."}
-        </p>
-        <span class="font-mono text-xs"
-          >Use Browse folders below to open a project.</span
-        >
-      </div>
-    {/if}
-  </section>
+            {#if indicator}
+              <StatusDot
+                tone={indicator.tone}
+                size="xs"
+                pulse={indicator.pulse}
+                label={indicator.summary}
+              />
+            {/if}
+            <span
+              class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+              >{tildePath(project.dir, homeDir)}</span
+            >
+            {#if current}
+              <Badge tone="good" size="xs" class="flex-none">Current</Badge>
+            {/if}
+            <span
+              class="flex-none text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+              >{chats} chat{chats === 1 ? "" : "s"} · {relativeTimeLabel(
+                project.updatedAt,
+              )}</span
+            >
+          </div>
+        </ContextMenu>
+      {/each}
+    </div>
+  {:else}
+    <div
+      class="grid min-h-40 place-items-center gap-1 p-6 text-center text-muted-foreground"
+    >
+      <FolderOpen size={26} strokeWidth={1.8} aria-hidden="true" />
+      <p class="m-0 mt-1 text-sm text-foreground">
+        {totalRecentCount
+          ? "No recent projects match your search."
+          : "No recent projects yet."}
+      </p>
+      <span class="text-xs">Use Browse below to open a project folder.</span>
+    </div>
+  {/if}
 </div>
-
-<style>
-.recent-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  padding: 0.7rem 0.75rem;
-  color: var(--foreground);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    box-shadow 120ms ease;
-}
-
-.recent-card-icon {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--primary) 14%, transparent);
-  color: var(--primary);
-  transition: background 120ms ease;
-}
-
-/* Opaque two-token mixes so the hovered card stays readable over the card
- * surface (escape-hatch reason 8). */
-.recent-card:hover,
-.recent-card:focus-visible,
-.recent-card.selected {
-  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
-  background: color-mix(in oklab, var(--accent) 65%, var(--card));
-  box-shadow: var(--shadow-sm);
-  outline: none;
-}
-
-.recent-card:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 28%, transparent);
-}
-
-.recent-card:hover .recent-card-icon,
-.recent-card:focus-visible .recent-card-icon,
-.recent-card.selected .recent-card-icon {
-  background: color-mix(in oklab, var(--primary) 22%, transparent);
-}
-
-.recent-browse-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  width: 100%;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-md);
-  background: transparent;
-  padding: 0.55rem 0.65rem;
-  color: var(--foreground);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition:
-    background 120ms ease,
-    border-color 120ms ease;
-}
-
-.recent-browse-hint:hover,
-.recent-browse-hint:focus-visible {
-  border-color: var(--primary);
-  background: var(--accent);
-  outline: none;
-}
-</style>

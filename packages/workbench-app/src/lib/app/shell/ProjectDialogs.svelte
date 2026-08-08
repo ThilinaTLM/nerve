@@ -20,6 +20,7 @@ import {
 const status = $derived(workspaceSelectors.status);
 const projects = $derived(workspaceSelectors.projects);
 const conversations = $derived(workspaceSelectors.conversations);
+const projectItems = $derived(workspaceSelectors.projectSwitcherItems);
 const activeConversation = $derived(conversationSelectors.activeConversation);
 const treeNodes = $derived(conversationSelectors.treeNodes);
 const toolCalls = $derived(conversationSelectors.toolCalls);
@@ -43,6 +44,8 @@ async function editConversationEntry(entry: {
   bind:open={workspaceState.projectPickerOpen}
   {projects}
   {conversations}
+  switcherItems={projectItems}
+  activeProjectKey={workspaceState.selectedProjectKey}
   homeDir={status?.storage.userHome}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenDirectory={(path) => void openProjectDirectory(path)}
