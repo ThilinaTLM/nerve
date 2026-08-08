@@ -408,6 +408,31 @@ describe("Protocol v1 shared schemas", () => {
       parsePublicEventEnvelope(publicEvent, "workbench_server").type,
       "git.repository.changed",
     );
+    const invalidation = {
+      projectId: "proj_test",
+      repo: ".",
+      source: "filesystem",
+    };
+    assert.deepEqual(
+      validatePublicEvent(
+        "git.repository.invalidated",
+        invalidation,
+        "workbench_server",
+      ),
+      invalidation,
+    );
+    assert.throws(
+      () =>
+        parsePublicEventEnvelope(
+          {
+            ...publicEvent,
+            type: "git.repository.invalidated",
+            data: invalidation,
+          },
+          "workbench_server",
+        ),
+      /cannot use event.batch/,
+    );
     assert.throws(
       () =>
         parsePublicEventEnvelope(

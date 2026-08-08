@@ -16,7 +16,12 @@ export async function summarizeRepo(
   const [stdout, stable] = await Promise.all([
     statusOutput === undefined
       ? service
-          .runGit(repoDir, ["status", "--porcelain=v2", "--branch"])
+          .runGit(repoDir, [
+            "--no-optional-locks",
+            "status",
+            "--porcelain=v2",
+            "--branch",
+          ])
           .then((result) => result.stdout)
       : Promise.resolve(statusOutput),
     service.stableRepoMetadata(repoDir),
@@ -58,6 +63,7 @@ export async function overview(
 ): Promise<GitOverviewResponse> {
   const repoDir = service.resolveRepoDir(projectId, relativePath);
   const statusPromise = service.runGit(repoDir, [
+    "--no-optional-locks",
     "status",
     "--porcelain=v2",
     "--branch",

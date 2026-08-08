@@ -25,18 +25,21 @@ import { workspaceSelectors } from "$lib/features/workspace";
 
 const isCompact = $derived(responsive.isCompact);
 const activeEditorTab = $derived(workspaceSelectors.activeCenterTab);
-const gitPanelEnabled = $derived(
-  Object.entries(shellLayout.current.docks).some(([dockId, dock]) => {
-    const gitViewActive =
-      dock.activeViewId === "git" || dock.activeViewId === "pull-requests";
-    if (!gitViewActive) return false;
+function panelViewEnabled(viewIds: readonly string[]): boolean {
+  return Object.entries(shellLayout.current.docks).some(([dockId, dock]) => {
+    if (!dock.activeViewId || !viewIds.includes(dock.activeViewId))
+      return false;
     if (!isCompact) return !dock.collapsed;
     return dockId === "left" ? shellSheets.primary : shellSheets.secondary;
-  }),
-);
+  });
+}
+
+const gitPanelEnabled = $derived(panelViewEnabled(["git", "pull-requests"]));
+const pullRequestsPanelEnabled = $derived(panelViewEnabled(["pull-requests"]));
 const gitPanel = createWorkbenchGitPanelAdapter(
   () => workspaceSelectors.activeProject,
   () => gitPanelEnabled,
+  () => pullRequestsPanelEnabled,
 );
 
 let lastTabKey: string | undefined;

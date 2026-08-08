@@ -73,6 +73,7 @@ export type GitPanelRepoState = {
   prsRequestSeq: number;
   overviewRequestInFlight: boolean;
   overviewRefreshQueued: boolean;
+  overviewInvalidated: boolean;
   lastRepoSummaryFingerprint?: string;
   lastChangesFingerprint?: string;
   lastRecentCommitsFingerprint?: string;
@@ -81,6 +82,7 @@ export type GitPanelRepoState = {
   lastGithubFingerprint?: string;
   loaded: boolean;
   loadedAt?: number;
+  prsLoadedAt?: number;
   requestSeq: number;
 };
 
@@ -182,6 +184,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     prsRequestSeq: 0,
     overviewRequestInFlight: false,
     overviewRefreshQueued: false,
+    overviewInvalidated: false,
     lastRepoSummaryFingerprint: undefined,
     lastChangesFingerprint: undefined,
     lastRecentCommitsFingerprint: undefined,
@@ -190,6 +193,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     lastGithubFingerprint: undefined,
     loaded: false,
     loadedAt: undefined,
+    prsLoadedAt: undefined,
     requestSeq: 0,
   };
 }

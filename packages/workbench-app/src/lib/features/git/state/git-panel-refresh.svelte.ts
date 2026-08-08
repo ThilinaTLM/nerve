@@ -1,4 +1,4 @@
-import { SvelteMap } from "svelte/reactivity";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { ProjectRecord } from "$lib/api";
 import type { GithubPrListFilters } from "@nervekit/contracts";
 import {
@@ -45,18 +45,26 @@ import {
 import { syncOpenPrViews } from "./pr-tabs.svelte";
 import {
   GITHUB_STATUS_STALE_MS,
-  GIT_AUTO_REFRESH_COOLDOWN_MS,
+  GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS,
+  GIT_PR_AUTO_REFRESH_COOLDOWN_MS,
   GIT_STALE_MS,
   githubPrFiltersFingerprint,
+  isFresh,
   PR_PENDING_POLL_MS,
+  PR_STALE_MS,
 } from "./git-refresh-policy";
 
 function automaticRefreshKey(projectId: string, repo: string): string {
   return JSON.stringify([projectId, repo]);
 }
 
+const visibleOverviewDemand = new SvelteSet<string>();
+
 const automaticRefreshScheduler = new GitAutoRefreshScheduler(
-  GIT_AUTO_REFRESH_COOLDOWN_MS,
+  {
+    overview: GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS,
+    prs: GIT_PR_AUTO_REFRESH_COOLDOWN_MS,
+  },
   (key, demand) => {
     const [projectId, repo] = JSON.parse(key) as [string, string];
     const state = ensureGitRepoState(projectId, repo);
@@ -80,6 +88,33 @@ const automaticRefreshScheduler = new GitAutoRefreshScheduler(
     ]);
   },
 );
+
+export function setGitOverviewRefreshVisible(
+  projectId: string,
+  repo: string,
+  visible: boolean,
+): void {
+  const key = automaticRefreshKey(projectId, repo);
+  if (visible) visibleOverviewDemand.add(key);
+  else visibleOverviewDemand.delete(key);
+}
+
+export function invalidateGitOverviewFromFilesystem(
+  projectId: string,
+  repo: string,
+): void {
+  const state =
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(repo)
+    ];
+  if (!state) return;
+  state.overviewInvalidated = true;
+  if (
+    visibleOverviewDemand.has(automaticRefreshKey(projectId, repo)) &&
+    (typeof document === "undefined" || document.visibilityState === "visible")
+  )
+    scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
+}
 
 export function scheduleAutomaticGitRefresh(
   projectId: string,
@@ -220,6 +255,7 @@ export async function refreshGitOverview(
   state.requestSeq = requestSeq;
   state.overviewRequestInFlight = true;
   if (!options.silent) state.loadingOverview = true;
+  state.overviewInvalidated = false;
   try {
     if (options.force)
       await queryClient.invalidateQueries({
@@ -234,6 +270,7 @@ export async function refreshGitOverview(
     mergeRepoSummary(projectId, next.repo);
     patchGitOverviewState(state, next);
   } catch (error) {
+    state.overviewInvalidated = true;
     if (!options.silent)
       notify.error(`Git overview failed: ${errorMessage(error)}`);
   } finally {
@@ -396,6 +433,7 @@ export async function refreshPrs(
             setPrsIfChanged(state, prs);
             syncOpenPrViews(projectId, repo, prs);
             state.prsError = undefined;
+            state.prsLoadedAt = Date.now();
           }
         } catch (error) {
           if (state.prsRequestSeq === requestSeq && !nextSilent) {
@@ -437,8 +475,27 @@ export function autoRefreshGitOverview(projectId: string, repo: string): void {
     gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
       gitRepoStateKey(repo)
     ];
-  if (!state) return;
+  if (state?.overviewInvalidated) {
+    scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
+    return;
+  }
+  if (!state || isFresh(state.loadedAt, Date.now(), GIT_STALE_MS)) return;
   scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
+}
+
+export function autoRefreshPrsIfStale(projectId: string, repo: string): void {
+  if (typeof document !== "undefined" && document.visibilityState !== "visible")
+    return;
+  const state =
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(repo)
+    ];
+  if (
+    !state?.github?.authenticated ||
+    isFresh(state.prsLoadedAt, Date.now(), PR_STALE_MS)
+  )
+    return;
+  scheduleAutomaticGitRefresh(projectId, repo, { prs: true });
 }
 
 export function selectGitProject(project: ProjectRecord): void {

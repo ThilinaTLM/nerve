@@ -1,6 +1,7 @@
 import { registerAuthEventHandlers } from "$lib/features/auth/state/auth-events";
 import { registerConversationEventHandlers } from "$lib/features/conversations/state/conversation-events";
 import { registerNotificationEventHandlers } from "$lib/features/notifications/state/notification-events";
+import { registerGitEventHandlers } from "$lib/features/git/state/git-events";
 import { registerPromptSuggestionEventHandlers } from "$lib/features/prompt-suggestions/state/prompt-suggestions-events";
 import { registerSettingsEventHandlers } from "$lib/features/settings/state/settings-events";
 import { registerTaskEventHandlers } from "$lib/features/tasks/state/task-events";
@@ -17,6 +18,7 @@ export function registerFeatureEventHandlers(): () => void {
     registerUsageEventHandlers(),
     registerNotificationEventHandlers(),
     registerPromptSuggestionEventHandlers(),
+    registerGitEventHandlers(),
   ];
   return () => {
     for (const dispose of unregister.splice(0)) dispose();

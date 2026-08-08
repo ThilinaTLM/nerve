@@ -27,7 +27,7 @@ describe("GitService overview snapshots", () => {
     service.runGit = async (_cwd, args) => {
       calls.push(args);
       const command = args.join(" ");
-      if (command === "status --porcelain=v2 --branch") {
+      if (command === "--no-optional-locks status --porcelain=v2 --branch") {
         return { stdout: status, stderr: "" };
       }
       if (
@@ -78,7 +78,7 @@ describe("GitService overview snapshots", () => {
 
     const overview = await service.overview("proj_test", ".");
     await service.overview("proj_test", ".");
-    assert.equal(calls.filter((args) => args[0] === "status").length, 2);
+    assert.equal(calls.filter((args) => args[1] === "status").length, 2);
     assert.equal(calls.filter((args) => args[0] === "for-each-ref").length, 1);
     assert.equal(calls.filter((args) => args[0] === "remote").length, 1);
     assert.equal(calls.filter((args) => args[0] === "rev-parse").length, 0);
