@@ -52,7 +52,7 @@ let {
           {/if}
         </div>
         {#if description}
-          <p class="line-clamp-1 text-xs text-muted-foreground">
+          <p class="text-xs text-muted-foreground">
             {description}
           </p>
         {/if}

@@ -32,6 +32,10 @@ import {
   type TourStep,
 } from "./guide-content.js";
 import { adjacentStep, shouldAutoOpenGuide } from "./guide-controller.js";
+import {
+  readProductTourCompletionVersion,
+  writeProductTourCompletionVersion,
+} from "./product-tour-completion.js";
 import { setupStepsForArea, adjacentSetupStep } from "./setup-guide-policy.js";
 import type { SetupGuideArea, SetupGuideStep } from "./setup-guide-content.js";
 import {
@@ -70,6 +74,7 @@ export const guideState = $state({
   setupArea: undefined as SetupGuideArea | undefined,
   setupSteps: [] as SetupGuideStep[],
   setupStepIndex: 0,
+  completedProductTourVersion: readProductTourCompletionVersion(),
 });
 
 let presentationSnapshot: PresentationSnapshot | undefined;
@@ -80,7 +85,7 @@ export function completedOnboardingVersion(): number {
 }
 
 export function completedProductTourVersion(): number {
-  return settingsState.settingsDraft?.ui.productTourVersion ?? 0;
+  return guideState.completedProductTourVersion;
 }
 
 export function guideUnseen(): boolean {
@@ -428,13 +433,9 @@ export function doNotShowAgain(): void {
 }
 
 export function finishProductTour(): void {
-  const draft = settingsState.settingsDraft;
-  if (draft && draft.ui.productTourVersion < CURRENT_PRODUCT_TOUR_VERSION) {
-    draft.ui.productTourVersion = CURRENT_PRODUCT_TOUR_VERSION;
-    queueSettingsSave(
-      { ui: { productTourVersion: CURRENT_PRODUCT_TOUR_VERSION } },
-      { immediate: true },
-    );
+  if (guideState.completedProductTourVersion < CURRENT_PRODUCT_TOUR_VERSION) {
+    guideState.completedProductTourVersion = CURRENT_PRODUCT_TOUR_VERSION;
+    writeProductTourCompletionVersion(CURRENT_PRODUCT_TOUR_VERSION);
   }
   preparationId += 1;
   guideState.preparing = false;

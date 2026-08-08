@@ -18,7 +18,6 @@ export type TourStepId =
   | "files"
   | "scratch-notes"
   | "context-panel"
-  | "skills"
   | "providers"
   | "settings"
   | "status"
@@ -165,14 +164,6 @@ export const tourSteps: readonly TourStep[] = [
     description:
       "The Context panel shows the files and other context attached to the active conversation so you can understand what the agent can use.",
     targetId: "context-panel",
-  },
-  {
-    id: "skills",
-    introducedIn: 1,
-    title: "Suggestions, skills, and Agent Browser",
-    description:
-      "Skills extend agent workflows at global or project scope. Agent Browser skills enable guided browser interaction, while Suggestions customize reusable prompt actions.",
-    targetId: "settings-skills",
   },
   {
     id: "providers",

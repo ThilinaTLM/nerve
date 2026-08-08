@@ -20,7 +20,6 @@ describe("settings schema", () => {
         colorMode: undefined,
         zoomLevel: undefined,
         onboardingVersion: undefined,
-        productTourVersion: undefined,
       },
       desktop: { closeToTray: true, headerType: undefined },
       tools: undefined,
@@ -45,7 +44,6 @@ describe("settings schema", () => {
       colorMode: "system",
       zoomLevel: 0,
       onboardingVersion: 0,
-      productTourVersion: 0,
     });
     assert.deepEqual(settings.desktop, {
       closeToTray: true,
@@ -139,7 +137,6 @@ describe("settings schema", () => {
         theme: "ocean",
         colorMode: "dark",
         onboardingVersion: 2,
-        productTourVersion: 1,
       },
       desktop: { headerType: "macos" },
       defaultApprovalPolicy: { autoApproveReadOnly: false },
@@ -190,20 +187,14 @@ describe("settings schema", () => {
       theme: "ocean",
       colorMode: "dark",
       onboardingVersion: 2,
-      productTourVersion: 1,
     });
     for (const version of [-1, 1.5, "1"]) {
-      for (const field of [
-        "onboardingVersion",
-        "productTourVersion",
-      ] as const) {
-        assert.equal(
-          updateSettingsRequestSchema.safeParse({
-            ui: { [field]: version },
-          }).success,
-          false,
-        );
-      }
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          ui: { onboardingVersion: version },
+        }).success,
+        false,
+      );
     }
     assert.deepEqual(parsed.desktop, { headerType: "macos" });
     assert.equal(
