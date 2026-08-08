@@ -59,6 +59,7 @@ let {
 
 <form
   class="composer"
+  data-tour-id="composer"
   data-pending-approval={pendingApproval ? "true" : undefined}
   data-pending-question={pendingQuestion ? "true" : undefined}
   data-pending-plan={pendingPlan ? "true" : undefined}
@@ -81,7 +82,7 @@ let {
       {@render toolbar()}
       {@render editor()}
 
-      <div class="composer-send">
+      <div class="composer-send" data-tour-id="composer-send-actions">
         {#if sendLeading}
           {@render sendLeading()}
         {/if}

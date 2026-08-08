@@ -15,7 +15,12 @@ describe("settings schema", () => {
       rememberLastAgentSelection: undefined,
       lastAgentSelection: undefined,
       notifications: undefined,
-      ui: { theme: undefined, colorMode: undefined, zoomLevel: undefined },
+      ui: {
+        theme: undefined,
+        colorMode: undefined,
+        zoomLevel: undefined,
+        onboardingVersion: undefined,
+      },
       desktop: { closeToTray: true, headerType: undefined },
       tools: undefined,
       skills: undefined,
@@ -38,6 +43,7 @@ describe("settings schema", () => {
       theme: "nerve",
       colorMode: "system",
       zoomLevel: 0,
+      onboardingVersion: 0,
     });
     assert.deepEqual(settings.desktop, {
       closeToTray: true,
@@ -127,7 +133,11 @@ describe("settings schema", () => {
         pythonExecutablePath: "/usr/bin/python3",
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
       },
-      ui: { theme: "ocean", colorMode: "dark" },
+      ui: {
+        theme: "ocean",
+        colorMode: "dark",
+        onboardingVersion: 2,
+      },
       desktop: { headerType: "macos" },
       defaultApprovalPolicy: { autoApproveReadOnly: false },
       lastAgentSelection: {
@@ -173,7 +183,19 @@ describe("settings schema", () => {
         false,
       );
     }
-    assert.deepEqual(parsed.ui, { theme: "ocean", colorMode: "dark" });
+    assert.deepEqual(parsed.ui, {
+      theme: "ocean",
+      colorMode: "dark",
+      onboardingVersion: 2,
+    });
+    for (const version of [-1, 1.5, "1"]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          ui: { onboardingVersion: version },
+        }).success,
+        false,
+      );
+    }
     assert.deepEqual(parsed.desktop, { headerType: "macos" });
     assert.equal(
       updateSettingsRequestSchema.safeParse({

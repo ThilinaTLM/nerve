@@ -48,7 +48,11 @@ async function confirmLogout(): Promise<void> {
 
 <SettingsSection id="subscriptions" title="Subscriptions">
   {#snippet actions()}
-    <Button size="xs" onclick={() => (addOpen = true)}>
+    <Button
+      size="xs"
+      data-tour-id="setup-auth-connect-subscription"
+      onclick={() => (addOpen = true)}
+    >
       <Plus class="size-3.5" aria-hidden="true" />
       Connect subscription
     </Button>
@@ -60,15 +64,22 @@ async function confirmLogout(): Promise<void> {
       description="Connect a subscription to authenticate models."
     >
       {#snippet actions()}
-        <Button size="sm" onclick={() => (addOpen = true)}
-          >Connect subscription</Button
+        <Button
+          size="sm"
+          data-tour-id="setup-auth-connect-subscription"
+          onclick={() => (addOpen = true)}>Connect subscription</Button
         >
       {/snippet}
     </SettingsEmptyState>
   {:else}
     <SettingsList ariaLabel="Connected subscriptions">
       {#each subscriptions as provider (provider.provider)}
-        <SettingsListItem title={provider.displayName}>
+        <SettingsListItem
+          title={provider.displayName}
+          tourId={provider.provider === "openai-codex"
+            ? "setup-auth-openai-codex-connected"
+            : undefined}
+        >
           {#snippet meta()}
             <span class="truncate"
               >{provider.oauthName ?? provider.provider}</span

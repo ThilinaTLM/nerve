@@ -61,13 +61,23 @@ function currentSelectedModelInfo(): ModelInfo | undefined {
   );
 }
 
-export async function openSettingsPane() {
+function targetSettingsPage(pageId?: string, sectionId?: string) {
+  if (pageId) settingsState.activePageId = pageId;
+  if (sectionId) settingsState.activeSectionId = sectionId;
+}
+
+export async function openSettingsPane(pageId?: string, sectionId?: string) {
+  targetSettingsPage(pageId, sectionId);
   addCenterTab({ kind: "settings", id: "settings" });
   setActiveCenterTab({ kind: "settings", id: "settings" });
   await loadSettingsPanel();
 }
 
-export async function selectCenterSettingsTab() {
+export async function selectCenterSettingsTab(
+  pageId?: string,
+  sectionId?: string,
+) {
+  targetSettingsPage(pageId, sectionId);
   addCenterTab({ kind: "settings", id: "settings" });
   setActiveCenterTab({ kind: "settings", id: "settings" });
   if (!settingsState.settingsDraft) await loadSettingsPanel();

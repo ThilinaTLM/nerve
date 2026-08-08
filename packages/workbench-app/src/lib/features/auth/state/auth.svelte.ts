@@ -12,13 +12,23 @@ import { authState } from "./auth-state.svelte";
 
 const AUTH_TAB = { kind: "auth" as const, id: "auth" as const };
 
-export function openAuthPane() {
-  addCenterTab(AUTH_TAB);
-  setActiveCenterTab(AUTH_TAB);
-  void loadAuthPanel();
+function targetAuthPage(pageId?: string, sectionId?: string): void {
+  if (pageId) authState.activePageId = pageId;
+  if (sectionId) authState.activeSectionId = sectionId;
 }
 
-export function selectCenterAuthTab() {
+export async function openAuthPane(
+  pageId?: string,
+  sectionId?: string,
+): Promise<void> {
+  targetAuthPage(pageId, sectionId);
+  addCenterTab(AUTH_TAB);
+  setActiveCenterTab(AUTH_TAB);
+  await loadAuthPanel();
+}
+
+export function selectCenterAuthTab(pageId?: string, sectionId?: string) {
+  targetAuthPage(pageId, sectionId);
   addCenterTab(AUTH_TAB);
   setActiveCenterTab(AUTH_TAB);
   if (!authState.catalogLoaded) void loadAuthPanel();

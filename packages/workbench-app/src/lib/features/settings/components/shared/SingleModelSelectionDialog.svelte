@@ -114,7 +114,14 @@ function useFallback(): void {
 }
 </script>
 
-<Dialog bind:open {title} {description} size="md" flush>
+<Dialog
+  bind:open
+  {title}
+  {description}
+  size="md"
+  flush
+  closeOnInteractOutside={false}
+>
   <div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
     <div class="grid gap-1.5 border-b border-border/50 px-3 pt-2.5 pb-2">
       <SearchInput

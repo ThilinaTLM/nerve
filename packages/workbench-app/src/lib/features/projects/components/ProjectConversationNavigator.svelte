@@ -98,17 +98,20 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   <PanelView padded={false} scroll={false}>
     <PanelHeader title="Conversations" count={rows.length}>
       {#snippet trailing()}
-        <PanelToolbarButton
-          icon={Plus}
-          label="New chat"
-          title={newConversationShortcut
-            ? `New chat (${newConversationShortcut})`
-            : "New chat"}
-          disabled={!activeProject || !onNewConversationInProject}
-          onclick={() => {
-            if (activeProject) onNewConversationInProject?.(activeProject.dir);
-          }}
-        />
+        <span class="inline-flex" data-tour-id="panel-new-conversation">
+          <PanelToolbarButton
+            icon={Plus}
+            label="New chat"
+            title={newConversationShortcut
+              ? `New chat (${newConversationShortcut})`
+              : "New chat"}
+            disabled={!activeProject || !onNewConversationInProject}
+            onclick={() => {
+              if (activeProject)
+                onNewConversationInProject?.(activeProject.dir);
+            }}
+          />
+        </span>
       {/snippet}
     </PanelHeader>
 

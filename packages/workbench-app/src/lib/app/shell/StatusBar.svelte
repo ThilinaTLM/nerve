@@ -155,27 +155,29 @@ function gitStatusTitle(status: GitStatus): string {
   {/snippet}
 
   {#snippet right()}
-    {#if !phone}
-      {#if activeTasks > 0}
-        <span class="footer-item" title="Running tasks">
-          <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
-          <span>{activeTasks}</span>
-        </span>
+    <span class="inline-flex items-center gap-1" data-tour-id="status-controls">
+      {#if !phone}
+        {#if activeTasks > 0}
+          <span class="footer-item" title="Running tasks">
+            <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
+            <span>{activeTasks}</span>
+          </span>
+        {/if}
+
+        {#if pendingApprovals > 0}
+          <span class="footer-item warn" title="Pending approvals">
+            <TriangleAlert size={12} strokeWidth={2.1} aria-hidden="true" />
+            <span>{pendingApprovals}</span>
+          </span>
+        {/if}
+
+        <SubscriptionUsageChip usages={subscriptionUsages} />
+
+        <LayoutControl {zoomLevel} {dockToggles} {onZoomLevelChange} />
       {/if}
 
-      {#if pendingApprovals > 0}
-        <span class="footer-item warn" title="Pending approvals">
-          <TriangleAlert size={12} strokeWidth={2.1} aria-hidden="true" />
-          <span>{pendingApprovals}</span>
-        </span>
-      {/if}
-
-      <SubscriptionUsageChip usages={subscriptionUsages} />
-
-      <LayoutControl {zoomLevel} {dockToggles} {onZoomLevelChange} />
-    {/if}
-
-    <StatusPopover {connection} {live} {status} side="top" compact={phone} />
+      <StatusPopover {connection} {live} {status} side="top" compact={phone} />
+    </span>
   {/snippet}
 </ShellStatusBar>
 

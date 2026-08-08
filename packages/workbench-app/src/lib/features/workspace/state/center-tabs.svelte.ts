@@ -65,6 +65,27 @@ function handleCenterTabError(action: "switch" | "close", caught: unknown) {
   notify.error(`Could not ${action} pane`, { description: message });
 }
 
+export type CenterTabsPresentationSnapshot = {
+  openTabs: CenterTabIdentity[];
+  activeTab?: CenterTabIdentity;
+};
+
+export function captureCenterTabsPresentation(): CenterTabsPresentationSnapshot {
+  return {
+    openTabs: workspaceState.openCenterTabs.map((tab) => ({ ...tab })),
+    activeTab: workspaceState.activeCenterTab
+      ? { ...workspaceState.activeCenterTab }
+      : undefined,
+  };
+}
+
+export function restoreCenterTabsPresentation(
+  snapshot: CenterTabsPresentationSnapshot,
+) {
+  replaceOpenCenterTabs(snapshot.openTabs);
+  setActiveCenterTab(snapshot.activeTab);
+}
+
 export function replaceOpenCenterTabs(tabs: CenterTabIdentity[]) {
   const seen = new SvelteSet<string>();
   workspaceState.openCenterTabs = tabs.filter((tab) => {

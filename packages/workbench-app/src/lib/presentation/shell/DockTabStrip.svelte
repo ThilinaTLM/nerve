@@ -152,11 +152,22 @@ function menuItems(
     buildMenuItems?.({ view, dock, index, views, defaultItems }) ?? defaultItems
   );
 }
+
+const tourIdByView: Record<string, string> = {
+  conversations: "conversations-tab",
+  files: "files-panel",
+  tasks: "tasks-panel",
+  notes: "scratch-notes-panel",
+  git: "git-workflow",
+  "pull-requests": "pull-request-workflow",
+  context: "context-panel",
+};
 </script>
 
 <div
   class="dock-tab-strip"
   class:drag-active={dragActive}
+  data-tour-id={dock === "left" ? "panel-layout" : undefined}
   bind:this={strip}
   role="presentation"
   ondragover={handleDragOver}
@@ -178,6 +189,7 @@ function menuItems(
           class:dragging={shellDrag.viewId === view.id}
           class:drop-before={dropIndex === index}
           data-view-id={view.id}
+          data-tour-id={tourIdByView[view.id]}
           role="tab"
           aria-selected={view.id === activeViewId}
           aria-label={view.title}
