@@ -21,6 +21,7 @@ import {
 } from "$lib/app/shell/shell-layout.svelte";
 import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
 import BrowserNotificationPrompt from "$lib/features/notifications/BrowserNotificationPrompt.svelte";
+import { OnboardingHost } from "$lib/features/onboarding";
 import { workspaceSelectors } from "$lib/features/workspace";
 
 const isCompact = $derived(responsive.isCompact);
@@ -86,6 +87,7 @@ $effect(() => {
   {#snippet statusBar()}<StatusBarContainer />{/snippet}
   {#snippet overlays()}
     <BrowserNotificationPrompt />
+    <OnboardingHost />
     <DesktopShutdownOverlay />
   {/snippet}
 </WorkbenchShell>

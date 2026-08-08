@@ -140,7 +140,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
 }
 </script>
 
-<div class="composer-tabs">
+<div class="composer-tabs" data-tour-id="composer-controls">
   <Popover
     bind:open={permissionOpen}
     size="lg"
@@ -156,7 +156,11 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
   >
     {#snippet trigger()}
       {@const Icon = activePermission.icon}
-      <span class="permission-tab-inner" class:disabled={controlsDisabled}>
+      <span
+        class="permission-tab-inner"
+        class:disabled={controlsDisabled}
+        data-tour-id="composer-permission"
+      >
         <Icon size={13} strokeWidth={2.2} />
       </span>
     {/snippet}
@@ -203,6 +207,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
       ? `Mode: ${modeLabel} (${modeShortcut})`
       : `Mode: ${modeLabel} (click to switch)`}
     aria-keyshortcuts={modeShortcutAria}
+    data-tour-id="composer-mode"
     onclick={() => onToggleMode?.()}
   >
     <span class="mode-tab-icon" aria-hidden="true">

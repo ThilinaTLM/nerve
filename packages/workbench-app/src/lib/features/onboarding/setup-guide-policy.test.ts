@@ -1,0 +1,72 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { adjacentSetupStep, setupStepsForArea } from "./setup-guide-policy.js";
+
+describe("setup guide policy", () => {
+  it("ends the provider guide on standard API-key setup", () => {
+    const steps = setupStepsForArea("provider", { codexConnected: false });
+    assert.deepEqual(
+      steps.map((step) => step.id),
+      ["provider-subscription", "provider-api-key"],
+    );
+    assert.deepEqual(steps.at(-1)?.preparation, {
+      kind: "auth",
+      pageId: "connections",
+      sectionId: "api-keys",
+    });
+  });
+
+  it("guides disconnected voice users through connect and Codex selection", () => {
+    assert.deepEqual(
+      setupStepsForArea("voice", { codexConnected: false }).map(
+        (step) => step.id,
+      ),
+      ["voice-connect", "voice-codex-choice"],
+    );
+  });
+
+  it("targets the connected Codex row when voice is already configured", () => {
+    const steps = setupStepsForArea("voice", { codexConnected: true });
+    assert.deepEqual(
+      steps.map((step) => step.id),
+      ["voice-connected"],
+    );
+    assert.equal(steps[0]?.targetId, "setup-auth-openai-codex-connected");
+  });
+
+  it("opens required dialogs when advancing to dialog-backed steps", () => {
+    assert.equal(
+      setupStepsForArea("voice", { codexConnected: false })[0]
+        ?.advanceByClickingTarget,
+      true,
+    );
+    assert.equal(
+      setupStepsForArea("scoped-models", { codexConnected: false })[0]
+        ?.advanceByClickingTarget,
+      true,
+    );
+  });
+
+  it("ends each configuration guide at its most likely action", () => {
+    assert.equal(
+      setupStepsForArea("voice", { codexConnected: false }).at(-1)?.targetId,
+      "setup-auth-openai-codex-choice",
+    );
+    assert.equal(
+      setupStepsForArea("scoped-models", { codexConnected: false }).at(-1)
+        ?.targetId,
+      "setup-scoped-models-save",
+    );
+    assert.equal(
+      setupStepsForArea("agent-defaults", { codexConnected: false }).at(-1)
+        ?.targetId,
+      "setup-agent-default-model",
+    );
+  });
+
+  it("clamps coach navigation to its sequence", () => {
+    assert.equal(adjacentSetupStep(0, 3, -1), 0);
+    assert.equal(adjacentSetupStep(1, 3, 1), 2);
+    assert.equal(adjacentSetupStep(2, 3, 1), 2);
+  });
+});

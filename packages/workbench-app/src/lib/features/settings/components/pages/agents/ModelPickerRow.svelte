@@ -28,6 +28,7 @@ type Props = {
   confirmLabel: string;
   policyLabel?: string;
   policy?: Snippet;
+  tourId?: string;
   onSave: (selection: SaveSelection) => void;
 };
 
@@ -46,6 +47,7 @@ let {
   confirmLabel,
   policyLabel = "Agent policy",
   policy,
+  tourId,
   onSave,
 }: Props = $props();
 
@@ -59,6 +61,7 @@ let dialogOpen = $state(false);
       type="button"
       aria-haspopup="dialog"
       aria-label={`${label}: ${summaryTitle}. Change model`}
+      data-tour-id={tourId}
       class="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 rounded-sm border border-border/50 px-2 py-1.5 text-left transition-colors hover:bg-accent/40"
       onclick={() => (dialogOpen = true)}
     >

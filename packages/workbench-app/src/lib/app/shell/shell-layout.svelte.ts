@@ -57,9 +57,30 @@ function persist() {
   }
 }
 
-function commit(next: ShellLayout) {
+function commit(next: ShellLayout, shouldPersist = true) {
   if (next === state.layout) return;
   state.layout = next;
+  if (shouldPersist) persist();
+}
+
+export type ShellPresentationSnapshot = {
+  layout: ShellLayout;
+  sheets: { primary: boolean; secondary: boolean };
+};
+
+export function captureShellPresentation(): ShellPresentationSnapshot {
+  return {
+    layout: JSON.parse(JSON.stringify(state.layout)) as ShellLayout,
+    sheets: { primary: shellSheets.primary, secondary: shellSheets.secondary },
+  };
+}
+
+export function restoreShellPresentation(snapshot: ShellPresentationSnapshot) {
+  state.layout = normalizeShellLayout(snapshot.layout, panelViewDescriptors, {
+    collapsed: [...LAYOUT_DEFAULTS.collapsed],
+  });
+  shellSheets.primary = snapshot.sheets.primary;
+  shellSheets.secondary = snapshot.sheets.secondary;
   persist();
 }
 
@@ -122,7 +143,20 @@ export function togglePanelDock(dock: DockId, compact: boolean) {
 
 /** Ensures a view is visible and focused, opening its dock or sheet. */
 export function revealPanelView(viewId: string, compact: boolean) {
-  commit(showShellView(state.layout, viewId));
+  revealPanelViewWithPersistence(viewId, compact, true);
+}
+
+/** Tour-only reveal that is restored as one presentation transaction. */
+export function revealPanelViewTemporarily(viewId: string, compact: boolean) {
+  revealPanelViewWithPersistence(viewId, compact, false);
+}
+
+function revealPanelViewWithPersistence(
+  viewId: string,
+  compact: boolean,
+  shouldPersist: boolean,
+) {
+  commit(showShellView(state.layout, viewId), shouldPersist);
   if (!compact) return;
   const dock = (["left", "right", "bottom"] as const).find((candidate) =>
     state.layout.docks[candidate].views.includes(viewId),

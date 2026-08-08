@@ -54,11 +54,13 @@ function editAndClose(entry: ConversationEntry) {
   description="Explore branches, inspect message and tool details, then branch from any point."
   onOpenChange={handleOpenChange}
 >
-  <ConversationHistoryGraph
-    {activeConversation}
-    {treeNodes}
-    {toolCalls}
-    onNavigateToEntry={navigateAndClose}
-    onEditEntry={editAndClose}
-  />
+  <div data-tour-id="conversation-history" class="h-full min-h-0">
+    <ConversationHistoryGraph
+      {activeConversation}
+      {treeNodes}
+      {toolCalls}
+      onNavigateToEntry={navigateAndClose}
+      onEditEntry={editAndClose}
+    />
+  </div>
 </Dialog>

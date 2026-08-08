@@ -110,6 +110,7 @@ function requestCompact(): void {
       <span
         class="context-usage-tab-inner inline-flex items-center gap-1"
         data-tone={tone}
+        data-tour-id="composer-context"
       >
         <ProgressRing percent={ringPercent} tone={ringTone} />
         <span class="ctx-percent">{percentLabel}</span>

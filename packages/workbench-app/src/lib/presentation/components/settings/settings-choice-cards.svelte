@@ -10,6 +10,7 @@ type Props = {
   ariaLabel: string;
   disabled?: boolean;
   class?: string;
+  tourId?: string;
   onValueChange?: (value: string) => void;
 };
 
@@ -19,6 +20,7 @@ let {
   ariaLabel,
   disabled = false,
   class: className,
+  tourId,
   onValueChange,
 }: Props = $props();
 </script>
@@ -27,6 +29,7 @@ let {
   bind:value
   {disabled}
   aria-label={ariaLabel}
+  data-tour-id={tourId}
   {onValueChange}
   class={cn("grid gap-1", className)}
 >

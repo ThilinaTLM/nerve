@@ -51,6 +51,8 @@ if (!authState.catalogLoaded) void loadAuthPanel();
   pages={authPages}
   title="Authentication"
   ariaLabel="Authentication pages"
+  bind:activePageId={authState.activePageId}
+  bind:activeSectionId={authState.activeSectionId}
 >
   {#snippet children(page)}
     {#if page.id === "connections"}

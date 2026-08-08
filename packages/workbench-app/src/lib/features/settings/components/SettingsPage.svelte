@@ -46,6 +46,8 @@ type SettingsChange = (
 type Props = {
   status?: StatusResponse;
   settingsDraft?: Settings;
+  activePageId?: string;
+  activeSectionId?: string;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
   activeProject?: ProjectRecord;
@@ -65,6 +67,8 @@ type Props = {
 let {
   status,
   settingsDraft = $bindable<Settings | undefined>(),
+  activePageId = $bindable("workbench"),
+  activeSectionId = $bindable("appearance"),
   models = [],
   authProviders = [],
   activeProject,
@@ -121,6 +125,8 @@ function statusText(): string {
 
 <SettingsShell
   {pages}
+  bind:activePageId
+  bind:activeSectionId
   title="Settings"
   ariaLabel="Settings pages"
   showHeader={!!settingsDraft}

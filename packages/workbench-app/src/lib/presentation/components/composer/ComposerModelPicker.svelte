@@ -153,7 +153,12 @@ $effect(() => {
   sideOffset={9}
 >
   {#snippet trigger()}
-    <span class="model-tab-inner" class:disabled aria-disabled={disabled}>
+    <span
+      class="model-tab-inner"
+      class:disabled
+      aria-disabled={disabled}
+      data-tour-id="composer-model"
+    >
       <span class="model-tab-label">{triggerLabel}</span>
       {#if triggerSuffix}<span class="model-tab-suffix">({triggerSuffix})</span
         >{/if}

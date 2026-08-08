@@ -58,7 +58,11 @@ async function confirmRemove(): Promise<void> {
 
 <SettingsSection id="api-keys" title="API keys">
   {#snippet actions()}
-    <Button size="xs" onclick={() => (addOpen = true)}>
+    <Button
+      size="xs"
+      data-tour-id="setup-auth-add-api-key"
+      onclick={() => (addOpen = true)}
+    >
       <Plus class="size-3.5" aria-hidden="true" />
       Add API key
     </Button>
@@ -70,7 +74,11 @@ async function confirmRemove(): Promise<void> {
       description="Add a provider API key to authenticate models."
     >
       {#snippet actions()}
-        <Button size="sm" onclick={() => (addOpen = true)}>Add API key</Button>
+        <Button
+          size="sm"
+          data-tour-id="setup-auth-add-api-key"
+          onclick={() => (addOpen = true)}>Add API key</Button
+        >
       {/snippet}
     </SettingsEmptyState>
   {:else}

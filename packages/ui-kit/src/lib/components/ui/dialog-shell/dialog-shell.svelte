@@ -16,6 +16,7 @@ type Props = {
   size?: "sm" | "md" | "default" | "wide" | "wide-viewport" | "viewport";
   /** Removes the default body padding for edge-to-edge list/graph content. */
   flush?: boolean;
+  closeOnInteractOutside?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
 
@@ -30,6 +31,7 @@ let {
   closeLabel = "Close dialog",
   size = "default",
   flush = false,
+  closeOnInteractOutside = true,
   onOpenChange,
 }: Props = $props();
 
@@ -43,6 +45,9 @@ function handleOpenChange(next: boolean) {
   <Dialog.Content
     showCloseButton={false}
     layout="shell"
+    onInteractOutside={(event) => {
+      if (!closeOnInteractOutside) event.preventDefault();
+    }}
     class={cn(
       "dialog-content data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 data-open:zoom-in-95 data-closed:zoom-out-95 duration-100 outline-none",
       size === "sm" && "dialog-content-sm",
