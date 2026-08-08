@@ -43,13 +43,54 @@ describe("settings migrations", () => {
         theme: "nerve",
         colorMode,
         zoomLevel: 3,
+        onboardingVersion: 0,
       });
       const persisted = JSON.parse(await readFile(configPath, "utf8")) as {
-        ui: { theme: string; colorMode: string; zoomLevel: number };
+        ui: {
+          theme: string;
+          colorMode: string;
+          zoomLevel: number;
+          onboardingVersion: number;
+        };
       };
       assert.deepEqual(persisted.ui, storage.settings.ui);
     });
   }
+
+  it("backfills and persists the onboarding guide version", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
+    roots.push(root);
+    const configPath = join(root, "config.json");
+    await initializeStorage(root);
+    await writeFile(
+      configPath,
+      `${JSON.stringify(
+        {
+          ...defaultSettings,
+          ui: {
+            theme: "ocean",
+            colorMode: "dark",
+            zoomLevel: 2,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const storage = await initializeStorage(root);
+    assert.equal(storage.settings.ui.onboardingVersion, 0);
+
+    await writeSettings(storage, { ui: { onboardingVersion: 3 } });
+    const reloaded = await initializeStorage(root);
+    assert.deepEqual(reloaded.settings.ui, {
+      theme: "ocean",
+      colorMode: "dark",
+      zoomLevel: 2,
+      onboardingVersion: 3,
+    });
+  });
 
   it("backfills notification preferences for older settings files", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));

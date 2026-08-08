@@ -26,6 +26,7 @@ import {
 import { openAuthPane } from "$lib/features/auth";
 import { releaseState } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
+import { guideState, guideUnseen, openGuide } from "$lib/features/onboarding";
 import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
 import {
   deleteProjectAndRefresh,
@@ -136,6 +137,8 @@ async function handleDesktopClose() {
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}
   quitting={desktopQuitting}
   settingsActive={activeCenterTab?.kind === "settings"}
+  guideActive={guideState.mode === "setup" || guideState.mode === "tour"}
+  guideUnseen={guideUnseen()}
   authActive={activeCenterTab?.kind === "auth"}
   logsActive={activeCenterTab?.kind === "logs"}
   applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
@@ -145,6 +148,7 @@ async function handleDesktopClose() {
   onOpenProject={openProjectPicker}
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenLogs={() => openLogsPane()}
+  onOpenGuide={openGuide}
   onOpenAuth={() => openAuthPane()}
   onOpenSettings={() => void openSettingsPane()}
   onMinimize={() => void minimizeDesktopWindow()}

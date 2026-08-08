@@ -1,6 +1,7 @@
 <script lang="ts">
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import Logs from "@lucide/svelte/icons/logs";
+import CircleHelp from "@lucide/svelte/icons/circle-help";
 import Settings from "@lucide/svelte/icons/settings";
 import { Toolbar } from "bits-ui";
 import { NerveMark } from "$lib/presentation";
@@ -25,6 +26,8 @@ type Props = {
   closeToTray?: boolean;
   quitting?: boolean;
   settingsActive?: boolean;
+  guideActive?: boolean;
+  guideUnseen?: boolean;
   authActive?: boolean;
   logsActive?: boolean;
   applicationLogsEnabled?: boolean;
@@ -34,6 +37,7 @@ type Props = {
   onOpenProject?: () => void;
   onSelectProject?: (projectId: string) => void;
   onOpenLogs?: () => void;
+  onOpenGuide?: () => void;
   onOpenAuth?: () => void;
   onOpenSettings?: () => void;
   onMinimize?: () => void;
@@ -50,6 +54,8 @@ let {
   closeToTray = true,
   quitting = false,
   settingsActive = false,
+  guideActive = false,
+  guideUnseen = false,
   authActive = false,
   logsActive = false,
   applicationLogsEnabled = false,
@@ -59,6 +65,7 @@ let {
   onOpenProject,
   onSelectProject,
   onOpenLogs,
+  onOpenGuide,
   onOpenAuth,
   onOpenSettings,
   onMinimize,
@@ -103,6 +110,25 @@ let {
       {#if currentVersion}
         <VersionIndicator {currentVersion} {latestRelease} />
       {/if}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="relative max-sm:hidden"
+        data-tour-id="help"
+        ariaLabel="Open setup and product tour"
+        title="Open setup and product tour"
+        active={guideActive}
+        pressed={guideActive}
+        onclick={() => onOpenGuide?.()}
+      >
+        <CircleHelp size={16} strokeWidth={2.1} />
+        {#if guideUnseen}
+          <span
+            class="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-info"
+            aria-label="New setup or tour guidance available"
+          ></span>
+        {/if}
+      </Button>
       {#if applicationLogsEnabled}
         <Button
           variant="ghost"
@@ -121,6 +147,7 @@ let {
         size="icon-sm"
         ariaLabel="Open authentication"
         title="Providers & authentication"
+        data-tour-id="providers"
         active={authActive}
         pressed={authActive}
         onclick={() => onOpenAuth?.()}
@@ -132,6 +159,7 @@ let {
         size="icon-sm"
         ariaLabel="Open settings"
         title="Open settings"
+        data-tour-id="settings"
         active={settingsActive}
         pressed={settingsActive}
         onclick={() => onOpenSettings?.()}

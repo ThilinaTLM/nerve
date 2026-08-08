@@ -26,6 +26,8 @@ $effect(() => {
 <SettingsPage
   {status}
   bind:settingsDraft={settingsState.settingsDraft}
+  bind:activePageId={settingsState.activePageId}
+  bind:activeSectionId={settingsState.activeSectionId}
   models={settingsState.models}
   authProviders={settingsState.authProviders}
   {activeProject}

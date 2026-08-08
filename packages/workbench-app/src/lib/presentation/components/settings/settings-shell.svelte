@@ -311,7 +311,12 @@ async function selectSection(sectionId: string): Promise<void> {
       bind:viewportRef={viewportElement}
       viewportClass="settings-viewport"
     >
-      <div class={cn("settings-main", mainClass)}>
+      <div
+        class={cn("settings-main", mainClass)}
+        data-tour-id={activePage?.id === "skills"
+          ? "settings-skills"
+          : undefined}
+      >
         {#if activePage}
           {#if showHeader}
             <SettingsPageHeader

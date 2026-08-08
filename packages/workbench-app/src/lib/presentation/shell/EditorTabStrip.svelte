@@ -330,6 +330,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
         size="icon-sm"
         ariaLabel={newLabel}
         aria-keyshortcuts={newShortcutAria}
+        data-tour-id="tab-new-conversation"
         title={newShortcut ? `${newLabel} (${newShortcut})` : newLabel}
         onclick={onNew}
       >
