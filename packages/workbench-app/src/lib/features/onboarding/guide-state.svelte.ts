@@ -238,7 +238,7 @@ async function prepareTourStep(step: TourStep): Promise<void> {
     }
   } else if (step.id === "history") {
     if (conversationSelectors.activeConversation) openConversationHistory();
-  } else if (step.id === "skills") await openSettingsPane("skills");
+  }
   await settlePreparation();
   if (requestId !== preparationId || guideState.mode !== "tour") return;
   guideState.targetAvailable = Boolean(visibleTarget(step.targetId));
