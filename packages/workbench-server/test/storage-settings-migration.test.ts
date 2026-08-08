@@ -44,6 +44,7 @@ describe("settings migrations", () => {
         colorMode,
         zoomLevel: 3,
         onboardingVersion: 0,
+        productTourVersion: 0,
       });
       const persisted = JSON.parse(await readFile(configPath, "utf8")) as {
         ui: {
@@ -51,13 +52,14 @@ describe("settings migrations", () => {
           colorMode: string;
           zoomLevel: number;
           onboardingVersion: number;
+          productTourVersion: number;
         };
       };
       assert.deepEqual(persisted.ui, storage.settings.ui);
     });
   }
 
-  it("backfills and persists the onboarding guide version", async () => {
+  it("backfills and persists separate onboarding and product-tour versions", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);
     const configPath = join(root, "config.json");
@@ -81,14 +83,18 @@ describe("settings migrations", () => {
 
     const storage = await initializeStorage(root);
     assert.equal(storage.settings.ui.onboardingVersion, 0);
+    assert.equal(storage.settings.ui.productTourVersion, 0);
 
-    await writeSettings(storage, { ui: { onboardingVersion: 3 } });
+    await writeSettings(storage, {
+      ui: { onboardingVersion: 3, productTourVersion: 2 },
+    });
     const reloaded = await initializeStorage(root);
     assert.deepEqual(reloaded.settings.ui, {
       theme: "ocean",
       colorMode: "dark",
       zoomLevel: 2,
       onboardingVersion: 3,
+      productTourVersion: 2,
     });
   });
 

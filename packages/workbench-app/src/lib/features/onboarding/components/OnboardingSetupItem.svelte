@@ -11,6 +11,7 @@ type Props = {
   statusTone: BadgeTone;
   description: string;
   actionLabel: string;
+  actionVariant?: "outline" | "primary";
   onAction: () => void;
 };
 
@@ -22,6 +23,7 @@ let {
   statusTone,
   description,
   actionLabel,
+  actionVariant = "outline",
   onAction,
 }: Props = $props();
 </script>
@@ -37,7 +39,11 @@ let {
           </h3>
           <Badge tone={statusTone} size="xs">{status}</Badge>
         </div>
-        <Button variant="outline" size="xs" onclick={onAction}>
+        <Button
+          variant={actionVariant === "primary" ? "default" : "outline"}
+          size="xs"
+          onclick={onAction}
+        >
           {actionLabel}
         </Button>
       </div>

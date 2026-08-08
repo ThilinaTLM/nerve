@@ -39,6 +39,7 @@ function clearScope(): void {
 <Button
   size="sm"
   disabled={availableModels.length === 0}
+  data-tour-id="setup-scoped-models-add"
   onclick={() => (pageState.addDialogOpen = true)}
 >
   <Plus class="size-3.5" aria-hidden="true" />

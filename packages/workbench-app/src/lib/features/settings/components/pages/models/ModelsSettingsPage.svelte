@@ -106,8 +106,10 @@ function removeEntry(key: string): void {
       description="Scoped models limit which models the composer offers. Every authenticated model appears until you add one."
     >
       {#snippet actions()}
-        <Button size="xs" onclick={() => (pageState.addDialogOpen = true)}
-          >Add models</Button
+        <Button
+          size="xs"
+          data-tour-id="setup-scoped-models-add"
+          onclick={() => (pageState.addDialogOpen = true)}>Add models</Button
         >
       {/snippet}
     </SettingsEmptyState>

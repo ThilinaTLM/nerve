@@ -67,6 +67,7 @@ function saveExploreModel(selection: {
 <SettingsGroup>
   <ModelPickerRow
     label="Explore model"
+    tourId="setup-agent-explore-model"
     description="Choose the model and thinking level together."
     models={availableModels}
     selectedModel={settingsDraft.exploreAgent.model}

@@ -28,6 +28,9 @@ type Props = {
   settingsActive?: boolean;
   guideActive?: boolean;
   guideUnseen?: boolean;
+  setupPaused?: boolean;
+  setupReady?: number;
+  setupTotal?: number;
   authActive?: boolean;
   logsActive?: boolean;
   applicationLogsEnabled?: boolean;
@@ -38,6 +41,7 @@ type Props = {
   onSelectProject?: (projectId: string) => void;
   onOpenLogs?: () => void;
   onOpenGuide?: () => void;
+  onContinueSetup?: () => void;
   onOpenAuth?: () => void;
   onOpenSettings?: () => void;
   onMinimize?: () => void;
@@ -56,6 +60,9 @@ let {
   settingsActive = false,
   guideActive = false,
   guideUnseen = false,
+  setupPaused = false,
+  setupReady = 0,
+  setupTotal = 5,
   authActive = false,
   logsActive = false,
   applicationLogsEnabled = false,
@@ -66,6 +73,7 @@ let {
   onSelectProject,
   onOpenLogs,
   onOpenGuide,
+  onContinueSetup,
   onOpenAuth,
   onOpenSettings,
   onMinimize,
@@ -110,25 +118,78 @@ let {
       {#if currentVersion}
         <VersionIndicator {currentVersion} {latestRelease} />
       {/if}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="relative max-sm:hidden"
-        data-tour-id="help"
-        ariaLabel="Open setup and product tour"
-        title="Open setup and product tour"
-        active={guideActive}
-        pressed={guideActive}
-        onclick={() => onOpenGuide?.()}
-      >
-        <CircleHelp size={16} strokeWidth={2.1} />
-        {#if guideUnseen}
+      {#if setupPaused && setupReady < setupTotal}
+        <Button
+          size="sm"
+          class="max-sm:hidden"
+          data-tour-id="help"
+          ariaLabel={`Continue setup. ${setupReady} of ${setupTotal} complete`}
+          title="Continue setup"
+          active={guideActive}
+          pressed={guideActive}
+          onclick={() => onContinueSetup?.()}
+        >
           <span
-            class="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-info"
-            aria-label="New setup or tour guidance available"
-          ></span>
-        {/if}
-      </Button>
+            class="animate-pulse"
+            role="progressbar"
+            aria-label={`Setup progress: ${setupReady} of ${setupTotal} complete`}
+            aria-valuemin="0"
+            aria-valuemax={setupTotal}
+            aria-valuenow={setupReady}
+          >
+            <svg
+              class="size-4 -rotate-90"
+              viewBox="0 0 20 20"
+              aria-hidden="true"
+            >
+              <circle
+                class="text-primary-foreground/30"
+                cx="10"
+                cy="10"
+                r="8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                pathLength="100"
+              />
+              <circle
+                class="text-primary-foreground"
+                cx="10"
+                cy="10"
+                r="8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                pathLength="100"
+                stroke-dasharray="100"
+                stroke-dashoffset={100 - (setupReady / setupTotal) * 100}
+              />
+            </svg>
+          </span>
+          <span>Continue setup ({setupReady}/{setupTotal})</span>
+        </Button>
+      {:else}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="relative max-sm:hidden"
+          data-tour-id="help"
+          ariaLabel="Open setup and product tour"
+          title="Open setup and product tour"
+          active={guideActive}
+          pressed={guideActive}
+          onclick={() => onOpenGuide?.()}
+        >
+          <CircleHelp size={16} strokeWidth={2.1} />
+          {#if guideUnseen}
+            <span
+              class="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-info"
+              aria-label="New setup or tour guidance available"
+            ></span>
+          {/if}
+        </Button>
+      {/if}
       {#if applicationLogsEnabled}
         <Button
           variant="ghost"

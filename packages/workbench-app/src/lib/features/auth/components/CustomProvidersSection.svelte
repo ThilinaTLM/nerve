@@ -71,7 +71,11 @@ async function confirmDelete(): Promise<void> {
 
 <SettingsToolbar>
   {#snippet end()}
-    <Button size="sm" onclick={openAdd}>
+    <Button
+      size="sm"
+      data-tour-id="setup-auth-add-custom-provider"
+      onclick={openAdd}
+    >
       <Plus class="size-3.5" aria-hidden="true" />
       Add provider
     </Button>
@@ -85,7 +89,11 @@ async function confirmDelete(): Promise<void> {
       description="Add a custom provider to connect a local or self-hosted endpoint."
     >
       {#snippet actions()}
-        <Button size="sm" onclick={openAdd}>Add provider</Button>
+        <Button
+          size="sm"
+          data-tour-id="setup-auth-add-custom-provider"
+          onclick={openAdd}>Add provider</Button
+        >
       {/snippet}
     </SettingsEmptyState>
   {:else}

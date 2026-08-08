@@ -170,6 +170,7 @@ export const settingsSchema = z.object({
     colorMode: colorModeSchema.default("system"),
     zoomLevel: z.number().int().min(-8).max(8).default(0),
     onboardingVersion: z.number().int().nonnegative().default(0),
+    productTourVersion: z.number().int().nonnegative().default(0),
   }),
   desktop: z.object({
     closeToTray: z.boolean().default(true),
@@ -246,6 +247,7 @@ export const defaultSettings: Settings = {
     colorMode: "system",
     zoomLevel: 0,
     onboardingVersion: 0,
+    productTourVersion: 0,
   },
   desktop: {
     closeToTray: true,
@@ -318,6 +320,7 @@ export const updateSettingsRequestSchema = z.object({
       colorMode: colorModeSchema.optional(),
       zoomLevel: z.number().int().min(-8).max(8).optional(),
       onboardingVersion: z.number().int().nonnegative().optional(),
+      productTourVersion: z.number().int().nonnegative().optional(),
     })
     .optional(),
   desktop: z

@@ -87,8 +87,12 @@ function save(): void {
   description="Pick the authenticated models to show in the composer. Leave everything unchecked to keep all models available."
   size="md"
   flush
+  closeOnInteractOutside={false}
 >
-  <div class="grid max-h-[min(70vh,32rem)] grid-rows-[auto_minmax(0,1fr)]">
+  <div
+    class="grid max-h-[min(70vh,32rem)] grid-rows-[auto_minmax(0,1fr)]"
+    data-tour-id="setup-scoped-models-catalog"
+  >
     <div class="grid gap-2 border-b border-border/50 px-3.5 pt-3 pb-2.5">
       <SearchInput
         bind:value={query}
@@ -169,8 +173,11 @@ function save(): void {
     <Button size="sm" variant="ghost" onclick={() => (open = false)}
       >Cancel</Button
     >
-    <Button size="sm" onclick={save} disabled={availableModels.length === 0}
-      >Save selection</Button
+    <Button
+      size="sm"
+      data-tour-id="setup-scoped-models-save"
+      onclick={save}
+      disabled={availableModels.length === 0}>Save selection</Button
     >
   {/snippet}
 </Dialog>

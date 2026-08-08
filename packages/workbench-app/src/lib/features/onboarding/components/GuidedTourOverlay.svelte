@@ -6,32 +6,33 @@ import Check from "@lucide/svelte/icons/check";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import type { TourStep } from "../guide-content.js";
+import type { SetupGuideStep } from "../setup-guide-content.js";
 import { calloutPlacement, type Rect } from "../guide-controller.js";
 
 type Props = {
-  step: TourStep;
+  step: TourStep | SetupGuideStep;
+  variant?: "modal" | "coach";
   index: number;
   count: number;
-  targetAvailable: boolean;
   preparing?: boolean;
   compact?: boolean;
   onBack: () => void;
   onNext: () => void;
   onComplete: () => void;
-  onNotNow: () => void;
+  onClose: () => void;
 };
 
 let {
   step,
+  variant = "modal",
   index,
   count,
-  targetAvailable,
   preparing = false,
   compact = false,
   onBack,
   onNext,
   onComplete,
-  onNotNow,
+  onClose,
 }: Props = $props();
 
 let targetRect = $state<Rect | undefined>();
@@ -45,7 +46,9 @@ let viewportHeight = $state(
   typeof window === "undefined" ? 768 : window.innerHeight,
 );
 
+const modal = $derived(variant === "modal");
 const last = $derived(index === count - 1);
+const centered = $derived("introducedIn" in step && step.id === "finish");
 const placement = $derived(
   calloutPlacement({
     target: targetRect,
@@ -54,19 +57,28 @@ const placement = $derived(
     calloutWidth,
     calloutHeight,
     compact,
+    centered,
   }),
 );
+
+function findVisibleTarget(): HTMLElement | undefined {
+  if (!step.targetId) return undefined;
+  return [
+    ...document.querySelectorAll<HTMLElement>(
+      `[data-tour-id="${step.targetId}"]`,
+    ),
+  ].find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+}
 
 function measure(): void {
   viewportWidth = window.innerWidth;
   viewportHeight = window.innerHeight;
-  const target =
-    targetAvailable && step.targetId
-      ? document.querySelector<HTMLElement>(`[data-tour-id="${step.targetId}"]`)
-      : undefined;
-  if (!target) {
-    targetRect = undefined;
-  } else {
+  const target = findVisibleTarget();
+  if (!target) targetRect = undefined;
+  else {
     const rect = target.getBoundingClientRect();
     const padding = 6;
     const left = Math.max(0, rect.left - padding);
@@ -91,29 +103,35 @@ function measure(): void {
 
 $effect(() => {
   const targetId = step.targetId;
-  const shouldObserveTarget = targetAvailable;
+  const shouldFocus = modal;
   void tick().then(() => {
     measure();
-    calloutElement?.focus({ preventScroll: true });
+    if (shouldFocus) calloutElement?.focus({ preventScroll: true });
   });
-
-  const target =
-    shouldObserveTarget && targetId
-      ? document.querySelector<HTMLElement>(`[data-tour-id="${targetId}"]`)
-      : undefined;
+  const target = targetId ? findVisibleTarget() : undefined;
   const observer = new ResizeObserver(measure);
+  const mutationObserver = new MutationObserver(measure);
   if (target) observer.observe(target);
+  else if (targetId) {
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }
   if (calloutElement) observer.observe(calloutElement);
-  return () => observer.disconnect();
+  return () => {
+    observer.disconnect();
+    mutationObserver.disconnect();
+  };
 });
 
 function handleKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape") {
     event.preventDefault();
-    onNotNow();
+    onClose();
     return;
   }
-  if (event.key !== "Tab" || !calloutElement) return;
+  if (!modal || event.key !== "Tab" || !calloutElement) return;
   const controls = [
     ...calloutElement.querySelectorAll<HTMLElement>(
       'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
@@ -137,24 +155,27 @@ function handleKeydown(event: KeyboardEvent): void {
   onkeydown={handleKeydown}
 />
 
-<div class="fixed inset-0 z-100" role="presentation">
+<div
+  class={`fixed inset-0 z-100 ${modal ? "" : "pointer-events-none"}`}
+  role="presentation"
+>
   {#if targetRect}
     <div
-      class="fixed left-0 right-0 top-0 bg-background/82"
+      class={`fixed left-0 right-0 top-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
       style:height={`${targetRect.top}px`}
     ></div>
     <div
-      class="fixed bottom-0 left-0 right-0 bg-background/82"
+      class={`fixed bottom-0 left-0 right-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
       style:top={`${targetRect.bottom}px`}
     ></div>
     <div
-      class="fixed left-0 bg-background/82"
+      class={`fixed left-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
       style:top={`${targetRect.top}px`}
       style:width={`${targetRect.left}px`}
       style:height={`${targetRect.height}px`}
     ></div>
     <div
-      class="fixed right-0 bg-background/82"
+      class={`fixed right-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
       style:top={`${targetRect.top}px`}
       style:left={`${targetRect.right}px`}
       style:height={`${targetRect.height}px`}
@@ -168,31 +189,33 @@ function handleKeydown(event: KeyboardEvent): void {
       aria-hidden="true"
     ></div>
   {:else}
-    <div class="fixed inset-0 bg-background/82"></div>
+    <div
+      class={`fixed inset-0 ${modal ? "bg-background/60" : "bg-background/30"}`}
+    ></div>
   {/if}
 
   <div
     bind:this={calloutElement}
-    class="fixed grid w-96 max-w-[calc(100vw-1.5rem)] gap-4 rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-xl outline-none"
+    class={`fixed grid max-w-[calc(100vw-1.5rem)] gap-4 rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-xl outline-none ${modal ? "w-96" : "pointer-events-auto w-80"}`}
     style:top={`${placement.top}px`}
     style:left={`${placement.left}px`}
     role="dialog"
-    aria-modal="true"
+    aria-modal={modal ? "true" : "false"}
     aria-labelledby="guided-tour-title"
     aria-describedby="guided-tour-description"
-    tabindex="-1"
+    tabindex={modal ? -1 : undefined}
   >
     <div class="grid gap-2">
       <div
         class="flex items-center justify-between gap-3 text-xs text-muted-foreground"
       >
-        <span>Product tour</span>
+        <span>{modal ? "Product tour" : "Setup guide"}</span>
         <span>Step {index + 1} of {count}</span>
       </div>
       <Progress
         value={index + 1}
         max={count}
-        aria-label="Product tour progress"
+        aria-label={`${modal ? "Product tour" : "Setup guide"} progress`}
       />
     </div>
 
@@ -219,24 +242,26 @@ function handleKeydown(event: KeyboardEvent): void {
     </div>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <Button variant="ghost" size="sm" onclick={onNotNow}>Not now</Button>
+      <Button variant="ghost" size="sm" onclick={onClose}
+        >{modal ? "Not now" : "Close guide"}</Button
+      >
       <div class="flex items-center gap-2">
         <Button
           variant="outline"
           size="sm"
-          disabled={index === 0}
+          disabled={index === 0 || preparing}
           onclick={onBack}
         >
           <ArrowLeft class="size-3.5" aria-hidden="true" />
           Back
         </Button>
         {#if last}
-          <Button size="sm" onclick={onComplete}>
+          <Button size="sm" disabled={preparing} onclick={onComplete}>
             <Check class="size-3.5" aria-hidden="true" />
-            Finish
+            {modal ? "Finish" : "Finish guide"}
           </Button>
         {:else}
-          <Button size="sm" onclick={onNext}>
+          <Button size="sm" disabled={preparing} onclick={onNext}>
             Next
             <ArrowRight class="size-3.5" aria-hidden="true" />
           </Button>

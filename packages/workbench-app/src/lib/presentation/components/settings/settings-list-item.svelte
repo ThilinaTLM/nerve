@@ -6,6 +6,7 @@ type Props = {
   title?: string;
   description?: string;
   class?: string;
+  tourId?: string;
   leading?: Snippet;
   badges?: Snippet;
   meta?: Snippet;
@@ -18,6 +19,7 @@ let {
   title,
   description,
   class: className,
+  tourId,
   leading,
   badges,
   meta,
@@ -27,6 +29,7 @@ let {
 </script>
 
 <div
+  data-tour-id={tourId}
   class={cn(
     "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5",
     className,

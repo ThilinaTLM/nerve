@@ -176,6 +176,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
       items={modeItems}
       value={settingsDraft.defaultMode}
       ariaLabel="Default mode"
+      tourId="setup-agent-default-mode"
       onValueChange={setDefaultMode}
     />
   </SettingsRow>
@@ -185,12 +186,14 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
       items={permissionItems}
       value={settingsDraft.defaultPermissionLevel}
       ariaLabel="Default permission"
+      tourId="setup-agent-default-permission"
       onValueChange={setDefaultPermission}
     />
   </SettingsRow>
 
   <ModelPickerRow
     label="Default model"
+    tourId="setup-agent-default-model"
     description="Choose the model and thinking level together."
     models={availableModels}
     selectedModel={settingsDraft.defaultModel}

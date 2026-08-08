@@ -26,7 +26,13 @@ import {
 import { openAuthPane } from "$lib/features/auth";
 import { releaseState } from "$lib/features/releases";
 import { openLogsPane } from "$lib/features/logs";
-import { guideState, guideUnseen, openGuide } from "$lib/features/onboarding";
+import {
+  guideState,
+  guideUnseen,
+  openGuide,
+  setupPaused,
+  setupProgress,
+} from "$lib/features/onboarding";
 import { openSettingsPane, settingsSelectors } from "$lib/features/settings";
 import {
   deleteProjectAndRefresh,
@@ -66,6 +72,7 @@ const headerType = $derived(
     desktopRuntime.platform,
   ),
 );
+const onboardingProgress = $derived(setupProgress());
 const desktopQuitting = $derived(
   desktopRuntime.quitting || desktopShutdownState.quitRequested,
 );
@@ -137,8 +144,13 @@ async function handleDesktopClose() {
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}
   quitting={desktopQuitting}
   settingsActive={activeCenterTab?.kind === "settings"}
-  guideActive={guideState.mode === "setup" || guideState.mode === "tour"}
+  guideActive={guideState.mode === "setup" ||
+    guideState.mode === "tour" ||
+    guideState.mode === "coach"}
   guideUnseen={guideUnseen()}
+  setupPaused={setupPaused()}
+  setupReady={onboardingProgress.ready}
+  setupTotal={onboardingProgress.total}
   authActive={activeCenterTab?.kind === "auth"}
   logsActive={activeCenterTab?.kind === "logs"}
   applicationLogsEnabled={status?.capabilities.applicationLogs ?? false}
@@ -149,6 +161,7 @@ async function handleDesktopClose() {
   onSelectProject={(projectId) => void selectProject(projectId)}
   onOpenLogs={() => openLogsPane()}
   onOpenGuide={openGuide}
+  onContinueSetup={openGuide}
   onOpenAuth={() => openAuthPane()}
   onOpenSettings={() => void openSettingsPane()}
   onMinimize={() => void minimizeDesktopWindow()}

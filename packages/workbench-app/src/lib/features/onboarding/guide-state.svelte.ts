@@ -26,11 +26,18 @@ import {
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
   CURRENT_ONBOARDING_VERSION,
+  CURRENT_PRODUCT_TOUR_VERSION,
   guideItemsForRun,
   tourSteps,
   type TourStep,
 } from "./guide-content.js";
 import { adjacentStep, shouldAutoOpenGuide } from "./guide-controller.js";
+import { setupStepsForArea, adjacentSetupStep } from "./setup-guide-policy.js";
+import type { SetupGuideArea, SetupGuideStep } from "./setup-guide-content.js";
+import {
+  calculateSetupProgress,
+  type SetupProgress,
+} from "./setup-progress.js";
 import {
   summarizeAgentDefaults,
   type AgentDefaultsSetupSummary,
@@ -41,7 +48,7 @@ import {
   needsProjectForTour,
 } from "./tour-readiness.js";
 
-type GuideMode = "closed" | "setup" | "paused" | "tour";
+type GuideMode = "closed" | "setup" | "paused" | "tour" | "coach";
 
 type PresentationSnapshot = {
   shell: ShellPresentationSnapshot;
@@ -60,6 +67,9 @@ export const guideState = $state({
   targetAvailable: false,
   awaitingProject: false,
   runSteps: [] as TourStep[],
+  setupArea: undefined as SetupGuideArea | undefined,
+  setupSteps: [] as SetupGuideStep[],
+  setupStepIndex: 0,
 });
 
 let presentationSnapshot: PresentationSnapshot | undefined;
@@ -69,8 +79,16 @@ export function completedOnboardingVersion(): number {
   return settingsState.settingsDraft?.ui.onboardingVersion ?? 0;
 }
 
+export function completedProductTourVersion(): number {
+  return settingsState.settingsDraft?.ui.productTourVersion ?? 0;
+}
+
 export function guideUnseen(): boolean {
   return completedOnboardingVersion() < CURRENT_ONBOARDING_VERSION;
+}
+
+export function productTourCompleted(): boolean {
+  return completedProductTourVersion() >= CURRENT_PRODUCT_TOUR_VERSION;
 }
 
 export function providerConfigured(): boolean {
@@ -89,14 +107,26 @@ export function scopedModelSummary(): string {
 
 export function agentDefaultsSummary(): AgentDefaultsSetupSummary {
   const draft = settingsState.settingsDraft;
-  if (!draft) {
-    return { configured: false, text: "Agent defaults are loading." };
-  }
+  if (!draft) return { configured: false, text: "Agent defaults are loading." };
   return summarizeAgentDefaults(draft, settingsState.models);
 }
 
 export function agentDefaultsConfigured(): boolean {
   return agentDefaultsSummary().configured;
+}
+
+export function setupProgress(): SetupProgress {
+  return calculateSetupProgress({
+    providerReady: providerConfigured(),
+    voiceReady: voiceConfigured(),
+    scopedModelsValid: Boolean(settingsState.settingsDraft),
+    agentDefaultsReady: agentDefaultsConfigured(),
+    productTourCompleted: productTourCompleted(),
+  });
+}
+
+export function setupPaused(): boolean {
+  return guideState.mode === "paused" || guideState.mode === "coach";
 }
 
 export function considerAutomaticGuide(): void {
@@ -110,9 +140,8 @@ export function considerAutomaticGuide(): void {
       generation,
       consideredGeneration: guideState.consideredGeneration,
     })
-  ) {
+  )
     return;
-  }
   guideState.consideredGeneration = generation;
   guideState.manual = false;
   guideState.mode = "setup";
@@ -123,21 +152,6 @@ export function openGuide(): void {
   guideState.awaitingProject = false;
   guideState.manual = true;
   guideState.mode = "setup";
-}
-
-export function pauseForProviders(): void {
-  guideState.mode = "paused";
-  openAuthPane();
-}
-
-export function pauseForScopedModels(): void {
-  guideState.mode = "paused";
-  void openSettingsPane("models", "models");
-}
-
-export function pauseForAgentSettings(): void {
-  guideState.mode = "paused";
-  void openSettingsPane("agents", "defaults");
 }
 
 function capturePresentation(): PresentationSnapshot {
@@ -153,10 +167,8 @@ function capturePresentation(): PresentationSnapshot {
 }
 
 function closeConversationHistory(): void {
-  const target = document.querySelector<HTMLElement>(
-    '[data-tour-id="conversation-history"]',
-  );
-  target
+  document
+    .querySelector<HTMLElement>('[data-tour-id="conversation-history"]')
     ?.closest<HTMLElement>('[data-slot="dialog-content"]')
     ?.querySelector<HTMLButtonElement>('[aria-label="Close dialog"]')
     ?.click();
@@ -173,8 +185,22 @@ function restorePresentation(): void {
   if (!snapshot.historyOpen) closeConversationHistory();
 }
 
+function visibleTarget(targetId?: string): HTMLElement | undefined {
+  if (!targetId) return undefined;
+  return [
+    ...document.querySelectorAll<HTMLElement>(`[data-tour-id="${targetId}"]`),
+  ].find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+}
+
 export function currentTourStep(): TourStep | undefined {
   return guideState.runSteps[guideState.stepIndex];
+}
+
+export function currentSetupStep(): SetupGuideStep | undefined {
+  return guideState.setupSteps[guideState.setupStepIndex];
 }
 
 const tourPanelViewByStep: Partial<Record<TourStep["id"], string>> = {
@@ -188,34 +214,136 @@ const tourPanelViewByStep: Partial<Record<TourStep["id"], string>> = {
   "context-panel": "context",
 };
 
-async function prepareStep(step: TourStep): Promise<void> {
+async function settlePreparation(): Promise<void> {
+  await tick();
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function prepareTourStep(step: TourStep): Promise<void> {
   const requestId = ++preparationId;
   guideState.preparing = true;
   guideState.targetAvailable = false;
-
   if (step.id !== "history") closeConversationHistory();
-
   const panelView = tourPanelViewByStep[step.id];
-  if (panelView) {
-    revealPanelViewTemporarily(panelView, responsive.isCompact);
-  } else if (step.id === "composer") {
+  if (panelView) revealPanelViewTemporarily(panelView, responsive.isCompact);
+  else if (step.id === "composer") {
     if (!activeTabIsConversation(workspaceSelectors.activeCenterTab?.kind)) {
       newConversation();
       await tick();
     }
   } else if (step.id === "history") {
     if (conversationSelectors.activeConversation) openConversationHistory();
-  } else if (step.id === "skills") {
-    await openSettingsPane("skills");
+  } else if (step.id === "skills") await openSettingsPane("skills");
+  await settlePreparation();
+  if (requestId !== preparationId || guideState.mode !== "tour") return;
+  guideState.targetAvailable = Boolean(visibleTarget(step.targetId));
+  guideState.preparing = false;
+}
+
+async function waitForVisibleTarget(
+  targetId: string,
+  timeoutMs: number,
+): Promise<HTMLElement | undefined> {
+  const deadline = performance.now() + timeoutMs;
+  do {
+    const target = visibleTarget(targetId);
+    if (target) return target;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+  } while (performance.now() < deadline);
+  return undefined;
+}
+
+async function prepareSetupStep(
+  step: SetupGuideStep,
+  enterCoach = false,
+): Promise<void> {
+  const requestId = ++preparationId;
+  guideState.preparing = true;
+  guideState.targetAvailable = false;
+  let target = visibleTarget(step.targetId);
+  const preparation = step.preparation;
+
+  // Navigate only before the coach appears. Re-selecting a center tab during
+  // later steps remounts its page and closes interactive dialogs (for example,
+  // the scoped-model catalog) before their controls can be highlighted.
+  if (enterCoach && !target && preparation?.kind === "auth") {
+    await openAuthPane(preparation.pageId, preparation.sectionId);
+  } else if (enterCoach && !target && preparation?.kind === "settings") {
+    await openSettingsPane(preparation.pageId, preparation.sectionId);
   }
 
-  await tick();
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-  if (requestId !== preparationId || guideState.mode !== "tour") return;
-  guideState.targetAvailable = Boolean(
-    step.targetId &&
-    document.querySelector(`[data-tour-id="${step.targetId}"]`),
+  await settlePreparation();
+  // Initial tab navigation may need to finish loading remote data and mount a
+  // center-tab shell. Conditional follow-up targets get a short grace period
+  // because they depend on an action the user may intentionally skip.
+  target = await waitForVisibleTarget(step.targetId, enterCoach ? 3_000 : 150);
+  if (
+    requestId !== preparationId ||
+    !["paused", "coach"].includes(guideState.mode)
+  )
+    return;
+
+  target?.scrollIntoView({
+    behavior: "instant",
+    block: "nearest",
+    inline: "nearest",
+  });
+  await settlePreparation();
+  if (
+    requestId !== preparationId ||
+    !["paused", "coach"].includes(guideState.mode)
+  )
+    return;
+
+  if (enterCoach) guideState.mode = "coach";
+  guideState.targetAvailable = Boolean(visibleTarget(step.targetId));
+  guideState.preparing = false;
+}
+
+export function startSetupGuide(area: SetupGuideArea): void {
+  guideState.setupArea = area;
+  guideState.setupSteps = setupStepsForArea(area, {
+    codexConnected: voiceConfigured(),
+  });
+  guideState.setupStepIndex = 0;
+  guideState.mode = "paused";
+  const step = currentSetupStep();
+  if (step) void prepareSetupStep(step, true);
+}
+
+export async function moveSetupGuide(direction: -1 | 1): Promise<void> {
+  const current = currentSetupStep();
+  const nextIndex = adjacentSetupStep(
+    guideState.setupStepIndex,
+    guideState.setupSteps.length,
+    direction,
   );
+  if (nextIndex === guideState.setupStepIndex) return;
+  const next = guideState.setupSteps[nextIndex];
+
+  // Some steps teach the action that opens the UI needed by the following
+  // step. Advancing performs that highlighted action when the user has not
+  // already done so, preventing a targetless dialog step.
+  if (
+    direction === 1 &&
+    current?.advanceByClickingTarget &&
+    next &&
+    !visibleTarget(next.targetId)
+  ) {
+    guideState.preparing = true;
+    visibleTarget(current.targetId)?.click();
+    await waitForVisibleTarget(next.targetId, 3_000);
+  }
+
+  guideState.setupStepIndex = nextIndex;
+  if (next) await prepareSetupStep(next);
+}
+
+export function closeSetupGuide(): void {
+  preparationId += 1;
+  guideState.mode = "paused";
   guideState.preparing = false;
 }
 
@@ -223,7 +351,7 @@ function beginProductTour(): void {
   presentationSnapshot ??= capturePresentation();
   guideState.runSteps = guideItemsForRun(
     tourSteps,
-    completedOnboardingVersion(),
+    completedProductTourVersion(),
     guideState.manual,
   ).filter(
     (step) => step.id !== "history" || conversationSelectors.activeConversation,
@@ -232,7 +360,7 @@ function beginProductTour(): void {
   guideState.stepIndex = 0;
   guideState.mode = "tour";
   const step = currentTourStep();
-  if (step) void prepareStep(step);
+  if (step) void prepareTourStep(step);
 }
 
 export function startProductTour(): void {
@@ -252,9 +380,8 @@ export function continueDeferredTour(): void {
       hasActiveProject: Boolean(workspaceSelectors.activeProject),
       projectPickerOpen: workspaceState.projectPickerOpen,
     })
-  ) {
+  )
     return;
-  }
   guideState.awaitingProject = false;
   beginProductTour();
 }
@@ -268,7 +395,7 @@ export function moveTour(direction: -1 | 1): void {
   if (next === guideState.stepIndex) return;
   guideState.stepIndex = next;
   const step = currentTourStep();
-  if (step) void prepareStep(step);
+  if (step) void prepareTourStep(step);
 }
 
 function closeGuide(): void {
@@ -288,7 +415,7 @@ export function notNow(): void {
   closeGuide();
 }
 
-export function completeGuide(): void {
+export function doNotShowAgain(): void {
   const draft = settingsState.settingsDraft;
   if (draft && draft.ui.onboardingVersion < CURRENT_ONBOARDING_VERSION) {
     draft.ui.onboardingVersion = CURRENT_ONBOARDING_VERSION;
@@ -298,4 +425,19 @@ export function completeGuide(): void {
     );
   }
   closeGuide();
+}
+
+export function finishProductTour(): void {
+  const draft = settingsState.settingsDraft;
+  if (draft && draft.ui.productTourVersion < CURRENT_PRODUCT_TOUR_VERSION) {
+    draft.ui.productTourVersion = CURRENT_PRODUCT_TOUR_VERSION;
+    queueSettingsSave(
+      { ui: { productTourVersion: CURRENT_PRODUCT_TOUR_VERSION } },
+      { immediate: true },
+    );
+  }
+  preparationId += 1;
+  guideState.preparing = false;
+  restorePresentation();
+  guideState.mode = "setup";
 }

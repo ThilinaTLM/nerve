@@ -66,6 +66,27 @@ describe("tour callout placement", () => {
     assert.equal(placement.top, 162);
   });
 
+  it("places beside a tall target when vertical placement would overlap", () => {
+    const placement = calloutPlacement({
+      ...viewport,
+      calloutWidth: 240,
+      compact: false,
+      target: {
+        top: 100,
+        right: 700,
+        bottom: 700,
+        left: 300,
+        width: 400,
+        height: 600,
+      },
+    });
+    assert.deepEqual(placement, {
+      top: 310,
+      left: 712,
+      side: "right",
+    });
+  });
+
   it("uses a clamped bottom card on compact screens", () => {
     const placement = calloutPlacement({
       ...viewport,
@@ -75,5 +96,14 @@ describe("tour callout placement", () => {
       compact: true,
     });
     assert.deepEqual(placement, { top: 448, left: 12, side: "center" });
+  });
+
+  it("centers a targetless completion card", () => {
+    const placement = calloutPlacement({
+      ...viewport,
+      compact: false,
+      centered: true,
+    });
+    assert.deepEqual(placement, { top: 310, left: 340, side: "center" });
   });
 });

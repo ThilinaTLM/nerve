@@ -45,7 +45,7 @@ export type Rect = {
 export type CalloutPlacement = {
   top: number;
   left: number;
-  side: "top" | "bottom" | "center";
+  side: "top" | "right" | "bottom" | "left" | "center";
 };
 
 export function calloutPlacement(input: {
@@ -55,6 +55,7 @@ export function calloutPlacement(input: {
   calloutWidth: number;
   calloutHeight: number;
   compact: boolean;
+  centered?: boolean;
   gap?: number;
   margin?: number;
 }): CalloutPlacement {
@@ -68,6 +69,14 @@ export function calloutPlacement(input: {
     maxLeft,
     Math.max(margin, (input.viewportWidth - input.calloutWidth) / 2),
   );
+
+  if (input.centered) {
+    return {
+      top: Math.max(margin, (input.viewportHeight - input.calloutHeight) / 2),
+      left: centeredLeft,
+      side: "center",
+    };
+  }
 
   if (input.compact || !input.target) {
     return {
@@ -99,6 +108,35 @@ export function calloutPlacement(input: {
       side: "top",
     };
   }
+
+  const maxTop = Math.max(
+    margin,
+    input.viewportHeight - input.calloutHeight - margin,
+  );
+  const targetMiddle = input.target.top + input.target.height / 2;
+  const sideTop = Math.min(
+    maxTop,
+    Math.max(margin, targetMiddle - input.calloutHeight / 2),
+  );
+  const fitsRight =
+    input.target.right + gap + input.calloutWidth <=
+    input.viewportWidth - margin;
+  if (fitsRight) {
+    return {
+      top: sideTop,
+      left: input.target.right + gap,
+      side: "right",
+    };
+  }
+  const fitsLeft = input.target.left - gap - input.calloutWidth >= margin;
+  if (fitsLeft) {
+    return {
+      top: sideTop,
+      left: input.target.left - gap - input.calloutWidth,
+      side: "left",
+    };
+  }
+
   return {
     top: Math.max(margin, (input.viewportHeight - input.calloutHeight) / 2),
     left: centeredLeft,

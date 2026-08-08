@@ -64,6 +64,7 @@ onDestroy(() => {
   title={flowController.dialogTitle}
   description={flowController.dialogDescription}
   class="add-provider-dialog"
+  closeOnInteractOutside={false}
   onOpenChange={handleOpenChange}
 >
   <div class="add-provider-body">
@@ -73,12 +74,15 @@ onDestroy(() => {
           All known providers are already connected.
         </p>
       {:else}
-        <ul class="provider-choices">
+        <ul class="provider-choices" data-tour-id="setup-auth-provider-choices">
           {#each available as provider (provider.provider)}
             <li>
               <button
                 type="button"
                 class="provider-choice"
+                data-tour-id={provider.provider === "openai-codex"
+                  ? "setup-auth-openai-codex-choice"
+                  : undefined}
                 onclick={() => flowController.chooseProvider(provider)}
               >
                 <span class="provider-choice-icon" aria-hidden="true">

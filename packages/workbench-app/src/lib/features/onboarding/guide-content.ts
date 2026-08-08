@@ -1,4 +1,5 @@
 export const CURRENT_ONBOARDING_VERSION = 1;
+export const CURRENT_PRODUCT_TOUR_VERSION = 1;
 
 export type TourStepId =
   | "conversations"
