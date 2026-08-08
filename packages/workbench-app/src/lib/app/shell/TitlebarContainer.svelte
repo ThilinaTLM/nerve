@@ -38,6 +38,7 @@ import {
 } from "$lib/features/workspace";
 import { quickProjectItems } from "$lib/features/projects";
 import { responsive } from "$lib/app/shell/responsive.svelte";
+import { resolveHeaderType } from "$lib/app/shell/header-type";
 
 const projectItems = $derived(workspaceSelectors.projectSwitcherItems);
 const status = $derived(workspaceSelectors.status);
@@ -58,6 +59,12 @@ const quickProjects = $derived(
 );
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
 const settingsDraft = $derived(settingsSelectors.settingsDraft);
+const headerType = $derived(
+  resolveHeaderType(
+    settingsDraft?.desktop.headerType ?? "auto",
+    desktopRuntime.platform,
+  ),
+);
 const desktopQuitting = $derived(
   desktopRuntime.quitting || desktopShutdownState.quitRequested,
 );
@@ -124,6 +131,7 @@ async function handleDesktopClose() {
   projects={quickProjects}
   activeProjectKey={workspaceState.selectedProjectKey}
   desktop={desktopRuntime.isDesktop}
+  {headerType}
   maximized={desktopRuntime.windowState.maximized}
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}
   quitting={desktopQuitting}

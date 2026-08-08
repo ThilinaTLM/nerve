@@ -12,6 +12,9 @@ export type ColorTheme = z.infer<typeof colorThemeSchema>;
 export const colorModeSchema = z.enum(["system", "light", "dark"]);
 export type ColorMode = z.infer<typeof colorModeSchema>;
 
+export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
+export type HeaderType = z.infer<typeof headerTypeSchema>;
+
 export const permissionLevelSchema = z.enum([
   "autonomous",
   "supervised",
@@ -169,6 +172,7 @@ export const settingsSchema = z.object({
   }),
   desktop: z.object({
     closeToTray: z.boolean().default(true),
+    headerType: headerTypeSchema.default("auto"),
   }),
   notifications: z
     .object({
@@ -243,6 +247,7 @@ export const defaultSettings: Settings = {
   },
   desktop: {
     closeToTray: true,
+    headerType: "auto",
   },
   notifications: {
     systemEnabled: true,
@@ -315,6 +320,7 @@ export const updateSettingsRequestSchema = z.object({
   desktop: z
     .object({
       closeToTray: z.boolean().optional(),
+      headerType: headerTypeSchema.optional(),
     })
     .optional(),
   notifications: z

@@ -53,6 +53,7 @@ export type {
   GithubPrOverview,
   GithubPrReviewSummary,
   GithubStatusResponse,
+  HeaderType,
   GitMutationResponse,
   GitOverviewResponse,
   GitRecentCommit,
