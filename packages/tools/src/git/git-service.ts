@@ -81,6 +81,12 @@ import { parsePorcelainV2 } from "./git-status.js";
 const MAX_DISCOVERY_DEPTH = 2;
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next"]);
 
+function observedCommand(args: readonly string[]): string {
+  return args[0] === "--no-optional-locks"
+    ? (args[1] ?? "unknown")
+    : (args[0] ?? "unknown");
+}
+
 export class GitService {
   readonly #stableMetadataCache: GitRepositoryMetadataCache;
   readonly #githubApi: GithubApiClient;
@@ -123,7 +129,7 @@ export class GitService {
       const result = await runGitCommand(bin, cwd, args);
       this.observeCommand({
         bin,
-        command: args[0] ?? "unknown",
+        command: observedCommand(args),
         durationMs: performance.now() - startedAt,
         succeeded: true,
       });
@@ -131,7 +137,7 @@ export class GitService {
     } catch (error) {
       this.observeCommand({
         bin,
-        command: args[0] ?? "unknown",
+        command: observedCommand(args),
         durationMs: performance.now() - startedAt,
         succeeded: false,
       });

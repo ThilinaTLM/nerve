@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { definePublicEvent } from "../events/event-definition.schema.js";
 
+const repositoryScope = ["projectId", "repo"] as const;
+
 export const gitEventDefinitions = [
   definePublicEvent(
     "git.repository.changed",
@@ -15,6 +17,19 @@ export const gitEventDefinitions = [
         })
         .optional(),
     }),
-    { scope: ["projectId", "repo"] },
+    { scope: repositoryScope },
+  ),
+  definePublicEvent(
+    "git.repository.invalidated",
+    z.object({
+      projectId: z.string().startsWith("proj_"),
+      repo: z.string().min(1).max(1_024),
+      source: z.literal("filesystem"),
+    }),
+    {
+      delivery: "ephemeral",
+      coalescing: "latest_by_scope",
+      scope: repositoryScope,
+    },
   ),
 ];

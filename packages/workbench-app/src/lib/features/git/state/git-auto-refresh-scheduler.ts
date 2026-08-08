@@ -31,7 +31,7 @@ export class GitAutoRefreshScheduler {
   readonly #entries = new Map<string, Entry>();
 
   constructor(
-    readonly cooldownMs: number,
+    readonly cooldownMs: Record<GitAutoRefreshTarget, number>,
     readonly dispatch: (key: string, demand: GitAutoRefreshDemand) => void,
     readonly clock: Clock = systemClock,
   ) {}
@@ -72,7 +72,7 @@ export class GitAutoRefreshScheduler {
       const lastStartedAt = entry.lastStartedAt[target];
       if (
         lastStartedAt === undefined ||
-        now - lastStartedAt >= this.cooldownMs
+        now - lastStartedAt >= this.cooldownMs[target]
       ) {
         due[target] = true;
         entry.pending[target] = false;
@@ -93,7 +93,7 @@ export class GitAutoRefreshScheduler {
       const lastStartedAt = entry.lastStartedAt[target];
       return lastStartedAt === undefined
         ? 0
-        : Math.max(0, this.cooldownMs - (now - lastStartedAt));
+        : Math.max(0, this.cooldownMs[target] - (now - lastStartedAt));
     });
     if (delays.length === 0) return;
     entry.timer = this.clock.setTimeout(

@@ -1,8 +1,10 @@
 import type { GithubPr, GithubPrListFilters } from "@nervekit/contracts";
 
 export const GIT_STALE_MS = 30_000;
-export const GIT_AUTO_REFRESH_COOLDOWN_MS = 20_000;
+export const GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS = 3_000;
+export const GIT_PR_AUTO_REFRESH_COOLDOWN_MS = 30_000;
 export const GITHUB_STATUS_STALE_MS = 5 * 60_000;
+export const PR_STALE_MS = 60_000;
 export const PR_PENDING_POLL_MS = 10_000;
 
 export function githubPrFiltersFingerprint(

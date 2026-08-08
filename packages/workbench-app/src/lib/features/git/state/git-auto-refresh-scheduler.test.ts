@@ -4,7 +4,10 @@ import {
   GitAutoRefreshScheduler,
   type GitAutoRefreshDemand,
 } from "./git-auto-refresh-scheduler.js";
-import { GIT_AUTO_REFRESH_COOLDOWN_MS } from "./git-refresh-policy.js";
+import {
+  GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS,
+  GIT_PR_AUTO_REFRESH_COOLDOWN_MS,
+} from "./git-refresh-policy.js";
 
 type Timer = { at: number; callback: () => void; cancelled: boolean };
 
@@ -47,7 +50,10 @@ function setup() {
   const clock = new FakeClock();
   const dispatches: Array<{ at: number; demand: GitAutoRefreshDemand }> = [];
   const scheduler = new GitAutoRefreshScheduler(
-    GIT_AUTO_REFRESH_COOLDOWN_MS,
+    {
+      overview: GIT_OVERVIEW_AUTO_REFRESH_COOLDOWN_MS,
+      prs: GIT_PR_AUTO_REFRESH_COOLDOWN_MS,
+    },
     (_key, demand) => dispatches.push({ at: clock.now(), demand }),
     clock,
   );
@@ -55,58 +61,57 @@ function setup() {
 }
 
 describe("GitAutoRefreshScheduler", () => {
-  it("dispatches first demand immediately and coalesces one trailing refresh", () => {
+  it("dispatches first demand immediately and coalesces one trailing overview", () => {
     const { clock, dispatches, scheduler } = setup();
     scheduler.schedule("repo", { overview: true });
-    clock.advanceTo(5_000);
+    clock.advanceTo(1_000);
     scheduler.schedule("repo", { overview: true });
-    clock.advanceTo(10_000);
+    clock.advanceTo(2_000);
     scheduler.schedule("repo", { overview: true });
     assert.deepEqual(dispatches, [{ at: 0, demand: { overview: true } }]);
 
-    clock.advanceTo(20_000);
+    clock.advanceTo(3_000);
     assert.deepEqual(dispatches, [
       { at: 0, demand: { overview: true } },
-      { at: 20_000, demand: { overview: true } },
+      { at: 3_000, demand: { overview: true } },
     ]);
-    clock.advanceTo(40_000);
+    clock.advanceTo(6_000);
     assert.equal(dispatches.length, 2);
   });
 
-  it("merges targets while retaining independent cooldown boundaries", () => {
+  it("retains independent overview and PR cooldown boundaries", () => {
     const { clock, dispatches, scheduler } = setup();
-    scheduler.schedule("repo", { overview: true });
-    clock.advanceTo(5_000);
-    scheduler.schedule("repo", { prs: true });
-    clock.advanceTo(10_000);
     scheduler.schedule("repo", { overview: true, prs: true });
+    clock.advanceTo(1_000);
+    scheduler.schedule("repo", { overview: true, prs: true });
+    clock.advanceTo(3_000);
+    clock.advanceTo(30_000);
 
-    clock.advanceTo(20_000);
-    clock.advanceTo(25_000);
     assert.deepEqual(dispatches, [
-      { at: 0, demand: { overview: true } },
-      { at: 5_000, demand: { prs: true } },
-      { at: 20_000, demand: { overview: true } },
-      { at: 25_000, demand: { prs: true } },
+      { at: 0, demand: { overview: true, prs: true } },
+      { at: 3_000, demand: { overview: true } },
+      { at: 30_000, demand: { prs: true } },
     ]);
   });
 
-  it("lets a direct refresh satisfy queued demand and reset eligibility", () => {
+  it("lets a direct refresh consume older queued demand", () => {
     const { clock, dispatches, scheduler } = setup();
     scheduler.schedule("repo", { prs: true });
     clock.advanceTo(5_000);
     scheduler.schedule("repo", { prs: true });
     clock.advanceTo(10_000);
     scheduler.noteDirectStart("repo", { prs: true });
-    clock.advanceTo(11_000);
-    scheduler.schedule("repo", { prs: true });
 
-    clock.advanceTo(29_999);
+    clock.advanceTo(40_000);
     assert.deepEqual(dispatches, [{ at: 0, demand: { prs: true } }]);
-    clock.advanceTo(30_000);
-    assert.deepEqual(dispatches, [
-      { at: 0, demand: { prs: true } },
-      { at: 30_000, demand: { prs: true } },
-    ]);
+  });
+
+  it("preserves demand that arrives after a direct refresh starts", () => {
+    const { clock, dispatches, scheduler } = setup();
+    scheduler.noteDirectStart("repo", { overview: true });
+    clock.advanceTo(500);
+    scheduler.schedule("repo", { overview: true });
+    clock.advanceTo(3_000);
+    assert.deepEqual(dispatches, [{ at: 3_000, demand: { overview: true } }]);
   });
 });

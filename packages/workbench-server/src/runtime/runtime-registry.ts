@@ -152,6 +152,7 @@ export class RuntimeRegistry {
    */
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
+    this.services.gitRepositoryWatcher.close();
     await this.services.tasks.shutdown();
     this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);

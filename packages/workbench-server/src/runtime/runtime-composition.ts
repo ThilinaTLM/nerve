@@ -1,5 +1,7 @@
 import { generateSummary, resolveAgentModel } from "@nervekit/harness";
 import { withGitMutationEvents } from "../domains/tools/git-mutation-publisher.js";
+import { GitRepositoryWatcher } from "../domains/tools/git-repository-watcher.js";
+import { withGitRepositoryWatching } from "../domains/tools/git-repository-watching.js";
 import { GitService } from "@nervekit/tools";
 import {
   AgentLifecycleService,
@@ -95,6 +97,7 @@ export interface RuntimeServices {
   plans: PlanService;
   tools: ToolService;
   git: GitService;
+  gitRepositoryWatcher: GitRepositoryWatcher;
   fileCompletions: FileCompletionService;
   promptSuggestions: PromptSuggestionService;
   taskDefinitions: TaskDefinitionService;
@@ -363,38 +366,46 @@ export function composeRuntime(
       services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
   );
   const gitLogger = logger.child({ component: "git" });
+  const gitService = new GitService(getProject, {
+    onCommandCompleted: (observation) => {
+      if (observation.durationMs < 250) return;
+      void gitLogger.warn("Slow Git command", {
+        durationMs: Math.round(observation.durationMs),
+        context: {
+          bin: observation.bin,
+          command: observation.command,
+          succeeded: observation.succeeded,
+        },
+      });
+    },
+    onGithubRequestCompleted: (observation) => {
+      if (observation.durationMs < 250) return;
+      void gitLogger.warn("Slow GitHub API request", {
+        durationMs: Math.round(observation.durationMs),
+        context: {
+          operation: observation.operation,
+          status: observation.status,
+          succeeded: observation.succeeded,
+        },
+      });
+    },
+    onOverviewCompleted: (observation) => {
+      if (observation.durationMs < 500) return;
+      void gitLogger.warn("Slow Git overview", {
+        durationMs: Math.round(observation.durationMs),
+        context: { succeeded: observation.succeeded },
+      });
+    },
+  });
+  services.gitRepositoryWatcher = new GitRepositoryWatcher(events, {
+    onRepositoryMetadataChanged: (repoDir) =>
+      gitService.invalidateStableRepoMetadata(repoDir),
+    onWarning: (message, error) => {
+      void gitLogger.warn(message, { error });
+    },
+  });
   services.git = withGitMutationEvents(
-    new GitService(getProject, {
-      onCommandCompleted: (observation) => {
-        if (observation.durationMs < 250) return;
-        void gitLogger.warn("Slow Git command", {
-          durationMs: Math.round(observation.durationMs),
-          context: {
-            bin: observation.bin,
-            command: observation.command,
-            succeeded: observation.succeeded,
-          },
-        });
-      },
-      onGithubRequestCompleted: (observation) => {
-        if (observation.durationMs < 250) return;
-        void gitLogger.warn("Slow GitHub API request", {
-          durationMs: Math.round(observation.durationMs),
-          context: {
-            operation: observation.operation,
-            status: observation.status,
-            succeeded: observation.succeeded,
-          },
-        });
-      },
-      onOverviewCompleted: (observation) => {
-        if (observation.durationMs < 500) return;
-        void gitLogger.warn("Slow Git overview", {
-          durationMs: Math.round(observation.durationMs),
-          context: { succeeded: observation.succeeded },
-        });
-      },
-    }),
+    withGitRepositoryWatching(gitService, services.gitRepositoryWatcher),
     events,
   );
   const promptSuggestionTrustRepository = new PromptSuggestionTrustRepository(
