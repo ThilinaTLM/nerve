@@ -5,7 +5,19 @@ import { test } from "node:test";
 import {
   defaultProcessRuntimeDriver,
   observeProcessLifecycle,
+  processEnvironment,
 } from "../src/domains/tasks/process-runtime/index.js";
+
+test("does not manufacture a CI environment for runtime tasks", () => {
+  const inheritedCi = process.env.CI;
+  delete process.env.CI;
+  try {
+    assert.equal(processEnvironment().CI, undefined);
+  } finally {
+    if (inheritedCi === undefined) delete process.env.CI;
+    else process.env.CI = inheritedCi;
+  }
+});
 
 test("replays process exit, close, and error outcomes to late consumers", async () => {
   const closedChild = new EventEmitter() as ChildProcess;

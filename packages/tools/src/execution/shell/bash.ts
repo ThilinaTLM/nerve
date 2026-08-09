@@ -16,7 +16,6 @@ function nonInteractiveShellEnv(): NodeJS.ProcessEnv {
     GIT_PAGER: "cat",
     GIT_TERMINAL_PROMPT: "0",
     TERM: "dumb",
-    CI: process.env.CI ?? "1",
   };
 }
 

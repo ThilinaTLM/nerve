@@ -43,7 +43,7 @@ describe("bash executor", () => {
     const project = await createTempProject();
     const result = await executeBash(
       {
-        command: `${node} -e "process.stdout.write(JSON.stringify({ PAGER: process.env.PAGER, GIT_PAGER: process.env.GIT_PAGER, GIT_TERMINAL_PROMPT: process.env.GIT_TERMINAL_PROMPT, TERM: process.env.TERM, CI: process.env.CI }))"`,
+        command: `${node} -e "process.stdout.write(JSON.stringify({ PAGER: process.env.PAGER, GIT_PAGER: process.env.GIT_PAGER, GIT_TERMINAL_PROMPT: process.env.GIT_TERMINAL_PROMPT, TERM: process.env.TERM }))"`,
       },
       { cwd: project.root },
     );
@@ -53,7 +53,25 @@ describe("bash executor", () => {
     assert.equal(env.GIT_PAGER, "cat");
     assert.equal(env.GIT_TERMINAL_PROMPT, "0");
     assert.equal(env.TERM, "dumb");
-    assert.equal(env.CI, process.env.CI ?? "1");
+  });
+
+  it("does not manufacture a CI environment", async () => {
+    const inheritedCi = process.env.CI;
+    delete process.env.CI;
+    try {
+      const project = await createTempProject();
+      const result = await executeBash(
+        {
+          command: `${node} -e "process.stdout.write(process.env.CI ?? 'unset')"`,
+        },
+        { cwd: project.root },
+      );
+
+      assert.equal(result.stdout, "unset");
+    } finally {
+      if (inheritedCi === undefined) delete process.env.CI;
+      else process.env.CI = inheritedCi;
+    }
   });
 
   it("uses configured shellPath instead of the platform default shell", async (t) => {
