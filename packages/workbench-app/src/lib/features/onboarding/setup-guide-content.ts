@@ -1,4 +1,5 @@
 export type SetupGuideArea =
+  | "open-project"
   | "provider"
   | "voice"
   | "scoped-models"
@@ -22,6 +23,26 @@ export const setupGuideSteps: Record<
   SetupGuideArea,
   readonly SetupGuideStep[]
 > = {
+  "open-project": [
+    {
+      id: "open-project-switcher",
+      title: "Open the project switcher",
+      description:
+        "Use the project control in the titlebar to open or switch projects.",
+      targetId: "guide-project-open",
+      fallback: "Choose the project icon in the titlebar.",
+      advanceByClickingTarget: true,
+    },
+    {
+      id: "open-project-browse",
+      title: "Browse for a project",
+      description:
+        "Choose Browse to find and open a project folder from your computer.",
+      targetId: "guide-project-browse",
+      fallback:
+        "The project browser is already open when there are no recent projects.",
+    },
+  ],
   provider: [
     {
       id: "provider-subscription",

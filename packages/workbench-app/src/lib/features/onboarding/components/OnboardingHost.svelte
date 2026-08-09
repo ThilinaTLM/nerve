@@ -1,58 +1,49 @@
 <script lang="ts">
 import { responsive } from "$lib/app/shell/responsive.svelte";
+import { workspaceSelectors } from "$lib/features/workspace";
 import {
-  agentDefaultsConfigured,
-  agentDefaultsSummary,
-  closeSetupGuide,
+  catalogGuides,
+  closeActiveRun,
   considerAutomaticGuide,
-  continueDeferredTour,
+  currentCatalogGuide,
   currentSetupStep,
   currentTourStep,
-  doNotShowAgain,
-  finishProductTour,
+  finishActiveRun,
   guideState,
+  guideSummary,
+  later,
+  markGuideCompleted,
+  moveCatalog,
   moveSetupGuide,
   moveTour,
-  notNow,
-  productTourCompleted,
-  providerConfigured,
-  scopedModelSummary,
-  setupProgress,
-  startProductTour,
-  startSetupGuide,
-  voiceConfigured,
+  startCurrentGuide,
 } from "../guide-state.svelte.js";
+import GuideCatalogDialog from "./GuideCatalogDialog.svelte";
 import GuidedTourOverlay from "./GuidedTourOverlay.svelte";
-import OnboardingDialog from "./OnboardingDialog.svelte";
 
 $effect(() => {
   if (responsive.isPhone) return;
   considerAutomaticGuide();
-  continueDeferredTour();
 });
 
 const tourStep = $derived(currentTourStep());
 const setupStep = $derived(currentSetupStep());
-const progress = $derived(setupProgress());
+const guides = $derived(catalogGuides());
+const currentGuide = $derived(currentCatalogGuide());
 </script>
 
-{#if !responsive.isPhone && guideState.mode === "setup"}
-  <OnboardingDialog
-    providerReady={providerConfigured()}
-    voiceReady={voiceConfigured()}
-    scopedModelsSummary={scopedModelSummary()}
-    agentDefaultsReady={agentDefaultsConfigured()}
-    agentDefaultsSummary={agentDefaultsSummary().text}
-    productTourReady={productTourCompleted()}
-    readyCount={progress.ready}
-    totalCount={progress.total}
-    onGuideProvider={() => startSetupGuide("provider")}
-    onGuideVoice={() => startSetupGuide("voice")}
-    onGuideScopedModels={() => startSetupGuide("scoped-models")}
-    onGuideAgentDefaults={() => startSetupGuide("agent-defaults")}
-    onStartTour={startProductTour}
-    onDoNotShowAgain={doNotShowAgain}
-    onNotNow={notNow}
+{#if !responsive.isPhone && guideState.mode === "catalog" && currentGuide}
+  <GuideCatalogDialog
+    guide={currentGuide}
+    summary={guideSummary(currentGuide.id)}
+    index={guideState.selectedGuideIndex}
+    count={guides.length}
+    workbenchBlocked={!workspaceSelectors.activeProject}
+    onBack={() => moveCatalog(-1)}
+    onNext={() => moveCatalog(1)}
+    onStart={startCurrentGuide}
+    onMarkCompleted={() => markGuideCompleted(currentGuide.id)}
+    onLater={later}
   />
 {:else if !responsive.isPhone && guideState.mode === "tour" && tourStep}
   <GuidedTourOverlay
@@ -64,8 +55,8 @@ const progress = $derived(setupProgress());
     compact={responsive.isCompact}
     onBack={() => moveTour(-1)}
     onNext={() => moveTour(1)}
-    onComplete={finishProductTour}
-    onClose={notNow}
+    onComplete={finishActiveRun}
+    onClose={closeActiveRun}
   />
 {:else if !responsive.isPhone && guideState.mode === "coach" && setupStep}
   <GuidedTourOverlay
@@ -77,7 +68,7 @@ const progress = $derived(setupProgress());
     compact={false}
     onBack={() => void moveSetupGuide(-1)}
     onNext={() => void moveSetupGuide(1)}
-    onComplete={closeSetupGuide}
-    onClose={closeSetupGuide}
+    onComplete={finishActiveRun}
+    onClose={closeActiveRun}
   />
 {/if}

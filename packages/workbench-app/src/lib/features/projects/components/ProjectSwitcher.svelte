@@ -1,5 +1,5 @@
 <script lang="ts">
-import FolderSearch from "@lucide/svelte/icons/folder-search";
+import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ContextMenu, {
   type ContextMenuItem,
@@ -52,10 +52,11 @@ function tabLabel(item: ProjectSwitcherItem): string {
     class="shrink-0 [-webkit-app-region:no-drag]"
     ariaLabel="Switch project"
     title={switchTitle}
+    data-tour-id="guide-project-open"
     aria-keyshortcuts={switchAria}
     onclick={() => onOpenPicker?.()}
   >
-    <FolderSearch class="size-4" aria-hidden="true" />
+    <LayoutGrid class="size-4" aria-hidden="true" />
   </Button>
   <div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
     {#each items as item (item.key)}

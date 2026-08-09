@@ -19,6 +19,7 @@ export type ProjectSwitcherItem = {
   projectIds: string[];
   label: string;
   sortAt: string;
+  lastAccessedAt?: number;
   activity: ProjectActivitySummary;
 };
 
@@ -102,6 +103,7 @@ export function buildProjectSwitcherItems(input: {
         latestConversation && latestConversation > project.updatedAt
           ? latestConversation
           : project.updatedAt,
+      lastAccessedAt: input.recency?.[key],
       activity: summarizeProjectActivity(conversations, input.activityById),
     };
   });

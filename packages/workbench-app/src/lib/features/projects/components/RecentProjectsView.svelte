@@ -2,10 +2,10 @@
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Copy from "@lucide/svelte/icons/copy";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
+import LayoutPanelLeft from "@lucide/svelte/icons/layout-panel-left";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ProjectRecord } from "$lib/api";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
@@ -30,6 +30,7 @@ type Props = {
   loading: boolean;
   conversationCountFor: (project: ProjectRecord) => number;
   activityFor?: (project: ProjectRecord) => ProjectActivitySummary | undefined;
+  lastAccessedFor?: (project: ProjectRecord) => number | undefined;
   isCurrent?: (project: ProjectRecord) => boolean;
   onOpen: (project: ProjectRecord) => void;
   onForget?: (projectId: string) => void;
@@ -38,7 +39,6 @@ type Props = {
   onBrowsePath: () => void;
   onQueryChange?: () => void;
   onSubmit?: (event: Event) => void;
-  onSelectedIndexChange?: (index: number) => void;
   onRowKeydown: (
     event: KeyboardEvent,
     index: number,
@@ -58,6 +58,7 @@ let {
   loading,
   conversationCountFor,
   activityFor,
+  lastAccessedFor,
   isCurrent,
   onOpen,
   onForget,
@@ -66,9 +67,18 @@ let {
   onBrowsePath,
   onQueryChange,
   onSubmit,
-  onSelectedIndexChange,
   onRowKeydown,
 }: Props = $props();
+
+function lastAccessLabel(timestamp: number | undefined): string {
+  if (timestamp === undefined) return "—";
+  return relativeTimeLabel(new Date(timestamp).toISOString());
+}
+
+function lastAccessTitle(timestamp: number | undefined): string {
+  if (timestamp === undefined) return "Last access not recorded";
+  return `Last accessed ${dateTimeLabel(new Date(timestamp).toISOString())}`;
+}
 
 function projectMenu(project: ProjectRecord): ContextMenuItem[] {
   const items: ContextMenuItem[] = [
@@ -99,7 +109,6 @@ function projectMenu(project: ProjectRecord): ContextMenuItem[] {
     onValueChange={() => onQueryChange?.()}
     placeholder="Search recent projects or paste a path"
     disabled={loading}
-    inputClass="font-mono"
     ariaLabel="Search recent projects or enter a path"
   />
 </form>
@@ -108,23 +117,29 @@ function projectMenu(project: ProjectRecord): ContextMenuItem[] {
   {#if pathQuery}
     <button
       type="button"
-      class="group flex w-full items-center gap-2 rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-left transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      class="group flex w-full items-center gap-2.5 rounded-md border border-transparent bg-transparent px-2.5 py-2 text-left hover:bg-accent/60 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
       onclick={onBrowsePath}
     >
-      <span class="flex-none text-sm font-medium text-foreground">Browse</span>
       <span
-        class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
-        >{query.trim()}</span
+        class="grid size-8 flex-none place-items-center rounded-md border border-border/60 bg-muted/40 text-muted-foreground group-hover:text-foreground"
       >
+        <FolderOpen class="size-4" aria-hidden="true" />
+      </span>
+      <span class="grid min-w-0 flex-1 gap-0.5">
+        <span class="text-sm font-medium text-foreground">Browse path</span>
+        <span class="truncate font-mono text-xs text-muted-foreground"
+          >{query.trim()}</span
+        >
+      </span>
       <ArrowRight
-        class="size-3.5 flex-none text-muted-foreground transition-colors group-hover:text-foreground"
+        class="size-3.5 flex-none text-muted-foreground group-hover:text-foreground"
         strokeWidth={2.2}
         aria-hidden="true"
       />
     </button>
   {:else if recentProjects.length}
     <div
-      class="grid gap-0.5"
+      class="grid gap-px"
       role="listbox"
       aria-label="Recent projects"
       tabindex={-1}
@@ -137,48 +152,71 @@ function projectMenu(project: ProjectRecord): ContextMenuItem[] {
           ? projectActivityIndicator(summary)
           : undefined}
         {@const current = isCurrent?.(project) ?? false}
+        {@const lastAccessedAt = lastAccessedFor?.(project)}
         {@const selected = selectedIndex === i}
         <ContextMenu items={projectMenu(project)} triggerClass="contents">
           <div
             id={`recent:${project.id}`}
-            class={`flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none ${
+            class={`group flex w-full cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-left focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none ${
               selected
-                ? "border-primary/40 bg-primary/10"
-                : "border-transparent hover:bg-accent"
+                ? "border-border bg-accent"
+                : "border-transparent hover:bg-accent/60"
             }`}
             role="option"
             aria-selected={selected}
             tabindex="-1"
-            title={`${project.dir}\n${dateTimeLabel(project.updatedAt)}${indicator ? `\n${indicator.summary}` : ""}`}
+            title={`${project.dir}\n${lastAccessTitle(lastAccessedAt)}${indicator ? `\n${indicator.summary}` : ""}`}
             onclick={() => onOpen(project)}
-            onmouseenter={() => onSelectedIndexChange?.(i)}
             onkeydown={(e) => onRowKeydown(e, i, project)}
           >
-            <strong
-              class="max-w-2/5 flex-none truncate text-sm font-medium text-foreground"
-              >{project.name}</strong
-            >
-            {#if indicator}
-              <StatusDot
-                tone={indicator.tone}
-                size="xs"
-                pulse={indicator.pulse}
-                label={indicator.summary}
-              />
-            {/if}
             <span
-              class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
-              >{tildePath(project.dir, homeDir)}</span
+              class={`grid size-7 flex-none place-items-center rounded-md border ${
+                current
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : `border-border/60 bg-muted/40 ${
+                      selected
+                        ? "text-foreground"
+                        : "text-muted-foreground group-hover:text-foreground"
+                    }`
+              }`}
+              title={current ? "Current project" : undefined}
             >
-            {#if current}
-              <Badge tone="good" size="xs" class="flex-none">Current</Badge>
-            {/if}
+              <LayoutPanelLeft class="size-3.5" aria-hidden="true" />
+              {#if current}
+                <span class="sr-only">Current project</span>
+              {/if}
+            </span>
+            <span class="grid min-w-0 flex-1 gap-px">
+              <span class="flex min-w-0 items-center gap-1.5">
+                <strong
+                  class="min-w-0 truncate text-sm font-normal text-foreground"
+                  >{project.name}</strong
+                >
+                {#if indicator}
+                  <StatusDot
+                    tone={indicator.tone}
+                    size="xs"
+                    pulse={indicator.pulse}
+                    label={indicator.summary}
+                  />
+                {/if}
+              </span>
+              <span
+                class="min-w-0 truncate font-mono text-xs text-muted-foreground"
+                >{tildePath(project.dir, homeDir)}</span
+              >
+            </span>
             <span
-              class="flex-none text-xs whitespace-nowrap text-muted-foreground tabular-nums"
-              >{chats} chat{chats === 1 ? "" : "s"} · {relativeTimeLabel(
-                project.updatedAt,
-              )}</span
+              class="flex-none pl-2 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
             >
+              {chats} chat{chats === 1 ? "" : "s"}
+              <span class="px-1 text-muted-foreground/50" aria-hidden="true"
+                >·</span
+              >
+              {lastAccessedAt === undefined
+                ? "Not accessed"
+                : `Accessed ${lastAccessLabel(lastAccessedAt)}`}
+            </span>
           </div>
         </ContextMenu>
       {/each}

@@ -3,6 +3,17 @@ import { describe, it } from "node:test";
 import { adjacentSetupStep, setupStepsForArea } from "./setup-guide-policy.js";
 
 describe("setup guide policy", () => {
+  it("opens the project picker before highlighting Browse", () => {
+    const steps = setupStepsForArea("open-project", {
+      codexConnected: false,
+    });
+    assert.deepEqual(
+      steps.map((step) => step.targetId),
+      ["guide-project-open", "guide-project-browse"],
+    );
+    assert.equal(steps[0]?.advanceByClickingTarget, true);
+  });
+
   it("ends the provider guide on standard API-key setup", () => {
     const steps = setupStepsForArea("provider", { codexConnected: false });
     assert.deepEqual(

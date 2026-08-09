@@ -209,13 +209,13 @@ function handleKeydown(event: KeyboardEvent): void {
       <div
         class="flex items-center justify-between gap-3 text-xs text-muted-foreground"
       >
-        <span>{modal ? "Product tour" : "Setup guide"}</span>
+        <span>{modal ? "Workbench tour" : "Guide"}</span>
         <span>Step {index + 1} of {count}</span>
       </div>
       <Progress
         value={index + 1}
         max={count}
-        aria-label={`${modal ? "Product tour" : "Setup guide"} progress`}
+        aria-label={`${modal ? "Workbench tour" : "Guide"} progress`}
       />
     </div>
 

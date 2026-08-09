@@ -79,6 +79,14 @@ const currentProjectIds = $derived.by(() => {
   const active = switcherItems.find((item) => item.key === activeProjectKey);
   return new SvelteSet(active?.projectIds ?? []);
 });
+const lastAccessedByProjectId = $derived.by(() => {
+  const map = new SvelteMap<string, number>();
+  for (const item of switcherItems) {
+    if (item.lastAccessedAt === undefined) continue;
+    for (const id of item.projectIds) map.set(id, item.lastAccessedAt);
+  }
+  return map;
+});
 const conversationCounts = $derived.by(() => {
   const counts = new SvelteMap<string, number>();
   for (const conversation of conversations) {
@@ -92,7 +100,12 @@ const conversationCounts = $derived.by(() => {
 const recentProjects = $derived.by(() => {
   const seen = new SvelteSet<string>();
   return [...projects]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .sort(
+      (a, b) =>
+        (lastAccessedByProjectId.get(b.id) ?? 0) -
+          (lastAccessedByProjectId.get(a.id) ?? 0) ||
+        b.updatedAt.localeCompare(a.updatedAt),
+    )
     .filter((project) => {
       const key = pathKey(project.dir);
       if (seen.has(key)) return false;
@@ -368,6 +381,7 @@ $effect(() => {
   flush
   bind:open
   title="Switch project"
+  description="Choose a recent project or browse for a folder."
   class="project-picker-dialog"
   onOpenChange={handleOpenChange}
 >
@@ -393,6 +407,7 @@ $effect(() => {
         {loading}
         {conversationCountFor}
         activityFor={(project) => activityByProjectId.get(project.id)}
+        lastAccessedFor={(project) => lastAccessedByProjectId.get(project.id)}
         isCurrent={(project) => currentProjectIds.has(project.id)}
         onOpen={(project) => void chooseProject(project.id)}
         onNewChat={(path) => void onNewChat?.(path)}
@@ -401,7 +416,6 @@ $effect(() => {
         onBrowsePath={() => enterBrowse(expandHome(query, homeDir))}
         onQueryChange={() => (recentSelectedIndex = -1)}
         onSubmit={handleSubmit}
-        onSelectedIndexChange={(index) => (recentSelectedIndex = index)}
         onRowKeydown={handleRecentRowKeydown}
       />
     {:else}
@@ -448,7 +462,12 @@ $effect(() => {
           ? ""
           : "s"}
       </span>
-      <Button variant="outline" size="sm" onclick={() => enterBrowse()}>
+      <Button
+        variant="outline"
+        size="sm"
+        data-tour-id="guide-project-browse"
+        onclick={() => enterBrowse()}
+      >
         <FolderSearch size={14} strokeWidth={2.2} />
         Browse
       </Button>
