@@ -67,6 +67,7 @@ const manualPythonPath = $derived(
         <Button
           size="xs"
           variant="outline"
+          data-tour-id="setup-tavily-configure"
           onclick={() => (tavilyDialogOpen = true)}>Configure</Button
         >
       {/snippet}

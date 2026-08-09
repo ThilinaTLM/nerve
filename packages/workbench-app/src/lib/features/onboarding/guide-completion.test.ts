@@ -29,9 +29,13 @@ function memoryStorage(values: Record<string, string> = {}): TestStorage {
 describe("guide completion storage", () => {
   it("reads and writes validated per-guide versions", () => {
     const storage = memoryStorage();
-    writeGuideCompletionVersions({ provider: 1, workbench: 2 }, storage);
+    writeGuideCompletionVersions(
+      { provider: 1, "web-search": 1, workbench: 2 },
+      storage,
+    );
     assert.deepEqual(readGuideCompletionVersions(storage), {
       provider: 1,
+      "web-search": 1,
       workbench: 2,
     });
   });

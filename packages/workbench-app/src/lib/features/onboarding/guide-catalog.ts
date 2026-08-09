@@ -6,6 +6,7 @@ export type GuideId =
   | "voice"
   | "scoped-models"
   | "agent-defaults"
+  | "web-search"
   | "workbench";
 
 export type GuidePriority = "must-do" | "highly-recommended" | "optional";
@@ -13,7 +14,8 @@ export type GuideLifecycle = "available" | "new" | "upcoming";
 export type GuideCompletionSignal =
   | "project-open"
   | "provider-ready"
-  | "voice-ready";
+  | "voice-ready"
+  | "web-search-ready";
 
 export type GuideRun =
   | { kind: "setup-coach"; area: SetupGuideArea }
@@ -89,6 +91,18 @@ export const guideCatalog: readonly GuideDefinition[] = [
     lifecycle: "available",
     actionLabel: "Start guide",
     run: { kind: "setup-coach", area: "agent-defaults" },
+  },
+  {
+    id: "web-search",
+    version: 1,
+    title: "Set up web search",
+    description:
+      "Add a Tavily API key to let agents use the web_search tool for current information.",
+    priority: "optional",
+    lifecycle: "available",
+    actionLabel: "Start guide",
+    run: { kind: "setup-coach", area: "web-search" },
+    completionSignal: "web-search-ready",
   },
   {
     id: "workbench",

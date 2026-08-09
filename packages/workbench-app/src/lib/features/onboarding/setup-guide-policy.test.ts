@@ -45,6 +45,22 @@ describe("setup guide policy", () => {
     assert.equal(steps[0]?.targetId, "setup-auth-openai-codex-connected");
   });
 
+  it("guides web-search setup through Tavily configuration and saving", () => {
+    const steps = setupStepsForArea("web-search", {
+      codexConnected: false,
+    });
+    assert.deepEqual(
+      steps.map((step) => step.targetId),
+      ["setup-tavily-configure", "setup-tavily-api-key", "setup-tavily-save"],
+    );
+    assert.deepEqual(steps[0]?.preparation, {
+      kind: "settings",
+      pageId: "tools",
+      sectionId: "integrations",
+    });
+    assert.equal(steps[0]?.advanceByClickingTarget, true);
+  });
+
   it("opens required dialogs when advancing to dialog-backed steps", () => {
     assert.equal(
       setupStepsForArea("voice", { codexConnected: false })[0]
@@ -53,6 +69,11 @@ describe("setup guide policy", () => {
     );
     assert.equal(
       setupStepsForArea("scoped-models", { codexConnected: false })[0]
+        ?.advanceByClickingTarget,
+      true,
+    );
+    assert.equal(
+      setupStepsForArea("web-search", { codexConnected: false })[0]
         ?.advanceByClickingTarget,
       true,
     );
