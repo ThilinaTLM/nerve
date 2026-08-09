@@ -6,6 +6,7 @@ import type {
   PlanReviewRecord,
   PlanReviewResolveOptions,
 } from "../../../state/tool-types";
+import Markdown from "@nervekit/ui-kit/core/components/Markdown.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { SplitButton } from "@nervekit/ui-kit/components/ui/split-button";
@@ -49,6 +50,7 @@ let {
   planReviewModelKey = "",
   planReviewThinkingLevel = "off",
   detailsAction,
+  onOpenFile,
   onAcceptPlanReview,
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
@@ -256,11 +258,17 @@ async function rejectPlan() {
 {#if showPlanCard && displayedReview}
   <div class="grid gap-2" aria-label="Plan review">
     {#if preview.trim()}
-      <div
-        class="whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]"
-      >
-        {preview}
-      </div>
+      {#if expanded}
+        <div class="min-w-0 rounded-sm border bg-sidebar p-3">
+          <Markdown text={preview} {onOpenFile} />
+        </div>
+      {:else}
+        <div
+          class="whitespace-pre-wrap rounded-sm border bg-sidebar p-2.5 font-mono text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]"
+        >
+          {preview}
+        </div>
+      {/if}
     {/if}
 
     <ToolFooter meta={statusMeta} {detailsAction}>

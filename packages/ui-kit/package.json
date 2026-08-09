@@ -42,7 +42,7 @@
     "@tanstack/svelte-virtual": "^3.13.29",
     "bits-ui": "^2.18.1",
     "clsx": "^2.1.1",
-    "dompurify": "3.4.0",
+    "dompurify": "3.4.13",
     "mermaid": "11.16.1",
     "mode-watcher": "^1.1.0",
     "paneforge": "^1.0.2",
