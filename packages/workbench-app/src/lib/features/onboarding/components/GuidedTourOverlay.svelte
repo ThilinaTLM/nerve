@@ -48,7 +48,9 @@ let viewportHeight = $state(
 
 const modal = $derived(variant === "modal");
 const last = $derived(index === count - 1);
-const centered = $derived("introducedIn" in step && step.id === "finish");
+const centered = $derived(
+  ("introducedIn" in step && step.id === "finish") || (last && !targetRect),
+);
 const placement = $derived(
   calloutPlacement({
     target: targetRect,
