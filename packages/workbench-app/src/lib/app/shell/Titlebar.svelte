@@ -92,7 +92,6 @@ let {
     <span class="inline-flex items-center gap-1.5 text-foreground">
       <span class="brand-mark"><NerveMark compact /></span>
     </span>
-    <span class="h-5 w-px bg-border" aria-hidden="true"></span>
     <ProjectSwitcher
       items={projects}
       activeKey={activeProjectKey}

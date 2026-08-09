@@ -1,6 +1,5 @@
 <script lang="ts">
 import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
-import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Folder from "@lucide/svelte/icons/folder";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -45,18 +44,8 @@ let {
 }: Props = $props();
 </script>
 
-<div class="min-h-0 overflow-auto p-2" bind:this={listEl}>
+<div class="min-h-0 overflow-x-hidden overflow-y-auto p-2" bind:this={listEl}>
   <section>
-    <header
-      class="flex items-center gap-2 px-1 pt-1 pb-1.5 font-mono text-xs tracking-wide text-muted-foreground uppercase"
-    >
-      <span>Folders</span>
-      {#if !loading && filteredEntries.length}<span
-          class="ml-auto text-muted-foreground tabular-nums"
-          >{filteredEntries.length}</span
-        >{/if}
-    </header>
-
     {#if loading}
       <div class="grid gap-0.5" aria-label="Loading directories">
         {#each [0, 1, 2, 3, 4, 5, 6] as index (index)}<span class="skeleton-row"
@@ -74,6 +63,7 @@ let {
       >
         {#each filteredEntries as entry, fi (entry.path)}
           {@const idx = fi}
+          {@const signals = uniqueSignals(entry.signals)}
           <div
             id={`folder:${entry.path}`}
             class="row"
@@ -98,39 +88,30 @@ let {
               aria-hidden="true"
               class="flex-none text-muted-foreground"
             />
-            <span class="grid min-w-0 gap-px"
+            <span class="grid min-w-0 flex-1 gap-px"
               ><strong
                 class="overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap"
                 >{entry.name}</strong
               ></span
             >
-            <span class="flex items-center justify-end gap-1.5">
-              {#if isOpened(entry.path)}<Badge tone="good" size="xs"
-                  ><CheckCircle2 size={11} />Opened</Badge
-                >{/if}
-              {#each uniqueSignals(entry.signals) as signal (signal)}
-                {@const meta = signalMeta[signal]}
-                {@const Icon = meta.icon}
-                <Badge
-                  tone={meta.tone ?? "neutral"}
-                  size="xs"
-                  title={meta.title}
-                  ><Icon size={11} strokeWidth={2.2} />{meta.label}</Badge
-                >
-              {/each}
-              <button
-                class="row-drill"
-                type="button"
-                title="Open folder"
-                aria-label="Open folder"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  void load(entry.path);
-                }}
-              >
-                <ChevronRight size={15} strokeWidth={2.2} aria-hidden="true" />
-              </button>
-            </span>
+            {#if isOpened(entry.path) || signals.length}
+              <span class="flex items-center justify-end gap-1.5">
+                {#if isOpened(entry.path)}<Badge tone="good" size="xs"
+                    ><CheckCircle2 size={11} />Opened</Badge
+                  >{/if}
+                {#each signals as signal (signal)}
+                  {@const meta = signalMeta[signal]}
+                  {@const Icon = meta.icon}
+                  <Badge
+                    tone={meta.tone ?? "neutral"}
+                    size="xs"
+                    title={meta.title}
+                    class="max-[520px]:hidden"
+                    ><Icon size={11} strokeWidth={2.2} />{meta.label}</Badge
+                  >
+                {/each}
+              </span>
+            {/if}
           </div>
         {/each}
       </div>
@@ -157,8 +138,7 @@ let {
 <style>
 .row {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: 0.6rem;
   width: 100%;
@@ -196,34 +176,6 @@ let {
   width: 2px;
   border-radius: 999px;
   background: var(--primary);
-}
-
-/* The drill affordance is revealed by the row's own hover/selection state. */
-.row-drill {
-  display: inline-grid;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  padding: 0.15rem;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity 120ms ease,
-    background 120ms ease,
-    color 120ms ease;
-}
-
-.row-drill:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.row:hover .row-drill,
-.row.selected .row-drill,
-.row-drill:focus-visible {
-  opacity: 1;
 }
 
 /* Loading placeholder binds the shared picker-sheen keyframe
