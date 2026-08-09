@@ -1,4 +1,4 @@
-import type { ProjectRecord } from "$lib/api";
+import type { AgentRecord, ProjectRecord } from "$lib/api";
 import { pendingConversationKey } from "$lib/core/state/state-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
@@ -15,7 +15,10 @@ import { workspaceState } from "$lib/features/workspace/state/workspace-state.sv
 import { resolveNewAgentComposerSelection } from "./agent-selection-defaults";
 import { clearTranscriptState, createPendingConversationId } from "./state";
 
-export function openPendingConversation(project: ProjectRecord) {
+export function openPendingConversation(
+  project: ProjectRecord,
+  initialMode?: AgentRecord["mode"],
+) {
   const id = createPendingConversationId();
   const defaults = settingsState.settingsDraft
     ? resolveNewAgentComposerSelection(
@@ -38,7 +41,7 @@ export function openPendingConversation(project: ProjectRecord) {
     composerText: "",
     selectedModelKey: defaults.selectedModelKey,
     thinkingLevel: defaults.selectedThinkingLevel,
-    mode: defaults.selectedMode,
+    mode: initialMode ?? defaults.selectedMode,
     permissionLevel: defaults.selectedPermissionLevel,
     approvalPolicy: defaults.selectedApprovalPolicy,
     sending: false,

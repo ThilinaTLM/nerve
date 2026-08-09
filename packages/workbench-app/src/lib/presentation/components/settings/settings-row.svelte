@@ -7,7 +7,7 @@ type Props = {
   label?: string;
   description?: string;
   htmlFor?: string;
-  layout?: "inline" | "stacked";
+  layout?: "inline" | "stacked" | "responsive";
   class?: string;
   badges?: Snippet;
   control?: Snippet;
@@ -31,7 +31,9 @@ let {
     "gap-3 py-1.5",
     layout === "inline"
       ? "grid grid-cols-[minmax(0,1fr)_auto] items-center"
-      : "grid gap-2",
+      : layout === "responsive"
+        ? "grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3"
+        : "grid gap-2",
     className,
   )}
 >
@@ -56,7 +58,13 @@ let {
   {/if}
 
   {#if control}
-    <div class={cn("min-w-0", layout === "inline" && "flex justify-end")}>
+    <div
+      class={cn(
+        "min-w-0",
+        layout === "inline" && "flex justify-end",
+        layout === "responsive" && "sm:flex sm:justify-end",
+      )}
+    >
       {@render control()}
     </div>
   {/if}

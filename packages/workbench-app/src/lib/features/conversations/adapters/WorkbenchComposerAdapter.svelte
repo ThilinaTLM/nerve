@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts";
@@ -66,7 +67,11 @@ let {
   onApprovalPolicyChange,
 }: PromptComposerProps = $props();
 
-let editorFocusToken = $state(0);
+// A newly created pending conversation opens directly into its first prompt,
+// so its editor should be ready for typing as soon as it mounts.
+let editorFocusToken = $state(
+  untrack(() => (pendingConversationActive ? 1 : 0)),
+);
 let voiceSubmitPending = $state(false);
 let lastFocusToken = $state<number | undefined>(undefined);
 let lastComposerEscapeToken = $state<number | undefined>(undefined);

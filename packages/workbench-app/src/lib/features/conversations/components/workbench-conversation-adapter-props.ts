@@ -75,7 +75,10 @@ export type WorkbenchConversationAdapterProps = {
   onDismissUserQuestion?: (questionId: string) => void | Promise<void>;
   onAbort?: () => void;
   onCompact?: () => void;
-  onNewConversationInProject?: (projectDir: string) => void;
+  onNewConversationInProject?: (
+    projectDir: string,
+    initialMode?: AgentRecord["mode"],
+  ) => void;
   onOpenFile?: (path: string, line?: number) => void;
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;

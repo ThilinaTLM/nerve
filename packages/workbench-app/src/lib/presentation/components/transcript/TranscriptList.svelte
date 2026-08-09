@@ -1,5 +1,4 @@
 <script lang="ts">
-import Folder from "@lucide/svelte/icons/folder";
 import { SvelteMap } from "svelte/reactivity";
 import type {
   AgentRecord,
@@ -381,29 +380,11 @@ const showEmptyRun = $derived(
 
 {#if showEmptyRun}
   <ConversationSignal
-    title="Where should we start?"
-    message="Ask Nerve to explore, plan, or build in this project."
-  >
-    {#snippet footer()}
-      {#if activeProjectLabel}
-        <div
-          class="inline-flex max-w-md items-center gap-1.5 rounded-md border bg-muted px-2 py-1 text-xs text-muted-foreground"
-          title={activeProject?.dir}
-          aria-label={`Conversation will be created in project ${activeProject?.dir}`}
-        >
-          <Folder
-            class="size-3.5 shrink-0"
-            strokeWidth={2.2}
-            aria-hidden="true"
-          />
-          <span class="shrink-0">Project:</span>
-          <span class="truncate font-mono text-foreground"
-            >{activeProjectLabel}</span
-          >
-        </div>
-      {/if}
-    {/snippet}
-  </ConversationSignal>
+    title="The cursor is yours."
+    message="Bring the question. Nerve will bring the map, the tools, and the follow-through."
+    projectLabel={activeProjectLabel}
+    projectPath={activeProject?.dir}
+  />
 {:else}
   <VirtualScroller
     bind:controller
