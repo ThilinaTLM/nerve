@@ -135,7 +135,7 @@ $effect(() => {
   onOpenChange={handleOpenChange}
   class="max-w-xl"
 >
-  <div class="grid gap-4">
+  <div class="grid gap-3">
     <section class="grid gap-2">
       <p
         class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -196,7 +196,7 @@ $effect(() => {
                 {@const active = entry.key === selectedModelKey}
                 <button
                   type="button"
-                  class={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                  class={`flex w-full items-center justify-between gap-3 rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
                     active
                       ? "border-primary/40 bg-primary/10 text-primary"
                       : "border-transparent text-foreground hover:bg-accent"
@@ -218,7 +218,7 @@ $effect(() => {
     </section>
 
     {#if selectedModel}
-      <section class="grid gap-2 border-t border-border pt-4">
+      <section class="grid gap-2 border-t border-border/60 pt-3">
         <p
           class="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
         >

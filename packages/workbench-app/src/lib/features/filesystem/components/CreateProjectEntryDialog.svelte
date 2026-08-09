@@ -57,7 +57,7 @@ async function submit(event?: SubmitEvent): Promise<void> {
   bind:open
   {title}
   description={`Create an empty ${kind === "file" ? "file" : "folder"} in ${parentPath || "the project root"}.`}
-  class="max-w-md"
+  size="sm"
 >
   <form class="grid gap-2" onsubmit={(event) => void submit(event)}>
     <Label for="new-project-entry-name">Name</Label>

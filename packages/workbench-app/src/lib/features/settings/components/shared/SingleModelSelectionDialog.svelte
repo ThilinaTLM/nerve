@@ -122,7 +122,7 @@ function useFallback(): void {
   flush
   closeOnInteractOutside={false}
 >
-  <div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
+  <div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto]">
     <div class="grid gap-1.5 border-b border-border/50 px-3 pt-2.5 pb-2">
       <SearchInput
         bind:value={query}
@@ -192,49 +192,46 @@ function useFallback(): void {
         {/if}
       </div>
     </Tooltip.Provider>
+
+    <div class="grid gap-1 border-t border-border/50 px-3 py-2">
+      <span class="text-xs text-muted-foreground">Thinking level</span>
+      <ToggleGroup.Root
+        type="single"
+        size="xs"
+        spacing={1}
+        variant="outline"
+        value={thinkingLevel}
+        aria-label="Thinking level"
+        class="min-w-0 flex-wrap justify-start"
+        onValueChange={(value) => {
+          if (value) thinkingLevel = value as ThinkingLevel;
+        }}
+      >
+        {#each thinkingLevels as level (level)}
+          <ToggleGroup.Item
+            value={level}
+            class="flex-none rounded-full text-xs capitalize data-[state=on]:text-primary"
+            >{level}</ToggleGroup.Item
+          >
+        {/each}
+      </ToggleGroup.Root>
+    </div>
   </div>
 
   {#snippet footer()}
-    <div class="grid w-full gap-2">
-      <div class="grid gap-1">
-        <span class="text-xs text-muted-foreground">Thinking level</span>
-        <ToggleGroup.Root
-          type="single"
-          size="xs"
-          spacing={1}
-          variant="outline"
-          value={thinkingLevel}
-          aria-label="Thinking level"
-          class="min-w-0 flex-wrap justify-start"
-          onValueChange={(value) => {
-            if (value) thinkingLevel = value as ThinkingLevel;
-          }}
-        >
-          {#each thinkingLevels as level (level)}
-            <ToggleGroup.Item
-              value={level}
-              class="flex-none rounded-full text-xs capitalize data-[state=on]:text-primary"
-              >{level}</ToggleGroup.Item
-            >
-          {/each}
-        </ToggleGroup.Root>
-      </div>
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <Button size="sm" variant="ghost" onclick={() => (open = false)}
-          >Cancel</Button
-        >
-        {#if fallbackOption}
-          <Button
-            size="sm"
-            variant="outline"
-            title={fallbackOption.detail}
-            onclick={useFallback}>{fallbackOption.actionLabel}</Button
-          >
-        {/if}
-        <Button size="sm" onclick={save} disabled={!selectedModelInfo}
-          >{confirmLabel}</Button
-        >
-      </div>
-    </div>
+    <Button size="sm" variant="ghost" onclick={() => (open = false)}
+      >Cancel</Button
+    >
+    {#if fallbackOption}
+      <Button
+        size="sm"
+        variant="outline"
+        title={fallbackOption.detail}
+        onclick={useFallback}>{fallbackOption.actionLabel}</Button
+      >
+    {/if}
+    <Button size="sm" onclick={save} disabled={!selectedModelInfo}
+      >{confirmLabel}</Button
+    >
   {/snippet}
 </Dialog>

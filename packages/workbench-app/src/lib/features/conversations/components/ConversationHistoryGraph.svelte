@@ -237,7 +237,7 @@ function minimapNodeColor(node: Node): string {
 </script>
 
 <div
-  class="history-graph relative h-full min-h-0 overflow-hidden bg-background"
+  class="history-graph relative h-full min-h-0 overflow-hidden bg-transparent"
 >
   {#if hasConversation}
     <div class="flex h-full min-h-0">
@@ -292,7 +292,7 @@ function minimapNodeColor(node: Node): string {
 
       {#if inspectorOpen && selection}
         <aside
-          class="flex min-w-80 w-1/3 max-w-md shrink-0 flex-col overflow-hidden border-l bg-card"
+          class="flex min-w-80 w-1/3 max-w-md shrink-0 flex-col overflow-hidden border-l bg-card max-[900px]:absolute max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-10 max-[900px]:w-[min(24rem,70%)] max-[900px]:shadow-lg max-[640px]:w-full max-[640px]:min-w-0 max-[640px]:max-w-none"
           aria-label="Conversation entry details"
         >
           <div class="flex items-center justify-between border-b px-3 py-2">
@@ -405,5 +405,11 @@ function minimapNodeColor(node: Node): string {
 
 .history-graph :global(.svelte-flow__attribution a) {
   color: inherit;
+}
+
+@media (max-width: 640px) {
+  .history-graph :global(.svelte-flow__minimap) {
+    display: none;
+  }
 }
 </style>

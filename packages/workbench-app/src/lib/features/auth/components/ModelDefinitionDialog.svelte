@@ -136,6 +136,7 @@ async function submit() {
   bind:open
   title={editing ? `Edit ${model?.name}` : "Add model"}
   description="Register a model under a configured or authenticated provider."
+  size="md"
 >
   <div class="grid gap-3">
     <div class="grid gap-1.5">

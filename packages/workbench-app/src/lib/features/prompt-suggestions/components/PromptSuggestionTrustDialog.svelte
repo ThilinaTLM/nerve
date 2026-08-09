@@ -43,7 +43,7 @@ function decideLater() {
   {open}
   title="Allow prompt suggestion JavaScript?"
   description="Some prompt suggestions include JavaScript that decides when the suggestion appears."
-  class="max-w-2xl"
+  size="md"
   onOpenChange={(next) => {
     if (!next) decideLater();
   }}
@@ -65,7 +65,9 @@ function decideLater() {
 
     <div class="grid gap-2">
       {#each requests as request (request.trustId)}
-        <section class="grid gap-1 rounded-md border border-border bg-card p-3">
+        <section
+          class="grid gap-1 rounded-md border border-border bg-transparent p-3"
+        >
           <div class="flex items-center justify-between gap-3">
             <strong class="text-sm font-medium text-foreground"
               >{request.label}</strong

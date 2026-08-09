@@ -26,7 +26,7 @@ function openProviderSettings() {
   bind:open
   title="Connect ChatGPT to use voice input"
   description="Voice input needs a ChatGPT OAuth connection before Nerve can transcribe recordings."
-  class="audio-auth-required-dialog"
+  size="sm"
 >
   <div class="audio-auth-body">
     <div class="audio-auth-summary">
@@ -68,12 +68,6 @@ function openProviderSettings() {
 </Dialog>
 
 <style>
-/* DialogShell portals its content (escape-hatch reason 5); the compound
- * selector keeps this ahead of `.dialog-content`'s default width. */
-:global(.dialog-content.audio-auth-required-dialog) {
-  width: min(560px, calc(100vw - 32px));
-}
-
 .audio-auth-body {
   display: grid;
   gap: 0.85rem;
