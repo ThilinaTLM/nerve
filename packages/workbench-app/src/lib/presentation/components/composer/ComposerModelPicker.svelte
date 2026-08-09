@@ -213,6 +213,7 @@ $effect(() => {
               getKey={(entry) => entry.key}
               estimateSize={() => 36}
               gap={6}
+              paddingEnd={4}
               viewportClass="max-h-[min(44vh,18rem)]"
               viewportAriaLabel="Available models"
             >
