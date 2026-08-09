@@ -32,10 +32,6 @@ const tourStep = $derived(currentTourStep());
 const setupStep = $derived(currentSetupStep());
 const guides = $derived(catalogGuides());
 const currentGuide = $derived(currentCatalogGuide());
-const availableGuides = $derived(guides.filter((guide) => guide.available));
-const completedCount = $derived(
-  availableGuides.filter((guide) => guide.completed).length,
-);
 </script>
 
 {#if !responsive.isPhone && guideState.mode === "catalog" && currentGuide}
@@ -44,8 +40,6 @@ const completedCount = $derived(
     summary={guideSummary(currentGuide.id)}
     index={guideState.selectedGuideIndex}
     count={guides.length}
-    {completedCount}
-    completionTotal={availableGuides.length}
     workbenchBlocked={!workspaceSelectors.activeProject}
     onBack={() => moveCatalog(-1)}
     onNext={() => moveCatalog(1)}

@@ -3,6 +3,8 @@ import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Bot from "@lucide/svelte/icons/bot";
 import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
+import CircleDashed from "@lucide/svelte/icons/circle-dashed";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import KeyRound from "@lucide/svelte/icons/key-round";
 import Mic from "@lucide/svelte/icons/mic";
@@ -10,9 +12,7 @@ import PanelsTopLeft from "@lucide/svelte/icons/panels-top-left";
 import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
 import type { Component } from "svelte";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import type { GuideId } from "../guide-catalog.js";
 import type { ResolvedGuide } from "../guide-catalog-policy.js";
@@ -22,8 +22,6 @@ type Props = {
   summary?: string;
   index: number;
   count: number;
-  completedCount: number;
-  completionTotal: number;
   workbenchBlocked: boolean;
   onBack: () => void;
   onNext: () => void;
@@ -37,8 +35,6 @@ let {
   summary,
   index,
   count,
-  completedCount,
-  completionTotal,
   workbenchBlocked,
   onBack,
   onNext,
@@ -76,6 +72,7 @@ const priorityLabel = $derived(
       ? "Highly recommended"
       : "Optional",
 );
+const navigationIsPrimary = $derived(guide.completed || !guide.available);
 </script>
 
 <Dialog
@@ -88,77 +85,107 @@ const priorityLabel = $derived(
     if (!open) onLater();
   }}
 >
-  <div class="grid gap-5" aria-live="polite">
-    <div
-      class="grid gap-2"
-      aria-label={`${completedCount} of ${completionTotal} available guides completed`}
-    >
+  <div class="grid gap-6">
+    <div class="grid gap-2">
       <div
         class="flex items-center justify-between gap-3 text-xs text-muted-foreground"
       >
         <span>Guide {index + 1} of {count}</span>
-        <span>{completedCount} completed</span>
+        <span>{guide.title}</span>
       </div>
       <Progress
-        value={completedCount}
-        max={completionTotal}
-        aria-label="Guide completion progress"
+        value={index + 1}
+        max={count}
+        aria-label={`Guide ${index + 1} of ${count}`}
       />
     </div>
 
-    <Empty.Root class="min-h-72 border-0 p-4">
-      <Empty.Media variant="icon" class="size-14 rounded-xl">
-        <Icon class="size-7" aria-hidden="true" />
-      </Empty.Media>
-      <Empty.Header>
-        <div class="flex flex-wrap items-center justify-center gap-1.5">
-          <Badge
-            tone={guide.priority === "must-do" ? "warn" : "neutral"}
-            size="xs"
-          >
-            {priorityLabel}
-          </Badge>
-          {#if guide.lifecycle === "new"}
-            <Badge tone="accent" size="xs">New</Badge>
-          {:else if guide.lifecycle === "upcoming"}
-            <Badge tone="neutral" size="xs">Upcoming</Badge>
-          {/if}
-          <Badge tone={guide.completed ? "good" : "neutral"} size="xs">
-            {guide.completed ? "Completed" : "Not completed"}
-          </Badge>
-        </div>
-        <Empty.Title>{guide.title}</Empty.Title>
-        <Empty.Description>{guide.description}</Empty.Description>
-      </Empty.Header>
+    <section
+      class="grid min-h-64 content-center gap-4 px-2 py-5 sm:grid-cols-[auto_1fr] sm:items-start sm:px-6"
+      aria-live="polite"
+      aria-labelledby="current-guide-title"
+    >
+      <div
+        class="flex size-11 items-center justify-center rounded-lg bg-muted text-foreground"
+      >
+        <Icon class="size-5" aria-hidden="true" />
+      </div>
 
-      <Empty.Content class="w-full max-w-md gap-3">
-        {#if summary}
-          <p class="text-center text-xs text-muted-foreground">{summary}</p>
-        {/if}
-        {#if guide.id === "workbench" && workbenchBlocked}
-          <p class="text-center text-xs text-warning">
-            Open a project before starting this tour.
+      <div class="grid max-w-lg gap-4">
+        <div class="grid gap-1.5">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            <span
+              class={guide.priority === "must-do"
+                ? "font-medium text-warning"
+                : "font-medium text-muted-foreground"}
+            >
+              {priorityLabel}
+            </span>
+            {#if guide.lifecycle === "new"}
+              <span class="text-info">New</span>
+            {:else if guide.lifecycle === "upcoming"}
+              <span class="text-muted-foreground">Upcoming</span>
+            {/if}
+            <span class="text-border" aria-hidden="true">·</span>
+            <span
+              class={guide.completed
+                ? "inline-flex items-center gap-1 text-success"
+                : "inline-flex items-center gap-1 text-muted-foreground"}
+            >
+              {#if guide.completed}
+                <CircleCheck class="size-3.5" aria-hidden="true" />
+                Completed
+              {:else}
+                <CircleDashed class="size-3.5" aria-hidden="true" />
+                Not completed
+              {/if}
+            </span>
+          </div>
+          <h2 id="current-guide-title" class="text-lg font-semibold">
+            {guide.title}
+          </h2>
+          <p class="text-sm leading-relaxed text-muted-foreground">
+            {guide.description}
           </p>
+        </div>
+
+        {#if summary || (guide.id === "workbench" && workbenchBlocked)}
+          <div
+            class="border-l-2 border-border pl-3 text-xs text-muted-foreground"
+          >
+            {#if guide.id === "workbench" && workbenchBlocked}
+              Open a project before starting this tour.
+            {:else}
+              {summary}
+            {/if}
+          </div>
         {/if}
+
         {#if guide.available}
-          <div class="flex flex-wrap items-center justify-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             {#if guide.run || !guide.completed}
-              <Button onclick={onStart}>{actionLabel}</Button>
+              <Button
+                variant={guide.completed ? "outline" : "default"}
+                size="sm"
+                onclick={onStart}
+              >
+                {actionLabel}
+              </Button>
             {/if}
             {#if guide.run && !guide.completed}
-              <Button variant="outline" onclick={onMarkCompleted}>
+              <Button variant="ghost" size="sm" onclick={onMarkCompleted}>
                 <Check class="size-4" aria-hidden="true" />
                 Mark completed
               </Button>
             {/if}
           </div>
         {:else}
-          <p class="text-center text-sm text-muted-foreground">
+          <p class="text-sm text-muted-foreground">
             This guide will become available with a future release.
           </p>
         {/if}
-      </Empty.Content>
-    </Empty.Root>
+      </div>
+    </section>
   </div>
 
   {#snippet footer()}
@@ -175,12 +202,20 @@ const priorityLabel = $derived(
           Back
         </Button>
         {#if last}
-          <Button size="sm" onclick={onLater}>
+          <Button
+            variant={navigationIsPrimary ? "default" : "outline"}
+            size="sm"
+            onclick={onLater}
+          >
             <Check class="size-4" aria-hidden="true" />
             Done
           </Button>
         {:else}
-          <Button size="sm" onclick={onNext}>
+          <Button
+            variant={navigationIsPrimary ? "default" : "outline"}
+            size="sm"
+            onclick={onNext}
+          >
             Next
             <ArrowRight class="size-4" aria-hidden="true" />
           </Button>
