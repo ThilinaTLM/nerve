@@ -16,7 +16,6 @@ export type GuideCompletionSignal =
   | "voice-ready";
 
 export type GuideRun =
-  | { kind: "open-project" }
   | { kind: "setup-coach"; area: SetupGuideArea }
   | { kind: "workbench-tour" };
 
@@ -41,8 +40,8 @@ export const guideCatalog: readonly GuideDefinition[] = [
       "Choose a project folder so Nerve can keep conversations, files, Git changes, and agent work together.",
     priority: "must-do",
     lifecycle: "available",
-    actionLabel: "Open project",
-    run: { kind: "open-project" },
+    actionLabel: "Start guide",
+    run: { kind: "setup-coach", area: "open-project" },
     completionSignal: "project-open",
   },
   {

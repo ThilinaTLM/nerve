@@ -52,6 +52,7 @@ function tabLabel(item: ProjectSwitcherItem): string {
     class="shrink-0 [-webkit-app-region:no-drag]"
     ariaLabel="Switch project"
     title={switchTitle}
+    data-tour-id="guide-project-open"
     aria-keyshortcuts={switchAria}
     onclick={() => onOpenPicker?.()}
   >

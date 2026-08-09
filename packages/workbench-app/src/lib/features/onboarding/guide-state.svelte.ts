@@ -48,13 +48,7 @@ import {
 } from "./setup-summary.js";
 import { activeTabIsConversation } from "./tour-readiness.js";
 
-type GuideMode =
-  | "closed"
-  | "catalog"
-  | "tour"
-  | "preparing-coach"
-  | "coach"
-  | "project-picker";
+type GuideMode = "closed" | "catalog" | "tour" | "preparing-coach" | "coach";
 
 type PresentationSnapshot = {
   shell: ShellPresentationSnapshot;
@@ -145,6 +139,9 @@ export function guideSummary(id: GuideId): string | undefined {
   }
   if (id === "scoped-models") return scopedModelSummary();
   if (id === "agent-defaults") return agentDefaultsSummary().text;
+  if (id === "workbench") {
+    return "Covers conversations, composer controls, panels, Git, tasks, and settings.";
+  }
   return undefined;
 }
 
@@ -391,11 +388,22 @@ export async function moveSetupGuide(direction: -1 | 1): Promise<void> {
   if (next) await prepareSetupStep(next);
 }
 
+function returnFromActiveRun(): void {
+  if (
+    guideState.activeGuideId === "open-project" &&
+    workspaceState.projectPickerOpen
+  ) {
+    guideState.mode = "closed";
+    return;
+  }
+  guideState.mode = "catalog";
+}
+
 export function closeActiveRun(): void {
   preparationId += 1;
   guideState.preparing = false;
   if (guideState.mode === "tour") restorePresentation();
-  guideState.mode = "catalog";
+  returnFromActiveRun();
 }
 
 export function finishActiveRun(): void {
@@ -404,7 +412,7 @@ export function finishActiveRun(): void {
   preparationId += 1;
   guideState.preparing = false;
   if (guideState.mode === "tour") restorePresentation();
-  guideState.mode = "catalog";
+  returnFromActiveRun();
 }
 
 function beginWorkbenchTour(): void {
@@ -434,12 +442,6 @@ export function startCurrentGuide(): void {
     markGuideCompleted(guide.id);
     return;
   }
-  if (guide.run.kind === "open-project") {
-    guideState.activeGuideId = guide.id;
-    guideState.mode = "project-picker";
-    workspaceState.projectPickerOpen = true;
-    return;
-  }
   if (guide.run.kind === "setup-coach") {
     startSetupGuide(guide.id, guide.run.area);
     return;
@@ -449,16 +451,6 @@ export function startCurrentGuide(): void {
     return;
   }
   beginWorkbenchTour();
-}
-
-export function continueProjectGuide(): void {
-  if (guideState.mode !== "project-picker" || workspaceState.projectPickerOpen)
-    return;
-  reconcileComputedCompletion();
-  guideState.selectedGuideIndex = workspaceSelectors.activeProject
-    ? firstIncompleteGuideIndex(catalogGuides())
-    : guideCatalog.findIndex((guide) => guide.id === "open-project");
-  guideState.mode = "catalog";
 }
 
 export function moveTour(direction: -1 | 1): void {

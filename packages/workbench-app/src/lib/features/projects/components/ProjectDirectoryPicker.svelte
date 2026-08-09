@@ -448,7 +448,12 @@ $effect(() => {
           ? ""
           : "s"}
       </span>
-      <Button variant="outline" size="sm" onclick={() => enterBrowse()}>
+      <Button
+        variant="outline"
+        size="sm"
+        data-tour-id="guide-project-browse"
+        onclick={() => enterBrowse()}
+      >
         <FolderSearch size={14} strokeWidth={2.2} />
         Browse
       </Button>

@@ -5,7 +5,6 @@ import {
   catalogGuides,
   closeActiveRun,
   considerAutomaticGuide,
-  continueProjectGuide,
   currentCatalogGuide,
   currentSetupStep,
   currentTourStep,
@@ -25,7 +24,6 @@ import GuidedTourOverlay from "./GuidedTourOverlay.svelte";
 $effect(() => {
   if (responsive.isPhone) return;
   considerAutomaticGuide();
-  continueProjectGuide();
 });
 
 const tourStep = $derived(currentTourStep());

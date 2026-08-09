@@ -60,9 +60,7 @@ const actionLabel = $derived(
     : guide.completed
       ? guide.run?.kind === "workbench-tour"
         ? "Replay tour"
-        : guide.run?.kind === "open-project"
-          ? "Open another project"
-          : "Replay guide"
+        : "Replay guide"
       : (guide.actionLabel ?? "Got it"),
 );
 const priorityLabel = $derived(
