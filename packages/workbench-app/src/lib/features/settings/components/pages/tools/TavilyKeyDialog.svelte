@@ -111,6 +111,7 @@ async function removeKey(): Promise<void> {
       </Label>
       <Input
         id="tools-tavily-key"
+        data-tour-id="setup-tavily-api-key"
         type="password"
         autocomplete="off"
         placeholder={configured
@@ -152,6 +153,7 @@ async function removeKey(): Promise<void> {
     {/if}
     <Button
       size="sm"
+      data-tour-id="setup-tavily-save"
       disabled={busy || apiKey.trim().length === 0}
       onclick={() => void saveKey()}
     >

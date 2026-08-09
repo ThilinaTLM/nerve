@@ -9,6 +9,7 @@ import FolderOpen from "@lucide/svelte/icons/folder-open";
 import KeyRound from "@lucide/svelte/icons/key-round";
 import Mic from "@lucide/svelte/icons/mic";
 import PanelsTopLeft from "@lucide/svelte/icons/panels-top-left";
+import Search from "@lucide/svelte/icons/search";
 import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
 import type { Component } from "svelte";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
@@ -49,6 +50,7 @@ const icons: Record<GuideId, Component> = {
   voice: Mic,
   "scoped-models": SlidersHorizontal,
   "agent-defaults": Bot,
+  "web-search": Search,
   workbench: PanelsTopLeft,
 };
 

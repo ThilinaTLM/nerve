@@ -15,6 +15,7 @@ const noSignals = {
   "project-open": false,
   "provider-ready": false,
   "voice-ready": false,
+  "web-search-ready": false,
 };
 
 describe("guide catalog policy", () => {
@@ -50,6 +51,7 @@ describe("guide catalog policy", () => {
         "project-open": true,
         "provider-ready": true,
         "voice-ready": true,
+        "web-search-ready": true,
       },
     );
     assert.equal(
@@ -64,6 +66,19 @@ describe("guide catalog policy", () => {
       guides.find((guide) => guide.id === "workbench")?.completed,
       false,
     );
+  });
+
+  it("auto-completes the optional web-search guide when Tavily is ready", () => {
+    const guides = resolveGuides(
+      guideCatalog,
+      {},
+      { ...noSignals, "web-search-ready": true },
+    );
+    const webSearch = guides.find((guide) => guide.id === "web-search");
+    assert.equal(webSearch?.priority, "optional");
+    assert.equal(webSearch?.ready, true);
+    assert.equal(webSearch?.completed, true);
+    assert.deepEqual(autoCompletedGuideIds(guides, {}), ["web-search"]);
   });
 
   it("excludes upcoming guides from incomplete counts", () => {

@@ -3,7 +3,8 @@ export type SetupGuideArea =
   | "provider"
   | "voice"
   | "scoped-models"
-  | "agent-defaults";
+  | "agent-defaults"
+  | "web-search";
 
 export type SetupGuidePreparation =
   | { kind: "auth"; pageId: string; sectionId: string }
@@ -133,6 +134,50 @@ export const setupGuideSteps: Record<
       targetId: "setup-scoped-models-save",
       fallback: "In the Add models dialog, choose Save selection when ready.",
       preparation: { kind: "settings", pageId: "models", sectionId: "models" },
+    },
+  ],
+  "web-search": [
+    {
+      id: "web-search-configure",
+      title: "Configure Tavily",
+      description:
+        "Tavily powers the web_search tool. Open its configuration to add your API key.",
+      targetId: "setup-tavily-configure",
+      fallback:
+        "Open Settings → Tools → Integrations and choose Configure beside Tavily.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "integrations",
+      },
+      advanceByClickingTarget: true,
+    },
+    {
+      id: "web-search-api-key",
+      title: "Enter your Tavily API key",
+      description:
+        "Paste an API key from your Tavily account. Nerve encrypts the key before sending it to the daemon.",
+      targetId: "setup-tavily-api-key",
+      fallback:
+        "Choose Configure beside Tavily, then paste your API key into the dialog.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "integrations",
+      },
+    },
+    {
+      id: "web-search-save",
+      title: "Save the API key",
+      description:
+        "Save the key to enable web search for subsequent agent runs.",
+      targetId: "setup-tavily-save",
+      fallback: "In the Tavily configuration dialog, choose Save key.",
+      preparation: {
+        kind: "settings",
+        pageId: "tools",
+        sectionId: "integrations",
+      },
     },
   ],
   "agent-defaults": [

@@ -85,6 +85,15 @@ export function voiceConfigured(): boolean {
   return hasChatGptAudioAuth(settingsState.authProviders);
 }
 
+export function webSearchConfigured(): boolean {
+  return settingsState.authProviders.some(
+    (provider) =>
+      provider.provider === "tavily" &&
+      provider.configured &&
+      provider.credentialType === "api_key",
+  );
+}
+
 export function scopedModelSummary(): string {
   const count = settingsState.settingsDraft?.scopedModels.length ?? 0;
   if (count === 0) return "All authenticated models are currently available";
@@ -102,6 +111,7 @@ function guideSignals(): GuideSignals {
     "project-open": Boolean(workspaceSelectors.activeProject),
     "provider-ready": providerConfigured(),
     "voice-ready": voiceConfigured(),
+    "web-search-ready": webSearchConfigured(),
   };
 }
 
@@ -139,6 +149,11 @@ export function guideSummary(id: GuideId): string | undefined {
   }
   if (id === "scoped-models") return scopedModelSummary();
   if (id === "agent-defaults") return agentDefaultsSummary().text;
+  if (id === "web-search") {
+    return webSearchConfigured()
+      ? "Web search is ready with Tavily."
+      : "A Tavily API key is not configured yet.";
+  }
   if (id === "workbench") {
     return "Covers conversations, composer controls, panels, Git, tasks, and settings.";
   }
