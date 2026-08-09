@@ -1,38 +1,37 @@
 <script lang="ts">
-import Plus from "@lucide/svelte/icons/plus";
-import { ConversationSignal } from "$lib/presentation";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
-import { getShortcutLabel } from "$lib/core/shortcuts/registry";
+import type { Mode } from "@nervekit/contracts";
+import {
+  ConversationSignal,
+  conversationStarters,
+  type ConversationStarter,
+} from "$lib/presentation";
 
 let {
   onNewChat,
   projectSelected = false,
+  projectLabel,
+  projectPath,
 }: {
-  onNewChat: () => void;
+  onNewChat: (mode: Mode) => void;
   projectSelected?: boolean;
+  projectLabel?: string;
+  projectPath?: string;
 } = $props();
 
-const newChatShortcut = getShortcutLabel("conversation.new");
+function startWith(starter: ConversationStarter) {
+  onNewChat(starter.mode);
+}
 </script>
 
 <ConversationSignal
-  title="Where should we start?"
+  variant="launchpad"
+  title="Let's give this repo a plot twist."
   message={projectSelected
-    ? "Begin a conversation in the selected project to explore, plan, and build."
-    : "Select a project from the top header to begin a conversation."}
->
-  {#snippet footer()}
-    <Button onclick={onNewChat} disabled={!projectSelected}>
-      <Plus aria-hidden="true" />
-      New chat
-    </Button>
-
-    {#if newChatShortcut}
-      <div class="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span>or press</span>
-        <Kbd>{newChatShortcut}</Kbd>
-      </div>
-    {/if}
-  {/snippet}
-</ConversationSignal>
+    ? "Plot the move, or dive straight into the code."
+    : "Bring a project. We'll bring the momentum."}
+  {projectLabel}
+  {projectPath}
+  starters={conversationStarters}
+  startersDisabled={!projectSelected}
+  onSelectStarter={startWith}
+/>

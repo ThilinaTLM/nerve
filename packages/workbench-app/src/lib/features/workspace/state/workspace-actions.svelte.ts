@@ -290,16 +290,19 @@ export function newConversation() {
   void openPendingConversationForProject(activeProject);
 }
 
-export function newConversationInProject(projectDir: string) {
+export function newConversationInProject(
+  projectDir: string,
+  initialMode?: AgentRecord["mode"],
+) {
   const project = projectForNewConversation(
     workspaceState.projects,
     projectDir,
   );
   if (project) {
-    void openPendingConversationForProject(project);
+    void openPendingConversationForProject(project, initialMode);
     return;
   }
-  void createConversationForDirectory(projectDir);
+  void createConversationForDirectory(projectDir, initialMode);
 }
 
 export async function deleteProjectAndRefresh(projectId: string) {
@@ -402,14 +405,18 @@ export async function pruneProjectConversationsAndRefresh(
 
 async function openPendingConversationForProject(
   project: ProjectRecord,
+  initialMode?: AgentRecord["mode"],
 ): Promise<void> {
   workspaceState.error = undefined;
   workspaceState.projectPickerOpen = false;
   await selectProject(project.id, { deferTabActivation: true });
-  openPendingConversation(project);
+  openPendingConversation(project, initialMode);
 }
 
-export async function createConversationForDirectory(dir: string) {
+export async function createConversationForDirectory(
+  dir: string,
+  initialMode?: AgentRecord["mode"],
+) {
   workspaceState.error = undefined;
   try {
     const project = await createProject(dir);
@@ -419,7 +426,7 @@ export async function createConversationForDirectory(dir: string) {
         (candidate) => candidate.id !== project.id,
       ),
     ];
-    await openPendingConversationForProject(project);
+    await openPendingConversationForProject(project, initialMode);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workspaceState.error = message;

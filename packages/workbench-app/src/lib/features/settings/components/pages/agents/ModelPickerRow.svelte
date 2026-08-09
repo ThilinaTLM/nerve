@@ -54,10 +54,10 @@ let {
 let dialogOpen = $state(false);
 </script>
 
-<SettingsRow {label} {description}>
+<SettingsRow {label} {description} layout="responsive">
   {#snippet control()}
     <div
-      class="relative w-64 min-w-0 max-w-full cursor-pointer rounded-md border border-primary/60 bg-primary/8 shadow-xs transition-colors hover:bg-primary/12"
+      class="relative w-full min-w-0 cursor-pointer rounded-md border border-primary/60 bg-primary/8 shadow-xs transition-colors hover:bg-primary/12 sm:w-64"
       role="group"
       aria-label={label}
     >

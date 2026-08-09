@@ -323,8 +323,12 @@ function menuForTranscript(
   {#snippet emptyExtension()}
     <ConversationWelcome
       projectSelected={Boolean(activeProject && onNewConversationInProject)}
-      onNewChat={() => {
-        if (activeProject) onNewConversationInProject?.(activeProject.dir);
+      projectLabel={activeProjectLabel}
+      projectPath={activeProject?.dir}
+      onNewChat={(initialMode) => {
+        if (activeProject) {
+          onNewConversationInProject?.(activeProject.dir, initialMode);
+        }
       }}
     />
   {/snippet}
