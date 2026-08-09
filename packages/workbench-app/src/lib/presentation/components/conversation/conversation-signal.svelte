@@ -30,19 +30,8 @@ const launchpad = $derived(variant === "launchpad");
 </script>
 
 <div
-  class="relative flex h-full min-h-full items-center justify-center overflow-hidden p-6 text-center"
+  class="@container relative flex h-full min-h-full items-center justify-center overflow-hidden p-6 text-center"
 >
-  {#if launchpad}
-    <div
-      class="pointer-events-none absolute inset-x-8 top-1/2 h-px max-w-5xl -translate-y-32 bg-gradient-to-r from-transparent via-border to-transparent"
-      aria-hidden="true"
-    ></div>
-    <div
-      class="pointer-events-none absolute left-1/2 top-1/2 size-80 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-border/60"
-      aria-hidden="true"
-    ></div>
-  {/if}
-
   <div
     class={`brand-signal-enter relative flex w-full flex-col items-center ${launchpad ? "max-w-3xl" : "max-w-2xl"}`}
   >
@@ -70,11 +59,13 @@ const launchpad = $derived(variant === "launchpad");
       </p>
     {/if}
     <h2
-      class={`${launchpad ? "mt-2 text-2xl" : "mt-4 text-xl"} font-semibold tracking-tight text-foreground`}
+      class={`${launchpad ? "mt-2 text-xl @sm:text-2xl" : "mt-4 text-lg @sm:text-xl"} font-normal tracking-tight text-foreground`}
     >
       {title}
     </h2>
-    <p class="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+    <p
+      class="mt-2 max-w-sm text-xs leading-relaxed text-muted-foreground @sm:text-sm"
+    >
       {message}
     </p>
 
@@ -88,7 +79,7 @@ const launchpad = $derived(variant === "launchpad");
           {@const Icon = starter.icon}
           <button
             type="button"
-            class="group inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-card px-4 text-sm font-medium text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50"
+            class="group inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-card px-4 text-xs font-medium text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50 @sm:text-sm"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >

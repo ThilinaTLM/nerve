@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ConversationRecord, ProjectRecord } from "$lib/api";
+import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 import {
   buildProjectSwitcherItems,
-  projectActivityIndicator,
+  projectActivitySignal,
   quickProjectItems,
   summarizeProjectActivity,
 } from "./project-switcher";
@@ -33,6 +33,21 @@ function conversation(
   } as ConversationRecord;
 }
 
+function task(
+  id: string,
+  cwd: string,
+  patch: Partial<TaskRecord> = {},
+): TaskRecord {
+  return {
+    id,
+    cwd,
+    command: "pnpm dev",
+    status: "running",
+    visibility: "background",
+    ...patch,
+  } as TaskRecord;
+}
+
 function activity(
   input: Partial<ConversationActivityState>,
 ): ConversationActivityState {
@@ -46,7 +61,7 @@ function activity(
   };
 }
 
-test("summarizes only current actionable project activity", () => {
+test("summarizes current waiting, failed, and running conversations", () => {
   const conversations = [
     conversation("error", "p", "2026-01-01"),
     conversation("waiting", "p", "2026-01-02"),
@@ -58,37 +73,55 @@ test("summarizes only current actionable project activity", () => {
       waiting: activity({ tone: "warn", needsUser: true }),
       running: activity({ tone: "running", busy: true }),
     }),
-    { needsUser: 1, running: 1 },
+    { needsUser: 1, failed: 1, running: 1 },
   );
 });
 
-test("omits project indicators for terminal errors", () => {
-  const summary = summarizeProjectActivity(
-    [conversation("error", "p", "2026-01-01")],
-    { error: activity({ tone: "danger" }) },
-  );
-  assert.deepEqual(summary, { needsUser: 0, running: 0 });
-  assert.equal(projectActivityIndicator(summary), undefined);
-});
-
-test("collapses actionable project activity into one indicator", () => {
+test("combines project activity and background tasks into one priority signal", () => {
   assert.equal(
-    projectActivityIndicator({ needsUser: 0, running: 0 }),
+    projectActivitySignal(
+      { needsUser: 0, failed: 0, running: 0 },
+      { running: 0 },
+    ),
     undefined,
   );
-  assert.deepEqual(projectActivityIndicator({ needsUser: 1, running: 2 }), {
-    tone: "warn",
-    pulse: false,
-    summary: "1 waiting for you, 2 running",
-  });
-  assert.deepEqual(projectActivityIndicator({ needsUser: 0, running: 1 }), {
-    tone: "running",
-    pulse: true,
-    summary: "1 running",
-  });
+  assert.deepEqual(
+    projectActivitySignal(
+      { needsUser: 1, failed: 2, running: 3 },
+      { running: 4 },
+    ),
+    {
+      tone: "warn",
+      count: 10,
+      summary:
+        "1 waiting for you, 2 failed, 3 conversations running, 4 background tasks running",
+    },
+  );
+  assert.deepEqual(
+    projectActivitySignal(
+      { needsUser: 0, failed: 1, running: 2 },
+      { running: 0 },
+    ),
+    {
+      tone: "danger",
+      count: 3,
+      summary: "1 failed, 2 conversations running",
+    },
+  );
+  assert.deepEqual(
+    projectActivitySignal(
+      { needsUser: 0, failed: 0, running: 1 },
+      { running: 1 },
+    ),
+    {
+      tone: "running",
+      count: 2,
+      summary: "1 conversation running, 1 background task running",
+    },
+  );
 });
 
-test("groups directory aliases and disambiguates duplicate folder names", () => {
+test("groups aliases and aggregates their conversations", () => {
   const projects = [
     project("p1", "app", "/work/one/app", "2026-01-01"),
     project("p2", "app alias", "/work/one/app/", "2026-01-02"),
@@ -96,29 +129,45 @@ test("groups directory aliases and disambiguates duplicate folder names", () => 
   ];
   const items = buildProjectSwitcherItems({
     projects,
-    conversations: [conversation("c1", "p1", "2026-01-04")],
+    conversations: [
+      conversation("c1", "p1", "2026-01-04"),
+      conversation("c2", "p2", "2026-01-05"),
+    ],
+    tasks: [],
     activityById: {},
   });
   assert.equal(items.length, 2);
-  assert.deepEqual(
-    items.find((item) => item.key === "/work/one/app")?.projectIds,
-    ["p1", "p2"],
-  );
+  const aliased = items.find((item) => item.key === "/work/one/app");
+  assert.deepEqual(aliased?.projectIds, ["p1", "p2"]);
+  assert.equal(aliased?.conversationCount, 2);
   assert.ok(items.every((item) => item.label !== "app"));
 });
 
-test("exposes the persisted project access time", () => {
+test("counts only active background tasks and resolves legacy cwd by longest path", () => {
   const items = buildProjectSwitcherItems({
-    projects: [project("p1", "app", "/work/app", "2026-01-01")],
+    projects: [
+      project("outer", "work", "/work", "2026-01-01"),
+      project("inner", "app", "/work/app", "2026-01-02"),
+      project("inner-alias", "app alias", "/work/app/", "2026-01-03"),
+    ],
     conversations: [],
+    tasks: [
+      task("task_owned", "/elsewhere", { projectId: "inner" }),
+      task("task_legacy", "/work/app/packages/api"),
+      task("task_foreground", "/work/app", { visibility: "foreground" }),
+      task("task_done", "/work/app", { status: "completed" }),
+    ],
     activityById: {},
-    recency: { "/work/app": 1_786_249_800_000 },
   });
 
-  assert.equal(items[0]?.lastAccessedAt, 1_786_249_800_000);
+  assert.equal(
+    items.find((item) => item.key === "/work/app")?.tasks.running,
+    2,
+  );
+  assert.equal(items.find((item) => item.key === "/work")?.tasks.running, 0);
 });
 
-test("sorts the chosen recent projects alphabetically", () => {
+test("exposes access time and preserves quick-project selection and alphabetization", () => {
   const items = buildProjectSwitcherItems({
     projects: [
       project("z", "Zulu", "/zulu", "2026-01-03"),
@@ -126,30 +175,20 @@ test("sorts the chosen recent projects alphabetically", () => {
       project("m", "Mike", "/mike", "2026-01-01"),
     ],
     conversations: [],
+    tasks: [],
     activityById: {},
+    recency: { "/alpha": 1_786_249_800_000 },
   });
+  assert.equal(
+    items.find((item) => item.key === "/alpha")?.lastAccessedAt,
+    1_786_249_800_000,
+  );
   assert.deepEqual(
     quickProjectItems(items, undefined, 2).map((item) => item.label),
     ["alpha", "zulu"],
   );
-});
-
-test("quick projects always retain the active project", () => {
-  const items = buildProjectSwitcherItems({
-    projects: [
-      project("a", "a", "/a", "2026-01-01"),
-      project("b", "b", "/b", "2026-01-02"),
-      project("c", "c", "/c", "2026-01-03"),
-    ],
-    conversations: [],
-    activityById: {},
-  });
   assert.deepEqual(
-    quickProjectItems(items, "/a", 1).map((item) => item.key),
-    ["/a"],
-  );
-  assert.deepEqual(
-    quickProjectItems(items, "/a", 2).map((item) => item.key),
-    ["/a", "/c"],
+    quickProjectItems(items, "/mike", 2).map((item) => item.key),
+    ["/alpha", "/mike"],
   );
 });

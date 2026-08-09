@@ -1,4 +1,5 @@
 export * from "./api/git.api";
+export { GIT_STALE_MS } from "./state/git-refresh-policy";
 export {
   clearGitContext,
   refreshGitContext,

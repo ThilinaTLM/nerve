@@ -1,5 +1,6 @@
 import type { StatusTone } from "@nervekit/ui-kit/core/utils/status";
-import type { ConversationRecord, ProjectRecord } from "$lib/api";
+import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
+import { isPathInDirectory } from "$lib/core/utils/path";
 import {
   conversationLastUserSortAt,
   projectFolderName,
@@ -10,6 +11,11 @@ import type { ConversationActivityState } from "$lib/features/conversations/stat
 
 export type ProjectActivitySummary = {
   needsUser: number;
+  failed: number;
+  running: number;
+};
+
+export type ProjectTaskSummary = {
   running: number;
 };
 
@@ -20,7 +26,9 @@ export type ProjectSwitcherItem = {
   label: string;
   sortAt: string;
   lastAccessedAt?: number;
+  conversationCount: number;
   activity: ProjectActivitySummary;
+  tasks: ProjectTaskSummary;
 };
 
 export function summarizeProjectActivity(
@@ -29,39 +37,58 @@ export function summarizeProjectActivity(
 ): ProjectActivitySummary {
   const summary: ProjectActivitySummary = {
     needsUser: 0,
+    failed: 0,
     running: 0,
   };
   for (const conversation of conversations) {
     const activity = activityById[conversation.id];
     if (!activity) continue;
     if (activity.needsUser) summary.needsUser += 1;
-    else if (activity.busy && activity.tone !== "danger") summary.running += 1;
+    else if (activity.tone === "danger") summary.failed += 1;
+    else if (activity.busy) summary.running += 1;
   }
   return summary;
 }
 
-export type ProjectActivityIndicator = {
-  tone: StatusTone;
-  pulse: boolean;
+export type ProjectActivitySignal = {
+  tone: Extract<StatusTone, "warn" | "danger" | "running">;
+  count: number;
   /** Human-readable breakdown of current actionable activity. */
   summary: string;
 };
 
-export function projectActivityIndicator(
+export function projectActivitySignal(
   activity: ProjectActivitySummary,
-): ProjectActivityIndicator | undefined {
+  tasks: ProjectTaskSummary,
+): ProjectActivitySignal | undefined {
   const parts = [
     activity.needsUser ? `${activity.needsUser} waiting for you` : "",
-    activity.running ? `${activity.running} running` : "",
+    activity.failed ? `${activity.failed} failed` : "",
+    activity.running
+      ? `${activity.running} conversation${activity.running === 1 ? "" : "s"} running`
+      : "",
+    tasks.running
+      ? `${tasks.running} background task${tasks.running === 1 ? "" : "s"} running`
+      : "",
   ].filter(Boolean);
   if (!parts.length) return undefined;
-  const tone: StatusTone = activity.needsUser ? "warn" : "running";
-  return { tone, pulse: tone === "running", summary: parts.join(", ") };
+  const tone: ProjectActivitySignal["tone"] = activity.needsUser
+    ? "warn"
+    : activity.failed
+      ? "danger"
+      : "running";
+  return {
+    tone,
+    count:
+      activity.needsUser + activity.failed + activity.running + tasks.running,
+    summary: parts.join(", "),
+  };
 }
 
 export function buildProjectSwitcherItems(input: {
   projects: ProjectRecord[];
   conversations: ConversationRecord[];
+  tasks: TaskRecord[];
   activityById: Record<string, ConversationActivityState>;
   homeDir?: string;
   recency?: Record<string, number>;
@@ -70,6 +97,46 @@ export function buildProjectSwitcherItems(input: {
   for (const project of input.projects) {
     const key = projectKey(project);
     byKey.set(key, [...(byKey.get(key) ?? []), project]);
+  }
+
+  const projectKeyById = new Map<string, string>();
+  for (const [key, projects] of byKey) {
+    for (const project of projects) projectKeyById.set(project.id, key);
+  }
+
+  const runningTasksByKey = new Map<string, number>();
+  const activeTaskStatuses = new Set<TaskRecord["status"]>([
+    "starting",
+    "running",
+    "ready",
+    "stopping",
+  ]);
+  for (const task of input.tasks) {
+    if (
+      task.visibility !== "background" ||
+      !activeTaskStatuses.has(task.status)
+    ) {
+      continue;
+    }
+
+    let key = task.projectId ? projectKeyById.get(task.projectId) : undefined;
+    if (!key) {
+      let longestMatch = -1;
+      for (const [candidateKey, projects] of byKey) {
+        const dir = projects[0]?.dir;
+        if (
+          dir &&
+          dir.length > longestMatch &&
+          isPathInDirectory(task.cwd, dir)
+        ) {
+          key = candidateKey;
+          longestMatch = dir.length;
+        }
+      }
+    }
+    if (key) {
+      runningTasksByKey.set(key, (runningTasksByKey.get(key) ?? 0) + 1);
+    }
   }
 
   const folderCounts = new Map<string, number>();
@@ -104,7 +171,9 @@ export function buildProjectSwitcherItems(input: {
           ? latestConversation
           : project.updatedAt,
       lastAccessedAt: input.recency?.[key],
+      conversationCount: conversations.length,
       activity: summarizeProjectActivity(conversations, input.activityById),
+      tasks: { running: runningTasksByKey.get(key) ?? 0 },
     };
   });
 
