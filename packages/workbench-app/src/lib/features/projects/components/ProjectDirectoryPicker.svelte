@@ -380,11 +380,24 @@ $effect(() => {
 <Dialog
   flush
   bind:open
-  title="Switch project"
+  title="Projects"
   description="Choose a recent project or browse for a folder."
   class="project-picker-dialog"
   onOpenChange={handleOpenChange}
 >
+  {#snippet headerActions()}
+    {#if mode === "recent"}
+      <Button
+        variant="outline"
+        size="sm"
+        data-tour-id="guide-project-browse"
+        onclick={() => enterBrowse()}
+      >
+        <FolderSearch size={14} strokeWidth={2.2} />
+        Open
+      </Button>
+    {/if}
+  {/snippet}
   <div
     class={`grid h-full min-h-0 ${
       mode === "recent"
@@ -462,15 +475,6 @@ $effect(() => {
           ? ""
           : "s"}
       </span>
-      <Button
-        variant="outline"
-        size="sm"
-        data-tour-id="guide-project-browse"
-        onclick={() => enterBrowse()}
-      >
-        <FolderSearch size={14} strokeWidth={2.2} />
-        Browse
-      </Button>
     {:else}
       <DirectoryPickerFooter
         path={openTargetPath}

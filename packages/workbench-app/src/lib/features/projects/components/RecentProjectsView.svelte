@@ -233,7 +233,7 @@ function projectMenu(project: ProjectRecord): ContextMenuItem[] {
           ? "No recent projects match your search."
           : "No recent projects yet."}
       </p>
-      <span class="text-xs">Use Browse below to open a project folder.</span>
+      <span class="text-xs">Use Open above to open a project folder.</span>
     </div>
   {/if}
 </div>

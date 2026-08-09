@@ -35,9 +35,9 @@ export const setupGuideSteps: Record<
     },
     {
       id: "open-project-browse",
-      title: "Browse for a project",
+      title: "Open a project folder",
       description:
-        "Choose Browse to find and open a project folder from your computer.",
+        "Choose Open to find and open a project folder from your computer.",
       targetId: "guide-project-browse",
       fallback:
         "The project browser is already open when there are no recent projects.",

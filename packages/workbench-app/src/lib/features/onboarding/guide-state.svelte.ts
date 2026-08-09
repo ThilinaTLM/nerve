@@ -279,6 +279,26 @@ async function settlePreparation(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
+async function settleTargetAnimations(
+  target: HTMLElement | undefined,
+): Promise<void> {
+  if (!target) return;
+  const animations: Animation[] = [];
+  for (
+    let element: HTMLElement | null = target;
+    element;
+    element = element.parentElement
+  ) {
+    for (const animation of element.getAnimations()) {
+      if (["pending", "running"].includes(animation.playState))
+        animations.push(animation);
+    }
+  }
+  if (animations.length === 0) return;
+  await Promise.allSettled(animations.map((animation) => animation.finished));
+  await settlePreparation();
+}
+
 async function prepareTourStep(step: TourStep): Promise<void> {
   const requestId = ++preparationId;
   guideState.preparing = true;
@@ -295,6 +315,7 @@ async function prepareTourStep(step: TourStep): Promise<void> {
     if (conversationSelectors.activeConversation) openConversationHistory();
   }
   await settlePreparation();
+  await settleTargetAnimations(visibleTarget(step.targetId));
   if (requestId !== preparationId || guideState.mode !== "tour") return;
   guideState.targetAvailable = Boolean(visibleTarget(step.targetId));
   guideState.preparing = false;
@@ -343,6 +364,7 @@ async function prepareSetupStep(
     inline: "nearest",
   });
   await settlePreparation();
+  await settleTargetAnimations(target);
   if (
     requestId !== preparationId ||
     !["preparing-coach", "coach"].includes(guideState.mode)
