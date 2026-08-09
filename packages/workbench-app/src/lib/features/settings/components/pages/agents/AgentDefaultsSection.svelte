@@ -213,13 +213,12 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean): void {
   >
     {#snippet summaryMeta()}
       {#if savedDefaultModelInfo}
-        {providerDisplayName(savedDefaultModelInfo.provider)} ·
-        <span class="font-mono">{savedDefaultModelInfo.modelId}</span>
-        · {defaultThinkingLevel}
+        {providerDisplayName(savedDefaultModelInfo.provider)}
       {:else if defaultModelInfo}
-        Currently {modelDisplayName(defaultModelInfo)} · {defaultThinkingLevel}
+        Currently {modelDisplayName(defaultModelInfo)} ·
+        {providerDisplayName(defaultModelInfo.provider)}
       {:else}
-        No scoped model available · {defaultThinkingLevel}
+        No scoped model available
       {/if}
     {/snippet}
     {#snippet policy()}

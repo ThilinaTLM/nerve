@@ -89,12 +89,9 @@ function saveExploreModel(selection: {
   >
     {#snippet summaryMeta()}
       {#if selectedModelInfo}
-        {providerDisplayName(selectedModelInfo.provider)} ·
-        <span class="font-mono">{selectedModelInfo.modelId}</span>
-        · {settingsDraft.exploreAgent.thinkingLevel}
+        {providerDisplayName(selectedModelInfo.provider)}
       {:else}
-        Use the platform fallback model · {settingsDraft.exploreAgent
-          .thinkingLevel}
+        Use the platform fallback model
       {/if}
     {/snippet}
     {#snippet policy()}
