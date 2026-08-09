@@ -1,5 +1,7 @@
 packages:
   - "packages/*"
+overrides:
+  js-yaml: 4.3.1
 allowBuilds:
   "@google/genai": true
   electron: true
