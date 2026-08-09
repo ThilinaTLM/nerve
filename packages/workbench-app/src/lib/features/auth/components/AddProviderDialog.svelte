@@ -63,7 +63,7 @@ onDestroy(() => {
   bind:open
   title={flowController.dialogTitle}
   description={flowController.dialogDescription}
-  class="add-provider-dialog"
+  size="md"
   closeOnInteractOutside={false}
   onOpenChange={handleOpenChange}
 >

@@ -158,6 +158,7 @@ async function submit() {
   bind:open
   title={editing ? `Edit ${provider?.displayName}` : "Add custom provider"}
   description="Connect an OpenAI-compatible or other pi-ai supported endpoint."
+  size="md"
 >
   <div class="provider-form">
     <div class="field-grid">

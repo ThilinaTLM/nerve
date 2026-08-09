@@ -210,12 +210,14 @@ function projectMenu(project: ProjectRecord): ContextMenuItem[] {
               class="flex-none pl-2 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
             >
               {chats} chat{chats === 1 ? "" : "s"}
-              <span class="px-1 text-muted-foreground/50" aria-hidden="true"
-                >·</span
-              >
-              {lastAccessedAt === undefined
-                ? "Not accessed"
-                : `Accessed ${lastAccessLabel(lastAccessedAt)}`}
+              <span class="max-[520px]:hidden">
+                <span class="px-1 text-muted-foreground/50" aria-hidden="true"
+                  >·</span
+                >
+                {lastAccessedAt === undefined
+                  ? "Not accessed"
+                  : `Accessed ${lastAccessLabel(lastAccessedAt)}`}
+              </span>
             </span>
           </div>
         </ContextMenu>

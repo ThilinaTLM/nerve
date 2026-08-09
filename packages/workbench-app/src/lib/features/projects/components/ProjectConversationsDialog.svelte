@@ -134,7 +134,6 @@ function openAndClose(conversationId: string) {
 :global(.dialog-content.project-conversations-dialog .dialog-body) {
   display: flex;
   overflow: hidden;
-  background: var(--card);
 }
 
 .conversations-modal {

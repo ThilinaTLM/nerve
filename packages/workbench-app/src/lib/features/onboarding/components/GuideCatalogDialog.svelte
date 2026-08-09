@@ -99,7 +99,7 @@ const navigationIsPrimary = $derived(guide.completed || !guide.available);
     </div>
 
     <section
-      class="grid min-h-64 content-center gap-4 px-2 py-5 sm:grid-cols-[auto_1fr] sm:items-start sm:px-6"
+      class="grid min-h-56 content-center gap-4 px-2 py-3 sm:grid-cols-[auto_1fr] sm:items-start sm:px-5"
       aria-live="polite"
       aria-labelledby="current-guide-title"
     >

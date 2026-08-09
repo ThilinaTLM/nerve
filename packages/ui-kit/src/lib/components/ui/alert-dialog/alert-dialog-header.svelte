@@ -10,8 +10,8 @@ let {
 }: WithElementRef<HTMLAttributes<HTMLDivElement>> = $props();
 </script>
 
-<!-- Accent header band shared with DialogShell; the inner block stacks the
-     title and description. -->
+<!-- Compact header shared with DialogShell; the inner block stacks the title
+     and description on the unified dialog surface. -->
 <div
   bind:this={ref}
   data-slot="alert-dialog-header"

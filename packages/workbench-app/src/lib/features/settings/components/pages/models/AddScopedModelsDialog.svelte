@@ -93,7 +93,7 @@ function save(): void {
     class="grid max-h-[min(70vh,32rem)] grid-rows-[auto_minmax(0,1fr)]"
     data-tour-id="setup-scoped-models-catalog"
   >
-    <div class="grid gap-2 border-b border-border/50 px-3.5 pt-3 pb-2.5">
+    <div class="grid gap-1.5 border-b border-border/50 px-3 pt-2.5 pb-2">
       <SearchInput
         bind:value={query}
         placeholder="Search models"

@@ -490,14 +490,19 @@ $effect(() => {
  * selector keeps it ahead of `.dialog-content`'s default width. */
 :global(.dialog-content.project-picker-dialog) {
   width: min(680px, calc(100vw - 24px));
+  width: min(680px, calc(100dvw - 1.5rem));
   min-height: min(82vh, 520px);
+  min-height: min(82dvh, 520px);
   max-height: min(82vh, 720px);
+  max-height: min(82dvh, 720px);
 }
 
 @media (max-width: 560px) {
   :global(.dialog-content.project-picker-dialog) {
     width: calc(100vw - 12px);
+    width: calc(100dvw - 0.75rem);
     max-height: calc(100vh - 12px);
+    max-height: calc(100dvh - 0.75rem);
   }
 }
 </style>

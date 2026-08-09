@@ -241,6 +241,7 @@ function setFieldValue(key: IntegrationFieldKey, value: string): void {
   bind:open={dialogOpen}
   title={`Configure ${provider.label}`}
   description={provider.docsHint}
+  size="sm"
 >
   <form
     class="grid gap-3"

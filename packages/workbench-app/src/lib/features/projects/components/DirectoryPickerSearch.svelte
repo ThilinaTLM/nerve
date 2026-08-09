@@ -36,7 +36,7 @@ let {
 </script>
 
 <div
-  class="flex items-center gap-2 border-b border-b-border/60 py-1.5 pr-2.5 pl-3"
+  class="flex items-center gap-2 border-b border-b-border/60 py-1.5 pr-2.5 pl-3 max-[520px]:gap-1 max-[520px]:pr-1.5 max-[520px]:pl-2"
 >
   {#if onBack}
     <Button
@@ -56,7 +56,7 @@ let {
   >
     {#each crumbs as crumb, i (crumb.path)}
       {#if i > 0}<ChevronRight
-          class="flex-none text-muted-foreground/55"
+          class="flex-none text-muted-foreground/55 max-[520px]:hidden"
           size={13}
           strokeWidth={2.2}
           aria-hidden="true"
@@ -68,7 +68,7 @@ let {
         >
       {:else}
         <button
-          class="max-w-48 cursor-pointer overflow-hidden rounded-sm border-0 bg-transparent px-1 py-0.5 text-ellipsis whitespace-nowrap text-muted-foreground transition-[color,background-color,border-color,box-shadow] duration-120 not-disabled:hover:bg-accent not-disabled:hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none max-[560px]:max-w-28"
+          class="max-w-48 cursor-pointer overflow-hidden rounded-sm border-0 bg-transparent px-1 py-0.5 text-ellipsis whitespace-nowrap text-muted-foreground transition-[color,background-color,border-color,box-shadow] duration-120 not-disabled:hover:bg-accent not-disabled:hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none max-[560px]:max-w-28 max-[520px]:hidden"
           type="button"
           title={crumb.path}
           disabled={loading}
@@ -104,7 +104,7 @@ let {
     <Switch
       bind:checked={showHidden}
       label="Hidden"
-      class="h-7 gap-1.5 rounded-sm border border-border/60 bg-input px-1.5 text-xs"
+      class="h-7 gap-1.5 rounded-sm border border-border/60 bg-input px-1.5 text-xs max-[520px]:gap-1 max-[520px]:px-1"
     />
   </div>
 </div>

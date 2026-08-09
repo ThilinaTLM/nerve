@@ -98,9 +98,9 @@ async function submit() {
   bind:open
   title="New prompt suggestion"
   description="Create a reusable composer prompt in your user profile or the current project."
-  class="max-w-2xl"
+  size="md"
 >
-  <div class="grid max-h-[70vh] gap-4 overflow-y-auto">
+  <div class="grid gap-4">
     <div class="grid gap-1.5">
       <Label>Scope</Label>
       <SelectField items={scopeItems} bind:value={scope} disabled={saving} />
