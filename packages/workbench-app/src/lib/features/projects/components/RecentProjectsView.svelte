@@ -1,6 +1,5 @@
 <script lang="ts">
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
-import Check from "@lucide/svelte/icons/check";
 import Copy from "@lucide/svelte/icons/copy";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import LayoutPanelLeft from "@lucide/svelte/icons/layout-panel-left";
@@ -182,11 +181,9 @@ function projectMenu(project: ProjectRecord): ContextMenuItem[] {
               }`}
               title={current ? "Current project" : undefined}
             >
+              <LayoutPanelLeft class="size-3.5" aria-hidden="true" />
               {#if current}
-                <Check class="size-3.5" aria-hidden="true" />
                 <span class="sr-only">Current project</span>
-              {:else}
-                <LayoutPanelLeft class="size-3.5" aria-hidden="true" />
               {/if}
             </span>
             <span class="grid min-w-0 flex-1 gap-px">

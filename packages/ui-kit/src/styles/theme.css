@@ -76,7 +76,7 @@
 :root[data-theme="nerve"].dark,
 [data-theme-preview="nerve"][data-color-mode="dark"] {
   --background: oklch(0.2679 0.0036 106.6427);
-  --foreground: oklch(0.9576 0.0027 106.4494);
+  --foreground: oklch(0.9 0.0027 106.4494);
   --card: oklch(0.2928 0.0018 106.5092);
   --card-foreground: oklch(0.9818 0.0054 95.0986);
   --popover: oklch(0.3085 0.0035 106.6039);
@@ -164,7 +164,7 @@
 :root[data-theme="ocean"].dark,
 [data-theme-preview="ocean"][data-color-mode="dark"] {
   --background: oklch(0.2679 0.0036 250);
-  --foreground: oklch(0.9576 0.0027 250);
+  --foreground: oklch(0.9 0.0027 250);
   --card: oklch(0.2928 0.0018 250);
   --card-foreground: oklch(0.9818 0.0054 250);
   --popover: oklch(0.3085 0.0035 250);
@@ -252,7 +252,7 @@
 :root[data-theme="forest"].dark,
 [data-theme-preview="forest"][data-color-mode="dark"] {
   --background: oklch(0.2679 0.0036 105);
-  --foreground: oklch(0.9576 0.0027 105);
+  --foreground: oklch(0.9 0.0027 105);
   --card: oklch(0.2928 0.0018 105);
   --card-foreground: oklch(0.9818 0.0054 105);
   --popover: oklch(0.3085 0.0035 105);
