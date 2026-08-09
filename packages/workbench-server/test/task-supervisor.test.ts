@@ -78,13 +78,7 @@ function runtime(overrides: Partial<TaskRuntime> = {}): TaskRuntime {
 describe("task supervisor spawn metadata", () => {
   it("spawns with non-interactive pager-safe environment defaults", async () => {
     const output = await collectSpawnedStdout(
-      printEnvCommand([
-        "PAGER",
-        "GIT_PAGER",
-        "GIT_TERMINAL_PROMPT",
-        "TERM",
-        "CI",
-      ]),
+      printEnvCommand(["PAGER", "GIT_PAGER", "GIT_TERMINAL_PROMPT", "TERM"]),
     );
     const env = JSON.parse(output) as Record<string, string>;
 
@@ -92,7 +86,20 @@ describe("task supervisor spawn metadata", () => {
     assert.equal(env.GIT_PAGER, "cat");
     assert.equal(env.GIT_TERMINAL_PROMPT, "0");
     assert.equal(env.TERM, "dumb");
-    assert.equal(env.CI, process.env.CI ?? "1");
+  });
+
+  it("does not manufacture a CI environment for managed tasks", async () => {
+    const inheritedCi = process.env.CI;
+    delete process.env.CI;
+    try {
+      const output = await collectSpawnedStdout(printEnvCommand(["CI"]));
+      const env = JSON.parse(output) as Record<string, string>;
+
+      assert.equal(env.CI, undefined);
+    } finally {
+      if (inheritedCi === undefined) delete process.env.CI;
+      else process.env.CI = inheritedCi;
+    }
   });
 
   it("uses configured shellPath for managed task commands", async () => {
