@@ -22,10 +22,16 @@ import {
   uniqueSignals,
 } from "./directory-picker-helpers";
 import type { FilesystemEntry, NavItem } from "./directory-picker-types";
+import type {
+  ProjectActivitySummary,
+  ProjectSwitcherItem,
+} from "$lib/features/projects/state/project-switcher";
 type Props = {
   open?: boolean;
   projects?: ProjectRecord[];
   conversations?: ConversationRecord[];
+  switcherItems?: ProjectSwitcherItem[];
+  activeProjectKey?: string;
   homeDir?: string;
   onClose?: () => void;
   onSelectProject?: (projectId: string) => void | Promise<void>;
@@ -37,6 +43,8 @@ let {
   open = $bindable(false),
   projects = [],
   conversations = [],
+  switcherItems = [],
+  activeProjectKey,
   homeDir,
   onClose,
   onSelectProject,
@@ -60,6 +68,17 @@ let recentScrollEl = $state<HTMLDivElement | undefined>(undefined);
 const openedProjectKeys = $derived.by(
   () => new Set(projects.map((project) => pathKey(project.dir))),
 );
+const activityByProjectId = $derived.by(() => {
+  const map = new SvelteMap<string, ProjectActivitySummary>();
+  for (const item of switcherItems) {
+    for (const id of item.projectIds) map.set(id, item.activity);
+  }
+  return map;
+});
+const currentProjectIds = $derived.by(() => {
+  const active = switcherItems.find((item) => item.key === activeProjectKey);
+  return new SvelteSet(active?.projectIds ?? []);
+});
 const conversationCounts = $derived.by(() => {
   const counts = new SvelteMap<string, number>();
   for (const conversation of conversations) {
@@ -159,7 +178,7 @@ function scrollActiveIntoView() {
 function scrollRecentIntoView() {
   requestAnimationFrame(() => {
     recentScrollEl
-      ?.querySelector(".recent-card.selected")
+      ?.querySelector('[role="option"][aria-selected="true"]')
       ?.scrollIntoView({ block: "nearest" });
   });
 }
@@ -373,6 +392,8 @@ $effect(() => {
         {homeDir}
         {loading}
         {conversationCountFor}
+        activityFor={(project) => activityByProjectId.get(project.id)}
+        isCurrent={(project) => currentProjectIds.has(project.id)}
         onOpen={(project) => void chooseProject(project.id)}
         onNewChat={(path) => void onNewChat?.(path)}
         onCopyPath={(path) => void copyPath(path)}
