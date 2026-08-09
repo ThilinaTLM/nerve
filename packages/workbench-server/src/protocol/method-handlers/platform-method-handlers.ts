@@ -1,4 +1,4 @@
-import type { CompletionItem } from "@nervekit/contracts";
+import { slashCommandCompletionItems } from "@nervekit/contracts";
 import type { OrchestratorState } from "../../app/orchestrator-state.js";
 import {
   providerApiKeySecretName,
@@ -16,33 +16,6 @@ import {
   getWorkspaceSnapshotResponse,
 } from "../snapshots.js";
 import { defineWorkbenchMethodHandlers } from "../method-handler-registry.js";
-
-const slashCompletionItems: CompletionItem[] = [
-  {
-    label: "/plan",
-    detail: "Start in planning mode",
-    info: "Ask the agent to inspect first and produce a short plan before changing files.",
-    kind: "slash",
-  },
-  {
-    label: "/code",
-    detail: "Switch to implementation",
-    info: "Frame the next prompt as a coding task.",
-    kind: "slash",
-  },
-  {
-    label: "/status",
-    detail: "Summarize current conversation state",
-    info: "Useful before handing off or resuming a durable conversation.",
-    kind: "slash",
-  },
-  {
-    label: "/abort",
-    detail: "Stop the active run",
-    info: "Cancels the active agent run from the UI.",
-    kind: "slash",
-  },
-];
 
 export const platformMethodHandlers = defineWorkbenchMethodHandlers({
   "status.latestRelease.get": (state) => state.latestRelease.getLatestRelease(),
@@ -119,7 +92,9 @@ export const platformMethodHandlers = defineWorkbenchMethodHandlers({
   "usage.subscription.get": async (state) => ({
     usage: await state.registry.getSubscriptionUsage(),
   }),
-  "completion.slash.list": () => ({ items: slashCompletionItems }),
+  "completion.slash.list": () => ({
+    items: [...slashCommandCompletionItems],
+  }),
   "completion.files.list": async (state, params) => ({
     items: await state.registry.completeFiles(
       params?.projectId,

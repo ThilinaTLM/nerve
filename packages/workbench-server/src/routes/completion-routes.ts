@@ -1,40 +1,17 @@
-import type { CompletionItem } from "@nervekit/contracts";
-import { fileCompletionQuerySchema } from "@nervekit/contracts";
+import {
+  fileCompletionQuerySchema,
+  slashCommandCompletionItems,
+} from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
 import { routeHandler } from "../http/responses.js";
 
-const slashCompletionItems: CompletionItem[] = [
-  {
-    label: "/plan",
-    detail: "Start in planning mode",
-    info: "Ask the agent to inspect first and produce a short plan before changing files.",
-    kind: "slash",
-  },
-  {
-    label: "/code",
-    detail: "Switch to implementation",
-    info: "Frame the next prompt as a coding task.",
-    kind: "slash",
-  },
-  {
-    label: "/status",
-    detail: "Summarize current conversation state",
-    info: "Useful before handing off or resuming a durable conversation.",
-    kind: "slash",
-  },
-  {
-    label: "/abort",
-    detail: "Stop the active run",
-    info: "Cancels the active agent run from the UI.",
-    kind: "slash",
-  },
-];
-
 export function createCompletionRoutes(state: OrchestratorState): Hono {
   const app = new Hono();
 
-  app.get("/completions/slash", (c) => c.json({ items: slashCompletionItems }));
+  app.get("/completions/slash", (c) =>
+    c.json({ items: [...slashCommandCompletionItems] }),
+  );
   app.get(
     "/completions/files",
     routeHandler(async (c) => {

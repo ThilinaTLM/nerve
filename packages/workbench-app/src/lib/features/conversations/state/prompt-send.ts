@@ -21,6 +21,7 @@ import {
   currentActiveAgent,
   selectedModel,
   selectedThinkingLevel,
+  setComposerMode,
 } from "$lib/features/conversations/state/composer-config.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
@@ -33,9 +34,10 @@ import {
 } from "$lib/features/workspace/state/selection.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { executeComposerSlashCommand } from "./composer-slash-command";
 import { optimisticUserMessage } from "./conversation-optimistic";
 import { startNewConversationRun } from "./new-conversation-run";
-import { abortActiveRun } from "./run-control";
+import { abortActiveRun, compactActiveConversation } from "./run-control";
 import {
   refreshConversationView,
   upsertAgentRecord,
@@ -58,6 +60,15 @@ export function setActiveComposerText(value: string) {
     return;
   }
   ensureConversationView(selection.conversationId).composerText = value;
+}
+
+function clearActiveComposerText(): void {
+  const pending = activePendingConversation();
+  if (pending) pending.composerText = "";
+  if (selection.conversationId) {
+    ensureConversationView(selection.conversationId).composerText = "";
+  }
+  composerDraft.text = "";
 }
 
 export async function ensureAgent(): Promise<string> {
@@ -333,12 +344,11 @@ export async function sendPrompt() {
     composerDraft.text
   ).trim();
   if (!text || pending?.sending) return;
-  if (text === "/abort") {
-    if (pending) pending.composerText = "";
-    if (view) view.composerText = "";
-    composerDraft.text = "";
-    await abortActiveRun();
-    return;
-  }
-  await sendPromptText(text, { clearComposer: true });
+  const handled = await executeComposerSlashCommand(text, {
+    clearComposer: clearActiveComposerText,
+    setMode: setComposerMode,
+    compact: compactActiveConversation,
+    abort: abortActiveRun,
+  });
+  if (!handled) await sendPromptText(text, { clearComposer: true });
 }
