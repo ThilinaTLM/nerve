@@ -1,14 +1,18 @@
 import { tick } from "svelte";
+import { responsive } from "$lib/app/shell/responsive.svelte";
+import {
+  captureShellPresentation,
+  restoreShellPresentation,
+  revealPanelViewTemporarily,
+  type ShellPresentationSnapshot,
+} from "$lib/app/shell/shell-layout.svelte";
 import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
 import { openAuthPane } from "$lib/features/auth";
 import { hasChatGptAudioAuth } from "$lib/features/audio";
 import { conversationSelectors } from "$lib/features/conversations";
 import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import {
-  openSettingsPane,
-  queueSettingsSave,
-} from "$lib/features/settings/state/settings-actions.svelte";
+import { openSettingsPane } from "$lib/features/settings/state/settings-actions.svelte";
 import {
   captureCenterTabsPresentation,
   restoreCenterTabsPresentation,
@@ -17,42 +21,40 @@ import {
 import { workspaceSelectors } from "$lib/features/workspace";
 import { newConversation } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { guideCatalog, type GuideId } from "./guide-catalog.js";
 import {
-  captureShellPresentation,
-  restoreShellPresentation,
-  revealPanelViewTemporarily,
-  type ShellPresentationSnapshot,
-} from "$lib/app/shell/shell-layout.svelte";
-import { responsive } from "$lib/app/shell/responsive.svelte";
+  adjacentGuideIndex,
+  autoCompletedGuideIds,
+  firstIncompleteGuideIndex,
+  incompleteGuideCount as countIncompleteGuides,
+  resolveGuides,
+  shouldAutoOpenCatalog,
+  type GuideSignals,
+  type ResolvedGuide,
+} from "./guide-catalog-policy.js";
 import {
-  CURRENT_ONBOARDING_VERSION,
-  CURRENT_PRODUCT_TOUR_VERSION,
-  guideItemsForRun,
-  tourSteps,
-  type TourStep,
-} from "./guide-content.js";
-import { adjacentStep, shouldAutoOpenGuide } from "./guide-controller.js";
-import {
-  readProductTourCompletionVersion,
-  writeProductTourCompletionVersion,
-} from "./product-tour-completion.js";
+  completeGuideVersion,
+  readGuideCompletionVersions,
+  writeGuideCompletionVersions,
+  type GuideCompletionVersions,
+} from "./guide-completion.js";
+import { guideItemsForRun, tourSteps, type TourStep } from "./guide-content.js";
+import { adjacentStep } from "./guide-controller.js";
 import { setupStepsForArea, adjacentSetupStep } from "./setup-guide-policy.js";
 import type { SetupGuideArea, SetupGuideStep } from "./setup-guide-content.js";
-import {
-  calculateSetupProgress,
-  type SetupProgress,
-} from "./setup-progress.js";
 import {
   summarizeAgentDefaults,
   type AgentDefaultsSetupSummary,
 } from "./setup-summary.js";
-import {
-  activeTabIsConversation,
-  deferredTourCanContinue,
-  needsProjectForTour,
-} from "./tour-readiness.js";
+import { activeTabIsConversation } from "./tour-readiness.js";
 
-type GuideMode = "closed" | "setup" | "paused" | "tour" | "coach";
+type GuideMode =
+  | "closed"
+  | "catalog"
+  | "tour"
+  | "preparing-coach"
+  | "coach"
+  | "project-picker";
 
 type PresentationSnapshot = {
   shell: ShellPresentationSnapshot;
@@ -65,36 +67,21 @@ type PresentationSnapshot = {
 export const guideState = $state({
   mode: "closed" as GuideMode,
   manual: false,
-  stepIndex: 0,
+  selectedGuideIndex: 0,
   consideredGeneration: undefined as number | undefined,
   preparing: false,
   targetAvailable: false,
-  awaitingProject: false,
   runSteps: [] as TourStep[],
+  stepIndex: 0,
+  activeGuideId: undefined as GuideId | undefined,
   setupArea: undefined as SetupGuideArea | undefined,
   setupSteps: [] as SetupGuideStep[],
   setupStepIndex: 0,
-  completedProductTourVersion: readProductTourCompletionVersion(),
+  completionVersions: readGuideCompletionVersions() as GuideCompletionVersions,
 });
 
 let presentationSnapshot: PresentationSnapshot | undefined;
 let preparationId = 0;
-
-export function completedOnboardingVersion(): number {
-  return settingsState.settingsDraft?.ui.onboardingVersion ?? 0;
-}
-
-export function completedProductTourVersion(): number {
-  return guideState.completedProductTourVersion;
-}
-
-export function guideUnseen(): boolean {
-  return completedOnboardingVersion() < CURRENT_ONBOARDING_VERSION;
-}
-
-export function productTourCompleted(): boolean {
-  return completedProductTourVersion() >= CURRENT_PRODUCT_TOUR_VERSION;
-}
 
 export function providerConfigured(): boolean {
   return settingsState.authProviders.some((provider) => provider.configured);
@@ -106,7 +93,7 @@ export function voiceConfigured(): boolean {
 
 export function scopedModelSummary(): string {
   const count = settingsState.settingsDraft?.scopedModels.length ?? 0;
-  if (count === 0) return "All authenticated models are available";
+  if (count === 0) return "All authenticated models are currently available";
   return `${count} scoped ${count === 1 ? "model" : "models"} selected`;
 }
 
@@ -116,32 +103,89 @@ export function agentDefaultsSummary(): AgentDefaultsSetupSummary {
   return summarizeAgentDefaults(draft, settingsState.models);
 }
 
-export function agentDefaultsConfigured(): boolean {
-  return agentDefaultsSummary().configured;
+function guideSignals(): GuideSignals {
+  return {
+    "project-open": Boolean(workspaceSelectors.activeProject),
+    "provider-ready": providerConfigured(),
+    "voice-ready": voiceConfigured(),
+  };
 }
 
-export function setupProgress(): SetupProgress {
-  return calculateSetupProgress({
-    providerReady: providerConfigured(),
-    voiceReady: voiceConfigured(),
-    scopedModelsValid: Boolean(settingsState.settingsDraft),
-    agentDefaultsReady: agentDefaultsConfigured(),
-    productTourCompleted: productTourCompleted(),
-  });
+export function catalogGuides(): ResolvedGuide[] {
+  return resolveGuides(
+    guideCatalog,
+    guideState.completionVersions,
+    guideSignals(),
+  );
 }
 
-export function setupPaused(): boolean {
-  return guideState.mode === "paused" || guideState.mode === "coach";
+export function incompleteGuideCount(): number {
+  return countIncompleteGuides(catalogGuides());
+}
+
+export function currentCatalogGuide(): ResolvedGuide | undefined {
+  return catalogGuides()[guideState.selectedGuideIndex];
+}
+
+export function guideSummary(id: GuideId): string | undefined {
+  if (id === "open-project") {
+    return workspaceSelectors.activeProject
+      ? "A project is open and ready."
+      : "No project is open yet.";
+  }
+  if (id === "provider") {
+    return providerConfigured()
+      ? "A model provider is connected."
+      : "No model provider is connected.";
+  }
+  if (id === "voice") {
+    return voiceConfigured()
+      ? "Voice input is ready."
+      : "Voice input is not connected yet.";
+  }
+  if (id === "scoped-models") return scopedModelSummary();
+  if (id === "agent-defaults") return agentDefaultsSummary().text;
+  return undefined;
+}
+
+function persistCompletionVersions(versions: GuideCompletionVersions): void {
+  guideState.completionVersions = versions;
+  writeGuideCompletionVersions(versions);
+}
+
+export function markGuideCompleted(id: GuideId): void {
+  const guide = guideCatalog.find((candidate) => candidate.id === id);
+  if (!guide || guide.lifecycle === "upcoming") return;
+  const versions = completeGuideVersion(
+    guideState.completionVersions,
+    id,
+    guide.version,
+  );
+  if (versions !== guideState.completionVersions)
+    persistCompletionVersions(versions);
+}
+
+function reconcileComputedCompletion(): void {
+  const resolved = catalogGuides();
+  let versions = guideState.completionVersions;
+  for (const id of autoCompletedGuideIds(resolved, versions)) {
+    const guide = guideCatalog.find((candidate) => candidate.id === id);
+    if (guide) versions = completeGuideVersion(versions, id, guide.version);
+  }
+  if (versions !== guideState.completionVersions)
+    persistCompletionVersions(versions);
 }
 
 export function considerAutomaticGuide(): void {
+  if (!workbenchStartupState.progressiveActive || !settingsState.settingsDraft)
+    return;
+  reconcileComputedCompletion();
   const generation = workbenchStartupState.generation;
   if (
-    !shouldAutoOpenGuide({
+    !shouldAutoOpenCatalog({
       progressiveActive: workbenchStartupState.progressiveActive,
       settingsLoaded: Boolean(settingsState.settingsDraft),
-      completedVersion: completedOnboardingVersion(),
-      currentVersion: CURRENT_ONBOARDING_VERSION,
+      incompleteCount: incompleteGuideCount(),
       generation,
       consideredGeneration: guideState.consideredGeneration,
     })
@@ -149,14 +193,28 @@ export function considerAutomaticGuide(): void {
     return;
   guideState.consideredGeneration = generation;
   guideState.manual = false;
-  guideState.mode = "setup";
-  guideState.stepIndex = 0;
+  guideState.selectedGuideIndex = firstIncompleteGuideIndex(catalogGuides());
+  guideState.mode = "catalog";
 }
 
 export function openGuide(): void {
-  guideState.awaitingProject = false;
   guideState.manual = true;
-  guideState.mode = "setup";
+  guideState.selectedGuideIndex = firstIncompleteGuideIndex(catalogGuides());
+  guideState.mode = "catalog";
+}
+
+export function moveCatalog(direction: -1 | 1): void {
+  guideState.selectedGuideIndex = adjacentGuideIndex(
+    guideState.selectedGuideIndex,
+    guideCatalog.length,
+    direction,
+  );
+}
+
+export function selectCatalogGuide(id: GuideId): void {
+  const index = guideCatalog.findIndex((guide) => guide.id === id);
+  if (index >= 0) guideState.selectedGuideIndex = index;
+  guideState.mode = "catalog";
 }
 
 function capturePresentation(): PresentationSnapshot {
@@ -269,10 +327,6 @@ async function prepareSetupStep(
   guideState.targetAvailable = false;
   let target = visibleTarget(step.targetId);
   const preparation = step.preparation;
-
-  // Navigate only before the coach appears. Re-selecting a center tab during
-  // later steps remounts its page and closes interactive dialogs (for example,
-  // the scoped-model catalog) before their controls can be highlighted.
   if (enterCoach && !target && preparation?.kind === "auth") {
     await openAuthPane(preparation.pageId, preparation.sectionId);
   } else if (enterCoach && !target && preparation?.kind === "settings") {
@@ -280,16 +334,12 @@ async function prepareSetupStep(
   }
 
   await settlePreparation();
-  // Initial tab navigation may need to finish loading remote data and mount a
-  // center-tab shell. Conditional follow-up targets get a short grace period
-  // because they depend on an action the user may intentionally skip.
   target = await waitForVisibleTarget(step.targetId, enterCoach ? 3_000 : 150);
   if (
     requestId !== preparationId ||
-    !["paused", "coach"].includes(guideState.mode)
+    !["preparing-coach", "coach"].includes(guideState.mode)
   )
     return;
-
   target?.scrollIntoView({
     behavior: "instant",
     block: "nearest",
@@ -298,22 +348,22 @@ async function prepareSetupStep(
   await settlePreparation();
   if (
     requestId !== preparationId ||
-    !["paused", "coach"].includes(guideState.mode)
+    !["preparing-coach", "coach"].includes(guideState.mode)
   )
     return;
-
-  if (enterCoach) guideState.mode = "coach";
+  guideState.mode = "coach";
   guideState.targetAvailable = Boolean(visibleTarget(step.targetId));
   guideState.preparing = false;
 }
 
-export function startSetupGuide(area: SetupGuideArea): void {
+function startSetupGuide(id: GuideId, area: SetupGuideArea): void {
+  guideState.activeGuideId = id;
   guideState.setupArea = area;
   guideState.setupSteps = setupStepsForArea(area, {
     codexConnected: voiceConfigured(),
   });
   guideState.setupStepIndex = 0;
-  guideState.mode = "paused";
+  guideState.mode = "preparing-coach";
   const step = currentSetupStep();
   if (step) void prepareSetupStep(step, true);
 }
@@ -327,10 +377,6 @@ export async function moveSetupGuide(direction: -1 | 1): Promise<void> {
   );
   if (nextIndex === guideState.setupStepIndex) return;
   const next = guideState.setupSteps[nextIndex];
-
-  // Some steps teach the action that opens the UI needed by the following
-  // step. Advancing performs that highlighted action when the user has not
-  // already done so, preventing a targetless dialog step.
   if (
     direction === 1 &&
     current?.advanceByClickingTarget &&
@@ -341,54 +387,78 @@ export async function moveSetupGuide(direction: -1 | 1): Promise<void> {
     visibleTarget(current.targetId)?.click();
     await waitForVisibleTarget(next.targetId, 3_000);
   }
-
   guideState.setupStepIndex = nextIndex;
   if (next) await prepareSetupStep(next);
 }
 
-export function closeSetupGuide(): void {
+export function closeActiveRun(): void {
   preparationId += 1;
-  guideState.mode = "paused";
   guideState.preparing = false;
+  if (guideState.mode === "tour") restorePresentation();
+  guideState.mode = "catalog";
 }
 
-function beginProductTour(): void {
+export function finishActiveRun(): void {
+  const id = guideState.activeGuideId;
+  if (id) markGuideCompleted(id);
+  preparationId += 1;
+  guideState.preparing = false;
+  if (guideState.mode === "tour") restorePresentation();
+  guideState.mode = "catalog";
+}
+
+function beginWorkbenchTour(): void {
+  const definition = guideCatalog.find((guide) => guide.id === "workbench");
+  if (!definition) return;
   presentationSnapshot ??= capturePresentation();
+  const completedVersion = guideState.completionVersions.workbench ?? 0;
   guideState.runSteps = guideItemsForRun(
     tourSteps,
-    completedProductTourVersion(),
-    guideState.manual,
+    completedVersion,
+    completedVersion >= definition.version,
   ).filter(
     (step) => step.id !== "history" || conversationSelectors.activeConversation,
   );
   if (guideState.runSteps.length === 0) guideState.runSteps = [...tourSteps];
+  guideState.activeGuideId = "workbench";
   guideState.stepIndex = 0;
   guideState.mode = "tour";
   const step = currentTourStep();
   if (step) void prepareTourStep(step);
 }
 
-export function startProductTour(): void {
-  if (needsProjectForTour(Boolean(workspaceSelectors.activeProject))) {
-    guideState.awaitingProject = true;
-    guideState.mode = "paused";
+export function startCurrentGuide(): void {
+  const guide = currentCatalogGuide();
+  if (!guide || !guide.available) return;
+  if (!guide.run) {
+    markGuideCompleted(guide.id);
+    return;
+  }
+  if (guide.run.kind === "open-project") {
+    guideState.activeGuideId = guide.id;
+    guideState.mode = "project-picker";
     workspaceState.projectPickerOpen = true;
     return;
   }
-  beginProductTour();
+  if (guide.run.kind === "setup-coach") {
+    startSetupGuide(guide.id, guide.run.area);
+    return;
+  }
+  if (!workspaceSelectors.activeProject) {
+    selectCatalogGuide("open-project");
+    return;
+  }
+  beginWorkbenchTour();
 }
 
-export function continueDeferredTour(): void {
-  if (
-    !deferredTourCanContinue({
-      awaitingProject: guideState.awaitingProject,
-      hasActiveProject: Boolean(workspaceSelectors.activeProject),
-      projectPickerOpen: workspaceState.projectPickerOpen,
-    })
-  )
+export function continueProjectGuide(): void {
+  if (guideState.mode !== "project-picker" || workspaceState.projectPickerOpen)
     return;
-  guideState.awaitingProject = false;
-  beginProductTour();
+  reconcileComputedCompletion();
+  guideState.selectedGuideIndex = workspaceSelectors.activeProject
+    ? firstIncompleteGuideIndex(catalogGuides())
+    : guideCatalog.findIndex((guide) => guide.id === "open-project");
+  guideState.mode = "catalog";
 }
 
 export function moveTour(direction: -1 | 1): void {
@@ -407,7 +477,6 @@ function closeGuide(): void {
   preparationId += 1;
   guideState.mode = "closed";
   guideState.preparing = false;
-  guideState.awaitingProject = false;
   restorePresentation();
   requestAnimationFrame(() => {
     document
@@ -416,29 +485,6 @@ function closeGuide(): void {
   });
 }
 
-export function notNow(): void {
+export function later(): void {
   closeGuide();
-}
-
-export function doNotShowAgain(): void {
-  const draft = settingsState.settingsDraft;
-  if (draft && draft.ui.onboardingVersion < CURRENT_ONBOARDING_VERSION) {
-    draft.ui.onboardingVersion = CURRENT_ONBOARDING_VERSION;
-    queueSettingsSave(
-      { ui: { onboardingVersion: CURRENT_ONBOARDING_VERSION } },
-      { immediate: true },
-    );
-  }
-  closeGuide();
-}
-
-export function finishProductTour(): void {
-  if (guideState.completedProductTourVersion < CURRENT_PRODUCT_TOUR_VERSION) {
-    guideState.completedProductTourVersion = CURRENT_PRODUCT_TOUR_VERSION;
-    writeProductTourCompletionVersion(CURRENT_PRODUCT_TOUR_VERSION);
-  }
-  preparationId += 1;
-  guideState.preparing = false;
-  restorePresentation();
-  guideState.mode = "setup";
 }

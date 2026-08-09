@@ -1,0 +1,121 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { guideCatalog, type GuideDefinition } from "./guide-catalog.js";
+import { guideItemsForRun } from "./guide-content.js";
+import {
+  adjacentGuideIndex,
+  autoCompletedGuideIds,
+  firstIncompleteGuideIndex,
+  incompleteGuideCount,
+  resolveGuides,
+  shouldAutoOpenCatalog,
+} from "./guide-catalog-policy.js";
+
+const noSignals = {
+  "project-open": false,
+  "provider-ready": false,
+  "voice-ready": false,
+};
+
+describe("guide catalog policy", () => {
+  it("combines computed and local completion without conflating readiness", () => {
+    const guides = resolveGuides(
+      guideCatalog,
+      { "scoped-models": 1 },
+      { ...noSignals, "provider-ready": true },
+    );
+    assert.equal(
+      guides.find((guide) => guide.id === "provider")?.completed,
+      true,
+    );
+    assert.equal(guides.find((guide) => guide.id === "provider")?.ready, true);
+    assert.equal(
+      guides.find((guide) => guide.id === "scoped-models")?.completed,
+      true,
+    );
+    assert.equal(
+      guides.find((guide) => guide.id === "scoped-models")?.ready,
+      undefined,
+    );
+    assert.deepEqual(autoCompletedGuideIds(guides, { "scoped-models": 1 }), [
+      "provider",
+    ]);
+  });
+
+  it("keeps explicit guides incomplete regardless of related configuration", () => {
+    const guides = resolveGuides(
+      guideCatalog,
+      {},
+      {
+        "project-open": true,
+        "provider-ready": true,
+        "voice-ready": true,
+      },
+    );
+    assert.equal(
+      guides.find((guide) => guide.id === "agent-defaults")?.completed,
+      false,
+    );
+    assert.equal(
+      guides.find((guide) => guide.id === "scoped-models")?.completed,
+      false,
+    );
+    assert.equal(
+      guides.find((guide) => guide.id === "workbench")?.completed,
+      false,
+    );
+  });
+
+  it("excludes upcoming guides from incomplete counts", () => {
+    const upcoming: GuideDefinition = {
+      ...guideCatalog[0],
+      lifecycle: "upcoming",
+    };
+    const guides = resolveGuides([upcoming, guideCatalog[1]], {}, noSignals);
+    assert.equal(incompleteGuideCount(guides), 1);
+    assert.equal(firstIncompleteGuideIndex(guides), 1);
+  });
+
+  it("opens once per ready startup generation while guides remain incomplete", () => {
+    const base = {
+      progressiveActive: true,
+      settingsLoaded: true,
+      incompleteCount: 2,
+      generation: 3,
+    };
+    assert.equal(shouldAutoOpenCatalog(base), true);
+    assert.equal(
+      shouldAutoOpenCatalog({ ...base, consideredGeneration: 3 }),
+      false,
+    );
+    assert.equal(shouldAutoOpenCatalog({ ...base, incompleteCount: 0 }), false);
+    assert.equal(
+      shouldAutoOpenCatalog({
+        ...base,
+        generation: 4,
+        consideredGeneration: 3,
+      }),
+      true,
+    );
+  });
+
+  it("runs only newly introduced Workbench steps until a manual replay", () => {
+    const steps = [{ introducedIn: 1 }, { introducedIn: 2 }];
+    assert.deepEqual(guideItemsForRun(steps, 1, false), [steps[1]]);
+    assert.deepEqual(guideItemsForRun(steps, 2, true), steps);
+  });
+
+  it("selects the first incomplete guide and clamps navigation", () => {
+    const guides = resolveGuides(
+      guideCatalog,
+      { "open-project": 1, provider: 1 },
+      noSignals,
+    );
+    assert.equal(firstIncompleteGuideIndex(guides), 2);
+    assert.equal(adjacentGuideIndex(0, guides.length, -1), 0);
+    assert.equal(
+      adjacentGuideIndex(guides.length - 1, guides.length, 1),
+      guides.length - 1,
+    );
+  });
+});

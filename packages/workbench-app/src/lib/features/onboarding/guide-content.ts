@@ -1,6 +1,3 @@
-export const CURRENT_ONBOARDING_VERSION = 1;
-export const CURRENT_PRODUCT_TOUR_VERSION = 1;
-
 export type TourStepId =
   | "conversations"
   | "panel-new-conversation"
@@ -192,9 +189,9 @@ export const tourSteps: readonly TourStep[] = [
   {
     id: "help",
     introducedIn: 1,
-    title: "Return to the product tour",
+    title: "Return to Nerve guides",
     description:
-      "Use Help in the titlebar whenever you want to reopen setup guidance or replay the complete product tour.",
+      "Use Help in the titlebar whenever you want to reopen the Guides catalog or replay a completed guide.",
     targetId: "help",
   },
   {
@@ -202,7 +199,7 @@ export const tourSteps: readonly TourStep[] = [
     introducedIn: 1,
     title: "You are ready to explore",
     description:
-      "Your project and workbench are ready. New guide steps can appear here as Nerve adds features.",
+      "Your project and Workbench are ready. Return to Nerve guides whenever you want a refresher or new guidance appears.",
   },
 ] as const;
 

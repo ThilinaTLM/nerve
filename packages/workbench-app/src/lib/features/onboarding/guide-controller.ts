@@ -1,29 +1,3 @@
-import type { VersionedGuideItem } from "./guide-content.js";
-
-export function shouldAutoOpenGuide(input: {
-  progressiveActive: boolean;
-  settingsLoaded: boolean;
-  completedVersion: number;
-  currentVersion: number;
-  generation: number;
-  consideredGeneration?: number;
-}): boolean {
-  return (
-    input.progressiveActive &&
-    input.settingsLoaded &&
-    input.completedVersion < input.currentVersion &&
-    input.consideredGeneration !== input.generation
-  );
-}
-
-export function filterGuideItems<T extends VersionedGuideItem>(
-  items: readonly T[],
-  completedVersion: number,
-  manual: boolean,
-): T[] {
-  return items.filter((item) => manual || item.introducedIn > completedVersion);
-}
-
 export function adjacentStep(
   index: number,
   length: number,
