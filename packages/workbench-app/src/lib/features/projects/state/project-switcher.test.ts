@@ -107,6 +107,17 @@ test("groups directory aliases and disambiguates duplicate folder names", () => 
   assert.ok(items.every((item) => item.label !== "app"));
 });
 
+test("exposes the persisted project access time", () => {
+  const items = buildProjectSwitcherItems({
+    projects: [project("p1", "app", "/work/app", "2026-01-01")],
+    conversations: [],
+    activityById: {},
+    recency: { "/work/app": 1_786_249_800_000 },
+  });
+
+  assert.equal(items[0]?.lastAccessedAt, 1_786_249_800_000);
+});
+
 test("sorts the chosen recent projects alphabetically", () => {
   const items = buildProjectSwitcherItems({
     projects: [
