@@ -5,7 +5,7 @@ Nerve publishes one npm package, `@nervekit/desktop`. The source implementation 
 ## Requirements
 
 - Node.js 24+
-- pnpm 11.17.0
+- pnpm 11.20.0
 
 ## Public npm package
 

@@ -74,8 +74,7 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
   },
   workflowState: {
     label: "Workflow state",
-    description:
-      "Suspensions, approvals, user questions, handovers, and maintenance state.",
+    description: "Approvals, user questions, and maintenance state.",
     cleanable: false,
     protected: false,
   },
@@ -335,11 +334,8 @@ function categoryForEntry(name: string): StorageCategoryKey {
       return "agents";
     case "tasks":
       return "tasks";
-    case "suspensions":
     case "approvals":
     case "user-questions":
-    case "handover":
-    case "handovers":
     case "maintenance":
       return "workflowState";
     case "projects":

@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const planModeEnterParameters = Type.Object(
   {
@@ -76,4 +76,4 @@ export const planModeToolDefinitions = [
     parameters: planModeForceExitParameters,
     executionMode: "sequential",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

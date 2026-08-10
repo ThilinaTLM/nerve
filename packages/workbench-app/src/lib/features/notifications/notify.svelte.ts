@@ -81,11 +81,6 @@ export const notify = {
   },
 };
 
-export function notifyCopyResult(ok: boolean, label = "code block"): void {
-  if (ok) notify.success(`Copied ${label}`);
-  else notify.error(`Could not copy ${label}`);
-}
-
 export function initializeNotificationAudio(): () => void {
   return initializeNotificationSoundPlayback();
 }

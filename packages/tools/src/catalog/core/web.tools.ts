@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import { executeWebFetch } from "../../execution/web/web-fetch.js";
 import { executeWebSearch } from "../../execution/web/web-search.js";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const webSearchParameters = Type.Object(
   {
@@ -59,4 +59,4 @@ export const webToolDefinitions = [
     parameters: webFetchParameters,
     executionMode: "parallel",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

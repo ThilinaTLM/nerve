@@ -21,6 +21,17 @@ import {
 } from "./infrastructure/diagnostics/index.js";
 import { migrateLegacyEventLogs } from "./infrastructure/events/index.js";
 import {
+  isLoopbackHost,
+  isPrivateIpv4,
+  isVirtualInterface,
+  isWildcardHost,
+} from "./infrastructure/network/host.js";
+import {
+  firstEnvValue,
+  mergeNoProxy,
+  mergeNoProxySources,
+} from "./infrastructure/network/proxy-environment.js";
+import {
   initializeStorage,
   resolveDataDir,
   writeDaemonFile,
@@ -40,11 +51,9 @@ function readFlag(name: string): boolean {
   return process.argv.includes(name);
 }
 
-const loopbackNoProxyEntries = ["localhost", "127.0.0.1", "::1"];
-
 function prepareEnterpriseNetworkEnvironment(): void {
   const proxyConfigured = Boolean(
-    firstEnvValue([
+    firstEnvValue(process.env, [
       "HTTPS_PROXY",
       "https_proxy",
       "HTTP_PROXY",
@@ -55,10 +64,10 @@ function prepareEnterpriseNetworkEnvironment(): void {
     ]),
   );
 
-  if (proxyConfigured && !firstEnvValue(["NODE_USE_ENV_PROXY"])) {
+  if (proxyConfigured && !firstEnvValue(process.env, ["NODE_USE_ENV_PROXY"])) {
     process.env.NODE_USE_ENV_PROXY = "1";
   }
-  if (!firstEnvValue(["NODE_USE_SYSTEM_CA"])) {
+  if (!firstEnvValue(process.env, ["NODE_USE_SYSTEM_CA"])) {
     process.env.NODE_USE_SYSTEM_CA = "1";
   }
 
@@ -72,45 +81,6 @@ function prepareEnterpriseNetworkEnvironment(): void {
   );
   process.env.NO_PROXY = mergedNoProxy;
   process.env.no_proxy = mergedNoProxy;
-}
-
-function firstEnvValue(names: readonly string[]): string | undefined {
-  for (const name of names) {
-    const value = process.env[name]?.trim();
-    if (value) return value;
-  }
-  return undefined;
-}
-
-function mergeNoProxySources(values: Array<string | undefined>): string {
-  const entries: string[] = [];
-  const normalizedEntries = new Set<string>();
-  for (const value of values) {
-    for (const entry of (value ?? "").split(",")) {
-      const trimmed = entry.trim();
-      const normalized = trimmed.toLowerCase();
-      if (!trimmed || normalizedEntries.has(normalized)) continue;
-      entries.push(trimmed);
-      normalizedEntries.add(normalized);
-    }
-  }
-  return entries.join(",");
-}
-
-function mergeNoProxy(value: string): string {
-  const entries = value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  const normalizedEntries = new Set(
-    entries.map((entry) => entry.toLowerCase()),
-  );
-  for (const entry of loopbackNoProxyEntries) {
-    if (normalizedEntries.has(entry.toLowerCase())) continue;
-    entries.push(entry);
-    normalizedEntries.add(entry.toLowerCase());
-  }
-  return entries.join(",");
 }
 
 let runtimeMonitor: DaemonRuntimeMonitor | undefined;
@@ -524,39 +494,8 @@ function lanIpv4Addresses(): string[] {
   return [...new Set(sorted.map((candidate) => candidate.address))];
 }
 
-function isPrivateIpv4(address: string): boolean {
-  const parts = address.split(".").map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
-    return false;
-  }
-  const [first, second] = parts;
-  return (
-    first === 10 ||
-    (first === 172 && second !== undefined && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
-}
-
-function isVirtualInterface(name: string): boolean {
-  return /^(br-|docker|veth|virbr|vmnet|vboxnet|lo)/i.test(name);
-}
-
-function isWildcardHost(host: string): boolean {
-  return host === "0.0.0.0" || host === "::";
-}
-
 function formatHostForUrl(host: string): string {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
-}
-
-function isLoopbackHost(host: string): boolean {
-  return (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1" ||
-    host.startsWith("127.") ||
-    host.startsWith("::ffff:127.")
-  );
 }
 
 main().catch((error) => {

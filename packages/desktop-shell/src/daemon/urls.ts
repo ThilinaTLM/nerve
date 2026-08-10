@@ -1,4 +1,10 @@
 import type { DaemonFile } from "@nervekit/contracts";
+import {
+  isLoopbackHost,
+  isPrivateIpv4,
+  isVirtualInterface,
+  isWildcardHost,
+} from "@nervekit/workbench-server";
 import type { ShareUrls } from "./types.js";
 
 /**
@@ -27,7 +33,7 @@ export function normalizeRemoteDaemonUrl(rawUrl: string): string {
   return url.origin;
 }
 
-/** Converts a locally advertised daemon URL into a connectable origin. */
+/** Convert a locally advertised daemon URL into a connectable origin. */
 export function localConnectUrl(rawUrl: string): string | undefined {
   try {
     const url = new URL(rawUrl);
@@ -41,38 +47,8 @@ export function localConnectUrl(rawUrl: string): string | undefined {
   }
 }
 
-export function isLoopbackHost(host: string): boolean {
-  const normalized = host.toLowerCase();
-  return (
-    normalized === "localhost" ||
-    normalized === "127.0.0.1" ||
-    normalized === "::1" ||
-    normalized.startsWith("127.") ||
-    normalized.startsWith("::ffff:127.")
-  );
-}
-
-export function isWildcardHost(host: string): boolean {
-  return host === "0.0.0.0" || host === "::";
-}
-
-export function isPrivateIpv4(address: string): boolean {
-  const parts = address.split(".").map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
-    return false;
-  }
-  const [first, second] = parts;
-  return (
-    first === 10 ||
-    (first === 172 && second !== undefined && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
-}
-
-export function isVirtualInterface(name: string): boolean {
-  return /^(br-|docker|veth|virbr|vmnet|vboxnet|lo)/i.test(name);
-}
-
+// Re-exported so daemon peers can keep importing from ./urls.js.
+export { isLoopbackHost } from "@nervekit/workbench-server";
 export function buildShareUrls(
   daemon: DaemonFile,
   token: string,

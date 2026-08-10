@@ -3,7 +3,6 @@ import type {
   ConversationEntry,
   ConversationRecord,
   ConversationSnapshot,
-  ConversationTree,
   SnapshotCursor,
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
@@ -34,24 +33,6 @@ export async function getConversationContextUsage(
   return (
     await protocolRequest("conversation.contextUsage.get", { conversationId })
   ).result.contextUsage;
-}
-
-export async function getConversationEntries(
-  conversationId: string,
-): Promise<ConversationEntry[]> {
-  return (
-    await protocolRequest("conversation.entries.list", { conversationId })
-  ).result.entries;
-}
-
-export async function getConversationTree(
-  conversationId: string,
-): Promise<ConversationTree> {
-  return (
-    await protocolRequest("conversation.tree.get", {
-      conversationId,
-    })
-  ).result.tree;
 }
 
 export async function compactConversation(conversationId: string): Promise<{

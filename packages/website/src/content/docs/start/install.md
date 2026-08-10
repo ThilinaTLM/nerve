@@ -43,7 +43,7 @@ The shell stops only a daemon it owns. An existing local daemon or a configured 
  pnpm desktop
 ```
 
-The repository pins pnpm 11.17.0. Use `pnpm dev` to run the daemon and browser UI development servers, or connect the UI to an existing daemon:
+The repository pins pnpm 11.20.0. Use `pnpm dev` to run the daemon and browser UI development servers, or connect the UI to an existing daemon:
 
 ```sh
 NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui

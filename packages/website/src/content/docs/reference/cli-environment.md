@@ -37,6 +37,7 @@ Pass app options after `--` when using `npx` or `pnpm dlx`.
 | `NERVE_DAEMON_STARTUP_TIMEOUT_MS`    | Owned readiness timeout; 60000                                         |
 | `NERVE_DAEMON_MAX_OLD_SPACE_MB`      | Owned Node heap cap; 4096                                              |
 | `NERVE_API_TARGET`                   | Vite UI development daemon target                                      |
+| `NERVE_LOGGING_ENABLED=1`            | Write persistent application logs                                      |
 | `NERVE_ELECTRON_OZONE_PLATFORM`      | Linux: `x11`, `wayland`, `auto`                                        |
 | `NERVE_ELECTRON_FONT_RENDER_HINTING` | Linux: `system`, `none`, `slight`, `medium`, `full`; default slight    |
 | `NERVE_DEBUG_PROXY=1`                | Redacted startup proxy diagnostics                                     |

@@ -4,27 +4,23 @@ import {
   chmod,
   cp,
   mkdir,
-  readFile,
   readdir,
   rm,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import {
+  assertWorkspaceVersionsMatch,
+  bundledPackages as internalPackages,
+  readJson,
+  repoRoot,
+} from "./lib/workspace-packages.mjs";
 import { verifyNpmTarballs } from "./verify-npm-tarballs.mjs";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const releaseRoot = join(repoRoot, "release");
 const packDir = join(releaseRoot, "npm");
 const stageRoot = join(releaseRoot, "npm-stage", "desktop");
 const desktopRoot = join(repoRoot, "packages", "desktop-shell");
-const internalPackages = [
-  ["@nervekit/contracts", "contracts"],
-  ["@nervekit/protocol", "protocol"],
-  ["@nervekit/harness", "harness"],
-  ["@nervekit/tools", "tools"],
-  ["@nervekit/workbench-server", "workbench-server"],
-];
 const internalNames = new Set(internalPackages.map(([name]) => name));
 
 try {
@@ -37,7 +33,7 @@ try {
   console.log("Packing @nervekit/desktop...");
   run("npm", ["pack", "--pack-destination", packDir], stageRoot);
 
-  const rootVersion = (await readJson(join(repoRoot, "package.json"))).version;
+  const rootVersion = (await readJson("package.json")).version;
   const expectedFilename = `nervekit-desktop-${rootVersion}.tgz`;
   const packed = (await readdir(packDir))
     .filter((name) => name.endsWith(".tgz"))
@@ -99,20 +95,19 @@ async function verifyBuildOutputs() {
 }
 
 async function stageDesktopDistribution() {
-  const rootManifest = await readJson(join(repoRoot, "package.json"));
-  const desktopManifest = await readJson(join(desktopRoot, "package.json"));
+  await assertWorkspaceVersionsMatch();
+  const rootManifest = await readJson("package.json");
+  const desktopManifest = await readJson(
+    join("packages", "desktop-shell", "package.json"),
+  );
   const internalManifests = new Map();
   for (const [name, directory] of internalPackages) {
     const manifest = await readJson(
-      join(repoRoot, "packages", directory, "package.json"),
+      join("packages", directory, "package.json"),
     );
     if (manifest.name !== name)
       throw new Error(
         `packages/${directory}/package.json is ${manifest.name}, expected ${name}.`,
-      );
-    if (manifest.version !== rootManifest.version)
-      throw new Error(
-        `${name}@${manifest.version} does not match root ${rootManifest.version}.`,
       );
     internalManifests.set(name, manifest);
   }
@@ -242,10 +237,6 @@ function embeddedManifest(manifest, version) {
       engines: manifest.engines,
     }).filter(([, value]) => value !== undefined),
   );
-}
-
-async function readJson(path) {
-  return JSON.parse(await readFile(path, "utf8"));
 }
 
 async function writeJson(path, value) {

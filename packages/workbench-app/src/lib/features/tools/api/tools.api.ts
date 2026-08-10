@@ -5,30 +5,17 @@ import {
 } from "@nervekit/contracts";
 import type {
   AgentRecord,
-  ApprovalRecord,
   ConversationRecord,
-  ModelSelection,
   PlanReviewRecord,
   ToolCallRecord,
-  ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
-
-export type ApprovalWithToolCall = ApprovalRecord & {
-  toolCall?: ToolCallTranscriptRecord;
-};
-
-export type PlanReviewResolveOptions = {
-  feedback?: string;
-  implementationModel?: ModelSelection;
-  implementationThinkingLevel?: AgentRecord["thinkingLevel"];
-  compactBeforeImplementation?: boolean;
-};
-
-export async function getToolCalls(): Promise<ToolCallTranscriptRecord[]> {
-  return (await protocolRequest("toolCall.list", {})).result.toolCalls;
-}
+import type { PlanReviewResolveOptions } from "../../../presentation/state/tool-types.js";
+export type {
+  ApprovalWithToolCall,
+  PlanReviewResolveOptions,
+} from "../../../presentation/state/tool-types.js";
 
 export async function getToolCall(toolCallId: string): Promise<ToolCallRecord> {
   const result = (
@@ -39,31 +26,9 @@ export async function getToolCall(toolCallId: string): Promise<ToolCallRecord> {
   return toolCallRecordSchema.parse(result.toolCall);
 }
 
-export async function getPendingApprovals(): Promise<ApprovalWithToolCall[]> {
-  const [{ approvals }, { toolCalls }] = await Promise.all([
-    protocolRequest("approval.list", {
-      status: "pending",
-    }).then((response) => response.result),
-    protocolRequest("toolCall.list", {
-      status: "pending_approval",
-      limit: 200,
-    }).then((response) => response.result),
-  ]);
-  const byId = new Map(toolCalls.map((toolCall) => [toolCall.id, toolCall]));
-  return approvals.map((approval) => ({
-    ...approval,
-    toolCall: byId.get(approval.toolCallId),
-  }));
-}
-
 export async function getPendingUserQuestions(): Promise<UserQuestionRecord[]> {
   return (await protocolRequest("userQuestion.list", { status: "pending" }))
     .result.questions;
-}
-
-export async function getPendingPlanReviews(): Promise<PlanReviewRecord[]> {
-  return (await protocolRequest("planReview.list", { status: "pending" }))
-    .result.planReviews;
 }
 
 export async function grantApprovalRequest(

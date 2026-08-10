@@ -5,7 +5,7 @@ import type { ConversationActivityState } from "$lib/features/conversations/stat
 import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
 import type { ConversationRow } from "$lib/core/utils/project-tree";
 import { shortAgentModel } from "$lib/core/utils/project-tree";
-import { dateTimeLabel } from "$lib/core/utils/time";
+import { dateTimeLabel } from "@nervekit/ui-kit/core/utils/time";
 
 type Props = {
   row: ConversationRow;

@@ -5,7 +5,7 @@ sidebar:
   order: 8
 ---
 
-Requirements: Node.js 24+ and pnpm 11.17.0.
+Requirements: Node.js 24+ and pnpm 11.20.0.
 
 ```sh
 git clone https://github.com/ThilinaTLM/nerve.git

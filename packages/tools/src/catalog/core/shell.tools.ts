@@ -5,7 +5,7 @@ import {
   hasDangerousCommandPattern,
   isKnownReadOnlyCommand,
 } from "../../safety/command-policy.js";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const bashParameters = Type.Object(
   {
@@ -52,4 +52,4 @@ export const shellToolDefinitions = [
     parameters: bashParameters,
     executionMode: "sequential",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

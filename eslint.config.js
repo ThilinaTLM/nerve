@@ -21,11 +21,28 @@ export default tseslint.config(
   ...svelte.configs.recommended,
   ...svelte.configs.prettier,
   {
+    // Browser environment for app and component UI source trees.
+    files: [
+      "packages/workbench-app/src/**",
+      "packages/ui-kit/src/**",
+      "packages/website/src/**",
+    ],
     languageOptions: {
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
+      globals: globals.browser,
+    },
+  },
+  {
+    // Node environment for servers, tooling, scripts, and configs. The UI
+    // source trees are excluded so accidental process/window cross-use is
+    // flagged instead of silently merged.
+    files: ["**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
+    ignores: [
+      "packages/workbench-app/src/**",
+      "packages/ui-kit/src/**",
+      "packages/website/src/**",
+    ],
+    languageOptions: {
+      globals: globals.node,
     },
   },
   {

@@ -4,23 +4,18 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  bundledPackages,
+  readJson,
+  repoRoot,
+} from "./lib/workspace-packages.mjs";
 
-const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const publicPackage = ["@nervekit/desktop", "desktop"];
-const bundledPackages = [
-  ["@nervekit/contracts", "contracts"],
-  ["@nervekit/protocol", "protocol"],
-  ["@nervekit/harness", "harness"],
-  ["@nervekit/tools", "tools"],
-  ["@nervekit/workbench-server", "workbench-server"],
-];
 
 export async function verifyNpmTarballs(
   packDirectory = join(repoRoot, "release", "npm"),
 ) {
-  const rootVersion = JSON.parse(
-    await readFile(join(repoRoot, "package.json"), "utf8"),
-  ).version;
+  const rootVersion = (await readJson("package.json")).version;
   const expectedFilename = `nervekit-desktop-${rootVersion}.tgz`;
   const tarball = join(packDirectory, expectedFilename);
   const manifest = extractJson(tarball, "package/package.json");

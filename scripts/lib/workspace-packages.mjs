@@ -1,0 +1,83 @@
+/**
+ * Canonical workspace inventory and version helpers for release tooling.
+ *
+ * These lists used to be duplicated in scripts/verify-release-tag.mjs,
+ * scripts/pack-npm.mjs, and scripts/verify-npm-tarballs.mjs; keeping a single
+ * source of truth here prevents the copies from drifting apart.
+ */
+import { readFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/** Absolute repository root for scripts executed from scripts/. */
+export const repoRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
+
+/**
+ * Workspace packages that must stay version-locked to the root release
+ * version. ui-kit and website intentionally are not listed here; they are not
+ * part of the tagged release surface.
+ */
+export const versionLockedPackages = [
+  "contracts",
+  "protocol",
+  "harness",
+  "tools",
+  "workbench-server",
+  "workbench-app",
+  "desktop-shell",
+];
+
+/** The npm-published @nervekit packages bundled into the desktop tarball. */
+export const bundledPackages = [
+  ["@nervekit/contracts", "contracts"],
+  ["@nervekit/protocol", "protocol"],
+  ["@nervekit/harness", "harness"],
+  ["@nervekit/tools", "tools"],
+  ["@nervekit/workbench-server", "workbench-server"],
+];
+
+export async function readJson(relativePath) {
+  return JSON.parse(await readFile(join(repoRoot, relativePath), "utf8"));
+}
+
+/**
+ * Reads the root and every version-locked package manifest version.
+ * Throws if any version-locked package does not declare a version.
+ */
+export async function workspaceVersions() {
+  const versions = new Map();
+  versions.set("package.json", (await readJson("package.json")).version);
+  for (const directory of versionLockedPackages) {
+    const relativePath = join("packages", directory, "package.json");
+    const manifest = await readJson(relativePath);
+    if (typeof manifest.version !== "string" || !manifest.version) {
+      throw new Error(`${relativePath} does not declare a version.`);
+    }
+    versions.set(relativePath, manifest.version);
+  }
+  return versions;
+}
+
+/**
+ * Throws if any version-locked package diverges from the root version.
+ * Returns the root version when everything matches.
+ */
+export async function assertWorkspaceVersionsMatch() {
+  const versions = await workspaceVersions();
+  const rootVersion = versions.get("package.json");
+  const mismatches = [...versions.entries()].filter(
+    ([, version]) => version !== rootVersion,
+  );
+  if (mismatches.length > 0) {
+    throw new Error(
+      `Workspace package versions must match root version ${rootVersion}:\n${mismatches
+        .map(([path, version]) => `  ${path}: ${version}`)
+        .join("\n")}`,
+    );
+  }
+  return rootVersion;
+}

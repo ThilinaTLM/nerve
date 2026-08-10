@@ -1,11 +1,11 @@
 import { appendFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   type ApplicationLogLevel,
   type ApplicationLogRecord,
   createId,
 } from "@nervekit/contracts";
+import { resolveDataDir } from "@nervekit/workbench-server";
 
 let seq = 0;
 
@@ -47,11 +47,6 @@ export async function desktopLog(
   );
   await mkdir(dirname(path), { recursive: true });
   await appendFile(path, `${JSON.stringify(record)}\n`, "utf8");
-}
-
-function resolveDataDir(): string {
-  const explicitHome = process.env.NERVE_HOME;
-  return explicitHome?.trim() ? explicitHome : join(homedir(), ".nerve");
 }
 
 function serializeError(error: unknown): ApplicationLogRecord["error"] {

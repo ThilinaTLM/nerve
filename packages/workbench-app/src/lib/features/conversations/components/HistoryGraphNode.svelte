@@ -9,7 +9,7 @@ import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { writeClipboardText } from "$lib/core/clipboard";
-import { relativeTimeLabel } from "$lib/core/utils/time";
+import { relativeTimeLabel } from "@nervekit/ui-kit/core/utils/time";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import type {
   HistoryEntryNodeData,

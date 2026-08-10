@@ -10,10 +10,6 @@ overrides:
 importers:
 
   .:
-    dependencies:
-      '@earendil-works/pi-ai':
-        specifier: 0.84.1
-        version: 0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -88,7 +84,7 @@ importers:
     dependencies:
       '@earendil-works/pi-ai':
         specifier: 0.84.1
-        version: 0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)
+        version: 0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.1.12)
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -104,6 +100,9 @@ importers:
       yaml:
         specifier: 2.9.0
         version: 2.9.0
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
     devDependencies:
       '@types/node':
         specifier: 24.10.1
@@ -386,8 +385,8 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3
       '@lucide/svelte':
-        specifier: ^1.17.0
-        version: 1.17.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
+        specifier: ^1.24.0
+        version: 1.24.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -415,6 +414,9 @@ importers:
       material-icon-theme:
         specifier: ^5.37.0
         version: 5.37.0
+      mode-watcher:
+        specifier: ^1.1.0
+        version: 1.1.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
       svelte:
         specifier: 5.56.3
         version: 5.56.3(@typescript-eslint/types@8.63.0)
@@ -424,16 +426,10 @@ importers:
       tailwindcss:
         specifier: 4.3.1
         version: 4.3.1
-      workbox-window:
-        specifier: 7.4.1
-        version: 7.4.1
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: 7.1.2
         version: 7.1.2(svelte@5.56.3(@typescript-eslint/types@8.63.0))(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
-      mode-watcher:
-        specifier: ^1.1.0
-        version: 1.1.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))
       svelte-check:
         specifier: 4.3.3
         version: 4.3.3(picomatch@4.0.4)(svelte@5.56.3(@typescript-eslint/types@8.63.0))(typescript@5.9.3)
@@ -446,6 +442,9 @@ importers:
       vite-plugin-pwa:
         specifier: ^1.3.0
         version: 1.3.0(supports-color@7.2.0)(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(workbox-build@7.4.1(supports-color@7.2.0))(workbox-window@7.4.1)
+      workbox-window:
+        specifier: 7.4.1
+        version: 7.4.1
 
   packages/workbench-server:
     dependencies:
@@ -2021,11 +2020,6 @@ packages:
 
   '@lezer/yaml@1.0.4':
     resolution: {integrity: sha512-2lrrHqxalACEbxIbsjhqGpSW8kWpUKuY6RHgnSAFZa6qK62wvnPxA8hGOwOoDbwHcOFs5M4o27mjGu+P7TvBmw==}
-
-  '@lucide/svelte@1.17.0':
-    resolution: {integrity: sha512-q06YCFBN5CO8cd1ADmLCxWRVMVb7xxvHzqC0lvNoxGa+FLW6Cd1Y1AOxgbQk4Iwe68vkAMCRveNHint4WoaVKg==}
-    peerDependencies:
-      svelte: ^5
 
   '@lucide/svelte@1.24.0':
     resolution: {integrity: sha512-yXwewA7ANQ5hfaSDrvsecosWjZn5RglzeXUZRSnxeANBskpNwblOkEJTqD0ujDdNKIKL8E9eVc2U/P3ziJr7OA==}
@@ -6876,12 +6870,6 @@ snapshots:
     optionalDependencies:
       zod: 4.1.12
 
-  '@anthropic-ai/sdk@0.91.1(zod@4.4.3)':
-    dependencies:
-      json-schema-to-ts: 3.1.1
-    optionalDependencies:
-      zod: 4.4.3
-
   '@apideck/better-ajv-errors@0.3.7(ajv@8.20.0)':
     dependencies:
       ajv: 8.20.0
@@ -8271,28 +8259,6 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@0.84.1(supports-color@7.2.0)(ws@8.21.0)(zod@4.4.3)':
-    dependencies:
-      '@anthropic-ai/sdk': 0.91.1(zod@4.4.3)
-      '@aws-sdk/client-bedrock-runtime': 3.1048.0
-      '@earendil-works/pi-telemetry': 0.84.1
-      '@google/genai': 1.52.0(supports-color@7.2.0)
-      '@mistralai/mistralai': 2.2.6(@opentelemetry/api@1.9.0)
-      '@opentelemetry/api': 1.9.0
-      '@smithy/node-http-handler': 4.7.3
-      http-proxy-agent: 7.0.2(supports-color@7.2.0)
-      https-proxy-agent: 7.0.6(supports-color@7.2.0)
-      openai: 6.26.0(ws@8.21.0)(zod@4.4.3)
-      partial-json: 0.1.7
-      typebox: 1.3.7
-    transitivePeerDependencies:
-      - '@modelcontextprotocol/sdk'
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-      - ws
-      - zod
-
   '@earendil-works/pi-telemetry@0.84.1': {}
 
   '@electron-internal/extract-zip@1.0.5': {}
@@ -8888,10 +8854,6 @@ snapshots:
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.10
-
-  '@lucide/svelte@1.17.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))':
-    dependencies:
-      svelte: 5.56.3(@typescript-eslint/types@8.63.0)
 
   '@lucide/svelte@1.24.0(svelte@5.56.3(@typescript-eslint/types@8.63.0))':
     dependencies:
@@ -12841,11 +12803,6 @@ snapshots:
     optionalDependencies:
       ws: 8.21.0
       zod: 4.1.12
-
-  openai@6.26.0(ws@8.21.0)(zod@4.4.3):
-    optionalDependencies:
-      ws: 8.21.0
-      zod: 4.4.3
 
   optionator@0.9.4:
     dependencies:

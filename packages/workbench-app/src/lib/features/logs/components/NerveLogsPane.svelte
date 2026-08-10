@@ -20,7 +20,7 @@ import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import { logLevelTone } from "@nervekit/ui-kit/core/utils/status";
-import { timeLabel } from "$lib/core/utils/time";
+import { timeLabel } from "@nervekit/ui-kit/core/utils/time";
 import { logRefreshState } from "../state/log-refresh.svelte";
 
 const levels: Array<ApplicationLogLevel | "all"> = [

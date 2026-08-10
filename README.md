@@ -53,7 +53,7 @@ The website is the primary source for product and developer documentation:
 
 ## Develop from source
 
-The repository requires Node.js 24 or newer and pnpm 11.17.0.
+The repository requires Node.js 24 or newer and pnpm 11.20.0.
 
 ```sh
 pnpm install
