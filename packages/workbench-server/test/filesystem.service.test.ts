@@ -145,6 +145,8 @@ describe("filesystem application service", () => {
         mkdir(join(root, "node_modules")),
         mkdir(join(root, ".git")),
         mkdir(join(root, "src")),
+      ]);
+      await Promise.all([
         writeFile(join(root, ".env"), "secret"),
         writeFile(join(root, "file10.ts"), ""),
         writeFile(join(root, "file2.ts"), ""),
