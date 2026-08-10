@@ -28,7 +28,6 @@ export type PromptComposerProps = {
   pendingUserQuestions?: UserQuestionRecord[];
   pendingPlanReviews?: PlanReviewRecord[];
   interactive?: boolean;
-  live?: boolean;
   sending?: boolean;
   stopping?: boolean;
   compacting?: boolean;

@@ -6,7 +6,6 @@ export { default as ComposerModelPicker } from "./components/composer/ComposerMo
 export { default as ComposerShell } from "./components/composer/ComposerShell.svelte";
 export { default as ComposerToolbar } from "./components/composer/ComposerToolbar.svelte";
 export { default as ContextProgressBadge } from "./components/composer/ContextProgressBadge.svelte";
-export { default as ContextUsageChip } from "./components/composer/ContextUsageChip.svelte";
 export { default as TodoProgressChip } from "./components/composer/TodoProgressChip.svelte";
 export * from "./components/conversation/index.js";
 export { createConversationScrollController } from "./components/transcript/conversation-scroll.svelte.js";

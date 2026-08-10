@@ -28,9 +28,6 @@ export type WorkbenchConversationAdapterProps = {
   activeAgent?: AgentRecord;
   activePendingConversation?: PendingConversationState;
   pendingConversationActive?: boolean;
-  projects?: ProjectRecord[];
-  conversations?: ConversationRecord[];
-  agents?: AgentRecord[];
   homeDir?: string;
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];
@@ -43,7 +40,6 @@ export type WorkbenchConversationAdapterProps = {
   activeRun?: ConversationActiveRunSnapshot;
   transient?: ConversationTransientState;
   queuedPrompts?: QueuedPromptRecord[];
-  live?: boolean;
   sending?: boolean;
   stopping?: boolean;
   composerText?: string;

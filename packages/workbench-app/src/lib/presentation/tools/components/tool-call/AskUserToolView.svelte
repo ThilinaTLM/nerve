@@ -61,7 +61,7 @@ let localResolution = $state<
 >();
 let audioAuthDialogOpen = $state(false);
 let replyFocusToken = $state(0);
-let lastAutoFocusedQuestionId = $state<string | undefined>(undefined);
+let lastAutoFocusedQuestionId: string | undefined;
 let registeredTargetKey: string | undefined;
 let registeredTarget: VoiceInputTarget | undefined;
 let unregisterVoiceTarget: (() => void) | undefined;

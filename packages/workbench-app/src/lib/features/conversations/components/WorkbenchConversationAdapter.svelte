@@ -42,7 +42,6 @@ let {
   activeRun,
   transient,
   queuedPrompts = [],
-  live = false,
   sending = false,
   stopping: stoppingRequested = false,
   composerText = "",
@@ -287,7 +286,6 @@ function menuForTranscript(
       {pendingUserQuestions}
       {pendingPlanReviews}
       interactive={active}
-      {live}
       {sending}
       {stopping}
       {compacting}

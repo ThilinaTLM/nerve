@@ -21,12 +21,6 @@ export async function getConversationSnapshotWithCursor(
   return result;
 }
 
-export async function getConversationSnapshot(
-  conversationId: string,
-): Promise<ConversationSnapshot> {
-  return (await getConversationSnapshotWithCursor(conversationId)).snapshot;
-}
-
 export async function getConversationContextUsage(
   conversationId: string,
 ): Promise<ContextUsage> {

@@ -12,11 +12,7 @@ export {
   reorderCenterTab,
   selectCenterTab,
 } from "./state/center-tabs.svelte";
-export {
-  composerDraft,
-  eventBuffer,
-  selection,
-} from "./state/selection.svelte";
+export { composerDraft, selection } from "./state/selection.svelte";
 export {
   createConversationForDirectory,
   deleteProjectAndRefresh,
