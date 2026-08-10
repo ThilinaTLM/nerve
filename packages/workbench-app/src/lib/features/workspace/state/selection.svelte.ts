@@ -5,18 +5,10 @@ export const selection = $state({
   entryId: undefined as string | undefined,
 });
 
-export const eventBuffer = $state({
-  items: [] as string[],
-});
-
 export const composerDraft = $state({
   text: "",
   projectDir: "",
 });
-
-export function pushEventPreview(serialized: string) {
-  eventBuffer.items = [serialized, ...eventBuffer.items].slice(0, 16);
-}
 
 export function resetSelection() {
   selection.projectId = undefined;

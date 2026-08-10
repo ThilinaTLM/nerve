@@ -376,9 +376,6 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   {activeAgent}
   {activePendingConversation}
   {pendingConversationActive}
-  projects={workspaceState.projects}
-  conversations={workspaceState.conversations}
-  agents={workspaceState.agents}
   homeDir={workspaceState.status?.storage.userHome}
   approvals={activeApprovals}
   {pendingUserQuestions}
@@ -390,7 +387,6 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   activeRun={view?.activeRun}
   transient={view?.transient}
   queuedPrompts={view?.queuedPrompts ?? []}
-  live={workspaceState.connection === "live"}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
   stopping={view?.stopping ?? false}
   composerText={activeComposerText}

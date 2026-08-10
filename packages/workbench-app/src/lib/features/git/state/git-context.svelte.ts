@@ -3,21 +3,14 @@ import type { GitContext } from "$lib/core/types/state-types";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
-import {
-  GIT_CONTEXT_FOCUS_STALE_MS,
-  gitContextFingerprint,
-  shouldRefreshGitContextOnFocus,
-} from "./git-context-helpers";
+import { gitContextFingerprint } from "./git-context-helpers";
 import {
   applyGitContextFromProject,
   refreshGitProject,
   scheduleAutomaticProjectGitRefresh,
 } from "./git-panel.svelte";
 
-export {
-  gitContextFingerprint,
-  shouldRefreshGitContextOnFocus,
-} from "./git-context-helpers";
+export { gitContextFingerprint } from "./git-context-helpers";
 
 const GIT_CONTEXT_MIN_REFRESH_MS = 2_000;
 
@@ -29,7 +22,6 @@ type GitContextRefreshOptions = {
 };
 
 const inFlight = new SvelteSet<string>();
-let autoRefreshStarted = false;
 let pendingRefreshTimer: number | undefined;
 let lastRefreshStartedAt = 0;
 
@@ -129,53 +121,6 @@ export async function refreshGitContext(
 export function clearGitContext(): void {
   clearPendingRefresh();
   gitState.gitContext = undefined;
-}
-
-function refreshIfStale(): void {
-  if (
-    typeof document !== "undefined" &&
-    document.visibilityState !== "visible"
-  ) {
-    return;
-  }
-
-  const projectId = selection.projectId;
-  if (
-    shouldRefreshGitContextOnFocus(
-      gitState.gitContext,
-      projectId,
-      Date.now(),
-      GIT_CONTEXT_FOCUS_STALE_MS,
-    )
-  ) {
-    void refreshGitContext(projectId, {
-      reason: "focus",
-      force: gitState.gitContext?.projectId !== projectId,
-    });
-  }
-}
-
-export function startGitContextAutoRefresh(): () => void {
-  if (typeof window === "undefined") return stopGitContextAutoRefresh;
-  if (autoRefreshStarted) return stopGitContextAutoRefresh;
-  autoRefreshStarted = true;
-
-  window.addEventListener("focus", refreshIfStale);
-  if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", refreshIfStale);
-  }
-
-  return stopGitContextAutoRefresh;
-}
-
-export function stopGitContextAutoRefresh(): void {
-  if (typeof window === "undefined") return;
-  autoRefreshStarted = false;
-  clearPendingRefresh();
-  window.removeEventListener("focus", refreshIfStale);
-  if (typeof document !== "undefined") {
-    document.removeEventListener("visibilitychange", refreshIfStale);
-  }
 }
 
 /**

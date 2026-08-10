@@ -1,10 +1,6 @@
 export * from "./api/git.api";
 export { GIT_STALE_MS } from "./state/git-refresh-policy";
-export {
-  clearGitContext,
-  refreshGitContext,
-  startGitContextAutoRefresh,
-} from "./state/git-context.svelte";
+export { clearGitContext, refreshGitContext } from "./state/git-context.svelte";
 export { gitSelectors } from "./state/git-selectors.svelte";
 export type {
   DiffViewState,

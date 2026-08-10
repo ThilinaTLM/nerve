@@ -1,6 +1,5 @@
 import type { GitContext } from "$lib/core/types/state-types";
 
-export const GIT_CONTEXT_FOCUS_STALE_MS = 30_000;
 export function gitContextFingerprint(ctx: GitContext): string {
   return JSON.stringify({
     projectId: ctx.projectId,
@@ -27,15 +26,4 @@ export function gitContextFingerprint(ctx: GitContext): string {
         }
       : undefined,
   });
-}
-
-export function shouldRefreshGitContextOnFocus(
-  ctx: GitContext | undefined,
-  projectId: string | undefined,
-  now: number,
-  staleMs: number,
-): boolean {
-  if (!projectId) return false;
-  if (!ctx || ctx.projectId !== projectId) return true;
-  return now - ctx.loadedAt >= staleMs;
 }

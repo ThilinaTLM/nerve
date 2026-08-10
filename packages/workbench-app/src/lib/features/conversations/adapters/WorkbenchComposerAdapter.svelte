@@ -73,9 +73,9 @@ let editorFocusToken = $state(
   untrack(() => (pendingConversationActive ? 1 : 0)),
 );
 let voiceSubmitPending = $state(false);
-let lastFocusToken = $state<number | undefined>(undefined);
-let lastComposerEscapeToken = $state<number | undefined>(undefined);
-let lastMicShortcutToken = $state<number | undefined>(undefined);
+let lastFocusToken: number | undefined;
+let lastComposerEscapeToken: number | undefined;
+let lastMicShortcutToken: number | undefined;
 let audioAuthDialogOpen = $state(false);
 
 const micShortcut = getShortcutLabel("composer.toggleMic");

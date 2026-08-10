@@ -1,9 +1,6 @@
 import { getFileContent } from "$lib/api";
 import { fileViewKey } from "$lib/core/state/state-keys";
-import {
-  defaultFileDisplayMode,
-  type FileDisplayMode,
-} from "@nervekit/ui-kit/core/utils/file-display";
+import { defaultFileDisplayMode } from "@nervekit/ui-kit/core/utils/file-display";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
@@ -77,18 +74,6 @@ export async function selectCenterFileTab(id: string) {
 
 export async function refreshFilePane(id: string) {
   await loadFileView(id);
-}
-
-export async function refreshActiveFilePane() {
-  const active = workspaceState.activeCenterTab;
-  if (active?.kind !== "file") return;
-  await refreshFilePane(active.id);
-}
-
-export function setFileDisplayMode(id: string, mode: FileDisplayMode) {
-  const view = fileState.fileViews[fileViewKey(id)];
-  if (!view) return;
-  view.displayMode = mode;
 }
 
 export function toggleFileDisplayMode(id: string) {
