@@ -1,7 +1,13 @@
+import {
+  firstEnvValue,
+  loopbackNoProxyEntries,
+  mergeNoProxy,
+  mergeNoProxySources,
+} from "@nervekit/workbench-server";
+
 // Node-safe helpers for Electron's platform-binary download path.
 // This module must not import Electron; it runs before `require("electron")`.
 
-export const loopbackNoProxyEntries = ["localhost", "127.0.0.1", "::1"];
 export const chromiumLoopbackProxyBypassRules = [
   "<local>",
   "localhost",
@@ -188,48 +194,6 @@ export function formatProxyPreparationForLog(
       ]),
     ),
   };
-}
-
-function firstEnvValue(
-  env: NodeJS.ProcessEnv,
-  names: readonly string[],
-): string | undefined {
-  for (const name of names) {
-    const value = env[name]?.trim();
-    if (value) return value;
-  }
-  return undefined;
-}
-
-function mergeNoProxySources(values: Array<string | undefined>): string {
-  const entries: string[] = [];
-  const normalizedEntries = new Set<string>();
-  for (const value of values) {
-    for (const entry of (value ?? "").split(",")) {
-      const trimmed = entry.trim();
-      const normalized = trimmed.toLowerCase();
-      if (!trimmed || normalizedEntries.has(normalized)) continue;
-      entries.push(trimmed);
-      normalizedEntries.add(normalized);
-    }
-  }
-  return entries.join(",");
-}
-
-function mergeNoProxy(value: string): string {
-  const entries = value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  const normalizedEntries = new Set(
-    entries.map((entry) => entry.toLowerCase()),
-  );
-  for (const entry of loopbackNoProxyEntries) {
-    if (normalizedEntries.has(entry.toLowerCase())) continue;
-    entries.push(entry);
-    normalizedEntries.add(entry.toLowerCase());
-  }
-  return entries.join(",");
 }
 
 function noProxyContains(value: string | undefined, entry: string): boolean {
