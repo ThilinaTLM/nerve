@@ -28,7 +28,7 @@ Nerve has no persistent sidecar supervisor. On restart it verifies process ident
 
 Linux uses `/proc` start identity and process groups; macOS uses process-start fingerprints and groups; Windows uses creation time and process-tree termination. Port discovery is best effort.
 
-A normal **Stop** requests graceful process-tree termination and escalates after a bounded wait. Verified recovered or stuck-stopping runs also offer a confirmed **Force kill**. After the run is terminal, remove its history or choose **Run saved task again** to launch the definition's current configuration. Nerve does not force-kill `recovery_unknown` records because their PID identity is unverified.
+A normal **Stop** requests graceful process-tree termination and escalates after a bounded wait. Verified recovered and stuck-stopping runs also offer **Force kill**: immediate for stuck-stopping runs, confirmed for verified recovered runs because you may not have asked to terminate them. After the run is terminal, remove its history or choose **Run saved task again** to launch the definition's current configuration. Nerve does not force-kill `recovery_unknown` records because their PID identity is unverified.
 
 Quitting the desktop app immediately terminates active local task process trees before its owned daemon exits. Closing to the tray leaves tasks running.
 

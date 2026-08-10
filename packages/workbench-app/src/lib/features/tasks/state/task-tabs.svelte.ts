@@ -9,25 +9,41 @@ import {
   setActiveCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import type { TaskRecord } from "@nervekit/contracts";
+
+export function taskEntryId(task: TaskRecord): string {
+  return task.definitionId ?? task.restartRootTaskId ?? task.id;
+}
 
 export function taskEntryKey(taskId: string): string {
   const task = taskState.tasks.find((candidate) => candidate.id === taskId);
-  return task?.definitionId ?? task?.restartRootTaskId ?? task?.id ?? taskId;
+  return task ? taskEntryId(task) : taskId;
 }
 
 export function runForTaskEntry(entryId: string) {
   const selectedId = taskState.selectedRunByEntry[entryId];
   const candidates = taskState.tasks
-    .filter(
-      (task) =>
-        (task.definitionId ?? task.restartRootTaskId ?? task.id) === entryId,
-    )
+    .filter((task) => taskEntryId(task) === entryId)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   return candidates.find((task) => task.id === selectedId) ?? candidates[0];
 }
 
 export function setTaskEntryRun(entryId: string, taskId: string): void {
   taskState.selectedRunByEntry[entryId] = taskId;
+}
+
+export async function selectTaskEntryRun(
+  entryId: string,
+  taskId: string,
+): Promise<void> {
+  const task = taskState.tasks.find(
+    (candidate) =>
+      candidate.id === taskId && taskEntryId(candidate) === entryId,
+  );
+  if (!task) return;
+  setTaskEntryRun(entryId, taskId);
+  taskState.selectedTaskId = taskId;
+  await loadTaskLogWindow(taskId);
 }
 
 export async function openTaskTab(taskId: string) {
@@ -56,8 +72,8 @@ export async function selectCenterTaskTab(entryId: string) {
   const task = runForTaskEntry(entryId);
   addCenterTab({ kind: "task", id: entryId });
   setActiveCenterTab({ kind: "task", id: entryId });
-  taskState.selectedTaskId = task?.id;
-  if (task) await loadTaskLogWindow(task.id);
+  if (task) await selectTaskEntryRun(entryId, task.id);
+  else taskState.selectedTaskId = undefined;
 }
 
 export async function closeTaskTab(entryId: string) {

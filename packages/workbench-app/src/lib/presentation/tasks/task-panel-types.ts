@@ -94,6 +94,7 @@ export interface TaskPanelActions {
   readonly forceKillTask: (taskId: string) => void | Promise<void>;
   readonly restartTask: (taskId: string) => void | Promise<void>;
   readonly removeTask: (taskId: string) => void | Promise<void>;
+  readonly cleanupRuns: (taskIds: readonly string[]) => void | Promise<void>;
   readonly pruneTasks: () => void | Promise<void>;
   readonly copyText: (text: string) => void | Promise<void>;
   readonly createDefinition: (

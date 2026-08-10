@@ -17,6 +17,10 @@ import {
   launchTaskDefinition,
 } from "$lib/features/tasks/api/tasks.api";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
+import {
+  setTaskEntryRun,
+  taskEntryKey,
+} from "$lib/features/tasks/state/task-tabs.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import {
   createTaskDefinition,
@@ -44,6 +48,7 @@ export type WorkbenchTaskPanelHostActions = {
   readonly cancelTask?: (id: string, request?: CancelTaskRequest) => void;
   readonly restartTask?: (id: string) => void;
   readonly removeTask?: (id: string) => void;
+  readonly cleanupRuns?: (ids: readonly string[]) => void;
   readonly pruneTasks?: () => void;
   readonly runCommand?: (input: {
     projectId: string;
@@ -126,8 +131,14 @@ export function createWorkbenchTaskPanelAdapter(
   }
 
   const host: TaskPanelActions = {
-    selectTask: (taskId) => {
+    selectTask: async (taskId) => {
       taskState.selectedTaskId = taskId;
+      if (!taskId) {
+        taskState.taskLogs = undefined;
+        return;
+      }
+      setTaskEntryRun(taskEntryKey(taskId), taskId);
+      taskState.taskLogs = await getTaskLogs(taskId);
     },
     openTaskOutput: (taskId) => hostActions.openTaskOutput?.(taskId),
     startTask: (request: StartTaskRequest) => {
@@ -167,6 +178,7 @@ export function createWorkbenchTaskPanelAdapter(
       }),
     restartTask: (id) => hostActions.restartTask?.(id),
     removeTask: (id) => hostActions.removeTask?.(id),
+    cleanupRuns: (ids) => hostActions.cleanupRuns?.(ids),
     pruneTasks: () => hostActions.pruneTasks?.(),
     copyText: async (text) => {
       try {

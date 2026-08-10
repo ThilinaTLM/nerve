@@ -23,7 +23,7 @@ Check the readiness URL/pattern and task logs. A server listening on a different
 
 ## Stop does not complete
 
-Nerve attempts graceful process-tree termination then bounded escalation. For a verified `recovered` run or one stuck in `stopping`, use **Force kill** and confirm immediate process-tree termination. Force kill can lose buffered output and process cleanup, but the terminal run record can then be removed or its current saved task definition can be run again.
+Nerve attempts graceful process-tree termination then bounded escalation. A run stuck in `stopping` offers **Force kill** immediately, since you already asked to stop it. A verified `recovered` run confirms before killing, because you may not have asked to terminate it. Force kill can lose buffered output and process cleanup, but the terminal run record can then be removed or its current saved task definition can be run again.
 
 Platform security software or child detachment can still interfere. Nerve never offers force kill for `recovery_unknown`; confirm identity before manual OS termination.
 

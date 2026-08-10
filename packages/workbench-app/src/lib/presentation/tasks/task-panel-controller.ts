@@ -39,6 +39,13 @@ const REMOVABLE_STATUSES = new Set([
   "interrupted",
 ]);
 
+const DEFINITION_ALPHABETICAL_WEIGHT = 0.7;
+const DEFINITION_RECENCY_WEIGHT = 0.3;
+const definitionCollator = new Intl.Collator(undefined, {
+  sensitivity: "base",
+  numeric: true,
+});
+
 export type TaskGroups = {
   running: TaskRecord[];
   orphaned: TaskRecord[];
@@ -133,20 +140,14 @@ export function projectTaskPanel(
     runsByDefinition.set(task.definitionId, runs);
   }
 
-  const definitionEntries = definitions
-    .map((definition) =>
+  const definitionEntries = sortDefinitionEntries(
+    definitions.map((definition) =>
       buildDefinitionEntry(
         definition,
         runsByDefinition.get(definition.id) ?? [],
       ),
-    )
-    .sort(
-      (left, right) =>
-        Number(right.needsRecovery) - Number(left.needsRecovery) ||
-        (
-          right.latestRun?.startedAt ?? right.definition.updatedAt
-        ).localeCompare(left.latestRun?.startedAt ?? left.definition.updatedAt),
-    );
+    ),
+  );
 
   const runEntries = tasks
     .filter((run) => !run.definitionId)
@@ -158,6 +159,55 @@ export function projectTaskPanel(
     );
 
   return { definitions: definitionEntries, runs: runEntries };
+}
+
+function definitionSortLabel(entry: TaskDefinitionEntry): string {
+  const label = entry.definition.label?.trim();
+  return label || entry.definition.command;
+}
+
+function definitionRecency(entry: TaskDefinitionEntry): string {
+  return entry.latestRun?.startedAt ?? entry.definition.updatedAt;
+}
+
+/**
+ * Keeps saved tasks primarily alphabetical while allowing recent activity to
+ * improve their position modestly. Rank blending avoids the distracting jump
+ * to first place caused by a strict newest-first comparison.
+ */
+function sortDefinitionEntries(
+  entries: TaskDefinitionEntry[],
+): TaskDefinitionEntry[] {
+  const alphabetical = [...entries].sort(
+    (left, right) =>
+      definitionCollator.compare(
+        definitionSortLabel(left),
+        definitionSortLabel(right),
+      ) || left.definition.id.localeCompare(right.definition.id),
+  );
+  const recent = [...entries].sort(
+    (left, right) =>
+      definitionRecency(right).localeCompare(definitionRecency(left)) ||
+      left.definition.id.localeCompare(right.definition.id),
+  );
+  const alphabeticalRank = new Map(
+    alphabetical.map((entry, index) => [entry.key, index]),
+  );
+  const recencyRank = new Map(recent.map((entry, index) => [entry.key, index]));
+  const score = (entry: TaskDefinitionEntry) =>
+    (alphabeticalRank.get(entry.key) ?? 0) * DEFINITION_ALPHABETICAL_WEIGHT +
+    (recencyRank.get(entry.key) ?? 0) * DEFINITION_RECENCY_WEIGHT;
+
+  return [...entries].sort(
+    (left, right) =>
+      score(left) - score(right) ||
+      Number(right.needsRecovery) - Number(left.needsRecovery) ||
+      definitionCollator.compare(
+        definitionSortLabel(left),
+        definitionSortLabel(right),
+      ) ||
+      left.definition.id.localeCompare(right.definition.id),
+  );
 }
 
 function toRunEntry(
@@ -228,6 +278,9 @@ export function createTaskPanelActions(
     },
     removeTask: (taskId) => {
       if (enabled("remove")) return host.removeTask(taskId);
+    },
+    cleanupRuns: (taskIds) => {
+      if (enabled("remove")) return host.cleanupRuns(taskIds);
     },
     pruneTasks: () => {
       if (enabled("prune")) return host.pruneTasks();

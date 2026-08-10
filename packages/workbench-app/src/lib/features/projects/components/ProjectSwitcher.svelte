@@ -34,9 +34,10 @@ function tabLabel(item: ProjectSwitcherItem): string {
 }
 
 function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
-  if (tone === "warn") return "border-warning/60 text-warning";
-  if (tone === "danger") return "border-destructive/60 text-destructive";
-  return "border-info/60 text-info";
+  if (tone === "warn") return "bg-warning text-warning-foreground";
+  if (tone === "danger")
+    return "bg-destructive-solid text-destructive-solid-foreground";
+  return "bg-info text-info-foreground";
 }
 </script>
 
@@ -80,20 +81,20 @@ function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
           {#if signal}
             <span
               class={combinedSignals
-                ? "relative isolate h-5 w-6 flex-none"
+                ? "relative isolate h-4 w-7 flex-none"
                 : "inline-flex size-4 flex-none items-center"}
               aria-hidden="true"
             >
               {#if conversationActivityCount}
                 <span
-                  class={`${combinedSignals ? "absolute top-0 left-0" : "relative"} z-10 inline-flex size-4 items-center justify-center rounded-full border-[1.5px] text-xs leading-none tabular-nums ${active ? "bg-muted" : "bg-popover"} ${conversationSignalClass(signal.tone)}`}
+                  class={`${combinedSignals ? "absolute top-0 left-0" : "relative"} z-10 inline-flex size-4 items-center justify-center rounded-full border-[1.5px] border-background text-xs leading-none tabular-nums ${conversationSignalClass(signal.tone)}`}
                 >
                   <span class="scale-90">{conversationActivityCount}</span>
                 </span>
               {/if}
               {#if item.tasks.running}
                 <span
-                  class={`${combinedSignals ? "absolute right-0 bottom-0" : "relative"} z-0 inline-flex size-4 items-center justify-center rounded-full border-[1.5px] border-info/60 text-xs leading-none text-info tabular-nums`}
+                  class={`${combinedSignals ? "absolute top-0 right-0" : "relative"} z-0 inline-flex size-4 items-center justify-center rounded-sm border-[1.5px] border-background bg-info text-xs leading-none text-info-foreground tabular-nums`}
                 >
                   <span class="scale-90">{item.tasks.running}</span>
                 </span>

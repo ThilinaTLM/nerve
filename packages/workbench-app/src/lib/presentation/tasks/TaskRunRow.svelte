@@ -8,11 +8,10 @@ import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
 import X from "@lucide/svelte/icons/x";
 import type { TaskRecord } from "@nervekit/contracts";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
 import { PanelRow, PanelToolbarButton } from "$lib/presentation/panel";
 import { formatTaskRunTime, taskRunLabel } from "./task-panel-controller.js";
+import TaskStatusIcon from "./TaskStatusIcon.svelte";
 import type { TaskEntryCapabilities, TaskRunEntry } from "./task-panel-types";
 
 let {
@@ -138,28 +137,35 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
   title={tooltip}
   mono={!nested && label.isCommand}
   tone={nested || label.isCommand ? "muted" : "default"}
-  status={entry.needsRecovery ? "warn" : taskTone(run.status)}
-  pulse={taskPulse(run.status)}
   indent={nested ? 1 : 0}
   alwaysShowActions
   {menuItems}
   onclick={() => onOpen?.(run.id)}
 >
-  {#snippet badges()}
-    <Badge tone={taskTone(run.status)} size="xs">{run.status}</Badge>
+  {#snippet leading()}
+    <TaskStatusIcon status={run.status} />
   {/snippet}
   {#snippet actions()}
     {#if run.status === "stopping"}
       <PanelToolbarButton
         icon={Skull}
         label={`Force kill ${label.text}`}
+        dense
         disabled={!capabilities.cancel}
         onclick={() => onForceKill?.(run.id)}
       />
     {:else if entry.isActive}
       <PanelToolbarButton
+        icon={RotateCw}
+        label={`Restart ${label.text}`}
+        dense
+        disabled={!capabilities.restart}
+        onclick={() => onRestart?.(run.id)}
+      />
+      <PanelToolbarButton
         icon={Square}
         label={`Stop ${label.text}`}
+        dense
         disabled={!capabilities.cancel}
         onclick={() => onCancel?.(run.id)}
       />
@@ -167,6 +173,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       <PanelToolbarButton
         icon={RotateCw}
         label={`Restart ${label.text}`}
+        dense
         disabled={!capabilities.restart}
         onclick={() => onRestart?.(run.id)}
       />

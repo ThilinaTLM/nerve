@@ -56,6 +56,96 @@ test("collapses a definition's concurrent runs into one definition entry while l
   assert.equal(projected.runs.length, 0);
 });
 
+test("blends alphabetical and recency ranks without moving a newly run task to the top", () => {
+  const definitions = [
+    definition({ id: "taskdef_alpha", label: "Alpha" }),
+    definition({ id: "taskdef_bravo", label: "Bravo" }),
+    definition({ id: "taskdef_charlie", label: "Charlie" }),
+    definition({ id: "taskdef_zulu", label: "Zulu" }),
+  ];
+  const projected = projectTaskPanel(definitions, [
+    run("task_zulu", {
+      definitionId: "taskdef_zulu",
+      startedAt: "2026-01-04T00:00:00Z",
+    }),
+    run("task_alpha", {
+      definitionId: "taskdef_alpha",
+      startedAt: "2026-01-03T00:00:00Z",
+    }),
+    run("task_bravo", {
+      definitionId: "taskdef_bravo",
+      startedAt: "2026-01-02T00:00:00Z",
+    }),
+    run("task_charlie", {
+      definitionId: "taskdef_charlie",
+      startedAt: "2026-01-01T00:00:00Z",
+    }),
+  ]);
+
+  assert.deepEqual(
+    projected.definitions.map((entry) => entry.definition.label),
+    ["Alpha", "Bravo", "Zulu", "Charlie"],
+  );
+});
+
+test("lets recency modestly improve nearby alphabetical positions", () => {
+  const projected = projectTaskPanel(
+    [
+      definition({ id: "taskdef_alpha", label: "Alpha" }),
+      definition({ id: "taskdef_bravo", label: "Bravo" }),
+      definition({ id: "taskdef_charlie", label: "Charlie" }),
+      definition({ id: "taskdef_delta", label: "Delta" }),
+    ],
+    [
+      run("task_bravo", {
+        definitionId: "taskdef_bravo",
+        startedAt: "2026-01-04T00:00:00Z",
+      }),
+      run("task_charlie", {
+        definitionId: "taskdef_charlie",
+        startedAt: "2026-01-03T00:00:00Z",
+      }),
+      run("task_delta", {
+        definitionId: "taskdef_delta",
+        startedAt: "2026-01-02T00:00:00Z",
+      }),
+      run("task_alpha", {
+        definitionId: "taskdef_alpha",
+        startedAt: "2026-01-01T00:00:00Z",
+      }),
+    ],
+  );
+
+  assert.deepEqual(
+    projected.definitions.map((entry) => entry.definition.label),
+    ["Bravo", "Alpha", "Charlie", "Delta"],
+  );
+});
+
+test("sorts equally ranked definitions deterministically by label", () => {
+  const timestamp = "2026-01-01T00:00:00Z";
+  const projected = projectTaskPanel(
+    [
+      definition({
+        id: "taskdef_zebra",
+        label: "zebra",
+        updatedAt: timestamp,
+      }),
+      definition({
+        id: "taskdef_alpha",
+        label: "Alpha",
+        updatedAt: timestamp,
+      }),
+    ],
+    [],
+  );
+
+  assert.deepEqual(
+    projected.definitions.map((entry) => entry.definition.id),
+    ["taskdef_alpha", "taskdef_zebra"],
+  );
+});
+
 test("lists only ad-hoc runs at the top level", () => {
   const projected = projectTaskPanel(
     [definition()],
