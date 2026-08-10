@@ -5,3 +5,4 @@
 - Before completing code changes, run `pnpm fix && pnpm check && pnpm test` in one Bash tool call, fix any failures, then rerun the full chain.
 - Keep the automated test suite limited to only the important parts. Not everything needs to have automated tests.
 - Use `NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui` if you need to run the UI locally and connect to existing nerve daemon server.
+- Use `gh` cli to interact with GitHub.
