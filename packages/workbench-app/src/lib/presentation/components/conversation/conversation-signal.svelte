@@ -59,7 +59,7 @@ const launchpad = $derived(variant === "launchpad");
       </p>
     {/if}
     <h2
-      class={`${launchpad ? "mt-2 text-xl @sm:text-2xl" : "mt-4 text-lg @sm:text-xl"} font-normal tracking-tight text-foreground`}
+      class={`${launchpad ? "mt-2 text-lg @sm:text-xl" : "mt-4 text-lg @sm:text-xl"} font-normal tracking-tight text-foreground`}
     >
       {title}
     </h2>
