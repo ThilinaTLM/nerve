@@ -16,6 +16,7 @@ let {
   statusVariant = "solid",
   pulse = false,
   label,
+  labelLines = 1,
   description,
   meta,
   metaMono = false,
@@ -57,6 +58,8 @@ let {
   statusVariant?: StatusDotVariant;
   pulse?: boolean;
   label: string;
+  /** Maximum visible lines for the primary label. */
+  labelLines?: 1 | 2;
   description?: string;
   /** Third line under the description; stacked rows only. */
   meta?: string;
@@ -116,6 +119,12 @@ const rowStyle = $derived(
     .join(";") || undefined,
 );
 
+const labelLayoutClass = $derived(
+  labelLines === 2
+    ? "line-clamp-2 break-words whitespace-normal leading-snug"
+    : "truncate",
+);
+
 const toneClass = $derived(
   tone === "destructive"
     ? "text-destructive"
@@ -139,9 +148,11 @@ const toneClass = $derived(
       hoverable && "panel-row-hoverable",
       stacked
         ? "min-h-11 gap-2 py-2.5 pr-3 text-xs"
-        : dense
-          ? "h-5 gap-1 pr-1 text-xs"
-          : "h-7 gap-1.5 pr-1.5 text-xs",
+        : labelLines === 2
+          ? "h-10 gap-2 py-0.5 pr-3 text-xs"
+          : dense
+            ? "h-5 gap-1 pr-1 text-xs"
+            : "h-7 gap-1.5 pr-1.5 text-xs",
       selected && "bg-accent text-accent-foreground",
       tabindex !== undefined &&
         "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
@@ -167,8 +178,8 @@ const toneClass = $derived(
       aria-current={active ? "true" : undefined}
       title={title ?? description ?? label}
       class={cn(
-        "flex min-w-0 flex-1 items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50",
-        stacked ? "gap-2" : dense ? "gap-1" : "gap-1.5",
+        "flex min-w-0 flex-1 cursor-pointer items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
+        stacked || labelLines === 2 ? "gap-2" : dense ? "gap-1" : "gap-1.5",
       )}
       {onclick}
       {ondblclick}
@@ -196,7 +207,7 @@ const toneClass = $derived(
           <span class="flex min-w-0 items-center gap-1.5">
             <span
               class={cn(
-                "truncate",
+                labelLayoutClass,
                 toneClass,
                 mono && "font-mono",
                 active && "font-medium",
@@ -223,7 +234,7 @@ const toneClass = $derived(
       {:else}
         <span
           class={cn(
-            "truncate",
+            labelLayoutClass,
             toneClass,
             mono && "font-mono",
             active && "font-medium",

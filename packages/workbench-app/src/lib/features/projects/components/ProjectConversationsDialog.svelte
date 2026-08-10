@@ -100,19 +100,21 @@ function openAndClose(conversationId: string) {
           <VirtualScroller
             items={rows}
             getKey={(row) => row.conversation.id}
-            estimateSize={() => 32}
+            estimateSize={() => 48}
             viewportClass="h-full px-0.5"
           >
             {#snippet row({ item })}
-              <ProjectAgentTreeNode
-                row={item}
-                isOpen={openConversationTabIds?.has(item.conversation.id) ??
-                  false}
-                isActive={item.conversation.id === selectedConversationId}
-                activity={conversationActivityById[item.conversation.id]}
-                menuItems={buildMenu?.(item.conversation) ?? []}
-                onOpenConversation={openAndClose}
-              />
+              <div class="py-0.5">
+                <ProjectAgentTreeNode
+                  row={item}
+                  isOpen={openConversationTabIds?.has(item.conversation.id) ??
+                    false}
+                  isActive={item.conversation.id === selectedConversationId}
+                  activity={conversationActivityById[item.conversation.id]}
+                  menuItems={buildMenu?.(item.conversation) ?? []}
+                  onOpenConversation={openAndClose}
+                />
+              </div>
             {/snippet}
           </VirtualScroller>
         {/if}

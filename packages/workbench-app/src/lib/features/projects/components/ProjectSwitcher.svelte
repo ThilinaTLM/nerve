@@ -38,14 +38,6 @@ function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
   if (tone === "danger") return "border-destructive/60 text-destructive";
   return "border-info/60 text-info";
 }
-
-function conversationSignalTintClass(
-  tone: ProjectActivitySignal["tone"],
-): string {
-  if (tone === "warn") return "bg-warning/25";
-  if (tone === "danger") return "bg-destructive/25";
-  return "bg-info/25";
-}
 </script>
 
 <nav
@@ -68,6 +60,8 @@ function conversationSignalTintClass(
       {@const signal = projectActivitySignal(item.activity, item.tasks)}
       {@const conversationActivityCount =
         item.activity.needsUser + item.activity.failed + item.activity.running}
+      {@const combinedSignals =
+        conversationActivityCount > 0 && item.tasks.running > 0}
       {@const active = item.key === activeKey}
       <ContextMenu
         items={buildMenuItems?.(item) ?? []}
@@ -85,27 +79,23 @@ function conversationSignalTintClass(
         >
           {#if signal}
             <span
-              class="isolate inline-flex flex-none items-center -space-x-1"
+              class={combinedSignals
+                ? "relative isolate h-5 w-6 flex-none"
+                : "inline-flex size-4 flex-none items-center"}
               aria-hidden="true"
             >
               {#if conversationActivityCount}
                 <span
-                  class={`relative z-10 inline-flex size-4 items-center justify-center rounded-full border bg-popover text-xs leading-none tabular-nums ${conversationSignalClass(signal.tone)}`}
+                  class={`${combinedSignals ? "absolute top-0 left-0" : "relative"} z-10 inline-flex size-4 items-center justify-center rounded-full border-[1.5px] text-xs leading-none tabular-nums ${active ? "bg-muted" : "bg-popover"} ${conversationSignalClass(signal.tone)}`}
                 >
-                  <span
-                    class={`absolute inset-0 rounded-full ${conversationSignalTintClass(signal.tone)}`}
-                  ></span>
-                  <span class="relative z-10">{conversationActivityCount}</span>
+                  <span class="scale-90">{conversationActivityCount}</span>
                 </span>
               {/if}
               {#if item.tasks.running}
                 <span
-                  class="relative z-0 inline-flex size-4 items-center justify-center rounded-full border border-info/60 bg-popover text-info"
+                  class={`${combinedSignals ? "absolute right-0 bottom-0" : "relative"} z-0 inline-flex size-4 items-center justify-center rounded-full border-[1.5px] border-info/60 text-xs leading-none text-info tabular-nums`}
                 >
-                  <span class="absolute inset-0 rounded-full bg-info/25"></span>
-                  <span class="relative z-10 text-xs leading-none tabular-nums"
-                    >{item.tasks.running}</span
-                  >
+                  <span class="scale-90">{item.tasks.running}</span>
                 </span>
               {/if}
             </span>

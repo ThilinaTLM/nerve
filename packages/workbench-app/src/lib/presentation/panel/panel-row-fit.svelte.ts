@@ -74,6 +74,7 @@ export function createPanelRowFit(options: PanelRowFitOptions): PanelRowFit {
 
   $effect(() => {
     options.total();
+    options.footer?.();
     queueMicrotask(schedule);
   });
 
