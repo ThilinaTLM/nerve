@@ -1,5 +1,6 @@
 import type {
   ContextUsage,
+  ConversationEntry,
   ConversationRecord,
   ConversationSnapshot,
   SnapshotCursor,

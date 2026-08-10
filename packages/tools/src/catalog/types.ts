@@ -50,10 +50,6 @@ export type ToolDefinition<TParams extends TSchema = TSchema> =
   | LocalToolDefinition<TParams>
   | HostToolDefinition<TParams>;
 
-/** @deprecated Use ToolDefinition. */
-export type CoreToolDefinition<TParams extends TSchema = TSchema> =
-  ToolDefinition<TParams>;
-
 export function isLocalToolDefinition(
   definition: ToolDefinition,
 ): definition is LocalToolDefinition {

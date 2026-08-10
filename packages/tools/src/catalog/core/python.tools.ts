@@ -1,6 +1,6 @@
 import { Type } from "typebox";
 import { executePython } from "../../execution/python/python.js";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const pythonParameters = Type.Object(
   {
@@ -55,4 +55,4 @@ export const pythonToolDefinitions = [
     parameters: pythonParameters,
     executionMode: "sequential",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

@@ -4,7 +4,7 @@ import {
   EXPLORE_MAX_CHILDREN_PER_RUN,
   EXPLORE_MAX_TASKS_PER_CALL,
 } from "@nervekit/contracts";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const exploreTaskParameters = Type.Object(
   {
@@ -66,4 +66,4 @@ export const exploreToolDefinitions = [
     parameters: exploreParameters,
     executionMode: "parallel",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

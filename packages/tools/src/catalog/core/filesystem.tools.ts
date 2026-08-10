@@ -5,7 +5,7 @@ import { executeLs } from "../../execution/filesystem/list.js";
 import { executeRead } from "../../execution/filesystem/read.js";
 import { executeGrep } from "../../execution/filesystem/search.js";
 import { executeWrite } from "../../execution/filesystem/write.js";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const readParameters = Type.Object(
   {
@@ -374,4 +374,4 @@ export const filesystemToolDefinitions = [
     parameters: lsParameters,
     executionMode: "parallel",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

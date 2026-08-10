@@ -9,7 +9,7 @@ import {
   executeJiraTransitionIssue,
   executeJiraUpdateIssue,
 } from "../../execution/jira/jira.js";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const jiraGuideline =
   "Use Jira tools for ticket work only when the Jira module is enabled; keep JQL, fields, and result limits narrow, use saved JSON artifact paths for large analyses, and mutate tickets only when the user asked for Jira changes.";
@@ -460,4 +460,4 @@ export const jiraToolDefinitions = [
     parameters: transitionIssueParameters,
     executionMode: "sequential",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

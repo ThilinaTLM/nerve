@@ -9,7 +9,7 @@ import {
   executeConfluenceUpdatePage,
   executeConfluenceUploadAttachment,
 } from "../../execution/confluence/confluence.js";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const confluenceGuideline =
   "Use Confluence tools only when the Confluence module is enabled; use storage XML/JSONL as the editable source of truth, treat markdown as read-only, keep limits narrow, and mutate pages/attachments only when explicitly requested.";
@@ -437,4 +437,4 @@ export const confluenceToolDefinitions = [
     parameters: uploadAttachmentParameters,
     executionMode: "sequential",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

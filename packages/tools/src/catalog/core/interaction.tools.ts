@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const askUserParameters = Type.Object(
   {
@@ -81,4 +81,4 @@ export const interactionToolDefinitions = [
     parameters: todosGetParameters,
     executionMode: "parallel",
   },
-] satisfies CoreToolDefinition[];
+] satisfies ToolDefinition[];

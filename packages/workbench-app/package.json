@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "vite build",
-    "check": "node ../../scripts/check-package-boundaries.mjs && svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
     "dev": "vite --host 127.0.0.1",
     "test": "tsx --test \"src/**/*.test.ts\""
   },

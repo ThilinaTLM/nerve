@@ -12,6 +12,10 @@ import type {
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
 import type { PlanReviewResolveOptions } from "../../../presentation/state/tool-types.js";
+export type {
+  ApprovalWithToolCall,
+  PlanReviewResolveOptions,
+} from "../../../presentation/state/tool-types.js";
 
 export async function getToolCall(toolCallId: string): Promise<ToolCallRecord> {
   const result = (

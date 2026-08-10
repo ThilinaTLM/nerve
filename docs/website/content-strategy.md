@@ -388,7 +388,7 @@ Create `.github/workflows/website.yml`:
 - trigger on `main` pushes affecting website content/config/assets/workflow/lockfile and on manual dispatch;
 - permissions: `contents: read`, `pages: write`, `id-token: write`;
 - concurrency group for Pages with in-progress cancellation;
-- checkout, pnpm 11.17.0, Node 24, frozen root install;
+- checkout, pnpm 11.20.0, Node 24, frozen root install;
 - run `pnpm --filter @nervekit/website check` and `build`;
 - upload `packages/website/dist` with `actions/upload-pages-artifact` and deploy with `actions/deploy-pages`;
 - use the `github-pages` environment and expose the deployment URL.

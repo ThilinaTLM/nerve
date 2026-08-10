@@ -1,7 +1,7 @@
 import type { ToolRisk } from "@nervekit/contracts";
 import { Type } from "typebox";
 import { hasDangerousCommandPattern } from "../../safety/command-policy.js";
-import type { CoreToolDefinition } from "../types.js";
+import type { ToolDefinition } from "../types.js";
 
 const taskStartParameters = Type.Object(
   {
@@ -246,4 +246,4 @@ export const taskToolDefinitions = [
     parameters: taskRestartParameters,
     executionMode: "sequential",
   },
-] as const satisfies readonly CoreToolDefinition[];
+] as const satisfies readonly ToolDefinition[];
