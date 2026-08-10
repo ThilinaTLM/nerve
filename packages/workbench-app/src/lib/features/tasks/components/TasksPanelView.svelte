@@ -13,6 +13,7 @@ type Props = {
   onCancelTask?: (id: string, request?: CancelTaskRequest) => void;
   onRestartTask?: (id: string) => void;
   onRemoveTask?: (id: string) => void;
+  onCleanupRuns?: (ids: readonly string[]) => void;
   onPruneTasks?: () => void;
   onRunCommand?: (input: {
     projectId: string;
@@ -30,6 +31,7 @@ let {
   onCancelTask,
   onRestartTask,
   onRemoveTask,
+  onCleanupRuns,
   onPruneTasks,
   onRunCommand,
 }: Props = $props();
@@ -43,6 +45,7 @@ const adapter = createWorkbenchTaskPanelAdapter(
     cancelTask: (id, request) => onCancelTask?.(id, request),
     restartTask: (id) => onRestartTask?.(id),
     removeTask: (id) => onRemoveTask?.(id),
+    cleanupRuns: (ids) => onCleanupRuns?.(ids),
     pruneTasks: () => onPruneTasks?.(),
     runCommand: (input) => onRunCommand?.(input),
   },

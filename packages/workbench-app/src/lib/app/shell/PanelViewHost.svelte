@@ -13,6 +13,7 @@ import {
 import { ConversationsPanelView } from "$lib/features/projects";
 import {
   cancelSelectedTask,
+  cleanupTaskRuns,
   openTaskTab,
   pruneFinishedTasks,
   removeTask,
@@ -166,6 +167,7 @@ function focusTasks() {
         onCancelTask={(id, request) => void cancelSelectedTask(id, request)}
         onRestartTask={(id) => void restartSelectedTask(id)}
         onRemoveTask={(id) => void removeTask(id)}
+        onCleanupRuns={(ids) => void cleanupTaskRuns(ids)}
         onPruneTasks={() => void pruneFinishedTasks()}
         onRunCommand={(input) => {
           focusTasks();

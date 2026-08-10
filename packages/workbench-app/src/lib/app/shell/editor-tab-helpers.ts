@@ -14,8 +14,13 @@ export function tabIdentity(tab: CenterTabModel): TabIdentity {
   return { kind: tab.kind, id: tab.id };
 }
 
+function taskLabel(tab: Extract<CenterTabModel, { kind: "task" }>): string {
+  const labels = [tab.task?.displayName, tab.task?.name, tab.task?.command];
+  return labels.find((label) => label?.trim())?.trim() ?? tab.id;
+}
+
 export function tabLabel(tab: CenterTabModel): string {
-  if (tab.kind === "task") return tab.task?.name ?? tab.task?.command ?? tab.id;
+  if (tab.kind === "task") return taskLabel(tab);
   if (tab.kind === "file")
     return (
       tab.file?.name ??
@@ -38,7 +43,7 @@ export function tabLabel(tab: CenterTabModel): string {
 export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
   if (tab.kind === "task") {
     if (!tab.task) return `Missing task · ${tab.id}`;
-    return `${tab.task.name ?? tab.task.command} · ${tab.task.status} · ${shortenPath(tab.task.cwd, homeDir)} · ${tab.task.id}`;
+    return `${taskLabel(tab)} · ${tab.task.status} · ${shortenPath(tab.task.cwd, homeDir)} · ${tab.task.id}`;
   }
   if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
   if (tab.kind === "diff")

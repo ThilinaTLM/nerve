@@ -4,6 +4,7 @@ export { taskState } from "./state/task-state.svelte";
 export { openTaskTab } from "./state/task-tabs.svelte";
 export {
   cancelSelectedTask,
+  cleanupTaskRuns,
   pruneFinishedTasks,
   removeTask,
   restartSelectedTask,

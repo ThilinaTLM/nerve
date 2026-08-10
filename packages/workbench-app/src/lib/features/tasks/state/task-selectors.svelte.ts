@@ -1,6 +1,7 @@
 import { isPathInDirectory } from "$lib/core/utils/path";
 import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
+import { taskEntryId } from "./task-tabs.svelte";
 import { taskState } from "./task-state.svelte";
 
 export const taskSelectors = {
@@ -21,17 +22,20 @@ export const taskSelectors = {
     const active = workspaceState.activeCenterTab;
     if (active?.kind !== "task") return undefined;
     const candidates = taskState.tasks
-      .filter(
-        (task) =>
-          (task.definitionId ?? task.restartRootTaskId ?? task.id) ===
-          active.id,
-      )
+      .filter((task) => taskEntryId(task) === active.id)
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
     return (
       candidates.find(
         (task) => task.id === taskState.selectedRunByEntry[active.id],
       ) ?? candidates[0]
     );
+  },
+  get activeCenterTaskRuns() {
+    const active = workspaceState.activeCenterTab;
+    if (active?.kind !== "task") return [];
+    return taskState.tasks
+      .filter((task) => taskEntryId(task) === active.id)
+      .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
   },
   get taskLogs() {
     return taskState.taskLogs;

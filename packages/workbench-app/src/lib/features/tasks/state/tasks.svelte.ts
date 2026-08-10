@@ -89,6 +89,34 @@ export async function removeTask(taskId: string) {
   notify.success("Task removed");
 }
 
+export async function cleanupTaskRuns(taskIds: readonly string[]) {
+  const ids = taskIds.filter((id, index) => taskIds.indexOf(id) === index);
+  if (ids.length === 0) return;
+
+  const results = await Promise.allSettled(ids.map((id) => deleteTask(id)));
+  const removed = ids.filter(
+    (_, index) => results[index]?.status === "fulfilled",
+  );
+  const failed = ids.length - removed.length;
+  for (const id of removed) forgetTask(id);
+  await loadWorkspaceState();
+
+  if (removed.length > 0) {
+    notify.success(
+      removed.length === 1
+        ? "Removed 1 old task run"
+        : `Removed ${removed.length} old task runs`,
+    );
+  }
+  if (failed > 0) {
+    notify.error(
+      failed === 1
+        ? "Could not remove 1 old task run"
+        : `Could not remove ${failed} old task runs`,
+    );
+  }
+}
+
 export async function pruneFinishedTasks() {
   const { removed } = await pruneTasks();
   for (const id of removed) forgetTask(id);

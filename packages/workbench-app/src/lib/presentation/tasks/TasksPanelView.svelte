@@ -2,7 +2,6 @@
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import { SvelteSet } from "svelte/reactivity";
 import type {
   CreateTaskDefinitionRequest,
   TaskRecord,
@@ -48,23 +47,30 @@ let {
 } = $props();
 
 const projected = $derived(projectTaskPanel(model.definitions, model.tasks));
+const selectedSiblingRuns = $derived.by(() => {
+  const selected = model.selectedTask;
+  if (!selected) return [];
+  const entryId =
+    selected.definitionId ?? selected.restartRootTaskId ?? selected.id;
+  return model.tasks
+    .filter(
+      (task) =>
+        (task.definitionId ?? task.restartRootTaskId ?? task.id) === entryId,
+    )
+    .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+});
 let addOpen = $state(false);
 let saving = $state(false);
 let confirmPruneOpen = $state(false);
 let forceKillTask = $state<TaskRecord | undefined>();
 let editDefinition = $state<TaskPanelDefinition | undefined>();
 let deleteDefinition = $state<TaskPanelDefinition | undefined>();
+let cleanupRunIds = $state<readonly string[]>([]);
 let saveSourceTask = $state<TaskRecord | undefined>();
 let panelWidth = $state(0);
 let runsRegion = $state<HTMLDivElement | null>(null);
 let runsFooter = $state<HTMLDivElement | null>(null);
 let runsDialogOpen = $state(false);
-const expandedDefinitions = new SvelteSet<string>();
-
-function toggleDefinition(id: string): void {
-  if (!expandedDefinitions.delete(id)) expandedDefinitions.add(id);
-}
-
 // The wide bottom dock can host the run output next to the list.
 const SPLIT_MIN_WIDTH = 720;
 const splitLayout = $derived(panelWidth >= SPLIT_MIN_WIDTH);
@@ -114,6 +120,12 @@ async function updateDefinition(
   }
 }
 
+async function cleanupRuns(): Promise<void> {
+  const ids = cleanupRunIds;
+  cleanupRunIds = [];
+  await panelActions.cleanupRuns(ids);
+}
+
 async function removeDefinition(): Promise<void> {
   if (!deleteDefinition) return;
   await panelActions.deleteDefinition(deleteDefinition);
@@ -125,6 +137,18 @@ async function confirmForceKill(): Promise<void> {
   const taskId = forceKillTask.id;
   forceKillTask = undefined;
   await panelActions.forceKillTask(taskId);
+}
+
+function requestForceKill(taskId: string): void {
+  const task = model.tasks.find((run) => run.id === taskId);
+  if (!task) return;
+  if (task.status === "recovered") {
+    // The user never asked to terminate a recovered run, so confirm first.
+    forceKillTask = task;
+  } else {
+    // Stuck-stopping runs were already stopped once; kill immediately.
+    void panelActions.forceKillTask(taskId);
+  }
 }
 
 function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
@@ -146,46 +170,20 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
       {:else}
         <PanelList role="none" class="gap-1">
           {#each projected.definitions as entry (entry.key)}
-            {@const expanded = expandedDefinitions.has(entry.key)}
             <PanelRowCard>
               <TaskDefinitionRow
                 {entry}
                 {capabilities}
-                {expanded}
-                onToggleExpanded={() => toggleDefinition(entry.key)}
                 onOpen={(id) => void panelActions.openTaskOutput(id)}
                 onRun={() => void panelActions.runDefinition(entry.definition)}
                 onCancel={(id) => void panelActions.cancelTask(id)}
-                onForceKill={(id) =>
-                  (forceKillTask = model.tasks.find((task) => task.id === id))}
+                onForceKill={requestForceKill}
                 onRestart={(id) => void panelActions.restartTask(id)}
                 onEdit={() => (editDefinition = entry.definition)}
                 onDelete={() => (deleteDefinition = entry.definition)}
+                onCleanupRuns={(ids) => (cleanupRunIds = ids)}
                 onCopy={(text) => void panelActions.copyText(text)}
               />
-              {#if expanded}
-                <div
-                  class="flex min-w-0 flex-col border-t border-border/60 pt-0.5"
-                >
-                  {#each entry.runs as runEntry (runEntry.key)}
-                    <TaskRunRow
-                      nested
-                      entry={runEntry}
-                      {capabilities}
-                      onOpen={(id) => void panelActions.openTaskOutput(id)}
-                      onCancel={(id) => void panelActions.cancelTask(id)}
-                      onForceKill={(id) =>
-                        (forceKillTask = model.tasks.find(
-                          (task) => task.id === id,
-                        ))}
-                      onRestart={(id) => void panelActions.restartTask(id)}
-                      onRerunDefinition={() => rerunDefinition(runEntry)}
-                      onRemove={(id) => void panelActions.removeTask(id)}
-                      onCopy={(text) => void panelActions.copyText(text)}
-                    />
-                  {/each}
-                </div>
-              {/if}
             </PanelRowCard>
           {/each}
         </PanelList>
@@ -216,8 +214,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
                 {capabilities}
                 onOpen={(id) => void panelActions.openTaskOutput(id)}
                 onCancel={(id) => void panelActions.cancelTask(id)}
-                onForceKill={(id) =>
-                  (forceKillTask = model.tasks.find((task) => task.id === id))}
+                onForceKill={requestForceKill}
                 onRestart={(id) => void panelActions.restartTask(id)}
                 onRemove={(id) => void panelActions.removeTask(id)}
                 onCopy={(text) => void panelActions.copyText(text)}
@@ -281,6 +278,15 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
             <TaskOutputPane
               task={model.selectedTask}
               taskLogs={model.selectedLogs}
+              siblingRuns={selectedSiblingRuns}
+              canRestart={capabilities.restart}
+              canCancel={capabilities.cancel}
+              onSelectRun={(taskId) => void panelActions.selectTask(taskId)}
+              onRestartRun={(taskId) => void panelActions.restartTask(taskId)}
+              onCancelRun={(taskId) => void panelActions.cancelTask(taskId)}
+              onForceKillRun={(taskId) =>
+                void panelActions.forceKillTask(taskId)}
+              onCleanupRuns={(taskIds) => panelActions.cleanupRuns(taskIds)}
             />
           </Pane>
         </PaneGroup>
@@ -297,8 +303,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
   {capabilities}
   onOpen={(id) => void panelActions.openTaskOutput(id)}
   onCancel={(id) => void panelActions.cancelTask(id)}
-  onForceKill={(id) =>
-    (forceKillTask = model.tasks.find((task) => task.id === id))}
+  onForceKill={requestForceKill}
   onRestart={(id) => void panelActions.restartTask(id)}
   onRerunDefinition={rerunDefinition}
   onRemove={(id) => void panelActions.removeTask(id)}
@@ -355,6 +360,18 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
   onCancel={() => (forceKillTask = undefined)}
   onOpenChange={(open) => {
     if (!open) forceKillTask = undefined;
+  }}
+/>
+<ConfirmDialog
+  open={cleanupRunIds.length > 0}
+  destructive
+  title="Clean up old task runs?"
+  description={`This removes ${cleanupRunIds.length} old finished ${cleanupRunIds.length === 1 ? "run" : "runs"} and their captured logs. The latest run is retained.`}
+  confirmLabel="Clean up"
+  onConfirm={() => void cleanupRuns()}
+  onCancel={() => (cleanupRunIds = [])}
+  onOpenChange={(open) => {
+    if (!open) cleanupRunIds = [];
   }}
 />
 <ConfirmDialog

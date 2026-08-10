@@ -11,9 +11,9 @@ import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { taskPulse, taskTone } from "@nervekit/ui-kit/core/utils/status";
 import { PanelRow, PanelToolbarButton } from "$lib/presentation/panel";
 import { taskDefinitionLabel } from "./task-panel-controller.js";
+import TaskStatusIcon from "./TaskStatusIcon.svelte";
 import type {
   TaskDefinitionEntry,
   TaskEntryCapabilities,
@@ -21,9 +21,7 @@ import type {
 
 let {
   entry,
-  expanded = false,
   capabilities,
-  onToggleExpanded,
   onOpen,
   onRun,
   onCancel,
@@ -31,13 +29,11 @@ let {
   onRestart,
   onEdit,
   onDelete,
+  onCleanupRuns,
   onCopy,
 }: {
   entry: TaskDefinitionEntry;
-  /** Whether the definition's run rows are listed underneath it. */
-  expanded?: boolean;
   capabilities: TaskEntryCapabilities;
-  onToggleExpanded?: () => void;
   onOpen?: (taskId: string) => void;
   onRun?: () => void;
   onCancel?: (taskId: string) => void;
@@ -45,11 +41,11 @@ let {
   onRestart?: (taskId: string) => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onCleanupRuns?: (taskIds: readonly string[]) => void;
   onCopy?: (text: string) => void;
 } = $props();
 
 const latest = $derived(entry.latestRun);
-const expandable = $derived(entry.runs.length > 0);
 const status = $derived(latest?.status ?? "saved");
 const label = $derived(taskDefinitionLabel(entry));
 const command = $derived(entry.definition.command);
@@ -57,6 +53,9 @@ const cwd = $derived(entry.definition.cwd);
 const concurrent = $derived(entry.definition.runPolicy === "concurrent");
 const canStart = $derived(concurrent || entry.activeRuns.length === 0);
 const active = $derived(entry.activeRuns[0]);
+const cleanableRuns = $derived(
+  entry.runs.filter((run) => run.isRemovable && run.run.id !== latest?.id),
+);
 const recoveryHint = $derived(
   entry.needsRecovery
     ? latest?.status === "recovered"
@@ -80,11 +79,13 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       disabled: !capabilities.logs,
       onSelect: () => onOpen?.(latest.id),
     });
-  if (expandable)
+  if (cleanableRuns.length > 0)
     items.push({
-      label: expanded ? "Hide runs" : "Show runs",
-      icon: History,
-      onSelect: () => onToggleExpanded?.(),
+      label: "Clean up old runs",
+      icon: Trash2,
+      destructive: true,
+      disabled: !capabilities.remove,
+      onSelect: () => onCleanupRuns?.(cleanableRuns.map((run) => run.run.id)),
     });
   if (canStart)
     items.push({
@@ -157,20 +158,15 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
   title={tooltip}
   mono={label.isCommand}
   tone={label.isCommand ? "muted" : "default"}
-  status={entry.needsRecovery
-    ? "warn"
-    : latest
-      ? taskTone(latest.status)
-      : "neutral"}
-  statusVariant={expanded ? "outline" : "solid"}
-  pulse={latest ? taskPulse(latest.status) : false}
-  disabled={!expandable}
-  ariaExpanded={expandable ? expanded : undefined}
+  disabled={!latest}
   indent={0}
   alwaysShowActions
   {menuItems}
-  onclick={() => expandable && onToggleExpanded?.()}
+  onclick={() => latest && onOpen?.(latest.id)}
 >
+  {#snippet leading()}
+    <TaskStatusIcon {status} />
+  {/snippet}
   {#snippet badges()}
     {#if entry.activeRuns.length > 1}
       <Badge tone="accent" size="xs">{entry.activeRuns.length} running</Badge>
@@ -180,22 +176,28 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
         <History class="mr-1 size-3" />{entry.runs.length}
       </Badge>
     {/if}
-    <Badge tone={latest ? taskTone(latest.status) : "neutral"} size="xs"
-      >{status}</Badge
-    >
   {/snippet}
   {#snippet actions()}
     {#if active?.status === "stopping"}
       <PanelToolbarButton
         icon={Skull}
         label="Force kill task"
+        dense
         disabled={!capabilities.cancel}
         onclick={() => onForceKill?.(active.id)}
       />
     {:else if active}
       <PanelToolbarButton
+        icon={RotateCw}
+        label="Restart task"
+        dense
+        disabled={!capabilities.restart}
+        onclick={() => onRestart?.(active.id)}
+      />
+      <PanelToolbarButton
         icon={Square}
         label="Stop task"
+        dense
         disabled={!capabilities.cancel}
         onclick={() => onCancel?.(active.id)}
       />
@@ -203,6 +205,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       <PanelToolbarButton
         icon={Play}
         label={runLabel}
+        dense
         disabled={!capabilities.start}
         onclick={() => onRun?.()}
       />
