@@ -1,6 +1,6 @@
 <script lang="ts">
 import { type ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { PanelRow } from "$lib/presentation/panel";
+import { PanelRow, PanelRowCard } from "$lib/presentation/panel";
 import type { ConversationActivityState } from "$lib/features/conversations/state/conversation-activity";
 import { conversationActivityForRecord } from "$lib/features/conversations/state/conversation-activity";
 import type { ConversationRow } from "$lib/core/utils/project-tree";
@@ -52,14 +52,17 @@ const tooltip = $derived(
 );
 </script>
 
-<PanelRow
-  label={row.conversation.title}
-  title={tooltip}
-  status={dotActivity.tone}
-  statusVariant={isOpen ? "solid" : "outline"}
-  pulse={dotActivity.pulse}
-  class="px-2"
-  active={isActive}
-  {menuItems}
-  onclick={() => onOpenConversation?.(row.conversation.id)}
-/>
+<PanelRowCard>
+  <PanelRow
+    label={row.conversation.title}
+    labelLines={2}
+    title={tooltip}
+    status={dotActivity.tone}
+    statusVariant={isOpen ? "solid" : "outline"}
+    pulse={dotActivity.pulse}
+    class="px-2"
+    active={isActive}
+    {menuItems}
+    onclick={() => onOpenConversation?.(row.conversation.id)}
+  />
+</PanelRowCard>

@@ -133,7 +133,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
         bind:this={listRegion}
         class="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        <PanelList ariaLabel="Conversations" class="shrink-0 py-1">
+        <PanelList ariaLabel="Conversations" class="shrink-0 gap-1 pt-1 pb-0">
           {#each visibleRows as row (row.conversation.id)}
             {@const rowProject =
               projects.find(
@@ -154,11 +154,14 @@ const menuContext = $derived<ProjectTreeMenuContext>({
           {/each}
         </PanelList>
         {#if hasHiddenRows}
-          <div bind:this={listFooter} class="mt-auto shrink-0 p-1">
+          <div
+            bind:this={listFooter}
+            class="flex shrink-0 items-center px-1 pt-1"
+          >
             <Button
               variant="ghost"
               size="xs"
-              class="w-full text-muted-foreground"
+              class="h-4 w-full text-muted-foreground"
               onclick={() => (allConversationsOpen = true)}>See More</Button
             >
           </div>
