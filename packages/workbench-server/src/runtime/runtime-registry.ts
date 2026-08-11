@@ -118,6 +118,10 @@ export class RuntimeRegistry {
     return this.services.editors;
   }
 
+  get projectIcons() {
+    return this.services.projectIcons;
+  }
+
   private get workbenchRun() {
     return this.services.workbenchRun;
   }

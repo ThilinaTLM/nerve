@@ -41,6 +41,7 @@ import {
 } from "../domains/task-definitions/index.js";
 import {
   ProjectEditorService,
+  ProjectIconService,
   ProjectLifecycleService,
   ProjectRepository,
   PruneProjectConversationsService,
@@ -114,6 +115,7 @@ export interface RuntimeServices {
   runQuery: WorkbenchRunQuery;
   workbenchRun: WorkbenchRunService;
   editors: ProjectEditorService;
+  projectIcons: ProjectIconService;
   projectLifecycle: ProjectLifecycleService;
   conversationLifecycle: ConversationLifecycleService;
   conversationQuery: ConversationQueryService;
@@ -315,6 +317,7 @@ export function composeRuntime(
     state,
     removeConversation,
   );
+  services.projectIcons = new ProjectIconService(getProject);
   services.fileCompletions = new FileCompletionService(getProject);
   services.conversationLifecycle = new ConversationLifecycleService(
     storage,

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { untrack } from "svelte";
-import { MediaQuery, SvelteSet } from "svelte/reactivity";
+import { SvelteSet } from "svelte/reactivity";
 import FolderSearch from "@lucide/svelte/icons/folder-search";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { notify } from "$lib/features/notifications/notify.svelte";
@@ -74,24 +74,13 @@ const gitInFlightProjectKeys = new SvelteSet<string>();
 const openedProjectKeys = $derived.by(
   () => new Set(projects.map((project) => pathKey(project.dir))),
 );
-const phoneViewport =
-  typeof window !== "undefined" && typeof window.matchMedia === "function"
-    ? new MediaQuery("max-width: 639px")
-    : undefined;
-const recentProjects = $derived(switcherItems.slice(0, 24));
-const defaultRecentLimit = $derived(phoneViewport?.current ? 4 : 8);
-const defaultRecentProjects = $derived.by(() =>
-  recentProjects
-    .slice(0, defaultRecentLimit)
-    .sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-    ),
-);
+const MAX_RECENT_PROJECTS = 100;
+const recentProjects = $derived(switcherItems.slice(0, MAX_RECENT_PROJECTS));
 const pathQuery = $derived(looksLikePath(query.trim()));
 const filteredRecents = $derived.by(() => {
   if (pathQuery) return [];
   const q = query.trim().toLowerCase();
-  if (!q) return defaultRecentProjects;
+  if (!q) return recentProjects;
   return recentProjects.filter(
     (item) =>
       item.label.toLowerCase().includes(q) ||
@@ -278,12 +267,6 @@ async function loadRecentGit(items: ProjectSwitcherItem[], generation: number) {
 
   await Promise.all(Array.from({ length: 4 }, () => worker()));
 }
-function recentGridColumns(): number {
-  return typeof window !== "undefined" &&
-    window.matchMedia("(min-width: 768px)").matches
-    ? 2
-    : 1;
-}
 function handleRecentKeydown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null;
   const inInput = target?.tagName === "INPUT";
@@ -295,30 +278,13 @@ function handleRecentKeydown(event: KeyboardEvent) {
         recentSelectedIndex =
           recentSelectedIndex < 0
             ? 0
-            : Math.min(recentSelectedIndex + recentGridColumns(), count - 1);
+            : Math.min(recentSelectedIndex + 1, count - 1);
         scrollRecentIntoView();
       }
       break;
     case "ArrowUp":
       event.preventDefault();
       if (count) {
-        recentSelectedIndex = Math.max(
-          0,
-          recentSelectedIndex - recentGridColumns(),
-        );
-        scrollRecentIntoView();
-      }
-      break;
-    case "ArrowRight":
-      if (!inInput && recentGridColumns() > 1 && count) {
-        event.preventDefault();
-        recentSelectedIndex = Math.min(recentSelectedIndex + 1, count - 1);
-        scrollRecentIntoView();
-      }
-      break;
-    case "ArrowLeft":
-      if (!inInput && recentGridColumns() > 1 && count) {
-        event.preventDefault();
         recentSelectedIndex = Math.max(0, recentSelectedIndex - 1);
         scrollRecentIntoView();
       }
@@ -463,7 +429,6 @@ $effect(() => {
         bind:scrollEl={recentScrollEl}
         items={filteredRecents}
         totalRecentCount={recentProjects.length}
-        defaultProjectCount={defaultRecentLimit}
         bind:query
         {pathQuery}
         selectedIndex={recentSelectedIndex}
@@ -478,7 +443,6 @@ $effect(() => {
         onNewChat={(path) => void onNewChat?.(path)}
         onCopyPath={(path) => void copyPath(path)}
         {onForget}
-        onBrowse={() => enterBrowse()}
         onBrowsePath={() => enterBrowse(expandHome(query, homeDir))}
         onQueryChange={resetRecentSelection}
         onSubmit={handleSubmit}
@@ -525,12 +489,14 @@ $effect(() => {
  * globally on the shell's own element (escape-hatch reason 5). The compound
  * selector keeps it ahead of `.dialog-content`'s default width. */
 :global(.dialog-content.project-picker-dialog) {
-  width: min(820px, calc(100vw - 24px));
-  width: min(820px, calc(100dvw - 1.5rem));
+  width: min(720px, calc(100vw - 24px));
+  width: min(720px, calc(100dvw - 1.5rem));
   height: min(680px, calc(100vh - 48px));
   height: min(680px, calc(100dvh - 3rem));
-  min-height: 0;
-  max-height: none;
+  min-height: min(480px, calc(100vh - 48px));
+  min-height: min(480px, calc(100dvh - 3rem));
+  max-height: min(680px, calc(100vh - 48px));
+  max-height: min(680px, calc(100dvh - 3rem));
 }
 
 :global(.dialog-content.project-picker-dialog.project-picker-dialog-recent) {
@@ -545,6 +511,8 @@ $effect(() => {
     width: calc(100dvw - 0.75rem);
     height: calc(100vh - 12px);
     height: calc(100dvh - 0.75rem);
+    max-height: calc(100vh - 12px);
+    max-height: calc(100dvh - 0.75rem);
   }
 
   :global(.dialog-content.project-picker-dialog.project-picker-dialog-recent) {
