@@ -25,7 +25,7 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
 
 <div
   role="listitem"
-  class="group flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5 text-xs leading-tight ring-1 ring-border transition-colors ring-inset hover:bg-accent/60"
+  class="group flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5 text-xs leading-tight transition-colors hover:bg-accent/60"
 >
   <button
     type="button"

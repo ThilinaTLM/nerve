@@ -21,8 +21,6 @@ type ScratchNoteEntry = ScratchNote & {
   deleting: boolean;
   contentSaveFailed: boolean;
   saveTimer?: ReturnType<typeof setTimeout>;
-  /** Session-only card state; reset when notes are reloaded from the daemon. */
-  collapsed: boolean;
 };
 
 type ScratchNotesProjectEntry = {
@@ -66,7 +64,6 @@ function toEntry(note: ScratchNote): ScratchNoteEntry {
     deleting: false,
     contentSaveFailed: false,
     saveTimer: undefined,
-    collapsed: false,
   };
 }
 
@@ -210,15 +207,6 @@ export function setScratchNoteContent(
     () => void saveScratchNote(projectId, noteId),
     SAVE_DEBOUNCE_MS,
   );
-}
-
-export function toggleScratchNoteCollapsed(
-  projectId: string,
-  noteId: string,
-): void {
-  const note = findNote(projectId, noteId);
-  if (!note) return;
-  note.collapsed = !note.collapsed;
 }
 
 export function flushScratchNote(

@@ -8,7 +8,6 @@ import {
   flushScratchNote,
   renameScratchNote,
   setScratchNoteContent,
-  toggleScratchNoteCollapsed,
   type ScratchNoteEntry,
 } from "../state/scratch-notes-state.svelte";
 
@@ -39,11 +38,9 @@ const status = $derived.by(() => {
 
 <PanelCard
   title={note.title}
-  collapsed={note.collapsed}
   titleHint={`${note.title} — double-click to rename`}
   titleEditing={renaming}
   titleMaxLength={SCRATCH_NOTE_TITLE_MAX_LENGTH}
-  onToggleCollapsed={() => toggleScratchNoteCollapsed(projectId, note.id)}
   onTitleDblClick={() => (renaming = true)}
   onTitleCommit={(title) => {
     renaming = false;
@@ -56,6 +53,7 @@ const status = $derived.by(() => {
       icon={Pencil}
       label={`Rename ${note.title}`}
       dense
+      class="opacity-0 transition-opacity group-hover/title:opacity-100 group-focus-within/title:opacity-100"
       disabled={note.deleting}
       onclick={() => (renaming = true)}
     />
@@ -88,6 +86,6 @@ const status = $derived.by(() => {
     spellcheck={false}
     disabled={note.deleting}
     placeholder="Jot down notes for this project…"
-    class="min-h-16 resize-none rounded-none border-0 bg-transparent px-3 py-2 text-xs leading-relaxed shadow-none focus-visible:ring-0 [field-sizing:content]"
+    class="min-h-16 resize-none rounded-none border-0 bg-transparent px-3 py-2 text-xs font-normal leading-relaxed shadow-none focus-visible:ring-0 md:text-xs dark:bg-transparent [field-sizing:content]"
   />
 </PanelCard>

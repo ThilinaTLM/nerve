@@ -8,6 +8,7 @@ import {
   PanelEmpty,
   PanelHeader,
   PanelList,
+  PanelScrollRegion,
   PanelToolbarButton,
   PanelView,
 } from "$lib/presentation/panel";
@@ -46,9 +47,6 @@ const MAX_LISTED_CONVERSATIONS = 100;
 
 let pendingDelete = $state<DeleteTarget | undefined>();
 let allConversationsOpen = $state(false);
-let listRegion = $state<HTMLDivElement | null>(null);
-let canScrollUp = $state(false);
-let canScrollDown = $state(false);
 
 const activeProject = $derived(
   projects.find((project) => project.id === selectedProjectId) ?? projects[0],
@@ -69,29 +67,6 @@ $effect(() => {
   if (searchFocusToken === lastSearchFocusToken) return;
   lastSearchFocusToken = searchFocusToken;
   allConversationsOpen = true;
-});
-
-function updateScrollShadows(): void {
-  const region = listRegion;
-  if (!region) return;
-  canScrollUp = region.scrollTop > 2;
-  canScrollDown =
-    region.scrollTop + region.clientHeight < region.scrollHeight - 2;
-}
-
-$effect(() => {
-  const region = listRegion;
-  if (!region) return;
-  updateScrollShadows();
-  region.addEventListener("scroll", updateScrollShadows, { passive: true });
-  const observer = new ResizeObserver(updateScrollShadows);
-  observer.observe(region);
-  const content = region.firstElementChild;
-  if (content) observer.observe(content); // row count changes resize the list
-  return () => {
-    region.removeEventListener("scroll", updateScrollShadows);
-    observer.disconnect();
-  };
 });
 
 const menuContext = $derived<ProjectTreeMenuContext>({
@@ -148,43 +123,28 @@ const menuContext = $derived<ProjectTreeMenuContext>({
         {/snippet}
       </PanelEmpty>
     {:else}
-      <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div
-          bind:this={listRegion}
-          class="conversation-list-scroller min-h-0 flex-1 overflow-y-auto"
-          onscroll={updateScrollShadows}
-        >
-          <PanelList ariaLabel="Conversations" class="shrink-0 gap-1 pt-1 pb-0">
-            {#each displayedRows as row (row.conversation.id)}
-              {@const rowProject =
-                projects.find(
-                  (project) => project.id === row.conversation.projectId,
-                ) ?? activeProject}
-              <ProjectAgentTreeNode
-                {row}
-                isOpen={openConversationTabIds?.has(row.conversation.id) ??
-                  false}
-                isActive={row.conversation.id === selectedConversationId}
-                activity={conversationActivityById[row.conversation.id]}
-                menuItems={buildConversationMenu(
-                  rowProject,
-                  row.conversation,
-                  menuContext,
-                )}
-                {onOpenConversation}
-              />
-            {/each}
-          </PanelList>
-        </div>
-        <div
-          class="conversation-list-shadow conversation-list-shadow-top pointer-events-none absolute inset-x-0 top-0 h-6 opacity-0 transition-opacity duration-150"
-          class:opacity-100={canScrollUp}
-        ></div>
-        <div
-          class="conversation-list-shadow conversation-list-shadow-bottom pointer-events-none absolute inset-x-0 bottom-0 h-6 opacity-0 transition-opacity duration-150"
-          class:opacity-100={canScrollDown}
-        ></div>
-      </div>
+      <PanelScrollRegion ariaLabel="Conversations">
+        <PanelList ariaLabel="Conversations" class="shrink-0 gap-1 pt-1 pb-0">
+          {#each displayedRows as row (row.conversation.id)}
+            {@const rowProject =
+              projects.find(
+                (project) => project.id === row.conversation.projectId,
+              ) ?? activeProject}
+            <ProjectAgentTreeNode
+              {row}
+              isOpen={openConversationTabIds?.has(row.conversation.id) ?? false}
+              isActive={row.conversation.id === selectedConversationId}
+              activity={conversationActivityById[row.conversation.id]}
+              menuItems={buildConversationMenu(
+                rowProject,
+                row.conversation,
+                menuContext,
+              )}
+              {onOpenConversation}
+            />
+          {/each}
+        </PanelList>
+      </PanelScrollRegion>
     {/if}
   </PanelView>
 </Tooltip.Provider>
@@ -227,36 +187,3 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     onOpenChange={(open) => (allConversationsOpen = open)}
   />
 {/if}
-
-<style>
-/* Escape-hatch reason 2: the native scrollbar is hidden; the edge shadows
-   * below are the scroll affordance. */
-.conversation-list-scroller {
-  scrollbar-width: none;
-}
-
-.conversation-list-scroller::-webkit-scrollbar {
-  display: none;
-}
-
-/* Edge shadows are gradients (not expressible as utilities). They blend the
-   * list into the panel's own background color, so rows appear to slide
-   * under the panel surface where more content is waiting. */
-.conversation-list-shadow-bottom {
-  background: linear-gradient(
-    to top,
-    var(--card) 0%,
-    var(--card) 22%,
-    transparent 72%
-  );
-}
-
-.conversation-list-shadow-top {
-  background: linear-gradient(
-    to bottom,
-    var(--card) 0%,
-    var(--card) 22%,
-    transparent 72%
-  );
-}
-</style>

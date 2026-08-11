@@ -17,7 +17,7 @@ let {
 <div
   {role}
   class={cn(
-    "panel-row-card flex min-w-0 flex-col rounded-md px-1 py-0.5 ring-1 ring-border ring-inset transition-colors",
+    "panel-row-card flex min-w-0 flex-col rounded-md px-1 py-0.5 transition-colors",
     className,
   )}
 >
