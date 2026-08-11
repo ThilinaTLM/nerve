@@ -1,4 +1,5 @@
 <script lang="ts">
+import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import Plus from "@lucide/svelte/icons/plus";
 import type { ProjectRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -112,14 +113,20 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     {#if !activeProject}
       <PanelEmpty title="No project selected." description={emptyStateHint} />
     {:else if rows.length === 0}
-      <PanelEmpty title="No conversations in this project yet.">
+      <PanelEmpty
+        icon={MessagesSquare}
+        title="No conversations yet"
+        description="Conversations are scoped to this project."
+      >
         {#snippet action()}
           <Button
             variant="outline"
-            size="sm"
+            size="xs"
             onclick={() => onNewConversationInProject?.(activeProject.dir)}
-            >New chat</Button
           >
+            <Plus />
+            New chat
+          </Button>
         {/snippet}
       </PanelEmpty>
     {:else}

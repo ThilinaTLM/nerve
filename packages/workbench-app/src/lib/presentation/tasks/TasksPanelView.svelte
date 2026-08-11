@@ -158,7 +158,13 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
 
 {#snippet taskList()}
   <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-    <div class="flex min-w-0 shrink flex-col overflow-y-auto">
+    <div
+      class="flex min-w-0 flex-col overflow-y-auto"
+      class:flex-1={!model.definitionsLoading &&
+        projected.definitions.length === 0}
+      class:shrink={model.definitionsLoading ||
+        projected.definitions.length > 0}
+    >
       {#if model.definitionsLoading && model.definitions.length === 0}
         <p class="py-1 text-xs text-muted-foreground">Loading tasks…</p>
       {:else if projected.definitions.length === 0}
@@ -166,7 +172,19 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
           icon={ListTodo}
           title="No saved tasks"
           description="Create a task to run it anytime."
-        />
+        >
+          {#snippet action()}
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={!model.capabilities.manageDefinitions.enabled}
+              onclick={() => (addOpen = true)}
+            >
+              <Plus />
+              New task
+            </Button>
+          {/snippet}
+        </PanelEmpty>
       {:else}
         <PanelList role="none" class="gap-1">
           {#each projected.definitions as entry (entry.key)}
