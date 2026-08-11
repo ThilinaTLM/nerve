@@ -59,7 +59,7 @@ describe("settings schema", () => {
         failed: "alert",
       },
     });
-    assert.deepEqual(settings.tools.disabled, []);
+    assert.deepEqual(settings.tools.disabled, ["explain_image"]);
     assert.deepEqual(settings.skills.disabled, []);
     assert.deepEqual(settings.skills.agentBrowser.enabled, []);
     assert.deepEqual(settings.tools.bash.autoPromotion, {
@@ -68,6 +68,9 @@ describe("settings schema", () => {
     });
     assert.equal(settings.tools.jira.enabled, false);
     assert.equal(settings.tools.confluence.enabled, false);
+    assert.deepEqual(settings.tools.imageExplanation, {
+      thinkingLevel: "off",
+    });
   });
 
   it("backfills event tones for the previous notification settings shape", () => {
@@ -146,7 +149,7 @@ describe("settings schema", () => {
         agentBrowser: { enabled: ["core", "dogfood"] },
       },
       tools: {
-        disabled: ["web_search", "web_fetch", "python_exec"],
+        disabled: ["web_search", "web_fetch", "explain_image", "python_exec"],
         bash: {
           autoPromotion: { enabled: false, afterMs: 240_000 },
         },
@@ -161,6 +164,10 @@ describe("settings schema", () => {
           siteUrl: "https://example.atlassian.net",
           email: "user@example.com",
           defaultSpaceKey: "DEV",
+        },
+        imageExplanation: {
+          model: { provider: "google", modelId: "gemini-2.5-flash" },
+          thinkingLevel: "high",
         },
       },
     });
@@ -211,6 +218,7 @@ describe("settings schema", () => {
     assert.deepEqual(parsed.tools?.disabled, [
       "web_search",
       "web_fetch",
+      "explain_image",
       "python_exec",
     ]);
     assert.deepEqual(parsed.skills?.disabled, ["diagram", "imagegen"]);
@@ -236,6 +244,10 @@ describe("settings schema", () => {
     );
     assert.equal(parsed.tools?.confluence?.email, "user@example.com");
     assert.equal(parsed.tools?.confluence?.defaultSpaceKey, "DEV");
+    assert.deepEqual(parsed.tools?.imageExplanation, {
+      model: { provider: "google", modelId: "gemini-2.5-flash" },
+      thinkingLevel: "high",
+    });
     const cleared = updateSettingsRequestSchema.parse({
       runtime: { pythonExecutablePath: null, shellPath: null },
       tools: {

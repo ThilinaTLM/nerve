@@ -12,6 +12,7 @@ import { jiraToolDefinitions } from "./core/jira.tools.js";
 import { pythonToolDefinitions } from "./core/python.tools.js";
 import { shellToolDefinitions } from "./core/shell.tools.js";
 import { webToolDefinitions } from "./core/web.tools.js";
+import { visionToolDefinitions } from "./core/vision.tools.js";
 import { exploreToolDefinitions } from "./orchestration/explore.tools.js";
 import { planModeToolDefinitions } from "./orchestration/plan-mode.tools.js";
 import { taskToolDefinitions } from "./orchestration/task.tools.js";
@@ -33,6 +34,7 @@ export const coreToolDefinitions: readonly ToolDefinition[] = Object.freeze([
   ...remainingFilesystemToolDefinitions,
   ...interactionToolDefinitions,
   ...webToolDefinitions,
+  ...visionToolDefinitions,
   ...jiraToolDefinitions,
   ...confluenceToolDefinitions,
 ]);

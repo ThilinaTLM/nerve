@@ -152,6 +152,39 @@ describe("settings migrations", () => {
     });
   });
 
+  it("adds the image explanation tool as disabled to older settings", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
+    roots.push(root);
+    const configPath = join(root, "config.json");
+    await initializeStorage(root);
+    const legacyTools: Partial<typeof defaultSettings.tools> = {
+      ...defaultSettings.tools,
+    };
+    delete legacyTools.imageExplanation;
+    await writeFile(
+      configPath,
+      `${JSON.stringify(
+        {
+          ...defaultSettings,
+          tools: { ...legacyTools, disabled: ["web_search"] },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const storage = await initializeStorage(root);
+
+    assert.deepEqual(storage.settings.tools.disabled, [
+      "web_search",
+      "explain_image",
+    ]);
+    assert.deepEqual(storage.settings.tools.imageExplanation, {
+      thinkingLevel: "off",
+    });
+  });
+
   it("migrates and deduplicates the legacy python disabled tool name", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);

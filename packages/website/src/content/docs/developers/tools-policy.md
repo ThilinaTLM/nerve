@@ -5,7 +5,7 @@ sidebar:
   order: 4
 ---
 
-The contracts and tool manifest define 38 agent-callable names. Definitions declare schemas, risk traits, availability, and parallel/sequential execution. Executors return bounded content plus artifacts/transcripts when needed.
+The contracts and tool manifest define 39 agent-callable names. Definitions declare schemas, risk traits, availability, and parallel/sequential execution. Executors return bounded content plus artifacts/transcripts when needed.
 
 ## Local versus host tools
 

@@ -40,7 +40,9 @@ function startsWithAscii(
   return true;
 }
 
-function detectSupportedImageMimeType(buffer: Uint8Array): string | null {
+export function detectSupportedImageMimeType(
+  buffer: Uint8Array,
+): string | null {
   if (startsWith(buffer, [0xff, 0xd8, 0xff])) return "image/jpeg";
   if (startsWith(buffer, PNG_SIGNATURE)) return "image/png";
   if (startsWithAscii(buffer, 0, "GIF")) return "image/gif";

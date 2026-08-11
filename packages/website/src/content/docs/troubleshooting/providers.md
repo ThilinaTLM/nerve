@@ -27,7 +27,9 @@ Voice requires OpenAI Codex/ChatGPT OAuth with account information, not an OpenA
 
 ## Image request fails
 
-The composer allows paste regardless of model modality. Select a model known to support image input; Nerve's picker does not currently enforce it.
+For a text-only primary model, open **Settings → Tools → Image explanation**, choose a currently available image-capable model, then enable `explain_image`. If the configured model or its credentials were removed, the setting is marked unavailable and the tool is hidden until reconfigured.
+
+The tool is intentionally absent when disabled or when the primary model already supports image input. It accepts JPEG, PNG, GIF, and WebP files up to 20 MB, detected from file contents rather than the extension.
 
 ## GitHub PRs are unavailable
 

@@ -6,7 +6,10 @@ import type {
   TaskLogQueryResponse,
   TaskRecord,
 } from "@nervekit/contracts";
-import { splitLiveOutputChunks } from "@nervekit/tools";
+import {
+  splitLiveOutputChunks,
+  type ToolExecutionOutputUpdate,
+} from "@nervekit/tools";
 import type {
   ClockPort,
   DiagnosticPort,
@@ -154,11 +157,9 @@ export type TaskStartInput = StartTaskRequest & {
   readonly restartedFromTaskId?: string;
   readonly restartRootTaskId?: string;
   readonly restartGeneration?: number;
-  readonly onOutput?: (update: {
-    kind: "output";
-    stream: "stdout" | "stderr" | "combined";
-    chunk: string;
-  }) => void | Promise<void>;
+  readonly onOutput?: (
+    update: ToolExecutionOutputUpdate,
+  ) => void | Promise<void>;
 };
 
 const terminalStatuses = new Set<TaskRecord["status"]>([

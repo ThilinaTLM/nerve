@@ -72,6 +72,7 @@ export type ToolResultPlaceholder = {
 };
 
 export type CompletedViewFamily =
+  | "generic"
   | "read"
   | "bash"
   | "python"
@@ -90,7 +91,8 @@ export type CompletedViewFamily =
   | "jira"
   | "confluence"
   | "web_search"
-  | "web_fetch";
+  | "web_fetch"
+  | "explain_image";
 
 export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   name: Name;

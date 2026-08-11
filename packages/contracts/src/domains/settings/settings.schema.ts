@@ -75,13 +75,21 @@ const bashToolSettingsSchema = z.object({
   }),
 });
 
+const imageExplanationToolSettingsSchema = z.object({
+  model: modelSelectionSchema.optional(),
+  thinkingLevel: thinkingLevelSchema.default("off"),
+});
+
 const toolSettingsSchema = z.object({
-  disabled: z.array(userConfigurableToolNameSchema).default([]),
+  disabled: z.array(userConfigurableToolNameSchema).default(["explain_image"]),
   bash: bashToolSettingsSchema.default({
     autoPromotion: { enabled: true, afterMs: 120_000 },
   }),
   jira: jiraToolSettingsSchema.default({ enabled: false }),
   confluence: confluenceToolSettingsSchema.default({ enabled: false }),
+  imageExplanation: imageExplanationToolSettingsSchema.default({
+    thinkingLevel: "off",
+  }),
 });
 
 export const compactionProfileSchema = z.enum([
@@ -200,10 +208,11 @@ export const settingsSchema = z.object({
   }),
   runtime: runtimeSettingsSchema.default({}),
   tools: toolSettingsSchema.default({
-    disabled: [],
+    disabled: ["explain_image"],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
+    imageExplanation: { thinkingLevel: "off" },
   }),
   skills: z
     .object({
@@ -272,10 +281,11 @@ export const defaultSettings: Settings = {
   },
   runtime: {},
   tools: {
-    disabled: [],
+    disabled: ["explain_image"],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
+    imageExplanation: { thinkingLevel: "off" },
   },
   skills: { disabled: [], agentBrowser: { enabled: [] } },
   scopedModels: [],
@@ -403,6 +413,12 @@ export const updateSettingsRequestSchema = z.object({
           siteUrl: z.string().trim().url().nullable().optional(),
           email: z.string().trim().email().nullable().optional(),
           defaultSpaceKey: z.string().trim().min(1).nullable().optional(),
+        })
+        .optional(),
+      imageExplanation: z
+        .object({
+          model: modelSelectionSchema.nullable().optional(),
+          thinkingLevel: thinkingLevelSchema.optional(),
         })
         .optional(),
     })

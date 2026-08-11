@@ -31,6 +31,8 @@ export function summarizeExploreToolCall(
       return activity("Searching the web", stringValue(args.query));
     case "web_fetch":
       return activity("Fetching web page", safeUrl(args.url));
+    case "explain_image":
+      return activity("Explaining image", pathDetail(args));
     case "ask_user":
       return "Requesting user input";
     case "todos_set":

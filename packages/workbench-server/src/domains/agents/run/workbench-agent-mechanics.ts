@@ -6,6 +6,7 @@ import {
   deriveAutoCompactionPolicy,
   getModelContextWindow,
   isContextOverflowAssistantMessage,
+  resolveAgentModel,
 } from "@nervekit/harness";
 import type { ToolExecutionResult } from "@nervekit/tools";
 import type {
@@ -111,11 +112,34 @@ export class WorkbenchAgentMechanics {
     const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
       agent.projectDir,
     );
+    const primaryModel = resolveAgentModel(agent.model);
+    const imageExplanationSelection =
+      this.deps.storage.settings.tools.imageExplanation.model;
+    const imageExplanationModel = imageExplanationSelection
+      ? resolveAgentModel(imageExplanationSelection)
+      : undefined;
+    const imageExplanationModelValid = Boolean(
+      imageExplanationSelection &&
+      imageExplanationModel?.provider === imageExplanationSelection.provider &&
+      imageExplanationModel.id === imageExplanationSelection.modelId &&
+      (imageExplanationModel.input ?? ["text"]).includes("image"),
+    );
+    const imageExplanationAvailable = Boolean(
+      imageExplanationModelValid &&
+      imageExplanationModel &&
+      (await this.deps.auth
+        .requestAuthForPiModel(imageExplanationModel)
+        .catch(() => undefined)),
+    );
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
       disabledToolNames: this.deps.storage.settings.tools.disabled,
       jiraEnabled: this.deps.storage.settings.tools.jira.enabled,
       confluenceEnabled: this.deps.storage.settings.tools.confluence.enabled,
+      imageExplanationAvailable,
+      primaryModelSupportsImages: (primaryModel.input ?? ["text"]).includes(
+        "image",
+      ),
     });
   }
 

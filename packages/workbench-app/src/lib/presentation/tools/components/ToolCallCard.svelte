@@ -183,6 +183,12 @@ function hasMeaningfulDurableBody(view: ParsedToolView | undefined): boolean {
       return Boolean(view.answer || view.results.length);
     case "web_fetch":
       return Boolean(view.content?.length);
+    case "explain_image":
+      return Boolean(
+        view.explanation?.length ||
+        view.thinking?.length ||
+        view.liveExplanation?.length,
+      );
     case "generic":
       return Boolean(view.resultText || view.result.length);
     case "jira":

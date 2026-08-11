@@ -11,8 +11,10 @@ Copy an image and paste with `Ctrl/Cmd+V` inside the composer. Nerve intercepts 
 
 Accepted MIME families include PNG, JPEG, GIF, WebP, SVG, BMP, TIFF, and AVIF. The path lets the agent's file-reading pipeline send image content to a capable model.
 
+For a text-only model, configure and enable `explain_image` under **Settings → Tools**. The agent can then send the temporary path to the selected vision model and receive a detailed text explanation. The tool is completely hidden from vision-capable models and whenever it is disabled.
+
 :::caution
-The composer does not currently prevent image paste when a text-only model is selected. Choose a model known to support image input. Pasted files are temporary paths, not durable project attachments, and the UI does not promise a file-size or decoded-signature validation boundary.
+Pasted files are temporary paths, not durable project attachments. `explain_image` uploads image bytes when its configured model is remote; use a compatible local vision provider when images must remain local.
 :::
 
 Dropping an image, another file, or a folder onto the desktop composer is different from clipboard image paste: it inserts the item's existing filesystem path without copying, uploading, or creating a durable attachment. See [Use the composer](/guides/composer/#drop-files-and-folders) for the full workflow. In a browser or installed PWA, use `@` completion to reference paths inside the project.

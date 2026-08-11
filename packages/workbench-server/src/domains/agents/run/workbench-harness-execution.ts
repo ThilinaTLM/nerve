@@ -24,7 +24,6 @@ import type {
 import { toolNameSchema } from "@nervekit/contracts";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import {
-  activeToolNamesForAgent,
   createAgentToolsForAgent,
   toolPromptMetadata,
 } from "../../tools/agent-tool-adapter.js";
@@ -139,12 +138,7 @@ export async function executeWorkbenchHarness(
     const latestAgent = () => this.deps.state.agents.get(agent.id) ?? agent;
     const composeLatestSystemPrompt = () => {
       const currentAgent = latestAgent();
-      const currentActiveToolNames = activeToolNamesForAgent(currentAgent, {
-        pythonAvailable: activeToolNames.includes("python_exec"),
-        disabledToolNames: this.deps.storage.settings.tools.disabled,
-        jiraEnabled: this.deps.storage.settings.tools.jira.enabled,
-        confluenceEnabled: this.deps.storage.settings.tools.confluence.enabled,
-      });
+      const currentActiveToolNames = activeToolNames;
       return composeAgentSystemPrompt(
         currentAgent,
         currentActiveToolNames,

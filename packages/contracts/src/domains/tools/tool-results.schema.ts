@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { thinkingLevelSchema } from "../models/index.js";
+import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
 import {
   taskListeningPortSchema,
   taskLogQueryResponseSchema,
@@ -323,6 +323,17 @@ export const webSearchResultDetailsSchema = z.object({
 });
 export type WebSearchResultDetails = z.infer<
   typeof webSearchResultDetailsSchema
+>;
+
+export const explainImageResultDetailsSchema = z.object({
+  path: z.string(),
+  mimeType: z.string(),
+  byteSize: z.number().int().nonnegative(),
+  model: modelSelectionSchema,
+  explanation: z.string(),
+});
+export type ExplainImageResultDetails = z.infer<
+  typeof explainImageResultDetailsSchema
 >;
 
 export const webFetchResultDetailsSchema = z.object({

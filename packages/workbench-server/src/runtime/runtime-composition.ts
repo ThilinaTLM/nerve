@@ -1,4 +1,9 @@
-import { generateSummary, resolveAgentModel } from "@nervekit/harness";
+import {
+  clampAgentThinkingLevel,
+  explainImageWithModel,
+  generateSummary,
+  resolveAgentModel,
+} from "@nervekit/harness";
 import { withGitMutationEvents } from "../domains/tools/git-mutation-publisher.js";
 import { GitRepositoryWatcher } from "../domains/tools/git-repository-watcher.js";
 import { withGitRepositoryWatching } from "../domains/tools/git-repository-watching.js";
@@ -440,6 +445,59 @@ export function composeRuntime(
     (parent, args, options) =>
       services.workbenchRun.runExplore(parent, args, options),
     (provider) => auth.getApiKey(provider),
+    async (request) => {
+      const selection = storage.settings.tools.imageExplanation.model;
+      if (!selection) {
+        throw new Error(
+          "Image explanation is not configured. Choose a vision model in Settings → Tools.",
+        );
+      }
+      const model = resolveAgentModel(selection);
+      if (
+        model.provider !== selection.provider ||
+        model.id !== selection.modelId
+      ) {
+        throw new Error(
+          `The configured image explanation model is unavailable: ${selection.provider}/${selection.modelId}.`,
+        );
+      }
+      if (!(model.input ?? ["text"]).includes("image")) {
+        throw new Error(
+          "The configured image explanation model does not support image input.",
+        );
+      }
+      const requestAuth = await auth.requestAuthForPiModel(model);
+      if (!requestAuth) {
+        throw new Error(
+          `Credentials are not configured for the image explanation model provider: ${model.provider}.`,
+        );
+      }
+      subscriptionUsage.touchProvider(model.provider);
+      const explanation = await explainImageWithModel({
+        model,
+        image: {
+          type: "image",
+          data: Buffer.from(request.data).toString("base64"),
+          mimeType: request.mimeType,
+        },
+        prompt: request.prompt,
+        thinkingLevel: clampAgentThinkingLevel(
+          selection,
+          storage.settings.tools.imageExplanation.thinkingLevel,
+        ),
+        auth: requestAuth,
+        signal: request.signal,
+        onDelta: async ({ kind, delta }) => {
+          if (request.signal?.aborted || !delta) return;
+          await request.onUpdate?.({
+            kind: "output",
+            stream: kind,
+            chunk: delta,
+          });
+        },
+      });
+      return { explanation, model: selection };
+    },
     services.plans,
     (agentId, mode, reason) =>
       services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),

@@ -105,7 +105,9 @@ const argsPreview = $derived(
   payloadPreview(payloadValue(displayToolCall, "args", "argsPreview")),
 );
 const resultPreview = $derived(
-  payloadPreview(payloadValue(displayToolCall, "result", "resultPreview")),
+  displayToolCall.toolName === "explain_image"
+    ? undefined
+    : payloadPreview(payloadValue(displayToolCall, "result", "resultPreview")),
 );
 const description = $derived(
   [displayToolCall.status, presentation.primaryArg?.text]

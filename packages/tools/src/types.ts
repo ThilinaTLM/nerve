@@ -1,4 +1,5 @@
 import type {
+  ConversationLiveToolOutputStream,
   ToolContentBlockPayload,
   ToolExecutionResultPayload,
   ToolImageContentPayload,
@@ -8,8 +9,22 @@ import type { PythonRuntime } from "./execution/python/runtime.js";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
-  stream: "stdout" | "stderr" | "combined";
+  stream: ConversationLiveToolOutputStream;
   chunk: string;
+};
+
+export type ExplainImageRequest = {
+  path: string;
+  data: Uint8Array;
+  mimeType: string;
+  prompt?: string;
+  signal?: AbortSignal;
+  onUpdate?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
+};
+
+export type ExplainImageResponse = {
+  explanation: string;
+  model: { provider: string; modelId: string };
 };
 
 export type ToolExecutionContext = {
@@ -19,6 +34,9 @@ export type ToolExecutionContext = {
   shellPath?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
   getProviderConfig?: (provider: string) => Promise<unknown>;
+  explainImage?: (
+    request: ExplainImageRequest,
+  ) => Promise<ExplainImageResponse>;
   pythonRuntime?: PythonRuntime;
   pythonPolicy?: {
     allowNetwork: boolean;
@@ -101,6 +119,10 @@ export type WebSearchToolArgs = {
 export type WebFetchToolArgs = {
   url?: unknown;
   raw?: unknown;
+};
+
+export type ExplainImageToolArgs = ToolPathArgs & {
+  prompt?: unknown;
 };
 
 export type JiraToolArgs = Record<string, unknown>;

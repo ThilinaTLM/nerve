@@ -388,6 +388,17 @@ export interface ConversationLiveToolDraftDiscardedData {
   reason: ConversationLiveToolDraftDiscardReason;
 }
 
+export const conversationLiveToolOutputStreamSchema = z.enum([
+  "stdout",
+  "stderr",
+  "combined",
+  "thinking",
+  "text",
+]);
+export type ConversationLiveToolOutputStream = z.infer<
+  typeof conversationLiveToolOutputStreamSchema
+>;
+
 export interface ConversationLiveToolOutputDeltaData {
   conversationId: string;
   agentId: string;
@@ -399,7 +410,7 @@ export interface ConversationLiveToolOutputDeltaData {
   providerToolCallId?: string;
   toolCallId: string;
   toolName: string;
-  stream: "stdout" | "stderr" | "combined";
+  stream: ConversationLiveToolOutputStream;
   offset: number;
   delta: string;
 }
@@ -473,7 +484,7 @@ export interface ConversationLiveTurnSnapshot {
 }
 
 export interface ConversationLiveToolOutputChunkSnapshot {
-  stream: "stdout" | "stderr" | "combined";
+  stream: ConversationLiveToolOutputStream;
   text: string;
   ts: string;
 }
@@ -594,7 +605,7 @@ export const conversationLiveTurnSnapshotSchema = z.object({
 });
 
 export const conversationLiveToolOutputChunkSnapshotSchema = z.object({
-  stream: z.enum(["stdout", "stderr", "combined"]),
+  stream: conversationLiveToolOutputStreamSchema,
   text: z.string(),
   ts: z.string().datetime(),
 });
@@ -933,7 +944,7 @@ const conversationLiveToolOutputDeltaDataSchema = z.object({
   providerToolCallId: z.string().min(1).optional(),
   toolCallId: z.string().startsWith("tool_"),
   toolName: z.string().min(1),
-  stream: z.enum(["stdout", "stderr", "combined"]),
+  stream: conversationLiveToolOutputStreamSchema,
   offset: z.number().int().nonnegative(),
   delta: z.string().max(PUBLIC_EVENT_MAX_STRING_CHARS),
 });

@@ -1,5 +1,10 @@
 <script lang="ts">
-import type { AuthProviderMetadata, Settings, StatusResponse } from "$lib/api";
+import type {
+  AuthProviderMetadata,
+  ModelInfo,
+  Settings,
+  StatusResponse,
+} from "$lib/api";
 import { SettingsSection } from "$lib/presentation/components/settings";
 import type { SettingsChange } from "../settings-change";
 import BuiltInToolsSection from "./BuiltInToolsSection.svelte";
@@ -9,6 +14,7 @@ type Props = {
   settingsDraft: Settings;
   status?: StatusResponse;
   authProviders?: AuthProviderMetadata[];
+  models?: ModelInfo[];
   onSettingsChange?: SettingsChange;
 };
 
@@ -16,6 +22,7 @@ let {
   settingsDraft,
   status,
   authProviders = [],
+  models = [],
   onSettingsChange,
 }: Props = $props();
 </script>
@@ -25,6 +32,7 @@ let {
     {settingsDraft}
     {status}
     {authProviders}
+    {models}
     {onSettingsChange}
   />
 </SettingsSection>

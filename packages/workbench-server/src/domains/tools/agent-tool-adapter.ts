@@ -90,6 +90,8 @@ export function activeToolNamesForAgent(
     disabledToolNames?: readonly UserConfigurableToolName[];
     jiraEnabled?: boolean;
     confluenceEnabled?: boolean;
+    imageExplanationAvailable?: boolean;
+    primaryModelSupportsImages?: boolean;
   } = {},
 ): ToolName[] {
   const unavailable: ToolName[] = [];
@@ -103,6 +105,12 @@ export function activeToolNamesForAgent(
     unavailable.push(
       ...toolDefinitionsByGroup("confluence").map((tool) => tool.name),
     );
+  }
+  if (
+    options.imageExplanationAvailable !== true ||
+    options.primaryModelSupportsImages === true
+  ) {
+    unavailable.push("explain_image");
   }
 
   const disabled = new Set<ToolName>(options.disabledToolNames ?? []);
