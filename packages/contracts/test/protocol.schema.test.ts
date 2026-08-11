@@ -7,6 +7,7 @@ import {
   boundedPublicJsonSchema,
   boundedPublicObjectSchema,
   canTransition,
+  conversationLiveToolOutputStreamSchema,
   conversationStream,
   eventBatchDataSchema,
   eventBatchMessageSchema,
@@ -32,6 +33,21 @@ import {
 } from "../src/index.js";
 
 const ts = "2026-06-26T12:00:00.000Z";
+
+describe("live tool output streams", () => {
+  it("accepts model thinking and text channels", () => {
+    for (const stream of ["thinking", "text"] as const) {
+      assert.equal(
+        conversationLiveToolOutputStreamSchema.safeParse(stream).success,
+        true,
+      );
+    }
+    assert.equal(
+      conversationLiveToolOutputStreamSchema.safeParse("reasoning").success,
+      false,
+    );
+  });
+});
 
 function message(kind: string, data: unknown) {
   return {

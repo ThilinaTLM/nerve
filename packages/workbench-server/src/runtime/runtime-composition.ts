@@ -487,6 +487,14 @@ export function composeRuntime(
         ),
         auth: requestAuth,
         signal: request.signal,
+        onDelta: async ({ kind, delta }) => {
+          if (request.signal?.aborted || !delta) return;
+          await request.onUpdate?.({
+            kind: "output",
+            stream: kind,
+            chunk: delta,
+          });
+        },
       });
       return { explanation, model: selection };
     },

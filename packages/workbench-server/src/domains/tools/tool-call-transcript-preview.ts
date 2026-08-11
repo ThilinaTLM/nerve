@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- bounded tool-specific transcript projections share one overflow budget. */
 import {
   toolCallTranscriptRecordSchema,
   type GrepMatch,
@@ -666,6 +667,23 @@ export function toToolCallTranscriptRecord(
       break;
     }
 
+    case "explain_image": {
+      const details = record(resultRecord.details);
+      const explanation = firstLines(
+        stringField(details.explanation) ?? outputText(resultRecord),
+      );
+      resultPreview = {
+        ...withTextContent(resultRecord, explanation.value),
+        details: {
+          ...details,
+          explanation: explanation.value ?? "",
+        },
+      };
+      ({ hidden, noun } = textOverflowStats([explanation]));
+      direction = "head";
+      break;
+    }
+
     case "explore": {
       const reports = firstItems(
         arrayField<Record<string, unknown>>(resultRecord.reports),
@@ -750,6 +768,7 @@ export function toToolCallTranscriptRecord(
   const resultFirst =
     taskToolName !== undefined ||
     toolCall.toolName === "explore" ||
+    toolCall.toolName === "explain_image" ||
     toolCall.toolName === "web_search" ||
     toolCall.toolName === "web_fetch";
   const finalized = finalizePublicPreview(

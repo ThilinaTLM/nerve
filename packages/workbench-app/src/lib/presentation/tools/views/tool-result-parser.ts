@@ -2,6 +2,7 @@ import {
   askUserResultSchema,
   bashResultDetailsSchema,
   editOperationResultDetailsSchema,
+  explainImageResultDetailsSchema,
   exploreResultPreviewSchema,
   pythonResultDetailsSchema,
   todosResultSchema,
@@ -654,6 +655,68 @@ export function parseToolView(
         results,
         outputLimits,
         outputArtifacts,
+      };
+    }
+
+    case "explain_image": {
+      const details = explainImageResultDetailsSchema.safeParse(
+        result?.details,
+      );
+      const data = details.success ? details.data : undefined;
+      const path = resolveToolPath(
+        data?.path ?? result?.path ?? stringField(args.path),
+        cwd,
+      );
+      const live = toolCall.status === "running" && Boolean(liveOutput);
+      const boundedLiveChunks = (() => {
+        if (!liveOutput) return [];
+        let remaining = liveOutput.text.length;
+        const chunks = [] as typeof liveOutput.chunks;
+        for (let index = liveOutput.chunks.length - 1; index >= 0; index -= 1) {
+          if (remaining <= 0) break;
+          const chunk = liveOutput.chunks[index];
+          if (!chunk) continue;
+          const text = chunk.text.slice(
+            Math.max(0, chunk.text.length - remaining),
+          );
+          chunks.unshift({ ...chunk, text });
+          remaining -= text.length;
+        }
+        return chunks;
+      })();
+      const liveText = (stream: "thinking" | "text") =>
+        boundedLiveChunks
+          .filter((chunk) => chunk.stream === stream)
+          .map((chunk) => chunk.text)
+          .join("");
+      return {
+        kind: "explain_image",
+        path,
+        relPath: relativePath(path, cwd),
+        explanation: live
+          ? undefined
+          : (data?.explanation ?? resultOutputText(result, rawResult)) ||
+            undefined,
+        thinking: live ? liveText("thinking") : undefined,
+        liveExplanation: live ? liveText("text") : undefined,
+        live,
+        outputLimits: liveOutput?.outputLimits
+          ? {
+              ...outputLimits,
+              live: {
+                capped: liveOutput.outputLimits.capped,
+                direction: liveOutput.outputLimits.direction,
+                maxChars: liveOutput.outputLimits.maxChars,
+                maxChunks: liveOutput.outputLimits.maxChunks,
+                totalChars: liveOutput.outputLimits.totalChars,
+                displayedChars: liveOutput.outputLimits.displayedChars,
+                omittedChars: liveOutput.outputLimits.omittedChars,
+                totalLines: liveOutput.outputLimits.totalLines,
+                displayedLines: liveOutput.outputLimits.displayedLines,
+                omittedLines: liveOutput.outputLimits.omittedLines,
+              },
+            }
+          : outputLimits,
       };
     }
 

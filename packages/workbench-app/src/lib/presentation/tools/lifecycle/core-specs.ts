@@ -540,8 +540,8 @@ export const coreToolLifecycleSpecs = {
   explain_image: defineToolLifecycleSpec({
     name: "explain_image",
     argumentRegion: "none",
-    completedView: "generic",
-    resultPlaceholder: { variant: "text", rows: 4 },
+    completedView: "explain_image",
+    resultPlaceholder: { variant: "text", rows: 6 },
     present: (source, stage, cwd) =>
       argumentPresentation({
         primaryArg: pathArg(source, cwd),

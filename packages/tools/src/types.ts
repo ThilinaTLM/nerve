@@ -1,4 +1,5 @@
 import type {
+  ConversationLiveToolOutputStream,
   ToolContentBlockPayload,
   ToolExecutionResultPayload,
   ToolImageContentPayload,
@@ -8,7 +9,7 @@ import type { PythonRuntime } from "./execution/python/runtime.js";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
-  stream: "stdout" | "stderr" | "combined";
+  stream: ConversationLiveToolOutputStream;
   chunk: string;
 };
 
@@ -18,6 +19,7 @@ export type ExplainImageRequest = {
   mimeType: string;
   prompt?: string;
   signal?: AbortSignal;
+  onUpdate?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
 };
 
 export type ExplainImageResponse = {

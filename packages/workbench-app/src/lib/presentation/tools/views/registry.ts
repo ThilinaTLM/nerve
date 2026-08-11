@@ -4,6 +4,7 @@ import BashToolView from "../components/tool-call/BashToolView.svelte";
 import ConfluenceToolView from "../components/tool-call/ConfluenceToolView.svelte";
 import EditToolView from "../components/tool-call/EditToolView.svelte";
 import ExploreToolView from "../components/tool-call/ExploreToolView.svelte";
+import ExplainImageToolView from "../components/tool-call/ExplainImageToolView.svelte";
 import FindToolView from "../components/tool-call/FindToolView.svelte";
 import GenericToolView from "../components/tool-call/GenericToolView.svelte";
 import GrepToolView from "../components/tool-call/GrepToolView.svelte";
@@ -44,6 +45,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   confluence: ConfluenceToolView,
   web_search: WebSearchToolView,
   web_fetch: WebFetchToolView,
+  explain_image: ExplainImageToolView,
   generic: GenericToolView,
 };
 

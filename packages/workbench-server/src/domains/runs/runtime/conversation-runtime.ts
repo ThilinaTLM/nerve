@@ -22,6 +22,7 @@ import {
   type ConversationLiveToolDraftStartedData,
   type ConversationLiveToolOutputDeltaData,
   type ConversationLiveToolOutputSnapshot,
+  type ConversationLiveToolOutputStream,
   type ConversationLiveTurnSnapshot,
   type ConversationRunRetrySnapshot,
   type LiveMessageStatus,
@@ -536,7 +537,7 @@ export class ConversationRuntime {
     providerToolCallId?: string;
     toolCallId: string;
     toolName: string;
-    stream: "stdout" | "stderr" | "combined";
+    stream: ConversationLiveToolOutputStream;
     delta: string;
   }): ConversationLiveToolOutputDeltaData {
     const run = input.runId ? this.runsByRunId.get(input.runId) : undefined;

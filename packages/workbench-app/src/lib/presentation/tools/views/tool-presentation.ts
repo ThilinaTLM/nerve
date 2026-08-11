@@ -481,6 +481,23 @@ export function toolPresentation(
       };
     }
 
+    case "explain_image": {
+      const content = view.live ? view.liveExplanation : view.explanation;
+      const meta: MetaItem[] = view.live
+        ? [{ text: view.thinking ? "thinking" : "generating", tone: "info" }]
+        : [];
+      meta.push(...outputMeta(view));
+      return {
+        ...base,
+        primaryArg: view.path
+          ? { text: view.relPath ?? view.path, openPath: view.path }
+          : base.primaryArg,
+        meta,
+        detailsAction:
+          previewDetailsAction ?? detailsActionFor(lineCount(content), "lines"),
+      };
+    }
+
     case "jira": {
       const meta: MetaItem[] = [];
       if (view.dryRun) meta.push({ text: "preview", tone: "info" });

@@ -200,6 +200,7 @@ describe("executeTool dispatch", () => {
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
     ]);
     await writeFile(`${project.root}/screen.png`, image);
+    const updates: Array<{ stream: string; chunk: string }> = [];
     const result = await executeTool(
       "explain_image",
       { path: "screen.png", prompt: "Read the error" },
@@ -209,13 +210,32 @@ describe("executeTool dispatch", () => {
           assert.equal(request.mimeType, "image/png");
           assert.equal(request.prompt, "Read the error");
           assert.deepEqual(Buffer.from(request.data), image);
+          await request.onUpdate?.({
+            kind: "output",
+            stream: "thinking",
+            chunk: "Inspecting pixels",
+          });
+          await request.onUpdate?.({
+            kind: "output",
+            stream: "text",
+            chunk: "The screenshot shows a build error.",
+          });
           return {
             explanation: "The screenshot shows a build error.",
             model: { provider: "google", modelId: "gemini" },
           };
         },
+        onUpdate: (update) => updates.push(update),
       },
     );
+    assert.deepEqual(updates, [
+      { kind: "output", stream: "thinking", chunk: "Inspecting pixels" },
+      {
+        kind: "output",
+        stream: "text",
+        chunk: "The screenshot shows a build error.",
+      },
+    ]);
     assert.equal(result.content, "The screenshot shows a build error.");
     const details = result.details as Record<string, unknown>;
     assert.equal(details.mimeType, "image/png");

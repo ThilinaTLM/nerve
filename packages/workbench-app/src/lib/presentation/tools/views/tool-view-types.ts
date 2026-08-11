@@ -394,6 +394,16 @@ export type ToolView =
       outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
+      kind: "explain_image";
+      path?: string;
+      relPath?: string;
+      explanation?: string;
+      thinking?: string;
+      liveExplanation?: string;
+      live: boolean;
+      outputLimits?: ToolOutputLimitsPayload;
+    }
+  | {
       kind: "generic";
       toolName: string;
       args: RedactedStructuredEntry[];

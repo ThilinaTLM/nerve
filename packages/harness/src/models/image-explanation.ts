@@ -1,7 +1,7 @@
 import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "../agent/types/index.js";
 import { normalizeImagesForModel } from "./image-normalization.js";
-import { completeSimpleWithModel } from "./provider-registry.js";
+import { streamSimpleWithModel } from "./provider-registry.js";
 
 const IMAGE_EXPLANATION_PROMPT = `Explain this image comprehensively for another model that cannot see it.
 Be factual and precise. Include all visible text exactly, the layout and spatial relationships, objects and people, UI state, diagrams or charts, colors, and any details that may matter. Clearly distinguish direct observations from uncertain interpretations.`;
@@ -18,6 +18,10 @@ export async function explainImageWithModel(input: {
   image: ImageContent;
   prompt?: string;
   thinkingLevel?: ThinkingLevel;
+  onDelta?: (update: {
+    kind: "thinking" | "text";
+    delta: string;
+  }) => void | Promise<void>;
   auth?: ImageExplanationAuth;
   signal?: AbortSignal;
 }): Promise<string> {
@@ -49,7 +53,7 @@ export async function explainImageWithModel(input: {
     input.thinkingLevel !== "off"
       ? input.thinkingLevel
       : undefined;
-  const response = await completeSimpleWithModel(
+  const stream = streamSimpleWithModel(
     requestModel,
     { messages },
     {
@@ -60,6 +64,20 @@ export async function explainImageWithModel(input: {
       signal: input.signal,
     },
   );
+  for await (const event of stream) {
+    if (event.type !== "thinking_delta" && event.type !== "text_delta") {
+      continue;
+    }
+    try {
+      await input.onDelta?.({
+        kind: event.type === "thinking_delta" ? "thinking" : "text",
+        delta: event.delta,
+      });
+    } catch {
+      // Live progress is best effort and must never fail image explanation.
+    }
+  }
+  const response = await stream.result();
   const explanation = response.content
     .filter((block) => block.type === "text")
     .map((block) => block.text)

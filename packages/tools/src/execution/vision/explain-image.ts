@@ -58,6 +58,7 @@ export async function executeExplainImage(
     mimeType,
     prompt: optionalPrompt(args.prompt),
     signal: context.signal,
+    onUpdate: context.onUpdate,
   });
   const explanation = response.explanation.trim();
   if (!explanation) {
