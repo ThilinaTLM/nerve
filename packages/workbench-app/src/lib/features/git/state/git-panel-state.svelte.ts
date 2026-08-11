@@ -8,6 +8,7 @@ import type {
   GitOverviewResponse,
   GitRecentCommit,
   GitRepoSummary,
+  GitStashEntry,
   ProjectRecord,
 } from "$lib/api";
 import {
@@ -19,9 +20,15 @@ import {
   defaultGitPrFilterConfig,
   normalizeGitPrFilterConfig,
   type GitPrFilterConfig,
+  type ScopedFileMutation,
+  type StashMutation,
 } from "$lib/presentation";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
+import {
+  loadCollapsedGitFolders,
+  saveCollapsedGitFolders,
+} from "./git-change-tree-expansion";
 import { prSummariesEqual } from "./pr-sync";
 import {
   branchesFingerprint,
@@ -32,6 +39,7 @@ import {
   prsFingerprint,
   recentCommitsFingerprint,
   repoSummaryFingerprint,
+  stashesFingerprint,
   reposFingerprint,
 } from "./git-panel-slices";
 
@@ -49,7 +57,8 @@ export type GitPanelOperationsState = {
   switchingBranch?: string;
   creatingBranch: boolean;
   fileMutation?: FileMutation;
-  bulkMutation?: "stage-all" | "unstage-all";
+  bulkMutation?: ScopedFileMutation;
+  stashMutation?: StashMutation;
 };
 
 export type GitPanelLoadStatus = "idle" | "loading" | "refreshing" | "error";
@@ -58,10 +67,12 @@ export type GitPanelRepoState = {
   repoSummary?: GitRepoSummary;
   changes?: GitChangesState;
   recentCommits: GitRecentCommit[];
+  stashes: GitStashEntry[];
   github?: GithubStatusResponse;
   prs: GithubPr[];
   prFilters: GitPrFilterConfig;
   branches: GitBranchSummary[];
+  collapsedChangeTreeFolders: SvelteSet<string>;
   operations: GitPanelOperationsState;
   loadingOverview: boolean;
   loadingPrs: boolean;
@@ -77,6 +88,7 @@ export type GitPanelRepoState = {
   lastRepoSummaryFingerprint?: string;
   lastChangesFingerprint?: string;
   lastRecentCommitsFingerprint?: string;
+  lastStashesFingerprint?: string;
   lastBranchesFingerprint?: string;
   lastPrsFingerprint?: string;
   lastGithubFingerprint?: string;
@@ -112,6 +124,7 @@ export type GitOverviewPatchResult = {
   repoChanged: boolean;
   changesChanged: boolean;
   recentCommitsChanged: boolean;
+  stashesChanged: boolean;
 };
 
 export const gitPanelState = $state({
@@ -158,6 +171,7 @@ function createOperationsState(): GitPanelOperationsState {
     creatingBranch: false,
     fileMutation: undefined,
     bulkMutation: undefined,
+    stashMutation: undefined,
   };
 }
 
@@ -166,6 +180,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     repoSummary: undefined,
     changes: undefined,
     recentCommits: [],
+    stashes: [],
     github: undefined,
     prs: [],
     prFilters:
@@ -173,6 +188,9 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
         ? storedPrFilters(projectId, repo)
         : defaultGitPrFilterConfig,
     branches: [],
+    collapsedChangeTreeFolders: new SvelteSet(
+      projectId && repo ? loadCollapsedGitFolders(projectId, repo) : [],
+    ),
     operations: createOperationsState(),
     loadingOverview: false,
     loadingPrs: false,
@@ -188,6 +206,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     lastRepoSummaryFingerprint: undefined,
     lastChangesFingerprint: undefined,
     lastRecentCommitsFingerprint: undefined,
+    lastStashesFingerprint: undefined,
     lastBranchesFingerprint: undefined,
     lastPrsFingerprint: undefined,
     lastGithubFingerprint: undefined,
@@ -315,6 +334,18 @@ export function ensureGitRepoState(
   return project.repoStates[key];
 }
 
+export function setGitChangeTreeFolderExpanded(
+  projectId: string,
+  repo: string,
+  key: string,
+  expanded: boolean,
+): void {
+  const state = ensureGitRepoState(projectId, repo);
+  if (expanded) state.collapsedChangeTreeFolders.delete(key);
+  else state.collapsedChangeTreeFolders.add(key);
+  saveCollapsedGitFolders(projectId, repo, state.collapsedChangeTreeFolders);
+}
+
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
@@ -342,7 +373,8 @@ export function repoMutationInProgress(
       operations.creatingBranch ||
       operations.switchingBranch ||
       operations.fileMutation ||
-      operations.bulkMutation),
+      operations.bulkMutation ||
+      operations.stashMutation),
   );
 }
 
@@ -383,6 +415,17 @@ export function patchRecentCommitsState(
   return true;
 }
 
+export function patchStashesState(
+  state: GitPanelRepoState,
+  next: GitStashEntry[],
+): boolean {
+  const fingerprint = stashesFingerprint(next);
+  if (state.lastStashesFingerprint === fingerprint) return false;
+  state.stashes = next;
+  state.lastStashesFingerprint = fingerprint;
+  return true;
+}
+
 export function patchGitOverviewState(
   state: GitPanelRepoState,
   next: GitOverviewResponse,
@@ -393,10 +436,18 @@ export function patchGitOverviewState(
     state,
     next.recentCommits,
   );
-  const changed = repoChanged || changesChanged || recentCommitsChanged;
+  const stashesChanged = patchStashesState(state, next.stashes);
+  const changed =
+    repoChanged || changesChanged || recentCommitsChanged || stashesChanged;
   if (!state.loaded) state.loaded = true;
   state.loadedAt = Date.now();
-  return { changed, repoChanged, changesChanged, recentCommitsChanged };
+  return {
+    changed,
+    repoChanged,
+    changesChanged,
+    recentCommitsChanged,
+    stashesChanged,
+  };
 }
 
 export function setProjectRepos(

@@ -9,6 +9,8 @@ import {
   gitOverviewResponseSchema,
   gitProjectFileStatusResponseSchema,
   gitRemoteOpRequestSchema,
+  gitStashCreateRequestSchema,
+  gitStashTargetRequestSchema,
   githubPrCheckoutResponseSchema,
   githubPrChecksResponseSchema,
   githubPrCommitsResponseSchema,
@@ -48,6 +50,12 @@ const gitFileDiffParamsSchema = projectIdParamsSchema.merge(
 );
 const gitRemoteOpParamsSchema = projectIdParamsSchema.merge(
   gitRemoteOpRequestSchema,
+);
+const gitStashCreateParamsSchema = projectIdParamsSchema.merge(
+  gitStashCreateRequestSchema,
+);
+const gitStashTargetParamsSchema = projectIdParamsSchema.merge(
+  gitStashTargetRequestSchema,
 );
 const githubPrListParamsSchema = projectIdParamsSchema.merge(
   githubPrListRequestSchema,
@@ -197,6 +205,33 @@ export const gitOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.git.switchBaseAndPull",
+  ),
+  defineOperation(
+    "git.stash.create",
+    gitStashCreateParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.stash.create",
+  ),
+  defineOperation(
+    "git.stash.apply",
+    gitStashTargetParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.stash.apply",
+  ),
+  defineOperation(
+    "git.stash.drop",
+    gitStashTargetParamsSchema,
+    gitMutationResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.stash.drop",
   ),
   defineOperation(
     "github.status.get",

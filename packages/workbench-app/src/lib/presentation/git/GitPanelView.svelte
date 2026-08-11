@@ -1,6 +1,7 @@
 <script lang="ts">
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
+import ArchiveRestore from "@lucide/svelte/icons/archive-restore";
 import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
@@ -14,9 +15,11 @@ import {
 import GitChangesArea from "./GitChangesArea.svelte";
 import GitPanelBanner from "./GitPanelBanner.svelte";
 import GitRepositoryControls from "./GitRepositoryControls.svelte";
+import GitStashDialog from "./GitStashDialog.svelte";
 import {
   filterAndSortBranches,
   gitFileGroups,
+  gitFilesInScope,
 } from "./git-panel-controller.js";
 import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 import {
@@ -38,12 +41,21 @@ let {
 } = $props();
 
 let branchDialogOpen = $state(false);
+let stashDialogOpen = $state(false);
 let branchFilter = $state("");
 let newBranchName = $state("");
 let discardCandidate = $state<
   | {
+      kind: "file";
       repository: string;
       file: NonNullable<GitPanelModel["changes"]>["files"][number];
+    }
+  | {
+      kind: "scope";
+      repository: string;
+      area: "staged" | "unstaged";
+      path?: string;
+      count: number;
     }
   | undefined
 >(undefined);
@@ -150,6 +162,17 @@ function openBranchDialog(): void {
         dense
         class="h-auto flex-wrap border-b-0 bg-transparent py-1.5"
       >
+        {#if model.stashes.length > 0}
+          <PanelToolbarButton
+            icon={ArchiveRestore}
+            label={`Stashes (${model.stashes.length})`}
+            variant="outline"
+            showLabel
+            title="Manage stashes"
+            disabled={!model.capabilities.stashes.enabled}
+            onclick={() => (stashDialogOpen = true)}
+          />
+        {/if}
         <PanelToolbarButton
           icon={CloudDownload}
           label="Fetch"
@@ -238,33 +261,72 @@ function openBranchDialog(): void {
       unstagedFiles={fileGroups.unstaged}
       fileMutation={model.operations.fileMutation}
       bulkMutation={model.operations.bulkMutation}
+      stashMutation={model.operations.stashMutation}
+      collapsedFolders={model.collapsedChangeTreeFolders}
       selectedRepo={model.selectedRepository}
       capabilities={model.capabilities}
       onOpenDiff={(repository, file, area) =>
         void actions.openDiff(repository, file, area)}
       onMutateFile={(repository, file, action) =>
         void actions.mutateFile(repository, file, action)}
-      onBulkStage={(repository, action) =>
-        void actions.bulkMutateFiles(repository, action)}
+      onMutateScope={(repository, area, action, path) =>
+        void actions.mutateFileScope(repository, area, action, path)}
+      onCreateStash={(repository, area, path) =>
+        void actions.createStash(repository, area, path)}
+      onFolderExpansionChange={(repository, key, expanded) =>
+        void actions.setChangeTreeFolderExpanded(repository, key, expanded)}
       onRequestDiscard={(file) =>
-        (discardCandidate = { repository: model.selectedRepository, file })}
+        (discardCandidate = {
+          kind: "file",
+          repository: model.selectedRepository,
+          file,
+        })}
+      onRequestDiscardScope={(area, path) =>
+        (discardCandidate = {
+          kind: "scope",
+          repository: model.selectedRepository,
+          area,
+          ...(path ? { path } : {}),
+          count: gitFilesInScope(model.changes?.files ?? [], area, path).length,
+        })}
     />
   {/if}
 </PanelView>
+
+<GitStashDialog
+  bind:open={stashDialogOpen}
+  repositoryName={model.repositorySummary?.name ?? model.selectedRepository}
+  stashes={model.stashes}
+  mutation={model.operations.stashMutation}
+  onApply={(stash) => void actions.applyStash(model.selectedRepository, stash)}
+  onDrop={(stash) => void actions.dropStash(model.selectedRepository, stash)}
+/>
 
 <ConfirmDialog
   open={Boolean(discardCandidate)}
   title="Discard change?"
   description={discardCandidate
-    ? `This will permanently discard all uncommitted changes for ${discardCandidate.file.path}.`
+    ? discardCandidate.kind === "file"
+      ? `This will permanently discard all uncommitted changes for ${discardCandidate.file.path}.`
+      : discardCandidate.path
+        ? `This will permanently discard ${discardCandidate.count} changed ${discardCandidate.count === 1 ? "file" : "files"} in ${discardCandidate.path}.`
+        : `This will permanently discard all ${discardCandidate.count} ${discardCandidate.area} ${discardCandidate.count === 1 ? "change" : "changes"}.`
     : "This will permanently discard this uncommitted change."}
   confirmLabel="Discard"
   destructive
   onConfirm={() => {
     const candidate = discardCandidate;
     discardCandidate = undefined;
-    if (candidate)
+    if (!candidate) return;
+    if (candidate.kind === "file")
       void actions.mutateFile(candidate.repository, candidate.file, "discard");
+    else
+      void actions.mutateFileScope(
+        candidate.repository,
+        candidate.area,
+        "discard",
+        candidate.path,
+      );
   }}
   onCancel={() => (discardCandidate = undefined)}
   onOpenChange={(open) => {

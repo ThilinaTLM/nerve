@@ -4,6 +4,7 @@ import type {
   GitRepoSummary,
 } from "@nervekit/contracts";
 import type { GitService } from "./git-service.js";
+import { listStashes } from "./git-stash.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";
 
 export async function summarizeRepo(
@@ -76,14 +77,21 @@ export async function overview(
       stdout,
     ),
   );
-  const [repo, { stdout: statusOut }, unstagedResult, stagedResult, recent] =
-    await Promise.all([
-      repoPromise,
-      statusPromise,
-      service.runGit(repoDir, ["diff", "--shortstat"]),
-      service.runGit(repoDir, ["diff", "--staged", "--shortstat"]),
-      service.recentCommits(repoDir),
-    ]);
+  const [
+    repo,
+    { stdout: statusOut },
+    unstagedResult,
+    stagedResult,
+    recent,
+    stashes,
+  ] = await Promise.all([
+    repoPromise,
+    statusPromise,
+    service.runGit(repoDir, ["diff", "--shortstat"]),
+    service.runGit(repoDir, ["diff", "--staged", "--shortstat"]),
+    service.recentCommits(repoDir),
+    listStashes(service, repoDir),
+  ]);
   const { files } = parsePorcelainV2(statusOut);
   const stagedCount = files.filter((file) => file.staged).length;
   const untrackedCount = files.filter((file) => file.untracked).length;
@@ -104,6 +112,7 @@ export async function overview(
     insertions: unstaged.insertions + staged.insertions,
     deletions: unstaged.deletions + staged.deletions,
     recentCommits: recent,
+    stashes,
   };
 }
 

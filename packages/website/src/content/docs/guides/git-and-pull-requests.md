@@ -7,7 +7,9 @@ sidebar:
 
 ## Git panel
 
-Nerve discovers repositories in the project and shows branch, working-tree changes, and recent commits. Available UI operations include branch creation and switching, stage/unstage, discard, fetch, pull, push, and sync. Destructive discard asks for confirmation.
+Nerve discovers repositories in the project and shows branch, working-tree changes, and recent commits. Available UI operations include branch creation and switching, stage/unstage, stash, discard, fetch, pull, push, and sync. The Staged and Unstaged headings expose visible whole-group actions; right-click a group, folder, or file for scoped actions. Destructive discard asks for confirmation. Folder expansion is remembered locally per repository and change area.
+
+Stash actions preserve the area where you invoke them: stashing from **Staged** saves staged changes, while stashing from **Unstaged** saves unstaged and untracked changes without changing the index. File and directory actions limit the stash to that path. When a repository has saved stashes, **Stashes (N)** opens a manager where you can apply a stash without removing it or permanently drop it after confirmation.
 
 These Workbench operations are server routes, not agent tools. An agent uses Git indirectly through finite Bash commands, subject to its mode and permission policy.
 

@@ -1,7 +1,15 @@
-import type { GitBranchSummary, GitFileChange } from "$lib/api";
+import type {
+  GitBranchSummary,
+  GitFileChange,
+  GitStashArea,
+  GitStashEntry,
+} from "$lib/api";
 import {
+  applyGitStash,
   createGitBranch,
+  createGitStash,
   discardGitFile,
+  dropGitStash,
   fetchGit,
   pullGit,
   pushGit,
@@ -12,6 +20,7 @@ import {
   unstageGitFile,
 } from "$lib/api";
 import { notify } from "$lib/features/notifications/notify.svelte";
+import { gitFilesInScope, gitPathspecs } from "$lib/presentation";
 import {
   refreshGitOverview,
   scheduleAutomaticGitRefresh,
@@ -188,42 +197,123 @@ export async function mutateGitFile(
           : discardGitFile;
     const result = await fn(projectId, repo, file.path);
     mergeRepoSummary(projectId, result.repo);
-    await refreshGitOverview(projectId, repo);
   } catch (error) {
     notifyGitFailure(
       `${action[0].toUpperCase()}${action.slice(1)} failed`,
       error,
     );
   } finally {
+    await refreshGitOverview(projectId, repo, { force: true });
     state.operations.fileMutation = undefined;
   }
 }
 
-export async function bulkStageGitFiles(
+export async function mutateGitFileScope(
   projectId: string,
   repo: string,
-  action: "stage-all" | "unstage-all",
+  area: GitStashArea,
+  action: "stage" | "unstage" | "discard",
+  path?: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  const files = state.changes?.files ?? [];
-  const targets =
-    action === "stage-all"
-      ? files.filter((file) => file.untracked || file.worktree !== " ")
-      : files.filter((file) => file.staged);
+  const targets = gitFilesInScope(state.changes?.files ?? [], area, path);
   if (targets.length === 0) return;
-  const fn = action === "stage-all" ? stageGitFile : unstageGitFile;
-  state.operations.bulkMutation = action;
+  const fn =
+    action === "stage"
+      ? stageGitFile
+      : action === "unstage"
+        ? unstageGitFile
+        : discardGitFile;
+  state.operations.bulkMutation = {
+    action,
+    area,
+    ...(path ? { path } : {}),
+  };
   try {
-    for (const file of targets) {
-      await fn(projectId, repo, file.path);
-    }
-    await refreshGitOverview(projectId, repo);
+    for (const file of targets) await fn(projectId, repo, file.path);
   } catch (error) {
     notifyGitFailure(
-      `${action === "stage-all" ? "Stage all" : "Unstage all"} failed`,
+      `${action[0]?.toUpperCase()}${action.slice(1)} changes failed`,
       error,
     );
   } finally {
+    await refreshGitOverview(projectId, repo, { force: true });
     state.operations.bulkMutation = undefined;
+  }
+}
+
+export async function createGitRepoStash(
+  projectId: string,
+  repo: string,
+  area: GitStashArea,
+  path?: string,
+): Promise<void> {
+  const state = ensureGitRepoState(projectId, repo);
+  const scopedFiles = path
+    ? gitFilesInScope(state.changes?.files ?? [], area, path)
+    : undefined;
+  if (path && scopedFiles?.length === 0) return;
+  state.operations.stashMutation = {
+    action: "create",
+    area,
+    ...(path ? { path } : {}),
+  };
+  try {
+    const result = await createGitStash(
+      projectId,
+      repo,
+      area,
+      scopedFiles ? gitPathspecs(scopedFiles) : undefined,
+    );
+    mergeRepoSummary(projectId, result.repo);
+    notify.success("Changes stashed");
+  } catch (error) {
+    notifyGitFailure("Stash failed", error);
+  } finally {
+    await refreshGitOverview(projectId, repo, { force: true });
+    state.operations.stashMutation = undefined;
+  }
+}
+
+export async function applyGitRepoStash(
+  projectId: string,
+  repo: string,
+  stash: GitStashEntry,
+): Promise<void> {
+  const state = ensureGitRepoState(projectId, repo);
+  state.operations.stashMutation = { action: "apply", hash: stash.hash };
+  try {
+    const result = await applyGitStash(
+      projectId,
+      repo,
+      stash.index,
+      stash.hash,
+    );
+    mergeRepoSummary(projectId, result.repo);
+    notify.success("Stash applied");
+  } catch (error) {
+    notifyGitFailure("Apply stash failed", error);
+  } finally {
+    await refreshGitOverview(projectId, repo, { force: true });
+    state.operations.stashMutation = undefined;
+  }
+}
+
+export async function dropGitRepoStash(
+  projectId: string,
+  repo: string,
+  stash: GitStashEntry,
+): Promise<void> {
+  const state = ensureGitRepoState(projectId, repo);
+  state.operations.stashMutation = { action: "drop", hash: stash.hash };
+  try {
+    const result = await dropGitStash(projectId, repo, stash.index, stash.hash);
+    mergeRepoSummary(projectId, result.repo);
+    notify.success("Stash dropped");
+  } catch (error) {
+    notifyGitFailure("Drop stash failed", error);
+  } finally {
+    await refreshGitOverview(projectId, repo, { force: true });
+    state.operations.stashMutation = undefined;
   }
 }

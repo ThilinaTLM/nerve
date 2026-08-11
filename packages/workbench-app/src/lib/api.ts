@@ -58,6 +58,8 @@ export type {
   GitOverviewResponse,
   GitRecentCommit,
   GitRepoSummary,
+  GitStashArea,
+  GitStashEntry,
   ModelCost,
   ModelDefinition,
   ModelInfo,

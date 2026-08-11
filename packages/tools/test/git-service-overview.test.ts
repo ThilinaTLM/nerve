@@ -65,6 +65,9 @@ describe("GitService overview snapshots", () => {
           stderr: "",
         };
       }
+      if (command.startsWith("stash list ")) {
+        return { stdout: "", stderr: "" };
+      }
       if (command.startsWith("rev-parse --verify --quiet")) {
         return { stdout: "abcdef\n", stderr: "" };
       }
@@ -87,6 +90,7 @@ describe("GitService overview snapshots", () => {
     assert.equal(overview.untrackedCount, 1);
     assert.equal(overview.insertions, 2);
     assert.equal(overview.recentCommits.length, 1);
+    assert.deepEqual(overview.stashes, []);
 
     now += 30_001;
     await service.overview("proj_test", ".");

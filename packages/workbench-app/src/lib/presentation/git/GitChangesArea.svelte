@@ -1,10 +1,17 @@
 <script lang="ts">
+import Archive from "@lucide/svelte/icons/archive";
 import ArrowDownToLine from "@lucide/svelte/icons/arrow-down-to-line";
 import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import Eye from "@lucide/svelte/icons/eye";
 import X from "@lucide/svelte/icons/x";
-import type { GitDiffArea, GitFileChange } from "@nervekit/contracts";
+import type {
+  GitDiffArea,
+  GitFileChange,
+  GitStashArea,
+} from "@nervekit/contracts";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import {
@@ -14,7 +21,16 @@ import {
   PanelToolbarButton,
   PanelTree,
 } from "$lib/presentation/panel";
-import type { FileMutation, GitPanelCapabilities } from "./git-panel-types";
+import {
+  gitChangeTreeFolderKey,
+  gitExpandedGroupIds,
+} from "./git-panel-controller";
+import type {
+  FileMutation,
+  GitPanelCapabilities,
+  ScopedFileMutation,
+  StashMutation,
+} from "./git-panel-types";
 import { fileStatusLabel, fileTone, statusLetter } from "./git-change-format";
 
 type ChangesState = {
@@ -29,7 +45,9 @@ type Props = {
   stagedFiles: GitFileChange[];
   unstagedFiles: GitFileChange[];
   fileMutation?: FileMutation;
-  bulkMutation?: string;
+  bulkMutation?: ScopedFileMutation;
+  stashMutation?: StashMutation;
+  collapsedFolders: ReadonlySet<string>;
   selectedRepo: string;
   capabilities: GitPanelCapabilities;
   onOpenDiff: (repo: string, file: GitFileChange, area: GitDiffArea) => void;
@@ -38,8 +56,20 @@ type Props = {
     file: GitFileChange,
     action: "stage" | "unstage" | "discard",
   ) => void;
-  onBulkStage: (repo: string, action: "stage-all" | "unstage-all") => void;
+  onMutateScope: (
+    repo: string,
+    area: GitStashArea,
+    action: ScopedFileMutation["action"],
+    path?: string,
+  ) => void;
+  onCreateStash: (repo: string, area: GitStashArea, path?: string) => void;
+  onFolderExpansionChange: (
+    repo: string,
+    key: string,
+    expanded: boolean,
+  ) => void;
   onRequestDiscard: (file: GitFileChange) => void;
+  onRequestDiscardScope: (area: GitStashArea, path?: string) => void;
 };
 
 let {
@@ -48,28 +78,255 @@ let {
   unstagedFiles,
   fileMutation,
   bulkMutation,
+  stashMutation,
+  collapsedFolders,
   selectedRepo,
   capabilities,
   onOpenDiff,
   onMutateFile,
-  onBulkStage,
+  onMutateScope,
+  onCreateStash,
+  onFolderExpansionChange,
   onRequestDiscard,
+  onRequestDiscardScope,
 }: Props = $props();
 
 let stagedExpanded = $state(true);
 let unstagedExpanded = $state(true);
+
+const anyMutation = $derived(
+  Boolean(fileMutation || bulkMutation || stashMutation),
+);
+const stagedNodes = $derived(
+  buildPanelTree(stagedFiles, {
+    getPath: (file) => file.path.split("/"),
+    getKey: (file) => `staged:${file.path}`,
+  }),
+);
+const unstagedNodes = $derived(
+  buildPanelTree(unstagedFiles, {
+    getPath: (file) => file.path.split("/"),
+    getKey: (file) => `unstaged:${file.path}`,
+  }),
+);
+const stagedExpandedIds = $derived(
+  gitExpandedGroupIds(stagedNodes, "staged", collapsedFolders),
+);
+const unstagedExpandedIds = $derived(
+  gitExpandedGroupIds(unstagedNodes, "unstaged", collapsedFolders),
+);
+
+function scopeBusy(
+  mutation: ScopedFileMutation | undefined,
+  action: ScopedFileMutation["action"],
+  area: GitStashArea,
+  path?: string,
+): boolean {
+  return (
+    mutation?.action === action &&
+    mutation.area === area &&
+    mutation.path === path
+  );
+}
+
+function stashScopeBusy(area: GitStashArea, path?: string): boolean {
+  return (
+    stashMutation?.action === "create" &&
+    stashMutation.area === area &&
+    stashMutation.path === path
+  );
+}
+
+function scopeMenu(area: GitStashArea, path?: string): ContextMenuItem[] {
+  const stageAction = area === "staged" ? "unstage" : "stage";
+  return [
+    {
+      label: area === "staged" ? "Unstage" : "Stage",
+      icon: area === "staged" ? ArrowDownToLine : ArrowUpFromLine,
+      disabled: !capabilities.bulkMutateFiles.enabled || anyMutation,
+      onSelect: () => onMutateScope(selectedRepo, area, stageAction, path),
+    },
+    {
+      label: "Stash",
+      icon: Archive,
+      disabled: !capabilities.stashes.enabled || anyMutation,
+      onSelect: () => onCreateStash(selectedRepo, area, path),
+    },
+    { type: "separator" },
+    {
+      label: "Discard",
+      icon: X,
+      destructive: true,
+      disabled: !capabilities.bulkMutateFiles.enabled || anyMutation,
+      onSelect: () => onRequestDiscardScope(area, path),
+    },
+  ];
+}
+
+function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
+  const stageAction = area === "staged" ? "unstage" : "stage";
+  return [
+    {
+      label: "View",
+      icon: Eye,
+      onSelect: () => onOpenDiff(selectedRepo, file, area),
+    },
+    {
+      label: area === "staged" ? "Unstage" : "Stage",
+      icon: area === "staged" ? ArrowDownToLine : ArrowUpFromLine,
+      disabled: !capabilities.mutateFiles.enabled || anyMutation,
+      onSelect: () => onMutateFile(selectedRepo, file, stageAction),
+    },
+    {
+      label: "Stash",
+      icon: Archive,
+      disabled: !capabilities.stashes.enabled || anyMutation,
+      onSelect: () => onCreateStash(selectedRepo, area, file.path),
+    },
+    { type: "separator" },
+    {
+      label: "Discard",
+      icon: X,
+      destructive: true,
+      disabled: !capabilities.mutateFiles.enabled || anyMutation,
+      onSelect: () => onRequestDiscard(file),
+    },
+  ];
+}
 </script>
+
+{#snippet groupActions(area: GitStashArea)}
+  {@const stageAction = area === "staged" ? "unstage" : "stage"}
+  <PanelToolbarButton
+    icon={area === "staged" ? ArrowDownToLine : ArrowUpFromLine}
+    label={`${area === "staged" ? "Unstage" : "Stage"} all`}
+    title={`${area === "staged" ? "Unstage" : "Stage"} all`}
+    dense
+    loading={scopeBusy(bulkMutation, stageAction, area)}
+    disabled={!capabilities.bulkMutateFiles.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onMutateScope(selectedRepo, area, stageAction);
+    }}
+  />
+  <PanelToolbarButton
+    icon={Archive}
+    label={`Stash all ${area} changes`}
+    title="Stash all"
+    dense
+    loading={stashScopeBusy(area)}
+    disabled={!capabilities.stashes.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onCreateStash(selectedRepo, area);
+    }}
+  />
+  <PanelToolbarButton
+    icon={X}
+    label={`Discard all ${area} changes`}
+    title="Discard all"
+    dense
+    loading={scopeBusy(bulkMutation, "discard", area)}
+    disabled={!capabilities.bulkMutateFiles.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onRequestDiscardScope(area);
+    }}
+  />
+{/snippet}
+
+{#snippet folderActions(area: GitStashArea, path: string)}
+  {@const stageAction = area === "staged" ? "unstage" : "stage"}
+  <PanelToolbarButton
+    icon={area === "staged" ? ArrowDownToLine : ArrowUpFromLine}
+    label={`${area === "staged" ? "Unstage" : "Stage"} ${path}`}
+    title={area === "staged" ? "Unstage" : "Stage"}
+    dense
+    loading={scopeBusy(bulkMutation, stageAction, area, path)}
+    disabled={!capabilities.bulkMutateFiles.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onMutateScope(selectedRepo, area, stageAction, path);
+    }}
+  />
+  <PanelToolbarButton
+    icon={Archive}
+    label={`Stash ${path}`}
+    title="Stash"
+    dense
+    loading={stashScopeBusy(area, path)}
+    disabled={!capabilities.stashes.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onCreateStash(selectedRepo, area, path);
+    }}
+  />
+  <PanelToolbarButton
+    icon={X}
+    label={`Discard changes in ${path}`}
+    title="Discard"
+    dense
+    loading={scopeBusy(bulkMutation, "discard", area, path)}
+    disabled={!capabilities.bulkMutateFiles.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onRequestDiscardScope(area, path);
+    }}
+  />
+{/snippet}
+
+{#snippet fileActions(area: GitStashArea, file: GitFileChange)}
+  {@const stageAction = area === "staged" ? "unstage" : "stage"}
+  {@const busy = fileMutation?.path === file.path}
+  <PanelToolbarButton
+    icon={area === "staged" ? ArrowDownToLine : ArrowUpFromLine}
+    label={`${area === "staged" ? "Unstage" : "Stage"} ${file.path}`}
+    title={area === "staged" ? "Unstage" : "Stage"}
+    dense
+    loading={busy && fileMutation?.action === stageAction}
+    disabled={!capabilities.mutateFiles.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onMutateFile(selectedRepo, file, stageAction);
+    }}
+  />
+  <PanelToolbarButton
+    icon={Archive}
+    label={`Stash ${file.path}`}
+    title="Stash"
+    dense
+    loading={stashScopeBusy(area, file.path)}
+    disabled={!capabilities.stashes.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onCreateStash(selectedRepo, area, file.path);
+    }}
+  />
+  <PanelToolbarButton
+    icon={X}
+    label={`Discard ${file.path}`}
+    title="Discard"
+    dense
+    loading={busy && fileMutation?.action === "discard"}
+    disabled={!capabilities.mutateFiles.enabled || anyMutation}
+    onclick={(event) => {
+      event.stopPropagation();
+      onRequestDiscard(file);
+    }}
+  />
+{/snippet}
 
 {#snippet changeGroup(
   title: string,
   files: GitFileChange[],
-  group: "staged" | "unstaged",
+  area: GitStashArea,
   expanded: boolean,
   onToggle: () => void,
 )}
   <PanelRow
-    label={title}
+    label={`${title} (${files.length})`}
     title={`${expanded ? "Collapse" : "Expand"} ${title.toLowerCase()} changes`}
+    menuItems={scopeMenu(area)}
     dense
     flush
     hoverable={false}
@@ -86,84 +343,47 @@ let unstagedExpanded = $state(true);
         <ChevronRight class="-mr-1 size-3" aria-hidden="true" />
       {/if}
     {/snippet}
-    {#snippet badges()}
-      <span>{files.length}</span>
-    {/snippet}
     {#snippet actions()}
-      <PanelToolbarButton
-        icon={group === "staged" ? ArrowDownToLine : ArrowUpFromLine}
-        label={group === "staged" ? "Unstage all" : "Stage all"}
-        dense
-        loading={bulkMutation ===
-          (group === "staged" ? "unstage-all" : "stage-all")}
-        disabled={files.length === 0 ||
-          !capabilities.bulkMutateFiles.enabled ||
-          Boolean(bulkMutation) ||
-          Boolean(fileMutation)}
-        onclick={(event) => {
-          event.stopPropagation();
-          onBulkStage(
-            selectedRepo,
-            group === "staged" ? "unstage-all" : "stage-all",
-          );
-        }}
-      />
+      {@render groupActions(area)}
     {/snippet}
   </PanelRow>
 
   {#if expanded}
+    {@const nodes = area === "staged" ? stagedNodes : unstagedNodes}
+    {@const expandedIds =
+      area === "staged" ? stagedExpandedIds : unstagedExpandedIds}
     <PanelTree
-      nodes={buildPanelTree(files, {
-        getPath: (file) => file.path.split("/"),
-        getKey: (file) => `${group}:${file.path}`,
-      })}
+      {nodes}
       ariaLabel={`${title} file tree`}
       baseIndent={0}
+      showGroupDisclosure={false}
+      overlayActions
+      {expandedIds}
+      getGroupMenuItems={(path) => scopeMenu(area, path.join("/"))}
+      getItemMenuItems={(file) => fileMenu(area, file)}
       getItemTitle={(file) =>
-        `${fileStatusLabel(file, group)} · ${file.renamedFrom ? `${file.renamedFrom} → ` : ""}${file.path}`}
-      onItemActivate={(file) => onOpenDiff(selectedRepo, file, group)}
+        `${fileStatusLabel(file, area)} · ${file.renamedFrom ? `${file.renamedFrom} → ` : ""}${file.path}`}
+      onItemActivate={(file) => onOpenDiff(selectedRepo, file, area)}
+      onGroupExpansionChange={(path, open) =>
+        onFolderExpansionChange(
+          selectedRepo,
+          gitChangeTreeFolderKey(area, path),
+          open,
+        )}
     >
+      {#snippet groupActions(path)}
+        {@render folderActions(area, path.join("/"))}
+      {/snippet}
       {#snippet itemLeading(file)}
         <span
           class={cn("font-mono font-semibold", fileTone(file))}
-          title={fileStatusLabel(file, group)}
+          title={fileStatusLabel(file, area)}
         >
-          {statusLetter(file, group)}
+          {statusLetter(file, area)}
         </span>
       {/snippet}
       {#snippet itemActions(file)}
-        {@const busy = fileMutation?.path === file.path}
-        <PanelToolbarButton
-          icon={group === "staged" ? ArrowDownToLine : ArrowUpFromLine}
-          label={group === "staged"
-            ? `Unstage ${file.path}`
-            : `Stage ${file.path}`}
-          title={group === "staged" ? "Unstage" : "Stage"}
-          dense
-          loading={busy &&
-            fileMutation?.action === (group === "staged" ? "unstage" : "stage")}
-          disabled={!capabilities.mutateFiles.enabled || busy}
-          onclick={(event) => {
-            event.stopPropagation();
-            onMutateFile(
-              selectedRepo,
-              file,
-              group === "staged" ? "unstage" : "stage",
-            );
-          }}
-        />
-        <PanelToolbarButton
-          icon={X}
-          label={`Discard ${file.path}`}
-          title="Discard"
-          dense
-          loading={busy && fileMutation?.action === "discard"}
-          disabled={!capabilities.mutateFiles.enabled || busy}
-          onclick={(event) => {
-            event.stopPropagation();
-            onRequestDiscard(file);
-          }}
-        />
+        {@render fileActions(area, file)}
       {/snippet}
     </PanelTree>
   {/if}

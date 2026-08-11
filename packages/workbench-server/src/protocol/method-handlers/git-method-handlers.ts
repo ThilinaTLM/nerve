@@ -45,6 +45,27 @@ export const gitMethodHandlers = defineWorkbenchMethodHandlers({
     state.registry.git.fetch(params.projectId, repo(params)),
   "git.switchBaseAndPull": (state, params) =>
     state.registry.git.switchBaseAndPull(params.projectId, repo(params)),
+  "git.stash.create": (state, params) =>
+    state.registry.git.createStash(
+      params.projectId,
+      repo(params),
+      params.area,
+      params.paths,
+    ),
+  "git.stash.apply": (state, params) =>
+    state.registry.git.applyStash(
+      params.projectId,
+      repo(params),
+      params.index,
+      params.expectedHash,
+    ),
+  "git.stash.drop": (state, params) =>
+    state.registry.git.dropStash(
+      params.projectId,
+      repo(params),
+      params.index,
+      params.expectedHash,
+    ),
   "github.status.get": (state, params) =>
     state.registry.git.githubStatus(params.projectId, repo(params)),
   "github.pr.list": (state, params) =>
