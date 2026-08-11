@@ -5,7 +5,7 @@ import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 <div
   role="status"
   aria-label="Loading pull requests"
-  class="flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5 ring-1 ring-border ring-inset"
+  class="flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5"
 >
   <div class="flex min-w-0 items-center gap-1.5">
     <Skeleton class="h-3.5 w-7 shrink-0" />

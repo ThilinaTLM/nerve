@@ -8,11 +8,11 @@ import type {
   GithubStatusResponse,
   GitRepoSummary,
 } from "@nervekit/contracts";
-import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import {
   PanelBanner,
   PanelHeader,
   PanelList,
+  PanelScrollRegion,
   PanelToolbarButton,
 } from "$lib/presentation/panel";
 import GitPullRequestRow from "./GitPullRequestRow.svelte";
@@ -164,7 +164,7 @@ function toggleChecks(pr: GithubPr) {
         : "No open PRs for this repository.",
     )}
   {:else}
-    <ScrollArea class="min-h-0 flex-1" viewportClass="min-w-0">
+    <PanelScrollRegion ariaLabel="Pull requests" contentClass="min-w-0">
       {#if prs.length > displayedPrs.length}
         {@render note(`Showing ${displayedPrs.length} of ${prs.length}`)}
       {/if}
@@ -182,6 +182,6 @@ function toggleChecks(pr: GithubPr) {
           />
         {/each}
       </PanelList>
-    </ScrollArea>
+    </PanelScrollRegion>
   {/if}
 </div>
