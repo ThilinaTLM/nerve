@@ -5,6 +5,7 @@ import X from "@lucide/svelte/icons/x";
 import type { GithubPr } from "@nervekit/contracts";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import { ItemSurface } from "$lib/presentation/items";
 import { checksTone } from "./git-change-format";
 import { githubCheckRunOutcome } from "./github-pr-checks";
 
@@ -23,9 +24,10 @@ let { pr, expanded, disabled, disabledReason, onOpen, onToggleChecks }: Props =
 const hasCheckDetails = $derived(pr.checks.runs.length > 0);
 </script>
 
-<div
+<ItemSurface
   role="listitem"
-  class="group flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5 text-xs leading-tight transition-colors hover:bg-accent/60"
+  hover="default"
+  class="group flex-col gap-1 px-3 py-2.5 text-xs leading-tight"
 >
   <button
     type="button"
@@ -110,4 +112,4 @@ const hasCheckDetails = $derived(pr.checks.runs.length > 0);
       {/each}
     </div>
   {/if}
-</div>
+</ItemSurface>

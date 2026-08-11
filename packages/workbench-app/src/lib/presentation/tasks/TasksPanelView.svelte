@@ -19,18 +19,21 @@ import {
   PanelEmpty,
   PanelHeader,
   PanelList,
-  PanelRowCard,
   PanelSectionHeader,
   PanelToolbarButton,
   PanelView,
   createPanelRowFit,
 } from "$lib/presentation/panel";
+import { ItemCollection } from "$lib/presentation/items";
 import TaskDefinitionDialog from "./TaskDefinitionDialog.svelte";
 import TaskDefinitionRow from "./TaskDefinitionRow.svelte";
 import TaskOutputPane from "./TaskOutputPane.svelte";
 import TaskRunRow from "./TaskRunRow.svelte";
 import TaskRunsDialog from "./TaskRunsDialog.svelte";
-import { projectTaskPanel } from "./task-panel-controller.js";
+import {
+  projectTaskPanel,
+  taskPanelActiveItemKey,
+} from "./task-panel-controller.js";
 import type {
   TaskEntryCapabilities,
   TaskPanelActions,
@@ -47,6 +50,7 @@ let {
 } = $props();
 
 const projected = $derived(projectTaskPanel(model.definitions, model.tasks));
+const activeItemKey = $derived(taskPanelActiveItemKey(model.selectedTask));
 const selectedSiblingRuns = $derived.by(() => {
   const selected = model.selectedTask;
   if (!selected) return [];
@@ -157,7 +161,10 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
 </script>
 
 {#snippet taskList()}
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+  <ItemCollection
+    activeKey={activeItemKey}
+    class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+  >
     <div
       class="flex min-w-0 flex-col overflow-y-auto"
       class:flex-1={!model.definitionsLoading &&
@@ -188,21 +195,20 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
       {:else}
         <PanelList role="none" class="gap-1">
           {#each projected.definitions as entry (entry.key)}
-            <PanelRowCard>
-              <TaskDefinitionRow
-                {entry}
-                {capabilities}
-                onOpen={(id) => void panelActions.openTaskOutput(id)}
-                onRun={() => void panelActions.runDefinition(entry.definition)}
-                onCancel={(id) => void panelActions.cancelTask(id)}
-                onForceKill={requestForceKill}
-                onRestart={(id) => void panelActions.restartTask(id)}
-                onEdit={() => (editDefinition = entry.definition)}
-                onDelete={() => (deleteDefinition = entry.definition)}
-                onCleanupRuns={(ids) => (cleanupRunIds = ids)}
-                onCopy={(text) => void panelActions.copyText(text)}
-              />
-            </PanelRowCard>
+            <TaskDefinitionRow
+              {entry}
+              {capabilities}
+              active={activeItemKey === entry.key}
+              onOpen={(id) => void panelActions.openTaskOutput(id)}
+              onRun={() => void panelActions.runDefinition(entry.definition)}
+              onCancel={(id) => void panelActions.cancelTask(id)}
+              onForceKill={requestForceKill}
+              onRestart={(id) => void panelActions.restartTask(id)}
+              onEdit={() => (editDefinition = entry.definition)}
+              onDelete={() => (deleteDefinition = entry.definition)}
+              onCleanupRuns={(ids) => (cleanupRunIds = ids)}
+              onCopy={(text) => void panelActions.copyText(text)}
+            />
           {/each}
         </PanelList>
       {/if}
@@ -226,19 +232,18 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
         </PanelSectionHeader>
         <PanelList ariaLabel="Runs" class="shrink-0 gap-1">
           {#each visibleRuns as entry (entry.key)}
-            <PanelRowCard>
-              <TaskRunRow
-                {entry}
-                {capabilities}
-                onOpen={(id) => void panelActions.openTaskOutput(id)}
-                onCancel={(id) => void panelActions.cancelTask(id)}
-                onForceKill={requestForceKill}
-                onRestart={(id) => void panelActions.restartTask(id)}
-                onRemove={(id) => void panelActions.removeTask(id)}
-                onCopy={(text) => void panelActions.copyText(text)}
-                onSaveAsDefinition={(task) => (saveSourceTask = task)}
-              />
-            </PanelRowCard>
+            <TaskRunRow
+              {entry}
+              {capabilities}
+              active={activeItemKey === entry.key}
+              onOpen={(id) => void panelActions.openTaskOutput(id)}
+              onCancel={(id) => void panelActions.cancelTask(id)}
+              onForceKill={requestForceKill}
+              onRestart={(id) => void panelActions.restartTask(id)}
+              onRemove={(id) => void panelActions.removeTask(id)}
+              onCopy={(text) => void panelActions.copyText(text)}
+              onSaveAsDefinition={(task) => (saveSourceTask = task)}
+            />
           {/each}
         </PanelList>
         {#if hiddenRuns > 0}
@@ -253,7 +258,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
         {/if}
       </div>
     {/if}
-  </div>
+  </ItemCollection>
 {/snippet}
 
 <div class="h-full min-h-0" bind:clientWidth={panelWidth}>

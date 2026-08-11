@@ -1,6 +1,6 @@
 <script lang="ts">
 import { tick, type Component, type Snippet } from "svelte";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import { ItemSurface } from "$lib/presentation/items";
 
 let {
   title,
@@ -64,11 +64,10 @@ function cancel(): void {
 }
 </script>
 
-<section
-  class={cn(
-    "flex min-w-0 flex-col rounded-md bg-accent/35 transition-colors focus-within:bg-accent/60",
-    className,
-  )}
+<ItemSurface
+  element="section"
+  focusWithin
+  class={`flex-col ${className ?? ""}`}
 >
   <div class="flex h-7 min-w-0 items-center gap-1 px-3">
     {#if Icon}
@@ -125,4 +124,4 @@ function cancel(): void {
   <div class="min-w-0">
     {@render children()}
   </div>
-</section>
+</ItemSurface>

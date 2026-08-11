@@ -1,9 +1,8 @@
 <script lang="ts">
 import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import ContextMenu, {
-  type ContextMenuItem,
-} from "@nervekit/ui-kit/components/ui/context-menu-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import { ItemCollection, ItemSurface } from "$lib/presentation";
 import { getShortcutAriaLabel } from "$lib/core/shortcuts/registry";
 import {
   projectActivitySignal,
@@ -56,7 +55,10 @@ function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
   >
     <LayoutGrid class="size-4" aria-hidden="true" />
   </Button>
-  <div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
+  <ItemCollection
+    {activeKey}
+    class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden"
+  >
     {#each items as item (item.key)}
       {@const signal = projectActivitySignal(item.activity, item.tasks)}
       {@const conversationActivityCount =
@@ -64,15 +66,17 @@ function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
       {@const combinedSignals =
         conversationActivityCount > 0 && item.tasks.running > 0}
       {@const active = item.key === activeKey}
-      <ContextMenu
-        items={buildMenuItems?.(item) ?? []}
-        disabled={!buildMenuItems}
-        triggerClass="block min-w-0 max-w-56 overflow-hidden [-webkit-app-region:no-drag]"
+      <ItemSurface
+        itemKey={item.key}
+        menuItems={buildMenuItems?.(item) ?? []}
+        menuDisabled={!buildMenuItems}
+        hover="soft"
+        class="min-w-0 max-w-56 overflow-hidden [-webkit-app-region:no-drag]"
       >
         <Button
           variant="ghost"
           size="sm"
-          class={`w-full min-w-0 gap-1.5 rounded-md bg-accent/35 px-2 ${active ? "text-foreground hover:bg-accent/40" : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"}`}
+          class={`w-full min-w-0 gap-1.5 rounded-md bg-transparent px-2 hover:bg-transparent dark:hover:bg-transparent ${active ? "text-foreground data-[active]:bg-transparent" : "text-muted-foreground hover:text-foreground"}`}
           pressed={active}
           aria-current={active ? "page" : undefined}
           ariaLabel={tabLabel(item)}
@@ -103,7 +107,7 @@ function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
           {/if}
           <span class="truncate">{item.label}</span>
         </Button>
-      </ContextMenu>
+      </ItemSurface>
     {/each}
-  </div>
+  </ItemCollection>
 </nav>

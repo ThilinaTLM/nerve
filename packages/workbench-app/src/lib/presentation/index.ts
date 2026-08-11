@@ -13,6 +13,7 @@ export type { ScrollFollowDecisionInput } from "./components/transcript/conversa
 export { shouldDisableFollowForScroll } from "./components/transcript/conversation-scroll-intent.js";
 export { default as TranscriptList } from "./components/transcript/TranscriptList.svelte";
 export { default as TranscriptRow } from "./components/transcript/TranscriptRow.svelte";
+export * from "./items/index.js";
 export * from "./panel/index.js";
 export * from "./shell/index.js";
 export * from "./context.svelte.js";

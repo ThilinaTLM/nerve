@@ -9,7 +9,11 @@ import Terminal from "@lucide/svelte/icons/terminal";
 import X from "@lucide/svelte/icons/x";
 import type { TaskRecord } from "@nervekit/contracts";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { PanelRow, PanelToolbarButton } from "$lib/presentation/panel";
+import {
+  PanelRow,
+  PanelRowCard,
+  PanelToolbarButton,
+} from "$lib/presentation/panel";
 import { formatTaskRunTime, taskRunLabel } from "./task-panel-controller.js";
 import TaskStatusIcon from "./TaskStatusIcon.svelte";
 import type { TaskEntryCapabilities, TaskRunEntry } from "./task-panel-types";
@@ -18,6 +22,7 @@ let {
   entry,
   nested = false,
   capabilities,
+  active = false,
   onOpen,
   onCancel,
   onForceKill,
@@ -31,6 +36,7 @@ let {
   /** Renders the run as a child of its definition row: time-first label, deeper indent. */
   nested?: boolean;
   capabilities: TaskEntryCapabilities;
+  active?: boolean;
   onOpen?: (taskId: string) => void;
   onCancel?: (taskId: string) => void;
   onForceKill?: (taskId: string) => void;
@@ -131,52 +137,54 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 });
 </script>
 
-<PanelRow
-  label={nested ? startedAt : label.text}
-  description={nested ? undefined : startedAt}
-  title={tooltip}
-  mono={!nested && label.isCommand}
-  tone={nested || label.isCommand ? "muted" : "default"}
-  indent={nested ? 1 : 0}
-  alwaysShowActions
-  {menuItems}
-  onclick={() => onOpen?.(run.id)}
->
-  {#snippet leading()}
-    <TaskStatusIcon status={run.status} />
-  {/snippet}
-  {#snippet actions()}
-    {#if run.status === "stopping"}
-      <PanelToolbarButton
-        icon={Skull}
-        label={`Force kill ${label.text}`}
-        dense
-        disabled={!capabilities.cancel}
-        onclick={() => onForceKill?.(run.id)}
-      />
-    {:else if entry.isActive}
-      <PanelToolbarButton
-        icon={RotateCw}
-        label={`Restart ${label.text}`}
-        dense
-        disabled={!capabilities.restart}
-        onclick={() => onRestart?.(run.id)}
-      />
-      <PanelToolbarButton
-        icon={Square}
-        label={`Stop ${label.text}`}
-        dense
-        disabled={!capabilities.cancel}
-        onclick={() => onCancel?.(run.id)}
-      />
-    {:else}
-      <PanelToolbarButton
-        icon={RotateCw}
-        label={`Restart ${label.text}`}
-        dense
-        disabled={!capabilities.restart}
-        onclick={() => onRestart?.(run.id)}
-      />
-    {/if}
-  {/snippet}
-</PanelRow>
+<PanelRowCard itemKey={entry.key} {menuItems}>
+  <PanelRow
+    label={nested ? startedAt : label.text}
+    description={nested ? undefined : startedAt}
+    title={tooltip}
+    mono={!nested && label.isCommand}
+    tone={nested || label.isCommand ? "muted" : "default"}
+    indent={nested ? 1 : 0}
+    alwaysShowActions
+    {active}
+    onclick={() => onOpen?.(run.id)}
+  >
+    {#snippet leading()}
+      <TaskStatusIcon status={run.status} />
+    {/snippet}
+    {#snippet actions()}
+      {#if run.status === "stopping"}
+        <PanelToolbarButton
+          icon={Skull}
+          label={`Force kill ${label.text}`}
+          dense
+          disabled={!capabilities.cancel}
+          onclick={() => onForceKill?.(run.id)}
+        />
+      {:else if entry.isActive}
+        <PanelToolbarButton
+          icon={RotateCw}
+          label={`Restart ${label.text}`}
+          dense
+          disabled={!capabilities.restart}
+          onclick={() => onRestart?.(run.id)}
+        />
+        <PanelToolbarButton
+          icon={Square}
+          label={`Stop ${label.text}`}
+          dense
+          disabled={!capabilities.cancel}
+          onclick={() => onCancel?.(run.id)}
+        />
+      {:else}
+        <PanelToolbarButton
+          icon={RotateCw}
+          label={`Restart ${label.text}`}
+          dense
+          disabled={!capabilities.restart}
+          onclick={() => onRestart?.(run.id)}
+        />
+      {/if}
+    {/snippet}
+  </PanelRow>
+</PanelRowCard>

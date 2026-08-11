@@ -52,7 +52,7 @@ const tooltip = $derived(
 );
 </script>
 
-<PanelRowCard>
+<PanelRowCard itemKey={row.conversation.id} {menuItems}>
   <PanelRow
     label={row.conversation.title}
     labelLines={2}
@@ -62,7 +62,6 @@ const tooltip = $derived(
     pulse={dotActivity.pulse}
     class="px-2"
     active={isActive}
-    {menuItems}
     onclick={() => onOpenConversation?.(row.conversation.id)}
   />
 </PanelRowCard>

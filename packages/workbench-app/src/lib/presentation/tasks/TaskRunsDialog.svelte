@@ -3,7 +3,7 @@ import type { TaskRecord } from "@nervekit/contracts";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import SearchInput from "@nervekit/ui-kit/components/ui/search-input";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
-import { PanelList, PanelRowCard } from "$lib/presentation/panel";
+import { PanelList } from "$lib/presentation/panel";
 import TaskRunRow from "./TaskRunRow.svelte";
 import { taskRunLabel } from "./task-panel-controller.js";
 import type {
@@ -92,20 +92,18 @@ function openRun(taskId: string): void {
         <ScrollArea class="h-full">
           <PanelList ariaLabel="All runs" class="gap-1">
             {#each matches as entry (entry.key)}
-              <PanelRowCard>
-                <TaskRunRow
-                  {entry}
-                  {capabilities}
-                  onOpen={openRun}
-                  {onCancel}
-                  {onForceKill}
-                  {onRestart}
-                  onRerunDefinition={() => onRerunDefinition(entry)}
-                  {onRemove}
-                  {onCopy}
-                  {onSaveAsDefinition}
-                />
-              </PanelRowCard>
+              <TaskRunRow
+                {entry}
+                {capabilities}
+                onOpen={openRun}
+                {onCancel}
+                {onForceKill}
+                {onRestart}
+                onRerunDefinition={() => onRerunDefinition(entry)}
+                {onRemove}
+                {onCopy}
+                {onSaveAsDefinition}
+              />
             {/each}
           </PanelList>
         </ScrollArea>

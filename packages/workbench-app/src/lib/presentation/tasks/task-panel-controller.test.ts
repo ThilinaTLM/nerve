@@ -4,6 +4,7 @@ import type { TaskRecord } from "@nervekit/contracts";
 import {
   projectTaskPanel,
   taskDefinitionLabel,
+  taskPanelActiveItemKey,
   taskRunLabel,
 } from "./task-panel-controller.js";
 import type { TaskPanelDefinition } from "./task-panel-types.js";
@@ -26,6 +27,23 @@ function run(id: string, patch: Partial<TaskRecord> = {}): TaskRecord {
     ...patch,
   };
 }
+
+test("maps selected log streams to their single visual task item", () => {
+  assert.equal(taskPanelActiveItemKey(undefined), undefined);
+  assert.equal(taskPanelActiveItemKey(run("adhoc")), "adhoc");
+  assert.equal(
+    taskPanelActiveItemKey(
+      run("definition-run", { definitionId: "taskdef_a" }),
+    ),
+    "taskdef_a",
+  );
+  assert.equal(
+    taskPanelActiveItemKey(
+      run("restarted-run", { restartRootTaskId: "original-run" }),
+    ),
+    "restarted-run",
+  );
+});
 
 function definition(
   patch: Partial<TaskPanelDefinition> = {},
