@@ -7,30 +7,127 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+"
       # Pre-releases: v1.2.3-rc.1, v1.2.3-beta.2, etc.
       - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact SemVer without v (for example, 1.2.3 or 1.2.3-rc.1)
+        required: true
+        type: string
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  verify-tag:
-    name: Verify release tag
+  prepare-release:
+    name: Bump version and create tag
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_tag: ${{ steps.push.outputs.release_tag }}
+      release_sha: ${{ steps.push.outputs.release_sha }}
 
     steps:
-      - name: Check out repository
+      - name: Check out default branch
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 24
 
+      - name: Bump workspace versions
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: node scripts/bump-release-version.mjs "${RELEASE_VERSION}"
+
+      - name: Verify and push release commit and tag
+        id: push
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_AUTHOR_ID: ${{ github.actor_id }}
+          RELEASE_AUTHOR_NAME: ${{ github.actor }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          release_tag="v${RELEASE_VERSION}"
+          node scripts/verify-release-tag.mjs "${release_tag}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json packages/*/package.json
+          if ! git diff --cached --quiet; then
+            git commit \
+              --author="${RELEASE_AUTHOR_NAME} <${RELEASE_AUTHOR_ID}+${RELEASE_AUTHOR_NAME}@users.noreply.github.com>" \
+              -m "chore(release): bump version to ${release_tag}"
+          else
+            echo "Workspace is already at ${release_tag}; reusing the current commit"
+          fi
+
+          if git rev-parse --verify --quiet "refs/tags/${release_tag}" >/dev/null; then
+            tag_sha="$(git rev-list -n 1 "${release_tag}")"
+            head_sha="$(git rev-parse HEAD)"
+            if [ "${tag_sha}" != "${head_sha}" ]; then
+              echo "Tag ${release_tag} already points to ${tag_sha}, not ${head_sha}" >&2
+              exit 1
+            fi
+            echo "Tag ${release_tag} already points to the release commit"
+          else
+            git tag -a "${release_tag}" -m "Release ${release_tag}"
+          fi
+
+          git push --atomic origin \
+            "HEAD:refs/heads/${DEFAULT_BRANCH}" \
+            "refs/tags/${release_tag}"
+          echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+          echo "release_sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+  verify-tag:
+    name: Verify release tag
+    needs: prepare-release
+    if: >-
+      always() &&
+      (needs.prepare-release.result == 'success' ||
+       needs.prepare-release.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.context.outputs.release_tag }}
+      release_sha: ${{ steps.context.outputs.release_sha }}
+
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.release_sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Resolve release context
+        id: context
+        shell: bash
+        env:
+          PREPARED_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+          PREPARED_SHA: ${{ needs.prepare-release.outputs.release_sha }}
+          PUSHED_TAG: ${{ github.ref_name }}
+          PUSHED_SHA: ${{ github.sha }}
+        run: |
+          echo "release_tag=${PREPARED_TAG:-${PUSHED_TAG}}" >> "${GITHUB_OUTPUT}"
+          echo "release_sha=${PREPARED_SHA:-${PUSHED_SHA}}" >> "${GITHUB_OUTPUT}"
+
       - name: Verify release tag
-        run: node scripts/verify-release-tag.mjs "${{ github.ref_name }}"
+        run: node scripts/verify-release-tag.mjs "${{ steps.context.outputs.release_tag }}"
 
   quality-and-package:
     name: Check, test, build, and package (Ubuntu)
@@ -39,8 +136,10 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Check out repository
+      - name: Check out release commit
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify-tag.outputs.release_sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -96,8 +195,10 @@ jobs:
         os: [windows-latest, macos-latest]
 
     steps:
-      - name: Check out repository
+      - name: Check out release commit
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify-tag.outputs.release_sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -132,6 +233,7 @@ jobs:
     name: Publish to npmjs.com
     runs-on: ubuntu-latest
     needs:
+      - verify-tag
       - quality-and-package
       - native-package-smoke
     permissions:
@@ -172,7 +274,7 @@ jobs:
       - name: Publish npm tarball
         shell: bash
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.verify-tag.outputs.release_tag }}
         run: |
           set -euo pipefail
           name="@nervekit/desktop"
@@ -196,7 +298,9 @@ jobs:
   github-release:
     name: Create GitHub release
     runs-on: ubuntu-latest
-    needs: publish-npm
+    needs:
+      - verify-tag
+      - publish-npm
     permissions:
       contents: write
 
@@ -212,7 +316,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.verify-tag.outputs.release_tag }}
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
