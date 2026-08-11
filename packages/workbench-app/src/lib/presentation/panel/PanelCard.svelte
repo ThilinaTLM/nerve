@@ -1,16 +1,11 @@
 <script lang="ts">
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
-import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { tick, type Component, type Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/core/utils";
-import PanelToolbarButton from "./PanelToolbarButton.svelte";
 
 let {
   title,
   icon: Icon,
-  collapsed = false,
   titleHint,
-  onToggleCollapsed,
   onTitleDblClick,
   titleEditing = false,
   titleMaxLength,
@@ -24,11 +19,8 @@ let {
 }: {
   title: string;
   icon?: Component;
-  /** Controlled collapse state; the body renders only when expanded. */
-  collapsed?: boolean;
   /** Tooltip for the title control. */
   titleHint?: string;
-  onToggleCollapsed?: () => void;
   onTitleDblClick?: () => void;
   /** Swaps the title for an inline editor. */
   titleEditing?: boolean;
@@ -78,13 +70,7 @@ function cancel(): void {
     className,
   )}
 >
-  <div class="flex h-7 min-w-0 items-center gap-1 pr-1 pl-0.5">
-    <PanelToolbarButton
-      icon={collapsed ? ChevronRight : ChevronDown}
-      label={collapsed ? `Expand ${title}` : `Collapse ${title}`}
-      dense
-      onclick={() => onToggleCollapsed?.()}
-    />
+  <div class="flex h-7 min-w-0 items-center gap-1 px-3">
     {#if Icon}
       <Icon class="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
     {/if}
@@ -95,7 +81,7 @@ function cancel(): void {
         value={title}
         maxlength={titleMaxLength}
         aria-label="Note title"
-        class="h-5 min-w-0 flex-1 rounded-sm border border-input bg-background px-1 text-xs font-medium text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        class="h-5 min-w-0 flex-1 rounded-sm border border-input bg-background px-1 text-xs font-normal text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
         onkeydown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
@@ -108,19 +94,21 @@ function cancel(): void {
         onblur={(event) => commit(event.currentTarget.value)}
       />
     {:else}
-      <button
-        type="button"
-        class="min-w-0 max-w-full truncate rounded-sm text-left text-xs font-medium text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        title={titleHint ?? title}
-        ondblclick={() => onTitleDblClick?.()}
-      >
-        {title}
-      </button>
-      {#if titleActions}
-        <div class="flex shrink-0 items-center gap-0.5">
-          {@render titleActions()}
-        </div>
-      {/if}
+      <div class="group/title flex min-w-0 items-center gap-0.5">
+        <button
+          type="button"
+          class="min-w-0 max-w-full truncate rounded-sm text-left text-xs font-normal text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          title={titleHint ?? title}
+          ondblclick={() => onTitleDblClick?.()}
+        >
+          {title}
+        </button>
+        {#if titleActions}
+          <div class="flex shrink-0 items-center gap-0.5">
+            {@render titleActions()}
+          </div>
+        {/if}
+      </div>
       <div class="flex-1"></div>
     {/if}
     {#if meta}
@@ -134,9 +122,7 @@ function cancel(): void {
       </div>
     {/if}
   </div>
-  {#if !collapsed}
-    <div class="min-w-0 border-t border-border/60">
-      {@render children()}
-    </div>
-  {/if}
+  <div class="min-w-0">
+    {@render children()}
+  </div>
 </section>

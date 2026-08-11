@@ -167,10 +167,8 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
               <ContextMenu items={projectMenu(item)} triggerClass="contents">
                 <div
                   id={`recent:${encodeURIComponent(item.key)}`}
-                  class={`group flex w-full cursor-pointer items-center gap-2.5 rounded-md border px-2.5 py-1.5 text-left focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none ${
-                    selected
-                      ? "border-primary/50 bg-accent/80"
-                      : "border-border bg-accent/40 hover:bg-accent/70"
+                  class={`group flex w-full cursor-pointer items-center gap-2.5 rounded-md border border-transparent bg-accent/35 px-2.5 py-1.5 text-left focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none ${
+                    selected ? "bg-accent/80" : "hover:bg-accent/70"
                   }`}
                   role="option"
                   aria-selected={selected}

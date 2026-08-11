@@ -72,7 +72,7 @@ function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
         <Button
           variant="ghost"
           size="sm"
-          class={`w-full min-w-0 gap-1.5 rounded-xl px-2 ${active ? "border-border bg-muted/80 text-foreground hover:bg-muted" : "border-border/60 bg-muted/30 text-muted-foreground hover:border-border hover:bg-muted/70 hover:text-foreground"}`}
+          class={`w-full min-w-0 gap-1.5 rounded-md bg-accent/35 px-2 ${active ? "text-foreground hover:bg-accent/40" : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"}`}
           pressed={active}
           aria-current={active ? "page" : undefined}
           ariaLabel={tabLabel(item)}

@@ -8,6 +8,7 @@ import {
   PanelBanner,
   PanelEmpty,
   PanelHeader,
+  PanelScrollRegion,
   PanelToolbarButton,
   PanelView,
 } from "$lib/presentation/panel";
@@ -40,7 +41,7 @@ $effect(() => {
 });
 </script>
 
-<PanelView padded={false}>
+<PanelView padded={false} scroll={false}>
   {#snippet banner()}
     <PanelHeader title="Notes" count={project?.notes.length}>
       {#snippet trailing()}
@@ -93,15 +94,21 @@ $effect(() => {
         {/snippet}
       </PanelEmpty>
     {:else}
-      <div class="flex min-w-0 flex-col gap-1.5 py-1">
+      <PanelScrollRegion
+        ariaLabel="Scratch notes"
+        contentClass="flex min-w-0 shrink-0 flex-col gap-1.5 py-1"
+      >
         {#each project.notes as note (note.id)}
           <ScratchNoteCard
             {projectId}
             {note}
-            onDelete={() => (noteToDelete = note)}
+            onDelete={() => {
+              if (note.draftContent.trim()) noteToDelete = note;
+              else void removeScratchNote(projectId, note.id);
+            }}
           />
         {/each}
-      </div>
+      </PanelScrollRegion>
     {/if}
   {/if}
 </PanelView>
