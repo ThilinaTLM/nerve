@@ -37,6 +37,8 @@ type Props = {
   fallbackThinkingLevels?: ThinkingLevel[];
   confirmLabel?: string;
   onSave?: (selection: SaveSelection) => void;
+  showThinkingLevel?: boolean;
+  emptyMessage?: string;
 };
 
 let {
@@ -50,6 +52,8 @@ let {
   fallbackThinkingLevels = ["off"],
   confirmLabel = "Save selection",
   onSave,
+  showThinkingLevel = true,
+  emptyMessage = "Authenticate a provider before choosing a model.",
 }: Props = $props();
 
 let selectedKey = $state("");
@@ -156,7 +160,7 @@ function useFallback(): void {
       <div class="grid min-h-0 grid-rows-[minmax(0,1fr)] px-3 py-2">
         {#if models.length === 0}
           <p class="py-1 text-sm text-muted-foreground">
-            Authenticate a provider before choosing a model.
+            {emptyMessage}
           </p>
         {:else if filteredModels.length === 0}
           <p class="py-1 text-sm text-muted-foreground">
@@ -193,29 +197,31 @@ function useFallback(): void {
       </div>
     </Tooltip.Provider>
 
-    <div class="grid gap-1 border-t border-border/50 px-3 py-2">
-      <span class="text-xs text-muted-foreground">Thinking level</span>
-      <ToggleGroup.Root
-        type="single"
-        size="xs"
-        spacing={1}
-        variant="outline"
-        value={thinkingLevel}
-        aria-label="Thinking level"
-        class="min-w-0 flex-wrap justify-start"
-        onValueChange={(value) => {
-          if (value) thinkingLevel = value as ThinkingLevel;
-        }}
-      >
-        {#each thinkingLevels as level (level)}
-          <ToggleGroup.Item
-            value={level}
-            class="flex-none rounded-full text-xs capitalize data-[state=on]:text-primary"
-            >{level}</ToggleGroup.Item
-          >
-        {/each}
-      </ToggleGroup.Root>
-    </div>
+    {#if showThinkingLevel}
+      <div class="grid gap-1 border-t border-border/50 px-3 py-2">
+        <span class="text-xs text-muted-foreground">Thinking level</span>
+        <ToggleGroup.Root
+          type="single"
+          size="xs"
+          spacing={1}
+          variant="outline"
+          value={thinkingLevel}
+          aria-label="Thinking level"
+          class="min-w-0 flex-wrap justify-start"
+          onValueChange={(value) => {
+            if (value) thinkingLevel = value as ThinkingLevel;
+          }}
+        >
+          {#each thinkingLevels as level (level)}
+            <ToggleGroup.Item
+              value={level}
+              class="flex-none rounded-full text-xs capitalize data-[state=on]:text-primary"
+              >{level}</ToggleGroup.Item
+            >
+          {/each}
+        </ToggleGroup.Root>
+      </div>
+    {/if}
   </div>
 
   {#snippet footer()}

@@ -68,6 +68,38 @@ function migrateLegacyToolNames(value: unknown): {
   };
 }
 
+function migrateImageExplanationTool(value: unknown): {
+  value: unknown;
+  changed: boolean;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { value, changed: false };
+  }
+  const settings = value as Record<string, unknown>;
+  const tools = settings.tools;
+  if (!tools || typeof tools !== "object" || Array.isArray(tools)) {
+    return { value, changed: false };
+  }
+  const toolSettings = tools as Record<string, unknown>;
+  if ("imageExplanation" in toolSettings) {
+    return { value, changed: false };
+  }
+  const disabled = Array.isArray(toolSettings.disabled)
+    ? toolSettings.disabled
+    : [];
+  return {
+    value: {
+      ...settings,
+      tools: {
+        ...toolSettings,
+        disabled: [...new Set([...disabled, "explain_image"])],
+        imageExplanation: {},
+      },
+    },
+    changed: true,
+  };
+}
+
 const removedNotificationToneIds = new Set([
   "kenney-click-1",
   "kenney-click-2",
@@ -149,8 +181,11 @@ export async function initializeStorage(
   const rawSettings = await readJsonFile<unknown>(paths.configPath);
   const normalizedAppearance = migrateLegacyAppearanceSettings(rawSettings);
   const normalizedTools = migrateLegacyToolNames(normalizedAppearance.value);
-  const normalizedTones = migrateRemovedNotificationTones(
+  const normalizedImageExplanation = migrateImageExplanationTool(
     normalizedTools.value,
+  );
+  const normalizedTones = migrateRemovedNotificationTones(
+    normalizedImageExplanation.value,
   );
   const settings = settingsSchema.parse({
     ...defaultSettings,
@@ -159,6 +194,7 @@ export async function initializeStorage(
   if (
     normalizedAppearance.changed ||
     normalizedTools.changed ||
+    normalizedImageExplanation.changed ||
     normalizedTones.changed
   ) {
     await atomicWriteJson(paths.configPath, settings, 0o600);
@@ -246,6 +282,14 @@ export async function writeSettings(
           : {}),
       }
     : undefined;
+  const imageExplanationPatch = patch.tools?.imageExplanation
+    ? {
+        ...patch.tools.imageExplanation,
+        ...(patch.tools.imageExplanation.model === null
+          ? { model: undefined }
+          : {}),
+      }
+    : undefined;
   const confluencePatch = patch.tools?.confluence
     ? {
         ...patch.tools.confluence,
@@ -272,6 +316,14 @@ export async function writeSettings(
               confluence: {
                 ...storage.settings.tools.confluence,
                 ...confluencePatch,
+              },
+            }
+          : {}),
+        ...(imageExplanationPatch
+          ? {
+              imageExplanation: {
+                ...storage.settings.tools.imageExplanation,
+                ...imageExplanationPatch,
               },
             }
           : {}),

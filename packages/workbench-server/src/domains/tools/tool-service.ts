@@ -1,5 +1,10 @@
 import { resolve } from "node:path";
-import { allToolDescriptors, toolRiskForName } from "@nervekit/tools";
+import {
+  allToolDescriptors,
+  type ExplainImageRequest,
+  type ExplainImageResponse,
+  toolRiskForName,
+} from "@nervekit/tools";
 import {
   type AgentRecord,
   type ApprovalRecord,
@@ -173,6 +178,9 @@ export class ToolService {
     private readonly getApiKey: (
       provider: string,
     ) => Promise<string | undefined>,
+    private readonly explainImage: (
+      request: ExplainImageRequest,
+    ) => Promise<ExplainImageResponse>,
     private readonly plans: PlanService,
     private readonly setAgentMode: (
       agentId: string,
@@ -204,6 +212,7 @@ export class ToolService {
       getAgent: this.getAgent,
       runExplore: this.runExplore,
       getApiKey: this.getApiKey,
+      explainImage: this.explainImage,
       plans: this.plans,
       setAgentMode: this.setAgentMode,
       conversationRuntime: this.conversationRuntime,

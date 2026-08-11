@@ -31,6 +31,7 @@ describe("read-only tool availability and permissions", () => {
       "write",
       "web_search",
       "web_fetch",
+      "explain_image",
       "explore",
       "task_start",
       "task_cancel",

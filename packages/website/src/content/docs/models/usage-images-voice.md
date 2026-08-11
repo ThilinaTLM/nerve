@@ -17,9 +17,11 @@ Nerve currently retrieves subscription usage snapshots only for OAuth Anthropic 
 
 ## Image input
 
-Custom model definitions can declare image input and the harness can pass image content. The public model picker does not currently expose modality and the composer enables clipboard image paste for every selected model. Select a model known to accept images; a text-only model can reject the request.
+Custom model definitions can declare image input and the harness can pass image content. Pasted images become temporary local paths rather than durable attachments.
 
-See [Images and voice](/guides/images-and-voice/) for clipboard behavior. Pasted images become temporary local paths rather than durable attachments.
+For text-only models, choose an image-capable model for `explain_image` under **Settings → Tools**, then enable the tool. The agent can explicitly request a detailed description of a JPEG, PNG, GIF, or WebP path. The tool is not disclosed to the model while disabled and is automatically absent when the primary model already supports images.
+
+The configured vision provider receives the image bytes. A local OpenAI-compatible vision endpoint can keep processing local; cloud-provider usage and billing remain separate from the primary model. See [Images and voice](/guides/images-and-voice/) for clipboard behavior.
 
 ## Voice input
 

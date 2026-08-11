@@ -10,6 +10,7 @@ export type ToolGroupId =
   | "plan-mode"
   | "todos"
   | "web"
+  | "vision"
   | "tasks"
   | "shell"
   | "python";
@@ -26,6 +27,7 @@ export type ToolGroupDef = {
 export const configurableToolOrder: ConfigurableToolName[] = [
   "web_search",
   "web_fetch",
+  "explain_image",
   "python_exec",
 ];
 
@@ -150,6 +152,20 @@ export const toolGroups: ToolGroupDef[] = [
       {
         name: "web_fetch",
         description: "Fetch a URL and convert HTML to readable markdown.",
+      },
+    ],
+  },
+  {
+    id: "vision",
+    label: "Image explanation",
+    description:
+      "Use a separate vision model to explain images to text-only agents.",
+    configurableTools: ["explain_image"],
+    tools: [
+      {
+        name: "explain_image",
+        description:
+          "Return a detailed text explanation from the configured vision model.",
       },
     ],
   },

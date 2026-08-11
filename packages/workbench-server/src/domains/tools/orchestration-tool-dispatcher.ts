@@ -7,6 +7,8 @@ import {
   resolveCommandCwd,
   createTaskHandlers,
   createTodoHandlers,
+  type ExplainImageRequest,
+  type ExplainImageResponse,
   type ToolExecutionContext,
   type ToolExecutionOutputUpdate,
   type ToolExecutionResult,
@@ -80,6 +82,7 @@ export interface OrchestrationToolDispatcherDeps {
   getAgent(agentId: string): AgentRecord;
   runExplore: ExploreRunner;
   getApiKey(provider: string): Promise<string | undefined>;
+  explainImage(request: ExplainImageRequest): Promise<ExplainImageResponse>;
   plans: PlanService;
   setAgentMode(
     agentId: string,
@@ -243,6 +246,7 @@ export class OrchestrationToolDispatcher {
       dataDir: this.deps.storage.paths.home,
       shellPath: this.deps.storage.settings.runtime.shellPath,
       getApiKey: this.deps.getApiKey,
+      explainImage: this.deps.explainImage,
       getProviderConfig: async (provider) => {
         if (provider === "jira") return this.deps.storage.settings.tools.jira;
         if (provider === "confluence") {

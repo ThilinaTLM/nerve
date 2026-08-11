@@ -1,6 +1,12 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
-import type { AuthProviderMetadata, Settings, StatusResponse } from "$lib/api";
+import type {
+  AuthProviderMetadata,
+  ModelInfo,
+  ModelSelection,
+  Settings,
+  StatusResponse,
+} from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
@@ -13,6 +19,14 @@ import {
   SettingsSummaryRow,
   SettingsToggleRow,
 } from "$lib/presentation/components/settings";
+import {
+  modelDisplayName,
+  modelKey,
+  providerDisplayName,
+  supportsImageInput,
+  usableModelOptions,
+} from "$lib/presentation/utils/model";
+import SingleModelSelectionDialog from "../../shared/SingleModelSelectionDialog.svelte";
 import type { SettingsChange } from "../settings-change";
 import PythonRuntimeDialog from "./PythonRuntimeDialog.svelte";
 import TavilyKeyDialog from "./TavilyKeyDialog.svelte";
@@ -28,6 +42,7 @@ type Props = {
   settingsDraft: Settings;
   status?: StatusResponse;
   authProviders?: AuthProviderMetadata[];
+  models?: ModelInfo[];
   onSettingsChange?: SettingsChange;
 };
 
@@ -37,11 +52,13 @@ let {
   settingsDraft,
   status,
   authProviders = [],
+  models = [],
   onSettingsChange,
 }: Props = $props();
 
 let tavilyDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
+let visionModelDialogOpen = $state(false);
 
 const disabledTools = $derived(new Set(settingsDraft.tools?.disabled ?? []));
 const python = $derived(status?.runtime.python);
@@ -58,9 +75,24 @@ const tavilyConfigured = $derived(
 );
 const tavilyDisplayName = $derived(tavilyProvider?.displayName ?? "Tavily");
 const bashAutoPromotion = $derived(settingsDraft.tools.bash.autoPromotion);
+const usableVisionModels = $derived(
+  usableModelOptions(models, authProviders).filter(supportsImageInput),
+);
+const configuredVisionSelection = $derived(
+  settingsDraft.tools.imageExplanation.model,
+);
+const configuredVisionModel = $derived(
+  configuredVisionSelection
+    ? usableVisionModels.find(
+        (model) => modelKey(model) === modelKey(configuredVisionSelection),
+      )
+    : undefined,
+);
+const visionReady = $derived(Boolean(configuredVisionModel));
 
 function groupEnabled(group: ToolGroupDef): boolean {
   if (group.configurableTools.length === 0) return true;
+  if (group.id === "vision" && !visionReady) return false;
   return group.configurableTools.every((name) => !disabledTools.has(name));
 }
 
@@ -68,6 +100,7 @@ function setToolsEnabled(
   names: ConfigurableToolName[],
   enabled: boolean,
 ): void {
+  if (enabled && names.includes("explain_image") && !visionReady) return;
   const tools = ensureToolsDraft(settingsDraft);
   const next = new SvelteSet(tools.disabled);
   for (const name of names) {
@@ -77,6 +110,16 @@ function setToolsEnabled(
   const disabled = configurableToolOrder.filter((name) => next.has(name));
   tools.disabled = disabled;
   onSettingsChange?.({ tools: { disabled } }, { immediate: true });
+}
+
+function saveVisionModel(selection: { model?: ModelSelection }): void {
+  const model = selection.model;
+  settingsDraft.tools.imageExplanation.model = model;
+  onSettingsChange?.(
+    { tools: { imageExplanation: { model: model ?? null } } },
+    { immediate: true },
+  );
+  if (!model) setToolsEnabled(["explain_image"], false);
 }
 
 function setBashAutoPromotionEnabled(enabled: boolean): void {
@@ -131,6 +174,7 @@ function updateBashAutoPromotionSeconds(value: string): void {
             <Switch
               size="settings"
               checked={enabled}
+              disabled={group.id === "vision" && !visionReady}
               aria-label={`Enable ${group.label} tools`}
               onCheckedChange={(checked) =>
                 setToolsEnabled(group.configurableTools, checked)}
@@ -189,6 +233,40 @@ function updateBashAutoPromotionSeconds(value: string): void {
                 >
               {/snippet}
             </SettingsSummaryRow>
+          {:else if group.id === "vision"}
+            <SettingsSummaryRow
+              class="mt-1"
+              title={configuredVisionModel
+                ? modelDisplayName(configuredVisionModel)
+                : configuredVisionSelection
+                  ? `${configuredVisionSelection.provider}/${configuredVisionSelection.modelId}`
+                  : "Vision model not configured"}
+              status={configuredVisionModel
+                ? "ok"
+                : configuredVisionSelection
+                  ? "warning"
+                  : "muted"}
+            >
+              {#snippet meta()}
+                {#if configuredVisionModel}
+                  {providerDisplayName(configuredVisionModel.provider)} · Image input
+                {:else if configuredVisionSelection}
+                  Configured model is unavailable or does not support images.
+                {:else}
+                  Choose an image-capable model before enabling this tool.
+                {/if}
+              {/snippet}
+              {#snippet actions()}
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onclick={() => (visionModelDialogOpen = true)}
+                  >{configuredVisionSelection
+                    ? "Reconfigure"
+                    : "Choose model"}</Button
+                >
+              {/snippet}
+            </SettingsSummaryRow>
           {:else if group.id === "python"}
             <SettingsSummaryRow
               class="mt-1"
@@ -231,6 +309,19 @@ function updateBashAutoPromotionSeconds(value: string): void {
   bind:open={tavilyDialogOpen}
   configured={tavilyConfigured}
   displayName={tavilyDisplayName}
+/>
+
+<SingleModelSelectionDialog
+  bind:open={visionModelDialogOpen}
+  title="Choose image explanation model"
+  description="Only configured models that accept image input are shown."
+  models={usableVisionModels}
+  selectedModel={configuredVisionSelection}
+  selectedThinkingLevel="off"
+  showThinkingLevel={false}
+  emptyMessage="No configured image-capable models are available."
+  confirmLabel="Save model"
+  onSave={saveVisionModel}
 />
 
 <PythonRuntimeDialog

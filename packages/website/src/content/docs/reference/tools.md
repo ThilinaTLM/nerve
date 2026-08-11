@@ -1,11 +1,11 @@
 ---
 title: Agent tool catalog
-description: The 38 agent-callable tools, availability gates, risks, and important limits.
+description: The 39 agent-callable tools, availability gates, risks, and important limits.
 sidebar:
   order: 3
 ---
 
-Nerve exposes 38 tool names. Availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
+Nerve exposes 39 tool names. Availability also depends on mode, permission, runtime discovery, module settings, and user toggles.
 
 ## Files and execution
 
@@ -21,7 +21,15 @@ Reads are bounded and parallel-capable. `edit`/`write` are serialized mutations.
 - Jira: `jira_search_users`, `jira_search_issues`, `jira_get_issue`, `jira_get_project`, `jira_create_issue`, `jira_update_issue`, `jira_add_comment`, `jira_transition_issue`
 - Confluence: `confluence_search_spaces`, `confluence_search_pages`, `confluence_get_page`, `confluence_download_pages`, `confluence_create_page`, `confluence_update_page`, `confluence_publish_pages`, `confluence_upload_attachment`
 
-Only Web search/fetch and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence require enabled modules and credentials.
+Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence require enabled modules and credentials.
+
+## Image explanation
+
+- `explain_image`
+
+Choose an image-capable fallback model under **Settings → Tools**, then explicitly enable the tool. It is exposed only when the current agent model is text-only. When disabled, it is absent from the agent's tool schema and system prompt.
+
+The tool accepts an absolute or project-relative JPEG, PNG, GIF, or WebP path and an optional focus prompt. It sends the image to the configured vision model and returns only bounded explanatory text to the primary model. Cloud providers receive the image bytes; a compatible local provider can keep processing local.
 
 ## Interaction and to-dos
 

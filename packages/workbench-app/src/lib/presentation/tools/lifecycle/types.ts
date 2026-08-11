@@ -72,6 +72,7 @@ export type ToolResultPlaceholder = {
 };
 
 export type CompletedViewFamily =
+  | "generic"
   | "read"
   | "bash"
   | "python"

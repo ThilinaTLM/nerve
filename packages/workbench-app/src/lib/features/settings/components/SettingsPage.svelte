@@ -191,6 +191,7 @@ function statusText(): string {
           {settingsDraft}
           {status}
           {authProviders}
+          {models}
           {onSettingsChange}
         />
       {:else if page.id === "skills"}

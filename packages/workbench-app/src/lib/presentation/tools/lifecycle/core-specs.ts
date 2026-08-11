@@ -537,6 +537,26 @@ export const coreToolLifecycleSpecs = {
         ],
       }),
   }),
+  explain_image: defineToolLifecycleSpec({
+    name: "explain_image",
+    argumentRegion: "none",
+    completedView: "generic",
+    resultPlaceholder: { variant: "text", rows: 4 },
+    present: (source, stage, cwd) =>
+      argumentPresentation({
+        primaryArg: pathArg(source, cwd),
+        body:
+          stage === "approval"
+            ? keyValues([
+                ["Image", source.string("path"), true],
+                ["Focus", source.string("prompt")],
+              ])
+            : undefined,
+        safetyNotes: [
+          "Sends the image to the vision model configured in Nerve Settings.",
+        ],
+      }),
+  }),
   web_fetch: defineToolLifecycleSpec({
     name: "web_fetch",
     argumentRegion: "none",
@@ -579,6 +599,7 @@ export const coreToolLifecycleSpecs = {
     | "todos_get"
     | "web_search"
     | "web_fetch"
+    | "explain_image"
   >,
   ToolLifecycleSpec
 >;

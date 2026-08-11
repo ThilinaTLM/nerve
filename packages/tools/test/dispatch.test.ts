@@ -1,6 +1,7 @@
 import type { ToolName } from "@nervekit/contracts";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
+import { writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { describe, it } from "node:test";
 import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../src/execution/common/isolated-html-to-markdown.js";
@@ -191,6 +192,50 @@ describe("executeTool dispatch", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it("dispatches explain_image through the host vision callback", async () => {
+    const project = await createTempProject();
+    const image = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
+    ]);
+    await writeFile(`${project.root}/screen.png`, image);
+    const result = await executeTool(
+      "explain_image",
+      { path: "screen.png", prompt: "Read the error" },
+      {
+        cwd: project.root,
+        explainImage: async (request) => {
+          assert.equal(request.mimeType, "image/png");
+          assert.equal(request.prompt, "Read the error");
+          assert.deepEqual(Buffer.from(request.data), image);
+          return {
+            explanation: "The screenshot shows a build error.",
+            model: { provider: "google", modelId: "gemini" },
+          };
+        },
+      },
+    );
+    assert.equal(result.content, "The screenshot shows a build error.");
+    const details = result.details as Record<string, unknown>;
+    assert.equal(details.mimeType, "image/png");
+    assert.equal(details.byteSize, image.byteLength);
+    assert.equal(
+      JSON.stringify(result).includes(image.toString("base64")),
+      false,
+    );
+  });
+
+  it("rejects explain_image without a configured host callback", async () => {
+    const project = await createTempProject();
+    await assert.rejects(
+      executeTool(
+        "explain_image",
+        { path: "screen.png" },
+        { cwd: project.root },
+      ),
+      /not configured/,
+    );
   });
 
   it("rejects todo tools because they are orchestrator-owned", async () => {
