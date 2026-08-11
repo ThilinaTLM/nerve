@@ -12,6 +12,9 @@ const mutationReasons = {
   push: "remote.pushed",
   pull: "remote.pulled",
   fetch: "remote.fetched",
+  createStash: "stash.created",
+  applyStash: "stash.applied",
+  dropStash: "stash.dropped",
   checkoutPr: "github.pr.checked_out",
 } as const;
 

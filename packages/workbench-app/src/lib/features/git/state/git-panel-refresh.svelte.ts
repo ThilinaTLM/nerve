@@ -283,6 +283,7 @@ export async function refreshGitOverview(
           () =>
             void refreshGitOverview(projectId, repo, {
               silent: true,
+              force: true,
               onlyIfChanged: true,
             }),
         );

@@ -27,6 +27,7 @@ import type {
   GitProjectFileStatusResponse,
   GitRecentCommit,
   GitRepoSummary,
+  GitStashArea,
 } from "@nervekit/contracts";
 import {
   branchExists as branchExistsImpl,
@@ -76,6 +77,11 @@ import {
   GitRepositoryMetadataCache,
   type StableRepoMetadata,
 } from "./git-repository-metadata.js";
+import {
+  createAreaStash,
+  stashApplyArgs,
+  verifyStashTarget,
+} from "./git-stash.js";
 import { parsePorcelainV2 } from "./git-status.js";
 
 const MAX_DISCOVERY_DEPTH = 2;
@@ -662,6 +668,61 @@ export class GitService {
       }
     }
     await this.mapGit(() => this.runGit(repoDir, ["clean", "-f", "--", path]));
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async createStash(
+    projectId: string,
+    relativePath: string,
+    area: GitStashArea,
+    paths?: readonly string[],
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    await this.mapGit(() => createAreaStash(this, repoDir, area, paths));
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async applyStash(
+    projectId: string,
+    relativePath: string,
+    index: number,
+    expectedHash: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const ref = await verifyStashTarget(this, repoDir, index, expectedHash);
+    await this.mapGit(async () =>
+      this.runGit(repoDir, await stashApplyArgs(this, repoDir, ref)),
+    );
+    return {
+      repo: await this.summarizeRepo(
+        repoDir,
+        relativePath,
+        this.repoName(projectId, relativePath),
+      ),
+    };
+  }
+
+  async dropStash(
+    projectId: string,
+    relativePath: string,
+    index: number,
+    expectedHash: string,
+  ): Promise<GitMutationResponse> {
+    const repoDir = this.resolveRepoDir(projectId, relativePath);
+    const ref = await verifyStashTarget(this, repoDir, index, expectedHash);
+    await this.mapGit(() => this.runGit(repoDir, ["stash", "drop", ref]));
     return {
       repo: await this.summarizeRepo(
         repoDir,

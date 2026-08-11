@@ -21,6 +21,7 @@ import type {
   GitMutationResponse,
   GitOverviewResponse,
   GitProjectFileStatusResponse,
+  GitStashArea,
 } from "@nervekit/contracts";
 import { protocolRequest } from "@nervekit/protocol";
 
@@ -129,6 +130,54 @@ export async function switchBaseAndPullGit(
     await protocolRequest("git.switchBaseAndPull", {
       projectId,
       repo,
+    })
+  ).result;
+}
+
+export async function createGitStash(
+  projectId: string,
+  repo: string,
+  area: GitStashArea,
+  paths?: readonly string[],
+): Promise<GitMutationResponse> {
+  return (
+    await protocolRequest("git.stash.create", {
+      projectId,
+      repo,
+      area,
+      ...(paths ? { paths: [...paths] } : {}),
+    })
+  ).result;
+}
+
+export async function applyGitStash(
+  projectId: string,
+  repo: string,
+  index: number,
+  expectedHash: string,
+): Promise<GitMutationResponse> {
+  return (
+    await protocolRequest("git.stash.apply", {
+      projectId,
+      repo,
+      index,
+      expectedHash,
+    })
+  ).result;
+}
+
+export async function dropGitStash(
+  projectId: string,
+  repo: string,
+  index: number,
+  expectedHash: string,
+): Promise<GitMutationResponse> {
+  return (
+    await protocolRequest("git.stash.drop", {
+      projectId,
+      repo,
+      index,
+      expectedHash,
     })
   ).result;
 }

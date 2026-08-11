@@ -62,10 +62,14 @@ type Props = {
   /** Uncontrolled initial expansion policy. Existing callers default to all. */
   defaultExpanded?: "all" | "none";
   onItemExpansionChange?: (item: T, expanded: boolean) => void;
+  /** Expansion changes for generated path groups. */
+  onGroupExpansionChange?: (path: readonly string[], expanded: boolean) => void;
   /** Opt into a single fixed-height virtualized viewport for large trees. */
   virtualized?: boolean;
   /** Hide item disclosure arrows when open/closed leading icons carry state. */
   showDisclosure?: boolean;
+  /** Hide generated-directory chevrons when folder icons carry state. */
+  showGroupDisclosure?: boolean;
   itemMono?: boolean;
   /** Renders item descriptions on a second line instead of inline. */
   itemStacked?: boolean;
@@ -79,7 +83,12 @@ type Props = {
   itemLabelTrailing?: Snippet<[T]>;
   itemBadges?: Snippet<[T]>;
   itemActions?: Snippet<[T]>;
+  /** Actions for generated directory groups, receiving the full path. */
+  groupActions?: Snippet<[readonly string[]]>;
+  /** Overlay row actions so hidden controls reserve no horizontal space. */
+  overlayActions?: boolean;
   getItemMenuItems?: (item: T) => ContextMenuItem[];
+  getGroupMenuItems?: (path: readonly string[]) => ContextMenuItem[];
   class?: string;
 };
 
@@ -99,8 +108,10 @@ let {
   expandedIds,
   defaultExpanded = "all",
   onItemExpansionChange,
+  onGroupExpansionChange,
   virtualized = false,
   showDisclosure = true,
+  showGroupDisclosure = true,
   itemMono = false,
   itemStacked = false,
   onItemActivate,
@@ -108,7 +119,10 @@ let {
   itemLabelTrailing,
   itemBadges,
   itemActions,
+  groupActions,
+  overlayActions = false,
   getItemMenuItems,
+  getGroupMenuItems,
   class: className,
 }: Props = $props();
 
@@ -155,9 +169,14 @@ $effect(() => {
   if (!focusedId || !visibleIds.has(focusedId)) focusedId = rows[0]?.node.id;
 });
 
+function notifyExpansionChange(node: PanelTreeNode<T>, open: boolean): void {
+  if (node.kind === "item") onItemExpansionChange?.(node.value, open);
+  else onGroupExpansionChange?.(node.path, open);
+}
+
 function setExpanded(node: PanelTreeNode<T>, open: boolean): void {
   if (expandedIds) {
-    if (node.kind === "item") onItemExpansionChange?.(node.value, open);
+    notifyExpansionChange(node, open);
     return;
   }
   if (defaultExpanded === "all") {
@@ -165,7 +184,7 @@ function setExpanded(node: PanelTreeNode<T>, open: boolean): void {
     else collapsed.add(node.id);
   } else if (open) locallyExpanded.add(node.id);
   else locallyExpanded.delete(node.id);
-  if (node.kind === "item") onItemExpansionChange?.(node.value, open);
+  notifyExpansionChange(node, open);
 }
 
 function isExpandable(node: PanelTreeNode<T>): boolean {
@@ -263,18 +282,29 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   {#if node.kind === "group"}
     {#snippet groupLeading()}
       {#if open}
-        <ChevronDown class="size-3" aria-hidden="true" />
+        {#if showGroupDisclosure}
+          <ChevronDown class="size-3" aria-hidden="true" />
+        {/if}
         <FolderOpen class="size-3.5" aria-hidden="true" />
       {:else}
-        <ChevronRight class="size-3" aria-hidden="true" />
+        {#if showGroupDisclosure}
+          <ChevronRight class="size-3" aria-hidden="true" />
+        {/if}
         <Folder class="size-3.5" aria-hidden="true" />
       {/if}
+    {/snippet}
+    {#snippet renderedGroupActions()}
+      {#if groupActions}{@render groupActions(node.path)}{/if}
     {/snippet}
     <PanelRow
       label={node.label}
       title={node.path.join("/")}
       leading={groupLeading}
+      actions={groupActions ? renderedGroupActions : undefined}
+      menuItems={getGroupMenuItems?.(node.path)}
       dense
+      alwaysShowActions={!overlayActions}
+      {overlayActions}
       indent={baseIndent + row.depth}
       role="treeitem"
       tabindex={focusedId === node.id ? 0 : -1}
@@ -329,7 +359,8 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       actions={itemActions ? leafActions : undefined}
       menuItems={getItemMenuItems?.(node.value)}
       dense
-      alwaysShowActions
+      alwaysShowActions={!overlayActions}
+      {overlayActions}
       class={cn(cardClass(rowIndex), itemClass)}
       indent={baseIndent + (indentItems ? row.depth : 0)}
       role="treeitem"

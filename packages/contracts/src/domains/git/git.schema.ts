@@ -93,6 +93,15 @@ export const gitRecentCommitSchema = z.object({
 });
 export type GitRecentCommit = z.infer<typeof gitRecentCommitSchema>;
 
+export const gitStashEntrySchema = z.object({
+  index: z.number().int().nonnegative(),
+  ref: z.string().regex(/^stash@\{\d+\}$/),
+  hash: z.string().min(7).max(128),
+  message: z.string(),
+  relativeDate: z.string(),
+});
+export type GitStashEntry = z.infer<typeof gitStashEntrySchema>;
+
 export const gitOverviewResponseSchema = z.object({
   repo: gitRepoSummarySchema,
   baseBranch: z.string(),
@@ -104,6 +113,7 @@ export const gitOverviewResponseSchema = z.object({
   insertions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
   recentCommits: z.array(gitRecentCommitSchema),
+  stashes: z.array(gitStashEntrySchema),
 });
 export type GitOverviewResponse = z.infer<typeof gitOverviewResponseSchema>;
 
@@ -146,6 +156,23 @@ export const gitFileActionRequestSchema = z.object({
   path: z.string().min(1),
 });
 export type GitFileActionRequest = z.infer<typeof gitFileActionRequestSchema>;
+
+export const gitStashAreaSchema = z.enum(["staged", "unstaged"]);
+export type GitStashArea = z.infer<typeof gitStashAreaSchema>;
+
+export const gitStashCreateRequestSchema = z.object({
+  repo: z.string().default("."),
+  area: gitStashAreaSchema,
+  paths: z.array(z.string().min(1)).max(10_000).optional(),
+});
+export type GitStashCreateRequest = z.infer<typeof gitStashCreateRequestSchema>;
+
+export const gitStashTargetRequestSchema = z.object({
+  repo: z.string().default("."),
+  index: z.number().int().nonnegative(),
+  expectedHash: z.string().min(7).max(128),
+});
+export type GitStashTargetRequest = z.infer<typeof gitStashTargetRequestSchema>;
 
 export const gitDiffAreaSchema = z.enum(["staged", "unstaged"]);
 export type GitDiffArea = z.infer<typeof gitDiffAreaSchema>;

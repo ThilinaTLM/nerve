@@ -32,6 +32,7 @@ let {
   stacked = false,
   hoverable = true,
   alwaysShowActions = false,
+  overlayActions = false,
   ariaLabel,
   ariaExpanded,
   role = "listitem",
@@ -82,6 +83,8 @@ let {
   hoverable?: boolean;
   /** Keeps trailing actions visible instead of revealing them on hover. */
   alwaysShowActions?: boolean;
+  /** Reveals actions over the row so hidden controls reserve no width. */
+  overlayActions?: boolean;
   ariaLabel?: string;
   ariaExpanded?: boolean;
   /** Outer row semantics. Tree rows opt into `treeitem`; list rows keep the default. */
@@ -146,6 +149,7 @@ const toneClass = $derived(
     class={cn(
       "panel-row group/panel-row flex min-w-0 items-center rounded-sm",
       hoverable && "panel-row-hoverable",
+      actions && overlayActions && "relative",
       stacked
         ? "min-h-11 gap-2 py-2.5 pr-3 text-xs"
         : labelLines === 2
@@ -258,6 +262,9 @@ const toneClass = $derived(
           "flex shrink-0 items-center gap-0.5",
           !alwaysShowActions &&
             "panel-hover-actions group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100",
+          !alwaysShowActions &&
+            overlayActions &&
+            "pointer-events-none absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-sm bg-background/95 pl-1 shadow-sm group-focus-within/panel-row:pointer-events-auto group-hover/panel-row:pointer-events-auto",
         )}
       >
         {@render actions()}

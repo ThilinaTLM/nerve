@@ -2,6 +2,7 @@ import type {
   GitBranchSummary,
   GitFileChange,
   GithubPr,
+  GitStashArea,
 } from "@nervekit/contracts";
 import type {
   GitPanelActions,
@@ -9,6 +10,10 @@ import type {
   GitPrFilterConfig,
   GitRemoteOperation,
 } from "./git-panel-types.js";
+import {
+  panelTreeExpandableIds,
+  type PanelTreeNode,
+} from "../panel/panel-tree.js";
 
 export function gitFileGroups(files: readonly GitFileChange[]): {
   staged: GitFileChange[];
@@ -18,6 +23,47 @@ export function gitFileGroups(files: readonly GitFileChange[]): {
     staged: files.filter((file) => file.staged),
     unstaged: files.filter((file) => file.untracked || file.worktree !== " "),
   };
+}
+
+export function gitFilesInScope(
+  files: readonly GitFileChange[],
+  area: GitStashArea,
+  path?: string,
+): GitFileChange[] {
+  const grouped = gitFileGroups(files)[area];
+  if (!path) return grouped;
+  return grouped.filter(
+    (file) => file.path === path || file.path.startsWith(`${path}/`),
+  );
+}
+
+export function gitPathspecs(files: readonly GitFileChange[]): string[] {
+  return [
+    ...new Set(
+      files.flatMap((file) =>
+        file.renamedFrom ? [file.path, file.renamedFrom] : [file.path],
+      ),
+    ),
+  ];
+}
+
+export function gitChangeTreeFolderKey(
+  area: GitStashArea,
+  path: readonly string[],
+): string {
+  return `${area}:group:${JSON.stringify(path)}`;
+}
+
+export function gitExpandedGroupIds<T>(
+  nodes: readonly PanelTreeNode<T>[],
+  area: GitStashArea,
+  collapsed: ReadonlySet<string>,
+): Set<string> {
+  return new Set(
+    [...panelTreeExpandableIds(nodes)].filter(
+      (id) => !collapsed.has(`${area}:${id}`),
+    ),
+  );
 }
 
 export function filterAndSortBranches(
@@ -197,9 +243,25 @@ export function createGitPanelActions(
       if (available() && model().capabilities.mutateFiles.enabled)
         return host.mutateFile(repository, file, action);
     },
-    bulkMutateFiles: (repository, action) => {
+    mutateFileScope: (repository, area, action, path) => {
       if (available() && model().capabilities.bulkMutateFiles.enabled)
-        return host.bulkMutateFiles(repository, action);
+        return host.mutateFileScope(repository, area, action, path);
+    },
+    createStash: (repository, area, path) => {
+      if (available() && model().capabilities.stashes.enabled)
+        return host.createStash(repository, area, path);
+    },
+    setChangeTreeFolderExpanded: (repository, key, expanded) => {
+      if (available())
+        return host.setChangeTreeFolderExpanded(repository, key, expanded);
+    },
+    applyStash: (repository, stash) => {
+      if (available() && model().capabilities.stashes.enabled)
+        return host.applyStash(repository, stash);
+    },
+    dropStash: (repository, stash) => {
+      if (available() && model().capabilities.stashes.enabled)
+        return host.dropStash(repository, stash);
     },
     runRemoteOperation: (repository, operation) => {
       if (enabled(operation))

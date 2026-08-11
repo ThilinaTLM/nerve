@@ -5,6 +5,8 @@ import type {
   GithubPr,
   GithubStatusResponse,
   GitRepoSummary,
+  GitStashArea,
+  GitStashEntry,
 } from "@nervekit/contracts";
 
 export type FeatureCapability =
@@ -16,7 +18,23 @@ export type FileMutation = {
   readonly action: "stage" | "unstage" | "discard";
 };
 
-export type BulkFileMutation = "stage-all" | "unstage-all";
+export type ScopedFileMutation = {
+  readonly action: "stage" | "unstage" | "discard";
+  readonly area: GitStashArea;
+  readonly path?: string;
+};
+
+export type StashMutation =
+  | {
+      readonly action: "create";
+      readonly area: GitStashArea;
+      readonly path?: string;
+    }
+  | {
+      readonly action: "apply" | "drop";
+      readonly hash: string;
+    };
+
 export type GitRemoteOperation =
   | "fetch"
   | "pull"
@@ -40,6 +58,7 @@ export interface GitPanelCapabilities {
   readonly branches: FeatureCapability;
   readonly mutateFiles: FeatureCapability;
   readonly bulkMutateFiles: FeatureCapability;
+  readonly stashes: FeatureCapability;
   readonly remote: Readonly<Record<GitRemoteOperation, FeatureCapability>>;
   readonly openPullRequest: FeatureCapability;
 }
@@ -60,7 +79,8 @@ export interface GitPanelOperationState {
   readonly switchingBranch?: string;
   readonly creatingBranch: boolean;
   readonly fileMutation?: FileMutation;
-  readonly bulkMutation?: BulkFileMutation;
+  readonly bulkMutation?: ScopedFileMutation;
+  readonly stashMutation?: StashMutation;
 }
 
 export interface GitPanelModel {
@@ -73,6 +93,8 @@ export interface GitPanelModel {
   readonly repositorySummary?: GitRepoSummary;
   readonly changes?: GitChangesModel;
   readonly branches: readonly GitBranchSummary[];
+  readonly collapsedChangeTreeFolders: ReadonlySet<string>;
+  readonly stashes: readonly GitStashEntry[];
   readonly github?: GithubStatusResponse;
   readonly pullRequests: readonly GithubPr[];
   readonly pullRequestFilters: GitPrFilterConfig;
@@ -117,9 +139,29 @@ export interface GitPanelActions {
     file: GitFileChange,
     action: FileMutation["action"],
   ) => void | Promise<void>;
-  readonly bulkMutateFiles: (
+  readonly mutateFileScope: (
     repository: string,
-    action: BulkFileMutation,
+    area: GitStashArea,
+    action: ScopedFileMutation["action"],
+    path?: string,
+  ) => void | Promise<void>;
+  readonly createStash: (
+    repository: string,
+    area: GitStashArea,
+    path?: string,
+  ) => void | Promise<void>;
+  readonly setChangeTreeFolderExpanded: (
+    repository: string,
+    key: string,
+    expanded: boolean,
+  ) => void | Promise<void>;
+  readonly applyStash: (
+    repository: string,
+    stash: GitStashEntry,
+  ) => void | Promise<void>;
+  readonly dropStash: (
+    repository: string,
+    stash: GitStashEntry,
   ) => void | Promise<void>;
   readonly runRemoteOperation: (
     repository: string,

@@ -20,13 +20,16 @@ import { pendingPollTargets, PR_PENDING_POLL_MS } from "./git-refresh-policy";
 import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
 import { shouldActivateGitPanel } from "./git-startup-policy";
 import {
+  applyGitRepoStash,
   autoRefreshGitOverview,
   autoRefreshPrsIfStale,
-  bulkStageGitFiles,
   createGitRepoBranch,
+  createGitRepoStash,
   fetchGitRepo,
+  dropGitRepoStash,
   gitPanelState,
   mutateGitFile,
+  mutateGitFileScope,
   savePrFilters,
   pullGitRepo,
   pushGitRepo,
@@ -36,6 +39,7 @@ import {
   refreshGitProject,
   refreshPrs,
   selectGitProject,
+  setGitChangeTreeFolderExpanded,
   setGitOverviewRefreshVisible,
   selectGitRepo,
   switchBaseAndPullGitRepo,
@@ -46,6 +50,7 @@ import {
 const unsupported = disabledCapability(
   "Select a project to use Git operations.",
 );
+const emptyCollapsedFolders: ReadonlySet<string> = new Set();
 
 export function createWorkbenchGitPanelAdapter(
   activeProject: () => ProjectRecord | undefined,
@@ -69,6 +74,7 @@ export function createWorkbenchGitPanelAdapter(
             branches: enabledCapability,
             mutateFiles: enabledCapability,
             bulkMutateFiles: enabledCapability,
+            stashes: enabledCapability,
             remote: {
               fetch: enabledCapability,
               pull: enabledCapability,
@@ -84,6 +90,7 @@ export function createWorkbenchGitPanelAdapter(
             branches: unsupported,
             mutateFiles: unsupported,
             bulkMutateFiles: unsupported,
+            stashes: unsupported,
             remote: {
               fetch: unsupported,
               pull: unsupported,
@@ -107,6 +114,9 @@ export function createWorkbenchGitPanelAdapter(
         repositorySummary: current?.repoSummary,
         changes: current?.changes,
         branches: current?.branches ?? [],
+        collapsedChangeTreeFolders:
+          current?.collapsedChangeTreeFolders ?? emptyCollapsedFolders,
+        stashes: current?.stashes ?? [],
         github: current?.github,
         pullRequests: current?.prs ?? [],
         pullRequestFilters: current?.prFilters ?? defaultGitPrFilterConfig,
@@ -223,9 +233,28 @@ export function createWorkbenchGitPanelAdapter(
       const project = activeProject();
       if (project) return mutateGitFile(project.id, repository, file, action);
     },
-    bulkMutateFiles: (repository, action) => {
+    mutateFileScope: (repository, area, action, path) => {
       const project = activeProject();
-      if (project) return bulkStageGitFiles(project.id, repository, action);
+      if (project)
+        return mutateGitFileScope(project.id, repository, area, action, path);
+    },
+    createStash: (repository, area, path) => {
+      const project = activeProject();
+      if (project)
+        return createGitRepoStash(project.id, repository, area, path);
+    },
+    setChangeTreeFolderExpanded: (repository, key, expanded) => {
+      const project = activeProject();
+      if (project)
+        setGitChangeTreeFolderExpanded(project.id, repository, key, expanded);
+    },
+    applyStash: (repository, stash) => {
+      const project = activeProject();
+      if (project) return applyGitRepoStash(project.id, repository, stash);
+    },
+    dropStash: (repository, stash) => {
+      const project = activeProject();
+      if (project) return dropGitRepoStash(project.id, repository, stash);
     },
     runRemoteOperation: (repository, operation) => {
       const project = activeProject();

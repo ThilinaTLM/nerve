@@ -6,6 +6,7 @@ import type {
   GitOverviewResponse,
   GitRecentCommit,
   GitRepoSummary,
+  GitStashEntry,
 } from "$lib/api";
 
 export type GitChangesState = Pick<
@@ -81,6 +82,18 @@ export function recentCommitsFingerprint(commits: GitRecentCommit[]): string {
   );
 }
 
+export function stashesFingerprint(stashes: readonly GitStashEntry[]): string {
+  return JSON.stringify(
+    stashes.map((stash) => ({
+      index: stash.index,
+      ref: stash.ref,
+      hash: stash.hash,
+      message: stash.message,
+      relativeDate: stash.relativeDate,
+    })),
+  );
+}
+
 export function branchesFingerprint(branches: GitBranchSummary[]): string {
   return JSON.stringify(
     branches.map((branch) => ({
@@ -117,5 +130,6 @@ export function overviewFingerprint(next: GitOverviewResponse): string {
     repo: repoSummaryFingerprint(next.repo),
     changes: changesFingerprint(changesFromOverview(next)),
     recentCommits: recentCommitsFingerprint(next.recentCommits),
+    stashes: stashesFingerprint(next.stashes),
   });
 }
