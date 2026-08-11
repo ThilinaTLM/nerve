@@ -27,7 +27,7 @@ Web search/fetch, image explanation, and Python are individual global tool toggl
 
 - `explain_image`
 
-Choose an image-capable fallback model under **Settings → Tools**, then explicitly enable the tool. It is exposed only when the current agent model is text-only. When disabled, it is absent from the agent's tool schema and system prompt.
+Choose an image-capable fallback model and its thinking level under **Settings → Tools**, then explicitly enable the tool. It is exposed only when the current agent model is text-only. When disabled, it is absent from the agent's tool schema and system prompt.
 
 The tool accepts an absolute or project-relative JPEG, PNG, GIF, or WebP path and an optional focus prompt. It sends the image to the configured vision model and returns only bounded explanatory text to the primary model. Cloud providers receive the image bytes; a compatible local provider can keep processing local.
 

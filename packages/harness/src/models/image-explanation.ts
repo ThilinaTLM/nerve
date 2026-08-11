@@ -1,4 +1,5 @@
 import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
+import type { ThinkingLevel } from "../agent/types/index.js";
 import { normalizeImagesForModel } from "./image-normalization.js";
 import { completeSimpleWithModel } from "./provider-registry.js";
 
@@ -16,6 +17,7 @@ export async function explainImageWithModel(input: {
   model: Model<Api>;
   image: ImageContent;
   prompt?: string;
+  thinkingLevel?: ThinkingLevel;
   auth?: ImageExplanationAuth;
   signal?: AbortSignal;
 }): Promise<string> {
@@ -41,6 +43,12 @@ export async function explainImageWithModel(input: {
     ],
     requestModel,
   );
+  const reasoning =
+    requestModel.reasoning &&
+    input.thinkingLevel &&
+    input.thinkingLevel !== "off"
+      ? input.thinkingLevel
+      : undefined;
   const response = await completeSimpleWithModel(
     requestModel,
     { messages },
@@ -48,6 +56,7 @@ export async function explainImageWithModel(input: {
       apiKey: input.auth?.apiKey,
       headers: input.auth?.headers,
       env: input.auth?.env,
+      reasoning,
       signal: input.signal,
     },
   );

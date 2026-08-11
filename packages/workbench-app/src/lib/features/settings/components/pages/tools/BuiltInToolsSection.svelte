@@ -5,6 +5,7 @@ import type {
   ModelInfo,
   ModelSelection,
   Settings,
+  ThinkingLevel,
   StatusResponse,
 } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -112,11 +113,22 @@ function setToolsEnabled(
   onSettingsChange?.({ tools: { disabled } }, { immediate: true });
 }
 
-function saveVisionModel(selection: { model?: ModelSelection }): void {
+function saveVisionModel(selection: {
+  model?: ModelSelection;
+  thinkingLevel: ThinkingLevel;
+}): void {
   const model = selection.model;
   settingsDraft.tools.imageExplanation.model = model;
+  settingsDraft.tools.imageExplanation.thinkingLevel = selection.thinkingLevel;
   onSettingsChange?.(
-    { tools: { imageExplanation: { model: model ?? null } } },
+    {
+      tools: {
+        imageExplanation: {
+          model: model ?? null,
+          thinkingLevel: selection.thinkingLevel,
+        },
+      },
+    },
     { immediate: true },
   );
   if (!model) setToolsEnabled(["explain_image"], false);
@@ -250,6 +262,8 @@ function updateBashAutoPromotionSeconds(value: string): void {
               {#snippet meta()}
                 {#if configuredVisionModel}
                   {providerDisplayName(configuredVisionModel.provider)} · Image input
+                  · Thinking {settingsDraft.tools.imageExplanation
+                    .thinkingLevel}
                 {:else if configuredVisionSelection}
                   Configured model is unavailable or does not support images.
                 {:else}
@@ -317,8 +331,7 @@ function updateBashAutoPromotionSeconds(value: string): void {
   description="Only configured models that accept image input are shown."
   models={usableVisionModels}
   selectedModel={configuredVisionSelection}
-  selectedThinkingLevel="off"
-  showThinkingLevel={false}
+  selectedThinkingLevel={settingsDraft.tools.imageExplanation.thinkingLevel}
   emptyMessage="No configured image-capable models are available."
   confirmLabel="Save model"
   onSave={saveVisionModel}

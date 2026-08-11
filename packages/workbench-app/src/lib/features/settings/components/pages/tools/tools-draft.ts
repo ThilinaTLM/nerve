@@ -7,7 +7,7 @@ export function ensureToolsDraft(settingsDraft: Settings): Settings["tools"] {
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
-    imageExplanation: {},
+    imageExplanation: { thinkingLevel: "off" },
   };
   return settingsDraft.tools;
 }

@@ -68,7 +68,9 @@ describe("settings schema", () => {
     });
     assert.equal(settings.tools.jira.enabled, false);
     assert.equal(settings.tools.confluence.enabled, false);
-    assert.deepEqual(settings.tools.imageExplanation, {});
+    assert.deepEqual(settings.tools.imageExplanation, {
+      thinkingLevel: "off",
+    });
   });
 
   it("backfills event tones for the previous notification settings shape", () => {
@@ -165,6 +167,7 @@ describe("settings schema", () => {
         },
         imageExplanation: {
           model: { provider: "google", modelId: "gemini-2.5-flash" },
+          thinkingLevel: "high",
         },
       },
     });
@@ -241,9 +244,9 @@ describe("settings schema", () => {
     );
     assert.equal(parsed.tools?.confluence?.email, "user@example.com");
     assert.equal(parsed.tools?.confluence?.defaultSpaceKey, "DEV");
-    assert.deepEqual(parsed.tools?.imageExplanation?.model, {
-      provider: "google",
-      modelId: "gemini-2.5-flash",
+    assert.deepEqual(parsed.tools?.imageExplanation, {
+      model: { provider: "google", modelId: "gemini-2.5-flash" },
+      thinkingLevel: "high",
     });
     const cleared = updateSettingsRequestSchema.parse({
       runtime: { pythonExecutablePath: null, shellPath: null },

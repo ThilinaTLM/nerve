@@ -1,4 +1,5 @@
 import {
+  clampAgentThinkingLevel,
   explainImageWithModel,
   generateSummary,
   resolveAgentModel,
@@ -480,6 +481,10 @@ export function composeRuntime(
           mimeType: request.mimeType,
         },
         prompt: request.prompt,
+        thinkingLevel: clampAgentThinkingLevel(
+          selection,
+          storage.settings.tools.imageExplanation.thinkingLevel,
+        ),
         auth: requestAuth,
         signal: request.signal,
       });

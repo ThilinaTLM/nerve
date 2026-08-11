@@ -77,6 +77,7 @@ const bashToolSettingsSchema = z.object({
 
 const imageExplanationToolSettingsSchema = z.object({
   model: modelSelectionSchema.optional(),
+  thinkingLevel: thinkingLevelSchema.default("off"),
 });
 
 const toolSettingsSchema = z.object({
@@ -86,7 +87,9 @@ const toolSettingsSchema = z.object({
   }),
   jira: jiraToolSettingsSchema.default({ enabled: false }),
   confluence: confluenceToolSettingsSchema.default({ enabled: false }),
-  imageExplanation: imageExplanationToolSettingsSchema.default({}),
+  imageExplanation: imageExplanationToolSettingsSchema.default({
+    thinkingLevel: "off",
+  }),
 });
 
 export const compactionProfileSchema = z.enum([
@@ -209,7 +212,7 @@ export const settingsSchema = z.object({
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
-    imageExplanation: {},
+    imageExplanation: { thinkingLevel: "off" },
   }),
   skills: z
     .object({
@@ -282,7 +285,7 @@ export const defaultSettings: Settings = {
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
-    imageExplanation: {},
+    imageExplanation: { thinkingLevel: "off" },
   },
   skills: { disabled: [], agentBrowser: { enabled: [] } },
   scopedModels: [],
@@ -415,6 +418,7 @@ export const updateSettingsRequestSchema = z.object({
       imageExplanation: z
         .object({
           model: modelSelectionSchema.nullable().optional(),
+          thinkingLevel: thinkingLevelSchema.optional(),
         })
         .optional(),
     })

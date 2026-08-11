@@ -180,7 +180,9 @@ describe("settings migrations", () => {
       "web_search",
       "explain_image",
     ]);
-    assert.deepEqual(storage.settings.tools.imageExplanation, {});
+    assert.deepEqual(storage.settings.tools.imageExplanation, {
+      thinkingLevel: "off",
+    });
   });
 
   it("migrates and deduplicates the legacy python disabled tool name", async () => {
