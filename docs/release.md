@@ -45,6 +45,20 @@ Stop all Nerve processes first, then remove the complete `NERVE_HOME` (default `
 
 The deterministic workbench error is `Incompatible Nerve state at <path>...`, ending with `Reset this directory before starting Nerve Protocol v1.` The headless workbench has no general migration reader. The desktop has one narrow upgrade path for an unversioned legacy workbench home: after confirmation it retains a timestamped whole-home backup, initializes version 2, and restores only portable user state—validated settings, the custom provider/model catalog, and re-encrypted provider credentials. Malformed settings or catalog data aborts the migration and restores the original home; an undecryptable credential store is reported as a nonfatal failure because the backup retains it. Conversations, agents, projects, logs, plans, run history, SQLite, and daemon/session state remain only in the backup. Nerve never downgrades or automatically resets malformed, unknown, or future versioned stores.
 
+## Release commit signing
+
+The manual release workflow creates its version-bump commit on protected `main`, so it must use the dedicated `Nerve Release Bot` GPG key registered on the `ThilinaTLM` GitHub account. The initiating maintainer remains the commit author; `Nerve Release Bot <41065538+ThilinaTLM@users.noreply.github.com>` is the signing committer.
+
+Configure these repository Actions secrets together:
+
+- `RELEASE_GPG_PRIVATE_KEY`: the passphrase-protected armored private key
+- `RELEASE_GPG_PASSPHRASE`: the private-key passphrase
+- `RELEASE_GPG_FINGERPRINT`: the full primary-key fingerprint
+
+The matching public key must remain registered with GitHub. The workflow imports the private key into an ephemeral keyring and fails before its atomic push if a secret is missing, the fingerprint differs, the key cannot be unlocked, or the release commit does not verify against that fingerprint.
+
+The current automation key expires on 2028-08-10. Rotate it before expiry by generating and registering a replacement key, replacing all three secrets together, validating a release, and then removing the old public key. If the key may be compromised, remove it from GitHub and replace the secrets before another release.
+
 ## npm publication and OIDC
 
 Tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The trusted publisher for `@nervekit/desktop` uses `.github/workflows/release.yml` in `ThilinaTLM/nerve`. The workflow must not publish until its configured checks, tools/desktop host tests, package verification, desktop packaging, and built-artifact smokes pass on Linux, Windows, and macOS. Workbench-server native host coverage is owned by the separate native-host workflow. An already-published matching version may be skipped only after the expected local tarball is verified.
