@@ -56,21 +56,68 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RELEASE_AUTHOR_ID: ${{ github.actor_id }}
           RELEASE_AUTHOR_NAME: ${{ github.actor }}
+          RELEASE_GPG_FINGERPRINT: ${{ secrets.RELEASE_GPG_FINGERPRINT }}
+          RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           release_tag="v${RELEASE_VERSION}"
           node scripts/verify-release-tag.mjs "${release_tag}"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          export GNUPGHOME="${RUNNER_TEMP}/release-gnupg"
+          gpg_wrapper="${RUNNER_TEMP}/release-gpg-sign"
+          cleanup_signing_material() {
+            rm -rf "${GNUPGHOME}" "${gpg_wrapper}"
+          }
+          trap cleanup_signing_material EXIT
+          mkdir -m 700 "${GNUPGHOME}"
+
+          if [ -z "${RELEASE_GPG_PRIVATE_KEY}" ] ||
+             [ -z "${RELEASE_GPG_PASSPHRASE}" ] ||
+             [ -z "${RELEASE_GPG_FINGERPRINT}" ]; then
+            echo "Release signing secrets are not configured" >&2
+            exit 1
+          fi
+
+          printf '%s' "${RELEASE_GPG_PRIVATE_KEY}" | gpg --batch --import >/dev/null 2>&1
+          expected_fingerprint="$(printf '%s' "${RELEASE_GPG_FINGERPRINT}" | tr -d '[:space:]')"
+          mapfile -t imported_fingerprints < <(
+            gpg --batch --with-colons --list-secret-keys |
+              awk -F: '$1 == "sec" { primary = 1; next } primary && $1 == "fpr" { print $10; primary = 0 }'
+          )
+          if [ "${#imported_fingerprints[@]}" -ne 1 ] ||
+             [ "${imported_fingerprints[0]}" != "${expected_fingerprint}" ]; then
+            echo "Imported release key does not match RELEASE_GPG_FINGERPRINT" >&2
+            exit 1
+          fi
+
+          cat >"${gpg_wrapper}" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "${RELEASE_GPG_PASSPHRASE}" "$@"
+          EOF
+          chmod 700 "${gpg_wrapper}"
+
+          git config user.name "Nerve Release Bot"
+          git config user.email "41065538+ThilinaTLM@users.noreply.github.com"
+          git config user.signingkey "${expected_fingerprint}"
+          git config gpg.program "${gpg_wrapper}"
+          git config commit.gpgsign true
           git add package.json packages/*/package.json
           if ! git diff --cached --quiet; then
-            git commit \
+            git commit -S \
               --author="${RELEASE_AUTHOR_NAME} <${RELEASE_AUTHOR_ID}+${RELEASE_AUTHOR_NAME}@users.noreply.github.com>" \
               -m "chore(release): bump version to ${release_tag}"
           else
             echo "Workspace is already at ${release_tag}; reusing the current commit"
+          fi
+
+          if ! verification="$(git verify-commit --raw HEAD 2>&1)" ||
+             ! grep -Fq "[GNUPG:] VALIDSIG ${expected_fingerprint} " <<<"${verification}"; then
+            echo "Release commit is not signed by the configured release key" >&2
+            exit 1
           fi
 
           if git rev-parse --verify --quiet "refs/tags/${release_tag}" >/dev/null; then
