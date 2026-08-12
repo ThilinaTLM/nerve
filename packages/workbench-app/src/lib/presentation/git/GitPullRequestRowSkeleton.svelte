@@ -1,11 +1,12 @@
 <script lang="ts">
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import { ItemSurface } from "$lib/presentation/items";
 </script>
 
-<div
+<ItemSurface
   role="status"
-  aria-label="Loading pull requests"
-  class="flex min-w-0 flex-col gap-1 rounded-md bg-accent/35 px-3 py-2.5"
+  ariaLabel="Loading pull requests"
+  class="flex-col gap-1 px-3 py-2.5"
 >
   <div class="flex min-w-0 items-center gap-1.5">
     <Skeleton class="h-3.5 w-7 shrink-0" />
@@ -16,4 +17,4 @@ import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
     <Skeleton class="ml-auto size-6 rounded-sm" />
   </div>
   <span class="sr-only">Loading pull requests</span>
-</div>
+</ItemSurface>

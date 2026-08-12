@@ -1,25 +1,32 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import { cn } from "@nervekit/ui-kit/core/utils";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import { ItemSurface } from "$lib/presentation/items";
 
 let {
   role = "none",
+  itemKey,
+  menuItems,
+  menuDisabled = false,
   class: className,
   children,
 }: {
   /** Outer semantics; rows inside already carry `listitem` where needed. */
   role?: "listitem" | "none";
+  itemKey?: string;
+  menuItems?: ContextMenuItem[];
+  menuDisabled?: boolean;
   class?: string;
   children: Snippet;
 } = $props();
 </script>
 
-<div
+<ItemSurface
   {role}
-  class={cn(
-    "panel-row-card flex min-w-0 flex-col rounded-md px-1 py-0.5 transition-colors",
-    className,
-  )}
+  {itemKey}
+  {menuItems}
+  {menuDisabled}
+  class={`panel-row-card flex-col px-1 py-0.5 ${className ?? ""}`}
 >
   {@render children()}
-</div>
+</ItemSurface>

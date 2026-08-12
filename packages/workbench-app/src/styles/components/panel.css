@@ -16,13 +16,8 @@
   background: color-mix(in oklab, var(--accent) 55%, transparent);
 }
 
-/* Card surface for panel list items (task groups, pull requests). Rows inside a
- * card hover with a softer tint so the composited result matches the standalone
- * row hover instead of stacking into a brighter value. */
-.panel-row-card {
-  background: color-mix(in oklab, var(--accent) 35%, transparent);
-}
-
+/* ItemSurface owns the card background. Rows inside a panel card hover with a
+ * softer tint so the composited result matches a standalone row. */
 .panel-row-card .panel-row-hoverable:hover {
   background: color-mix(in oklab, var(--accent) 38%, transparent);
 }

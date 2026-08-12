@@ -11,7 +11,11 @@ import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
-import { PanelRow, PanelToolbarButton } from "$lib/presentation/panel";
+import {
+  PanelRow,
+  PanelRowCard,
+  PanelToolbarButton,
+} from "$lib/presentation/panel";
 import { taskDefinitionLabel } from "./task-panel-controller.js";
 import TaskStatusIcon from "./TaskStatusIcon.svelte";
 import type {
@@ -22,6 +26,7 @@ import type {
 let {
   entry,
   capabilities,
+  active = false,
   onOpen,
   onRun,
   onCancel,
@@ -34,6 +39,7 @@ let {
 }: {
   entry: TaskDefinitionEntry;
   capabilities: TaskEntryCapabilities;
+  active?: boolean;
   onOpen?: (taskId: string) => void;
   onRun?: () => void;
   onCancel?: (taskId: string) => void;
@@ -52,7 +58,7 @@ const command = $derived(entry.definition.command);
 const cwd = $derived(entry.definition.cwd);
 const concurrent = $derived(entry.definition.runPolicy === "concurrent");
 const canStart = $derived(concurrent || entry.activeRuns.length === 0);
-const active = $derived(entry.activeRuns[0]);
+const activeRun = $derived(entry.activeRuns[0]);
 const cleanableRuns = $derived(
   entry.runs.filter((run) => run.isRemovable && run.run.id !== latest?.id),
 );
@@ -67,7 +73,7 @@ const tooltip = $derived(
   [command, cwd, recoveryHint].filter(Boolean).join("\n"),
 );
 const runLabel = $derived(
-  concurrent && active ? "Start another run" : "Run task",
+  concurrent && activeRun ? "Start another run" : "Run task",
 );
 
 const menuItems = $derived.by<ContextMenuItem[]>(() => {
@@ -94,27 +100,27 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       disabled: !capabilities.start,
       onSelect: () => onRun?.(),
     });
-  if (active) {
+  if (activeRun) {
     items.push({
       label: "Restart",
       icon: RotateCw,
       disabled: !capabilities.restart,
-      onSelect: () => onRestart?.(active.id),
+      onSelect: () => onRestart?.(activeRun.id),
     });
-    if (active.status !== "stopping")
+    if (activeRun.status !== "stopping")
       items.push({
         label: "Stop",
         icon: Square,
         disabled: !capabilities.cancel,
-        onSelect: () => onCancel?.(active.id),
+        onSelect: () => onCancel?.(activeRun.id),
       });
-    if (active.status === "recovered" || active.status === "stopping")
+    if (activeRun.status === "recovered" || activeRun.status === "stopping")
       items.push({
         label: "Force kill",
         icon: Skull,
         destructive: true,
         disabled: !capabilities.cancel,
-        onSelect: () => onForceKill?.(active.id),
+        onSelect: () => onForceKill?.(activeRun.id),
       });
   }
 
@@ -153,62 +159,64 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 });
 </script>
 
-<PanelRow
-  label={label.text}
-  title={tooltip}
-  mono={label.isCommand}
-  tone={label.isCommand ? "muted" : "default"}
-  disabled={!latest}
-  indent={0}
-  alwaysShowActions
-  {menuItems}
-  onclick={() => latest && onOpen?.(latest.id)}
->
-  {#snippet leading()}
-    <TaskStatusIcon {status} />
-  {/snippet}
-  {#snippet badges()}
-    {#if entry.activeRuns.length > 1}
-      <Badge tone="accent" size="xs">{entry.activeRuns.length} running</Badge>
-    {/if}
-    {#if entry.runs.length > 1}
-      <Badge tone="neutral" size="xs">
-        <History class="mr-1 size-3" />{entry.runs.length}
-      </Badge>
-    {/if}
-  {/snippet}
-  {#snippet actions()}
-    {#if active?.status === "stopping"}
-      <PanelToolbarButton
-        icon={Skull}
-        label="Force kill task"
-        dense
-        disabled={!capabilities.cancel}
-        onclick={() => onForceKill?.(active.id)}
-      />
-    {:else if active}
-      <PanelToolbarButton
-        icon={RotateCw}
-        label="Restart task"
-        dense
-        disabled={!capabilities.restart}
-        onclick={() => onRestart?.(active.id)}
-      />
-      <PanelToolbarButton
-        icon={Square}
-        label="Stop task"
-        dense
-        disabled={!capabilities.cancel}
-        onclick={() => onCancel?.(active.id)}
-      />
-    {:else if canStart}
-      <PanelToolbarButton
-        icon={Play}
-        label={runLabel}
-        dense
-        disabled={!capabilities.start}
-        onclick={() => onRun?.()}
-      />
-    {/if}
-  {/snippet}
-</PanelRow>
+<PanelRowCard itemKey={entry.key} {menuItems}>
+  <PanelRow
+    label={label.text}
+    title={tooltip}
+    mono={label.isCommand}
+    tone={label.isCommand ? "muted" : "default"}
+    disabled={!latest}
+    indent={0}
+    alwaysShowActions
+    {active}
+    onclick={() => latest && onOpen?.(latest.id)}
+  >
+    {#snippet leading()}
+      <TaskStatusIcon {status} />
+    {/snippet}
+    {#snippet badges()}
+      {#if entry.activeRuns.length > 1}
+        <Badge tone="accent" size="xs">{entry.activeRuns.length} running</Badge>
+      {/if}
+      {#if entry.runs.length > 1}
+        <Badge tone="neutral" size="xs">
+          <History class="mr-1 size-3" />{entry.runs.length}
+        </Badge>
+      {/if}
+    {/snippet}
+    {#snippet actions()}
+      {#if activeRun?.status === "stopping"}
+        <PanelToolbarButton
+          icon={Skull}
+          label="Force kill task"
+          dense
+          disabled={!capabilities.cancel}
+          onclick={() => onForceKill?.(activeRun.id)}
+        />
+      {:else if activeRun}
+        <PanelToolbarButton
+          icon={RotateCw}
+          label="Restart task"
+          dense
+          disabled={!capabilities.restart}
+          onclick={() => onRestart?.(activeRun.id)}
+        />
+        <PanelToolbarButton
+          icon={Square}
+          label="Stop task"
+          dense
+          disabled={!capabilities.cancel}
+          onclick={() => onCancel?.(activeRun.id)}
+        />
+      {:else if canStart}
+        <PanelToolbarButton
+          icon={Play}
+          label={runLabel}
+          dense
+          disabled={!capabilities.start}
+          onclick={() => onRun?.()}
+        />
+      {/if}
+    {/snippet}
+  </PanelRow>
+</PanelRowCard>

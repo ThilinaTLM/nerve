@@ -130,7 +130,10 @@ const menuContext = $derived<ProjectTreeMenuContext>({
         {/snippet}
       </PanelEmpty>
     {:else}
-      <PanelScrollRegion ariaLabel="Conversations">
+      <PanelScrollRegion
+        ariaLabel="Conversations"
+        activeKey={selectedConversationId}
+      >
         <PanelList ariaLabel="Conversations" class="shrink-0 gap-1 pt-1 pb-0">
           {#each displayedRows as row (row.conversation.id)}
             {@const rowProject =

@@ -77,6 +77,13 @@ export function normalizeTaskDefinition(
   };
 }
 
+/** Maps the selected log stream to the single visual item that owns it. */
+export function taskPanelActiveItemKey(
+  task: TaskRecord | undefined,
+): string | undefined {
+  return task ? (task.definitionId ?? task.id) : undefined;
+}
+
 export interface TaskEntryLabel {
   readonly text: string;
   readonly isCommand: boolean;
