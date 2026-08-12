@@ -78,7 +78,7 @@ const compacting = $derived(conversationSelectors.compacting);
 const contextUsage = $derived(conversationSelectors.activeContextUsage);
 const contextWindow = $derived(conversationSelectors.activeContextWindow);
 const tasks = $derived(taskSelectors.scopedTasks);
-const selectedTask = $derived(taskSelectors.selectedTask);
+const selectedTask = $derived(taskSelectors.activeCenterTask);
 
 $effect(() => {
   if (viewId === "files")
