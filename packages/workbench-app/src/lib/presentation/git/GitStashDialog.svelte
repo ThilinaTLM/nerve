@@ -1,11 +1,10 @@
 <script lang="ts">
-import ArchiveRestore from "@lucide/svelte/icons/archive-restore";
-import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { GitStashEntry } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import { ItemScrollRegion } from "$lib/presentation/items";
+import GitStashRow from "./GitStashRow.svelte";
 import type { StashMutation } from "./git-panel-types";
 
 type Props = {
@@ -32,65 +31,37 @@ const busy = $derived(Boolean(mutation));
 
 <Dialog
   bind:open
+  flush
   title="Stashes"
   description={`Saved changes for ${repositoryName}`}
-  size="sm"
+  size="md"
 >
   {#if stashes.length === 0}
-    <p class="py-4 text-center text-sm text-muted-foreground">
+    <p class="p-8 text-center text-sm text-muted-foreground">
       No stashes in this repository.
     </p>
   {:else}
-    <div class="max-h-80 overflow-y-auto rounded-md border">
-      {#each stashes as stash (stash.hash)}
-        <div
-          class="flex min-w-0 items-center gap-2 border-b px-3 py-2 last:border-b-0"
-        >
-          <ArchiveRestore
-            class="size-4 shrink-0 text-muted-foreground"
-            aria-hidden="true"
+    <div class="flex max-h-80 min-h-0 flex-col p-1.5">
+      <ItemScrollRegion
+        ariaLabel="Stashes"
+        contentClass="flex min-w-0 shrink-0 flex-col gap-1.5 py-0.5"
+      >
+        {#each stashes.slice(0, 100) as stash (stash.hash)}
+          <GitStashRow
+            {stash}
+            {busy}
+            {mutation}
+            {onApply}
+            onDrop={(candidate) => (dropCandidate = candidate)}
           />
-          <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span class="truncate text-xs font-medium text-foreground"
-              >{stash.message}</span
-            >
-            <span class="truncate text-xs text-muted-foreground">
-              <span class="font-mono">{stash.ref}</span>
-              · <span class="font-mono">{stash.hash.slice(0, 8)}</span>
-              · {stash.relativeDate}
-            </span>
-          </div>
-          <Button
-            size="xs"
-            variant="outline"
-            disabled={busy}
-            onclick={() => onApply(stash)}
-          >
-            {#if mutation?.action === "apply" && mutation.hash === stash.hash}
-              <Spinner class="size-3" />
-            {:else}
-              <ArchiveRestore />
-            {/if}
-            Apply
-          </Button>
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            aria-label={`Drop ${stash.ref}`}
-            title="Drop stash"
-            disabled={busy}
-            onclick={() => (dropCandidate = stash)}
-          >
-            {#if mutation?.action === "drop" && mutation.hash === stash.hash}
-              <Spinner class="size-3" />
-            {:else}
-              <Trash2 />
-            {/if}
-          </Button>
-        </div>
-      {/each}
+        {/each}
+      </ItemScrollRegion>
     </div>
+    {#if stashes.length > 100}
+      <p class="px-3 pb-2 text-xs text-muted-foreground">
+        Showing the first 100 of {stashes.length} stashes.
+      </p>
+    {/if}
   {/if}
 
   {#snippet footer()}
