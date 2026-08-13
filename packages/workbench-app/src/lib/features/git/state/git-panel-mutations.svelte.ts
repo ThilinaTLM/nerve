@@ -19,6 +19,10 @@ import {
   syncGitBranch,
   unstageGitFile,
 } from "$lib/api";
+import {
+  errorDetails,
+  showCriticalError,
+} from "$lib/features/notifications/critical-errors.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { gitFilesInScope, gitPathspecs } from "$lib/presentation";
 import {
@@ -27,7 +31,6 @@ import {
 } from "./git-panel-refresh.svelte";
 import {
   ensureGitRepoState,
-  errorMessage,
   mergeRepoSummary,
   setBranchesIfChanged,
 } from "./git-panel-state.svelte";
@@ -40,7 +43,7 @@ function refreshAfterRemoteMutation(projectId: string, repo: string): void {
 }
 
 function notifyGitFailure(title: string, error: unknown): void {
-  notify.error(title, { description: errorMessage(error) });
+  showCriticalError(title, errorDetails(error));
 }
 
 export async function fetchGitRepo(

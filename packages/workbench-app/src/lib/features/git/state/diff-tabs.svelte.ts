@@ -5,7 +5,7 @@ import {
   gitState,
   type DiffViewState,
 } from "$lib/features/git/state/git-state.svelte";
-import { notify } from "$lib/features/notifications/notify.svelte";
+import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
 import {
   addCenterTab,
   nextCenterTabAfterClose,
@@ -28,7 +28,10 @@ function addDiffTab(id: string): void {
   addCenterTab({ kind: "diff", id });
 }
 
-async function loadDiffView(view: DiffViewState): Promise<void> {
+async function loadDiffView(
+  view: DiffViewState,
+  critical = false,
+): Promise<void> {
   const initial = !view.data;
   if (initial) view.loading = true;
   else view.refreshing = true;
@@ -45,7 +48,7 @@ async function loadDiffView(view: DiffViewState): Promise<void> {
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.error = message;
-    notify.error("Could not load diff", { description: message });
+    if (critical) showCriticalError("Could not load diff", message);
   } finally {
     view.loading = false;
     view.refreshing = false;
@@ -74,7 +77,7 @@ export async function openDiffPane(input: {
   };
   addDiffTab(id);
   setActiveCenterTab({ kind: "diff", id });
-  await loadDiffView(gitState.diffViews[key]);
+  await loadDiffView(gitState.diffViews[key], true);
 }
 
 export async function selectCenterDiffTab(id: string): Promise<void> {
@@ -87,7 +90,7 @@ export async function selectCenterDiffTab(id: string): Promise<void> {
 
 export async function refreshDiffPane(id: string): Promise<void> {
   const view = gitState.diffViews[diffViewKey(id)];
-  if (view && !view.loading && !view.refreshing) await loadDiffView(view);
+  if (view && !view.loading && !view.refreshing) await loadDiffView(view, true);
 }
 
 export function closeDiffTab(id: string): void {

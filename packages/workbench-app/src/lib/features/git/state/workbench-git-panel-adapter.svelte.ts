@@ -156,26 +156,51 @@ export function createWorkbenchGitPanelAdapter(
   const host: GitPanelActions = {
     refreshAll: () => {
       const project = activeProject();
-      if (project) return refreshGitProject(project, { force: true });
+      if (project)
+        return refreshGitProject(project, {
+          force: true,
+          criticalErrorTitle: "Could not refresh Git repositories",
+        });
     },
     refreshRepository: async (repository) => {
       const project = activeProject();
       if (project)
         await Promise.all([
-          refreshGitOverview(project.id, repository, { force: true }),
-          refreshGithub(project.id, repository, true),
+          refreshGitOverview(project.id, repository, {
+            force: true,
+            criticalErrorTitle: "Could not refresh repository",
+          }),
+          refreshGithub(
+            project.id,
+            repository,
+            true,
+            "Could not refresh repository",
+          ),
         ]);
     },
     refreshBranches: (repository) => {
       const project = activeProject();
-      if (project) return refreshBranches(project.id, repository);
+      if (project)
+        return refreshBranches(
+          project.id,
+          repository,
+          "Could not refresh branches",
+        );
     },
     refreshPullRequests: async (repository) => {
       const project = activeProject();
       if (project)
         await Promise.all([
-          refreshGitOverview(project.id, repository, { force: true }),
-          refreshGithub(project.id, repository, true),
+          refreshGitOverview(project.id, repository, {
+            force: true,
+            criticalErrorTitle: "Could not refresh pull requests",
+          }),
+          refreshGithub(
+            project.id,
+            repository,
+            true,
+            "Could not refresh pull requests",
+          ),
         ]);
     },
     configurePullRequests: (repository, filters) => {
@@ -188,7 +213,14 @@ export function createWorkbenchGitPanelAdapter(
       if (!state) return;
       state.prFilters = normalizeGitPrFilterConfig(filters);
       savePrFilters(project.id, repository, state.prFilters);
-      return refreshPrs(project.id, repository, false, true);
+      return refreshPrs(
+        project.id,
+        repository,
+        false,
+        true,
+        true,
+        "Could not apply pull request filters",
+      );
     },
     resetPullRequestConfig: (repository) => {
       const project = activeProject();
@@ -200,7 +232,14 @@ export function createWorkbenchGitPanelAdapter(
       if (!state) return;
       state.prFilters = defaultGitPrFilterConfig;
       savePrFilters(project.id, repository, state.prFilters);
-      return refreshPrs(project.id, repository, false, true);
+      return refreshPrs(
+        project.id,
+        repository,
+        false,
+        true,
+        true,
+        "Could not reset pull request filters",
+      );
     },
     selectRepository: (repository) => {
       const project = activeProject();

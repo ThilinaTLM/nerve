@@ -19,6 +19,10 @@ import {
   selectPrMergeMethod,
   selectPrTab,
 } from "$lib/features/git/state/pr-tabs.svelte";
+import {
+  errorDetails,
+  showCriticalError,
+} from "$lib/features/notifications/critical-errors.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 
 const activeCenterPrView = $derived(gitSelectors.activeCenterPrView);
@@ -32,9 +36,7 @@ async function checkoutActivePr() {
     invalidateGit(view.projectId);
     void refreshPrPane(view.id);
   } catch (caught) {
-    notify.error("Could not check out pull request", {
-      description: caught instanceof Error ? caught.message : String(caught),
-    });
+    showCriticalError("Could not check out pull request", errorDetails(caught));
   }
 }
 
@@ -62,7 +64,7 @@ async function mergeActivePr(method: GithubPrMergeMethod) {
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     view.mergeError = message;
-    notify.error("Could not merge pull request", { description: message });
+    showCriticalError("Could not merge pull request", message);
   } finally {
     view.merging = false;
   }
@@ -79,8 +81,16 @@ function retrySection(
 ): void {
   const view = activeCenterPrView;
   if (!view) return;
-  if (section === "core") void loadPrCore(view, { force: true });
-  else void loadPrSection(view, section, { force: true });
+  if (section === "core")
+    void loadPrCore(view, {
+      force: true,
+      criticalErrorTitle: "Could not load pull request",
+    });
+  else
+    void loadPrSection(view, section, {
+      force: true,
+      criticalErrorTitle: "Could not load pull request section",
+    });
 }
 
 $effect(() => {

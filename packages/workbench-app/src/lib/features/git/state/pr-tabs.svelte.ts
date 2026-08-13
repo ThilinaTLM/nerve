@@ -65,7 +65,10 @@ function addPrTab(id: string): void {
   addCenterTab({ kind: "pr", id });
 }
 
-async function ensurePrView(view: PrViewState): Promise<void> {
+async function ensurePrView(
+  view: PrViewState,
+  criticalErrorTitle?: string,
+): Promise<void> {
   if (
     view.activeTab === "conversation" &&
     (!view.core.data || !view.conversation.data || !view.overview.data)
@@ -74,11 +77,15 @@ async function ensurePrView(view: PrViewState): Promise<void> {
       silent: Boolean(
         view.core.data || view.conversation.data || view.overview.data,
       ),
+      criticalErrorTitle,
     });
     if (initial) demandPrTab(view);
     return;
   }
-  await loadPrCore(view, { silent: Boolean(view.core.data) });
+  await loadPrCore(view, {
+    silent: Boolean(view.core.data),
+    criticalErrorTitle,
+  });
   demandPrTab(view);
 }
 
@@ -130,7 +137,7 @@ export async function openPrPane(input: {
   if (summary && !view.checks.data)
     view.checks.data = { checks: summary.checks };
   setActiveCenterTab({ kind: "pr", id });
-  await ensurePrView(view);
+  await ensurePrView(view, "Could not open pull request");
 }
 
 export async function selectCenterPrTab(id: string): Promise<void> {
@@ -158,6 +165,9 @@ export function selectPrTab(
   const view = gitState.prViews[prViewKey(id)];
   if (!view) return;
   view.activeTab = tab;
+  void loadPrSection(view, tab, {
+    criticalErrorTitle: "Could not load pull request section",
+  });
   demandPrTab(view);
 }
 
@@ -171,7 +181,10 @@ export function selectPrFile(id: string, path: string): void {
 export function retrySelectedPrFile(id: string): void {
   const view = gitState.prViews[prViewKey(id)];
   if (view?.selectedFilePath)
-    void loadPrFileDiff(view, view.selectedFilePath, { force: true });
+    void loadPrFileDiff(view, view.selectedFilePath, {
+      force: true,
+      criticalErrorTitle: "Could not load pull request file",
+    });
 }
 
 export function selectPrMergeMethod(

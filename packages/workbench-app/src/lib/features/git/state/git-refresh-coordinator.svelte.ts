@@ -21,6 +21,7 @@ import {
   getGithubPrOverview,
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/core/query";
+import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
 import { prViewKey } from "$lib/core/state/state-keys";
 import {
   gitState,
@@ -40,7 +41,11 @@ export const PR_CONVERSATION_STALE_MS = 60_000;
 const IMMUTABLE_HEAD_STALE_MS = Number.POSITIVE_INFINITY;
 const PR_DETAIL_CACHE_MS = 5 * 60_000;
 
-type LoadOptions = { force?: boolean; silent?: boolean };
+type LoadOptions = {
+  force?: boolean;
+  silent?: boolean;
+  criticalErrorTitle?: string;
+};
 type Section = "conversation" | "overview" | "commits" | "checks" | "files";
 
 const resourceRequests = new SvelteMap<string, Promise<unknown>>();
@@ -118,11 +123,14 @@ async function fetchResource<T>(input: {
       }
       return data;
     } catch (error) {
+      const details = message(error);
       if (
         ownsResource(input.key, version) &&
         (!input.options?.silent || !hadData)
       )
-        input.resource.error = message(error);
+        input.resource.error = details;
+      if (input.options?.criticalErrorTitle)
+        showCriticalError(input.options.criticalErrorTitle, details);
       return undefined;
     } finally {
       if (ownsResource(input.key, version)) {
@@ -343,6 +351,8 @@ export async function loadPrInitial(
       return data;
     } catch (error) {
       const errorMessage = message(error);
+      if (options.criticalErrorTitle)
+        showCriticalError(options.criticalErrorTitle, errorMessage);
       for (const [resource, key, version] of [
         [view.core, coreKey, versions.core],
         [view.conversation, conversationKey, versions.conversation],
@@ -515,7 +525,10 @@ export async function refreshCurrentPr(view: PrViewState): Promise<void> {
   const previousBaseOid = view.core.data?.baseRefOid;
   const previousHeadOid = view.core.data?.headRefOid;
   try {
-    await loadPrCore(view, { force: true });
+    await loadPrCore(view, {
+      force: true,
+      criticalErrorTitle: "Could not refresh pull request",
+    });
     const refsChanged =
       Boolean(previousBaseOid && previousHeadOid) &&
       Boolean(view.core.data?.baseRefOid && view.core.data?.headRefOid) &&
@@ -534,7 +547,12 @@ export async function refreshCurrentPr(view: PrViewState): Promise<void> {
         ? ["conversation", "overview", "checks"]
         : [view.activeTab];
     await Promise.all(
-      sections.map((section) => loadPrSection(view, section, { force: true })),
+      sections.map((section) =>
+        loadPrSection(view, section, {
+          force: true,
+          criticalErrorTitle: "Could not refresh pull request",
+        }),
+      ),
     );
     view.refreshError =
       view.core.error ??
