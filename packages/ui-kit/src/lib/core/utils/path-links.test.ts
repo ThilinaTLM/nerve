@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  localPathDirectory,
   parseLocalFileHref,
   resolveDisplayPath,
   splitPathLineSuffix,
@@ -42,6 +43,22 @@ describe("path link helpers", () => {
     ]) {
       assert.equal(parseLocalFileHref(href), undefined);
     }
+  });
+
+  it("finds local containing directories across path styles", () => {
+    assert.equal(localPathDirectory("README.md"), ".");
+    assert.equal(localPathDirectory("docs/guide.md"), "docs");
+    assert.equal(localPathDirectory("/repo/README.md"), "/repo");
+    assert.equal(localPathDirectory("/README.md"), "/");
+    assert.equal(
+      localPathDirectory("C:\\Users\\me\\repo\\README.md"),
+      "C:\\Users\\me\\repo",
+    );
+    assert.equal(localPathDirectory("C:\\README.md"), "C:\\");
+    assert.equal(
+      localPathDirectory("\\\\server\\share\\README.md"),
+      "\\\\server\\share",
+    );
   });
 
   it("splits line suffixes without treating drive letters as lines", () => {

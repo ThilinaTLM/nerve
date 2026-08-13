@@ -90,6 +90,22 @@ export function resolveDisplayPath(
   return joinLocalPath(cwd, clean);
 }
 
+/** Return the containing directory while preserving native path separators. */
+export function localPathDirectory(path: string): string {
+  const value = trimTrailingSeparators(path.trim());
+  if (!value) return ".";
+
+  const slash = value.lastIndexOf("/");
+  const backslash = value.lastIndexOf("\\");
+  const index = Math.max(slash, backslash);
+  if (index < 0) return ".";
+  if (index === 0) return value[0] ?? ".";
+  if (index === 2 && WINDOWS_DRIVE_PREFIX.test(value.slice(0, 2))) {
+    return value.slice(0, 3);
+  }
+  return value.slice(0, index);
+}
+
 function decodePathComponent(path: string): string | undefined {
   try {
     return decodeURIComponent(path);
