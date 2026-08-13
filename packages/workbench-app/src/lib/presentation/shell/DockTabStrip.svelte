@@ -106,7 +106,7 @@ function defaultMenu(
   index: number,
 ): ContextMenuItem[] {
   const items: ContextMenuItem[] = DOCK_IDS.map((target) => ({
-    label: `Move to ${DOCK_LABELS[target]}`,
+    label: `Move to ${DOCK_LABELS[target].toLowerCase()}`,
     icon: dockIcons[target],
     disabled: target === dock || !onMove,
     onSelect: () =>
@@ -118,13 +118,13 @@ function defaultMenu(
   items.push(
     { type: "separator" },
     {
-      label: "Move Left",
+      label: "Move left",
       icon: MoveLeft,
       disabled: index === 0 || !onMove,
       onSelect: () => move(view.id, { dock, index: index - 1 }),
     },
     {
-      label: "Move Right",
+      label: "Move right",
       icon: MoveRight,
       disabled: index >= views.length - 1 || !onMove,
       onSelect: () => move(view.id, { dock, index: index + 1 }),

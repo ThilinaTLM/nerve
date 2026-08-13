@@ -5,6 +5,7 @@ import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Eye from "@lucide/svelte/icons/eye";
+import Trash2 from "@lucide/svelte/icons/trash-2";
 import X from "@lucide/svelte/icons/x";
 import type {
   GitDiffArea,
@@ -155,7 +156,7 @@ function scopeMenu(area: GitStashArea, path?: string): ContextMenuItem[] {
     { type: "separator" },
     {
       label: "Discard",
-      icon: X,
+      icon: Trash2,
       destructive: true,
       disabled: !capabilities.bulkMutateFiles.enabled || anyMutation,
       onSelect: () => onRequestDiscardScope(area, path),
@@ -186,7 +187,7 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
     { type: "separator" },
     {
       label: "Discard",
-      icon: X,
+      icon: Trash2,
       destructive: true,
       disabled: !capabilities.mutateFiles.enabled || anyMutation,
       onSelect: () => onRequestDiscard(file),

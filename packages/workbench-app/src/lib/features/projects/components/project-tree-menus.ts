@@ -1,6 +1,6 @@
-import ArrowRight from "@lucide/svelte/icons/arrow-right";
+import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
+import MessageSquareText from "@lucide/svelte/icons/message-square-text";
 import Copy from "@lucide/svelte/icons/copy";
-import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import type {
@@ -103,7 +103,7 @@ export function buildProjectMenu(
   const items: ContextMenuItem[] = [
     {
       label: "New chat",
-      icon: Plus,
+      icon: MessageSquarePlus,
       shortcut: ctx.newConversationShortcut,
       onSelect: () => ctx.onNewConversationInProject?.(project.dir),
     },
@@ -119,7 +119,7 @@ export function buildProjectMenu(
       onSelect: () => void copyToClipboard(project.dir, "path"),
     },
     {
-      label: "Clean up",
+      label: "Clean up conversations",
       icon: Trash2,
       destructive: true,
       disabled: ctx.conversationCount(project.id) === 0,
@@ -148,18 +148,18 @@ export function buildConversationMenu(
   return [
     {
       label: "Open conversation",
-      icon: ArrowRight,
+      icon: MessageSquareText,
       onSelect: () => ctx.onOpenConversation?.(conversation.id),
     },
     {
       label: "New chat",
-      icon: Plus,
+      icon: MessageSquarePlus,
       shortcut: ctx.newConversationShortcut,
       onSelect: () => ctx.onNewConversationInProject?.(project.dir),
     },
     { type: "separator" },
     {
-      label: "Copy conversation id",
+      label: "Copy conversation ID",
       icon: Copy,
       onSelect: () => void copyToClipboard(conversation.id, "conversation id"),
     },

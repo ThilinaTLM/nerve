@@ -56,9 +56,9 @@ export function buildProjectRootMenu(
   icons: FileExplorerMenuIcons,
 ): ContextMenuItem[] {
   const items: ContextMenuItem[] = [
-    { label: "New File", icon: icons.newFile, onSelect: actions.createFile },
+    { label: "New file", icon: icons.newFile, onSelect: actions.createFile },
     {
-      label: "New Folder",
+      label: "New folder",
       icon: icons.newFolder,
       onSelect: actions.createFolder,
     },
@@ -67,12 +67,12 @@ export function buildProjectRootMenu(
     items.push(
       { type: "separator" },
       {
-        label: "Open in Default Application",
+        label: "Open with default app",
         icon: icons.openDefault,
         onSelect: actions.openDefault,
       },
       {
-        label: "Reveal in File Manager",
+        label: "Show in file manager",
         icon: icons.reveal,
         onSelect: actions.reveal,
       },
@@ -80,7 +80,7 @@ export function buildProjectRootMenu(
   }
   items.push(
     { type: "separator" },
-    { label: "Copy Path", icon: icons.copy, onSelect: actions.copyPath },
+    { label: "Copy path", icon: icons.copy, onSelect: actions.copyPath },
   );
   return items;
 }
@@ -102,9 +102,9 @@ export function buildFileExplorerMenu(
   if (entry.kind === "directory" && !entry.symlink) {
     items.push(
       { type: "separator" },
-      { label: "New File", icon: icons.newFile, onSelect: actions.createFile },
+      { label: "New file", icon: icons.newFile, onSelect: actions.createFile },
       {
-        label: "New Folder",
+        label: "New folder",
         icon: icons.newFolder,
         onSelect: actions.createFolder,
       },
@@ -114,12 +114,12 @@ export function buildFileExplorerMenu(
     items.push(
       { type: "separator" },
       {
-        label: "Open in Default Application",
+        label: "Open with default app",
         icon: icons.openDefault,
         onSelect: actions.openDefault,
       },
       {
-        label: "Reveal in File Manager",
+        label: "Show in file manager",
         icon: icons.reveal,
         onSelect: actions.reveal,
       },
@@ -127,9 +127,9 @@ export function buildFileExplorerMenu(
   }
   items.push(
     { type: "separator" },
-    { label: "Copy Path", icon: icons.copy, onSelect: actions.copyPath },
+    { label: "Copy path", icon: icons.copy, onSelect: actions.copyPath },
     {
-      label: "Copy Relative Path",
+      label: "Copy relative path",
       icon: icons.copy,
       onSelect: actions.copyRelativePath,
     },
@@ -138,7 +138,7 @@ export function buildFileExplorerMenu(
     items.push(
       { type: "separator" },
       {
-        label: "Move to Trash",
+        label: "Move to trash",
         icon: icons.trash,
         destructive: true,
         onSelect: actions.trash,

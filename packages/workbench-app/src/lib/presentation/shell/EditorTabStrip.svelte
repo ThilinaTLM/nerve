@@ -139,13 +139,13 @@ function defaultMenu(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
     items.push(
       { type: "separator" },
       {
-        label: "Move Left",
+        label: "Move left",
         icon: MoveLeft,
         disabled: !hasLeft,
         onSelect: () => onReorder(id, index - 1),
       },
       {
-        label: "Move Right",
+        label: "Move right",
         icon: MoveRight,
         disabled: !hasRight,
         onSelect: () => onReorder(id, index + 1),
@@ -155,27 +155,27 @@ function defaultMenu(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   items.push(
     { type: "separator" },
     {
-      label: "Close Pane",
+      label: "Close pane",
       icon: X,
       shortcut: closeShortcut,
       disabled: tab.closeable === false || !onClose,
       onSelect: () => onClose?.(id),
     },
     {
-      label: "Close Other Panes",
+      label: "Close others",
       icon: X,
       shortcut: closeOthersShortcut,
       disabled: tabs.length <= 1 || !onCloseOther,
       onSelect: () => onCloseOther?.(id),
     },
     {
-      label: "Close Panes on Right",
+      label: "Close to the right",
       icon: X,
       disabled: !hasRight || !onCloseRight,
       onSelect: () => onCloseRight?.(id),
     },
     {
-      label: "Close Panes on Left",
+      label: "Close to the left",
       icon: X,
       disabled: !hasLeft || !onCloseLeft,
       onSelect: () => onCloseLeft?.(id),

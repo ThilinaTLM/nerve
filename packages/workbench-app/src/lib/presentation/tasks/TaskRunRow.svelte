@@ -1,12 +1,13 @@
 <script lang="ts">
-import BookmarkPlus from "@lucide/svelte/icons/bookmark-plus";
+import Save from "@lucide/svelte/icons/save";
 import Copy from "@lucide/svelte/icons/copy";
-import FolderOpen from "@lucide/svelte/icons/folder-open";
+import Folder from "@lucide/svelte/icons/folder";
+import Play from "@lucide/svelte/icons/play";
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import Skull from "@lucide/svelte/icons/skull";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
-import X from "@lucide/svelte/icons/x";
+import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { TaskRecord } from "@nervekit/contracts";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
 import {
@@ -78,8 +79,8 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
   ];
   if (entry.definition && entry.isRemovable)
     items.push({
-      label: "Run saved task again",
-      icon: RotateCw,
+      label: "Run again",
+      icon: Play,
       disabled: !capabilities.start,
       onSelect: () => onRerunDefinition?.(),
     });
@@ -103,8 +104,8 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     items.push(
       { type: "separator" },
       {
-        label: "Save as task definition",
-        icon: BookmarkPlus,
+        label: "Save as task",
+        icon: Save,
         disabled: !capabilities.manageDefinitions,
         onSelect: () => onSaveAsDefinition?.(run),
       },
@@ -119,7 +120,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     },
     {
       label: "Copy working directory",
-      icon: FolderOpen,
+      icon: Folder,
       disabled: !capabilities.copy,
       onSelect: () => onCopy?.(run.cwd),
     },
@@ -127,7 +128,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
   if (entry.isRemovable)
     trailing.push({
       label: "Remove run",
-      icon: X,
+      icon: Trash2,
       destructive: true,
       disabled: !capabilities.remove,
       onSelect: () => onRemove?.(run.id),
