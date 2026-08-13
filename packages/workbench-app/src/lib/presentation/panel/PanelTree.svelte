@@ -66,6 +66,8 @@ type Props = {
   onGroupExpansionChange?: (path: readonly string[], expanded: boolean) => void;
   /** Opt into a single fixed-height virtualized viewport for large trees. */
   virtualized?: boolean;
+  /** Allow deeply indented rows to scroll horizontally instead of clipping. */
+  horizontalScroll?: boolean;
   /** Hide item disclosure arrows when open/closed leading icons carry state. */
   showDisclosure?: boolean;
   /** Hide generated-directory chevrons when folder icons carry state. */
@@ -78,6 +80,9 @@ type Props = {
    * the same click, so selecting and disclosing stay a single gesture.
    */
   onItemActivate?: (item: T) => void;
+  getItemDraggable?: (item: T) => boolean;
+  onItemDragStart?: (event: DragEvent, item: T) => void;
+  onItemDragEnd?: (event: DragEvent, item: T) => void;
   itemLeading?: Snippet<[T]>;
   /** Inline content after the label of a stacked item row. */
   itemLabelTrailing?: Snippet<[T]>;
@@ -110,11 +115,15 @@ let {
   onItemExpansionChange,
   onGroupExpansionChange,
   virtualized = false,
+  horizontalScroll = false,
   showDisclosure = true,
   showGroupDisclosure = true,
   itemMono = false,
   itemStacked = false,
   onItemActivate,
+  getItemDraggable,
+  onItemDragStart,
+  onItemDragEnd,
   itemLeading,
   itemLabelTrailing,
   itemBadges,
@@ -303,6 +312,7 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       actions={groupActions ? renderedGroupActions : undefined}
       menuItems={getGroupMenuItems?.(node.path)}
       dense
+      class={horizontalScroll ? "w-max min-w-full" : undefined}
       alwaysShowActions={!overlayActions}
       {overlayActions}
       indent={baseIndent + row.depth}
@@ -361,7 +371,11 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       dense
       alwaysShowActions={!overlayActions}
       {overlayActions}
-      class={cn(cardClass(rowIndex), itemClass)}
+      class={cn(
+        horizontalScroll && "w-max min-w-full",
+        cardClass(rowIndex),
+        itemClass,
+      )}
       indent={baseIndent + (indentItems ? row.depth : 0)}
       role="treeitem"
       tabindex={focusedId === node.id ? 0 : -1}
@@ -371,6 +385,9 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       ariaPosInSet={row.posInSet}
       ariaSetSize={row.setSize}
       dataId={node.id}
+      draggable={getItemDraggable?.(node.value) ?? false}
+      ondragstart={(event) => onItemDragStart?.(event, node.value)}
+      ondragend={(event) => onItemDragEnd?.(event, node.value)}
       onfocus={() => (focusedId = node.id)}
       onkeydown={(event) => handleKeydown(event, node)}
       onclick={(event) => activateFromPointer(event, node)}
@@ -395,6 +412,8 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       estimateSize={() => 20}
       bind:controller={virtualController}
       viewportClass="h-full"
+      {horizontalScroll}
+      rowClass={horizontalScroll ? "w-max min-w-full" : undefined}
     >
       {#snippet row({ item, index })}
         {@render renderRow(item, index)}

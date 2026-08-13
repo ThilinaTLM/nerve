@@ -4,6 +4,7 @@ import type { FilesystemProjectEntry } from "@nervekit/contracts";
 import {
   absoluteProjectPath,
   buildFileExplorerMenu,
+  buildProjectRootMenu,
   type FileExplorerMenuActions,
   type FileExplorerMenuIcons,
 } from "./file-explorer-menu";
@@ -57,6 +58,19 @@ describe("file explorer menus", () => {
     assert.ok(labels(directory, false).includes("New File"));
     assert.ok(labels(directory, true).includes("Open in Default Application"));
     assert.ok(labels(directory, true).includes("Move to Trash"));
+  });
+
+  it("offers root operations without destructive or relative-path actions", () => {
+    const rootLabels = buildProjectRootMenu(actions, true, icons).flatMap(
+      (item) => ("label" in item ? [item.label] : []),
+    );
+    assert.deepEqual(rootLabels, [
+      "New File",
+      "New Folder",
+      "Open in Default Application",
+      "Reveal in File Manager",
+      "Copy Path",
+    ]);
   });
 
   it("constructs platform display paths without duplicate separators", () => {

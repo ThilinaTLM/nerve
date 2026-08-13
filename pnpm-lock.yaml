@@ -399,6 +399,9 @@ importers:
       '@replit/codemirror-lang-svelte':
         specifier: ^6.0.0
         version: 6.0.0(@codemirror/autocomplete@6.20.2)(@codemirror/lang-css@6.3.1)(@codemirror/lang-html@6.4.11)(@codemirror/lang-javascript@6.2.5)(@codemirror/language@6.12.4)(@codemirror/state@6.6.0)(@codemirror/view@6.43.0)(@lezer/common@1.5.2)(@lezer/highlight@1.2.3)(@lezer/javascript@1.5.4)(@lezer/lr@1.4.10)
+      '@replit/codemirror-minimap':
+        specifier: ^0.5.2
+        version: 0.5.2(@codemirror/language@6.12.4)(@codemirror/lint@6.9.6)(@codemirror/state@6.6.0)(@codemirror/view@6.43.0)(@lezer/common@1.5.2)(@lezer/highlight@1.2.3)
       '@tailwindcss/vite':
         specifier: 4.3.1
         version: 4.3.1(vite@8.0.16(@types/node@24.10.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -2332,6 +2335,16 @@ packages:
       '@lezer/highlight': ^1.0.0
       '@lezer/javascript': ^1.2.0
       '@lezer/lr': ^1.0.0
+
+  '@replit/codemirror-minimap@0.5.2':
+    resolution: {integrity: sha512-eNAtpr0hOG09/5zqAQ5PkgZEb3V/MHi30zentCxiR73r+utR2m9yVMCpBmfsWbb8mWxUWhMGPiHxM5hFtnscQA==}
+    peerDependencies:
+      '@codemirror/language': ^6.9.1
+      '@codemirror/lint': ^6.4.2
+      '@codemirror/state': ^6.3.1
+      '@codemirror/view': ^6.21.3
+      '@lezer/common': ^1.1.0
+      '@lezer/highlight': ^1.1.6
 
   '@rolldown/binding-android-arm64@1.0.3':
     resolution: {integrity: sha512-454rs7jHngixp/NMxd5srYD57OnzSlZ/eFTETjORQHLwJG1lRtmNOJcBerZlfu4GjKqeq8aCCIQrMdHyhI51Hw==}
@@ -9171,6 +9184,16 @@ snapshots:
       '@lezer/highlight': 1.2.3
       '@lezer/javascript': 1.5.4
       '@lezer/lr': 1.4.10
+
+  '@replit/codemirror-minimap@0.5.2(@codemirror/language@6.12.4)(@codemirror/lint@6.9.6)(@codemirror/state@6.6.0)(@codemirror/view@6.43.0)(@lezer/common@1.5.2)(@lezer/highlight@1.2.3)':
+    dependencies:
+      '@codemirror/language': 6.12.4
+      '@codemirror/lint': 6.9.6
+      '@codemirror/state': 6.6.0
+      '@codemirror/view': 6.43.0
+      '@lezer/common': 1.5.2
+      '@lezer/highlight': 1.2.3
+      crelt: 1.0.6
 
   '@rolldown/binding-android-arm64@1.0.3':
     optional: true

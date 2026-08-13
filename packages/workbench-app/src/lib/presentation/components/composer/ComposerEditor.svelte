@@ -21,6 +21,12 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import type { CompletionItem } from "@nervekit/contracts";
+import {
+  formatProjectEntryReferences,
+  hasProjectEntryDragType,
+  parseProjectEntryDrag,
+  PROJECT_ENTRY_DRAG_MIME,
+} from "$lib/presentation/dnd/project-entry-drag";
 import { executableCommandBlockHighlighter } from "./composer-command-blocks";
 import {
   bestFileCompletionSelector,
@@ -124,7 +130,7 @@ function insertDroppedPaths(
   insertAtRange(`${leadingSpace}${paths.join(" ")}${trailingSpace}`, from, to);
 }
 
-function hasFileItems(dataTransfer: DataTransfer | null): boolean {
+function hasNativeFileItems(dataTransfer: DataTransfer | null): boolean {
   if (!dataTransfer) return false;
   return (
     Array.from(dataTransfer.items).some((item) => item.kind === "file") ||
@@ -132,8 +138,18 @@ function hasFileItems(dataTransfer: DataTransfer | null): boolean {
   );
 }
 
+function hasProjectEntryItems(dataTransfer: DataTransfer | null): boolean {
+  return Boolean(
+    dataTransfer && hasProjectEntryDragType(Array.from(dataTransfer.types)),
+  );
+}
+
 function canHandleFileDrag(event: DragEvent): boolean {
-  return Boolean(!disabled && onDropFiles && hasFileItems(event.dataTransfer));
+  if (disabled) return false;
+  return (
+    hasProjectEntryItems(event.dataTransfer) ||
+    Boolean(onDropFiles && hasNativeFileItems(event.dataTransfer))
+  );
 }
 
 function handleFileDragEnter(event: DragEvent): void {
@@ -160,15 +176,25 @@ function handleFileDragLeave(event: DragEvent): void {
 }
 
 function handleFileDrop(event: DragEvent): void {
-  if (!canHandleFileDrag(event) || !onDropFiles || !view) return;
+  if (!canHandleFileDrag(event) || !view) return;
   event.preventDefault();
   event.stopPropagation();
   fileDragDepth = 0;
   fileDragActive = false;
 
+  const { from, to } = view.state.selection.main;
+  const internalPayload = event.dataTransfer?.getData(PROJECT_ENTRY_DRAG_MIME);
+  if (internalPayload) {
+    const entries = parseProjectEntryDrag(internalPayload);
+    if (entries) {
+      insertDroppedPaths(formatProjectEntryReferences(entries), { from, to });
+    }
+    return;
+  }
+
+  if (!onDropFiles) return;
   const files = Array.from(event.dataTransfer?.files ?? []);
   if (files.length === 0) return;
-  const { from, to } = view.state.selection.main;
   void onDropFiles(files)
     .then((paths) => insertDroppedPaths(paths, { from, to }))
     .catch((error: unknown) => {

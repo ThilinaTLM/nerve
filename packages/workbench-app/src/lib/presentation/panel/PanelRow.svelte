@@ -42,6 +42,9 @@ let {
   ariaPosInSet,
   ariaSetSize,
   dataId,
+  draggable,
+  ondragstart,
+  ondragend,
   onkeydown,
   onfocus,
   leading,
@@ -98,6 +101,9 @@ let {
   ariaSetSize?: number;
   /** Stable DOM lookup key for composite widgets such as trees. */
   dataId?: string;
+  draggable?: boolean;
+  ondragstart?: (event: DragEvent) => void;
+  ondragend?: (event: DragEvent) => void;
   onkeydown?: (event: KeyboardEvent) => void;
   onfocus?: (event: FocusEvent) => void;
   /** Compact content rendered before the primary label. */
@@ -170,6 +176,9 @@ const toneClass = $derived(
     aria-posinset={ariaPosInSet}
     aria-setsize={ariaSetSize}
     data-panel-row-id={dataId}
+    {draggable}
+    {ondragstart}
+    {ondragend}
     {onkeydown}
     {onfocus}
   >

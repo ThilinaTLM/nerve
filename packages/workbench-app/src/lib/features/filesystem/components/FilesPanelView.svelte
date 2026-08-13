@@ -16,7 +16,9 @@ import type {
   FilesystemProjectEntry,
   GitProjectFileStatus,
 } from "@nervekit/contracts";
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
+import ContextMenuList, {
+  type ContextMenuItem,
+} from "@nervekit/ui-kit/components/ui/context-menu-list";
 import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { cn } from "@nervekit/ui-kit/core/utils";
@@ -59,6 +61,11 @@ import {
 } from "$lib/features/notifications/critical-errors.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
+  formatProjectEntryReference,
+  PROJECT_ENTRY_DRAG_MIME,
+  serializeProjectEntryDrag,
+} from "$lib/presentation/dnd/project-entry-drag";
+import {
   PanelBanner,
   PanelEmpty,
   PanelHeader,
@@ -71,6 +78,7 @@ import MaterialFileIcon from "./MaterialFileIcon.svelte";
 import {
   absoluteProjectPath,
   buildFileExplorerMenu,
+  buildProjectRootMenu,
 } from "./file-explorer-menu";
 
 let { activeProject }: { activeProject?: ProjectRecord } = $props();
@@ -95,6 +103,16 @@ const activeRelativePath = $derived.by(() => {
   if (!file || file.projectId !== activeProject?.id) return undefined;
   return file.content?.relativePath ?? file.path;
 });
+const rootEntry = $derived<FilesystemProjectEntry | undefined>(
+  activeProject
+    ? {
+        name: activeProject.name,
+        path: "",
+        kind: "directory",
+        symlink: false,
+      }
+    : undefined,
+);
 const busy = $derived(
   Object.values(project?.directories ?? {}).some(
     (directory) => directory.loading || directory.refreshing,
@@ -103,6 +121,29 @@ const busy = $derived(
 
 function itemPath(item: FileExplorerTreeItem): string | undefined {
   return item.type === "entry" ? item.entry.path : undefined;
+}
+
+function isDraggableEntry(item: FileExplorerTreeItem): boolean {
+  return (
+    item.type === "entry" &&
+    (item.entry.kind === "file" || item.entry.kind === "directory")
+  );
+}
+
+function startEntryDrag(event: DragEvent, item: FileExplorerTreeItem): void {
+  if (
+    item.type !== "entry" ||
+    (item.entry.kind !== "file" && item.entry.kind !== "directory") ||
+    !event.dataTransfer
+  )
+    return;
+  const entry = { path: item.entry.path, kind: item.entry.kind } as const;
+  event.dataTransfer.setData(
+    PROJECT_ENTRY_DRAG_MIME,
+    serializeProjectEntryDrag([entry]),
+  );
+  event.dataTransfer.setData("text/plain", formatProjectEntryReference(entry));
+  event.dataTransfer.effectAllowed = "copy";
 }
 
 function activate(item: FileExplorerTreeItem): void {
@@ -246,6 +287,30 @@ async function movePendingToTrash(): Promise<void> {
   }
 }
 
+function rootMenu(): ContextMenuItem[] {
+  const entry = rootEntry;
+  if (!activeProject || !entry) return [];
+  return buildProjectRootMenu(
+    {
+      createFile: () => requestCreate("file", entry),
+      createFolder: () => requestCreate("directory", entry),
+      openDefault: () => void runNativeAction("openProjectEntry", entry),
+      reveal: () => void runNativeAction("revealProjectEntry", entry),
+      copyPath: () => void copyPath(activeProject.dir, "path"),
+    },
+    desktopRuntime.isDesktop,
+    {
+      open: ArrowRight,
+      copy: Copy,
+      openDefault: ExternalLink,
+      newFile: FilePlus,
+      reveal: FolderOpen,
+      newFolder: FolderPlus,
+      trash: Trash2,
+    },
+  );
+}
+
 function itemMenu(item: FileExplorerTreeItem): ContextMenuItem[] {
   if (item.type !== "entry" || !activeProject) return [];
   const entry = item.entry;
@@ -344,70 +409,80 @@ $effect(() => {
         />
       {/snippet}
     </PanelEmpty>
-  {:else if root.entries.length === 0}
-    <PanelEmpty icon={Folder} title="This project is empty" />
   {:else if project}
-    <PanelTree
-      {nodes}
-      ariaLabel={`${activeProject.name} files`}
-      virtualized
-      showDisclosure={false}
-      expandedIds={project.expandedIds}
-      getItemTitle={(item) =>
-        item.type === "entry"
-          ? item.entry.path
-          : item.type === "error"
-            ? item.message
-            : "Load more files"}
-      getItemSelected={(item) => itemPath(item) === activeRelativePath}
-      getItemTone={(item) =>
-        item.type === "entry"
-          ? fileTreeGitDecoration(gitDecorations, item.entry.path)?.tone
-          : undefined}
-      getItemMenuItems={itemMenu}
-      onItemActivate={activate}
-      onItemExpansionChange={(item, expanded) =>
-        setFileExplorerItemExpanded(activeProject.id, item, expanded)}
+    <ContextMenuList
+      items={rootMenu()}
+      triggerClass="flex min-h-0 flex-1 flex-col"
     >
-      {#snippet itemLeading(item)}
-        {#if item.type === "entry"}
-          {@const open = project.expandedIds.has(
-            fileExplorerEntryNodeId(activeProject.id, item.entry.path),
-          )}
-          <MaterialFileIcon
-            name={item.entry.name}
-            kind={item.entry.kind}
-            {open}
-          />
-          {#if item.entry.symlink}
-            <Link class="size-2.5" aria-hidden="true" />
-          {/if}
-          {#if item.entry.kind === "directory" && project.directories[item.entry.path]?.loading}
-            <Spinner class="ml-0.5 size-3" />
-          {/if}
-        {:else if item.type === "error"}
-          <TriangleAlert class="size-3.5 text-destructive" aria-hidden="true" />
-        {/if}
-      {/snippet}
-      {#snippet itemBadges(item)}
-        {#if item.type === "entry" && item.entry.kind === "file"}
-          {@const decoration = fileTreeGitDecoration(
-            gitDecorations,
-            item.entry.path,
-          )}
-          {#if decoration?.label}
-            <span
-              class={cn(
-                "w-3 text-center text-xs font-medium",
-                decoration.class,
+      {#if root.entries.length === 0}
+        <PanelEmpty icon={Folder} title="This project is empty" />
+      {:else}
+        <PanelTree
+          {nodes}
+          ariaLabel={`${activeProject.name} files`}
+          virtualized
+          horizontalScroll
+          showDisclosure={false}
+          expandedIds={project.expandedIds}
+          getItemTitle={(item) =>
+            item.type === "entry"
+              ? item.entry.path
+              : item.type === "error"
+                ? item.message
+                : "Load more files"}
+          getItemSelected={(item) => itemPath(item) === activeRelativePath}
+          getItemDraggable={isDraggableEntry}
+          onItemDragStart={startEntryDrag}
+          getItemTone={(item) =>
+            item.type === "entry"
+              ? fileTreeGitDecoration(gitDecorations, item.entry.path)?.tone
+              : undefined}
+          getItemMenuItems={itemMenu}
+          onItemActivate={activate}
+          onItemExpansionChange={(item, expanded) =>
+            setFileExplorerItemExpanded(activeProject.id, item, expanded)}
+        >
+          {#snippet itemLeading(item)}
+            {#if item.type === "entry"}
+              {@const open = project.expandedIds.has(
+                fileExplorerEntryNodeId(activeProject.id, item.entry.path),
               )}
-              title={decoration.title}
-              aria-label={decoration.title}>{decoration.label}</span
-            >
-          {/if}
-        {/if}
-      {/snippet}
-    </PanelTree>
+              <MaterialFileIcon
+                name={item.entry.name}
+                kind={item.entry.kind}
+                {open}
+              />
+              {#if item.entry.symlink}
+                <Link class="size-2.5" aria-hidden="true" />
+              {/if}
+            {:else if item.type === "error"}
+              <TriangleAlert
+                class="size-3.5 text-destructive"
+                aria-hidden="true"
+              />
+            {/if}
+          {/snippet}
+          {#snippet itemBadges(item)}
+            {#if item.type === "entry" && item.entry.kind === "file"}
+              {@const decoration = fileTreeGitDecoration(
+                gitDecorations,
+                item.entry.path,
+              )}
+              {#if decoration?.label}
+                <span
+                  class={cn(
+                    "w-3 text-center text-xs font-medium",
+                    decoration.class,
+                  )}
+                  title={decoration.title}
+                  aria-label={decoration.title}>{decoration.label}</span
+                >
+              {/if}
+            {/if}
+          {/snippet}
+        </PanelTree>
+      {/if}
+    </ContextMenuList>
   {/if}
 </PanelView>
 

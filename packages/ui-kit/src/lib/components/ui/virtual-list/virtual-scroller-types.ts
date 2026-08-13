@@ -83,6 +83,10 @@ export type VirtualScrollerProps<T> = {
   viewportAriaLabel?: string;
   /** Class applied to the scrolling viewport element. */
   viewportClass?: string;
+  /** Allows the viewport and generated rows to overflow horizontally. */
+  horizontalScroll?: boolean;
+  /** Class applied to each generated virtual row. */
+  rowClass?: string;
   /** Class applied to the inner sized spacer element. */
   class?: string;
   /** Row renderer. */

@@ -7,6 +7,7 @@ import {
   loadCodeLanguage,
   localLineNumber,
   readOnlyCodeExtensions,
+  shouldShowCodeMinimap,
 } from "./code-mirror-config";
 
 type Props = {
@@ -56,7 +57,11 @@ async function renderEditor(): Promise<void> {
   if (!host || currentGeneration !== generation) return;
 
   const baseExtensions: Extension[] = [
-    ...readOnlyCodeExtensions({ lineStart, ariaLabel }),
+    ...readOnlyCodeExtensions({
+      lineStart,
+      ariaLabel,
+      minimap: shouldShowCodeMinimap(text, wrap),
+    }),
     languageExtension,
     wrap ? EditorView.lineWrapping : [],
   ];
