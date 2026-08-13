@@ -8,6 +8,7 @@ import StatusBar from "$lib/app/shell/StatusBar.svelte";
 import { zoomState } from "$lib/app/shell/appearance.svelte";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
+  hasPanelDockContent,
   isPanelDockVisible,
   shellSheets,
   togglePanelDock,
@@ -41,16 +42,18 @@ const isPhone = $derived(responsive.isPhone);
 // desktop collapse model; mirror the sheet state so the pressed affordance
 // stays correct (open = panel visible).
 const dockToggles = $derived<DockToggle[]>(
-  DOCK_IDS.map((dock) => ({
-    dock,
-    label: DOCK_LABELS[dock].toLowerCase(),
-    open: isCompact
-      ? dock === "left"
-        ? shellSheets.primary
-        : shellSheets.secondary
-      : isPanelDockVisible(dock),
-    onToggle: () => togglePanelDock(dock, isCompact),
-  })),
+  DOCK_IDS.filter((dock) => dock !== "bottom" || hasPanelDockContent(dock)).map(
+    (dock) => ({
+      dock,
+      label: DOCK_LABELS[dock].toLowerCase(),
+      open: isCompact
+        ? dock === "left"
+          ? shellSheets.primary
+          : shellSheets.secondary
+        : isPanelDockVisible(dock),
+      onToggle: () => togglePanelDock(dock, isCompact),
+    }),
+  ),
 );
 </script>
 
