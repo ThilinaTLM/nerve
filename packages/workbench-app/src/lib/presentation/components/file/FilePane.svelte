@@ -10,7 +10,13 @@ import { CodeMirrorViewer } from "$lib/presentation/components/code";
 import { resolveFilePaneModel } from "./file-pane-model.js";
 import type { FilePaneViewModel } from "./types.js";
 
-let { view }: { view?: FilePaneViewModel } = $props();
+let {
+  view,
+  onOpenFile,
+}: {
+  view?: FilePaneViewModel;
+  onOpenFile?: (path: string, line?: number) => void;
+} = $props();
 
 const resolved = $derived(view ? resolveFilePaneModel(view) : undefined);
 const file = $derived(view?.content);
@@ -106,6 +112,8 @@ const showMermaidPreview = $derived(
           <Markdown
             text={file.text ?? ""}
             trimCodeBlocks={false}
+            linkBasePath={resolved.linkBasePath}
+            {onOpenFile}
             onCopy={(ok) => notifyCopyResult(ok, "code block")}
           />
         </div>

@@ -4,10 +4,12 @@ import {
   type FileDisplayMode,
   type FileRenderKind,
 } from "@nervekit/ui-kit/core/utils/file-display";
+import { localPathDirectory } from "@nervekit/ui-kit/core/utils/path-links";
 import type { FilePaneViewModel } from "./types.js";
 
 export type ResolvedFilePaneModel = {
   filePath: string;
+  linkBasePath: string;
   renderKind?: FileRenderKind;
   lineStart: number;
   targetLine?: number;
@@ -44,6 +46,7 @@ export function resolveFilePaneModel(
 
   return {
     filePath,
+    linkBasePath: localPathDirectory(file?.path ?? view.path),
     renderKind: fileRenderKind(filePath),
     lineStart: file?.lineStart ?? 1,
     targetLine,

@@ -29,6 +29,17 @@ describe("resolveFilePaneModel", () => {
     assert.equal(mermaid.displayMode, "rendered");
   });
 
+  it("resolves Markdown links from the loaded file directory", () => {
+    assert.equal(
+      resolveFilePaneModel(view("/repo/docs/guide.md")).linkBasePath,
+      "/repo/docs",
+    );
+    assert.equal(
+      resolveFilePaneModel(view("C:\\repo\\docs\\guide.md")).linkBasePath,
+      "C:\\repo\\docs",
+    );
+  });
+
   it("keeps ordinary and line-targeted files in code view", () => {
     const text = resolveFilePaneModel(view("notes.txt"));
     assert.equal(text.renderKind, undefined);
