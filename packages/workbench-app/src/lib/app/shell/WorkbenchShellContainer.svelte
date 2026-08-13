@@ -21,6 +21,7 @@ import {
 } from "$lib/app/shell/shell-layout.svelte";
 import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
 import BrowserNotificationPrompt from "$lib/features/notifications/BrowserNotificationPrompt.svelte";
+import CriticalErrorDialog from "$lib/features/notifications/CriticalErrorDialog.svelte";
 import { OnboardingHost } from "$lib/features/onboarding";
 import { workspaceSelectors } from "$lib/features/workspace";
 
@@ -87,6 +88,7 @@ $effect(() => {
   {#snippet statusBar()}<StatusBarContainer />{/snippet}
   {#snippet overlays()}
     <BrowserNotificationPrompt />
+    <CriticalErrorDialog />
     <OnboardingHost />
     <DesktopShutdownOverlay />
   {/snippet}

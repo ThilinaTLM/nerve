@@ -14,6 +14,7 @@ import {
 } from "$lib/core/state/state-keys";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
+import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   GitAutoRefreshScheduler,
@@ -204,14 +205,31 @@ export async function refreshGitProject(
         ? { silent: true, onlyIfChanged: true }
         : {};
       await Promise.all([
-        refreshGitOverview(project.id, state.selectedRepo, refreshOptions),
-        refreshGithub(project.id, state.selectedRepo),
-        refreshPrs(project.id, state.selectedRepo, true, false, true),
+        refreshGitOverview(project.id, state.selectedRepo, {
+          ...refreshOptions,
+          criticalErrorTitle: options.criticalErrorTitle,
+        }),
+        refreshGithub(
+          project.id,
+          state.selectedRepo,
+          false,
+          options.criticalErrorTitle,
+        ),
+        refreshPrs(
+          project.id,
+          state.selectedRepo,
+          !options.criticalErrorTitle,
+          false,
+          true,
+          options.criticalErrorTitle,
+        ),
       ]);
     }
   } catch (error) {
     if (state.requestSeq !== requestSeq) return;
     state.discoverError = errorMessage(error);
+    if (options.criticalErrorTitle)
+      showCriticalError(options.criticalErrorTitle, state.discoverError);
     if (!state.loaded) setProjectRepos(state, []);
   } finally {
     if (state.requestSeq === requestSeq) {
@@ -271,8 +289,10 @@ export async function refreshGitOverview(
     patchGitOverviewState(state, next);
   } catch (error) {
     state.overviewInvalidated = true;
-    if (!options.silent)
-      notify.error(`Git overview failed: ${errorMessage(error)}`);
+    const details = errorMessage(error);
+    if (options.criticalErrorTitle)
+      showCriticalError(options.criticalErrorTitle, details);
+    else if (!options.silent) notify.error(`Git overview failed: ${details}`);
   } finally {
     if (state.requestSeq === requestSeq) {
       if (!options.silent) state.loadingOverview = false;
@@ -295,6 +315,7 @@ export async function refreshGitOverview(
 export async function refreshBranches(
   projectId: string,
   repo: string,
+  criticalErrorTitle?: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   state.loadingBranches = true;
@@ -306,7 +327,9 @@ export async function refreshBranches(
     });
     setBranchesIfChanged(state, result.branches);
   } catch (error) {
-    notify.error(`Could not list branches: ${errorMessage(error)}`);
+    const details = errorMessage(error);
+    if (criticalErrorTitle) showCriticalError(criticalErrorTitle, details);
+    else notify.error(`Could not list branches: ${details}`);
   } finally {
     state.loadingBranches = false;
   }
@@ -316,6 +339,7 @@ export async function refreshGithub(
   projectId: string,
   repo: string,
   force = false,
+  criticalErrorTitle?: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   if (!repoHasGithubRemote(projectId, repo)) {
@@ -336,9 +360,21 @@ export async function refreshGithub(
     setGithubStatusIfChanged(state, status);
     applyGitContextFromProject(projectId);
     if (status.authenticated) {
-      await refreshPrs(projectId, repo, true, force);
+      await refreshPrs(
+        projectId,
+        repo,
+        !criticalErrorTitle,
+        force,
+        Boolean(criticalErrorTitle),
+        criticalErrorTitle,
+      );
     } else {
       setPrsIfChanged(state, []);
+      if (criticalErrorTitle)
+        showCriticalError(
+          criticalErrorTitle,
+          status.reason ?? "GitHub authentication is required.",
+        );
     }
   } catch (error) {
     setGithubStatusIfChanged(state, {
@@ -349,6 +385,8 @@ export async function refreshGithub(
     });
     setPrsIfChanged(state, []);
     applyGitContextFromProject(projectId);
+    if (criticalErrorTitle)
+      showCriticalError(criticalErrorTitle, errorMessage(error));
   }
 }
 
@@ -376,6 +414,7 @@ export async function refreshPrs(
   silent = false,
   force = false,
   showLoading = !silent,
+  criticalErrorTitle?: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
   if (!repoHasGithubRemote(projectId, repo)) {
@@ -437,9 +476,13 @@ export async function refreshPrs(
             state.prsLoadedAt = Date.now();
           }
         } catch (error) {
-          if (state.prsRequestSeq === requestSeq && !nextSilent) {
-            state.prsError = errorMessage(error);
-            notify.error(`Could not list PRs: ${state.prsError}`);
+          if (state.prsRequestSeq === requestSeq) {
+            const details = errorMessage(error);
+            if (!nextSilent) state.prsError = details;
+            if (criticalErrorTitle)
+              showCriticalError(criticalErrorTitle, details);
+            else if (!nextSilent)
+              notify.error(`Could not list PRs: ${details}`);
           }
         }
         nextForce = state.prsRefreshQueued;

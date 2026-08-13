@@ -158,6 +158,7 @@ export type GitPanelRefreshOptions = {
   force?: boolean;
   onlyIfChanged?: boolean;
   loadDetails?: boolean;
+  criticalErrorTitle?: string;
 };
 
 function createOperationsState(): GitPanelOperationsState {

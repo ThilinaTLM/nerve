@@ -11,6 +11,7 @@ import type {
 } from "@nervekit/contracts";
 import { writeClipboardText } from "$lib/core/clipboard";
 import { onEvent } from "$lib/core/events/event-bus";
+import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   getTaskLogs,
@@ -165,7 +166,7 @@ export function createWorkbenchTaskPanelAdapter(
           { description: definition.label ?? definition.command },
         );
       } catch (error) {
-        notify.error(`Could not run task: ${errorMessage(error)}`);
+        showCriticalError("Could not run task", errorMessage(error));
       } finally {
         runningDefinitionId = undefined;
       }

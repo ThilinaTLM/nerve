@@ -53,6 +53,10 @@ import {
   fileTreeGitDecoration,
   indexFileTreeGitDecorations,
 } from "$lib/features/filesystem/state/file-git-status";
+import {
+  errorDetails,
+  showCriticalError,
+} from "$lib/features/notifications/critical-errors.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   PanelBanner,
@@ -169,9 +173,12 @@ async function runNativeAction(
       relativePath: entry.path,
     });
   } catch (caught) {
-    notify.error("Could not open project entry", {
-      description: caught instanceof Error ? caught.message : String(caught),
-    });
+    showCriticalError(
+      action === "openProjectEntry"
+        ? "Could not open project entry"
+        : "Could not reveal project entry",
+      errorDetails(caught),
+    );
   }
 }
 
@@ -233,9 +240,7 @@ async function movePendingToTrash(): Promise<void> {
     ]);
     notify.success("Moved to trash");
   } catch (caught) {
-    notify.error("Could not move entry to trash", {
-      description: caught instanceof Error ? caught.message : String(caught),
-    });
+    showCriticalError("Could not move entry to trash", errorDetails(caught));
   } finally {
     pendingTrash = undefined;
   }
