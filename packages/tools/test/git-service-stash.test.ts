@@ -17,6 +17,10 @@ async function git(root: string, ...args: string[]): Promise<string> {
 async function repository(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "nerve-git-stash-"));
   await git(root, "init");
+  // Tests assert exact byte content in the working tree, so keep line endings
+  // deterministic: Windows Git defaults to core.autocrlf=true, which would turn
+  // the LF fixtures into CRLF whenever git rewrites a file during stash/restore.
+  await git(root, "config", "core.autocrlf", "false");
   await git(root, "config", "user.email", "nerve@example.test");
   await git(root, "config", "user.name", "Nerve Tests");
   await writeFile(join(root, "staged.txt"), "base\n");
