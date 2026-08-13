@@ -6,6 +6,7 @@ import { onDestroy } from "svelte";
 import {
   loadCodeLanguage,
   readOnlyCodeExtensions,
+  shouldShowCodeMinimap,
 } from "$lib/presentation/components/code";
 
 type Props = {
@@ -46,7 +47,10 @@ async function renderDiff(): Promise<void> {
   const state = EditorState.create({
     doc: modified,
     extensions: [
-      ...readOnlyCodeExtensions({ ariaLabel: `Diff for ${path}` }),
+      ...readOnlyCodeExtensions({
+        ariaLabel: `Diff for ${path}`,
+        minimap: shouldShowCodeMinimap(modified, false),
+      }),
       language,
       unifiedMergeView({
         original,

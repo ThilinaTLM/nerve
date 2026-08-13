@@ -41,6 +41,8 @@ let {
   viewportTabIndex,
   viewportAriaLabel,
   viewportClass,
+  horizontalScroll = false,
+  rowClass,
   class: className,
   row,
 }: VirtualScrollerProps<T> = $props();
@@ -386,7 +388,11 @@ $effect(() => {
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   bind:this={viewportEl}
-  class={cn("virtual-scroller-viewport", viewportClass)}
+  class={cn(
+    "virtual-scroller-viewport",
+    horizontalScroll && "virtual-scroller-horizontal",
+    viewportClass,
+  )}
   role={viewportAriaLabel ? "region" : undefined}
   tabindex={viewportTabIndex}
   aria-label={viewportAriaLabel}
@@ -401,7 +407,7 @@ $effect(() => {
       {@const item = items[virtualRow.index]}
       {#if item !== undefined}
         <div
-          class="virtual-scroller-row"
+          class={cn("virtual-scroller-row", rowClass)}
           class:cv-auto={contentVisibility}
           data-index={virtualRow.index}
           data-item-key={rendered.encodedItemKey}
@@ -429,6 +435,10 @@ $effect(() => {
   overflow-x: hidden;
   overflow-y: auto;
   overflow-anchor: none;
+}
+
+.virtual-scroller-viewport.virtual-scroller-horizontal {
+  overflow-x: auto;
 }
 
 .virtual-scroller-spacer {

@@ -12,6 +12,7 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { showMinimap } from "@replit/codemirror-minimap";
 
 export type CodeLanguageId =
   | "javascript"
@@ -273,15 +274,15 @@ export const codeMirrorTheme = EditorView.theme({
     caretColor: "var(--primary)",
   },
   ".cm-line": {
-    padding: "0 calc(var(--spacing) * 4)",
+    padding: "0 calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2)",
   },
   ".cm-gutters": {
     backgroundColor: "var(--background)",
     color: "var(--muted-foreground)",
-    borderRight: "1px solid var(--border)",
+    borderRight: "none",
   },
   ".cm-lineNumbers .cm-gutterElement": {
-    padding: "0 calc(var(--spacing) * 3)",
+    padding: "0 calc(var(--spacing) * 2)",
   },
   "&.cm-focused": { outline: "none" },
   "&.cm-focused .cm-cursor": { borderLeftColor: "var(--primary)" },
@@ -299,11 +300,47 @@ export const codeMirrorTheme = EditorView.theme({
     color: "var(--foreground)",
     backgroundColor: "var(--card)",
   },
+  ".cm-minimap-gutter": {
+    backgroundColor: "var(--background)",
+    borderLeft: "1px solid var(--border)",
+  },
+  ".cm-minimap-overlay": {
+    backgroundColor: "var(--primary)",
+  },
+  ".cm-minimap-box-shadow": {
+    boxShadow: "none",
+  },
 });
+
+const CODE_MINIMAP_LINE_THRESHOLD = 100;
+
+export function shouldShowCodeMinimap(text: string, wrap: boolean): boolean {
+  if (wrap) return false;
+  let lines = 1;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) === 10) lines += 1;
+    if (lines > CODE_MINIMAP_LINE_THRESHOLD) return true;
+  }
+  return false;
+}
+
+function codeMinimapExtension(): Extension {
+  return showMinimap.of({
+    create: () => {
+      const dom = document.createElement("div");
+      dom.setAttribute("aria-label", "Code minimap");
+      dom.title = "Code minimap";
+      return { dom };
+    },
+    displayText: "blocks",
+    showOverlay: "always",
+  });
+}
 
 export function readOnlyCodeExtensions(input: {
   lineStart?: number;
   ariaLabel: string;
+  minimap?: boolean;
 }): Extension[] {
   const lineStart = input.lineStart ?? 1;
   return [
@@ -314,6 +351,7 @@ export function readOnlyCodeExtensions(input: {
     highlightSpecialChars(),
     drawSelection(),
     syntaxHighlighting(codeHighlightStyle),
+    input.minimap ? codeMinimapExtension() : [],
     codeMirrorTheme,
   ];
 }

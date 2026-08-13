@@ -7,6 +7,7 @@ import {
   codeLanguageId,
   loadCodeLanguage,
   localLineNumber,
+  shouldShowCodeMinimap,
 } from "./code-mirror-config";
 
 const newLanguageIds: CodeLanguageId[] = [
@@ -66,6 +67,16 @@ describe("CodeMirror viewer helpers", () => {
       const tree = await ensureSyntaxTree(state, doc.length, 10_000);
       assert.equal(tree?.length, doc.length, id);
     }
+  });
+
+  it("shows the minimap only for long, unwrapped documents", () => {
+    const lines = (count: number) =>
+      Array.from({ length: count }, () => "x").join("\n");
+
+    assert.equal(shouldShowCodeMinimap(lines(100), false), false);
+    assert.equal(shouldShowCodeMinimap(lines(101), false), true);
+    assert.equal(shouldShowCodeMinimap(lines(101), true), false);
+    assert.equal(shouldShowCodeMinimap("", false), false);
   });
 
   it("maps external lines into a windowed document", () => {

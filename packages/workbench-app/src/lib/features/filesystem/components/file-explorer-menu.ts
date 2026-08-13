@@ -14,6 +14,14 @@ export type FileExplorerMenuIcons = {
   trash: MenuIcon;
 };
 
+export type ProjectRootMenuActions = {
+  createFile: () => void;
+  createFolder: () => void;
+  openDefault: () => void;
+  reveal: () => void;
+  copyPath: () => void;
+};
+
 export type FileExplorerMenuActions = {
   open: () => void;
   createFile: () => void;
@@ -40,6 +48,41 @@ export function absoluteProjectPath(
   return base.endsWith(separator)
     ? `${base}${normalizedRelative}`
     : `${base}${separator}${normalizedRelative}`;
+}
+
+export function buildProjectRootMenu(
+  actions: ProjectRootMenuActions,
+  nativeActions: boolean,
+  icons: FileExplorerMenuIcons,
+): ContextMenuItem[] {
+  const items: ContextMenuItem[] = [
+    { label: "New File", icon: icons.newFile, onSelect: actions.createFile },
+    {
+      label: "New Folder",
+      icon: icons.newFolder,
+      onSelect: actions.createFolder,
+    },
+  ];
+  if (nativeActions) {
+    items.push(
+      { type: "separator" },
+      {
+        label: "Open in Default Application",
+        icon: icons.openDefault,
+        onSelect: actions.openDefault,
+      },
+      {
+        label: "Reveal in File Manager",
+        icon: icons.reveal,
+        onSelect: actions.reveal,
+      },
+    );
+  }
+  items.push(
+    { type: "separator" },
+    { label: "Copy Path", icon: icons.copy, onSelect: actions.copyPath },
+  );
+  return items;
 }
 
 export function buildFileExplorerMenu(
