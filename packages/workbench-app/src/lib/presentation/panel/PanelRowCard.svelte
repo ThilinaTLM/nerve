@@ -9,6 +9,7 @@ let {
   menuItems,
   menuDisabled = false,
   class: className,
+  onclick,
   children,
 }: {
   /** Outer semantics; rows inside already carry `listitem` where needed. */
@@ -17,6 +18,7 @@ let {
   menuItems?: ContextMenuItem[];
   menuDisabled?: boolean;
   class?: string;
+  onclick?: (event: MouseEvent) => void;
   children: Snippet;
 } = $props();
 </script>
@@ -27,6 +29,7 @@ let {
   {menuItems}
   {menuDisabled}
   class={`panel-row-card flex-col px-1 py-0.5 ${className ?? ""}`}
+  {onclick}
 >
   {@render children()}
 </ItemSurface>
