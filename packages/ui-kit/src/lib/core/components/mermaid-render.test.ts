@@ -20,10 +20,10 @@ describe("Mermaid theme variables", () => {
   it("uses themed surfaces for alternating ER attribute rows", () => {
     const variables = mermaidThemeVariables(theme);
 
-    assert.equal(variables.attributeBackgroundColorOdd, theme.card);
-    assert.equal(variables.attributeBackgroundColorEven, theme.background);
-    assert.notEqual(variables.attributeBackgroundColorOdd, "#ffffff");
-    assert.notEqual(variables.attributeBackgroundColorEven, "#f2f2f2");
+    assert.equal(variables.rowOdd, theme.card);
+    assert.equal(variables.rowEven, theme.background);
+    assert.notEqual(variables.rowOdd, "#ffffff");
+    assert.notEqual(variables.rowEven, "#f2f2f2");
   });
 
   it("preserves core diagram color mappings", () => {

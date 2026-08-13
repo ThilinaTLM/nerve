@@ -157,8 +157,8 @@ export function mermaidThemeVariables(theme: MermaidTheme) {
     noteBorderColor: theme.primary,
     noteTextColor: theme.foreground,
     sequenceNumberColor: theme.background,
-    attributeBackgroundColorOdd: theme.card,
-    attributeBackgroundColorEven: theme.background,
+    rowOdd: theme.card,
+    rowEven: theme.background,
   };
 }
 
