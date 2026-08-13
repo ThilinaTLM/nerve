@@ -28,7 +28,6 @@ const inlineCodeIsMultiline = $derived(
         text={view.output}
         direction="tail"
         {expanded}
-        outputLimits={view.outputLimits}
         terminal
       />
     </section>
