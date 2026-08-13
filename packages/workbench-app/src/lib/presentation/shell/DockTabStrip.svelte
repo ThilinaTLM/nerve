@@ -17,6 +17,10 @@ import {
   shellDrag,
 } from "./shell-drag.svelte.js";
 import {
+  adjacentTabIndexAtOverlap,
+  initialTabIndexAtOverlap,
+} from "./horizontal-tab-reorder.js";
+import {
   DOCK_IDS,
   DOCK_LABELS,
   type DockId,
@@ -51,6 +55,8 @@ let {
 
 let strip = $state<HTMLDivElement | null>(null);
 let announcement = $state("");
+let collapsedDragViewId = $state<string | undefined>();
+let collapseFrame: number | undefined;
 
 const dockIcons: Record<DockId, typeof PanelLeft> = {
   left: PanelLeft,
@@ -62,15 +68,61 @@ const dragActive = $derived(Boolean(draggable && shellDrag.viewId));
 const dropIndex = $derived(
   shellDrag.hoverDock === dock ? shellDrag.hoverIndex : undefined,
 );
+const remainingViews = $derived(
+  views.filter((view) => view.id !== shellDrag.viewId),
+);
 
-function dropIndexFor(event: DragEvent): number {
-  if (!strip) return views.length;
-  const tabs = [...strip.querySelectorAll<HTMLElement>("[data-view-id]")];
-  for (const [index, tab] of tabs.entries()) {
-    const rect = tab.getBoundingClientRect();
-    if (event.clientX < rect.left + rect.width / 2) return index;
+function tabBounds() {
+  if (!strip) return [];
+  return [...strip.querySelectorAll<HTMLElement>("[data-view-id]")]
+    .filter((tab) => tab.dataset.viewId !== shellDrag.viewId)
+    .map((tab) => {
+      const rect = tab.getBoundingClientRect();
+      return {
+        key: tab.dataset.viewId ?? "",
+        left: rect.left,
+        width: rect.width,
+      };
+    });
+}
+
+function updateDropIndex(event: DragEvent): number | undefined {
+  const viewId = shellDrag.viewId;
+  const draggedWidth = shellDrag.draggedWidth;
+  const pointerOffsetX = shellDrag.pointerOffsetX;
+  if (!viewId || draggedWidth === undefined || pointerOffsetX === undefined)
+    return undefined;
+
+  const direction = Math.sign(
+    event.clientX - (shellDrag.previousX ?? event.clientX),
+  ) as -1 | 0 | 1;
+  shellDrag.previousX = event.clientX;
+  const draggedLeft = event.clientX - pointerOffsetX;
+  const remainingTabs = tabBounds();
+
+  if (shellDrag.hoverDock !== dock || shellDrag.hoverIndex === undefined) {
+    return initialTabIndexAtOverlap({
+      draggedLeft,
+      draggedWidth,
+      direction: 0,
+      remainingTabs,
+    });
   }
-  return tabs.length;
+
+  const orderedKeys = remainingViews.map((view) => view.id);
+  const currentIndex = Math.max(
+    0,
+    Math.min(shellDrag.hoverIndex, orderedKeys.length),
+  );
+  orderedKeys.splice(currentIndex, 0, viewId);
+  return adjacentTabIndexAtOverlap({
+    draggedKey: viewId,
+    orderedKeys,
+    draggedLeft,
+    draggedWidth,
+    direction,
+    remainingTabs,
+  });
 }
 
 function move(viewId: string, target: PanelViewDropTarget) {
@@ -87,7 +139,20 @@ function handleDragOver(event: DragEvent) {
   if (!dragActive) return;
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-  setPanelViewDropTarget(dock, dropIndexFor(event));
+  const index = updateDropIndex(event);
+  if (index !== undefined) setPanelViewDropTarget(dock, index);
+}
+
+function finishDrag() {
+  if (collapseFrame !== undefined) cancelAnimationFrame(collapseFrame);
+  collapseFrame = undefined;
+  collapsedDragViewId = undefined;
+  endPanelViewDrag();
+}
+
+function handleDragLeave(event: DragEvent) {
+  if (strip?.contains(event.relatedTarget as Node | null)) return;
+  clearPanelViewDropTarget(dock);
 }
 
 function handleDrop(event: DragEvent) {
@@ -95,9 +160,9 @@ function handleDrop(event: DragEvent) {
   event.preventDefault();
   const viewId =
     shellDrag.viewId ?? event.dataTransfer?.getData(PANEL_VIEW_MIME);
-  const index = dropIndexFor(event);
+  const index = shellDrag.hoverDock === dock ? shellDrag.hoverIndex : undefined;
   endPanelViewDrag();
-  if (!viewId) return;
+  if (!viewId || index === undefined) return;
   move(viewId, { dock, index });
 }
 
@@ -171,7 +236,7 @@ const tourIdByView: Record<string, string> = {
   bind:this={strip}
   role="presentation"
   ondragover={handleDragOver}
-  ondragleave={() => clearPanelViewDropTarget(dock)}
+  ondragleave={handleDragLeave}
   ondrop={handleDrop}
 >
   <div
@@ -181,13 +246,21 @@ const tourIdByView: Record<string, string> = {
   >
     {#each views as view, index (view.id)}
       {@const Icon = view.icon}
+      {@const remainingIndex = remainingViews.findIndex(
+        (candidate) => candidate.id === view.id,
+      )}
+      {#if view.id !== shellDrag.viewId && dropIndex === remainingIndex}
+        <span
+          class="inline-block h-8 w-8 flex-none rounded-t-md border border-b-0 border-primary/55 bg-primary/10 shadow-inner"
+          aria-hidden="true"
+        ></span>
+      {/if}
       <ContextMenu items={menuItems(view, index)} triggerClass="contents">
         <button
           type="button"
-          class="dock-tab"
+          class={`dock-tab ${index > 0 ? "-ml-px" : ""}`}
           class:active={view.id === activeViewId}
-          class:dragging={shellDrag.viewId === view.id}
-          class:drop-before={dropIndex === index}
+          class:dragging={collapsedDragViewId === view.id}
           data-view-id={view.id}
           data-tour-id={tourIdByView[view.id]}
           role="tab"
@@ -197,20 +270,40 @@ const tourIdByView: Record<string, string> = {
           draggable={draggable && Boolean(onMove)}
           ondragstart={(event) => {
             if (!onMove) return;
-            beginPanelViewDrag(view.id);
+            const rect = event.currentTarget.getBoundingClientRect();
+            beginPanelViewDrag(
+              view.id,
+              dock,
+              event.clientX - rect.left,
+              rect.width,
+              event.clientX,
+            );
+            setPanelViewDropTarget(dock, index);
+            event.dataTransfer?.setDragImage(
+              event.currentTarget,
+              event.clientX - rect.left,
+              event.clientY - rect.top,
+            );
             event.dataTransfer?.setData(PANEL_VIEW_MIME, view.id);
             event.dataTransfer?.setData("text/plain", view.title);
             if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+            collapseFrame = requestAnimationFrame(() => {
+              collapsedDragViewId = view.id;
+              collapseFrame = undefined;
+            });
           }}
-          ondragend={endPanelViewDrag}
+          ondragend={finishDrag}
           onclick={() => onSelect?.(view.id)}
         >
           <Icon size={14} strokeWidth={2.1} aria-hidden="true" />
         </button>
       </ContextMenu>
     {/each}
-    {#if dragActive && dropIndex !== undefined && dropIndex >= views.length}
-      <span class="dock-tab-drop-end" aria-hidden="true"></span>
+    {#if dragActive && dropIndex !== undefined && dropIndex >= remainingViews.length}
+      <span
+        class="inline-block h-8 w-8 flex-none rounded-t-md border border-b-0 border-primary/55 bg-primary/10 shadow-inner"
+        aria-hidden="true"
+      ></span>
     {/if}
   </div>
   <span class="sr-only" aria-live="polite">{announcement}</span>
@@ -218,12 +311,25 @@ const tourIdByView: Record<string, string> = {
 
 <style>
 .dock-tab-strip {
+  position: relative;
   display: flex;
   align-items: stretch;
   min-width: 0;
-  height: calc(2rem + 1px);
-  border-bottom: 1px solid var(--border);
+  height: 2rem;
   background: var(--card);
+}
+
+/* Keep the rail divider behind the active tab so that tab joins the panel. */
+.dock-tab-strip::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  height: 1px;
+  background: color-mix(in oklab, var(--primary) 60%, transparent);
+  pointer-events: none;
 }
 
 .dock-tabs {
@@ -248,7 +354,9 @@ const tourIdByView: Record<string, string> = {
   flex: none;
   width: 2rem;
   height: 2rem;
-  border-right: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--muted-foreground);
   cursor: pointer;
 }
@@ -259,28 +367,17 @@ const tourIdByView: Record<string, string> = {
 }
 
 .dock-tab.active {
-  background: var(--background);
+  z-index: 2;
+  border-color: color-mix(in oklab, var(--primary) 60%, transparent);
+  background: var(--card);
   color: var(--foreground);
 }
 
 .dock-tab.dragging {
-  opacity: 0.45;
-}
-
-/* Drop marker (escape-hatch reason 4). */
-.dock-tab.drop-before::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  left: 0;
-  width: 2px;
-  background: var(--primary);
-}
-
-.dock-tab-drop-end {
-  display: inline-block;
-  flex: none;
-  width: 2px;
-  background: var(--primary);
+  width: 0;
+  border: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 </style>

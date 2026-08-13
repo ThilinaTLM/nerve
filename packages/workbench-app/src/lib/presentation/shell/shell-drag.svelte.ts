@@ -10,12 +10,26 @@ export const PANEL_VIEW_MIME = "application/x-nerve-panel-view";
  */
 export const shellDrag = $state<{
   viewId?: string;
+  sourceDock?: DockId;
+  pointerOffsetX?: number;
+  draggedWidth?: number;
+  previousX?: number;
   hoverDock?: DockId;
   hoverIndex?: number;
 }>({});
 
-export function beginPanelViewDrag(viewId: string): void {
+export function beginPanelViewDrag(
+  viewId: string,
+  sourceDock: DockId,
+  pointerOffsetX: number,
+  draggedWidth: number,
+  clientX: number,
+): void {
   shellDrag.viewId = viewId;
+  shellDrag.sourceDock = sourceDock;
+  shellDrag.pointerOffsetX = pointerOffsetX;
+  shellDrag.draggedWidth = draggedWidth;
+  shellDrag.previousX = clientX;
   shellDrag.hoverDock = undefined;
   shellDrag.hoverIndex = undefined;
 }
@@ -33,6 +47,10 @@ export function clearPanelViewDropTarget(dock: DockId): void {
 
 export function endPanelViewDrag(): void {
   shellDrag.viewId = undefined;
+  shellDrag.sourceDock = undefined;
+  shellDrag.pointerOffsetX = undefined;
+  shellDrag.draggedWidth = undefined;
+  shellDrag.previousX = undefined;
   shellDrag.hoverDock = undefined;
   shellDrag.hoverIndex = undefined;
 }

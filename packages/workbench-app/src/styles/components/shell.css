@@ -13,14 +13,6 @@
   background: var(--card);
 }
 
-.dock-panel[data-dock="right"] {
-  border-left: 1px solid var(--border);
-}
-
-.dock-panel[data-dock="left"] {
-  border-right: 1px solid var(--border);
-}
-
 .dock-panel[data-dock="bottom"] {
   border-top: 1px solid var(--border);
 }

@@ -17,7 +17,7 @@ let {
 <!-- `-webkit-app-region: drag` makes the desktop titlebar the window drag
      handle (escape-hatch reason 7). -->
 <header
-  class={`flex h-full min-w-0 items-center justify-between gap-4 border-b border-border bg-card px-3 pt-[env(safe-area-inset-top)] select-none ${
+  class={`flex h-full min-w-0 items-center justify-between gap-4 bg-card px-3 pt-[env(safe-area-inset-top)] select-none ${
     desktop ? "[-webkit-app-region:drag]" : ""
   }`}
 >

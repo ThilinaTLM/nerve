@@ -122,7 +122,7 @@ $effect(() => {
   {@render children()}
   <div
     aria-hidden="true"
-    class="pointer-events-none absolute top-0 left-0 z-20 rounded-md border border-primary opacity-0 transition-[transform,width,height,opacity] duration-200 ease-out will-change-transform"
+    class="pointer-events-none absolute top-0 left-0 z-20 rounded-md border border-primary/60 opacity-0 transition-[transform,width,height,opacity] duration-200 ease-out will-change-transform"
     class:opacity-100={visible}
     style:transform={`translate3d(${x}px, ${y}px, 0)`}
     style:width={`${width}px`}

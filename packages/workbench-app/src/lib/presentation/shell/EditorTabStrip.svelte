@@ -16,7 +16,10 @@ import type {
   WorkbenchTabMenuBuilder,
   WorkbenchTabModel,
 } from "./shell-types.js";
-import { insertionIndexAtX, moveTabKey } from "./editor-tab-reorder.js";
+import {
+  adjacentTabIndexAtOverlap,
+  moveTabKey,
+} from "./horizontal-tab-reorder.js";
 
 let {
   tabs = [],
@@ -62,6 +65,7 @@ type PointerDrag = {
   pointerId: number;
   startX: number;
   startY: number;
+  previousX: number;
   offsetX: number;
   top: number;
   width: number;
@@ -117,6 +121,7 @@ function beginPointerDrag(
     pointerId: event.pointerId,
     startX: event.clientX,
     startY: event.clientY,
+    previousX: event.clientX,
     offsetX: event.clientX - rect.left,
     top: rect.top,
     width: rect.width,
@@ -152,6 +157,11 @@ function handlePointerMove(event: PointerEvent) {
     pointerDrag.element.setPointerCapture(event.pointerId);
   }
   event.preventDefault();
+  const direction = Math.sign(event.clientX - pointerDrag.previousX) as
+    | -1
+    | 0
+    | 1;
+  pointerDrag.previousX = event.clientX;
   updatePreviewPosition(event.clientX);
   if (!scroller) return;
   const bounds = [...scroller.querySelectorAll<HTMLElement>("[data-tab-key]")]
@@ -167,7 +177,14 @@ function handlePointerMove(event: PointerEvent) {
   previewKeys = moveTabKey(
     previewKeys,
     pointerDrag.key,
-    insertionIndexAtX(event.clientX, bounds),
+    adjacentTabIndexAtOverlap({
+      draggedKey: pointerDrag.key,
+      orderedKeys: previewKeys,
+      draggedLeft: previewLeft,
+      draggedWidth: pointerDrag.width,
+      direction,
+      remainingTabs: bounds,
+    }),
   );
 }
 
@@ -311,7 +328,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
 />
 
 <nav
-  class="relative flex min-h-8 min-w-0 bg-card after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-1 after:h-px after:bg-border after:content-['']"
+  class="relative flex min-h-8 min-w-0 bg-card after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-1 after:h-px after:bg-primary/60 after:content-['']"
   aria-label="Open editor tabs"
 >
   {#if canScrollLeft || canScrollRight}
@@ -340,7 +357,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
         triggerClass={`h-8 min-w-0 flex-none ${index > 0 ? "-ml-px" : ""} ${tab.active ? "relative z-2" : ""} ${tab.wide ? "w-54 basis-54" : "w-50 basis-50"}`}
       >
         <div
-          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] rounded-t-md border border-b-0 border-border/62 bg-card text-muted-foreground data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:border data-[placeholder]:border-primary/55 data-[placeholder]:bg-primary/10 data-[placeholder]:text-transparent data-[placeholder]:shadow-inner data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-accent/60 not-data-[active]:not-data-[placeholder]:hover:text-foreground"
+          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] rounded-t-md border border-b-0 border-border/62 bg-card text-muted-foreground data-[active]:border-primary/60 data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:border data-[placeholder]:border-primary/55 data-[placeholder]:bg-primary/10 data-[placeholder]:text-transparent data-[placeholder]:shadow-inner data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-accent/60 not-data-[active]:not-data-[placeholder]:hover:text-foreground"
           data-active={tab.active ? "" : undefined}
           data-running={tab.running ? "" : undefined}
           data-errored={tab.error ? "" : undefined}
@@ -439,7 +456,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   {/if}
 
   {#if onNew}
-    <div class="flex items-center border-l border-l-border/62 px-1">
+    <div class="flex items-center px-1">
       <Button
         variant="ghost"
         size="icon-sm"
