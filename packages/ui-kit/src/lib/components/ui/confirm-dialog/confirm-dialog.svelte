@@ -49,7 +49,9 @@ function handleCancel() {
     <AlertDialog.Header>
       <AlertDialog.Title>{title}</AlertDialog.Title>
       {#if description}
-        <AlertDialog.Description>{description}</AlertDialog.Description>
+        <AlertDialog.Description class="min-w-0 [overflow-wrap:anywhere]"
+          >{description}</AlertDialog.Description
+        >
       {/if}
     </AlertDialog.Header>
     <AlertDialog.Footer>
