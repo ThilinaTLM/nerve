@@ -16,6 +16,7 @@ import type {
   WorkbenchTabMenuBuilder,
   WorkbenchTabModel,
 } from "./shell-types.js";
+import { insertionIndexAtX, moveTabKey } from "./editor-tab-reorder.js";
 
 let {
   tabs = [],
@@ -56,9 +57,38 @@ let {
 let scroller = $state<HTMLDivElement | null>(null);
 let canScrollLeft = $state(false);
 let canScrollRight = $state(false);
-let draggedKey = $state<string | undefined>();
-let dropIndex = $state<number | undefined>();
+type PointerDrag = {
+  key: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  top: number;
+  width: number;
+  active: boolean;
+  element: HTMLElement;
+};
+
+let pointerDrag = $state<PointerDrag | undefined>();
+let previewKeys = $state<string[]>([]);
+let previewLeft = $state(0);
+let suppressSelect = $state(false);
 let announcement = $state("");
+
+const visualTabs = $derived.by(() => {
+  if (!pointerDrag?.active) return tabs;
+  const byKey = new Map(tabs.map((tab) => [tabKey(tab), tab]));
+  return previewKeys.flatMap((key) => {
+    const tab = byKey.get(key);
+    return tab ? [tab] : [];
+  });
+});
+
+const draggedTab = $derived(
+  pointerDrag?.active
+    ? tabs.find((tab) => tabKey(tab) === pointerDrag?.key)
+    : undefined,
+);
 
 function updateOverflow() {
   if (!scroller) return;
@@ -74,23 +104,105 @@ function scrollTabs(direction: -1 | 1) {
   });
 }
 
-function startDrag(event: DragEvent, tab: WorkbenchTabModel) {
-  if (!onReorder) return;
-  draggedKey = tabKey(tab);
-  event.dataTransfer?.setData("text/plain", draggedKey);
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+function beginPointerDrag(
+  event: PointerEvent,
+  tab: WorkbenchTabModel,
+  element: HTMLElement,
+) {
+  if (!onReorder || event.button !== 0) return;
+  if ((event.target as HTMLElement).closest("[data-no-tab-drag]")) return;
+  const rect = element.getBoundingClientRect();
+  pointerDrag = {
+    key: tabKey(tab),
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    offsetX: event.clientX - rect.left,
+    top: rect.top,
+    width: rect.width,
+    active: false,
+    element,
+  };
 }
 
-function dropTab(event: DragEvent, index: number) {
-  event.preventDefault();
-  const key = draggedKey ?? event.dataTransfer?.getData("text/plain");
-  const tab = tabs.find((candidate) => tabKey(candidate) === key);
-  if (tab) {
-    onReorder?.(identity(tab), index);
-    announcement = `${tab.label} moved to position ${index + 1}`;
+function updatePreviewPosition(clientX: number) {
+  if (!pointerDrag || !scroller) return;
+  const rail = scroller.getBoundingClientRect();
+  const edge = 28;
+  if (clientX < rail.left + edge) scroller.scrollBy({ left: -12 });
+  else if (clientX > rail.right - edge) scroller.scrollBy({ left: 12 });
+  previewLeft = Math.max(
+    rail.left,
+    Math.min(clientX - pointerDrag.offsetX, rail.right - pointerDrag.width),
+  );
+}
+
+function handlePointerMove(event: PointerEvent) {
+  if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+  if (!pointerDrag.active) {
+    if (
+      Math.hypot(
+        event.clientX - pointerDrag.startX,
+        event.clientY - pointerDrag.startY,
+      ) < 5
+    )
+      return;
+    pointerDrag.active = true;
+    previewKeys = tabs.map(tabKey);
+    pointerDrag.element.setPointerCapture(event.pointerId);
   }
-  draggedKey = undefined;
-  dropIndex = undefined;
+  event.preventDefault();
+  updatePreviewPosition(event.clientX);
+  if (!scroller) return;
+  const bounds = [...scroller.querySelectorAll<HTMLElement>("[data-tab-key]")]
+    .filter((element) => element.dataset.tabKey !== pointerDrag?.key)
+    .map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        key: element.dataset.tabKey ?? "",
+        left: rect.left,
+        width: rect.width,
+      };
+    });
+  previewKeys = moveTabKey(
+    previewKeys,
+    pointerDrag.key,
+    insertionIndexAtX(event.clientX, bounds),
+  );
+}
+
+function finishPointerDrag(event: PointerEvent, commit: boolean) {
+  if (!pointerDrag || event.pointerId !== pointerDrag.pointerId) return;
+  const drag = pointerDrag;
+  if (drag.active) {
+    if (drag.element.hasPointerCapture(event.pointerId))
+      drag.element.releasePointerCapture(event.pointerId);
+    if (commit) {
+      const tab = tabs.find((candidate) => tabKey(candidate) === drag.key);
+      const index = previewKeys.indexOf(drag.key);
+      if (tab && index >= 0) {
+        onReorder?.(identity(tab), index);
+        announcement = `${tab.label} moved to position ${index + 1}`;
+      }
+    }
+    suppressSelect = true;
+    setTimeout(() => (suppressSelect = false), 0);
+  }
+  pointerDrag = undefined;
+  previewKeys = [];
+}
+
+function cancelPointerDrag() {
+  if (!pointerDrag) return;
+  const drag = pointerDrag;
+  if (drag.active && drag.element.hasPointerCapture(drag.pointerId))
+    drag.element.releasePointerCapture(drag.pointerId);
+  if (drag.active) {
+    suppressSelect = true;
+    setTimeout(() => (suppressSelect = false), 0);
+  }
+  pointerDrag = undefined;
+  previewKeys = [];
 }
 
 $effect(() => {
@@ -189,8 +301,17 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
 }
 </script>
 
+<svelte:window
+  onpointermove={handlePointerMove}
+  onpointerup={(event) => finishPointerDrag(event, true)}
+  onpointercancel={(event) => finishPointerDrag(event, false)}
+  onkeydown={(event) => {
+    if (event.key === "Escape" && pointerDrag) cancelPointerDrag();
+  }}
+/>
+
 <nav
-  class="flex min-h-8 min-w-0 border-b border-border bg-card"
+  class="relative flex min-h-8 min-w-0 bg-card after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-1 after:h-px after:bg-border after:content-['']"
   aria-label="Open editor tabs"
 >
   {#if canScrollLeft || canScrollRight}
@@ -210,43 +331,34 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
     bind:this={scroller}
     onscroll={updateOverflow}
   >
-    {#each tabs as tab, index (tabKey(tab))}
+    {#each visualTabs as tab, index (tabKey(tab))}
       {@const Icon = tab.icon}
       {@const SelectIcon = tab.selectIcon}
       {@const ToggleIcon = tab.toggle?.icon}
       <ContextMenu
         items={menuItems(tab, index)}
-        triggerClass={`h-8 min-w-0 flex-none ${tab.wide ? "w-54 basis-54" : "w-50 basis-50"}`}
+        triggerClass={`h-8 min-w-0 flex-none ${index > 0 ? "-ml-px" : ""} ${tab.active ? "relative z-2" : ""} ${tab.wide ? "w-54 basis-54" : "w-50 basis-50"}`}
       >
         <div
-          class="editor-tab group relative inline-grid h-8 w-full grid-cols-[auto_minmax(0,1fr)_auto] border-r border-r-border/62 bg-card text-muted-foreground data-[active]:bg-background data-[active]:text-foreground data-[dragging]:opacity-55 not-data-[active]:hover:bg-accent/60 not-data-[active]:hover:text-foreground"
+          class="editor-tab group relative inline-grid h-8 w-full touch-pan-y grid-cols-[auto_minmax(0,1fr)_auto] rounded-t-md border border-b-0 border-border/62 bg-card text-muted-foreground data-[active]:bg-background data-[active]:text-foreground data-[placeholder]:border data-[placeholder]:border-primary/55 data-[placeholder]:bg-primary/10 data-[placeholder]:text-transparent data-[placeholder]:shadow-inner data-[placeholder]:[&>*]:invisible not-data-[active]:not-data-[placeholder]:hover:bg-accent/60 not-data-[active]:not-data-[placeholder]:hover:text-foreground"
           data-active={tab.active ? "" : undefined}
           data-running={tab.running ? "" : undefined}
           data-errored={tab.error ? "" : undefined}
-          data-dragging={draggedKey === tabKey(tab) ? "" : undefined}
-          data-drop-target={dropIndex === index && draggedKey !== tabKey(tab)
+          data-placeholder={pointerDrag?.active &&
+          pointerDrag.key === tabKey(tab)
             ? ""
             : undefined}
           data-tab-key={tabKey(tab)}
           role="presentation"
-          draggable={Boolean(onReorder)}
-          ondragstart={(event) => startDrag(event, tab)}
-          ondragover={(event) => {
-            if (!onReorder) return;
-            event.preventDefault();
-            dropIndex = index;
-          }}
-          ondrop={(event) => dropTab(event, index)}
-          ondragend={() => {
-            draggedKey = undefined;
-            dropIndex = undefined;
-          }}
+          onpointerdown={(event) =>
+            beginPointerDrag(event, tab, event.currentTarget)}
         >
           <div class="inline-grid h-8 w-5.5 place-items-center pl-1.5">
             {#if tab.toggle && ToggleIcon}
               <button
                 type="button"
                 class="tab-file-toggle"
+                data-no-tab-drag
                 aria-label={tab.toggle.label}
                 title={tab.toggle.title ?? tab.toggle.label}
                 disabled={tab.toggle.disabled}
@@ -281,7 +393,9 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
             role="tab"
             aria-selected={tab.active}
             title={tab.title ?? tab.label}
-            onclick={() => onSelect?.(identity(tab))}
+            onclick={() => {
+              if (!suppressSelect) onSelect?.(identity(tab));
+            }}
           >
             {#if SelectIcon}
               <span class="tab-kind-icon flex-none">
@@ -299,6 +413,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
           <button
             type="button"
             class="inline-grid w-5.5 cursor-pointer place-items-center rounded-none border-0 bg-transparent text-inherit opacity-62 hover:bg-destructive/12 hover:text-destructive hover:opacity-100 focus-visible:z-1 focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-ring"
+            data-no-tab-drag
             aria-label={`Close ${tab.label}`}
             title="Close tab"
             disabled={tab.closeable === false}
@@ -341,6 +456,35 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   <span class="sr-only" aria-live="polite">{announcement}</span>
 </nav>
 
+{#if draggedTab && pointerDrag?.active}
+  {@const PreviewIcon = draggedTab.icon}
+  {@const PreviewSelectIcon = draggedTab.selectIcon}
+  <div
+    class="pointer-events-none fixed z-50 inline-grid h-8 grid-cols-[auto_minmax(0,1fr)_auto] border border-border bg-background text-foreground opacity-90 shadow-lg"
+    style:top={`${pointerDrag.top}px`}
+    style:left={`${previewLeft}px`}
+    style:width={`${pointerDrag.width}px`}
+    aria-hidden="true"
+  >
+    <div class="inline-grid h-8 w-5.5 place-items-center pl-1.5">
+      {#if draggedTab.status?.tone}
+        <StatusDot tone={draggedTab.status.tone} pulse={false} />
+      {:else if PreviewIcon}
+        <PreviewIcon size={12} strokeWidth={2.2} />
+      {/if}
+    </div>
+    <div class="inline-flex h-8 min-w-0 items-center gap-1.5 px-1 text-xs">
+      {#if PreviewSelectIcon}
+        <PreviewSelectIcon size={12} strokeWidth={2.2} />
+      {/if}
+      <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+        >{draggedTab.label}</span
+      >
+    </div>
+    <div class="w-5.5"></div>
+  </div>
+{/if}
+
 <style>
 /* Hidden overflow scrollbar for the tab rail (escape-hatch reason 2). */
 .tab-scroller {
@@ -349,28 +493,6 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
 
 .tab-scroller::-webkit-scrollbar {
   display: none;
-}
-
-/* Active-tab top bar and drag drop marker (escape-hatch reason 4). */
-.editor-tab::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  background: transparent;
-}
-
-.editor-tab[data-active]::before {
-  background: var(--primary);
-}
-
-.editor-tab[data-drop-target]::after {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  z-index: 2;
-  width: 2px;
-  background: var(--primary);
 }
 
 /* Status dots keep sub-scale geometry so the running/draft indicators stay
