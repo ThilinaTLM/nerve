@@ -96,7 +96,8 @@
       }
       #startup-bootstrap-content {
         display: grid;
-        width: min(12rem, calc(100vw - 3rem));
+        width: 100%;
+        max-width: 32rem;
         justify-items: center;
         padding: 1.5rem;
         text-align: center;
@@ -117,8 +118,13 @@
         width: 62.5%;
         height: 62.5%;
       }
+      #startup-bootstrap-progress {
+        width: 100%;
+        max-width: 12rem;
+        margin-top: 1.5rem;
+      }
       #startup-bootstrap-status {
-        margin: 1.5rem 0 0.5rem;
+        margin: 0 0 0.5rem;
         color: var(--startup-muted);
         font-size: 0.875rem;
         line-height: 1.25rem;
@@ -172,13 +178,15 @@
               </g>
             </svg>
           </span>
-          <p id="startup-bootstrap-status" role="status">Opening Nerve</p>
-          <div
-            id="startup-bootstrap-track"
-            role="progressbar"
-            aria-label="Starting Nerve"
-          >
-            <span id="startup-bootstrap-fill"></span>
+          <div id="startup-bootstrap-progress">
+            <p id="startup-bootstrap-status" role="status">Opening Nerve</p>
+            <div
+              id="startup-bootstrap-track"
+              role="progressbar"
+              aria-label="Starting Nerve"
+            >
+              <span id="startup-bootstrap-fill"></span>
+            </div>
           </div>
         </div>
       </main>
