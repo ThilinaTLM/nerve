@@ -1,7 +1,6 @@
 <script lang="ts">
 import type { GitStashEntry } from "@nervekit/contracts";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import ConfirmDialog from "@nervekit/ui-kit/components/ui/confirm-dialog";
 import Dialog from "@nervekit/ui-kit/components/ui/dialog-shell";
 import { ItemScrollRegion } from "$lib/presentation/items";
 import GitStashRow from "./GitStashRow.svelte";
@@ -27,16 +26,34 @@ let {
 
 let dropCandidate = $state<GitStashEntry>();
 const busy = $derived(Boolean(mutation));
+
+function confirmDrop(): void {
+  const candidate = dropCandidate;
+  if (!candidate) return;
+  dropCandidate = undefined;
+  onDrop(candidate);
+}
 </script>
 
 <Dialog
   bind:open
   flush
-  title="Stashes"
-  description={`Saved changes for ${repositoryName}`}
+  title={dropCandidate ? "Drop stash?" : "Stashes"}
+  description={dropCandidate
+    ? "This action cannot be undone."
+    : `Saved changes for ${repositoryName}`}
   size="md"
+  onOpenChange={(next) => {
+    if (!next) dropCandidate = undefined;
+  }}
 >
-  {#if stashes.length === 0}
+  {#if dropCandidate}
+    <p class="p-4 text-sm text-muted-foreground">
+      This permanently removes
+      <span class="font-mono text-foreground">{dropCandidate.ref}</span>:
+      {dropCandidate.message}
+    </p>
+  {:else if stashes.length === 0}
     <p class="p-8 text-center text-sm text-muted-foreground">
       No stashes in this repository.
     </p>
@@ -65,27 +82,19 @@ const busy = $derived(Boolean(mutation));
   {/if}
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}>
-      Close
-    </Button>
+    {#if dropCandidate}
+      <Button
+        size="sm"
+        variant="ghost"
+        onclick={() => (dropCandidate = undefined)}>Cancel</Button
+      >
+      <Button size="sm" variant="destructive" onclick={confirmDrop}
+        >Drop stash</Button
+      >
+    {:else}
+      <Button size="sm" variant="ghost" onclick={() => (open = false)}>
+        Close
+      </Button>
+    {/if}
   {/snippet}
 </Dialog>
-
-<ConfirmDialog
-  open={Boolean(dropCandidate)}
-  title="Drop stash?"
-  description={dropCandidate
-    ? `This permanently removes ${dropCandidate.ref}: ${dropCandidate.message}`
-    : "This permanently removes the selected stash."}
-  confirmLabel="Drop stash"
-  destructive
-  onConfirm={() => {
-    const candidate = dropCandidate;
-    dropCandidate = undefined;
-    if (candidate) onDrop(candidate);
-  }}
-  onCancel={() => (dropCandidate = undefined)}
-  onOpenChange={(next) => {
-    if (!next) dropCandidate = undefined;
-  }}
-/>

@@ -47,15 +47,15 @@ let {
 </script>
 
 <div class="flex shrink-0 flex-col gap-1.5 pt-1.5">
+  <GitRepositorySelector
+    {repos}
+    {selectedRepo}
+    selectCapability={capabilities.selectRepository}
+    {onSelectRepo}
+  />
+
   {#if repoSummary}
     {@const repo = repoSummary}
-    <GitRepositorySelector
-      {repos}
-      {selectedRepo}
-      selectCapability={capabilities.selectRepository}
-      {onSelectRepo}
-    />
-
     <button
       type="button"
       disabled={!capabilities.branches.enabled}
@@ -99,7 +99,5 @@ let {
       {onSwitchBranch}
       {onCreateBranch}
     />
-  {:else}
-    <p class="text-xs text-muted-foreground">Loading…</p>
   {/if}
 </div>
