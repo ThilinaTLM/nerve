@@ -108,6 +108,11 @@ export function isPanelDockVisible(dock: DockId): boolean {
   return isDockVisible(state.layout, dock);
 }
 
+export function hasPanelDockContent(dock: DockId): boolean {
+  const { views } = state.layout.docks[dock];
+  return views.some((viewId) => !state.layout.hidden.includes(viewId));
+}
+
 let resizeTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function resizeDock(dock: DockId, size: number) {
