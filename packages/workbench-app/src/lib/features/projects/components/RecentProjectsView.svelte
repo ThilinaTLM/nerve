@@ -2,7 +2,7 @@
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Copy from "@lucide/svelte/icons/copy";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
-import Plus from "@lucide/svelte/icons/plus";
+import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/ui/context-menu-list";
@@ -70,7 +70,11 @@ let {
 function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
   const project = item.project;
   const menuItems: ContextMenuItem[] = [
-    { label: "New chat", icon: Plus, onSelect: () => onNewChat(project.dir) },
+    {
+      label: "New chat",
+      icon: MessageSquarePlus,
+      onSelect: () => onNewChat(project.dir),
+    },
     { label: "Copy path", icon: Copy, onSelect: () => onCopyPath(project.dir) },
   ];
   if (onForget) {

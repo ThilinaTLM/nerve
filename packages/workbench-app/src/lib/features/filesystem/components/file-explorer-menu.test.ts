@@ -52,12 +52,12 @@ describe("file explorer menus", () => {
     };
     assert.deepEqual(labels(file, false), [
       "Open",
-      "Copy Path",
-      "Copy Relative Path",
+      "Copy path",
+      "Copy relative path",
     ]);
-    assert.ok(labels(directory, false).includes("New File"));
-    assert.ok(labels(directory, true).includes("Open in Default Application"));
-    assert.ok(labels(directory, true).includes("Move to Trash"));
+    assert.ok(labels(directory, false).includes("New file"));
+    assert.ok(labels(directory, true).includes("Open with default app"));
+    assert.ok(labels(directory, true).includes("Move to trash"));
   });
 
   it("offers root operations without destructive or relative-path actions", () => {
@@ -65,11 +65,11 @@ describe("file explorer menus", () => {
       (item) => ("label" in item ? [item.label] : []),
     );
     assert.deepEqual(rootLabels, [
-      "New File",
-      "New Folder",
-      "Open in Default Application",
-      "Reveal in File Manager",
-      "Copy Path",
+      "New file",
+      "New folder",
+      "Open with default app",
+      "Show in file manager",
+      "Copy path",
     ]);
   });
 

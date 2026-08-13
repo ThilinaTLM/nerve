@@ -54,7 +54,7 @@ function entryMenu(entryData: HistoryEntryNodeData): ContextMenuItem[] {
   ];
   if (entry.role === "user") {
     items.push({
-      label: "Edit & resend",
+      label: "Edit and resend",
       icon: Pencil,
       onSelect: () => entryData.actions?.onEditEntry?.(entry),
     });
@@ -62,7 +62,7 @@ function entryMenu(entryData: HistoryEntryNodeData): ContextMenuItem[] {
   items.push(
     { type: "separator" },
     {
-      label: "Copy entry id",
+      label: "Copy entry ID",
       icon: Copy,
       onSelect: () => copyId(entry.id),
     },

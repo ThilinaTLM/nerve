@@ -27,6 +27,7 @@ export type ContextMenuItem =
 <script lang="ts">
 import type { Snippet } from "svelte";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
+import ContextMenuListItems from "./context-menu-list-items.svelte";
 
 let {
   children,
@@ -44,49 +45,38 @@ let {
   disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
 } = $props();
-</script>
 
-{#snippet renderItems(list: ContextMenuItem[])}
-  {#each list as item, index (index)}
-    {#if item.type === "separator"}
-      <ContextMenu.Separator />
-    {:else if item.type === "label"}
-      <ContextMenu.Group>
-        <ContextMenu.GroupHeading>{item.label}</ContextMenu.GroupHeading>
-      </ContextMenu.Group>
-    {:else if item.type === "submenu"}
-      {@const SubIcon = item.icon}
-      <ContextMenu.Sub>
-        <ContextMenu.SubTrigger disabled={item.disabled}>
-          {#if SubIcon}<SubIcon />{/if}
-          <span class="truncate">{item.label}</span>
-        </ContextMenu.SubTrigger>
-        <ContextMenu.SubContent>
-          {@render renderItems(item.items)}
-        </ContextMenu.SubContent>
-      </ContextMenu.Sub>
-    {:else}
-      {@const Icon = item.icon}
-      <ContextMenu.Item
-        variant={item.destructive ? "destructive" : "default"}
-        disabled={item.disabled}
-        onSelect={item.onSelect}
-      >
-        {#if Icon}<Icon />{/if}
-        <span class="truncate">{item.label}</span>
-        {#if item.shortcut}
-          <ContextMenu.Shortcut>{item.shortcut}</ContextMenu.Shortcut>
-        {/if}
-      </ContextMenu.Item>
-    {/if}
-  {/each}
-{/snippet}
+function assertNoEllipsis(list: ContextMenuItem[]): void {
+  if (!import.meta.env.DEV) return;
+  for (const item of list) {
+    if (item.type === "separator") continue;
+    if (item.type === "label") {
+      checkLabel(item.label);
+      continue;
+    }
+    if (item.type === "submenu") {
+      checkLabel(item.label);
+      assertNoEllipsis(item.items);
+      continue;
+    }
+    checkLabel(item.label);
+  }
+}
+
+function checkLabel(label: string): void {
+  if (label.includes("…") || label.includes("...")) {
+    console.warn(`Context menu label must not contain an ellipsis: "${label}"`);
+  }
+}
+
+$effect(() => assertNoEllipsis(items));
+</script>
 
 <ContextMenu.Root {onOpenChange}>
   <ContextMenu.Trigger class={triggerClass} {disabled}>
     {@render children()}
   </ContextMenu.Trigger>
   <ContextMenu.Content class={className}>
-    {@render renderItems(items)}
+    <ContextMenuListItems {items} />
   </ContextMenu.Content>
 </ContextMenu.Root>

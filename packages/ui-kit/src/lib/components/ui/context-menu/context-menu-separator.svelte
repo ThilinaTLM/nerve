@@ -12,6 +12,6 @@ let {
 <ContextMenuPrimitive.Separator
   bind:ref
   data-slot="context-menu-separator"
-  class={cn("bg-border -mx-1 my-1 h-px", className)}
+  class={cn("bg-border -mx-0.5 my-0.5 h-px", className)}
   {...restProps}
 />

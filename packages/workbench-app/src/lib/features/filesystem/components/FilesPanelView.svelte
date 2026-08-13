@@ -1,13 +1,14 @@
 <script lang="ts">
-import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import FilePlus from "@lucide/svelte/icons/file-plus";
+import FileText from "@lucide/svelte/icons/file-text";
 import Files from "@lucide/svelte/icons/files";
 import Folder from "@lucide/svelte/icons/folder";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import FolderPlus from "@lucide/svelte/icons/folder-plus";
 import Link from "@lucide/svelte/icons/link";
+import Locate from "@lucide/svelte/icons/locate";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
@@ -300,11 +301,11 @@ function rootMenu(): ContextMenuItem[] {
     },
     desktopRuntime.isDesktop,
     {
-      open: ArrowRight,
+      open: FolderOpen,
       copy: Copy,
       openDefault: ExternalLink,
       newFile: FilePlus,
-      reveal: FolderOpen,
+      reveal: Locate,
       newFolder: FolderPlus,
       trash: Trash2,
     },
@@ -333,11 +334,11 @@ function itemMenu(item: FileExplorerTreeItem): ContextMenuItem[] {
     },
     desktopRuntime.isDesktop,
     {
-      open: ArrowRight,
+      open: entry.kind === "directory" ? FolderOpen : FileText,
       copy: Copy,
       openDefault: ExternalLink,
       newFile: FilePlus,
-      reveal: FolderOpen,
+      reveal: Locate,
       newFolder: FolderPlus,
       trash: Trash2,
     },

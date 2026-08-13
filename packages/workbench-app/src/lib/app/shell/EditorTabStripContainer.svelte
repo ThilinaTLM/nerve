@@ -11,6 +11,7 @@ import MoveLeft from "@lucide/svelte/icons/move-left";
 import MoveRight from "@lucide/svelte/icons/move-right";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Settings from "@lucide/svelte/icons/settings";
+import TextAlignStart from "@lucide/svelte/icons/text-align-start";
 import Terminal from "@lucide/svelte/icons/terminal";
 import X from "@lucide/svelte/icons/x";
 import { EditorTabStrip } from "$lib/presentation/shell";
@@ -157,13 +158,13 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
     const relativePath = source.relativePath ?? source.file?.relativePath;
     items.push(
       {
-        label: "Copy Path",
+        label: "Copy path",
         icon: Copy,
         disabled: !absolutePath,
         onSelect: () => void copyToClipboard(absolutePath, "path"),
       },
       {
-        label: "Copy Relative Path",
+        label: "Copy relative path",
         icon: Copy,
         disabled: !relativePath,
         onSelect: () => void copyToClipboard(relativePath, "relative path"),
@@ -171,7 +172,7 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
       { type: "separator" },
       {
         label: fileWrapLabel(source),
-        icon: Code2,
+        icon: TextAlignStart,
         disabled: !onToggleFileLineWrap,
         onSelect: () => onToggleFileLineWrap?.(source.id),
       },
@@ -190,13 +191,13 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
     items.push(
       { type: "separator" },
       {
-        label: "Move Left",
+        label: "Move left",
         icon: MoveLeft,
         disabled: !hasLeft,
         onSelect: () => onReorder(identity, index - 1),
       },
       {
-        label: "Move Right",
+        label: "Move right",
         icon: MoveRight,
         disabled: !hasRight,
         onSelect: () => onReorder(identity, index + 1),
@@ -207,26 +208,26 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   items.push(
     { type: "separator" },
     {
-      label: "Close Pane",
+      label: "Close pane",
       icon: X,
       shortcut: closeShortcut,
       onSelect: () => onClose?.(identity),
     },
     {
-      label: "Close Other Panes",
+      label: "Close others",
       icon: X,
       shortcut: closeOthersShortcut,
       disabled: tabs.length <= 1 || !onCloseOther,
       onSelect: () => onCloseOther?.(identity),
     },
     {
-      label: "Close Panes on Right",
+      label: "Close to the right",
       icon: X,
       disabled: !hasRight || !onCloseRight,
       onSelect: () => onCloseRight?.(identity),
     },
     {
-      label: "Close Panes on Left",
+      label: "Close to the left",
       icon: X,
       disabled: !hasLeft || !onCloseLeft,
       onSelect: () => onCloseLeft?.(identity),

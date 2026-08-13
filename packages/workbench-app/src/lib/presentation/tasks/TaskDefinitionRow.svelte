@@ -1,6 +1,6 @@
 <script lang="ts">
 import Copy from "@lucide/svelte/icons/copy";
-import FolderOpen from "@lucide/svelte/icons/folder-open";
+import Folder from "@lucide/svelte/icons/folder";
 import History from "@lucide/svelte/icons/history";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Play from "@lucide/svelte/icons/play";
@@ -87,7 +87,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     });
   if (cleanableRuns.length > 0)
     items.push({
-      label: "Clean up old runs",
+      label: "Clean up runs",
       icon: Trash2,
       destructive: true,
       disabled: !capabilities.remove,
@@ -150,7 +150,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
   if (cwd)
     trailing.push({
       label: "Copy working directory",
-      icon: FolderOpen,
+      icon: Folder,
       disabled: !capabilities.copy,
       onSelect: () => onCopy?.(cwd),
     });
