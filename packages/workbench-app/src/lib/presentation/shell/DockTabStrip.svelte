@@ -328,7 +328,7 @@ const tourIdByView: Record<string, string> = {
   left: 0;
   z-index: 1;
   height: 1px;
-  background: var(--primary);
+  background: color-mix(in oklab, var(--primary) 60%, transparent);
   pointer-events: none;
 }
 
@@ -368,7 +368,7 @@ const tourIdByView: Record<string, string> = {
 
 .dock-tab.active {
   z-index: 2;
-  border-color: var(--primary);
+  border-color: color-mix(in oklab, var(--primary) 60%, transparent);
   background: var(--card);
   color: var(--foreground);
 }

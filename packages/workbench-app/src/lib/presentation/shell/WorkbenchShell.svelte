@@ -62,7 +62,7 @@ const leftViews = $derived(dockDescriptors(layout, "left", descriptors));
 const rightViews = $derived(dockDescriptors(layout, "right", descriptors));
 const bottomViews = $derived(dockDescriptors(layout, "bottom", descriptors));
 const sideResizerClass =
-  "bg-card hover:bg-card data-[active=keyboard]:bg-card data-[active=pointer]:bg-card after:pointer-events-none after:absolute after:top-8 after:bottom-0 after:left-0 after:w-px after:bg-border after:content-[''] before:pointer-events-none before:absolute before:top-8 before:left-0 before:h-px before:w-px before:-translate-y-px before:bg-primary before:content-['']";
+  "bg-card hover:bg-card data-[active=keyboard]:bg-card data-[active=pointer]:bg-card after:pointer-events-none after:absolute after:top-8 after:bottom-0 after:left-0 after:w-px after:bg-border after:content-[''] before:pointer-events-none before:absolute before:top-8 before:left-0 before:h-px before:w-px before:-translate-y-px before:bg-primary/60 before:content-['']";
 
 const leftVisible = $derived(!compact && isDockVisible(layout, "left"));
 const rightVisible = $derived(!compact && isDockVisible(layout, "right"));
