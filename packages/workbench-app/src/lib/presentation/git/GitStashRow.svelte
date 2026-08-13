@@ -25,13 +25,9 @@ let { stash, busy, mutation, onApply, onDrop }: Props = $props();
   class="flex-col gap-1 px-3 py-2.5"
 >
   <div class="flex min-w-0 items-center gap-2">
-    <ArchiveRestore
-      class="size-4 shrink-0 text-muted-foreground"
-      aria-hidden="true"
-    />
     <div class="flex min-w-0 flex-1 flex-col gap-0.5">
       <span
-        class="truncate text-xs font-medium text-foreground"
+        class="line-clamp-2 text-xs font-medium leading-snug break-words text-foreground"
         title={stash.message}>{stash.message}</span
       >
       <span class="truncate text-xs text-muted-foreground">
