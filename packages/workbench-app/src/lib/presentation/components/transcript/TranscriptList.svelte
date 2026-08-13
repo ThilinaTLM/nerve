@@ -376,6 +376,31 @@ const showEmptyRun = $derived(
     queuedPromptCount: queuedPrompts.length,
   }),
 );
+
+let canScrollUp = $state(false);
+let canScrollDown = $state(false);
+
+function updateScrollShadows(viewport: HTMLElement) {
+  canScrollUp = viewport.scrollTop > 2;
+  canScrollDown =
+    viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 2;
+}
+
+$effect(() => {
+  const viewport = controller?.getViewportElement();
+  if (!viewport) return;
+  const update = () => updateScrollShadows(viewport);
+  update();
+  viewport.addEventListener("scroll", update, { passive: true });
+  const observer = new ResizeObserver(update);
+  observer.observe(viewport);
+  const spacer = viewport.firstElementChild;
+  if (spacer instanceof HTMLElement) observer.observe(spacer);
+  return () => {
+    viewport.removeEventListener("scroll", update);
+    observer.disconnect();
+  };
+});
 </script>
 
 {#if showEmptyRun}
@@ -386,68 +411,80 @@ const showEmptyRun = $derived(
     projectPath={activeProject?.dir}
   />
 {:else}
-  <VirtualScroller
-    bind:controller
-    bind:atEnd
-    items={rows}
-    getKey={(row) => row.key}
-    {structureVersion}
-    {heightCacheKey}
-    getMeasurementVersion={measurementVersionForRow}
-    {contentVisibility}
-    estimateSize={() => 120}
-    overscan={10}
-    anchor="end"
-    followOutput={followBottom}
-    scrollEndThreshold={32}
-    paddingStart={12}
-    {paddingEnd}
-    gap={2}
-    viewportTabIndex={0}
-    viewportAriaLabel={transcriptLabel}
-    viewportClass="@container h-full px-3"
-  >
-    {#snippet row({ item })}
-      {#if item.kind === "timeline"}
-        <TranscriptRow
-          node={item.node}
-          entranceMotion={item.entranceMotion}
-          onClaimEntrance={(token) => claimEntrance(item.key, token)}
-          {sending}
-          hydrateToolBodies={active}
-          {activeProject}
-          {approvalsByToolCallId}
-          {questionsByToolCallId}
-          {reviewsByToolCallId}
-          {lastTimelineKey}
-          {planReviewModels}
-          {planReviewModelKey}
-          {planReviewThinkingLevel}
-          {onOpenFile}
-          {onAnswerUserQuestion}
-          {onDismissUserQuestion}
-          {onGrantApproval}
-          {onDenyApproval}
-          {onAcceptPlanReview}
-          {onAcceptPlanReviewInNewChat}
-          {onRejectPlanReview}
-          {onContinueFromFailure}
-          {transcriptMenu}
-        />
-      {:else if item.kind === "waiting"}
-        <article class="waiting-entry">
-          <WorkingIndicator />
-        </article>
-      {:else}
-        <QueuedPromptRow
-          prompt={item.prompt}
-          onDiscard={onDiscardQueuedPrompt}
-          onMoveToComposer={onMoveQueuedPromptToComposer}
-          {transcriptMenu}
-        />
-      {/if}
-    {/snippet}
-  </VirtualScroller>
+  <div class="relative h-full min-h-0 overflow-hidden">
+    <VirtualScroller
+      bind:controller
+      bind:atEnd
+      items={rows}
+      getKey={(row) => row.key}
+      {structureVersion}
+      {heightCacheKey}
+      getMeasurementVersion={measurementVersionForRow}
+      {contentVisibility}
+      estimateSize={() => 120}
+      overscan={10}
+      anchor="end"
+      followOutput={followBottom}
+      scrollEndThreshold={32}
+      paddingStart={12}
+      {paddingEnd}
+      gap={2}
+      viewportTabIndex={0}
+      viewportAriaLabel={transcriptLabel}
+      viewportClass="@container h-full px-3"
+    >
+      {#snippet row({ item })}
+        {#if item.kind === "timeline"}
+          <TranscriptRow
+            node={item.node}
+            entranceMotion={item.entranceMotion}
+            onClaimEntrance={(token) => claimEntrance(item.key, token)}
+            {sending}
+            hydrateToolBodies={active}
+            {activeProject}
+            {approvalsByToolCallId}
+            {questionsByToolCallId}
+            {reviewsByToolCallId}
+            {lastTimelineKey}
+            {planReviewModels}
+            {planReviewModelKey}
+            {planReviewThinkingLevel}
+            {onOpenFile}
+            {onAnswerUserQuestion}
+            {onDismissUserQuestion}
+            {onGrantApproval}
+            {onDenyApproval}
+            {onAcceptPlanReview}
+            {onAcceptPlanReviewInNewChat}
+            {onRejectPlanReview}
+            {onContinueFromFailure}
+            {transcriptMenu}
+          />
+        {:else if item.kind === "waiting"}
+          <article class="waiting-entry">
+            <WorkingIndicator />
+          </article>
+        {:else}
+          <QueuedPromptRow
+            prompt={item.prompt}
+            onDiscard={onDiscardQueuedPrompt}
+            onMoveToComposer={onMoveQueuedPromptToComposer}
+            {transcriptMenu}
+          />
+        {/if}
+      {/snippet}
+    </VirtualScroller>
+    <div
+      class="pointer-events-none absolute top-0 right-3 left-0 z-2 h-6 bg-linear-to-b from-background to-transparent opacity-0 transition-opacity duration-150"
+      class:opacity-100={canScrollUp}
+      aria-hidden="true"
+    ></div>
+    <div
+      class="pointer-events-none absolute right-3 bottom-0 left-0 z-2 h-6 bg-linear-to-t from-background to-transparent opacity-0 transition-opacity duration-150"
+      class:opacity-100={canScrollDown}
+      aria-hidden="true"
+    ></div>
+  </div>
 {/if}
 
 <style>
