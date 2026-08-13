@@ -31,11 +31,7 @@ const liveText = $derived.by(() => {
   </div>
 {:else if view.live && liveText}
   <div class="grid gap-1.5" aria-label="Live image explanation generation">
-    <ToolOutputBlock
-      text={liveText}
-      direction="tail"
-      outputLimits={view.outputLimits}
-    />
+    <ToolOutputBlock text={liveText} direction="tail" />
   </div>
 {:else if view.explanation}
   <ToolOutputBlock text={view.explanation} direction="head" />
