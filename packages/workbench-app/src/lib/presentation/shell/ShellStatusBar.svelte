@@ -64,7 +64,7 @@ const trailingToggles = $derived(
 {/snippet}
 
 <footer
-  class="flex h-full min-w-0 items-center justify-between gap-3 border-t border-border bg-card px-1.5 text-xs text-muted-foreground select-none max-sm:pb-[env(safe-area-inset-bottom)]"
+  class="flex h-full min-w-0 items-center justify-between gap-3 bg-card px-1.5 text-xs text-muted-foreground select-none max-sm:pb-[env(safe-area-inset-bottom)]"
 >
   <div class="flex min-w-0 flex-auto items-center gap-0.5 overflow-hidden">
     {#each leadingToggles as toggle (toggle.dock)}
