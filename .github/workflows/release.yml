@@ -114,12 +114,11 @@ jobs:
               exit 1
             fi
 
-            cat >"${gpg_wrapper}" <<'EOF'
-            #!/usr/bin/env bash
-            set -euo pipefail
-            exec gpg --batch --yes --pinentry-mode loopback \
-              --passphrase "${RELEASE_GPG_PASSPHRASE}" "$@"
-            EOF
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'set -euo pipefail' \
+              'exec gpg --batch --yes --pinentry-mode loopback --passphrase "${RELEASE_GPG_PASSPHRASE}" "$@"' \
+              >"${gpg_wrapper}"
             chmod 700 "${gpg_wrapper}"
 
             git config user.name "Nerve Release Bot"
