@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { installDaemonPerformanceMonitor } from "../src/infrastructure/diagnostics/performance-monitor.js";
 
@@ -49,7 +50,7 @@ describe("daemon performance monitor", () => {
       activeRequests: () => 3,
       now: () => new Date("2026-08-14T00:00:00.000Z"),
       append: async (path, line) => {
-        assert.equal(path, "/safe/home/logs/performance.jsonl");
+        assert.equal(path, join("/safe/home", "logs", "performance.jsonl"));
         lines.push(line);
       },
       setInterval: ((callback: () => void, delay: number) => {

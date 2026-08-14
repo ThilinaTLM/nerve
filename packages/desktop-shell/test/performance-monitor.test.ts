@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { installDesktopPerformanceMonitor } from "../src/performance/performance-monitor.js";
 
@@ -43,7 +44,7 @@ describe("desktop performance monitor", () => {
       ],
       getWindowState: () => ({ visible: true, minimized: false }),
       append: async (path, line) => {
-        assert.equal(path, "/safe/home/logs/performance.jsonl");
+        assert.equal(path, join("/safe/home", "logs", "performance.jsonl"));
         lines.push(line);
       },
       setInterval: ((callback: () => void, delay: number) => {
