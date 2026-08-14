@@ -1,5 +1,5 @@
 <script lang="ts">
-import { highlightCodeCached } from "@nervekit/ui-kit/core/highlight/highlight";
+import { acquireHighlightCode } from "@nervekit/ui-kit/core/highlight/highlight";
 import { ansiToHtml } from "@nervekit/ui-kit/core/terminal/ansi";
 import { trimTextPreview } from "@nervekit/ui-kit/core/utils/text-preview";
 import {
@@ -153,10 +153,14 @@ $effect(() => {
 });
 
 $effect(() => {
-  // Re-measure after content, highlighting, terminal rendering, or row caps
-  // change. Width-driven reflows are handled by the ResizeObserver below.
-  const measurementKey = `${preview.text}\0${html ?? ""}\0${terminalHtml}\0${fixedRows ?? ""}`;
-  if (!hasFixedRows || measurementKey === undefined) return;
+  // Track compact render revisions rather than allocating a string containing
+  // the complete highlighted HTML. Width reflows use the observer below.
+  void signature;
+  void htmlSignature;
+  void terminal;
+  void isDiff;
+  void fixedRows;
+  if (!hasFixedRows) return;
   scheduleMeasure();
 });
 
@@ -209,15 +213,18 @@ $effect(() => {
   )
     return;
 
-  const result = highlightCodeCached(preview.text, language);
+  const lease = acquireHighlightCode(preview.text, language);
+  const result = lease.result;
   if (typeof result === "string") {
     html = result;
     htmlSignature = currentSignature;
     unavailableSignature = undefined;
+    lease.release();
     return;
   }
   if (!result) {
     unavailableSignature = currentSignature;
+    lease.release();
     return;
   }
 
@@ -234,6 +241,7 @@ $effect(() => {
   });
   return () => {
     cancelled = true;
+    lease.release();
   };
 });
 </script>
@@ -286,26 +294,6 @@ $effect(() => {
           >{/each}</pre>
     </div>
   </div>
-{:else if highlight && html && htmlSignature === signature}
-  <div
-    bind:this={blockEl}
-    class="code-block"
-    data-wrap={wrap ? "true" : "false"}
-    data-overflow={overflow}
-    data-fixed-rows={hasFixedRows ? "true" : undefined}
-    data-tail={tail ? "true" : undefined}
-    style:--code-block-fixed-rows={fixedRowsVar}
-    style:--code-block-visible-rows={visibleRowsVar}
-  >
-    <div
-      bind:this={viewportEl}
-      class="code-block__viewport"
-      style:max-height={hasFixedRows ? undefined : maxHeight}
-    >
-      <!-- eslint-disable-next-line svelte/no-at-html-tags -- Shiki serializes source code into controlled highlighted markup. -->
-      <div bind:this={contentEl} class="code-block__content">{@html html}</div>
-    </div>
-  </div>
 {:else}
   <div
     bind:this={blockEl}
@@ -322,9 +310,14 @@ $effect(() => {
       class="code-block__viewport"
       style:max-height={hasFixedRows ? undefined : maxHeight}
     >
-      <pre
-        bind:this={contentEl}
-        class="code-block__content">{preview.text}</pre>
+      <div bind:this={contentEl} class="code-block__content">
+        {#if highlight && html && htmlSignature === signature}
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -- Shiki serializes source code into controlled highlighted markup. -->
+          {@html html}
+        {:else}
+          <pre>{preview.text}</pre>
+        {/if}
+      </div>
     </div>
   </div>
 {/if}
