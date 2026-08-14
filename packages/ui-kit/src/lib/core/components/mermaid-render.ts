@@ -1,4 +1,4 @@
-type MermaidTheme = {
+export type MermaidTheme = {
   fingerprint: string;
   dark: boolean;
   fontFamily: string;
@@ -121,6 +121,47 @@ async function sanitizeSvg(svg: string): Promise<string | undefined> {
   return document.documentElement.outerHTML;
 }
 
+export function mermaidThemeVariables(theme: MermaidTheme) {
+  return {
+    background: theme.background,
+    primaryColor: theme.surface,
+    primaryTextColor: theme.foreground,
+    primaryBorderColor: theme.strongBorder,
+    secondaryColor: theme.background,
+    secondaryTextColor: theme.foreground,
+    secondaryBorderColor: theme.strongBorder,
+    tertiaryColor: theme.surface,
+    tertiaryTextColor: theme.foreground,
+    tertiaryBorderColor: theme.strongBorder,
+    lineColor: theme.mutedForeground,
+    textColor: theme.foreground,
+    mainBkg: theme.surface,
+    nodeBorder: theme.strongBorder,
+    clusterBkg: theme.background,
+    clusterBorder: theme.strongBorder,
+    titleColor: theme.foreground,
+    edgeLabelBackground: theme.background,
+    actorBkg: theme.surface,
+    actorBorder: theme.strongBorder,
+    actorTextColor: theme.foreground,
+    actorLineColor: theme.strongBorder,
+    signalColor: theme.foreground,
+    signalTextColor: theme.foreground,
+    labelBoxBkgColor: theme.background,
+    labelBoxBorderColor: theme.strongBorder,
+    labelTextColor: theme.foreground,
+    loopTextColor: theme.foreground,
+    activationBkgColor: theme.surface,
+    activationBorderColor: theme.primary,
+    noteBkgColor: theme.surface,
+    noteBorderColor: theme.primary,
+    noteTextColor: theme.foreground,
+    sequenceNumberColor: theme.background,
+    rowOdd: theme.card,
+    rowEven: theme.background,
+  };
+}
+
 async function renderWithTheme(
   source: string,
   theme: MermaidTheme,
@@ -132,42 +173,7 @@ async function renderWithTheme(
     htmlLabels: false,
     theme: "base",
     fontFamily: theme.fontFamily,
-    themeVariables: {
-      background: theme.background,
-      primaryColor: theme.surface,
-      primaryTextColor: theme.foreground,
-      primaryBorderColor: theme.strongBorder,
-      secondaryColor: theme.background,
-      secondaryTextColor: theme.foreground,
-      secondaryBorderColor: theme.strongBorder,
-      tertiaryColor: theme.surface,
-      tertiaryTextColor: theme.foreground,
-      tertiaryBorderColor: theme.strongBorder,
-      lineColor: theme.mutedForeground,
-      textColor: theme.foreground,
-      mainBkg: theme.surface,
-      nodeBorder: theme.strongBorder,
-      clusterBkg: theme.background,
-      clusterBorder: theme.strongBorder,
-      titleColor: theme.foreground,
-      edgeLabelBackground: theme.background,
-      actorBkg: theme.surface,
-      actorBorder: theme.strongBorder,
-      actorTextColor: theme.foreground,
-      actorLineColor: theme.strongBorder,
-      signalColor: theme.foreground,
-      signalTextColor: theme.foreground,
-      labelBoxBkgColor: theme.background,
-      labelBoxBorderColor: theme.strongBorder,
-      labelTextColor: theme.foreground,
-      loopTextColor: theme.foreground,
-      activationBkgColor: theme.surface,
-      activationBorderColor: theme.primary,
-      noteBkgColor: theme.surface,
-      noteBorderColor: theme.primary,
-      noteTextColor: theme.foreground,
-      sequenceNumberColor: theme.background,
-    },
+    themeVariables: mermaidThemeVariables(theme),
     flowchart: { htmlLabels: false },
   });
   const id = `nerve-mermaid-${++renderSequence}`;
