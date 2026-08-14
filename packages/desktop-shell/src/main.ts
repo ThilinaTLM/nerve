@@ -34,6 +34,10 @@ import { showDesktopNotification } from "./ipc/notifications-ipc.js";
 import { registerDesktopIpc, windowState } from "./ipc/window-ipc.js";
 import { desktopLog } from "./logging.js";
 import {
+  installDesktopPerformanceMonitor,
+  type DesktopPerformanceMonitor,
+} from "./performance/performance-monitor.js";
+import {
   installDaemonCookie,
   refreshDesktopSettingsFromDaemon,
 } from "./settings/desktop-settings.js";
@@ -97,6 +101,7 @@ let closeToTray = true;
 let stopDaemonPromise: Promise<void> | undefined;
 let unsubscribeDaemonStatus: (() => void) | undefined;
 let desktopNetworkReady: Promise<void> = Promise.resolve();
+let desktopPerformanceMonitor: DesktopPerformanceMonitor | undefined;
 
 const trayController = createTrayController({
   getMainWindow: () => mainWindow,
@@ -212,6 +217,8 @@ if (!gotSingleInstanceLock) {
   app.on("before-quit", (event) => {
     const startedAt = Date.now();
     appQuitting = true;
+    desktopPerformanceMonitor?.stop();
+    desktopPerformanceMonitor = undefined;
     notifyQuitStarted();
     void desktopLog("info", "app", "Electron before-quit received", {
       context: {
@@ -403,6 +410,25 @@ async function openMainWindow(): Promise<void> {
       source: "desktop",
       ...result.timings,
       navigated: result.navigated,
+    });
+    desktopPerformanceMonitor ??= installDesktopPerformanceMonitor({
+      enabled: process.env.NERVE_PERFORMANCE_DIAGNOSTICS === "1",
+      dataDir: desktopDataDir,
+      getMetrics: () => app.getAppMetrics(),
+      getWindowState: () => {
+        const activeWindow = mainWindow;
+        return activeWindow && !activeWindow.isDestroyed()
+          ? {
+              visible: activeWindow.isVisible(),
+              minimized: activeWindow.isMinimized(),
+            }
+          : undefined;
+      },
+      warn: (error) => {
+        void desktopLog("warn", "app", "Desktop performance sampling failed", {
+          error,
+        });
+      },
     });
   } catch (error) {
     void desktopLog("error", "daemon", "Failed to open Nerve daemon", {

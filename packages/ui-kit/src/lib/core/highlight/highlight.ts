@@ -1,4 +1,9 @@
 import { LruCache } from "@nervekit/ui-kit/core/utils/lru-cache";
+import { isWithinHighlightBudget } from "./highlight-policy";
+import {
+  createHighlightQueue,
+  type HighlightQueueLease,
+} from "./highlight-queue";
 
 const languageLoaders = {
   bash: () => import("@shikijs/langs/bash"),
@@ -53,18 +58,15 @@ const languageAliases = new Map<string, HighlightLanguage>([
 
 const supported = new Set<string>(Object.keys(languageLoaders));
 let highlighterPromise: Promise<HighlighterLike> | undefined;
-// Bounded so long sessions with many unique code/tool blocks don't grow the
-// cache without limit. Stores resolved HTML (and in-flight promises) by
-// `${lang}\0${code}`.
-const highlightCache = new LruCache<
-  string,
-  string | Promise<string | undefined> | undefined
->(500);
+const resolvedHighlightCache = new LruCache<string, string>(500);
+const HIGHLIGHT_SETTLE_DELAY_MS = 500;
 
 export type HighlightCodeResult =
   | string
   | Promise<string | undefined>
   | undefined;
+
+export type HighlightCodeLease = HighlightQueueLease<string>;
 
 export function normalizeHighlightLanguage(
   language: string | undefined,
@@ -99,6 +101,24 @@ function runWhenIdle<T>(task: () => Promise<T>): Promise<T> {
   });
 }
 
+function scheduleWhenIdle(start: () => void): void {
+  if (typeof window === "undefined") {
+    queueMicrotask(start);
+    return;
+  }
+
+  // Virtual rows commonly remain mounted for only a few frames while the user
+  // scrolls. Let that churn settle before claiming renderer time; leases will
+  // cancel jobs whose rows disappear during this window.
+  window.setTimeout(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(start, { timeout: 750 });
+    } else {
+      start();
+    }
+  }, HIGHLIGHT_SETTLE_DELAY_MS);
+}
+
 async function getHighlighter(): Promise<HighlighterLike> {
   highlighterPromise ??= Promise.all([
     import("@shikijs/core"),
@@ -117,49 +137,77 @@ async function getHighlighter(): Promise<HighlighterLike> {
   return highlighterPromise;
 }
 
+async function performHighlight(
+  code: string,
+  lang: HighlightLanguage,
+): Promise<string> {
+  const highlighter = await getHighlighter();
+  return highlighter.codeToHtml(code, {
+    lang,
+    themes: {
+      light: "github-light",
+      dark: "github-dark-dimmed",
+    },
+    defaultColor: false,
+  });
+}
+
 export async function highlightCode(
   code: string,
   language: string | undefined,
 ): Promise<string | undefined> {
   const lang = normalizeHighlightLanguage(language);
-  if (!lang) return undefined;
-  return runWhenIdle(async () => {
-    const highlighter = await getHighlighter();
-    return highlighter.codeToHtml(code, {
-      lang,
-      themes: {
-        light: "github-light",
-        dark: "github-dark-dimmed",
-      },
-      defaultColor: false,
-    });
-  });
+  if (!lang || !isWithinHighlightBudget(code)) return undefined;
+  return runWhenIdle(() => performHighlight(code, lang));
 }
 
 function highlightCacheKey(code: string, lang: HighlightLanguage): string {
   return `${lang}\0${code}`;
 }
 
+function splitHighlightCacheKey(key: string): {
+  code: string;
+  lang: HighlightLanguage;
+} {
+  const separator = key.indexOf("\0");
+  return {
+    lang: key.slice(0, separator) as HighlightLanguage,
+    code: key.slice(separator + 1),
+  };
+}
+
+const highlightQueue = createHighlightQueue<string>({
+  load: (key) => {
+    const { code, lang } = splitHighlightCacheKey(key);
+    return performHighlight(code, lang);
+  },
+  schedule: scheduleWhenIdle,
+  lookup: (key) => ({
+    hit: resolvedHighlightCache.has(key),
+    value: resolvedHighlightCache.get(key),
+  }),
+  store: (key, value) => resolvedHighlightCache.set(key, value),
+});
+
+/**
+ * Acquires shared highlighting work. Releasing before queued work starts lets
+ * virtualized callers cancel obsolete offscreen tokenization.
+ */
+export function acquireHighlightCode(
+  code: string,
+  language: string | undefined,
+): HighlightCodeLease {
+  const lang = normalizeHighlightLanguage(language);
+  if (!lang || !isWithinHighlightBudget(code)) {
+    return { result: undefined, release: () => undefined };
+  }
+  return highlightQueue.acquire(highlightCacheKey(code, lang));
+}
+
+/** Cached highlighting for non-cancellable consumers such as Markdown. */
 export function highlightCodeCached(
   code: string,
   language: string | undefined,
 ): HighlightCodeResult {
-  const lang = normalizeHighlightLanguage(language);
-  if (!lang) return undefined;
-
-  const key = highlightCacheKey(code, lang);
-  const cached = highlightCache.get(key);
-  if (cached !== undefined || highlightCache.has(key)) return cached;
-
-  const promise = highlightCode(code, lang)
-    .then((result) => {
-      highlightCache.set(key, result);
-      return result;
-    })
-    .catch(() => {
-      highlightCache.delete(key);
-      return undefined;
-    });
-  highlightCache.set(key, promise);
-  return promise;
+  return acquireHighlightCode(code, language).result;
 }

@@ -12,7 +12,9 @@ import {
 } from "./app/orchestrator-state.js";
 import { createApp } from "./app/server.js";
 import {
+  type DaemonPerformanceMonitor,
   type DaemonRuntimeMonitor,
+  installDaemonPerformanceMonitor,
   installDaemonRuntimeMonitor,
   installNodeDiagnosticReports,
   serializeCrashError,
@@ -84,6 +86,7 @@ function prepareEnterpriseNetworkEnvironment(): void {
 }
 
 let runtimeMonitor: DaemonRuntimeMonitor | undefined;
+let performanceMonitor: DaemonPerformanceMonitor | undefined;
 const processStartupStartedAt = performance.now();
 
 /**
@@ -275,6 +278,8 @@ async function main() {
         registryStateDurationMs: registryTimings.stateDurationMs,
         indexDurationMs: registryTimings.indexDurationMs,
         storesHydrationDurationMs: registryTimings.storesHydrationDurationMs,
+        storeDurationsMs: registryTimings.storeDurationsMs,
+        hydrationCounts: registryTimings.counts,
         agentsHydrationDurationMs: registryTimings.agentsHydrationDurationMs,
         runRecoveryDurationMs: registryTimings.runRecoveryDurationMs,
         humanInputRecoveryDurationMs:
@@ -283,6 +288,22 @@ async function main() {
         taskNotificationsDurationMs:
           registryTimings.taskNotificationsDurationMs,
         toolCallHydrationSource: registryTimings.toolCallHydrationSource,
+      });
+      performanceMonitor ??= installDaemonPerformanceMonitor({
+        enabled: process.env.NERVE_PERFORMANCE_DIAGNOSTICS === "1",
+        dataDir: storage.paths.home,
+        getCounts: () => ({
+          ...registryTimings.counts,
+          projects: state.registry.listProjects().length,
+          conversations: state.registry.listConversations().length,
+          agents: state.registry.listAgents().length,
+          tasks: state.registry.listTasks().length,
+        }),
+        warn: (error) => {
+          void state.logger.warn("Daemon performance sampling failed", {
+            error,
+          });
+        },
       });
       setImmediate(() => state.registry.startBackgroundMaintenance());
     },
@@ -335,6 +356,8 @@ async function main() {
   const shutdown = async (signal: NodeJS.Signals) => {
     if (shuttingDown) return;
     shuttingDown = true;
+    performanceMonitor?.stop();
+    performanceMonitor = undefined;
     const startedAt = Date.now();
     const forceExitTimer = setTimeout(() => process.exit(0), 2000);
     forceExitTimer.unref();

@@ -48,6 +48,27 @@ import { composeRuntime, type RuntimeServices } from "./runtime-composition.js";
 import { RuntimeState } from "./runtime-state.js";
 import type { AppendEntryInput, AppendEntryOptions } from "./types.js";
 
+export type StoreHydrationDurations = {
+  auth: number;
+  providers: number;
+  workers: number;
+  tasks: number;
+  tools: number;
+  plans: number;
+  projects: number;
+  conversations: number;
+};
+
+export type RegistryHydrationCounts = {
+  projects: number;
+  conversations: number;
+  agents: number;
+  tasks: number;
+  toolCalls: number;
+  runMetadata: number;
+  activeRuns: number;
+};
+
 export interface RegistryHydrationTimings {
   stateDurationMs: number;
   indexDurationMs: number;
@@ -55,6 +76,10 @@ export interface RegistryHydrationTimings {
   toolCallHydrationSource: "snapshot" | "journal";
   /** ms: parallel store hydration (tasks/tools/plans/projects/conversations). */
   storesHydrationDurationMs: number;
+  /** Individual concurrent store operation durations. */
+  storeDurationsMs: StoreHydrationDurations;
+  /** Hydrated workload cardinalities recorded without loading terminal runs. */
+  counts: RegistryHydrationCounts;
   /** ms: agent records load. */
   agentsHydrationDurationMs: number;
   /** ms: run coordinator recovery (metadata scan + active run hydrates). */
@@ -173,6 +198,16 @@ export class RuntimeRegistry {
   async hydrate(): Promise<RegistryHydrationTimings> {
     const stateStartedAt = performance.now();
     let storesHydrationDurationMs = 0;
+    let storeDurationsMs = emptyStoreHydrationDurations();
+    let counts: RegistryHydrationCounts = {
+      projects: 0,
+      conversations: 0,
+      agents: 0,
+      tasks: 0,
+      toolCalls: 0,
+      runMetadata: 0,
+      activeRuns: 0,
+    };
     let agentsHydrationDurationMs = 0;
     let runRecoveryDurationMs = 0;
     let humanInputRecoveryDurationMs = 0;
@@ -180,16 +215,18 @@ export class RuntimeRegistry {
     let taskNotificationsDurationMs = 0;
     await this.index.withUpdatesDeferred(async () => {
       const storesStartedAt = performance.now();
-      const workersHydrated = this.workers.hydrate();
-      await settleHydrationOperations([
-        this.auth.refreshModels({ allowNetwork: false }),
-        this.providerCatalog.load(),
-        workersHydrated,
-        this.tasks.hydrate(),
-        this.tools.hydrate(),
-        this.plans.hydrate(),
-        this.loadProjects(),
-        this.loadConversations(),
+      storeDurationsMs = await settleMeasuredHydrationOperations([
+        {
+          name: "auth",
+          run: () => this.auth.refreshModels({ allowNetwork: false }),
+        },
+        { name: "providers", run: () => this.providerCatalog.load() },
+        { name: "workers", run: () => this.workers.hydrate() },
+        { name: "tasks", run: () => this.tasks.hydrate() },
+        { name: "tools", run: () => this.tools.hydrate() },
+        { name: "plans", run: () => this.plans.hydrate() },
+        { name: "projects", run: () => this.loadProjects() },
+        { name: "conversations", run: () => this.loadConversations() },
       ]);
       storesHydrationDurationMs = Math.round(
         performance.now() - storesStartedAt,
@@ -215,11 +252,24 @@ export class RuntimeRegistry {
       // the full states of the already-recovered active runs; terminal run
       // history is never hydrated during startup.
       const projectorStartedAt = performance.now();
+      const activeStates =
+        await this.services.runRuntime.unitOfWork.listActive();
+      const runRecords =
+        await this.services.runRuntime.unitOfWork.listMetadata();
       await this.services.runRuntime.projector.rebuild({
-        activeStates: await this.services.runRuntime.unitOfWork.listActive(),
-        runRecords: await this.services.runRuntime.unitOfWork.listMetadata(),
+        activeStates,
+        runRecords,
       });
       projectorDurationMs = Math.round(performance.now() - projectorStartedAt);
+      counts = {
+        projects: this.listProjects().length,
+        conversations: this.listConversations().length,
+        agents: this.listAgents().length,
+        tasks: this.tasks.listTasks().length,
+        toolCalls: this.tools.listToolCalls().length,
+        runMetadata: runRecords.length,
+        activeRuns: activeStates.length,
+      };
       await this.services.runRuntime.delivery.flush();
       const taskNotificationsStartedAt = performance.now();
       await this.services.taskNotifications.recoverPendingNotifications();
@@ -239,6 +289,8 @@ export class RuntimeRegistry {
       indexDurationMs: Math.round(performance.now() - indexStartedAt),
       toolCallHydrationSource: this.tools.toolCallHydrationSource,
       storesHydrationDurationMs,
+      storeDurationsMs,
+      counts,
       agentsHydrationDurationMs,
       runRecoveryDurationMs,
       humanInputRecoveryDurationMs,
@@ -836,12 +888,41 @@ export class RuntimeRegistry {
   }
 }
 
-async function settleHydrationOperations(
-  operations: readonly Promise<unknown>[],
-): Promise<void> {
-  const results = await Promise.allSettled(operations);
+type StoreHydrationOperation = {
+  name: keyof StoreHydrationDurations;
+  run: () => Promise<unknown>;
+};
+
+function emptyStoreHydrationDurations(): StoreHydrationDurations {
+  return {
+    auth: 0,
+    providers: 0,
+    workers: 0,
+    tasks: 0,
+    tools: 0,
+    plans: 0,
+    projects: 0,
+    conversations: 0,
+  };
+}
+
+export async function settleMeasuredHydrationOperations(
+  operations: readonly StoreHydrationOperation[],
+  now: () => number = () => performance.now(),
+): Promise<StoreHydrationDurations> {
+  const durations = emptyStoreHydrationDurations();
+  const pending = operations.map(async ({ name, run }) => {
+    const startedAt = now();
+    try {
+      await run();
+    } finally {
+      durations[name] = Math.round(now() - startedAt);
+    }
+  });
+  const results = await Promise.allSettled(pending);
   const failure = results.find(
     (result): result is PromiseRejectedResult => result.status === "rejected",
   );
   if (failure) throw failure.reason;
+  return durations;
 }

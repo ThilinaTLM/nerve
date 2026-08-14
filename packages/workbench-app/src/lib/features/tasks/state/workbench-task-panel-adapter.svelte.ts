@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import type {
   ProjectRecord,
   StartTaskRequest,
@@ -34,6 +35,7 @@ import {
   removeCachedTaskDefinition,
   upsertCachedTaskDefinition,
 } from "$lib/features/tasks/state/task-definitions.svelte";
+import { createTaskDefinitionRevalidationGate } from "$lib/features/tasks/state/task-definition-revalidation";
 import {
   createTaskPanelActions,
   disabledCapability,
@@ -71,6 +73,7 @@ export function createWorkbenchTaskPanelAdapter(
 ): { readonly model: TaskPanelModel; readonly actions: TaskPanelActions } {
   let loadingDefinitions = $state(false);
   let runningDefinitionId = $state<string | undefined>(undefined);
+  const definitionRevalidation = createTaskDefinitionRevalidationGate();
   const definitions = $derived(
     cachedTaskDefinitions(activeProject()?.id) ?? [],
   );
@@ -264,16 +267,28 @@ export function createWorkbenchTaskPanelAdapter(
   // immediately, so the loading state only shows on a cold cache.
   $effect(() => {
     const projectId = activeProject()?.id;
-    if (!projectId) return;
-    const cold = cachedTaskDefinitions(projectId) === undefined;
-    if (cold) loadingDefinitions = true;
-    void loadTaskDefinitions(projectId)
-      .catch((error) =>
-        notify.error(`Could not load task definitions: ${errorMessage(error)}`),
-      )
-      .finally(() => {
-        if (cold) loadingDefinitions = false;
-      });
+    const revalidation = definitionRevalidation.enter(projectId);
+    if (!projectId) {
+      loadingDefinitions = false;
+      return;
+    }
+    if (!revalidation) return;
+
+    untrack(() => {
+      const cold = cachedTaskDefinitions(revalidation.projectId) === undefined;
+      loadingDefinitions = cold;
+      void loadTaskDefinitions(revalidation.projectId)
+        .catch((error) =>
+          notify.error(
+            `Could not load task definitions: ${errorMessage(error)}`,
+          ),
+        )
+        .finally(() => {
+          if (cold && definitionRevalidation.isCurrent(revalidation)) {
+            loadingDefinitions = false;
+          }
+        });
+    });
   });
 
   return adapter;
