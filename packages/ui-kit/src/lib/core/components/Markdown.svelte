@@ -356,18 +356,45 @@ $effect(() => () => streamingScheduler.destroy());
 }
 
 .markdown :global(.task-list-item) {
-  display: flex;
-  gap: 0.45rem;
-  align-items: flex-start;
-  padding-left: 0;
+  padding-left: calc(var(--spacing) * 5);
 }
 
 .markdown :global(.task-list-item > input[type="checkbox"]) {
-  flex: 0 0 auto;
-  width: 0.85rem;
-  height: 0.85rem;
-  margin: 0.22rem 0 0;
+  width: calc(var(--spacing) * 3.5);
+  height: calc(var(--spacing) * 3.5);
+  margin: 0 calc(var(--spacing) * 0.5) 0 calc(var(--spacing) * -5);
+  vertical-align: -0.125em;
   accent-color: var(--primary);
+}
+
+.markdown :global(h1),
+.markdown :global(h2),
+.markdown :global(h3),
+.markdown :global(h4),
+.markdown :global(h5),
+.markdown :global(h6) {
+  margin: calc(var(--spacing) * 6) 0 calc(var(--spacing) * 2);
+  color: var(--foreground);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.markdown :global(h1) {
+  font-size: var(--text-xl);
+}
+
+.markdown :global(h2) {
+  font-size: var(--text-lg);
+}
+
+.markdown :global(h3) {
+  font-size: var(--text-base);
+}
+
+.markdown :global(h4),
+.markdown :global(h5),
+.markdown :global(h6) {
+  font-size: var(--text-sm);
 }
 
 .markdown :global(a) {
