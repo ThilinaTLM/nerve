@@ -4,6 +4,10 @@ import type { AddressInfo } from "node:net";
 import { networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { serve } from "@hono/node-server";
+import {
+  DAEMON_STARTUP_PROGRESS_PREFIX,
+  type DaemonStartupProgress,
+} from "@nervekit/contracts";
 import WebSocket, { WebSocketServer } from "ws";
 import {
   createOrchestratorState,
@@ -22,7 +26,6 @@ import {
   writeNodeDiagnosticReport,
 } from "./infrastructure/diagnostics/index.js";
 import { resolveApplicationConfiguration } from "./infrastructure/configuration/index.js";
-import { migrateLegacyEventLogs } from "./infrastructure/events/index.js";
 import {
   isLoopbackHost,
   isPrivateIpv4,
@@ -104,7 +107,13 @@ async function main() {
   prepareEnterpriseNetworkEnvironment();
   const dataDir = resolveDataDir();
   const storageStartedAt = performance.now();
-  const storage = await initializeStorage(dataDir);
+  const storage = await initializeStorage(dataDir, {
+    reportStartupProgress: (progress: DaemonStartupProgress) => {
+      process.stderr.write(
+        `${DAEMON_STARTUP_PROGRESS_PREFIX}${JSON.stringify(progress)}\n`,
+      );
+    },
+  });
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
   installNodeDiagnosticReports(dataDir);
   runtimeMonitor = installDaemonRuntimeMonitor(dataDir);
@@ -147,7 +156,16 @@ async function main() {
       host,
       port,
       storageDurationMs,
+      migrationDurationMs: storage.migrationReport.durationMs,
       loggerHydrateDurationMs,
+    },
+  });
+  await state.logger.info("Storage migrations completed", {
+    durationMs: storage.migrationReport.durationMs,
+    context: {
+      executions: storage.migrationReport.executions,
+      backupBytes: storage.migrationReport.backupBytes,
+      archivePaths: storage.migrationReport.archivePaths,
     },
   });
   const agentSkillsStartedAt = performance.now();
@@ -170,10 +188,6 @@ async function main() {
   );
   const runtimeCapabilitiesReady = state.registry.refreshRuntimeCapabilities();
   const eventHydrateStartedAt = Date.now();
-  const archivedEventLogs = await migrateLegacyEventLogs(
-    storage.paths.home,
-    state.index,
-  );
   await state.events.hydrate();
   const eventsHydrateDurationMs = Date.now() - eventHydrateStartedAt;
   const workspaceBounds = await state.events.bounds("workspace");
@@ -182,7 +196,6 @@ async function main() {
     context: {
       latestSeq: workspaceBounds.latestSeq,
       earliestAvailableSeq: workspaceBounds.earliestAvailableSeq,
-      archivedEventLogs,
     },
   });
   const [registryTimings] = await Promise.all([

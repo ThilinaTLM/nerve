@@ -2,7 +2,7 @@ import { chmod, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type DaemonFile,
-  defaultNotificationEventSounds,
+  type DaemonStartupProgress,
   defaultSettings,
   type Settings,
   settingsSchema,
@@ -15,11 +15,11 @@ import {
   writeTextFileIfMissing,
 } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
-import { ensureStateLayout } from "./state-layout.js";
+import { normalizeSettings } from "./settings-normalization.js";
 import {
-  migrateApplicationConfiguration,
-  migrateLegacyAppearanceSettings,
-} from "./settings-migrations.js";
+  runStorageMigrations,
+  type MigrationReport,
+} from "../migrations/index.js";
 
 const dataSubdirs = [
   "auth",
@@ -29,8 +29,6 @@ const dataSubdirs = [
   "agents",
   "plans",
   "workers",
-  "approvals",
-  "user-questions",
   "logs",
   "prompt-suggestions",
 ] as const;
@@ -39,157 +37,7 @@ export interface InitializedStorage {
   paths: StoragePaths;
   settings: Settings;
   localToken: string;
-}
-
-function migrateLegacyToolNames(value: unknown): {
-  value: unknown;
-  changed: boolean;
-} {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { value, changed: false };
-  }
-  const settings = value as Record<string, unknown>;
-  const tools = settings.tools;
-  if (!tools || typeof tools !== "object" || Array.isArray(tools)) {
-    return { value, changed: false };
-  }
-  const disabled = (tools as Record<string, unknown>).disabled;
-  if (!Array.isArray(disabled) || !disabled.includes("python")) {
-    return { value, changed: false };
-  }
-  const migrated = [
-    ...new Set(
-      disabled.map((name) => (name === "python" ? "python_exec" : name)),
-    ),
-  ];
-  return {
-    value: {
-      ...settings,
-      tools: { ...tools, disabled: migrated },
-    },
-    changed: true,
-  };
-}
-
-function migrateImageExplanationTool(value: unknown): {
-  value: unknown;
-  changed: boolean;
-} {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { value, changed: false };
-  }
-  const settings = value as Record<string, unknown>;
-  const tools = settings.tools;
-  if (!tools || typeof tools !== "object" || Array.isArray(tools)) {
-    return { value, changed: false };
-  }
-  const toolSettings = tools as Record<string, unknown>;
-  if ("imageExplanation" in toolSettings) {
-    return { value, changed: false };
-  }
-  const disabled = Array.isArray(toolSettings.disabled)
-    ? toolSettings.disabled
-    : [];
-  return {
-    value: {
-      ...settings,
-      tools: {
-        ...toolSettings,
-        disabled: [...new Set([...disabled, "explain_image"])],
-        imageExplanation: {},
-      },
-    },
-    changed: true,
-  };
-}
-
-const removedNotificationToneIds = new Set([
-  "kenney-click-1",
-  "kenney-click-2",
-  "kenney-click-3",
-  "kenney-rollover-1",
-  "kenney-rollover-4",
-  "kenney-rollover-6",
-  "kenney-switch-1",
-  "kenney-switch-7",
-  "kenney-switch-10",
-  "kenney-switch-15",
-  "kenney-switch-20",
-  "kenney-switch-31",
-]);
-
-function migrateRemovedNotificationTones(value: unknown): {
-  value: unknown;
-  changed: boolean;
-} {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { value, changed: false };
-  }
-  const settings = value as Record<string, unknown>;
-  const notifications = settings.notifications;
-  if (
-    !notifications ||
-    typeof notifications !== "object" ||
-    Array.isArray(notifications)
-  ) {
-    return { value, changed: false };
-  }
-  const events = (notifications as Record<string, unknown>).events;
-  if (!events || typeof events !== "object" || Array.isArray(events)) {
-    return { value, changed: false };
-  }
-
-  const migratedEvents = { ...events } as Record<string, unknown>;
-  let changed = false;
-  for (const [event, fallback] of Object.entries(
-    defaultNotificationEventSounds,
-  )) {
-    if (removedNotificationToneIds.has(String(migratedEvents[event]))) {
-      migratedEvents[event] = fallback;
-      changed = true;
-    }
-  }
-  if (!changed) return { value, changed: false };
-
-  return {
-    value: {
-      ...settings,
-      notifications: {
-        ...notifications,
-        events: migratedEvents,
-      },
-    },
-    changed: true,
-  };
-}
-
-function normalizeSettings(value: unknown): {
-  settings: Settings;
-  changed: boolean;
-} {
-  const normalizedApplication = migrateApplicationConfiguration(value);
-  const normalizedAppearance = migrateLegacyAppearanceSettings(
-    normalizedApplication.value,
-  );
-  const normalizedTools = migrateLegacyToolNames(normalizedAppearance.value);
-  const normalizedImageExplanation = migrateImageExplanationTool(
-    normalizedTools.value,
-  );
-  const normalizedTones = migrateRemovedNotificationTones(
-    normalizedImageExplanation.value,
-  );
-  return {
-    settings: settingsSchema.parse({
-      ...defaultSettings,
-      ...(normalizedTones.value as object),
-    }),
-    changed:
-      normalizedApplication.changed ||
-      normalizedAppearance.changed ||
-      normalizedTools.changed ||
-      normalizedImageExplanation.changed ||
-      normalizedTones.changed,
-  };
+  migrationReport: MigrationReport;
 }
 
 export async function readPersistedSettingsForBootstrap(
@@ -202,11 +50,41 @@ export async function readPersistedSettingsForBootstrap(
 
 export async function initializeStorage(
   home = resolveDataDir(),
+  options: {
+    reportStartupProgress?: (progress: DaemonStartupProgress) => void;
+  } = {},
 ): Promise<InitializedStorage> {
   const paths = storagePaths(home);
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   await chmod(paths.home, 0o700).catch(() => undefined);
-  await ensureStateLayout(paths.home);
+  let currentProgress: DaemonStartupProgress = {
+    type: "nerve.startup.progress",
+    phase: "storage-check",
+    message: "Checking workspace storage",
+  };
+  const reportProgress = (progress: DaemonStartupProgress) => {
+    currentProgress = progress;
+    options.reportStartupProgress?.(progress);
+  };
+  reportProgress(currentProgress);
+  const heartbeat = options.reportStartupProgress
+    ? setInterval(() => reportProgress(currentProgress), 5_000)
+    : undefined;
+  heartbeat?.unref();
+  let migrationReport: MigrationReport;
+  try {
+    migrationReport = await runStorageMigrations(paths.home, {
+      reportProgress: () => {
+        reportProgress({
+          type: "nerve.startup.progress",
+          phase: "storage-migration",
+          message: "Upgrading workspace storage",
+        });
+      },
+    });
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
+  }
   for (const subdir of dataSubdirs) {
     const mode = subdir === "auth" || subdir === "keys" ? 0o700 : 0o755;
     const dir = join(paths.home, subdir);
@@ -218,12 +96,9 @@ export async function initializeStorage(
     await atomicWriteJson(paths.configPath, defaultSettings, 0o600);
   }
 
-  const rawSettings = await readJsonFile<unknown>(paths.configPath);
-  const normalized = normalizeSettings(rawSettings);
-  const settings = normalized.settings;
-  if (normalized.changed) {
-    await atomicWriteJson(paths.configPath, settings, 0o600);
-  }
+  const settings = settingsSchema.parse(
+    await readJsonFile<unknown>(paths.configPath),
+  );
 
   await writeTextFileIfMissing(paths.sqlitePath, "", 0o600);
 
@@ -234,7 +109,7 @@ export async function initializeStorage(
   await chmod(paths.localTokenPath, 0o600).catch(() => undefined);
   const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
 
-  return { paths, settings, localToken };
+  return { paths, settings, localToken, migrationReport };
 }
 
 export async function writeSettings(

@@ -25,6 +25,11 @@ import { gitState } from "$lib/features/git/state/git-state.svelte";
 import { logsState } from "$lib/features/logs/state/log-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
+import {
+  pendingApprovals,
+  pendingPlanReviews,
+  pendingUserQuestions,
+} from "$lib/features/tools/state/tool-interaction-projections";
 import { selection } from "$lib/features/workspace/state/selection.svelte";
 import {
   type CenterTabIdentity,
@@ -84,9 +89,9 @@ const conversationActivityById = $derived.by(() =>
     conversations: workspaceState.conversations,
     agents: workspaceState.agents,
     views: conversationState.conversationViews,
-    approvals: workspaceState.approvals,
-    userQuestions: workspaceState.userQuestions,
-    planReviews: workspaceState.planReviews,
+    approvals: pendingApprovals(workspaceState.pendingToolCalls),
+    userQuestions: pendingUserQuestions(workspaceState.pendingToolCalls),
+    planReviews: pendingPlanReviews(workspaceState.pendingToolCalls),
   }),
 );
 
@@ -123,13 +128,13 @@ export const workspaceSelectors = {
     return workspaceState.agents;
   },
   get approvals() {
-    return workspaceState.approvals;
+    return pendingApprovals(workspaceState.pendingToolCalls);
   },
   get userQuestions() {
-    return workspaceState.userQuestions;
+    return pendingUserQuestions(workspaceState.pendingToolCalls);
   },
   get planReviews() {
-    return workspaceState.planReviews;
+    return pendingPlanReviews(workspaceState.pendingToolCalls);
   },
   get activeProject() {
     return (

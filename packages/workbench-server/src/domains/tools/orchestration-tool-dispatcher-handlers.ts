@@ -335,18 +335,32 @@ export async function requestPlanReview(
     }
     throw new ToolExecutionSuspended();
   }
-  const waitingToolCall = await this.deps.updateToolCall(toolCall.id, {
-    status: "waiting_for_user",
-  });
-  await this.deps.publishToolCallUpdated(waitingToolCall);
   const review = await this.deps.plans.createPlanReview(
-    waitingToolCall,
+    toolCall,
     this.deps.getAgent(toolCall.agentId),
     args,
   );
+  const requestedAt = review.requestedAt;
   const updatedToolCall = await this.deps.updateToolCall(toolCall.id, {
     result: this.deps.plans.planReviewResult(review),
-    status: "waiting_for_user",
+    status: "waiting",
+    interactions: [
+      ...toolCall.interactions,
+      {
+        ordinal: toolCall.interactions.length,
+        kind: "plan_review",
+        status: "pending",
+        requestedAt,
+        updatedAt: requestedAt,
+        request: {
+          planPath: review.planPath,
+          slug: review.slug,
+          title: review.title,
+          summary: review.summary,
+          allowNewConversation: true,
+        },
+      },
+    ],
   });
   await this.deps.publishToolCallUpdated(updatedToolCall);
   if (!options.durableSuspend) {
@@ -354,8 +368,28 @@ export async function requestPlanReview(
       review.id,
       options.signal,
     );
+    const now = new Date().toISOString();
+    const action =
+      result.outcome === "accepted"
+        ? "accept"
+        : result.outcome === "accepted_in_new_chat"
+          ? "accept_in_new_chat"
+          : result.outcome === "changes_requested"
+            ? "request_changes"
+            : "discard";
     const resumedToolCall = await this.deps.updateToolCall(toolCall.id, {
       status: "running",
+      interactions: updatedToolCall.interactions.map((interaction) =>
+        interaction.kind === "plan_review" && interaction.status === "pending"
+          ? {
+              ...interaction,
+              status: "resolved" as const,
+              updatedAt: now,
+              resolvedAt: now,
+              resolution: { action },
+            }
+          : interaction,
+      ),
     });
     await this.deps.publishToolCallUpdated(resumedToolCall);
     return result;

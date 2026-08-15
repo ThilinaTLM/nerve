@@ -12,7 +12,6 @@ export interface StorageCleanupSelection {
   datedLogs: boolean;
   logsDays: number;
   rotatedEventLog: boolean;
-  toolCallLog: boolean;
   exploreReports: boolean;
   cache: boolean;
   tmp: boolean;
@@ -25,7 +24,6 @@ export const EMPTY_CLEANUP_SELECTION: StorageCleanupSelection = {
   datedLogs: false,
   logsDays: 14,
   rotatedEventLog: false,
-  toolCallLog: false,
   exploreReports: false,
   cache: false,
   tmp: false,
@@ -37,7 +35,6 @@ export function recommendedCleanupSelection(): StorageCleanupSelection {
     ...EMPTY_CLEANUP_SELECTION,
     datedLogs: true,
     rotatedEventLog: true,
-    toolCallLog: true,
     exploreReports: true,
     cache: true,
     tmp: true,
@@ -53,7 +50,6 @@ export function allCleanupSelection(
     datedLogs: true,
     logsDays: validDays(current.logsDays) ?? 14,
     rotatedEventLog: true,
-    toolCallLog: true,
     exploreReports: true,
     cache: true,
     tmp: true,
@@ -90,7 +86,6 @@ export function buildCleanupRequest(
   if (selection.datedLogs)
     request.logsOlderThanDays = validDays(selection.logsDays);
   if (selection.rotatedEventLog) request.truncateEventLog = true;
-  if (selection.toolCallLog) request.clearToolCallLog = true;
   if (selection.exploreReports) request.clearExploreReports = true;
   if (selection.cache) request.clearCache = true;
   if (selection.tmp) request.clearTmp = true;
@@ -105,7 +100,6 @@ export function selectedTargets(
   if (selection.conversations) targets.push("conversations");
   if (selection.datedLogs) targets.push("datedLogs");
   if (selection.rotatedEventLog) targets.push("rotatedEventLog");
-  if (selection.toolCallLog) targets.push("toolCallLog");
   if (selection.exploreReports) targets.push("exploreReports");
   if (selection.cache) targets.push("cache");
   if (selection.tmp) targets.push("tmp");
@@ -159,7 +153,6 @@ export function targetLabel(target: StorageCleanupTarget): string {
       conversations: "Old conversations",
       datedLogs: "Dated logs",
       rotatedEventLog: "Rotated event log",
-      toolCallLog: "Tool-call log",
       exploreReports: "Explore reports",
       cache: "Cache",
       tmp: "Temporary files",

@@ -1,0 +1,52 @@
+import { createHash } from "node:crypto";
+import type { StorageMigration } from "./migration.js";
+import { MigrationError } from "./migration.js";
+import { migration0001 } from "./migrations/0001-v2-storage-baseline.js";
+import { migration0002 } from "./migrations/0002-current-index-baseline.js";
+import { migration0003 } from "./migrations/0003-normalize-current-settings.js";
+import { migration0004 } from "./migrations/0004-dense-event-stream-layout.js";
+import { migration0005 } from "./migrations/0005-current-project-sidecars.js";
+import { migration0006 } from "./migrations/0006-unify-tool-call-lifecycle.js";
+
+export const storageMigrationRegistry: readonly StorageMigration[] =
+  Object.freeze([
+    migration0001,
+    migration0002,
+    migration0003,
+    migration0004,
+    migration0005,
+    migration0006,
+  ]);
+
+export function validateMigrationRegistry(
+  registry: readonly StorageMigration[],
+): void {
+  const seen = new Set<string>();
+  let prior = "";
+  for (const migration of registry) {
+    if (seen.has(migration.id))
+      throw new MigrationError(`Duplicate migration ID '${migration.id}'.`);
+    if (prior && migration.id.localeCompare(prior) <= 0) {
+      throw new MigrationError(
+        `Migration registry is out of order at '${migration.id}'.`,
+      );
+    }
+    if (!/^[a-f0-9]{64}$/.test(migration.checksum)) {
+      throw new MigrationError(
+        `Migration '${migration.id}' has an invalid checksum.`,
+      );
+    }
+    seen.add(migration.id);
+    prior = migration.id;
+  }
+}
+
+validateMigrationRegistry(storageMigrationRegistry);
+
+export const migrationSetFingerprint = createHash("sha256")
+  .update(
+    storageMigrationRegistry
+      .map(({ id, checksum }) => `${id}:${checksum}`)
+      .join("\n"),
+  )
+  .digest("hex");

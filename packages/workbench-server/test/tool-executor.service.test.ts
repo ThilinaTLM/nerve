@@ -17,7 +17,7 @@ function toolCall(overrides: Partial<ToolCallRecord> = {}): ToolCallRecord {
     risk: "read",
     args: {},
     cwd: "/tmp/project",
-    status: "requested",
+    status: "committed",
     createdAt: "2026-01-02T03:04:05.000Z",
     updatedAt: "2026-01-02T03:04:05.000Z",
     ...overrides,
@@ -62,7 +62,7 @@ describe("ToolExecutorService structured errors", () => {
 
     const failed = await executor.executeAllowedTool(record.id);
 
-    assert.equal(failed.status, "error");
+    assert.equal(failed.status, "failed");
     assert.equal(failed.error, "Task missing.");
     assert.deepEqual(failed.errorDetails, {
       code: "TASK_NOT_FOUND",
@@ -89,7 +89,7 @@ describe("ToolExecutorService structured errors", () => {
 
     const failed = await executor.executeAllowedTool(record.id);
 
-    assert.equal(failed.status, "error");
+    assert.equal(failed.status, "failed");
     assert.deepEqual(failed.errorDetails, {
       code: "INVALID_TOOL_ARGUMENTS",
       message: "taskId must be a non-empty string.",
@@ -99,7 +99,7 @@ describe("ToolExecutorService structured errors", () => {
 
   it("clears stale error metadata when dispatch later succeeds", async () => {
     let record = toolCall({
-      status: "error",
+      status: "failed",
       error: "old failure",
       errorDetails: { code: "OLD", message: "old failure" },
     });

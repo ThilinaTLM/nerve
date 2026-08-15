@@ -1,6 +1,5 @@
 import type {
   ConversationEntry,
-  PlanReviewRecord,
   PromptImage,
   RunCheckpointRecord,
   RunExecutionRecord,
@@ -56,37 +55,15 @@ export interface CheckpointCommand {
   interactionId?: string;
 }
 
-export interface WaitCommandBase {
+export interface WaitCommand {
   interactionId?: string;
   toolCallId: string;
+  interactionOrdinal: number;
+  toolCallRevision: number;
   batchToolCallIds?: readonly string[];
-  prompt: string;
-  context?: string;
+  kind: "user_input" | "approval" | "plan_review";
   checkpoint: CheckpointCommand;
 }
-
-export interface WaitForQuestionCommand extends WaitCommandBase {
-  kind: "question";
-  placeholder?: string;
-  required?: boolean;
-}
-
-export interface WaitForApprovalCommand extends WaitCommandBase {
-  kind: "approval";
-  risk: string[];
-  normalizedArgs: Record<string, unknown>;
-  offeredScopes: Array<"single_call" | "same_tool_same_args" | "run">;
-}
-
-export interface WaitForPlanReviewCommand extends WaitCommandBase {
-  kind: "plan_review";
-  planReview: PlanReviewRecord;
-}
-
-export type WaitCommand =
-  | WaitForQuestionCommand
-  | WaitForApprovalCommand
-  | WaitForPlanReviewCommand;
 
 export interface IntegrityPort {
   checksum(value: unknown): string;
@@ -228,7 +205,7 @@ export function interactionRecord(
   now: string,
   ids: IdPort,
 ): RunInteractionRecord {
-  const common = {
+  return {
     stateEpoch: RUN_STATE_EPOCH,
     id: command.interactionId ?? prefixed(command.kind, ids.next()),
     conversationId: run.conversationId,
@@ -237,36 +214,15 @@ export function interactionRecord(
     runId: run.runId,
     executionId: run.executionId,
     toolCallId: command.toolCallId,
+    interactionOrdinal: command.interactionOrdinal,
+    toolCallRevision: command.toolCallRevision,
     batchToolCallIds: command.batchToolCallIds
       ? [...command.batchToolCallIds]
       : undefined,
-    prompt: command.prompt,
-    context: command.context,
-    status: "pending" as const,
+    kind: command.kind,
+    status: "pending",
     checkpointId: checkpoint.checkpointId,
     createdAt: now,
-  };
-  if (command.kind === "question") {
-    return {
-      ...common,
-      kind: "question",
-      placeholder: command.placeholder,
-      required: command.required !== false,
-    };
-  }
-  if (command.kind === "approval") {
-    return {
-      ...common,
-      kind: "approval",
-      risk: command.risk,
-      normalizedArgs: command.normalizedArgs,
-      offeredScopes: command.offeredScopes,
-    };
-  }
-  return {
-    ...common,
-    kind: "plan_review",
-    planReview: command.planReview,
   };
 }
 

@@ -26,9 +26,11 @@ import type {
   PromptRequest,
   PruneProjectConversationsRequest,
   PruneProjectConversationsResponse,
+  ResolveToolInteractionRequest,
   StartTaskRequest,
   TaskLogQuery,
   ToolName,
+  ToolCallRecord,
   UpdateAgentRequest,
   UpdateScratchNoteRequest,
   UpdateTaskDefinitionRequest,
@@ -73,8 +75,8 @@ export type RegistryHydrationCounts = {
 export interface RegistryHydrationTimings {
   stateDurationMs: number;
   indexDurationMs: number;
-  /** Where the tool-call records came from (snapshot vs full journal scan). */
-  toolCallHydrationSource: "snapshot" | "journal";
+  /** Canonical tool-call records are hydrated from conversation files. */
+  toolCallHydrationSource: "files";
   /** ms: parallel store hydration (tasks/tools/plans/projects/conversations). */
   storesHydrationDurationMs: number;
   /** Individual concurrent store operation durations. */
@@ -283,9 +285,6 @@ export class RuntimeRegistry {
     const stateDurationMs = Math.round(performance.now() - stateStartedAt);
     const indexStartedAt = performance.now();
     await this.rebuildIndex();
-    // After a journal-based hydrate, the index now mirrors the journal; record
-    // the watermark so the next startup can skip the full journal scan.
-    await this.tools.markToolCallSnapshotPersisted();
     await this.promptSuggestions.hydrate();
     return {
       stateDurationMs,
@@ -315,10 +314,6 @@ export class RuntimeRegistry {
     if (this.shuttingDown) return;
     const operations = [
       ["Network model refresh", this.auth.refreshModels()],
-      [
-        "Tool-call history compaction",
-        this.tools.compactToolCallLogIfAmplified(),
-      ],
     ] as const;
     this.trackBackgroundOperation(this.logSettledOperations(operations));
   }
@@ -349,23 +344,14 @@ export class RuntimeRegistry {
 
   /** Rebuild the disposable derived SQLite index from repositories. */
   async rebuildIndex(): Promise<void> {
-    // When the persisted tool-call snapshot is already current (records were
-    // loaded from sqlite), keep the existing tool_calls rows instead of
-    // deleting and re-inserting hundreds of MB of records on every startup.
-    const preserveToolCalls = this.tools.toolCallHydrationSource === "snapshot";
-    this.index.rebuild(
-      {
-        projects: this.listProjects(),
-        conversations: this.listConversations(),
-        agents: this.listAgents(),
-        tasks: this.tasks.listTasks(),
-        workers: this.workers.listWorkers(),
-        toolCalls: this.tools.listToolCalls(),
-        approvals: this.tools.listApprovals(),
-        userQuestions: this.tools.listUserQuestions(),
-      },
-      { preserveToolCalls },
-    );
+    this.index.rebuild({
+      projects: this.listProjects(),
+      conversations: this.listConversations(),
+      agents: this.listAgents(),
+      tasks: this.tasks.listTasks(),
+      workers: this.workers.listWorkers(),
+      toolCalls: this.tools.listToolCalls(),
+    });
   }
 
   async createProject(request: CreateProjectRequest): Promise<ProjectRecord> {
@@ -583,7 +569,130 @@ export class RuntimeRegistry {
     return this.tools.requestTool(this.getAgent(agentId), toolName, args);
   }
 
-  async grantApproval(approvalId: string, note?: string) {
+  async resolveToolInteraction(
+    request: ResolveToolInteractionRequest,
+  ): Promise<{
+    toolCall: ToolCallRecord;
+    effect?: {
+      kind: "new_conversation";
+      conversation: ConversationRecord;
+      agent: AgentRecord;
+    };
+  }> {
+    const current = this.tools.getToolCall(request.toolCallId);
+    const existing = current.interactions[request.interactionOrdinal];
+    if (
+      existing?.status === "resolved" &&
+      existing.resolutionRequestId === request.resolutionRequestId
+    ) {
+      return { toolCall: current };
+    }
+    if (current.revision !== request.expectedRevision) {
+      throw new ApplicationError(
+        409,
+        "TOOL_CALL_REVISION_CONFLICT",
+        "The tool call changed before this interaction was resolved.",
+      );
+    }
+    const interaction = current.interactions[request.interactionOrdinal];
+    if (
+      !interaction ||
+      interaction.status !== "pending" ||
+      interaction.kind !== request.resolution.kind
+    ) {
+      throw new ApplicationError(
+        409,
+        "TOOL_INTERACTION_CONFLICT",
+        "The pending tool interaction no longer matches this request.",
+      );
+    }
+    if (request.resolution.kind === "approval") {
+      const id = `approval_${current.id}_${interaction.ordinal}`;
+      const toolCall = await this.services.humanInput.resolveApproval(
+        id,
+        request.resolution.action,
+        request.resolution.note,
+        request.resolutionRequestId,
+      );
+      return { toolCall };
+    }
+    if (request.resolution.kind === "user_input") {
+      const id = `question_${current.id}_${interaction.ordinal}`;
+      if (request.resolution.action === "answer") {
+        await this.services.humanInput.answerUserQuestion(
+          id,
+          request.resolution.answer ?? "",
+          request.resolutionRequestId,
+        );
+      } else {
+        await this.services.humanInput.dismissUserQuestion(
+          id,
+          request.resolution.reason,
+          request.resolutionRequestId,
+        );
+      }
+      return { toolCall: this.tools.getToolCall(current.id) };
+    }
+    await this.tools.resolveInteraction(request);
+    const review = this.plans
+      .listPlanReviews()
+      .find((candidate) => candidate.toolCallId === current.id);
+    if (!review)
+      throw new ApplicationError(
+        404,
+        "PLAN_REVIEW_NOT_FOUND",
+        "Plan review not found.",
+      );
+    const selection = {
+      implementationModel: request.resolution.implementationModel as never,
+      implementationThinkingLevel: request.resolution
+        .implementationThinkingLevel as never,
+      compactBeforeImplementation:
+        request.resolution.compactBeforeImplementation,
+    };
+    if (request.resolution.action === "accept_in_new_chat") {
+      const result = await this.services.humanInput.acceptPlanReviewInNewChat(
+        review.id,
+        request.resolution.feedback,
+        selection,
+      );
+      return {
+        toolCall: this.tools.getToolCall(current.id),
+        effect: {
+          kind: "new_conversation",
+          conversation: result.conversation,
+          agent: result.agent,
+        },
+      };
+    }
+    if (request.resolution.action === "accept")
+      await this.services.humanInput.acceptPlanReview(
+        review.id,
+        request.resolution.feedback,
+        selection,
+      );
+    else if (request.resolution.action === "request_changes")
+      await this.services.humanInput.requestPlanChanges(
+        review.id,
+        request.resolution.feedback,
+      );
+    else if (request.resolution.action === "reject")
+      await this.services.humanInput.rejectPlanReview(
+        review.id,
+        request.resolution.feedback,
+      );
+    else
+      await this.services.humanInput.discardPlanReview(
+        review.id,
+        request.resolution.feedback,
+      );
+    return { toolCall: this.tools.getToolCall(current.id) };
+  }
+
+  async grantApproval(
+    approvalId: string,
+    note?: string,
+  ): Promise<ToolCallRecord> {
     try {
       return await this.services.humanInput.resolveApproval(
         approvalId,
@@ -600,7 +709,10 @@ export class RuntimeRegistry {
     }
   }
 
-  async denyApproval(approvalId: string, note?: string) {
+  async denyApproval(
+    approvalId: string,
+    note?: string,
+  ): Promise<ToolCallRecord> {
     try {
       return await this.services.humanInput.resolveApproval(
         approvalId,

@@ -199,8 +199,6 @@ export function composeRuntime(
       tasks: services.tasks.listTasks(),
       workers: services.workers.listWorkers(),
       toolCalls: services.tools.listToolCalls(),
-      approvals: services.tools.listApprovals(),
-      userQuestions: services.tools.listUserQuestions(),
     });
   };
 
@@ -381,12 +379,8 @@ export function composeRuntime(
     async (runId, agent) =>
       services.runRuntime.live.get(runId)?.updateAgentRuntimeConfig?.(agent),
   );
-  services.plans = new PlanService(
-    storage,
-    events,
-    getAgent,
-    (agentId, mode, reason) =>
-      services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
+  services.plans = new PlanService(storage, getAgent, (agentId, mode, reason) =>
+    services.agentLifecycle.setAgentModeInternal(agentId, mode, reason),
   );
   const gitLogger = logger.child({ component: "git" });
   const gitService = new GitService(getProject, {

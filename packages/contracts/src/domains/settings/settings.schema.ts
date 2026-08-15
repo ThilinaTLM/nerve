@@ -1,12 +1,15 @@
 import { z } from "zod";
-import { applicationLogLevelSchema } from "../logs/index.js";
-import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
+import { applicationLogLevelSchema } from "../logs/logs.schema.js";
+import {
+  modelSelectionSchema,
+  thinkingLevelSchema,
+} from "../models/models.schema.js";
 import {
   applicationSettingsPatchSchema,
   applicationSettingsSchema,
   defaultApplicationSettings,
 } from "./application-configuration.schema.js";
-import { userConfigurableToolNameSchema } from "../tools/index.js";
+import { userConfigurableToolNameSchema } from "../tools/records.schema.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
 export type Mode = z.infer<typeof modeSchema>;

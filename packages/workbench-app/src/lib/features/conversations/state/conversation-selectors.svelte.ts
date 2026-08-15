@@ -4,6 +4,7 @@ import {
   scopedUsableModelOptions,
 } from "$lib/presentation/utils/model";
 import { activeRunStreamingText } from "$lib/presentation/state";
+import type { PlanReviewRecord, UserQuestionRecord } from "$lib/api";
 import {
   conversationViewKey,
   pendingConversationKey,
@@ -32,7 +33,7 @@ function activePendingConversation() {
   ];
 }
 
-export const conversationSelectors = {
+const conversationSelectorsValue = {
   get activeProject() {
     return workspaceSelectors.activeProject;
   },
@@ -48,19 +49,19 @@ export const conversationSelectors = {
   get pendingConversationActive() {
     return Boolean(activePendingConversation());
   },
-  get activeUserQuestion() {
+  get activeUserQuestion(): UserQuestionRecord | undefined {
     const conversationId = selection.conversationId;
     const agentId = selection.agentId;
-    return workspaceState.userQuestions.find((question) => {
+    return workspaceSelectors.userQuestions.find((question) => {
       if (conversationId && question.conversationId === conversationId)
         return true;
       return Boolean(agentId && question.agentId === agentId);
     });
   },
-  get activePlanReview() {
+  get activePlanReview(): PlanReviewRecord | undefined {
     const conversationId = selection.conversationId;
     const agentId = selection.agentId;
-    return workspaceState.planReviews.find((review) => {
+    return workspaceSelectors.planReviews.find((review) => {
       if (conversationId && review.conversationId === conversationId)
         return true;
       return Boolean(agentId && review.agentId === agentId);
@@ -75,7 +76,7 @@ export const conversationSelectors = {
     );
   },
   get pendingApprovalCount() {
-    return workspaceState.approvals.length;
+    return workspaceSelectors.approvals.length;
   },
   get conversationActiveRun() {
     return activeView()?.activeRun;
@@ -155,6 +156,7 @@ export const conversationSelectors = {
       cacheWrite: 0,
       cost: 0,
     };
+
     for (const entry of activeView()?.entries ?? []) {
       if (!entry.usage) continue;
       totals.input += entry.usage.input;
@@ -193,3 +195,7 @@ export const conversationSelectors = {
     return usageState.subscriptionUsage[provider];
   },
 };
+
+// Svelte's generated declaration cannot name nested Zod output helpers here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const conversationSelectors: any = conversationSelectorsValue;

@@ -1,4 +1,4 @@
-import type { DaemonFile } from "@nervekit/contracts";
+import type { DaemonFile, DaemonStartupProgress } from "@nervekit/contracts";
 
 export type DaemonMode = "local" | "remote";
 
@@ -45,6 +45,7 @@ export interface EnsureDaemonOptions {
   mobileHttps?: boolean;
   startupTimeoutMs?: number;
   maxOldSpaceMb?: number;
+  onStartupProgress?: (progress: DaemonStartupProgress) => void;
 }
 
 export interface DaemonPaths {

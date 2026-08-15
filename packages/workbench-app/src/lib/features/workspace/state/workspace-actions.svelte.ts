@@ -112,9 +112,7 @@ async function applyWorkspaceSnapshot(
     taskState.selectedTaskId = selectedTaskId;
     taskState.taskLogs = undefined;
   }
-  workspaceState.approvals = snapshot.snapshot.approvals;
-  workspaceState.userQuestions = snapshot.snapshot.userQuestions;
-  workspaceState.planReviews = snapshot.snapshot.planReviews;
+  workspaceState.pendingToolCalls = snapshot.snapshot.pendingToolCalls;
   syncSelectedAgentConfig(agents, snapshot.snapshot.conversations);
   const conversationIds = new SvelteSet(
     snapshot.snapshot.conversations.map((conversation) => conversation.id),

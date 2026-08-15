@@ -545,7 +545,7 @@ describe("Protocol v1 shared schemas", () => {
 
   it("shares lifecycle transition guards", () => {
     assert.equal(
-      canTransition(toolCallTransitions, "requested", "running"),
+      canTransition(toolCallTransitions, "committed", "running"),
       true,
     );
     assert.equal(
@@ -564,6 +564,11 @@ describe("Protocol v1 shared schemas", () => {
       () => assertTransition(turnTransitions, "failed", "started", "turn"),
       /Illegal lifecycle transition/,
     );
-    assert.deepEqual(TERMINAL_TOOL_STATUSES, ["completed", "denied", "error"]);
+    assert.deepEqual(TERMINAL_TOOL_STATUSES, [
+      "completed",
+      "denied",
+      "failed",
+      "cancelled",
+    ]);
   });
 });

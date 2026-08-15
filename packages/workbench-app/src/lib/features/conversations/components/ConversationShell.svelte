@@ -120,7 +120,7 @@ const activeProject = $derived.by(() => {
 const pendingConversationActive = $derived(Boolean(activePendingConversation));
 const pendingUserQuestions = $derived.by(() => {
   const agentId = activeAgent?.id;
-  return workspaceState.userQuestions.filter((question) => {
+  return workspaceSelectors.userQuestions.filter((question) => {
     if (conversationId && question.conversationId === conversationId)
       return true;
     return Boolean(agentId && question.agentId === agentId);
@@ -128,14 +128,14 @@ const pendingUserQuestions = $derived.by(() => {
 });
 const pendingPlanReviews = $derived.by(() => {
   const agentId = activeAgent?.id;
-  return workspaceState.planReviews.filter((review) => {
+  return workspaceSelectors.planReviews.filter((review) => {
     if (conversationId && review.conversationId === conversationId) return true;
     return Boolean(agentId && review.agentId === agentId);
   });
 });
 const activeApprovals = $derived.by(() => {
   const agentId = activeAgent?.id;
-  return workspaceState.approvals.filter((approval) => {
+  return workspaceSelectors.approvals.filter((approval) => {
     if (conversationId && approval.conversationId === conversationId)
       return true;
     return Boolean(agentId && approval.agentId === agentId);

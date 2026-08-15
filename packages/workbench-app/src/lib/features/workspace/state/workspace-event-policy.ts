@@ -25,9 +25,9 @@ export function runtimeAgentStatusFromEvent(
 
 /**
  * Snapshot refreshes are reserved for event families whose payloads cannot
- * fully project workspace state locally. Interaction events (approval.*,
- * userQuestion.*, planReview.*), agent configuration/status/mode events, and
- * run lifecycle events all carry complete records or derivable statuses and
+ * fully project workspace state locally. Canonical tool-call updates, agent
+ * configuration/status/mode events, and run lifecycle events all carry
+ * complete records or derivable statuses and
  * are reconciled by the entity reducers, so they must not trigger a delayed
  * blanket snapshot that could undo optimistic local state.
  */
@@ -46,7 +46,6 @@ export function shouldRefreshWorkspace(type: string): boolean {
     type.startsWith("agent.explore_") ||
     type === "project.created" ||
     type === "plan.written" ||
-    type === "toolCall.updated" ||
     type.startsWith("task.") ||
     shouldRefreshSettings(type)
   );

@@ -14,6 +14,10 @@ function explainImageToolCall(explanation: string): ToolCallRecord {
     args: { path: "/tmp/screen.png", prompt: "Read labels" },
     cwd: "/tmp/project",
     status: "completed",
+    revision: 1,
+    attempt: 1,
+    interactions: [],
+    settledAt: "2026-01-01T00:00:01.000Z",
     result: {
       content: explanation,
       contentBlocks: [{ type: "text", text: explanation }],

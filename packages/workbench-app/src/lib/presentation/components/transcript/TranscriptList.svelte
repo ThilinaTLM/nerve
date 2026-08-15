@@ -347,7 +347,7 @@ function measurementVersionForRow(row: TranscriptRowItem): string {
       node.toolCall.updatedAt,
       node.liveOutput?.updatedAt ?? "no-output",
       active ? "body-hydrated" : "body-deferred",
-      node.toolCall.status === "error" || node.toolCall.status === "denied"
+      node.toolCall.status === "failed" || node.toolCall.status === "denied"
         ? "activity-error"
         : "activity-visible",
       approval ? `${approval.id}:${approval.status}` : "no-approval",

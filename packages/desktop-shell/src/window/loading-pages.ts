@@ -84,6 +84,16 @@ export function loadingHtml(statusText = LOADING_STAGES.starting): string {
 </html>`;
 }
 
+export function loadingStatusScript(statusText: string): string {
+  const serialized = JSON.stringify(statusText);
+  return `(() => {
+    const status = document.getElementById("loading-status");
+    if (!status) return false;
+    status.textContent = ${serialized};
+    return true;
+  })()`;
+}
+
 export function loadingStageScript(stage: LoadingStage): string {
   const statusText = JSON.stringify(LOADING_STAGES[stage]);
   const shouldComplete = stage === "opening";
@@ -243,15 +253,19 @@ function shellStyles(): string {
       line-height: 1.625;
     }
     .loading-progress {
-      width: min(12rem, 100%);
+      width: min(24rem, 100%);
       margin-top: 1.5rem;
     }
     .loading .status {
       margin-bottom: 0.5rem;
+      overflow: hidden;
       text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .loading-progressbar {
-      width: 100%;
+      width: min(16rem, 100%);
+      margin-inline: auto;
       height: 0.25rem;
       overflow: hidden;
       border-radius: 999px;

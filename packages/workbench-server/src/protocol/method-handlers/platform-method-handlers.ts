@@ -22,110 +22,117 @@ import {
   getConversationSnapshotResponse,
   getWorkspaceSnapshotResponse,
 } from "../snapshots.js";
-import { defineWorkbenchMethodHandlers } from "../method-handler-registry.js";
+import {
+  defineWorkbenchMethodHandlers,
+  type WorkbenchMethodHandlerMap,
+} from "../method-handler-registry.js";
 
-export const platformMethodHandlers = defineWorkbenchMethodHandlers({
-  "status.latestRelease.get": (state) => state.latestRelease.getLatestRelease(),
-  "snapshot.workspace.get": (state) => getWorkspaceSnapshotResponse(state),
-  "snapshot.conversation.get": (state, params) =>
-    getConversationSnapshotResponse(state, params.conversationId),
-  "settings.get": (state) => state.storage.settings,
-  "settings.update": (state, params) =>
-    updateSettings(state, params as Record<string, unknown>),
-  "applicationConfiguration.get": (state) => state.applicationConfiguration,
-  "applicationConfiguration.update": (state, params) =>
-    updateApplicationConfiguration(state, params),
-  "skill.list": (state, params) => {
-    const projectDir = params?.projectId
-      ? state.registry.getProject(params.projectId).dir
-      : undefined;
-    return listAvailableSkills(projectDir, {
-      storageHome: state.storage.paths.home,
-      agentBrowserSkills: state.agentBrowserSkills.skills,
-    });
-  },
-  "auth.providers.list": async (state) => ({
-    providers: await state.auth.listProviderMetadata(
-      state.providerCatalog.providerDisplayNames(),
-    ),
-  }),
-  "providerCatalog.get": async (state) => {
-    await state.providerCatalog.ensureLoaded();
-    return state.providerCatalog.catalog;
-  },
-  "providerCatalog.custom.upsert": async (state, params) => {
-    const catalog = await state.providerCatalog.upsertProvider(params as never);
-    await publishProviderCatalogChanged(state, params.id);
-    return catalog;
-  },
-  "providerCatalog.custom.delete": async (state, params) => {
-    const catalog = await state.providerCatalog.deleteProvider(params.id);
-    await state.secrets.delete(providerApiKeySecretName(params.id));
-    await state.secrets.delete(providerOAuthSecretName(params.id));
-    await publishProviderCatalogChanged(state, params.id);
-    return catalog;
-  },
-  "providerCatalog.model.upsert": async (state, params) => {
-    const catalog = await state.providerCatalog.upsertModel(params as never);
-    await publishProviderCatalogChanged(state, params.provider);
-    return catalog;
-  },
-  "providerCatalog.model.delete": async (state, params) => {
-    const catalog = await state.providerCatalog.deleteModel(
-      params.provider,
-      params.modelId,
-    );
-    await publishProviderCatalogChanged(state, params.provider);
-    return catalog;
-  },
-  "storage.info": (state) => ({
-    dataDir: state.storage.paths.home,
-    sqlitePath: state.storage.paths.sqlitePath,
-    configPath: state.storage.paths.configPath,
-    counts: state.index.counts(),
-  }),
-  "storage.rebuildIndex": async (state) => {
-    await state.registry.rebuildIndex();
-    return { ok: true, counts: state.index.counts() };
-  },
-  "storage.usage.get": (state) => state.storageUsage.computeUsage(),
-  "storage.cleanup": async (state, params) => ({
-    operation: await state.storageCleanup.start(params),
-  }),
-  "storage.cleanup.get": (state, params) => ({
-    operation: state.storageCleanup.get(params?.operationId),
-  }),
-  "storage.cleanup.cancel": async (state, params) => ({
-    operation: await state.storageCleanup.cancel(params.operationId),
-  }),
-  "model.list": (state) => ({ models: state.registry.listModels() }),
-  "usage.subscription.get": async (state) => ({
-    usage: await state.registry.getSubscriptionUsage(),
-  }),
-  "completion.slash.list": () => ({
-    items: [...slashCommandCompletionItems],
-  }),
-  "completion.files.list": async (state, params) => ({
-    items: await state.registry.completeFiles(
-      params?.projectId,
-      params?.q ?? "",
-      { limit: params?.limit as number | undefined },
-    ),
-  }),
-  "filesystem.directories.list": (_state, params) =>
-    directoryListing(params?.path, params?.showHidden as boolean | undefined),
-  "filesystem.project.entries.list": (state, params) =>
-    projectDirectoryEntries(
-      params,
-      (projectId) => state.registry.getProject(projectId).dir,
-    ),
-  "filesystem.project.entries.create": (state, params) =>
-    createProjectEntry(
-      params,
-      (projectId) => state.registry.getProject(projectId).dir,
-    ),
-  "applicationLog.prune": (state, params) => state.logger.prune(params),
-});
+export const platformMethodHandlers: WorkbenchMethodHandlerMap =
+  defineWorkbenchMethodHandlers({
+    "status.latestRelease.get": (state) =>
+      state.latestRelease.getLatestRelease(),
+    "snapshot.workspace.get": (state) => getWorkspaceSnapshotResponse(state),
+    "snapshot.conversation.get": (state, params) =>
+      getConversationSnapshotResponse(state, params.conversationId),
+    "settings.get": (state) => state.storage.settings,
+    "settings.update": (state, params) =>
+      updateSettings(state, params as Record<string, unknown>),
+    "applicationConfiguration.get": (state) => state.applicationConfiguration,
+    "applicationConfiguration.update": (state, params) =>
+      updateApplicationConfiguration(state, params),
+    "skill.list": (state, params) => {
+      const projectDir = params?.projectId
+        ? state.registry.getProject(params.projectId).dir
+        : undefined;
+      return listAvailableSkills(projectDir, {
+        storageHome: state.storage.paths.home,
+        agentBrowserSkills: state.agentBrowserSkills.skills,
+      });
+    },
+    "auth.providers.list": async (state) => ({
+      providers: await state.auth.listProviderMetadata(
+        state.providerCatalog.providerDisplayNames(),
+      ),
+    }),
+    "providerCatalog.get": async (state) => {
+      await state.providerCatalog.ensureLoaded();
+      return state.providerCatalog.catalog;
+    },
+    "providerCatalog.custom.upsert": async (state, params) => {
+      const catalog = await state.providerCatalog.upsertProvider(
+        params as never,
+      );
+      await publishProviderCatalogChanged(state, params.id);
+      return catalog;
+    },
+    "providerCatalog.custom.delete": async (state, params) => {
+      const catalog = await state.providerCatalog.deleteProvider(params.id);
+      await state.secrets.delete(providerApiKeySecretName(params.id));
+      await state.secrets.delete(providerOAuthSecretName(params.id));
+      await publishProviderCatalogChanged(state, params.id);
+      return catalog;
+    },
+    "providerCatalog.model.upsert": async (state, params) => {
+      const catalog = await state.providerCatalog.upsertModel(params as never);
+      await publishProviderCatalogChanged(state, params.provider);
+      return catalog;
+    },
+    "providerCatalog.model.delete": async (state, params) => {
+      const catalog = await state.providerCatalog.deleteModel(
+        params.provider,
+        params.modelId,
+      );
+      await publishProviderCatalogChanged(state, params.provider);
+      return catalog;
+    },
+    "storage.info": (state) => ({
+      dataDir: state.storage.paths.home,
+      sqlitePath: state.storage.paths.sqlitePath,
+      configPath: state.storage.paths.configPath,
+      counts: state.index.counts(),
+    }),
+    "storage.rebuildIndex": async (state) => {
+      await state.registry.rebuildIndex();
+      return { ok: true, counts: state.index.counts() };
+    },
+    "storage.usage.get": (state) => state.storageUsage.computeUsage(),
+    "storage.cleanup": async (state, params) => ({
+      operation: await state.storageCleanup.start(params),
+    }),
+    "storage.cleanup.get": (state, params) => ({
+      operation: state.storageCleanup.get(params?.operationId),
+    }),
+    "storage.cleanup.cancel": async (state, params) => ({
+      operation: await state.storageCleanup.cancel(params.operationId),
+    }),
+    "model.list": (state) => ({ models: state.registry.listModels() }),
+    "usage.subscription.get": async (state) => ({
+      usage: await state.registry.getSubscriptionUsage(),
+    }),
+    "completion.slash.list": () => ({
+      items: [...slashCommandCompletionItems],
+    }),
+    "completion.files.list": async (state, params) => ({
+      items: await state.registry.completeFiles(
+        params?.projectId,
+        params?.q ?? "",
+        { limit: params?.limit as number | undefined },
+      ),
+    }),
+    "filesystem.directories.list": (_state, params) =>
+      directoryListing(params?.path, params?.showHidden as boolean | undefined),
+    "filesystem.project.entries.list": (state, params) =>
+      projectDirectoryEntries(
+        params,
+        (projectId) => state.registry.getProject(projectId).dir,
+      ),
+    "filesystem.project.entries.create": (state, params) =>
+      createProjectEntry(
+        params,
+        (projectId) => state.registry.getProject(projectId).dir,
+      ),
+    "applicationLog.prune": (state, params) => state.logger.prune(params),
+  });
 
 async function updateSettings(
   state: OrchestratorState,

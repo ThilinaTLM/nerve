@@ -94,7 +94,11 @@ describe("tool task result metadata", () => {
       risk: "read",
       args: { taskId: "missing" },
       cwd: "/tmp/project",
-      status: "error",
+      status: "failed",
+      revision: 1,
+      attempt: 1,
+      interactions: [],
+      settledAt: "2026-01-02T03:04:06.000Z",
       error: "Task 'missing' not found.",
       errorDetails: {
         code: "TASK_NOT_FOUND",
@@ -119,6 +123,10 @@ describe("tool task result metadata", () => {
       args: { activeOnly: true },
       cwd: "/tmp/project",
       status: "completed",
+      revision: 1,
+      attempt: 1,
+      interactions: [],
+      settledAt: "2026-01-02T03:04:06.000Z",
       createdAt: "2026-01-02T03:04:05.000Z",
       updatedAt: "2026-01-02T03:04:06.000Z",
     });

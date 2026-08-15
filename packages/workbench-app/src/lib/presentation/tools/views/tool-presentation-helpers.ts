@@ -69,14 +69,13 @@ export function statusDot(
   pulse: boolean;
 } {
   switch (toolCall.status) {
-    case "error":
+    case "failed":
     case "denied":
       return { tone: "danger", pulse: false };
     case "running":
-    case "requested":
+    case "committed":
       return { tone: "running", pulse: true };
-    case "pending_approval":
-    case "waiting_for_user":
+    case "waiting":
       return { tone: "warn", pulse: true };
     default:
       break;

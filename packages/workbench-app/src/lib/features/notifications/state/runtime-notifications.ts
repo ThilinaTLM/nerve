@@ -26,18 +26,8 @@ export function notificationForRuntimeEvent(
   context: RuntimeNotificationContext,
 ): RuntimeNotification | undefined {
   switch (event.type) {
-    case "approval.updated":
-      return recordValue(event.data.approval)?.status === "pending"
-        ? approvalNotification(event, context)
-        : undefined;
-    case "userQuestion.updated":
-      return recordValue(event.data.question)?.status === "pending"
-        ? userQuestionNotification(event, context)
-        : undefined;
-    case "planReview.updated":
-      return recordValue(event.data.planReview)?.status === "pending"
-        ? planReviewNotification(event, context)
-        : undefined;
+    case "toolCall.updated":
+      return toolInteractionNotification(event, context);
     case "run.completed":
       return runCompletedNotification(event, context);
     case "run.failed":
@@ -49,82 +39,85 @@ export function notificationForRuntimeEvent(
   }
 }
 
-function approvalNotification(
+function toolInteractionNotification(
   event: EventEnvelope<Record<string, unknown>>,
   context: RuntimeNotificationContext,
-): RuntimeNotification {
-  const approval = recordValue(event.data?.approval);
-  const toolCall = recordValue(event.data?.toolCall);
+): RuntimeNotification | undefined {
+  const toolCall = recordValue(event.data.toolCall);
+  const interactions = Array.isArray(toolCall?.interactions)
+    ? toolCall.interactions
+    : [];
+  const interaction = interactions
+    .map(recordValue)
+    .find((candidate) => candidate?.status === "pending");
+  if (!interaction) return undefined;
+  const request = recordValue(interaction.request);
+  const kind = stringValue(interaction.kind);
   const toolName = stringValue(toolCall?.toolName);
-  const risk = stringValue(approval?.risk) ?? stringValue(toolCall?.risk);
-  const reason = stringValue(approval?.reason);
-  return {
-    backgroundOnly: false,
-    kind: "error",
-    soundEvent: "approval",
-    tag: tagFrom("approval", stringValue(approval?.id)),
-    payload: {
-      title: toolName ? `Approval needed: ${toolName}` : "Approval needed",
-      body: bodyText([
-        risk ? `Risk: ${risk}` : undefined,
-        reason ?? "An agent is waiting for tool approval.",
-        locationText(event, context),
-      ]),
-      urgency: "attention",
-    },
-  };
-}
-
-function userQuestionNotification(
-  event: EventEnvelope<Record<string, unknown>>,
-  context: RuntimeNotificationContext,
-): RuntimeNotification {
-  const question = recordValue(event.data?.question);
-  const questionText = stringValue(question?.question);
-  const questionContext = stringValue(question?.context);
-  const recommendation = stringValue(question?.recommendation);
-  return {
-    backgroundOnly: false,
-    kind: "error",
-    soundEvent: "question",
-    tag: tagFrom("question", stringValue(question?.id)),
-    payload: {
-      title: "Nerve needs your answer",
-      body: bodyText([
-        questionText ?? "An agent asked a question.",
-        questionContext ? `Context: ${questionContext}` : undefined,
-        recommendation ? `Recommendation: ${recommendation}` : undefined,
-        locationText(event, context),
-      ]),
-      urgency: "attention",
-    },
-  };
-}
-
-function planReviewNotification(
-  event: EventEnvelope<Record<string, unknown>>,
-  context: RuntimeNotificationContext,
-): RuntimeNotification {
-  const review = recordValue(event.data?.planReview);
-  const title = stringValue(review?.title);
-  const summary = stringValue(review?.summary);
-  const planPath = stringValue(review?.planPath);
-  return {
-    backgroundOnly: false,
-    kind: "error",
-    soundEvent: "planReview",
-    tag: tagFrom("plan-review", stringValue(review?.id)),
-    payload: {
-      title: title ? `Plan ready: ${title}` : "Plan ready for review",
-      body: bodyText([
-        title,
-        summary ?? "An agent submitted a plan for review.",
-        planPath ? `Plan: ${planPath}` : undefined,
-        locationText(event, context),
-      ]),
-      urgency: "attention",
-    },
-  };
+  const ordinal =
+    typeof interaction.ordinal === "number" ? interaction.ordinal : 0;
+  const toolCallId = stringValue(toolCall?.id);
+  const location = locationText(event, context);
+  if (kind === "approval") {
+    return {
+      backgroundOnly: false,
+      kind: "error",
+      soundEvent: "approval",
+      tag: tagFrom(
+        "approval",
+        toolCallId ? `${toolCallId}:${ordinal}` : undefined,
+      ),
+      payload: {
+        title: toolName ? `Approval needed: ${toolName}` : "Approval needed",
+        body: bodyText([
+          stringValue(request?.reason) ??
+            "An agent is waiting for tool approval.",
+          location,
+        ]),
+        urgency: "attention",
+      },
+    };
+  }
+  if (kind === "user_input") {
+    return {
+      backgroundOnly: false,
+      kind: "message",
+      soundEvent: "question",
+      tag: tagFrom(
+        "question",
+        toolCallId ? `${toolCallId}:${ordinal}` : undefined,
+      ),
+      payload: {
+        title: "Agent needs input",
+        body: bodyText([
+          stringValue(request?.question) ??
+            "An agent is waiting for your reply.",
+          location,
+        ]),
+        urgency: "attention",
+      },
+    };
+  }
+  if (kind === "plan_review") {
+    return {
+      backgroundOnly: false,
+      kind: "message",
+      soundEvent: "planReview",
+      tag: tagFrom(
+        "plan-review",
+        toolCallId ? `${toolCallId}:${ordinal}` : undefined,
+      ),
+      payload: {
+        title: stringValue(request?.title) ?? "Plan ready for review",
+        body: bodyText([
+          stringValue(request?.summary) ?? "Review the proposed plan.",
+          location,
+        ]),
+        urgency: "attention",
+      },
+    };
+  }
+  return undefined;
 }
 
 function runCompletedNotification(

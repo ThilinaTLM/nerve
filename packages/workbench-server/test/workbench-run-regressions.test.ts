@@ -533,49 +533,6 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.starts.length, 1);
   });
 
-  it("recovers an accepted review with a pending source interaction", async () => {
-    const fixture = acceptanceFixture("pending", "accepted");
-
-    await fixture.service.recoverAcceptedPlanReviews();
-
-    assert.equal(fixture.resolutions.length, 1);
-    assert.equal(fixture.resolutions[0]?.continueRun, true);
-    assert.equal(fixture.resumedToolCalls.length, 1);
-    assert.equal(fixture.completedToolCalls.length, 1);
-    assert.equal(fixture.appendedEntries.length, 2);
-    assert.equal(fixture.starts.length, 0);
-  });
-
-  it("recovers when an accepted review source becomes terminal during continuation", async () => {
-    const fixture = acceptanceFixture("terminal_race", "accepted");
-
-    await fixture.service.recoverAcceptedPlanReviews();
-
-    assert.equal(fixture.resolutions.length, 1);
-    assert.equal(fixture.currentToolCall.status, "completed");
-    assert.equal(fixture.appendedEntries.length, 2);
-    assert.equal(fixture.starts.length, 1);
-  });
-
-  it("recovers an accepted review left waiting after source cancellation exactly once", async () => {
-    const fixture = acceptanceFixture("terminal", "accepted");
-
-    await fixture.service.recoverAcceptedPlanReviews();
-
-    assert.equal(fixture.currentToolCall.status, "completed");
-    assert.equal(fixture.resumedToolCalls.length, 1);
-    assert.equal(fixture.completedToolCalls.length, 1);
-    assert.equal(fixture.appendedEntries.length, 1);
-    assert.equal(fixture.starts.length, 1);
-
-    await fixture.service.recoverAcceptedPlanReviews();
-
-    assert.equal(fixture.resumedToolCalls.length, 1);
-    assert.equal(fixture.completedToolCalls.length, 1);
-    assert.equal(fixture.appendedEntries.length, 1);
-    assert.equal(fixture.starts.length, 1);
-  });
-
   it("skips accepted plan reviews whose tool call is missing instead of failing startup", async () => {
     const review = { ...planReview(), status: "accepted" as const };
     let warns = 0;

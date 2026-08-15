@@ -1,95 +1,105 @@
-import { stat } from "node:fs/promises";
-import { join } from "node:path";
-import type { ToolCallRecord } from "@nervekit/contracts";
-import type { IndexStore } from "../../infrastructure/index-store/index.js";
+import { open, readdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { toolCallRecordSchema, type ToolCallRecord } from "@nervekit/contracts";
+import type { IndexStore } from "../../infrastructure/index-store/index-store.js";
 import {
-  appendJsonLine,
-  forEachJsonLine,
+  atomicWriteJson,
   type InitializedStorage,
-  rewriteJsonLines,
 } from "../../infrastructure/storage/index.js";
-
-const DEFAULT_COMPACTION_MINIMUM_BYTES = 16 * 1024 * 1024;
-const DEFAULT_COMPACTION_AMPLIFICATION = 2;
 
 export interface ToolCallHydrationStats {
   rowCount: number;
   uniqueCount: number;
   fileBytes: number;
-  /** Whether records came from the persisted index snapshot or the journal. */
-  source: "snapshot" | "journal";
+  source: "files";
 }
 
-export interface ToolCallRepositoryOptions {
-  compactionMinimumBytes?: number;
-  compactionAmplification?: number;
+export class ToolCallRevisionConflictError extends Error {
+  constructor(
+    readonly toolCallId: string,
+    readonly expected: number,
+    readonly actual: number,
+  ) {
+    super(
+      `Tool call '${toolCallId}' revision conflict: expected ${expected}, current ${actual}.`,
+    );
+    this.name = "ToolCallRevisionConflictError";
+  }
 }
 
 export class ToolCallRepository {
-  readonly records = new Map<string, ToolCallRecord>();
+  readonly records: Map<string, ToolCallRecord> = new Map();
+  private readonly mutations = new Map<string, Promise<void>>();
   private hydrationStats: ToolCallHydrationStats = {
     rowCount: 0,
     uniqueCount: 0,
     fileBytes: 0,
-    source: "journal",
+    source: "files",
   };
 
   constructor(
     private readonly storage: InitializedStorage,
     private readonly index: IndexStore,
-    private readonly options: ToolCallRepositoryOptions = {},
   ) {}
 
-  /**
-   * Hydrate the in-memory records. When the persisted index snapshot is
-   * current (schema version matches and the journal size equals the recorded
-   * watermark), records are loaded from sqlite instead of scanning the full
-   * append-only journal, which can be hundreds of MB. The journal remains the
-   * durable source of truth and is scanned whenever the snapshot is missing,
-   * stale, or from an older schema.
-   */
   async hydrate(): Promise<ToolCallRecord[]> {
-    const fileBytes = await this.fileSize();
-    const validation = this.index.isToolCallSnapshotValid(fileBytes);
-    if (validation.valid) {
-      const toolCalls = this.index.loadToolCalls();
-      for (const toolCall of toolCalls) {
-        this.records.set(toolCall.id, toolCall);
+    this.records.clear();
+    let fileBytes = 0;
+    const conversations = await readdir(
+      join(this.storage.paths.home, "conversations"),
+      { withFileTypes: true },
+    ).catch(() => []);
+    for (const conversation of conversations.sort((a, b) =>
+      a.name.localeCompare(b.name),
+    )) {
+      if (!conversation.isDirectory() || !validId(conversation.name, "conv_"))
+        continue;
+      const directory = join(
+        this.storage.paths.home,
+        "conversations",
+        conversation.name,
+        "tool-calls",
+      );
+      const files = await readdir(directory, { withFileTypes: true }).catch(
+        () => [],
+      );
+      for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) {
+        if (!file.isFile() || !file.name.endsWith(".json")) continue;
+        const id = file.name.slice(0, -5);
+        if (!validId(id, "tool_"))
+          throw new Error(
+            `Invalid canonical tool-call filename '${file.name}'.`,
+          );
+        const raw = await import("node:fs/promises").then(({ readFile }) =>
+          readFile(join(directory, file.name), "utf8"),
+        );
+        fileBytes += Buffer.byteLength(raw);
+        const record = toolCallRecordSchema.parse(JSON.parse(raw));
+        if (record.id !== id || record.conversationId !== conversation.name) {
+          throw new Error(
+            `Canonical tool-call path identity mismatch for '${id}'.`,
+          );
+        }
+        if (this.records.has(id))
+          throw new Error(`Duplicate canonical tool call '${id}'.`);
+        this.records.set(id, record);
+        this.index.upsertToolCall(record);
       }
-      this.hydrationStats = {
-        rowCount: toolCalls.length,
-        uniqueCount: toolCalls.length,
-        fileBytes,
-        source: "snapshot",
-      };
-      return toolCalls;
     }
-    const { records: toolCalls, stats } = await this.readLatest();
-    this.hydrationStats = { ...stats, source: "journal" };
-    for (const toolCall of toolCalls) {
-      this.records.set(toolCall.id, toolCall);
-      this.index.upsertToolCall(toolCall);
-    }
-    return toolCalls;
+    this.hydrationStats = {
+      rowCount: this.records.size,
+      uniqueCount: this.records.size,
+      fileBytes,
+      source: "files",
+    };
+    return this.list();
   }
 
-  get hydrationSource(): "snapshot" | "journal" {
-    return this.hydrationStats.source;
+  get hydrationSource(): "files" {
+    return "files";
   }
-
   get hydrationStatsValue(): ToolCallHydrationStats {
     return { ...this.hydrationStats };
-  }
-
-  /**
-   * Record the current journal watermark so the next startup can reuse the
-   * persisted index snapshot. Called after a journal-based hydrate followed by
-   * a full index rebuild, when the tool_calls table now mirrors the journal.
-   */
-  async markToolCallSnapshotPersisted(): Promise<void> {
-    if (this.hydrationStats.source === "snapshot") return;
-    await this.syncSnapshotMeta();
-    this.hydrationStats = { ...this.hydrationStats, source: "snapshot" };
   }
 
   list(): ToolCallRecord[] {
@@ -115,122 +125,132 @@ export class ToolCallRepository {
     );
   }
 
-  async upsert(toolCall: ToolCallRecord): Promise<void> {
-    this.records.set(toolCall.id, toolCall);
-    this.index.upsertToolCall(toolCall);
-    await appendJsonLine(this.path(), toolCall, 0o600);
-    await this.syncSnapshotMeta();
+  async create(toolCall: ToolCallRecord): Promise<ToolCallRecord> {
+    const record = toolCallRecordSchema.parse({ ...toolCall, revision: 1 });
+    return this.serialize(record.id, async () => {
+      if (this.records.has(record.id))
+        throw new Error(`Tool call '${record.id}' already exists.`);
+      const path = this.path(record);
+      await import("node:fs/promises").then(({ mkdir }) =>
+        mkdir(dirname(path), { recursive: true, mode: 0o755 }),
+      );
+      const handle = await open(path, "wx", 0o600);
+      try {
+        await handle.writeFile(`${JSON.stringify(record, null, 2)}\n`);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      this.records.set(record.id, record);
+      this.index.upsertToolCall(record);
+      return record;
+    });
+  }
+
+  async replace(
+    toolCallId: string,
+    expectedRevision: number,
+    mutate: (current: ToolCallRecord) => ToolCallRecord,
+  ): Promise<ToolCallRecord> {
+    return this.serialize(toolCallId, async () => {
+      const current = this.get(toolCallId);
+      if (current.revision !== expectedRevision) {
+        throw new ToolCallRevisionConflictError(
+          toolCallId,
+          expectedRevision,
+          current.revision,
+        );
+      }
+      if (isTerminal(current.status))
+        throw new Error(`Terminal tool call '${toolCallId}' is immutable.`);
+      const candidate = mutate(current);
+      assertImmutableIdentity(current, candidate);
+      const next = toolCallRecordSchema.parse({
+        ...candidate,
+        revision: current.revision + 1,
+      });
+      await atomicWriteJson(this.path(next), next, 0o600);
+      this.records.set(next.id, next);
+      try {
+        this.index.upsertToolCall(next);
+      } catch {
+        /* Canonical file remains authoritative. */
+      }
+      return next;
+    });
   }
 
   async removeForConversations(conversationIds: Set<string>): Promise<void> {
-    for (const [id, toolCall] of this.records) {
-      if (conversationIds.has(toolCall.conversationId)) {
-        this.records.delete(id);
-        this.index.deleteToolCall(id);
-      }
+    for (const [id, record] of [...this.records]) {
+      if (!conversationIds.has(record.conversationId)) continue;
+      this.records.delete(id);
+      this.index.deleteToolCall(id);
     }
-    await rewriteJsonLines(this.path(), this.list(), 0o600);
-    await this.syncSnapshotMeta();
   }
 
-  /**
-   * Rewrite the persisted log to only the latest version of each tool call,
-   * dropping the superseded append duplicates that accumulate via `upsert`.
-   * Frees disk without losing any tool call and keeps the file in sync with the
-   * in-memory map. Returns the file size delta (bytes freed).
-   */
-  async compactPersisted(): Promise<void> {
-    const records = this.list();
-    await rewriteJsonLines(this.path(), records, 0o600);
-    this.hydrationStats = {
-      rowCount: records.length,
-      uniqueCount: records.length,
-      fileBytes: await this.fileSize(),
-      source: this.hydrationStats.source,
-    };
-    await this.syncSnapshotMeta();
-  }
-
-  async compactPersistedIfAmplified(): Promise<
-    | { before: ToolCallHydrationStats; after: ToolCallHydrationStats }
-    | undefined
-  > {
-    const before = { ...this.hydrationStats };
-    const minimumBytes =
-      this.options.compactionMinimumBytes ?? DEFAULT_COMPACTION_MINIMUM_BYTES;
-    const amplification =
-      this.options.compactionAmplification ?? DEFAULT_COMPACTION_AMPLIFICATION;
+  private path(record: Pick<ToolCallRecord, "id" | "conversationId">): string {
     if (
-      before.fileBytes < minimumBytes ||
-      before.rowCount < before.uniqueCount * amplification
-    ) {
-      return undefined;
-    }
-    await this.compactPersisted();
-    return { before, after: { ...this.hydrationStats } };
-  }
-
-  persistedPath(): string {
-    return this.path();
-  }
-
-  private async readLatest(): Promise<{
-    records: ToolCallRecord[];
-    stats: ToolCallHydrationStats;
-  }> {
-    const byId = new Map<string, ToolCallRecord>();
-    let rowCount = 0;
-    await forEachJsonLine<ToolCallRecord>(this.path(), (toolCall) => {
-      rowCount += 1;
-      byId.set(toolCall.id, toolCall);
-    }).catch(() => undefined);
-    return {
-      records: [...byId.values()],
-      stats: {
-        rowCount,
-        uniqueCount: byId.size,
-        fileBytes: await this.fileSize(),
-        source: "journal",
-      },
-    };
-  }
-
-  private fileSize(): Promise<number> {
-    return stat(this.path()).then(
-      (value) => value.size,
-      () => 0,
+      !validId(record.id, "tool_") ||
+      !validId(record.conversationId, "conv_")
+    )
+      throw new Error("Invalid tool-call storage identity.");
+    return join(
+      this.storage.paths.home,
+      "conversations",
+      record.conversationId,
+      "tool-calls",
+      `${record.id}.json`,
     );
   }
 
-  /**
-   * Refresh the persisted snapshot metadata after any journal mutation so the
-   * next startup can skip the full journal scan. The watermark is the exact
-   * journal size, so appends/rewrites always invalidate a stale snapshot.
-   * Best-effort: a failed meta write only costs a journal rehydrate on the
-   * next startup, never correctness, so it must not break tool-call upserts.
-   */
-  private async syncSnapshotMeta(): Promise<void> {
+  private async serialize<T>(
+    id: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.mutations.get(id) ?? Promise.resolve();
+    const result = previous.catch(() => undefined).then(operation);
+    const tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.mutations.set(id, tail);
     try {
-      let latestUpdatedAt: string | null = null;
-      for (const record of this.records.values()) {
-        if (latestUpdatedAt === null || record.updatedAt > latestUpdatedAt) {
-          latestUpdatedAt = record.updatedAt;
-        }
-      }
-      this.index.writeToolCallSnapshot({
-        watermark: await this.fileSize(),
-        // The persisted row count is the validation source of truth; using the
-        // in-memory map size could reject a valid snapshot when a single
-        // table write diverged from memory (e.g. an upsert that did not land).
-        rowCount: this.index.countToolCalls(),
-        latestUpdatedAt,
-      });
-    } catch {
-      // Ignored: the journal remains the durable source of truth.
+      return await result;
+    } finally {
+      if (this.mutations.get(id) === tail) this.mutations.delete(id);
     }
   }
+}
 
-  private path(): string {
-    return join(this.storage.paths.home, "logs", "tool-calls.jsonl");
+const immutableKeys = [
+  "id",
+  "agentId",
+  "conversationId",
+  "projectId",
+  "toolName",
+  "sourceToolCallId",
+  "providerToolCallId",
+  "runId",
+  "turnId",
+  "liveMessageId",
+  "contentIndex",
+  "risk",
+  "args",
+  "cwd",
+  "createdAt",
+] as const;
+function assertImmutableIdentity(
+  current: ToolCallRecord,
+  next: ToolCallRecord,
+): void {
+  for (const key of immutableKeys) {
+    if (JSON.stringify(current[key]) !== JSON.stringify(next[key]))
+      throw new Error(`Tool-call identity field '${key}' is immutable.`);
   }
+}
+function validId(value: string, prefix: string): boolean {
+  return value.startsWith(prefix) && /^[A-Za-z0-9_-]+$/.test(value);
+}
+function isTerminal(status: ToolCallRecord["status"]): boolean {
+  return ["completed", "denied", "failed", "cancelled"].includes(status);
 }

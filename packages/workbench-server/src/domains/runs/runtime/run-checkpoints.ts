@@ -65,12 +65,12 @@ export async function checkpointValid(
     if (
       !tool ||
       (resolvingInteraction
-        ? tool.lifecycleRevision < reference.lifecycleRevision
-        : tool.lifecycleRevision !== reference.lifecycleRevision)
+        ? tool.revision < reference.revision
+        : tool.revision !== reference.revision)
     ) {
       return false;
     }
-    if (["requested", "running"].includes(tool.status)) return false;
+    if (["committed", "running"].includes(tool.status)) return false;
   }
   return true;
 }

@@ -109,7 +109,7 @@ export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdap
       harnessSavePointId: transcript.harnessSavePointId,
       toolCalls: toolCalls.map((call) => ({
         toolCallId: call.toolCallId,
-        lifecycleRevision: call.lifecycleRevision,
+        revision: call.revision,
       })),
       interactionId,
     };

@@ -42,14 +42,13 @@ let {
 const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
   if (draftPhase) return "running";
   switch (status) {
-    case "requested":
-    case "pending_approval":
-    case "waiting_for_user":
+    case "committed":
+    case "waiting":
     case "running":
       return "running";
     case "completed":
       return "complete";
-    case "error":
+    case "failed":
     case "denied":
       return "error";
     default:
@@ -59,11 +58,11 @@ const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
 const statusLabel = $derived(
   draftPhase
     ? "Preparing tool call"
-    : status === "pending_approval"
+    : status === "waiting"
       ? "Needs approval"
-      : status === "waiting_for_user"
+      : status === "waiting"
         ? "Waiting for user feedback"
-        : status === "requested" || status === "running"
+        : status === "committed" || status === "running"
           ? "Executing tool call"
           : status === "completed"
             ? "Tool call completed"
@@ -86,8 +85,7 @@ const activityVisible = $derived(
     <ToolCardHeader
       {dotTone}
       {dotPulse}
-      waitingForUser={status === "waiting_for_user" ||
-        status === "pending_approval"}
+      waitingForUser={status === "waiting" || status === "waiting"}
       {statusLabel}
       {badge}
       {arg}

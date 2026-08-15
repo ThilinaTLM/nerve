@@ -1,47 +1,20 @@
 import {
-  acceptPlanReview,
-  acceptPlanReviewInNewChat,
-  answerUserQuestion,
-  denyApprovalRequest,
-  discardPlanReview,
-  dismissUserQuestion as dismissUserQuestionRequest,
-  grantApprovalRequest,
+  resolveToolInteraction,
   type PlanReviewResolveOptions,
-  rejectPlanReview,
-  requestPlanChanges,
-} from "$lib/api";
+} from "$lib/features/tools/api/tools.api";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
-  removeApproval,
   upsertAgentRecordFresh,
   upsertConversationRecord,
-  upsertPlanReview,
-  upsertUserQuestion,
+  upsertPendingToolCall,
 } from "$lib/features/workspace/state/entity-reducers";
 import { createInteractionActions } from "./interaction-actions";
 import { openConversation } from "./tabs";
 
-/**
- * Result-driven interaction handlers: each RPC's returned record reconciles
- * local state immediately via the shared entity reducers, while conversation
- * and run durable events remain responsible for transcript progression.
- */
 const actions = createInteractionActions({
-  requests: {
-    grantApproval: grantApprovalRequest,
-    denyApproval: denyApprovalRequest,
-    acceptPlanReview,
-    acceptPlanReviewInNewChat,
-    rejectPlanReview,
-    requestPlanChanges,
-    discardPlanReview,
-    answerUserQuestion,
-    dismissUserQuestion: dismissUserQuestionRequest,
-  },
+  requests: { resolve: resolveToolInteraction },
   reconcile: {
-    removeApproval,
-    upsertUserQuestion,
-    upsertPlanReview,
+    upsertToolCall: upsertPendingToolCall,
     upsertConversation: upsertConversationRecord,
     upsertAgent: upsertAgentRecordFresh,
   },
@@ -49,50 +22,23 @@ const actions = createInteractionActions({
   openConversation,
 });
 
-export async function grantApproval(approvalId: string) {
-  await actions.grantApproval(approvalId);
-}
-
-export async function denyApproval(approvalId: string) {
-  await actions.denyApproval(approvalId);
-}
-
-export async function acceptPendingPlanReview(
-  reviewId: string,
+export const grantApproval = (id: string) => actions.grantApproval(id);
+export const denyApproval = (id: string) => actions.denyApproval(id);
+export const acceptPendingPlanReview = (
+  id: string,
   options: PlanReviewResolveOptions = {},
-) {
-  await actions.acceptPendingPlanReview(reviewId, options);
-}
-
-export async function acceptPendingPlanReviewInNewChat(
-  reviewId: string,
+) => actions.acceptPendingPlanReview(id, options);
+export const acceptPendingPlanReviewInNewChat = (
+  id: string,
   options: PlanReviewResolveOptions = {},
-) {
-  await actions.acceptPendingPlanReviewInNewChat(reviewId, options);
-}
-
-export async function rejectPendingPlanReview(reviewId: string) {
-  await actions.rejectPendingPlanReview(reviewId);
-}
-
-export async function requestPendingPlanChanges(
-  reviewId: string,
-  feedback: string,
-) {
-  await actions.requestPendingPlanChanges(reviewId, feedback);
-}
-
-export async function discardPendingPlanReview(reviewId: string) {
-  await actions.discardPendingPlanReview(reviewId);
-}
-
-export async function answerUserQuestionById(
-  questionId: string,
-  answer: string,
-) {
-  await actions.answerUserQuestionById(questionId, answer);
-}
-
-export async function dismissUserQuestionById(questionId: string) {
-  await actions.dismissUserQuestionById(questionId);
-}
+) => actions.acceptPendingPlanReviewInNewChat(id, options);
+export const rejectPendingPlanReview = (id: string) =>
+  actions.rejectPendingPlanReview(id);
+export const requestPendingPlanChanges = (id: string, feedback: string) =>
+  actions.requestPendingPlanChanges(id, feedback);
+export const discardPendingPlanReview = (id: string) =>
+  actions.discardPendingPlanReview(id);
+export const answerUserQuestionById = (id: string, answer: string) =>
+  actions.answerUserQuestionById(id, answer);
+export const dismissUserQuestionById = (id: string) =>
+  actions.dismissUserQuestionById(id);

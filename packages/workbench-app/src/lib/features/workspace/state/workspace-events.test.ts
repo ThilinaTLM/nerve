@@ -19,9 +19,7 @@ describe("workspace run lifecycle events", () => {
     }
     // Interaction and agent events carry complete records for the reducers.
     for (const type of [
-      "approval.updated",
-      "userQuestion.updated",
-      "planReview.updated",
+      "toolCall.updated",
       "agent.configured",
       "agent.status_changed",
       "agent.mode_changed",
@@ -39,7 +37,6 @@ describe("workspace run lifecycle events", () => {
       "conversation.navigated",
       "agent.created",
       "agent.subagent_started",
-      "toolCall.updated",
       "task.updated",
       "plan.written",
       "settings.updated",

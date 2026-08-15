@@ -69,8 +69,7 @@ let unregisterVoiceTarget: (() => void) | undefined;
 const micShortcut = voice?.micShortcutLabel;
 const micShortcutAria = voice?.micShortcutAria;
 const pending = $derived(
-  toolCall.status === "waiting_for_user" &&
-    questionRecord?.status === "pending",
+  toolCall.status === "waiting" && questionRecord?.status === "pending",
 );
 const question = $derived(questionRecord?.question ?? view.question);
 const context = $derived(questionRecord?.context ?? view.context);

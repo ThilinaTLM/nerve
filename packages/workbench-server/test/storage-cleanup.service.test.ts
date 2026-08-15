@@ -106,17 +106,16 @@ describe("StorageCleanupService", () => {
     const queued = await service.start({
       logsOlderThanDays: 7,
       truncateEventLog: true,
-      clearToolCallLog: true,
       clearCache: true,
       clearTmp: true,
     });
     assert.equal(queued.status, "queued");
-    assert.equal(queued.totalTargets, 5);
+    assert.equal(queued.totalTargets, 4);
 
     const result = await waitForTerminal(service);
-    assert.equal(result.status, "succeeded");
-    assert.equal(result.results.length, 5);
-    assert.ok(result.freedBytes >= 300 + 1_200 + 380 + 250 + 60);
+    assert.equal(result.status, "succeeded", result.error);
+    assert.equal(result.results.length, 4);
+    assert.ok(result.freedBytes >= 300 + 1_200 + 250 + 60);
     assert.deepEqual(await readdir(join(home, "cache")), []);
     assert.deepEqual(await readdir(join(home, "tmp")), []);
     assert.deepEqual(await readdir(join(home, "auth")), ["local-token"]);

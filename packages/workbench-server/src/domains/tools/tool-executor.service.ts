@@ -66,7 +66,7 @@ export class ToolExecutorService {
       } else {
         const details = toolErrorDetails(error);
         terminal = await this.deps.updateToolCall(toolCall.id, {
-          status: "error",
+          status: "failed",
           error: details.message,
           errorDetails: details,
         });

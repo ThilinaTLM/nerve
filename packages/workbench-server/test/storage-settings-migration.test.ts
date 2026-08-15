@@ -3,7 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { defaultSettings } from "@nervekit/contracts";
+import {
+  type DaemonStartupProgress,
+  defaultSettings,
+} from "@nervekit/contracts";
 import {
   initializeStorage,
   writeSettings,
@@ -21,14 +24,21 @@ describe("settings migrations", () => {
   it("moves legacy server settings into application configuration", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     try {
-      await initializeStorage(root);
       const legacy = {
         ...defaultSettings,
         application: undefined,
         server: { host: "127.0.0.1", port: 4100, allowRemote: true },
       };
       await writeFile(join(root, "config.json"), `${JSON.stringify(legacy)}\n`);
-      const storage = await initializeStorage(root);
+      const progress: DaemonStartupProgress[] = [];
+      const storage = await initializeStorage(root, {
+        reportStartupProgress: (event) => progress.push(event),
+      });
+      assert.equal(progress[0]?.phase, "storage-check");
+      assert.equal(
+        progress.some((event) => event.phase === "storage-migration"),
+        true,
+      );
       assert.deepEqual(storage.settings.application.network, {
         host: "0.0.0.0",
         port: 4100,
@@ -50,7 +60,6 @@ describe("settings migrations", () => {
       const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
       roots.push(root);
       const configPath = join(root, "config.json");
-      await initializeStorage(root);
       await writeFile(
         configPath,
         `${JSON.stringify(
@@ -86,7 +95,6 @@ describe("settings migrations", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);
     const configPath = join(root, "config.json");
-    await initializeStorage(root);
     const legacySettings = {
       ...defaultSettings,
       notifications: { systemEnabled: true, soundsEnabled: true },
@@ -116,7 +124,6 @@ describe("settings migrations", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);
     const configPath = join(root, "config.json");
-    await initializeStorage(root);
     await writeFile(
       configPath,
       `${JSON.stringify(
@@ -183,7 +190,6 @@ describe("settings migrations", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);
     const configPath = join(root, "config.json");
-    await initializeStorage(root);
     const legacyTools: Partial<typeof defaultSettings.tools> = {
       ...defaultSettings.tools,
     };
@@ -216,7 +222,6 @@ describe("settings migrations", () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     roots.push(root);
     const configPath = join(root, "config.json");
-    await initializeStorage(root);
     await writeFile(
       configPath,
       `${JSON.stringify(
