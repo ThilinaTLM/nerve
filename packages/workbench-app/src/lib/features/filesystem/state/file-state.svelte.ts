@@ -15,5 +15,4 @@ export type FileViewState = {
 
 export const fileState = $state({
   fileViews: {} as Record<string, FileViewState>,
-  openFileTabIds: [] as string[],
 });

@@ -8,8 +8,7 @@ import {
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,
-  resetSelection,
-  selection,
+  resetConversationContext,
 } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { resolveNewAgentComposerSelection } from "./agent-selection-defaults";
@@ -56,9 +55,8 @@ export function selectPendingConversation(pendingId: string) {
     conversationState.pendingConversations[pendingConversationKey(pendingId)];
   if (!pending) return;
   setActiveCenterTab({ kind: "pending-conversation", id: pending.id });
-  conversationState.activeConversationTabId = undefined;
-  resetSelection();
-  selection.projectId = pending.projectId;
+  resetConversationContext();
+  workspaceState.selectedProjectId = pending.projectId;
   composerDraft.projectDir = pending.projectDir;
   conversationState.selectedModelKey = pending.selectedModelKey;
   conversationState.selectedThinkingLevel = pending.thinkingLevel;

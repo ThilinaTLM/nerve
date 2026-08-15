@@ -20,7 +20,7 @@ import {
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,
-  selection,
+  conversationContextState,
 } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { mainAgentForConversation } from "./main-agent";
@@ -43,14 +43,11 @@ async function projectForConversation(
 export async function applyActiveConversationSelection(
   conversation: ConversationRecord,
 ) {
-  selection.conversationId = conversation.id;
-  selection.projectId = conversation.projectId;
   const conversationAgent = mainAgentForConversation(
     conversation,
     workspaceState.agents,
   );
-  selection.agentId = conversationAgent?.id;
-  selection.entryId = conversation.activeEntryId;
+  conversationContextState.selectedAgentId = conversationAgent?.id;
   const project = await projectForConversation(conversation);
   composerDraft.projectDir = project.dir;
   // A pending desired override survives tab switches: it stays the display
@@ -108,9 +105,6 @@ export async function refreshConversationView(conversationId: string) {
     );
     view.sending = canonical.sending ?? false;
     installEventCursors(response.cursor.streams);
-    if (selection.conversationId === conversationId) {
-      selection.entryId = snapshot.tree.activeEntryId;
-    }
     // Pending human-input records ride the workspace stream; rehydrate them
     // here so a missed live update cannot permanently hide the answer form
     // for tool calls in this conversation.
@@ -131,7 +125,6 @@ async function refreshPendingUserQuestions(): Promise<void> {
 export function clearConversationState() {
   void voiceInputSession.cancel();
   replaceOpenCenterTabs([]);
-  conversationState.activeConversationTabId = undefined;
   setActiveCenterTab(undefined);
   conversationState.conversationViews = {};
   conversationState.pendingConversations = {};

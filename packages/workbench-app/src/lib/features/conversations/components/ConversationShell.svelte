@@ -4,7 +4,7 @@ import { protocolRequest } from "@nervekit/protocol";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import { composerDraft } from "$lib/features/workspace/state/selection.svelte";
-import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
+import { selectCenterTab } from "$lib/features/workspace/state/center-tab-lifecycle.svelte";
 import type { CenterTabIdentity } from "$lib/features/workspace";
 import {
   conversationViewKey,

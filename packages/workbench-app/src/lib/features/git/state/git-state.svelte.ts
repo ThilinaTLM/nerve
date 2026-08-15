@@ -70,7 +70,5 @@ export const gitState = $state({
   gitContext: undefined as GitContext | undefined,
   gitRefreshToken: 0,
   prViews: {} as Record<string, PrViewState>,
-  openPrTabIds: [] as string[],
   diffViews: {} as Record<string, DiffViewState>,
-  openDiffTabIds: [] as string[],
 });

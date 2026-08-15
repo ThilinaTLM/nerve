@@ -22,8 +22,8 @@ import {
   taskSelectors,
 } from "$lib/features/tasks";
 import {
+  conversationContextState,
   exportUrl,
-  selection,
   systemPromptUrl,
   workspaceSelectors,
 } from "$lib/features/workspace";
@@ -95,9 +95,7 @@ $effect(() => {
 });
 
 function selectAgent(agent: AgentRecord) {
-  selection.agentId = agent.id;
-  selection.projectId = agent.projectId;
-  selection.conversationId = agent.conversationId;
+  conversationContextState.selectedAgentId = agent.id;
   revealPanelView("context", responsive.isCompact);
 }
 

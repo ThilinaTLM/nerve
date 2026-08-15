@@ -61,8 +61,6 @@ export type PendingConversationState = {
 export const conversationState = $state({
   conversationViews: {} as Record<string, ConversationViewState>,
   pendingConversations: {} as Record<string, PendingConversationState>,
-  openConversationTabIds: [] as string[],
-  activeConversationTabId: undefined as string | undefined,
   slashCompletions: [] as CompletionItem[],
   selectedModelKey: "nerve-faux:faux-fast",
   selectedThinkingLevel: "off" as AgentRecord["thinkingLevel"],

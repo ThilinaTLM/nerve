@@ -6,15 +6,13 @@ import {
   prViewKey,
 } from "$lib/core/state/state-keys";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { gitPanelState } from "./git-panel.svelte";
 import { gitState } from "./git-state.svelte";
 
 function activeView() {
-  const conversationId =
-    selection.conversationId ?? conversationState.activeConversationTabId;
+  const conversationId = workspaceSelectors.contextConversation?.id;
   if (!conversationId) return undefined;
   return conversationState.conversationViews[
     conversationViewKey(conversationId)
@@ -73,8 +71,7 @@ export const gitSelectors = {
 
 export function activeModelKeyForGit(): string {
   return modelKey(
-    workspaceState.agents.find((agent) => agent.id === selection.agentId)
-      ?.model ?? {
+    workspaceSelectors.contextAgent?.model ?? {
       provider: "",
       modelId: "",
     },

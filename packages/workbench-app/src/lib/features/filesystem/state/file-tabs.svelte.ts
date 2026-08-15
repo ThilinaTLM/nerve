@@ -5,12 +5,9 @@ import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import {
   addCenterTab,
-  nextCenterTabAfterClose,
-  removeCenterTab,
-  replaceOpenCenterTabs,
-  selectCenterTab,
   setActiveCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
+import { closeCenterTabs } from "$lib/features/workspace/state/center-tab-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { SvelteSet } from "svelte/reactivity";
 
@@ -110,23 +107,12 @@ export function closeFileTabsAtPath(input: {
   );
   if (matchingIds.size === 0) return;
 
-  const active = workspaceState.activeCenterTab;
-  const closesActive = active?.kind === "file" && matchingIds.has(active.id);
-  const remaining = workspaceState.openCenterTabs.filter(
-    (tab) => tab.kind !== "file" || !matchingIds.has(tab.id),
+  const tabs = workspaceState.openCenterTabs.filter(
+    (tab) => tab.kind === "file" && matchingIds.has(tab.id),
   );
-  for (const id of matchingIds) delete fileState.fileViews[fileViewKey(id)];
-  replaceOpenCenterTabs(remaining);
-  if (closesActive) void selectCenterTab(remaining.at(-1));
+  void closeCenterTabs(tabs);
 }
 
-export function closeFileTab(id: string) {
-  const tab = { kind: "file" as const, id };
-  const closingActive =
-    workspaceState.activeCenterTab?.kind === "file" &&
-    workspaceState.activeCenterTab.id === id;
-  const fallback = nextCenterTabAfterClose(tab);
-  removeCenterTab(tab);
+export function disposeFileTab(id: string): void {
   delete fileState.fileViews[fileViewKey(id)];
-  if (closingActive) void selectCenterTab(fallback);
 }

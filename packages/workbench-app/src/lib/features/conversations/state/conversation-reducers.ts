@@ -19,7 +19,6 @@ import {
   refreshConversationView,
 } from "$lib/features/conversations/state/conversation-flow.svelte";
 import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { conversationIdFromEvent } from "./conversation-event-routing";
 import {
   clearContextUsageRefresh,
@@ -176,7 +175,6 @@ function applyAppEffects(
       view.activeEntryId = entry.id;
       updateTreeNodesForEntry(view, entry);
       updateConversationActiveEntryId(conversationId, entry.id);
-      if (active(conversationId)) selection.entryId = entry.id;
       view.optimisticMessages = reconcileOptimisticMessages(
         view.optimisticMessages,
         entry,
@@ -191,8 +189,7 @@ function applyAppEffects(
     case "run.completed":
       applyConversationTerminalUiState(view);
       void refreshConversationView(conversationId).then(() => {
-        if (selection.conversationId === conversationId)
-          void openConversation(conversationId);
+        if (active(conversationId)) void openConversation(conversationId);
       });
       if (active(conversationId)) {
         void invalidateGit(stringValue(event.data?.projectId));

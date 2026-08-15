@@ -30,12 +30,9 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 import { usageState } from "$lib/features/usage/state/usage-state.svelte";
 import {
   addCenterTab,
-  nextCenterTabAfterClose,
-  removeCenterTab,
-  selectCenterTab,
   setActiveCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { conversationContextState } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 export type SettingsSaveOptions = {
   immediate?: boolean;
@@ -52,7 +49,9 @@ let settingsLoadInFlight: Promise<void> | undefined;
 let settingsReloadRequested = false;
 
 function currentActiveAgent(): AgentRecord | undefined {
-  return workspaceState.agents.find((agent) => agent.id === selection.agentId);
+  return workspaceState.agents.find(
+    (agent) => agent.id === conversationContextState.selectedAgentId,
+  );
 }
 
 function currentSelectedModelInfo(): ModelInfo | undefined {
@@ -83,13 +82,7 @@ export async function selectCenterSettingsTab(
   if (!settingsState.settingsDraft) await loadSettingsPanel();
 }
 
-export function closeSettingsTab() {
-  const tab = { kind: "settings" as const, id: "settings" as const };
-  const closingActive = workspaceState.activeCenterTab?.kind === "settings";
-  const fallback = nextCenterTabAfterClose(tab);
-  removeCenterTab(tab);
-  if (closingActive) void selectCenterTab(fallback);
-}
+export function disposeSettingsTab(): void {}
 
 export async function refreshSubscriptionUsage() {
   const subscriptionUsage = await getSubscriptionUsage();
@@ -99,7 +92,9 @@ export async function refreshSubscriptionUsage() {
   return subscriptionUsage;
 }
 
-export async function loadSettingsSkills(projectId = selection.projectId) {
+export async function loadSettingsSkills(
+  projectId = workspaceState.selectedProjectId,
+) {
   const requestId = ++skillsRequestId;
   settingsState.skillsLoading = true;
   settingsState.skillsError = undefined;

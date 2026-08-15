@@ -5,14 +5,15 @@ export {
   centerTabsExcept,
   centerTabsToLeftOf,
   centerTabsToRightOf,
+  closeCenterTab,
   closeCenterTabs,
 } from "./state/center-tab-actions.svelte";
+export { selectCenterTab } from "./state/center-tab-lifecycle.svelte";
+export { reorderCenterTab } from "./state/center-tabs.svelte";
 export {
-  closeCenterTab,
-  reorderCenterTab,
-  selectCenterTab,
-} from "./state/center-tabs.svelte";
-export { composerDraft, selection } from "./state/selection.svelte";
+  composerDraft,
+  conversationContextState,
+} from "./state/selection.svelte";
 export {
   createConversationForDirectory,
   deleteProjectAndRefresh,

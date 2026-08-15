@@ -11,7 +11,7 @@ import { saveVisibleProjectSession } from "$lib/features/workspace/state/workspa
 import { addCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,
-  resetSelection,
+  resetConversationContext,
 } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 
@@ -68,8 +68,7 @@ export function clearTranscriptState() {
 }
 
 export function clearActiveSelection() {
-  resetSelection();
-  conversationState.activeConversationTabId = undefined;
+  resetConversationContext();
   clearTranscriptState();
   composerDraft.text = "";
 }

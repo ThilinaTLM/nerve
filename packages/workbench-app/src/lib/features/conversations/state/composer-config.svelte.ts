@@ -10,7 +10,7 @@ import { queueAgentConfigChange } from "$lib/features/conversations/state/agent-
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { queueSettingsSave } from "$lib/features/settings/state/settings-actions.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { conversationContextState } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { mainAgentForConversation } from "./main-agent";
 import {
@@ -19,14 +19,16 @@ import {
 } from "./agent-selection-defaults";
 
 export function currentActiveAgent(): AgentRecord | undefined {
+  const active = workspaceState.activeCenterTab;
+  if (active?.kind !== "conversation") return undefined;
   const conversation = workspaceState.conversations.find(
-    (candidate) => candidate.id === selection.conversationId,
+    (candidate) => candidate.id === active.id,
   );
   if (!conversation) return undefined;
   return mainAgentForConversation(
     conversation,
     workspaceState.agents,
-    selection.agentId,
+    conversationContextState.selectedAgentId,
   );
 }
 

@@ -1,8 +1,5 @@
-export const selection = $state({
-  projectId: undefined as string | undefined,
-  conversationId: undefined as string | undefined,
-  agentId: undefined as string | undefined,
-  entryId: undefined as string | undefined,
+export const conversationContextState = $state({
+  selectedAgentId: undefined as string | undefined,
 });
 
 export const composerDraft = $state({
@@ -10,9 +7,6 @@ export const composerDraft = $state({
   projectDir: "",
 });
 
-export function resetSelection() {
-  selection.projectId = undefined;
-  selection.conversationId = undefined;
-  selection.agentId = undefined;
-  selection.entryId = undefined;
+export function resetConversationContext(): void {
+  conversationContextState.selectedAgentId = undefined;
 }

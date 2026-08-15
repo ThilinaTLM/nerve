@@ -5,5 +5,4 @@ export const taskState = $state({
   selectedTaskId: undefined as string | undefined,
   taskLogs: undefined as TaskLogQueryResponse | undefined,
   selectedRunByEntry: {} as Record<string, string>,
-  openTaskTabIds: [] as string[],
 });

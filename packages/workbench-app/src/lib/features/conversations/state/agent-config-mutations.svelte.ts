@@ -3,7 +3,7 @@ import { updateAgentConfig } from "$lib/api";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { upsertAgentRecordFresh } from "$lib/features/workspace/state/entity-reducers";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { conversationContextState } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import {
   AgentConfigMutationQueue,
@@ -30,7 +30,7 @@ const queue = new AgentConfigMutationQueue({
     upsertAgentRecordFresh(agent);
   },
   onConfirmed: (agentId, agent) => {
-    if (selection.agentId !== agentId) return;
+    if (conversationContextState.selectedAgentId !== agentId) return;
     // Reconcile the composer to the server-clamped values.
     if (agent.model) conversationState.selectedModelKey = modelKey(agent.model);
     conversationState.selectedThinkingLevel = agent.thinkingLevel;
@@ -42,7 +42,7 @@ const queue = new AgentConfigMutationQueue({
     const confirmed = workspaceState.agents.find(
       (agent) => agent.id === agentId,
     );
-    if (confirmed && selection.agentId === agentId) {
+    if (confirmed && conversationContextState.selectedAgentId === agentId) {
       // Roll back to the latest confirmed agent record.
       if (confirmed.model) {
         conversationState.selectedModelKey = modelKey(confirmed.model);

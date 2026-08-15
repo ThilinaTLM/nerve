@@ -1,4 +1,4 @@
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { SvelteMap } from "svelte/reactivity";
 import type { ProjectRecord } from "$lib/api";
 import type { GithubPrListFilters } from "@nervekit/contracts";
 import {
@@ -51,6 +51,7 @@ import {
   GIT_STALE_MS,
   githubPrFiltersFingerprint,
   isFresh,
+  pendingPollTargets,
   PR_PENDING_POLL_MS,
   PR_STALE_MS,
 } from "./git-refresh-policy";
@@ -59,7 +60,12 @@ function automaticRefreshKey(projectId: string, repo: string): string {
   return JSON.stringify([projectId, repo]);
 }
 
-const visibleOverviewDemand = new SvelteSet<string>();
+type VisibleGitRefreshDemand = { pullRequests: boolean };
+
+const visibleGitRefreshDemand = new SvelteMap<
+  string,
+  VisibleGitRefreshDemand
+>();
 
 const automaticRefreshScheduler = new GitAutoRefreshScheduler(
   {
@@ -90,14 +96,14 @@ const automaticRefreshScheduler = new GitAutoRefreshScheduler(
   },
 );
 
-export function setGitOverviewRefreshVisible(
+export function setGitPanelRefreshDemand(
   projectId: string,
   repo: string,
-  visible: boolean,
+  demand: VisibleGitRefreshDemand | undefined,
 ): void {
   const key = automaticRefreshKey(projectId, repo);
-  if (visible) visibleOverviewDemand.add(key);
-  else visibleOverviewDemand.delete(key);
+  if (demand) visibleGitRefreshDemand.set(key, demand);
+  else visibleGitRefreshDemand.delete(key);
 }
 
 export function invalidateGitOverviewFromFilesystem(
@@ -111,7 +117,7 @@ export function invalidateGitOverviewFromFilesystem(
   if (!state) return;
   state.overviewInvalidated = true;
   if (
-    visibleOverviewDemand.has(automaticRefreshKey(projectId, repo)) &&
+    visibleGitRefreshDemand.has(automaticRefreshKey(projectId, repo)) &&
     (typeof document === "undefined" || document.visibilityState === "visible")
   )
     scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
@@ -540,6 +546,50 @@ export function autoRefreshPrsIfStale(projectId: string, repo: string): void {
   )
     return;
   scheduleAutomaticGitRefresh(projectId, repo, { prs: true });
+}
+
+export type ActivePrPollingDemand = {
+  projectId: string;
+  repo: string;
+  number: number;
+  pending: boolean;
+};
+
+export function refreshVisibleGitDemand(): void {
+  if (typeof document !== "undefined" && document.visibilityState !== "visible")
+    return;
+  for (const [key, demand] of visibleGitRefreshDemand) {
+    const [projectId, repo] = JSON.parse(key) as [string, string];
+    autoRefreshGitOverview(projectId, repo);
+    if (demand.pullRequests) autoRefreshPrsIfStale(projectId, repo);
+  }
+}
+
+export function pollVisiblePendingPrLists(
+  activePr?: ActivePrPollingDemand,
+): void {
+  const visible =
+    typeof document === "undefined" || document.visibilityState === "visible";
+  if (!visible) return;
+  for (const [key, demand] of visibleGitRefreshDemand) {
+    if (!demand.pullRequests) continue;
+    const [projectId, repo] = JSON.parse(key) as [string, string];
+    const state =
+      gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+        gitRepoStateKey(repo)
+      ];
+    if (!state) continue;
+    const activeMatches =
+      activePr?.projectId === projectId && activePr.repo === repo;
+    const targets = pendingPollTargets({
+      visible,
+      prs: state.prs,
+      activePrNumber: activeMatches ? activePr.number : undefined,
+      activePrPending: Boolean(activeMatches && activePr.pending),
+    });
+    if (targets.pollList)
+      scheduleAutomaticGitRefresh(projectId, repo, { prs: true });
+  }
 }
 
 export function selectGitProject(project: ProjectRecord): void {

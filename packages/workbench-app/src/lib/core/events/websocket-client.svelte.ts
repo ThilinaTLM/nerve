@@ -58,7 +58,7 @@ import {
   workspaceState,
   type CenterTabIdentity,
 } from "$lib/features/workspace/state/workspace-state.svelte";
-import { selectCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
+import { selectCenterTab } from "$lib/features/workspace/state/center-tab-lifecycle.svelte";
 import { runWorkbenchStartupSequence } from "$lib/core/startup/workbench-startup-sequence";
 import {
   beginWorkbenchStartup,

@@ -17,7 +17,6 @@ export const settingsState = $state({
   settingsDraft: undefined as Settings | undefined,
   settingsSaveStatus: "idle" as "idle" | "dirty" | "saving" | "saved" | "error",
   settingsMessage: undefined as string | undefined,
-  settingsTabOpen: false,
   activePageId: "workbench",
   activeSectionId: "appearance",
 });

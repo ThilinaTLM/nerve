@@ -22,18 +22,13 @@ import {
 } from "$lib/api";
 import { queryClient, queryKeys } from "$lib/core/query";
 import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
-import { prViewKey } from "$lib/core/state/state-keys";
-import {
-  gitState,
-  type PrResourceState,
-  type PrViewState,
-} from "./git-state.svelte";
+import type { PrResourceState, PrViewState } from "./git-state.svelte";
 import {
   applyPrChecks,
   applyPrCore,
   removeOpenPr,
 } from "./git-panel-state.svelte";
-import { GIT_STALE_MS, PR_PENDING_POLL_MS } from "./git-refresh-policy";
+import { GIT_STALE_MS } from "./git-refresh-policy";
 import { prFileDiffStateKey } from "./pr-file-diff";
 
 export const GIT_RESOURCE_STALE_MS = GIT_STALE_MS;
@@ -562,49 +557,14 @@ export async function refreshCurrentPr(view: PrViewState): Promise<void> {
   }
 }
 
-let activePrId: string | undefined;
-let timer: number | undefined;
-let refreshContextOnFocus: (() => void) | undefined;
-
-export function setActivePrRefreshDemand(id: string | undefined): void {
-  activePrId = id;
-}
-
-function pollActivePr(): void {
-  if (typeof document !== "undefined" && document.visibilityState !== "visible")
-    return;
-  const view = activePrId ? gitState.prViews[prViewKey(activePrId)] : undefined;
+export function refreshPendingPrChecks(view: PrViewState): void {
   if (
-    view?.checks.data?.checks.status === "pending" &&
+    view.checks.data?.checks.status === "pending" &&
     !view.checks.loading &&
     !view.checks.refreshing
   ) {
     void loadPrSection(view, "checks", { force: true, silent: true });
   }
-}
-
-function refreshVisibleDemand(): void {
-  pollActivePr();
-  if (document.visibilityState === "visible") refreshContextOnFocus?.();
-}
-
-export function startGitRefreshCoordinator(onFocus?: () => void): () => void {
-  if (typeof window === "undefined" || timer !== undefined)
-    return stopGitRefreshCoordinator;
-  refreshContextOnFocus = onFocus;
-  timer = window.setInterval(pollActivePr, PR_PENDING_POLL_MS);
-  window.addEventListener("focus", refreshVisibleDemand);
-  document.addEventListener("visibilitychange", refreshVisibleDemand);
-  return stopGitRefreshCoordinator;
-}
-
-export function stopGitRefreshCoordinator(): void {
-  if (typeof window === "undefined") return;
-  if (timer !== undefined) window.clearInterval(timer);
-  timer = undefined;
-  refreshContextOnFocus = undefined;
-  window.removeEventListener("focus", refreshVisibleDemand);
-  document.removeEventListener("visibilitychange", refreshVisibleDemand);
 }
 
 export async function applyMergedPr(view: PrViewState): Promise<void> {

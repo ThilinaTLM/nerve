@@ -30,7 +30,11 @@ import { notify } from "$lib/features/notifications/notify.svelte";
 import { loadTaskLogWindow } from "$lib/features/tasks/state/task-logs.svelte";
 import { resolveSelectedTaskId } from "$lib/features/tasks/state/task-reducers";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import {
+  conversationContextState,
+  resetConversationContext,
+} from "$lib/features/workspace/state/selection.svelte";
+import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import {
   workspaceState,
   type CenterTabIdentity,
@@ -38,12 +42,12 @@ import {
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
 import { projectForNewConversation } from "./new-conversation-project";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
-import { selectCenterTab, setActiveCenterTab } from "./center-tabs.svelte";
+import { selectCenterTab } from "./center-tab-lifecycle.svelte";
+import { setActiveCenterTab } from "./center-tabs.svelte";
 import {
   applyVisibleSession,
   hydrateWorkspaceTabSessions,
   persistWorkspaceTabSessions,
-  removeTabsFromAllSessions,
   saveVisibleProjectSession,
 } from "./workspace-tab-sessions";
 export async function loadWorkspaceState() {
@@ -96,9 +100,9 @@ async function applyWorkspaceSnapshot(
       (task) => task.definitionId ?? task.restartRootTaskId ?? task.id,
     ),
   );
-  const staleOpenTaskIds = taskState.openTaskTabIds.filter(
-    (taskId) => !taskEntryIds.has(taskId),
-  );
+  const staleOpenTaskIds = workspaceState.openCenterTabs
+    .filter((tab) => tab.kind === "task" && !taskEntryIds.has(tab.id))
+    .map((tab) => tab.id);
   if (staleOpenTaskIds.length) {
     await closeCenterTabs(
       staleOpenTaskIds.map((id) => ({ kind: "task" as const, id })),
@@ -119,9 +123,11 @@ async function applyWorkspaceSnapshot(
   const conversationIds = new SvelteSet(
     snapshot.snapshot.conversations.map((conversation) => conversation.id),
   );
-  const staleOpenTabIds = conversationState.openConversationTabIds.filter(
-    (conversationId) => !conversationIds.has(conversationId),
-  );
+  const staleOpenTabIds = workspaceState.openCenterTabs
+    .filter(
+      (tab) => tab.kind === "conversation" && !conversationIds.has(tab.id),
+    )
+    .map((tab) => tab.id);
   if (staleOpenTabIds.length) await removeConversationTabs(staleOpenTabIds);
   if (selectedTaskId && !options.deferTabActivation)
     await loadTaskLogWindow(selectedTaskId);
@@ -157,8 +163,10 @@ function syncSelectedAgentConfig(
   agents: AgentRecord[],
   conversations: ConversationRecord[],
 ): void {
-  const activeAgent = selection.agentId
-    ? agents.find((agent) => agent.id === selection.agentId)
+  const activeAgent = conversationContextState.selectedAgentId
+    ? agents.find(
+        (agent) => agent.id === conversationContextState.selectedAgentId,
+      )
     : undefined;
   if (activeAgent) {
     // A pending desired override outranks the snapshot for its agent so a
@@ -180,11 +188,11 @@ function syncSelectedAgentConfig(
     return;
   }
 
-  const activeConversation = selection.conversationId
-    ? conversations.find(
-        (conversation) => conversation.id === selection.conversationId,
-      )
-    : undefined;
+  const activeTab = workspaceState.activeCenterTab;
+  const activeConversation =
+    activeTab?.kind === "conversation"
+      ? conversations.find((conversation) => conversation.id === activeTab.id)
+      : undefined;
   if (!activeConversation) return;
   conversationState.selectedMode = activeConversation.mode;
   conversationState.selectedPermissionLevel =
@@ -200,20 +208,25 @@ export async function loadSlashCommands() {
 }
 
 export function exportUrl(kind: "json" | "md" | "html"): string | undefined {
-  if (!selection.conversationId) return undefined;
+  const conversationId = workspaceSelectors.contextConversation?.id;
+  if (!conversationId) return undefined;
   const suffix = kind === "json" ? "export" : `export.${kind}`;
-  return `/api/conversations/${apiPathSegment(selection.conversationId)}/${suffix}`;
+  return `/api/conversations/${apiPathSegment(conversationId)}/${suffix}`;
 }
 
 export function systemPromptUrl(): string | undefined {
-  if (!selection.agentId) return undefined;
-  return `/api/agents/${apiPathSegment(selection.agentId)}/system-prompt`;
+  const agentId = conversationContextState.selectedAgentId;
+  if (!agentId) return undefined;
+  return `/api/agents/${apiPathSegment(agentId)}/system-prompt`;
 }
 
 export async function completeFiles(query: string): Promise<CompletionItem[]> {
   return queryClient.fetchQuery({
-    queryKey: queryKeys.fileCompletions(selection.projectId, query),
-    queryFn: () => getFileCompletions(selection.projectId, query),
+    queryKey: queryKeys.fileCompletions(
+      workspaceState.selectedProjectId,
+      query,
+    ),
+    queryFn: () => getFileCompletions(workspaceState.selectedProjectId, query),
     staleTime: 2_000,
   });
 }
@@ -232,7 +245,6 @@ export async function selectProject(
     workspaceState.selectedProjectId
   ) {
     workspaceState.selectedProjectId = project.id;
-    selection.projectId = project.id;
     workspaceState.projectRecency[key] = Date.now();
     persistWorkspaceTabSessions();
     return;
@@ -246,10 +258,7 @@ export async function selectProject(
   const session = applyVisibleSession(key, {
     deferActivation: options.deferTabActivation,
   });
-  selection.projectId = project.id;
-  selection.conversationId = undefined;
-  selection.agentId = undefined;
-  selection.entryId = undefined;
+  resetConversationContext();
   persistWorkspaceTabSessions();
   if (options.deferTabActivation) return session.active;
   if (session.active) await selectCenterTab(session.active);
@@ -337,9 +346,6 @@ export async function deleteProjectAndRefresh(projectId: string) {
 export async function deleteConversationAndRefresh(conversationId: string) {
   try {
     await deleteConversation(conversationId);
-    removeTabsFromAllSessions(
-      (tab) => tab.kind === "conversation" && tab.id === conversationId,
-    );
     await removeConversationTabs([conversationId]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();

@@ -11,18 +11,14 @@ import {
 import type { ProjectRecord } from "$lib/api";
 import { openDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
-import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import {
   gitProjectStateKey,
   gitRepoStateKey,
 } from "$lib/core/state/state-keys";
-import { pendingPollTargets, PR_PENDING_POLL_MS } from "./git-refresh-policy";
 import { workbenchStartupState } from "$lib/core/startup/workbench-startup-state.svelte";
 import { shouldActivateGitPanel } from "./git-startup-policy";
 import {
   applyGitRepoStash,
-  autoRefreshGitOverview,
-  autoRefreshPrsIfStale,
   createGitRepoBranch,
   createGitRepoStash,
   fetchGitRepo,
@@ -40,7 +36,8 @@ import {
   refreshPrs,
   selectGitProject,
   setGitChangeTreeFolderExpanded,
-  setGitOverviewRefreshVisible,
+  refreshVisibleGitDemand,
+  setGitPanelRefreshDemand,
   selectGitRepo,
   switchBaseAndPullGitRepo,
   switchGitRepoBranch,
@@ -347,64 +344,15 @@ export function createWorkbenchGitPanelAdapter(
     const repository = projectState?.selectedRepo;
     if (!active || !project || !projectState?.repos.length || !repository)
       return;
-    setGitOverviewRefreshVisible(project.id, repository, true);
-    const refreshIfStale = () => {
-      autoRefreshGitOverview(project.id, repository);
-      if (pullRequestsEnabled()) autoRefreshPrsIfStale(project.id, repository);
-    };
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") refreshIfStale();
-    };
-    refreshIfStale();
-    window.addEventListener("focus", refreshIfStale);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      setGitOverviewRefreshVisible(project.id, repository, false);
-      window.removeEventListener("focus", refreshIfStale);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
-  });
-
-  $effect(() => {
-    const active =
-      workbenchStartupState.progressiveActive &&
-      enabled() &&
-      pullRequestsEnabled();
-    const project = activeProject();
-    const projectState = project
-      ? gitPanelState.projects[gitProjectStateKey(project.id)]
-      : undefined;
-    const repository = projectState?.selectedRepo;
-    const repoState = repository
-      ? projectState?.repoStates[gitRepoStateKey(repository)]
-      : undefined;
-    const pullRequests = repoState?.prs ?? [];
-    const activePr = gitSelectors.activeCenterPrView;
-    if (
-      !active ||
-      !project ||
-      !projectState?.repos.length ||
-      !repository ||
-      !repoState?.repoSummary?.hasGithubRemote ||
-      !repoState.github?.authenticated
-    )
-      return;
-    const activePrMatches =
-      activePr?.projectId === project.id && activePr.repo === repository;
-    const targets = pendingPollTargets({
-      visible: document.visibilityState === "visible",
-      prs: pullRequests,
-      activePrNumber: activePrMatches ? activePr?.number : undefined,
-      activePrPending:
-        activePrMatches && activePr?.checks.data?.checks.status === "pending",
-    });
-    if (!targets.pollList) return;
-    const refresh = () => {
-      if (document.visibilityState === "visible")
-        void refreshPrs(project.id, repository, true, true);
-    };
-    const interval = window.setInterval(refresh, PR_PENDING_POLL_MS);
-    return () => window.clearInterval(interval);
+    const repoState = projectState.repoStates[gitRepoStateKey(repository)];
+    const pullRequests = Boolean(
+      pullRequestsEnabled() &&
+      repoState?.repoSummary?.hasGithubRemote &&
+      repoState.github?.authenticated,
+    );
+    setGitPanelRefreshDemand(project.id, repository, { pullRequests });
+    refreshVisibleGitDemand();
+    return () => setGitPanelRefreshDemand(project.id, repository, undefined);
   });
 
   return adapter;

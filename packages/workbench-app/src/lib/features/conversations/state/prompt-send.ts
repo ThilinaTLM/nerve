@@ -30,8 +30,9 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 import { replaceCenterTab } from "$lib/features/workspace/state/center-tabs.svelte";
 import {
   composerDraft,
-  selection,
+  conversationContextState,
 } from "$lib/features/workspace/state/selection.svelte";
+import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { executeComposerSlashCommand } from "./composer-slash-command";
@@ -55,19 +56,19 @@ export function setActiveComposerText(value: string) {
     pending.composerText = value;
     return;
   }
-  if (!selection.conversationId) {
+  const conversationId = workspaceSelectors.activeConversationId;
+  if (!conversationId) {
     composerDraft.text = value;
     return;
   }
-  ensureConversationView(selection.conversationId).composerText = value;
+  ensureConversationView(conversationId).composerText = value;
 }
 
 function clearActiveComposerText(): void {
   const pending = activePendingConversation();
   if (pending) pending.composerText = "";
-  if (selection.conversationId) {
-    ensureConversationView(selection.conversationId).composerText = "";
-  }
+  const conversationId = workspaceSelectors.activeConversationId;
+  if (conversationId) ensureConversationView(conversationId).composerText = "";
   composerDraft.text = "";
 }
 
@@ -75,7 +76,7 @@ export async function ensureAgent(): Promise<string> {
   const agent = currentActiveAgent();
   if (agent) {
     const agentId = agent.id;
-    selection.agentId = agentId;
+    conversationContextState.selectedAgentId = agentId;
     // First flush an already-published local intent. Only compute a fallback
     // delta afterward, avoiding a redundant duplicate configuration request
     // based on the still-stale authoritative agent record.
@@ -107,11 +108,13 @@ export async function ensureAgent(): Promise<string> {
     await flushAgentConfigChanges(agentId);
     return agentId;
   }
-  if (selection.projectId && selection.conversationId) {
+  const projectId = workspaceState.selectedProjectId;
+  const conversationId = workspaceSelectors.activeConversationId;
+  if (projectId && conversationId) {
     const { agent } = (
       await protocolRequest("agent.create", {
-        projectId: selection.projectId,
-        conversationId: selection.conversationId,
+        projectId,
+        conversationId,
         model: selectedModel(),
         thinkingLevel: selectedThinkingLevel(),
         mode: conversationState.selectedMode,
@@ -119,7 +122,7 @@ export async function ensureAgent(): Promise<string> {
         approvalPolicy: conversationState.selectedApprovalPolicy,
       })
     ).result;
-    selection.agentId = agent.id;
+    conversationContextState.selectedAgentId = agent.id;
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     return agent.id;
@@ -203,11 +206,8 @@ async function sendPendingPrompt(
       { kind: "pending-conversation", id: pending.id },
       { kind: "conversation", id: conversation.id },
     );
-    conversationState.activeConversationTabId = conversation.id;
-    selection.projectId = conversation.projectId;
-    selection.conversationId = conversation.id;
-    selection.entryId = conversation.activeEntryId;
-    selection.agentId = agent.id;
+    workspaceState.selectedProjectId = conversation.projectId;
+    conversationContextState.selectedAgentId = agent.id;
     composerDraft.projectDir = pending.projectDir;
     const preservedComposerText = clearComposer ? "" : pending.composerText;
     delete conversationState.pendingConversations[
@@ -258,8 +258,9 @@ export async function sendPromptText(
 ) {
   const clearComposer = options.clearComposer ?? true;
   const pending = activePendingConversation();
-  const view = selection.conversationId
-    ? ensureConversationView(selection.conversationId)
+  const conversationId = workspaceSelectors.activeConversationId;
+  const view = conversationId
+    ? ensureConversationView(conversationId)
     : undefined;
   const text = rawText.trim();
   if (!text || pending?.sending) return;
@@ -267,7 +268,7 @@ export async function sendPromptText(
     await sendPendingPrompt(pending, text, { clearComposer });
     return;
   }
-  if (!selection.projectId || !selection.conversationId || !view) {
+  if (!workspaceState.selectedProjectId || !conversationId || !view) {
     workspaceState.projectPickerOpen = true;
     const message =
       "Select a project directory before starting a conversation.";
@@ -335,8 +336,9 @@ export async function sendPromptText(
 
 export async function sendPrompt() {
   const pending = activePendingConversation();
-  const view = selection.conversationId
-    ? ensureConversationView(selection.conversationId)
+  const conversationId = workspaceSelectors.activeConversationId;
+  const view = conversationId
+    ? ensureConversationView(conversationId)
     : undefined;
   const text = (
     pending?.composerText ??

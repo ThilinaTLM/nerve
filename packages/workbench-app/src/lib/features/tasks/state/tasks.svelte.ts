@@ -12,16 +12,12 @@ import {
   refreshTaskLogWindow,
 } from "$lib/features/tasks/state/task-logs.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
-import {
-  activateFallbackCenterTab,
-  removeCenterTab,
-} from "$lib/features/workspace/state/center-tabs.svelte";
+import { closeCenterTab } from "$lib/features/workspace/state/center-tab-actions.svelte";
 import {
   setTaskEntryRun,
   taskEntryKey,
 } from "$lib/features/tasks/state/task-tabs.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 export async function selectTask(taskId: string) {
   taskState.selectedTaskId = taskId;
   await loadTaskLogWindow(taskId);
@@ -59,7 +55,7 @@ export async function restartSelectedTask(taskId: string) {
   });
 }
 
-function forgetTask(taskId: string) {
+async function forgetTask(taskId: string) {
   const entryId = taskEntryKey(taskId);
   const remaining = taskState.tasks
     .filter(
@@ -69,13 +65,7 @@ function forgetTask(taskId: string) {
     )
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   if (remaining[0]) setTaskEntryRun(entryId, remaining[0].id);
-  else removeCenterTab({ kind: "task", id: entryId });
-  if (
-    workspaceState.activeCenterTab?.kind === "task" &&
-    workspaceState.activeCenterTab.id === taskId
-  ) {
-    activateFallbackCenterTab();
-  }
+  else await closeCenterTab({ kind: "task", id: entryId });
   if (taskState.selectedTaskId === taskId) {
     taskState.selectedTaskId = undefined;
     taskState.taskLogs = undefined;
@@ -84,7 +74,7 @@ function forgetTask(taskId: string) {
 
 export async function removeTask(taskId: string) {
   await deleteTask(taskId);
-  forgetTask(taskId);
+  await forgetTask(taskId);
   await loadWorkspaceState();
   notify.success("Task removed");
 }
@@ -98,7 +88,7 @@ export async function cleanupTaskRuns(taskIds: readonly string[]) {
     (_, index) => results[index]?.status === "fulfilled",
   );
   const failed = ids.length - removed.length;
-  for (const id of removed) forgetTask(id);
+  for (const id of removed) await forgetTask(id);
   await loadWorkspaceState();
 
   if (removed.length > 0) {
@@ -119,7 +109,7 @@ export async function cleanupTaskRuns(taskIds: readonly string[]) {
 
 export async function pruneFinishedTasks() {
   const { removed } = await pruneTasks();
-  for (const id of removed) forgetTask(id);
+  for (const id of removed) await forgetTask(id);
   await loadWorkspaceState();
   notify.success(
     removed.length === 1

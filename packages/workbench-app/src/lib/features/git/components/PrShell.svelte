@@ -8,8 +8,8 @@ import {
   loadPrCore,
   loadPrSection,
   selectedPrFileDiffResource,
-  setActivePrRefreshDemand,
 } from "$lib/features/git/state/git-refresh-coordinator.svelte";
+import { setActivePrRefreshDemand } from "$lib/features/git/state/git-refresh-lifecycle.svelte";
 import { refreshPrs } from "$lib/features/git/state/git-panel-refresh.svelte";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
 import {

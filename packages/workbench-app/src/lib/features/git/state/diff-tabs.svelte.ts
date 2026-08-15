@@ -8,9 +8,6 @@ import {
 import { showCriticalError } from "$lib/features/notifications/critical-errors.svelte";
 import {
   addCenterTab,
-  nextCenterTabAfterClose,
-  removeCenterTab,
-  selectCenterTab,
   setActiveCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
@@ -93,13 +90,6 @@ export async function refreshDiffPane(id: string): Promise<void> {
   if (view && !view.loading && !view.refreshing) await loadDiffView(view, true);
 }
 
-export function closeDiffTab(id: string): void {
-  const tab = { kind: "diff" as const, id };
-  const closingActive =
-    workspaceState.activeCenterTab?.kind === "diff" &&
-    workspaceState.activeCenterTab.id === id;
-  const fallback = nextCenterTabAfterClose(tab);
-  removeCenterTab(tab);
+export function disposeDiffTab(id: string): void {
   delete gitState.diffViews[diffViewKey(id)];
-  if (closingActive) void selectCenterTab(fallback);
 }

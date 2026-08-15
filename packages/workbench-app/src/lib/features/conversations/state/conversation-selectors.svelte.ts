@@ -10,14 +10,12 @@ import {
 } from "$lib/core/state/state-keys";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { usageState } from "$lib/features/usage/state/usage-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { conversationState } from "./conversation-state.svelte";
 
 function activeView() {
-  const conversationId =
-    selection.conversationId ?? conversationState.activeConversationTabId;
+  const conversationId = workspaceSelectors.activeConversationId;
   if (!conversationId) return undefined;
   return conversationState.conversationViews[
     conversationViewKey(conversationId)
@@ -49,8 +47,8 @@ export const conversationSelectors = {
     return Boolean(activePendingConversation());
   },
   get activeUserQuestion() {
-    const conversationId = selection.conversationId;
-    const agentId = selection.agentId;
+    const conversationId = workspaceSelectors.activeConversationId;
+    const agentId = workspaceSelectors.activeAgent?.id;
     return workspaceState.userQuestions.find((question) => {
       if (conversationId && question.conversationId === conversationId)
         return true;
@@ -58,8 +56,8 @@ export const conversationSelectors = {
     });
   },
   get activePlanReview() {
-    const conversationId = selection.conversationId;
-    const agentId = selection.agentId;
+    const conversationId = workspaceSelectors.activeConversationId;
+    const agentId = workspaceSelectors.activeAgent?.id;
     return workspaceState.planReviews.find((review) => {
       if (conversationId && review.conversationId === conversationId)
         return true;
@@ -71,7 +69,8 @@ export const conversationSelectors = {
   },
   get conversationAgents() {
     return workspaceState.agents.filter(
-      (agent) => agent.conversationId === selection.conversationId,
+      (agent) =>
+        agent.conversationId === workspaceSelectors.activeConversationId,
     );
   },
   get pendingApprovalCount() {
@@ -127,9 +126,7 @@ export const conversationSelectors = {
     return activeView()?.contextUsage;
   },
   get activeModelInfo() {
-    const model = workspaceState.agents.find(
-      (agent) => agent.id === selection.agentId,
-    )?.model;
+    const model = workspaceSelectors.activeAgent?.model;
     if (!model) return undefined;
     return settingsState.models.find(
       (candidate) =>
@@ -182,8 +179,7 @@ export const conversationSelectors = {
   },
   get activeSubscriptionProvider() {
     return (
-      workspaceState.agents.find((agent) => agent.id === selection.agentId)
-        ?.model?.provider ??
+      workspaceSelectors.activeAgent?.model?.provider ??
       parseModelKey(conversationState.selectedModelKey)?.provider
     );
   },

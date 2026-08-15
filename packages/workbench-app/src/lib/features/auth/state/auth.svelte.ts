@@ -2,12 +2,8 @@ import { getProviderCatalog } from "$lib/api";
 import { loadSettingsPanel } from "$lib/features/settings/state/settings-actions.svelte";
 import {
   addCenterTab,
-  nextCenterTabAfterClose,
-  removeCenterTab,
-  selectCenterTab,
   setActiveCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
-import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { authState } from "./auth-state.svelte";
 
 const AUTH_TAB = { kind: "auth" as const, id: "auth" as const };
@@ -34,11 +30,14 @@ export function selectCenterAuthTab(pageId?: string, sectionId?: string) {
   if (!authState.catalogLoaded) void loadAuthPanel();
 }
 
-export function closeAuthTab() {
-  const closingActive = workspaceState.activeCenterTab?.kind === "auth";
-  const fallback = nextCenterTabAfterClose(AUTH_TAB);
-  removeCenterTab(AUTH_TAB);
-  if (closingActive) void selectCenterTab(fallback);
+export function disposeAuthTab(): void {}
+
+function applyProviderCatalog(
+  catalog: Awaited<ReturnType<typeof getProviderCatalog>>,
+): void {
+  authState.customProviders = catalog.providers;
+  authState.modelDefinitions = catalog.models;
+  authState.catalogLoaded = true;
 }
 
 /** Load the provider catalog and refresh shared provider/model state. */
@@ -47,16 +46,12 @@ export async function loadAuthPanel() {
     getProviderCatalog(),
     loadSettingsPanel(),
   ]);
-  authState.customProviders = catalog.providers;
-  authState.modelDefinitions = catalog.models;
-  authState.catalogLoaded = true;
+  applyProviderCatalog(catalog);
 }
 
 /** Refresh only the catalog (after a mutation); also refreshes providers. */
 export async function refreshProviderCatalog() {
   const catalog = await getProviderCatalog();
-  authState.customProviders = catalog.providers;
-  authState.modelDefinitions = catalog.models;
-  authState.catalogLoaded = true;
+  applyProviderCatalog(catalog);
   await loadSettingsPanel();
 }

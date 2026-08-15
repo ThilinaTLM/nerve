@@ -1,5 +1,7 @@
 import { onEvent } from "$lib/core/events/event-bus";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { conversationContextState } from "$lib/features/workspace/state/selection.svelte";
+import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import {
   refreshPromptSuggestionStatuses,
   refreshPromptSuggestions,
@@ -7,10 +9,11 @@ import {
 
 export function registerPromptSuggestionEventHandlers(): () => void {
   const refresh = () => {
-    void refreshPromptSuggestionStatuses(selection.projectId);
-    void refreshPromptSuggestions(selection.projectId, {
-      conversationId: selection.conversationId,
-      agentId: selection.agentId,
+    const projectId = workspaceState.selectedProjectId;
+    void refreshPromptSuggestionStatuses(projectId);
+    void refreshPromptSuggestions(projectId, {
+      conversationId: workspaceSelectors.activeConversationId,
+      agentId: conversationContextState.selectedAgentId,
     });
   };
   const dispose = [

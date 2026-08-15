@@ -23,7 +23,6 @@ import { uploadClipboardImage } from "$lib/features/filesystem/api/filesystem.ap
 import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
 import { getDesktopBridge } from "$lib/features/desktop/state/desktop-bridge.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { completeFiles } from "$lib/features/workspace/state/workspace-actions.svelte";
 
@@ -52,7 +51,7 @@ export function workbenchConversationUiCapabilities(): ConversationUiCapabilitie
       dropFiles: async (files) => {
         const bridge = getDesktopBridge();
         const project = workspaceState.projects.find(
-          (item) => item.id === selection.projectId,
+          (item) => item.id === workspaceState.selectedProjectId,
         );
         if (!bridge?.files || !project) {
           throw new Error("Native file paths are unavailable in this window.");

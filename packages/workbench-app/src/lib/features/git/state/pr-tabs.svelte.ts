@@ -20,9 +20,6 @@ import {
 } from "$lib/features/git/state/pr-sync";
 import {
   addCenterTab,
-  nextCenterTabAfterClose,
-  removeCenterTab,
-  selectCenterTab,
   setActiveCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
@@ -195,13 +192,6 @@ export function selectPrMergeMethod(
   if (view) view.selectedMergeMethod = method;
 }
 
-export function closePrTab(id: string): void {
-  const tab = { kind: "pr" as const, id };
-  const closingActive =
-    workspaceState.activeCenterTab?.kind === "pr" &&
-    workspaceState.activeCenterTab.id === id;
-  const fallback = nextCenterTabAfterClose(tab);
-  removeCenterTab(tab);
+export function disposePrTab(id: string): void {
   delete gitState.prViews[prViewKey(id)];
-  if (closingActive) void selectCenterTab(fallback);
 }

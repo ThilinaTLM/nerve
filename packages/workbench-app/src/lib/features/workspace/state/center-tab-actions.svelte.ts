@@ -1,34 +1,20 @@
-import {
-  type VoiceInputTarget,
-  voiceInputSession,
-} from "$lib/core/audio/voice-input-session.svelte";
-import {
-  conversationViewKey,
-  diffViewKey,
-  fileViewKey,
-  pendingConversationKey,
-} from "$lib/core/state/state-keys";
+import { SvelteSet } from "svelte/reactivity";
 import type { CenterTabIdentity } from "$lib/core/types/state-types";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
-import { gitState } from "$lib/features/git/state/git-state.svelte";
-import { taskState } from "$lib/features/tasks/state/task-state.svelte";
-import {
-  composerDraft,
-  resetSelection,
-  selection,
-} from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import {
   centerTabKey,
   centerTabsEqual,
   replaceOpenCenterTabs,
-  selectCenterTab,
   setActiveCenterTab,
 } from "./center-tabs.svelte";
 import {
+  disposeCenterTab,
+  notifyCenterTabClosed,
+  selectCenterTab,
+} from "./center-tab-lifecycle.svelte";
+import { planCenterTabClose } from "./center-tab-close-plan";
+import {
   isGlobalCenterTab,
-  mostRecentRemainingTab,
   removeGlobalTabFromSessions,
 } from "./workspace-tab-sessions";
 
@@ -36,25 +22,6 @@ function tabIndex(tab: CenterTabIdentity): number {
   return workspaceState.openCenterTabs.findIndex((candidate) =>
     centerTabsEqual(candidate, tab),
   );
-}
-
-function tabIsInList(
-  tab: CenterTabIdentity | undefined,
-  tabs: CenterTabIdentity[],
-): tab is CenterTabIdentity {
-  return Boolean(
-    tab && tabs.some((candidate) => centerTabsEqual(candidate, tab)),
-  );
-}
-
-function targetSet(tabs: CenterTabIdentity[]): Set<string> {
-  return new Set(tabs.map(centerTabKey));
-}
-
-function resetConversationSelection() {
-  resetSelection();
-  workspaceState.error = undefined;
-  composerDraft.text = "";
 }
 
 export function centerTabsToLeftOf(
@@ -85,103 +52,41 @@ export function hasCenterTabsToRightOf(tab: CenterTabIdentity): boolean {
   return centerTabsToRightOf(tab).length > 0;
 }
 
+export async function closeCenterTab(tab: CenterTabIdentity): Promise<void> {
+  await closeCenterTabs([tab]);
+}
+
 export async function closeCenterTabs(
   tabs: CenterTabIdentity[],
   fallbackPreferred?: CenterTabIdentity,
-) {
-  const targets = targetSet(tabs);
-  if (!targets.size) return;
+): Promise<void> {
+  const requested = new SvelteSet(tabs.map(centerTabKey));
+  const targets = workspaceState.openCenterTabs.filter((tab) =>
+    requested.has(centerTabKey(tab)),
+  );
+  if (!targets.length) return;
 
-  const originalTabs = [...workspaceState.openCenterTabs];
-  const closingIndices = originalTabs
-    .map((tab, index) => (targets.has(centerTabKey(tab)) ? index : -1))
-    .filter((index) => index !== -1);
-  if (!closingIndices.length) return;
-
-  const remainingTabs = originalTabs.filter(
-    (tab) => !targets.has(centerTabKey(tab)),
-  );
-  const activeWasClosed = Boolean(
-    workspaceState.activeCenterTab &&
-    targets.has(centerTabKey(workspaceState.activeCenterTab)),
-  );
-  const selectedConversationWasClosed = Boolean(
-    selection.conversationId &&
-    targets.has(
-      centerTabKey({ kind: "conversation", id: selection.conversationId }),
-    ),
-  );
-  const activePendingWasClosed = Boolean(
-    workspaceState.activeCenterTab?.kind === "pending-conversation" &&
-    targets.has(centerTabKey(workspaceState.activeCenterTab)),
-  );
-  const fallback = tabIsInList(fallbackPreferred, remainingTabs)
-    ? fallbackPreferred
-    : mostRecentRemainingTab(tabs);
-
-  const voiceTargets: VoiceInputTarget[] = [];
-  for (const tab of originalTabs) {
-    if (!targets.has(centerTabKey(tab))) continue;
-    if (tab.kind === "conversation")
-      voiceTargets.push({ kind: "conversation", id: tab.id });
-    if (tab.kind === "pending-conversation")
-      voiceTargets.push({ kind: "pending-conversation", id: tab.id });
+  const closed: CenterTabIdentity[] = [];
+  for (const tab of targets) {
+    if (await disposeCenterTab(tab)) closed.push(tab);
   }
-  await voiceInputSession.cancelIfTargets(voiceTargets);
+  if (!closed.length) return;
 
-  for (const tab of tabs) {
+  const { remainingTabs, activeWasClosed, fallback } = planCenterTabClose({
+    openTabs: workspaceState.openCenterTabs,
+    activeTab: workspaceState.activeCenterTab,
+    mru: workspaceState.centerTabMru,
+    closedTabs: closed,
+    preferredFallback: fallbackPreferred,
+  });
+
+  for (const tab of closed) {
     if (isGlobalCenterTab(tab)) removeGlobalTabFromSessions(tab);
   }
   replaceOpenCenterTabs(remainingTabs);
 
-  for (const tab of originalTabs) {
-    if (!targets.has(centerTabKey(tab))) continue;
-    if (tab.kind === "file") delete fileState.fileViews[fileViewKey(tab.id)];
-    if (tab.kind === "diff") delete gitState.diffViews[diffViewKey(tab.id)];
-    if (tab.kind === "conversation")
-      delete conversationState.conversationViews[conversationViewKey(tab.id)];
-    if (tab.kind === "pending-conversation")
-      delete conversationState.pendingConversations[
-        pendingConversationKey(tab.id)
-      ];
-  }
-
-  if (
-    taskState.selectedTaskId &&
-    targets.has(centerTabKey({ kind: "task", id: taskState.selectedTaskId }))
-  ) {
-    taskState.selectedTaskId = undefined;
-    taskState.taskLogs = undefined;
-  }
-
-  const remainingConversationIds = remainingTabs
-    .filter(
-      (tab): tab is Extract<CenterTabIdentity, { kind: "conversation" }> =>
-        tab.kind === "conversation",
-    )
-    .map((tab) => tab.id);
-  if (
-    conversationState.activeConversationTabId &&
-    targets.has(
-      centerTabKey({
-        kind: "conversation",
-        id: conversationState.activeConversationTabId,
-      }),
-    )
-  ) {
-    conversationState.activeConversationTabId =
-      fallback?.kind === "conversation"
-        ? fallback.id
-        : remainingConversationIds[0];
-  }
-
-  if (
-    (selectedConversationWasClosed || activePendingWasClosed) &&
-    fallback?.kind !== "conversation" &&
-    fallback?.kind !== "pending-conversation"
-  ) {
-    resetConversationSelection();
-  }
+  const context = { remainingTabs, fallback, activeWasClosed };
+  for (const tab of closed) await notifyCenterTabClosed(tab, context);
 
   if (!activeWasClosed) return;
   setActiveCenterTab(undefined);

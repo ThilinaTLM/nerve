@@ -1,57 +1,74 @@
-import { closeAuthTab, selectCenterAuthTab } from "$lib/features/auth";
+import { disposeAuthTab, selectCenterAuthTab } from "$lib/features/auth";
 import {
-  closeConversationTab,
-  closePendingConversationTab,
+  afterCloseConversationTab,
+  disposeConversationTab,
+  disposePendingConversationTab,
   openConversation,
   selectPendingConversation,
 } from "$lib/features/conversations/state/conversation-flow.svelte";
 import {
-  closeFileTab,
+  disposeFileTab,
   selectCenterFileTab,
 } from "$lib/features/filesystem/state/file-tabs.svelte";
 import {
-  closeDiffTab,
+  disposeDiffTab,
   selectCenterDiffTab,
 } from "$lib/features/git/state/diff-tabs.svelte";
 import {
-  closePrTab,
+  disposePrTab,
   selectCenterPrTab,
 } from "$lib/features/git/state/pr-tabs.svelte";
 import {
-  closeLogsTab,
+  disposeLogsTab,
   selectCenterLogsTab,
 } from "$lib/features/logs/state/logs.svelte";
 import {
-  closeSettingsTab,
+  disposeSettingsTab,
   selectCenterSettingsTab,
 } from "$lib/features/settings/state/settings-actions.svelte";
 import {
-  closeTaskTab,
+  disposeTaskTab,
   selectCenterTaskTab,
 } from "$lib/features/tasks/state/task-tabs.svelte";
-import { registerCenterTabDispatch } from "./center-tabs.svelte";
+import { registerCenterTabLifecycles } from "./center-tab-lifecycle.svelte";
 
-registerCenterTabDispatch({
-  select: {
-    conversation: (tab) => openConversation(tab.id),
-    "pending-conversation": (tab) => selectPendingConversation(tab.id),
-    task: (tab) => selectCenterTaskTab(tab.id),
-    file: (tab) => selectCenterFileTab(tab.id),
-    pr: (tab) => selectCenterPrTab(tab.id),
-    diff: (tab) => selectCenterDiffTab(tab.id),
-    settings: () => selectCenterSettingsTab(),
-    auth: () => selectCenterAuthTab(),
-    logs: () => selectCenterLogsTab(),
+registerCenterTabLifecycles({
+  conversation: {
+    select: (tab) => openConversation(tab.id),
+    dispose: (tab) => disposeConversationTab(tab.id),
+    afterClose: (tab, context) => afterCloseConversationTab(tab.id, context),
   },
-  close: {
-    conversation: (tab) => closeConversationTab(tab.id),
-    "pending-conversation": (tab) => closePendingConversationTab(tab.id),
-    task: (tab) => closeTaskTab(tab.id),
-    file: (tab) => closeFileTab(tab.id),
-    pr: (tab) => closePrTab(tab.id),
-    diff: (tab) => closeDiffTab(tab.id),
-    settings: () => closeSettingsTab(),
-    auth: () => closeAuthTab(),
-    logs: () => closeLogsTab(),
+  "pending-conversation": {
+    select: (tab) => selectPendingConversation(tab.id),
+    dispose: (tab) => disposePendingConversationTab(tab.id),
+    afterClose: (tab, context) => afterCloseConversationTab(tab.id, context),
+  },
+  task: {
+    select: (tab) => selectCenterTaskTab(tab.id),
+    dispose: (tab) => disposeTaskTab(tab.id),
+  },
+  file: {
+    select: (tab) => selectCenterFileTab(tab.id),
+    dispose: (tab) => disposeFileTab(tab.id),
+  },
+  pr: {
+    select: (tab) => selectCenterPrTab(tab.id),
+    dispose: (tab) => disposePrTab(tab.id),
+  },
+  diff: {
+    select: (tab) => selectCenterDiffTab(tab.id),
+    dispose: (tab) => disposeDiffTab(tab.id),
+  },
+  settings: {
+    select: () => selectCenterSettingsTab(),
+    dispose: () => disposeSettingsTab(),
+  },
+  auth: {
+    select: () => selectCenterAuthTab(),
+    dispose: () => disposeAuthTab(),
+  },
+  logs: {
+    select: () => selectCenterLogsTab(),
+    dispose: () => disposeLogsTab(),
   },
 });

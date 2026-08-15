@@ -3,9 +3,6 @@ import { openConversation } from "$lib/features/conversations/state/conversation
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
 import {
   addCenterTab,
-  nextCenterTabAfterClose,
-  removeCenterTab,
-  selectCenterTab,
   setActiveCenterTab,
 } from "$lib/features/workspace/state/center-tabs.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
@@ -76,13 +73,7 @@ export async function selectCenterTaskTab(entryId: string) {
   else taskState.selectedTaskId = undefined;
 }
 
-export async function closeTaskTab(entryId: string) {
-  const tab = { kind: "task" as const, id: entryId };
-  const closingActive =
-    workspaceState.activeCenterTab?.kind === "task" &&
-    workspaceState.activeCenterTab.id === entryId;
-  const fallback = nextCenterTabAfterClose(tab);
-  removeCenterTab(tab);
+export function disposeTaskTab(entryId: string): void {
   delete taskState.selectedRunByEntry[entryId];
 
   if (
@@ -92,6 +83,4 @@ export async function closeTaskTab(entryId: string) {
     taskState.selectedTaskId = undefined;
     taskState.taskLogs = undefined;
   }
-
-  if (closingActive) await selectCenterTab(fallback);
 }

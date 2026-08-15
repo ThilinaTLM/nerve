@@ -1,7 +1,7 @@
 export * from "./api/auth.api";
 export * from "./api/provider-catalog.api";
 export {
-  closeAuthTab,
+  disposeAuthTab,
   loadAuthPanel,
   openAuthPane,
   refreshProviderCatalog,

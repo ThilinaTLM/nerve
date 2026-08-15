@@ -25,8 +25,9 @@ export {
 export { clearConversationState, refreshConversationView } from "./selection";
 export { ensureConversationView } from "./state";
 export {
-  closeConversationTab,
-  closePendingConversationTab,
+  afterCloseConversationTab,
+  disposeConversationTab,
+  disposePendingConversationTab,
   openConversation,
   removeConversationTabs,
   restoreConversationTabs,

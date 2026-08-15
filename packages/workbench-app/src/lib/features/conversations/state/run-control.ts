@@ -6,7 +6,7 @@ import type { CompactionNotice } from "$lib/core/types/state-types";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { flushAgentConfigChanges } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import { loadWorkspaceState } from "$lib/features/workspace/state/workspace-actions.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { createAbortActiveRun } from "./run-abort";
@@ -17,8 +17,8 @@ export async function navigateToEntry(
   entryId: string | undefined,
   summarize = false,
 ) {
-  if (!selection.conversationId) return;
-  const conversationId = selection.conversationId;
+  const conversationId = workspaceSelectors.activeConversationId;
+  if (!conversationId) return;
   await protocolRequest("conversation.navigate", {
     conversationId,
     activeEntryId: entryId ?? null,
@@ -30,8 +30,8 @@ export async function navigateToEntry(
 }
 
 export async function compactActiveConversation() {
-  if (!selection.conversationId) return;
-  const conversationId = selection.conversationId;
+  const conversationId = workspaceSelectors.activeConversationId;
+  if (!conversationId) return;
   compactionCancellationRequested.delete(conversationId);
   const view = ensureConversationView(conversationId);
   const notice: CompactionNotice = {
@@ -68,8 +68,8 @@ const compactionCancellationsInFlight = new Set<string>();
 const compactionCancellationRequested = new Set<string>();
 
 export async function cancelActiveCompaction(): Promise<void> {
-  if (!selection.conversationId) return;
-  const conversationId = selection.conversationId;
+  const conversationId = workspaceSelectors.activeConversationId;
+  if (!conversationId) return;
   const view = ensureConversationView(conversationId);
   const notice = view.transient?.compaction;
   if (
@@ -99,9 +99,9 @@ export async function cancelActiveCompaction(): Promise<void> {
 }
 
 export async function continueFromFailure(runId: string) {
-  if (!selection.agentId || !selection.conversationId) return;
-  const agentId = selection.agentId;
-  const conversationId = selection.conversationId;
+  const agentId = workspaceSelectors.activeAgent?.id;
+  const conversationId = workspaceSelectors.activeConversationId;
+  if (!agentId || !conversationId) return;
   const view = ensureConversationView(conversationId);
   view.sending = true;
   view.error = undefined;
@@ -130,8 +130,8 @@ export async function continueFromFailure(runId: string) {
 }
 
 export const abortActiveRun = createAbortActiveRun({
-  agentId: () => selection.agentId,
-  view: (conversationId = selection.conversationId) =>
+  agentId: () => workspaceSelectors.activeAgent?.id,
+  view: (conversationId = workspaceSelectors.activeConversationId) =>
     conversationId
       ? conversationState.conversationViews[conversationViewKey(conversationId)]
       : undefined,

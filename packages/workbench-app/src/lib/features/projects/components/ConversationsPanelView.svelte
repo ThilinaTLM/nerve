@@ -2,7 +2,7 @@
 import ProjectConversationNavigator from "$lib/features/projects/components/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
 import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { workspaceSelectors } from "$lib/features/workspace/state/workspace-selectors.svelte";
 import { openConversation } from "$lib/features/conversations/state/tabs";
 import {
@@ -33,8 +33,8 @@ const conversationActivityById = $derived(
   {conversations}
   {agents}
   homeDir={status?.storage.userHome}
-  selectedProjectId={selection.projectId}
-  selectedConversationId={selection.conversationId}
+  selectedProjectId={workspaceState.selectedProjectId}
+  selectedConversationId={workspaceSelectors.activeConversationId}
   {openConversationTabIds}
   {conversationActivityById}
   searchFocusToken={projectNavigatorSignals.searchFocusToken}

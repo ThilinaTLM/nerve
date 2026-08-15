@@ -14,7 +14,6 @@ import {
   defaultFileDisplayMode,
   fileRenderKind,
 } from "@nervekit/ui-kit/core/utils/file-display";
-import { authState } from "$lib/features/auth/state/auth-state.svelte";
 import {
   buildConversationActivityById,
   idleConversationActivity,
@@ -22,10 +21,10 @@ import {
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { fileState } from "$lib/features/filesystem/state/file-state.svelte";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
-import { logsState } from "$lib/features/logs/state/log-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { taskState } from "$lib/features/tasks/state/task-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
+import { conversationContextState } from "$lib/features/workspace/state/selection.svelte";
+import { activeCenterTabId, centerTabIds } from "./center-tab-derivations";
 import {
   type CenterTabIdentity,
   workspaceState,
@@ -102,8 +101,9 @@ export const workspaceSelectors = {
     return workspaceState.connection;
   },
   get error() {
+    const active = workspaceState.activeCenterTab;
     const conversationId =
-      selection.conversationId ?? conversationState.activeConversationTabId;
+      active?.kind === "conversation" ? active.id : undefined;
     const activeView = conversationId
       ? conversationState.conversationViews[conversationViewKey(conversationId)]
       : undefined;
@@ -163,14 +163,40 @@ export const workspaceSelectors = {
       recency: workspaceState.projectRecency,
     });
   },
+  get activeConversationId() {
+    return activeCenterTabId(workspaceState.activeCenterTab, "conversation");
+  },
   get activeConversation() {
+    const id = this.activeConversationId;
     return workspaceState.conversations.find(
-      (conversation) => conversation.id === selection.conversationId,
+      (conversation) => conversation.id === id,
+    );
+  },
+  get contextAgent() {
+    return workspaceState.agents.find(
+      (agent) => agent.id === conversationContextState.selectedAgentId,
+    );
+  },
+  get contextConversation() {
+    const conversationId = this.contextAgent?.conversationId;
+    return workspaceState.conversations.find(
+      (conversation) => conversation.id === conversationId,
     );
   },
   get activeAgent() {
-    return workspaceState.agents.find(
-      (agent) => agent.id === selection.agentId,
+    const activeConversation = this.activeConversation;
+    if (!activeConversation) return undefined;
+    const selected = this.contextAgent;
+    if (selected?.conversationId === activeConversation.id) return selected;
+    return (
+      workspaceState.agents.find(
+        (agent) => agent.id === activeConversation.activeAgentId,
+      ) ??
+      workspaceState.agents.find(
+        (agent) =>
+          agent.conversationId === activeConversation.id &&
+          !agent.parentAgentId,
+      )
     );
   },
   get conversationActivityById() {
@@ -202,7 +228,9 @@ export const workspaceSelectors = {
     }
     const activityById = conversationActivityById;
 
-    for (const conversationId of conversationState.openConversationTabIds) {
+    for (const tab of workspaceState.openCenterTabs) {
+      if (tab.kind !== "conversation") continue;
+      const conversationId = tab.id;
       const conversation = conversationsById[conversationId];
       if (!conversation) continue;
       const project = projectsById[conversation.projectId];
@@ -268,7 +296,9 @@ export const workspaceSelectors = {
   },
   get openTaskTabs(): TaskTabModel[] {
     const tabs: TaskTabModel[] = [];
-    for (const taskId of taskState.openTaskTabIds) {
+    for (const tab of workspaceState.openCenterTabs) {
+      if (tab.kind !== "task") continue;
+      const taskId = tab.id;
       const selectedRunId = taskState.selectedRunByEntry[taskId];
       const candidates = taskState.tasks
         .filter(
@@ -297,57 +327,63 @@ export const workspaceSelectors = {
     return tabs;
   },
   get openFileTabs(): FileTabModel[] {
-    return fileState.openFileTabIds.map((id) => {
-      const view = fileState.fileViews[fileViewKey(id)];
-      const displayPath = view?.content?.relativePath ?? view?.path;
-      return {
-        kind: "file" as const,
-        id,
-        file: view?.content,
-        path: view?.path,
-        relativePath: view?.content?.relativePath,
-        displayMode: view?.displayMode ?? defaultFileDisplayMode(displayPath),
-        wrapLines: Boolean(view?.wrapLines),
-        renderKind: fileRenderKind(displayPath),
-        active: activeTabMatches("file", id),
-        sending: Boolean(view?.loading),
-        error: view?.error,
-      };
-    });
+    return workspaceState.openCenterTabs
+      .filter((tab) => tab.kind === "file")
+      .map(({ id }) => {
+        const view = fileState.fileViews[fileViewKey(id)];
+        const displayPath = view?.content?.relativePath ?? view?.path;
+        return {
+          kind: "file" as const,
+          id,
+          file: view?.content,
+          path: view?.path,
+          relativePath: view?.content?.relativePath,
+          displayMode: view?.displayMode ?? defaultFileDisplayMode(displayPath),
+          wrapLines: Boolean(view?.wrapLines),
+          renderKind: fileRenderKind(displayPath),
+          active: activeTabMatches("file", id),
+          sending: Boolean(view?.loading),
+          error: view?.error,
+        };
+      });
   },
   get openDiffTabs(): DiffTabModel[] {
-    return gitState.openDiffTabIds.map((id) => {
-      const view = gitState.diffViews[diffViewKey(id)];
-      return {
-        kind: "diff" as const,
-        id,
-        path: view?.path,
-        repo: view?.repo,
-        area: view?.area,
-        active: activeTabMatches("diff", id),
-        sending: Boolean(view?.loading || view?.refreshing),
-        error: view?.error,
-      };
-    });
+    return workspaceState.openCenterTabs
+      .filter((tab) => tab.kind === "diff")
+      .map(({ id }) => {
+        const view = gitState.diffViews[diffViewKey(id)];
+        return {
+          kind: "diff" as const,
+          id,
+          path: view?.path,
+          repo: view?.repo,
+          area: view?.area,
+          active: activeTabMatches("diff", id),
+          sending: Boolean(view?.loading || view?.refreshing),
+          error: view?.error,
+        };
+      });
   },
   get openPrTabs(): PrTabModel[] {
-    return gitState.openPrTabIds.map((id) => {
-      const view = gitState.prViews[prViewKey(id)];
-      return {
-        kind: "pr" as const,
-        id,
-        number: view?.number ?? 0,
-        title: view?.core.data?.title,
-        checksStatus: view?.checks.data?.checks.status,
-        isDraft: view?.core.data?.isDraft,
-        active: activeTabMatches("pr", id),
-        sending: Boolean(view?.core.loading || view?.core.refreshing),
-        error: view?.core.error,
-      };
-    });
+    return workspaceState.openCenterTabs
+      .filter((tab) => tab.kind === "pr")
+      .map(({ id }) => {
+        const view = gitState.prViews[prViewKey(id)];
+        return {
+          kind: "pr" as const,
+          id,
+          number: view?.number ?? 0,
+          title: view?.core.data?.title,
+          checksStatus: view?.checks.data?.checks.status,
+          isDraft: view?.core.data?.isDraft,
+          active: activeTabMatches("pr", id),
+          sending: Boolean(view?.core.loading || view?.core.refreshing),
+          error: view?.core.error,
+        };
+      });
   },
   get openSettingsTabs(): SettingsTabModel[] {
-    return settingsState.settingsTabOpen
+    return workspaceState.openCenterTabs.some((tab) => tab.kind === "settings")
       ? [
           {
             kind: "settings" as const,
@@ -363,7 +399,7 @@ export const workspaceSelectors = {
       : [];
   },
   get openAuthTabs(): AuthTabModel[] {
-    return authState.authTabOpen
+    return workspaceState.openCenterTabs.some((tab) => tab.kind === "auth")
       ? [
           {
             kind: "auth" as const,
@@ -375,7 +411,7 @@ export const workspaceSelectors = {
       : [];
   },
   get openLogsTabs(): LogsTabModel[] {
-    return logsState.logsTabOpen
+    return workspaceState.openCenterTabs.some((tab) => tab.kind === "logs")
       ? [
           {
             kind: "logs" as const,
@@ -387,11 +423,9 @@ export const workspaceSelectors = {
       : [];
   },
   get openConversationTabIds(): Set<string> {
-    const ids = new SvelteSet<string>();
-    for (const tab of workspaceState.openCenterTabs) {
-      if (tab.kind === "conversation") ids.add(tab.id);
-    }
-    return ids;
+    return new SvelteSet(
+      centerTabIds(workspaceState.openCenterTabs, "conversation"),
+    );
   },
   get centerTabs(): CenterTabModel[] {
     const modelByKey: Record<string, CenterTabModel> = Object.create(null);

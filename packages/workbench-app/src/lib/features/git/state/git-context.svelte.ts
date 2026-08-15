@@ -1,7 +1,6 @@
 import { SvelteSet } from "svelte/reactivity";
 import type { GitContext } from "$lib/core/types/state-types";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { gitContextFingerprint } from "./git-context-helpers";
 import {
@@ -82,7 +81,7 @@ export async function refreshGitContext(
   projectId?: string,
   options: GitContextRefreshOptions = {},
 ): Promise<void> {
-  const id = projectId ?? selection.projectId;
+  const id = projectId ?? workspaceState.selectedProjectId;
   if (!id) return;
 
   if (options.force) clearPendingRefresh();

@@ -1,6 +1,5 @@
 import type { ConversationEntry } from "$lib/api";
 import type { ConversationViewState } from "$lib/core/types/state-types";
-import { selection } from "$lib/features/workspace/state/selection.svelte";
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 
 export function stringValue(value: unknown): string | undefined {
@@ -8,7 +7,10 @@ export function stringValue(value: unknown): string | undefined {
 }
 
 export function active(conversationId: string): boolean {
-  return selection.conversationId === conversationId;
+  return (
+    workspaceState.activeCenterTab?.kind === "conversation" &&
+    workspaceState.activeCenterTab.id === conversationId
+  );
 }
 
 export function isOpenConversation(conversationId: string): boolean {
