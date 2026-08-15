@@ -21,6 +21,12 @@ The daemon writes structured reports for handled fatal errors, enables Node repo
 
 There is no dedicated in-app crash-report list/download route. Inspect the directory directly and redact before sharing.
 
+## Developer performance diagnostics
+
+Unpackaged source desktop launches (`pnpm desktop`) automatically write content-free 10-second process, event-loop, and subsystem activity samples to `<NERVE_HOME>/logs/performance-<session-id>.jsonl`. Each desktop launch gets a separate timestamped file shared with its owned daemon; daemon restarts during that launch remain in the same file. When CPU becomes high, note the time and ask the coding agent to inspect the recent samples. No alternate profile, ports, or launch flags are required.
+
+Packaged/released Nerve does not enable performance sampling automatically. Developers can set `NERVE_PERFORMANCE_DIAGNOSTICS=0` for a clean source-launch baseline. Samples remain local, contain no prompts or task output, and are never uploaded.
+
 ## Proxy diagnostics
 
 Run with `NERVE_DEBUG_PROXY=1` for redacted proxy configuration diagnostics. Redaction reduces obvious credential exposure but does not make complete logs safe to publish.

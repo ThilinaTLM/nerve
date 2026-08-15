@@ -5,6 +5,7 @@ import {
   type WatchOptions,
 } from "node:fs";
 import { dirname, isAbsolute, join, normalize, resolve, sep } from "node:path";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 
 export type GitRepositoryInvalidation = {
   readonly projectId: string;
@@ -56,6 +57,7 @@ export type GitRepositoryWatcherOptions = {
   readonly quietMs?: number;
   readonly maxWaitMs?: number;
   readonly maxRepositories?: number;
+  readonly diagnostics?: PerformanceDiagnosticsPort;
   readonly onWarning?: (message: string, error: unknown) => void;
   readonly onRepositoryMetadataChanged?: (repoDir: string) => void;
 };
@@ -111,6 +113,7 @@ export class GitRepositoryWatcher {
           repoDir,
           { recursive: true, persistent: false },
           (_eventType, filename) => {
+            this.options.diagnostics?.count("git.filesystemEvent");
             const change = classifyWorktreePath(filename);
             if (change) this.#invalidate(entry, change === "metadata");
           },
@@ -122,11 +125,16 @@ export class GitRepositoryWatcher {
             gitDir,
             { recursive: true, persistent: false },
             (_eventType, filename) => {
+              this.options.diagnostics?.count("git.filesystemEvent");
               if (relevantGitPath(filename)) this.#invalidate(entry, true);
             },
           ),
         );
       }
+      this.options.diagnostics?.count(
+        "git.watcherCreated",
+        entry.watchers.length,
+      );
       for (const watcher of entry.watchers) {
         watcher.on("error", (error) => {
           this.options.onWarning?.("Git repository watcher failed", error);
@@ -178,8 +186,11 @@ export class GitRepositoryWatcher {
     )
       return;
     try {
-      if (metadataChanged)
+      this.options.diagnostics?.count("git.invalidation");
+      if (metadataChanged) {
+        this.options.diagnostics?.count("git.metadataInvalidation");
         this.options.onRepositoryMetadataChanged?.(entry.repoDir);
+      }
       this.publisher.publishBestEffort(
         "git.repository.invalidated",
         {
@@ -200,6 +211,7 @@ export class GitRepositoryWatcher {
         ([, left], [, right]) => left.touchedAt - right.touchedAt,
       )[0];
       if (!oldest) return;
+      this.options.diagnostics?.count("git.watcherEvicted");
       this.#remove(oldest[0], oldest[1]);
     }
   }

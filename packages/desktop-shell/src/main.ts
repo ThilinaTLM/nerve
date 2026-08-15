@@ -37,6 +37,7 @@ import {
   installDesktopPerformanceMonitor,
   type DesktopPerformanceMonitor,
 } from "./performance/performance-monitor.js";
+import { applyDevelopmentPerformanceDiagnostics } from "./performance/development-diagnostics.js";
 import {
   installDaemonCookie,
   refreshDesktopSettingsFromDaemon,
@@ -58,6 +59,8 @@ import {
   resolvePackagedWebDistPath,
   resolvePreloadPath,
 } from "./window/preload-paths.js";
+
+applyDevelopmentPerformanceDiagnostics(app.isPackaged);
 
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const desktopDataDir = resolveDataDir();
@@ -414,6 +417,7 @@ async function openMainWindow(): Promise<void> {
     desktopPerformanceMonitor ??= installDesktopPerformanceMonitor({
       enabled: process.env.NERVE_PERFORMANCE_DIAGNOSTICS === "1",
       dataDir: desktopDataDir,
+      sessionId: process.env.NERVE_PERFORMANCE_SESSION_ID,
       getMetrics: () => app.getAppMetrics(),
       getWindowState: () => {
         const activeWindow = mainWindow;

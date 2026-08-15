@@ -17,6 +17,7 @@ import {
   StreamLog,
   StreamLogRegistry,
 } from "../src/infrastructure/events/index.js";
+import { PerformanceMetricsCollector } from "../src/infrastructure/diagnostics/performance-metrics.js";
 
 async function tempHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), "nerve-stream-log-"));
@@ -82,6 +83,24 @@ describe("StreamLogRegistry", () => {
     assert.throws(() =>
       registry.publish("conversation.live.tool_output.delta", invalid),
     );
+  });
+
+  it("records content-free publication and listener activity", async () => {
+    const home = await tempHome();
+    const metrics = new PerformanceMetricsCollector();
+    const registry = new StreamLogRegistry(home, { diagnostics: metrics });
+    const unsubscribe = registry.subscribeSequenced(() => undefined);
+    try {
+      await registry.publish("git.repository.changed", gitData("one"));
+      const snapshot = metrics.snapshotAndReset();
+      assert.equal(snapshot.metrics["event.durable"]?.count, 1);
+      assert.equal(snapshot.metrics["event.listenerDelivery"]?.count, 1);
+      assert.equal(JSON.stringify(snapshot).includes("one"), false);
+    } finally {
+      unsubscribe();
+      await registry.shutdown();
+      await rm(home, { recursive: true, force: true });
+    }
   });
 
   it("assigns independent dense sequences and routes conversations", async () => {

@@ -31,6 +31,15 @@ export interface LocalProtocolSession {
   shutdown(message?: string): Promise<void>;
 }
 
+const activeSessionCounts = new WeakMap<OrchestratorState, number>();
+
+function updateActiveSessions(state: OrchestratorState, delta: number): void {
+  if (!state.performanceDiagnostics.enabled) return;
+  const count = Math.max(0, (activeSessionCounts.get(state) ?? 0) + delta);
+  activeSessionCounts.set(state, count);
+  state.performanceDiagnostics.gauge("websocket.sessions", count);
+}
+
 export interface ProtocolSocketServer {
   on(
     event: "upgrade",
@@ -76,6 +85,11 @@ export function createLocalProtocolSession(
   state: OrchestratorState,
   onDispose: () => void = () => undefined,
 ): LocalProtocolSession {
+  const diagnostics = state.performanceDiagnostics.enabled
+    ? state.performanceDiagnostics
+    : undefined;
+  diagnostics?.count("websocket.sessionOpened");
+  updateActiveSessions(state, 1);
   const peer = orchestratorSource(state.daemonId);
   const messages = createMessageFactory({
     source: peer,
@@ -93,6 +107,8 @@ export function createLocalProtocolSession(
   const dispose = () => {
     if (disposed) return;
     disposed = true;
+    diagnostics?.count("websocket.sessionClosed");
+    updateActiveSessions(state, -1);
     try {
       unsubscribeSequenced();
       unsubscribeNotify();
@@ -180,6 +196,7 @@ export function createLocalProtocolSession(
     },
   });
   unsubscribeSequenced = state.events.subscribeSequenced((stream, event) => {
+    diagnostics?.count("websocket.sequencedDelivery");
     void session.publish(stream, event).catch((error: unknown) => {
       if (disposed) return;
       state.logger.warn("Protocol event publication failed", {
@@ -196,6 +213,7 @@ export function createLocalProtocolSession(
     }
   });
   unsubscribeNotify = state.events.subscribeNotify((event) => {
+    diagnostics?.count("websocket.notifyDelivery");
     void session.notify(event).catch((error: unknown) => {
       if (disposed) return;
       state.logger.warn("Protocol notify publication failed", {

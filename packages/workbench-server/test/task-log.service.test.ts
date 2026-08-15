@@ -14,6 +14,7 @@ import {
   TaskLogService,
 } from "../src/domains/tasks/task-log.service.js";
 import { StreamLogRegistry } from "../src/infrastructure/events/index.js";
+import { PerformanceMetricsCollector } from "../src/infrastructure/diagnostics/performance-metrics.js";
 
 const roots: string[] = [];
 
@@ -25,7 +26,8 @@ after(async () => {
 
 describe("task log service line buffering", () => {
   it("keeps stdout and stderr buffers separate", async () => {
-    const { record, service, cursor, onLog, emitted } = await createFixture();
+    const { record, service, cursor, onLog, emitted, metrics } =
+      await createFixture();
 
     await service.captureOutput(record, cursor, "stdout", "out-", onLog);
     await service.captureOutput(record, cursor, "stderr", "err-", onLog);
@@ -39,6 +41,11 @@ describe("task log service line buffering", () => {
         ["stderr", "err-line"],
       ],
     );
+    const snapshot = metrics.snapshotAndReset();
+    assert.equal(snapshot.metrics["task.outputChunk"]?.count, 4);
+    assert.equal(snapshot.metrics["task.outputBytes"]?.count, 18);
+    assert.equal(snapshot.metrics["task.outputLine"]?.count, 2);
+    assert.equal(snapshot.metrics["task.outputCapture"]?.count, 4);
   });
 
   it("flush emits final non-newline fragment once", async () => {
@@ -160,6 +167,7 @@ async function createFixture(): Promise<{
   cursor: ReturnType<typeof createTaskLogCursor>;
   emitted: TaskLogEvent[];
   onLog: (event: TaskLogEvent) => Promise<void>;
+  metrics: PerformanceMetricsCollector;
 }> {
   const root = await mkdtemp(join(tmpdir(), "nerve-task-log-"));
   roots.push(root);
@@ -180,12 +188,16 @@ async function createFixture(): Promise<{
     updatedAt: now,
   };
   const emitted: TaskLogEvent[] = [];
-  const service = new TaskLogService(new StreamLogRegistry(root));
+  const metrics = new PerformanceMetricsCollector();
+  const service = new TaskLogService(new StreamLogRegistry(root), {
+    diagnostics: metrics,
+  });
   return {
     record,
     service,
     cursor: createTaskLogCursor(),
     emitted,
+    metrics,
     onLog: async (event) => {
       emitted.push(event);
     },

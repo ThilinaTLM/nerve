@@ -33,6 +33,7 @@ describe("desktop performance monitor", () => {
     const monitor = installDesktopPerformanceMonitor({
       enabled: true,
       dataDir: "/safe/home",
+      sessionId: "20260814T000000000Z-desktop-42",
       now: () => new Date("2026-08-14T00:00:00.000Z"),
       getMetrics: () => [
         {
@@ -44,7 +45,14 @@ describe("desktop performance monitor", () => {
       ],
       getWindowState: () => ({ visible: true, minimized: false }),
       append: async (path, line) => {
-        assert.equal(path, join("/safe/home", "logs", "performance.jsonl"));
+        assert.equal(
+          path,
+          join(
+            "/safe/home",
+            "logs",
+            "performance-20260814T000000000Z-desktop-42.jsonl",
+          ),
+        );
         lines.push(line);
       },
       setInterval: ((callback: () => void, delay: number) => {
@@ -82,6 +90,32 @@ describe("desktop performance monitor", () => {
     monitor.stop();
     monitor.stop();
     assert.equal(cleared, 1);
+  });
+
+  it("contains unsafe session IDs in a generated local filename", async () => {
+    let writtenPath = "";
+    const monitor = installDesktopPerformanceMonitor({
+      enabled: true,
+      dataDir: "/safe/home",
+      sessionId: "../../escape",
+      pid: 42,
+      now: () => new Date("2026-08-14T00:00:00.000Z"),
+      getMetrics: () => [],
+      getWindowState: () => undefined,
+      append: async (path) => {
+        writtenPath = path;
+      },
+    });
+    await tick();
+    monitor.stop();
+    assert.equal(
+      writtenPath,
+      join(
+        "/safe/home",
+        "logs",
+        "performance-20260814T000000000Z-desktop-42.jsonl",
+      ),
+    );
   });
 
   it("skips overlapping writes and isolates append failures", async () => {

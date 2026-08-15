@@ -5,6 +5,7 @@ import {
   setCustomModelProvider,
 } from "@nervekit/harness";
 import {
+  allOperationDefinitions,
   createId,
   type DaemonFile,
   type MobileHttpsInfo,
@@ -26,7 +27,12 @@ import {
 } from "../domains/storage/index.js";
 import { LatestReleaseService } from "../domains/status/latest-release-service.js";
 import { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
-import { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
+import {
+  ApplicationLogger,
+  noopPerformanceDiagnostics,
+  PerformanceMetricsCollector,
+} from "../infrastructure/diagnostics/index.js";
+import type { PerformanceDiagnosticsPort } from "../core/ports.js";
 import { StreamLogRegistry } from "../infrastructure/events/index.js";
 import { IndexStore } from "../infrastructure/index-store/index.js";
 import {
@@ -59,16 +65,25 @@ export interface OrchestratorState {
   oauthFlows: OAuthFlowManager;
   subscriptionUsage: SubscriptionUsageService;
   agentBrowserSkills: AgentBrowserSkillCatalog;
+  performanceDiagnostics: PerformanceDiagnosticsPort;
 }
 
 export function createOrchestratorState(
   storage: InitializedStorage,
   host: string,
   port: number,
-  options: { applicationLogsEnabled?: boolean } = {},
+  options: {
+    applicationLogsEnabled?: boolean;
+    performanceDiagnosticsEnabled?: boolean;
+  } = {},
 ): OrchestratorState {
   const index = new IndexStore(storage.paths.sqlitePath);
   index.initialize();
+  const performanceDiagnostics = options.performanceDiagnosticsEnabled
+    ? new PerformanceMetricsCollector(
+        allOperationDefinitions().map((definition) => definition.method),
+      )
+    : noopPerformanceDiagnostics;
   const logger = new ApplicationLogger({
     dataDir: storage.paths.home,
     source: "orchestrator",
@@ -79,6 +94,10 @@ export function createOrchestratorState(
     enabled: options.applicationLogsEnabled ?? false,
   });
   const events = new StreamLogRegistry(storage.paths.home, {
+    diagnostics: performanceDiagnostics.enabled
+      ? performanceDiagnostics
+      : undefined,
+    onFsync: () => performanceDiagnostics.count("event.fsync"),
     onPublishFailed: ({ type, context, error }) =>
       logger.error("Best-effort event publication failed", {
         context: {
@@ -88,6 +107,14 @@ export function createOrchestratorState(
         },
       }),
     onFlushCompleted: (observation) => {
+      performanceDiagnostics.duration(
+        "event.streamFlush",
+        observation.durationMs,
+      );
+      performanceDiagnostics.count(
+        "event.streamFlushEvents",
+        observation.eventCount,
+      );
       if (observation.durationMs < 50) return;
       void logger.warn("Slow event stream flush", {
         durationMs: Math.round(observation.durationMs),
@@ -146,6 +173,7 @@ export function createOrchestratorState(
     logger,
     agentBrowserSkills,
     providerCatalog,
+    performanceDiagnostics,
   );
   const storageUsage = new StorageUsageService({
     paths: storage.paths,
@@ -183,6 +211,7 @@ export function createOrchestratorState(
     oauthFlows,
     agentBrowserSkills,
     subscriptionUsage,
+    performanceDiagnostics,
   };
 }
 

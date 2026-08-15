@@ -39,6 +39,7 @@ import type { AgentBrowserSkillCatalog } from "../domains/agents/prompting/agent
 import type { ProviderCatalogStore } from "../domains/providers/index.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { ApplicationError } from "../core/application-error.js";
+import type { PerformanceDiagnosticsPort } from "../core/ports.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../infrastructure/events/index.js";
 import type { IndexStore } from "../infrastructure/index-store/index.js";
@@ -161,6 +162,7 @@ export class RuntimeRegistry {
     private readonly logger: ApplicationLogger,
     agentBrowserSkills: AgentBrowserSkillCatalog,
     private readonly providerCatalog: ProviderCatalogStore,
+    performanceDiagnostics: PerformanceDiagnosticsPort,
   ) {
     this.services = composeRuntime(this.state, {
       storage,
@@ -171,6 +173,7 @@ export class RuntimeRegistry {
       subscriptionUsage,
       logger,
       agentBrowserSkills,
+      performanceDiagnostics,
     });
   }
 

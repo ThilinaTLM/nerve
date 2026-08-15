@@ -11,6 +11,7 @@ import {
   validatePublicEvent,
 } from "@nervekit/contracts";
 import type { RenameDependencies } from "../storage/index.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import { StreamLog, type StreamFlushObservation } from "./stream-log.js";
 
 export type PublishedEvent<T = unknown> = EventEnvelope<T> | NotifyEvent<T>;
@@ -26,6 +27,7 @@ export interface StreamLogRegistryOptions {
   readonly retentionBytes?: number;
   readonly flushDelayMs?: number;
   readonly flushEventThreshold?: number;
+  readonly diagnostics?: PerformanceDiagnosticsPort;
   readonly onFsync?: () => void;
   readonly onFlushCompleted?: (observation: StreamFlushObservation) => void;
   readonly onPublishFailed?: (
@@ -191,9 +193,11 @@ export class StreamLogRegistry {
     const ts = new Date().toISOString();
 
     if (definition.delivery === "ephemeral") {
+      this.options.diagnostics?.count("event.ephemeral");
       const event: NotifyEvent<T> = { id, ts, type, data: normalized };
       this.#intentResults.set(id, event as NotifyEvent);
       for (const listener of this.#notifyListeners) {
+        this.options.diagnostics?.count("event.listenerDelivery");
         safelyNotify(() => listener(event as NotifyEvent), event.type);
       }
       return event;
@@ -218,11 +222,14 @@ export class StreamLogRegistry {
       definition.supersedable,
       ts,
     )) as EventEnvelope<T>;
+    this.options.diagnostics?.count("event.durable");
     this.#intentResults.set(id, event as EventEnvelope);
     for (const listener of this.#eventListeners) {
+      this.options.diagnostics?.count("event.listenerDelivery");
       safelyNotify(() => listener(event as EventEnvelope), event.type);
     }
     for (const listener of this.#sequencedListeners) {
+      this.options.diagnostics?.count("event.listenerDelivery");
       safelyNotify(() => listener(stream, event as EventEnvelope), event.type);
     }
     return event;
@@ -246,6 +253,7 @@ export class StreamLogRegistry {
   }
 
   #reportPublishFailure(failure: EventPublishFailure): void {
+    this.options.diagnostics?.count("event.publishFailure");
     const report = this.options.onPublishFailed;
     if (!report) {
       process.emitWarning(

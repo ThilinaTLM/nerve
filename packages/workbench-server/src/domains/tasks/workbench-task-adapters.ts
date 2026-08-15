@@ -7,7 +7,10 @@ import type {
   TaskServicePorts,
   TaskStartInput,
 } from "./task-service.js";
-import type { DomainEventPublisherPort } from "../../core/ports.js";
+import type {
+  DomainEventPublisherPort,
+  PerformanceDiagnosticsPort,
+} from "../../core/ports.js";
 import type { StartTaskRequest, TaskRecord } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
@@ -163,6 +166,7 @@ export type WorkbenchTaskResources = {
 export type WorkbenchTaskAdapterOptions = {
   supervisor?: TaskSupervisor;
   launchConfigs?: TaskLaunchConfigStore;
+  diagnostics?: PerformanceDiagnosticsPort;
 };
 
 export function createWorkbenchTaskResources(
@@ -175,7 +179,10 @@ export function createWorkbenchTaskResources(
   const tasks = new Map<string, TaskRecord>();
   const managed = new Map<string, WorkbenchManagedTask>();
   const repository = new TaskRepository(storage);
-  const logs = new TaskLogService(events, { publishOutputEvents: false });
+  const logs = new TaskLogService(events, {
+    publishOutputEvents: false,
+    diagnostics: options.diagnostics,
+  });
   const supervisor = options.supervisor ?? defaultTaskSupervisor;
   const launchConfigs =
     options.launchConfigs ?? new UnconfiguredTaskLaunchConfigStore();
@@ -184,6 +191,8 @@ export function createWorkbenchTaskResources(
   const eventPublisher: DomainEventPublisherPort = {
     publish: async (event) => {
       await events.publish(event.type, event.data);
+      if (event.type === "task.output")
+        options.diagnostics?.count("task.outputPublication");
     },
   };
 
