@@ -20,8 +20,6 @@ const nerveHome = process.env.NERVE_HOME?.trim() || join(homedir(), ".nerve");
 const env = {
   ...process.env,
   NERVE_HOME: nerveHome,
-  NERVE_PORT: process.env.NERVE_PORT?.trim() || "3747",
-  NERVE_HTTPS_PORT: process.env.NERVE_HTTPS_PORT?.trim() || "3748",
 };
 delete env.ELECTRON_RUN_AS_NODE;
 
@@ -34,7 +32,9 @@ const ozonePlatform = parseElectronOzonePlatform(
 );
 const linuxSwitches = [
   "--class=io.github.thilinatlm.nerve-v2",
-  ...(ozonePlatform ? [`--ozone-platform=${ozonePlatform}`] : []),
+  ...(ozonePlatform && ozonePlatform !== "auto"
+    ? [`--ozone-platform=${ozonePlatform}`]
+    : []),
 ];
 const electronArgs = [
   ...(process.platform === "linux" ? linuxSwitches : []),

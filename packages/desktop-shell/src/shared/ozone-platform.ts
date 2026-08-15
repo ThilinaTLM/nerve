@@ -4,6 +4,12 @@
 
 export type ElectronOzonePlatform = "x11" | "wayland" | "auto";
 
+export function electronOzonePlatformSwitch(
+  platform: ElectronOzonePlatform | undefined,
+): "x11" | "wayland" | undefined {
+  return platform === "x11" || platform === "wayland" ? platform : undefined;
+}
+
 export function parseElectronOzonePlatform(
   value: string | undefined,
 ): ElectronOzonePlatform | undefined {

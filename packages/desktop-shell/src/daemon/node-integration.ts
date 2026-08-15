@@ -19,11 +19,15 @@ export function createNodeDaemonPorts(): DaemonConnectionPorts {
     discovery: { findHealthyDaemon },
     launcher: {
       launch: (input) => {
-        const child = spawn(process.execPath, [input.serverMain], {
-          env: input.env,
-          stdio: ["ignore", "pipe", "pipe"],
-          windowsHide: true,
-        });
+        const child = spawn(
+          process.execPath,
+          [input.serverMain, ...(input.args ?? [])],
+          {
+            env: input.env,
+            stdio: ["ignore", "pipe", "pipe"],
+            windowsHide: true,
+          },
+        );
         child.stdout?.on("data", (chunk) => input.onOutput("stdout", chunk));
         child.stderr?.on("data", (chunk) => input.onOutput("stderr", chunk));
         child.once("error", (error) => input.onError(error));

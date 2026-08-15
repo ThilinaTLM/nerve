@@ -30,6 +30,7 @@ export interface DaemonSupervisorConfig {
   paths?: DaemonPaths;
   serverMain?: string;
   launchEnv?: NodeJS.ProcessEnv;
+  launchArgs?: string[];
 }
 
 interface OwnedChild {
@@ -205,7 +206,7 @@ export class DaemonSupervisor {
   }
 
   private async spawnAndWait(): Promise<HealthyDaemon> {
-    const { paths, serverMain, launchEnv, readinessTimeoutMs } =
+    const { paths, serverMain, launchEnv, launchArgs, readinessTimeoutMs } =
       this.requireOwnedConfig();
     const output = new OutputBuffer();
     this.ports.logger.log("info", "Starting owned local daemon", {
@@ -222,6 +223,7 @@ export class DaemonSupervisor {
     };
     child.handle = this.ports.launcher.launch({
       serverMain,
+      args: launchArgs,
       env: launchEnv,
       onOutput: (stream, chunk) => output.append(stream, chunk),
       onError: (error) => {
@@ -548,6 +550,7 @@ export class DaemonSupervisor {
     paths: DaemonPaths;
     serverMain: string;
     launchEnv: NodeJS.ProcessEnv;
+    launchArgs: string[];
     readinessTimeoutMs: number;
   } {
     if (
@@ -563,6 +566,7 @@ export class DaemonSupervisor {
       paths: this.config.paths,
       serverMain: this.config.serverMain,
       launchEnv: this.config.launchEnv,
+      launchArgs: this.config.launchArgs ?? [],
       readinessTimeoutMs: this.config.readinessTimeoutMs,
     };
   }

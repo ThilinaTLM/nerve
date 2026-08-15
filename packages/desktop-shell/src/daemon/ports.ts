@@ -25,6 +25,7 @@ export interface DaemonChildHandle {
 export interface DaemonChildLauncherPort {
   launch(input: {
     serverMain: string;
+    args?: string[];
     env: NodeJS.ProcessEnv;
     onOutput: (stream: "stdout" | "stderr", chunk: unknown) => void;
     onError: (error: Error) => void;

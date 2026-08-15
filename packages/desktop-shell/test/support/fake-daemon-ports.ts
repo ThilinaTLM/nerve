@@ -178,7 +178,12 @@ export interface FakeDaemonWorld {
   ports: DaemonConnectionPorts;
   scheduler: FakeScheduler;
   children: FakeChild[];
-  launches: Array<{ serverMain: string; env: NodeJS.ProcessEnv; at: number }>;
+  launches: Array<{
+    serverMain: string;
+    args?: string[];
+    env: NodeJS.ProcessEnv;
+    at: number;
+  }>;
   crashReports: RecordedCrashReport[];
   logs: Array<{ level: string; message: string }>;
   healthResults: { value: boolean };
@@ -200,6 +205,7 @@ export function fakeDaemonWorld(
   const children: FakeChild[] = [];
   const launches: Array<{
     serverMain: string;
+    args?: string[];
     env: NodeJS.ProcessEnv;
     at: number;
   }> = [];
@@ -233,6 +239,7 @@ export function fakeDaemonWorld(
       launch: (input) => {
         launches.push({
           serverMain: input.serverMain,
+          args: input.args,
           env: input.env,
           at: scheduler.now(),
         });

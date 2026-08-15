@@ -7,6 +7,8 @@ import { workspaceSelectors } from "$lib/features/workspace/state/workspace-sele
 import {
   loadSettingsSkills,
   queueSettingsSave,
+  restartOwnedDaemon,
+  saveApplicationConfiguration,
   setColorMode,
   setColorTheme,
 } from "$lib/features/settings/state/settings-actions.svelte";
@@ -26,6 +28,9 @@ $effect(() => {
 <SettingsPage
   {status}
   bind:settingsDraft={settingsState.settingsDraft}
+  applicationConfiguration={settingsState.applicationConfiguration}
+  daemonCapability={settingsState.daemonCapability}
+  daemonRestarting={settingsState.daemonRestarting}
   bind:activePageId={settingsState.activePageId}
   bind:activeSectionId={settingsState.activeSectionId}
   models={settingsState.models}
@@ -40,6 +45,8 @@ $effect(() => {
   {settingsSaveStatus}
   {settingsMessage}
   onSettingsChange={queueSettingsSave}
+  onApplicationConfigurationChange={saveApplicationConfiguration}
+  onRestartDaemon={restartOwnedDaemon}
   onColorThemeChange={setColorTheme}
   onColorModeChange={setColorMode}
 />

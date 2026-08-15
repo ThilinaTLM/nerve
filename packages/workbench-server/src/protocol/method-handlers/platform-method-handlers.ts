@@ -1,4 +1,7 @@
-import { slashCommandCompletionItems } from "@nervekit/contracts";
+import {
+  slashCommandCompletionItems,
+  type UpdateApplicationConfigurationRequest,
+} from "@nervekit/contracts";
 import type { OrchestratorState } from "../../app/orchestrator-state.js";
 import {
   providerApiKeySecretName,
@@ -10,6 +13,10 @@ import {
   directoryListing,
   projectDirectoryEntries,
 } from "../../domains/filesystem/filesystem.service.js";
+import {
+  assertApplicationConfigurationEditable,
+  resolveApplicationConfiguration,
+} from "../../infrastructure/configuration/index.js";
 import { writeSettings } from "../../infrastructure/storage/index.js";
 import {
   getConversationSnapshotResponse,
@@ -25,6 +32,9 @@ export const platformMethodHandlers = defineWorkbenchMethodHandlers({
   "settings.get": (state) => state.storage.settings,
   "settings.update": (state, params) =>
     updateSettings(state, params as Record<string, unknown>),
+  "applicationConfiguration.get": (state) => state.applicationConfiguration,
+  "applicationConfiguration.update": (state, params) =>
+    updateApplicationConfiguration(state, params),
   "skill.list": (state, params) => {
     const projectDir = params?.projectId
       ? state.registry.getProject(params.projectId).dir
@@ -121,6 +131,12 @@ async function updateSettings(
   state: OrchestratorState,
   patch: Record<string, unknown>,
 ) {
+  if (patch.application) {
+    assertApplicationConfigurationEditable(
+      state.applicationConfiguration,
+      patch as UpdateApplicationConfigurationRequest,
+    );
+  }
   const settings = await writeSettings(state.storage, patch as never);
   if (
     patch.runtime &&
@@ -131,6 +147,56 @@ async function updateSettings(
   }
   await state.events.publish("settings.updated", { settings });
   return { settings };
+}
+
+async function updateApplicationConfiguration(
+  state: OrchestratorState,
+  patch: UpdateApplicationConfigurationRequest,
+) {
+  assertApplicationConfigurationEditable(state.applicationConfiguration, patch);
+  const normalized = normalizeRemoteAccessPatch(state, patch);
+  const settings = await writeSettings(state.storage, normalized);
+  const resolved = resolveApplicationConfiguration({
+    settings,
+    env: process.env,
+    argv: process.argv.slice(2),
+    dataDir: state.storage.paths.home,
+    activeSnapshot: state.applicationConfiguration,
+  });
+  state.applicationConfiguration = resolved.snapshot;
+  await state.events.publish("settings.updated", { settings });
+  await state.events.publish("applicationConfiguration.updated", {
+    snapshot: resolved.snapshot,
+  });
+  return resolved.snapshot;
+}
+
+function normalizeRemoteAccessPatch(
+  state: OrchestratorState,
+  patch: UpdateApplicationConfigurationRequest,
+): UpdateApplicationConfigurationRequest {
+  const allowRemote = patch.application?.network?.allowRemote;
+  if (
+    allowRemote === undefined ||
+    patch.application?.network?.host !== undefined
+  ) {
+    return patch;
+  }
+  const host = state.storage.settings.application.network.host;
+  const nextHost = allowRemote
+    ? host === "127.0.0.1" || host === "localhost"
+      ? "0.0.0.0"
+      : host
+    : host === "0.0.0.0" || host === "::"
+      ? "127.0.0.1"
+      : host;
+  return {
+    ...patch,
+    application: {
+      ...patch.application,
+      network: { ...patch.application?.network, host: nextHost },
+    },
+  };
 }
 
 async function publishProviderCatalogChanged(

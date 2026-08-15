@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
+  buildOrchestratorArgs,
   buildOrchestratorEnv,
   resolveDaemonMaxOldSpaceMb,
   resolveDaemonPaths,
@@ -78,16 +79,35 @@ describe("daemon profile policy", () => {
       env.NODE_OPTIONS,
       "--enable-source-maps --max-old-space-size=4096",
     );
-    assert.equal(env.NERVE_HOST, "0.0.0.0");
-    assert.equal(env.NERVE_PORT, "4000");
-    assert.equal(env.NERVE_HTTPS_PORT, "4443");
-    assert.equal(env.NERVE_ALLOW_REMOTE, "1");
-    assert.equal(env.NERVE_MOBILE_HTTPS, "1");
+    assert.equal(env.NERVE_HOST, undefined);
+    assert.equal(env.NERVE_PORT, undefined);
+    assert.equal(env.NERVE_HTTPS_PORT, undefined);
+    assert.equal(env.NERVE_ALLOW_REMOTE, undefined);
+    assert.equal(env.NERVE_MOBILE_HTTPS, undefined);
+    assert.deepEqual(
+      buildOrchestratorArgs({
+        host: "0.0.0.0",
+        port: 4000,
+        httpsPort: 4443,
+        allowRemote: true,
+        mobileHttps: true,
+      }),
+      [
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "4000",
+        "--https-port",
+        "4443",
+        "--allow-remote",
+        "--mobile-https",
+      ],
+    );
     assert.equal(env.NERVE_WEB_DIST, "/opt/web");
     assert.equal(env.PATH, "/usr/bin");
 
     const defaults = buildOrchestratorEnv({}, {});
-    assert.equal(defaults.NERVE_HOST, "127.0.0.1");
+    assert.equal(defaults.NERVE_HOST, undefined);
     assert.equal(defaults.NERVE_PORT, undefined);
     assert.equal(defaults.NERVE_ALLOW_REMOTE, undefined);
   });

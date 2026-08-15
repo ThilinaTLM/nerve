@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { parseDesktopOptions } from "../src/app/cli-options.js";
+import {
+  electronOzonePlatformSwitch,
+  parseElectronOzonePlatform,
+} from "../src/shared/ozone-platform.js";
 import { ShellPageUrlRegistry } from "../src/window/loading-pages.js";
 
 describe("desktop CLI options", () => {
@@ -12,6 +16,23 @@ describe("desktop CLI options", () => {
     assert.throws(
       () => parseDesktopOptions(["--connect=https://host", "--local"]),
       /either --local or --connect/,
+    );
+  });
+});
+
+describe("Electron Ozone platform", () => {
+  it("treats auto as Chromium's default rather than a literal switch", () => {
+    assert.equal(
+      electronOzonePlatformSwitch(parseElectronOzonePlatform("auto")),
+      undefined,
+    );
+    assert.equal(
+      electronOzonePlatformSwitch(parseElectronOzonePlatform("x11")),
+      "x11",
+    );
+    assert.equal(
+      electronOzonePlatformSwitch(parseElectronOzonePlatform("wayland")),
+      "wayland",
     );
   });
 });

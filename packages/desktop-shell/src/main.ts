@@ -1,6 +1,10 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { resolveDataDir } from "@nervekit/workbench-server";
+import {
+  readPersistedSettingsForBootstrap,
+  resolveApplicationConfiguration,
+  resolveDataDir,
+} from "@nervekit/workbench-server";
 import {
   applyElectronFontRenderHinting,
   applyElectronOzonePlatform,
@@ -32,7 +36,7 @@ import {
 import { chromiumLoopbackProxyBypassRules } from "./electron-download-env.js";
 import { showDesktopNotification } from "./ipc/notifications-ipc.js";
 import { registerDesktopIpc, windowState } from "./ipc/window-ipc.js";
-import { desktopLog } from "./logging.js";
+import { configureApplicationLogging, desktopLog } from "./logging.js";
 import {
   installDesktopPerformanceMonitor,
   type DesktopPerformanceMonitor,
@@ -60,15 +64,51 @@ import {
   resolvePreloadPath,
 } from "./window/preload-paths.js";
 
-applyDevelopmentPerformanceDiagnostics(app.isPackaged);
-
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
 const desktopDataDir = resolveDataDir();
+const bootstrapSettings =
+  await readPersistedSettingsForBootstrap(desktopDataDir);
+const desktopConfiguration = resolveApplicationConfiguration({
+  settings: bootstrapSettings,
+  env: process.env,
+  argv: process.argv.slice(1),
+  dataDir: desktopDataDir,
+  platform: process.platform,
+  development: !app.isPackaged,
+  packaged: app.isPackaged,
+});
+const performanceEnvironmentWasExplicit =
+  process.env.NERVE_PERFORMANCE_DIAGNOSTICS !== undefined;
+if (process.env.NERVE_LOGGING_ENABLED !== undefined) {
+  process.env.NERVE_LOGGING_ENABLED = desktopConfiguration.values.loggingEnabled
+    ? "1"
+    : "0";
+}
+if (performanceEnvironmentWasExplicit) {
+  process.env.NERVE_PERFORMANCE_DIAGNOSTICS = desktopConfiguration.values
+    .performanceEnabled
+    ? "1"
+    : "0";
+}
+applyDevelopmentPerformanceDiagnostics(app.isPackaged, process.env, {
+  enabled: desktopConfiguration.values.performanceEnabled,
+});
+configureApplicationLogging(desktopConfiguration.values.loggingEnabled);
+if (!performanceEnvironmentWasExplicit) {
+  process.env.NERVE_DESKTOP_SYNTHETIC_PERFORMANCE = "1";
+  if (
+    bootstrapSettings.application.diagnostics.performanceEnabled ===
+      undefined &&
+    desktopConfiguration.values.performanceEnabled
+  ) {
+    process.env.NERVE_DEVELOPMENT_PERFORMANCE_DEFAULT = "1";
+  }
+}
 const electronOzonePlatform = parseElectronOzonePlatform(
-  process.env.NERVE_ELECTRON_OZONE_PLATFORM,
+  desktopConfiguration.values.ozonePlatform,
 );
 const electronFontRenderHinting = resolveElectronFontRenderHinting(
-  process.env.NERVE_ELECTRON_FONT_RENDER_HINTING,
+  desktopConfiguration.values.fontRenderHinting,
 );
 applyElectronOzonePlatform(electronOzonePlatform);
 applyElectronFontRenderHinting(electronFontRenderHinting);
@@ -137,6 +177,17 @@ if (!gotSingleInstanceLock) {
     sendWindowState,
     showDesktopNotification: (payload) =>
       showDesktopNotification(payload, showMainWindow),
+    getDaemonCapability: () => ({
+      mode: managedDaemon?.mode,
+      owned: managedDaemon?.owned ?? false,
+      canRestart: managedDaemon?.owned === true,
+    }),
+    restartDaemon: async () => {
+      if (!managedDaemon?.owned) {
+        throw new Error("The current daemon is not owned by this desktop app.");
+      }
+      await managedDaemon.restart();
+    },
   });
 
   app.on("second-instance", () => {
@@ -352,6 +403,9 @@ async function openMainWindow(): Promise<void> {
               start: () =>
                 ensureDaemon({
                   webDistPath: resolvePackagedWebDistPath(),
+                  startupTimeoutMs:
+                    desktopConfiguration.values.startupTimeoutMs,
+                  maxOldSpaceMb: desktopConfiguration.values.maxOldSpaceMb,
                   ...desktopOptions,
                 }),
             },

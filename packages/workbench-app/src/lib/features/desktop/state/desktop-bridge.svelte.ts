@@ -26,6 +26,14 @@ export interface NerveDesktopBridge {
       listener: (state: DesktopWindowState) => void,
     ) => () => void;
   };
+  daemon: {
+    getCapability: () => Promise<{
+      mode?: "local" | "remote";
+      owned: boolean;
+      canRestart: boolean;
+    }>;
+    restart: () => Promise<{ ok: true }>;
+  };
   settings: {
     setCloseToTray: (closeToTray: boolean) => Promise<void>;
   };
@@ -126,6 +134,26 @@ export async function closeDesktopWindow(options?: {
   closeToTray?: boolean;
 }): Promise<void> {
   await getDesktopBridge()?.window.close(options);
+}
+
+export async function getDesktopDaemonCapability(): Promise<{
+  mode?: "local" | "remote";
+  owned: boolean;
+  canRestart: boolean;
+}> {
+  return (
+    (await getDesktopBridge()?.daemon.getCapability()) ?? {
+      owned: false,
+      canRestart: false,
+    }
+  );
+}
+
+export async function restartDesktopDaemon(): Promise<boolean> {
+  const bridge = getDesktopBridge();
+  if (!bridge) return false;
+  await bridge.daemon.restart();
+  return true;
 }
 
 export async function syncDesktopCloseToTray(

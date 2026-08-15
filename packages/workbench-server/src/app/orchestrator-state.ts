@@ -6,6 +6,7 @@ import {
 } from "@nervekit/harness";
 import {
   allOperationDefinitions,
+  type ApplicationConfigurationSnapshot,
   createId,
   type DaemonFile,
   type MobileHttpsInfo,
@@ -27,6 +28,7 @@ import {
 } from "../domains/storage/index.js";
 import { LatestReleaseService } from "../domains/status/latest-release-service.js";
 import { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
+import { resolveApplicationConfiguration } from "../infrastructure/configuration/index.js";
 import {
   ApplicationLogger,
   noopPerformanceDiagnostics,
@@ -66,6 +68,7 @@ export interface OrchestratorState {
   subscriptionUsage: SubscriptionUsageService;
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
+  applicationConfiguration: ApplicationConfigurationSnapshot;
 }
 
 export function createOrchestratorState(
@@ -75,6 +78,7 @@ export function createOrchestratorState(
   options: {
     applicationLogsEnabled?: boolean;
     performanceDiagnosticsEnabled?: boolean;
+    applicationConfiguration?: ApplicationConfigurationSnapshot;
   } = {},
 ): OrchestratorState {
   const index = new IndexStore(storage.paths.sqlitePath);
@@ -212,6 +216,14 @@ export function createOrchestratorState(
     agentBrowserSkills,
     subscriptionUsage,
     performanceDiagnostics,
+    applicationConfiguration:
+      options.applicationConfiguration ??
+      resolveApplicationConfiguration({
+        settings: storage.settings,
+        dataDir: storage.paths.home,
+        env: {},
+        argv: [],
+      }).snapshot,
   };
 }
 

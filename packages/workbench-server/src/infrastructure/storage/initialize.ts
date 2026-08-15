@@ -16,7 +16,10 @@ import {
 } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import { ensureStateLayout } from "./state-layout.js";
-import { migrateLegacyAppearanceSettings } from "./settings-migrations.js";
+import {
+  migrateApplicationConfiguration,
+  migrateLegacyAppearanceSettings,
+} from "./settings-migrations.js";
 
 const dataSubdirs = [
   "auth",
@@ -160,6 +163,43 @@ function migrateRemovedNotificationTones(value: unknown): {
   };
 }
 
+function normalizeSettings(value: unknown): {
+  settings: Settings;
+  changed: boolean;
+} {
+  const normalizedApplication = migrateApplicationConfiguration(value);
+  const normalizedAppearance = migrateLegacyAppearanceSettings(
+    normalizedApplication.value,
+  );
+  const normalizedTools = migrateLegacyToolNames(normalizedAppearance.value);
+  const normalizedImageExplanation = migrateImageExplanationTool(
+    normalizedTools.value,
+  );
+  const normalizedTones = migrateRemovedNotificationTones(
+    normalizedImageExplanation.value,
+  );
+  return {
+    settings: settingsSchema.parse({
+      ...defaultSettings,
+      ...(normalizedTones.value as object),
+    }),
+    changed:
+      normalizedApplication.changed ||
+      normalizedAppearance.changed ||
+      normalizedTools.changed ||
+      normalizedImageExplanation.changed ||
+      normalizedTones.changed,
+  };
+}
+
+export async function readPersistedSettingsForBootstrap(
+  home = resolveDataDir(),
+): Promise<Settings> {
+  const path = storagePaths(home).configPath;
+  if (!(await pathExists(path))) return defaultSettings;
+  return normalizeSettings(await readJsonFile<unknown>(path)).settings;
+}
+
 export async function initializeStorage(
   home = resolveDataDir(),
 ): Promise<InitializedStorage> {
@@ -179,24 +219,9 @@ export async function initializeStorage(
   }
 
   const rawSettings = await readJsonFile<unknown>(paths.configPath);
-  const normalizedAppearance = migrateLegacyAppearanceSettings(rawSettings);
-  const normalizedTools = migrateLegacyToolNames(normalizedAppearance.value);
-  const normalizedImageExplanation = migrateImageExplanationTool(
-    normalizedTools.value,
-  );
-  const normalizedTones = migrateRemovedNotificationTones(
-    normalizedImageExplanation.value,
-  );
-  const settings = settingsSchema.parse({
-    ...defaultSettings,
-    ...(normalizedTones.value as object),
-  });
-  if (
-    normalizedAppearance.changed ||
-    normalizedTools.changed ||
-    normalizedImageExplanation.changed ||
-    normalizedTones.changed
-  ) {
+  const normalized = normalizeSettings(rawSettings);
+  const settings = normalized.settings;
+  if (normalized.changed) {
     await atomicWriteJson(paths.configPath, settings, 0o600);
   }
 
@@ -349,7 +374,26 @@ export async function writeSettings(
     ...(defaultApprovalPolicyPatch
       ? { defaultApprovalPolicy: defaultApprovalPolicyPatch }
       : {}),
-    server: { ...storage.settings.server, ...(patch.server ?? {}) },
+    application: {
+      ...storage.settings.application,
+      ...(patch.application ?? {}),
+      network: {
+        ...storage.settings.application.network,
+        ...(patch.application?.network ?? {}),
+      },
+      diagnostics: {
+        ...storage.settings.application.diagnostics,
+        ...(patch.application?.diagnostics ?? {}),
+      },
+      daemon: {
+        ...storage.settings.application.daemon,
+        ...(patch.application?.daemon ?? {}),
+      },
+      electron: {
+        ...storage.settings.application.electron,
+        ...(patch.application?.electron ?? {}),
+      },
+    },
     ui: { ...storage.settings.ui, ...(patch.ui ?? {}) },
     desktop: { ...storage.settings.desktop, ...(patch.desktop ?? {}) },
     notifications: {
