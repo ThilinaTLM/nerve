@@ -1,5 +1,6 @@
 <script lang="ts">
 import type {
+  ApplicationConfigurationSnapshot,
   AuthProviderMetadata,
   AvailableSkill,
   ColorMode,
@@ -8,6 +9,7 @@ import type {
   ProjectRecord,
   Settings,
   StatusResponse,
+  UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
 import {
@@ -46,6 +48,13 @@ type SettingsChange = (
 type Props = {
   status?: StatusResponse;
   settingsDraft?: Settings;
+  applicationConfiguration?: ApplicationConfigurationSnapshot;
+  daemonCapability?: {
+    mode?: "local" | "remote";
+    owned: boolean;
+    canRestart: boolean;
+  };
+  daemonRestarting?: boolean;
   activePageId?: string;
   activeSectionId?: string;
   models?: ModelInfo[];
@@ -59,6 +68,10 @@ type Props = {
   settingsSaveStatus?: SettingsSaveStatus;
   settingsMessage?: string;
   onSettingsChange?: SettingsChange;
+  onApplicationConfigurationChange?: (
+    patch: UpdateApplicationConfigurationRequest,
+  ) => void;
+  onRestartDaemon?: () => void;
   onColorThemeChange?: (theme: ColorTheme) => void;
   onColorModeChange?: (colorMode: ColorMode) => void;
   onSkillsRetry?: () => void;
@@ -67,6 +80,9 @@ type Props = {
 let {
   status,
   settingsDraft = $bindable<Settings | undefined>(),
+  applicationConfiguration,
+  daemonCapability,
+  daemonRestarting = false,
   activePageId = $bindable("workbench"),
   activeSectionId = $bindable("appearance"),
   models = [],
@@ -80,6 +96,8 @@ let {
   settingsSaveStatus = "idle",
   settingsMessage,
   onSettingsChange,
+  onApplicationConfigurationChange,
+  onRestartDaemon,
   onColorThemeChange,
   onColorModeChange,
   onSkillsRetry,
@@ -208,7 +226,14 @@ function statusText(): string {
       {:else if page.id === "storage"}
         <StorageSettingsPage controller={storageController} />
       {:else if page.id === "system"}
-        <SystemSettingsPage {settingsDraft} {status} {onSettingsChange} />
+        <SystemSettingsPage
+          configuration={applicationConfiguration}
+          {status}
+          {daemonCapability}
+          {daemonRestarting}
+          onConfigurationChange={onApplicationConfigurationChange}
+          {onRestartDaemon}
+        />
       {/if}
     {:else}
       <div class="grid gap-1 py-12 text-center">

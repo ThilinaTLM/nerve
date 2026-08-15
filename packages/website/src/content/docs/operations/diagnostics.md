@@ -7,7 +7,7 @@ sidebar:
 
 ## Application logs
 
-Nerve application logging is disabled by default. Developers can explicitly enable it for a launch by setting `NERVE_LOGGING_ENABLED=1`. When enabled, the Nerve Logs button and tab can filter, expand, copy, refresh, and prune application logs.
+Nerve application logging is disabled by default. Enable it under **Settings → System → Diagnostics** or override a launch with `NERVE_LOGGING_ENABLED=1`. Environment overrides appear as locked controls in Settings. When enabled, the Nerve Logs button and tab can filter, expand, copy, refresh, and prune application logs.
 
 Desktop and daemon application logs are JSONL under `<NERVE_HOME>/logs`, including daily desktop files. Existing files are retained but are not read or appended while application logging is disabled.
 
@@ -25,7 +25,7 @@ There is no dedicated in-app crash-report list/download route. Inspect the direc
 
 Unpackaged source desktop launches (`pnpm desktop`) automatically write content-free 10-second process, event-loop, and subsystem activity samples to `<NERVE_HOME>/logs/performance-<session-id>.jsonl`. Each desktop launch gets a separate timestamped file shared with its owned daemon; daemon restarts during that launch remain in the same file. When CPU becomes high, note the time and ask the coding agent to inspect the recent samples. No alternate profile, ports, or launch flags are required.
 
-Packaged/released Nerve does not enable performance sampling automatically. Developers can set `NERVE_PERFORMANCE_DIAGNOSTICS=0` for a clean source-launch baseline. Samples remain local, contain no prompts or task output, and are never uploaded.
+Packaged/released Nerve does not enable performance sampling automatically. Configure it under **Settings → System → Diagnostics**. Unpackaged source launches use sampling as a fallback until a saved choice exists; `NERVE_PERFORMANCE_DIAGNOSTICS=0` or `1` always overrides it. Samples remain local, contain no prompts or task output, and are never uploaded.
 
 ## Proxy diagnostics
 

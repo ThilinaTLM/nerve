@@ -19,7 +19,6 @@
     "dev": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools build && pnpm --parallel --stream --filter @nervekit/workbench-server --filter @nervekit/workbench-app dev",
     "dev:ui": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools build && pnpm --filter @nervekit/workbench-app dev",
     "desktop": "pnpm --filter @nervekit/desktop-shell dev --",
-    "desktop:remote-enabled": "pnpm desktop -- --host 0.0.0.0 --allow-remote --mobile-https",
     "performance:summarize": "node scripts/summarize-performance-jsonl.mjs",
     "release:bump-version": "node scripts/bump-release-version.mjs",
     "release:verify-tag": "node scripts/verify-release-tag.mjs",

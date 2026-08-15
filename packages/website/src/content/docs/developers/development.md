@@ -18,7 +18,6 @@ pnpm desktop
 
 ```sh
 pnpm desktop                # Electron app from source
-pnpm desktop:remote-enabled # trusted-LAN/mobile HTTPS flags
 pnpm dev                    # daemon + Vite workbench
 pnpm dev:ui                 # UI against an existing daemon
 pnpm build                  # all packages and staged Workbench assets
@@ -26,6 +25,8 @@ pnpm fix                    # format and ESLint fixes
 pnpm check                  # formatting, lint, boundaries, package checks
 pnpm test                   # package tests
 ```
+
+Enable trusted-LAN and mobile HTTPS access from **Settings → System → Network**, then restart the owned daemon when prompted.
 
 For UI-only development against a running daemon:
 

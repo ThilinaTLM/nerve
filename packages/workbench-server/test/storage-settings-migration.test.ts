@@ -18,6 +18,33 @@ afterEach(async () => {
 });
 
 describe("settings migrations", () => {
+  it("moves legacy server settings into application configuration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
+    try {
+      await initializeStorage(root);
+      const legacy = {
+        ...defaultSettings,
+        application: undefined,
+        server: { host: "127.0.0.1", port: 4100, allowRemote: true },
+      };
+      await writeFile(join(root, "config.json"), `${JSON.stringify(legacy)}\n`);
+      const storage = await initializeStorage(root);
+      assert.deepEqual(storage.settings.application.network, {
+        host: "0.0.0.0",
+        port: 4100,
+        allowRemote: true,
+        mobileHttps: false,
+        httpsPort: 3748,
+      });
+      const persisted = JSON.parse(
+        await readFile(join(root, "config.json"), "utf8"),
+      ) as Record<string, unknown>;
+      assert.equal("server" in persisted, false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   for (const colorMode of ["system", "light", "dark"] as const) {
     it(`migrates the legacy ${colorMode} appearance setting`, async () => {
       const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));

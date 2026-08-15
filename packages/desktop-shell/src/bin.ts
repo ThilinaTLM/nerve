@@ -14,7 +14,10 @@ import {
   prepareElectronDownloadEnv,
 } from "./electron-download-env.js";
 import { resolveElectronFontRenderHinting } from "./shared/font-rendering.js";
-import { parseElectronOzonePlatform } from "./shared/ozone-platform.js";
+import {
+  electronOzonePlatformSwitch,
+  parseElectronOzonePlatform,
+} from "./shared/ozone-platform.js";
 
 const require = createRequire(import.meta.url);
 
@@ -98,8 +101,8 @@ const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
-const ozonePlatform = parseElectronOzonePlatform(
-  process.env.NERVE_ELECTRON_OZONE_PLATFORM,
+const ozonePlatform = electronOzonePlatformSwitch(
+  parseElectronOzonePlatform(process.env.NERVE_ELECTRON_OZONE_PLATFORM),
 );
 const fontRenderHinting = resolveElectronFontRenderHinting(
   process.env.NERVE_ELECTRON_FONT_RENDER_HINTING,

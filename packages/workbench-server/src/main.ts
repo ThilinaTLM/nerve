@@ -21,6 +21,7 @@ import {
   writeCrashReportSync,
   writeNodeDiagnosticReport,
 } from "./infrastructure/diagnostics/index.js";
+import { resolveApplicationConfiguration } from "./infrastructure/configuration/index.js";
 import { migrateLegacyEventLogs } from "./infrastructure/events/index.js";
 import {
   isLoopbackHost,
@@ -40,18 +41,6 @@ import {
 } from "./infrastructure/storage/index.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
 import { installProtocolWebSocketUpgrade } from "./protocol/protocol-websocket.js";
-
-function readArg(name: string): string | undefined {
-  const prefix = `${name}=`;
-  const value = process.argv.find((arg) => arg.startsWith(prefix));
-  if (value) return value.slice(prefix.length);
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
-
-function readFlag(name: string): boolean {
-  return process.argv.includes(name);
-}
 
 function prepareEnterpriseNetworkEnvironment(): void {
   const proxyConfigured = Boolean(
@@ -119,36 +108,30 @@ async function main() {
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
   installNodeDiagnosticReports(dataDir);
   runtimeMonitor = installDaemonRuntimeMonitor(dataDir);
-  const host =
-    readArg("--host") ?? process.env.NERVE_HOST ?? storage.settings.server.host;
-  const allowRemote =
-    readArg("--allow-remote") !== undefined ||
-    process.env.NERVE_ALLOW_REMOTE === "1" ||
-    storage.settings.server.allowRemote;
+  const resolvedConfiguration = resolveApplicationConfiguration({
+    settings: storage.settings,
+    env: process.env,
+    argv: process.argv.slice(2),
+    dataDir,
+  });
+  const {
+    host,
+    port,
+    allowRemote,
+    mobileHttps: mobileHttpsEnabled,
+    httpsPort,
+    loggingEnabled,
+    performanceEnabled: performanceDiagnosticsEnabled,
+  } = resolvedConfiguration.values;
   if (!allowRemote && !isLoopbackHost(host)) {
     throw new Error(
-      `Refusing to bind nerve daemon to ${host}. Use --allow-remote, NERVE_ALLOW_REMOTE=1, or set server.allowRemote=true in config.json to explicitly opt in.`,
+      `Refusing to bind Nerve daemon to ${host}. Enable remote connections in Settings or set NERVE_ALLOW_REMOTE=1.`,
     );
   }
-  const port = Number(
-    readArg("--port") ?? process.env.NERVE_PORT ?? storage.settings.server.port,
-  );
-  const mobileHttpsEnabled =
-    readFlag("--mobile-https") || process.env.NERVE_MOBILE_HTTPS === "1";
-  const httpsPort = Number(
-    readArg("--https-port") ?? process.env.NERVE_HTTPS_PORT ?? port + 1,
-  );
-  if (!Number.isFinite(port) || port <= 0) {
-    throw new Error(`Invalid Nerve daemon port: ${String(port)}`);
-  }
-  if (mobileHttpsEnabled && (!Number.isFinite(httpsPort) || httpsPort <= 0)) {
-    throw new Error(`Invalid Nerve HTTPS port: ${String(httpsPort)}`);
-  }
-  const performanceDiagnosticsEnabled =
-    process.env.NERVE_PERFORMANCE_DIAGNOSTICS === "1";
   const state = createOrchestratorState(storage, host, port, {
-    applicationLogsEnabled: process.env.NERVE_LOGGING_ENABLED === "1",
+    applicationLogsEnabled: loggingEnabled,
     performanceDiagnosticsEnabled,
+    applicationConfiguration: resolvedConfiguration.snapshot,
   });
   const loggerHydrateStartedAt = performance.now();
   await state.logger.hydrate();

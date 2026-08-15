@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/index.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/index.js";
+import {
+  applicationSettingsPatchSchema,
+  applicationSettingsSchema,
+  defaultApplicationSettings,
+} from "./application-configuration.schema.js";
 import { userConfigurableToolNameSchema } from "../tools/index.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
@@ -168,11 +173,7 @@ export const settingsSchema = z.object({
     model: modelSelectionSchema.optional(),
     thinkingLevel: thinkingLevelSchema.default("off"),
   }),
-  server: z.object({
-    host: z.string().default("127.0.0.1"),
-    port: z.number().int().positive().default(3747),
-    allowRemote: z.boolean().default(false),
-  }),
+  application: applicationSettingsSchema.default(defaultApplicationSettings),
   ui: z.object({
     theme: colorThemeSchema.default("nerve"),
     colorMode: colorModeSchema.default("system"),
@@ -244,11 +245,7 @@ export const defaultSettings: Settings = {
   exploreAgent: {
     thinkingLevel: "off",
   },
-  server: {
-    host: "127.0.0.1",
-    port: 3747,
-    allowRemote: false,
-  },
+  application: defaultApplicationSettings,
   ui: {
     theme: "nerve",
     colorMode: "system",
@@ -313,13 +310,7 @@ export const updateSettingsRequestSchema = z.object({
       thinkingLevel: thinkingLevelSchema.optional(),
     })
     .optional(),
-  server: z
-    .object({
-      host: z.string().optional(),
-      port: z.number().int().positive().optional(),
-      allowRemote: z.boolean().optional(),
-    })
-    .optional(),
+  application: applicationSettingsPatchSchema.optional(),
   ui: z
     .object({
       theme: colorThemeSchema.optional(),

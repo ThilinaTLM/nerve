@@ -48,6 +48,7 @@ describe("settings schema", () => {
       closeToTray: true,
       headerType: "auto",
     });
+    assert.deepEqual(settings.application, defaultSettings.application);
     assert.deepEqual(settings.notifications, {
       systemEnabled: true,
       soundsEnabled: true,

@@ -5,10 +5,15 @@ const PERFORMANCE_SESSION_ENV = "NERVE_PERFORMANCE_SESSION_ID";
 export function applyDevelopmentPerformanceDiagnostics(
   isPackaged: boolean,
   env: NodeJS.ProcessEnv = process.env,
-  options: { now?: () => Date; pid?: number } = {},
+  options: { now?: () => Date; pid?: number; enabled?: boolean } = {},
 ): void {
-  if (!isPackaged && env[PERFORMANCE_DIAGNOSTICS_ENV] === undefined)
-    env[PERFORMANCE_DIAGNOSTICS_ENV] = "1";
+  if (
+    env[PERFORMANCE_DIAGNOSTICS_ENV] === undefined &&
+    (options.enabled !== undefined || !isPackaged)
+  ) {
+    const enabled = options.enabled ?? true;
+    env[PERFORMANCE_DIAGNOSTICS_ENV] = enabled ? "1" : "0";
+  }
   if (
     env[PERFORMANCE_DIAGNOSTICS_ENV] !== "1" ||
     env[PERFORMANCE_SESSION_ENV] !== undefined

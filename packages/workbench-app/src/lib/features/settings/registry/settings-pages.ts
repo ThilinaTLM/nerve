@@ -92,8 +92,12 @@ export const settingsPages: SettingsPageDef[] = [
     label: "System",
     icon: Server,
     sections: [
-      { id: "server", label: "Server" },
+      { id: "network", label: "Network" },
       { id: "diagnostics", label: "Diagnostics" },
+      { id: "daemon", label: "Daemon" },
+      { id: "desktop-rendering", label: "Desktop rendering" },
+      { id: "launch-context", label: "Launch context" },
+      { id: "system-information", label: "System information" },
     ],
   },
 ];

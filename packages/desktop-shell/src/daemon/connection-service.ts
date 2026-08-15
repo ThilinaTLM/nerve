@@ -1,5 +1,6 @@
 import type { DaemonConnectionPorts } from "./ports.js";
 import {
+  buildOrchestratorArgs,
   buildOrchestratorEnv,
   resolveDaemonPaths,
   resolveReadinessTimeoutMs,
@@ -50,7 +51,10 @@ async function connectRemoteDaemon(
     {
       mode: "remote",
       owned: false,
-      readinessTimeoutMs: resolveReadinessTimeoutMs(ports.env),
+      readinessTimeoutMs: resolveReadinessTimeoutMs(
+        ports.env,
+        options.startupTimeoutMs,
+      ),
     },
     ports,
   );
@@ -62,7 +66,10 @@ async function ensureLocalDaemon(
   ports: DaemonConnectionPorts,
 ): Promise<ManagedDaemon> {
   const paths = resolveDaemonPaths(ports.env);
-  const readinessTimeoutMs = resolveReadinessTimeoutMs(ports.env);
+  const readinessTimeoutMs = resolveReadinessTimeoutMs(
+    ports.env,
+    options.startupTimeoutMs,
+  );
   const existing = await ports.discovery.findHealthyDaemon(paths);
   if (existing) {
     if (
@@ -102,6 +109,7 @@ async function ensureLocalDaemon(
       paths,
       serverMain,
       launchEnv: buildOrchestratorEnv(options, ports.env),
+      launchArgs: buildOrchestratorArgs(options),
       readinessTimeoutMs,
     },
     ports,

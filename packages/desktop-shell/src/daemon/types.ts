@@ -43,6 +43,8 @@ export interface EnsureDaemonOptions {
   httpsPort?: number;
   allowRemote?: boolean;
   mobileHttps?: boolean;
+  startupTimeoutMs?: number;
+  maxOldSpaceMb?: number;
 }
 
 export interface DaemonPaths {

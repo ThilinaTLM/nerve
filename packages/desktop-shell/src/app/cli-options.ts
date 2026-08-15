@@ -5,6 +5,7 @@ import {
   resolveElectronFontRenderHinting,
 } from "../shared/font-rendering.js";
 import {
+  electronOzonePlatformSwitch,
   type ElectronOzonePlatform,
   parseElectronOzonePlatform,
 } from "../shared/ozone-platform.js";
@@ -116,8 +117,9 @@ function parsePort(value: string): number {
 export function applyElectronOzonePlatform(
   platform: ElectronOzonePlatform | undefined,
 ): void {
-  if (process.platform !== "linux" || !platform) return;
-  app.commandLine.appendSwitch("ozone-platform", platform);
+  const platformSwitch = electronOzonePlatformSwitch(platform);
+  if (process.platform !== "linux" || !platformSwitch) return;
+  app.commandLine.appendSwitch("ozone-platform", platformSwitch);
 }
 
 export function applyElectronFontRenderHinting(

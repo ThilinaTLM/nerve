@@ -4,13 +4,16 @@ import {
 } from "$lib/presentation/utils/model";
 import type { AgentRecord, ColorMode, ColorTheme, ModelInfo } from "$lib/api";
 import {
+  getApplicationConfiguration,
   getAuthProviders,
   getClientConfig,
   getModels,
   getSettings,
   listAvailableSkills,
   getSubscriptionUsage,
+  type UpdateApplicationConfigurationRequest,
   type UpdateSettingsRequest,
+  updateApplicationConfiguration,
   updateSettings,
 } from "$lib/api";
 import {
@@ -25,6 +28,10 @@ import {
   resolveNewAgentComposerSelection,
 } from "$lib/features/conversations/state/agent-selection-defaults";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import {
+  getDesktopDaemonCapability,
+  restartDesktopDaemon,
+} from "$lib/features/desktop/state/desktop-bridge.svelte";
 import { notify } from "$lib/features/notifications/notify.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { usageState } from "$lib/features/usage/state/usage-state.svelte";
@@ -120,12 +127,17 @@ export async function loadSettingsSkills(projectId = selection.projectId) {
 }
 
 async function performCoreSettingsLoad(): Promise<void> {
-  const [settings, modelList, auth] = await Promise.all([
-    getSettings(),
-    getModels(),
-    getAuthProviders(),
-  ]);
+  const [settings, applicationConfiguration, modelList, auth, capability] =
+    await Promise.all([
+      getSettings(),
+      getApplicationConfiguration(),
+      getModels(),
+      getAuthProviders(),
+      getDesktopDaemonCapability(),
+    ]);
   settingsState.settingsDraft = settings;
+  settingsState.applicationConfiguration = applicationConfiguration;
+  settingsState.daemonCapability = capability;
   applyAppearance(settings.ui.theme, settings.ui.colorMode);
   applyZoomLevel(settings.ui.zoomLevel);
   settingsState.models = modelList;
@@ -228,8 +240,43 @@ function mergeSettingsPatch(
   patch: UpdateSettingsRequest,
 ): UpdateSettingsRequest {
   const next: UpdateSettingsRequest = { ...(base ?? {}), ...patch };
-  if (base?.server || patch.server) {
-    next.server = { ...(base?.server ?? {}), ...(patch.server ?? {}) };
+  if (base?.application || patch.application) {
+    next.application = {
+      ...(base?.application ?? {}),
+      ...(patch.application ?? {}),
+      ...(base?.application?.network || patch.application?.network
+        ? {
+            network: {
+              ...(base?.application?.network ?? {}),
+              ...(patch.application?.network ?? {}),
+            },
+          }
+        : {}),
+      ...(base?.application?.diagnostics || patch.application?.diagnostics
+        ? {
+            diagnostics: {
+              ...(base?.application?.diagnostics ?? {}),
+              ...(patch.application?.diagnostics ?? {}),
+            },
+          }
+        : {}),
+      ...(base?.application?.daemon || patch.application?.daemon
+        ? {
+            daemon: {
+              ...(base?.application?.daemon ?? {}),
+              ...(patch.application?.daemon ?? {}),
+            },
+          }
+        : {}),
+      ...(base?.application?.electron || patch.application?.electron
+        ? {
+            electron: {
+              ...(base?.application?.electron ?? {}),
+              ...(patch.application?.electron ?? {}),
+            },
+          }
+        : {}),
+    };
   }
   if (base?.ui || patch.ui) {
     next.ui = { ...(base?.ui ?? {}), ...(patch.ui ?? {}) };
@@ -331,7 +378,9 @@ function mergeSettingsPatch(
 }
 
 function patchTouchesServer(patch: UpdateSettingsRequest | undefined): boolean {
-  return Boolean(patch?.server && Object.keys(patch.server).length > 0);
+  return Boolean(
+    patch?.application && Object.keys(patch.application).length > 0,
+  );
 }
 
 function patchTouchesRuntime(
@@ -436,6 +485,46 @@ export async function flushSettingsSave() {
     if (pendingSettingsPatch && settingsState.settingsSaveStatus !== "error") {
       void flushSettingsSave();
     }
+  }
+}
+
+export async function saveApplicationConfiguration(
+  patch: UpdateApplicationConfigurationRequest,
+): Promise<void> {
+  settingsState.settingsSaveStatus = "saving";
+  settingsState.settingsMessage = "Saving…";
+  try {
+    const snapshot = await updateApplicationConfiguration(patch);
+    settingsState.applicationConfiguration = snapshot;
+    const settings = await getSettings();
+    settingsState.settingsDraft = settings;
+    settingsState.settingsSaveStatus = "saved";
+    settingsState.settingsMessage = "Saved";
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    settingsState.settingsSaveStatus = "error";
+    settingsState.settingsMessage = message;
+    notify.error("Could not save configuration", { description: message });
+  }
+}
+
+export async function restartOwnedDaemon(): Promise<void> {
+  if (settingsState.daemonRestarting) return;
+  settingsState.daemonRestarting = true;
+  settingsState.settingsMessage = "Restarting daemon…";
+  try {
+    const restarted = await restartDesktopDaemon();
+    if (!restarted) throw new Error("Daemon restart is not available here.");
+    await loadCoreSettings();
+    settingsState.settingsSaveStatus = "saved";
+    settingsState.settingsMessage = "Daemon restarted";
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    settingsState.settingsSaveStatus = "error";
+    settingsState.settingsMessage = message;
+    notify.error("Could not restart daemon", { description: message });
+  } finally {
+    settingsState.daemonRestarting = false;
   }
 }
 

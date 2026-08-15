@@ -11,7 +11,8 @@ export function registerSettingsEventHandlers(): () => void {
 
 function handleSettingsEvent(event: WorkbenchEvent): void {
   if (
-    shouldRefreshSettings(event.type) &&
+    (event.type === "applicationConfiguration.updated" ||
+      shouldRefreshSettings(event.type)) &&
     !(event.type.startsWith("settings.") && hasPendingSettingsSave())
   ) {
     void loadSettingsPanel();

@@ -8,11 +8,19 @@ import {
 import { resolveDataDir } from "@nervekit/workbench-server";
 
 let seq = 0;
+let configuredApplicationLogging: boolean | undefined;
+
+export function configureApplicationLogging(enabled: boolean): void {
+  configuredApplicationLogging = enabled;
+}
 
 export function applicationLoggingEnabled(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return env.NERVE_LOGGING_ENABLED === "1";
+  if (env.NERVE_LOGGING_ENABLED !== undefined) {
+    return env.NERVE_LOGGING_ENABLED === "1";
+  }
+  return configuredApplicationLogging ?? false;
 }
 
 export async function desktopLog(

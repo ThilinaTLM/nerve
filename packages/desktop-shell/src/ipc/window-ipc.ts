@@ -10,6 +10,12 @@ interface RegisterDesktopIpcOptions {
   closeWindowOrQuit: (window: BrowserWindowType, source?: QuitSource) => void;
   sendWindowState: (window: BrowserWindowType) => void;
   showDesktopNotification: (payload: unknown) => { shown: boolean };
+  getDaemonCapability: () => {
+    mode?: "local" | "remote";
+    owned: boolean;
+    canRestart: boolean;
+  };
+  restartDaemon: () => Promise<void>;
 }
 
 export function registerDesktopIpc(options: RegisterDesktopIpcOptions): void {
@@ -35,6 +41,19 @@ export function registerDesktopIpc(options: RegisterDesktopIpcOptions): void {
       context: { closeToTray: options.getCloseToTray() },
     });
     options.closeWindowOrQuit(window, "titlebar-close");
+  });
+
+  ipcMain.handle("desktop.daemon.getCapability", () =>
+    options.getDaemonCapability(),
+  );
+
+  ipcMain.handle("desktop.daemon.restart", async () => {
+    const capability = options.getDaemonCapability();
+    if (!capability.canRestart) {
+      throw new Error("The current daemon is not owned by this desktop app.");
+    }
+    await options.restartDaemon();
+    return { ok: true };
   });
 
   ipcMain.handle("desktop.settings.setCloseToTray", (_event, value) => {

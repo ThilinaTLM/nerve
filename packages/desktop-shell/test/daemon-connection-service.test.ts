@@ -99,7 +99,8 @@ describe("daemon connection service", () => {
     assert.equal(daemon.mode, "local");
     assert.equal(world.launches.length, 1);
     assert.equal(world.launches[0]?.serverMain, "/opt/nerve/server/main.js");
-    assert.equal(world.launches[0]?.env.NERVE_PORT, "4000");
+    assert.equal(world.launches[0]?.env.NERVE_PORT, undefined);
+    assert.deepEqual(world.launches[0]?.args, ["--port", "4000"]);
     assert.equal(world.launches[0]?.env.ELECTRON_RUN_AS_NODE, "1");
     assert.equal(daemon.url, "http://127.0.0.1:3747");
     await daemon.stop();

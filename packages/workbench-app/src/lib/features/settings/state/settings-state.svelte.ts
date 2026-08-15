@@ -1,4 +1,5 @@
 import type {
+  ApplicationConfigurationSnapshot,
   AuthProviderMetadata,
   AvailableSkill,
   ModelInfo,
@@ -15,6 +16,18 @@ export const settingsState = $state({
   skillsError: undefined as string | undefined,
   skillsProjectId: undefined as string | null | undefined,
   settingsDraft: undefined as Settings | undefined,
+  applicationConfiguration: undefined as
+    | ApplicationConfigurationSnapshot
+    | undefined,
+  daemonCapability: {
+    owned: false,
+    canRestart: false,
+  } as {
+    mode?: "local" | "remote";
+    owned: boolean;
+    canRestart: boolean;
+  },
+  daemonRestarting: false,
   settingsSaveStatus: "idle" as "idle" | "dirty" | "saving" | "saved" | "error",
   settingsMessage: undefined as string | undefined,
   settingsTabOpen: false,

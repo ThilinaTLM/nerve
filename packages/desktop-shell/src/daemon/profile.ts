@@ -27,24 +27,36 @@ export function resolveDaemonPaths(
 
 export function resolveReadinessTimeoutMs(
   env: NodeJS.ProcessEnv = process.env,
+  configured = DEFAULT_READINESS_TIMEOUT_MS,
 ): number {
   const raw = env.NERVE_DAEMON_STARTUP_TIMEOUT_MS?.trim();
-  if (!raw) return DEFAULT_READINESS_TIMEOUT_MS;
+  if (!raw) return configured;
   const value = Number(raw);
   if (!Number.isFinite(value) || value <= 0) {
-    return DEFAULT_READINESS_TIMEOUT_MS;
+    return configured;
   }
   return Math.max(1, Math.trunc(value));
 }
 
 export function resolveDaemonMaxOldSpaceMb(
   env: NodeJS.ProcessEnv = process.env,
+  configured = DEFAULT_DAEMON_MAX_OLD_SPACE_MB,
 ): number {
   const raw = env.NERVE_DAEMON_MAX_OLD_SPACE_MB?.trim();
   const parsed = raw ? Number(raw) : NaN;
   return Number.isFinite(parsed) && parsed > 0
     ? Math.floor(parsed)
-    : DEFAULT_DAEMON_MAX_OLD_SPACE_MB;
+    : configured;
+}
+
+export function buildOrchestratorArgs(options: EnsureDaemonOptions): string[] {
+  return [
+    ...(options.host ? ["--host", options.host] : []),
+    ...(options.port ? ["--port", String(options.port)] : []),
+    ...(options.httpsPort ? ["--https-port", String(options.httpsPort)] : []),
+    ...(options.allowRemote ? ["--allow-remote"] : []),
+    ...(options.mobileHttps ? ["--mobile-https"] : []),
+  ];
 }
 
 /** Launch environment for the owned workbench-server child. */
@@ -54,21 +66,22 @@ export function buildOrchestratorEnv(
 ): NodeJS.ProcessEnv {
   const nodeOptions = [
     env.NODE_OPTIONS,
-    `--max-old-space-size=${resolveDaemonMaxOldSpaceMb(env)}`,
+    `--max-old-space-size=${resolveDaemonMaxOldSpaceMb(
+      env,
+      options.maxOldSpaceMb,
+    )}`,
   ]
     .filter(Boolean)
     .join(" ");
+  const childEnv = { ...env };
+  if (childEnv.NERVE_DESKTOP_SYNTHETIC_PERFORMANCE === "1") {
+    delete childEnv.NERVE_PERFORMANCE_DIAGNOSTICS;
+    delete childEnv.NERVE_DESKTOP_SYNTHETIC_PERFORMANCE;
+  }
   return {
-    ...env,
+    ...childEnv,
     ELECTRON_RUN_AS_NODE: "1",
     NODE_OPTIONS: nodeOptions,
-    NERVE_HOST: options.host ?? env.NERVE_HOST ?? "127.0.0.1",
-    ...(options.port ? { NERVE_PORT: String(options.port) } : {}),
-    ...(options.httpsPort
-      ? { NERVE_HTTPS_PORT: String(options.httpsPort) }
-      : {}),
-    ...(options.allowRemote ? { NERVE_ALLOW_REMOTE: "1" } : {}),
-    ...(options.mobileHttps ? { NERVE_MOBILE_HTTPS: "1" } : {}),
     ...(options.webDistPath ? { NERVE_WEB_DIST: options.webDistPath } : {}),
   };
 }

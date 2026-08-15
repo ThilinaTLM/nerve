@@ -30,6 +30,10 @@ contextBridge.exposeInMainWorld("nerveDesktop", {
       };
     },
   },
+  daemon: {
+    getCapability: () => ipcRenderer.invoke("desktop.daemon.getCapability"),
+    restart: () => ipcRenderer.invoke("desktop.daemon.restart"),
+  },
   settings: {
     setCloseToTray: (closeToTray) =>
       ipcRenderer.invoke("desktop.settings.setCloseToTray", closeToTray),

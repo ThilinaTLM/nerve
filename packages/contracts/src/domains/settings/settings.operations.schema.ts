@@ -1,4 +1,9 @@
-import { settingsSchema, updateSettingsRequestSchema } from "./index.js";
+import {
+  applicationConfigurationSnapshotSchema,
+  settingsSchema,
+  updateApplicationConfigurationRequestSchema,
+  updateSettingsRequestSchema,
+} from "./index.js";
 import { z } from "zod";
 import { defineOperation } from "../protocol/operation-definition.schema.js";
 
@@ -22,5 +27,23 @@ export const settingsOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.settings.update",
+  ),
+  defineOperation(
+    "applicationConfiguration.get",
+    emptyParamsSchema,
+    applicationConfigurationSnapshotSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.applicationConfiguration.get",
+  ),
+  defineOperation(
+    "applicationConfiguration.update",
+    updateApplicationConfigurationRequestSchema,
+    applicationConfigurationSnapshotSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.applicationConfiguration.update",
   ),
 ] as const;
