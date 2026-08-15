@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -21,6 +21,15 @@ afterEach(async () => {
 });
 
 describe("settings migrations", () => {
+  it("does not create prompt-suggestion state before first use", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-lazy-suggestions-"));
+    roots.push(root);
+
+    await initializeStorage(root);
+
+    await assert.rejects(lstat(join(root, "prompt-suggestions")), /ENOENT/);
+  });
+
   it("moves legacy server settings into application configuration", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-settings-migration-"));
     try {

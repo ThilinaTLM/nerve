@@ -50,7 +50,7 @@ const footprint = $derived(
 const groupTargets: Record<string, StorageCleanupTarget[]> = {
   history: ["conversations"],
   logs: ["datedLogs", "rotatedEventLog"],
-  disposable: ["exploreReports", "cache", "tmp"],
+  disposable: ["exploreReports", "crashReports", "cache", "tmp"],
   index: ["searchIndex"],
 };
 
@@ -200,6 +200,12 @@ function start(): void {
           bind:checked={selection.exploreReports}
           title="Explore reports"
           description={`Saved explore-agent output · ${targetFootprint("exploreReports")}`}
+        />
+        <StorageCleanupChoice
+          id="cleanup-crash-reports"
+          bind:checked={selection.crashReports}
+          title="Crash and Node reports"
+          description={`Diagnostic reports · ${targetFootprint("crashReports")}`}
         />
         <StorageCleanupChoice
           id="cleanup-cache"

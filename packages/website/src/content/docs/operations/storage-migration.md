@@ -11,7 +11,7 @@ Electron's active Chromium profile is intentionally outside `NERVE_HOME`. Backin
 
 ## Inspect and clean up
 
-Settings can estimate usage and run asynchronous cleanup for old conversations/logs, event/tool-call compaction, reports, cache/temp data, and index rebuild. Cleanup skips symlinks during directory clearing and observes cancellation between targets; it cannot interrupt every target operation once started.
+Settings can estimate usage and run asynchronous cleanup for old conversations/logs, crash and Node diagnostic reports, event/tool-call compaction, reports, cache/temp data, and index rebuild. Cleanup skips symlinks during directory clearing and observes cancellation between targets; it cannot interrupt every target operation once started. Cleared disposable directories are recreated only when a producer next needs them.
 
 Conversation pruning supports age and keep-latest boundaries. It skips running/awaiting agents and conversations with active tasks, then removes associated inactive task/tool/plan/log/index records.
 
@@ -25,8 +25,12 @@ When local desktop mode finds an unversioned legacy home, it asks before changin
 
 Projects, conversations, agents, tasks, plans, logs, run history, indexes, and daemon/session state remain only in the backup. Malformed settings/catalog abort and restore the original home. Credentials that cannot be decrypted cause reauthentication but do not destroy the backup.
 
+Current storage migration 0008 removes retired in-home Electron profile data, obsolete empty handover/SQLite paths, pre-dense event archives, and committed internal migration archives. This one-time cleanup is intentionally irreversible and leaves the migration ledger and current authoritative state intact.
+
+Timestamped whole-home backups such as `~/.nerve-bk-*` are different from internal migration archives and remain user-controlled.
+
 :::danger
-Nerve never deletes migration backups automatically and does not auto-reset malformed, unknown, or future versioned stores. Stop all Nerve processes before manual state operations.
+Nerve never deletes whole-home migration backups automatically and does not auto-reset malformed, unknown, or future versioned stores. Stop all Nerve processes before manual state operations.
 :::
 
 ## Next steps

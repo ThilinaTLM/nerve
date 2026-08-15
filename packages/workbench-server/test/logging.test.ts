@@ -47,6 +47,32 @@ describe("ApplicationLogger", () => {
     await assert.rejects(access(join(home, "logs")));
   });
 
+  it("applies retention to dated daemon and desktop logs", async () => {
+    const home = await tempHome();
+    const logs = join(home, "logs");
+    await mkdir(logs, { recursive: true });
+    const oldApplication = join(logs, "application-2000-01-01.jsonl");
+    const oldDesktop = join(logs, "desktop-2000-01-01.jsonl");
+    const recentDesktop = join(logs, "desktop-2999-01-01.jsonl");
+    await Promise.all([
+      writeFile(oldApplication, ""),
+      writeFile(oldDesktop, ""),
+      writeFile(recentDesktop, ""),
+    ]);
+    const logger = new ApplicationLogger({
+      dataDir: home,
+      component: "test",
+      retentionDays: 14,
+      mirrorToConsole: false,
+    });
+
+    await logger.pruneRetention();
+
+    await assert.rejects(access(oldApplication), /ENOENT/);
+    await assert.rejects(access(oldDesktop), /ENOENT/);
+    await access(recentDesktop);
+  });
+
   it("writes, queries, and redacts structured application logs", async () => {
     const home = await tempHome();
     const logger = new ApplicationLogger({

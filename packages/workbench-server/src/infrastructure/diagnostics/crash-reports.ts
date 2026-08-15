@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { lstat, readdir, rmdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   type ApplicationLogError,
@@ -56,6 +57,59 @@ export function installNodeDiagnosticReports(
     console.error("[nerve] failed to configure node diagnostic reports", error);
     return undefined;
   }
+}
+
+export interface CrashReportPruneResult {
+  freedBytes: number;
+  removedItems: number;
+  skipped: number;
+}
+
+export async function pruneCrashReports(
+  dataDir: string,
+  retentionDays: number,
+  now = Date.now(),
+): Promise<CrashReportPruneResult> {
+  const dir = crashesDir(dataDir);
+  const entries = await readdir(dir, { withFileTypes: true }).catch(
+    (error: unknown) => {
+      if (errorCode(error) === "ENOENT") return [];
+      throw error;
+    },
+  );
+  const cutoff = now - retentionDays * 86_400_000;
+  let freedBytes = 0;
+  let removedItems = 0;
+  let skipped = 0;
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      skipped += 1;
+      continue;
+    }
+    const path = join(dir, entry.name);
+    let info;
+    try {
+      info = await lstat(path);
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") continue;
+      skipped += 1;
+      continue;
+    }
+    if (!info.isFile() || info.mtimeMs >= cutoff) continue;
+    try {
+      await unlink(path);
+      freedBytes += info.size;
+      removedItems += 1;
+    } catch (error) {
+      if (errorCode(error) !== "ENOENT") skipped += 1;
+    }
+  }
+  await rmdir(dir).catch((error: unknown) => {
+    const code = errorCode(error);
+    if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST")
+      throw error;
+  });
+  return { freedBytes, removedItems, skipped };
 }
 
 export function writeNodeDiagnosticReport(
@@ -244,6 +298,12 @@ function crashesDir(dataDir: string): string {
 
 function runtimeMarkerPath(dataDir: string): string {
   return join(dataDir, "runtime", "orchestrator-runtime.json");
+}
+
+function errorCode(error: unknown): string | undefined {
+  return error && typeof error === "object" && "code" in error
+    ? String(error.code)
+    : undefined;
 }
 
 function safeStringify(value: unknown): string {

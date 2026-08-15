@@ -22,6 +22,11 @@ describe("storage cleanup contracts", () => {
         .success,
       true,
     );
+    assert.equal(
+      storageCleanupRequestSchema.safeParse({ clearCrashReports: true })
+        .success,
+      true,
+    );
   });
 
   it("registers cleanup as an accepted operation with status and cancel methods", () => {

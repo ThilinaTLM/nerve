@@ -15,11 +15,11 @@ Task tabs have separate streaming/backfilled terminal output and retention/trunc
 
 ## Crash diagnostics
 
-Crash and Node diagnostic reports are under `<NERVE_HOME>/crashes` and remain enabled independently of application logging.
+Crash and Node diagnostic reports are under `<NERVE_HOME>/crashes` and remain enabled independently of application logging. The **Diagnostic retention** period under **Settings → System → Diagnostics** prunes old reports at daemon startup, and **Settings → Storage → Clean up** can remove all retained reports on demand.
 
 The daemon writes structured reports for handled fatal errors, enables Node reports for runtime/native fatal conditions, and leaves a heartbeat marker. On the next start, an unclean prior exit can produce a fallback report.
 
-There is no dedicated in-app crash-report list/download route. Inspect the directory directly and redact before sharing.
+There is no dedicated in-app crash-report list/download route. Inspect the directory directly and redact before sharing. Automatic retention is age-based; explore reports, cache, and temporary tool artifacts remain explicit manual cleanup targets to avoid disrupting linked or active work.
 
 ## Developer performance diagnostics
 

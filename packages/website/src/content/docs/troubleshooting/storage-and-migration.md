@@ -23,6 +23,10 @@ Startup can continue with the complete backup intact and ask for authentication.
 
 Malformed settings or catalog data cause rollback to the original legacy home. Read logs and fix/copy data rather than partially deleting migration markers.
 
+## Retired internal archives disappeared
+
+Storage migration 0008 permanently removes committed internal migration archives, pre-dense event archives, the retired in-home Electron profile, and other obsolete paths. It does not remove timestamped whole-home `~/.nerve-bk-*` backups or current project/conversation state.
+
 ## Cleanup appears stuck
 
 Cleanup cancellation is observed between targets, not inside every operation. Search index replacement cannot be interrupted mid-target. Wait for the current target and inspect storage-operation status/logs.

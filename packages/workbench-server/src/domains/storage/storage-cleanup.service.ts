@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, unlink } from "node:fs/promises";
+import { readdir, rmdir, rm, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
   createId,
@@ -322,6 +322,12 @@ export class StorageCleanupService {
         run: () =>
           this.clearDirContents(join(this.deps.paths.home, "explore-reports")),
       });
+    if (request.clearCrashReports)
+      plans.push({
+        target: "crashReports",
+        message: "Clearing crash reports…",
+        run: () => this.clearDirContents(join(this.deps.paths.home, "crashes")),
+      });
     if (request.clearCache)
       plans.push({
         target: "cache",
@@ -417,7 +423,14 @@ export class StorageCleanupService {
         skipped += 1;
       }
     }
-    await mkdir(path, { recursive: true });
+    await rmdir(path).catch((error: unknown) => {
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? String(error.code)
+          : undefined;
+      if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST")
+        throw error;
+    });
     return { freedBytes, removedItems, skipped };
   }
 
@@ -451,6 +464,7 @@ function requestTargets(
   if (request.logsOlderThanDays !== undefined) targets.push("datedLogs");
   if (request.truncateEventLog) targets.push("rotatedEventLog");
   if (request.clearExploreReports) targets.push("exploreReports");
+  if (request.clearCrashReports) targets.push("crashReports");
   if (request.clearCache) targets.push("cache");
   if (request.clearTmp) targets.push("tmp");
   if (request.rebuildSearchIndex) targets.push("searchIndex");
@@ -464,6 +478,7 @@ function targetLabel(target: StorageCleanupTarget): string {
       datedLogs: "dated logs",
       rotatedEventLog: "rotated event log",
       exploreReports: "explore reports",
+      crashReports: "crash reports",
       cache: "cache",
       tmp: "temporary files",
       searchIndex: "search index",

@@ -290,7 +290,7 @@ const diagnostics = $derived<SettingsStat[]>([
     <div class="grid gap-3 sm:grid-cols-2">
       <SettingsFieldRow
         id="settings-log-retention"
-        label="Log retention"
+        label="Diagnostic retention"
         type="number"
         min={1}
         suffix="days"
@@ -298,7 +298,7 @@ const diagnostics = $derived<SettingsStat[]>([
           controlValue(configuration.application.diagnostics.retentionDays),
         )}
         hint={describe(
-          "How long application log files are retained.",
+          "How long application logs and crash or Node diagnostic reports are retained.",
           configuration.application.diagnostics.retentionDays,
         )}
         onValueChange={(value) =>
