@@ -46,7 +46,9 @@ let unavailableSignature = $state<string | undefined>(undefined);
 let blockEl = $state<HTMLElement | undefined>(undefined);
 let viewportEl = $state<HTMLElement | undefined>(undefined);
 let contentEl = $state<HTMLElement | undefined>(undefined);
-let measureFrame = $state<number | undefined>(undefined);
+// This lifecycle handle must stay non-reactive: making it a rune creates a
+// self-rescheduling effect cycle when the callback clears the pending frame.
+const measureState: { frame: number | undefined } = { frame: undefined };
 
 const preview = $derived(trim ? trimTextPreview(code) : { text: code });
 const signature = $derived(`${language ?? ""}\0${preview.text}`);
@@ -99,13 +101,13 @@ function updateVisibleRows(measuredRows?: number): void {
 }
 
 function cancelMeasureFrame(): void {
-  if (measureFrame === undefined) return;
-  cancelAnimationFrame(measureFrame);
-  measureFrame = undefined;
+  if (measureState.frame === undefined) return;
+  cancelAnimationFrame(measureState.frame);
+  measureState.frame = undefined;
 }
 
 function measureVisualRows(): void {
-  measureFrame = undefined;
+  measureState.frame = undefined;
   if (!hasFixedRows || !blockEl || !viewportEl || !contentEl) return;
 
   let contentWidth = viewportEl.clientWidth;
@@ -135,12 +137,12 @@ function measureVisualRows(): void {
 
 function scheduleMeasure(): void {
   if (!hasFixedRows) return;
-  if (measureFrame !== undefined) return;
+  if (measureState.frame !== undefined) return;
   if (typeof requestAnimationFrame === "undefined") {
     measureVisualRows();
     return;
   }
-  measureFrame = requestAnimationFrame(measureVisualRows);
+  measureState.frame = requestAnimationFrame(measureVisualRows);
 }
 
 $effect(() => {
