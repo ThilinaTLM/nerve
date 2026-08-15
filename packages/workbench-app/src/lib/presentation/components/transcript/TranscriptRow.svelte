@@ -152,7 +152,7 @@ $effect(() => {
             }}
         menu={transcriptMenu}
         disabled={!node.toolCall}
-        triggerClass="block min-w-0"
+        triggerClass="block min-w-0 select-text"
       >
         <ToolCallCard
           draft={node.draft}
