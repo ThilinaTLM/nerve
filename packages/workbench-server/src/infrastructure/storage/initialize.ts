@@ -63,11 +63,11 @@ export async function initializeStorage(
     message: "Checking workspace storage",
   });
   const migrationReport = await runStorageMigrations(paths.home, {
-    reportProgress: ({ description }) => {
+    reportProgress: () => {
       options.reportStartupProgress?.({
         type: "nerve.startup.progress",
         phase: "storage-migration",
-        message: `Upgrading workspace storage — ${description}`,
+        message: "Upgrading workspace storage",
       });
     },
   });

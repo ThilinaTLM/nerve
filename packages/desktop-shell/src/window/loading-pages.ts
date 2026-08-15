@@ -253,12 +253,15 @@ function shellStyles(): string {
       line-height: 1.625;
     }
     .loading-progress {
-      width: min(12rem, 100%);
+      width: min(16rem, 100%);
       margin-top: 1.5rem;
     }
     .loading .status {
       margin-bottom: 0.5rem;
+      overflow: hidden;
       text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .loading-progressbar {
       width: 100%;
