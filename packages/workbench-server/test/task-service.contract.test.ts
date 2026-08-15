@@ -143,6 +143,85 @@ test("runtime timeout includes process startup and identity delay", async () => 
   assert.deepEqual(sleeps, [400]);
 });
 
+test("a pruned task makes its delayed timeout watcher exit quietly", async () => {
+  const records = new Map<string, TaskRecord>();
+  const events: DomainEventIntent[] = [];
+  const diagnostics: string[] = [];
+  let callbacks: TaskProcessCallbacks | undefined;
+  let releaseTimeout!: () => void;
+  const timeout = new Promise<void>((resolve) => {
+    releaseTimeout = resolve;
+  });
+  const ports = servicePortsForRecords(records, events, {
+    spawn: async (_input, nextCallbacks) => {
+      callbacks = nextCallbacks;
+      return { pid: 42, startedAt: "2026-07-11T00:00:00.000Z" };
+    },
+    diagnostics: {
+      error: (_message, context) => diagnostics.push(String(context?.kind)),
+    },
+    timers: { sleep: async () => timeout },
+  });
+  const service = new TaskService(ports);
+  await service.start({
+    cwd: "/workspace",
+    command: "sleep 60",
+    timeoutMs: 10,
+  });
+  await callbacks?.onExit?.({
+    exitedAt: "2026-07-11T00:00:01.000Z",
+    exitCode: 0,
+  });
+  assert.deepEqual(await service.prune(), ["task_contract"]);
+
+  releaseTimeout();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(diagnostics, []);
+});
+
+test("task deletion waits for an in-flight terminal transition", async () => {
+  const records = new Map<string, TaskRecord>();
+  const events: DomainEventIntent[] = [];
+  let callbacks: TaskProcessCallbacks | undefined;
+  let releaseTerminalSave!: () => void;
+  const terminalSave = new Promise<void>((resolve) => {
+    releaseTerminalSave = resolve;
+  });
+  const ports = servicePortsForRecords(records, events, {
+    spawn: async (_input, nextCallbacks) => {
+      callbacks = nextCallbacks;
+      return { pid: 42, startedAt: "2026-07-11T00:00:00.000Z" };
+    },
+    save: async (task) => {
+      if (task.status === "completed") await terminalSave;
+      records.set(task.id, structuredClone(task));
+    },
+  });
+  const service = new TaskService(ports);
+  await service.start({ cwd: "/workspace", command: "true" });
+  const exiting = callbacks?.onExit?.({
+    exitedAt: "2026-07-11T00:00:01.000Z",
+    exitCode: 0,
+  });
+  await Promise.resolve();
+  const deleting = service.delete("task_contract");
+  await Promise.resolve();
+  assert.equal(records.has("task_contract"), true);
+
+  releaseTerminalSave();
+  await exiting;
+  await deleting;
+  assert.equal(records.has("task_contract"), false);
+  assert.deepEqual(
+    events
+      .filter((event) =>
+        ["task.completed", "task.removed"].includes(event.type),
+      )
+      .map((event) => event.type),
+    ["task.completed", "task.removed"],
+  );
+});
+
 test("cancellation is terminal only after process-exit evidence", async () => {
   const pending = fixture({ waitForExit: "timeout" });
   await pending.service.start({ cwd: "/workspace", command: "sleep 60" });

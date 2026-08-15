@@ -3,10 +3,12 @@ import {
   type OrchestratorState,
   statusResponse,
 } from "../app/orchestrator-state.js";
+import { version } from "../app/version.js";
 
 export function createStatusRoutes(state: OrchestratorState): Hono {
   const app = new Hono();
 
+  app.get("/health", (c) => c.json({ status: "ok", version }));
   app.get("/status", (c) => c.json(statusResponse(state)));
   app.get("/events", async (c) => {
     const since = Number(c.req.query("since") ?? "0");

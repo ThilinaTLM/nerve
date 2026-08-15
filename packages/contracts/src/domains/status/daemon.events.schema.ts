@@ -15,4 +15,12 @@ export const daemonEventDefinitions = [
     }),
     { allowedSourceRoles: workbenchRoles, scope: ["daemonId"] },
   ),
+  definePublicEvent(
+    "daemon.stopped",
+    z.object({
+      daemonId: z.string().startsWith("daemon_"),
+      signal: z.string().min(1).max(32),
+    }),
+    { allowedSourceRoles: workbenchRoles, scope: ["daemonId"] },
+  ),
 ];

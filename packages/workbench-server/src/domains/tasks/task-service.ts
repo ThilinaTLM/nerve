@@ -590,15 +590,17 @@ export class TaskService {
   }
 
   async delete(id: string): Promise<void> {
-    const task = await this.require(id);
-    if (!isTerminalTaskStatus(task.status))
-      throw new Error("Active tasks must be cancelled before deletion");
-    await this.ports.logs.remove(task);
-    await this.ports.launchConfigs?.remove(task);
-    await this.ports.repository.remove(id);
-    this.startCallbacks.delete(id);
-    await this.ports.capabilities?.afterRemoved?.(task);
-    await this.publish("task.removed", { taskId: id });
+    await this.serializeTask(id, async () => {
+      const task = await this.require(id);
+      if (!isTerminalTaskStatus(task.status))
+        throw new Error("Active tasks must be cancelled before deletion");
+      await this.ports.logs.remove(task);
+      await this.ports.launchConfigs?.remove(task);
+      await this.ports.repository.remove(id);
+      this.startCallbacks.delete(id);
+      await this.ports.capabilities?.afterRemoved?.(task);
+      await this.publish("task.removed", { taskId: id });
+    });
   }
 
   pendingTerminalFailureIds(): readonly string[] {
@@ -636,8 +638,9 @@ export class TaskService {
     id: string,
     error: unknown,
   ): Promise<void> {
+    if (!(await this.get(id))) return;
     this.reportFailure(kind, id, error);
-    await this.transition(id, async (task) => {
+    await this.transitionIfPresent(id, async (task) => {
       if (isTerminalTaskStatus(task.status)) return task;
       if (kind === "readiness" && task.readiness.outcome === "pending") {
         task.readiness.outcome = "unavailable";
@@ -666,7 +669,7 @@ export class TaskService {
       : "unavailable";
     const outcome =
       typeof readiness === "object" ? readiness.outcome : readiness;
-    await this.transition(id, async (current) => {
+    await this.transitionIfPresent(id, async (current) => {
       if (isTerminalTaskStatus(current.status) || current.status === "stopping")
         return current;
       current.readiness.outcome = outcome;
@@ -772,7 +775,7 @@ export class TaskService {
   ): Promise<void> {
     await (this.ports.timers?.sleep(timeoutMs) ??
       new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)));
-    const task = await this.transition(id, async (current) => {
+    const task = await this.transitionIfPresent(id, async (current) => {
       if (isTerminalTaskStatus(current.status) || current.status === "stopping")
         return current;
       this.stopReasons.set(id, "timed_out");
@@ -788,6 +791,7 @@ export class TaskService {
       return current;
     });
     if (
+      !task ||
       isTerminalTaskStatus(task.status) ||
       this.stopReasons.get(id) !== "timed_out"
     )
@@ -824,10 +828,29 @@ export class TaskService {
     return this.ports.process.inspect(task);
   }
 
-  private async transition(
+  private transition(
     id: string,
     change: (task: TaskRecord) => Promise<TaskRecord>,
   ): Promise<TaskRecord> {
+    return this.serializeTask(id, async () =>
+      change(structuredClone(await this.require(id))),
+    );
+  }
+
+  private transitionIfPresent(
+    id: string,
+    change: (task: TaskRecord) => Promise<TaskRecord>,
+  ): Promise<TaskRecord | undefined> {
+    return this.serializeTask(id, async () => {
+      const task = await this.get(id);
+      return task ? change(structuredClone(task)) : undefined;
+    });
+  }
+
+  private async serializeTask<T>(
+    id: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
     const previous = (this.transitions.get(id) ?? Promise.resolve()).catch(
       () => undefined,
     );
@@ -837,7 +860,7 @@ export class TaskService {
     this.transitions.set(id, queued);
     await previous;
     try {
-      return await change(structuredClone(await this.require(id)));
+      return await operation();
     } finally {
       release();
       if (this.transitions.get(id) === queued) this.transitions.delete(id);

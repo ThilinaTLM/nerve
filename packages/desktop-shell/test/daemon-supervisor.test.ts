@@ -4,7 +4,10 @@ import {
   DaemonStartupError,
   isDaemonStartupErrorCode,
 } from "../src/daemon/diagnostics.ts";
-import { DAEMON_RESTART_BACKOFF_MS } from "../src/daemon/policy.ts";
+import {
+  DAEMON_DIAGNOSTIC_GRACE_MS,
+  DAEMON_RESTART_BACKOFF_MS,
+} from "../src/daemon/policy.ts";
 import { DaemonSupervisor } from "../src/daemon/supervisor.ts";
 import type {
   DaemonStatus,
@@ -123,20 +126,56 @@ describe("daemon supervisor", () => {
     const daemon = await ownedSupervisor(world).startOwned();
     const statuses = recordStatuses(daemon);
     world.healthResults.value = false;
+    world.healthResults.outcome = "timeout";
+    world.healthResults.status = undefined;
     await world.scheduler.advance(10_000);
     assert.equal(daemon.getStatus(), "ready", "below threshold stays ready");
     world.healthResults.value = false;
     await world.scheduler.advance(5_000);
-    // Third failure crossed the threshold; recovery succeeds during restart.
-    world.healthResults.value = true;
-    await world.scheduler.advance(DAEMON_RESTART_BACKOFF_MS[0] + 1_000);
-    assert.equal(world.launches.length, 2, "old child replaced");
-    assert.ok(
-      world.children[0]?.kills.includes("SIGTERM"),
-      "previous child terminated before relaunch",
+    // Third failure crossed the threshold; owned-child discovery succeeds during restart.
+    await world.scheduler.advance(
+      DAEMON_DIAGNOSTIC_GRACE_MS + DAEMON_RESTART_BACKOFF_MS[0] + 1_000,
     );
+    assert.equal(world.launches.length, 2, "old child replaced");
+    assert.deepEqual(
+      world.children[0]?.kills.slice(0, 2),
+      ["SIGUSR2", "SIGTERM"],
+      "diagnostics are requested before the previous child is terminated",
+    );
+    const healthReports = world.crashReports.filter(
+      (report) => report.kind === "healthFailure",
+    );
+    assert.equal(healthReports.length, 1);
+    assert.equal((healthReports[0]?.context?.checks as unknown[])?.length, 3);
     assert.equal(daemon.getStatus(), "ready");
     assert.ok(statuses.some((entry) => entry.status === "restarting"));
+    await daemon.stop();
+  });
+
+  it("never diagnoses or restarts a monitor-only daemon", async () => {
+    const world = fakeDaemonWorld();
+    const supervisor = new DaemonSupervisor(
+      {
+        mode: "remote",
+        owned: false,
+        readinessTimeoutMs: 1_000,
+      },
+      world.ports,
+    );
+    const daemon = supervisor.initMonitorOnly({
+      url: "https://nerve.example",
+      token: "tok_remote",
+    });
+    world.healthResults.value = false;
+    world.healthResults.outcome = "network_error";
+    await world.scheduler.advance(15_000);
+    assert.equal(daemon.getStatus(), "restarting");
+    assert.equal(world.launches.length, 0);
+    assert.equal(world.crashReports.length, 0);
+
+    world.healthResults.value = true;
+    await world.scheduler.advance(5_000);
+    assert.equal(daemon.getStatus(), "ready");
     await daemon.stop();
   });
 

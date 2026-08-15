@@ -52,11 +52,21 @@ function deferred(): {
 
 describe("StreamLogRegistry", () => {
   it("contains validation failures for explicit best-effort publication", async () => {
+    const home = await tempHome();
     const failures: Array<{ type: string; context: string }> = [];
-    const registry = new StreamLogRegistry(await tempHome(), {
+    const registry = new StreamLogRegistry(home, {
       onPublishFailed: ({ type, context }) =>
         void failures.push({ type, context }),
     });
+    assert.equal(
+      await registry.publishBestEffortAndWait(
+        "daemon.stopped",
+        { daemonId: "daemon_test", signal: "SIGTERM" },
+        "test.valid_shutdown",
+      ),
+      true,
+    );
+
     const invalid = {
       conversationId: "conv_test",
       agentId: "agent_test",
@@ -68,10 +78,13 @@ describe("StreamLogRegistry", () => {
       delta: "x".repeat(70_000),
     };
 
-    registry.publishBestEffort(
-      "conversation.live.tool_output.delta",
-      invalid,
-      "test.invalid_delta",
+    assert.equal(
+      await registry.publishBestEffortAndWait(
+        "conversation.live.tool_output.delta",
+        invalid,
+        "test.invalid_delta",
+      ),
+      false,
     );
 
     assert.deepEqual(failures, [
@@ -83,6 +96,34 @@ describe("StreamLogRegistry", () => {
     assert.throws(() =>
       registry.publish("conversation.live.tool_output.delta", invalid),
     );
+    await registry.shutdown();
+    await rm(home, { recursive: true, force: true });
+  });
+
+  it("contains asynchronous best-effort persistence failures", async () => {
+    const home = await tempHome();
+    const failures: string[] = [];
+    const registry = new StreamLogRegistry(home, {
+      flushEventThreshold: 1,
+      onFsync: () => {
+        throw new Error("injected fsync failure");
+      },
+      onPublishFailed: ({ context }) => void failures.push(context),
+    });
+    try {
+      assert.equal(
+        await registry.publishBestEffortAndWait(
+          "git.repository.changed",
+          gitData("failure"),
+          "test.async_failure",
+        ),
+        false,
+      );
+      assert.deepEqual(failures, ["test.async_failure"]);
+    } finally {
+      await registry.shutdown().catch(() => undefined);
+      await rm(home, { recursive: true, force: true });
+    }
   });
 
   it("records content-free publication and listener activity", async () => {

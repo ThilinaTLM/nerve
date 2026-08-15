@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 import { type DaemonFile, daemonFileSchema } from "@nervekit/contracts";
 import { serializeCrashError, writeCrashReportSync } from "../crash-reports.js";
 import { desktopLog } from "../logging.js";
-import type { DaemonConnectionPorts } from "./ports.js";
+import type {
+  DaemonConnectionPorts,
+  DaemonHealthCheckResult,
+} from "./ports.js";
 import type { DaemonPaths, HealthyDaemon } from "./types.js";
 import { localConnectUrl, type NetworkInterfacesSnapshot } from "./urls.js";
 
@@ -15,7 +18,7 @@ const HEALTH_CHECK_TIMEOUT_MS = 1500;
 export function createNodeDaemonPorts(): DaemonConnectionPorts {
   return {
     env: process.env,
-    health: { isHealthy },
+    health: { check: checkHealth },
     discovery: { findHealthyDaemon },
     launcher: {
       launch: (input) => {
@@ -37,6 +40,8 @@ export function createNodeDaemonPorts(): DaemonConnectionPorts {
             return child.pid;
           },
           kill: (signal) => child.kill(signal),
+          requestDiagnosticReport: () =>
+            process.platform === "win32" ? false : child.kill("SIGUSR2"),
         };
       },
     },
@@ -89,23 +94,51 @@ export function createNodeDaemonPorts(): DaemonConnectionPorts {
   };
 }
 
-export async function isHealthy(
+export async function checkHealth(
   daemonUrl: string,
   token: string,
-): Promise<boolean> {
+  options: {
+    fetch?: typeof fetch;
+    now?: () => number;
+    timeoutMs?: number;
+  } = {},
+): Promise<DaemonHealthCheckResult> {
+  const now = options.now ?? Date.now;
+  const request = options.fetch ?? fetch;
+  const startedAt = now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? HEALTH_CHECK_TIMEOUT_MS,
+  );
   try {
-    const response = await fetch(new URL("/api/status", daemonUrl), {
+    const response = await request(new URL("/api/health", daemonUrl), {
       headers: { authorization: `Bearer ${token}` },
       signal: controller.signal,
     });
-    return response.ok;
-  } catch {
-    return false;
+    const durationMs = now() - startedAt;
+    return response.ok
+      ? { healthy: true, outcome: "ok", durationMs, status: response.status }
+      : {
+          healthy: false,
+          outcome: "http_error",
+          durationMs,
+          status: response.status,
+        };
+  } catch (error) {
+    return {
+      healthy: false,
+      outcome: controller.signal.aborted ? "timeout" : "network_error",
+      durationMs: now() - startedAt,
+      error: boundedHealthError(error),
+    };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function boundedHealthError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 512);
 }
 
 export async function findHealthyDaemon(
@@ -120,8 +153,8 @@ export async function findHealthyDaemon(
   const token = await readToken(paths.localTokenPath);
   if (!token) return undefined;
 
-  const healthy = await isHealthy(url, token);
-  return healthy ? { daemon, url, token } : undefined;
+  const health = await checkHealth(url, token);
+  return health.healthy ? { daemon, url, token } : undefined;
 }
 
 async function readDaemonFile(path: string): Promise<DaemonFile | undefined> {

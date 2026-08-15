@@ -44,7 +44,7 @@ async function connectRemoteDaemon(
     );
   }
 
-  if (!(await ports.health.isHealthy(url, token))) {
+  if (!(await ports.health.check(url, token)).healthy) {
     throw new Error(`Could not connect to remote Nerve daemon at ${url}.`);
   }
   const supervisor = new DaemonSupervisor(

@@ -11,10 +11,8 @@ import {
 } from "../http/request-context.js";
 import { serveStatic } from "../http/static-files.js";
 import { mountApiRoutes } from "../routes/index.js";
-import {
-  statusResponse,
-  type OrchestratorState,
-} from "./orchestrator-state.js";
+import type { OrchestratorState } from "./orchestrator-state.js";
+import { version } from "./version.js";
 
 export { isWebSocketAuthorized } from "../http/auth-middleware.js";
 
@@ -183,10 +181,7 @@ export function createApp(state: OrchestratorState): Hono {
   app.use("/api/*", createApiAuthMiddleware(state.storage.localToken));
   mountApiRoutes(app, state);
 
-  app.get("/health", (c) => {
-    const status = statusResponse(state);
-    return c.json({ status: "ok", version: status.version });
-  });
+  app.get("/health", (c) => c.json({ status: "ok", version }));
 
   app.get(
     "/mobile-setup",
