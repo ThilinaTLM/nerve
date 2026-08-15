@@ -72,6 +72,27 @@ describe("daemon supervisor", () => {
     assert.equal(world.crashReports[0]?.kind, "startupExit");
   });
 
+  it("extends startup readiness while the daemon reports migration progress", async () => {
+    const world = fakeDaemonWorld({ discovery: [undefined] });
+    const startup = ownedSupervisor(world, 1_000).startOwned();
+
+    await world.scheduler.advance(800);
+    world.children[0]?.emitOutput(
+      "stderr",
+      'NERVE_STARTUP_PROGRESS {"type":"nerve.startup.progress","phase":"storage-migration","message":"Upgrading workspace storage"}\n',
+    );
+    await world.scheduler.advance(600);
+    const rejected = assert.rejects(startup, (error) => {
+      assert.ok(error instanceof DaemonStartupError);
+      assert.match(error.message, /exited before it became ready/);
+      assert.doesNotMatch(error.message, /did not become ready within/);
+      return true;
+    });
+    world.children[0]?.exit(1);
+    await world.scheduler.advance(200);
+    await rejected;
+  });
+
   it("restarts after an owned child exit and reports crash details", async () => {
     const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
     const daemon = await ownedSupervisor(world).startOwned();

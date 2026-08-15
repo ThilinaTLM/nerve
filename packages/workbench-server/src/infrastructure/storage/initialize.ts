@@ -57,20 +57,34 @@ export async function initializeStorage(
   const paths = storagePaths(home);
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   await chmod(paths.home, 0o700).catch(() => undefined);
-  options.reportStartupProgress?.({
+  let currentProgress: DaemonStartupProgress = {
     type: "nerve.startup.progress",
     phase: "storage-check",
     message: "Checking workspace storage",
-  });
-  const migrationReport = await runStorageMigrations(paths.home, {
-    reportProgress: () => {
-      options.reportStartupProgress?.({
-        type: "nerve.startup.progress",
-        phase: "storage-migration",
-        message: "Upgrading workspace storage",
-      });
-    },
-  });
+  };
+  const reportProgress = (progress: DaemonStartupProgress) => {
+    currentProgress = progress;
+    options.reportStartupProgress?.(progress);
+  };
+  reportProgress(currentProgress);
+  const heartbeat = options.reportStartupProgress
+    ? setInterval(() => reportProgress(currentProgress), 5_000)
+    : undefined;
+  heartbeat?.unref();
+  let migrationReport: MigrationReport;
+  try {
+    migrationReport = await runStorageMigrations(paths.home, {
+      reportProgress: () => {
+        reportProgress({
+          type: "nerve.startup.progress",
+          phase: "storage-migration",
+          message: "Upgrading workspace storage",
+        });
+      },
+    });
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
+  }
   for (const subdir of dataSubdirs) {
     const mode = subdir === "auth" || subdir === "keys" ? 0o700 : 0o755;
     const dir = join(paths.home, subdir);

@@ -214,9 +214,13 @@ export class DaemonSupervisor {
     const { paths, serverMain, launchEnv, launchArgs, readinessTimeoutMs } =
       this.requireOwnedConfig();
     const output = new OutputBuffer();
-    const progress = this.config.onStartupProgress
-      ? new DaemonStartupProgressDecoder(this.config.onStartupProgress)
-      : undefined;
+    let deadline = this.ports.scheduler.now() + readinessTimeoutMs;
+    const progress = new DaemonStartupProgressDecoder((event) => {
+      // Treat the configured startup timeout as an inactivity timeout while
+      // the daemon reports legitimate long-running startup work.
+      deadline = this.ports.scheduler.now() + readinessTimeoutMs;
+      this.config.onStartupProgress?.(event);
+    });
     this.ports.logger.log("info", "Starting owned local daemon", {
       context: { serverMain, dataDir: paths.home, readinessTimeoutMs },
     });
@@ -235,7 +239,7 @@ export class DaemonSupervisor {
       env: launchEnv,
       onOutput: (stream, chunk) => {
         output.append(stream, chunk);
-        progress?.push(Buffer.isBuffer(chunk) ? chunk : String(chunk));
+        progress.push(Buffer.isBuffer(chunk) ? chunk : String(chunk));
       },
       onError: (error) => {
         child.spawnError = error;
@@ -247,7 +251,6 @@ export class DaemonSupervisor {
     });
     this.child = child;
 
-    const deadline = this.ports.scheduler.now() + readinessTimeoutMs;
     while (this.ports.scheduler.now() < deadline) {
       if (child.spawnError) {
         const crashReportPath = this.writeOwnedCrashReport(
