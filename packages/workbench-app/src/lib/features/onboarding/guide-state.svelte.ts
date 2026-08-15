@@ -23,9 +23,7 @@ import { newConversation } from "$lib/features/workspace/state/workspace-actions
 import { workspaceState } from "$lib/features/workspace/state/workspace-state.svelte";
 import { guideCatalog, type GuideId } from "./guide-catalog.js";
 import {
-  adjacentGuideIndex,
   autoCompletedGuideIds,
-  firstIncompleteGuideIndex,
   incompleteGuideCount as countIncompleteGuides,
   resolveGuides,
   shouldAutoOpenCatalog,
@@ -42,10 +40,6 @@ import { guideItemsForRun, tourSteps, type TourStep } from "./guide-content.js";
 import { adjacentStep } from "./guide-controller.js";
 import { setupStepsForArea, adjacentSetupStep } from "./setup-guide-policy.js";
 import type { SetupGuideArea, SetupGuideStep } from "./setup-guide-content.js";
-import {
-  summarizeAgentDefaults,
-  type AgentDefaultsSetupSummary,
-} from "./setup-summary.js";
 import { activeTabIsConversation } from "./tour-readiness.js";
 
 type GuideMode = "closed" | "catalog" | "tour" | "preparing-coach" | "coach";
@@ -60,8 +54,6 @@ type PresentationSnapshot = {
 
 export const guideState = $state({
   mode: "closed" as GuideMode,
-  manual: false,
-  selectedGuideIndex: 0,
   consideredGeneration: undefined as number | undefined,
   preparing: false,
   targetAvailable: false,
@@ -94,18 +86,6 @@ export function webSearchConfigured(): boolean {
   );
 }
 
-export function scopedModelSummary(): string {
-  const count = settingsState.settingsDraft?.scopedModels.length ?? 0;
-  if (count === 0) return "All authenticated models are currently available";
-  return `${count} scoped ${count === 1 ? "model" : "models"} selected`;
-}
-
-export function agentDefaultsSummary(): AgentDefaultsSetupSummary {
-  const draft = settingsState.settingsDraft;
-  if (!draft) return { configured: false, text: "Agent defaults are loading." };
-  return summarizeAgentDefaults(draft, settingsState.models);
-}
-
 function guideSignals(): GuideSignals {
   return {
     "project-open": Boolean(workspaceSelectors.activeProject),
@@ -125,39 +105,6 @@ export function catalogGuides(): ResolvedGuide[] {
 
 export function incompleteGuideCount(): number {
   return countIncompleteGuides(catalogGuides());
-}
-
-export function currentCatalogGuide(): ResolvedGuide | undefined {
-  return catalogGuides()[guideState.selectedGuideIndex];
-}
-
-export function guideSummary(id: GuideId): string | undefined {
-  if (id === "open-project") {
-    return workspaceSelectors.activeProject
-      ? "A project is open and ready."
-      : "No project is open yet.";
-  }
-  if (id === "provider") {
-    return providerConfigured()
-      ? "A model provider is connected."
-      : "No model provider is connected.";
-  }
-  if (id === "voice") {
-    return voiceConfigured()
-      ? "Voice input is ready."
-      : "Voice input is not connected yet.";
-  }
-  if (id === "scoped-models") return scopedModelSummary();
-  if (id === "agent-defaults") return agentDefaultsSummary().text;
-  if (id === "web-search") {
-    return webSearchConfigured()
-      ? "Web search is ready with Tavily."
-      : "A Tavily API key is not configured yet.";
-  }
-  if (id === "workbench") {
-    return "Covers conversations, composer controls, panels, Git, tasks, and settings.";
-  }
-  return undefined;
 }
 
 function persistCompletionVersions(versions: GuideCompletionVersions): void {
@@ -204,28 +151,10 @@ export function considerAutomaticGuide(): void {
   )
     return;
   guideState.consideredGeneration = generation;
-  guideState.manual = false;
-  guideState.selectedGuideIndex = firstIncompleteGuideIndex(catalogGuides());
   guideState.mode = "catalog";
 }
 
 export function openGuide(): void {
-  guideState.manual = true;
-  guideState.selectedGuideIndex = firstIncompleteGuideIndex(catalogGuides());
-  guideState.mode = "catalog";
-}
-
-export function moveCatalog(direction: -1 | 1): void {
-  guideState.selectedGuideIndex = adjacentGuideIndex(
-    guideState.selectedGuideIndex,
-    guideCatalog.length,
-    direction,
-  );
-}
-
-export function selectCatalogGuide(id: GuideId): void {
-  const index = guideCatalog.findIndex((guide) => guide.id === id);
-  if (index >= 0) guideState.selectedGuideIndex = index;
   guideState.mode = "catalog";
 }
 
@@ -472,8 +401,8 @@ function beginWorkbenchTour(): void {
   if (step) void prepareTourStep(step);
 }
 
-export function startCurrentGuide(): void {
-  const guide = currentCatalogGuide();
+export function startGuide(id: GuideId): void {
+  const guide = catalogGuides().find((candidate) => candidate.id === id);
   if (!guide || !guide.available) return;
   if (!guide.run) {
     markGuideCompleted(guide.id);
@@ -484,7 +413,7 @@ export function startCurrentGuide(): void {
     return;
   }
   if (!workspaceSelectors.activeProject) {
-    selectCatalogGuide("open-project");
+    startGuide("open-project");
     return;
   }
   beginWorkbenchTour();
