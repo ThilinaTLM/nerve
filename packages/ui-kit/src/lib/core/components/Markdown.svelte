@@ -304,7 +304,7 @@ $effect(() => () => streamingScheduler.destroy());
 .markdown :global(.table-scroll),
 .markdown :global(.code-block),
 .markdown :global(.mermaid-block) {
-  margin: 0.55rem 0;
+  margin: calc(var(--spacing) * 1.5) 0;
 }
 
 .markdown :global(ul),
@@ -373,7 +373,7 @@ $effect(() => () => streamingScheduler.destroy());
 .markdown :global(h4),
 .markdown :global(h5),
 .markdown :global(h6) {
-  margin: calc(var(--spacing) * 6) 0 calc(var(--spacing) * 2);
+  margin: calc(var(--spacing) * 6) 0 calc(var(--spacing) * 1);
   color: var(--foreground);
   font-weight: 600;
   line-height: 1.25;
@@ -385,7 +385,7 @@ $effect(() => () => streamingScheduler.destroy());
 .markdown :global(h4),
 .markdown :global(h5),
 .markdown :global(h6) {
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
 }
 
 .markdown :global(a) {
@@ -393,6 +393,13 @@ $effect(() => () => streamingScheduler.destroy());
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--primary) 50%, transparent);
   text-underline-offset: 0.18em;
+}
+
+.markdown :global(img) {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
 }
 
 .markdown :global(code) {
