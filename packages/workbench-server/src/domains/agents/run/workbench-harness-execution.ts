@@ -57,6 +57,7 @@ import {
   createToolDraftProgressAccumulator,
   type ToolDraftProgressAccumulator,
 } from "./tool-draft-progress.js";
+import { ToolDraftProgressScheduler } from "./tool-draft-progress-scheduler.js";
 import {
   shouldPublishToolDraftProgress,
   shouldStreamToolDraftArguments,
@@ -160,6 +161,29 @@ export async function executeWorkbenchHarness(
       getTurnId: () => currentTurnId,
       getLiveMessageId: () => currentLiveMessageId,
     });
+    const toolDraftProgressScheduler = new ToolDraftProgressScheduler(
+      liveToolDraftProgress,
+      (contentIndex, progress) => {
+        if (!currentTurnId || !currentLiveMessageId) return;
+        const draft = liveToolDrafts.get(contentIndex);
+        const data = this.deps.state.conversationRuntime.applyToolDraftProgress(
+          {
+            runId,
+            turnId: currentTurnId,
+            liveMessageId: currentLiveMessageId,
+            contentIndex,
+            providerToolCallId: draft?.providerToolCallId,
+            toolName: draft?.toolName ?? liveToolDraftNames.get(contentIndex),
+            progress,
+          },
+        );
+        this.deps.events.publishBestEffort(
+          "conversation.live.tool_draft.progress",
+          data,
+          "conversation.live.tool_draft.progress",
+        );
+      },
+    );
     let currentProviderForResponse: string | undefined;
     const harnessFactory = new HostHarnessFactory({
       resolveModel: async () => model,
@@ -255,7 +279,7 @@ export async function executeWorkbenchHarness(
         await startLiveTurn();
         currentLiveMessageId = undefined;
         liveToolDraftNames.clear();
-        liveToolDraftProgress.clear();
+        toolDraftProgressScheduler.clear();
         liveToolDrafts.clear();
         pendingProviderToolCalls.clear();
         return;
@@ -321,7 +345,7 @@ export async function executeWorkbenchHarness(
         currentLiveMessageId = started.liveMessageId;
         assistantEntryMeta.onMessageStarted(started);
         liveToolDraftNames.clear();
-        liveToolDraftProgress.clear();
+        toolDraftProgressScheduler.clear();
         liveToolDrafts.clear();
         this.deps.events.publishBestEffort(
           "conversation.live.message.started",
@@ -468,26 +492,11 @@ export async function executeWorkbenchHarness(
             createToolDraftProgressAccumulator(toolName);
           if (!progressAccumulator) return;
           liveToolDraftProgress.set(update.contentIndex, progressAccumulator);
-          const progress = progressAccumulator.push(update.delta);
-          if (!progress) return;
-          const data =
-            this.deps.state.conversationRuntime.applyToolDraftProgress({
-              runId,
-              turnId: currentTurnId,
-              liveMessageId: currentLiveMessageId,
-              contentIndex: update.contentIndex,
-              providerToolCallId: draft?.id,
-              toolName,
-              progress,
-            });
-          this.deps.events.publishBestEffort(
-            "conversation.live.tool_draft.progress",
-            data,
-            "conversation.live.tool_draft.progress",
-          );
+          progressAccumulator.ingest(update.delta);
+          toolDraftProgressScheduler.schedule(update.contentIndex);
         } else if (update.type === "toolcall_end") {
           liveToolDraftNames.delete(update.contentIndex);
-          liveToolDraftProgress.delete(update.contentIndex);
+          toolDraftProgressScheduler.finish(update.contentIndex);
           liveToolDrafts.set(update.contentIndex, {
             ...(liveToolDrafts.get(update.contentIndex) ?? {
               contentIndex: update.contentIndex,
@@ -520,7 +529,7 @@ export async function executeWorkbenchHarness(
           ]);
           liveToolDrafts.clear();
           liveToolDraftNames.clear();
-          liveToolDraftProgress.clear();
+          toolDraftProgressScheduler.clear();
         }
         assistantEntryMeta.onMessageEnded(event.message.role);
         const mirrored = await this.deps.messageMirror.mirrorNewHarnessEntries(
@@ -621,6 +630,7 @@ export async function executeWorkbenchHarness(
     });
     const abort = async () => {
       abortRequested = true;
+      toolDraftProgressScheduler.clear();
       runAbortController.abort();
       await harness.abort();
     };

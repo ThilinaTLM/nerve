@@ -2,6 +2,7 @@
 import {
   assertTransition,
   conversationEventTypes,
+  conversationLiveEventTypes,
   type ConversationActiveRunSnapshot,
   ConversationCompactionCancelledData,
   ConversationCompactionFailedData,
@@ -34,6 +35,7 @@ import {
   ConversationSnapshot,
   ConversationToolCallUpdatedData,
   EventEnvelope,
+  type NotifyEvent,
   LIVE_TOOL_OUTPUT_MAX_CHARS,
   LIVE_TOOL_OUTPUT_MAX_CHUNKS,
   QueuedPromptRecord,
@@ -52,6 +54,9 @@ import type { ConversationRenderState } from "./types.js";
 import { ConversationCowDraft } from "./conversation-cow-draft.js";
 
 const conversationEventTypeSet = new Set<string>(conversationEventTypes);
+const conversationLiveEventTypeSet = new Set<string>(
+  conversationLiveEventTypes,
+);
 
 export type ApplyConversationEventOptions = {
   onGap?: (reason: {
@@ -103,6 +108,22 @@ function drainedSnapshotActiveRun(
     materializedLiveMessagesFromEntries(entries),
   );
   return cloned;
+}
+
+export function applyConversationNotification(
+  state: ConversationRenderState,
+  event: NotifyEvent,
+  options: ApplyConversationEventOptions = {},
+): ConversationRenderState {
+  if (!conversationLiveEventTypeSet.has(event.type)) return state;
+  const runId = (event.data as { runId?: string }).runId;
+  if (!runId || state.activeRun?.runId !== runId) return state;
+  const applied = applyConversationEvent(
+    state,
+    { ...event, seq: state.cursorSeq + 1 },
+    options,
+  );
+  return applied === state ? state : { ...applied, cursorSeq: state.cursorSeq };
 }
 
 export function applyConversationEvent(
@@ -871,7 +892,9 @@ function applyToolDraftProgress(
 ): void {
   draft.ownBlock(data.turnId, data.liveMessageId, data.contentBlockId);
   const block = ensureActiveToolDraftBlock(state, data, ts);
-  if (block) block.progress = data.progress;
+  if (!block || block.done || data.revision <= block.progressRevision) return;
+  block.progress = data.progress;
+  block.progressRevision = data.revision;
 }
 
 function applyToolDraftDiscarded(
@@ -1070,6 +1093,7 @@ function ensureActiveToolDraftBlock(
       contentBlockId: data.contentBlockId,
       contentIndex: data.contentIndex,
       argsText: "",
+      progressRevision: 0,
       done: false,
     };
     message.blocks.push(block);

@@ -46,10 +46,12 @@ Catalog events with `delivery: "ephemeral"` use `event.notify`:
 type NotifyEvent = { id: string; type: string; ts: string; data: unknown };
 ```
 
-Notifications are never persisted in stream logs, never replayed, and never consume sequence numbers. Catalog-approved `latest_by_scope` or `concat_delta` notifications may coalesce while queued. Examples include task output, usage updates, and streaming progress whose authoritative state is available from a snapshot or query.
+Notifications are never persisted in stream logs, never replayed, and never consume sequence numbers. Catalog-approved `latest_by_scope` or `concat_delta` notifications may coalesce while queued. Concatenated deltas preserve their exact text and first offset; latest-value updates preserve the newest cumulative snapshot.
+
+All `conversation.live.*` updates are notifications. They project in-progress turns, messages, tool drafts, progress, and bounded output from the server's active-run state. Reconnect recovery fetches the authoritative conversation snapshot instead of replaying presentation frames. Completed entries, run transitions, tool-call lifecycle records, supervision decisions, checkpoints, and final results remain sequenced durable facts.
 
 ## Persistence and retention
 
 Workbench logs are per stream and maintain dense local high-water metadata. Supersedable deltas use a 25 ms/64-event group-commit window; lifecycle events force an immediate flush and fsync. On restart, the next sequence is `max(meta.lastSeq, logTailSeq) + 1`.
 
-Retention truncates whole prefixes, normally keeping the latest 5,000 events and at most 8 MiB per workbench stream. Truncation never renumbers retained events. A cursor below `earliestAvailableSeq - 1` therefore requires a repository-derived snapshot followed by a new subscription.
+Retention uses append-only group commits until a journal reaches a high-water mark (normally 6,250 events or 10 MiB), then atomically compacts it back to the latest 5,000 events and at most 8 MiB. Truncation never renumbers retained events. A cursor below `earliestAvailableSeq - 1` therefore requires a repository-derived snapshot followed by a new subscription.

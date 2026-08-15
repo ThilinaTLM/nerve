@@ -25,10 +25,12 @@ The client validates dense continuity even after the server accepted a subscript
 
 ## Snapshots
 
-For `snapshot_required`, the application loads the authorized workspace or conversation snapshot for that stream, installs snapshot state first, installs the snapshot cursor, and then resubscribes.
+For `snapshot_required`, the application loads the authorized workspace or conversation snapshot for that stream, installs snapshot state first, installs the snapshot cursor, and then resubscribes. Transient `conversation.live.*` notifications are intentionally absent from replay: active turns, draft progress, and bounded output come from the conversation snapshot, while partial state is discarded after a server crash.
 
 Reducer lifecycle violations use the same recovery boundary: mark state corrupted, remove or suspend the affected stream, load a fresh snapshot, then subscribe from that snapshot cursor.
 
 ## Retention and migration
 
 Stream readers expose their earliest retained sequence. A retention gap is never represented as a synthetic event or sparse sequence. Legacy sparse workbench logs are archived into a pre-dense epoch and new streams begin from sequence 1.
+
+The transient-conversation-events migration archives prior conversation journals and installs an empty high-water barrier above each old stream. This deliberately makes every pre-migration conversation cursor require one fresh snapshot without adding a runtime compatibility path or renumbering future durable events.

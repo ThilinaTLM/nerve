@@ -119,6 +119,17 @@ export function createOrchestratorState(
         "event.streamFlushEvents",
         observation.eventCount,
       );
+      if (observation.compaction) {
+        performanceDiagnostics.count("event.streamCompaction");
+        performanceDiagnostics.count(
+          "event.streamCompactionBytesBefore",
+          observation.compaction.bytesBefore,
+        );
+        performanceDiagnostics.count(
+          "event.streamCompactionBytesAfter",
+          observation.compaction.bytesAfter,
+        );
+      }
       if (observation.durationMs < 50) return;
       void logger.warn("Slow event stream flush", {
         durationMs: Math.round(observation.durationMs),
@@ -126,6 +137,7 @@ export function createOrchestratorState(
           stream: observation.stream,
           eventCount: observation.eventCount,
           succeeded: observation.succeeded,
+          compaction: observation.compaction,
         },
       });
     },

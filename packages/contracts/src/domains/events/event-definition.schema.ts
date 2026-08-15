@@ -5,7 +5,14 @@ import {
   publicEventDataGuardSchema,
 } from "./bounded-public-data.schema.js";
 
-export type EventCoalescing = "latest_by_scope" | "concat_delta";
+export type EventCoalescing =
+  | { strategy: "latest_by_scope" }
+  | {
+      strategy: "concat_delta";
+      field: "delta" | "text";
+      offsetField?: "offset";
+      maxChars: number;
+    };
 export type EventDelivery = "sequenced" | "ephemeral";
 
 export interface PublicEventDefinition {

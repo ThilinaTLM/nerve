@@ -365,6 +365,73 @@ describe("subscription-only replay and recovery", () => {
     ]);
   });
 
+  it("delivers conversation notifications only to active stream subscribers", async () => {
+    const logs = new MemoryStreams();
+    const received: NotifyEvent[][] = [];
+    const pair = createPair(logs, {
+      notify: (events) => received.push([...events]),
+    });
+    await start(pair);
+    await pair.client.subscribe([{ stream: "workspace", processedSeq: 0 }]);
+    const liveTurn: NotifyEvent = {
+      id: "evt_live_turn",
+      ts,
+      type: "conversation.live.turn.started",
+      data: {
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        projectId: "proj_test",
+        runId: "run_test",
+        turnId: "turn_test",
+        ordinal: 0,
+      },
+    };
+    await pair.server.notify(liveTurn);
+    await pair.server.flush();
+    assert.equal(received.flat().length, 0);
+
+    await pair.client.subscribe([
+      { stream: "workspace", processedSeq: 0 },
+      { stream: "conv/conv_test", processedSeq: 0 },
+    ]);
+    await pair.server.notify(liveTurn);
+    await pair.server.flush();
+    assert.equal(received.flat().length, 1);
+  });
+
+  it("concatenates adjacent transient deltas without changing cursors", async () => {
+    const logs = new MemoryStreams();
+    const received: NotifyEvent[][] = [];
+    const pair = createPair(logs, {
+      notify: (events) => received.push([...events]),
+    });
+    await start(pair);
+    await pair.client.subscribe([{ stream: "workspace", processedSeq: 0 }]);
+    void pair.server.notify({
+      id: "evt_output_1",
+      ts,
+      type: "task.output",
+      data: { taskId: "task_1", stream: "stdout", text: "hello " },
+    });
+    void pair.server.notify({
+      id: "evt_output_2",
+      ts,
+      type: "task.output",
+      data: { taskId: "task_1", stream: "stdout", text: "world" },
+    });
+    await pair.server.flush();
+    assert.equal(received.flat().length, 1);
+    assert.equal(received.flat()[0]?.id, "evt_output_2");
+    assert.deepEqual(received.flat()[0]?.data, {
+      taskId: "task_1",
+      stream: "stdout",
+      text: "hello world",
+    });
+    assert.deepEqual(pair.client.currentCursors(), [
+      { stream: "workspace", processedSeq: 0 },
+    ]);
+  });
+
   it("closes with resync_required when the outgoing buffer overflows", async () => {
     const logs = new MemoryStreams();
     const closes: Array<[number, string]> = [];

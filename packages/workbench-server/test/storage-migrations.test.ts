@@ -15,6 +15,8 @@ import { after, describe, it } from "node:test";
 import type { StorageMigration } from "../src/infrastructure/migrations/index.js";
 import { migrationChecksum } from "../src/infrastructure/migrations/checksum.js";
 import { migration0004 } from "../src/infrastructure/migrations/migrations/0004-dense-event-stream-layout.js";
+import { migration0007 } from "../src/infrastructure/migrations/migrations/0007-transient-conversation-live-events.js";
+import { StreamLog } from "../src/infrastructure/events/stream-log.js";
 import {
   ledgerDigest,
   readLedger,
@@ -64,6 +66,67 @@ describe("storage migration runner", () => {
       await readFile(join(root, "logs", "workspace-events.jsonl"), "utf8"),
       "",
     );
+  });
+
+  it("archives old conversation streams and installs a snapshot barrier", async () => {
+    const root = await home();
+    const conversationDir = join(root, "conversations", "conv_test");
+    await mkdir(conversationDir, { recursive: true });
+    await writeFile(
+      join(conversationDir, "events.jsonl"),
+      `${JSON.stringify({
+        seq: 5,
+        id: "evt_5",
+        ts: "2026-01-01T00:00:00.000Z",
+        type: "conversation.live.content.delta",
+        data: {},
+      })}\n`,
+    );
+    await writeFile(
+      join(conversationDir, "events.meta.json"),
+      `${JSON.stringify({ lastSeq: 5 })}\n`,
+    );
+
+    await runStorageMigrations(root, { registry: [migration0007] });
+
+    await assert.rejects(
+      readFile(join(conversationDir, "events.jsonl"), "utf8"),
+      /ENOENT/,
+    );
+    assert.deepEqual(
+      JSON.parse(
+        await readFile(join(conversationDir, "events.meta.json"), "utf8"),
+      ),
+      { lastSeq: 6 },
+    );
+    assert.match(
+      await readFile(
+        join(
+          root,
+          "migrations",
+          "archives",
+          migration0007.id,
+          "conversations",
+          "conv_test",
+          "events.jsonl",
+        ),
+        "utf8",
+      ),
+      /evt_5/,
+    );
+    const log = await StreamLog.open({
+      stream: "conv/conv_test",
+      logPath: join(conversationDir, "events.jsonl"),
+      metaPath: join(conversationDir, "events.meta.json"),
+    });
+    assert.deepEqual(log.bounds(), {
+      stream: "conv/conv_test",
+      latestSeq: 6,
+      earliestAvailableSeq: 7,
+    });
+    const appended = await log.append("evt_7", "run.completed", {}, false);
+    assert.equal(appended.seq, 7);
+    await log.close();
   });
 
   it("baselines current state without a rollback copy and reruns idempotently", async () => {

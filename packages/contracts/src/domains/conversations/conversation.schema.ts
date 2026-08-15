@@ -369,6 +369,7 @@ export interface ConversationLiveToolDraftProgressData {
   contentIndex: number;
   providerToolCallId?: string;
   toolName?: string;
+  revision: number;
   progress: ConversationLiveToolDraftProgressSnapshot;
 }
 
@@ -466,6 +467,7 @@ export interface ConversationLiveToolDraftBlockSnapshot {
   argsText: string;
   args?: Record<string, unknown>;
   progress?: ConversationLiveToolDraftProgressSnapshot;
+  progressRevision: number;
   done: boolean;
 }
 
@@ -583,6 +585,7 @@ export const conversationLiveToolDraftBlockSnapshotSchema = z.object({
   argsText: z.string(),
   args: boundedPublicObjectSchema.optional(),
   progress: conversationLiveToolDraftProgressSnapshotSchema.optional(),
+  progressRevision: z.number().int().nonnegative(),
   done: z.boolean(),
 });
 
@@ -928,6 +931,7 @@ const conversationLiveToolDraftDoneDataSchema =
 
 const conversationLiveToolDraftProgressDataSchema =
   conversationLiveToolDraftStartedDataSchema.extend({
+    revision: z.number().int().positive(),
     progress: conversationLiveToolDraftProgressSnapshotSchema,
   });
 
@@ -1028,3 +1032,18 @@ export const conversationEventTypes = [
 ] as const;
 
 export type ConversationEventType = (typeof conversationEventTypes)[number];
+
+export const conversationLiveEventTypes = [
+  "conversation.live.turn.started",
+  "conversation.live.message.started",
+  "conversation.live.content.delta",
+  "conversation.live.content.done",
+  "conversation.live.tool_draft.started",
+  "conversation.live.tool_draft.delta",
+  "conversation.live.tool_draft.done",
+  "conversation.live.tool_draft.progress",
+  "conversation.live.tool_draft.discarded",
+  "conversation.live.tool_output.delta",
+] as const;
+export type ConversationLiveEventType =
+  (typeof conversationLiveEventTypes)[number];

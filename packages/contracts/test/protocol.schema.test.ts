@@ -510,12 +510,13 @@ describe("Protocol v1 shared schemas", () => {
     const turnStarted = definitions.find(
       (definition) => definition.name === "conversation.live.turn.started",
     );
-    assert.equal(turnStarted?.delivery, "sequenced");
-    assert.equal(turnStarted?.supersedable, true);
+    assert.equal(turnStarted?.delivery, "ephemeral");
+    assert.equal(turnStarted?.supersedable, false);
     const liveDone = definitions.find(
       (definition) => definition.name === "conversation.live.content.done",
     );
-    assert.equal(liveDone?.supersedable, true);
+    assert.equal(liveDone?.delivery, "ephemeral");
+    assert.equal(liveDone?.supersedable, false);
     const canonicalLifecycle = definitions.find(
       (definition) => definition.name === "conversation.compaction.started",
     );
@@ -528,7 +529,13 @@ describe("Protocol v1 shared schemas", () => {
     const delta = definitions.find(
       (definition) => definition.name === "conversation.live.content.delta",
     );
-    assert.equal(delta?.supersedable, true);
+    assert.equal(delta?.delivery, "ephemeral");
+    assert.deepEqual(delta?.coalescing, {
+      strategy: "concat_delta",
+      field: "delta",
+      offsetField: "offset",
+      maxChars: 16_384,
+    });
     for (const definition of definitions) {
       assert.ok(["sequenced", "ephemeral"].includes(definition.delivery));
       assert.equal(

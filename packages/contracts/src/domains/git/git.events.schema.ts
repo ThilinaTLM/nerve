@@ -28,7 +28,7 @@ export const gitEventDefinitions = [
     }),
     {
       delivery: "ephemeral",
-      coalescing: "latest_by_scope",
+      coalescing: { strategy: "latest_by_scope" },
       scope: repositoryScope,
     },
   ),
