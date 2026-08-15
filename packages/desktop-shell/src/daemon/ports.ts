@@ -8,8 +8,22 @@ import type { NetworkInterfacesSnapshot } from "./urls.js";
  * Electron, `spawn`, the filesystem, global timers, or crash files directly.
  */
 
+export type DaemonHealthOutcome =
+  | "ok"
+  | "timeout"
+  | "http_error"
+  | "network_error";
+
+export interface DaemonHealthCheckResult {
+  healthy: boolean;
+  outcome: DaemonHealthOutcome;
+  durationMs: number;
+  status?: number;
+  error?: string;
+}
+
 export interface DaemonHealthPort {
-  isHealthy(url: string, token: string): Promise<boolean>;
+  check(url: string, token: string): Promise<DaemonHealthCheckResult>;
 }
 
 export interface DaemonDiscoveryPort {
@@ -20,6 +34,7 @@ export interface DaemonDiscoveryPort {
 export interface DaemonChildHandle {
   readonly pid?: number;
   kill(signal: "SIGTERM" | "SIGKILL"): boolean;
+  requestDiagnosticReport(): boolean;
 }
 
 export interface DaemonChildLauncherPort {

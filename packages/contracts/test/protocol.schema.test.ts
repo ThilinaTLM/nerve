@@ -34,6 +34,34 @@ import {
 
 const ts = "2026-06-26T12:00:00.000Z";
 
+describe("daemon lifecycle events", () => {
+  it("validates daemon shutdown events from the workbench server", () => {
+    const stopped = {
+      daemonId: "daemon_test",
+      signal: "SIGTERM",
+    };
+    assert.deepEqual(
+      validatePublicEvent("daemon.stopped", stopped, "workbench_server"),
+      stopped,
+    );
+    assert.throws(() =>
+      validatePublicEvent(
+        "daemon.stopped",
+        { ...stopped, daemonId: "invalid" },
+        "workbench_server",
+      ),
+    );
+    assert.throws(() =>
+      validatePublicEvent(
+        "daemon.stopped",
+        { ...stopped, signal: "" },
+        "workbench_server",
+      ),
+    );
+    assert.throws(() => validatePublicEvent("daemon.stopped", stopped, "ui"));
+  });
+});
+
 describe("live tool output streams", () => {
   it("accepts model thinking and text channels", () => {
     for (const stream of ["thinking", "text"] as const) {

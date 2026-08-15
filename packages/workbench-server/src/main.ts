@@ -368,9 +368,11 @@ async function main() {
         context: { signal },
       })
       .catch(() => undefined);
-    await state.events
-      .publish("daemon.stopped", { daemonId: state.daemonId, signal })
-      .catch(() => undefined);
+    await state.events.publishBestEffortAndWait(
+      "daemon.stopped",
+      { daemonId: state.daemonId, signal },
+      "daemon.shutdown",
+    );
     await state.logger
       .info("Daemon stopped event published", {
         durationMs: Date.now() - startedAt,
@@ -399,8 +401,19 @@ async function main() {
       process.exit(0);
     });
   };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  const requestShutdown = (signal: NodeJS.Signals) => {
+    void shutdown(signal).catch(async (error: unknown) => {
+      await state.logger
+        .error("Daemon shutdown failed", { error })
+        .catch(() => undefined);
+      runtimeMonitor?.markCrashReported(
+        writeNodeDiagnosticReport(storage.paths.home, error),
+      );
+      process.exit(1);
+    });
+  };
+  process.on("SIGINT", requestShutdown);
+  process.on("SIGTERM", requestShutdown);
 }
 
 /**

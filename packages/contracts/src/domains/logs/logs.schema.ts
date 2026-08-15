@@ -50,6 +50,7 @@ export const daemonCrashReportKindSchema = z.enum([
   "uncaughtException",
   "unhandledRejection",
   "childExit",
+  "healthFailure",
   "startupExit",
   "startupTimeout",
   "startupError",

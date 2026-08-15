@@ -65,16 +65,25 @@ export class StreamLogRegistry {
 
   /** Publish an intentionally lossy event without leaking a rejected promise. */
   publishBestEffort<T>(type: string, data: T, context: string): void {
-    let publication: Promise<PublishedEvent<T>>;
+    void this.publishBestEffortAndWait(type, data, context);
+  }
+
+  /**
+   * Await a best-effort publication while containing both synchronous
+   * validation errors and asynchronous persistence failures.
+   */
+  async publishBestEffortAndWait<T>(
+    type: string,
+    data: T,
+    context: string,
+  ): Promise<boolean> {
     try {
-      publication = this.publish(type, data);
+      await this.publish(type, data);
+      return true;
     } catch (error) {
       this.#reportPublishFailure({ type, context, error });
-      return;
+      return false;
     }
-    void publication.catch((error: unknown) =>
-      this.#reportPublishFailure({ type, context, error }),
-    );
   }
 
   publishWithId<T>(

@@ -123,6 +123,10 @@ export class FakeChild {
         }
         return true;
       },
+      requestDiagnosticReport: () => {
+        this.kills.push("SIGUSR2");
+        return !this.exited;
+      },
     };
   }
 
@@ -186,7 +190,12 @@ export interface FakeDaemonWorld {
   }>;
   crashReports: RecordedCrashReport[];
   logs: Array<{ level: string; message: string }>;
-  healthResults: { value: boolean };
+  healthResults: {
+    value: boolean;
+    outcome: "ok" | "timeout" | "http_error" | "network_error";
+    status?: number;
+    error?: string;
+  };
   healthChecks: Array<{ url: string; token: string }>;
   discoveryResults: Array<HealthyDaemon | undefined>;
   discoveryCalls: DaemonPaths[];
@@ -211,7 +220,11 @@ export function fakeDaemonWorld(
   }> = [];
   const crashReports: RecordedCrashReport[] = [];
   const logs: Array<{ level: string; message: string }> = [];
-  const healthResults = { value: true };
+  const healthResults: FakeDaemonWorld["healthResults"] = {
+    value: true,
+    outcome: "ok",
+    status: 200,
+  };
   const healthChecks: Array<{ url: string; token: string }> = [];
   const discoveryResults = overrides.discovery ?? [healthyDaemon()];
   const discoveryCalls: DaemonPaths[] = [];
@@ -220,9 +233,15 @@ export function fakeDaemonWorld(
   const ports: DaemonConnectionPorts = {
     env: overrides.env ?? {},
     health: {
-      isHealthy: async (url, token) => {
+      check: async (url, token) => {
         healthChecks.push({ url, token });
-        return healthResults.value;
+        return {
+          healthy: healthResults.value,
+          outcome: healthResults.value ? "ok" : healthResults.outcome,
+          durationMs: 1,
+          status: healthResults.status,
+          error: healthResults.error,
+        };
       },
     },
     discovery: {
