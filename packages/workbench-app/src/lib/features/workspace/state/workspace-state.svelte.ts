@@ -1,13 +1,11 @@
 import { SvelteMap } from "svelte/reactivity";
 import type {
   AgentRecord,
-  ApprovalWithToolCall,
   ClientConfig,
   ConversationRecord,
-  PlanReviewRecord,
   ProjectRecord,
   StatusResponse,
-  UserQuestionRecord,
+  ToolCallTranscriptRecord,
 } from "$lib/api";
 
 export type CenterTabIdentity =
@@ -37,9 +35,7 @@ export const workspaceState = $state({
   projects: [] as ProjectRecord[],
   conversations: [] as ConversationRecord[],
   agents: [] as AgentRecord[],
-  approvals: [] as ApprovalWithToolCall[],
-  userQuestions: [] as UserQuestionRecord[],
-  planReviews: [] as PlanReviewRecord[],
+  pendingToolCalls: [] as ToolCallTranscriptRecord[],
   selectedProjectId: undefined as string | undefined,
   selectedProjectKey: undefined as string | undefined,
   projectRecency: {} as Record<string, number>,

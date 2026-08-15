@@ -33,11 +33,17 @@ export class ApprovalBatchResolutionService {
     approvalId: string,
     decision: "allow" | "deny",
     note?: string,
+    resolutionRequestId?: string,
   ): Promise<ToolCallRecord> {
     const approval = this.pendingApproval(approvalId);
     const pendingToolCall = this.deps.tools.getToolCall(approval.toolCallId);
     if (!pendingToolCall.runId) {
-      await this.deps.tools.decideApproval(approvalId, decision, note);
+      await this.deps.tools.decideApproval(
+        approvalId,
+        decision,
+        note,
+        resolutionRequestId,
+      );
       return this.deps.tools.finalizeDecidedApproval(approvalId);
     }
     const initialBatch = await this.deps.runs.approvalBatchForToolCall(
@@ -59,8 +65,15 @@ export class ApprovalBatchResolutionService {
           currentToolCall.id,
           currentToolCall.runId,
         );
-        await this.deps.tools.decideApproval(approvalId, decision, note);
-        if (!this.batchReady(batch)) return currentToolCall;
+        await this.deps.tools.decideApproval(
+          approvalId,
+          decision,
+          note,
+          resolutionRequestId,
+        );
+        if (!this.batchReady(batch)) {
+          return this.deps.tools.getToolCall(currentToolCall.id);
+        }
         return this.drain(batch, currentToolCall.id);
       },
     );
@@ -228,5 +241,7 @@ function resolutionRequestId(
 }
 
 function isTerminalToolCall(toolCall: ToolCallRecord): boolean {
-  return ["completed", "denied", "error"].includes(toolCall.status);
+  return ["completed", "denied", "failed", "cancelled"].includes(
+    toolCall.status,
+  );
 }

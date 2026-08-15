@@ -1,5 +1,9 @@
-import type { DaemonCrashReportKind } from "@nervekit/contracts";
+import type {
+  DaemonCrashReportKind,
+  DaemonStartupProgress,
+} from "@nervekit/contracts";
 import { daemonStartupError, formatExit, OutputBuffer } from "./diagnostics.js";
+import { DaemonStartupProgressDecoder } from "./startup-progress.js";
 import {
   DAEMON_HEALTH_POLL_INTERVAL_MS,
   DAEMON_MAX_RESTART_ATTEMPTS,
@@ -31,6 +35,7 @@ export interface DaemonSupervisorConfig {
   serverMain?: string;
   launchEnv?: NodeJS.ProcessEnv;
   launchArgs?: string[];
+  onStartupProgress?: (progress: DaemonStartupProgress) => void;
 }
 
 interface OwnedChild {
@@ -209,6 +214,9 @@ export class DaemonSupervisor {
     const { paths, serverMain, launchEnv, launchArgs, readinessTimeoutMs } =
       this.requireOwnedConfig();
     const output = new OutputBuffer();
+    const progress = this.config.onStartupProgress
+      ? new DaemonStartupProgressDecoder(this.config.onStartupProgress)
+      : undefined;
     this.ports.logger.log("info", "Starting owned local daemon", {
       context: { serverMain, dataDir: paths.home, readinessTimeoutMs },
     });
@@ -225,7 +233,10 @@ export class DaemonSupervisor {
       serverMain,
       args: launchArgs,
       env: launchEnv,
-      onOutput: (stream, chunk) => output.append(stream, chunk),
+      onOutput: (stream, chunk) => {
+        output.append(stream, chunk);
+        progress?.push(Buffer.isBuffer(chunk) ? chunk : String(chunk));
+      },
       onError: (error) => {
         child.spawnError = error;
       },

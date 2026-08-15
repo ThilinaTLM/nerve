@@ -48,28 +48,25 @@ function runData(overrides: Record<string, unknown> = {}) {
 describe("notificationForRuntimeEvent", () => {
   it("maps each pending HIL event to its configurable sound event", () => {
     const candidates = [
-      notificationForRuntimeEvent(
-        event("approval.updated", {
-          approval: { id: "approval_01", status: "pending" },
-          toolCall: { toolName: "bash" },
-        }),
-        context,
-      ),
-      notificationForRuntimeEvent(
-        event("userQuestion.updated", {
-          question: {
-            id: "question_01",
-            status: "pending",
-            question: "Continue?",
-          },
-        }),
-        context,
-      ),
-      notificationForRuntimeEvent(
-        event("planReview.updated", {
-          planReview: { id: "review_01", status: "pending" },
-        }),
-        context,
+      ...(["approval", "user_input", "plan_review"] as const).map((kind) =>
+        notificationForRuntimeEvent(
+          event("toolCall.updated", {
+            toolCall: {
+              id: `tool_${kind}`,
+              toolName: "bash",
+              interactions: [
+                {
+                  kind,
+                  ordinal: 0,
+                  status: "pending",
+                  request:
+                    kind === "user_input" ? { question: "Continue?" } : {},
+                },
+              ],
+            },
+          }),
+          context,
+        ),
       ),
     ];
 
@@ -80,26 +77,20 @@ describe("notificationForRuntimeEvent", () => {
   });
 
   it("does not cue resolved HIL records", () => {
-    const candidates = [
-      notificationForRuntimeEvent(
-        event("approval.updated", {
-          approval: { id: "approval_01", status: "approved" },
-        }),
-        context,
-      ),
-      notificationForRuntimeEvent(
-        event("userQuestion.updated", {
-          question: { id: "question_01", status: "answered" },
-        }),
-        context,
-      ),
-      notificationForRuntimeEvent(
-        event("planReview.updated", {
-          planReview: { id: "review_01", status: "accepted" },
-        }),
-        context,
-      ),
-    ];
+    const candidates = (["approval", "user_input", "plan_review"] as const).map(
+      (kind) =>
+        notificationForRuntimeEvent(
+          event("toolCall.updated", {
+            toolCall: {
+              id: `tool_${kind}`,
+              interactions: [
+                { kind, ordinal: 0, status: "resolved", request: {} },
+              ],
+            },
+          }),
+          context,
+        ),
+    );
 
     assert.deepEqual(candidates, [undefined, undefined, undefined]);
   });

@@ -19,13 +19,13 @@ export class LifecycleTransitionError extends Error {
 }
 
 export const toolCallTransitions = {
-  requested: ["pending_approval", "running", "denied", "error"],
-  pending_approval: ["running", "denied", "error"],
-  waiting_for_user: ["running", "error"],
-  running: ["waiting_for_user", "completed", "error"],
+  committed: ["waiting", "running", "denied", "cancelled"],
+  waiting: ["running", "denied", "failed", "cancelled"],
+  running: ["waiting", "completed", "failed", "cancelled"],
   completed: [],
   denied: [],
-  error: [],
+  failed: [],
+  cancelled: [],
 } as const satisfies LifecycleTransitionTable<ToolCallStatus>;
 
 export type LiveMessageStatus = "started" | "completed" | "failed";
@@ -61,7 +61,12 @@ export function assertTransition<TState extends string>(
   }
 }
 
-export const TERMINAL_TOOL_STATUSES = ["completed", "denied", "error"] as const;
+export const TERMINAL_TOOL_STATUSES = [
+  "completed",
+  "denied",
+  "failed",
+  "cancelled",
+] as const;
 
 export function isTerminalToolStatus(
   status: ToolCallStatus,
@@ -71,7 +76,7 @@ export function isTerminalToolStatus(
 
 /**
  * Recovery rule: before a run becomes terminal, its producer must transition
- * every non-terminal tool call to `error` and use errorDetails.code
+ * every non-terminal tool call to `failed` and use errorDetails.code
  * `interrupted`. Consumers may therefore treat terminal runs as having no live
  * tool-call lifecycles.
  */

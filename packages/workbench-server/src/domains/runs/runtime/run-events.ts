@@ -8,7 +8,7 @@ import type {
   RunPublicEventIntent,
   RunRecord,
 } from "@nervekit/contracts";
-import { toPlanReviewPreview, validatePublicEvent } from "@nervekit/contracts";
+import { validatePublicEvent } from "@nervekit/contracts";
 
 /**
  * Bounded, non-authoritative notify progress/delta emitted by a live
@@ -199,56 +199,20 @@ export class RunEventFactory {
     run: RunRecord,
     interaction: RunInteractionRecord,
   ): RunPublicEventIntent {
-    const common = {
-      conversationId: run.conversationId,
-      agentId: run.agentId,
-      runId: run.runId,
-      createdAt: interaction.createdAt,
-    };
-    if (interaction.kind === "question") {
-      return this.intent(
-        run,
-        "run.waiting",
-        interaction.createdAt,
-        {
-          ...common,
-          waitKind: "input",
-          requestId: interaction.id,
-          question: { text: interaction.prompt },
-          placeholder: interaction.placeholder,
-          required: interaction.required,
-        },
-        interaction.id,
-      );
-    }
-    if (interaction.kind === "approval") {
-      return this.intent(
-        run,
-        "run.waiting",
-        interaction.createdAt,
-        {
-          ...common,
-          waitKind: "approval",
-          approvalId: interaction.id,
-          toolCallId: interaction.toolCallId,
-          risk: interaction.risk,
-          reason: interaction.prompt,
-          normalizedArgs: interaction.normalizedArgs,
-          offeredScopes: interaction.offeredScopes,
-        },
-        interaction.id,
-      );
-    }
     return this.intent(
       run,
       "run.waiting",
       interaction.createdAt,
       {
-        ...common,
-        waitKind: "plan_review",
-        reviewId: interaction.planReview.id,
+        conversationId: run.conversationId,
+        agentId: run.agentId,
+        runId: run.runId,
+        waitKind: interaction.kind,
+        interactionId: interaction.id,
         toolCallId: interaction.toolCallId,
-        planReview: toPlanReviewPreview(interaction.planReview),
+        interactionOrdinal: interaction.interactionOrdinal,
+        toolCallRevision: interaction.toolCallRevision,
+        createdAt: interaction.createdAt,
       },
       interaction.id,
     );

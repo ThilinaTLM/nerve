@@ -106,7 +106,7 @@ const displayedReview = $derived(
 );
 const pendingReview = $derived(
   toolCall.toolName === "plan_mode_present" &&
-    toolCall.status === "waiting_for_user" &&
+    toolCall.status === "waiting" &&
     planReview?.status === "pending",
 );
 const reviewStatus = $derived(

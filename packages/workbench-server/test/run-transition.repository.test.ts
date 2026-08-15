@@ -267,7 +267,7 @@ test("targeted lookups skip historical hydration and evict terminal commits", as
   const liveScopeId = "conv_lookup_test:agent_live";
   const liveInteraction = {
     stateEpoch: 1,
-    kind: "question",
+    kind: "user_input",
     id: "interaction_live",
     conversationId: "conv_lookup_test",
     agentId: "agent_lookup_test",
@@ -275,6 +275,8 @@ test("targeted lookups skip historical hydration and evict terminal commits", as
     runId: liveRunId,
     executionId: "exec_lookup_test",
     toolCallId: "toolcall_live",
+    interactionOrdinal: 0,
+    toolCallRevision: 1,
     prompt: "Which option should be used?",
     status: "pending",
     required: true,

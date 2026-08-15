@@ -84,6 +84,16 @@ export function loadingHtml(statusText = LOADING_STAGES.starting): string {
 </html>`;
 }
 
+export function loadingStatusScript(statusText: string): string {
+  const serialized = JSON.stringify(statusText);
+  return `(() => {
+    const status = document.getElementById("loading-status");
+    if (!status) return false;
+    status.textContent = ${serialized};
+    return true;
+  })()`;
+}
+
 export function loadingStageScript(stage: LoadingStage): string {
   const statusText = JSON.stringify(LOADING_STAGES[stage]);
   const shouldComplete = stage === "opening";

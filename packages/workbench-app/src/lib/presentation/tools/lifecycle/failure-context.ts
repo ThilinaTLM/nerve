@@ -12,7 +12,7 @@ const INPUT_VALIDATION_ERROR_CODES = new Set([
 
 /** Whether the call was rejected before a meaningful execution could begin. */
 export function isInputValidationFailure(toolCall: ToolFailureRecord): boolean {
-  if (toolCall.status !== "error") return false;
+  if (toolCall.status !== "failed") return false;
 
   const code = toolCall.errorDetails?.code.toUpperCase();
   if (!code) return false;

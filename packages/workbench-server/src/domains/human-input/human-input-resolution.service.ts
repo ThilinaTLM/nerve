@@ -337,8 +337,14 @@ export class HumanInputResolutionService {
     approvalId: string,
     decision: "allow" | "deny",
     note?: string,
+    resolutionRequestId?: string,
   ): Promise<ToolCallRecord> {
-    return this.approvalBatches.resolve(approvalId, decision, note);
+    return this.approvalBatches.resolve(
+      approvalId,
+      decision,
+      note,
+      resolutionRequestId,
+    );
   }
 
   recoverReadyApprovalBatches(): Promise<void> {
@@ -368,7 +374,7 @@ export class HumanInputResolutionService {
       }
       if (
         toolCall.toolName !== "plan_mode_present" ||
-        toolCall.status !== "waiting_for_user"
+        toolCall.status !== "waiting"
       ) {
         continue;
       }
@@ -398,6 +404,7 @@ export class HumanInputResolutionService {
   async answerUserQuestion(
     questionId: string,
     answer: string,
+    resolutionRequestId?: string,
   ): Promise<UserQuestionRecord> {
     const pendingQuestion = this.pendingQuestion(questionId);
     if (pendingQuestion.runId) {
@@ -410,6 +417,7 @@ export class HumanInputResolutionService {
       const question = await this.deps.tools.answerUserQuestion(
         questionId,
         answer,
+        resolutionRequestId,
       );
       await this.resolveSuspensionForToolCall(
         question.toolCallId,
@@ -429,6 +437,7 @@ export class HumanInputResolutionService {
   async dismissUserQuestion(
     questionId: string,
     reason?: string,
+    resolutionRequestId?: string,
   ): Promise<UserQuestionRecord> {
     const pendingQuestion = this.pendingQuestion(questionId);
     if (pendingQuestion.runId) {
@@ -441,6 +450,7 @@ export class HumanInputResolutionService {
       const question = await this.deps.tools.dismissUserQuestion(
         questionId,
         reason,
+        resolutionRequestId,
       );
       await this.resolveSuspensionForToolCall(
         question.toolCallId,

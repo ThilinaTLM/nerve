@@ -53,6 +53,7 @@ import {
   type LoadingStage,
   loadingHtml,
   loadingStageScript,
+  loadingStatusScript,
   loadingWindowBackground,
   ShellPageUrlRegistry,
 } from "./window/loading-pages.js";
@@ -407,6 +408,9 @@ async function openMainWindow(): Promise<void> {
                     desktopConfiguration.values.startupTimeoutMs,
                   maxOldSpaceMb: desktopConfiguration.values.maxOldSpaceMb,
                   ...desktopOptions,
+                  onStartupProgress: (progress) => {
+                    void updateLoadingStatus(window, progress.message);
+                  },
                 }),
             },
             { showMessageBox: (options) => dialog.showMessageBox(options) },
@@ -498,6 +502,22 @@ async function openMainWindow(): Promise<void> {
       await window.loadURL(
         shellPageUrls.create(errorHtml(error, desktopDataDir)),
       );
+  }
+}
+
+async function updateLoadingStatus(
+  window: BrowserWindowType,
+  message: string,
+): Promise<void> {
+  if (window.isDestroyed()) return;
+  try {
+    await window.webContents.executeJavaScript(loadingStatusScript(message));
+  } catch (error) {
+    if (window.isDestroyed()) return;
+    void desktopLog("warn", "window", "Failed to update startup status", {
+      error,
+      context: { message },
+    });
   }
 }
 

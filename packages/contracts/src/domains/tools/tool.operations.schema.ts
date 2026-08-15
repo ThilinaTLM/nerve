@@ -1,74 +1,82 @@
+import { z } from "zod";
 import { agentRecordSchema } from "../agents/index.js";
 import { conversationRecordSchema } from "../conversations/index.js";
+import { defineOperation } from "../protocol/operation-definition.schema.js";
 import {
-  planReviewRecordSchema,
-  planReviewStatusSchema,
-  resolvePlanReviewRequestSchema,
-} from "../plans/index.js";
-import {
-  answerUserQuestionRequestSchema,
-  approvalRecordSchema,
-  approvalStatusSchema,
-  dismissUserQuestionRequestSchema,
-  resolveApprovalRequestSchema,
   toolCallRecordSchema,
   toolCallStatusSchema,
   toolCallTranscriptRecordSchema,
   toolDescriptorSchema,
-  userQuestionRecordSchema,
-  userQuestionStatusSchema,
-} from "./index.js";
-import { z } from "zod";
-import { defineOperation } from "../protocol/operation-definition.schema.js";
+} from "./records.schema.js";
 
 const emptyParamsSchema = z.object({}).optional();
-const approvalParamsSchema = z
-  .object({ approvalId: z.string().startsWith("approval_") })
-  .merge(resolveApprovalRequestSchema);
-const userQuestionAnswerParamsSchema = z
-  .object({ questionId: z.string().min(1).max(256) })
-  .merge(answerUserQuestionRequestSchema);
-const userQuestionDismissParamsSchema = z
-  .object({ questionId: z.string().min(1).max(256) })
-  .merge(dismissUserQuestionRequestSchema);
-const planReviewParamsSchema = z
-  .object({ reviewId: z.string().startsWith("plan_review_") })
-  .merge(resolvePlanReviewRequestSchema);
+const toolCallIdSchema = z.string().startsWith("tool_").max(256);
 const toolCallListParamsSchema = z
   .object({
     status: toolCallStatusSchema.optional(),
+    pendingInteractionKind: z
+      .enum(["approval", "user_input", "plan_review"])
+      .optional(),
+    conversationId: z.string().startsWith("conv_").optional(),
+    projectId: z.string().startsWith("proj_").optional(),
+    runId: z.string().startsWith("run_").optional(),
     limit: z.number().int().positive().max(1_000).optional(),
   })
   .optional();
-const approvalListParamsSchema = z
-  .object({ status: approvalStatusSchema.optional() })
-  .optional();
-const userQuestionListParamsSchema = z
-  .object({ status: userQuestionStatusSchema.optional() })
-  .optional();
-const planReviewListParamsSchema = z
-  .object({ status: planReviewStatusSchema.optional() })
-  .optional();
-const toolCallIdSchema = z.string().min(1).max(256);
 const toolCallGetParamsSchema = z.object({
   toolCallId: toolCallIdSchema,
   conversationId: z.string().startsWith("conv_").optional(),
   agentId: z.string().startsWith("agent_").optional(),
   runId: z.string().startsWith("run_").optional(),
 });
-const interactionAcceptedResultSchema = z.object({
-  accepted: z.literal(true),
-  interactionId: z.string().min(1).max(256),
-  status: z.enum([
-    "queued",
-    "answered",
-    "dismissed",
-    "granted",
-    "denied",
-    "accepted",
-    "changes_requested",
-    "discarded",
-  ]),
+
+export const toolInteractionResolutionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("approval"),
+    action: z.enum(["allow", "deny"]),
+    note: z.string().max(4_096).optional(),
+    scope: z.enum(["single_call", "same_tool_same_args", "run"]).optional(),
+  }),
+  z.object({
+    kind: z.literal("user_input"),
+    action: z.enum(["answer", "dismiss"]),
+    answer: z.string().optional(),
+    reason: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal("plan_review"),
+    action: z.enum([
+      "accept",
+      "accept_in_new_chat",
+      "request_changes",
+      "reject",
+      "discard",
+    ]),
+    feedback: z.string().optional(),
+    implementationModel: z.unknown().optional(),
+    implementationThinkingLevel: z.string().optional(),
+    compactBeforeImplementation: z.boolean().optional(),
+  }),
+]);
+export type ToolInteractionResolution = z.infer<
+  typeof toolInteractionResolutionSchema
+>;
+
+export const resolveToolInteractionRequestSchema = z.object({
+  toolCallId: toolCallIdSchema,
+  interactionOrdinal: z.number().int().nonnegative().max(15),
+  expectedRevision: z.number().int().positive().safe(),
+  resolutionRequestId: z.string().min(1).max(256),
+  resolution: toolInteractionResolutionSchema,
+});
+export type ResolveToolInteractionRequest = z.infer<
+  typeof resolveToolInteractionRequestSchema
+>;
+
+const resolutionEffectSchema = z.object({
+  kind: z.literal("new_conversation"),
+  conversation: conversationRecordSchema,
+  agent: agentRecordSchema,
 });
 
 export const toolsOperationDefinitions = [
@@ -100,136 +108,15 @@ export const toolsOperationDefinitions = [
     "operation.toolCall.get",
   ),
   defineOperation(
-    "approval.list",
-    approvalListParamsSchema,
-    z.object({ approvals: z.array(approvalRecordSchema) }),
-    "read",
-    "none",
-    ["workbench_server"] as const,
-    "operation.approval.list",
-  ),
-  defineOperation(
-    "approval.grant",
-    approvalParamsSchema,
-    z.union([
-      z.object({ toolCall: toolCallRecordSchema }),
-      interactionAcceptedResultSchema,
-    ]),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.approval.grant",
-  ),
-  defineOperation(
-    "approval.deny",
-    approvalParamsSchema,
-    z.union([
-      z.object({ toolCall: toolCallRecordSchema }),
-      interactionAcceptedResultSchema,
-    ]),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.approval.deny",
-  ),
-  defineOperation(
-    "userQuestion.list",
-    userQuestionListParamsSchema,
-    z.object({ questions: z.array(userQuestionRecordSchema) }),
-    "read",
-    "none",
-    ["workbench_server"] as const,
-    "operation.userQuestion.list",
-  ),
-  defineOperation(
-    "userQuestion.answer",
-    userQuestionAnswerParamsSchema,
-    z.union([
-      z.object({ question: userQuestionRecordSchema }),
-      interactionAcceptedResultSchema,
-    ]),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.userQuestion.answer",
-  ),
-  defineOperation(
-    "userQuestion.dismiss",
-    userQuestionDismissParamsSchema,
-    z.union([
-      z.object({ question: userQuestionRecordSchema }),
-      interactionAcceptedResultSchema,
-    ]),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.userQuestion.dismiss",
-  ),
-  defineOperation(
-    "planReview.list",
-    planReviewListParamsSchema,
-    z.object({ planReviews: z.array(planReviewRecordSchema) }),
-    "read",
-    "none",
-    ["workbench_server"] as const,
-    "operation.planReview.list",
-  ),
-  defineOperation(
-    "planReview.accept",
-    planReviewParamsSchema,
-    z.union([
-      z.object({ planReview: planReviewRecordSchema }),
-      interactionAcceptedResultSchema,
-    ]),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.planReview.accept",
-  ),
-  defineOperation(
-    "planReview.acceptInNewChat",
-    planReviewParamsSchema,
+    "toolCall.interaction.resolve",
+    resolveToolInteractionRequestSchema,
     z.object({
-      planReview: planReviewRecordSchema,
-      conversation: conversationRecordSchema,
-      agent: agentRecordSchema,
+      toolCall: toolCallRecordSchema,
+      effect: resolutionEffectSchema.optional(),
     }),
     "mutation",
     "recommended",
     ["workbench_server"] as const,
-    "operation.planReview.acceptInNewChat",
-  ),
-  defineOperation(
-    "planReview.requestChanges",
-    planReviewParamsSchema,
-    z.union([
-      z.object({ planReview: planReviewRecordSchema }),
-      interactionAcceptedResultSchema,
-    ]),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.planReview.requestChanges",
-  ),
-  defineOperation(
-    "planReview.reject",
-    planReviewParamsSchema,
-    z.object({ planReview: planReviewRecordSchema }),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.planReview.reject",
-  ),
-  defineOperation(
-    "planReview.discard",
-    planReviewParamsSchema,
-    z.union([
-      z.object({ planReview: planReviewRecordSchema }),
-      interactionAcceptedResultSchema,
-    ]),
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.planReview.discard",
+    "operation.toolCall.interaction.resolve",
   ),
 ] as const;

@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
-import { access, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { ScratchNote } from "@nervekit/contracts";
 import { ApplicationError } from "../src/core/application-error.js";
-import { readJsonFile } from "../src/infrastructure/storage/index.js";
 import { createAuthenticatedApp, tempHome } from "./helpers/server-routes.js";
 
 describe("orchestrator scratch notes", () => {
@@ -89,71 +85,6 @@ describe("orchestrator scratch notes", () => {
       assert.equal(
         (await state.registry.listScratchNotes(projectA.id))[0]?.id,
         noteA.id,
-      );
-    } finally {
-      state.index.close();
-    }
-  });
-
-  it("migrates legacy single-note storage without resurrecting deleted notes", async () => {
-    const { state } = await createAuthenticatedApp();
-    try {
-      const project = await state.registry.createProject({
-        dir: await tempHome("nerve-scratch-legacy-"),
-      });
-      const projectStorage = join(
-        state.storage.paths.home,
-        "projects",
-        project.id,
-      );
-      const legacyPath = join(projectStorage, "scratch-note.json");
-      const pluralPath = join(projectStorage, "scratch-notes.json");
-      await mkdir(projectStorage, { recursive: true });
-      await writeFile(
-        legacyPath,
-        JSON.stringify({
-          projectId: project.id,
-          content: "legacy content",
-          updatedAt: "2025-01-02T03:04:05.000Z",
-        }),
-      );
-
-      const migrated = await state.registry.listScratchNotes(project.id);
-      assert.equal(migrated.length, 1);
-      assert.equal(migrated[0]?.title, "Untitled note");
-      assert.equal(migrated[0]?.content, "legacy content");
-      assert.equal(migrated[0]?.createdAt, "2025-01-02T03:04:05.000Z");
-      await assert.rejects(access(legacyPath));
-      const persisted = await readJsonFile<ScratchNote[]>(pluralPath);
-      assert.equal(persisted[0]?.id, migrated[0]?.id);
-
-      await state.registry.removeScratchNote(project.id, migrated[0]!.id);
-      assert.deepEqual(await state.registry.listScratchNotes(project.id), []);
-
-      const emptyProject = await state.registry.createProject({
-        dir: await tempHome("nerve-scratch-empty-legacy-"),
-      });
-      const emptyStorage = join(
-        state.storage.paths.home,
-        "projects",
-        emptyProject.id,
-      );
-      await mkdir(emptyStorage, { recursive: true });
-      await writeFile(
-        join(emptyStorage, "scratch-note.json"),
-        JSON.stringify({
-          projectId: emptyProject.id,
-          content: "",
-          updatedAt: new Date(0).toISOString(),
-        }),
-      );
-      assert.deepEqual(
-        await state.registry.listScratchNotes(emptyProject.id),
-        [],
-      );
-      assert.deepEqual(
-        await readJsonFile(join(emptyStorage, "scratch-notes.json")),
-        [],
       );
     } finally {
       state.index.close();

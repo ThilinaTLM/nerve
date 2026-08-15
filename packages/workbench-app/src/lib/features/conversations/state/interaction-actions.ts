@@ -1,189 +1,163 @@
 import type {
   AgentRecord,
   ConversationRecord,
-  PlanReviewRecord,
   PlanReviewResolveOptions,
   ToolCallRecord,
-  UserQuestionRecord,
+  ToolInteractionResolution,
 } from "$lib/api";
 
-/**
- * Framework-neutral human-interaction actions. Each action performs exactly
- * one RPC, reconciles local state from the returned record (result-driven,
- * not refetch-driven), and only then reports success. Failures keep the
- * pending entity available for retry, notify, and rethrow so callers can
- * clear their in-flight state and render an inline error.
- */
 export interface InteractionRequests {
-  grantApproval(approvalId: string, note?: string): Promise<ToolCallRecord>;
-  denyApproval(approvalId: string, note?: string): Promise<ToolCallRecord>;
-  acceptPlanReview(
-    reviewId: string,
-    options: PlanReviewResolveOptions,
-  ): Promise<PlanReviewRecord>;
-  acceptPlanReviewInNewChat(
-    reviewId: string,
-    options: PlanReviewResolveOptions,
+  resolve(
+    interactionId: string,
+    resolution: ToolInteractionResolution,
   ): Promise<{
-    planReview: PlanReviewRecord;
-    conversation: ConversationRecord;
-    agent: AgentRecord;
+    toolCall: ToolCallRecord;
+    effect?: {
+      kind: "new_conversation";
+      conversation: ConversationRecord;
+      agent: AgentRecord;
+    };
   }>;
-  rejectPlanReview(
-    reviewId: string,
-    feedback?: string,
-  ): Promise<PlanReviewRecord>;
-  requestPlanChanges(
-    reviewId: string,
-    feedback?: string,
-  ): Promise<PlanReviewRecord>;
-  discardPlanReview(
-    reviewId: string,
-    feedback?: string,
-  ): Promise<PlanReviewRecord>;
-  answerUserQuestion(
-    questionId: string,
-    answer: string,
-  ): Promise<UserQuestionRecord>;
-  dismissUserQuestion(
-    questionId: string,
-    reason?: string,
-  ): Promise<UserQuestionRecord>;
 }
-
 export interface InteractionReconcilers {
-  removeApproval(approvalId: string): void;
-  upsertUserQuestion(question: UserQuestionRecord): void;
-  upsertPlanReview(review: PlanReviewRecord): void;
+  upsertToolCall(toolCall: ToolCallRecord): void;
   upsertConversation(conversation: ConversationRecord): void;
   upsertAgent(agent: AgentRecord): void;
 }
-
 export interface InteractionNotifier {
   success(title: string, options?: { description?: string }): void;
   message(title: string, options?: { description?: string }): void;
   error(title: string, options?: { description?: string }): void;
 }
-
 export interface InteractionActionDeps {
   requests: InteractionRequests;
   reconcile: InteractionReconcilers;
   notify: InteractionNotifier;
   openConversation(conversationId: string): Promise<void>;
 }
-
 export interface InteractionActions {
-  grantApproval(approvalId: string): Promise<void>;
-  denyApproval(approvalId: string): Promise<void>;
+  grantApproval(id: string): Promise<void>;
+  denyApproval(id: string): Promise<void>;
   acceptPendingPlanReview(
-    reviewId: string,
+    id: string,
     options?: PlanReviewResolveOptions,
   ): Promise<void>;
   acceptPendingPlanReviewInNewChat(
-    reviewId: string,
+    id: string,
     options?: PlanReviewResolveOptions,
   ): Promise<void>;
-  rejectPendingPlanReview(reviewId: string): Promise<void>;
-  requestPendingPlanChanges(reviewId: string, feedback: string): Promise<void>;
-  discardPendingPlanReview(reviewId: string): Promise<void>;
-  answerUserQuestionById(questionId: string, answer: string): Promise<void>;
-  dismissUserQuestionById(questionId: string): Promise<void>;
+  rejectPendingPlanReview(id: string): Promise<void>;
+  requestPendingPlanChanges(id: string, feedback: string): Promise<void>;
+  discardPendingPlanReview(id: string): Promise<void>;
+  answerUserQuestionById(id: string, answer: string): Promise<void>;
+  dismissUserQuestionById(id: string): Promise<void>;
 }
 
 export function createInteractionActions(
   deps: InteractionActionDeps,
 ): InteractionActions {
-  async function request<T>(
+  async function resolve(
+    id: string,
+    resolution: ToolInteractionResolution,
     failureTitle: string,
-    action: () => Promise<T>,
-  ): Promise<T> {
+  ) {
     try {
-      return await action();
+      const result = await deps.requests.resolve(id, resolution);
+      deps.reconcile.upsertToolCall(result.toolCall);
+      return result;
     } catch (caught) {
-      const description =
-        caught instanceof Error ? caught.message : String(caught);
-      deps.notify.error(failureTitle, { description });
+      deps.notify.error(failureTitle, {
+        description: caught instanceof Error ? caught.message : String(caught),
+      });
       throw caught;
     }
   }
-
   return {
-    async grantApproval(approvalId) {
-      await request("Could not grant approval", () =>
-        deps.requests.grantApproval(approvalId),
+    async grantApproval(id) {
+      await resolve(
+        id,
+        { kind: "approval", action: "allow" },
+        "Could not grant approval",
       );
-      deps.reconcile.removeApproval(approvalId);
       deps.notify.success("Approval granted");
     },
-
-    async denyApproval(approvalId) {
-      await request("Could not deny approval", () =>
-        deps.requests.denyApproval(approvalId, "Denied from UI."),
+    async denyApproval(id) {
+      await resolve(
+        id,
+        { kind: "approval", action: "deny", note: "Denied from UI." },
+        "Could not deny approval",
       );
-      deps.reconcile.removeApproval(approvalId);
       deps.notify.message("Approval denied");
     },
-
-    async acceptPendingPlanReview(reviewId, options = {}) {
-      const review = await request("Could not accept plan", () =>
-        deps.requests.acceptPlanReview(reviewId, options),
+    async acceptPendingPlanReview(id, options = {}) {
+      await resolve(
+        id,
+        { kind: "plan_review", action: "accept", ...options },
+        "Could not accept plan",
       );
-      deps.reconcile.upsertPlanReview(review);
       deps.notify.success("Plan accepted");
     },
-
-    async acceptPendingPlanReviewInNewChat(reviewId, options = {}) {
-      const result = await request("Could not accept plan in new chat", () =>
-        deps.requests.acceptPlanReviewInNewChat(reviewId, options),
+    async acceptPendingPlanReviewInNewChat(id, options = {}) {
+      const result = await resolve(
+        id,
+        { kind: "plan_review", action: "accept_in_new_chat", ...options },
+        "Could not accept plan in new chat",
       );
-      // Install the returned records directly instead of reloading the
-      // workspace, then navigate. Durable events keep later state converged.
-      deps.reconcile.upsertConversation(result.conversation);
-      deps.reconcile.upsertAgent(result.agent);
-      deps.reconcile.upsertPlanReview(result.planReview);
-      await deps.openConversation(result.conversation.id);
+      if (result.effect?.kind === "new_conversation") {
+        deps.reconcile.upsertConversation(result.effect.conversation);
+        deps.reconcile.upsertAgent(result.effect.agent);
+        await deps.openConversation(result.effect.conversation.id);
+      }
       deps.notify.success("Plan accepted in new chat");
     },
-
-    async rejectPendingPlanReview(reviewId) {
-      const review = await request("Could not reject plan", () =>
-        deps.requests.rejectPlanReview(reviewId, "Rejected from UI."),
+    async rejectPendingPlanReview(id) {
+      await resolve(
+        id,
+        {
+          kind: "plan_review",
+          action: "reject",
+          feedback: "Rejected from UI.",
+        },
+        "Could not reject plan",
       );
-      deps.reconcile.upsertPlanReview(review);
       deps.notify.message("Plan rejected");
     },
-
-    async requestPendingPlanChanges(reviewId, feedback) {
-      const review = await request("Could not request plan changes", () =>
-        deps.requests.requestPlanChanges(reviewId, feedback),
+    async requestPendingPlanChanges(id, feedback) {
+      await resolve(
+        id,
+        { kind: "plan_review", action: "request_changes", feedback },
+        "Could not request plan changes",
       );
-      deps.reconcile.upsertPlanReview(review);
       deps.notify.message("Change request sent");
     },
-
-    async discardPendingPlanReview(reviewId) {
-      const review = await request("Could not discard plan", () =>
-        deps.requests.discardPlanReview(reviewId, "Discarded from UI."),
+    async discardPendingPlanReview(id) {
+      await resolve(
+        id,
+        {
+          kind: "plan_review",
+          action: "discard",
+          feedback: "Discarded from UI.",
+        },
+        "Could not discard plan",
       );
-      deps.reconcile.upsertPlanReview(review);
       deps.notify.message("Plan discarded");
     },
-
-    async answerUserQuestionById(questionId, answer) {
+    async answerUserQuestionById(id, answer) {
       const trimmed = answer.trim();
       if (!trimmed) return;
-      const question = await request("Could not send reply", () =>
-        deps.requests.answerUserQuestion(questionId, trimmed),
+      await resolve(
+        id,
+        { kind: "user_input", action: "answer", answer: trimmed },
+        "Could not send reply",
       );
-      deps.reconcile.upsertUserQuestion(question);
       deps.notify.success("Reply sent");
     },
-
-    async dismissUserQuestionById(questionId) {
-      const question = await request("Could not dismiss question", () =>
-        deps.requests.dismissUserQuestion(questionId, "Dismissed from UI."),
+    async dismissUserQuestionById(id) {
+      await resolve(
+        id,
+        { kind: "user_input", action: "dismiss", reason: "Dismissed from UI." },
+        "Could not dismiss question",
       );
-      deps.reconcile.upsertUserQuestion(question);
       deps.notify.message("Question dismissed");
     },
   };

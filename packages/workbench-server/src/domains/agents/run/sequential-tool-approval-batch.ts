@@ -37,7 +37,7 @@ export async function waitForSequentialToolInteractionBatch(
       throw new Error(`Unknown sequential tool: ${remaining.name}`);
     }
     if (
-      primaryToolCall.status === "waiting_for_user" &&
+      primaryToolCall.status === "waiting" &&
       !isNativeInteractionTool(parsedToolName.data)
     ) {
       break;
@@ -58,7 +58,7 @@ export async function waitForSequentialToolInteractionBatch(
             remaining.id,
           ),
           forceApproval:
-            primaryToolCall.status === "pending_approval" ||
+            primaryToolCall.status === "waiting" ||
             !isNativeInteractionTool(parsedToolName.data),
           durableSuspend: true,
           onLifecycle: (toolCall) =>
@@ -94,7 +94,7 @@ export async function waitForSequentialToolInteractionBatch(
     toolCalls.push(staged);
   }
 
-  const primaryInteractionId = interactionIdForToolCall(primaryToolCall, deps);
+  const primaryInteractionId = interactionIdForToolCall(primaryToolCall);
   const batchToolCallIds =
     toolCalls.length > 1 ? toolCalls.map((toolCall) => toolCall.id) : undefined;
   const checkpoint = await input.checkpointCommand(
@@ -102,18 +102,12 @@ export async function waitForSequentialToolInteractionBatch(
     primaryInteractionId,
   );
   const waits = toolCalls
-    .filter((toolCall) =>
-      ["pending_approval", "waiting_for_user"].includes(toolCall.status),
-    )
+    .filter((toolCall) => toolCall.status === "waiting")
     .map((toolCall) =>
       canonicalWaitCommand(
-        interactionIdForToolCall(toolCall, deps),
+        interactionIdForToolCall(toolCall),
         toolCall,
         checkpoint,
-        toolCall.id === primaryToolCall.id
-          ? suspension.reason
-          : `Tool ${toolCall.toolName} is awaiting user approval.`,
-        deps,
         batchToolCallIds,
       ),
     );
@@ -123,8 +117,6 @@ export async function waitForSequentialToolInteractionBatch(
         primaryInteractionId,
         primaryToolCall,
         checkpoint,
-        suspension.reason,
-        deps,
         batchToolCallIds,
       ),
     );
@@ -136,94 +128,41 @@ export async function waitForSequentialToolInteractionBatch(
 }
 
 function isStagedToolCall(toolCall: ToolCallRecord): boolean {
-  return [
-    "pending_approval",
-    "waiting_for_user",
-    "completed",
-    "denied",
-    "error",
-  ].includes(toolCall.status);
+  return ["waiting", "completed", "denied", "failed", "cancelled"].includes(
+    toolCall.status,
+  );
 }
 
 function isNativeInteractionTool(toolName: string): boolean {
   return toolName === "ask_user" || toolName === "plan_mode_present";
 }
 
-function interactionIdForToolCall(
-  toolCall: ToolCallRecord,
-  deps: WorkbenchAgentMechanics["deps"],
-): string {
-  return (
-    deps.tools
-      .listUserQuestions()
-      .find((question) => question.toolCallId === toolCall.id)?.id ??
-    deps.plans
-      .listPlanReviews()
-      .find((review) => review.toolCallId === toolCall.id)?.id ??
-    toolCall.id
+function interactionIdForToolCall(toolCall: ToolCallRecord): string {
+  const pending = toolCall.interactions.find(
+    (interaction) => interaction.status === "pending",
   );
+  return pending ? `${toolCall.id}:${pending.ordinal}` : toolCall.id;
 }
 
 function canonicalWaitCommand(
   interactionId: string,
   toolCall: ToolCallRecord,
   checkpoint: CheckpointCommand,
-  reason: string,
-  deps: WorkbenchAgentMechanics["deps"],
   batchToolCallIds?: readonly string[],
 ): WaitCommand {
-  if (toolCall.toolName === "plan_mode_present") {
-    const review = deps.plans
-      .listPlanReviews()
-      .find((candidate) => candidate.toolCallId === toolCall.id);
-    if (!review) {
-      throw new Error(
-        `Plan review for tool call ${toolCall.id} was not found.`,
-      );
-    }
-    return {
-      kind: "plan_review",
-      interactionId,
-      toolCallId: toolCall.id,
-      batchToolCallIds,
-      prompt: reason,
-      planReview: review,
-      checkpoint,
-    };
+  const pending = toolCall.interactions.find(
+    (interaction) => interaction.status === "pending",
+  );
+  if (!pending) {
+    throw new Error(`Tool call ${toolCall.id} has no pending interaction.`);
   }
-  const approval = deps.tools
-    .listApprovals()
-    .find(
-      (candidate) =>
-        candidate.toolCallId === toolCall.id && candidate.status === "pending",
-    );
-  if (approval) {
-    return {
-      kind: "approval",
-      interactionId,
-      toolCallId: toolCall.id,
-      batchToolCallIds,
-      prompt: reason,
-      risk: [approval.risk, approval.reason],
-      normalizedArgs:
-        toolCall.args && typeof toolCall.args === "object"
-          ? (toolCall.args as Record<string, unknown>)
-          : {},
-      offeredScopes: ["single_call"],
-      checkpoint,
-    };
-  }
-  const question = deps.tools
-    .listUserQuestions()
-    .find((candidate) => candidate.toolCallId === toolCall.id);
   return {
-    kind: "question",
+    kind: pending.kind,
     interactionId,
     toolCallId: toolCall.id,
+    interactionOrdinal: pending.ordinal,
+    toolCallRevision: toolCall.revision,
     batchToolCallIds,
-    prompt: question?.question ?? reason,
-    context: question?.context,
-    required: true,
     checkpoint,
   };
 }

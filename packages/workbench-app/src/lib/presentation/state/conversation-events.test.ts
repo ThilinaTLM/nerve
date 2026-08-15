@@ -69,6 +69,9 @@ function toolCall(
     risk: "command",
     cwd: "/workspace",
     status: "running",
+    revision: 1,
+    attempt: 1,
+    interactions: [],
     createdAt: ts,
     updatedAt: ts,
     ...overrides,
@@ -330,8 +333,8 @@ describe("conversation event reducer", () => {
       );
       assertOneSlot();
     };
-    updateTool(3, "requested");
-    updateTool(4, "pending_approval");
+    updateTool(3, "committed");
+    updateTool(4, "waiting");
     updateTool(5, "running");
     updateTool(6, "completed");
 

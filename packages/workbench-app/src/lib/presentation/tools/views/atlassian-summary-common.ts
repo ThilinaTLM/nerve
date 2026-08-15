@@ -48,8 +48,8 @@ export function stageTitle(
   status: string,
   dryRun: boolean | undefined,
 ): string {
-  if (status === "pending_approval") return `Review ${service} ${action}`;
-  if (status === "requested" || status === "running") {
+  if (status === "waiting") return `Review ${service} ${action}`;
+  if (status === "committed" || status === "running") {
     return `Executing ${service} ${action}`;
   }
   if (status === "completed") {

@@ -111,6 +111,7 @@ async function ensureLocalDaemon(
       launchEnv: buildOrchestratorEnv(options, ports.env),
       launchArgs: buildOrchestratorArgs(options),
       readinessTimeoutMs,
+      onStartupProgress: options.onStartupProgress,
     },
     ports,
   );

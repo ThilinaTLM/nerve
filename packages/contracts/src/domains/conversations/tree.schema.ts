@@ -4,7 +4,7 @@ import {
   defaultApprovalPolicy,
   modeSchema,
   permissionLevelSchema,
-} from "../settings/index.js";
+} from "../settings/settings.schema.js";
 
 const approvalPolicyPatchSchema = z.object({
   autoApproveReadOnly: z.boolean().optional(),

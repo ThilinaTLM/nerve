@@ -7,12 +7,15 @@ import {
 import {
   type QueuedPromptRecord,
   queuedPromptRecordSchema,
-} from "../agents/index.js";
-import { type ContextUsage, contextUsageSchema } from "../models/index.js";
+} from "../agents/agent.schema.js";
+import {
+  type ContextUsage,
+  contextUsageSchema,
+} from "../models/models.schema.js";
 import {
   type ToolCallTranscriptRecord,
   toolCallTranscriptRecordSchema,
-} from "../tools/index.js";
+} from "../tools/records.schema.js";
 import {
   type ConversationEntry,
   type ConversationRecord,

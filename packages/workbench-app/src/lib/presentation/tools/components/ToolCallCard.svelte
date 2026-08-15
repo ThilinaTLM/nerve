@@ -124,8 +124,7 @@ $effect(() => {
   const nextText = output?.text ?? "";
   const appended = nextText.slice(lastEnqueuedOutputText.length);
   const terminal = Boolean(
-    toolCall &&
-    !["requested", "pending_approval", "running"].includes(toolCall.status),
+    toolCall && !["committed", "waiting", "running"].includes(toolCall.status),
   );
   lastEnqueuedOutputText = nextText;
   liveOutputScheduler.enqueue(output, {
@@ -203,7 +202,7 @@ const hasDurableBodyContent = $derived(hasMeaningfulDurableBody(view));
 const toolApproval = $derived(
   toolCall &&
     pendingApproval?.toolCallId === toolCall.id &&
-    toolCall.status === "pending_approval"
+    toolCall.status === "waiting"
     ? pendingApproval
     : undefined,
 );
@@ -217,7 +216,7 @@ const argumentInput = $derived({
 });
 function argumentLifecycleStage(): ToolLifecycleStage {
   if (!toolCall) return "drafting";
-  if (toolCall.status === "error" || toolCall.status === "denied")
+  if (toolCall.status === "failed" || toolCall.status === "denied")
     return "failed";
   if (toolCall.status === "completed") return "completed";
   // Approval-only details belong to ApprovalPrompt. The persistent argument

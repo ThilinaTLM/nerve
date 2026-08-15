@@ -266,16 +266,26 @@ export class WorkbenchRunService {
     runId?: string,
   ): Promise<ApprovalInteractionBatch> {
     const batch = await this.interactionBatchForToolCall(toolCallId, runId);
+    const interactions = batch.interactions.filter(
+      (interaction) =>
+        interaction.kind === "approval" && interaction.status === "pending",
+    );
     if (
-      batch.interactions.some((interaction) => interaction.kind !== "approval")
+      !interactions.some((interaction) => interaction.toolCallId === toolCallId)
     ) {
       throw new ApplicationError(
         409,
         "RUN_APPROVAL_BATCH_INVALID",
-        "The run approval batch is invalid.",
+        "The pending approval interaction was not found in the run batch.",
       );
     }
-    return batch;
+    return {
+      ...batch,
+      batchToolCallIds: interactions.map(
+        (interaction) => interaction.toolCallId,
+      ),
+      interactions,
+    };
   }
 
   async resolveInteractionBatchForToolCalls(input: {

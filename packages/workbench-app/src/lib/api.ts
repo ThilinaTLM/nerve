@@ -106,6 +106,7 @@ export type {
   ThinkingLevel,
   ToolCallRecord,
   ToolCallTranscriptRecord,
+  ToolInteractionResolution,
   UpdatePromptSuggestionTrustRequest,
   UpdateTaskDefinitionRequest,
   UpdateScratchNoteRequest,
@@ -122,6 +123,10 @@ export type ToolCallDisplayRecord =
   | ToolCallRecordType
   | ToolCallTranscriptRecordType;
 export * from "@nervekit/ui-kit/core/api/client";
+export type {
+  ApprovalWithToolCall,
+  PlanReviewResolveOptions,
+} from "./presentation/state/tool-types";
 export * from "./features/agents/api/agents.api";
 export * from "./features/agents/api/subagent-transcripts.api";
 export * from "./features/audio/api/transcription.api";

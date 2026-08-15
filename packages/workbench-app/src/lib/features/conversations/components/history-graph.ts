@@ -267,12 +267,16 @@ export function classifyHistoryEntry(
     const record = resolveToolRecord(details, toolCallsById);
     const isError =
       details?.isError === true ||
-      record?.status === "error" ||
+      record?.status === "failed" ||
       record?.status === "denied";
     const humanLoop =
       INTERACTION_TOOLS.has(toolName) ||
       record?.risk === "interaction" ||
-      Boolean(record?.approvalId);
+      Boolean(
+        record?.interactions.some(
+          (interaction) => interaction.kind === "approval",
+        ),
+      );
     if (humanLoop) {
       badges.push({ icon: "hand", label: "human", tone: "warning" });
     }

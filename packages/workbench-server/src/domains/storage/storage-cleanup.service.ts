@@ -20,10 +20,6 @@ export interface StorageCleanupRegistryPort {
     olderThanDays: number;
   }): Promise<{ prunedConversationIds: string[]; skippedCount: number }>;
   rebuildSearchIndex(): Promise<void>;
-  tools: {
-    compactToolCallLog(): Promise<void>;
-    toolCallLogPath(): string;
-  };
 }
 
 export interface StorageCleanupServiceDeps {
@@ -319,24 +315,6 @@ export class StorageCleanupService {
           this.removeFile(join(this.deps.paths.home, "logs", "events.jsonl.1")),
       });
     }
-    if (request.clearToolCallLog) {
-      plans.push({
-        target: "toolCallLog",
-        message: "Compacting tool-call history…",
-        run: async () => {
-          const path = this.deps.getRegistry().tools.toolCallLogPath();
-          const before = await fileSize(path);
-          await this.deps.getRegistry().tools.compactToolCallLog();
-          const after = await fileSize(path);
-          return {
-            freedBytes: Math.max(0, before - after),
-            removedItems: 0,
-            skipped: 0,
-            note: "Compacted superseded tool-call rows.",
-          };
-        },
-      });
-    }
     if (request.clearExploreReports)
       plans.push({
         target: "exploreReports",
@@ -472,7 +450,6 @@ function requestTargets(
     targets.push("conversations");
   if (request.logsOlderThanDays !== undefined) targets.push("datedLogs");
   if (request.truncateEventLog) targets.push("rotatedEventLog");
-  if (request.clearToolCallLog) targets.push("toolCallLog");
   if (request.clearExploreReports) targets.push("exploreReports");
   if (request.clearCache) targets.push("cache");
   if (request.clearTmp) targets.push("tmp");
@@ -486,7 +463,6 @@ function targetLabel(target: StorageCleanupTarget): string {
       conversations: "old conversations",
       datedLogs: "dated logs",
       rotatedEventLog: "rotated event log",
-      toolCallLog: "tool-call log",
       exploreReports: "explore reports",
       cache: "cache",
       tmp: "temporary files",

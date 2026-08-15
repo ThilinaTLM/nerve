@@ -54,18 +54,19 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
   async toolCalls(runId: string) {
     const state = await this.unitOfWork.load(runId);
     if (!state) return [];
-    const counts = new Map<string, number>();
-    const statuses = new Map<string, string>();
+    const latest = new Map<string, { revision: number; status: string }>();
     for (const transition of state.transitions) {
       for (const call of transition.toolCalls) {
-        counts.set(call.id, (counts.get(call.id) ?? 0) + 1);
-        statuses.set(call.id, call.status);
+        const current = latest.get(call.id);
+        if (!current || call.revision > current.revision) {
+          latest.set(call.id, { revision: call.revision, status: call.status });
+        }
       }
     }
-    return [...counts.entries()].map(([toolCallId, lifecycleRevision]) => ({
+    return [...latest.entries()].map(([toolCallId, value]) => ({
       toolCallId,
-      lifecycleRevision,
-      status: statuses.get(toolCallId) ?? "completed",
+      revision: value.revision,
+      status: value.status,
     }));
   }
 

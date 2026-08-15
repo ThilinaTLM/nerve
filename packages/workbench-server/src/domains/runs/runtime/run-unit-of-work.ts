@@ -88,7 +88,7 @@ export interface RunCheckpointReferencePort {
   toolCalls(runId: string): Promise<
     readonly {
       toolCallId: string;
-      lifecycleRevision: number;
+      revision: number;
       status: string;
     }[]
   >;

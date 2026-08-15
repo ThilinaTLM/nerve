@@ -30,8 +30,16 @@ export function metadataOnlyToolCallPreview(
       : (toolCall.cwd || ".").slice(0, 2_048),
     status: toolCall.status,
     hidden: toolCall.hidden,
-    approvalId: toolCall.approvalId,
-    suspensionId: toolCall.suspensionId,
+    sourceToolCallId: toolCall.sourceToolCallId,
+    providerToolCallId: toolCall.providerToolCallId,
+    runId: toolCall.runId,
+    turnId: toolCall.turnId,
+    liveMessageId: toolCall.liveMessageId,
+    contentIndex: toolCall.contentIndex,
+    revision: toolCall.revision,
+    attempt: toolCall.attempt,
+    interactions: toolCall.interactions,
+    settledAt: toolCall.settledAt,
     error: boundedToolError(toolCall.error),
     errorDetails: toolCall.errorDetails
       ? {

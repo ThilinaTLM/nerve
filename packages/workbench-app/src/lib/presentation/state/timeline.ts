@@ -111,9 +111,8 @@ function byCreatedAtAscending(
 
 function isLiveToolCall(toolCall: ToolCallTranscriptRecord): boolean {
   return (
-    toolCall.status === "requested" ||
-    toolCall.status === "pending_approval" ||
-    toolCall.status === "waiting_for_user" ||
+    toolCall.status === "committed" ||
+    toolCall.status === "waiting" ||
     toolCall.status === "running"
   );
 }
@@ -370,7 +369,7 @@ function isTerminalUnanchoredToolCall(
 ): boolean {
   return (
     toolCall.status === "completed" ||
-    toolCall.status === "error" ||
+    toolCall.status === "failed" ||
     toolCall.status === "denied"
   );
 }

@@ -24,8 +24,15 @@ function draft(done = false): ConversationLiveToolDraftBlockSnapshot {
 function toolCall(
   status: ToolCallStatus,
   error?: string,
-): Pick<ToolCallTranscriptRecord, "status" | "error"> {
-  return { status, error };
+  interactionKind?: "approval" | "user_input" | "plan_review",
+): Pick<ToolCallTranscriptRecord, "status" | "error" | "interactions"> {
+  return {
+    status,
+    error,
+    interactions: interactionKind
+      ? [{ kind: interactionKind, ordinal: 0, status: "pending" } as never]
+      : [],
+  };
 }
 
 describe("deriveToolLifecycleVisualStage", () => {
@@ -40,17 +47,17 @@ describe("deriveToolLifecycleVisualStage", () => {
     );
     assert.equal(
       deriveToolLifecycleVisualStage({
-        toolCall: toolCall("pending_approval"),
+        toolCall: toolCall("waiting", undefined, "approval"),
       }),
       "approval",
     );
     assert.equal(
       deriveToolLifecycleVisualStage({
-        toolCall: toolCall("waiting_for_user"),
+        toolCall: toolCall("waiting", undefined, "user_input"),
       }),
       "interaction",
     );
-    for (const status of ["requested", "running"] as const) {
+    for (const status of ["committed", "running"] as const) {
       assert.equal(
         deriveToolLifecycleVisualStage({ toolCall: toolCall(status) }),
         "executing",
@@ -60,7 +67,7 @@ describe("deriveToolLifecycleVisualStage", () => {
       deriveToolLifecycleVisualStage({ toolCall: toolCall("completed") }),
       "completed",
     );
-    for (const status of ["error", "denied"] as const) {
+    for (const status of ["failed", "denied"] as const) {
       assert.equal(
         deriveToolLifecycleVisualStage({ toolCall: toolCall(status) }),
         "failed",
@@ -72,7 +79,7 @@ describe("deriveToolLifecycleVisualStage", () => {
 describe("deriveToolActivitySections", () => {
   it("keeps persistent arguments visible on failure alongside the error", () => {
     const failed = deriveToolActivitySections({
-      toolCall: toolCall("error", "boom"),
+      toolCall: toolCall("failed", "boom"),
       argumentRegion: "persistent",
       hasArgumentBody: true,
     });
@@ -83,7 +90,7 @@ describe("deriveToolActivitySections", () => {
 
   it("retains arguments during the tool-to-approval record handoff", () => {
     const state = deriveToolActivitySections({
-      toolCall: toolCall("pending_approval"),
+      toolCall: toolCall("waiting"),
       argumentRegion: "until-result",
       hasArgumentBody: true,
       bodyHydrated: true,
@@ -95,7 +102,7 @@ describe("deriveToolActivitySections", () => {
 
   it("lets HIL views own the result section for every status", () => {
     const waiting = deriveToolActivitySections({
-      toolCall: toolCall("waiting_for_user"),
+      toolCall: toolCall("waiting", undefined, "user_input"),
       argumentRegion: "until-result",
       hasArgumentBody: true,
       hasInteraction: true,

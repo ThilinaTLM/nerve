@@ -58,21 +58,26 @@ type DeriveToolActivitySectionsInput = {
 
 export function deriveToolLifecycleVisualStage(input: {
   draft?: Pick<ConversationLiveToolDraftBlockSnapshot, "done">;
-  toolCall?: Pick<ToolCallTranscriptRecord, "status">;
+  toolCall?: Pick<ToolCallTranscriptRecord, "status"> &
+    Partial<Pick<ToolCallTranscriptRecord, "interactions">>;
 }): ToolLifecycleVisualStage {
   if (!input.toolCall) return input.draft?.done ? "prepared" : "drafting";
   switch (input.toolCall.status) {
-    case "pending_approval":
-      return "approval";
-    case "waiting_for_user":
-      return "interaction";
-    case "requested":
+    case "waiting":
+      return (input.toolCall.interactions ?? []).some(
+        (interaction) =>
+          interaction.status === "pending" && interaction.kind === "approval",
+      )
+        ? "approval"
+        : "interaction";
+    case "committed":
     case "running":
       return "executing";
     case "completed":
       return "completed";
-    case "error":
+    case "failed":
     case "denied":
+    case "cancelled":
       return "failed";
   }
 }
@@ -113,10 +118,10 @@ export function deriveToolActivitySections(
       : "drafting";
 
   const terminalFailure =
-    input.toolCall?.status === "error" || input.toolCall?.status === "denied";
+    input.toolCall?.status === "failed" || input.toolCall?.status === "denied";
   const inFlight = Boolean(
     input.toolCall &&
-    (input.toolCall.status === "requested" ||
+    (input.toolCall.status === "committed" ||
       input.toolCall.status === "running"),
   );
 
@@ -125,16 +130,12 @@ export function deriveToolActivitySections(
     // Failures keep the argument section as input context; the result view
     // never mounts for them.
     resultMode = "none";
-  } else if (
-    input.hasApproval ||
-    input.toolCall.status === "pending_approval"
-  ) {
-    // The durable tool row may arrive one frame before its approval record.
-    // Never treat that handoff gap as result output.
-    resultMode = "none";
   } else if (input.hasInteraction) {
-    // HIL views (ask_user, plan review) own their body for every status.
+    // Native interaction views own their body for every lifecycle status.
     resultMode = "output";
+  } else if (input.hasApproval || input.toolCall.status === "waiting") {
+    // The durable tool row may arrive one frame before its approval projection.
+    resultMode = "none";
   } else if (inFlight && !input.hasDurableBodyContent) {
     // Header-only tools do not grow an empty waiting body while executing;
     // opted-in tools show a placeholder so results replace it without a jump.

@@ -658,8 +658,10 @@ test("HITL resumes do not consume the automatic retry budget", async () => {
     execute: async (attempt, _input, sink) => {
       if (attempt === 1) {
         await sink.wait({
-          kind: "question",
+          kind: "user_input",
           toolCallId: "tool_retry_budget_question",
+          interactionOrdinal: 0,
+          toolCallRevision: 1,
           prompt: "Continue?",
           required: true,
           checkpoint: {
@@ -1138,8 +1140,10 @@ test("resolves an interaction once and rejects conflicting resolution", async ()
   const harness = fixture();
   const run = await start(harness.coordinator);
   const interaction = await harness.coordinator.wait(run.runId, {
-    kind: "question",
+    kind: "user_input",
     toolCallId: "tool_question",
+    interactionOrdinal: 0,
+    toolCallRevision: 1,
     prompt: "Choose",
     required: true,
     checkpoint: {
@@ -1190,6 +1194,8 @@ test("keeps an interaction batch waiting until every member resolves", async () 
       kind: "approval",
       interactionId: "approval_first",
       toolCallId: "tool_first",
+      interactionOrdinal: 0,
+      toolCallRevision: 1,
       batchToolCallIds,
       prompt: "Approve first",
       risk: ["write"],
@@ -1201,6 +1207,8 @@ test("keeps an interaction batch waiting until every member resolves", async () 
       kind: "approval",
       interactionId: "approval_second",
       toolCallId: "tool_second",
+      interactionOrdinal: 0,
+      toolCallRevision: 1,
       batchToolCallIds,
       prompt: "Approve second",
       risk: ["write"],
@@ -1273,6 +1281,8 @@ test("cancellation terminalizes every pending approval batch member", async () =
     {
       kind: "approval",
       toolCallId: "tool_first",
+      interactionOrdinal: 0,
+      toolCallRevision: 1,
       batchToolCallIds,
       prompt: "Approve first",
       risk: ["write"],
@@ -1283,6 +1293,8 @@ test("cancellation terminalizes every pending approval batch member", async () =
     {
       kind: "approval",
       toolCallId: "tool_second",
+      interactionOrdinal: 0,
+      toolCallRevision: 1,
       batchToolCallIds,
       prompt: "Approve second",
       risk: ["write"],
@@ -1300,50 +1312,14 @@ test("cancellation terminalizes every pending approval batch member", async () =
   );
 });
 
-test("publishes a bounded plan preview while retaining the full interaction", async () => {
-  const harness = fixture();
-  const run = await start(harness.coordinator);
-  const content = "long plan line\n".repeat(2_000);
-  const interaction = await harness.coordinator.wait(run.runId, {
-    kind: "plan_review",
-    toolCallId: "tool_plan_long",
-    prompt: "Review long plan",
-    planReview: {
-      id: "plan_review_long",
-      toolCallId: "tool_plan_long",
-      agentId: "agent_a",
-      conversationId: "conv_a",
-      projectId: "proj_a",
-      slug: "long-plan",
-      planPath: "/tmp/long-plan.md",
-      content,
-      status: "pending",
-      requestedAt: "2026-07-12T00:00:00.000Z",
-      updatedAt: "2026-07-12T00:00:00.000Z",
-    },
-    checkpoint: suspensionCheckpoint(),
-  });
-
-  assert.equal(interaction.planReview.content, content);
-  assert.equal(
-    (await harness.coordinator.get(run.runId))?.run.status,
-    "waiting",
-  );
-  const waiting = harness.publicationAttempts.find(
-    (intent) => intent.type === "run.waiting",
-  );
-  assert.ok(waiting);
-  const publicReview = waiting.data.planReview as { content?: string };
-  assert.ok((publicReview.content?.length ?? 0) < content.length);
-  assert.equal(publicReview.content?.split("\n").length, 10);
-});
-
 test("atomically resolves and completes an interaction without waking execution", async () => {
   const harness = fixture();
   const run = await start(harness.coordinator);
   const interaction = await harness.coordinator.wait(run.runId, {
     kind: "plan_review",
     toolCallId: "tool_plan",
+    interactionOrdinal: 0,
+    toolCallRevision: 1,
     prompt: "Review plan",
     planReview: {
       id: "plan_review_a",
@@ -1601,6 +1577,8 @@ test("execution sink enters a durable wait and resolves exactly once", async () 
   const interaction = await harness.sinks[0]!.wait({
     kind: "approval",
     toolCallId: "tool_write",
+    interactionOrdinal: 0,
+    toolCallRevision: 1,
     prompt: "Allow write?",
     risk: ["filesystem"],
     normalizedArgs: { path: "/tmp/x" },

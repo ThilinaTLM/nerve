@@ -1,23 +1,16 @@
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 import {
   type AgentRecord,
   createId,
   type Mode,
   type PlanReviewRecord,
   type PlanReviewStatus,
-  planReviewRecordSchema,
   toPlanReviewPreview,
   type ToolCallRecord,
 } from "@nervekit/contracts";
-import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
-import {
-  appendJsonLine,
-  pathExists,
-  readJsonLines,
-  rewriteJsonLines,
-} from "../../infrastructure/storage/index.js";
+import { pathExists } from "../../infrastructure/storage/index.js";
 import {
   isPathInsidePlanDir,
   planDirForStorageHome,
@@ -52,14 +45,48 @@ export class PlanService {
 
   constructor(
     private readonly storage: InitializedStorage,
-    private readonly events: StreamLogRegistry,
     private readonly getAgent: (agentId: string) => AgentRecord,
     private readonly setAgentMode: SetAgentMode,
   ) {}
 
   async hydrate(): Promise<void> {
-    for (const review of await this.readLatestPlanReviews()) {
-      this.planReviews.set(review.id, review);
+    // Canonical review state is hydrated from tool-call interactions.
+  }
+
+  hydrateFromToolCalls(toolCalls: readonly ToolCallRecord[]): void {
+    this.planReviews.clear();
+    for (const toolCall of toolCalls) {
+      for (const interaction of toolCall.interactions) {
+        if (interaction.kind !== "plan_review") continue;
+        const action = interaction.resolution?.action;
+        const reviewStatus: PlanReviewStatus =
+          interaction.status === "pending"
+            ? "pending"
+            : action === "accept"
+              ? "accepted"
+              : action === "accept_in_new_chat"
+                ? "accepted_in_new_chat"
+                : action === "request_changes" || action === "reject"
+                  ? "changes_requested"
+                  : "discarded";
+        const review: PlanReviewRecord = {
+          id: `plan_review_${toolCall.id}_${interaction.ordinal}`,
+          toolCallId: toolCall.id,
+          agentId: toolCall.agentId,
+          conversationId: toolCall.conversationId,
+          projectId: toolCall.projectId,
+          slug: interaction.request.slug,
+          title: interaction.request.title,
+          summary: interaction.request.summary,
+          planPath: interaction.request.planPath,
+          status: reviewStatus,
+          feedback: interaction.resolution?.feedback,
+          requestedAt: interaction.requestedAt,
+          resolvedAt: interaction.resolvedAt,
+          updatedAt: interaction.updatedAt,
+        };
+        this.planReviews.set(review.id, review);
+      }
     }
   }
 
@@ -77,11 +104,6 @@ export class PlanService {
     for (const [id, review] of this.planReviews) {
       if (conversations.has(review.conversationId)) this.planReviews.delete(id);
     }
-    await rewriteJsonLines(
-      this.planReviewsPath(),
-      this.listPlanReviews(),
-      0o600,
-    );
   }
 
   planDir(agent: AgentRecord): string {
@@ -153,9 +175,6 @@ export class PlanService {
       updatedAt: now,
     };
     await this.upsertPlanReview(review);
-    await this.events.publish("planReview.updated", {
-      planReview: planReviewPreview(review),
-    });
     return review;
   }
 
@@ -200,9 +219,6 @@ export class PlanService {
     const review = this.getPendingPlanReview(reviewId);
     await this.setAgentMode(review.agentId, "coding", "Plan accepted by user.");
     const updated = await this.resolvePlanReview(review, "accepted", feedback);
-    await this.events.publish("planReview.updated", {
-      planReview: planReviewPreview(updated),
-    });
     return updated;
   }
 
@@ -216,9 +232,6 @@ export class PlanService {
       "accepted_in_new_chat",
       feedback,
     );
-    await this.events.publish("planReview.updated", {
-      planReview: planReviewPreview(updated),
-    });
     return updated;
   }
 
@@ -232,9 +245,6 @@ export class PlanService {
       "changes_requested",
       feedback,
     );
-    await this.events.publish("planReview.updated", {
-      planReview: planReviewPreview(updated),
-    });
     return updated;
   }
 
@@ -250,9 +260,6 @@ export class PlanService {
       "changes_requested",
       feedback ?? "Plan rejected by user.",
     );
-    await this.events.publish("planReview.updated", {
-      planReview: planReviewPreview(updated),
-    });
     return updated;
   }
 
@@ -262,9 +269,6 @@ export class PlanService {
   ): Promise<PlanReviewRecord> {
     const review = this.getPendingPlanReview(reviewId);
     const updated = await this.resolvePlanReview(review, "discarded", feedback);
-    await this.events.publish("planReview.updated", {
-      planReview: planReviewPreview(updated),
-    });
     return updated;
   }
 
@@ -273,13 +277,6 @@ export class PlanService {
     reason: string,
   ): Promise<AgentRecord> {
     const updated = await this.setAgentMode(agentId, "coding", reason);
-    await this.events.publish("planReview.updated", {
-      status: "force_exited",
-      agentId,
-      conversationId: updated.conversationId,
-      projectId: updated.projectId,
-      reason,
-    });
     return updated;
   }
 
@@ -362,18 +359,6 @@ export class PlanService {
 
   private async upsertPlanReview(review: PlanReviewRecord): Promise<void> {
     this.planReviews.set(review.id, review);
-    await appendJsonLine(this.planReviewsPath(), review, 0o600);
-  }
-
-  private async readLatestPlanReviews(): Promise<PlanReviewRecord[]> {
-    const values = await readJsonLines<unknown>(this.planReviewsPath()).catch(
-      () => [],
-    );
-    const parsed = values
-      .map((value) => planReviewRecordSchema.safeParse(value))
-      .filter((result) => result.success)
-      .map((result) => result.data);
-    return latestById(parsed);
   }
 
   private planReviewOutcomeMessage(review: PlanReviewRecord): string {
@@ -391,20 +376,10 @@ export class PlanService {
     }
     return `Plan review status: ${review.status}.`;
   }
-
-  private planReviewsPath(): string {
-    return join(this.storage.paths.home, "plans", "plan-reviews.jsonl");
-  }
 }
 
 function optionalStringArg(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value
     : undefined;
-}
-
-function latestById<T extends { id: string }>(values: T[]): T[] {
-  const byId = new Map<string, T>();
-  for (const value of values) byId.set(value.id, value);
-  return [...byId.values()];
 }

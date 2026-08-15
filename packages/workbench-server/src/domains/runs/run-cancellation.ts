@@ -30,7 +30,7 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
     // Suspended tool calls (waiting_for_user/pending_approval) belong to the
     // interaction target, which the coordinator cancels durably.
     const isRunning = (status: string) =>
-      status === "running" || status === "requested";
+      status === "running" || status === "committed";
     const active = this.tools
       .listToolCalls()
       .filter(

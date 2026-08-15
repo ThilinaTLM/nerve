@@ -134,15 +134,111 @@ export const toolDescriptorSchema = z.object({
 export type ToolDescriptor = z.infer<typeof toolDescriptorSchema>;
 
 export const toolCallStatusSchema = z.enum([
-  "requested",
-  "pending_approval",
-  "waiting_for_user",
+  "committed",
+  "waiting",
   "running",
   "completed",
   "denied",
-  "error",
+  "failed",
+  "cancelled",
 ]);
 export type ToolCallStatus = z.infer<typeof toolCallStatusSchema>;
+
+export const toolInteractionStatusSchema = z.enum([
+  "pending",
+  "resolved",
+  "cancelled",
+]);
+export type ToolInteractionStatus = z.infer<typeof toolInteractionStatusSchema>;
+
+const interactionBaseSchema = z.object({
+  ordinal: z.number().int().nonnegative().safe(),
+  status: toolInteractionStatusSchema,
+  requestedAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  resolvedAt: z.string().datetime().optional(),
+  cancelledAt: z.string().datetime().optional(),
+  resolutionRequestId: z.string().min(1).max(256).optional(),
+});
+
+export const approvalToolInteractionSchema = interactionBaseSchema.extend({
+  kind: z.literal("approval"),
+  request: z.object({
+    risk: toolRiskSchema,
+    reason: z.string().min(1).max(4_096),
+    normalizedArgs: boundedPublicObjectSchema.optional(),
+    offeredScopes: z
+      .array(z.enum(["single_call", "same_tool_same_args", "run"]))
+      .max(3),
+  }),
+  resolution: z
+    .object({
+      action: z.enum(["allow", "deny"]),
+      note: z.string().max(4_096).optional(),
+      scope: z.enum(["single_call", "same_tool_same_args", "run"]).optional(),
+    })
+    .optional(),
+});
+
+export const userInputToolInteractionSchema = interactionBaseSchema.extend({
+  kind: z.literal("user_input"),
+  request: z.object({
+    question: z.string().min(1).max(16_000),
+    context: z.string().max(16_000).optional(),
+    recommendation: z.string().max(16_000).optional(),
+    placeholder: z.string().max(1_000).optional(),
+    required: z.boolean(),
+  }),
+  resolution: z
+    .object({
+      action: z.enum(["answer", "dismiss"]),
+      answer: z.string().optional(),
+      reason: z.string().optional(),
+    })
+    .optional(),
+});
+
+export const planReviewToolInteractionSchema = interactionBaseSchema.extend({
+  kind: z.literal("plan_review"),
+  request: z.object({
+    planPath: z.string().min(1),
+    slug: z.string().min(1).max(80),
+    title: z.string().min(1).optional(),
+    summary: z.string().min(1).optional(),
+    allowNewConversation: z.boolean().default(true),
+  }),
+  resolution: z
+    .object({
+      action: z.enum([
+        "accept",
+        "accept_in_new_chat",
+        "request_changes",
+        "reject",
+        "discard",
+      ]),
+      feedback: z.string().optional(),
+      implementationModel: z.unknown().optional(),
+      implementationThinkingLevel: z.string().optional(),
+      compactBeforeImplementation: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+export const toolInteractionSchema = z.discriminatedUnion("kind", [
+  approvalToolInteractionSchema,
+  userInputToolInteractionSchema,
+  planReviewToolInteractionSchema,
+]);
+export type ToolInteraction = z.infer<typeof toolInteractionSchema>;
+export type ApprovalToolInteraction = z.infer<
+  typeof approvalToolInteractionSchema
+>;
+export type UserInputToolInteraction = z.infer<
+  typeof userInputToolInteractionSchema
+>;
+export type PlanReviewToolInteraction = z.infer<
+  typeof planReviewToolInteractionSchema
+>;
 
 export const toolCallErrorDetailsSchema = z.object({
   code: z.string().min(1),
@@ -152,7 +248,7 @@ export const toolCallErrorDetailsSchema = z.object({
 });
 export type ToolCallErrorDetails = z.infer<typeof toolCallErrorDetailsSchema>;
 
-export const toolCallRecordSchema = z.object({
+const toolCallRecordBaseSchema = z.object({
   id: z.string().startsWith("tool_"),
   agentId: z.string().startsWith("agent_"),
   conversationId: z.string().startsWith("conv_"),
@@ -168,15 +264,55 @@ export const toolCallRecordSchema = z.object({
   args: z.unknown(),
   cwd: z.string().min(1),
   status: toolCallStatusSchema,
+  revision: z.number().int().positive().safe(),
+  attempt: z.number().int().nonnegative().safe(),
+  interactions: z.array(toolInteractionSchema).max(16),
   hidden: z.boolean().optional(),
-  approvalId: z.string().startsWith("approval_").optional(),
-  suspensionId: z.string().startsWith("susp_").optional(),
   result: z.unknown().optional(),
   error: z.string().optional(),
   errorDetails: toolCallErrorDetailsSchema.optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  settledAt: z.string().datetime().optional(),
 });
+
+export const toolCallRecordSchema = toolCallRecordBaseSchema.superRefine(
+  (record, context) => {
+    const pending = record.interactions.filter(
+      (interaction) => interaction.status === "pending",
+    );
+    if ((record.status === "waiting") !== (pending.length === 1)) {
+      context.addIssue({
+        code: "custom",
+        message: "Waiting tool calls require exactly one pending interaction.",
+      });
+    }
+    for (const [index, interaction] of record.interactions.entries()) {
+      if (interaction.ordinal !== index) {
+        context.addIssue({
+          code: "custom",
+          message: "Tool interaction ordinals must be contiguous and ordered.",
+          path: ["interactions", index, "ordinal"],
+        });
+      }
+      if (interaction.status === "resolved" && !interaction.resolution) {
+        context.addIssue({
+          code: "custom",
+          message: "Resolved interactions require a resolution.",
+          path: ["interactions", index],
+        });
+      }
+    }
+    const terminal = ["completed", "denied", "failed", "cancelled"].includes(
+      record.status,
+    );
+    if (terminal && !record.settledAt)
+      context.addIssue({
+        code: "custom",
+        message: "Terminal tool calls require settledAt.",
+      });
+  },
+);
 export type ToolCallRecord = z.infer<typeof toolCallRecordSchema>;
 
 export const toolCallPreviewOverflowSchema = z.object({
@@ -193,7 +329,7 @@ export type ToolCallPreviewOverflow = z.infer<
  * payloads are intentionally omitted and fetched on demand with GET
  * /api/tool-calls/:toolCallId.
  */
-export const toolCallTranscriptRecordSchema = toolCallRecordSchema
+export const toolCallTranscriptRecordSchema = toolCallRecordBaseSchema
   .omit({ args: true, result: true, error: true, errorDetails: true })
   .extend({
     argsPreview: toolCallTranscriptPreviewSchema.optional(),

@@ -10,6 +10,8 @@ export interface StoragePaths {
   daemonPath: string;
   sqlitePath: string;
   localTokenPath: string;
+  migrationsPath: string;
+  migrationLedgerPath: string;
 }
 
 export function resolveDataDir(explicitHome = process.env.NERVE_HOME): string {
@@ -27,5 +29,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     daemonPath: join(home, "daemon.json"),
     sqlitePath: join(home, "state.sqlite"),
     localTokenPath: join(home, "auth", "local-token"),
+    migrationsPath: join(home, "migrations"),
+    migrationLedgerPath: join(home, "migrations", "ledger.json"),
   };
 }

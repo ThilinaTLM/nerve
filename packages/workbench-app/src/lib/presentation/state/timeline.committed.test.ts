@@ -84,7 +84,7 @@ describe("buildConversationTimeline committed transcript", () => {
         "edit",
         "provider_call_1",
         {
-          status: "error",
+          status: "failed",
           error: "Validation failed for tool edit.",
         },
       ),

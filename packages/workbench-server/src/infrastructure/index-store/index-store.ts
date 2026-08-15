@@ -1,19 +1,14 @@
-/* eslint-disable max-lines -- IndexStore centralizes the derived sqlite index surface incl. the persisted tool-call snapshot. */
 import { existsSync, renameSync, rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type {
   AgentRecord,
-  ApprovalRecord,
   ConversationRecord,
   ProjectRecord,
   TaskRecord,
   ToolCallRecord,
-  UserQuestionRecord,
   WorkerRecord,
 } from "@nervekit/contracts";
-import { INDEX_SCHEMA_VERSION, INDEX_STORE_SCHEMA_SQL } from "./schema.js";
-
-export { INDEX_SCHEMA_VERSION } from "./schema.js";
+import { INDEX_STORE_SCHEMA_SQL } from "./schema.js";
 
 export interface IndexCounts {
   projects: number;
@@ -21,7 +16,6 @@ export interface IndexCounts {
   agents: number;
   tasks: number;
   workers: number;
-  userQuestions: number;
 }
 
 export interface PromptSuggestionTrustIndexRecord {
@@ -43,32 +37,7 @@ export interface RebuildIndexInput {
   tasks?: TaskRecord[];
   workers?: WorkerRecord[];
   toolCalls?: ToolCallRecord[];
-  approvals?: ApprovalRecord[];
-  userQuestions?: UserQuestionRecord[];
 }
-
-export interface RebuildIndexOptions {
-  /**
-   * Keep the existing tool_calls rows instead of deleting and re-inserting
-   * them. Used when the persisted tool-call snapshot is already current, so a
-   * startup does not rebuild the largest index table from the journal.
-   */
-  preserveToolCalls?: boolean;
-}
-
-export interface ToolCallSnapshotMeta {
-  /** Byte length of logs/tool-calls.jsonl when the snapshot was last written. */
-  watermark: number;
-  /** Number of tool-call rows folded into the snapshot. */
-  rowCount: number;
-  /** Newest tool-call updatedAt folded into the snapshot, if any. */
-  latestUpdatedAt: string | null;
-}
-
-export type ToolCallSnapshotValidation = {
-  valid: boolean;
-  reason: "valid" | "no-meta" | "schema-mismatch" | "watermark-mismatch";
-};
 
 export interface IndexReplacementToken {
   readonly backupPath: string;
@@ -332,37 +301,31 @@ export class IndexStore {
     this.guard(() => {
       this.db
         .prepare(
-          `INSERT INTO tool_calls (id, json)
-           VALUES (?, ?)
-           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
+          `INSERT INTO tool_calls (
+             id, conversation_id, project_id, run_id, status,
+             pending_interaction_kind, revision, json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             conversation_id = excluded.conversation_id,
+             project_id = excluded.project_id,
+             run_id = excluded.run_id,
+             status = excluded.status,
+             pending_interaction_kind = excluded.pending_interaction_kind,
+             revision = excluded.revision,
+             json = excluded.json`,
         )
-        .run(toolCall.id, JSON.stringify(toolCall));
-    });
-  }
-
-  upsertApproval(approval: ApprovalRecord): void {
-    if (this.updatesDeferred) return;
-    this.guard(() => {
-      this.db
-        .prepare(
-          `INSERT INTO approvals (id, json)
-           VALUES (?, ?)
-           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
-        )
-        .run(approval.id, JSON.stringify(approval));
-    });
-  }
-
-  upsertUserQuestion(question: UserQuestionRecord): void {
-    if (this.updatesDeferred) return;
-    this.guard(() => {
-      this.db
-        .prepare(
-          `INSERT INTO user_questions (id, json)
-           VALUES (?, ?)
-           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
-        )
-        .run(question.id, JSON.stringify(question));
+        .run(
+          toolCall.id,
+          toolCall.conversationId,
+          toolCall.projectId,
+          toolCall.runId ?? null,
+          toolCall.status,
+          toolCall.interactions.find(
+            (interaction) => interaction.status === "pending",
+          )?.kind ?? null,
+          toolCall.revision,
+          JSON.stringify(toolCall),
+        );
     });
   }
 
@@ -370,125 +333,6 @@ export class IndexStore {
     if (this.updatesDeferred) return;
     this.guard(() => {
       this.db.prepare("DELETE FROM tool_calls WHERE id = ?").run(id);
-    });
-  }
-
-  // --- persisted tool-call snapshot ---
-
-  /**
-   * The index_meta schema version, or undefined when the meta table has no
-   * version row (a fresh database or one created by an older build).
-   */
-  readSchemaVersion(): number | undefined {
-    const raw = this.#readMeta("schema_version");
-    if (raw === undefined) return undefined;
-    const version = Number(raw);
-    return Number.isInteger(version) && version > 0 ? version : undefined;
-  }
-
-  /**
-   * Persist the latest-per-id tool-call snapshot metadata. The rows themselves
-   * are written by upsertToolCall/rebuild; this only records the journal
-   * watermark so a later startup can skip the full journal scan when the
-   * snapshot is current. All meta keys are written in one transaction so the
-   * snapshot can never be observed half-written.
-   */
-  writeToolCallSnapshot(meta: ToolCallSnapshotMeta): void {
-    this.guard(() => {
-      this.db.exec("BEGIN IMMEDIATE");
-      try {
-        this.#writeMeta("schema_version", String(INDEX_SCHEMA_VERSION));
-        this.#writeMeta("tool_calls_watermark", String(meta.watermark));
-        this.#writeMeta("tool_calls_rows", String(meta.rowCount));
-        this.#writeMeta(
-          "tool_calls_latest_updated_at",
-          meta.latestUpdatedAt ?? "",
-        );
-        this.db.exec("COMMIT");
-      } catch (error) {
-        this.db.exec("ROLLBACK");
-        throw error;
-      }
-    });
-  }
-
-  /**
-   * True when the persisted tool_calls table is a complete, current snapshot of
-   * the journal: schema version matches, the meta table has a snapshot, the
-   * journal size matches the recorded watermark, and the table row count
-   * matches the recorded snapshot size.
-   */
-  isToolCallSnapshotValid(
-    currentWatermark: number,
-  ): ToolCallSnapshotValidation {
-    return this.guard(() => {
-      const version = this.readSchemaVersion();
-      if (version === undefined) return { valid: false, reason: "no-meta" };
-      if (version !== INDEX_SCHEMA_VERSION) {
-        return { valid: false, reason: "schema-mismatch" };
-      }
-      const watermark = this.#readMetaInt("tool_calls_watermark");
-      if (watermark !== currentWatermark) {
-        return { valid: false, reason: "watermark-mismatch" };
-      }
-      const rows = this.#readMetaInt("tool_calls_rows");
-      if (rows === undefined || rows !== this.countTable("tool_calls")) {
-        return { valid: false, reason: "watermark-mismatch" };
-      }
-      return { valid: true, reason: "valid" };
-    });
-  }
-
-  /** Stream the persisted tool-call snapshot back as records. */
-  loadToolCalls(): ToolCallRecord[] {
-    return this.guard(() => {
-      const rows = this.db
-        .prepare("SELECT json FROM tool_calls")
-        .all() as Array<{ json: string }>;
-      return rows.map((row) => JSON.parse(row.json) as ToolCallRecord);
-    });
-  }
-
-  /** Actual persisted row count, used as the snapshot row-count source of truth. */
-  countToolCalls(): number {
-    return this.guard(() => this.countTable("tool_calls"));
-  }
-
-  #readMeta(key: string): string | undefined {
-    const row = this.db
-      .prepare("SELECT value FROM index_meta WHERE key = ?")
-      .get(key) as { value: string } | undefined;
-    return row?.value;
-  }
-
-  #readMetaInt(key: string): number | undefined {
-    const raw = this.#readMeta(key);
-    if (raw === undefined || raw === "") return undefined;
-    const value = Number(raw);
-    return Number.isFinite(value) ? value : undefined;
-  }
-
-  #writeMeta(key: string, value: string): void {
-    this.db
-      .prepare(
-        `INSERT INTO index_meta (key, value)
-         VALUES (?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      )
-      .run(key, value);
-  }
-
-  deleteApproval(id: string): void {
-    if (this.updatesDeferred) return;
-    this.guard(() => {
-      this.db.prepare("DELETE FROM approvals WHERE id = ?").run(id);
-    });
-  }
-
-  deleteUserQuestion(id: string): void {
-    if (this.updatesDeferred) return;
-    this.guard(() => {
-      this.db.prepare("DELETE FROM user_questions WHERE id = ?").run(id);
     });
   }
 
@@ -588,38 +432,27 @@ export class IndexStore {
     });
   }
 
-  rebuild(input: RebuildIndexInput, options: RebuildIndexOptions = {}): void {
+  rebuild(input: RebuildIndexInput): void {
     this.guard(() => {
       this.db.exec("BEGIN IMMEDIATE");
       try {
         const tables = [
-          "user_questions",
-          "approvals",
           "tasks",
           "workers",
           "agents",
           "conversations",
           "projects",
         ];
-        if (!options.preserveToolCalls) tables.push("tool_calls");
+        tables.push("tool_calls");
         for (const table of tables) {
           this.db.exec(`DELETE FROM ${table};`);
         }
 
-        const upsertUserQuestion = this.db.prepare(
-          `INSERT INTO user_questions (id, json)
-           VALUES (?, ?)
-           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
-        );
-        const upsertApproval = this.db.prepare(
-          `INSERT INTO approvals (id, json)
-           VALUES (?, ?)
-           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
-        );
         const upsertToolCall = this.db.prepare(
-          `INSERT INTO tool_calls (id, json)
-           VALUES (?, ?)
-           ON CONFLICT(id) DO UPDATE SET json = excluded.json`,
+          `INSERT INTO tool_calls (
+             id, conversation_id, project_id, run_id, status,
+             pending_interaction_kind, revision, json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         );
         const upsertWorker = this.db.prepare(
           `INSERT INTO workers (
@@ -688,16 +521,19 @@ export class IndexStore {
              updated_at = excluded.updated_at,
              json = excluded.json`,
         );
-        for (const question of input.userQuestions ?? []) {
-          upsertUserQuestion.run(question.id, JSON.stringify(question));
-        }
-        for (const approval of input.approvals ?? []) {
-          upsertApproval.run(approval.id, JSON.stringify(approval));
-        }
-        if (!options.preserveToolCalls) {
-          for (const toolCall of input.toolCalls ?? []) {
-            upsertToolCall.run(toolCall.id, JSON.stringify(toolCall));
-          }
+        for (const toolCall of input.toolCalls ?? []) {
+          upsertToolCall.run(
+            toolCall.id,
+            toolCall.conversationId,
+            toolCall.projectId,
+            toolCall.runId ?? null,
+            toolCall.status,
+            toolCall.interactions.find(
+              (interaction) => interaction.status === "pending",
+            )?.kind ?? null,
+            toolCall.revision,
+            JSON.stringify(toolCall),
+          );
         }
         for (const worker of input.workers ?? []) {
           upsertWorker.run(
@@ -782,7 +618,6 @@ export class IndexStore {
       agents: this.countTable("agents"),
       tasks: this.countTable("tasks"),
       workers: this.countTable("workers"),
-      userQuestions: this.countTable("user_questions"),
     }));
   }
 

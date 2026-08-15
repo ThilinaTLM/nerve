@@ -1,4 +1,12 @@
 import { z } from "zod";
+export const DAEMON_STARTUP_PROGRESS_PREFIX = "NERVE_STARTUP_PROGRESS ";
+
+export const daemonStartupProgressSchema = z.object({
+  type: z.literal("nerve.startup.progress"),
+  phase: z.enum(["storage-check", "storage-migration"]),
+  message: z.string().min(1),
+});
+export type DaemonStartupProgress = z.infer<typeof daemonStartupProgressSchema>;
 
 export const storageCategoryKeySchema = z.enum([
   "conversations",
@@ -33,7 +41,6 @@ export const storageCleanupTargetSchema = z.enum([
   "conversations",
   "datedLogs",
   "rotatedEventLog",
-  "toolCallLog",
   "exploreReports",
   "cache",
   "tmp",
@@ -88,7 +95,6 @@ export const storageCleanupRequestSchema = z
       .optional(),
     logsOlderThanDays: z.number().int().positive().max(3650).optional(),
     truncateEventLog: z.boolean().optional(),
-    clearToolCallLog: z.boolean().optional(),
     clearExploreReports: z.boolean().optional(),
     clearCache: z.boolean().optional(),
     clearTmp: z.boolean().optional(),

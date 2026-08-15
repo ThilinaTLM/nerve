@@ -2,7 +2,6 @@ import { z } from "zod";
 import { queuedPromptRecordSchema } from "../agents/agent.schema.js";
 import { conversationEntrySchema } from "../conversations/tree.schema.js";
 import { publicEventNameSchema } from "../events/public-event-catalog.schema.js";
-import { planReviewRecordSchema } from "../plans/plan-review.schema.js";
 import { toolCallTranscriptRecordSchema } from "../tools/records.schema.js";
 
 const isoDateTimeSchema = z.string().datetime();
@@ -125,7 +124,7 @@ export const runExecutionRecordSchema = z.object({
 });
 export type RunExecutionRecord = z.infer<typeof runExecutionRecordSchema>;
 
-const runInteractionBaseSchema = z.object({
+export const runInteractionRecordSchema = z.object({
   stateEpoch: z.literal(RUN_STATE_EPOCH),
   id: interactionIdSchema,
   conversationId: conversationIdSchema,
@@ -134,9 +133,10 @@ const runInteractionBaseSchema = z.object({
   runId: runIdSchema,
   executionId: executionIdSchema,
   toolCallId: z.string().min(1).max(256),
+  interactionOrdinal: z.number().int().nonnegative().max(15),
+  toolCallRevision: z.number().int().positive().safe(),
   batchToolCallIds: interactionBatchToolCallIdsSchema.optional(),
-  prompt: z.string().min(1).max(16_000),
-  context: z.string().max(16_000).optional(),
+  kind: z.enum(["user_input", "approval", "plan_review"]),
   status: z.enum(["pending", "resolved", "cancelled"]),
   resolutionRequestId: z.string().min(1).max(256).optional(),
   resolutionHash: sha256Schema.optional(),
@@ -146,26 +146,6 @@ const runInteractionBaseSchema = z.object({
   resolvedAt: isoDateTimeSchema.optional(),
   cancelledAt: isoDateTimeSchema.optional(),
 });
-
-export const runInteractionRecordSchema = z.discriminatedUnion("kind", [
-  runInteractionBaseSchema.extend({
-    kind: z.literal("question"),
-    placeholder: z.string().max(1_000).optional(),
-    required: z.boolean(),
-  }),
-  runInteractionBaseSchema.extend({
-    kind: z.literal("approval"),
-    risk: z.array(z.string().min(1).max(256)).max(64),
-    normalizedArgs: z.record(z.string(), z.unknown()),
-    offeredScopes: z
-      .array(z.enum(["single_call", "same_tool_same_args", "run"]))
-      .max(3),
-  }),
-  runInteractionBaseSchema.extend({
-    kind: z.literal("plan_review"),
-    planReview: planReviewRecordSchema,
-  }),
-]);
 export type RunInteractionRecord = z.infer<typeof runInteractionRecordSchema>;
 
 export const runCheckpointRecordSchema = z.object({
@@ -192,7 +172,7 @@ export const runCheckpointRecordSchema = z.object({
     .array(
       z.object({
         toolCallId: z.string().min(1).max(256),
-        lifecycleRevision: z.number().int().nonnegative().safe(),
+        revision: z.number().int().positive().safe(),
       }),
     )
     .max(10_000),

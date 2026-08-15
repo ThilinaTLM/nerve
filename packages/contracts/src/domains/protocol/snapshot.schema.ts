@@ -4,13 +4,9 @@ import {
   conversationRecordSchema,
   conversationSnapshotSchema,
 } from "../conversations/index.js";
-import { planReviewRecordSchema } from "../plans/index.js";
 import { projectRecordSchema } from "../projects/index.js";
 import { taskRecordSchema } from "../tasks/index.js";
-import {
-  approvalRecordSchema,
-  userQuestionRecordSchema,
-} from "../tools/index.js";
+import { toolCallTranscriptRecordSchema } from "../tools/index.js";
 import { workerRecordSchema } from "../workers/index.js";
 import { streamCursorSchema } from "./event-stream.schema.js";
 
@@ -34,9 +30,7 @@ export const workspaceSnapshotSchema = z.object({
   conversations: z.array(conversationRecordSchema),
   agents: z.array(agentRecordSchema),
   tasks: z.array(taskRecordSchema),
-  approvals: z.array(approvalRecordSchema),
-  userQuestions: z.array(userQuestionRecordSchema),
-  planReviews: z.array(planReviewRecordSchema),
+  pendingToolCalls: z.array(toolCallTranscriptRecordSchema),
   workers: z.array(workerRecordSchema).optional(),
 });
 export type WorkspaceSnapshot = z.infer<typeof workspaceSnapshotSchema>;

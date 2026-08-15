@@ -49,7 +49,7 @@ const footprint = $derived(
 
 const groupTargets: Record<string, StorageCleanupTarget[]> = {
   history: ["conversations"],
-  logs: ["datedLogs", "toolCallLog", "rotatedEventLog"],
+  logs: ["datedLogs", "rotatedEventLog"],
   disposable: ["exploreReports", "cache", "tmp"],
   index: ["searchIndex"],
 };
@@ -176,12 +176,6 @@ function start(): void {
           amountSuffix="days"
           title="Dated log files"
           description={`Application and desktop logs · ${targetFootprint("datedLogs")}`}
-        />
-        <StorageCleanupChoice
-          id="cleanup-tool-log"
-          bind:checked={selection.toolCallLog}
-          title="Tool-call log"
-          description={`Compact superseded tool-call rows · ${targetFootprint("toolCallLog")}`}
         />
         <StorageCleanupChoice
           id="cleanup-event-log"

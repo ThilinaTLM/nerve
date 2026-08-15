@@ -5,7 +5,13 @@ import { pathExists, writeTextFileIfMissing } from "./json.js";
 export const WORKBENCH_STATE_FORMAT = "nerve-workbench-state";
 export const WORKBENCH_STATE_VERSION = 2;
 
-const desktopBootstrapDirectories = new Set(["crashes", "desktop", "logs"]);
+const desktopBootstrapDirectories = new Set([
+  "crashes",
+  "desktop",
+  "logs",
+  // The startup migration lock/ledger is bootstrapped before VERSION exists.
+  "migrations",
+]);
 
 export type WorkbenchHomeInspection =
   | { kind: "missing" | "empty" | "desktop-bootstrap" | "current" }

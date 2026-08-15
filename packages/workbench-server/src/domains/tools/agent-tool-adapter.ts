@@ -60,11 +60,7 @@ export function createAgentToolsForAgent(
       });
       if (toolCall.status === "completed")
         return toolCallResultForModel(toolCall);
-      if (
-        toolCall.status === "pending_approval" ||
-        (toolCall.status === "waiting_for_user" &&
-          (toolName === "ask_user" || toolName === "plan_mode_present"))
-      ) {
+      if (toolCall.status === "waiting") {
         throw new AgentToolSuspension({
           toolCallId: toolCall.id,
           toolName,
@@ -227,7 +223,7 @@ export function formatToolResultForModel(toolCall: ToolCallRecord): string {
         : "User denied the requested tool call.",
     );
   }
-  if (toolCall.status === "error") {
+  if (toolCall.status === "failed") {
     return boundModelText(
       toolCall.error?.trim()
         ? `Tool execution failed.\nError: ${toolCall.error}`

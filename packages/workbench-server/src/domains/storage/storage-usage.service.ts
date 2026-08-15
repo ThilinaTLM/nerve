@@ -260,7 +260,6 @@ export class StorageUsageService {
     const category = (key: StorageCategoryKey): SizeTally =>
       totals.get(key) ?? { bytes: 0, files: 0 };
     const rotatedBytes = await fileSize(join(logsDir, "events.jsonl.1"));
-    const toolLogBytes = await fileSize(join(logsDir, "tool-calls.jsonl"));
     return [
       {
         target: "conversations",
@@ -279,12 +278,6 @@ export class StorageUsageService {
         bytes: rotatedBytes,
         itemCount: rotatedBytes > 0 ? 1 : 0,
         estimate: "exact",
-      },
-      {
-        target: "toolCallLog",
-        bytes: toolLogBytes,
-        itemCount: toolLogBytes > 0 ? 1 : 0,
-        estimate: "upTo",
       },
       {
         target: "exploreReports",
