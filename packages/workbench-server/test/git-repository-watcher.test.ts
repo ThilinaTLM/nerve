@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { mkdtemp } from "node:fs/promises";
 import { GitRepositoryWatcher } from "../src/domains/tools/git-repository-watcher.js";
+import { PerformanceMetricsCollector } from "../src/infrastructure/diagnostics/performance-metrics.js";
 
 type Timer = { at: number; callback: () => void; cancelled: boolean };
 
@@ -60,6 +61,7 @@ function setup(
   const publications: unknown[] = [];
   const warnings: string[] = [];
   const metadataChanges: string[] = [];
+  const metrics = new PerformanceMetricsCollector();
   const watcher = new GitRepositoryWatcher(
     {
       publishBestEffort: (_type, data) => {
@@ -69,6 +71,7 @@ function setup(
     },
     {
       clock,
+      diagnostics: metrics,
       now: () => clock.nowMs,
       quietMs: 300,
       maxWaitMs: 2_000,
@@ -85,6 +88,7 @@ function setup(
   return {
     clock,
     metadataChanges,
+    metrics,
     publications,
     warnings,
     watcher,
@@ -94,7 +98,7 @@ function setup(
 
 describe("GitRepositoryWatcher", () => {
   it("trailing-debounces a repository burst and ignores noisy git internals", () => {
-    const { clock, publications, watcher, watches } = setup();
+    const { clock, publications, watcher, watches, metrics } = setup();
     watcher.watch("proj_one", ".", "/repo");
     const emit = watches[0]?.listener;
     assert.ok(emit);
@@ -113,6 +117,10 @@ describe("GitRepositoryWatcher", () => {
     assert.deepEqual(publications, [
       { projectId: "proj_one", repo: ".", source: "filesystem" },
     ]);
+    const snapshot = metrics.snapshotAndReset();
+    assert.equal(snapshot.metrics["git.watcherCreated"]?.count, 1);
+    assert.equal(snapshot.metrics["git.filesystemEvent"]?.count, 4);
+    assert.equal(snapshot.metrics["git.invalidation"]?.count, 1);
   });
 
   it("flushes continuous writes at the maximum wait and isolates repositories", () => {

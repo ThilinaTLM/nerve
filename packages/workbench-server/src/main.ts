@@ -144,8 +144,11 @@ async function main() {
   if (mobileHttpsEnabled && (!Number.isFinite(httpsPort) || httpsPort <= 0)) {
     throw new Error(`Invalid Nerve HTTPS port: ${String(httpsPort)}`);
   }
+  const performanceDiagnosticsEnabled =
+    process.env.NERVE_PERFORMANCE_DIAGNOSTICS === "1";
   const state = createOrchestratorState(storage, host, port, {
     applicationLogsEnabled: process.env.NERVE_LOGGING_ENABLED === "1",
+    performanceDiagnosticsEnabled,
   });
   const loggerHydrateStartedAt = performance.now();
   await state.logger.hydrate();
@@ -290,8 +293,10 @@ async function main() {
         toolCallHydrationSource: registryTimings.toolCallHydrationSource,
       });
       performanceMonitor ??= installDaemonPerformanceMonitor({
-        enabled: process.env.NERVE_PERFORMANCE_DIAGNOSTICS === "1",
+        enabled: performanceDiagnosticsEnabled,
         dataDir: storage.paths.home,
+        sessionId: process.env.NERVE_PERFORMANCE_SESSION_ID,
+        getActivity: () => state.performanceDiagnostics.snapshotAndReset(),
         getCounts: () => ({
           ...registryTimings.counts,
           projects: state.registry.listProjects().length,

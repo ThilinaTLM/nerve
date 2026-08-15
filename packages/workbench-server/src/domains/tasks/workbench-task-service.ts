@@ -14,6 +14,7 @@ import {
   type TaskRuntime,
 } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { IndexStore } from "../../infrastructure/index-store/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage/index.js";
@@ -50,6 +51,7 @@ import { createWorkbenchTaskResources } from "./workbench-task-adapters.js";
 export interface WorkbenchTaskServiceOptions {
   supervisor?: TaskSupervisor;
   launchConfigs?: TaskLaunchConfigStore;
+  diagnostics?: PerformanceDiagnosticsPort;
 }
 
 export type ForegroundBashPromotionInput = {

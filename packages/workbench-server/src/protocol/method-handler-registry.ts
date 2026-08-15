@@ -92,7 +92,21 @@ export function createWorkbenchMethodRegistry(
   ): Promise<unknown> {
     const handler = handlers.get(method);
     if (!handler) throw new Error(`Unsupported workbench operation: ${method}`);
-    return handler(state, params as never);
+    if (!state.performanceDiagnostics.enabled)
+      return handler(state, params as never);
+    const startedAt = performance.now();
+    try {
+      return await handler(state, params as never);
+    } catch (error) {
+      state.performanceDiagnostics.count("rpc.error", 1, method);
+      throw error;
+    } finally {
+      state.performanceDiagnostics.duration(
+        "rpc.handler",
+        performance.now() - startedAt,
+        method,
+      );
+    }
   }
 
   function bind(state: OrchestratorState): Partial<OperationHandlerRegistry> {

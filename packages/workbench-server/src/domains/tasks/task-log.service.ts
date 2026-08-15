@@ -8,6 +8,7 @@ import type {
 import { taskLogEventSchema } from "@nervekit/contracts";
 import { queryTaskLogEvents } from "./task-log-query.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
+import type { PerformanceDiagnosticsPort } from "../../core/ports.js";
 import {
   appendJsonLine,
   readJsonLines,
@@ -34,7 +35,10 @@ export function createTaskLogCursor(logSeq = 0): TaskLogCursor {
 export class TaskLogService {
   constructor(
     private readonly events: StreamLogRegistry,
-    private readonly options: { publishOutputEvents?: boolean } = {},
+    private readonly options: {
+      publishOutputEvents?: boolean;
+      diagnostics?: PerformanceDiagnosticsPort;
+    } = {},
   ) {}
 
   async queryLogs(
@@ -56,9 +60,21 @@ export class TaskLogService {
     onLog: (event: TaskLogEvent) => Promise<void>,
   ): Promise<void> {
     const text = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk;
+    const diagnostics = this.options.diagnostics;
+    const startedAt = diagnostics?.enabled ? performance.now() : undefined;
+    if (diagnostics?.enabled) {
+      diagnostics.count("task.outputChunk");
+      diagnostics.count("task.outputBytes", Buffer.byteLength(text));
+    }
     return this.enqueue(cursor, () =>
       this.captureOutputNow(record, cursor, stream, text, onLog),
-    );
+    ).finally(() => {
+      if (startedAt !== undefined)
+        diagnostics?.duration(
+          "task.outputCapture",
+          performance.now() - startedAt,
+        );
+    });
   }
 
   async flushOutput(
@@ -170,12 +186,14 @@ export class TaskLogService {
       line: cleaned,
     };
     await appendJsonLine(record.logsPath, event, 0o600);
+    this.options.diagnostics?.count("task.outputLine");
     if (this.options.publishOutputEvents !== false) {
       await this.events.publish("task.output", {
         taskId: record.id,
         stream,
         text: cleaned.slice(-16_384),
       });
+      this.options.diagnostics?.count("task.outputPublication");
     }
     await onLog(event);
   }

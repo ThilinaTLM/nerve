@@ -77,6 +77,7 @@ import { WorkbenchRunQuery } from "../domains/runs/workbench-run-query.js";
 import type { SubscriptionUsageService } from "../domains/usage/subscription-usage-service.js";
 import { WorkerManager } from "../domains/workers/worker-manager.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
+import type { PerformanceDiagnosticsPort } from "../core/ports.js";
 import type { StreamLogRegistry } from "../infrastructure/events/index.js";
 import type { IndexStore } from "../infrastructure/index-store/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
@@ -93,6 +94,7 @@ export interface RuntimeDeps {
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   agentBrowserSkills: AgentBrowserSkillCatalog;
+  performanceDiagnostics: PerformanceDiagnosticsPort;
 }
 
 export interface RuntimeServices {
@@ -135,8 +137,16 @@ export function composeRuntime(
   state: RuntimeState,
   deps: RuntimeDeps,
 ): RuntimeServices {
-  const { storage, events, index, auth, secrets, subscriptionUsage, logger } =
-    deps;
+  const {
+    storage,
+    events,
+    index,
+    auth,
+    secrets,
+    subscriptionUsage,
+    logger,
+    performanceDiagnostics,
+  } = deps;
   const services = {} as RuntimeServices;
   const subagentExecutions = new WorkbenchSubagentExecutions();
   const exploreAdmission = new WorkbenchExploreAdmission();
@@ -310,7 +320,12 @@ export function composeRuntime(
     events,
     index,
     logger.child({ component: "task" }),
-    { launchConfigs: taskLaunchConfigs },
+    {
+      launchConfigs: taskLaunchConfigs,
+      diagnostics: performanceDiagnostics.enabled
+        ? performanceDiagnostics
+        : undefined,
+    },
   );
   services.pythonRuntime = new PythonRuntimeService(storage);
   services.workers = new WorkerManager(storage, events, index);
@@ -406,6 +421,9 @@ export function composeRuntime(
     },
   });
   services.gitRepositoryWatcher = new GitRepositoryWatcher(events, {
+    diagnostics: performanceDiagnostics.enabled
+      ? performanceDiagnostics
+      : undefined,
     onRepositoryMetadataChanged: (repoDir) =>
       gitService.invalidateStableRepoMetadata(repoDir),
     onWarning: (message, error) => {

@@ -23,6 +23,8 @@ type IntervalHandle = ReturnType<typeof setInterval>;
 type DesktopPerformanceMonitorOptions = {
   enabled: boolean;
   dataDir: string;
+  sessionId?: string;
+  pid?: number;
   getMetrics: () => ElectronProcessMetric[];
   getWindowState: () => { visible: boolean; minimized: boolean } | undefined;
   append?: (path: string, line: string) => Promise<void>;
@@ -39,6 +41,20 @@ async function appendJsonLine(path: string, line: string): Promise<void> {
   await appendFile(path, line, "utf8");
 }
 
+const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+function performanceLogFilename(
+  sessionId: string | undefined,
+  source: "desktop",
+  now: Date,
+  pid: number,
+): string {
+  const safeSessionId = SAFE_SESSION_ID.test(sessionId ?? "")
+    ? sessionId
+    : `${now.toISOString().replace(/[-:.]/g, "")}-${source}-${Math.max(0, Math.trunc(pid))}`;
+  return `performance-${safeSessionId}.jsonl`;
+}
+
 function kilobytesToBytes(value: number | undefined): number | undefined {
   return value === undefined ? undefined : value * 1024;
 }
@@ -52,7 +68,16 @@ export function installDesktopPerformanceMonitor(
   const now = options.now ?? (() => new Date());
   const createInterval = options.setInterval ?? setInterval;
   const destroyInterval = options.clearInterval ?? clearInterval;
-  const path = join(options.dataDir, "logs", "performance.jsonl");
+  const path = join(
+    options.dataDir,
+    "logs",
+    performanceLogFilename(
+      options.sessionId,
+      "desktop",
+      now(),
+      options.pid ?? process.pid,
+    ),
+  );
   let stopped = false;
   let writing = false;
   let warned = false;
