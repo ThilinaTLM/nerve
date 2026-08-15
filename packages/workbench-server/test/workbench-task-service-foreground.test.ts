@@ -70,45 +70,54 @@ describe("task manager foreground bash auto-promotion", () => {
     );
   });
 
-  it("returns normal bash output and removes the hidden task when it finishes before promotion", async () => {
-    const child = fakeChild();
-    const { supervisor } = fakeSupervisor({ child });
-    const { manager, storage, events } = await createManager(supervisor);
-    const startedEvent = waitForTaskEvent(events, "task.started");
+  it(
+    "returns normal bash output and removes the hidden task when it finishes before promotion",
+    { timeout: 10_000 },
+    async () => {
+      const child = fakeChild();
+      let spawned!: () => void;
+      const didSpawn = new Promise<void>((resolve) => {
+        spawned = resolve;
+      });
+      const { supervisor } = fakeSupervisor({ child, onSpawn: spawned });
+      const { manager, storage, events } = await createManager(supervisor);
+      const startedEvent = waitForTaskEvent(events, "task.started");
 
-    const run = manager.runForegroundBashWithPromotion({
-      command: "node fake.js",
-      cwd: storage.paths.home,
-      projectId: "proj_test",
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      autoPromoteAfterMs: 1000,
-      origin: { kind: "agent_tool", toolCallId: "tool_test" },
-    });
-    const started = await startedEvent;
-    const completedEvent = waitForTaskEvent(
-      events,
-      "task.completed",
-      started.id,
-    );
-    child.stdout.emit("data", "out 1\n");
-    child.stderr.emit("data", "err 1\n");
-    child.stdout.emit("data", "out 2\n");
-    child.emitClose(0, null);
-    await completedEvent;
+      const run = manager.runForegroundBashWithPromotion({
+        command: "node fake.js",
+        cwd: storage.paths.home,
+        projectId: "proj_test",
+        conversationId: "conv_test",
+        agentId: "agent_test",
+        autoPromoteAfterMs: 1000,
+        origin: { kind: "agent_tool", toolCallId: "tool_test" },
+      });
+      const started = await startedEvent;
+      await didSpawn;
+      const completedEvent = waitForTaskEvent(
+        events,
+        "task.completed",
+        started.id,
+      );
+      child.stdout.emit("data", "out 1\n");
+      child.stderr.emit("data", "err 1\n");
+      child.stdout.emit("data", "out 2\n");
+      child.emitClose(0, null);
+      await completedEvent;
 
-    const result = await run;
+      const result = await run;
 
-    assert.equal(result.kind, "completed_foreground");
-    assert.deepEqual(
-      (result.result.details as { execution?: unknown }).execution,
-      { disposition: "completed" },
-    );
-    assert.equal(result.result.stdout, "out 1\nout 2");
-    assert.equal(result.result.stderr, "err 1");
-    assert.equal(result.result.content, "out 1\nerr 1\nout 2\n");
-    assert.throws(() => manager.getTask(started.id), /Task not found/);
-  });
+      assert.equal(result.kind, "completed_foreground");
+      assert.deepEqual(
+        (result.result.details as { execution?: unknown }).execution,
+        { disposition: "completed" },
+      );
+      assert.equal(result.result.stdout, "out 1\nout 2");
+      assert.equal(result.result.stderr, "err 1");
+      assert.equal(result.result.content, "out 1\nerr 1\nout 2\n");
+      assert.throws(() => manager.getTask(started.id), /Task not found/);
+    },
+  );
 
   it("captures output before delayed runtime identity resolves", async () => {
     const child = fakeChild();
