@@ -23,6 +23,7 @@ import type { AuthManager } from "../domains/auth/index.js";
 import { WorkbenchExploreAdmission } from "../domains/agents/run/workbench-explore-admission.js";
 import { WorkbenchSubagentExecutions } from "../domains/agents/run/workbench-subagent-executions.js";
 import { FileCompletionService } from "../domains/completions/index.js";
+import { ProjectFilesystemWatcher } from "../domains/filesystem/project-filesystem-watcher.js";
 import { ConversationService } from "../domains/conversations/conversation-service.js";
 import { ConversationHarnessStorage } from "../domains/conversations/conversation-harness-storage.js";
 import {
@@ -106,6 +107,7 @@ export interface RuntimeServices {
   tools: ToolService;
   git: GitService;
   gitRepositoryWatcher: GitRepositoryWatcher;
+  projectFilesystemWatcher: ProjectFilesystemWatcher;
   fileCompletions: FileCompletionService;
   promptSuggestions: PromptSuggestionService;
   taskDefinitions: TaskDefinitionService;
@@ -337,6 +339,12 @@ export function composeRuntime(
   );
   services.projectIcons = new ProjectIconService(getProject);
   services.fileCompletions = new FileCompletionService(getProject);
+  const filesystemLogger = logger.child({ component: "filesystem" });
+  services.projectFilesystemWatcher = new ProjectFilesystemWatcher(events, {
+    onWarning: (message, error) => {
+      void filesystemLogger.warn(message, { error });
+    },
+  });
   services.conversationLifecycle = new ConversationLifecycleService(
     storage,
     events,

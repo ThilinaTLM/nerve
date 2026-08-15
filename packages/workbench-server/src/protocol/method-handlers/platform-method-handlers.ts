@@ -121,11 +121,13 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMap =
     }),
     "filesystem.directories.list": (_state, params) =>
       directoryListing(params?.path, params?.showHidden as boolean | undefined),
-    "filesystem.project.entries.list": (state, params) =>
-      projectDirectoryEntries(
+    "filesystem.project.entries.list": (state, params) => {
+      state.registry.watchProjectFilesystem(params.projectId);
+      return projectDirectoryEntries(
         params,
         (projectId) => state.registry.getProject(projectId).dir,
-      ),
+      );
+    },
     "filesystem.project.entries.create": (state, params) =>
       createProjectEntry(
         params,
