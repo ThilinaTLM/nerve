@@ -379,22 +379,13 @@ $effect(() => () => streamingScheduler.destroy());
   line-height: 1.25;
 }
 
-.markdown :global(h1) {
-  font-size: var(--text-xl);
-}
-
-.markdown :global(h2) {
-  font-size: var(--text-lg);
-}
-
-.markdown :global(h3) {
-  font-size: var(--text-base);
-}
-
+.markdown :global(h1),
+.markdown :global(h2),
+.markdown :global(h3),
 .markdown :global(h4),
 .markdown :global(h5),
 .markdown :global(h6) {
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
 }
 
 .markdown :global(a) {
