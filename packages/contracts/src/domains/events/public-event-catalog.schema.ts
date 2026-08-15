@@ -4,6 +4,7 @@ import { runEventDefinitions } from "../agents/run.events.schema.js";
 import { authEventDefinitions } from "../auth/auth.events.schema.js";
 import { conversationLifecycleEventDefinitions } from "../conversations/conversation.events.schema.js";
 import { conversationRuntimeEventDefinitions } from "../conversations/conversation-runtime.events.schema.js";
+import { filesystemEventDefinitions } from "../filesystem/filesystem.events.schema.js";
 import { gitEventDefinitions } from "../git/git.events.schema.js";
 import { planEventDefinitions } from "../plans/plan.events.schema.js";
 import { promptSuggestionEventDefinitions } from "../prompt-suggestions/prompt-suggestion.events.schema.js";
@@ -30,6 +31,7 @@ export type {
 const definitions: PublicEventDefinition[] = [
   ...taskEventDefinitions,
   ...taskDefinitionEventDefinitions,
+  ...filesystemEventDefinitions,
   ...gitEventDefinitions,
   ...conversationLifecycleEventDefinitions,
   ...conversationRuntimeEventDefinitions,

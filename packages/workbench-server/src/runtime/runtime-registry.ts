@@ -187,6 +187,7 @@ export class RuntimeRegistry {
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
     this.services.gitRepositoryWatcher.close();
+    this.services.projectFilesystemWatcher.close();
     await this.services.tasks.shutdown();
     this.services.taskNotifications.stop();
     await Promise.allSettled([...this.backgroundOperations]);
@@ -364,6 +365,11 @@ export class RuntimeRegistry {
 
   getProject(projectId: string): ProjectRecord {
     return this.services.projectLifecycle.getProject(projectId);
+  }
+
+  watchProjectFilesystem(projectId: string): void {
+    const project = this.getProject(projectId);
+    this.services.projectFilesystemWatcher.watch(project.id, project.dir);
   }
 
   async createConversation(

@@ -465,6 +465,25 @@ describe("Protocol v1 shared schemas", () => {
       ),
       invalidation,
     );
+    const filesystemChange = {
+      projectId: "proj_test",
+      source: "filesystem",
+    };
+    assert.deepEqual(
+      validatePublicEvent(
+        "filesystem.project.changed",
+        filesystemChange,
+        "workbench_server",
+      ),
+      filesystemChange,
+    );
+    assert.throws(() =>
+      validatePublicEvent(
+        "filesystem.project.changed",
+        { projectId: "test", source: "filesystem" },
+        "workbench_server",
+      ),
+    );
     assert.throws(
       () =>
         parsePublicEventEnvelope(

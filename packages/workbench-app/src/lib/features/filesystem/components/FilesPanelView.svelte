@@ -44,6 +44,7 @@ import {
   refreshFileExplorerProject,
   setFileExplorerItemExpanded,
 } from "$lib/features/filesystem/state/file-explorer-actions.svelte";
+import { registerFileExplorerEventHandler } from "$lib/features/filesystem/state/file-explorer-events";
 import { startFileExplorerRefreshScheduler } from "$lib/features/filesystem/state/file-explorer-refresh-scheduler";
 import { fileExplorerState } from "$lib/features/filesystem/state/file-explorer-state.svelte";
 import {
@@ -357,9 +358,17 @@ $effect(() => {
     ensureFileExplorerRoot(projectId),
     refreshGitStatus(projectId),
   ]);
-  return startFileExplorerRefreshScheduler({
+  const scheduler = startFileExplorerRefreshScheduler({
     refresh: () => refreshAll(projectId),
   });
+  const unregisterEvents = registerFileExplorerEventHandler(
+    projectId,
+    scheduler.requestRefresh,
+  );
+  return () => {
+    unregisterEvents();
+    scheduler.stop();
+  };
 });
 </script>
 
