@@ -215,8 +215,11 @@ export class ToolDraftProgressAccumulator {
 
   constructor(private readonly toolName: ToolDraftProgressToolName) {}
 
-  push(delta: string): ConversationLiveToolDraftProgressSnapshot | undefined {
+  ingest(delta: string): void {
     for (const char of delta) this.processChar(char);
+  }
+
+  takeChangedSnapshot(): ConversationLiveToolDraftProgressSnapshot | undefined {
     const snapshot = this.snapshot();
     if (!hasProgress(snapshot)) return undefined;
     const currentSignature = signature(snapshot);

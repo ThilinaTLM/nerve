@@ -18,7 +18,7 @@ export const conversationLifecycleEventDefinitions = [
     z.object({ conversation: conversationRecordSchema }),
     {
       allowedSourceRoles: workbenchRoles,
-      coalescing: "latest_by_scope",
+      coalescing: { strategy: "latest_by_scope" },
       scope: ["conversation.id"],
     },
   ),

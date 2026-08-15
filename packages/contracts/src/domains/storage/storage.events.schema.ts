@@ -10,7 +10,7 @@ export const storageEventDefinitions = [
     {
       allowedSourceRoles: workbenchRoles,
       delivery: "ephemeral",
-      coalescing: "latest_by_scope",
+      coalescing: { strategy: "latest_by_scope" },
       scope: ["operation.id"],
     },
   ),

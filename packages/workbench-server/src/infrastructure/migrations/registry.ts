@@ -7,6 +7,7 @@ import { migration0003 } from "./migrations/0003-normalize-current-settings.js";
 import { migration0004 } from "./migrations/0004-dense-event-stream-layout.js";
 import { migration0005 } from "./migrations/0005-current-project-sidecars.js";
 import { migration0006 } from "./migrations/0006-unify-tool-call-lifecycle.js";
+import { migration0007 } from "./migrations/0007-transient-conversation-live-events.js";
 
 export const storageMigrationRegistry: readonly StorageMigration[] =
   Object.freeze([
@@ -16,6 +17,7 @@ export const storageMigrationRegistry: readonly StorageMigration[] =
     migration0004,
     migration0005,
     migration0006,
+    migration0007,
   ]);
 
 export function validateMigrationRegistry(

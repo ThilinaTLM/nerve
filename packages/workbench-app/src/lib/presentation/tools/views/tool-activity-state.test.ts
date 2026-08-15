@@ -17,6 +17,7 @@ function draft(done = false): ConversationLiveToolDraftBlockSnapshot {
     contentIndex: 0,
     toolName: "write",
     argsText: "",
+    progressRevision: 0,
     done,
   };
 }

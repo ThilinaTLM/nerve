@@ -459,6 +459,35 @@ describe("StreamLogRegistry", () => {
     }
   });
 
+  it("uses a high-water mark before compacting back to the retention target", async () => {
+    const home = await tempHome();
+    const logPath = join(home, "events.jsonl");
+    const metaPath = join(home, "events.meta.json");
+    const log = await StreamLog.open({
+      stream: "workspace",
+      logPath,
+      metaPath,
+      retentionEvents: 4,
+    });
+    try {
+      for (let seq = 1; seq <= 4; seq += 1) {
+        await log.append(`evt_${seq}`, "test.event", { seq }, false);
+      }
+      assert.deepEqual(
+        log.read(1, 10).map((event) => event.seq),
+        [1, 2, 3, 4],
+      );
+      await log.append("evt_5", "test.event", { seq: 5 }, false);
+      assert.deepEqual(
+        log.read(1, 10).map((event) => event.seq),
+        [2, 3, 4, 5],
+      );
+    } finally {
+      await log.close();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it("truncates retention and exposes replay bounds", async () => {
     const home = await tempHome();
     const registry = new StreamLogRegistry(home, { retentionEvents: 2 });

@@ -19,6 +19,7 @@ import {
   STREAM_SUBSCRIPTION_CAPABILITY,
   operationDefinition,
   publicEventDefinition,
+  subscriptionStreamForNotification,
 } from "@nervekit/contracts";
 import {
   buildEventBatch,
@@ -262,12 +263,34 @@ export class ProtocolServerSession {
     if (!definition || definition.delivery !== "ephemeral") {
       throw new Error(`Event ${event.type} is not ephemeral`);
     }
-    if (definition.coalescing === "latest_by_scope") {
+    const subscriptionStream = subscriptionStreamForNotification(
+      event.type,
+      event.data,
+    );
+    if (subscriptionStream && !this.#activeStreams.has(subscriptionStream)) {
+      return;
+    }
+    const coalescing = definition.coalescing;
+    if (coalescing?.strategy === "latest_by_scope") {
       const key = notifyScopeKey(event, definition.scope);
       const index = this.#notifyQueue.findIndex(
         (queued) => notifyScopeKey(queued, definition.scope) === key,
       );
       if (index >= 0) this.#notifyQueue.splice(index, 1);
+    } else if (coalescing?.strategy === "concat_delta") {
+      const previous = this.#notifyQueue.at(-1);
+      const merged = previous
+        ? mergeNotifyDelta(previous, event, definition.scope, coalescing)
+        : undefined;
+      if (merged) {
+        this.#notifyQueue[this.#notifyQueue.length - 1] = {
+          ...merged,
+          data: definition.payloadSchema.parse(merged.data),
+        };
+        if (!this.#checkBufferLimit()) return;
+        this.#scheduleFlush();
+        return;
+      }
     }
     this.#notifyQueue.push(event);
     const limit = this.#options.notifyQueueLimit ?? 256;
@@ -662,6 +685,51 @@ function subscriptionMode(
 
 function notifyScopeKey(event: NotifyEvent, scope: readonly string[]): string {
   return `${event.type}:${scope.map((path) => JSON.stringify(readPath(event.data, path))).join(":")}`;
+}
+
+function mergeNotifyDelta(
+  previous: NotifyEvent,
+  current: NotifyEvent,
+  scope: readonly string[],
+  coalescing: {
+    field: "delta" | "text";
+    offsetField?: "offset";
+    maxChars: number;
+  },
+): NotifyEvent | undefined {
+  if (notifyScopeKey(previous, scope) !== notifyScopeKey(current, scope)) {
+    return undefined;
+  }
+  const previousData = previous.data as Record<string, unknown>;
+  const currentData = current.data as Record<string, unknown>;
+  const left = previousData[coalescing.field];
+  const right = currentData[coalescing.field];
+  if (typeof left !== "string" || typeof right !== "string") return undefined;
+  const combined = `${left}${right}`;
+  if (combined.length > coalescing.maxChars) return undefined;
+  let firstOffset: number | undefined;
+  if (coalescing.offsetField) {
+    const previousOffset = previousData[coalescing.offsetField];
+    const currentOffset = currentData[coalescing.offsetField];
+    if (
+      typeof previousOffset !== "number" ||
+      typeof currentOffset !== "number" ||
+      currentOffset !== previousOffset + left.length
+    ) {
+      return undefined;
+    }
+    firstOffset = previousOffset;
+  }
+  return {
+    ...current,
+    data: {
+      ...currentData,
+      [coalescing.field]: combined,
+      ...(coalescing.offsetField
+        ? { [coalescing.offsetField]: firstOffset }
+        : {}),
+    },
+  };
 }
 
 function readPath(value: unknown, path: string): unknown {

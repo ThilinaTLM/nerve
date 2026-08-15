@@ -2,8 +2,12 @@ import {
   conversationStream,
   LifecycleTransitionError,
   toolCallTranscriptRecordSchema,
+  type NotifyEvent,
 } from "@nervekit/contracts";
-import { applyConversationEvent } from "$lib/presentation/state";
+import {
+  applyConversationEvent,
+  applyConversationNotification,
+} from "$lib/presentation/state";
 import type {
   ConversationEntry,
   EventEnvelope,
@@ -88,6 +92,36 @@ function upsertToolCall(
  * then apply app-only effects (branch/tree upkeep, selection, optimistic-row
  * reconciliation, context refresh scheduling, git invalidation).
  */
+export function handleConversationNotification(
+  event: NotifyEvent<Record<string, unknown>>,
+): void {
+  const conversationId = conversationIdFromEvent(event);
+  if (!conversationId || !isOpenConversation(conversationId)) return;
+  const view = ensureConversationView(conversationId);
+  let gapDetected = false;
+  let applied: ConversationViewState;
+  try {
+    applied = applyConversationNotification(view, event, {
+      onGap: () => {
+        gapDetected = true;
+      },
+    }) as ConversationViewState;
+  } catch (error) {
+    if (!(error instanceof LifecycleTransitionError)) throw error;
+    void refreshConversationView(conversationId);
+    return;
+  }
+  if (gapDetected) {
+    void refreshConversationView(conversationId);
+    return;
+  }
+  if (applied !== view) {
+    const key = conversationViewKey(conversationId);
+    conversationState.conversationViews[key] = applied;
+    syncActiveView(conversationState.conversationViews[key]);
+  }
+}
+
 export function handleConversationEvent(
   event: EventEnvelope<Record<string, unknown>>,
 ) {

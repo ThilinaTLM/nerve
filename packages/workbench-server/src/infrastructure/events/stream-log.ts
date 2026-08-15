@@ -16,6 +16,10 @@ export interface StreamFlushObservation {
   readonly eventCount: number;
   readonly durationMs: number;
   readonly succeeded: boolean;
+  readonly compaction?: {
+    readonly bytesBefore: number;
+    readonly bytesAfter: number;
+  };
 }
 
 export interface StreamLogOptions {
@@ -38,6 +42,8 @@ export class StreamLog {
 
   readonly #retentionEvents: number;
   readonly #retentionBytes: number;
+  readonly #retentionEventHighWater: number;
+  readonly #retentionByteHighWater: number;
   readonly #flushDelayMs: number;
   readonly #flushEventThreshold: number;
   readonly #onFsync?: () => void;
@@ -47,6 +53,7 @@ export class StreamLog {
   readonly #pending: EventEnvelope[] = [];
 
   #lastSeq = 0;
+  #durableBytes = 0;
   #flushTimer?: ReturnType<typeof setTimeout>;
   #flushTail: Promise<void> = Promise.resolve();
   #closed = false;
@@ -57,6 +64,14 @@ export class StreamLog {
     this.metaPath = options.metaPath;
     this.#retentionEvents = options.retentionEvents ?? 5_000;
     this.#retentionBytes = options.retentionBytes ?? 8 * 1_024 * 1_024;
+    this.#retentionEventHighWater = Math.max(
+      this.#retentionEvents + 1,
+      Math.ceil(this.#retentionEvents * 1.25),
+    );
+    this.#retentionByteHighWater = Math.max(
+      this.#retentionBytes + 1,
+      Math.ceil(this.#retentionBytes * 1.25),
+    );
     this.#flushDelayMs = options.flushDelayMs ?? 25;
     this.#flushEventThreshold = options.flushEventThreshold ?? 64;
     this.#onFsync = options.onFsync;
@@ -139,21 +154,22 @@ export class StreamLog {
     const flush = this.#flushTail.then(async () => {
       const startedAt = performance.now();
       let succeeded = false;
+      let compaction: StreamFlushObservation["compaction"];
       try {
         await mkdir(dirname(this.logPath), { recursive: true });
+        const serialized = pending
+          .map((event) => `${JSON.stringify(event)}\n`)
+          .join("");
         const handle = await open(this.logPath, "a", 0o600);
         try {
-          await handle.write(
-            pending.map((event) => `${JSON.stringify(event)}\n`).join(""),
-            undefined,
-            "utf8",
-          );
+          await handle.write(serialized, undefined, "utf8");
           await handle.sync();
           this.#onFsync?.();
         } finally {
           await handle.close();
         }
-        await this.#applyRetention(durableThroughSeq);
+        this.#durableBytes += Buffer.byteLength(serialized);
+        compaction = await this.#applyRetention(durableThroughSeq);
         succeeded = true;
       } finally {
         safelyObserveFlush(this.#onFlushCompleted, {
@@ -161,6 +177,7 @@ export class StreamLog {
           eventCount: pending.length,
           durationMs: performance.now() - startedAt,
           succeeded,
+          compaction,
         });
       }
     });
@@ -185,6 +202,10 @@ export class StreamLog {
       retained,
       this.#onFsync,
       this.#renameDependencies,
+    );
+    this.#durableBytes = retained.reduce(
+      (total, event) => total + serializedEventBytes(event),
+      0,
     );
   }
 
@@ -211,6 +232,10 @@ export class StreamLog {
       .map((result) => result.data as EventEnvelope)
       .sort((left, right) => left.seq - right.seq);
     this.#events.push(...parsed);
+    this.#durableBytes = parsed.reduce(
+      (total, event) => total + serializedEventBytes(event),
+      0,
+    );
     const meta = await readMeta(this.metaPath);
     this.#lastSeq = Math.max(meta, parsed.at(-1)?.seq ?? 0);
     await this.#applyRetention(this.#lastSeq);
@@ -233,14 +258,21 @@ export class StreamLog {
     });
   }
 
-  async #applyRetention(durableThroughSeq: number): Promise<void> {
+  async #applyRetention(
+    durableThroughSeq: number,
+  ): Promise<StreamFlushObservation["compaction"]> {
     const durableEvents = this.#events.filter(
       (event) => event.seq <= durableThroughSeq,
     );
-    let bytes = durableEvents.reduce(
-      (total, event) => total + Buffer.byteLength(`${JSON.stringify(event)}\n`),
-      0,
-    );
+    if (
+      durableEvents.length < this.#retentionEventHighWater &&
+      this.#durableBytes < this.#retentionByteHighWater
+    ) {
+      return undefined;
+    }
+
+    const bytesBefore = this.#durableBytes;
+    let bytes = bytesBefore;
     let removeCount = 0;
     while (
       durableEvents.length - removeCount > 1 &&
@@ -248,14 +280,14 @@ export class StreamLog {
         bytes > this.#retentionBytes)
     ) {
       const event = durableEvents[removeCount] as EventEnvelope;
-      bytes -= Buffer.byteLength(`${JSON.stringify(event)}\n`);
+      bytes -= serializedEventBytes(event);
       removeCount += 1;
     }
-    if (removeCount === 0) return;
+    if (removeCount === 0) return undefined;
 
     const retainedDurableEvents = durableEvents.slice(removeCount);
     const firstRetainedSeq = retainedDurableEvents[0]?.seq;
-    if (firstRetainedSeq === undefined) return;
+    if (firstRetainedSeq === undefined) return undefined;
     const retainedEvents = this.#events.filter(
       (event) => event.seq >= firstRetainedSeq,
     );
@@ -266,7 +298,13 @@ export class StreamLog {
       this.#onFsync,
       this.#renameDependencies,
     );
+    this.#durableBytes = bytes;
+    return { bytesBefore, bytesAfter: bytes };
   }
+}
+
+function serializedEventBytes(event: EventEnvelope): number {
+  return Buffer.byteLength(`${JSON.stringify(event)}\n`);
 }
 
 function safelyObserveFlush(

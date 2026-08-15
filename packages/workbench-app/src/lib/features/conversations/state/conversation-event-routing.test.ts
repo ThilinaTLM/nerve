@@ -1,5 +1,6 @@
 import {
   conversationEventTypes,
+  publicEventDefinition,
   type EventEnvelope,
 } from "@nervekit/contracts";
 import assert from "node:assert/strict";
@@ -22,6 +23,7 @@ function event(
 describe("conversation event routing", () => {
   it("routes every contract conversation projection event by its catalog stream", () => {
     for (const type of conversationEventTypes) {
+      if (publicEventDefinition(type)?.delivery !== "sequenced") continue;
       assert.equal(
         isConversationStreamEvent(event(type)),
         true,

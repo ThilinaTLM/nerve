@@ -11,6 +11,7 @@ import {
 import { scheduleContextUsageRefresh } from "./conversation-context-usage";
 import {
   handleConversationEvent,
+  handleConversationNotification,
   isOpenConversation,
 } from "./conversation-reducers";
 
@@ -19,8 +20,13 @@ export function registerConversationEventHandlers(): () => void {
 }
 
 function handleConversationBusEvent(event: WorkbenchEvent): void {
-  if (!isSequencedEvent(event)) return;
   const conversationId = conversationIdFromEvent(event);
+  if (!isSequencedEvent(event)) {
+    if (conversationId && isOpenConversation(conversationId)) {
+      handleConversationNotification(event);
+    }
+    return;
+  }
   if (
     conversationId &&
     isOpenConversation(conversationId) &&

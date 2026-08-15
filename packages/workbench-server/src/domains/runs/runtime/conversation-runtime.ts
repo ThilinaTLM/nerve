@@ -467,9 +467,9 @@ export class ConversationRuntime {
       input.providerToolCallId ?? block.providerToolCallId;
     block.toolName = input.toolName ?? block.toolName;
     block.progress = { ...input.progress };
-    if (block.providerToolCallId) {
+    block.progressRevision += 1;
+    if (block.providerToolCallId)
       this.rememberToolAnchor(input, block.providerToolCallId);
-    }
     return {
       conversationId: run.conversationId,
       agentId: run.agentId,
@@ -481,10 +481,10 @@ export class ConversationRuntime {
       contentIndex: input.contentIndex,
       providerToolCallId: block.providerToolCallId,
       toolName: block.toolName,
+      revision: block.progressRevision,
       progress: { ...block.progress },
     };
   }
-
   discardToolDraft(input: {
     runId: string;
     turnId: string;
@@ -708,6 +708,7 @@ export class ConversationRuntime {
       contentBlockId: this.dependencies.createId("block"),
       contentIndex,
       argsText: "",
+      progressRevision: 0,
       done: false,
     };
     message.blocks.push(block);

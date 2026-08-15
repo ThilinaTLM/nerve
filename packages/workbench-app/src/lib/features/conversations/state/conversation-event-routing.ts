@@ -1,5 +1,6 @@
 import { conversationStream, streamForEvent } from "@nervekit/contracts";
 import type { EventEnvelope } from "$lib/api";
+import type { WorkbenchEvent } from "$lib/core/events/event-bus";
 
 /**
  * True when the catalog routes this envelope to its conversation's dense
@@ -18,7 +19,7 @@ export function isConversationStreamEvent(
 }
 
 export function conversationIdFromEvent(
-  event: EventEnvelope<Record<string, unknown>>,
+  event: WorkbenchEvent,
 ): string | undefined {
   const conversationId = event.data?.conversationId;
   if (typeof conversationId === "string") return conversationId;

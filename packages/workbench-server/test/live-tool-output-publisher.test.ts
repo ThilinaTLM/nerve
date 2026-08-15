@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
-  conversationStream,
   LIVE_TOOL_OUTPUT_EVENT_MAX_BYTES,
   type ConversationLiveToolOutputDeltaData,
   type ToolCallRecord,
@@ -46,7 +45,7 @@ describe("LiveToolOutputPublisher", () => {
     const home = await mkdtemp(join(tmpdir(), "nerve-live-output-"));
     const events = new StreamLogRegistry(home);
     const published: ConversationLiveToolOutputDeltaData[] = [];
-    events.subscribe((event) => {
+    events.subscribeNotify((event) => {
       if (event.type === "conversation.live.tool_output.delta") {
         published.push(event.data as ConversationLiveToolOutputDeltaData);
       }
@@ -59,9 +58,9 @@ describe("LiveToolOutputPublisher", () => {
       stream: "stdout",
       chunk: input,
     });
-    // Live publication is best-effort; flush the conversation stream so the
-    // enqueued deltas are processed before asserting on delivered events.
-    await events.withCursor(conversationStream("conv_test"), () => undefined);
+    // Live publication is best-effort; wait for the transient publication
+    // queue before asserting on delivered notifications.
+    await events.settled();
 
     assert.equal(published.map((event) => event.delta).join(""), input);
     assert.ok(
@@ -76,6 +75,10 @@ describe("LiveToolOutputPublisher", () => {
       assert.equal(event.offset, offset);
       offset += event.delta.length;
     }
+    await assert.rejects(
+      readFile(join(home, "conversations", "conv_test", "events.jsonl")),
+      /ENOENT/,
+    );
     await events.shutdown();
   });
 

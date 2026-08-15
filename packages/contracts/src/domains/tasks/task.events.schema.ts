@@ -58,7 +58,11 @@ export const taskEventDefinitions = [
     }),
     {
       delivery: "ephemeral",
-      coalescing: "concat_delta",
+      coalescing: {
+        strategy: "concat_delta",
+        field: "text",
+        maxChars: 16_384,
+      },
       scope: ["taskId", "stream"],
     },
   ),

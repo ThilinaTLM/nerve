@@ -39,6 +39,23 @@ export function streamForEvent(type: string, payload: unknown): string {
   return WORKSPACE_STREAM;
 }
 
+/** Restrict scoped notifications to clients subscribed to their live stream. */
+export function subscriptionStreamForNotification(
+  type: string,
+  payload: unknown,
+): string | undefined {
+  const definition = publicEventDefinition(type);
+  if (!definition || definition.delivery !== "ephemeral") return undefined;
+  if (
+    type.startsWith("conversation.live.") &&
+    isRecord(payload) &&
+    typeof payload.conversationId === "string"
+  ) {
+    return conversationStream(payload.conversationId);
+  }
+  return undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

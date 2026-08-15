@@ -99,6 +99,7 @@ export function draftBlock(
     contentBlockId: `block_draft_${contentIndex}`,
     contentIndex,
     argsText: "",
+    progressRevision: 0,
     done: false,
     ...overrides,
   };

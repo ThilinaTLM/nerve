@@ -7,7 +7,7 @@ export const usageEventDefinitions = [
   definePublicEvent("usage.subscription.updated", subscriptionUsageSchema, {
     allowedSourceRoles: workbenchRoles,
     delivery: "ephemeral",
-    coalescing: "latest_by_scope",
+    coalescing: { strategy: "latest_by_scope" },
     scope: ["provider"],
   }),
 ];
