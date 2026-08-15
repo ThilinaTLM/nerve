@@ -68,12 +68,28 @@ let {
   onRestartDaemon,
 }: Props = $props();
 
+function formatSettingValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "On" : "Off";
+  return String(value);
+}
+
+function controlValue<T>(setting: {
+  activeValue: T;
+  savedValue: T;
+  editable: boolean;
+}): T {
+  return setting.editable ? setting.savedValue : setting.activeValue;
+}
+
 function describe(base: string, setting: ResolvedLeaf): string {
   if (!setting.editable) {
-    return `${base} Controlled by ${setting.source.name ?? setting.source.kind}. Unset the override to edit it here.`;
+    const saved = Object.is(setting.activeValue, setting.savedValue)
+      ? ""
+      : ` Saved setting: ${formatSettingValue(setting.savedValue)}.`;
+    return `${base} Controlled by ${setting.source.name ?? setting.source.kind}.${saved} Unset the override to edit it here.`;
   }
   if (setting.pendingRestart) {
-    return `${base} Saved value: ${String(setting.savedValue)}. Restart ${setting.restartTarget === "desktop" ? "Nerve" : "the daemon"} to apply.`;
+    return `${base} Pending restart; currently active: ${formatSettingValue(setting.activeValue)}.`;
   }
   return base;
 }
@@ -135,7 +151,7 @@ const diagnostics = $derived<SettingsStat[]>([
       <SettingsInlineMessage
         class="min-w-0 flex-1"
         tone="warning"
-        text={`${pendingDaemonRestart ? "Daemon restart required." : ""}${pendingDesktopRestart ? " Restart Nerve to apply desktop changes." : ""}`}
+        text={`${pendingDaemonRestart ? "Changes saved. Restart the daemon to apply them." : ""}${pendingDesktopRestart ? " Restart Nerve to apply desktop changes." : ""}`}
       />
       {#if pendingDaemonRestart && daemonCapability?.canRestart}
         <Button size="xs" disabled={daemonRestarting} onclick={onRestartDaemon}>
@@ -156,7 +172,7 @@ const diagnostics = $derived<SettingsStat[]>([
         "Bind to the local network so trusted devices can connect.",
         configuration.application.network.allowRemote,
       )}
-      checked={configuration.application.network.allowRemote.activeValue}
+      checked={controlValue(configuration.application.network.allowRemote)}
       disabled={!configuration.application.network.allowRemote.editable}
       onCheckedChange={(allowRemote) =>
         save({ application: { network: { allowRemote } } })}
@@ -165,7 +181,7 @@ const diagnostics = $derived<SettingsStat[]>([
       <SettingsFieldRow
         id="settings-server-host"
         label="Bind host"
-        value={String(configuration.application.network.host.activeValue)}
+        value={String(controlValue(configuration.application.network.host))}
         disabled={!configuration.application.network.host.editable}
         hint={describe(
           "Use 127.0.0.1 for local-only or 0.0.0.0 for all interfaces.",
@@ -179,7 +195,7 @@ const diagnostics = $derived<SettingsStat[]>([
         type="number"
         min={1}
         max={65535}
-        value={String(configuration.application.network.port.activeValue)}
+        value={String(controlValue(configuration.application.network.port))}
         disabled={!configuration.application.network.port.editable}
         hint={describe(
           "Port used by the desktop and browser workbench.",
@@ -197,7 +213,7 @@ const diagnostics = $derived<SettingsStat[]>([
         "Serve a local-CA HTTPS endpoint for installable mobile PWA access.",
         configuration.application.network.mobileHttps,
       )}
-      checked={configuration.application.network.mobileHttps.activeValue}
+      checked={controlValue(configuration.application.network.mobileHttps)}
       disabled={!configuration.application.network.mobileHttps.editable}
       onCheckedChange={(mobileHttps) =>
         save({ application: { network: { mobileHttps } } })}
@@ -208,7 +224,7 @@ const diagnostics = $derived<SettingsStat[]>([
       type="number"
       min={1}
       max={65535}
-      value={String(configuration.application.network.httpsPort.activeValue)}
+      value={String(controlValue(configuration.application.network.httpsPort))}
       disabled={!configuration.application.network.httpsPort.editable}
       hint={describe(
         "Used only when Mobile HTTPS is enabled.",
@@ -228,7 +244,9 @@ const diagnostics = $derived<SettingsStat[]>([
         "Write desktop and daemon application logs under the data directory.",
         configuration.application.diagnostics.loggingEnabled,
       )}
-      checked={configuration.application.diagnostics.loggingEnabled.activeValue}
+      checked={controlValue(
+        configuration.application.diagnostics.loggingEnabled,
+      )}
       disabled={!configuration.application.diagnostics.loggingEnabled.editable}
       onCheckedChange={(loggingEnabled) =>
         save({ application: { diagnostics: { loggingEnabled } } })}
@@ -239,8 +257,9 @@ const diagnostics = $derived<SettingsStat[]>([
         "Write lightweight local process and subsystem samples for profiling.",
         configuration.application.diagnostics.performanceEnabled,
       )}
-      checked={configuration.application.diagnostics.performanceEnabled
-        .activeValue}
+      checked={controlValue(
+        configuration.application.diagnostics.performanceEnabled,
+      )}
       disabled={!configuration.application.diagnostics.performanceEnabled
         .editable}
       onCheckedChange={(performanceEnabled) =>
@@ -256,7 +275,7 @@ const diagnostics = $derived<SettingsStat[]>([
       {#snippet control(disabled)}
         <SelectField
           items={logLevelOptions}
-          value={configuration.application.diagnostics.level.activeValue}
+          value={controlValue(configuration.application.diagnostics.level)}
           ariaLabel="Log level"
           {disabled}
           onValueChange={(level) =>
@@ -276,7 +295,7 @@ const diagnostics = $derived<SettingsStat[]>([
         min={1}
         suffix="days"
         value={String(
-          configuration.application.diagnostics.retentionDays.activeValue,
+          controlValue(configuration.application.diagnostics.retentionDays),
         )}
         hint={describe(
           "How long application log files are retained.",
@@ -293,7 +312,7 @@ const diagnostics = $derived<SettingsStat[]>([
         type="number"
         min={1}
         value={String(
-          configuration.application.diagnostics.maxBufferedLogs.activeValue,
+          controlValue(configuration.application.diagnostics.maxBufferedLogs),
         )}
         hint={describe(
           "Maximum recent records kept available for the Logs view.",
@@ -316,7 +335,7 @@ const diagnostics = $derived<SettingsStat[]>([
         min={1}
         suffix="ms"
         value={String(
-          configuration.application.daemon.startupTimeoutMs.activeValue,
+          controlValue(configuration.application.daemon.startupTimeoutMs),
         )}
         disabled={!configuration.application.daemon.startupTimeoutMs.editable}
         hint={describe(
@@ -335,7 +354,7 @@ const diagnostics = $derived<SettingsStat[]>([
         min={1}
         suffix="MB"
         value={String(
-          configuration.application.daemon.maxOldSpaceMb.activeValue,
+          controlValue(configuration.application.daemon.maxOldSpaceMb),
         )}
         disabled={!configuration.application.daemon.maxOldSpaceMb.editable}
         hint={describe(
@@ -367,7 +386,9 @@ const diagnostics = $derived<SettingsStat[]>([
         {#snippet control(disabled)}
           <SelectField
             items={ozoneOptions}
-            value={configuration.application.electron.ozonePlatform.activeValue}
+            value={controlValue(
+              configuration.application.electron.ozonePlatform,
+            )}
             ariaLabel="Ozone platform"
             {disabled}
             onValueChange={(ozonePlatform) =>
@@ -393,8 +414,9 @@ const diagnostics = $derived<SettingsStat[]>([
         {#snippet control(disabled)}
           <SelectField
             items={fontOptions}
-            value={configuration.application.electron.fontRenderHinting
-              .activeValue}
+            value={controlValue(
+              configuration.application.electron.fontRenderHinting,
+            )}
             ariaLabel="Font render hinting"
             {disabled}
             onValueChange={(fontRenderHinting) =>
