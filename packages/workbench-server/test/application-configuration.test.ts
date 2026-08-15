@@ -52,6 +52,34 @@ describe("application configuration resolution", () => {
     assert.throws(() => resolve({ NERVE_PORT: "70000" }), /NERVE_PORT/);
   });
 
+  it("does not report the unsaved development performance fallback as pending", () => {
+    const settings = structuredClone(defaultSettings);
+    settings.application.diagnostics.performanceEnabled = undefined;
+    const result = resolveApplicationConfiguration({
+      settings,
+      env: {},
+      argv: [],
+      dataDir: "/data/nerve",
+      development: true,
+    });
+    assert.equal(
+      result.snapshot.application.diagnostics.performanceEnabled.activeValue,
+      true,
+    );
+    assert.equal(
+      result.snapshot.application.diagnostics.performanceEnabled.savedValue,
+      true,
+    );
+    assert.equal(
+      result.snapshot.application.diagnostics.performanceEnabled.pendingRestart,
+      false,
+    );
+    assert.equal(
+      result.snapshot.application.diagnostics.performanceEnabled.source.kind,
+      "development_default",
+    );
+  });
+
   it("tracks saved startup changes without changing the active value", () => {
     const initial = resolve();
     const settings = structuredClone(defaultSettings);

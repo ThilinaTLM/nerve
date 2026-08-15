@@ -366,7 +366,7 @@ export function resolveApplicationConfiguration(
         }),
         performanceEnabled: leaf({
           selected: performanceEnabled,
-          saved: savedPerformance ?? false,
+          saved: savedPerformance ?? performanceEnabled.value,
           restartTarget: "daemon",
           active: active?.diagnostics.performanceEnabled.activeValue,
         }),
