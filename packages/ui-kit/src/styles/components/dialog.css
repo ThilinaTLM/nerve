@@ -57,6 +57,13 @@
   max-height: min(90dvh, calc(100dvh - 2rem));
 }
 
+.dialog-content-xl {
+  width: min(1152px, calc(100vw - 32px));
+  width: min(1152px, calc(100dvw - 2rem));
+  max-height: 44rem;
+  max-height: min(44rem, calc(100dvh - 2rem));
+}
+
 .dialog-content-wide-viewport {
   width: min(960px, calc(100vw - 2rem));
   width: min(960px, calc(100dvw - 2rem));

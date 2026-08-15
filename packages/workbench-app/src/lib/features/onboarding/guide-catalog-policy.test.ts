@@ -3,9 +3,7 @@ import { describe, it } from "node:test";
 import { guideCatalog, type GuideDefinition } from "./guide-catalog.js";
 import { guideItemsForRun } from "./guide-content.js";
 import {
-  adjacentGuideIndex,
   autoCompletedGuideIds,
-  firstIncompleteGuideIndex,
   incompleteGuideCount,
   resolveGuides,
   shouldAutoOpenCatalog,
@@ -88,7 +86,6 @@ describe("guide catalog policy", () => {
     };
     const guides = resolveGuides([upcoming, guideCatalog[1]], {}, noSignals);
     assert.equal(incompleteGuideCount(guides), 1);
-    assert.equal(firstIncompleteGuideIndex(guides), 1);
   });
 
   it("opens once per ready startup generation while guides remain incomplete", () => {
@@ -118,19 +115,5 @@ describe("guide catalog policy", () => {
     const steps = [{ introducedIn: 1 }, { introducedIn: 2 }];
     assert.deepEqual(guideItemsForRun(steps, 1, false), [steps[1]]);
     assert.deepEqual(guideItemsForRun(steps, 2, true), steps);
-  });
-
-  it("selects the first incomplete guide and clamps navigation", () => {
-    const guides = resolveGuides(
-      guideCatalog,
-      { "open-project": 1, provider: 1 },
-      noSignals,
-    );
-    assert.equal(firstIncompleteGuideIndex(guides), 2);
-    assert.equal(adjacentGuideIndex(0, guides.length, -1), 0);
-    assert.equal(
-      adjacentGuideIndex(guides.length - 1, guides.length, 1),
-      guides.length - 1,
-    );
   });
 });

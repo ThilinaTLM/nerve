@@ -5,18 +5,15 @@ import {
   catalogGuides,
   closeActiveRun,
   considerAutomaticGuide,
-  currentCatalogGuide,
   currentSetupStep,
   currentTourStep,
   finishActiveRun,
   guideState,
-  guideSummary,
   later,
   markGuideCompleted,
-  moveCatalog,
   moveSetupGuide,
   moveTour,
-  startCurrentGuide,
+  startGuide,
 } from "../guide-state.svelte.js";
 import GuideCatalogDialog from "./GuideCatalogDialog.svelte";
 import GuidedTourOverlay from "./GuidedTourOverlay.svelte";
@@ -29,20 +26,14 @@ $effect(() => {
 const tourStep = $derived(currentTourStep());
 const setupStep = $derived(currentSetupStep());
 const guides = $derived(catalogGuides());
-const currentGuide = $derived(currentCatalogGuide());
 </script>
 
-{#if !responsive.isPhone && guideState.mode === "catalog" && currentGuide}
+{#if !responsive.isPhone && guideState.mode === "catalog"}
   <GuideCatalogDialog
-    guide={currentGuide}
-    summary={guideSummary(currentGuide.id)}
-    index={guideState.selectedGuideIndex}
-    count={guides.length}
+    {guides}
     workbenchBlocked={!workspaceSelectors.activeProject}
-    onBack={() => moveCatalog(-1)}
-    onNext={() => moveCatalog(1)}
-    onStart={startCurrentGuide}
-    onMarkCompleted={() => markGuideCompleted(currentGuide.id)}
+    onStartGuide={startGuide}
+    onMarkCompleted={markGuideCompleted}
     onLater={later}
   />
 {:else if !responsive.isPhone && guideState.mode === "tour" && tourStep}

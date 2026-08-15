@@ -55,24 +55,6 @@ export function incompleteGuideCount(guides: readonly ResolvedGuide[]): number {
   return guides.filter((guide) => guide.available && !guide.completed).length;
 }
 
-export function firstIncompleteGuideIndex(
-  guides: readonly ResolvedGuide[],
-): number {
-  const index = guides.findIndex(
-    (guide) => guide.available && !guide.completed,
-  );
-  return index < 0 ? 0 : index;
-}
-
-export function adjacentGuideIndex(
-  index: number,
-  length: number,
-  direction: -1 | 1,
-): number {
-  if (length <= 0) return 0;
-  return Math.min(length - 1, Math.max(0, index + direction));
-}
-
 export function shouldAutoOpenCatalog(input: {
   progressiveActive: boolean;
   settingsLoaded: boolean;
