@@ -253,7 +253,7 @@ function shellStyles(): string {
       line-height: 1.625;
     }
     .loading-progress {
-      width: min(16rem, 100%);
+      width: min(24rem, 100%);
       margin-top: 1.5rem;
     }
     .loading .status {
@@ -264,7 +264,8 @@ function shellStyles(): string {
       white-space: nowrap;
     }
     .loading-progressbar {
-      width: 100%;
+      width: min(16rem, 100%);
+      margin-inline: auto;
       height: 0.25rem;
       overflow: hidden;
       border-radius: 999px;
