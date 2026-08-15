@@ -39,6 +39,14 @@ pnpm --filter @nervekit/desktop-shell package:dir
 pnpm release:smoke:desktop-package
 ```
 
+## Automated release flow
+
+Run the **Prepare Release** workflow manually with the exact version to publish. It updates all workspace versions on protected `main`, creates the signed release commit and annotated `v<version>` tag, atomically pushes both refs, and dispatches the **Release** workflow at that immutable tag.
+
+The **Release** workflow validates the tag, runs the Linux, Windows, and macOS quality and packaging gates, publishes to npm through OIDC, and creates the GitHub release. It rejects manual dispatches from branch refs. Direct pushes of matching SemVer tags also start Release automatically.
+
+If preparation pushes the commit and tag but the dispatch step fails, rerun **Release** manually and select the existing tag. Do not recreate or move the tag.
+
 ## State reset before testing an incompatible development store
 
 Stop all Nerve processes first, then remove the complete `NERVE_HOME` (default `~/.nerve`). Its marker is `nerve-workbench-state` version 2. Clear browser site local and session storage when testing the browser workbench independently.
@@ -47,7 +55,7 @@ The deterministic workbench error is `Incompatible Nerve state at <path>...`, en
 
 ## Release commit signing
 
-The manual release workflow creates its version-bump commit on protected `main`, so it must use the dedicated `Nerve Release Bot` GPG key registered on the `ThilinaTLM` GitHub account. The initiating maintainer remains the commit author; `Nerve Release Bot <41065538+ThilinaTLM@users.noreply.github.com>` is the signing committer.
+The manually dispatched **Prepare Release** workflow creates its version-bump commit on protected `main`, so it must use the dedicated `Nerve Release Bot` GPG key registered on the `ThilinaTLM` GitHub account. The initiating maintainer remains the commit author; `Nerve Release Bot <41065538+ThilinaTLM@users.noreply.github.com>` is the signing committer.
 
 Configure these repository Actions secrets together:
 
@@ -55,7 +63,7 @@ Configure these repository Actions secrets together:
 - `RELEASE_GPG_PASSPHRASE`: the private-key passphrase
 - `RELEASE_GPG_FINGERPRINT`: the full primary-key fingerprint
 
-The matching public key must remain registered with GitHub. The workflow imports the private key into an ephemeral keyring and fails before its atomic push if a secret is missing, the fingerprint differs, the key cannot be unlocked, or the release commit does not verify against that fingerprint.
+The matching public key must remain registered with GitHub. Prepare Release imports the private key into an ephemeral keyring and fails before its atomic push if a secret is missing, the fingerprint differs, the key cannot be unlocked, or the release commit does not verify against that fingerprint.
 
 The current automation key expires on 2028-08-10. Rotate it before expiry by generating and registering a replacement key, replacing all three secrets together, validating a release, and then removing the old public key. If the key may be compromised, remove it from GitHub and replace the secrets before another release.
 
