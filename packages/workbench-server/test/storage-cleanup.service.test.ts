@@ -28,6 +28,7 @@ async function seedHome(): Promise<string> {
   await write("logs/events.jsonl.1", 1_200);
   await write("logs/tool-calls.jsonl", 400);
   await write("logs/application-2020-01-01.jsonl", 300);
+  await write("crashes/report.json", 500);
   await write("cache/value.json", 250);
   await write("tmp/scratch.txt", 60);
   await write("auth/local-token", 40);
@@ -77,7 +78,7 @@ function makeService(
     logger,
     getRegistry: () => registry,
   });
-  return { service, repository };
+  return { service, repository, usage };
 }
 
 async function waitForTerminal(
@@ -100,24 +101,36 @@ async function waitForTerminal(
 describe("StorageCleanupService", () => {
   it("accepts immediately, clears selected data, and persists detailed results", async () => {
     const home = await seedHome();
-    const { service, repository } = makeService(home);
+    const { service, repository, usage } = makeService(home);
     await service.hydrate();
+    const before = await usage.computeUsage(true);
+    assert.equal(
+      before.categories.find((category) => category.key === "crashes")?.bytes,
+      500,
+    );
+    assert.equal(
+      before.cleanupTargets.find((target) => target.target === "crashReports")
+        ?.bytes,
+      500,
+    );
 
     const queued = await service.start({
       logsOlderThanDays: 7,
       truncateEventLog: true,
+      clearCrashReports: true,
       clearCache: true,
       clearTmp: true,
     });
     assert.equal(queued.status, "queued");
-    assert.equal(queued.totalTargets, 4);
+    assert.equal(queued.totalTargets, 5);
 
     const result = await waitForTerminal(service);
     assert.equal(result.status, "succeeded", result.error);
-    assert.equal(result.results.length, 4);
-    assert.ok(result.freedBytes >= 300 + 1_200 + 250 + 60);
-    assert.deepEqual(await readdir(join(home, "cache")), []);
-    assert.deepEqual(await readdir(join(home, "tmp")), []);
+    assert.equal(result.results.length, 5);
+    assert.ok(result.freedBytes >= 300 + 1_200 + 500 + 250 + 60);
+    await assert.rejects(readdir(join(home, "crashes")), /ENOENT/);
+    await assert.rejects(readdir(join(home, "cache")), /ENOENT/);
+    await assert.rejects(readdir(join(home, "tmp")), /ENOENT/);
     assert.deepEqual(await readdir(join(home, "auth")), ["local-token"]);
     assert.equal((await repository.read())?.id, result.id);
   });

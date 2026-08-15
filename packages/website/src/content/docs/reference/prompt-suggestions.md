@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-User files live in `$NERVE_HOME/suggestions/*.md`; project files live in `<project>/.nerve/suggestions/*.md`.
+User files live in `$NERVE_HOME/suggestions/*.md`; project files live in `<project>/.nerve/suggestions/*.md`. Internal enablement/trust state is created lazily on first use, so a fresh Nerve home does not contain an empty prompt-suggestion state directory.
 
 ```md
 ---

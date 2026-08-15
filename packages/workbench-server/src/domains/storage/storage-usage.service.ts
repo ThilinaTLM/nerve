@@ -54,6 +54,12 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
     cleanable: true,
     protected: false,
   },
+  crashes: {
+    label: "Crash reports",
+    description: "Nerve crash reports and Node diagnostic reports.",
+    cleanable: true,
+    protected: false,
+  },
   plans: {
     label: "Plans",
     description: "Saved plan documents.",
@@ -121,6 +127,7 @@ const CATEGORY_ORDER: StorageCategoryKey[] = [
   "logs",
   "sqliteIndex",
   "exploreReports",
+  "crashes",
   "cache",
   "tmp",
   "plans",
@@ -286,6 +293,12 @@ export class StorageUsageService {
         estimate: "exact",
       },
       {
+        target: "crashReports",
+        bytes: category("crashes").bytes,
+        itemCount: category("crashes").files,
+        estimate: "exact",
+      },
+      {
         target: "cache",
         bytes: category("cache").bytes,
         itemCount: category("cache").files,
@@ -321,6 +334,8 @@ function categoryForEntry(name: string): StorageCategoryKey {
       return "sqliteIndex";
     case "explore-reports":
       return "exploreReports";
+    case "crashes":
+      return "crashes";
     case "plans":
       return "plans";
     case "agents":

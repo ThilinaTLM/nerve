@@ -16,6 +16,7 @@ import type { StorageMigration } from "../src/infrastructure/migrations/index.js
 import { migrationChecksum } from "../src/infrastructure/migrations/checksum.js";
 import { migration0004 } from "../src/infrastructure/migrations/migrations/0004-dense-event-stream-layout.js";
 import { migration0007 } from "../src/infrastructure/migrations/migrations/0007-transient-conversation-live-events.js";
+import { migration0008 } from "../src/infrastructure/migrations/migrations/0008-remove-legacy-storage.js";
 import { StreamLog } from "../src/infrastructure/events/stream-log.js";
 import {
   ledgerDigest,
@@ -127,6 +128,60 @@ describe("storage migration runner", () => {
     const appended = await log.append("evt_7", "run.completed", {}, false);
     assert.equal(appended.seq, 7);
     await log.close();
+  });
+
+  it("removes retired storage without archiving it again", async () => {
+    const root = await home();
+    for (const relative of [
+      "desktop/Cache/value",
+      "handovers/old.json",
+      "logs/archive/pre-dense/events.jsonl",
+      "migrations/archives/0007/events.jsonl",
+      "prompt-suggestions/.keep-empty-parent",
+    ]) {
+      const path = join(root, relative);
+      await mkdir(join(path, ".."), { recursive: true });
+      await writeFile(path, "legacy");
+    }
+    await rm(join(root, "prompt-suggestions", ".keep-empty-parent"));
+    await writeFile(join(root, "nerve.sqlite"), "legacy");
+    await writeFile(join(root, "state.sqlite"), "current");
+
+    const report = await runStorageMigrations(root, {
+      registry: [migration0008],
+    });
+
+    assert.equal(report.backupBytes, 0);
+    assert.deepEqual(report.archivePaths, []);
+    for (const relative of [
+      "desktop",
+      "handovers",
+      "nerve.sqlite",
+      "logs/archive",
+      "migrations/archives",
+      "prompt-suggestions",
+    ]) {
+      await assert.rejects(lstat(join(root, relative)), /ENOENT/);
+    }
+    assert.equal(await readFile(join(root, "state.sqlite"), "utf8"), "current");
+    const ledger = await readLedger(join(root, "migrations", "ledger.json"));
+    assert.equal(ledger.applied.at(-1)?.id, migration0008.id);
+
+    const second = await runStorageMigrations(root, {
+      registry: [migration0008],
+    });
+    assert.deepEqual(second.executions, []);
+  });
+
+  it("preserves populated prompt-suggestion state during legacy cleanup", async () => {
+    const root = await home();
+    const current = join(root, "prompt-suggestions", "enabled.json");
+    await mkdir(join(current, ".."), { recursive: true });
+    await writeFile(current, '{"version":1,"records":[]}\n');
+
+    await runStorageMigrations(root, { registry: [migration0008] });
+
+    assert.match(await readFile(current, "utf8"), /records/);
   });
 
   it("baselines current state without a rollback copy and reruns idempotently", async () => {

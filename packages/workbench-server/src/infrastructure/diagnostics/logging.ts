@@ -121,8 +121,9 @@ export class ApplicationLogger {
     if (!this.enabled) return;
     if (this.root !== this) return this.root.pruneRetention();
     const cutoff = Date.now() - this.retentionDays * 24 * 60 * 60 * 1000;
-    for (const file of await this.applicationLogFiles()) {
-      const date = dateFromApplicationLogFile(file);
+    const files = await readdir(this.logsDir()).catch(() => []);
+    for (const file of files) {
+      const date = dateFromDatedDiagnosticLogFile(file);
       if (!date || date.getTime() >= cutoff) continue;
       await rm(join(this.logsDir(), file), { force: true }).catch(
         () => undefined,
@@ -504,8 +505,10 @@ function matchesLogPrune(
   return true;
 }
 
-function dateFromApplicationLogFile(file: string): Date | undefined {
-  const match = /^application-(\d{4}-\d{2}-\d{2})\.jsonl$/.exec(file);
+function dateFromDatedDiagnosticLogFile(file: string): Date | undefined {
+  const match = /^(?:application|desktop)-(\d{4}-\d{2}-\d{2})\.jsonl$/.exec(
+    file,
+  );
   if (!match) return undefined;
   const date = new Date(`${match[1]}T00:00:00.000Z`);
   return Number.isFinite(date.getTime()) ? date : undefined;

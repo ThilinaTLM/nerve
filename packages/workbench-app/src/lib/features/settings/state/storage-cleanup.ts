@@ -13,6 +13,7 @@ export interface StorageCleanupSelection {
   logsDays: number;
   rotatedEventLog: boolean;
   exploreReports: boolean;
+  crashReports: boolean;
   cache: boolean;
   tmp: boolean;
   searchIndex: boolean;
@@ -25,6 +26,7 @@ export const EMPTY_CLEANUP_SELECTION: StorageCleanupSelection = {
   logsDays: 14,
   rotatedEventLog: false,
   exploreReports: false,
+  crashReports: false,
   cache: false,
   tmp: false,
   searchIndex: false,
@@ -36,6 +38,7 @@ export function recommendedCleanupSelection(): StorageCleanupSelection {
     datedLogs: true,
     rotatedEventLog: true,
     exploreReports: true,
+    crashReports: true,
     cache: true,
     tmp: true,
   };
@@ -51,6 +54,7 @@ export function allCleanupSelection(
     logsDays: validDays(current.logsDays) ?? 14,
     rotatedEventLog: true,
     exploreReports: true,
+    crashReports: true,
     cache: true,
     tmp: true,
     searchIndex: true,
@@ -87,6 +91,7 @@ export function buildCleanupRequest(
     request.logsOlderThanDays = validDays(selection.logsDays);
   if (selection.rotatedEventLog) request.truncateEventLog = true;
   if (selection.exploreReports) request.clearExploreReports = true;
+  if (selection.crashReports) request.clearCrashReports = true;
   if (selection.cache) request.clearCache = true;
   if (selection.tmp) request.clearTmp = true;
   if (selection.searchIndex) request.rebuildSearchIndex = true;
@@ -101,6 +106,7 @@ export function selectedTargets(
   if (selection.datedLogs) targets.push("datedLogs");
   if (selection.rotatedEventLog) targets.push("rotatedEventLog");
   if (selection.exploreReports) targets.push("exploreReports");
+  if (selection.crashReports) targets.push("crashReports");
   if (selection.cache) targets.push("cache");
   if (selection.tmp) targets.push("tmp");
   if (selection.searchIndex) targets.push("searchIndex");
@@ -154,6 +160,7 @@ export function targetLabel(target: StorageCleanupTarget): string {
       datedLogs: "Dated logs",
       rotatedEventLog: "Rotated event log",
       exploreReports: "Explore reports",
+      crashReports: "Crash reports",
       cache: "Cache",
       tmp: "Temporary files",
       searchIndex: "Search index",

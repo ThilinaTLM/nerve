@@ -100,7 +100,7 @@ describe("PromptSuggestionService", () => {
   });
 
   it("persists per-suggestion enablement and publishes an event", async () => {
-    const { service, project, events } = await fixture();
+    const { service, home, project, events } = await fixture();
 
     await service.updateEnabled({
       definitionKey: "builtin:commit-changes",
@@ -109,6 +109,10 @@ describe("PromptSuggestionService", () => {
 
     const status = (await service.listStatuses(project.id)).find(
       (candidate) => candidate.definitionKey === "builtin:commit-changes",
+    );
+    assert.match(
+      await readFile(join(home, "prompt-suggestions", "enabled.json"), "utf8"),
+      /builtin:commit-changes/,
     );
     assert.equal(status?.enabled, false);
     assert.equal(events.at(-1)?.type, "prompt_suggestions.enabled_updated");

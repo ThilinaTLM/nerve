@@ -15,7 +15,7 @@ All Nerve-home paths move with `NERVE_HOME`; default is `~/.nerve`.
 | Protocol event streams                     | Dense per-stream JSONL with bounded retention             |
 | Search/index cache                         | Rebuildable SQLite/cache                                  |
 | Desktop/daemon logs                        | `<NERVE_HOME>/logs`, JSONL                                |
-| Crash/Node reports                         | `<NERVE_HOME>/crashes`                                    |
+| Crash/Node reports                         | `<NERVE_HOME>/crashes`; age-retained diagnostics          |
 | TLS CA/leaf material                       | `<NERVE_HOME>/tls` when mobile HTTPS is enabled           |
 | Daemon metadata                            | `<NERVE_HOME>/daemon.json`                                |
 | Explore reports                            | Nerve-owned report storage under the active home          |

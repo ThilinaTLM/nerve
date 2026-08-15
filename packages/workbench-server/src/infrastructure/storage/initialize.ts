@@ -30,7 +30,6 @@ const dataSubdirs = [
   "plans",
   "workers",
   "logs",
-  "prompt-suggestions",
 ] as const;
 
 export interface InitializedStorage {

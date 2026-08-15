@@ -21,6 +21,7 @@ import {
   installDaemonPerformanceMonitor,
   installDaemonRuntimeMonitor,
   installNodeDiagnosticReports,
+  pruneCrashReports,
   serializeCrashError,
   writeCrashReportSync,
   writeNodeDiagnosticReport,
@@ -149,6 +150,12 @@ async function main() {
   );
   installCrashGuards(state.logger, storage.paths.home, runtimeMonitor);
   await state.logger.pruneRetention();
+  await pruneCrashReports(
+    storage.paths.home,
+    storage.settings.logging.retentionDays,
+  ).catch(async (error: unknown) => {
+    await state.logger.warn("Crash report retention failed", { error });
+  });
   await state.logger.info("Daemon storage initialized", {
     durationMs: storageDurationMs + loggerHydrateDurationMs,
     context: {
