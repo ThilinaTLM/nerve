@@ -53,41 +53,47 @@ export class PlanService {
     // Canonical review state is hydrated from tool-call interactions.
   }
 
-  hydrateFromToolCalls(toolCalls: readonly ToolCallRecord[]): void {
+  resetToolCallHydration(): void {
     this.planReviews.clear();
-    for (const toolCall of toolCalls) {
-      for (const interaction of toolCall.interactions) {
-        if (interaction.kind !== "plan_review") continue;
-        const action = interaction.resolution?.action;
-        const reviewStatus: PlanReviewStatus =
-          interaction.status === "pending"
-            ? "pending"
-            : action === "accept"
-              ? "accepted"
-              : action === "accept_in_new_chat"
-                ? "accepted_in_new_chat"
-                : action === "request_changes" || action === "reject"
-                  ? "changes_requested"
-                  : "discarded";
-        const review: PlanReviewRecord = {
-          id: `plan_review_${toolCall.id}_${interaction.ordinal}`,
-          toolCallId: toolCall.id,
-          agentId: toolCall.agentId,
-          conversationId: toolCall.conversationId,
-          projectId: toolCall.projectId,
-          slug: interaction.request.slug,
-          title: interaction.request.title,
-          summary: interaction.request.summary,
-          planPath: interaction.request.planPath,
-          status: reviewStatus,
-          feedback: interaction.resolution?.feedback,
-          requestedAt: interaction.requestedAt,
-          resolvedAt: interaction.resolvedAt,
-          updatedAt: interaction.updatedAt,
-        };
-        this.planReviews.set(review.id, review);
-      }
+  }
+
+  hydrateFromToolCall(toolCall: ToolCallRecord): void {
+    for (const interaction of toolCall.interactions) {
+      if (interaction.kind !== "plan_review") continue;
+      const action = interaction.resolution?.action;
+      const reviewStatus: PlanReviewStatus =
+        interaction.status === "pending"
+          ? "pending"
+          : action === "accept"
+            ? "accepted"
+            : action === "accept_in_new_chat"
+              ? "accepted_in_new_chat"
+              : action === "request_changes" || action === "reject"
+                ? "changes_requested"
+                : "discarded";
+      const review: PlanReviewRecord = {
+        id: `plan_review_${toolCall.id}_${interaction.ordinal}`,
+        toolCallId: toolCall.id,
+        agentId: toolCall.agentId,
+        conversationId: toolCall.conversationId,
+        projectId: toolCall.projectId,
+        slug: interaction.request.slug,
+        title: interaction.request.title,
+        summary: interaction.request.summary,
+        planPath: interaction.request.planPath,
+        status: reviewStatus,
+        feedback: interaction.resolution?.feedback,
+        requestedAt: interaction.requestedAt,
+        resolvedAt: interaction.resolvedAt,
+        updatedAt: interaction.updatedAt,
+      };
+      this.planReviews.set(review.id, review);
     }
+  }
+
+  hydrateFromToolCalls(toolCalls: readonly ToolCallRecord[]): void {
+    this.resetToolCallHydration();
+    for (const toolCall of toolCalls) this.hydrateFromToolCall(toolCall);
   }
 
   listPlanReviews(status?: PlanReviewStatus): PlanReviewRecord[] {

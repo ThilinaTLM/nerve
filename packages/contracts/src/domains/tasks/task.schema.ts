@@ -132,6 +132,20 @@ export const taskNotificationStateSchema = z.object({
 });
 export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
 
+export const taskOutputRetentionSchema = z.object({
+  totalBytes: z.number().int().nonnegative(),
+  retainedBytes: z.number().int().nonnegative(),
+  omittedBytes: z.number().int().nonnegative(),
+  totalLines: z.number().int().nonnegative(),
+  retainedLines: z.number().int().nonnegative(),
+  omittedLines: z.number().int().nonnegative(),
+  headMaxBytes: z.number().int().positive(),
+  tailMaxBytes: z.number().int().positive(),
+  truncated: z.boolean(),
+  tailPath: z.string().min(1).optional(),
+});
+export type TaskOutputRetention = z.infer<typeof taskOutputRetentionSchema>;
+
 export const taskRecordSchema = z.object({
   id: z.string().startsWith("task_"),
   definitionId: z.string().startsWith("taskdef_").optional(),
@@ -167,6 +181,7 @@ export const taskRecordSchema = z.object({
   origin: taskOriginSchema.default({ kind: "api" }),
   completion: taskCompletionInjectionSchema.optional(),
   notifications: taskNotificationStateSchema.optional(),
+  outputRetention: taskOutputRetentionSchema.optional(),
   visibility: taskVisibilitySchema.default("background"),
 });
 export type TaskRecord = z.infer<typeof taskRecordSchema>;
@@ -238,5 +253,6 @@ export const taskLogQueryResponseSchema = z.object({
   mode: z.string(),
   previewPath: z.string().min(1).optional(),
   truncated: z.boolean().optional(),
+  outputRetention: taskOutputRetentionSchema.optional(),
 });
 export type TaskLogQueryResponse = z.infer<typeof taskLogQueryResponseSchema>;

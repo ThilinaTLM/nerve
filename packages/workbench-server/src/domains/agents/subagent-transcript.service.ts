@@ -22,7 +22,6 @@ import {
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { ToolService } from "../tools/tool-service.js";
-import { toToolCallTranscriptRecord } from "../tools/tool-call-transcript-preview.js";
 import { projectHarnessMessageEntry } from "./run/message-mirror.js";
 import type { SubagentTranscriptLiveService } from "./subagent-transcript-live.service.js";
 
@@ -221,16 +220,15 @@ export class SubagentTranscriptService {
         }
 
         const allToolCalls = this.deps.tools
-          .listToolCalls()
-          .filter((toolCall) => toolCall.agentId === child.id)
+          .listToolCallPreviews({ agentId: child.id, limit: 1_000 })
           .sort((a, b) =>
             a.createdAt === b.createdAt
               ? a.id.localeCompare(b.id)
               : a.createdAt.localeCompare(b.createdAt),
           );
-        const toolCalls = allToolCalls
-          .slice(-SUBAGENT_TRANSCRIPT_MAX_TOOL_CALLS)
-          .map(toToolCallTranscriptRecord);
+        const toolCalls = allToolCalls.slice(
+          -SUBAGENT_TRANSCRIPT_MAX_TOOL_CALLS,
+        );
         const entries = boundedTail(projected);
         const updatedAt = [
           child.updatedAt,

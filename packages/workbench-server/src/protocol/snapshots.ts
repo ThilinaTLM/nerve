@@ -6,7 +6,6 @@ import {
   WORKSPACE_STREAM,
 } from "@nervekit/contracts";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
-import { toToolCallTranscriptRecord } from "../domains/tools/tool-call-transcript-preview.js";
 
 export async function getWorkspaceSnapshotResponse(
   state: OrchestratorState,
@@ -18,10 +17,10 @@ export async function getWorkspaceSnapshotResponse(
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     agents: state.registry.listAgents(),
     tasks: state.registry.listTasks(),
-    pendingToolCalls: state.registry.tools
-      .listToolCalls()
-      .filter((toolCall) => toolCall.status === "waiting")
-      .map(toToolCallTranscriptRecord),
+    pendingToolCalls: state.registry.tools.listToolCallPreviews({
+      status: "waiting",
+      limit: 1_000,
+    }),
     workers: state.registry.listWorkers(),
   }));
   return {

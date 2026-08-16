@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import {
   createManager,
@@ -118,6 +119,48 @@ describe("task manager foreground bash auto-promotion", () => {
       assert.throws(() => manager.getTask(started.id), /Task not found/);
     },
   );
+
+  it("builds a bounded head-tail result for large foreground output", async () => {
+    const child = fakeChild();
+    let spawned!: () => void;
+    const didSpawn = new Promise<void>((resolve) => {
+      spawned = resolve;
+    });
+    const { supervisor } = fakeSupervisor({ child, onSpawn: spawned });
+    const { manager, storage, events } = await createManager(supervisor);
+    const started = waitForTaskEvent(events, "task.started");
+    const run = manager.runForegroundBashWithPromotion({
+      command: "node noisy.js",
+      cwd: storage.paths.home,
+      projectId: "proj_test",
+      conversationId: "conv_test",
+      agentId: "agent_test",
+      origin: { kind: "agent_tool", toolCallId: "tool_test" },
+    });
+    await started;
+    await didSpawn;
+    child.stdout.emit(
+      "data",
+      Buffer.from(`BEGIN-${"x".repeat(64 * 1024)}-END`),
+    );
+    child.emitClose(0, null);
+
+    const result = await run;
+
+    assert.equal(result.kind, "completed_foreground");
+    assert.match(result.result.content ?? "", /BEGIN-/);
+    assert.match(
+      result.result.content ?? "",
+      /bytes omitted from inline result/,
+    );
+    const details = result.result.details as { fullOutputPath?: string };
+    assert.ok(details.fullOutputPath);
+    assert.match(await readFile(details.fullOutputPath, "utf8"), /-END/);
+    assert.match(
+      result.result.content ?? "",
+      /use task_logs for retained diagnostics/i,
+    );
+  });
 
   it("captures output before delayed runtime identity resolves", async () => {
     const child = fakeChild();

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import type { ToolExecutionContext, ToolExecutionResult } from "../../types.js";
 import { numberArg } from "../common/args.js";
 import { resolveCommandCwd } from "../common/command-cwd.js";
+import { BoundedProcessOutput } from "../common/bounded-process-output.js";
 import { LiveOutputDelivery } from "../common/live-output.js";
 import { forceKillProcessTree } from "../common/process-tree.js";
 import { buildProcessResult } from "../common/process-result.js";
@@ -32,9 +33,7 @@ export async function executeBash(
     typeof args.timeout === "number"
       ? Math.max(0, numberArg(args.timeout, 0))
       : undefined;
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
-  const combinedChunks: Buffer[] = [];
+  const output = new BoundedProcessOutput();
   const startedAt = performance.now();
 
   return await new Promise<ToolExecutionResult>((resolve, reject) => {
@@ -120,13 +119,11 @@ export async function executeBash(
     }
 
     child.stdout?.on("data", (chunk: Buffer) => {
-      stdoutChunks.push(chunk);
-      combinedChunks.push(chunk);
+      output.push("stdout", chunk);
       liveOutput.write("stdout", chunk, child.stdout ?? undefined);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-      combinedChunks.push(chunk);
+      output.push("stderr", chunk);
       liveOutput.write("stderr", chunk, child.stderr ?? undefined);
     });
     child.on("error", (error) => {
@@ -142,23 +139,15 @@ export async function executeBash(
       void liveOutput
         .end()
         .then(() =>
-          buildResult(
-            stdoutChunks,
-            stderrChunks,
-            combinedChunks,
-            code,
-            signal,
-            context.dataDir,
-            {
-              durationMs: Math.round(performance.now() - startedAt),
-              timedOut,
-              timeoutKilled,
-              timeoutMessage:
-                timeoutSeconds !== undefined
-                  ? `Command timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`
-                  : undefined,
-            },
-          ),
+          buildResult(output.snapshot(), code, signal, context.dataDir, {
+            durationMs: Math.round(performance.now() - startedAt),
+            timedOut,
+            timeoutKilled,
+            timeoutMessage:
+              timeoutSeconds !== undefined
+                ? `Command timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`
+                : undefined,
+          }),
         )
         .then(resolve)
         .catch(reject);
@@ -167,9 +156,7 @@ export async function executeBash(
 }
 
 async function buildResult(
-  stdoutChunks: Buffer[],
-  stderrChunks: Buffer[],
-  combinedChunks: Buffer[],
+  output: ReturnType<BoundedProcessOutput["snapshot"]>,
   code: number | null,
   signal: NodeJS.Signals | null,
   dataDir: string | undefined,
@@ -181,9 +168,9 @@ async function buildResult(
   } = {},
 ): Promise<ToolExecutionResult> {
   return buildProcessResult({
-    stdoutChunks,
-    stderrChunks,
-    combinedChunks,
+    stdoutChunks: output.stdoutChunks,
+    stderrChunks: output.stderrChunks,
+    combinedChunks: output.combinedChunks,
     code,
     signal,
     outputFilePrefix: "nerve-bash",
@@ -193,5 +180,18 @@ async function buildResult(
     timedOut: options.timedOut,
     timeoutKilled: options.timeoutKilled,
     timeoutMessage: options.timeoutMessage,
+    details: {
+      outputRetention: {
+        totalBytes: output.totalBytes,
+        retainedBytes: output.retainedBytes,
+        omittedBytes: output.omittedBytes,
+        truncated: output.truncated,
+      },
+    },
+    contentFooterLines: output.truncated
+      ? [
+          `${output.omittedBytes} output bytes were omitted by process retention.`,
+        ]
+      : [],
   });
 }

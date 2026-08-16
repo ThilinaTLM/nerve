@@ -81,4 +81,73 @@ describe("canonical ToolCallRepository", () => {
     );
     value.index.close();
   });
+
+  it("hydrates terminal history into previews without retaining full records", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
+    roots.push(home);
+    const first = await repository(home);
+    for (let index = 0; index < 50; index += 1) {
+      await first.repository.create({
+        ...toolCall(`tool_terminal_${index}`),
+        status: "completed",
+        result: { content: "x".repeat(64 * 1024) },
+        settledAt: "2026-07-25T00:00:00.000Z",
+      });
+    }
+    await first.repository.create(toolCall("tool_active"));
+    first.index.close();
+
+    const second = await repository(home);
+    await second.repository.hydrate();
+
+    assert.deepEqual(second.repository.residentStats(), {
+      activeRecords: 1,
+      cachedTerminalRecords: 0,
+      cachedTerminalBytes: 0,
+    });
+    assert.equal(second.repository.count(), 51);
+    assert.equal(second.repository.listPreviews({ limit: 100 }).length, 51);
+    assert.throws(() => second.repository.get("tool_terminal_0"), /not active/);
+    assert.equal(
+      (await second.repository.getCanonical("tool_terminal_0")).status,
+      "completed",
+    );
+    assert.equal(second.repository.residentStats().cachedTerminalRecords, 1);
+    second.index.close();
+  });
+
+  it("pages previews stably by updated time and id", async () => {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-repository-"));
+    roots.push(home);
+    const value = await repository(home);
+    for (let index = 0; index < 5; index += 1) {
+      await value.repository.create({
+        ...toolCall(`tool_page_${index}`),
+        status: "completed",
+        result: "ok",
+        settledAt: "2026-07-25T00:00:00.000Z",
+      });
+    }
+    const first = value.repository.queryPreviews({ limit: 2 });
+    assert.equal(first.toolCalls.length, 2);
+    assert.ok(first.nextCursor);
+    const second = value.repository.queryPreviews({
+      limit: 2,
+      cursor: first.nextCursor,
+    });
+    assert.equal(second.toolCalls.length, 2);
+    assert.equal(
+      new Set([...first.toolCalls, ...second.toolCalls].map((call) => call.id))
+        .size,
+      4,
+    );
+    assert.ok(second.nextCursor);
+    const third = value.repository.queryPreviews({
+      limit: 2,
+      cursor: second.nextCursor,
+    });
+    assert.equal(third.toolCalls.length, 1);
+    assert.equal(third.nextCursor, undefined);
+    value.index.close();
+  });
 });

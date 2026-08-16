@@ -200,7 +200,6 @@ export function composeRuntime(
       agents: listAgents(),
       tasks: services.tasks.listTasks(),
       workers: services.workers.listWorkers(),
-      toolCalls: services.tools.listToolCalls(),
     });
   };
 
@@ -364,7 +363,8 @@ export function composeRuntime(
       services.conversationLifecycle.getConversationTree(conversationId),
     getContextUsage: (conversationId) =>
       services.workbenchRun.getContextUsage(conversationId),
-    listToolCalls: () => services.tools.listToolCalls(),
+    listToolCallPreviews: (conversationId) =>
+      services.tools.listToolCallPreviews({ conversationId, limit: 1_000 }),
     getActiveRun: (conversationId) =>
       services.runQuery.activeForConversation(conversationId),
   });

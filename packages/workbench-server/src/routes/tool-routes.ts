@@ -4,7 +4,6 @@ import {
 } from "@nervekit/contracts";
 import { Hono } from "hono";
 import type { OrchestratorState } from "../app/orchestrator-state.js";
-import { toToolCallTranscriptRecord } from "../domains/tools/tool-call-transcript-preview.js";
 import { routeHandler } from "../http/responses.js";
 import { routeParam } from "../http/route-params.js";
 
@@ -21,27 +20,31 @@ export function createToolRoutes(state: OrchestratorState): Hono {
       Number.isFinite(requestedLimit) && requestedLimit > 0
         ? Math.min(requestedLimit, MAX_TOOL_CALL_LIST_LIMIT)
         : undefined;
-    let toolCalls = state.registry.tools.listToolCalls();
-    if (status.success)
-      toolCalls = toolCalls.filter(
-        (toolCall) => toolCall.status === status.data,
-      );
-    if (pendingKind)
-      toolCalls = toolCalls.filter((toolCall) =>
-        toolCall.interactions.some(
-          (interaction) =>
-            interaction.status === "pending" &&
-            interaction.kind === pendingKind,
-        ),
-      );
-    if (limit !== undefined) toolCalls = toolCalls.slice(0, limit);
-    return c.json({ toolCalls: toolCalls.map(toToolCallTranscriptRecord) });
+    const cursorUpdatedAt = c.req.query("cursorUpdatedAt");
+    const cursorId = c.req.query("cursorId");
+    const page = state.registry.tools.queryToolCallPreviews({
+      status: status.success ? status.data : undefined,
+      pendingInteractionKind:
+        pendingKind === "approval" ||
+        pendingKind === "user_input" ||
+        pendingKind === "plan_review"
+          ? pendingKind
+          : undefined,
+      limit,
+      cursor:
+        cursorUpdatedAt && cursorId
+          ? { updatedAt: cursorUpdatedAt, id: cursorId }
+          : undefined,
+    });
+    return c.json(page);
   });
   app.get(
     "/tool-calls/:toolCallId",
     routeHandler(async (c) =>
       c.json({
-        toolCall: state.registry.tools.getToolCall(routeParam(c, "toolCallId")),
+        toolCall: await state.registry.tools.getToolCallDetails(
+          routeParam(c, "toolCallId"),
+        ),
       }),
     ),
   );
