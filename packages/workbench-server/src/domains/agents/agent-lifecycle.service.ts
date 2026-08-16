@@ -133,6 +133,7 @@ export class AgentLifecycleService {
       approvalPolicy,
       workspaceScope: request.workspaceScope ?? { roots: [projectDir] },
       systemPrompt: request.systemPrompt,
+      task: request.task,
       budget: agentBudget(parent, request.budget),
       model,
       thinkingLevel: clampAgentThinkingLevel(model, thinkingLevel),
