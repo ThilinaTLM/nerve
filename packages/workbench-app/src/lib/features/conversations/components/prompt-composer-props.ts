@@ -12,6 +12,7 @@ import type {
 } from "$lib/api";
 import type { PendingConversationState } from "$lib/core/types/state-types";
 import type { ComposerSuggestion } from "./composer-suggestion";
+import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 
 export type Mode = AgentRecord["mode"];
 export type PermissionLevel = AgentRecord["permissionLevel"];
@@ -34,6 +35,7 @@ export type PromptComposerProps = {
   models?: ModelInfo[];
   selectedModelKey?: string;
   contextUsage?: ContextUsage;
+  conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
   todos?: TodoItem[];
   focusToken?: number;

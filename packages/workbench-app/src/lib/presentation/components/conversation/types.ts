@@ -14,6 +14,7 @@ import type {
   UserQuestionRecord,
 } from "@nervekit/contracts";
 import type { TimelineItem } from "../../state/timeline.js";
+import type { ConversationUsageSummary } from "../../usage/conversation-usage.js";
 import type {
   ApprovalWithToolCall,
   PlanReviewResolveOptions,
@@ -57,6 +58,7 @@ export type ConversationComposerModel = {
   permissionLevel: PermissionLevel;
   approvalPolicy: ApprovalPolicy;
   contextUsage?: ContextUsage;
+  conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
   hint?: string;
   placeholder?: string;

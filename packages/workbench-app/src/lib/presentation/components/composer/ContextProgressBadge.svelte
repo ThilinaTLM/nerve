@@ -17,9 +17,15 @@ import {
 } from "@nervekit/ui-kit/components/ui/progress-ring";
 import { cn } from "@nervekit/ui-kit/core/utils";
 import { formatTokens, usageTone } from "@nervekit/ui-kit/core/utils/usage";
+import {
+  conversationUsageMetrics,
+  emptyConversationUsage,
+  type ConversationUsageSummary,
+} from "../../usage/conversation-usage.js";
 
 type Props = {
   contextUsage?: ContextUsage;
+  conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
   compacting?: boolean;
   compactDisabled?: boolean;
@@ -28,6 +34,7 @@ type Props = {
 
 let {
   contextUsage,
+  conversationUsage,
   contextWindow = 0,
   compacting = false,
   compactDisabled = false,
@@ -41,6 +48,14 @@ const contextLimit = $derived(
   contextWindow || contextUsage?.contextWindow || 0,
 );
 const tokens = $derived(contextUsage?.tokens ?? null);
+const conversationMetrics = $derived(
+  conversationUsageMetrics(conversationUsage ?? emptyConversationUsage()),
+);
+const cacheRateLabel = $derived(
+  conversationMetrics.cacheRate == null
+    ? "Unavailable"
+    : `${Math.round(conversationMetrics.cacheRate)}%`,
+);
 const percent = $derived.by(() => {
   if (tokens != null && contextLimit > 0) {
     return (tokens / contextLimit) * 100;
@@ -157,21 +172,56 @@ function requestCompact(): void {
             label="Used"
             value={tokens == null
               ? "Unavailable"
+              : `${formatTokens(tokens)} tokens`}
+            title={tokens == null
+              ? undefined
               : `${tokens.toLocaleString()} tokens`}
           />
           <PopoverProperty
             label="Remaining"
             value={remainingTokens == null
               ? "Unavailable"
+              : `${formatTokens(remainingTokens)} tokens`}
+            title={remainingTokens == null
+              ? undefined
               : `${remainingTokens.toLocaleString()} tokens`}
           />
           <PopoverProperty
             label="Window"
             value={contextLimit > 0
-              ? `${contextLimit.toLocaleString()} tokens`
+              ? `${formatTokens(contextLimit)} tokens`
               : "Unknown"}
+            title={contextLimit > 0
+              ? `${contextLimit.toLocaleString()} tokens`
+              : undefined}
           />
         </PopoverProperties>
+      </PopoverSection>
+
+      <PopoverSection label="Token usage" separated>
+        {#if conversationMetrics.hasUsage}
+          <PopoverProperties>
+            <PopoverProperty
+              label="Input"
+              value={`${formatTokens(conversationMetrics.promptTokens)} tokens`}
+              title={`${conversationMetrics.promptTokens.toLocaleString()} tokens`}
+            />
+            <PopoverProperty
+              label="Cached input"
+              value={`${formatTokens(conversationMetrics.cachedTokens)} tokens · ${cacheRateLabel}`}
+              title={`${conversationMetrics.cachedTokens.toLocaleString()} tokens · ${cacheRateLabel} of all input tokens`}
+            />
+            <PopoverProperty
+              label="Output"
+              value={`${formatTokens(conversationMetrics.output)} tokens`}
+              title={`${conversationMetrics.output.toLocaleString()} tokens`}
+            />
+          </PopoverProperties>
+        {:else}
+          <p class="text-muted-foreground">
+            Available after the first response.
+          </p>
+        {/if}
       </PopoverSection>
 
       <Button

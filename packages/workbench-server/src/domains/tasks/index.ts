@@ -19,10 +19,7 @@ export {
   inspectRuntimeListeningPorts,
   isSameProcessIdentity,
 } from "./task-port-inspector.js";
-export {
-  activeBackgroundTaskIdsInDirectoryTree,
-  isPathInDirectoryTree,
-} from "./task-scope.js";
+export { isPathInDirectoryTree } from "./task-scope.js";
 export {
   isActiveTaskStatus,
   isOrphanedTaskStatus,

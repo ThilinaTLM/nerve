@@ -4,7 +4,12 @@ export function formatTokens(count: number): string {
   if (count < 10_000) return `${(count / 1000).toFixed(1)}k`;
   if (count < 1_000_000) return `${Math.round(count / 1000)}k`;
   if (count < 10_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
-  return `${Math.round(count / 1_000_000)}M`;
+  if (count < 1_000_000_000) return `${Math.round(count / 1_000_000)}M`;
+  if (count < 10_000_000_000) return `${(count / 1_000_000_000).toFixed(1)}B`;
+  if (count < 1_000_000_000_000) return `${Math.round(count / 1_000_000_000)}B`;
+  if (count < 10_000_000_000_000)
+    return `${(count / 1_000_000_000_000).toFixed(1)}T`;
+  return `${Math.round(count / 1_000_000_000_000)}T`;
 }
 
 /** Tone for a usage percentage: error >90, warning >70, otherwise neutral. */

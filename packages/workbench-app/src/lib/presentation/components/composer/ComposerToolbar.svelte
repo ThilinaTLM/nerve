@@ -22,6 +22,7 @@ import Switch from "@nervekit/ui-kit/components/ui/switch-field";
 import type { Component } from "svelte";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
+import type { ConversationUsageSummary } from "../../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
 
 type PermissionOption = {
@@ -50,6 +51,7 @@ type Props = {
   modeShortcutAria?: string;
   thinkingShortcut?: string;
   contextUsage?: ContextUsage;
+  conversationUsage?: ConversationUsageSummary;
   contextWindow: number;
   compacting?: boolean;
   compactDisabled?: boolean;
@@ -81,6 +83,7 @@ let {
   modeShortcutAria,
   thinkingShortcut,
   contextUsage,
+  conversationUsage,
   contextWindow,
   compacting = false,
   compactDisabled = false,
@@ -224,6 +227,7 @@ function setAutoApproveReadOnly(autoApproveReadOnly: boolean) {
 
   <ContextProgressBadge
     {contextUsage}
+    {conversationUsage}
     {contextWindow}
     {compacting}
     {compactDisabled}

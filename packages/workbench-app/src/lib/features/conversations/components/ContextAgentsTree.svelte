@@ -1,15 +1,10 @@
 <script lang="ts">
 import Bot from "@lucide/svelte/icons/bot";
-import { StatusDot } from "@nervekit/ui-kit/components/ui/status-dot";
 import {
   agentActivityPulse,
   agentActivityTone,
 } from "@nervekit/ui-kit/core/utils/status";
-import {
-  buildPanelItemTree,
-  PanelEmpty,
-  PanelTree,
-} from "$lib/presentation/panel";
+import { PanelEmpty, PanelList, PanelRow } from "$lib/presentation/panel";
 import type { AgentRecord } from "$lib/api";
 import { shortAgentModel } from "$lib/core/utils/project-tree";
 import { permissionLabel } from "./context-session-fields";
@@ -30,6 +25,10 @@ function isAgentLive(agent: AgentRecord): boolean {
 
 function sortAgents(agents: readonly AgentRecord[]): AgentRecord[] {
   return [...agents].sort((a, b) => {
+    const aMain = a.parentAgentId ? 0 : 1;
+    const bMain = b.parentAgentId ? 0 : 1;
+    if (aMain !== bMain) return bMain - aMain;
+
     const aSelected = a.id === activeAgent?.id ? 1 : 0;
     const bSelected = b.id === activeAgent?.id ? 1 : 0;
     if (aSelected !== bSelected) return bSelected - aSelected;
@@ -44,10 +43,6 @@ function sortAgents(agents: readonly AgentRecord[]): AgentRecord[] {
 
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
-}
-
-function agentLabel(agent: AgentRecord): string {
-  return agent.parentAgentId ? "Subagent" : "Main agent";
 }
 
 /** Compact thinking-level suffix rendered next to the model. */
@@ -67,7 +62,7 @@ function agentModelLabel(agent: AgentRecord): string {
 }
 
 function agentDescription(agent: AgentRecord): string {
-  return `${agent.mode} · ${permissionLabel(agent.permissionLevel)} · ${agentModelLabel(agent)}`;
+  return `${agent.mode} · ${permissionLabel(agent.permissionLevel)}`;
 }
 
 function agentTooltip(agent: AgentRecord): string {
@@ -89,13 +84,7 @@ function agentTooltip(agent: AgentRecord): string {
     .join("\n");
 }
 
-const nodes = $derived(
-  buildPanelItemTree(sortAgents(conversationAgents), {
-    getKey: (agent) => agent.id,
-    getParentKey: (agent) => agent.parentAgentId ?? undefined,
-    getLabel: agentLabel,
-  }),
-);
+const agents = $derived(sortAgents(conversationAgents));
 </script>
 
 {#if conversationAgents.length === 0}
@@ -105,24 +94,20 @@ const nodes = $derived(
     description="Agents appear once a run starts."
   />
 {:else}
-  <PanelTree
-    {nodes}
-    ariaLabel="Conversation agents"
-    itemStacked
-    itemMetaMono
-    itemVariant="card"
-    indentItems={false}
-    getItemDescription={agentDescription}
-    getItemMeta={(agent) => agent.id}
-    getItemTitle={agentTooltip}
-    getItemSelected={(agent) => agent.id === activeAgent?.id}
-    onItemActivate={(agent) => onSelectAgent?.(agent)}
-  >
-    {#snippet itemLabelTrailing(agent)}
-      <StatusDot
-        tone={agentActivityTone(agent.status, false, agent.mode)}
+  <PanelList ariaLabel="Conversation agents">
+    {#each agents as agent, index (agent.id)}
+      <PanelRow
+        label={agentModelLabel(agent)}
+        description={agentDescription(agent)}
+        title={agentTooltip(agent)}
+        status={agentActivityTone(agent.status, false, agent.mode)}
         pulse={agentActivityPulse(agent.status)}
+        class={agent.parentAgentId && !agents[index - 1]?.parentAgentId
+          ? "mt-2"
+          : undefined}
+        dense
+        onclick={() => onSelectAgent?.(agent)}
       />
-    {/snippet}
-  </PanelTree>
+    {/each}
+  </PanelList>
 {/if}

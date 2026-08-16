@@ -2,7 +2,7 @@
 import type { Snippet } from "svelte";
 import type { ContextUsage } from "@nervekit/contracts";
 import { cn } from "@nervekit/ui-kit/core/utils";
-import { formatTokens, usageTone } from "@nervekit/ui-kit/core/utils/usage";
+import { usageTone } from "@nervekit/ui-kit/core/utils/usage";
 
 let {
   contextUsage,
@@ -35,9 +35,9 @@ const percentLabel = $derived(
 );
 const tokensLabel = $derived(
   tokens != null && limit > 0
-    ? `${formatTokens(tokens)} / ${formatTokens(limit)} tokens`
+    ? `${tokens.toLocaleString()} / ${limit.toLocaleString()} tokens`
     : limit > 0
-      ? `${formatTokens(limit)} token window`
+      ? `${limit.toLocaleString()} token window`
       : "Usage unknown",
 );
 const tone = $derived(usageTone(percent));

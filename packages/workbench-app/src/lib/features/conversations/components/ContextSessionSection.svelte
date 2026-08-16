@@ -8,6 +8,7 @@ let { fields }: { fields: readonly SessionField[] } = $props();
 {#each fields as field (field.label)}
   <PanelPropertyRow
     label={field.label}
+    labelClass="w-24"
     value={field.value}
     title={field.value}
     mono={field.mono ?? false}
